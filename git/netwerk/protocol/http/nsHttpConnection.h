@@ -13,7 +13,7 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "prinrval.h"
-#include "ASpdySession.h"
+#include "SpdySession.h"
 #include "mozilla/TimeStamp.h"
 
 #include "nsIStreamListener.h"
@@ -74,7 +74,7 @@ public:
     // XXX document when these are ok to call
 
     bool     SupportsPipelining();
-    bool     IsKeepAlive() { return mUsingSpdyVersion ||
+    bool     IsKeepAlive() { return mUsingSpdy ||
                                     (mKeepAliveMask && mKeepAlive); }
     bool     CanReuse();   // can this connection be reused?
     bool     CanDirectlyActivate();
@@ -131,7 +131,7 @@ public:
     void BeginIdleMonitoring();
     void EndIdleMonitoring();
 
-    bool UsingSpdy() { return !!mUsingSpdyVersion; }
+    bool UsingSpdy() { return mUsingSpdy; }
     bool EverUsedSpdy() { return mEverUsedSpdy; }
 
     // true when connection SSL NPN phase is complete and we know
@@ -175,8 +175,8 @@ private:
     // redirections
     void     HandleAlternateProtocol(nsHttpResponseHead *);
 
-    // Start the Spdy transaction handler when NPN indicates spdy/*
-    void     StartSpdy(PRUint8 versionLevel);
+    // Start the Spdy transaction handler when NPN indicates spdy/2
+    void     StartSpdy();
 
     // Directly Add a transaction to an active connection for SPDY
     nsresult AddTransaction(nsAHttpTransaction *, PRInt32);
@@ -238,15 +238,12 @@ private:
     // SPDY related
     bool                            mNPNComplete;
     bool                            mSetupNPNCalled;
-
-    // version level in use, 0 if unused
-    PRUint8                         mUsingSpdyVersion;
-
-    nsRefPtr<mozilla::net::ASpdySession> mSpdySession;
+    bool                            mUsingSpdy;
+    nsRefPtr<mozilla::net::SpdySession> mSpdySession;
     PRInt32                         mPriority;
     bool                            mReportedSpdy;
 
-    // mUsingSpdyVersion is cleared when mSpdySession is freed, this is permanent
+    // mUsingSpdy is cleared when mSpdySession is freed, this is permanent
     bool                            mEverUsedSpdy;
 };
 

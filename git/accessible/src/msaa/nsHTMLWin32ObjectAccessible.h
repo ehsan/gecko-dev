@@ -20,7 +20,7 @@ public:
   // Mozilla tree, and returns null for previous and next sibling. This would
   // have the effect of cutting off all content after the plugin.
   nsHTMLWin32ObjectOwnerAccessible(nsIContent* aContent,
-                                   DocAccessible* aDoc, void* aHwnd);
+                                   nsDocAccessible* aDoc, void* aHwnd);
   virtual ~nsHTMLWin32ObjectOwnerAccessible() {}
 
   // nsAccessNode

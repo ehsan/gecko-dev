@@ -50,7 +50,7 @@ class MaiHyperlink;
 class nsAccessibleWrap: public nsAccessible
 {
 public:
-  nsAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc);
+  nsAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc);
     virtual ~nsAccessibleWrap();
     void ShutdownAtkObject();
 

@@ -19,7 +19,7 @@
 //-----------------------------------------------------
 
 nsAccessNodeWrap::
-  nsAccessNodeWrap(nsIContent* aContent, DocAccessible* aDoc) :
+  nsAccessNodeWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessNode(aContent, aDoc)
 {
 }

@@ -8,7 +8,7 @@
 #include "Accessible-inl.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "Role.h"
 #include "States.h"
 
@@ -28,7 +28,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULColumnsAccessible::
-  nsXULColumnsAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULColumnsAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
 }
@@ -51,7 +51,7 @@ nsXULColumnsAccessible::NativeState()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULColumnItemAccessible::
-  nsXULColumnItemAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULColumnItemAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -99,7 +99,7 @@ nsXULColumnItemAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULListboxAccessible::
-  nsXULListboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULListboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   XULSelectControlAccessible(aContent, aDoc), xpcAccessibleTable(this)
 {
   nsIContent* parentContent = mContent->GetParent();
@@ -528,9 +528,9 @@ nsXULListboxAccessible::GetSelectedCells(nsIArray **aCells)
     nsAccessible *item = mDoc->GetAccessible(itemContent);
 
     if (item) {
-      PRUint32 cellCount = item->ChildCount();
-      for (PRUint32 cellIdx = 0; cellIdx < cellCount; cellIdx++) {
-        nsAccessible* cell = mChildren[cellIdx];
+      PRInt32 cellCount = item->GetChildCount();
+      for (PRInt32 cellIdx = 0; cellIdx < cellCount; cellIdx++) {
+        nsAccessible *cell = mChildren[cellIdx];
         if (cell->Role() == roles::CELL)
           selCells->AppendElement(static_cast<nsIAccessible*>(cell), false);
       }
@@ -800,7 +800,7 @@ nsXULListboxAccessible::ContainerWidget() const
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULListitemAccessible::
-  nsXULListitemAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULListitemAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsXULMenuitemAccessible(aContent, aDoc)
 {
   mIsCheckbox = mContent->AttrValueIs(kNameSpaceID_None,
@@ -945,7 +945,7 @@ nsXULListitemAccessible::ContainerWidget() const
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULListCellAccessible::
-  nsXULListCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULListCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -1080,8 +1080,8 @@ nsXULListCellAccessible::GetColumnHeaderCells(nsIArray **aHeaderCells)
   nsAccessible *list = nsnull;
 
   nsRefPtr<nsAccessible> tableAcc(do_QueryObject(table));
-  PRUint32 tableChildCount = tableAcc->ChildCount();
-  for (PRUint32 childIdx = 0; childIdx < tableChildCount; childIdx++) {
+  PRInt32 tableChildCount = tableAcc->GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < tableChildCount; childIdx++) {
     nsAccessible *child = tableAcc->GetChildAt(childIdx);
     if (child->Role() == roles::LIST) {
       list = child;

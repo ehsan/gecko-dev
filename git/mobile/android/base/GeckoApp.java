@@ -343,17 +343,6 @@ abstract public class GeckoApp
     }
 
     @Override
-    public void invalidateOptionsMenu() {
-        if (sMenu == null)
-            return;
-
-        onPrepareOptionsMenu(sMenu);
-
-        if (Build.VERSION.SDK_INT >= 11)
-            super.invalidateOptionsMenu();
-    }
-
-    @Override
     public boolean onCreateOptionsMenu(Menu menu)
     {
         sMenu = menu;
@@ -670,7 +659,6 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.refresh();
-                    invalidateOptionsMenu();
                     mDoorHangerPopup.updatePopup();
 
                     if (tab != null)
@@ -705,7 +693,6 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.refresh();
-                    invalidateOptionsMenu();
                 }
             }
         });
@@ -1238,7 +1225,6 @@ abstract public class GeckoApp
                     mBrowserToolbar.setSecurityMode(tab.getSecurityMode());
                     mBrowserToolbar.updateBackButton(tab.canDoBack());
                     mBrowserToolbar.updateForwardButton(tab.canDoForward());
-                    invalidateOptionsMenu();
                     if (showProgress && tab.getState() == Tab.STATE_LOADING)
                         mBrowserToolbar.setProgressVisibility(true);
                 }
@@ -1259,7 +1245,6 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     mBrowserToolbar.updateBackButton(tab.canDoBack());
                     mBrowserToolbar.updateForwardButton(tab.canDoForward());
-                    invalidateOptionsMenu();
                     mBrowserToolbar.setProgressVisibility(false);
                 }
                 Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.STOP);
@@ -1530,7 +1515,6 @@ abstract public class GeckoApp
             LinearLayout actionBar = (LinearLayout) getLayoutInflater().inflate(R.layout.browser_toolbar, null);
             mBrowserToolbar.from(actionBar);
             mBrowserToolbar.refresh();
-            invalidateOptionsMenu();
 
             Drawable background;
 
@@ -1615,7 +1599,6 @@ abstract public class GeckoApp
 
         mBrowserToolbar.updateBackButton(false);
         mBrowserToolbar.updateForwardButton(false);
-        invalidateOptionsMenu();
 
         Intent intent = getIntent();
         String action = intent.getAction();

@@ -9,7 +9,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-const FRAME_STEP_CACHE_DURATION = 100; // ms
 const DBG_STRINGS_URI = "chrome://browser/locale/devtools/debugger.properties";
 
 Cu.import("resource:///modules/source-editor.jsm");
@@ -342,7 +341,6 @@ function StackFrames() {
   this._onResume = this._onResume.bind(this);
   this._onFrames = this._onFrames.bind(this);
   this._onFramesCleared = this._onFramesCleared.bind(this);
-  this._afterFramesCleared = this._afterFramesCleared.bind(this);
 }
 
 StackFrames.prototype = {
@@ -371,8 +369,6 @@ StackFrames.prototype = {
    *        The next function in the initialization sequence.
    */
   connect: function SF_connect(aCallback) {
-    window.addEventListener("Debugger:FetchedVariables", this._onFetchedVars, false);
-
     this.activeThread.addListener("paused", this._onPaused);
     this.activeThread.addListener("resumed", this._onResume);
     this.activeThread.addListener("framesadded", this._onFrames);
@@ -387,8 +383,6 @@ StackFrames.prototype = {
    * Disconnect from the client.
    */
   disconnect: function SF_disconnect() {
-    window.removeEventListener("Debugger:FetchedVariables", this._onFetchedVars, false);
-
     if (!this.activeThread) {
       return;
     }
@@ -437,24 +431,12 @@ StackFrames.prototype = {
    * Handler for the thread client's framescleared notification.
    */
   _onFramesCleared: function SF__onFramesCleared() {
-    // After each frame step (in, over, out), framescleared is fired, which
-    // forces the UI to be emptied and rebuilt on framesadded. Most of the times
-    // this is not necessary, and will result in a brief redraw flicker.
-    // To avoid it, invalidate the UI only after a short time if necessary.
-    window.setTimeout(this._afterFramesCleared, FRAME_STEP_CACHE_DURATION);
+    DebuggerView.StackFrames.emptyText();
     this.selectedFrame = null;
-  },
 
-  /**
-   * Called soon after the thread client's framescleared notification.
-   */
-  _afterFramesCleared: function SF__afterFramesCleared() {
-    if (!this.activeThread.cachedFrames.length) {
-      DebuggerView.StackFrames.emptyText();
-      DebuggerView.Properties.localScope.empty();
-      DebuggerView.Properties.globalScope.empty();
-      DebuggerController.dispatchEvent("Debugger:AfterFramesCleared");
-    }
+    // Clear the properties as well.
+    DebuggerView.Properties.localScope.empty();
+    DebuggerView.Properties.globalScope.empty();
   },
 
   /**
@@ -518,9 +500,6 @@ StackFrames.prototype = {
       editor.setDebugLocation(-1);
     }
 
-    // Start recording any added variables or properties in any scope.
-    DebuggerView.Properties.createHierarchyStore();
-
     // Display the local variables.
     let localScope = DebuggerView.Properties.localScope;
     localScope.empty();
@@ -558,13 +537,6 @@ StackFrames.prototype = {
 
     // Signal that variables have been fetched.
     DebuggerController.dispatchEvent("Debugger:FetchedVariables");
-  },
-
-  /**
-   * Called afters variables have been fetched after a frame was selected.
-   */
-  _onFetchedVars: function SF__onFetchedVars() {
-    DebuggerView.Properties.commitHierarchy();
   },
 
   /**
@@ -659,18 +631,6 @@ StackFrames.prototype = {
       return aFrame["calleeName"] ? aFrame["calleeName"] : "(anonymous)";
     }
     return "(" + aFrame.type + ")";
-  },
-
-  /**
-   * Evaluate an expression in the context of the selected frame. This is used
-   * for modifying the value of variables in scope.
-   *
-   * @param string aExpression
-   *        The expression to evaluate.
-   */
-  evaluate: function SF_evaluate(aExpression) {
-    let frame = this.activeThread.cachedFrames[this.selectedFrame];
-    this.activeThread.eval(frame.actor, aExpression);
   }
 };
 
@@ -749,11 +709,6 @@ SourceScripts.prototype = {
    * Handler for the debugger client's unsolicited newScript notification.
    */
   _onNewScript: function SS__onNewScript(aNotification, aPacket) {
-    // Ignore scripts generated from 'clientEvaluate' packets.
-    if (aPacket.url == "debugger eval code") {
-      return;
-    }
-
     this._addScript({ url: aPacket.url, startLine: aPacket.startLine }, true);
   },
 

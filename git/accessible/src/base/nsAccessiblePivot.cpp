@@ -9,7 +9,7 @@
 #include "Accessible-inl.h"
 #include "nsAccUtils.h"
 #include "nsHyperTextAccessible.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "States.h"
 
 #include "nsArrayUtils.h"

@@ -11,6 +11,8 @@
 
 using namespace mozilla;
 
+static const char* gFunction = "main";
+
 static int callbackCount = 10;
 static int errors = 0;
 

@@ -53,7 +53,7 @@ protected:
 
   filters::FilterFuncPtr mFilterFunc;
   nsAccessible* mRoot;
-  PRUint32 mRootChildIdx;
+  PRInt32 mRootChildIdx;
 
   nsTArray<nsAccessible*> mObjects;
 

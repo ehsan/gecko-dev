@@ -8,7 +8,7 @@
 #include "nsAccCache.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsEventShell.h"
 #include "Relation.h"
 #include "Role.h"
@@ -24,7 +24,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeGridAccessible::
-  nsXULTreeGridAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXULTreeGridAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsXULTreeAccessible(aContent, aDoc), xpcAccessibleTable(this)
 {
 }
@@ -549,7 +549,7 @@ nsXULTreeGridAccessible::CreateTreeItemAccessible(PRInt32 aRow)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeGridRowAccessible::
-  nsXULTreeGridRowAccessible(nsIContent* aContent, DocAccessible* aDoc,
+  nsXULTreeGridRowAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
                              nsAccessible* aTreeAcc, nsITreeBoxObject* aTree,
                              nsITreeView* aTreeView, PRInt32 aRow) :
   nsXULTreeItemAccessibleBase(aContent, aDoc, aTreeAcc, aTree, aTreeView, aRow)
@@ -667,9 +667,12 @@ nsXULTreeGridRowAccessible::GetChildAt(PRUint32 aIndex)
   return GetCellAccessible(column);
 }
 
-PRUint32
-nsXULTreeGridRowAccessible::ChildCount() const
+PRInt32
+nsXULTreeGridRowAccessible::GetChildCount()
 {
+  if (IsDefunct())
+    return -1;
+
   return nsCoreUtils::GetSensibleColumnCount(mTree);
 }
 
@@ -736,7 +739,7 @@ nsXULTreeGridRowAccessible::CacheChildren()
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXULTreeGridCellAccessible::
-  nsXULTreeGridCellAccessible(nsIContent* aContent, DocAccessible* aDoc,
+  nsXULTreeGridCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
                               nsXULTreeGridRowAccessible* aRowAcc,
                               nsITreeBoxObject* aTree, nsITreeView* aTreeView,
                               PRInt32 aRow, nsITreeColumn* aColumn) :

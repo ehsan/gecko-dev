@@ -32,7 +32,7 @@ FocusManager::FocusedAccessible() const
 
   nsINode* focusedNode = FocusedDOMNode();
   if (focusedNode) {
-    DocAccessible* doc = 
+    nsDocAccessible* doc = 
       GetAccService()->GetDocAccessible(focusedNode->OwnerDoc());
     return doc ? doc->GetAccessibleOrContainer(focusedNode) : nsnull;
   }
@@ -55,7 +55,7 @@ FocusManager::IsFocused(const nsAccessible* aAccessible) const
     // FocusedAccessible() method call. Make sure this issue is fixed in
     // bug 638465.
     if (focusedNode->OwnerDoc() == aAccessible->GetNode()->OwnerDoc()) {
-      DocAccessible* doc = 
+      nsDocAccessible* doc = 
         GetAccService()->GetDocAccessible(focusedNode->OwnerDoc());
       return aAccessible ==
 	(doc ? doc->GetAccessibleOrContainer(focusedNode) : nsnull);
@@ -119,7 +119,7 @@ FocusManager::NotifyOfDOMFocus(nsISupports* aTarget)
 
   nsCOMPtr<nsINode> targetNode(do_QueryInterface(aTarget));
   if (targetNode) {
-    DocAccessible* document =
+    nsDocAccessible* document =
       GetAccService()->GetDocAccessible(targetNode->OwnerDoc());
     if (document) {
       // Set selection listener for focused element.
@@ -148,7 +148,7 @@ FocusManager::NotifyOfDOMBlur(nsISupports* aTarget)
   nsCOMPtr<nsINode> targetNode(do_QueryInterface(aTarget));
   if (targetNode && targetNode->OwnerDoc() == FocusedDOMDocument()) {
     nsIDocument* DOMDoc = targetNode->OwnerDoc();
-    DocAccessible* document =
+    nsDocAccessible* document =
       GetAccService()->GetDocAccessible(DOMDoc);
     if (document) {
       document->HandleNotification<FocusManager, nsINode>
@@ -190,7 +190,7 @@ FocusManager::ForceFocusEvent()
 {
   nsINode* focusedNode = FocusedDOMNode();
   if (focusedNode) {
-    DocAccessible* document =
+    nsDocAccessible* document =
       GetAccService()->GetDocAccessible(focusedNode->OwnerDoc());
     if (document) {
       document->HandleNotification<FocusManager, nsINode>
@@ -200,7 +200,7 @@ FocusManager::ForceFocusEvent()
 }
 
 void
-FocusManager::DispatchFocusEvent(DocAccessible* aDocument,
+FocusManager::DispatchFocusEvent(nsDocAccessible* aDocument,
                                  nsAccessible* aTarget)
 {
   NS_PRECONDITION(aDocument, "No document for focused accessible!");
@@ -220,7 +220,7 @@ FocusManager::ProcessDOMFocus(nsINode* aTarget)
   A11YDEBUG_FOCUS_NOTIFICATION_DOMTARGET("Process DOM focus",
                                          "Notification target", aTarget)
 
-  DocAccessible* document =
+  nsDocAccessible* document =
     GetAccService()->GetDocAccessible(aTarget->OwnerDoc());
 
   nsAccessible* target = document->GetAccessibleOrContainer(aTarget);
@@ -258,7 +258,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
 
     // Check if still focused. Otherwise we can end up with storing the active
     // item for control that isn't focused anymore.
-    DocAccessible* document = aEvent->GetDocAccessible();
+    nsDocAccessible* document = aEvent->GetDocAccessible();
     nsAccessible* DOMFocus = document->GetAccessibleOrContainer(FocusedDOMNode());
 
     if (target != DOMFocus)
@@ -316,7 +316,7 @@ FocusManager::ProcessFocusEvent(AccEvent* aEvent)
   // Fire scrolling_start event when the document receives the focus if it has
   // an anchor jump. If an accessible within the document receive the focus
   // then null out the anchor jump because it no longer applies.
-  DocAccessible* targetDocument = target->Document();
+  nsDocAccessible* targetDocument = target->Document();
   nsAccessible* anchorJump = targetDocument->AnchorJump();
   if (anchorJump) {
     if (target == targetDocument) {

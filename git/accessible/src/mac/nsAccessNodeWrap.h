@@ -15,7 +15,7 @@
 class nsAccessNodeWrap :  public nsAccessNode
 {
 public:
-  nsAccessNodeWrap(nsIContent* aContent, DocAccessible* aDoc);
+  nsAccessNodeWrap(nsIContent* aContent, nsDocAccessible* aDoc);
   virtual ~nsAccessNodeWrap();
 
   static void InitAccessibility();

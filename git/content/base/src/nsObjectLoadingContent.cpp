@@ -317,13 +317,10 @@ class nsStopPluginRunnable : public nsRunnable, public nsITimerCallback
 public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  nsStopPluginRunnable(nsPluginInstanceOwner* aInstanceOwner,
-                       nsObjectLoadingContent* aContent)
-    : mInstanceOwner(aInstanceOwner)
-    , mContent(aContent)
+  nsStopPluginRunnable(nsPluginInstanceOwner *aInstanceOwner)
+  : mInstanceOwner(aInstanceOwner)
   {
     NS_ASSERTION(aInstanceOwner, "need an owner");
-    NS_ASSERTION(aContent, "need a nsObjectLoadingContent");
   }
 
   // nsRunnable
@@ -335,7 +332,6 @@ public:
 private:
   nsCOMPtr<nsITimer> mTimer;
   nsRefPtr<nsPluginInstanceOwner> mInstanceOwner;
-  nsCOMPtr<nsIObjectLoadingContent> mContent;
 };
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsStopPluginRunnable, nsRunnable, nsITimerCallback)
@@ -374,8 +370,7 @@ nsStopPluginRunnable::Run()
 
   mTimer = nsnull;
 
-  static_cast<nsObjectLoadingContent*>(mContent.get())->
-    DoStopPlugin(mInstanceOwner, false, true);
+  nsObjectLoadingContent::DoStopPlugin(mInstanceOwner, false);
 
   return NS_OK;
 }
@@ -597,7 +592,6 @@ nsObjectLoadingContent::nsObjectLoadingContent()
   , mUserDisabled(false)
   , mSuppressed(false)
   , mNetworkCreated(true)
-  , mIsStopping(false)
   , mSrcStreamLoading(false)
   , mFallbackReason(ePluginOtherState)
 {
@@ -2141,9 +2135,7 @@ nsObjectLoadingContent::GetSrcURI(nsIURI** aURI)
 }
 
 static bool
-DoDelayedStop(nsPluginInstanceOwner* aInstanceOwner,
-              nsObjectLoadingContent* aContent,
-              bool aDelayedStop)
+DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, bool aDelayedStop)
 {
 #if (MOZ_PLATFORM_MAEMO==5)
   // Don't delay stop on Maemo/Hildon (bug 530739).
@@ -2161,8 +2153,7 @@ DoDelayedStop(nsPluginInstanceOwner* aInstanceOwner,
       && !aInstanceOwner->MatchPluginName("CMISS Zinc Plugin")
 #endif
       ) {
-    nsCOMPtr<nsIRunnable> evt =
-      new nsStopPluginRunnable(aInstanceOwner, aContent);
+    nsCOMPtr<nsIRunnable> evt = new nsStopPluginRunnable(aInstanceOwner);
     NS_DispatchToCurrentThread(evt);
     return true;
   }
@@ -2170,23 +2161,12 @@ DoDelayedStop(nsPluginInstanceOwner* aInstanceOwner,
 }
 
 void
-nsObjectLoadingContent::DoStopPlugin(nsPluginInstanceOwner* aInstanceOwner,
-                                     bool aDelayedStop,
-                                     bool aForcedReentry)
+nsObjectLoadingContent::DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, bool aDelayedStop)
 {
-  // DoStopPlugin can process events and there may be pending InDocCheckEvent
-  // events which can drop in underneath us and destroy the instance we are
-  // about to destroy unless we prevent that with the mIsStopping flag.
-  // (aForcedReentry is only true from the callback of an earlier delayed stop)
-  if (mIsStopping && !aForcedReentry) {
-    return;
-  }
-  mIsStopping = true;
-
   nsRefPtr<nsNPAPIPluginInstance> inst;
   aInstanceOwner->GetInstance(getter_AddRefs(inst));
   if (inst) {
-    if (DoDelayedStop(aInstanceOwner, this, aDelayedStop)) {
+    if (DoDelayedStop(aInstanceOwner, aDelayedStop)) {
       return;
     }
 
@@ -2200,7 +2180,6 @@ nsObjectLoadingContent::DoStopPlugin(nsPluginInstanceOwner* aInstanceOwner,
   }
   
   aInstanceOwner->Destroy();
-  mIsStopping = false;
 }
 
 NS_IMETHODIMP
@@ -2227,10 +2206,13 @@ nsObjectLoadingContent::StopPluginInstance()
   }
 #endif
 
-  DoStopPlugin(mInstanceOwner, delayedStop);
-
+  // DoStopPlugin can process events and there may be pending InDocCheckEvent
+  // events which can drop in underneath us and destroy the instance we are
+  // about to destroy. Make sure this doesn't happen via this temp ref ptr and
+  // the !mInstanceOwner check above.
+  nsRefPtr<nsPluginInstanceOwner> instOwner = mInstanceOwner;
   mInstanceOwner = nsnull;
-
+  DoStopPlugin(instOwner, delayedStop);
   return NS_OK;
 }
 

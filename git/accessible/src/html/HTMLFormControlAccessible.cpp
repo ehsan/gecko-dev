@@ -40,7 +40,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLCheckboxAccessible::
-  HTMLCheckboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLCheckboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -127,7 +127,7 @@ HTMLCheckboxAccessible::IsWidget() const
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLRadioButtonAccessible::
-  HTMLRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLRadioButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   RadioButtonAccessible(aContent, aDoc)
 {
 }
@@ -216,7 +216,7 @@ HTMLRadioButtonAccessible::GetPositionAndSizeInternal(PRInt32* aPosInSet,
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLButtonAccessible::
-  HTMLButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -332,7 +332,7 @@ HTMLButtonAccessible::IsWidget() const
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLTextFieldAccessible::
-  HTMLTextFieldAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLTextFieldAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -569,7 +569,7 @@ HTMLTextFieldAccessible::ContainerWidget() const
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLFileInputAccessible::
-HTMLFileInputAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+HTMLFileInputAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
   mFlags |= eHTMLFileInputAccessible;
@@ -624,7 +624,7 @@ HTMLFileInputAccessible::HandleAccEvent(AccEvent* aEvent)
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLGroupboxAccessible::
-  HTMLGroupboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLGroupboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -684,7 +684,7 @@ HTMLGroupboxAccessible::RelationByType(PRUint32 aType)
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLLegendAccessible::
-  HTMLLegendAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLLegendAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -714,7 +714,7 @@ HTMLLegendAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLFigureAccessible::
-  HTMLFigureAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLFigureAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -784,7 +784,7 @@ HTMLFigureAccessible::Caption() const
 ////////////////////////////////////////////////////////////////////////////////
 
 HTMLFigcaptionAccessible::
-  HTMLFigcaptionAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  HTMLFigcaptionAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }

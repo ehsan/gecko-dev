@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsObjCExceptions.h"
 
 #include "Accessible-inl.h"
@@ -17,7 +17,7 @@
 using namespace mozilla::a11y;
 
 nsAccessibleWrap::
-  nsAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc) :
+  nsAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessible(aContent, aDoc), mNativeObject(nil),  
   mNativeInited(false)
 {
@@ -233,8 +233,8 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsAccessible*>* aChildrenArray)
   if (nsAccUtils::MustPrune(this))
     return;
 
-  PRUint32 childCount = ChildCount();
-  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
+  PRInt32 childCount = GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessibleWrap *childAcc =
       static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
 

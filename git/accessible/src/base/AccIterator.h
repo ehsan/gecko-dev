@@ -10,7 +10,7 @@
 #include "nsAccessibilityService.h"
 #include "filters.h"
 #include "nscore.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 
 #include "nsIDOMDocumentXBL.h"
 
@@ -98,7 +98,7 @@ public:
    * @param aRelAttr          [in] relation attribute that relations are
    *                           pointed by
    */
-  RelatedAccIterator(DocAccessible* aDocument, nsIContent* aDependentContent,
+  RelatedAccIterator(nsDocAccessible* aDocument, nsIContent* aDependentContent,
                      nsIAtom* aRelAttr);
 
   virtual ~RelatedAccIterator() { }
@@ -113,9 +113,9 @@ private:
   RelatedAccIterator(const RelatedAccIterator&);
   RelatedAccIterator& operator = (const RelatedAccIterator&);
 
-  DocAccessible* mDocument;
+  nsDocAccessible* mDocument;
   nsIAtom* mRelAttr;
-  DocAccessible::AttrRelProviderArray* mProviders;
+  nsDocAccessible::AttrRelProviderArray* mProviders;
   nsIContent* mBindingParent;
   PRUint32 mIndex;
 };
@@ -132,7 +132,7 @@ public:
     eSkipAncestorLabel
   };
 
-  HTMLLabelIterator(DocAccessible* aDocument, const nsAccessible* aAccessible,
+  HTMLLabelIterator(nsDocAccessible* aDocument, const nsAccessible* aAccessible,
                     LabelFilter aFilter = eAllLabels);
 
   virtual ~HTMLLabelIterator() { }
@@ -161,7 +161,7 @@ private:
 class HTMLOutputIterator : public AccIterable
 {
 public:
-  HTMLOutputIterator(DocAccessible* aDocument, nsIContent* aElement);
+  HTMLOutputIterator(nsDocAccessible* aDocument, nsIContent* aElement);
   virtual ~HTMLOutputIterator() { }
 
   /**
@@ -184,7 +184,7 @@ private:
 class XULLabelIterator : public AccIterable
 {
 public:
-  XULLabelIterator(DocAccessible* aDocument, nsIContent* aElement);
+  XULLabelIterator(nsDocAccessible* aDocument, nsIContent* aElement);
   virtual ~XULLabelIterator() { }
 
   /**
@@ -207,7 +207,7 @@ private:
 class XULDescriptionIterator : public AccIterable
 {
 public:
-  XULDescriptionIterator(DocAccessible* aDocument, nsIContent* aElement);
+  XULDescriptionIterator(nsDocAccessible* aDocument, nsIContent* aElement);
   virtual ~XULDescriptionIterator() { }
 
   /**
@@ -231,7 +231,7 @@ private:
 class IDRefsIterator : public AccIterable
 {
 public:
-  IDRefsIterator(DocAccessible* aDoc, nsIContent* aContent,
+  IDRefsIterator(nsDocAccessible* aDoc, nsIContent* aContent,
                  nsIAtom* aIDRefsAttr);
   virtual ~IDRefsIterator() { }
 
@@ -260,7 +260,7 @@ private:
 
   nsString mIDs;
   nsIContent* mContent;
-  DocAccessible* mDoc;
+  nsDocAccessible* mDoc;
   nsAString::index_type mCurrIdx;
 };
 

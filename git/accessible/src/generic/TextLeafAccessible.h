@@ -17,7 +17,7 @@ namespace a11y {
 class TextLeafAccessible : public nsLinkableAccessible
 {
 public:
-  TextLeafAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  TextLeafAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
   virtual ~TextLeafAccessible();
 
   // nsAccessible

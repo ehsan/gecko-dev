@@ -244,11 +244,7 @@ public:
 
     virtual void getReaderConfiguration(InputReaderConfiguration* outConfig);
     virtual sp<PointerControllerInterface> obtainPointerController(int32_t
-deviceId)
-    {
-        MOZ_NOT_REACHED("Input device configuration failed.");
-        return NULL;
-    };
+deviceId) { return NULL; };
     void setDisplayInfo();
 
 protected:

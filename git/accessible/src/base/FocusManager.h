@@ -10,7 +10,7 @@
 
 class AccEvent;
 class nsAccessible;
-class DocAccessible;
+class nsDocAccessible;
 
 namespace mozilla {
 namespace a11y {
@@ -90,7 +90,7 @@ public:
   /**
    * Dispatch delayed focus event for the given target.
    */
-  void DispatchFocusEvent(DocAccessible* aDocument, nsAccessible* aTarget);
+  void DispatchFocusEvent(nsDocAccessible* aDocument, nsAccessible* aTarget);
 
   /**
    * Process DOM focus notification.

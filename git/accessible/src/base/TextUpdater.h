@@ -19,12 +19,12 @@ public:
   /**
    * Start text of the text leaf update.
    */
-  static void Run(DocAccessible* aDocument,
+  static void Run(nsDocAccessible* aDocument,
                   mozilla::a11y::TextLeafAccessible* aTextLeaf,
                   const nsAString& aNewText);
 
 private:
-  TextUpdater(DocAccessible* aDocument,
+  TextUpdater(nsDocAccessible* aDocument,
               mozilla::a11y::TextLeafAccessible* aTextLeaf) :
     mDocument(aDocument), mTextLeaf(aTextLeaf), mHyperText(nsnull),
     mTextOffset(-1) { }
@@ -83,7 +83,7 @@ private:
   const static PRUint32 kMaxStrLen = 1 << 6;
 
 private:
-  DocAccessible* mDocument;
+  nsDocAccessible* mDocument;
   mozilla::a11y::TextLeafAccessible* mTextLeaf;
   nsHyperTextAccessible* mHyperText;
   PRInt32 mTextOffset;

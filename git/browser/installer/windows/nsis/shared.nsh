@@ -587,7 +587,6 @@
       SetRegView 64
     ${EndIf}
     DeleteRegKey HKLM "$R0"
-    WriteRegStr HKLM "$R0" "prefetchProcessName" "FIREFOX"
     WriteRegStr HKLM "$R0\0" "name" "${CERTIFICATE_NAME}"
     WriteRegStr HKLM "$R0\0" "issuer" "${CERTIFICATE_ISSUER}"
     ${If} ${RunningX64}

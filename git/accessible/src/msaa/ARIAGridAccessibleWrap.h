@@ -23,7 +23,7 @@ class ARIAGridAccessibleWrap : public ARIAGridAccessible,
                                public CAccessibleTable
 {
 public:
-  ARIAGridAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc) :
+  ARIAGridAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
     ARIAGridAccessible(aContent, aDoc) {}
 
   // IUnknown
@@ -41,7 +41,7 @@ class ARIAGridCellAccessibleWrap : public ARIAGridCellAccessible,
                                    public CAccessibleTableCell
 {
 public:
-  ARIAGridCellAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc) :
+  ARIAGridCellAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc) :
     ARIAGridCellAccessible(aContent, aDoc) {}
 
   // IUnknown

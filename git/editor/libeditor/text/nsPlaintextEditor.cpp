@@ -393,20 +393,23 @@ nsPlaintextEditor::HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent)
    to TypedText() to determine what action to take, but without passing
    an event.
    */
-NS_IMETHODIMP
-nsPlaintextEditor::TypedText(const nsAString& aString, ETypingAction aAction)
+NS_IMETHODIMP nsPlaintextEditor::TypedText(const nsAString& aString,
+                                      PRInt32 aAction)
 {
   nsAutoPlaceHolderBatch batch(this, nsGkAtoms::TypingTxnName);
 
-  switch (aAction) {
+  switch (aAction)
+  {
     case eTypedText:
-      return InsertText(aString);
+      {
+        return InsertText(aString);
+      }
     case eTypedBreak:
-      return InsertLineBreak();
-    default:
-      // eTypedBR is only for HTML
-      return NS_ERROR_FAILURE;
-  }
+      {
+        return InsertLineBreak();
+      } 
+  } 
+  return NS_ERROR_FAILURE; 
 }
 
 nsresult
@@ -718,7 +721,9 @@ nsPlaintextEditor::DeleteSelection(EDirection aAction,
   nsAutoRules beginRulesSniffing(this, kOpDeleteSelection, aAction);
 
   // pre-process
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  result = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(result, result);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
   // If there is an existing selection when an extended delete is requested,
@@ -776,7 +781,9 @@ NS_IMETHODIMP nsPlaintextEditor::InsertText(const nsAString &aStringToInsert)
   nsAutoRules beginRulesSniffing(this, opID, nsIEditor::eNext);
 
   // pre-process
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  nsresult result = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(result, result);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
   nsAutoString resultString;
   // XXX can we trust instring to outlive ruleInfo,
@@ -788,8 +795,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertText(const nsAString &aStringToInsert)
   ruleInfo.maxLength = mMaxTextLength;
 
   bool cancel, handled;
-  nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
-  NS_ENSURE_SUCCESS(res, res);
+  result = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
+  NS_ENSURE_SUCCESS(result, result);
   if (!cancel && !handled)
   {
     // we rely on rules code for now - no default implementation
@@ -797,9 +804,9 @@ NS_IMETHODIMP nsPlaintextEditor::InsertText(const nsAString &aStringToInsert)
   if (!cancel)
   {
     // post-process 
-    res = mRules->DidDoAction(selection, &ruleInfo, res);
+    result = mRules->DidDoAction(selection, &ruleInfo, result);
   }
-  return res;
+  return result;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
@@ -813,7 +820,10 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
   nsAutoRules beginRulesSniffing(this, kOpInsertBreak, nsIEditor::eNext);
 
   // pre-process
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  nsresult res;
+  res = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
   // Batching the selection and moving nodes out from under the caret causes
@@ -825,7 +835,7 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
   nsTextRulesInfo ruleInfo(kOpInsertBreak);
   ruleInfo.maxLength = mMaxTextLength;
   bool cancel, handled;
-  nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
+  res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(res, res);
   if (!cancel && !handled)
   {
@@ -869,7 +879,8 @@ NS_IMETHODIMP nsPlaintextEditor::InsertLineBreak()
           // We want the caret to stick to whatever is past the break.  This is
           // because the break is on the same line we were on, but the next content
           // will be on the following line.
-          selection->SetInterlinePosition(true);
+          nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
+          selPriv->SetInterlinePosition(true);
         }
       }
     }
@@ -1161,7 +1172,8 @@ nsPlaintextEditor::Undo(PRUint32 aCount)
   nsAutoRules beginRulesSniffing(this, kOpUndo, nsIEditor::eNone);
 
   nsTextRulesInfo ruleInfo(kOpUndo);
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  GetSelection(getter_AddRefs(selection));
   bool cancel, handled;
   nsresult result = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   
@@ -1190,7 +1202,8 @@ nsPlaintextEditor::Redo(PRUint32 aCount)
   nsAutoRules beginRulesSniffing(this, kOpRedo, nsIEditor::eNone);
 
   nsTextRulesInfo ruleInfo(kOpRedo);
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  GetSelection(getter_AddRefs(selection));
   bool cancel, handled;
   nsresult result = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   
@@ -1464,7 +1477,9 @@ nsPlaintextEditor::InsertAsQuotation(const nsAString& aQuotedText,
     quotedStuff.Append(PRUnichar('\n'));
 
   // get selection
-  nsRefPtr<nsTypedSelection> selection = GetTypedSelection();
+  nsCOMPtr<nsISelection> selection;
+  rv = GetSelection(getter_AddRefs(selection));
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
   nsAutoEditBatch beginBatching(this);

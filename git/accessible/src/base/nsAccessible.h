@@ -95,7 +95,7 @@ class nsAccessible : public nsAccessNodeWrap,
                      public nsIAccessibleValue
 {
 public:
-  nsAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
   virtual ~nsAccessible();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -328,7 +328,7 @@ public:
   /**
    * Return child accessible count.
    */
-  virtual PRUint32 ChildCount() const;
+  virtual PRInt32 GetChildCount();
 
   /**
    * Return index of the given child accessible.
@@ -353,10 +353,10 @@ public:
   inline nsAccessible* PrevSibling() const
     { return GetSiblingAtOffset(-1); }
   inline nsAccessible* FirstChild()
-    { return GetChildAt(0); }
+    { return GetChildCount() != 0 ? GetChildAt(0) : nsnull; }
   inline nsAccessible* LastChild()
   {
-    PRUint32 childCount = ChildCount();
+    PRUint32 childCount = GetChildCount();
     return childCount != 0 ? GetChildAt(childCount - 1) : nsnull;
   }
 
@@ -364,7 +364,7 @@ public:
   /**
    * Return embedded accessible children count.
    */
-  PRUint32 EmbeddedChildCount();
+  PRInt32 GetEmbeddedChildCount();
 
   /**
    * Return embedded accessible child at the given index.
@@ -452,7 +452,7 @@ public:
   inline bool IsCombobox() const { return mFlags & eComboboxAccessible; }
 
   inline bool IsDoc() const { return mFlags & eDocAccessible; }
-  DocAccessible* AsDoc();
+  nsDocAccessible* AsDoc();
 
   inline bool IsHyperText() const { return mFlags & eHyperTextAccessible; }
   nsHyperTextAccessible* AsHyperText();

@@ -104,28 +104,28 @@ function testSimpleCall() {
         "The localVar5.someProp5 doesn't contain all the created properties.");
 
 
-      is(windowVar.querySelector(".value").getAttribute("value"), "[object Window]",
+      is(windowVar.querySelector(".info").textContent, "[object Window]",
         "The grip information for the windowVar wasn't set correctly.");
 
-      is(documentVar.querySelector(".value").getAttribute("value"), "[object HTMLDocument]",
+      is(documentVar.querySelector(".info").textContent, "[object HTMLDocument]",
         "The grip information for the documentVar wasn't set correctly.");
 
-      is(localVar0.querySelector(".value").getAttribute("value"), "42",
+      is(localVar0.querySelector(".info").textContent, "42",
         "The grip information for the localVar0 wasn't set correctly.");
 
-      is(localVar1.querySelector(".value").getAttribute("value"), "true",
+      is(localVar1.querySelector(".info").textContent, "true",
         "The grip information for the localVar1 wasn't set correctly.");
 
-      is(localVar2.querySelector(".value").getAttribute("value"), "\"nasu\"",
+      is(localVar2.querySelector(".info").textContent, "\"nasu\"",
         "The grip information for the localVar2 wasn't set correctly.");
 
-      is(localVar3.querySelector(".value").getAttribute("value"), "undefined",
+      is(localVar3.querySelector(".info").textContent, "undefined",
         "The grip information for the localVar3 wasn't set correctly.");
 
-      is(localVar4.querySelector(".value").getAttribute("value"), "null",
+      is(localVar4.querySelector(".info").textContent, "null",
         "The grip information for the localVar4 wasn't set correctly.");
 
-      is(localVar5.querySelector(".value").getAttribute("value"), "[object Object]",
+      is(localVar5.querySelector(".info").textContent, "[object Object]",
         "The grip information for the localVar5 wasn't set correctly.");
 
       gDebugger.DebuggerController.activeThread.resume(function() {

@@ -775,7 +775,7 @@ public:
         , mBound(false)
         , mIsLocked(false)
     {
-        mUpdateFormat = gfxPlatform::GetPlatform()->OptimalFormatForContent(GetContentType());
+        mUpdateFormat = gfxASurface::FormatFromContent(GetContentType());
 
         if (gUseBackingSurface) {
             if (mUpdateFormat != gfxASurface::ImageFormatARGB32) {

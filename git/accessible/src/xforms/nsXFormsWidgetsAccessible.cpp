@@ -16,7 +16,7 @@ using namespace mozilla::a11y;
 
 nsXFormsDropmarkerWidgetAccessible::
   nsXFormsDropmarkerWidgetAccessible(nsIContent* aContent,
-                                     DocAccessible* aDoc) :
+                                     nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -80,7 +80,7 @@ nsXFormsDropmarkerWidgetAccessible::DoAction(PRUint8 aIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 nsXFormsCalendarWidgetAccessible::
-  nsXFormsCalendarWidgetAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  nsXFormsCalendarWidgetAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
 }
@@ -98,7 +98,7 @@ nsXFormsCalendarWidgetAccessible::NativeRole()
 
 nsXFormsComboboxPopupWidgetAccessible::
   nsXFormsComboboxPopupWidgetAccessible(nsIContent* aContent,
-                                        DocAccessible* aDoc) :
+                                        nsDocAccessible* aDoc) :
   nsXFormsAccessible(aContent, aDoc)
 {
 }

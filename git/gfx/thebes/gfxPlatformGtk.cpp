@@ -140,13 +140,18 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
 {
     nsRefPtr<gfxASurface> newSurface;
     bool needsClear = true;
-    gfxASurface::gfxImageFormat imageFormat = OptimalFormatForContent(contentType);
+    gfxASurface::gfxImageFormat imageFormat = gfxASurface::FormatFromContent(contentType);
 #ifdef MOZ_X11
     // XXX we really need a different interface here, something that passes
     // in more context, including the display and/or target surface type that
     // we should try to match
     GdkScreen *gdkScreen = gdk_screen_get_default();
     if (gdkScreen) {
+        // try to optimize it for 16bpp default screen
+        if (gfxASurface::CONTENT_COLOR == contentType) {
+            imageFormat = GetOffscreenFormat();
+        }
+
         if (!UseXRender()) {
             // We're not going to use XRender, so we don't need to
             // search for a render format
@@ -473,9 +478,7 @@ gfxPlatformGtk::GetDPI()
 gfxImageFormat
 gfxPlatformGtk::GetOffscreenFormat()
 {
-    // Make sure there is a screen
-    GdkScreen *screen = gdk_screen_get_default();
-    if (screen && gdk_visual_get_system()->depth == 16) {
+    if (gdk_visual_get_system()->depth == 16) {
         return gfxASurface::ImageFormatRGB16_565;
     }
 

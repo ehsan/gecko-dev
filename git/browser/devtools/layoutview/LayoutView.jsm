@@ -10,7 +10,6 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/inspector.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
-Cu.import("resource:///modules/devtools/CssLogic.jsm");
 
 var EXPORTED_SYMBOLS = ["LayoutView"];
 
@@ -25,7 +24,6 @@ function LayoutView(aOptions)
 
 LayoutView.prototype = {
   init: function LV_init() {
-    this.cssLogic = new CssLogic();
 
     this.update = this.update.bind(this);
     this.onMessage = this.onMessage.bind(this);
@@ -42,16 +40,13 @@ LayoutView.prototype = {
     // We update the values when:
     //  a node is locked
     //  we get the MozAfterPaint event and the node is locked
-    function onSelect() {
-      if (this.inspector.locked) {
-        this.cssLogic.highlight(this.inspector.selection);
-        this.undim();
-        this.update();
-        // We make sure we never add 2 listeners.
-        if (!this.trackingPaint) {
-          this.browser.addEventListener("MozAfterPaint", this.update, true);
-          this.trackingPaint = true;
-        }
+    function onLock() {
+      this.undim();
+      this.update();
+      // We make sure we never add 2 listeners.
+      if (!this.trackingPaint) {
+        this.browser.addEventListener("MozAfterPaint", this.update, true);
+        this.trackingPaint = true;
       }
     }
 
@@ -61,9 +56,9 @@ LayoutView.prototype = {
       this.dim();
     }
 
-    this.onSelect= onSelect.bind(this);
+    this.onLock = onLock.bind(this);
     this.onUnlock = onUnlock.bind(this);
-    this.inspector.on("select", this.onSelect);
+    this.inspector.on("locked", this.onLock);
     this.inspector.on("unlocked", this.onUnlock);
 
     // Build the layout view in the sidebar.
@@ -123,7 +118,7 @@ LayoutView.prototype = {
    * Destroy the nodes. Remove listeners.
    */
   destroy: function LV_destroy() {
-    this.inspector.removeListener("select", this.onSelect);
+    this.inspector.removeListener("locked", this.onLock);
     this.inspector.removeListener("unlocked", this.onUnlock);
     this.browser.removeEventListener("MozAfterPaint", this.update, true);
     this.iframe.removeEventListener("keypress", this.bound_handleKeypress, true);
@@ -163,7 +158,7 @@ LayoutView.prototype = {
     // inside the iframe.
 
     if (this.inspector.locked)
-      this.onSelect();
+      this.onLock();
     else
       this.onUnlock();
 
@@ -306,16 +301,6 @@ LayoutView.prototype = {
       let selector = this.map[i].selector;
       let property = this.map[i].property;
       this.map[i].value = parseInt(style.getPropertyValue(property));
-    }
-
-    let margins = this.processMargins(node);
-    if ("top" in margins) this.map.marginTop.value = "auto";
-    if ("right" in margins) this.map.marginRight.value = "auto";
-    if ("bottom" in margins) this.map.marginBottom.value = "auto";
-    if ("left" in margins) this.map.marginLeft.value = "auto";
-
-    for (let i in this.map) {
-      let selector = this.map[i].selector;
       let span = this.doc.querySelector(selector);
       span.textContent = this.map[i].value;
     }
@@ -327,22 +312,5 @@ LayoutView.prototype = {
               this.map.paddingTop.value + this.map.paddingBottom.value;
 
     this.doc.querySelector(".size > span").textContent = width + "x" + height;
-  },
-
-  /**
-   * Find margins declared 'auto'
-   */
-  processMargins: function LV_processMargins(node) {
-    let margins = {};
-
-    for each (let prop in ["top", "bottom", "left", "right"]) {
-      let info = this.cssLogic.getPropertyInfo("margin-" + prop);
-      let selectors = info.matchedSelectors;
-      if (selectors && selectors.length > 0 && selectors[0].value == "auto") {
-        margins[prop] = "auto";
-      }
-    }
-
-    return margins;
   },
 }

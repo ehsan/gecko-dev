@@ -18,14 +18,11 @@ import android.widget.TextSwitcher;
 import android.app.Instrumentation;
 import com.jayway.android.robotium.solo.Solo;
 import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
 
 public class FennecNativeElement implements Element {
     private final Activity mActivity;
     private Integer mId;
     private Solo mSolo;
-    // max time to wait for thread synchronization
-    private static final int MAX_WAIT_MS = 60000;
 
     public FennecNativeElement(Integer id, Activity activity, Solo solo) {
         mId = id;
@@ -57,19 +54,11 @@ public class FennecNativeElement implements Element {
                         FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
                             "click: unable to find view "+mId);
                     }
-                    try {
-                        syncQueue.put(new Object());
-                    } catch (InterruptedException e) {
-                        FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
-                    }
+                    syncQueue.offer(new Object());
                 }
             });
         try {
-            // Wait for the UiThread code to finish running
-            if (syncQueue.poll(MAX_WAIT_MS, TimeUnit.MILLISECONDS) == null) {
-                FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, 
-                    "click: time-out waiting for UI thread");
-            }
+            syncQueue.take();
         } catch (InterruptedException e) {
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
         }
@@ -108,20 +97,13 @@ public class FennecNativeElement implements Element {
                         FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR,
                             "getText: unhandled type for view "+mId);
                     }
-                    try {
-                        syncQueue.put(new Object());
-                    } catch (InterruptedException e) {
-                        FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
-                    }
+                    syncQueue.offer(new Object());
                 } // end of run() method definition
             } // end of anonymous Runnable object instantiation
         );
         try {     
             // Wait for the UiThread code to finish running
-            if (syncQueue.poll(MAX_WAIT_MS, TimeUnit.MILLISECONDS) == null) {
-                FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, 
-                    "getText: time-out waiting for UI thread");
-            }
+            syncQueue.take();
         } catch (InterruptedException e) {
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
         }
@@ -145,19 +127,11 @@ public class FennecNativeElement implements Element {
                     if (view != null) {
                         mDisplayed = true;
                     }
-                    try {
-                        syncQueue.put(new Object());
-                    } catch (InterruptedException e) {
-                        FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
-                    }
+                    syncQueue.offer(new Object());
                 }
             });
         try {
-            // Wait for the UiThread code to finish running
-            if (syncQueue.poll(MAX_WAIT_MS, TimeUnit.MILLISECONDS) == null) {
-                FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, 
-                    "isDisplayed: time-out waiting for UI thread");
-            }
+            syncQueue.take();
         } catch (InterruptedException e) {
             FennecNativeDriver.log(FennecNativeDriver.LogLevel.ERROR, e);
         }

@@ -53,7 +53,7 @@ function testFrameParameters()
       is(localNodes.length, 11,
         "The localScope should contain all the created variable elements.");
 
-      is(localNodes[0].querySelector(".value").getAttribute("value"), "[object Proxy]",
+      is(localNodes[0].querySelector(".info").textContent, "[object Proxy]",
         "Should have the right property value for 'this'.");
 
       // Expand the 'this', 'arguments' and 'c' tree nodes. This causes
@@ -79,34 +79,34 @@ function testFrameParameters()
         }
         window.clearInterval(intervalID);
         is(localNodes[0].querySelector(".property > .title > .key")
-                        .getAttribute("value"), "__proto__",
+                        .textContent, "__proto__ ",
           "Should have the right property name for __proto__.");
 
         ok(localNodes[0].querySelector(".property > .title > .value")
-                        .getAttribute("value").search(/object/) != -1,
+                        .textContent.search(/object/) != -1,
           "__proto__ should be an object.");
 
-        is(localNodes[9].querySelector(".value").getAttribute("value"), "[object Object]",
+        is(localNodes[9].querySelector(".info").textContent, "[object Object]",
           "Should have the right property value for 'c'.");
 
         is(localNodes[9].querySelectorAll(".property > .title > .key")[1]
-                        .getAttribute("value"), "a",
+                        .textContent, "a",
           "Should have the right property name for 'a'.");
 
         is(localNodes[9].querySelectorAll(".property > .title > .value")[1]
-                        .getAttribute("value"), 1,
+                        .textContent, 1,
           "Should have the right value for 'c.a'.");
 
-        is(localNodes[10].querySelector(".value").getAttribute("value"),
+        is(localNodes[10].querySelector(".info").textContent,
          "[object Arguments]",
          "Should have the right property value for 'arguments'.");
 
         is(localNodes[10].querySelectorAll(".property > .title > .key")[7]
-                       .getAttribute("value"), "length",
+                       .textContent, "length",
          "Should have the right property name for 'length'.");
 
         is(localNodes[10].querySelectorAll(".property > .title > .value")[7]
-                       .getAttribute("value"), 5,
+                       .textContent, 5,
          "Should have the right argument length.");
 
         resumeAndFinish();
@@ -120,17 +120,19 @@ function testFrameParameters()
 }
 
 function resumeAndFinish() {
-  gDebugger.addEventListener("Debugger:AfterFramesCleared", function listener() {
-    gDebugger.removeEventListener("Debugger:AfterFramesCleared", listener, true);
+  let thread = gDebugger.DebuggerController.activeThread;
+  thread.addOneTimeListener("framescleared", function() {
+    Services.tm.currentThread.dispatch({ run: function() {
+      var frames = gDebugger.DebuggerView.StackFrames._frames;
 
-    var frames = gDebugger.DebuggerView.StackFrames._frames;
-    is(frames.querySelectorAll(".dbg-stackframe").length, 0,
-      "Should have no frames.");
+      is(frames.querySelectorAll(".dbg-stackframe").length, 0,
+        "Should have no frames.");
 
-    closeDebuggerAndFinish(gTab);
-  }, true);
+      closeDebuggerAndFinish(gTab);
+    }}, 0);
+  });
 
-  gDebugger.DebuggerController.activeThread.resume();
+  thread.resume();
 }
 
 registerCleanupFunction(function() {

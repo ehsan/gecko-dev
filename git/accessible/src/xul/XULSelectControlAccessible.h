@@ -16,7 +16,7 @@
 class XULSelectControlAccessible : public nsAccessibleWrap
 {
 public:
-  XULSelectControlAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  XULSelectControlAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
   virtual ~XULSelectControlAccessible() {}
 
   // nsAccessNode

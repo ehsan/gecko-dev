@@ -10,7 +10,7 @@
 #include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsIAccessibleRelation.h"
 #include "nsXULMenuAccessible.h"
 #include "Relation.h"
@@ -37,7 +37,7 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 XULButtonAccessible::
-  XULButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
   if (ContainsMenu())
@@ -248,7 +248,7 @@ XULButtonAccessible::ContainsMenu()
 ////////////////////////////////////////////////////////////////////////////////
 
 XULDropmarkerAccessible::
-  XULDropmarkerAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULDropmarkerAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -332,7 +332,7 @@ XULDropmarkerAccessible::NativeState()
 ////////////////////////////////////////////////////////////////////////////////
 
 XULCheckboxAccessible::
-  XULCheckboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULCheckboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -413,7 +413,7 @@ XULCheckboxAccessible::NativeState()
 ////////////////////////////////////////////////////////////////////////////////
 
 XULGroupboxAccessible::
-  XULGroupboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULGroupboxAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
 }
@@ -446,8 +446,8 @@ XULGroupboxAccessible::RelationByType(PRUint32 aType)
   // The label for xul:groupbox is generated from xul:label that is
   // inside the anonymous content of the xul:caption.
   // The xul:label has an accessible object but the xul:caption does not
-  PRUint32 childCount = ChildCount();
-  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
+  PRInt32 childCount = GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessible *childAcc = GetChildAt(childIdx);
     if (childAcc->Role() == roles::LABEL) {
       // Ensure that it's our label
@@ -470,7 +470,7 @@ XULGroupboxAccessible::RelationByType(PRUint32 aType)
 ////////////////////////////////////////////////////////////////////////////////
 
 XULRadioButtonAccessible::
-  XULRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULRadioButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   RadioButtonAccessible(aContent, aDoc)
 {
 }
@@ -521,7 +521,7 @@ XULRadioButtonAccessible::ContainerWidget() const
   */
 
 XULRadioGroupAccessible::
-  XULRadioGroupAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULRadioGroupAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   XULSelectControlAccessible(aContent, aDoc)
 { 
 }
@@ -568,7 +568,7 @@ XULRadioGroupAccessible::AreItemsOperable() const
 ////////////////////////////////////////////////////////////////////////////////
 
 XULStatusBarAccessible::
-  XULStatusBarAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULStatusBarAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
 }
@@ -585,7 +585,7 @@ XULStatusBarAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 
 XULToolbarButtonAccessible::
-  XULToolbarButtonAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULToolbarButtonAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   XULButtonAccessible(aContent, aDoc)
 {
 }
@@ -601,8 +601,8 @@ XULToolbarButtonAccessible::GetPositionAndSizeInternal(PRInt32* aPosInSet,
   if (!parent)
     return;
 
-  PRUint32 childCount = parent->ChildCount();
-  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
+  PRInt32 childCount = parent->GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessible* child = parent->GetChildAt(childIdx);
     if (IsSeparator(child)) { // end of a group of buttons
       if (posInSet)
@@ -636,7 +636,7 @@ XULToolbarButtonAccessible::IsSeparator(nsAccessible* aAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 
 XULToolbarAccessible::
-  XULToolbarAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULToolbarAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc)
 {
 }
@@ -665,7 +665,7 @@ XULToolbarAccessible::GetNameInternal(nsAString& aName)
 ////////////////////////////////////////////////////////////////////////////////
 
 XULToolbarSeparatorAccessible::
-  XULToolbarSeparatorAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  XULToolbarSeparatorAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsLeafAccessible(aContent, aDoc)
 {
 }
@@ -687,7 +687,7 @@ XULToolbarSeparatorAccessible::NativeState()
 ////////////////////////////////////////////////////////////////////////////////
 
 XULTextFieldAccessible::
- XULTextFieldAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+ XULTextFieldAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
  nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }

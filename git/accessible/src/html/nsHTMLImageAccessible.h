@@ -20,7 +20,7 @@ class nsHTMLImageAccessible : public nsLinkableAccessible,
                               public nsIAccessibleImage
 {
 public:
-  nsHTMLImageAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsHTMLImageAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

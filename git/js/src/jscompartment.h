@@ -262,7 +262,6 @@ struct JSCompartment
     void markTypes(JSTracer *trc);
     void discardJitCode(js::FreeOp *fop);
     void sweep(js::FreeOp *fop, bool releaseTypes);
-    void sweepCrossCompartmentWrappers();
     void purge();
 
     void setGCLastBytes(size_t lastBytes, size_t lastMallocBytes, js::JSGCInvocationKind gckind);

@@ -801,8 +801,7 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
   NS_ASSERTION(NS_SUCCEEDED(rv),
                "GetNegotiatedNPN() failed during renegotiation");
 
-  if (NS_SUCCEEDED(rv) && !StringBeginsWith(negotiatedNPN,
-                                            NS_LITERAL_CSTRING("spdy/")))
+  if (NS_SUCCEEDED(rv) && !negotiatedNPN.Equals(NS_LITERAL_CSTRING("spdy/2")))
     return SECSuccess;
 
   // If GetNegotiatedNPN() failed we will assume spdy for safety's safe

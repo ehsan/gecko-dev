@@ -663,16 +663,16 @@ gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
 
 #ifdef CAIRO_HAS_WIN32_SURFACE
     if (mRenderMode == RENDER_GDI)
-        surf = new gfxWindowsSurface(size, OptimalFormatForContent(contentType));
+        surf = new gfxWindowsSurface(size, gfxASurface::FormatFromContent(contentType));
 #endif
 
 #ifdef CAIRO_HAS_D2D_SURFACE
     if (mRenderMode == RENDER_DIRECT2D)
-        surf = new gfxD2DSurface(size, OptimalFormatForContent(contentType));
+        surf = new gfxD2DSurface(size, gfxASurface::FormatFromContent(contentType));
 #endif
 
     if (surf == nsnull)
-        surf = new gfxImageSurface(size, OptimalFormatForContent(contentType));
+        surf = new gfxImageSurface(size, gfxASurface::FormatFromContent(contentType));
 
     NS_IF_ADDREF(surf);
 

@@ -90,9 +90,6 @@ BrowserElementChild.prototype = {
     addMessageListener("browser-element-api:get-screenshot",
                        this._recvGetScreenshot.bind(this));
 
-    addMessageListener("browser-element-api:set-visible",
-                        this._recvSetVisible.bind(this));
-
     let els = Cc["@mozilla.org/eventlistenerservice;1"]
                 .getService(Ci.nsIEventListenerService);
 
@@ -156,13 +153,6 @@ BrowserElementChild.prototype = {
       id: data.json.id,
       screenshot: canvas.toDataURL("image/png")
     });
-  },
-
-  _recvSetVisible: function(data) {
-    debug("Received setVisible message: (" + data.json.visible + ")");
-    if (docShell.isActive !== data.json.visible) {
-      docShell.isActive = data.json.visible;
-    }
   },
 
   _keyEventHandler: function(e) {

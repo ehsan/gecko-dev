@@ -41,7 +41,7 @@ class nsHyperTextAccessible : public nsAccessibleWrap,
                               public nsIAccessibleEditableText
 {
 public:
-  nsHyperTextAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsHyperTextAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
   virtual ~nsHyperTextAccessible() { }
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -78,7 +78,7 @@ public:
    */
   inline PRUint32 GetLinkCount()
   {
-    return EmbeddedChildCount();
+    return GetEmbeddedChildCount();
   }
 
   /**
@@ -181,7 +181,7 @@ public:
    */
   inline PRUint32 CharacterCount()
   {
-    return GetChildOffset(ChildCount());
+    return GetChildOffset(GetChildCount());
   }
 
   /**

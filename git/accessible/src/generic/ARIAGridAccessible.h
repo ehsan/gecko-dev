@@ -24,7 +24,7 @@ class ARIAGridAccessible : public nsAccessibleWrap,
                            public TableAccessible
 {
 public:
-  ARIAGridAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  ARIAGridAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -97,7 +97,7 @@ class ARIAGridCellAccessible : public nsHyperTextAccessibleWrap,
                                public nsIAccessibleTableCell
 {
 public:
-  ARIAGridCellAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  ARIAGridCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

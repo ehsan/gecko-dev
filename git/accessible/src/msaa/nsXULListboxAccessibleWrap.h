@@ -19,7 +19,7 @@ class nsXULListboxAccessibleWrap : public nsXULListboxAccessible,
                                    public CAccessibleTable
 {
 public:
-  nsXULListboxAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc);
+  nsXULListboxAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // IUnknown
   DECL_IUNKNOWN_INHERITED
@@ -36,7 +36,7 @@ class nsXULListCellAccessibleWrap : public nsXULListCellAccessible,
                                     public CAccessibleTableCell
 {
 public:
-  nsXULListCellAccessibleWrap(nsIContent* aContent, DocAccessible* aDoc);
+  nsXULListCellAccessibleWrap(nsIContent* aContent, nsDocAccessible* aDoc);
 
   // IUnknown
   DECL_IUNKNOWN_INHERITED

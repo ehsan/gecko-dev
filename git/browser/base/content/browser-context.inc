@@ -86,10 +86,6 @@
                 accesskey="&videoFullScreen.accesskey;"
                 label="&videoFullScreen.label;"
                 oncommand="gContextMenu.fullScreenVideo();"/>
-      <menuitem id="context-leave-dom-fullscreen"
-                accesskey="&leaveDOMFullScreen.accesskey;"
-                label="&leaveDOMFullScreen.label;"
-                oncommand="gContextMenu.leaveDOMFullScreen();"/>
       <menuseparator id="context-media-sep-commands"/>
       <menuitem id="context-reloadimage"
                 label="&reloadImageCmd.label;"
@@ -128,7 +124,7 @@
                 label="&saveImageCmd.label;"
                 accesskey="&saveImageCmd.accesskey;"
                 oncommand="gContextMenu.saveMedia();"/>
-      <menuitem id="context-sendimage"
+      <menuitem id="context-sendimage" 
                 label="&sendImageCmd.label;"
                 accesskey="&sendImageCmd.accesskey;"
                 oncommand="gContextMenu.sendMedia();"/>

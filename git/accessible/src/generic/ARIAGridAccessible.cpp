@@ -26,7 +26,7 @@ using namespace mozilla::a11y;
 // Constructor
 
 ARIAGridAccessible::
-  ARIAGridAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  ARIAGridAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsAccessibleWrap(aContent, aDoc), xpcAccessibleTable(this)
 {
 }
@@ -821,7 +821,7 @@ ARIAGridAccessible::GetSelectedColumnsArray(PRUint32* aColumnCount,
 // Constructor
 
 ARIAGridCellAccessible::
-  ARIAGridCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
+  ARIAGridCellAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
   nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
@@ -1040,9 +1040,9 @@ ARIAGridCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribut
     return NS_OK;
 
   PRInt32 colIdx = 0, colCount = 0;
-  PRUint32 childCount = thisRow->ChildCount();
-  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* child = thisRow->GetChildAt(childIdx);
+  PRInt32 childCount = thisRow->GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessible *child = thisRow->GetChildAt(childIdx);
     if (child == this)
       colIdx = colCount;
 
@@ -1061,9 +1061,9 @@ ARIAGridCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribut
     return NS_OK;
 
   PRInt32 rowIdx = 0;
-  childCount = table->ChildCount();
-  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
-    nsAccessible* child = table->GetChildAt(childIdx);
+  childCount = table->GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessible *child = table->GetChildAt(childIdx);
     if (child == thisRow)
       break;
 

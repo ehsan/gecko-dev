@@ -8,7 +8,7 @@
 #include "nsWinUtils.h"
 
 #include "Compatibility.h"
-#include "DocAccessible.h"
+#include "nsDocAccessible.h"
 #include "nsCoreUtils.h"
 
 #include "mozilla/Preferences.h"
