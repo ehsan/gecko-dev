@@ -134,11 +134,8 @@
     !insertmacro __WinVer_Call_GetVersionEx ${OSVERSIONINFOW_SIZE}
   _winver_ex:
 
-  # The original struct formatting string here was:
-  # '*$0(i.s,i.r1,i.r2,i.r3,i.s,&t128.s,&i2.s,&i2,&i2,&i1.s,&i1)'
-  # but in NSIS v2.33u strings take the size in bytes instead of size in chars
-  # so the 128 char '&t128.s' is changed here to '&t256.s'. 
-  System::Call '*$0(i.s,i.r1,i.r2,i.r3,i.s,&t256.s,&i2.s,&i2,&i2,&i1.s,&i1)'
+  # get results from struct
+  System::Call '*$0(i.s,i.r1,i.r2,i.r3,i.s,&t128.s,&i2.s,&i2,&i2,&i1.s,&i1)'
 
   # free struct
   System::Free $0

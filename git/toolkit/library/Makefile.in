@@ -165,7 +165,6 @@ COMPONENT_LIBS += \
   jsreflect \
   composer \
   telemetry \
-  jsinspector \
   jsdebugger \
   storagecomps \
   rdf \
