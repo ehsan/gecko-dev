@@ -698,12 +698,6 @@ class GCRuntime
 
     GCHelperState helperState;
 
-    /*
-     * During incremental sweeping, this field temporarily holds the arenas of
-     * the current AllocKind being swept in order of increasing free space.
-     */
-    SortedArenaList incrementalSweepList;
-
     ConservativeGCData conservativeGC;
 
     friend class js::GCHelperState;

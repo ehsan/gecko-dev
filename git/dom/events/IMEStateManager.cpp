@@ -191,7 +191,6 @@ nsIContent* IMEStateManager::sContent = nullptr;
 nsPresContext* IMEStateManager::sPresContext = nullptr;
 bool IMEStateManager::sInstalledMenuKeyboardListener = false;
 bool IMEStateManager::sIsTestingIME = false;
-bool IMEStateManager::sIsGettingNewIMEState = false;
 
 // sActiveIMEContentObserver points to the currently active IMEContentObserver.
 // sActiveIMEContentObserver is null if there is no focused editor.
@@ -569,19 +568,10 @@ IMEStateManager::UpdateIMEState(const IMEState& aNewIMEState,
   PR_LOG(sISMLog, PR_LOG_ALWAYS,
     ("ISM: IMEStateManager::UpdateIMEState(aNewIMEState={ mEnabled=%s, "
      "mOpen=%s }, aContent=0x%p), "
-     "sPresContext=0x%p, sContent=0x%p, sActiveIMEContentObserver=0x%p, "
-     "sIsGettingNewIMEState=%s",
+     "sPresContext=0x%p, sContent=0x%p, sActiveIMEContentObserver=0x%p",
      GetIMEStateEnabledName(aNewIMEState.mEnabled),
      GetIMEStateSetOpenName(aNewIMEState.mOpen), aContent,
-     sPresContext, sContent, sActiveIMEContentObserver,
-     GetBoolName(sIsGettingNewIMEState)));
-
-  if (sIsGettingNewIMEState) {
-    PR_LOG(sISMLog, PR_LOG_DEBUG,
-      ("ISM:   IMEStateManager::UpdateIMEState(), "
-       "does nothing because of called while getting new IME state"));
-    return;
-  }
+     sPresContext, sContent, sActiveIMEContentObserver));
 
   if (NS_WARN_IF(!sPresContext)) {
     PR_LOG(sISMLog, PR_LOG_ERROR,
@@ -668,13 +658,6 @@ IMEStateManager::GetNewIMEState(nsPresContext* aPresContext,
        "no content has focus"));
     return IMEState(IMEState::DISABLED);
   }
-
-  // nsIContent::GetDesiredIMEState() may cause a call of UpdateIMEState()
-  // from nsEditor::PostCreate() because GetDesiredIMEState() needs to retrieve
-  // an editor instance for the element if it's editable element.
-  // For avoiding such nested IME state updates, we should set
-  // sIsGettingNewIMEState here and UpdateIMEState() should check it.
-  GettingNewIMEStateBlocker blocker;
 
   IMEState newIMEState = aContent->GetDesiredIMEState();
   PR_LOG(sISMLog, PR_LOG_DEBUG,

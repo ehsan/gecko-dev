@@ -175,17 +175,13 @@ MDefinition::printName(FILE *fp) const
 }
 
 HashNumber
-MDefinition::addU32ToHash(HashNumber hash, uint32_t data)
-{
-    return data + (hash << 6) + (hash << 16) - hash;
-}
-
-HashNumber
 MDefinition::valueHash() const
 {
     HashNumber out = op();
-    for (size_t i = 0, e = numOperands(); i < e; i++)
-        out = addU32ToHash(out, getOperand(i)->id());
+    for (size_t i = 0, e = numOperands(); i < e; i++) {
+        uint32_t valueNumber = getOperand(i)->id();
+        out = valueNumber + (out << 6) + (out << 16) - out;
+    }
     return out;
 }
 
@@ -690,9 +686,7 @@ MParameter::printOpcode(FILE *fp) const
 HashNumber
 MParameter::valueHash() const
 {
-    HashNumber hash = MDefinition::valueHash();
-    hash = addU32ToHash(hash, index_);
-    return hash;
+    return index_; // Why not?
 }
 
 bool
@@ -2872,55 +2866,11 @@ MAsmJSLoadGlobalVar::mightAlias(const MDefinition *def) const
     return true;
 }
 
-HashNumber
-MAsmJSLoadGlobalVar::valueHash() const
-{
-    HashNumber hash = MDefinition::valueHash();
-    hash = addU32ToHash(hash, globalDataOffset_);
-    return hash;
-}
-
 bool
 MAsmJSLoadGlobalVar::congruentTo(const MDefinition *ins) const
 {
     if (ins->isAsmJSLoadGlobalVar()) {
         const MAsmJSLoadGlobalVar *load = ins->toAsmJSLoadGlobalVar();
-        return globalDataOffset_ == load->globalDataOffset_;
-    }
-    return false;
-}
-
-HashNumber
-MAsmJSLoadFuncPtr::valueHash() const
-{
-    HashNumber hash = MDefinition::valueHash();
-    hash = addU32ToHash(hash, globalDataOffset_);
-    return hash;
-}
-
-bool
-MAsmJSLoadFuncPtr::congruentTo(const MDefinition *ins) const
-{
-    if (ins->isAsmJSLoadFuncPtr()) {
-        const MAsmJSLoadFuncPtr *load = ins->toAsmJSLoadFuncPtr();
-        return globalDataOffset_ == load->globalDataOffset_;
-    }
-    return false;
-}
-
-HashNumber
-MAsmJSLoadFFIFunc::valueHash() const
-{
-    HashNumber hash = MDefinition::valueHash();
-    hash = addU32ToHash(hash, globalDataOffset_);
-    return hash;
-}
-
-bool
-MAsmJSLoadFFIFunc::congruentTo(const MDefinition *ins) const
-{
-    if (ins->isAsmJSLoadFFIFunc()) {
-        const MAsmJSLoadFFIFunc *load = ins->toAsmJSLoadFFIFunc();
         return globalDataOffset_ == load->globalDataOffset_;
     }
     return false;
@@ -2932,14 +2882,6 @@ MLoadSlot::mightAlias(const MDefinition *store) const
     if (store->isStoreSlot() && store->toStoreSlot()->slot() != slot())
         return false;
     return true;
-}
-
-HashNumber
-MLoadSlot::valueHash() const
-{
-    HashNumber hash = MDefinition::valueHash();
-    hash = addU32ToHash(hash, slot_);
-    return hash;
 }
 
 bool

@@ -48,7 +48,6 @@
 // radio buttons
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsIRadioVisitor.h"
-#include "RadioNodeList.h"
 
 #include "nsLayoutUtils.h"
 
@@ -2283,7 +2282,7 @@ HTMLFormElement::AddElementToTableInternal(
 
       // Found an element, create a list, add the element to the list and put
       // the list in the hash
-      RadioNodeList *list = new RadioNodeList(this);
+      nsSimpleContentList *list = new nsSimpleContentList(this);
 
       // If an element has a @form, we can assume it *might* be able to not have
       // a parent and still be in the form.
@@ -2307,8 +2306,8 @@ HTMLFormElement::AddElementToTableInternal(
       NS_ENSURE_TRUE(nodeList, NS_ERROR_FAILURE);
 
       // Upcast, uggly, but it works!
-      RadioNodeList *list =
-        static_cast<RadioNodeList*>(nodeList.get());
+      nsSimpleContentList *list =
+        static_cast<nsSimpleContentList*>(nodeList.get());
 
       NS_ASSERTION(list->Length() > 1,
                    "List should have been converted back to a single element");

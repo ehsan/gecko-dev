@@ -1015,6 +1015,7 @@ JSRuntime::initSelfHosting(JSContext *cx)
     } else {
         uint32_t srcLen = GetRawScriptsSize();
 
+#ifdef USE_ZLIB
         const unsigned char *compressed = compressedSources;
         uint32_t compressedLen = GetCompressedSize();
         ScopedJSFreePtr<char> src(reinterpret_cast<char *>(cx->malloc_(srcLen)));
@@ -1023,6 +1024,9 @@ JSRuntime::initSelfHosting(JSContext *cx)
         {
             return false;
         }
+#else
+        const char *src = rawSources;
+#endif
 
         ok = Evaluate(cx, shg, options, src, srcLen, &rv);
     }

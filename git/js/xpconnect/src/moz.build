@@ -76,7 +76,7 @@ DEFINES['JS_THREADSAFE'] = True
 LOCAL_INCLUDES += [
     '../loader',
     '../wrappers',
-    '/caps',
+    '/caps/include',
     '/content/base/public',
     '/content/base/src',
     '/content/html/content/src',

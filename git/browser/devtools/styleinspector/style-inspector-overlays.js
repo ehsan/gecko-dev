@@ -15,8 +15,7 @@
 const {Cc, Ci, Cu} = require("chrome");
 const {
   Tooltip,
-  SwatchColorPickerTooltip,
-  SwatchCubicBezierTooltip
+  SwatchColorPickerTooltip
 } = require("devtools/shared/widgets/Tooltip");
 const {CssLogic} = require("devtools/styleinspector/css-logic");
 const {Promise:promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
@@ -238,12 +237,6 @@ function TooltipsOverlay(view) {
 exports.TooltipsOverlay = TooltipsOverlay;
 
 TooltipsOverlay.prototype = {
-  get isEditing() {
-    return this.colorPicker.tooltip.isShown() ||
-           this.colorPicker.eyedropperOpen ||
-           this.cubicBezier.tooltip.isShown();
-  },
-
   /**
    * Add the tooltips overlay to the view. This will start tracking mouse
    * movements and display tooltips when needed
@@ -258,11 +251,9 @@ TooltipsOverlay.prototype = {
     this.previewTooltip.startTogglingOnHover(this.view.element,
       this._onPreviewTooltipTargetHover.bind(this));
 
+    // Color picker tooltip
     if (this.isRuleView) {
-      // Color picker tooltip
       this.colorPicker = new SwatchColorPickerTooltip(this.view.inspector.panelDoc);
-      // Cubic bezier tooltip
-      this.cubicBezier = new SwatchCubicBezierTooltip(this.view.inspector.panelDoc);
     }
 
     this._isStarted = true;
@@ -282,10 +273,6 @@ TooltipsOverlay.prototype = {
 
     if (this.colorPicker) {
       this.colorPicker.destroy();
-    }
-
-    if (this.cubicBezier) {
-      this.cubicBezier.destroy();
     }
 
     this._isStarted = false;
@@ -342,11 +329,6 @@ TooltipsOverlay.prototype = {
       this.colorPicker.hide();
     }
 
-    if (this.isRuleView && this.cubicBezier.tooltip.isShown()) {
-      this.cubicBezier.revert();
-      this.cubicBezier.hide();
-    }
-
     let inspector = this.view.inspector;
 
     if (type === TOOLTIP_IMAGE_TYPE) {
@@ -370,10 +352,6 @@ TooltipsOverlay.prototype = {
 
     if (this.colorPicker) {
       this.colorPicker.hide();
-    }
-
-    if (this.cubicBezier) {
-      this.cubicBezier.hide();
     }
   },
 

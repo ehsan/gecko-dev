@@ -498,19 +498,11 @@ JSObject::setProto(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto, 
 }
 
 inline bool
-JSObject::isQualifiedVarObj()
+JSObject::isVarObj()
 {
     if (is<js::DebugScopeObject>())
-        return as<js::DebugScopeObject>().scope().isQualifiedVarObj();
-    return lastProperty()->hasObjectFlag(js::BaseShape::QUALIFIED_VAROBJ);
-}
-
-inline bool
-JSObject::isUnqualifiedVarObj()
-{
-    if (is<js::DebugScopeObject>())
-        return as<js::DebugScopeObject>().scope().isUnqualifiedVarObj();
-    return lastProperty()->hasObjectFlag(js::BaseShape::UNQUALIFIED_VAROBJ);
+        return as<js::DebugScopeObject>().scope().isVarObj();
+    return lastProperty()->hasObjectFlag(js::BaseShape::VAROBJ);
 }
 
 /* static */ inline JSObject *

@@ -71,8 +71,7 @@
   visibility: hidden;
 }
 
-.ruleview-rule[uneditable=true] .ruleview-colorswatch,
-.ruleview-rule[uneditable=true] .ruleview-bezierswatch {
+.ruleview-rule[uneditable=true] .ruleview-colorswatch {
   cursor: default;
 }
 
@@ -153,8 +152,7 @@
   -moz-margin-start: 35px;
 }
 
-.ruleview-colorswatch,
-.ruleview-bezierswatch {
+.ruleview-colorswatch {
   cursor: pointer;
   border-radius: 50%;
   width: 1em;
@@ -179,18 +177,6 @@
   right: 0;
   bottom: 0;
   z-index: -1;
-}
-
-.ruleview-bezierswatch {
-  background: url("chrome://browser/skin/devtools/cubic-bezier-swatch.png");
-  background-size: 1em;
-}
-
-@media (min-resolution: 2dppx) {
-  .ruleview-bezierswatch {
-    background: url("chrome://browser/skin/devtools/cubic-bezier-swatch@2x.png");
-    background-size: 1em;
-  }
 }
 
 .ruleview-overridden {

@@ -176,8 +176,7 @@
 }
 
 .ruleview-colorswatch,
-.computedview-colorswatch,
-.ruleview-bezierswatch {
+.computedview-colorswatch {
   box-shadow: 0 0 0 1px #c4c4c4;
 }
 

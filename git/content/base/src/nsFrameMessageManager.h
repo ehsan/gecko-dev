@@ -360,17 +360,21 @@ class nsScriptCacheCleaner;
 
 struct nsFrameScriptObjectExecutorHolder
 {
-  nsFrameScriptObjectExecutorHolder(JSContext* aCx, JSScript* aScript, bool aRunInGlobalScope)
-   : mScript(aCx, aScript), mRunInGlobalScope(aRunInGlobalScope)
+  nsFrameScriptObjectExecutorHolder(JSContext* aCx, JSScript* aScript)
+   : mScript(aCx, aScript), mFunction(aCx, nullptr)
+  { MOZ_COUNT_CTOR(nsFrameScriptObjectExecutorHolder); }
+
+  nsFrameScriptObjectExecutorHolder(JSContext* aCx, JSObject* aFunction)
+   : mScript(aCx, nullptr), mFunction(aCx, aFunction)
   { MOZ_COUNT_CTOR(nsFrameScriptObjectExecutorHolder); }
 
   ~nsFrameScriptObjectExecutorHolder()
   { MOZ_COUNT_DTOR(nsFrameScriptObjectExecutorHolder); }
 
-  bool WillRunInGlobalScope() { return mRunInGlobalScope; }
+  bool WillRunInGlobalScope() { return mScript; }
 
   JS::PersistentRooted<JSScript*> mScript;
-  bool mRunInGlobalScope;
+  JS::PersistentRooted<JSObject*> mFunction;
 };
 
 class nsFrameScriptObjectExecutorStackHolder;
@@ -386,22 +390,22 @@ public:
   }
 protected:
   friend class nsFrameScriptCx;
-  nsFrameScriptExecutor() { MOZ_COUNT_CTOR(nsFrameScriptExecutor); }
-  ~nsFrameScriptExecutor() { MOZ_COUNT_DTOR(nsFrameScriptExecutor); }
-
+  nsFrameScriptExecutor()
+  { MOZ_COUNT_CTOR(nsFrameScriptExecutor); }
+  ~nsFrameScriptExecutor()
+  { MOZ_COUNT_DTOR(nsFrameScriptExecutor); }
   void DidCreateGlobal();
   void LoadFrameScriptInternal(const nsAString& aURL, bool aRunInGlobalScope);
   void TryCacheLoadAndCompileScript(const nsAString& aURL,
                                     bool aRunInGlobalScope,
                                     bool aShouldCache,
-                                    JS::MutableHandle<JSScript*> aScriptp);
+                                    JS::MutableHandle<JSScript*> aScriptp,
+                                    JS::MutableHandle<JSObject*> aFunp);
   void TryCacheLoadAndCompileScript(const nsAString& aURL,
                                     bool aRunInGlobalScope);
   bool InitTabChildGlobalInternal(nsISupports* aScope, const nsACString& aID);
   nsCOMPtr<nsIXPConnectJSObjectHolder> mGlobal;
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsAutoTArray<JS::Heap<JSObject*>, 2> mAnonymousGlobalScopes;
-
   static nsDataHashtable<nsStringHashKey, nsFrameScriptObjectExecutorHolder*>* sCachedScripts;
   static nsScriptCacheCleaner* sScriptCacheCleaner;
 };

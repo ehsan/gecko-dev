@@ -1167,7 +1167,7 @@ CERT_DecodeNameConstraintsExtension(PLArenaPool *arena,
 /* returns addr of a NULL termainated array of pointers to CERTAuthInfoAccess */
 extern CERTAuthInfoAccess **
 CERT_DecodeAuthInfoAccessExtension(PLArenaPool *reqArena,
-				   const SECItem *encodedExtension);
+				   SECItem     *encodedExtension);
 
 extern CERTPrivKeyUsagePeriod *
 CERT_DecodePrivKeyUsagePeriodExtension(PLArenaPool *arena, SECItem *extnValue);

@@ -1373,7 +1373,9 @@ class JavaPanZoomController
 
     @Override
     public boolean onDoubleTap(MotionEvent motionEvent) {
-        sendPointToGecko("Gesture:DoubleTap", motionEvent);
+        if (mTarget.getZoomConstraints().getAllowDoubleTapZoom()) {
+            sendPointToGecko("Gesture:DoubleTap", motionEvent);
+        }
         return true;
     }
 

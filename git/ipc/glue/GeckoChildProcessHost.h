@@ -20,10 +20,6 @@
 #include "nsXULAppAPI.h"        // for GeckoProcessType
 #include "nsString.h"
 
-#if defined(XP_WIN)
-#include "sandboxBroker.h"
-#endif
-
 class nsIFile;
 
 namespace mozilla {
@@ -135,10 +131,15 @@ public:
   // For bug 943174: Skip the EnsureProcessTerminated call in the destructor.
   void SetAlreadyDead();
 
+  void SetSandboxEnabled(bool aSandboxEnabled) {
+    mSandboxEnabled = aSandboxEnabled;
+  }
+
   static void CacheGreDir();
 
 protected:
   GeckoProcessType mProcessType;
+  bool mSandboxEnabled;
   ChildPrivileges mPrivileges;
   Monitor mMonitor;
   FilePath mProcessPath;
@@ -167,8 +168,7 @@ protected:
 #ifdef XP_WIN
   void InitWindowsGroupID();
   nsString mGroupId;
-  SandboxBroker mSandboxBroker;
-#endif // XP_WIN
+#endif
 
 #if defined(OS_POSIX)
   base::file_handle_mapping_vector mFileMap;

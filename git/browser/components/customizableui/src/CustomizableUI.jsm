@@ -619,6 +619,7 @@ let CustomizableUIInternal = {
                 container.removeChild(node);
               }
             } else {
+              this.setLocationAttributes(currentNode, aArea);
               node.setAttribute("removable", false);
               LOG("Adding non-removable widget to placements of " + aArea + ": " +
                   node.id);

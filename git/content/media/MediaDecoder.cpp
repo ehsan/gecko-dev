@@ -1719,9 +1719,9 @@ MediaDecoder::IsOmxEnabled()
 }
 #endif
 
-#ifdef MOZ_ANDROID_OMX
+#ifdef MOZ_MEDIA_PLUGINS
 bool
-MediaDecoder::IsAndroidMediaEnabled()
+MediaDecoder::IsMediaPluginsEnabled()
 {
   return Preferences::GetBool("media.plugins.enabled");
 }

@@ -6,8 +6,15 @@
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
        xmlns:gecko="http://schemas.android.com/apk/res-auto">
 
-    <ScrollView android:layout_width="match_parent"
+   <FrameLayout android:layout_width="match_parent"
                 android:layout_height="match_parent">
+
+        <org.mozilla.gecko.tabspanel.TabsTray android:id="@+id/private_tabs_tray"
+                                              style="@style/TabsList"
+                                              android:layout_width="match_parent"
+                                              android:layout_height="match_parent"
+                                              android:choiceMode="singleChoice"
+                                              gecko:tabs="tabs_private"/>
 
         <LinearLayout android:id="@+id/private_tabs_empty"
                       style="@style/TabsPanelFrame.PrivateTabs"
@@ -43,15 +50,6 @@
 
         </LinearLayout>
 
-    </ScrollView>
-
-    <!-- Note: for an unknown reason, scrolling in the TabsTray
-         does not work unless it is laid out after the empty view. -->
-    <org.mozilla.gecko.tabspanel.TabsTray android:id="@+id/private_tabs_tray"
-                                          style="@style/TabsList"
-                                          android:layout_width="match_parent"
-                                          android:layout_height="match_parent"
-                                          android:choiceMode="singleChoice"
-                                          gecko:tabs="tabs_private"/>
+    </FrameLayout>
 
 </merge>

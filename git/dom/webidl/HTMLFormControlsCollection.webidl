@@ -11,6 +11,8 @@
  * and create derivative works of this document.
  */
 
+typedef NodeList RadioNodeList;
+
 interface HTMLFormControlsCollection : HTMLCollection {
   // inherits length and item()
   /* legacycaller */ getter (RadioNodeList or Element)? namedItem(DOMString name); // shadows inherited namedItem()

@@ -20,7 +20,7 @@ namespace mozilla {
 namespace dom {
 class HTMLFormElement;
 class HTMLImageElement;
-class OwningRadioNodeListOrElement;
+class OwningNodeListOrElement;
 template<typename> struct Nullable;
 
 class HTMLFormControlsCollection : public nsIHTMLCollection
@@ -45,10 +45,10 @@ public:
   void
   NamedGetter(const nsAString& aName,
               bool& aFound,
-              Nullable<OwningRadioNodeListOrElement>& aResult);
+              Nullable<OwningNodeListOrElement>& aResult);
   void
   NamedItem(const nsAString& aName,
-            Nullable<OwningRadioNodeListOrElement>& aResult)
+            Nullable<OwningNodeListOrElement>& aResult)
   {
     bool dummy;
     NamedGetter(aName, dummy, aResult);

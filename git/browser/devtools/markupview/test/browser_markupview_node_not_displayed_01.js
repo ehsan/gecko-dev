@@ -26,8 +26,7 @@ let test = asyncTest(function*() {
 
   for (let {selector, isDisplayed} of TEST_DATA) {
     info("Getting node " + selector);
-    let nodeFront = yield getNodeFront(selector, inspector);
-    let container = getContainerForNodeFront(nodeFront, inspector);
+    let container = getContainerForRawNode(selector, inspector);
     is(!container.elt.classList.contains("not-displayed"), isDisplayed,
       "The container for " + selector + " is marked as displayed " + isDisplayed);
   }

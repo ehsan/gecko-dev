@@ -212,6 +212,7 @@ CompositorChild::SharedFrameMetricsData::SharedFrameMetricsData(
     const ipc::SharedMemoryBasic::Handle& metrics,
     const CrossProcessMutexHandle& handle,
     const uint32_t& aAPZCId) :
+    mBuffer(nullptr),
     mMutex(nullptr),
     mAPZCId(aAPZCId)
 {
@@ -226,7 +227,7 @@ CompositorChild::SharedFrameMetricsData::~SharedFrameMetricsData()
   // When the hash table deletes the class, delete
   // the shared memory and mutex.
   delete mMutex;
-  mBuffer = nullptr;
+  delete mBuffer;
   MOZ_COUNT_DTOR(SharedFrameMetricsData);
 }
 
