@@ -131,7 +131,7 @@ LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
 LCMS_VERSION=1.17
-SQLITE_VERSION=3.6.7
+SQLITE_VERSION=3.6.10
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -235,8 +235,23 @@ case "$target" in
 
     MOZ_ARG_WITH_STRING(wince-sdk,
     [  --with-wince-sdk=WINCE_SDK_DIR
-                        The path to the windows mobile sdk],
+                        The path to the Windows CE SDK],
     WINCE_SDK_DIR=$withval)
+
+    dnl Default to Windows Mobile components enabled
+    WINCE_WINDOWS_MOBILE=1
+
+    MOZ_ARG_DISABLE_BOOL(windows-mobile-components,
+    [  --disable-windows-mobile-components
+         Disable Windows Mobile specific components from CE build],
+    WINCE_WINDOWS_MOBILE=,
+    WINCE_WINDOWS_MOBILE=1)
+
+    if test "$WINCE_WINDOWS_MOBILE"; then
+        AC_DEFINE(WINCE_WINDOWS_MOBILE)
+    fi
+
+    AC_SUBST(WINCE_WINDOWS_MOBILE)
 
     export WINCE=1
 
@@ -253,7 +268,8 @@ case "$target" in
 
     CC="$_pwd/dist/sdk/bin/arm-wince-gcc"
     CXX="$_pwd/dist/sdk/bin/arm-wince-gcc"
-    CPP="$_pwd/dist/sdk/bin/arm-wince-gcc"
+    CPP="$_pwd/dist/sdk/bin/arm-wince-gcc -E -nologo"
+    CXXCPP="$_pwd/dist/sdk/bin/arm-wince-gcc -TP -E -nologo"
     LD="$_pwd/dist/sdk/bin/arm-wince-link"
     AR="$_pwd/dist/sdk/bin/arm-wince-lib"
     AS="$_pwd/dist/sdk/bin/arm-wince-as"
@@ -2024,6 +2040,13 @@ case "$target" in
     MOZ_USER_DIR="Mozilla"
 
     MOZ_GFX_OPTIMIZE_MOBILE=1
+
+    # Sanity check for WINCE_WINDOWS_MOBILE
+    # XXX disabled until we can fix the mobile tinderbox
+    ##if test "$WINCE_WINDOWS_MOBILE"; then
+    ##   AC_CHECK_HEADER(tpcshell.h, [],
+    ##        AC_MSG_ERROR([Can't find tpcshell.h in your SDK; are you sure you don't need --disable-windows-mobile-components?]))
+    ##fi
 ;;
 
 

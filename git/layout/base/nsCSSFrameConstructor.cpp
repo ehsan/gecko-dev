@@ -2189,25 +2189,19 @@ TextIsOnlyWhitespace(nsIContent* aContent)
 // These do not generate pseudo frame wrappers for foreign children. 
 
 static PRBool
-IsTableRelated(PRUint8 aDisplay,
-               PRBool  aIncludeSpecial) 
+IsTableRelated(PRUint8 aDisplay)
 {
-  if ((aDisplay == NS_STYLE_DISPLAY_TABLE)              ||
-      (aDisplay == NS_STYLE_DISPLAY_INLINE_TABLE)       ||
-      (aDisplay == NS_STYLE_DISPLAY_TABLE_HEADER_GROUP) ||
-      (aDisplay == NS_STYLE_DISPLAY_TABLE_ROW_GROUP)    ||
-      (aDisplay == NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP) ||
-      (aDisplay == NS_STYLE_DISPLAY_TABLE_ROW)) {
-    return PR_TRUE;
-  }
-  else if (aIncludeSpecial && 
-           ((aDisplay == NS_STYLE_DISPLAY_TABLE_CAPTION)      ||
-            (aDisplay == NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP) ||
-            (aDisplay == NS_STYLE_DISPLAY_TABLE_COLUMN)       ||
-            (aDisplay == NS_STYLE_DISPLAY_TABLE_CELL))) {
-    return PR_TRUE;
-  }
-  else return PR_FALSE;
+  return
+    aDisplay == NS_STYLE_DISPLAY_TABLE              ||
+    aDisplay == NS_STYLE_DISPLAY_INLINE_TABLE       ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_HEADER_GROUP ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_ROW_GROUP    ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_ROW          ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_CAPTION      ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_COLUMN       ||
+    aDisplay == NS_STYLE_DISPLAY_TABLE_CELL;
 }
 
 static PRBool
@@ -3126,7 +3120,7 @@ nsCSSFrameConstructor::AdjustParentFrame(nsFrameConstructorState&     aState,
   // we're not table-related in any way, we have to create table
   // pseudo-frames so that we have a table cell to live in.
   if (IsTableRelated(aParentFrame->GetType(), PR_FALSE) &&
-      (!IsTableRelated(aDisplay->mDisplay, PR_TRUE) ||
+      (!IsTableRelated(aDisplay->mDisplay) ||
        // Also need to create a pseudo-parent if the child is going to end up
        // with a frame based on something other than display.
        aFCData)) {
@@ -6583,7 +6577,7 @@ nsCSSFrameConstructor::PageBreakBefore(nsFrameConstructorState& aState,
       NS_STYLE_POSITION_FIXED    != display->mPosition &&
       NS_STYLE_POSITION_ABSOLUTE != display->mPosition &&
       (NS_STYLE_DISPLAY_TABLE == display->mDisplay ||
-       !IsTableRelated(display->mDisplay, PR_TRUE))) { 
+       !IsTableRelated(display->mDisplay))) {
     if (display->mBreakBefore) {
       ConstructPageBreakFrame(aState, aContent, aParentFrame, aStyleContext,
                               aFrameItems);
@@ -7000,7 +6994,7 @@ nsCSSFrameConstructor::GetAbsoluteContainingBlock(nsIFrame* aFrame)
     // positioned child frames.
     const nsStyleDisplay* disp = frame->GetStyleDisplay();
 
-    if (disp->IsPositioned() && !IsTableRelated(disp->mDisplay, PR_TRUE)) {
+    if (disp->IsPositioned() && !IsTableRelated(frame->GetType(), PR_TRUE)) {
       // Find the outermost wrapped block under this frame
       for (nsIFrame* wrappedFrame = aFrame; wrappedFrame != frame->GetParent();
            wrappedFrame = wrappedFrame->GetParent()) {
@@ -8759,9 +8753,7 @@ ApplyRenderingChangeToTree(nsPresContext* aPresContext,
   // If the frame's background is propagated to an ancestor, walk up to
   // that ancestor.
   const nsStyleBackground *bg;
-  PRBool isCanvas;
-  while (!nsCSSRendering::FindBackground(aPresContext, aFrame,
-                                         &bg, &isCanvas)) {
+  while (!nsCSSRendering::FindBackground(aPresContext, aFrame, &bg)) {
     aFrame = aFrame->GetParent();
     NS_ASSERTION(aFrame, "root frame must paint");
   }
@@ -8826,10 +8818,8 @@ InvalidateCanvasIfNeeded(nsIFrame* aFrame)
   // frame to invalidate and do it.
   nsIFrame *ancestor = aFrame;
   const nsStyleBackground *bg;
-  PRBool isCanvas;
   nsPresContext* presContext = aFrame->PresContext();
-  while (!nsCSSRendering::FindBackground(presContext, ancestor,
-                                         &bg, &isCanvas)) {
+  while (!nsCSSRendering::FindBackground(presContext, ancestor, &bg)) {
     ancestor = ancestor->GetParent();
     NS_ASSERTION(ancestor, "canvas must paint");
   }
