@@ -81,7 +81,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsRDFResource, nsIRDFResource, nsIRDFNode)
 // nsIRDFNode methods:
 
 NS_IMETHODIMP
-nsRDFResource::EqualsNode(nsIRDFNode* aNode, bool* aResult)
+nsRDFResource::EqualsNode(nsIRDFNode* aNode, PRBool* aResult)
 {
     NS_PRECONDITION(aNode != nsnull, "null ptr");
     if (! aNode)
@@ -96,7 +96,7 @@ nsRDFResource::EqualsNode(nsIRDFNode* aNode, bool* aResult)
         return NS_OK;
     }
     else if (rv == NS_NOINTERFACE) {
-        *aResult = false;
+        *aResult = PR_FALSE;
         return NS_OK;
     }
     else {
@@ -122,7 +122,7 @@ nsRDFResource::Init(const char* aURI)
     }
 
     // don't replace an existing resource with the same URI automatically
-    return gRDFService->RegisterResource(this, true);
+    return gRDFService->RegisterResource(this, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -153,7 +153,7 @@ nsRDFResource::GetValueConst(const char** aURI)
 }
 
 NS_IMETHODIMP
-nsRDFResource::EqualsString(const char* aURI, bool* aResult)
+nsRDFResource::EqualsString(const char* aURI, PRBool* aResult)
 {
     NS_PRECONDITION(aURI != nsnull, "null ptr");
     if (! aURI)

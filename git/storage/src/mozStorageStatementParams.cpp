@@ -81,7 +81,7 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
                              JSObject *aScopeObj,
                              jsid aId,
                              jsval *_vp,
-                             bool *_retval)
+                             PRBool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
 
@@ -110,7 +110,7 @@ StatementParams::SetProperty(nsIXPConnectWrappedNative *aWrapper,
     return NS_ERROR_INVALID_ARG;
   }
 
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 
@@ -121,7 +121,7 @@ StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
                               PRUint32 aEnumOp,
                               jsval *_statep,
                               jsid *_idp,
-                              bool *_retval)
+                              PRBool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
 
@@ -161,7 +161,7 @@ StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
 
       // Set our name.
       if (!::JS_ValueToId(aCtx, STRING_TO_JSVAL(jsname), _idp)) {
-        *_retval = false;
+        *_retval = PR_FALSE;
         return NS_OK;
       }
 
@@ -189,7 +189,7 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
                             jsid aId,
                             PRUint32 aFlags,
                             JSObject **_objp,
-                            bool *_retval)
+                            PRBool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
   // We do not throw at any point after this unless our index is out of range
@@ -197,7 +197,7 @@ StatementParams::NewResolve(nsIXPConnectWrappedNative *aWrapper,
   // property.
 
   bool resolved = false;
-  bool ok = true;
+  PRBool ok = PR_TRUE;
   if (JSID_IS_INT(aId)) {
     PRUint32 idx = JSID_TO_INT(aId);
 

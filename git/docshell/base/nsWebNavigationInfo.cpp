@@ -88,9 +88,9 @@ nsWebNavigationInfo::IsTypeSupported(const nsACString& aType,
   nsCOMPtr<nsIPluginHost> pluginHost =
     do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
   if (pluginHost) {
-    // false will ensure that currently running plugins will not
+    // PR_FALSE will ensure that currently running plugins will not
     // be shut down
-    rv = pluginHost->ReloadPlugins(false);
+    rv = pluginHost->ReloadPlugins(PR_FALSE);
     if (NS_SUCCEEDED(rv)) {
       // OK, we reloaded plugins and there were new ones
       // (otherwise NS_ERROR_PLUGINS_PLUGINSNOTCHANGED would have
@@ -129,7 +129,7 @@ nsWebNavigationInfo::IsTypeSupportedInternal(const nsCString& aType,
     break;
 
   case nsContentUtils::TYPE_CONTENT:
-    bool isImage = false;
+    PRBool isImage = PR_FALSE;
     mImgLoader->SupportImageWithMimeType(aType.get(), &isImage);
     if (isImage) {
       *aIsSupported = nsIWebNavigationInfo::IMAGE;

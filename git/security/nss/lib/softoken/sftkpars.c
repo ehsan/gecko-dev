@@ -607,7 +607,6 @@ sftk_getSecmodName(char *param, SDBType *dbType, char **appName,
     char *value = NULL;
     char *save_params = param;
     const char *lconfigdir;
-    PRBool noModDB = PR_FALSE;
     param = sftk_argStrip(param);
 	
 
@@ -632,10 +631,7 @@ sftk_getSecmodName(char *param, SDBType *dbType, char **appName,
 
    if (sftk_argHasFlag("flags","noModDB",save_params)) {
 	/* there isn't a module db, don't load the legacy support */
-	noModDB = PR_TRUE;
 	*dbType = SDB_SQL;
-	PORT_Free(*filename);
-	*filename = NULL;
         *rw = PR_FALSE;
    }
 
@@ -644,9 +640,7 @@ sftk_getSecmodName(char *param, SDBType *dbType, char **appName,
 	secmodName="pkcs11.txt";
    }
 
-   if (noModDB) {
-	value = NULL;
-   } else if (lconfigdir && lconfigdir[0] != '\0') {
+   if (lconfigdir) {
 	value = PR_smprintf("%s" PATH_SEPARATOR "%s",lconfigdir,secmodName);
    } else {
 	value = PR_smprintf("%s",secmodName);

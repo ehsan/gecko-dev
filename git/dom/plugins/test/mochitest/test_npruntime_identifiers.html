@@ -9,6 +9,8 @@
 <body>
   <p id="display"></p>
 
+  <iframe id="subframe" src="npruntime_identifiers_subpage.html"></iframe>
+
   <script class="testbody" type="application/javascript">
   ////
   // This test exercises NP identifiers by querying the reflector to make sure
@@ -17,6 +19,8 @@
   SimpleTest.waitForExplicitFinish();
 
   var testsRun = 0;
+
+  document.getElementById('subframe').addEventListener('load', doTest, false);
 
   function doTest() {
     SpecialPowers.gc();
@@ -52,8 +56,5 @@
     }
   }
   </script>
-
-  <iframe id="subframe" src="npruntime_identifiers_subpage.html" onload="doTest()"></iframe>
-
 </body>
 </html>

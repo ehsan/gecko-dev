@@ -101,22 +101,22 @@ xptiInterfaceEntry::xptiInterfaceEntry(const char* name,
     SetResolvedState(PARTIALLY_RESOLVED);
 }
 
-bool 
+PRBool 
 xptiInterfaceEntry::Resolve()
 {
     MutexAutoLock lock(xptiInterfaceInfoManager::GetResolveLock());
     return ResolveLocked();
 }
 
-bool 
+PRBool 
 xptiInterfaceEntry::ResolveLocked()
 {
     int resolvedState = GetResolveState();
 
     if(resolvedState == FULLY_RESOLVED)
-        return true;
+        return PR_TRUE;
     if(resolvedState == RESOLVE_FAILED)
-        return false;
+        return PR_FALSE;
 
     NS_ASSERTION(GetResolveState() == PARTIALLY_RESOLVED, "bad state!");    
 
@@ -133,7 +133,7 @@ xptiInterfaceEntry::ResolveLocked()
         if(!parent || !parent->EnsureResolvedLocked())
         {
             SetResolvedState(RESOLVE_FAILED);
-            return false;
+            return PR_FALSE;
         }
 
         mParent = parent;
@@ -150,7 +150,7 @@ xptiInterfaceEntry::ResolveLocked()
     LOG_RESOLVE(("+ complete resolve of %s\n", mName));
 
     SetResolvedState(FULLY_RESOLVED);
-    return true;
+    return PR_TRUE;
 }        
 
 /**************************************************/
@@ -173,7 +173,7 @@ xptiInterfaceEntry::GetIID(nsIID **iid)
 }
 
 nsresult
-xptiInterfaceEntry::IsScriptable(bool* result)
+xptiInterfaceEntry::IsScriptable(PRBool* result)
 {
     // It is not necessary to Resolve because this info is read from manifest.
     *result = GetScriptableFlag();
@@ -181,7 +181,7 @@ xptiInterfaceEntry::IsScriptable(bool* result)
 }
 
 nsresult
-xptiInterfaceEntry::IsFunction(bool* result)
+xptiInterfaceEntry::IsFunction(PRBool* result)
 {
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
@@ -485,6 +485,52 @@ xptiInterfaceEntry::GetSizeIsArgNumberForParam(uint16 methodIndex,
 }
 
 nsresult
+xptiInterfaceEntry::GetLengthIsArgNumberForParam(uint16 methodIndex,
+                                                 const nsXPTParamInfo* param,
+                                                 uint16 dimension,
+                                                 uint8* argnum)
+{
+    if(!EnsureResolved())
+        return NS_ERROR_UNEXPECTED;
+
+    if(methodIndex < mMethodBaseIndex)
+        return mParent->
+            GetLengthIsArgNumberForParam(methodIndex, param, dimension, argnum);
+
+    if(methodIndex >= mMethodBaseIndex + 
+                      mDescriptor->num_methods)
+    {
+        NS_ERROR("bad index");
+        return NS_ERROR_INVALID_ARG;
+    }
+
+    const XPTTypeDescriptor *td;
+
+    if(dimension) {
+        nsresult rv = GetTypeInArray(param, dimension, &td);
+        if(NS_FAILED(rv)) {
+            return rv;
+        }
+    }
+    else
+        td = &param->type;
+
+    // verify that this is a type that has length_is
+    switch (XPT_TDP_TAG(td->prefix)) {
+      case TD_ARRAY:
+      case TD_PSTRING_SIZE_IS:
+      case TD_PWSTRING_SIZE_IS:
+        break;
+      default:
+        NS_ERROR("not a length_is");
+        return NS_ERROR_INVALID_ARG;
+    }
+
+    *argnum = td->argnum2;
+    return NS_OK;
+}
+
+nsresult
 xptiInterfaceEntry::GetInterfaceIsArgNumberForParam(uint16 methodIndex,
                                                     const nsXPTParamInfo* param,
                                                     uint8* argnum)
@@ -519,9 +565,9 @@ xptiInterfaceEntry::GetInterfaceIsArgNumberForParam(uint16 methodIndex,
     return NS_OK;
 }
 
-/* bool isIID (in nsIIDPtr IID); */
+/* PRBool isIID (in nsIIDPtr IID); */
 nsresult 
-xptiInterfaceEntry::IsIID(const nsIID * IID, bool *_retval)
+xptiInterfaceEntry::IsIID(const nsIID * IID, PRBool *_retval)
 {
     // It is not necessary to Resolve because this info is read from manifest.
     *_retval = mIID.Equals(*IID);
@@ -546,11 +592,11 @@ xptiInterfaceEntry::GetIIDShared(const nsIID * *iid)
     return NS_OK;
 }
 
-/* bool hasAncestor (in nsIIDPtr iid); */
+/* PRBool hasAncestor (in nsIIDPtr iid); */
 nsresult 
-xptiInterfaceEntry::HasAncestor(const nsIID * iid, bool *_retval)
+xptiInterfaceEntry::HasAncestor(const nsIID * iid, PRBool *_retval)
 {
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     for(xptiInterfaceEntry* current = this; 
         current;
@@ -558,7 +604,7 @@ xptiInterfaceEntry::HasAncestor(const nsIID * iid, bool *_retval)
     {
         if(current->mIID.Equals(*iid))
         {
-            *_retval = true;
+            *_retval = PR_TRUE;
             break;
         }
         if(!current->EnsureResolved())
@@ -603,7 +649,7 @@ xptiInterfaceEntry::LockedInvalidateInterfaceInfo()
     }
 }
 
-bool
+PRBool
 xptiInterfaceInfo::BuildParent()
 {
     mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::GetSingleton()->

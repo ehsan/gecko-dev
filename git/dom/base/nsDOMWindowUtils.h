@@ -49,9 +49,7 @@ class nsDOMWindowUtils : public nsIDOMWindowUtils,
 public:
   nsDOMWindowUtils(nsGlobalWindow *aWindow);
   ~nsDOMWindowUtils();
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMWindowUtils,
-                                           nsIDOMWindowUtils)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMWINDOWUTILS
 
 protected:
@@ -73,6 +71,6 @@ protected:
                                   PRInt32 aButton,
                                   PRInt32 aClickCount,
                                   PRInt32 aModifiers,
-                                  bool aIgnoreRootScrollFrame,
-                                  bool aToWindow);
+                                  PRBool aIgnoreRootScrollFrame,
+                                  PRBool aToWindow);
 };

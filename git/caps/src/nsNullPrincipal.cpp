@@ -42,8 +42,6 @@
  * same-origin with anything but themselves.
  */
 
-#include "mozilla/Util.h"
-
 #include "nsNullPrincipal.h"
 #include "nsNullPrincipalURI.h"
 #include "nsMemory.h"
@@ -54,8 +52,6 @@
 #include "nsNetCID.h"
 #include "nsDOMError.h"
 #include "nsScriptSecurityManager.h"
-
-using namespace mozilla;
 
 NS_IMPL_CLASSINFO(nsNullPrincipal, NULL, nsIClassInfo::MAIN_THREAD_ONLY,
                   NS_NULLPRINCIPAL_CID)
@@ -115,7 +111,7 @@ nsNullPrincipal::Init()
   id.ToProvidedString(chars);
 
   PRUint32 suffixLen = NSID_LENGTH - 1;
-  PRUint32 prefixLen = ArrayLength(NS_NULLPRINCIPAL_PREFIX) - 1;
+  PRUint32 prefixLen = NS_ARRAY_LENGTH(NS_NULLPRINCIPAL_PREFIX) - 1;
 
   // Use an nsCString so we only do the allocation once here and then share
   // with nsJSPrincipals
@@ -144,7 +140,7 @@ NS_IMETHODIMP
 nsNullPrincipal::GetPreferences(char** aPrefName, char** aID,
                                 char** aSubjectName,
                                 char** aGrantedList, char** aDeniedList,
-                                bool* aIsTrusted)
+                                PRBool* aIsTrusted)
 {
   // The null principal should never be written to preferences.
   *aPrefName = nsnull;
@@ -152,13 +148,13 @@ nsNullPrincipal::GetPreferences(char** aPrefName, char** aID,
   *aSubjectName = nsnull;
   *aGrantedList = nsnull;
   *aDeniedList = nsnull;
-  *aIsTrusted = false;
+  *aIsTrusted = PR_FALSE;
 
   return NS_ERROR_FAILURE; 
 }
 
 NS_IMETHODIMP
-nsNullPrincipal::Equals(nsIPrincipal *aOther, bool *aResult)
+nsNullPrincipal::Equals(nsIPrincipal *aOther, PRBool *aResult)
 {
   // Just equal to ourselves.  Note that nsPrincipal::Equals will return false
   // for us since we have a unique domain/origin/etc.
@@ -167,7 +163,7 @@ nsNullPrincipal::Equals(nsIPrincipal *aOther, bool *aResult)
 }
 
 NS_IMETHODIMP
-nsNullPrincipal::EqualsIgnoringDomain(nsIPrincipal *aOther, bool *aResult)
+nsNullPrincipal::EqualsIgnoringDomain(nsIPrincipal *aOther, PRBool *aResult)
 {
   return Equals(aOther, aResult);
 }
@@ -227,10 +223,10 @@ nsNullPrincipal::SetCanEnableCapability(const char *aCapability,
 NS_IMETHODIMP 
 nsNullPrincipal::IsCapabilityEnabled(const char *aCapability, 
                                      void *aAnnotation, 
-                                     bool *aResult)
+                                     PRBool *aResult)
 {
   // Nope.  No capabilities, I say!
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }
 
@@ -308,9 +304,9 @@ nsNullPrincipal::GetOrigin(char** aOrigin)
 }
 
 NS_IMETHODIMP 
-nsNullPrincipal::GetHasCertificate(bool* aResult)
+nsNullPrincipal::GetHasCertificate(PRBool* aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }
 
@@ -327,7 +323,7 @@ nsNullPrincipal::GetPrettyName(nsACString& aName)
 }
 
 NS_IMETHODIMP
-nsNullPrincipal::Subsumes(nsIPrincipal *aOther, bool *aResult)
+nsNullPrincipal::Subsumes(nsIPrincipal *aOther, PRBool *aResult)
 {
   // We don't subsume anything except ourselves.  Note that nsPrincipal::Equals
   // will return false for us, since we're not about:blank and not Equals to
@@ -337,7 +333,7 @@ nsNullPrincipal::Subsumes(nsIPrincipal *aOther, bool *aResult)
 }
 
 NS_IMETHODIMP
-nsNullPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport)
+nsNullPrincipal::CheckMayLoad(nsIURI* aURI, PRBool aReport)
 {
   if (aReport) {
     nsScriptSecurityManager::ReportError(

@@ -59,14 +59,14 @@
 class nsPLDOMEvent : public nsRunnable {
 public:
   nsPLDOMEvent(nsINode *aEventNode, const nsAString& aEventType,
-               bool aBubbles, bool aDispatchChromeOnly)
+               PRBool aBubbles, PRBool aDispatchChromeOnly)
     : mEventNode(aEventNode), mEventType(aEventType),
       mBubbles(aBubbles),
       mDispatchChromeOnly(aDispatchChromeOnly)
   { }
 
   nsPLDOMEvent(nsINode *aEventNode, nsIDOMEvent *aEvent)
-    : mEventNode(aEventNode), mEvent(aEvent), mDispatchChromeOnly(false)
+    : mEventNode(aEventNode), mEvent(aEvent), mDispatchChromeOnly(PR_FALSE)
   { }
 
   nsPLDOMEvent(nsINode *aEventNode, nsEvent &aEvent);
@@ -78,16 +78,16 @@ public:
   nsCOMPtr<nsINode>     mEventNode;
   nsCOMPtr<nsIDOMEvent> mEvent;
   nsString              mEventType;
-  bool                  mBubbles;
-  bool                  mDispatchChromeOnly;
+  PRPackedBool          mBubbles;
+  PRPackedBool          mDispatchChromeOnly;
 };
 
 class nsLoadBlockingPLDOMEvent : public nsPLDOMEvent {
 public:
   nsLoadBlockingPLDOMEvent(nsINode *aEventNode, const nsAString& aEventType,
-                           bool aBubbles, bool aDispatchChromeOnly)
+                           PRBool aBubbles, PRBool aDispatchChromeOnly)
     : nsPLDOMEvent(aEventNode, aEventType, aBubbles, aDispatchChromeOnly),
-      mBlockedDoc(aEventNode->OwnerDoc())
+      mBlockedDoc(aEventNode->GetOwnerDoc())
   {
     if (mBlockedDoc) {
       mBlockedDoc->BlockOnload();
@@ -96,7 +96,7 @@ public:
 
   nsLoadBlockingPLDOMEvent(nsINode *aEventNode, nsIDOMEvent *aEvent)
     : nsPLDOMEvent(aEventNode, aEvent),
-      mBlockedDoc(aEventNode->OwnerDoc())
+      mBlockedDoc(aEventNode->GetOwnerDoc())
   {
     if (mBlockedDoc) {
       mBlockedDoc->BlockOnload();

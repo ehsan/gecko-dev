@@ -39,8 +39,7 @@
 
 #include "PCOMContentPermissionRequestChild.h"
 
-#include "nsDOMClassInfoID.h"
-#include "nsIPrincipal.h"
+#include "nsDOMClassInfo.h"
 #include "nsIJSContextStack.h"
 
 #include "nsIAlertsService.h"
@@ -126,7 +125,7 @@ public:
    */
   void PostDesktopNotification();
 
-  void SetAllow(bool aAllow);
+  void SetAllow(PRBool aAllow);
 
   /*
    * Creates and dispatches a dom event of type aName
@@ -146,8 +145,8 @@ protected:
 
   nsRefPtr<AlertServiceObserver> mObserver;
   nsCOMPtr<nsIURI> mURI;
-  bool mAllow;
-  bool mShowHasBeenCalled;
+  PRBool mAllow;
+  PRBool mShowHasBeenCalled;
 };
 
 /*

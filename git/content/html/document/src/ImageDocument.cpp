@@ -64,7 +64,7 @@
 #include "nsContentPolicyUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsContentErrors.h"
 #include "nsURILoader.h"
 #include "nsIDocShell.h"
@@ -115,12 +115,12 @@ public:
                                      nsILoadGroup*       aLoadGroup,
                                      nsISupports*        aContainer,
                                      nsIStreamListener** aDocListener,
-                                     bool                aReset = true,
+                                     PRBool              aReset = PR_TRUE,
                                      nsIContentSink*     aSink = nsnull);
 
   virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject);
   virtual void Destroy();
-  virtual void OnPageShow(bool aPersisted,
+  virtual void OnPageShow(PRBool aPersisted,
                           nsIDOMEventTarget* aDispatchStartTarget);
 
   NS_DECL_NSIIMAGEDOCUMENT
@@ -142,11 +142,11 @@ public:
 protected:
   virtual nsresult CreateSyntheticDocument();
 
-  nsresult CheckOverflowing(bool changeState);
+  nsresult CheckOverflowing(PRBool changeState);
 
   void UpdateTitleAndCharset();
 
-  nsresult ScrollImageTo(PRInt32 aX, PRInt32 aY, bool restoreImage);
+  nsresult ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage);
 
   float GetRatio() {
     return NS_MIN((float)mVisibleWidth / mImageWidth,
@@ -163,18 +163,18 @@ protected:
   PRInt32                       mImageWidth;
   PRInt32                       mImageHeight;
 
-  bool                          mResizeImageByDefault;
-  bool                          mClickResizingEnabled;
-  bool                          mImageIsOverflowing;
+  PRPackedBool                  mResizeImageByDefault;
+  PRPackedBool                  mClickResizingEnabled;
+  PRPackedBool                  mImageIsOverflowing;
   // mImageIsResized is true if the image is currently resized
-  bool                          mImageIsResized;
+  PRPackedBool                  mImageIsResized;
   // mShouldResize is true if the image should be resized when it doesn't fit
   // mImageIsResized cannot be true when this is false, but mImageIsResized
   // can be false when this is true
-  bool                          mShouldResize;
-  bool                          mFirstResize;
+  PRPackedBool                  mShouldResize;
+  PRPackedBool                  mFirstResize;
   // mObservingImageLoader is true while the observer is set.
-  bool                          mObservingImageLoader;
+  PRPackedBool                  mObservingImageLoader;
 
   float                         mOriginalZoomLevel;
 };
@@ -236,7 +236,7 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   NS_ENSURE_TRUE(imageLoader, NS_ERROR_UNEXPECTED);
 
   imageLoader->AddObserver(imgDoc);
-  imgDoc->mObservingImageLoader = true;
+  imgDoc->mObservingImageLoader = PR_TRUE;
   imageLoader->LoadImageWithChannel(channel, getter_AddRefs(mNextStream));
 
   return MediaDocumentStreamListener::OnStartRequest(request, ctxt);
@@ -289,7 +289,7 @@ ImageDocument::Init()
   mResizeImageByDefault = Preferences::GetBool(AUTOMATIC_IMAGE_RESIZING_PREF);
   mClickResizingEnabled = Preferences::GetBool(CLICK_IMAGE_RESIZING_PREF);
   mShouldResize = mResizeImageByDefault;
-  mFirstResize = true;
+  mFirstResize = PR_TRUE;
 
   return NS_OK;
 }
@@ -300,7 +300,7 @@ ImageDocument::StartDocumentLoad(const char*         aCommand,
                                  nsILoadGroup*       aLoadGroup,
                                  nsISupports*        aContainer,
                                  nsIStreamListener** aDocListener,
-                                 bool                aReset,
+                                 PRBool              aReset,
                                  nsIContentSink*     aSink)
 {
   nsresult rv =
@@ -311,7 +311,7 @@ ImageDocument::StartDocumentLoad(const char*         aCommand,
   }
 
   mOriginalZoomLevel =
-    Preferences::GetBool(SITE_SPECIFIC_ZOOM, false) ? 1.0 : GetZoomLevel();
+    Preferences::GetBool(SITE_SPECIFIC_ZOOM, PR_FALSE) ? 1.0 : GetZoomLevel();
 
   NS_ASSERTION(aDocListener, "null aDocListener");
   *aDocListener = new ImageListener(this);
@@ -326,7 +326,7 @@ ImageDocument::Destroy()
   if (mImageContent) {
     // Remove our event listener from the image content.
     nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mImageContent);
-    target->RemoveEventListener(NS_LITERAL_STRING("click"), this, false);
+    target->RemoveEventListener(NS_LITERAL_STRING("click"), this, PR_FALSE);
 
     // Break reference cycle with mImageContent, if we have one
     if (mObservingImageLoader) {
@@ -356,9 +356,9 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
   if (mScriptGlobalObject &&
       aScriptGlobalObject != mScriptGlobalObject) {
     target = do_QueryInterface(mScriptGlobalObject);
-    target->RemoveEventListener(NS_LITERAL_STRING("resize"), this, false);
+    target->RemoveEventListener(NS_LITERAL_STRING("resize"), this, PR_FALSE);
     target->RemoveEventListener(NS_LITERAL_STRING("keypress"), this,
-                                false);
+                                PR_FALSE);
   }
 
   // Set the script global object on the superclass before doing
@@ -375,42 +375,42 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
       NS_ASSERTION(NS_SUCCEEDED(rv), "failed to create synthetic document");
 
       target = do_QueryInterface(mImageContent);
-      target->AddEventListener(NS_LITERAL_STRING("click"), this, false);
+      target->AddEventListener(NS_LITERAL_STRING("click"), this, PR_FALSE);
     }
 
     target = do_QueryInterface(aScriptGlobalObject);
-    target->AddEventListener(NS_LITERAL_STRING("resize"), this, false);
-    target->AddEventListener(NS_LITERAL_STRING("keypress"), this, false);
+    target->AddEventListener(NS_LITERAL_STRING("resize"), this, PR_FALSE);
+    target->AddEventListener(NS_LITERAL_STRING("keypress"), this, PR_FALSE);
   }
 }
 
 void
-ImageDocument::OnPageShow(bool aPersisted,
+ImageDocument::OnPageShow(PRBool aPersisted,
                           nsIDOMEventTarget* aDispatchStartTarget)
 {
   if (aPersisted) {
     mOriginalZoomLevel =
-      Preferences::GetBool(SITE_SPECIFIC_ZOOM, false) ? 1.0 : GetZoomLevel();
+      Preferences::GetBool(SITE_SPECIFIC_ZOOM, PR_FALSE) ? 1.0 : GetZoomLevel();
   }
   MediaDocument::OnPageShow(aPersisted, aDispatchStartTarget);
 }
 
 NS_IMETHODIMP
-ImageDocument::GetImageResizingEnabled(bool* aImageResizingEnabled)
+ImageDocument::GetImageResizingEnabled(PRBool* aImageResizingEnabled)
 {
-  *aImageResizingEnabled = true;
+  *aImageResizingEnabled = PR_TRUE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-ImageDocument::GetImageIsOverflowing(bool* aImageIsOverflowing)
+ImageDocument::GetImageIsOverflowing(PRBool* aImageIsOverflowing)
 {
   *aImageIsOverflowing = mImageIsOverflowing;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-ImageDocument::GetImageIsResized(bool* aImageIsResized)
+ImageDocument::GetImageIsResized(PRBool* aImageIsResized)
 {
   *aImageIsResized = mImageIsResized;
   return NS_OK;
@@ -448,12 +448,12 @@ ImageDocument::ShrinkToFit()
   
   // The view might have been scrolled when zooming in, scroll back to the
   // origin now that we're showing a shrunk-to-window version.
-  (void) ScrollImageTo(0, 0, false);
+  (void) ScrollImageTo(0, 0, PR_FALSE);
 
   imageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
-                        NS_LITERAL_STRING("cursor: -moz-zoom-in"), true);
+                        NS_LITERAL_STRING("cursor: -moz-zoom-in"), PR_TRUE);
   
-  mImageIsResized = true;
+  mImageIsResized = PR_TRUE;
   
   UpdateTitleAndCharset();
 
@@ -463,11 +463,11 @@ ImageDocument::ShrinkToFit()
 NS_IMETHODIMP
 ImageDocument::RestoreImageTo(PRInt32 aX, PRInt32 aY)
 {
-  return ScrollImageTo(aX, aY, true);
+  return ScrollImageTo(aX, aY, PR_TRUE);
 }
 
 nsresult
-ImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, bool restoreImage)
+ImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
 {
   float ratio = GetRatio();
 
@@ -499,18 +499,18 @@ ImageDocument::RestoreImage()
   }
   // Keep image content alive while changing the attributes.
   nsCOMPtr<nsIContent> imageContent = mImageContent;
-  imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::width, true);
-  imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::height, true);
+  imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::width, PR_TRUE);
+  imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::height, PR_TRUE);
   
   if (mImageIsOverflowing) {
     imageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
-                          NS_LITERAL_STRING("cursor: -moz-zoom-out"), true);
+                          NS_LITERAL_STRING("cursor: -moz-zoom-out"), PR_TRUE);
   }
   else {
-    imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::style, true);
+    imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::style, PR_TRUE);
   }
   
-  mImageIsResized = false;
+  mImageIsResized = PR_FALSE;
   
   UpdateTitleAndCharset();
 
@@ -520,9 +520,9 @@ ImageDocument::RestoreImage()
 NS_IMETHODIMP
 ImageDocument::ToggleImageSize()
 {
-  mShouldResize = true;
+  mShouldResize = PR_TRUE;
   if (mImageIsResized) {
-    mShouldResize = false;
+    mShouldResize = PR_FALSE;
     ResetZoomLevel();
     RestoreImage();
   }
@@ -556,7 +556,7 @@ ImageDocument::OnStopDecode(imgIRequest *aRequest,
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(mImageContent);
   if (imageLoader) {
-    mObservingImageLoader = false;
+    mObservingImageLoader = PR_FALSE;
     imageLoader->RemoveObserver(this);
   }
 
@@ -571,7 +571,7 @@ ImageDocument::OnStopDecode(imgIRequest *aRequest,
     mStringBundle->FormatStringFromName(str.get(), formatString, 1,
                                         getter_Copies(errorMsg));
 
-    mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::alt, errorMsg, false);
+    mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::alt, errorMsg, PR_FALSE);
   }
 
   return NS_OK;
@@ -583,11 +583,11 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
   nsAutoString eventType;
   aEvent->GetType(eventType);
   if (eventType.EqualsLiteral("resize")) {
-    CheckOverflowing(false);
+    CheckOverflowing(PR_FALSE);
   }
   else if (eventType.EqualsLiteral("click") && mClickResizingEnabled) {
     ResetZoomLevel();
-    mShouldResize = true;
+    mShouldResize = PR_TRUE;
     if (mImageIsResized) {
       PRInt32 x = 0, y = 0;
       nsCOMPtr<nsIDOMMouseEvent> event(do_QueryInterface(aEvent));
@@ -595,14 +595,13 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
         event->GetClientX(&x);
         event->GetClientY(&y);
         PRInt32 left = 0, top = 0;
-        nsCOMPtr<nsIDOMHTMLElement> htmlElement =
-          do_QueryInterface(mImageContent);
-        htmlElement->GetOffsetLeft(&left);
-        htmlElement->GetOffsetTop(&top);
+        nsCOMPtr<nsIDOMNSHTMLElement> nsElement(do_QueryInterface(mImageContent));
+        nsElement->GetOffsetLeft(&left);
+        nsElement->GetOffsetTop(&top);
         x -= left;
         y -= top;
       }
-      mShouldResize = false;
+      mShouldResize = PR_FALSE;
       RestoreImageTo(x, y);
     }
     else if (mImageIsOverflowing) {
@@ -612,14 +611,14 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
   else if (eventType.EqualsLiteral("keypress")) {
     nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aEvent);
     PRUint32 charCode;
-    bool ctrlKey, metaKey, altKey;
+    PRBool ctrlKey, metaKey, altKey;
     keyEvent->GetCharCode(&charCode);
     keyEvent->GetCtrlKey(&ctrlKey);
     keyEvent->GetMetaKey(&metaKey);
     keyEvent->GetAltKey(&altKey);
     // plus key
     if (charCode == 0x2B && !ctrlKey && !metaKey && !altKey) {
-      mShouldResize = false;
+      mShouldResize = PR_FALSE;
       if (mImageIsResized) {
         ResetZoomLevel();
         RestoreImage();
@@ -627,7 +626,7 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
     }
     // minus key
     else if (charCode == 0x2D && !ctrlKey && !metaKey && !altKey) {
-      mShouldResize = true;
+      mShouldResize = PR_TRUE;
       if (mImageIsOverflowing) {
         ResetZoomLevel();
         ShrinkToFit();
@@ -652,22 +651,23 @@ ImageDocument::CreateSyntheticDocument()
   // the size of the paper and cannot break into continuations along
   // multiple pages.
   Element* head = GetHeadElement();
-  NS_ENSURE_TRUE(head, NS_ERROR_FAILURE);
+  if (!head) {
+    NS_WARNING("no head on image document!");
+    return NS_ERROR_FAILURE;
+  }
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  if (nsContentUtils::IsChildOfSameType(this)) {
-    nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::style, nsnull,
-                                             kNameSpaceID_XHTML,
-                                             nsIDOMNode::ELEMENT_NODE);
-    NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-    nsRefPtr<nsGenericHTMLElement> styleContent = NS_NewHTMLStyleElement(nodeInfo.forget());
-    NS_ENSURE_TRUE(styleContent, NS_ERROR_OUT_OF_MEMORY);
-
-    styleContent->SetTextContent(NS_LITERAL_STRING("img { display: block; }"));
-    head->AppendChildTo(styleContent, false);
-  } else {
-    LinkStylesheet(NS_LITERAL_STRING("resource://gre/res/TopLevelImageDocument.css"));
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::style, nsnull,
+                                           kNameSpaceID_XHTML,
+                                           nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  nsRefPtr<nsGenericHTMLElement> styleContent = NS_NewHTMLStyleElement(nodeInfo.forget());
+  if (!styleContent) {
+    return NS_ERROR_OUT_OF_MEMORY;
   }
+
+  styleContent->SetTextContent(NS_LITERAL_STRING("img { display: block; }"));
+  head->AppendChildTo(styleContent, PR_FALSE);
 
   // Add the image element
   Element* body = GetBodyElement();
@@ -699,18 +699,18 @@ ImageDocument::CreateSyntheticDocument()
 
   NS_ConvertUTF8toUTF16 srcString(src);
   // Make sure not to start the image load from here...
-  imageLoader->SetLoadingEnabled(false);
-  mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::src, srcString, false);
-  mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::alt, srcString, false);
+  imageLoader->SetLoadingEnabled(PR_FALSE);
+  mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::src, srcString, PR_FALSE);
+  mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::alt, srcString, PR_FALSE);
 
-  body->AppendChildTo(mImageContent, false);
-  imageLoader->SetLoadingEnabled(true);
+  body->AppendChildTo(mImageContent, PR_FALSE);
+  imageLoader->SetLoadingEnabled(PR_TRUE);
 
   return NS_OK;
 }
 
 nsresult
-ImageDocument::CheckOverflowing(bool changeState)
+ImageDocument::CheckOverflowing(PRBool changeState)
 {
   /* Create a scope so that the style context gets destroyed before we might
    * call RebuildStyleData.  Also, holding onto pointers to the
@@ -746,10 +746,10 @@ ImageDocument::CheckOverflowing(bool changeState)
     mVisibleHeight = nsPresContext::AppUnitsToIntCSSPixels(visibleArea.height);
   }
 
-  bool imageWasOverflowing = mImageIsOverflowing;
+  PRBool imageWasOverflowing = mImageIsOverflowing;
   mImageIsOverflowing =
     mImageWidth > mVisibleWidth || mImageHeight > mVisibleHeight;
-  bool windowBecameBigEnough = imageWasOverflowing && !mImageIsOverflowing;
+  PRBool windowBecameBigEnough = imageWasOverflowing && !mImageIsOverflowing;
 
   if (changeState || mShouldResize || mFirstResize ||
       windowBecameBigEnough) {
@@ -760,7 +760,7 @@ ImageDocument::CheckOverflowing(bool changeState)
       RestoreImage();
     }
   }
-  mFirstResize = false;
+  mFirstResize = PR_FALSE;
 
   return NS_OK;
 }

@@ -91,13 +91,13 @@ NS_INTERFACE_MAP_END
 //*****************************************************************************   
 
 NS_IMETHODIMP
-nsDSURIContentListener::OnStartURIOpen(nsIURI* aURI, bool* aAbortOpen)
+nsDSURIContentListener::OnStartURIOpen(nsIURI* aURI, PRBool* aAbortOpen)
 {
     // If mDocShell is null here, that means someone's starting a load
     // in our docshell after it's already been destroyed.  Don't let
     // that happen.
     if (!mDocShell) {
-        *aAbortOpen = true;
+        *aAbortOpen = PR_TRUE;
         return NS_OK;
     }
     
@@ -111,10 +111,10 @@ nsDSURIContentListener::OnStartURIOpen(nsIURI* aURI, bool* aAbortOpen)
 
 NS_IMETHODIMP 
 nsDSURIContentListener::DoContent(const char* aContentType, 
-                                  bool aIsContentPreferred,
+                                  PRBool aIsContentPreferred,
                                   nsIRequest* request,
                                   nsIStreamListener** aContentHandler,
-                                  bool* aAbortProcess)
+                                  PRBool* aAbortProcess)
 {
     nsresult rv;
     NS_ENSURE_ARG_POINTER(aContentHandler);
@@ -123,11 +123,11 @@ nsDSURIContentListener::DoContent(const char* aContentType,
     // Check whether X-Frame-Options permits us to load this content in an
     // iframe
     if (!CheckFrameOptions(request)) {
-        *aAbortProcess = true;
+        *aAbortProcess = PR_TRUE;
         return NS_OK;
     }
 
-    *aAbortProcess = false;
+    *aAbortProcess = PR_FALSE;
 
     // determine if the channel has just been retargeted to us...
     nsLoadFlags loadFlags = 0;
@@ -168,7 +168,7 @@ nsDSURIContentListener::DoContent(const char* aContentType,
 NS_IMETHODIMP
 nsDSURIContentListener::IsPreferred(const char* aContentType,
                                     char ** aDesiredContentType,
-                                    bool* aCanHandle)
+                                    PRBool* aCanHandle)
 {
     NS_ENSURE_ARG_POINTER(aCanHandle);
     NS_ENSURE_ARG_POINTER(aDesiredContentType);
@@ -195,21 +195,21 @@ nsDSURIContentListener::IsPreferred(const char* aContentType,
     // of our docshell chain, then we'll now always attempt to process the
     // content ourselves...
     return CanHandleContent(aContentType,
-                            true,
+                            PR_TRUE,
                             aDesiredContentType,
                             aCanHandle);
 }
 
 NS_IMETHODIMP
 nsDSURIContentListener::CanHandleContent(const char* aContentType,
-                                         bool aIsContentPreferred,
+                                         PRBool aIsContentPreferred,
                                          char ** aDesiredContentType,
-                                         bool* aCanHandleContent)
+                                         PRBool* aCanHandleContent)
 {
     NS_PRECONDITION(aCanHandleContent, "Null out param?");
     NS_ENSURE_ARG_POINTER(aDesiredContentType);
 
-    *aCanHandleContent = false;
+    *aCanHandleContent = PR_FALSE;
     *aDesiredContentType = nsnull;
 
     nsresult rv = NS_OK;
@@ -338,7 +338,7 @@ bool nsDSURIContentListener::CheckFrameOptions(nsIRequest* request)
         // a system principal
         while (NS_SUCCEEDED(curDocShellItem->GetParent(getter_AddRefs(parentDocShellItem))) &&
                parentDocShellItem) {
-            bool system = false;
+            PRBool system = PR_FALSE;
             topDoc = do_GetInterface(parentDocShellItem);
             if (topDoc) {
                 if (NS_SUCCEEDED(ssm->IsSystemPrincipal(topDoc->NodePrincipal(),
@@ -365,7 +365,7 @@ bool nsDSURIContentListener::CheckFrameOptions(nsIRequest* request)
             topDoc = do_GetInterface(curDocShellItem);
             nsCOMPtr<nsIURI> topUri;
             topDoc->NodePrincipal()->GetURI(getter_AddRefs(topUri));
-            rv = ssm->CheckSameOriginURI(uri, topUri, true);
+            rv = ssm->CheckSameOriginURI(uri, topUri, PR_TRUE);
             if (NS_SUCCEEDED(rv))
                 return true;
         }

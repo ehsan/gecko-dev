@@ -40,9 +40,8 @@
 #ifndef jspropertytree_h___
 #define jspropertytree_h___
 
+#include "jshashtable.h"
 #include "jsprvtd.h"
-
-#include "js/HashTable.h"
 
 namespace js {
 

@@ -44,7 +44,7 @@
 
 txUnknownHandler::txUnknownHandler(txExecutionState* aEs)
     : mEs(aEs),
-      mFlushed(false)
+      mFlushed(PR_FALSE)
 {
     MOZ_COUNT_CTOR_INHERITED(txUnknownHandler, txBufferingHandler);
 }
@@ -76,7 +76,7 @@ txUnknownHandler::attribute(nsIAtom* aPrefix, const nsSubstring& aLocalName,
 }
 
 nsresult
-txUnknownHandler::characters(const nsSubstring& aData, bool aDOE)
+txUnknownHandler::characters(const nsSubstring& aData, PRBool aDOE)
 {
     return mFlushed ?
            mEs->mResultHandler->characters(aData, aDOE) :
@@ -108,7 +108,7 @@ txUnknownHandler::endDocument(nsresult aResult)
         NS_ASSERTION(mEs->mResultHandler == this,
                      "We're leaking mEs->mResultHandler.");
 
-        nsresult rv = createHandlerAndFlush(false, EmptyString(),
+        nsresult rv = createHandlerAndFlush(PR_FALSE, EmptyString(),
                                             kNameSpaceID_None);
         NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -159,7 +159,7 @@ txUnknownHandler::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
             aLowercaseLocalName = owner;
         }
 
-        bool htmlRoot = aNsID == kNameSpaceID_None && !aPrefix &&
+        PRBool htmlRoot = aNsID == kNameSpaceID_None && !aPrefix &&
                           aLowercaseLocalName == nsGkAtoms::html;
 
         // Use aLocalName and not aLowercaseLocalName in case the output
@@ -185,7 +185,7 @@ txUnknownHandler::startElement(nsIAtom* aPrefix, const nsSubstring& aLocalName,
         NS_ASSERTION(mEs->mResultHandler == this,
                      "We're leaking mEs->mResultHandler.");
 
-        bool htmlRoot = aNsID == kNameSpaceID_None && !aPrefix &&
+        PRBool htmlRoot = aNsID == kNameSpaceID_None && !aPrefix &&
                           aLocalName.Equals(NS_LITERAL_STRING("html"),
                                             txCaseInsensitiveStringComparator());
         nsresult rv = createHandlerAndFlush(htmlRoot, aLocalName, aNsID);
@@ -195,7 +195,7 @@ txUnknownHandler::startElement(nsIAtom* aPrefix, const nsSubstring& aLocalName,
     return mEs->mResultHandler->startElement(aPrefix, aLocalName, aNsID);
 }
 
-nsresult txUnknownHandler::createHandlerAndFlush(bool aHTMLRoot,
+nsresult txUnknownHandler::createHandlerAndFlush(PRBool aHTMLRoot,
                                                  const nsSubstring& aName,
                                                  const PRInt32 aNsID)
 {
@@ -220,7 +220,7 @@ nsresult txUnknownHandler::createHandlerAndFlush(bool aHTMLRoot,
     // flushing a buffer to mEs->mResultHandler.
     mEs->mObsoleteHandler = this;
 
-    mFlushed = true;
+    mFlushed = PR_TRUE;
 
     // Let go of out buffer as soon as we're done flushing it, we're not going
     // to need it anymore from this point on (all hooks get forwarded to

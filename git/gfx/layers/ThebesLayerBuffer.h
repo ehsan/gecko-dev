@@ -113,13 +113,13 @@ public:
    */
   struct PaintState {
     PaintState()
-      : mDidSelfCopy(false)
+      : mDidSelfCopy(PR_FALSE)
     {}
 
     nsRefPtr<gfxContext> mContext;
     nsIntRegion mRegionToDraw;
     nsIntRegion mRegionToInvalidate;
-    bool mDidSelfCopy;
+    PRPackedBool mDidSelfCopy;
   };
 
   enum {
@@ -201,7 +201,7 @@ protected:
   GetContextForQuadrantUpdate(const nsIntRect& aBounds);
 
 private:
-  bool BufferSizeOkFor(const nsIntSize& aSize)
+  PRBool BufferSizeOkFor(const nsIntSize& aSize)
   {
     return (aSize == mBufferRect.Size() ||
             (SizedToVisibleBounds != mBufferSizePolicy &&

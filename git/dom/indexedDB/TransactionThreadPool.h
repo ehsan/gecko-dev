@@ -46,7 +46,8 @@
 #include "nsIObserver.h"
 #include "nsIRunnable.h"
 
-#include "mozilla/Monitor.h"
+#include "mozilla/Mutex.h"
+#include "mozilla/CondVar.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "nsRefPtrHashtable.h"
@@ -105,7 +106,8 @@ protected:
     inline void Finish(nsIRunnable* aFinishRunnable);
 
   private:
-    mozilla::Monitor mMonitor;
+    mozilla::Mutex mMutex;
+    mozilla::CondVar mCondVar;
     IDBTransaction* mTransaction;
     nsAutoTArray<nsCOMPtr<nsIRunnable>, 10> mQueue;
     nsCOMPtr<nsIRunnable> mFinishRunnable;
@@ -121,6 +123,12 @@ protected:
 
   struct DatabaseTransactionInfo
   {
+    DatabaseTransactionInfo()
+    : locked(false), lockPending(false)
+    { }
+
+    bool locked;
+    bool lockPending;
     nsTArray<TransactionInfo> transactions;
     nsTArray<nsString> storesReading;
     nsTArray<nsString> storesWriting;
@@ -166,7 +174,7 @@ protected:
 
   nsCOMPtr<nsIThreadPool> mThreadPool;
 
-  nsClassHashtable<nsISupportsHashKey, DatabaseTransactionInfo>
+  nsClassHashtable<nsUint32HashKey, DatabaseTransactionInfo>
     mTransactionsInProgress;
 
   nsTArray<QueuedDispatchInfo> mDelayedDispatchQueue;

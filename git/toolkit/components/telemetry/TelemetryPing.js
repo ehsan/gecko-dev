@@ -63,10 +63,6 @@ const MEM_HISTOGRAMS = {
   "heap-allocated": "MEMORY_HEAP_ALLOCATED",
   "page-faults-hard": "PAGE_FAULTS_HARD"
 };
-// Seconds of idle time before pinging.
-// On idle-daily a gather-telemetry notification is fired, during it probes can
-// start asynchronous tasks to gather data.  On the next idle the data is sent.
-const IDLE_TIMEOUT_SECONDS = 5 * 60;
 
 var gLastMemoryPoll = null;
 
@@ -76,17 +72,107 @@ function getLocale() {
          getSelectedLocale('global');
 }
 
-XPCOMUtils.defineLazyServiceGetter(this, "Telemetry",
-                                   "@mozilla.org/base/telemetry;1",
-                                   "nsITelemetry");
-XPCOMUtils.defineLazyServiceGetter(this, "idleService",
-                                   "@mozilla.org/widget/idleservice;1",
-                                   "nsIIdleService");
+XPCOMUtils.defineLazyGetter(this, "Telemetry", function () {
+  return Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
+});
+
+/**
+ * Returns a set of histograms that can be converted into JSON
+ * @return a snapshot of the histograms of form:
+ *  { histogram_name: {range:[minvalue,maxvalue], bucket_count:<number of buckets>,
+ *    histogram_type: <0 for exponential, 1 for linear>, bucketX:countX, ....} ...}
+ * where bucket[XY], count[XY] are positive integers.
+ */
+function getHistograms() {
+  let hls = Telemetry.histogramSnapshots;
+  let ret = {};
+
+  for (let key in hls) {
+    let hgram = hls[key];
+    if (!hgram.static)
+      continue;
+
+    let r = hgram.ranges;
+    let c = hgram.counts;
+    let retgram = {
+      range: [r[1], r[r.length - 1]],
+      bucket_count: r.length,
+      histogram_type: hgram.histogram_type,
+      values: {},
+      sum: hgram.sum
+    };
+    let first = true;
+    let last = 0;
+
+    for (let i = 0; i < c.length; i++) {
+      let value = c[i];
+      if (!value)
+        continue;
+
+      // add a lower bound
+      if (i && first) {
+        first = false;
+        retgram.values[r[i - 1]] = 0;
+      }
+      first = false;
+      last = i + 1;
+      retgram.values[r[i]] = value;
+    }
+
+    // add an upper bound
+    if (last && last < c.length)
+      retgram.values[r[last]] = 0;
+    ret[key] = retgram;
+  }
+  return ret;
+}
 
 function generateUUID() {
   let str = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
   // strip {}
   return str.substring(1, str.length - 1);
+}
+
+/**
+ * Gets metadata about the platform the application is running on. This
+ * should remain consistent across multiple telemetry pings.
+ * 
+ * @param  reason
+ *         The reason for the telemetry ping, this will be included in the
+ *         returned metadata,
+ * @return The metadata as a JS object
+ */
+function getMetadata(reason) {
+  let ai = Services.appinfo;
+  let ret = {
+    reason: reason,
+    OS: ai.OS,
+    appID: ai.ID,
+    appVersion: ai.version,
+    appName: ai.name,
+    appBuildID: ai.appBuildID,
+    platformBuildID: ai.platformBuildID,
+    locale: getLocale(),
+  };
+
+  // sysinfo fields is not always available, get what we can.
+  let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
+  let fields = ["cpucount", "memsize", "arch", "version", "device", "manufacturer", "hardware"];
+  for each (let field in fields) {
+    let value;
+    try {
+      value = sysInfo.getProperty(field);
+    } catch (e) {
+      continue
+    }
+    if (field == "memsize") {
+      // Send RAM size in megabytes. Rounding because sysinfo doesn't
+      // always provide RAM in multiples of 1024.
+      value = Math.round(value / 1024 / 1024)
+    }
+    ret[field] = value
+  }
+  return ret;
 }
 
 /**
@@ -96,7 +182,8 @@ function generateUUID() {
  * @return simple measurements as a dictionary.
  */
 function getSimpleMeasurements() {
-  let si = Services.startup.getStartupInfo();
+  let si = Cc["@mozilla.org/toolkit/app-startup;1"].
+           getService(Ci.nsIAppStartup).getStartupInfo();
 
   var ret = {
     // uptime in minutes
@@ -110,7 +197,6 @@ function getSimpleMeasurements() {
       ret[field] = si[field] - si.process
     }
   }
-  ret.startupInterrupted = new Number(Services.startup.interrupted);
 
   ret.js = Cc["@mozilla.org/js/xpc/XPConnect;1"]
            .getService(Ci.nsIJSEngineTelemetryStats)
@@ -125,63 +211,6 @@ TelemetryPing.prototype = {
   _histograms: {},
   _initialized: false,
   _prevValues: {},
-  _sqliteOverhead: {},
-
-  /**
-   * Returns a set of histograms that can be converted into JSON
-   * @return a snapshot of the histograms of form:
-   *  { histogram_name: {range:[minvalue,maxvalue], bucket_count:<number of buckets>,
-   *    histogram_type: <0 for exponential, 1 for linear>, bucketX:countX, ....} ...}
-   * where bucket[XY], count[XY] are positive integers.
-   */
-  getHistograms: function getHistograms() {
-    let hls = Telemetry.histogramSnapshots;
-    let ret = {};
-
-    // bug 701583: report sqlite overhead on startup
-    for (let key in this._sqliteOverhead) {
-      hls[key] = this._sqliteOverhead[key];
-    }
-
-    for (let key in hls) {
-      let hgram = hls[key];
-      if (!hgram.static)
-        continue;
-
-      let r = hgram.ranges;
-      let c = hgram.counts;
-      let retgram = {
-        range: [r[1], r[r.length - 1]],
-        bucket_count: r.length,
-        histogram_type: hgram.histogram_type,
-        values: {},
-        sum: hgram.sum
-      };
-      let first = true;
-      let last = 0;
-
-      for (let i = 0; i < c.length; i++) {
-        let value = c[i];
-        if (!value)
-          continue;
-
-        // add a lower bound
-        if (i && first) {
-          first = false;
-          retgram.values[r[i - 1]] = 0;
-        }
-        first = false;
-        last = i + 1;
-        retgram.values[r[i]] = value;
-      }
-
-      // add an upper bound
-      if (last && last < c.length)
-        retgram.values[r[last]] = 0;
-      ret[key] = retgram;
-    }
-    return ret;
-  },
 
   addValue: function addValue(name, id, val) {
     let h = this._histograms[name];
@@ -214,10 +243,7 @@ TelemetryPing.prototype = {
 
     // sysinfo fields are not always available, get what we can.
     let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
-    let fields = ["cpucount", "memsize", "arch", "version", "device", "manufacturer", "hardware",
-                  "hasMMX", "hasSSE", "hasSSE2", "hasSSE3",
-                  "hasSSSE3", "hasSSE4A", "hasSSE4_1", "hasSSE4_2",
-                  "hasEDSP", "hasARMv6", "hasNEON"];
+    let fields = ["cpucount", "memsize", "arch", "version", "device", "manufacturer", "hardware"];
     for each (let field in fields) {
       let value;
       try {
@@ -301,18 +327,6 @@ TelemetryPing.prototype = {
     }
   },
   
-  /** 
-   * Make a copy of sqlite histograms on startup
-   */
-  gatherStartupSqlite: function gatherStartupSqlite() {
-    let hls = Telemetry.histogramSnapshots;
-    let sqlite_re = /SQLITE/;
-    for (let key in hls) {
-      if (sqlite_re.test(key))
-        this._sqliteOverhead["STARTUP_" + key] = hls[key];
-    }
-  },
-
   /**
    * Send data to the server. Record success/send-time in histograms
    */
@@ -323,7 +337,7 @@ TelemetryPing.prototype = {
       ver: PAYLOAD_VERSION,
       info: this.getMetadata(reason),
       simpleMeasurements: getSimpleMeasurements(),
-      histograms: this.getHistograms()
+      histograms: getHistograms()
     };
 
     let isTestPing = (reason == "test-ping");
@@ -356,8 +370,8 @@ TelemetryPing.prototype = {
       if (isTestPing)
         Services.obs.notifyObservers(null, "telemetry-test-xhr-complete", null);
     }
-    request.addEventListener("error", function(aEvent) finishRequest(request.channel), false);
-    request.addEventListener("load", function(aEvent) finishRequest(request.channel), false);
+    request.onerror = function(aEvent) finishRequest(request.channel);
+    request.onload = function(aEvent) finishRequest(request.channel);
 
     request.send(JSON.stringify(payload));
   },
@@ -374,10 +388,6 @@ TelemetryPing.prototype = {
       return;
     Services.obs.removeObserver(this, "idle-daily");
     Services.obs.removeObserver(this, "cycle-collector-begin");
-    if (this._isIdleObserver) {
-      idleService.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
-      this._isIdleObserver = false;
-    }
   },
 
   /**
@@ -399,7 +409,6 @@ TelemetryPing.prototype = {
     }
     Services.obs.addObserver(this, "private-browsing", false);
     Services.obs.addObserver(this, "profile-before-change", false);
-    Services.obs.addObserver(this, "sessionstore-windows-restored", false);
 
     // Delay full telemetry initialization to give the browser time to
     // run various late initializers. Otherwise our gathered memory
@@ -420,7 +429,6 @@ TelemetryPing.prototype = {
    */
   uninstall: function uninstall() {
     this.detachObservers()
-    Services.obs.removeObserver(this, "sessionstore-windows-restored");
     Services.obs.removeObserver(this, "profile-before-change");
     Services.obs.removeObserver(this, "private-browsing");
   },
@@ -458,29 +466,11 @@ TelemetryPing.prototype = {
         this.attachObservers()
       }
       break;
-    case "sessionstore-windows-restored":
-      this.gatherStartupSqlite();
-      break;
-    case "idle-daily":
-      // Enqueue to main-thread, otherwise components may be inited by the
-      // idle-daily category and miss the gather-telemetry notification.
-      Services.tm.mainThread.dispatch((function() {
-        // Notify that data should be gathered now, since ping will happen soon.
-        Services.obs.notifyObservers(null, "gather-telemetry", null);
-        // The ping happens at the first idle of length IDLE_TIMEOUT_SECONDS.
-        idleService.addIdleObserver(this, IDLE_TIMEOUT_SECONDS);
-        this._isIdleObserver = true;
-      }).bind(this), Ci.nsIThread.DISPATCH_NORMAL);
-      break;
     case "test-ping":
       server = aData;
       // fall through
-    case "idle":
-      if (this._isIdleObserver) {
-        idleService.removeIdleObserver(this, IDLE_TIMEOUT_SECONDS);
-        this._isIdleObserver = false;
-      }
-      this.send(aTopic == "idle" ? "idle-daily" : aTopic, server);
+    case "idle-daily":
+      this.send(aTopic, server);
       break;
     }
   },

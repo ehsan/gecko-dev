@@ -112,7 +112,7 @@ nsContextMenuInfo::GetAssociatedLink(nsAString& aHRef)
   if (localName.EqualsLiteral("a") ||
       localName.EqualsLiteral("area") ||
       localName.EqualsLiteral("link")) {
-    bool hasAttr;
+    PRBool hasAttr;
     content->HasAttribute(NS_LITERAL_STRING("href"), &hasAttr);
     if (hasAttr) {
       linkContent = content;
@@ -141,7 +141,7 @@ nsContextMenuInfo::GetAssociatedLink(nsAString& aHRef)
       content->GetLocalName(localName);
       ToLowerCase(localName);
       if (localName.EqualsLiteral("a")) {
-        bool hasAttr;
+        PRBool hasAttr;
         content->HasAttribute(NS_LITERAL_STRING("href"), &hasAttr);
         if (hasAttr) {
           linkContent = content;
@@ -235,10 +235,10 @@ nsContextMenuInfo::GetImageRequest(nsIDOMNode *aDOMNode, imgIRequest **aRequest)
                              aRequest);
 }
 
-bool
+PRBool
 nsContextMenuInfo::HasBackgroundImage(nsIDOMNode * aDOMNode)
 {
-  NS_ENSURE_TRUE(aDOMNode, false);
+  NS_ENSURE_TRUE(aDOMNode, PR_FALSE);
 
   nsCOMPtr<imgIRequest> request;
   GetBackgroundImageRequest(aDOMNode, getter_AddRefs(request));
@@ -316,7 +316,7 @@ nsContextMenuInfo::GetBackgroundImageRequestInternal(nsIDOMNode *aDOMNode, imgIR
     }
   }
   
-  while (true) {
+  while (PR_TRUE) {
     nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(domNode));
     // bail for the parent node of the root element or null argument
     if (!domElement)

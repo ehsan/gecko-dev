@@ -45,39 +45,32 @@
 #include "nsString.h"
 
 gfxWindowsSurface::gfxWindowsSurface(HWND wnd, PRUint32 flags) :
-    mOwnsDC(true), mForPrinting(false), mWnd(wnd)
+    mOwnsDC(PR_TRUE), mForPrinting(PR_FALSE), mWnd(wnd)
 {
     mDC = ::GetDC(mWnd);
     InitWithDC(flags);
 }
 
 gfxWindowsSurface::gfxWindowsSurface(HDC dc, PRUint32 flags) :
-    mOwnsDC(false), mForPrinting(false), mDC(dc), mWnd(nsnull)
+    mOwnsDC(PR_FALSE), mForPrinting(PR_FALSE), mDC(dc), mWnd(nsnull)
 {
     if (flags & FLAG_TAKE_DC)
-        mOwnsDC = true;
+        mOwnsDC = PR_TRUE;
 
 #ifdef NS_PRINTING
     if (flags & FLAG_FOR_PRINTING) {
         Init(cairo_win32_printing_surface_create(mDC));
-        mForPrinting = true;
+        mForPrinting = PR_TRUE;
     } else
 #endif
     InitWithDC(flags);
 }
 
-void
-gfxWindowsSurface::MakeInvalid(gfxIntSize& size)
+gfxWindowsSurface::gfxWindowsSurface(const gfxIntSize& size, gfxImageFormat imageFormat) :
+    mOwnsDC(PR_FALSE), mForPrinting(PR_FALSE), mWnd(nsnull)
 {
-    size = gfxIntSize(-1, -1);
-}
-
-gfxWindowsSurface::gfxWindowsSurface(const gfxIntSize& realSize, gfxImageFormat imageFormat) :
-    mOwnsDC(false), mForPrinting(false), mWnd(nsnull)
-{
-    gfxIntSize size(realSize);
     if (!CheckSurfaceSize(size))
-        MakeInvalid(size);
+        return;
 
     cairo_surface_t *surf = cairo_win32_surface_create_with_dib((cairo_format_t)imageFormat,
                                                                 size.width, size.height);
@@ -92,12 +85,11 @@ gfxWindowsSurface::gfxWindowsSurface(const gfxIntSize& realSize, gfxImageFormat 
         mDC = nsnull;
 }
 
-gfxWindowsSurface::gfxWindowsSurface(HDC dc, const gfxIntSize& realSize, gfxImageFormat imageFormat) :
-    mOwnsDC(false), mForPrinting(false), mWnd(nsnull)
+gfxWindowsSurface::gfxWindowsSurface(HDC dc, const gfxIntSize& size, gfxImageFormat imageFormat) :
+    mOwnsDC(PR_FALSE), mForPrinting(PR_FALSE), mWnd(nsnull)
 {
-    gfxIntSize size(realSize);
     if (!CheckSurfaceSize(size))
-        MakeInvalid(size);
+        return;
 
     cairo_surface_t *surf = cairo_win32_surface_create_with_ddb(dc, (cairo_format_t)imageFormat,
                                                                 size.width, size.height);
@@ -115,7 +107,7 @@ gfxWindowsSurface::gfxWindowsSurface(HDC dc, const gfxIntSize& realSize, gfxImag
 }
 
 gfxWindowsSurface::gfxWindowsSurface(cairo_surface_t *csurf) :
-    mOwnsDC(false), mForPrinting(false), mWnd(nsnull)
+    mOwnsDC(PR_FALSE), mForPrinting(PR_FALSE), mWnd(nsnull)
 {
     if (cairo_surface_status(csurf) == 0)
         mDC = cairo_win32_surface_get_dc(csurf);
@@ -123,9 +115,9 @@ gfxWindowsSurface::gfxWindowsSurface(cairo_surface_t *csurf) :
         mDC = nsnull;
 
     if (cairo_surface_get_type(csurf) == CAIRO_SURFACE_TYPE_WIN32_PRINTING)
-        mForPrinting = true;
+        mForPrinting = PR_TRUE;
 
-    Init(csurf, true);
+    Init(csurf, PR_TRUE);
 }
 
 void
@@ -335,20 +327,6 @@ gfxWindowsSurface::GetDefaultContextFlags() const
                gfxContext::FLAG_DISABLE_COPY_BACKGROUND;
 
     return 0;
-}
-
-const gfxIntSize 
-gfxWindowsSurface::GetSize() const
-{
-    if (!mSurfaceValid) {
-        NS_WARNING ("GetImageSurface on an invalid (null) surface; who's calling this without checking for surface errors?");
-        return gfxIntSize(-1, -1);
-    }
-
-    NS_ASSERTION(mSurface != nsnull, "CairoSurface() shouldn't be nsnull when mSurfaceValid is TRUE!");
-
-    return gfxIntSize(cairo_win32_surface_get_width(mSurface),
-                      cairo_win32_surface_get_height(mSurface));
 }
 
 gfxASurface::MemoryLocation

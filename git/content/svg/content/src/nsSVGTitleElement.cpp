@@ -72,16 +72,16 @@ public:
 
   virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                               nsIContent *aBindingParent,
-                              bool aCompileEventHandlers);
+                              PRBool aCompileEventHandlers);
 
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
 
-  virtual void DoneAddingChildren(bool aHaveNotified);
+  virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
 
   virtual nsXPCClassInfo* GetClassInfo();
 private:
-  void SendTitleChangeEvent(bool aBound);
+  void SendTitleChangeEvent(PRBool aBound);
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Title)
@@ -123,7 +123,7 @@ nsSVGTitleElement::CharacterDataChanged(nsIDocument *aDocument,
                                         nsIContent *aContent,
                                         CharacterDataChangeInfo *aInfo)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 void
@@ -132,7 +132,7 @@ nsSVGTitleElement::ContentAppended(nsIDocument *aDocument,
                                    nsIContent *aFirstNewContent,
                                    PRInt32 aNewIndexInContainer)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 void
@@ -141,7 +141,7 @@ nsSVGTitleElement::ContentInserted(nsIDocument *aDocument,
                                    nsIContent *aChild,
                                    PRInt32 aIndexInContainer)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 void
@@ -151,14 +151,14 @@ nsSVGTitleElement::ContentRemoved(nsIDocument *aDocument,
                                   PRInt32 aIndexInContainer,
                                   nsIContent *aPreviousSibling)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 }
 
 nsresult
 nsSVGTitleElement::BindToTree(nsIDocument *aDocument,
                                nsIContent *aParent,
                                nsIContent *aBindingParent,
-                               bool aCompileEventHandlers)
+                               PRBool aCompileEventHandlers)
 {
   // Let this fall through.
   nsresult rv = nsSVGTitleElementBase::BindToTree(aDocument, aParent,
@@ -166,30 +166,31 @@ nsSVGTitleElement::BindToTree(nsIDocument *aDocument,
                                                   aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  SendTitleChangeEvent(true);
+  SendTitleChangeEvent(PR_TRUE);
 
   return NS_OK;
 }
 
 void
-nsSVGTitleElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsSVGTitleElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  SendTitleChangeEvent(false);
+  SendTitleChangeEvent(PR_FALSE);
 
   // Let this fall through.
   nsSVGTitleElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
-void
-nsSVGTitleElement::DoneAddingChildren(bool aHaveNotified)
+nsresult
+nsSVGTitleElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   if (!aHaveNotified) {
-    SendTitleChangeEvent(false);
+    SendTitleChangeEvent(PR_FALSE);
   }
+  return NS_OK;
 }
 
 void
-nsSVGTitleElement::SendTitleChangeEvent(bool aBound)
+nsSVGTitleElement::SendTitleChangeEvent(PRBool aBound)
 {
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {

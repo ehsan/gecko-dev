@@ -63,7 +63,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Label)
 
 nsHTMLLabelElement::nsHTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
-  , mHandlingEvent(false)
+  , mHandlingEvent(PR_FALSE)
 {
 }
 
@@ -104,8 +104,11 @@ nsHTMLLabelElement::GetForm(nsIDOMHTMLFormElement** aForm)
 NS_IMETHODIMP
 nsHTMLLabelElement::GetControl(nsIDOMHTMLElement** aElement)
 {
+  *aElement = nsnull;
+
   nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(GetLabeledElement());
-  element.forget(aElement);
+
+  element.swap(*aElement);
   return NS_OK;
 }
 
@@ -129,7 +132,7 @@ nsHTMLLabelElement::Focus()
 nsresult
 nsHTMLLabelElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
-                               bool aCompileEventHandlers)
+                               PRBool aCompileEventHandlers)
 {
   return nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
                                               aBindingParent,
@@ -137,19 +140,19 @@ nsHTMLLabelElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsHTMLLabelElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsHTMLLabelElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-static bool
+static PRBool
 EventTargetIn(nsEvent *aEvent, nsIContent *aChild, nsIContent *aStop)
 {
   nsCOMPtr<nsIContent> c = do_QueryInterface(aEvent->target);
   nsIContent *content = c;
   while (content) {
     if (content == aChild) {
-      return true;
+      return PR_TRUE;
     }
 
     if (content == aStop) {
@@ -158,7 +161,7 @@ EventTargetIn(nsEvent *aEvent, nsIContent *aChild, nsIContent *aStop)
 
     content = content->GetParent();
   }
-  return false;
+  return PR_FALSE;
 }
 
 static void
@@ -167,7 +170,7 @@ DestroyMouseDownPoint(void *    /*aObject*/,
                       void *    aPropertyValue,
                       void *    /*aData*/)
 {
-  nsIntPoint* pt = static_cast<nsIntPoint*>(aPropertyValue);
+  nsIntPoint *pt = (nsIntPoint *)aPropertyValue;
   delete pt;
 }
 
@@ -188,7 +191,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   nsRefPtr<Element> content = GetLabeledElement();
 
   if (content && !EventTargetIn(aVisitor.mEvent, content, this)) {
-    mHandlingEvent = true;
+    mHandlingEvent = PR_TRUE;
     switch (aVisitor.mEvent->message) {
       case NS_MOUSE_BUTTON_DOWN:
         NS_ASSERTION(aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT,
@@ -211,7 +214,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           nsIntPoint *mouseDownPoint = static_cast<nsIntPoint *>
             (GetProperty(nsGkAtoms::labelMouseDownPtProperty));
 
-          bool dragSelect = false;
+          PRBool dragSelect = PR_FALSE;
           if (mouseDownPoint) {
             nsIntPoint dragDistance = *mouseDownPoint;
             DeleteProperty(nsGkAtoms::labelMouseDownPtProperty);
@@ -255,7 +258,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           // will actually create a new event.
           DispatchClickEvent(aVisitor.mPresContext,
                              static_cast<nsInputEvent*>(aVisitor.mEvent),
-                             content, false,
+                             content, PR_FALSE,
                              NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS, &status);
           // Do we care about the status this returned?  I don't think we do...
           // Don't run another <label> off of this click
@@ -263,7 +266,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         }
         break;
     }
-    mHandlingEvent = false;
+    mHandlingEvent = PR_FALSE;
   }
   return NS_OK;
 }
@@ -282,7 +285,7 @@ nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 
 nsresult
 nsHTMLLabelElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
-                            const nsAString& aValue, bool aNotify)
+                            const nsAString& aValue, PRBool aNotify)
 {
   return nsGenericHTMLFormElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                            aNotify);
@@ -290,14 +293,14 @@ nsHTMLLabelElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, nsIAtom* aPref
 
 nsresult
 nsHTMLLabelElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                              bool aNotify)
+                              PRBool aNotify)
 {
   return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 void
-nsHTMLLabelElement::PerformAccesskey(bool aKeyCausesActivation,
-                                     bool aIsTrustedEvent)
+nsHTMLLabelElement::PerformAccesskey(PRBool aKeyCausesActivation,
+                                     PRBool aIsTrustedEvent)
 {
   if (!aKeyCausesActivation) {
     nsRefPtr<Element> element = GetLabeledElement();

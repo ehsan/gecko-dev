@@ -94,7 +94,7 @@ private:
     PRUint32   mNumThreads;     // number of active + idle threads
     PRUint32   mNumIdleThreads; // number of idle threads
     PRCList    mEventQ;         // queue of PLEvent structs
-    bool       mShutdown;       // set to true if shutting down
+    PRBool     mShutdown;       // set to true if shutting down
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsIOThreadPool, nsIEventTarget, nsIObserver)
@@ -109,7 +109,7 @@ nsIOThreadPool::Init()
 
     mNumThreads = 0;
     mNumIdleThreads = 0;
-    mShutdown = false;
+    mShutdown = PR_FALSE;
 
     mLock = nsAutoLock::NewLock("nsIOThreadPool::mLock");
     if (!mLock)
@@ -128,7 +128,7 @@ nsIOThreadPool::Init()
     // We want to shutdown the i/o thread pool at xpcom-shutdown-threads time.
     nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
     if (os)
-        os->AddObserver(this, "xpcom-shutdown-threads", false);
+        os->AddObserver(this, "xpcom-shutdown-threads", PR_FALSE);
     return NS_OK;
 }
 
@@ -157,7 +157,7 @@ nsIOThreadPool::Shutdown()
     // synchronize with background threads...
     {
         nsAutoLock lock(mLock);
-        mShutdown = true;
+        mShutdown = PR_TRUE;
 
         PR_NotifyAllCondVar(mIdleThreadCV);
 
@@ -209,7 +209,7 @@ nsIOThreadPool::PostEvent(PLEvent *event)
 }
 
 NS_IMETHODIMP
-nsIOThreadPool::IsOnCurrentThread(bool *result)
+nsIOThreadPool::IsOnCurrentThread(PRBool *result)
 {
     // no one should be calling this method.  if this assertion gets hit,
     // then we need to think carefully about what this method should be
@@ -217,7 +217,7 @@ nsIOThreadPool::IsOnCurrentThread(bool *result)
     NS_NOTREACHED("nsIOThreadPool::IsOnCurrentThread");
 
     // fudging this a bit since we actually cover several threads...
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 

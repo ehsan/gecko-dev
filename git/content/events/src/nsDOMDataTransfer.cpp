@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsDOMDataTransfer.h"
 
 #include "prlog.h"
@@ -44,8 +42,7 @@
 #include "nsIServiceManager.h"
 #include "nsIVariant.h"
 #include "nsISupportsPrimitives.h"
-#include "nsDOMClassInfoID.h"
-#include "nsIScriptSecurityManager.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
 #include "nsGUIEvent.h"
 #include "nsDOMError.h"
@@ -55,8 +52,6 @@
 #include "nsIContent.h"
 #include "nsCRT.h"
 #include "nsIScriptObjectPrincipal.h"
-
-using namespace mozilla;
 
 NS_IMPL_CYCLE_COLLECTION_2(nsDOMDataTransfer, mDragTarget, mDragImage)
 
@@ -81,10 +76,10 @@ nsDOMDataTransfer::nsDOMDataTransfer()
   : mEventType(NS_DRAGDROP_START),
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
     mEffectAllowed(nsIDragService::DRAGDROP_ACTION_UNINITIALIZED),
-    mCursorState(false),
-    mReadOnly(false),
-    mIsExternal(false),
-    mUserCancelled(false),
+    mCursorState(PR_FALSE),
+    mReadOnly(PR_FALSE),
+    mIsExternal(PR_FALSE),
+    mUserCancelled(PR_FALSE),
     mDragImageX(0),
     mDragImageY(0)
 {
@@ -94,10 +89,10 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType)
   : mEventType(aEventType),
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
     mEffectAllowed(nsIDragService::DRAGDROP_ACTION_UNINITIALIZED),
-    mCursorState(false),
-    mReadOnly(true),
-    mIsExternal(true),
-    mUserCancelled(false),
+    mCursorState(PR_FALSE),
+    mReadOnly(PR_TRUE),
+    mIsExternal(PR_TRUE),
+    mUserCancelled(PR_FALSE),
     mDragImageX(0),
     mDragImageY(0)
 {
@@ -106,9 +101,9 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType)
 
 nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
                                      const PRUint32 aEffectAllowed,
-                                     bool aCursorState,
-                                     bool aIsExternal,
-                                     bool aUserCancelled,
+                                     PRBool aCursorState,
+                                     PRBool aIsExternal,
+                                     PRBool aUserCancelled,
                                      nsTArray<nsTArray<TransferItem> >& aItems,
                                      nsIDOMElement* aDragImage,
                                      PRUint32 aDragImageX,
@@ -117,7 +112,7 @@ nsDOMDataTransfer::nsDOMDataTransfer(PRUint32 aEventType,
     mDropEffect(nsIDragService::DRAGDROP_ACTION_NONE),
     mEffectAllowed(aEffectAllowed),
     mCursorState(aCursorState),
-    mReadOnly(true),
+    mReadOnly(PR_TRUE),
     mIsExternal(aIsExternal),
     mUserCancelled(aUserCancelled),
     mItems(aItems),
@@ -182,7 +177,7 @@ nsDOMDataTransfer::SetEffectAllowed(const nsAString& aEffectAllowed)
   PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_MOVE == 2);
   PR_STATIC_ASSERT(nsIDragService::DRAGDROP_ACTION_LINK == 4);
 
-  for (PRUint32 e = 0; e < ArrayLength(sEffects); e++) {
+  for (PRUint32 e = 0; e < NS_ARRAY_LENGTH(sEffects); e++) {
     if (aEffectAllowed.EqualsASCII(sEffects[e])) {
       mEffectAllowed = e;
       break;
@@ -221,7 +216,7 @@ nsDOMDataTransfer::SetEffectAllowedInt(PRUint32 aEffectAllowed)
 }
 
 NS_IMETHODIMP
-nsDOMDataTransfer::GetMozUserCancelled(bool* aUserCancelled)
+nsDOMDataTransfer::GetMozUserCancelled(PRBool* aUserCancelled)
 {
   *aUserCancelled = mUserCancelled;
   return NS_OK;
@@ -285,7 +280,7 @@ nsDOMDataTransfer::GetTypes(nsIDOMDOMStringList** aTypes)
     for (PRUint32 i = 0; i < item.Length(); i++)
       types->Add(item[i].mFormat);
 
-    bool filePresent, filePromisePresent;
+    PRBool filePresent, filePromisePresent;
     types->Contains(NS_LITERAL_STRING(kFileMime), &filePresent);
     types->Contains(NS_LITERAL_STRING("application/x-moz-file-promise"), &filePromisePresent);
     if (filePresent || filePromisePresent)
@@ -317,10 +312,7 @@ nsDOMDataTransfer::GetData(const nsAString& aFormat, nsAString& aData)
 
     // for the URL type, parse out the first URI from the list. The URIs are
     // separated by newlines
-    nsAutoString lowercaseFormat;
-    nsContentUtils::ASCIIToLower(aFormat, lowercaseFormat);
-    
-    if (lowercaseFormat.EqualsLiteral("url")) {
+    if (aFormat.EqualsLiteral("URL")) {
       PRInt32 lastidx = 0, idx;
       PRInt32 length = stringdata.Length();
       while (lastidx < length) {
@@ -335,7 +327,7 @@ nsDOMDataTransfer::GetData(const nsAString& aFormat, nsAString& aData)
             aData.Assign(Substring(stringdata, lastidx));
           else
             aData.Assign(Substring(stringdata, lastidx, idx - lastidx));
-          aData = nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(aData, true);
+          aData = nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(aData, PR_TRUE);
           return NS_OK;
         }
         lastidx = idx + 1;
@@ -466,7 +458,7 @@ nsDOMDataTransfer::MozGetDataAt(const nsAString& aFormat,
   for (PRUint32 i = 0; i < count; i++) {
     TransferItem& formatitem = item[i];
     if (formatitem.mFormat.Equals(format)) {
-      bool subsumes;
+      PRBool subsumes;
       if (formatitem.mPrincipal && principal &&
           (NS_FAILED(principal->Subsumes(formatitem.mPrincipal, &subsumes)) || !subsumes))
         return NS_ERROR_DOM_SECURITY_ERR;
@@ -489,7 +481,7 @@ nsDOMDataTransfer::MozGetDataAt(const nsAString& aFormat,
           NS_ENSURE_TRUE(principal || (principal = GetCurrentPrincipal(&rv)),
                          NS_ERROR_DOM_SECURITY_ERR);
           NS_ENSURE_SUCCESS(rv, rv);
-          bool equals = false;
+          PRBool equals = PR_FALSE;
           NS_ENSURE_TRUE(NS_SUCCEEDED(principal->Equals(dataPrincipal, &equals)) && equals,
                          NS_ERROR_DOM_SECURITY_ERR);
         }
@@ -552,7 +544,7 @@ nsDOMDataTransfer::MozClearDataAt(const nsAString& aFormat, PRUint32 aIndex)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // if the format is empty, clear all formats
-  bool clearall = format.IsEmpty();
+  PRBool clearall = format.IsEmpty();
 
   nsTArray<TransferItem>& item = mItems[aIndex];
   // count backwards so that the count and index don't have to be adjusted
@@ -561,7 +553,7 @@ nsDOMDataTransfer::MozClearDataAt(const nsAString& aFormat, PRUint32 aIndex)
     TransferItem& formatitem = item[i];
     if (clearall || formatitem.mFormat.Equals(format)) {
       // don't allow removing data that has a stronger principal
-      bool subsumes;
+      PRBool subsumes;
       if (formatitem.mPrincipal && principal &&
           (NS_FAILED(principal->Subsumes(formatitem.mPrincipal, &subsumes)) || !subsumes))
         return NS_ERROR_DOM_SECURITY_ERR;
@@ -612,7 +604,7 @@ nsDOMDataTransfer::AddElement(nsIDOMElement* aElement)
 }
 
 nsresult
-nsDOMDataTransfer::Clone(PRUint32 aEventType, bool aUserCancelled,
+nsDOMDataTransfer::Clone(PRUint32 aEventType, PRBool aUserCancelled,
                          nsIDOMDataTransfer** aNewDataTransfer)
 {
   nsDOMDataTransfer* newDataTransfer =
@@ -636,7 +628,7 @@ nsDOMDataTransfer::GetTransferables(nsISupportsArray** aArray)
   if (!transArray)
     return;
 
-  bool added = false;
+  PRBool added = PR_FALSE;
   PRUint32 count = mItems.Length();
   for (PRUint32 i = 0; i < count; i++) {
 
@@ -681,7 +673,7 @@ nsDOMDataTransfer::GetTransferables(nsISupportsArray** aArray)
       if (NS_FAILED(rv))
         return;
 
-      added = true;
+      added = PR_TRUE;
     }
 
     // only append the transferable if data was successfully added to it
@@ -692,7 +684,7 @@ nsDOMDataTransfer::GetTransferables(nsISupportsArray** aArray)
   NS_ADDREF(*aArray = transArray);
 }
 
-bool
+PRBool
 nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
                                       nsISupports** aSupports,
                                       PRUint32* aLength)
@@ -706,7 +698,7 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
       type == nsIDataType::VTYPE_INTERFACE_IS) {
     nsCOMPtr<nsISupports> data;
     if (NS_FAILED(aVariant->GetAsISupports(getter_AddRefs(data))))
-       return false;
+       return PR_FALSE;
  
     nsCOMPtr<nsIFlavorDataProvider> fdp = do_QueryInterface(data);
     if (fdp) {
@@ -720,7 +712,7 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
       nsCOMPtr<nsISupportsInterfacePointer> ptrSupports =
         do_CreateInstance(NS_SUPPORTS_INTERFACE_POINTER_CONTRACTID);
       if (!ptrSupports)
-        return false;
+        return PR_FALSE;
 
       ptrSupports->SetData(data);
       NS_ADDREF(*aSupports = ptrSupports);
@@ -728,14 +720,14 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
       *aLength = sizeof(nsISupportsInterfacePointer *);
     }
 
-    return true;
+    return PR_TRUE;
   }
 
   PRUnichar* chrs;
   PRUint32 len = 0;
   nsresult rv = aVariant->GetAsWStringWithSize(&len, &chrs);
   if (NS_FAILED(rv))
-    return false;
+    return PR_FALSE;
 
   nsAutoString str;
   str.Adopt(chrs, len);
@@ -743,7 +735,7 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
   nsCOMPtr<nsISupportsString>
     strSupports(do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
   if (!strSupports)
-    return false;
+    return PR_FALSE;
 
   strSupports->SetData(str);
 
@@ -753,7 +745,7 @@ nsDOMDataTransfer::ConvertFromVariant(nsIVariant* aVariant,
   // each character is two bytes
   *aLength = str.Length() << 1;
 
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -781,7 +773,7 @@ nsDOMDataTransfer::SetDataWithPrincipal(const nsAString& aFormat,
       TransferItem& itemformat = item[i];
       if (itemformat.mFormat.Equals(format)) {
         // don't allow replacing data that has a stronger principal
-        bool subsumes;
+        PRBool subsumes;
         if (itemformat.mPrincipal && aPrincipal &&
             (NS_FAILED(aPrincipal->Subsumes(itemformat.mPrincipal, &subsumes)) || !subsumes))
           return NS_ERROR_DOM_SECURITY_ERR;
@@ -833,14 +825,12 @@ void
 nsDOMDataTransfer::GetRealFormat(const nsAString& aInFormat, nsAString& aOutFormat)
 {
   // treat text/unicode as equivalent to text/plain
-  nsAutoString lowercaseFormat;
-  nsContentUtils::ASCIIToLower(aInFormat, lowercaseFormat);
-  if (lowercaseFormat.EqualsLiteral("text") || lowercaseFormat.EqualsLiteral("text/unicode"))
+  if (aInFormat.EqualsLiteral("Text") || aInFormat.EqualsLiteral("text/unicode"))
     aOutFormat.AssignLiteral("text/plain");
-  else if (lowercaseFormat.EqualsLiteral("url"))
+  else if (aInFormat.EqualsLiteral("URL"))
     aOutFormat.AssignLiteral("text/uri-list");
   else
-    aOutFormat.Assign(lowercaseFormat);
+    aOutFormat.Assign(aInFormat);
 }
 
 void
@@ -869,12 +859,12 @@ nsDOMDataTransfer::CacheExternalFormats()
   PRUint32 count;
   dragSession->GetNumDropItems(&count);
   for (PRUint32 c = 0; c < count; c++) {
-    for (PRUint32 f = 0; f < ArrayLength(formats); f++) {
+    for (PRUint32 f = 0; f < NS_ARRAY_LENGTH(formats); f++) {
       // IsDataFlavorSupported doesn't take an index as an argument and just
       // checks if any of the items support a particular flavor, even though
       // the GetData method does take an index. Here, we just assume that
       // every item being dragged has the same set of flavors.
-      bool supported;
+      PRBool supported;
       dragSession->IsDataFlavorSupported(formats[f], &supported);
       // if the format is supported, add an item to the array with null as
       // the data. When retrieved, GetRealData will read the data.

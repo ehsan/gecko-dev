@@ -27,7 +27,6 @@ EXPORTS	= \
 	gfxFontUtils.h \
 	gfxFontTest.h \
 	gfxImageSurface.h \
-	gfxLineSegment.h \
 	gfxMatrix.h \
 	gfxPath.h \
 	gfxPattern.h \
@@ -35,7 +34,6 @@ EXPORTS	= \
 	gfxPoint.h \
 	gfxPoint3D.h \
 	gfxPointH3D.h \
-	gfxQuad.h \
 	gfxQuaternion.h \
 	gfxRect.h \
 	gfxSkipChars.h \
@@ -46,19 +44,17 @@ EXPORTS	= \
 	gfxUnicodeProperties.h \
 	gfxUtils.h \
 	gfxUserFontSet.h \
+	GLDefs.h \
+	GLContext.h \
+	GLContextSymbols.h \
+	GLContextProvider.h \
+	GLContextProviderImpl.h \
 	nsCoreAnimationSupport.h \
+	EGLUtils.h \
 	gfxSharedImageSurface.h \
 	$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-EXPORTS += \
-	gfxAndroidPlatform.h \
-	gfxFT2Fonts.h \
-	gfxFT2FontBase.h \
-	$(NULL)
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
 EXPORTS += \
 	gfxAndroidPlatform.h \
 	gfxFT2Fonts.h \
@@ -89,6 +85,7 @@ ifdef MOZ_X11
 EXPORTS += \
 	gfxXlibSurface.h \
         gfxXlibNativeRenderer.h \
+	GLXLibrary.h \
 	$(NULL)
 endif
 
@@ -124,6 +121,7 @@ EXPORTS += \
 ifdef MOZ_X11
 EXPORTS += \
 	gfxXlibSurface.h \
+	GLXLibrary.h \
 	$(NULL)
 endif
 
@@ -140,13 +138,9 @@ EXPORTS	+= \
 	gfxWindowsPlatform.h \
 	gfxWindowsSurface.h \
 	gfxWindowsNativeDrawing.h \
+	WGLLibrary.h \
 	gfxDWriteFonts.h \
 	gfxD2DSurface.h \
-	gfxGDIFont.h \
-	gfxGDIFontList.h \
-	gfxPlatformFontList.h \
-	gfxAtoms.h \
-	gfxAtomList.h \
 	$(NULL)
 endif
 
@@ -179,6 +173,8 @@ CPPSRCS	= \
 	gfxUnicodeProperties.cpp \
 	gfxScriptItemizer.cpp \
 	gfxHarfBuzzShaper.cpp \
+	GLContext.cpp \
+	GLContextProviderOSMesa.cpp \
 	gfxSharedImageSurface.cpp \
 	$(NULL)
 
@@ -230,21 +226,6 @@ ACDEFINES +=	-UWIN32_LEAN_AND_MEAN
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-EXPORTS	+= \
-	gfxPDFSurface.h \
-	$(NULL)
-CPPSRCS += \
-	gfxAndroidPlatform.cpp \
-	gfxFT2Fonts.cpp \
-	gfxFT2FontBase.cpp \
-	gfxFT2Utils.cpp \
-	gfxFT2FontList.cpp \
-	gfxPDFSurface.cpp \
-	nsUnicodeRange.cpp \
-	$(NULL)
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
 EXPORTS	+= \
 	gfxPDFSurface.h \
 	$(NULL)
@@ -337,6 +318,52 @@ endif
 
 CSRCS += woff.c
 
+GL_PROVIDER = Null
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+GL_PROVIDER = WGL
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+GL_PROVIDER = CGL
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+ifdef MOZ_PLATFORM_MAEMO
+GL_PROVIDER = EGL
+else
+ifdef MOZ_EGL_XRENDER_COMPOSITE
+GL_PROVIDER = EGL
+else
+GL_PROVIDER = GLX
+endif
+endif
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+ifdef MOZ_PLATFORM_MAEMO
+GL_PROVIDER = EGL
+else
+GL_PROVIDER = GLX
+endif
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),android)
+GL_PROVIDER = EGL
+endif
+
+# Mac is a special snowflake
+ifeq ($(GL_PROVIDER),CGL)
+CMMSRCS += GLContextProvider$(GL_PROVIDER).mm
+else
+CPPSRCS += GLContextProvider$(GL_PROVIDER).cpp
+endif
+
+# Win32 is a special snowflake, for ANGLE
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+CPPSRCS += GLContextProviderEGL.cpp
+endif
+
 DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT
 
 include $(topsrcdir)/config/rules.mk
@@ -348,10 +375,6 @@ CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 CFLAGS += $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-CXXFLAGS += $(CAIRO_FT_CFLAGS)
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
 CXXFLAGS += $(CAIRO_FT_CFLAGS)
 endif
 

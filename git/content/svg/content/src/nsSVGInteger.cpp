@@ -35,8 +35,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGInteger.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SMILIntegerType.h"
+#endif // MOZ_SMIL
 
 using namespace mozilla;
 
@@ -78,7 +80,8 @@ GetValueFromString(const nsAString &aValueAsString,
 
 nsresult
 nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
-                                 nsSVGElement *aSVGElement)
+                                 nsSVGElement *aSVGElement,
+                                 PRBool aDoSetAttr)
 {
   PRInt32 value;
 
@@ -87,14 +90,16 @@ nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
     return rv;
   }
 
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   mBaseVal = value;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
   return NS_OK;
 }
 
@@ -107,24 +112,27 @@ nsSVGInteger::GetBaseValueString(nsAString & aValueAsString)
 
 void
 nsSVGInteger::SetBaseValue(int aValue,
-                           nsSVGElement *aSVGElement)
+                           nsSVGElement *aSVGElement,
+                           PRBool aDoSetAttr)
 {
   mBaseVal = aValue;
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
-  aSVGElement->DidChangeInteger(mAttrEnum, true);
+#endif
+  aSVGElement->DidChangeInteger(mAttrEnum, aDoSetAttr);
 }
 
 void
 nsSVGInteger::SetAnimValue(int aValue, nsSVGElement *aSVGElement)
 {
   mAnimVal = aValue;
-  mIsAnimated = true;
+  mIsAnimated = PR_TRUE;
   aSVGElement->DidAnimateInteger(mAttrEnum);
 }
 
@@ -140,6 +148,7 @@ nsSVGInteger::ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGInteger::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -150,7 +159,7 @@ nsresult
 nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
                                            const nsISMILAnimationElement* /*aSrcElement*/,
                                            nsSMILValue& aValue,
-                                           bool& aPreventCachingOfSandwich) const
+                                           PRBool& aPreventCachingOfSandwich) const
 {
   PRInt32 val;
 
@@ -162,7 +171,7 @@ nsSVGInteger::SMILInteger::ValueFromString(const nsAString& aStr,
   nsSMILValue smilVal(&SMILIntegerType::sSingleton);
   smilVal.mU.mInt = val;
   aValue = smilVal;
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return NS_OK;
 }
 
@@ -179,7 +188,7 @@ nsSVGInteger::SMILInteger::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
     mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
-    mVal->mIsAnimated = false;
+    mVal->mIsAnimated = PR_FALSE;
   }
 }
 
@@ -193,3 +202,4 @@ nsSVGInteger::SMILInteger::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

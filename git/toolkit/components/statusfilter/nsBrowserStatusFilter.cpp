@@ -53,13 +53,13 @@
 nsBrowserStatusFilter::nsBrowserStatusFilter()
     : mCurProgress(0)
     , mMaxProgress(0)
-    , mStatusIsDirty(true)
+    , mStatusIsDirty(PR_TRUE)
     , mCurrentPercentage(0)
     , mTotalRequests(0)
     , mFinishedRequests(0)
-    , mUseRealProgressFlag(false)
-    , mDelayedStatus(false)
-    , mDelayedProgress(false)
+    , mUseRealProgressFlag(PR_FALSE)
+    , mDelayedStatus(PR_FALSE)
+    , mDelayedProgress(PR_FALSE)
 {
 }
 
@@ -108,7 +108,7 @@ nsBrowserStatusFilter::GetDOMWindow(nsIDOMWindow **aResult)
 }
 
 NS_IMETHODIMP
-nsBrowserStatusFilter::GetIsLoadingDocument(bool *aIsLoadingDocument)
+nsBrowserStatusFilter::GetIsLoadingDocument(PRBool *aIsLoadingDocument)
 {
     NS_NOTREACHED("nsBrowserStatusFilter::GetIsLoadingDocument");
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -168,7 +168,7 @@ nsBrowserStatusFilter::OnStateChange(nsIWebProgress *aWebProgress,
 
     // If we're here, we have either STATE_START or STATE_STOP.  The
     // listener only cares about these in certain conditions.
-    bool isLoadingDocument = false;
+    PRBool isLoadingDocument = PR_FALSE;
     if ((aStateFlags & nsIWebProgressListener::STATE_IS_NETWORK ||
          (aStateFlags & nsIWebProgressListener::STATE_IS_REQUEST &&
           mFinishedRequests == mTotalRequests &&
@@ -215,7 +215,7 @@ nsBrowserStatusFilter::OnProgressChange(nsIWebProgress *aWebProgress,
         StartDelayTimer();
     }
 
-    mDelayedProgress = true;
+    mDelayedProgress = PR_TRUE;
 
     return NS_OK;
 }
@@ -223,14 +223,12 @@ nsBrowserStatusFilter::OnProgressChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 nsBrowserStatusFilter::OnLocationChange(nsIWebProgress *aWebProgress,
                                         nsIRequest *aRequest,
-                                        nsIURI *aLocation,
-                                        PRUint32 aFlags)
+                                        nsIURI *aLocation)
 {
     if (!mListener)
         return NS_OK;
 
-    return mListener->OnLocationChange(aWebProgress, aRequest, aLocation,
-                                       aFlags);
+    return mListener->OnLocationChange(aWebProgress, aRequest, aLocation);
 }
 
 NS_IMETHODIMP
@@ -246,7 +244,7 @@ nsBrowserStatusFilter::OnStatusChange(nsIWebProgress *aWebProgress,
     // limit frequency of calls to OnStatusChange
     //
     if (mStatusIsDirty || !mCurrentStatusMsg.Equals(aMessage)) {
-        mStatusIsDirty = true;
+        mStatusIsDirty = PR_TRUE;
         mStatusMsg = aMessage;
     }
 
@@ -258,7 +256,7 @@ nsBrowserStatusFilter::OnStatusChange(nsIWebProgress *aWebProgress,
       StartDelayTimer();
     }
 
-    mDelayedStatus = true;
+    mDelayedStatus = PR_TRUE;
 
     return NS_OK;
 }
@@ -297,13 +295,13 @@ NS_IMETHODIMP
 nsBrowserStatusFilter::OnRefreshAttempted(nsIWebProgress *aWebProgress,
                                           nsIURI *aUri,
                                           PRInt32 aDelay,
-                                          bool aSameUri,
-                                          bool *allowRefresh)
+                                          PRBool aSameUri,
+                                          PRBool *allowRefresh)
 {
     nsCOMPtr<nsIWebProgressListener2> listener =
         do_QueryInterface(mListener);
     if (!listener) {
-        *allowRefresh = true;
+        *allowRefresh = PR_TRUE;
         return NS_OK;
     }
 
@@ -320,11 +318,11 @@ nsBrowserStatusFilter::ResetMembers()
 {
     mTotalRequests = 0;
     mFinishedRequests = 0;
-    mUseRealProgressFlag = false;
+    mUseRealProgressFlag = PR_FALSE;
     mMaxProgress = 0;
     mCurProgress = 0;
     mCurrentPercentage = 0;
-    mStatusIsDirty = true;
+    mStatusIsDirty = PR_TRUE;
 }
 
 void
@@ -352,7 +350,7 @@ nsBrowserStatusFilter::MaybeSendStatus()
     if (mStatusIsDirty) {
         mListener->OnStatusChange(nsnull, nsnull, 0, mStatusMsg.get());
         mCurrentStatusMsg = mStatusMsg;
-        mStatusIsDirty = false;
+        mStatusIsDirty = PR_FALSE;
     }
 }
 
@@ -378,12 +376,12 @@ nsBrowserStatusFilter::ProcessTimeout()
         return;
 
     if (mDelayedStatus) {
-        mDelayedStatus = false;
+        mDelayedStatus = PR_FALSE;
         MaybeSendStatus();
     }
 
     if (mDelayedProgress) {
-        mDelayedProgress = false;
+        mDelayedProgress = PR_FALSE;
         MaybeSendProgress();
     }
 }

@@ -58,7 +58,7 @@ foreignObject {
 
 @media all and (-moz-is-resource-document) {
  foreignObject *|* {
-   -moz-appearance: none !important;
+   -moz-appearance: none;
  }
 }
 

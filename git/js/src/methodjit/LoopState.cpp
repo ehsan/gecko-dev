@@ -157,7 +157,7 @@ LoopState::init(jsbytecode *head, Jump entry, jsbytecode *entryTarget)
     RegisterAllocation *&alloc = outerAnalysis->getAllocation(head);
     JS_ASSERT(!alloc);
 
-    alloc = cx->typeLifoAlloc().new_<RegisterAllocation>(true);
+    alloc = ArenaNew<RegisterAllocation>(cx->compartment->pool, true);
     if (!alloc)
         return false;
 
@@ -989,9 +989,6 @@ LoopState::cannotIntegerOverflow(const CrossSSAValue &pushed)
     jsbytecode *PC = ssa->getFrame(pushed.frame).script->code + pushed.v.pushedOffset();
     ScriptAnalysis *analysis = ssa->getFrame(pushed.frame).script->analysis();
 
-    if (!analysis->integerOperation(cx, PC))
-        return false;
-
     uint32 baseSlot = UNASSIGNED;
     int32 baseConstant = 0;
     JSOp op = JSOp(*PC);
@@ -1325,9 +1322,9 @@ LoopState::restoreInvariants(jsbytecode *pc, Assembler &masm,
              */
             masm.loadPayload(frame.addressOf(entry.u.check.arraySlot), T0);
             if (entry.kind == InvariantEntry::DENSE_ARRAY_BOUNDS_CHECK)
-                masm.load32(Address(T0, JSObject::offsetOfInitializedLength()), T0);
+                masm.load32(Address(T0, offsetof(JSObject, initializedLength)), T0);
             else
-                masm.loadPayload(Address(T0, TypedArray::lengthOffset()), T0);
+                masm.load32(Address(T0, TypedArray::lengthOffset()), T0);
 
             int32 constant = entry.u.check.constant;
 
@@ -1418,7 +1415,7 @@ LoopState::restoreInvariants(jsbytecode *pc, Assembler &masm,
             Address address = frame.addressOf(frame.getTemporary(entry.u.array.temporary));
 
             if (entry.kind == InvariantEntry::TYPED_ARRAY_LENGTH) {
-                masm.loadPayload(Address(T0, TypedArray::lengthOffset()), T0);
+                masm.load32(Address(T0, TypedArray::lengthOffset()), T0);
                 masm.storeValueFromComponents(ImmType(JSVAL_TYPE_INT32), T0, address);
             } else {
                 masm.loadPtr(Address(T0, js::TypedArray::dataOffset()), T0);
@@ -1534,8 +1531,6 @@ LoopState::getLoopTestAccess(const SSAValue &v, uint32 *pslot, int32 *pconstant)
       case JSOP_DECARG:
       case JSOP_ARGINC:
       case JSOP_ARGDEC: {
-        if (!outerAnalysis->integerOperation(cx, pc))
-            return false;
         uint32 slot = GetBytecodeSlot(outerScript, pc);
         if (outerAnalysis->slotEscapes(slot))
             return false;
@@ -1673,11 +1668,11 @@ LoopState::analyzeLoopIncrements()
         if (offset == uint32(-1) || offset < lifetime->lastBlock)
             continue;
 
-        jsbytecode *pc = outerScript->code + offset;
-        JSOp op = JSOp(*pc);
+        JSOp op = JSOp(outerScript->code[offset]);
         const JSCodeSpec *cs = &js_CodeSpec[op];
         if (cs->format & (JOF_INC | JOF_DEC)) {
-            if (!outerAnalysis->integerOperation(cx, pc))
+            TypeSet *types = outerAnalysis->pushedTypes(offset);
+            if (types->getKnownTypeTag(cx) != JSVAL_TYPE_INT32)
                 continue;
 
             Increment inc;
@@ -1782,7 +1777,7 @@ LoopState::analyzeLoopBody(unsigned frame)
         skipAnalysis = true;
 
     /* Analyze the entire script for frames inlined in the loop body. */
-    unsigned start = (frame == CrossScriptSSA::OUTER_FRAME) ? lifetime->head + JSOP_LOOPHEAD_LENGTH : 0;
+    unsigned start = (frame == CrossScriptSSA::OUTER_FRAME) ? lifetime->head + JSOP_TRACE_LENGTH : 0;
     unsigned end = (frame == CrossScriptSSA::OUTER_FRAME) ? lifetime->backedge : script->length;
 
     unsigned offset = start;
@@ -1796,12 +1791,11 @@ LoopState::analyzeLoopBody(unsigned frame)
             continue;
         }
 
-        JSOp op = JSOp(*pc);
-
         /* Don't do any hoisting for outer loops in case of nesting. */
-        if (op == JSOP_LOOPHEAD)
+        if (opinfo->loopHead)
             skipAnalysis = true;
 
+        JSOp op = JSOp(*pc);
         switch (op) {
 
           case JSOP_CALL: {
@@ -1896,7 +1890,8 @@ LoopState::analyzeLoopBody(unsigned frame)
             unknownModset = true;
             break;
 
-          case JSOP_LOOPHEAD:
+          case JSOP_TRACE:
+          case JSOP_NOTRACE:
           case JSOP_POP:
           case JSOP_ZERO:
           case JSOP_ONE:
@@ -2142,7 +2137,7 @@ LoopState::getEntryValue(const CrossSSAValue &iv, uint32 *pslot, int32 *pconstan
       case JSOP_GETARG:
       case JSOP_ARGINC:
       case JSOP_INCARG: {
-        if (cv.frame != CrossScriptSSA::OUTER_FRAME || !analysis->integerOperation(cx, pc))
+        if (cv.frame != CrossScriptSSA::OUTER_FRAME)
             return false;
         uint32 slot = GetBytecodeSlot(outerScript, pc);
         if (outerAnalysis->slotEscapes(slot))

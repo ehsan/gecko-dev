@@ -87,8 +87,8 @@ nsStringBundle::nsStringBundle(const char* aURLSpec,
   mPropertiesURL(aURLSpec),
   mOverrideStrings(aOverrideStrings),
   mReentrantMonitor("nsStringBundle.mReentrantMonitor"),
-  mAttemptedLoad(false),
-  mLoaded(false)
+  mAttemptedLoad(PR_FALSE),
+  mLoaded(PR_FALSE)
 {
 }
 
@@ -106,7 +106,7 @@ nsStringBundle::LoadProperties()
     return NS_ERROR_UNEXPECTED;
   }
   
-  mAttemptedLoad = true;
+  mAttemptedLoad = PR_TRUE;
 
   nsresult rv;
 
@@ -133,7 +133,7 @@ nsStringBundle::LoadProperties()
   mProps = do_CreateInstance(kPersistentPropertiesCID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
   
-  mAttemptedLoad = mLoaded = true;
+  mAttemptedLoad = mLoaded = PR_TRUE;
   rv = mProps->Load(in);
 
   mLoaded = NS_SUCCEEDED(rv);
@@ -305,14 +305,14 @@ nsStringBundle::GetCombinedEnumeration(nsIStringBundleOverride* aOverrideStrings
   rv = aOverrideStrings->EnumerateKeysInBundle(mPropertiesURL,
                                                getter_AddRefs(overrideEnumerator));
   
-  bool hasMore;
+  PRBool hasMore;
   rv = overrideEnumerator->HasMoreElements(&hasMore);
   NS_ENSURE_SUCCESS(rv, rv);
   while (hasMore) {
 
     rv = overrideEnumerator->GetNext(getter_AddRefs(supports));
     if (NS_SUCCEEDED(rv))
-      resultArray->AppendElement(supports, false);
+      resultArray->AppendElement(supports, PR_FALSE);
 
     rv = overrideEnumerator->HasMoreElements(&hasMore);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -341,7 +341,7 @@ nsStringBundle::GetCombinedEnumeration(nsIStringBundleOverride* aOverrideStrings
 
       // if it isn't there, then it is safe to append
       if (NS_FAILED(rv))
-        resultArray->AppendElement(propElement, false);
+        resultArray->AppendElement(propElement, PR_FALSE);
     }
 
     rv = propEnumerator->HasMoreElements(&hasMore);
@@ -415,7 +415,7 @@ NS_IMPL_ISUPPORTS1(nsExtensibleStringBundle, nsIStringBundle)
 
 nsExtensibleStringBundle::nsExtensibleStringBundle()
 {
-  mLoaded = false;
+  mLoaded = PR_FALSE;
 }
 
 nsresult
@@ -432,7 +432,7 @@ nsExtensibleStringBundle::Init(const char * aCategory,
   rv = catman->EnumerateCategory(aCategory, getter_AddRefs(enumerator));
   if (NS_FAILED(rv)) return rv;
 
-  bool hasMore;
+  PRBool hasMore;
   while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMore)) && hasMore) {
     nsCOMPtr<nsISupports> supports;
     rv = enumerator->GetNext(getter_AddRefs(supports));
@@ -542,7 +542,7 @@ struct bundleCacheEntry_t {
 
 
 nsStringBundleService::nsStringBundleService() :
-  mBundleMap(MAX_CACHED_BUNDLES, true)
+  mBundleMap(MAX_CACHED_BUNDLES, PR_TRUE)
 {
 #ifdef DEBUG_tao_
   printf("\n++ nsStringBundleService::nsStringBundleService ++\n");
@@ -574,10 +574,10 @@ nsStringBundleService::Init()
 {
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os) {
-    os->AddObserver(this, "memory-pressure", true);
-    os->AddObserver(this, "profile-do-change", true);
-    os->AddObserver(this, "chrome-flush-caches", true);
-    os->AddObserver(this, "xpcom-category-entry-added", true);
+    os->AddObserver(this, "memory-pressure", PR_TRUE);
+    os->AddObserver(this, "profile-do-change", PR_TRUE);
+    os->AddObserver(this, "chrome-flush-caches", PR_TRUE);
+    os->AddObserver(this, "xpcom-category-entry-added", PR_TRUE);
   }
 
   // instantiate the override service, if there is any.

@@ -69,7 +69,7 @@ public:
   nsGridRowGroupFrame(nsIPresShell* aPresShell,
                       nsStyleContext* aContext,
                       nsBoxLayout* aLayoutManager):
-    nsBoxFrame(aPresShell, aContext, false, aLayoutManager) {}
+    nsBoxFrame(aPresShell, aContext, PR_FALSE, aLayoutManager) {}
 
   virtual nscoord GetFlex(nsBoxLayoutState& aBoxLayoutState);
 

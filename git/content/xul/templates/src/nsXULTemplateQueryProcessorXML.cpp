@@ -73,7 +73,7 @@ NS_IMPL_ISUPPORTS1(nsXMLQuery, nsXMLQuery)
 NS_IMPL_ISUPPORTS1(nsXULTemplateResultSetXML, nsISimpleEnumerator)
 
 NS_IMETHODIMP
-nsXULTemplateResultSetXML::HasMoreElements(bool *aResult)
+nsXULTemplateResultSetXML::HasMoreElements(PRBool *aResult)
 {
     // if GetSnapshotLength failed, then the return type was not a set of
     // nodes, so just return false in this case.
@@ -81,7 +81,7 @@ nsXULTemplateResultSetXML::HasMoreElements(bool *aResult)
     if (NS_SUCCEEDED(mResults->GetSnapshotLength(&length)))
         *aResult = (mPosition < length);
     else
-        *aResult = false;
+        *aResult = PR_FALSE;
 
     return NS_OK;
 }
@@ -159,13 +159,13 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
                                               nsIDOMNode* aRootNode,
-                                              bool aIsTrusted,
+                                              PRBool aIsTrusted,
                                               nsIXULTemplateBuilder* aBuilder,
-                                              bool* aShouldDelayBuilding,
+                                              PRBool* aShouldDelayBuilding,
                                               nsISupports** aResult)
 {
     *aResult = nsnull;
-    *aShouldDelayBuilding = false;
+    *aShouldDelayBuilding = PR_FALSE;
 
     nsresult rv;
     PRUint32 length;
@@ -200,7 +200,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
 
     nsIPrincipal *docPrincipal = doc->NodePrincipal();
 
-    bool hasHadScriptObject = true;
+    PRBool hasHadScriptObject = PR_TRUE;
     nsIScriptGlobalObject* scriptObject =
       doc->GetScriptHandlingObject(hasHadScriptObject);
     NS_ENSURE_STATE(scriptObject);
@@ -215,15 +215,15 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(scriptObject);
     req->Init(docPrincipal, context, owner, nsnull);
 
-    rv = req->Open(NS_LITERAL_CSTRING("GET"), uriStr, true,
+    rv = req->Open(NS_LITERAL_CSTRING("GET"), uriStr, PR_TRUE,
                    EmptyString(), EmptyString());
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(req));
-    rv = target->AddEventListener(NS_LITERAL_STRING("load"), this, false);
+    rv = target->AddEventListener(NS_LITERAL_STRING("load"), this, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = target->AddEventListener(NS_LITERAL_STRING("error"), this, false);
+    rv = target->AddEventListener(NS_LITERAL_STRING("error"), this, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = req->Send(nsnull);
@@ -232,7 +232,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     mTemplateBuilder = aBuilder;
     mRequest = req;
 
-    *aShouldDelayBuilding = true;
+    *aShouldDelayBuilding = PR_TRUE;
     return NS_OK;
 }
 
@@ -265,7 +265,7 @@ nsXULTemplateQueryProcessorXML::InitializeForBuilding(nsISupports* aDatasource,
 NS_IMETHODIMP
 nsXULTemplateQueryProcessorXML::Done()
 {
-    mGenerationStarted = false;
+    mGenerationStarted = PR_FALSE;
 
     if (mRuleToBindingsMap.IsInitialized())
         mRuleToBindingsMap.Clear();
@@ -305,10 +305,9 @@ nsXULTemplateQueryProcessorXML::CompileQuery(nsIXULTemplateBuilder* aBuilder,
         new nsXMLQuery(this, aMemberVariable, compiledexpr);
     NS_ENSURE_TRUE(query, NS_ERROR_OUT_OF_MEMORY);
 
-    for (nsIContent* condition = content->GetFirstChild();
-         condition;
-         condition = condition->GetNextSibling()) {
-
+    PRUint32 count = content->GetChildCount();
+    for (PRUint32 i = 0; i < count; ++i) {
+        nsIContent *condition = content->GetChildAt(i);
         if (condition->NodeInfo()->Equals(nsGkAtoms::assign,
                                           kNameSpaceID_XUL)) {
             nsAutoString var;
@@ -351,7 +350,7 @@ nsXULTemplateQueryProcessorXML::GenerateResults(nsISupports* aDatasource,
     if (!aQuery)
         return NS_ERROR_INVALID_ARG;
 
-    mGenerationStarted = true;
+    mGenerationStarted = PR_TRUE;
 
     nsCOMPtr<nsXMLQuery> xmlquery = do_QueryInterface(aQuery);
     if (!xmlquery)

@@ -58,11 +58,12 @@
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStringStream.h"
-#include "mozilla/storage.h"
+#include "mozIStorageStatementCallback.h"
+#include "mozIStorageResultSet.h"
+#include "mozIStorageRow.h"
+#include "mozIStorageError.h"
 #include "nsIPipe.h"
 #include "Helpers.h"
-
-using namespace mozilla;
 using namespace mozilla::places;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -355,9 +356,9 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 
 NS_IMETHODIMP
 nsAnnoProtocolHandler::AllowPort(PRInt32 port, const char *scheme,
-                                 bool *_retval)
+                                 PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
@@ -396,8 +397,8 @@ nsAnnoProtocolHandler::NewFaviconChannel(nsIURI *aURI, nsIURI *aAnnotationURI,
   nsCOMPtr<nsIOutputStream> outputStream;
   nsresult rv = NS_NewPipe(getter_AddRefs(inputStream),
                            getter_AddRefs(outputStream),
-                           MAX_FAVICON_SIZE, MAX_FAVICON_SIZE, true,
-                           true);
+                           MAX_FAVICON_SIZE, MAX_FAVICON_SIZE, PR_TRUE,
+                           PR_TRUE);
   NS_ENSURE_SUCCESS(rv, GetDefaultIcon(_channel));
 
   // Create our channel.  We'll call SetContentType with the right type when

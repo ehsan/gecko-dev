@@ -226,16 +226,12 @@ _TEST_FILES =	test_acid3_test46.html \
 		visited_image_loading.sjs \
 		visited_image_loading_frame.html \
 		visited_image_loading_frame_empty.html \
-		test_load_events_on_stylesheets.html \
 		$(NULL)
 
 _VISITED_REFTEST_FILES = \
 		$(shell find $(topsrcdir)/layout/reftests/css-visited/ -name '*.html' -o -name '*.xhtml') \
 		$(topsrcdir)/layout/reftests/svg/pseudo-classes-02.svg \
 		$(topsrcdir)/layout/reftests/svg/pseudo-classes-02-ref.svg \
-		$(topsrcdir)/layout/reftests/svg/as-image/lime100x100.svg \
-		$(topsrcdir)/layout/reftests/svg/as-image/svg-image-visited-1-helper.svg \
-		$(topsrcdir)/layout/reftests/svg/as-image/svg-image-visited-2-helper.svg \
 		$(NULL)
 
 ifneq (mobile,$(MOZ_BUILD_APP))

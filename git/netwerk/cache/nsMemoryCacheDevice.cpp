@@ -48,9 +48,8 @@
 #include "nsCRT.h"
 #include "nsCache.h"
 #include "nsReadableUtils.h"
-#include "mozilla/Telemetry.h"
 
-// The memory cache implements the "LRU-SP" caching algorithm
+// The memory cache implements a variation of the "LRU-SP" caching algorithm
 // described in "LRU-SP: A Size-Adjusted and Popularity-Aware LRU Replacement
 // Algorithm for Web Caching" by Kai Cheng and Yahiko Kambayashi.
 
@@ -63,7 +62,7 @@
 const char *gMemoryDeviceID      = "memory";
 
 nsMemoryCacheDevice::nsMemoryCacheDevice()
-    : mInitialized(false),
+    : mInitialized(PR_FALSE),
       mEvictionThreshold(PR_INT32_MAX),
       mHardLimit(4 * 1024 * 1024),       // default, if no pref
       mSoftLimit((mHardLimit * 9) / 10), // default, if no pref
@@ -131,7 +130,7 @@ nsMemoryCacheDevice::Shutdown()
     NS_ASSERTION(mInactiveSize == 0, "### mem cache leaking entries?");
     NS_ASSERTION(mEntryCount == 0, "### mem cache leaking entries?");
     
-    mInitialized = false;
+    mInitialized = PR_FALSE;
 
     return NS_OK;
 }
@@ -145,9 +144,8 @@ nsMemoryCacheDevice::GetDeviceID()
 
 
 nsCacheEntry *
-nsMemoryCacheDevice::FindEntry(nsCString * key, bool *collision)
+nsMemoryCacheDevice::FindEntry(nsCString * key, PRBool *collision)
 {
-    mozilla::Telemetry::AutoTimer<mozilla::Telemetry::CACHE_MEMORY_SEARCH> timer;
     nsCacheEntry * entry = mMemCacheEntries.GetEntry(key);
     if (!entry)  return nsnull;
 
@@ -357,7 +355,7 @@ nsMemoryCacheDevice::AdjustMemoryLimits(PRInt32  softLimit, PRInt32  hardLimit)
 
 
 void
-nsMemoryCacheDevice::EvictEntry(nsCacheEntry * entry, bool deleteEntry)
+nsMemoryCacheDevice::EvictEntry(nsCacheEntry * entry, PRBool deleteEntry)
 {
     CACHE_LOG_DEBUG(("Evicting entry 0x%p from memory cache, deleting: %d\n",
                      entry, deleteEntry));
@@ -381,8 +379,8 @@ nsMemoryCacheDevice::EvictEntry(nsCacheEntry * entry, bool deleteEntry)
 void
 nsMemoryCacheDevice::EvictEntriesIfNecessary(void)
 {
-    nsCacheEntry * entry;
-    nsCacheEntry * maxEntry;
+    nsCacheEntry * entry, * next;
+
     CACHE_LOG_DEBUG(("EvictEntriesIfNecessary.  mTotalSize: %d, mHardLimit: %d,"
                      "mInactiveSize: %d, mSoftLimit: %d\n",
                      mTotalSize, mHardLimit, mInactiveSize, mSoftLimit));
@@ -390,40 +388,22 @@ nsMemoryCacheDevice::EvictEntriesIfNecessary(void)
     if ((mTotalSize < mHardLimit) && (mInactiveSize < mSoftLimit))
         return;
 
-    PRUint32 now = SecondsFromPRTime(PR_Now());
-    PRUint64 entryCost = 0;
-    PRUint64 maxCost = 0;
-    do {
-        // LRU-SP eviction selection: Check the head of each segment (each
-        // eviction list, kept in LRU order) and select the maximal-cost
-        // entry for eviction. Cost is time-since-accessed * size / nref.
-        maxEntry = 0;
-        for (int i = kQueueCount - 1; i >= 0; --i) {
-            entry = (nsCacheEntry *)PR_LIST_HEAD(&mEvictionList[i]);
-
-            // If the head of a list is in use, check the next available entry
-            while ((entry != &mEvictionList[i]) &&
-                   (entry->IsInUse())) {
+    for (int i = kQueueCount - 1; i >= 0; --i) {
+        entry = (nsCacheEntry *)PR_LIST_HEAD(&mEvictionList[i]);
+        while (entry != &mEvictionList[i]) {
+            if (entry->IsInUse()) {
                 entry = (nsCacheEntry *)PR_NEXT_LINK(entry);
+                continue;
             }
 
-            if (entry != &mEvictionList[i]) {
-                entryCost = (PRUint64)
-                    (now - entry->LastFetched()) * entry->Size() / 
-                    PR_MAX(1, entry->FetchCount());
-                if (!maxEntry || (entryCost > maxCost)) {
-                    maxEntry = entry;
-                    maxCost = entryCost;
-                }
-            }
-        }
-        if (maxEntry) {
-            EvictEntry(maxEntry, DELETE_ENTRY);
-        } else {
-            break;
+            next = (nsCacheEntry *)PR_NEXT_LINK(entry);
+            EvictEntry(entry, DELETE_ENTRY);
+            entry = next;
+
+            if ((mTotalSize < mHardLimit) && (mInactiveSize < mSoftLimit))
+                return;
         }
     }
-    while ((mTotalSize >= mHardLimit) || (mInactiveSize >= mSoftLimit));
 }
 
 
@@ -450,7 +430,7 @@ nsMemoryCacheDevice::Visit(nsICacheVisitor * visitor)
     nsCOMPtr<nsICacheDeviceInfo> deviceRef(deviceInfo);
     if (!deviceInfo) return NS_ERROR_OUT_OF_MEMORY;
 
-    bool keepGoing;
+    PRBool keepGoing;
     nsresult rv = visitor->VisitDevice(gMemoryDeviceID, deviceInfo, &keepGoing);
     if (NS_FAILED(rv)) return rv;
 

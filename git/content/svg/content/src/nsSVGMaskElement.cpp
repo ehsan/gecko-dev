@@ -34,13 +34,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
 #include "nsSVGMaskElement.h"
-
-using namespace mozilla;
 
 //--------------------- Masks ------------------------
 
@@ -140,20 +136,20 @@ nsSVGElement::LengthAttributesInfo
 nsSVGMaskElement::GetLengthInfo()
 {
   return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
-                              ArrayLength(sLengthInfo));
+                              NS_ARRAY_LENGTH(sLengthInfo));
 }
 
 nsSVGElement::EnumAttributesInfo
 nsSVGMaskElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
-                            ArrayLength(sEnumInfo));
+                            NS_ARRAY_LENGTH(sEnumInfo));
 }
 
 //----------------------------------------------------------------------
 // nsIContent methods
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsSVGMaskElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -161,12 +157,11 @@ nsSVGMaskElement::IsAttributeMapped(const nsIAtom* name) const
     sFiltersMap,
     sFontSpecificationMap,
     sGradientStopMap,
-    sGraphicsMap,
     sMarkersMap,
     sTextContentElementsMap,
     sViewportsMap
   };
 
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGMaskElementBase::IsAttributeMapped(name);
 }

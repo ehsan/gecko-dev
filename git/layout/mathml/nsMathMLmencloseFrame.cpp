@@ -112,7 +112,7 @@ nsresult nsMathMLmencloseFrame::AllocateMathMLChar(nsMencloseNotation mask)
   mMathMLChar[i].SetData(presContext, Char);
   ResolveMathMLCharStyle(presContext, mContent, mStyleContext,
                          &mMathMLChar[i],
-                         true);
+                         PR_TRUE);
 
   return NS_OK;
 }
@@ -328,29 +328,29 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 nsMathMLmencloseFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
                                        nsHTMLReflowMetrics& aDesiredSize)
 {
-  return PlaceInternal(aRenderingContext, false, aDesiredSize, true);
+  return PlaceInternal(aRenderingContext, PR_FALSE, aDesiredSize, PR_TRUE);
 }
 
 /* virtual */ nsresult
 nsMathMLmencloseFrame::Place(nsRenderingContext& aRenderingContext,
-                             bool                 aPlaceOrigin,
+                             PRBool               aPlaceOrigin,
                              nsHTMLReflowMetrics& aDesiredSize)
 {
-  return PlaceInternal(aRenderingContext, aPlaceOrigin, aDesiredSize, false);
+  return PlaceInternal(aRenderingContext, aPlaceOrigin, aDesiredSize, PR_FALSE);
 }
 
 /* virtual */ nsresult
 nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
-                                     bool                 aPlaceOrigin,
+                                     PRBool               aPlaceOrigin,
                                      nsHTMLReflowMetrics& aDesiredSize,
-                                     bool                 aWidthOnly)
+                                     PRBool               aWidthOnly)
 {
   ///////////////
   // Measure the size of our content using the base class to format like an
   // inferred mrow.
   nsHTMLReflowMetrics baseSize;
   nsresult rv =
-    nsMathMLContainerFrame::Place(aRenderingContext, false, baseSize);
+    nsMathMLContainerFrame::Place(aRenderingContext, PR_FALSE, baseSize);
 
   if (NS_MATHML_HAS_ERROR(mPresentationData.flags) || NS_FAILED(rv)) {
       DidReflowChildren(GetFirstPrincipalChild());
@@ -759,7 +759,7 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
 
   // paint the frame with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->SetColor(mFrame->GetStyleColor()->mColor);
 
   // change line width to mThickness
   gfxContext *gfxCtx = aCtx->ThebesContext();
@@ -778,7 +778,7 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
       break;
 
     case NOTATION_ROUNDEDBOX:
-      gfxCtx->RoundedRectangle(rect, gfxCornerSizes(3 * e), true);
+      gfxCtx->RoundedRectangle(rect, gfxCornerSizes(3 * e), PR_TRUE);
       break;
 
     case NOTATION_UPDIAGONALSTRIKE:

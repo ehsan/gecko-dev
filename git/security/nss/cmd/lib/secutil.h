@@ -38,7 +38,6 @@
 
 #include "seccomon.h"
 #include "secitem.h"
-#include "secport.h"
 #include "prerror.h"
 #include "base64.h"
 #include "key.h"
@@ -63,8 +62,6 @@
 
 #define NS_CRL_HEADER  "-----BEGIN CRL-----"
 #define NS_CRL_TRAILER "-----END CRL-----"
-
-#define SECU_Strerror PORT_ErrorToString
 
 #ifdef SECUTIL_NEW
 typedef int (*SECU_PPFunc)(PRFileDesc *out, SECItem *item, 
@@ -173,6 +170,9 @@ extern void SECU_PrintError(char *progName, char *msg, ...);
 
 /* print out a system error message */
 extern void SECU_PrintSystemError(char *progName, char *msg, ...);
+
+/* Return informative error string */
+extern const char * SECU_Strerror(PRErrorCode errNum);
 
 /* revalidate the cert and print information about cert verification
  * failure at time == now */

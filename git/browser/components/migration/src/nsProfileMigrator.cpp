@@ -45,7 +45,7 @@
 #include "nsIProperties.h"
 #include "nsIServiceManager.h"
 #include "nsISupportsPrimitives.h"
-#include "nsIMutableArray.h"
+#include "nsISupportsArray.h"
 #include "nsIToolkitProfile.h"
 #include "nsIToolkitProfileService.h"
 #include "nsIWindowWatcher.h"
@@ -106,7 +106,7 @@ nsProfileMigrator::Migrate(nsIProfileStartup* aStartup)
     if (!bpm) return NS_ERROR_FAILURE;
   }
 
-  bool sourceExists;
+  PRBool sourceExists;
   bpm->GetSourceExists(&sourceExists);
   if (!sourceExists) {
 #ifdef XP_WIN
@@ -127,12 +127,13 @@ nsProfileMigrator::Migrate(nsIProfileStartup* aStartup)
   // By opening the Migration FE with a supplied bpm, it will automatically
   // migrate from it. 
   nsCOMPtr<nsIWindowWatcher> ww(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
-  nsCOMPtr<nsIMutableArray> params = do_CreateInstance(NS_ARRAY_CONTRACTID);
+  nsCOMPtr<nsISupportsArray> params = 
+    do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID);
   if (!ww || !params) return NS_ERROR_FAILURE;
 
-  params->AppendElement(cstr, false);
-  params->AppendElement(bpm, false);
-  params->AppendElement(aStartup, false);
+  params->AppendElement(cstr);
+  params->AppendElement(bpm);
+  params->AppendElement(aStartup);
 
   nsCOMPtr<nsIDOMWindow> migrateWizard;
   return ww->OpenWindow(nsnull, 
@@ -162,7 +163,6 @@ NS_IMPL_ISUPPORTS1(nsProfileMigrator, nsIProfileMigrator)
 #define INTERNAL_NAME_IEXPLORE        "iexplore"
 #define INTERNAL_NAME_MOZILLA_SUITE   "apprunner"
 #define INTERNAL_NAME_OPERA           "opera"
-#define INTERNAL_NAME_CHROME          "chrome"
 #endif
 
 nsresult
@@ -226,7 +226,7 @@ nsProfileMigrator::GetDefaultBrowserMigratorKey(nsACString& aKey,
   // VERSIONINFO segment, but we just assume the first one). 
 
   nsCOMPtr<nsILocalFile> lf;
-  NS_NewLocalFile(filePath, true, getter_AddRefs(lf));
+  NS_NewLocalFile(filePath, PR_TRUE, getter_AddRefs(lf));
   if (!lf)
     return NS_ERROR_FAILURE;
 
@@ -246,13 +246,9 @@ nsProfileMigrator::GetDefaultBrowserMigratorKey(nsACString& aKey,
     aKey = "opera";
     return NS_OK;
   }
-  else if (internalName.LowerCaseEqualsLiteral(INTERNAL_NAME_CHROME)) {
-    aKey = "chrome";
-    return NS_OK;
-  }
 
 #else
-  bool exists = false;
+  PRBool exists = PR_FALSE;
 #define CHECK_MIGRATOR(browser) do {\
   bpm = do_CreateInstance(NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX browser);\
   if (bpm)\
@@ -266,49 +262,48 @@ nsProfileMigrator::GetDefaultBrowserMigratorKey(nsACString& aKey,
   CHECK_MIGRATOR("safari");
 #endif
   CHECK_MIGRATOR("opera");
-  CHECK_MIGRATOR("chrome");
 
 #undef CHECK_MIGRATOR
 #endif
   return NS_ERROR_FAILURE;
 }
 
-bool
+PRBool
 nsProfileMigrator::ImportRegistryProfiles(const nsACString& aAppName)
 {
   nsresult rv;
 
   nsCOMPtr<nsIToolkitProfileService> profileSvc
     (do_GetService(NS_PROFILESERVICE_CONTRACTID));
-  NS_ENSURE_TRUE(profileSvc, false);
+  NS_ENSURE_TRUE(profileSvc, PR_FALSE);
 
   nsCOMPtr<nsIProperties> dirService
     (do_GetService("@mozilla.org/file/directory_service;1"));
-  NS_ENSURE_TRUE(dirService, false);
+  NS_ENSURE_TRUE(dirService, PR_FALSE);
 
   nsCOMPtr<nsILocalFile> regFile;
 #ifdef XP_WIN
   rv = dirService->Get(NS_WIN_APPDATA_DIR, NS_GET_IID(nsILocalFile),
                        getter_AddRefs(regFile));
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   regFile->AppendNative(aAppName);
   regFile->AppendNative(NS_LITERAL_CSTRING("registry.dat"));
 #elif defined(XP_MACOSX)
   rv = dirService->Get(NS_MAC_USER_LIB_DIR, NS_GET_IID(nsILocalFile),
                        getter_AddRefs(regFile));
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   regFile->AppendNative(aAppName);
   regFile->AppendNative(NS_LITERAL_CSTRING("Application Registry"));
 #elif defined(XP_OS2)
   rv = dirService->Get(NS_OS2_HOME_DIR, NS_GET_IID(nsILocalFile),
                        getter_AddRefs(regFile));
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   regFile->AppendNative(aAppName);
   regFile->AppendNative(NS_LITERAL_CSTRING("registry.dat"));
 #else
   rv = dirService->Get(NS_UNIX_HOME_DIR, NS_GET_IID(nsILocalFile),
                        getter_AddRefs(regFile));
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
   nsCAutoString dotAppName;
   ToLowerCase(aAppName, dotAppName);
   dotAppName.Insert('.', 0);
@@ -319,12 +314,12 @@ nsProfileMigrator::ImportRegistryProfiles(const nsACString& aAppName)
 
   nsCAutoString path;
   rv = regFile->GetNativePath(path);
-  NS_ENSURE_SUCCESS(rv, false);
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   if (NR_StartupRegistry())
-    return false;
+    return PR_FALSE;
 
-  bool migrated = false;
+  PRBool migrated = PR_FALSE;
   HREG reg = nsnull;
   RKEY profiles = 0;
   REGENUM enumstate = 0;
@@ -370,7 +365,7 @@ nsProfileMigrator::ImportRegistryProfiles(const nsACString& aAppName)
     profileSvc->CreateProfile(profileFile, nsnull,
                               nsDependentCString(profileName),
                               getter_AddRefs(tprofile));
-    migrated = true;
+    migrated = PR_TRUE;
   }
 
 cleanup:

@@ -121,7 +121,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
 {
   NS_ENSURE_ARG_POINTER(retval);
 
-  bool result = false;
+  PRBool result = PR_FALSE;
   nsCAutoString fileBuffer;
   char *converted = ConvertToFileSystemCharset(mDefault);
   if (nsnull == converted) {
@@ -162,7 +162,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
     if (tempptr)
       *tempptr = '\0';
     if (filedlg.lReturn == DID_OK) {
-      result = true;
+      result = PR_TRUE;
       if (!mDisplayDirectory)
         mDisplayDirectory = do_CreateInstance("@mozilla.org/file/local;1");
       if (mDisplayDirectory)
@@ -215,7 +215,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
 
     pmydata->ulCurExt = mSelectedType;
 
-    bool fileExists = true;
+    PRBool fileExists = PR_TRUE;
     do {
       DosError(FERR_DISABLEHARDERR);
       WinFileDlg(HWND_DESKTOP, mWnd, &filedlg);
@@ -224,9 +224,9 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
          PRFileInfo64 fileinfo64;
          PRStatus status = PR_GetFileInfo64(filedlg.szFullFile, &fileinfo64);
          if (status == PR_SUCCESS) {
-            fileExists = true;
+            fileExists = PR_TRUE;
          } else {
-            fileExists = false;
+            fileExists = PR_FALSE;
          }
          if (fileExists) {
             if (!gpszFDSaveCaption) {
@@ -277,14 +277,14 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
             }
 
             if (ulResponse == MBID_YES) {
-               fileExists = false;
+               fileExists = PR_FALSE;
             }
          }
       }
     } while (mMode == modeSave && fileExists && filedlg.lReturn == DID_OK);
 
     if (filedlg.lReturn == DID_OK) {
-      result = true;
+      result = PR_TRUE;
       if (mMode == modeOpenMultiple) {
         nsresult rv;
 
@@ -362,7 +362,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
     if (mMode == modeSave) {
       // Windows does not return resultReplace,
       //   we must check if file already exists
-      bool exists = false;
+      PRBool exists = PR_FALSE;
       file->Exists(&exists);
       if (exists)
         returnOKorReplace = returnReplace;

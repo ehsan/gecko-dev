@@ -95,9 +95,6 @@ public:
   }
   nsresult InsertChildAt(nsIContent* aChild, PRUint32 aPos);
   void RemoveChildAt(PRUint32 aPos);
-  // Like RemoveChildAt but hands the reference to the child being
-  // removed back to the caller instead of just releasing it.
-  already_AddRefed<nsIContent> TakeChildAt(PRUint32 aPos);
   PRInt32 IndexOfChild(nsINode* aPossibleChild) const;
 
   PRUint32 AttrCount() const;
@@ -147,7 +144,7 @@ private:
 
   nsresult GetModifiableMapped(nsMappedAttributeElement* aContent,
                                nsHTMLStyleSheet* aSheet,
-                               bool aWillAddAttr,
+                               PRBool aWillAddAttr,
                                nsMappedAttributes** aModifiable);
   nsresult MakeMappedUnique(nsMappedAttributes* aAttributes);
 
@@ -187,8 +184,8 @@ private:
       (aChildCount << ATTRCHILD_ARRAY_ATTR_SLOTS_BITS);
   }
 
-  bool GrowBy(PRUint32 aGrowSize);
-  bool AddAttrSlot();
+  PRBool GrowBy(PRUint32 aGrowSize);
+  PRBool AddAttrSlot();
 
   /**
    * Set *aPos to aChild and update sibling pointers as needed.  aIndex is the

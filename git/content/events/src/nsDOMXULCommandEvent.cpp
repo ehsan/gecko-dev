@@ -42,13 +42,13 @@
 nsDOMXULCommandEvent::nsDOMXULCommandEvent(nsPresContext* aPresContext,
                                            nsInputEvent* aEvent)
   : nsDOMUIEvent(aPresContext,
-                 aEvent ? aEvent : new nsInputEvent(false, 0, nsnull))
+                 aEvent ? aEvent : new nsInputEvent(PR_FALSE, 0, nsnull))
 {
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
   }
 }
@@ -76,7 +76,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMXULCommandEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMUIEvent)
 
 NS_IMETHODIMP
-nsDOMXULCommandEvent::GetAltKey(bool* aIsDown)
+nsDOMXULCommandEvent::GetAltKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
   *aIsDown = Event()->isAlt;
@@ -84,7 +84,7 @@ nsDOMXULCommandEvent::GetAltKey(bool* aIsDown)
 }
 
 NS_IMETHODIMP
-nsDOMXULCommandEvent::GetCtrlKey(bool* aIsDown)
+nsDOMXULCommandEvent::GetCtrlKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
   *aIsDown = Event()->isControl;
@@ -92,7 +92,7 @@ nsDOMXULCommandEvent::GetCtrlKey(bool* aIsDown)
 }
 
 NS_IMETHODIMP
-nsDOMXULCommandEvent::GetShiftKey(bool* aIsDown)
+nsDOMXULCommandEvent::GetShiftKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
   *aIsDown = Event()->isShift;
@@ -100,7 +100,7 @@ nsDOMXULCommandEvent::GetShiftKey(bool* aIsDown)
 }
 
 NS_IMETHODIMP
-nsDOMXULCommandEvent::GetMetaKey(bool* aIsDown)
+nsDOMXULCommandEvent::GetMetaKey(PRBool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
   *aIsDown = Event()->isMeta;
@@ -117,11 +117,11 @@ nsDOMXULCommandEvent::GetSourceEvent(nsIDOMEvent** aSourceEvent)
 
 NS_IMETHODIMP
 nsDOMXULCommandEvent::InitCommandEvent(const nsAString& aType,
-                                       bool aCanBubble, bool aCancelable,
+                                       PRBool aCanBubble, PRBool aCancelable,
                                        nsIDOMWindow* aView,
                                        PRInt32 aDetail,
-                                       bool aCtrlKey, bool aAltKey,
-                                       bool aShiftKey, bool aMetaKey,
+                                       PRBool aCtrlKey, PRBool aAltKey,
+                                       PRBool aShiftKey, PRBool aMetaKey,
                                        nsIDOMEvent* aSourceEvent)
 {
   nsresult rv = nsDOMUIEvent::InitUIEvent(aType, aCanBubble, aCancelable,

@@ -53,7 +53,7 @@ nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(nsPresContext* aP
     mFrameBufferLength(aFrameBufferLength),
     mTime(aTime),
     mCachedArray(nsnull),
-    mAllowAudioData(false)
+    mAllowAudioData(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsDOMNotifyAudioAvailableEvent);
   if (mEvent) {
@@ -136,12 +136,12 @@ nsDOMNotifyAudioAvailableEvent::GetTime(float *aRetVal)
 
 NS_IMETHODIMP
 nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
-                                                        bool aCanBubble,
-                                                        bool aCancelable,
+                                                        PRBool aCanBubble,
+                                                        PRBool aCancelable,
                                                         float* aFrameBuffer,
                                                         PRUint32 aFrameBufferLength,
                                                         float aTime,
-                                                        bool aAllowAudioData)
+                                                        PRBool aAllowAudioData)
 {
   // Auto manage the memory which stores the frame buffer. This ensures
   // that if we exit due to some error, the memory will be freed. Otherwise,

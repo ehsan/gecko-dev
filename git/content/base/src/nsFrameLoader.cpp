@@ -105,24 +105,24 @@
 
 #include "nsIDOMChromeWindow.h"
 #include "nsInProcessTabChildGlobal.h"
+#include "mozilla/AutoRestore.h"
+#include "mozilla/unused.h"
 
 #include "Layers.h"
 
 #include "ContentParent.h"
 #include "TabParent.h"
-#include "mozilla/GuardObjects.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/unused.h"
-#include "mozilla/dom/Element.h"
 #include "mozilla/layout/RenderFrameParent.h"
 
-#include "jsapi.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
 typedef FrameMetrics::ViewID ViewID;
+
+#include "jsapi.h"
 
 class nsAsyncDocShellDestroyer : public nsRunnable
 {
@@ -315,18 +315,18 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameLoader)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIFrameLoader)
 NS_INTERFACE_MAP_END
 
-nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
+nsFrameLoader::nsFrameLoader(nsIContent *aOwner, PRBool aNetworkCreated)
   : mOwnerContent(aOwner)
-  , mDepthTooGreat(false)
-  , mIsTopLevelContent(false)
-  , mDestroyCalled(false)
-  , mNeedsAsyncDestroy(false)
-  , mInSwap(false)
-  , mInShow(false)
-  , mHideCalled(false)
+  , mDepthTooGreat(PR_FALSE)
+  , mIsTopLevelContent(PR_FALSE)
+  , mDestroyCalled(PR_FALSE)
+  , mNeedsAsyncDestroy(PR_FALSE)
+  , mInSwap(PR_FALSE)
+  , mInShow(PR_FALSE)
+  , mHideCalled(PR_FALSE)
   , mNetworkCreated(aNetworkCreated)
-  , mDelayRemoteDialogs(false)
-  , mRemoteBrowserShown(false)
+  , mDelayRemoteDialogs(PR_FALSE)
+  , mRemoteBrowserShown(PR_FALSE)
   , mRemoteFrame(false)
   , mCurrentRemoteFrame(nsnull)
   , mRemoteBrowser(nsnull)
@@ -336,11 +336,11 @@ nsFrameLoader::nsFrameLoader(Element* aOwner, bool aNetworkCreated)
 }
 
 nsFrameLoader*
-nsFrameLoader::Create(Element* aOwner, bool aNetworkCreated)
+nsFrameLoader::Create(nsIContent* aOwner, PRBool aNetworkCreated)
 {
   NS_ENSURE_TRUE(aOwner, nsnull);
-  nsIDocument* doc = aOwner->OwnerDoc();
-  NS_ENSURE_TRUE(!doc->GetDisplayDocument() &&
+  nsIDocument* doc = aOwner->GetOwnerDoc();
+  NS_ENSURE_TRUE(doc && !doc->GetDisplayDocument() &&
                  ((!doc->IsLoadedAsData() && aOwner->GetCurrentDoc()) ||
                    doc->IsStaticDocument()),
                  nsnull);
@@ -362,8 +362,8 @@ nsFrameLoader::LoadFrame()
     src.AssignLiteral("about:blank");
   }
 
-  nsIDocument* doc = mOwnerContent->OwnerDoc();
-  if (doc->IsStaticDocument()) {
+  nsIDocument* doc = mOwnerContent->GetOwnerDoc();
+  if (!doc || doc->IsStaticDocument()) {
     return NS_OK;
   }
 
@@ -399,7 +399,7 @@ nsFrameLoader::FireErrorEvent()
   if (mOwnerContent) {
     nsRefPtr<nsPLDOMEvent> event =
       new nsLoadBlockingPLDOMEvent(mOwnerContent, NS_LITERAL_STRING("error"),
-                                   false, false);
+                                   PR_FALSE, PR_FALSE);
     event->PostDOMEvent();
   }
 }
@@ -411,7 +411,10 @@ nsFrameLoader::LoadURI(nsIURI* aURI)
     return NS_ERROR_INVALID_POINTER;
   NS_ENSURE_STATE(!mDestroyCalled && mOwnerContent);
 
-  nsCOMPtr<nsIDocument> doc = mOwnerContent->OwnerDoc();
+  nsCOMPtr<nsIDocument> doc = mOwnerContent->GetOwnerDoc();
+  if (!doc) {
+    return NS_OK;
+  }
 
   nsresult rv = CheckURILoad(aURI);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -483,10 +486,10 @@ nsFrameLoader::ReallyStartLoadingInternal()
   loadInfo->SetReferrer(referrer);
 
   // Kick off the load...
-  bool tmpState = mNeedsAsyncDestroy;
-  mNeedsAsyncDestroy = true;
+  PRBool tmpState = mNeedsAsyncDestroy;
+  mNeedsAsyncDestroy = PR_TRUE;
   rv = mDocShell->LoadURI(mURIToLoad, loadInfo,
-                          nsIWebNavigation::LOAD_FLAGS_NONE, false);
+                          nsIWebNavigation::LOAD_FLAGS_NONE, PR_FALSE);
   mNeedsAsyncDestroy = tmpState;
   mURIToLoad = nsnull;
   NS_ENSURE_SUCCESS(rv, rv);
@@ -579,7 +582,7 @@ FirePageHideEvent(nsIDocShellTreeItem* aItem,
   nsCOMPtr<nsIDOMDocument> doc = do_GetInterface(aItem);
   nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
   NS_ASSERTION(internalDoc, "What happened here?");
-  internalDoc->OnPageHide(true, aChromeEventHandler);
+  internalDoc->OnPageHide(PR_TRUE, aChromeEventHandler);
 
   PRInt32 childCount = 0;
   aItem->GetChildCount(&childCount);
@@ -603,7 +606,7 @@ FirePageHideEvent(nsIDocShellTreeItem* aItem,
 static void
 FirePageShowEvent(nsIDocShellTreeItem* aItem,
                   nsIDOMEventTarget* aChromeEventHandler,
-                  bool aFireIfShowing)
+                  PRBool aFireIfShowing)
 {
   PRInt32 childCount = 0;
   aItem->GetChildCount(&childCount);
@@ -623,7 +626,7 @@ FirePageShowEvent(nsIDocShellTreeItem* aItem,
   nsCOMPtr<nsIDocument> internalDoc = do_QueryInterface(doc);
   NS_ASSERTION(internalDoc, "What happened here?");
   if (internalDoc->IsShowing() == aFireIfShowing) {
-    internalDoc->OnPageShow(true, aChromeEventHandler);
+    internalDoc->OnPageShow(PR_TRUE, aChromeEventHandler);
   }
 }
 
@@ -657,7 +660,7 @@ SetTreeOwnerAndChromeEventHandlerOnDocshellTree(nsIDocShellTreeItem* aItem,
  *
  * @return whether aItem is top-level content
  */
-static bool
+static PRBool
 AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem, nsIContent* aOwningContent,
                        nsIDocShellTreeOwner* aOwner, PRInt32 aParentType,
                        nsIDocShellTreeNode* aParentNode)
@@ -666,7 +669,7 @@ AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem, nsIContent* aOwningContent,
   NS_PRECONDITION(aOwningContent, "Must have owning content");
   
   nsAutoString value;
-  bool isContent = false;
+  PRBool isContent = PR_FALSE;
 
   if (aOwningContent->IsXUL()) {
       aOwningContent->GetAttr(kNameSpaceID_None, nsGkAtoms::type, value);
@@ -697,14 +700,14 @@ AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem, nsIContent* aOwningContent,
     aParentNode->AddChild(aItem);
   }
 
-  bool retval = false;
+  PRBool retval = PR_FALSE;
   if (aParentType == nsIDocShellTreeItem::typeChrome && isContent) {
-    retval = true;
+    retval = PR_TRUE;
 
-    bool is_primary = value.LowerCaseEqualsLiteral("content-primary");
+    PRBool is_primary = value.LowerCaseEqualsLiteral("content-primary");
 
     if (aOwner) {
-      bool is_targetable = is_primary ||
+      PRBool is_targetable = is_primary ||
         value.LowerCaseEqualsLiteral("content-targetable");
       aOwner->ContentShellAdded(aItem, is_primary, is_targetable, value);
     }
@@ -713,7 +716,7 @@ AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem, nsIContent* aOwningContent,
   return retval;
 }
 
-static bool
+static PRBool
 AllDescendantsOfType(nsIDocShellTreeItem* aParentItem, PRInt32 aType)
 {
   PRInt32 childCount = 0;
@@ -726,11 +729,11 @@ AllDescendantsOfType(nsIDocShellTreeItem* aParentItem, PRInt32 aType)
     PRInt32 kidType;
     kid->GetItemType(&kidType);
     if (kidType != aType || !AllDescendantsOfType(kid, aType)) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 /**
@@ -747,34 +750,34 @@ class NS_STACK_CLASS AutoResetInShow {
     {
       MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
     }
-    ~AutoResetInShow() { mFrameLoader->mInShow = false; }
+    ~AutoResetInShow() { mFrameLoader->mInShow = PR_FALSE; }
 };
 
 
-bool
+PRBool
 nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
                     PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
                     nsSubDocumentFrame* frame)
 {
   if (mInShow) {
-    return false;
+    return PR_FALSE;
   }
   // Reset mInShow if we exit early.
   AutoResetInShow resetInShow(this);
-  mInShow = true;
+  mInShow = PR_TRUE;
 
   nsresult rv = MaybeCreateDocShell();
   if (NS_FAILED(rv)) {
-    return false;
+    return PR_FALSE;
   }
 
   if (!mRemoteFrame) {
     if (!mDocShell)
-      return false;
+      return PR_FALSE;
     nsCOMPtr<nsIPresShell> presShell;
     mDocShell->GetPresShell(getter_AddRefs(presShell));
     if (presShell)
-      return true;
+      return PR_TRUE;
 
     mDocShell->SetMarginWidth(marginWidth);
     mDocShell->SetMarginHeight(marginHeight);
@@ -790,7 +793,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
 
   nsIView* view = frame->EnsureInnerView();
   if (!view)
-    return false;
+    return PR_FALSE;
 
   if (mRemoteFrame) {
     return ShowRemoteFrame(GetSubDocumentSize(frame));
@@ -814,7 +817,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
   // create anything, one starts to wonder why this was named
   // "Create"...
   baseWindow->Create();
-  baseWindow->SetVisibility(true);
+  baseWindow->SetVisibility(PR_TRUE);
 
   // Trigger editor re-initialization if midas is turned on in the
   // sub-document. This shouldn't be necessary, but given the way our
@@ -836,7 +839,7 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
         nsCOMPtr<nsIEditorDocShell> editorDocshell = do_QueryInterface(mDocShell);
         nsCOMPtr<nsIEditor> editor;
         nsresult rv = editorDocshell->GetEditor(getter_AddRefs(editor));
-        NS_ENSURE_SUCCESS(rv, false);
+        NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
         doc->SetDesignMode(NS_LITERAL_STRING("off"));
         doc->SetDesignMode(NS_LITERAL_STRING("on"));
@@ -844,8 +847,8 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
         // Re-initialize the presentation for contenteditable documents
         nsCOMPtr<nsIEditorDocShell> editorDocshell = do_QueryInterface(mDocShell);
         if (editorDocshell) {
-          bool editable = false,
-                 hasEditingSession = false;
+          PRBool editable = PR_FALSE,
+                 hasEditingSession = PR_FALSE;
           editorDocshell->GetEditable(&editable);
           editorDocshell->GetHasEditingSession(&hasEditingSession);
           nsCOMPtr<nsIEditor> editor;
@@ -858,13 +861,13 @@ nsFrameLoader::Show(PRInt32 marginWidth, PRInt32 marginHeight,
     }
   }
 
-  mInShow = false;
+  mInShow = PR_FALSE;
   if (mHideCalled) {
-    mHideCalled = false;
+    mHideCalled = PR_FALSE;
     Hide();
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -911,7 +914,7 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
   // want here.  For now, hack.
   if (!mRemoteBrowserShown) {
     mRemoteBrowser->Show(size);
-    mRemoteBrowserShown = true;
+    mRemoteBrowserShown = PR_TRUE;
 
     EnsureMessageManager();
   } else {
@@ -930,7 +933,7 @@ nsFrameLoader::Hide()
     return;
   }
   if (mInShow) {
-    mHideCalled = true;
+    mHideCalled = PR_TRUE;
     return;
   }
 
@@ -940,12 +943,12 @@ nsFrameLoader::Hide()
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
   if (contentViewer)
-    contentViewer->SetSticky(false);
+    contentViewer->SetSticky(PR_FALSE);
 
   nsCOMPtr<nsIBaseWindow> baseWin = do_QueryInterface(mDocShell);
   NS_ASSERTION(baseWin,
                "Found an nsIDocShell which doesn't implement nsIBaseWindow.");
-  baseWin->SetVisibility(false);
+  baseWin->SetVisibility(PR_FALSE);
   baseWin->SetParentWidget(nsnull);
 }
 
@@ -959,8 +962,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
                   "Swapping some sort of random loaders?");
   NS_ENSURE_STATE(!mInShow && !aOther->mInShow);
 
-  Element* ourContent = mOwnerContent;
-  Element* otherContent = aOther->mOwnerContent;
+  nsIContent* ourContent = mOwnerContent;
+  nsIContent* otherContent = aOther->mOwnerContent;
 
   if (!ourContent || !otherContent) {
     // Can't handle this
@@ -968,7 +971,7 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   }
 
   // Make sure there are no same-origin issues
-  bool equal;
+  PRBool equal;
   nsresult rv =
     ourContent->NodePrincipal()->Equals(otherContent->NodePrincipal(), &equal);
   if (NS_FAILED(rv) || !equal) {
@@ -1107,39 +1110,39 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   if (mInSwap || aOther->mInSwap) {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
-  mInSwap = aOther->mInSwap = true;
+  mInSwap = aOther->mInSwap = PR_TRUE;
 
   // Fire pageshow events on still-loading pages, and then fire pagehide
   // events.  Note that we do NOT fire these in the normal way, but just fire
   // them on the chrome event handlers.
-  FirePageShowEvent(ourTreeItem, ourChromeEventHandler, false);
-  FirePageShowEvent(otherTreeItem, otherChromeEventHandler, false);
+  FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_FALSE);
+  FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_FALSE);
   FirePageHideEvent(ourTreeItem, ourChromeEventHandler);
   FirePageHideEvent(otherTreeItem, otherChromeEventHandler);
   
   nsIFrame* ourFrame = ourContent->GetPrimaryFrame();
   nsIFrame* otherFrame = otherContent->GetPrimaryFrame();
   if (!ourFrame || !otherFrame) {
-    mInSwap = aOther->mInSwap = false;
-    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, true);
-    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, true);
+    mInSwap = aOther->mInSwap = PR_FALSE;
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   nsSubDocumentFrame* ourFrameFrame = do_QueryFrame(ourFrame);
   if (!ourFrameFrame) {
-    mInSwap = aOther->mInSwap = false;
-    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, true);
-    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, true);
+    mInSwap = aOther->mInSwap = PR_FALSE;
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
   // OK.  First begin to swap the docshells in the two nsIFrames
   rv = ourFrameFrame->BeginSwapDocShells(otherFrame);
   if (NS_FAILED(rv)) {
-    mInSwap = aOther->mInSwap = false;
-    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, true);
-    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, true);
+    mInSwap = aOther->mInSwap = PR_FALSE;
+    FirePageShowEvent(ourTreeItem, ourChromeEventHandler, PR_TRUE);
+    FirePageShowEvent(otherTreeItem, otherChromeEventHandler, PR_TRUE);
     return rv;
   }
 
@@ -1204,12 +1207,12 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   if (mMessageManager) {
     mMessageManager->Disconnect();
     mMessageManager->SetParentManager(otherParentManager);
-    mMessageManager->SetCallbackData(aOther, false);
+    mMessageManager->SetCallbackData(aOther, PR_FALSE);
   }
   if (aOther->mMessageManager) {
     aOther->mMessageManager->Disconnect();
     aOther->mMessageManager->SetParentManager(ourParentManager);
-    aOther->mMessageManager->SetCallbackData(this, false);
+    aOther->mMessageManager->SetCallbackData(this, PR_FALSE);
   }
   mMessageManager.swap(aOther->mMessageManager);
 
@@ -1236,10 +1239,10 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
   ourParentDocument->FlushPendingNotifications(Flush_Layout);
   otherParentDocument->FlushPendingNotifications(Flush_Layout);
 
-  FirePageShowEvent(ourTreeItem, otherChromeEventHandler, true);
-  FirePageShowEvent(otherTreeItem, ourChromeEventHandler, true);
+  FirePageShowEvent(ourTreeItem, otherChromeEventHandler, PR_TRUE);
+  FirePageShowEvent(otherTreeItem, ourChromeEventHandler, PR_TRUE);
 
-  mInSwap = aOther->mInSwap = false;
+  mInSwap = aOther->mInSwap = PR_FALSE;
   return NS_OK;
 }
 
@@ -1259,7 +1262,7 @@ nsFrameLoader::Destroy()
   if (mDestroyCalled) {
     return NS_OK;
   }
-  mDestroyCalled = true;
+  mDestroyCalled = PR_TRUE;
 
   if (mMessageManager) {
     mMessageManager->Disconnect();
@@ -1269,11 +1272,14 @@ nsFrameLoader::Destroy()
   }
 
   nsCOMPtr<nsIDocument> doc;
-  bool dynamicSubframeRemoval = false;
+  PRBool dynamicSubframeRemoval = PR_FALSE;
   if (mOwnerContent) {
-    doc = mOwnerContent->OwnerDoc();
-    dynamicSubframeRemoval = !mIsTopLevelContent && !doc->InUnlinkOrDeletion();
-    doc->SetSubDocumentFor(mOwnerContent, nsnull);
+    doc = mOwnerContent->GetOwnerDoc();
+
+    if (doc) {
+      dynamicSubframeRemoval = !mIsTopLevelContent && !doc->InUnlinkOrDeletion();
+      doc->SetSubDocumentFor(mOwnerContent, nsnull);
+    }
 
     SetOwnerContent(nsnull);
   }
@@ -1324,14 +1330,14 @@ nsFrameLoader::Destroy()
 }
 
 NS_IMETHODIMP
-nsFrameLoader::GetDepthTooGreat(bool* aDepthTooGreat)
+nsFrameLoader::GetDepthTooGreat(PRBool* aDepthTooGreat)
 {
   *aDepthTooGreat = mDepthTooGreat;
   return NS_OK;
 }
 
 void
-nsFrameLoader::SetOwnerContent(Element* aContent)
+nsFrameLoader::SetOwnerContent(nsIContent* aContent)
 {
   mOwnerContent = aContent;
   if (RenderFrameParent* rfp = GetCurrentRemoteFrame()) {
@@ -1347,7 +1353,7 @@ nsFrameLoader::ShouldUseRemoteProcess()
   // Default is not-remote.
 
   if (PR_GetEnv("MOZ_DISABLE_OOP_TABS") ||
-      Preferences::GetBool("dom.ipc.tabs.disabled", false)) {
+      Preferences::GetBool("dom.ipc.tabs.disabled", PR_FALSE)) {
     return false;
   }
 
@@ -1376,13 +1382,13 @@ nsFrameLoader::MaybeCreateDocShell()
   // Get our parent docshell off the document of mOwnerContent
   // XXXbz this is such a total hack.... We really need to have a
   // better setup for doing this.
-  nsIDocument* doc = mOwnerContent->OwnerDoc();
-  if (!(doc->IsStaticDocument() || mOwnerContent->IsInDoc())) {
+  nsIDocument* doc = mOwnerContent->GetOwnerDoc();
+  if (!doc || !(doc->IsStaticDocument() || mOwnerContent->IsInDoc())) {
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (doc->IsResourceDoc() || !doc->IsActive()) {
-    // Don't allow subframe loads in resource documents, nor
+  if (doc->GetDisplayDocument() || !doc->IsActive()) {
+    // Don't allow subframe loads in external reference documents, nor
     // in non-active documents.
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -1399,7 +1405,7 @@ nsFrameLoader::MaybeCreateDocShell()
   if (!mNetworkCreated) {
     nsCOMPtr<nsIDocShellHistory> history = do_QueryInterface(mDocShell);
     if (history) {
-      history->SetCreatedDynamically(true);
+      history->SetCreatedDynamically(PR_TRUE);
     }
   }
 
@@ -1517,7 +1523,7 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
 {
   nsresult rv;
 
-  mDepthTooGreat = false;
+  mDepthTooGreat = PR_FALSE;
   rv = MaybeCreateDocShell();
   if (NS_FAILED(rv)) {
     return rv;
@@ -1556,7 +1562,7 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
     ++depth;
     
     if (depth >= MAX_DEPTH_CONTENT_FRAMES) {
-      mDepthTooGreat = true;
+      mDepthTooGreat = PR_TRUE;
       NS_WARNING("Too many nested content frames so giving up");
 
       return NS_ERROR_UNEXPECTED; // Too deep, give up!  (silently?)
@@ -1579,7 +1585,7 @@ nsFrameLoader::CheckForRecursiveLoad(nsIURI* aURI)
       parentAsNav->GetCurrentURI(getter_AddRefs(parentURI));
       if (parentURI) {
         // Bug 98158/193011: We need to ignore data after the #
-        bool equal;
+        PRBool equal;
         rv = aURI->EqualsExceptRef(parentURI, &equal);
         NS_ENSURE_SUCCESS(rv, rv);
         
@@ -1672,7 +1678,7 @@ nsFrameLoader::UpdateBaseWindowPositionAndSize(nsIFrame *aIFrame)
 
     nsIntSize size = GetSubDocumentSize(aIFrame);
 
-    baseWindow->SetPositionAndSize(x, y, size.width, size.height, false);
+    baseWindow->SetPositionAndSize(x, y, size.width, size.height, PR_FALSE);
   }
 
   return NS_OK;
@@ -1838,7 +1844,7 @@ nsFrameLoader::SendCrossProcessMouseEvent(const nsAString& aType,
                                           PRInt32 aButton,
                                           PRInt32 aClickCount,
                                           PRInt32 aModifiers,
-                                          bool aIgnoreRootScrollFrame)
+                                          PRBool aIgnoreRootScrollFrame)
 {
   if (mRemoteBrowser) {
     mRemoteBrowser->SendMouseEvent(aType, aX, aY, aButton,
@@ -1851,7 +1857,7 @@ nsFrameLoader::SendCrossProcessMouseEvent(const nsAString& aType,
 
 NS_IMETHODIMP
 nsFrameLoader::ActivateFrameEvent(const nsAString& aType,
-                                  bool aCapture)
+                                  PRBool aCapture)
 {
   if (mRemoteBrowser) {
     return mRemoteBrowser->SendActivateFrameEvent(nsString(aType), aCapture) ?
@@ -1865,7 +1871,7 @@ nsFrameLoader::SendCrossProcessKeyEvent(const nsAString& aType,
                                         PRInt32 aKeyCode,
                                         PRInt32 aCharCode,
                                         PRInt32 aModifiers,
-                                        bool aPreventDefault)
+                                        PRBool aPreventDefault)
 {
   if (mRemoteBrowser) {
     mRemoteBrowser->SendKeyEvent(aType, aKeyCode, aCharCode, aModifiers,
@@ -1876,14 +1882,14 @@ nsFrameLoader::SendCrossProcessKeyEvent(const nsAString& aType,
 }
 
 NS_IMETHODIMP
-nsFrameLoader::GetDelayRemoteDialogs(bool* aRetVal)
+nsFrameLoader::GetDelayRemoteDialogs(PRBool* aRetVal)
 {
   *aRetVal = mDelayRemoteDialogs;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFrameLoader::SetDelayRemoteDialogs(bool aDelay)
+nsFrameLoader::SetDelayRemoteDialogs(PRBool aDelay)
 {
   if (mRemoteBrowser && mDelayRemoteDialogs && !aDelay) {
     nsRefPtr<nsIRunnable> ev =
@@ -1951,7 +1957,7 @@ public:
       nsFrameScriptCx cx(static_cast<nsIDOMEventTarget*>(tabChild), tabChild);
       nsRefPtr<nsFrameMessageManager> mm = tabChild->GetInnerManager();
       mm->ReceiveMessage(static_cast<nsIDOMEventTarget*>(tabChild), mMessage,
-                         false, mJSON, nsnull, nsnull);
+                         PR_FALSE, mJSON, nsnull, nsnull);
     }
     return NS_OK;
   }
@@ -2068,13 +2074,13 @@ nsFrameLoader::EnsureMessageManager()
   NS_ENSURE_STATE(cx);
 
   nsCOMPtr<nsIDOMChromeWindow> chromeWindow =
-    do_QueryInterface(mOwnerContent->OwnerDoc()->GetWindow());
+    do_QueryInterface(mOwnerContent->GetOwnerDoc()->GetWindow());
   NS_ENSURE_STATE(chromeWindow);
   nsCOMPtr<nsIChromeFrameMessageManager> parentManager;
   chromeWindow->GetMessageManager(getter_AddRefs(parentManager));
 
   if (ShouldUseRemoteProcess()) {
-    mMessageManager = new nsFrameMessageManager(true,
+    mMessageManager = new nsFrameMessageManager(PR_TRUE,
                                                 nsnull,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,
@@ -2085,7 +2091,7 @@ nsFrameLoader::EnsureMessageManager()
   } else
   {
 
-    mMessageManager = new nsFrameMessageManager(true,
+    mMessageManager = new nsFrameMessageManager(PR_TRUE,
                                                 nsnull,
                                                 SendAsyncMessageToChild,
                                                 LoadScript,

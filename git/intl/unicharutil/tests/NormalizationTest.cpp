@@ -71,14 +71,14 @@ struct testcaseLine {
    normalizer->NormalizeUnicode##form(comparison, normalized);\
    DEBUG_NAMED_TESTCASE(#form "(" #comparison ")", normalized);\
    if (!base.Equals(normalized)) {\
-     rv = false;\
+     rv = PR_FALSE;\
      showError(description, #base " != " #form "(" #comparison ")\n");\
    }
 
 NS_DEFINE_CID(kUnicodeNormalizerCID, NS_UNICODE_NORMALIZER_CID);
 
 nsIUnicodeNormalizer *normalizer;
-bool verboseMode = false;
+PRBool verboseMode = PR_FALSE;
 
 #include "NormalizationData.h"
 
@@ -88,7 +88,7 @@ void showError(const char* description, const char* errorText)
     printf("%s failed: %s", description, errorText);
 }
 
-bool TestInvariants(testcaseLine* testLine)
+PRBool TestInvariants(testcaseLine* testLine)
 {
   nsAutoString c1, c2, c3, c4, c5, normalized;
   c1 = nsDependentString((PRUnichar*)testLine->c1);
@@ -96,7 +96,7 @@ bool TestInvariants(testcaseLine* testLine)
   c3 = nsDependentString((PRUnichar*)testLine->c3);
   c4 = nsDependentString((PRUnichar*)testLine->c4);
   c5 = nsDependentString((PRUnichar*)testLine->c5);
-  bool rv = true;
+  PRBool rv = PR_TRUE;
  
   /*
     1. The following invariants must be true for all conformant implementations
@@ -167,9 +167,9 @@ PRUint32 UTF32CodepointFromTestcase(testcaseLine* testLine)
   return SURROGATE_TO_UCS4(testLine->c1[0], testLine->c1[1]);
 }
 
-bool TestUnspecifiedCodepoint(PRUint32 codepoint)
+PRBool TestUnspecifiedCodepoint(PRUint32 codepoint)
 {
-  bool rv = true;
+  PRBool rv = PR_TRUE;
   PRUnichar unicharArray[3];
   nsAutoString X, normalized;
   char description[9];
@@ -295,9 +295,9 @@ int main(int argc, char** argv) {
   printf("NormalizationTest: test nsIUnicodeNormalizer. UCD version: %s\n", 
          versionText); 
   if (argc <= 1)
-    verboseMode = false;
+    verboseMode = PR_FALSE;
   else if ((argc == 2) && (!strcmp(argv[1], "-v")))
-    verboseMode = true;
+    verboseMode = PR_TRUE;
   else {
     printf("                   Usage: NormalizationTest [OPTION]..\n");
     printf("Options:\n");

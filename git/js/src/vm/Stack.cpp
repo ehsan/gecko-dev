@@ -233,8 +233,8 @@ StackSegment::contains(const CallArgsList *call) const
         return false;
 
     /* NB: this depends on the continuity of segments in memory. */
-    Value *vp = call->array();
-    bool ret = vp > slotsBegin() && vp <= calls_->array();
+    Value *vp = call->argv();
+    bool ret = vp > slotsBegin() && vp <= calls_->argv();
 
     /*
      * :XXX: Disabled. Including this check changes the asymptotic complexity
@@ -498,7 +498,7 @@ StackSpace::tryBumpLimit(JSContext *cx, Value *from, uintN nvals, Value **limit)
 }
 
 size_t
-StackSpace::sizeOfCommitted()
+StackSpace::committedSize()
 {
 #ifdef XP_WIN
     return (commitEnd_ - base_) * sizeof(Value);
@@ -644,6 +644,7 @@ ContextStack::popSegment()
 bool
 ContextStack::pushInvokeArgs(JSContext *cx, uintN argc, InvokeArgsGuard *iag)
 {
+    LeaveTrace(cx);
     JS_ASSERT(argc <= StackSpace::ARGS_LENGTH_MAX);
 
     uintN nvars = 2 + argc;
@@ -682,12 +683,12 @@ ContextStack::pushInvokeFrame(JSContext *cx, const CallArgs &args,
     JSFunction *fun = callee.getFunctionPrivate();
     JSScript *script = fun->script();
 
-    /*StackFrame::Flags*/ uint32 flags = ToFrameFlags(initial);
+    StackFrame::Flags flags = ToFrameFlags(initial);
     StackFrame *fp = getCallFrame(cx, REPORT_ERROR, args, fun, script, &flags);
     if (!fp)
         return false;
 
-    fp->initCallFrame(cx, callee, fun, script, args.length(), (StackFrame::Flags) flags);
+    fp->initCallFrame(cx, callee, fun, script, args.argc(), flags);
     ifg->regs_.prepareToRun(*fp, script);
 
     ifg->prevRegs_ = seg_->pushRegs(ifg->regs_);
@@ -1012,7 +1013,7 @@ StackIter::settleOnNewState()
          * In case of both a scripted frame and call record, use linear memory
          * ordering to decide which was the most recent.
          */
-        if (containsFrame && (!containsCall || (Value *)fp_ >= calls_->array())) {
+        if (containsFrame && (!containsCall || (Value *)fp_ >= calls_->argv())) {
             /* Nobody wants to see dummy frames. */
             if (fp_->isDummyFrame()) {
                 popFrame();
@@ -1027,26 +1028,25 @@ StackIter::settleOnNewState()
              *
              *   regs.sp == vp + 2 + argc
              *
-             * The Function.prototype.call optimization leaves no record when
-             * 'this' is a native function. Thus, if the following expression
-             * runs and breaks in the debugger, the call to 'replace' will not
-             * appear on the callstack.
+             * The mjit Function.prototype.apply optimization breaks this
+             * invariant (see ic::SplatApplyArgs). Thus, for JSOP_FUNAPPLY we
+             * need to (slowly) reconstruct the depth.
+             *
+             * Additionally, the Function.prototype.{call,apply} optimizations
+             * leave no record when 'this' is a native function. Thus, if the
+             * following expression runs and breaks in the debugger, the call
+             * to 'replace' will not appear on the callstack.
              *
              *   (String.prototype.replace).call('a',/a/,function(){debugger});
              *
              * Function.prototype.call will however appear, hence the debugger
              * can, by inspecting 'args.thisv', give some useful information.
-             *
-             * For Function.prototype.apply, the situation is even worse: since
-             * a dynamic number of arguments have been pushed onto the stack
-             * (see SplatApplyArgs), there is no efficient way to know how to
-             * find the callee. Thus, calls to apply are lost completely.
              */
             JSOp op = js_GetOpcode(cx_, fp_->script(), pc_);
             if (op == JSOP_CALL || op == JSOP_FUNCALL) {
                 uintN argc = GET_ARGC(pc_);
                 DebugOnly<uintN> spoff = sp_ - fp_->base();
-                JS_ASSERT_IF(cx_->stackIterAssertionEnabled,
+                JS_ASSERT_IF(cx_->stackIterAssertionEnabled && !fp_->hasImacropc(),
                              spoff == js_ReconstructStackDepth(cx_, fp_->script(), pc_));
                 Value *vp = sp_ - (2 + argc);
 
@@ -1056,13 +1056,32 @@ StackIter::settleOnNewState()
                     args_ = CallArgsFromVp(argc, vp);
                     return;
                 }
+            } else if (op == JSOP_FUNAPPLY) {
+                JS_ASSERT(!fp_->hasImacropc());
+                uintN argc = GET_ARGC(pc_);
+                uintN spoff = js_ReconstructStackDepth(cx_, fp_->script(), pc_);
+                Value *sp = fp_->base() + spoff;
+                Value *vp = sp - (2 + argc);
+
+                CrashIfInvalidSlot(fp_, vp);
+                if (IsNativeFunction(*vp)) {
+                    if (sp_ != sp) {
+                        JS_ASSERT(argc == 2);
+                        JS_ASSERT(vp[0].toObject().getFunctionPrivate()->native() == js_fun_apply);
+                        JS_ASSERT(sp_ >= vp + 3);
+                        argc = sp_ - (vp + 2);
+                    }
+                    state_ = IMPLICIT_NATIVE;
+                    args_ = CallArgsFromVp(argc, vp);
+                    return;
+                }
             }
 
             state_ = SCRIPTED;
+            JS_ASSERT(sp_ >= fp_->base() && sp_ <= fp_->slots() + fp_->script()->nslots);
             DebugOnly<JSScript *> script = fp_->script();
-            JS_ASSERT_IF(op != JSOP_FUNAPPLY,
-                         sp_ >= fp_->base() && sp_ <= fp_->slots() + script->nslots);
-            JS_ASSERT(pc_ >= script->code && pc_ < script->code + script->length);
+            JS_ASSERT_IF(!fp_->hasImacropc(),
+                         pc_ >= script->code && pc_ < script->code + script->length);
             return;
         }
 
@@ -1094,6 +1113,8 @@ StackIter::StackIter(JSContext *cx, SavedOption savedOption)
 #ifdef JS_METHODJIT
     mjit::ExpandInlineFrames(cx->compartment);
 #endif
+
+    LeaveTrace(cx);
 
     if (StackSegment *seg = cx->stack.seg_) {
         startOnSegment(seg);

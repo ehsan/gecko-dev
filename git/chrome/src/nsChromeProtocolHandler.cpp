@@ -93,10 +93,10 @@ nsChromeProtocolHandler::GetDefaultPort(PRInt32 *result)
 }
 
 NS_IMETHODIMP
-nsChromeProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
+nsChromeProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval)
 {
     // don't override anything.
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
@@ -136,7 +136,7 @@ nsChromeProtocolHandler::NewURI(const nsACString &aSpec,
     if (NS_FAILED(rv))
         return rv;
 
-    surl->SetMutable(false);
+    surl->SetMutable(PR_FALSE);
 
     NS_ADDREF(*result = url);
     return NS_OK;
@@ -160,7 +160,7 @@ nsChromeProtocolHandler::NewChannel(nsIURI* aURI,
         nsCOMPtr<nsIURL> debugURL (do_QueryInterface(debugClone));
         debug_rv = nsChromeRegistry::Canonify(debugURL);
         if (NS_SUCCEEDED(debug_rv)) {
-            bool same;
+            PRBool same;
             debug_rv = aURI->Equals(debugURL, &same);
             if (NS_SUCCEEDED(debug_rv)) {
                 NS_ASSERTION(same, "Non-canonified chrome uri passed to nsChromeProtocolHandler::NewChannel!");
@@ -202,7 +202,7 @@ nsChromeProtocolHandler::NewChannel(nsIURI* aURI,
         nsCOMPtr<nsIFile> file;
         fileChan->GetFile(getter_AddRefs(file));
 
-        bool exists = false;
+        PRBool exists = PR_FALSE;
         file->Exists(&exists);
         if (!exists) {
             nsCAutoString path;

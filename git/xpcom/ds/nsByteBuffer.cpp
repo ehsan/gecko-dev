@@ -104,7 +104,7 @@ ByteBufferImpl::GetBuffer(void) const
   return mBuffer;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 ByteBufferImpl::Grow(PRUint32 aNewSize)
 {
   if (aNewSize < MIN_BUFFER_SIZE) {
@@ -117,9 +117,9 @@ ByteBufferImpl::Grow(PRUint32 aNewSize)
     }
     delete[] mBuffer;
     mBuffer = newbuf;
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(PRInt32)

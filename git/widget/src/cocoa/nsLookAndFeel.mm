@@ -431,9 +431,6 @@ nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
     case eIntID_SpellCheckerUnderlineStyle:
       aResult = NS_STYLE_TEXT_DECORATION_STYLE_DOTTED;
       break;
-    case eIntID_ScrollbarButtonAutoRepeatBehavior:
-      aResult = 0;
-      break;
     default:
       aResult = 0;
       res = NS_ERROR_FAILURE;

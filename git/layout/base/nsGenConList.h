@@ -82,12 +82,12 @@ struct nsGenConNode : public PRCList {
    * @param aTextFrame the textframe where the node contents will render
    * @return true iff this marked the list dirty
    */
-  virtual bool InitTextFrame(nsGenConList* aList, nsIFrame* aPseudoFrame,
+  virtual PRBool InitTextFrame(nsGenConList* aList, nsIFrame* aPseudoFrame,
                                nsIFrame* aTextFrame)
   {
     mPseudoFrame = aPseudoFrame;
     CheckFrameAssertions();
-    return false;
+    return PR_FALSE;
   }
 
   virtual ~nsGenConNode() {} // XXX Avoid, perhaps?
@@ -128,14 +128,14 @@ public:
   }
   void Insert(nsGenConNode* aNode);
   // returns whether any nodes have been destroyed
-  bool DestroyNodesFor(nsIFrame* aFrame); //destroy all nodes with aFrame as parent
+  PRBool DestroyNodesFor(nsIFrame* aFrame); //destroy all nodes with aFrame as parent
 
   // Return true if |aNode1| is after |aNode2|.
-  static bool NodeAfter(const nsGenConNode* aNode1,
+  static PRBool NodeAfter(const nsGenConNode* aNode1,
                           const nsGenConNode* aNode2);
 
   void Remove(nsGenConNode* aNode) { PR_REMOVE_LINK(aNode); mSize--; }
-  bool IsLast(nsGenConNode* aNode) { return (Next(aNode) == mFirstNode); }
+  PRBool IsLast(nsGenConNode* aNode) { return (Next(aNode) == mFirstNode); }
 };
 
 #endif /* nsGenConList_h___ */

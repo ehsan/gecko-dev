@@ -133,9 +133,9 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsNotifyAddrListener,
                               nsIObserver)
 
 nsNotifyAddrListener::nsNotifyAddrListener()
-    : mLinkUp(true)  // assume true by default
-    , mStatusKnown(false)
-    , mCheckAttempted(false)
+    : mLinkUp(PR_TRUE)  // assume true by default
+    , mStatusKnown(PR_FALSE)
+    , mCheckAttempted(PR_FALSE)
     , mShutdownEvent(nsnull)
 {
     mOSVerInfo.dwOSVersionInfoSize = sizeof(mOSVerInfo);
@@ -149,10 +149,10 @@ nsNotifyAddrListener::~nsNotifyAddrListener()
 }
 
 NS_IMETHODIMP
-nsNotifyAddrListener::GetIsLinkUp(bool *aIsUp)
+nsNotifyAddrListener::GetIsLinkUp(PRBool *aIsUp)
 {
     if (!mCheckAttempted && !mStatusKnown) {
-        mCheckAttempted = true;
+        mCheckAttempted = PR_TRUE;
         CheckLinkStatus();
     }
 
@@ -161,7 +161,7 @@ nsNotifyAddrListener::GetIsLinkUp(bool *aIsUp)
 }
 
 NS_IMETHODIMP
-nsNotifyAddrListener::GetLinkStatusKnown(bool *aIsUp)
+nsNotifyAddrListener::GetLinkStatusKnown(PRBool *aIsUp)
 {
     *aIsUp = mStatusKnown;
     return NS_OK;
@@ -185,7 +185,7 @@ nsNotifyAddrListener::Run()
 
     HANDLE handles[2] = { ev, mShutdownEvent };
     OVERLAPPED overlapped = { 0 };
-    bool shuttingDown = false;
+    PRBool shuttingDown = PR_FALSE;
 
     InitIPHelperLibrary();
 
@@ -204,10 +204,10 @@ nsNotifyAddrListener::Run()
             if (ret == WAIT_OBJECT_0) {
                 CheckLinkStatus();
             } else {
-                shuttingDown = true;
+                shuttingDown = PR_TRUE;
             }
         } else {
-            shuttingDown = true;
+            shuttingDown = PR_TRUE;
         }
     }
     CloseHandle(ev);
@@ -247,7 +247,7 @@ nsNotifyAddrListener::Init(void)
         return NS_ERROR_FAILURE;
 
     nsresult rv = observerService->AddObserver(this, "xpcom-shutdown-threads",
-                                               false);
+                                               PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     mShutdownEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -356,7 +356,7 @@ nsNotifyAddrListener::CheckIPAddrTable(void)
 
         ret = sGetIpAddrTable(table, &size, FALSE);
         if (ret == ERROR_SUCCESS) {
-            bool linkUp = false;
+            PRBool linkUp = PR_FALSE;
 
             for (DWORD i = 0; !linkUp && i < table->dwNumEntries; i++) {
                 if (GetOperationalStatus(table->table[i].dwIndex) >=
@@ -364,7 +364,7 @@ nsNotifyAddrListener::CheckIPAddrTable(void)
                         table->table[i].dwAddr != 0 &&
                         // Nor a loopback
                         table->table[i].dwAddr != 0x0100007F)
-                    linkUp = true;
+                    linkUp = PR_TRUE;
             }
             mLinkUp = linkUp;
         }
@@ -400,7 +400,7 @@ nsNotifyAddrListener::CheckAdaptersInfo(void)
 
         ret = sGetAdaptersInfo(adapters, &adaptersLen);
         if (ret == ERROR_SUCCESS) {
-            bool linkUp = false;
+            PRBool linkUp = PR_FALSE;
             PIP_ADAPTER_INFO ptr;
 
             for (ptr = adapters; ptr && !linkUp; ptr = ptr->Next) {
@@ -411,7 +411,7 @@ nsNotifyAddrListener::CheckAdaptersInfo(void)
                                       "255.255.255.255")) {
                             // it has a DHCP server, therefore it must have
                             // a usable address
-                            linkUp = true;
+                            linkUp = PR_TRUE;
                         }
                     }
                     else {
@@ -419,14 +419,14 @@ nsNotifyAddrListener::CheckAdaptersInfo(void)
                         for (ipAddr = &ptr->IpAddressList; ipAddr && !linkUp;
                              ipAddr = ipAddr->Next) {
                             if (PL_strcmp(ipAddr->IpAddress.String, "0.0.0.0")) {
-                                linkUp = true;
+                                linkUp = PR_TRUE;
                             }
                         }
                     }
                 }
             }
             mLinkUp = linkUp;
-            mStatusKnown = true;
+            mStatusKnown = PR_TRUE;
             free(adapters);
         }
     }
@@ -444,7 +444,7 @@ nsNotifyAddrListener::CheckIsGateway(PIP_ADAPTER_ADDRESSES aAdapter)
         return FALSE;
 
     PSOCKADDR_IN in_addr = (PSOCKADDR_IN)aAddress;
-    bool isGateway = (aAddress->sa_family == AF_INET &&
+    PRBool isGateway = (aAddress->sa_family == AF_INET &&
         in_addr->sin_addr.S_un.S_un_b.s_b1 == 192 &&
         in_addr->sin_addr.S_un.S_un_b.s_b2 == 168 &&
         in_addr->sin_addr.S_un.S_un_b.s_b3 == 0 &&
@@ -600,7 +600,7 @@ nsNotifyAddrListener::CheckLinkStatus(void)
     if (ret == ERROR_NOT_SUPPORTED)
         ret = CheckIPAddrTable();
     if (ret != ERROR_SUCCESS)
-        mLinkUp = true; // I can't tell, so assume there's a link
+        mLinkUp = PR_TRUE; // I can't tell, so assume there's a link
 
     if (mStatusKnown)
         event = mLinkUp ? NS_NETWORK_LINK_DATA_UP : NS_NETWORK_LINK_DATA_DOWN;

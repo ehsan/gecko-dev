@@ -69,7 +69,7 @@ public:
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow);
 
-  virtual bool IsFrameOfType(PRUint32 aFlags) const
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsSVGGeometryFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGGeometry));
   }
@@ -82,13 +82,13 @@ public:
 
   /*
    * Set up a cairo context for filling a path
-   * @return false to skip rendering
+   * @return PR_FALSE to skip rendering
    */
-  bool SetupCairoFill(gfxContext *aContext);
+  PRBool SetupCairoFill(gfxContext *aContext);
   /*
-   * @return false if there is no stroke
+   * @return PR_FALSE if there is no stroke
    */
-  bool HasStroke();
+  PRBool HasStroke();
   /*
    * Set up a cairo context for measuring a stroked path
    */
@@ -99,9 +99,9 @@ public:
   void SetupCairoStrokeHitGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for stroking a path
-   * @return false to skip rendering
+   * @return PR_FALSE to skip rendering
    */
-  bool SetupCairoStroke(gfxContext *aContext);
+  PRBool SetupCairoStroke(gfxContext *aContext);
 
 protected:
   nsSVGPaintServerFrame *GetPaintServer(const nsStyleSVGPaint *aPaint,

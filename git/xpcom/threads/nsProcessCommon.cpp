@@ -45,8 +45,6 @@
  *****************************************************************************
  */
 
-#include "mozilla/Util.h"
-
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsMemory.h"
@@ -100,7 +98,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsProcess, nsIProcess,
 nsProcess::nsProcess()
     : mThread(nsnull)
     , mLock("nsProcess.mLock")
-    , mShutdown(false)
+    , mShutdown(PR_FALSE)
     , mPid(-1)
     , mObserver(nsnull)
     , mWeakObserver(nsnull)
@@ -123,7 +121,7 @@ nsProcess::Init(nsIFile* executable)
         return NS_ERROR_ALREADY_INITIALIZED;
 
     NS_ENSURE_ARG_POINTER(executable);
-    bool isFile;
+    PRBool isFile;
 
     //First make sure the file exists
     nsresult rv = executable->IsFile(&isFile);
@@ -350,23 +348,23 @@ void nsProcess::ProcessComplete()
 
 // XXXldb |args| has the wrong const-ness
 NS_IMETHODIMP  
-nsProcess::Run(bool blocking, const char **args, PRUint32 count)
+nsProcess::Run(PRBool blocking, const char **args, PRUint32 count)
 {
-    return CopyArgsAndRunProcess(blocking, args, count, nsnull, false);
+    return CopyArgsAndRunProcess(blocking, args, count, nsnull, PR_FALSE);
 }
 
 // XXXldb |args| has the wrong const-ness
 NS_IMETHODIMP  
 nsProcess::RunAsync(const char **args, PRUint32 count,
-                    nsIObserver* observer, bool holdWeak)
+                    nsIObserver* observer, PRBool holdWeak)
 {
-    return CopyArgsAndRunProcess(false, args, count, observer, holdWeak);
+    return CopyArgsAndRunProcess(PR_FALSE, args, count, observer, holdWeak);
 }
 
 nsresult
-nsProcess::CopyArgsAndRunProcess(bool blocking, const char** args,
+nsProcess::CopyArgsAndRunProcess(PRBool blocking, const char** args,
                                  PRUint32 count, nsIObserver* observer,
-                                 bool holdWeak)
+                                 PRBool holdWeak)
 {
     // Add one to the count for the program name and one for NULL termination.
     char **my_argv = NULL;
@@ -383,7 +381,7 @@ nsProcess::CopyArgsAndRunProcess(bool blocking, const char** args,
 
     my_argv[count + 1] = NULL;
 
-    nsresult rv = RunProcess(blocking, my_argv, observer, holdWeak, false);
+    nsresult rv = RunProcess(blocking, my_argv, observer, holdWeak, PR_FALSE);
 
     NS_Free(my_argv[0]);
     NS_Free(my_argv);
@@ -392,23 +390,23 @@ nsProcess::CopyArgsAndRunProcess(bool blocking, const char** args,
 
 // XXXldb |args| has the wrong const-ness
 NS_IMETHODIMP  
-nsProcess::Runw(bool blocking, const PRUnichar **args, PRUint32 count)
+nsProcess::Runw(PRBool blocking, const PRUnichar **args, PRUint32 count)
 {
-    return CopyArgsAndRunProcessw(blocking, args, count, nsnull, false);
+    return CopyArgsAndRunProcessw(blocking, args, count, nsnull, PR_FALSE);
 }
 
 // XXXldb |args| has the wrong const-ness
 NS_IMETHODIMP  
 nsProcess::RunwAsync(const PRUnichar **args, PRUint32 count,
-                    nsIObserver* observer, bool holdWeak)
+                    nsIObserver* observer, PRBool holdWeak)
 {
-    return CopyArgsAndRunProcessw(false, args, count, observer, holdWeak);
+    return CopyArgsAndRunProcessw(PR_FALSE, args, count, observer, holdWeak);
 }
 
 nsresult
-nsProcess::CopyArgsAndRunProcessw(bool blocking, const PRUnichar** args,
+nsProcess::CopyArgsAndRunProcessw(PRBool blocking, const PRUnichar** args,
                                   PRUint32 count, nsIObserver* observer,
-                                  bool holdWeak)
+                                  PRBool holdWeak)
 {
     // Add one to the count for the program name and one for NULL termination.
     char **my_argv = NULL;
@@ -425,7 +423,7 @@ nsProcess::CopyArgsAndRunProcessw(bool blocking, const PRUnichar** args,
 
     my_argv[count + 1] = NULL;
 
-    nsresult rv = RunProcess(blocking, my_argv, observer, holdWeak, true);
+    nsresult rv = RunProcess(blocking, my_argv, observer, holdWeak, PR_TRUE);
 
     for (PRUint32 i = 0; i <= count; i++) {
         NS_Free(my_argv[i]);
@@ -435,8 +433,8 @@ nsProcess::CopyArgsAndRunProcessw(bool blocking, const PRUnichar** args,
 }
 
 nsresult  
-nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
-                      bool holdWeak, bool argsUTF8)
+nsProcess::RunProcess(PRBool blocking, char **my_argv, nsIObserver* observer,
+                      PRBool holdWeak, PRBool argsUTF8)
 {
     NS_ENSURE_TRUE(mExecutable, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_FALSE(mThread, NS_ERROR_ALREADY_INITIALIZED);
@@ -515,7 +513,7 @@ nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
     }
 
     // Set spawn attributes.
-    size_t attr_count = ArrayLength(pref_cpu_types);
+    size_t attr_count = NS_ARRAY_LENGTH(pref_cpu_types);
     size_t attr_ocount = 0;
     if (posix_spawnattr_setbinpref_np(&spawnattr, attr_count, pref_cpu_types, &attr_ocount) != 0 ||
         attr_ocount != attr_count) {
@@ -563,18 +561,18 @@ nsProcess::RunProcess(bool blocking, char **my_argv, nsIObserver* observer,
         nsCOMPtr<nsIObserverService> os =
           mozilla::services::GetObserverService();
         if (os)
-            os->AddObserver(this, "xpcom-shutdown", false);
+            os->AddObserver(this, "xpcom-shutdown", PR_FALSE);
     }
 
     return NS_OK;
 }
 
-NS_IMETHODIMP nsProcess::GetIsRunning(bool *aIsRunning)
+NS_IMETHODIMP nsProcess::GetIsRunning(PRBool *aIsRunning)
 {
     if (mThread)
-        *aIsRunning = true;
+        *aIsRunning = PR_TRUE;
     else
-        *aIsRunning = false;
+        *aIsRunning = PR_FALSE;
 
     return NS_OK;
 }
@@ -647,7 +645,7 @@ nsProcess::Observe(nsISupports* subject, const char* topic, const PRUnichar* dat
     mWeakObserver = nsnull;
 
     MutexAutoLock lock(mLock);
-    mShutdown = true;
+    mShutdown = PR_TRUE;
 
     return NS_OK;
 }

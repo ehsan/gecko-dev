@@ -105,7 +105,7 @@ CopyUTF8toUTF16( const char* aSource, nsAString& aDest )
 // allocate enough memory (e.g. due to OOM) rather than
 // returning zero (which could have other meanings) and
 // throws away the out-param pointer.
-bool
+PRBool
 SetLengthForWriting(nsAString& aDest, PRUint32 aDesiredLength)
   {
     PRUnichar* dummy;
@@ -113,7 +113,7 @@ SetLengthForWriting(nsAString& aDest, PRUint32 aDesiredLength)
     return (len >= aDesiredLength);
   }
 
-bool
+PRBool
 SetLengthForWritingC(nsACString& aDest, PRUint32 aDesiredLength)
   {
     char* dummy;
@@ -422,7 +422,7 @@ AppendUnicodeTo( const nsAString::const_iterator& aSrcStart,
     copy_string(fromBegin, aSrcEnd, writer);
   }
 
-bool
+PRBool
 IsASCII( const nsAString& aString )
   {
     static const PRUnichar NOT_ASCII = PRUnichar(~0x007F);
@@ -440,13 +440,13 @@ IsASCII( const nsAString& aString )
     while ( c < end )
       {
         if ( *c++ & NOT_ASCII )
-          return false;
+          return PR_FALSE;
       }
 
-    return true;
+    return PR_TRUE;
   }
 
-bool
+PRBool
 IsASCII( const nsACString& aString )
   {
     static const char NOT_ASCII = char(~0x7F);
@@ -464,22 +464,22 @@ IsASCII( const nsACString& aString )
     while ( c < end )
       {
         if ( *c++ & NOT_ASCII )
-          return false;
+          return PR_FALSE;
       }
 
-    return true;
+    return PR_TRUE;
   }
 
-bool
-IsUTF8( const nsACString& aString, bool aRejectNonChar )
+PRBool
+IsUTF8( const nsACString& aString, PRBool aRejectNonChar )
   {
     nsReadingIterator<char> done_reading;
     aString.EndReading(done_reading);
 
     PRInt32 state = 0;
-    bool overlong = false;
-    bool surrogate = false;
-    bool nonchar = false;
+    PRBool overlong = PR_FALSE;
+    PRBool surrogate = PR_FALSE;
+    PRBool nonchar = PR_FALSE;
     PRUint16 olupper = 0; // overlong byte upper bound.
     PRUint16 slower = 0;  // surrogate byte lower bound.
 
@@ -500,7 +500,7 @@ IsUTF8( const nsACString& aString, bool aRejectNonChar )
               continue;
 
             if ( c <= 0xC1 ) // [80-BF] where not expected, [C0-C1] for overlong.
-              return false;
+              return PR_FALSE;
             else if ( UTF8traits::is2byte(c) ) 
                 state = 1;
             else if ( UTF8traits::is3byte(c) ) 
@@ -508,39 +508,39 @@ IsUTF8( const nsACString& aString, bool aRejectNonChar )
                 state = 2;
                 if ( c == 0xE0 ) // to exclude E0[80-9F][80-BF] 
                   {
-                    overlong = true;
+                    overlong = PR_TRUE;
                     olupper = 0x9F;
                   }
                 else if ( c == 0xED ) // ED[A0-BF][80-BF] : surrogate codepoint
                   {
-                    surrogate = true;
+                    surrogate = PR_TRUE;
                     slower = 0xA0;
                   }
                 else if ( c == 0xEF ) // EF BF [BE-BF] : non-character
-                  nonchar = true;
+                  nonchar = PR_TRUE;
               }
             else if ( c <= 0xF4 ) // XXX replace /w UTF8traits::is4byte when it's updated to exclude [F5-F7].(bug 199090)
               {
                 state = 3;
-                nonchar = true;
+                nonchar = PR_TRUE;
                 if ( c == 0xF0 ) // to exclude F0[80-8F][80-BF]{2}
                   {
-                    overlong = true;
+                    overlong = PR_TRUE;
                     olupper = 0x8F;
                   }
                 else if ( c == 0xF4 ) // to exclude F4[90-BF][80-BF] 
                   {
                     // actually not surrogates but codepoints beyond 0x10FFFF
-                    surrogate = true;
+                    surrogate = PR_TRUE;
                     slower = 0x90;
                   }
               }
             else
-              return false; // Not UTF-8 string
+              return PR_FALSE; // Not UTF-8 string
           }
           
         if (nonchar && !aRejectNonChar)
-          nonchar = false;
+          nonchar = PR_FALSE;
 
         while ( ptr < end && state )
           {
@@ -552,13 +552,13 @@ IsUTF8( const nsACString& aString, bool aRejectNonChar )
                  ( ( !state && c < 0xBE ) ||
                    ( state == 1 && c != 0xBF )  ||
                    ( state == 2 && 0x0F != (0x0F & c) )))
-              nonchar = false;
+              nonchar = PR_FALSE;
 
             if ( !UTF8traits::isInSeq(c) || ( overlong && c <= olupper ) || 
                  ( surrogate && slower <= c ) || ( nonchar && !state ))
-              return false; // Not UTF-8 string
+              return PR_FALSE; // Not UTF-8 string
 
-            overlong = surrogate = false;
+            overlong = surrogate = PR_FALSE;
           }
         }
     return !state; // state != 0 at the end indicates an invalid UTF-8 seq. 
@@ -722,7 +722,7 @@ ToLowerCase( const nsACString& aSource, nsACString& aDest )
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter);
   }
 
-bool
+PRBool
 ParseString(const nsACString& aSource, char aDelimiter, 
             nsTArray<nsCString>& aArray)
   {
@@ -742,7 +742,7 @@ ParseString(const nsACString& aSource, char aDelimiter,
             if (!aArray.AppendElement(Substring(start, delimiter)))
               {
                 aArray.RemoveElementsAt(oldLength, aArray.Length() - oldLength);
-                return false;
+                return PR_FALSE;
               }
           }
 
@@ -753,14 +753,14 @@ ParseString(const nsACString& aSource, char aDelimiter,
           break;
       }
 
-    return true;
+    return PR_TRUE;
   }
 
 template <class StringT, class IteratorT, class Comparator>
-bool
+PRBool
 FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT& aSearchEnd, const Comparator& compare )
   {
-    bool found_it = false;
+    PRBool found_it = PR_FALSE;
 
       // only bother searching at all if we're given a non-empty range to search
     if ( aSearchStart != aSearchEnd )
@@ -796,7 +796,7 @@ FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT
                   // if we verified all the way to the end of the pattern, then we found it!
                 if ( testPattern == aPatternEnd )
                   {
-                    found_it = true;
+                    found_it = PR_TRUE;
                     aSearchEnd = testSearch; // return the exact found range through the parameters
                     break;
                   }
@@ -827,7 +827,7 @@ FindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT
    * This searches the entire string from right to left, and returns the first match found, if any.
    */
 template <class StringT, class IteratorT, class Comparator>
-bool
+PRBool
 RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, IteratorT& aSearchEnd, const Comparator& compare )
   {
     IteratorT patternStart, patternEnd, searchEnd = aSearchEnd;
@@ -857,7 +857,7 @@ RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, Iterator
                   {
                     aSearchStart = testSearch;  // point to start of match
                     aSearchEnd = ++searchEnd;   // point to end of match
-                    return true;
+                    return PR_TRUE;
                   }
     
                   // if we got to end of the string we're searching before we hit the end of the
@@ -865,7 +865,7 @@ RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, Iterator
                 if ( testSearch == aSearchStart )
                   {
                     aSearchStart = aSearchEnd;
-                    return false;
+                    return PR_FALSE;
                   }
     
                   // test previous character for a match
@@ -877,40 +877,40 @@ RFindInReadable_Impl( const StringT& aPattern, IteratorT& aSearchStart, Iterator
       }
 
     aSearchStart = aSearchEnd;
-    return false;
+    return PR_FALSE;
   }
 
-bool
+PRBool
 FindInReadable( const nsAString& aPattern, nsAString::const_iterator& aSearchStart, nsAString::const_iterator& aSearchEnd, const nsStringComparator& aComparator )
   {
     return FindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, aComparator);
   }
 
-bool
+PRBool
 FindInReadable( const nsACString& aPattern, nsACString::const_iterator& aSearchStart, nsACString::const_iterator& aSearchEnd, const nsCStringComparator& aComparator)
   {
     return FindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, aComparator);
   }
 
-bool
+PRBool
 CaseInsensitiveFindInReadable( const nsACString& aPattern, nsACString::const_iterator& aSearchStart, nsACString::const_iterator& aSearchEnd )
   {
     return FindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, nsCaseInsensitiveCStringComparator());
   }
 
-bool
+PRBool
 RFindInReadable( const nsAString& aPattern, nsAString::const_iterator& aSearchStart, nsAString::const_iterator& aSearchEnd, const nsStringComparator& aComparator)
   {
     return RFindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, aComparator);
   }
 
-bool
+PRBool
 RFindInReadable( const nsACString& aPattern, nsACString::const_iterator& aSearchStart, nsACString::const_iterator& aSearchEnd, const nsCStringComparator& aComparator)
   {
     return RFindInReadable_Impl(aPattern, aSearchStart, aSearchEnd, aComparator);
   }
 
-bool
+PRBool
 FindCharInReadable( PRUnichar aChar, nsAString::const_iterator& aSearchStart, const nsAString::const_iterator& aSearchEnd )
   {
     PRInt32 fragmentLength = aSearchEnd.get() - aSearchStart.get();
@@ -918,14 +918,14 @@ FindCharInReadable( PRUnichar aChar, nsAString::const_iterator& aSearchStart, co
     const PRUnichar* charFoundAt = nsCharTraits<PRUnichar>::find(aSearchStart.get(), fragmentLength, aChar);
     if ( charFoundAt ) {
       aSearchStart.advance( charFoundAt - aSearchStart.get() );
-      return true;
+      return PR_TRUE;
     }
 
     aSearchStart.advance(fragmentLength);
-    return false;
+    return PR_FALSE;
   }
 
-bool
+PRBool
 FindCharInReadable( char aChar, nsACString::const_iterator& aSearchStart, const nsACString::const_iterator& aSearchEnd )
   {
     PRInt32 fragmentLength = aSearchEnd.get() - aSearchStart.get();
@@ -933,11 +933,11 @@ FindCharInReadable( char aChar, nsACString::const_iterator& aSearchStart, const 
     const char* charFoundAt = nsCharTraits<char>::find(aSearchStart.get(), fragmentLength, aChar);
     if ( charFoundAt ) {
       aSearchStart.advance( charFoundAt - aSearchStart.get() );
-      return true;
+      return PR_TRUE;
     }
 
     aSearchStart.advance(fragmentLength);
-    return false;
+    return PR_FALSE;
   }
 
 PRUint32
@@ -980,48 +980,48 @@ CountCharInReadable( const nsACString& aStr,
   return count;
 }
 
-bool
+PRBool
 StringBeginsWith( const nsAString& aSource, const nsAString& aSubstring,
                   const nsStringComparator& aComparator )
   {
     nsAString::size_type src_len = aSource.Length(),
                          sub_len = aSubstring.Length();
     if (sub_len > src_len)
-      return false;
+      return PR_FALSE;
     return Substring(aSource, 0, sub_len).Equals(aSubstring, aComparator);
   }
 
-bool
+PRBool
 StringBeginsWith( const nsACString& aSource, const nsACString& aSubstring,
                   const nsCStringComparator& aComparator )
   {
     nsACString::size_type src_len = aSource.Length(),
                           sub_len = aSubstring.Length();
     if (sub_len > src_len)
-      return false;
+      return PR_FALSE;
     return Substring(aSource, 0, sub_len).Equals(aSubstring, aComparator);
   }
 
-bool
+PRBool
 StringEndsWith( const nsAString& aSource, const nsAString& aSubstring,
                 const nsStringComparator& aComparator )
   {
     nsAString::size_type src_len = aSource.Length(),
                          sub_len = aSubstring.Length();
     if (sub_len > src_len)
-      return false;
+      return PR_FALSE;
     return Substring(aSource, src_len - sub_len, sub_len).Equals(aSubstring,
                                                                  aComparator);
   }
 
-bool
+PRBool
 StringEndsWith( const nsACString& aSource, const nsACString& aSubstring,
                 const nsCStringComparator& aComparator )
   {
     nsACString::size_type src_len = aSource.Length(),
                           sub_len = aSubstring.Length();
     if (sub_len > src_len)
-      return false;
+      return PR_FALSE;
     return Substring(aSource, src_len - sub_len, sub_len).Equals(aSubstring,
                                                                  aComparator);
   }
@@ -1068,7 +1068,7 @@ CompareUTF8toUTF16(const nsASingleFragmentCString& aUTF8String,
 
         if (c8_32 & NOT_ASCII)
           {
-            bool err;
+            PRBool err;
             c8_32 = UTF8CharEnumerator::NextChar(&u8, u8end, &err);
             if (err)
               return PR_INT32_MIN;

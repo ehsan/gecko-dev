@@ -227,7 +227,7 @@ var LightweightThemeManager = {
     req.open("GET", theme.updateURL, true);
 
     var self = this;
-    req.addEventListener("load", function () {
+    req.onload = function () {
       if (req.status != 200)
         return;
 
@@ -240,7 +240,7 @@ var LightweightThemeManager = {
       var currentTheme = self.currentTheme;
       if (currentTheme && currentTheme.id == theme.id)
         self.currentTheme = newData;
-    }, false);
+    };
 
     req.send(null);
   },
@@ -554,10 +554,6 @@ AddonWrapper.prototype = {
 
   get scope() {
     return AddonManager.SCOPE_PROFILE;
-  },
-
-  get foreignInstall() {
-    return false;
   },
 
   // Lightweight themes are always compatible

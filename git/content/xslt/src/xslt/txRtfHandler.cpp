@@ -66,9 +66,9 @@ txResultTreeFragment::stringValuePointer()
     return mBuffer ? &mBuffer->mStringValue : nsnull;
 }
 
-bool txResultTreeFragment::booleanValue()
+PRBool txResultTreeFragment::booleanValue()
 {
-    return true;
+    return PR_TRUE;
 }
 
 double txResultTreeFragment::numberValue()
@@ -77,7 +77,7 @@ double txResultTreeFragment::numberValue()
         return 0;
     }
 
-    return txDouble::toDouble(mBuffer->mStringValue);
+    return Double::toDouble(mBuffer->mStringValue);
 }
 
 nsresult txResultTreeFragment::flushToHandler(txAXMLEventHandler* aHandler)

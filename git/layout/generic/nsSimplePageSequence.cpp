@@ -130,8 +130,8 @@ nsSimplePageSequenceFrame::nsSimplePageSequenceFrame(nsStyleContext* aContext) :
   mPageData->mPrintOptions = do_GetService(sPrintOptionsContractID, &rv);
 
   // Doing this here so we only have to go get these formats once
-  SetPageNumberFormat("pagenumber",  "%1$d", true);
-  SetPageNumberFormat("pageofpages", "%1$d of %2$d", false);
+  SetPageNumberFormat("pagenumber",  "%1$d", PR_TRUE);
+  SetPageNumberFormat("pageofpages", "%1$d of %2$d", PR_FALSE);
 }
 
 nsSimplePageSequenceFrame::~nsSimplePageSequenceFrame()
@@ -212,10 +212,10 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
     // sanity check the values. three inches are sometimes needed
     PRInt32 inchInTwips = NS_INCHES_TO_INT_TWIPS(3.0);
-    edgeTwips.top    = clamped(edgeTwips.top,    0, inchInTwips);
-    edgeTwips.bottom = clamped(edgeTwips.bottom, 0, inchInTwips);
-    edgeTwips.left   = clamped(edgeTwips.left,   0, inchInTwips);
-    edgeTwips.right  = clamped(edgeTwips.right,  0, inchInTwips);
+    edgeTwips.top = NS_MIN(NS_MAX(edgeTwips.top, 0), inchInTwips);
+    edgeTwips.bottom = NS_MIN(NS_MAX(edgeTwips.bottom, 0), inchInTwips);
+    edgeTwips.left = NS_MIN(NS_MAX(edgeTwips.left, 0), inchInTwips);
+    edgeTwips.right = NS_MIN(NS_MAX(edgeTwips.right, 0), inchInTwips);
 
     mPageData->mEdgePaperMargin =
       aPresContext->CSSTwipsToAppUnits(edgeTwips + unwriteableTwips);
@@ -400,7 +400,7 @@ nsSimplePageSequenceFrame::GetNumPages(PRInt32* aNumPages)
 }
 
 NS_IMETHODIMP
-nsSimplePageSequenceFrame::IsDoingPrintRange(bool* aDoing)
+nsSimplePageSequenceFrame::IsDoingPrintRange(PRBool* aDoing)
 {
   NS_ENSURE_ARG_POINTER(aDoing);
 
@@ -421,7 +421,7 @@ nsSimplePageSequenceFrame::GetPrintRange(PRInt32* aFromPage, PRInt32* aToPage)
 
 // Helper Function
 void 
-nsSimplePageSequenceFrame::SetPageNumberFormat(const char* aPropName, const char* aDefPropVal, bool aPageNumOnly)
+nsSimplePageSequenceFrame::SetPageNumberFormat(const char* aPropName, const char* aDefPropVal, PRBool aPageNumOnly)
 {
   // Doing this here so we only have to go get these formats once
   nsXPIDLString pageNumberFormat;
@@ -535,7 +535,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     return NS_ERROR_FAILURE;
   }
 
-  bool printEvenPages, printOddPages;
+  PRBool printEvenPages, printOddPages;
   mPageData->mPrintSettings->GetPrintOptions(nsIPrintSettings::kPrintEvenPages, &printEvenPages);
   mPageData->mPrintSettings->GetPrintOptions(nsIPrintSettings::kPrintOddPages, &printOddPages);
 
@@ -545,13 +545,13 @@ nsSimplePageSequenceFrame::PrintNextPage()
   nsresult rv = NS_OK;
 
   // See whether we should print this page
-  mPrintThisPage = true;
+  mPrintThisPage = PR_TRUE;
 
   // If printing a range of pages check whether the page number is in the
   // range of pages to print
   if (mDoingPageRange) {
     if (mPageNum < mFromPageNum) {
-      mPrintThisPage = false;
+      mPrintThisPage = PR_FALSE;
     } else if (mPageNum > mToPageNum) {
       mPageNum++;
       mCurrentPageFrame = nsnull;
@@ -562,16 +562,16 @@ nsSimplePageSequenceFrame::PrintNextPage()
   // Check for printing of odd and even pages
   if (mPageNum & 0x1) {
     if (!printOddPages) {
-      mPrintThisPage = false;  // don't print odd numbered page
+      mPrintThisPage = PR_FALSE;  // don't print odd numbered page
     }
   } else {
     if (!printEvenPages) {
-      mPrintThisPage = false;  // don't print even numbered page
+      mPrintThisPage = PR_FALSE;  // don't print even numbered page
     }
   }
   
   if (nsIPrintSettings::kRangeSelection == mPrintRangeType) {
-    mPrintThisPage = true;
+    mPrintThisPage = PR_TRUE;
   }
 
   if (mPrintThisPage) {
@@ -581,7 +581,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
     // one page at a time and printing the contents of what is exposed by the rect.
     // currently this does not work for IFrames
     // I will soon improve this to work with IFrames 
-    bool    continuePrinting = true;
+    PRBool  continuePrinting = PR_TRUE;
     nscoord width, height;
     width = PresContext()->GetPageSize().width;
     height = PresContext()->GetPageSize().height;
@@ -632,7 +632,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
         rv = dc->EndPage();
         NS_ENSURE_SUCCESS(rv, rv);
       } else {
-        continuePrinting = false;
+        continuePrinting = PR_FALSE;
       }
     }
   }
@@ -720,7 +720,7 @@ nsSimplePageSequenceFrame::GetType() const
 
 //------------------------------------------------------------------------------
 void
-nsSimplePageSequenceFrame::SetPageNumberFormat(PRUnichar * aFormatStr, bool aForPageNumOnly)
+nsSimplePageSequenceFrame::SetPageNumberFormat(PRUnichar * aFormatStr, PRBool aForPageNumOnly)
 { 
   NS_ASSERTION(aFormatStr != nsnull, "Format string cannot be null!");
   NS_ASSERTION(mPageData != nsnull, "mPageData string cannot be null!");

@@ -63,7 +63,7 @@ nsPagePrintTimer::~nsPagePrintTimer()
 }
 
 nsresult 
-nsPagePrintTimer::StartTimer(bool aUseDelay)
+nsPagePrintTimer::StartTimer(PRBool aUseDelay)
 {
   nsresult result;
   mTimer = do_CreateInstance("@mozilla.org/timer;1", &result);
@@ -91,17 +91,17 @@ NS_IMETHODIMP
 nsPagePrintTimer::Notify(nsITimer *timer)
 {
   if (mDocViewerPrint) {
-    bool initNewTimer = true;
+    PRPackedBool initNewTimer = PR_TRUE;
     // Check to see if we are done
     // inRange will be true if a page is actually printed
-    bool inRange;
+    PRBool inRange;
     // donePrinting will be true if it completed successfully or
     // if the printing was cancelled
-    bool donePrinting = mPrintEngine->PrintPage(mPrintObj, inRange);
+    PRBool donePrinting = mPrintEngine->PrintPage(mPrintObj, inRange);
     if (donePrinting) {
       // now clean up print or print the next webshell
       if (mPrintEngine->DonePrintingPages(mPrintObj, NS_OK)) {
-        initNewTimer = false;
+        initNewTimer = PR_FALSE;
       }
     }
 
@@ -113,8 +113,8 @@ nsPagePrintTimer::Notify(nsITimer *timer)
       ++mFiringCount;
       nsresult result = StartTimer(inRange);
       if (NS_FAILED(result)) {
-        donePrinting = true;     // had a failure.. we are finished..
-        mPrintEngine->SetIsPrinting(false);
+        donePrinting = PR_TRUE;     // had a failure.. we are finished..
+        mPrintEngine->SetIsPrinting(PR_FALSE);
       }
     }
   }
@@ -137,7 +137,7 @@ nsresult
 nsPagePrintTimer::Start(nsPrintObject* aPO)
 {
   mPrintObj = aPO;
-  return StartTimer(false);
+  return StartTimer(PR_FALSE);
 }
 
 

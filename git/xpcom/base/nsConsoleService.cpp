@@ -53,10 +53,6 @@
 #include "nsConsoleMessage.h"
 #include "nsIClassInfoImpl.h"
 
-#if defined(ANDROID)
-#include <android/log.h>
-#endif
-
 using namespace mozilla;
 
 NS_IMPL_THREADSAFE_ADDREF(nsConsoleService)
@@ -66,7 +62,7 @@ NS_IMPL_QUERY_INTERFACE1_CI(nsConsoleService, nsIConsoleService)
 NS_IMPL_CI_INTERFACE_GETTER1(nsConsoleService, nsIConsoleService)
 
 nsConsoleService::nsConsoleService()
-    : mMessages(nsnull), mCurrent(0), mFull(false), mListening(false), mLock("nsConsoleService.mLock")
+    : mMessages(nsnull), mCurrent(0), mFull(PR_FALSE), mListening(PR_FALSE), mLock("nsConsoleService.mLock")
 {
     // XXX grab this from a pref!
     // hm, but worry about circularity, bc we want to be able to report
@@ -110,14 +106,14 @@ nsConsoleService::Init()
     return NS_OK;
 }
 
-static bool snapshot_enum_func(nsHashKey *key, void *data, void* closure)
+static PRBool snapshot_enum_func(nsHashKey *key, void *data, void* closure)
 {
     nsCOMArray<nsIConsoleListener> *array =
       reinterpret_cast<nsCOMArray<nsIConsoleListener> *>(closure);
 
     // Copy each element into the temporary nsCOMArray...
     array->AppendObject((nsIConsoleListener*)data);
-    return true;
+    return PR_TRUE;
 }
 
 // nsIConsoleService methods
@@ -139,16 +135,6 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
     {
         MutexAutoLock lock(mLock);
 
-#if defined(ANDROID)
-        {
-            nsXPIDLString msg;
-            message->GetMessageMoz(getter_Copies(msg));
-            __android_log_print(ANDROID_LOG_ERROR, "GeckoConsole",
-                        "%s",
-                        NS_LossyConvertUTF16toASCII(msg).get());
-        }
-#endif
-
         /*
          * If there's already a message in the slot we're about to replace,
          * we've wrapped around, and we need to release the old message.  We
@@ -159,7 +145,7 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
         mMessages[mCurrent++] = message;
         if (mCurrent == mBufferSize) {
             mCurrent = 0; // wrap around.
-            mFull = true;
+            mFull = PR_TRUE;
         }
 
         /*
@@ -185,7 +171,7 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
         MutexAutoLock lock(mLock);
         if (mListening)
             return NS_OK;
-        mListening = true;
+        mListening = PR_TRUE;
     }
 
     for (PRInt32 i = 0; i < snapshotCount; i++) {
@@ -194,7 +180,7 @@ nsConsoleService::LogMessage(nsIConsoleMessage *message)
     
     {
         MutexAutoLock lock(mLock);
-        mListening = false;
+        mListening = PR_FALSE;
     }
 
     return NS_OK;
@@ -331,7 +317,7 @@ nsConsoleService::Reset()
     MutexAutoLock lock(mLock);
 
     mCurrent = 0;
-    mFull = false;
+    mFull = PR_FALSE;
 
     /*
      * Free all messages stored so far (cf. destructor)

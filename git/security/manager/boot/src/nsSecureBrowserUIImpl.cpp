@@ -58,6 +58,7 @@
 #include "nsIObserverService.h"
 #include "nsCURILoader.h"
 #include "nsIDocShell.h"
+#include "nsIDocumentViewer.h"
 #include "nsIDocument.h"
 #include "nsIPrincipal.h"
 #include "nsIDOMElement.h"
@@ -71,13 +72,14 @@
 #include "nsIWyciwygChannel.h"
 #include "nsIFTPChannel.h"
 #include "nsITransportSecurityInfo.h"
-#include "nsISSLStatus.h"
+#include "nsIIdentityInfo.h"
 #include "nsIURI.h"
 #include "nsISecurityEventSink.h"
 #include "nsIPrompt.h"
 #include "nsIFormSubmitObserver.h"
 #include "nsISecurityWarningDialogs.h"
 #include "nsISecurityInfoProvider.h"
+#include "nsIProxyObjectManager.h"
 #include "imgIRequest.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
@@ -109,7 +111,7 @@ struct RequestHashEntry : PLDHashEntryHdr {
     void *r;
 };
 
-PR_STATIC_CALLBACK(bool)
+PR_STATIC_CALLBACK(PRBool)
 RequestMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                          const void *key)
 {
@@ -117,13 +119,13 @@ RequestMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->r == key;
 }
 
-PR_STATIC_CALLBACK(bool)
+PR_STATIC_CALLBACK(PRBool)
 RequestMapInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
                      const void *key)
 {
   RequestHashEntry *entry = static_cast<RequestHashEntry*>(hdr);
   entry->r = (void*)key;
-  return true;
+  return PR_TRUE;
 }
 
 static PLDHashTableOps gMapOps = {
@@ -160,11 +162,11 @@ class nsAutoAtomic {
 nsSecureBrowserUIImpl::nsSecureBrowserUIImpl()
   : mReentrantMonitor("nsSecureBrowserUIImpl.mReentrantMonitor")
   , mNotifiedSecurityState(lis_no_security)
-  , mNotifiedToplevelIsEV(false)
+  , mNotifiedToplevelIsEV(PR_FALSE)
   , mNewToplevelSecurityState(STATE_IS_INSECURE)
-  , mNewToplevelIsEV(false)
-  , mNewToplevelSecurityStateKnown(true)
-  , mIsViewSource(false)
+  , mNewToplevelIsEV(PR_FALSE)
+  , mNewToplevelSecurityStateKnown(PR_TRUE)
+  , mIsViewSource(PR_FALSE)
   , mSubRequestsHighSecurity(0)
   , mSubRequestsLowSecurity(0)
   , mSubRequestsBrokenSecurity(0)
@@ -243,7 +245,7 @@ nsSecureBrowserUIImpl::Init(nsIDOMWindow *aWindow)
   // hook up to the form post notifications:
   nsCOMPtr<nsIObserverService> svc(do_GetService("@mozilla.org/observer-service;1", &rv));
   if (NS_SUCCEEDED(rv)) {
-    rv = svc->AddObserver(this, NS_FORMSUBMIT_SUBJECT, true);
+    rv = svc->AddObserver(this, NS_FORMSUBMIT_SUBJECT, PR_TRUE);
   }
   
   nsCOMPtr<nsPIDOMWindow> piwindow(do_QueryInterface(aWindow));
@@ -298,7 +300,7 @@ nsSecureBrowserUIImpl::ExtractSecurityInfo(nsIRequest* aRequest)
 }
 
 nsresult
-nsSecureBrowserUIImpl::MapInternalToExternalState(PRUint32* aState, lockIconState lock, bool ev)
+nsSecureBrowserUIImpl::MapInternalToExternalState(PRUint32* aState, lockIconState lock, PRBool ev)
 {
   NS_ENSURE_ARG(aState);
 
@@ -371,12 +373,12 @@ nsSecureBrowserUIImpl::Observe(nsISupports*, const char*,
 
 
 static nsresult IsChildOfDomWindow(nsIDOMWindow *parent, nsIDOMWindow *child,
-                                   bool* value)
+                                   PRBool* value)
 {
-  *value = false;
+  *value = PR_FALSE;
   
   if (parent == child) {
-    *value = true;
+    *value = PR_TRUE;
     return NS_OK;
   }
   
@@ -419,10 +421,10 @@ static PRUint32 GetSecurityStateFromSecurityInfo(nsISupports *info)
 NS_IMETHODIMP
 nsSecureBrowserUIImpl::Notify(nsIDOMHTMLFormElement* aDOMForm,
                               nsIDOMWindow* aWindow, nsIURI* actionURL,
-                              bool* cancelSubmit)
+                              PRBool* cancelSubmit)
 {
   // Return NS_OK unless we want to prevent this form from submitting.
-  *cancelSubmit = false;
+  *cancelSubmit = PR_FALSE;
   if (!aWindow || !actionURL || !aDOMForm)
     return NS_OK;
   
@@ -435,7 +437,7 @@ nsSecureBrowserUIImpl::Notify(nsIDOMHTMLFormElement* aDOMForm,
   
   if (!principal)
   {
-    *cancelSubmit = true;
+    *cancelSubmit = PR_TRUE;
     return NS_OK;
   }
 
@@ -452,7 +454,7 @@ nsSecureBrowserUIImpl::Notify(nsIDOMHTMLFormElement* aDOMForm,
   if (!postingWindow)
   {
     NS_WARNING("If you see this and can explain why it should be allowed, note in Bug 332324");
-    *cancelSubmit = true;
+    *cancelSubmit = PR_TRUE;
     return NS_OK;
   }
 
@@ -463,18 +465,18 @@ nsSecureBrowserUIImpl::Notify(nsIDOMHTMLFormElement* aDOMForm,
     NS_ASSERTION(window, "Window has gone away?!");
   }
 
-  bool isChild;
+  PRBool isChild;
   IsChildOfDomWindow(window, postingWindow, &isChild);
   
   // This notify call is not for our window, ignore it.
   if (!isChild)
     return NS_OK;
   
-  bool okayToPost;
+  PRBool okayToPost;
   nsresult res = CheckPost(formURL, actionURL, &okayToPost);
   
   if (NS_SUCCEEDED(res) && !okayToPost)
-    *cancelSubmit = true;
+    *cancelSubmit = PR_TRUE;
   
   return res;
 }
@@ -508,19 +510,19 @@ void nsSecureBrowserUIImpl::ResetStateTracking()
 
 nsresult
 nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsISupports *info,
-                                                      bool withNewLocation)
+                                                      PRBool withNewLocation)
 {
   /* I explicitly ignore the camelCase variable naming style here,
      I want to make it clear these are temp variables that relate to the 
      member variables with the same suffix.*/
 
   PRUint32 temp_NewToplevelSecurityState = nsIWebProgressListener::STATE_IS_INSECURE;
-  bool temp_NewToplevelIsEV = false;
+  PRBool temp_NewToplevelIsEV = PR_FALSE;
 
-  bool updateStatus = false;
-  nsCOMPtr<nsISSLStatus> temp_SSLStatus;
+  PRBool updateStatus = PR_FALSE;
+  nsCOMPtr<nsISupports> temp_SSLStatus;
 
-  bool updateTooltip = false;
+  PRBool updateTooltip = PR_FALSE;
   nsXPIDLString temp_InfoTooltip;
 
     temp_NewToplevelSecurityState = GetSecurityStateFromSecurityInfo(info);
@@ -532,21 +534,23 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsIS
     nsCOMPtr<nsISSLStatusProvider> sp = do_QueryInterface(info);
     if (sp) {
       // Ignore result
-      updateStatus = true;
-      (void) sp->GetSSLStatus(getter_AddRefs(temp_SSLStatus));
-      if (temp_SSLStatus) {
-        bool aTemp;
-        if (NS_SUCCEEDED(temp_SSLStatus->GetIsExtendedValidation(&aTemp))) {
-          temp_NewToplevelIsEV = aTemp;
-        }
-      }
+      updateStatus = PR_TRUE;
+      sp->GetSSLStatus(getter_AddRefs(temp_SSLStatus));
     }
 
     if (info) {
       nsCOMPtr<nsITransportSecurityInfo> secInfo(do_QueryInterface(info));
       if (secInfo) {
-        updateTooltip = true;
+        updateTooltip = PR_TRUE;
         secInfo->GetShortSecurityDescription(getter_Copies(temp_InfoTooltip));
+      }
+
+      nsCOMPtr<nsIIdentityInfo> idinfo = do_QueryInterface(info);
+      if (idinfo) {
+        PRBool aTemp;
+        if (NS_SUCCEEDED(idinfo->GetIsExtendedValidation(&aTemp))) {
+          temp_NewToplevelIsEV = aTemp;
+        }
       }
     }
 
@@ -555,7 +559,7 @@ nsSecureBrowserUIImpl::EvaluateAndUpdateSecurityState(nsIRequest* aRequest, nsIS
 
   {
     ReentrantMonitorAutoEnter lock(mReentrantMonitor);
-    mNewToplevelSecurityStateKnown = true;
+    mNewToplevelSecurityStateKnown = PR_TRUE;
     mNewToplevelSecurityState = temp_NewToplevelSecurityState;
     mNewToplevelIsEV = temp_NewToplevelIsEV;
     if (updateStatus) {
@@ -715,7 +719,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
   aWebProgress->GetDOMWindow(getter_AddRefs(windowForProgress));
 
   nsCOMPtr<nsIDOMWindow> window;
-  bool isViewSource;
+  PRBool isViewSource;
 
   nsCOMPtr<nsINetUtil> ioService;
 
@@ -737,7 +741,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     }
   }
 
-  bool isNoContentResponse = false;
+  PRBool isNoContentResponse = PR_FALSE;
   nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aRequest);
   if (httpChannel) 
   {
@@ -745,7 +749,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     isNoContentResponse = NS_SUCCEEDED(httpChannel->GetResponseStatus(&response)) &&
         (response == 204 || response == 205);
   }
-  const bool isToplevelProgress = (windowForProgress.get() == window.get()) && !isNoContentResponse;
+  const PRBool isToplevelProgress = (windowForProgress.get() == window.get()) && !isNoContentResponse;
   
 #ifdef PR_LOGGING
   if (windowForProgress)
@@ -800,7 +804,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     channel->GetURI(getter_AddRefs(uri));
     if (uri)
     {
-      bool vs;
+      PRBool vs;
       if (NS_SUCCEEDED(uri->SchemeIs("javascript", &vs)) && vs)
       {
         // We ignore the progress events for javascript URLs.
@@ -839,7 +843,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
   }
 #endif
 
-  bool isSubDocumentRelevant = true;
+  PRBool isSubDocumentRelevant = PR_TRUE;
 
   // We are only interested in requests that load in the browser window...
   nsCOMPtr<imgIRequest> imgRequest(do_QueryInterface(aRequest));
@@ -857,7 +861,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
           if (!ftpRequest) {
             PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
                    ("SecureUI:%p: OnStateChange: not relevant for sub content\n", this));
-            isSubDocumentRelevant = false;
+            isSubDocumentRelevant = PR_FALSE;
           }
         }
       }
@@ -867,13 +871,13 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
   // This will ignore all resource, chrome, data, file, moz-icon, and anno
   // protocols. Local resources are treated as trusted.
   if (uri && ioService) {
-    bool hasFlag;
+    PRBool hasFlag;
     nsresult rv = 
       ioService->URIChainHasFlags(uri, 
                                   nsIProtocolHandler::URI_IS_LOCAL_RESOURCE,
                                   &hasFlag);
     if (NS_SUCCEEDED(rv) && hasFlag) {
-      isSubDocumentRelevant = false;
+      isSubDocumentRelevant = PR_FALSE;
     }
   }
 
@@ -1015,7 +1019,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     return NS_OK;
   }
 
-  bool requestHasTransferedData = false;
+  PRBool requestHasTransferedData = PR_FALSE;
 
   if (aProgressStateFlags & STATE_STOP
       &&
@@ -1028,7 +1032,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       {
         PL_DHashTableOperate(&mTransferringRequests, aRequest, PL_DHASH_REMOVE);
 
-        requestHasTransferedData = true;
+        requestHasTransferedData = PR_TRUE;
       }
     }
 
@@ -1041,7 +1045,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       // Guess true in all failure cases to be safe.  But if we're not
       // an nsISecurityInfoProvider, then we just haven't transferred
       // any data.
-      bool hasTransferred;
+      PRBool hasTransferred;
       requestHasTransferedData =
         securityInfoProvider &&
         (NS_FAILED(securityInfoProvider->GetHasTransferredData(&hasTransferred)) ||
@@ -1049,13 +1053,13 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     }
   }
 
-  bool allowSecurityStateChange = true;
+  PRBool allowSecurityStateChange = PR_TRUE;
   if (loadFlags & nsIChannel::LOAD_RETARGETED_DOCUMENT_URI)
   {
     // The original consumer (this) is no longer the target of the load.
     // Ignore any events with this flag, do not allow them to update
     // our secure UI state.
-    allowSecurityStateChange = false;
+    allowSecurityStateChange = PR_FALSE;
   }
 
   if (aProgressStateFlags & STATE_START
@@ -1066,7 +1070,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       &&
       loadFlags & nsIChannel::LOAD_DOCUMENT_URI)
   {
-    bool inProgress;
+    PRBool inProgress;
 
     PRInt32 saveSubHigh;
     PRInt32 saveSubLow;
@@ -1114,15 +1118,15 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
         prevContentSecurity->Flush();
       }
 
-      bool retrieveAssociatedState = false;
+      PRBool retrieveAssociatedState = PR_FALSE;
 
       if (securityInfo &&
           (aProgressStateFlags & nsIWebProgressListener::STATE_RESTORING) != 0) {
-        retrieveAssociatedState = true;
+        retrieveAssociatedState = PR_TRUE;
       } else {
         nsCOMPtr<nsIWyciwygChannel> wyciwygRequest(do_QueryInterface(aRequest));
         if (wyciwygRequest) {
-          retrieveAssociatedState = true;
+          retrieveAssociatedState = PR_TRUE;
         }
       }
 
@@ -1159,7 +1163,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
         mSubRequestsLowSecurity = newSubLow;
         mSubRequestsBrokenSecurity = newSubBroken;
         mSubRequestsNoSecurity = newSubNo;
-        mNewToplevelSecurityStateKnown = false;
+        mNewToplevelSecurityStateKnown = PR_FALSE;
       }
 
       // By using a counter, this code also works when the toplevel
@@ -1226,7 +1230,7 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       // Data has been transferred for the single toplevel
       // request. Evaluate the security state.
 
-      return EvaluateAndUpdateSecurityState(aRequest, securityInfo, false);
+      return EvaluateAndUpdateSecurityState(aRequest, securityInfo, PR_FALSE);
     }
     
     return NS_OK;
@@ -1257,14 +1261,14 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
       //
       // We skip updating the security state in this case.
 
-      bool temp_NewToplevelSecurityStateKnown;
+      PRBool temp_NewToplevelSecurityStateKnown;
       {
         ReentrantMonitorAutoEnter lock(mReentrantMonitor);
         temp_NewToplevelSecurityStateKnown = mNewToplevelSecurityStateKnown;
       }
 
       if (temp_NewToplevelSecurityStateKnown)
-        return UpdateSecurityState(aRequest, false, false, false);
+        return UpdateSecurityState(aRequest, PR_FALSE, PR_FALSE, PR_FALSE);
     }
 
     return NS_OK;
@@ -1283,16 +1287,16 @@ void nsSecureBrowserUIImpl::ObtainEventSink(nsIChannel *channel,
 }
 
 nsresult nsSecureBrowserUIImpl::UpdateSecurityState(nsIRequest* aRequest, 
-                                                    bool withNewLocation, 
-                                                    bool withUpdateStatus, 
-                                                    bool withUpdateTooltip)
+                                                    PRBool withNewLocation, 
+                                                    PRBool withUpdateStatus, 
+                                                    PRBool withUpdateTooltip)
 {
   lockIconState warnSecurityState = lis_no_security;
-  bool showWarning = false;
+  PRBool showWarning = PR_FALSE;
   nsresult rv = NS_OK;
 
   // both parameters are both input and outout
-  bool flagsChanged = UpdateMyFlags(showWarning, warnSecurityState);
+  PRBool flagsChanged = UpdateMyFlags(showWarning, warnSecurityState);
 
   if (flagsChanged || withNewLocation || withUpdateStatus || withUpdateTooltip)
     rv = TellTheWorld(showWarning, warnSecurityState, aRequest);
@@ -1303,10 +1307,10 @@ nsresult nsSecureBrowserUIImpl::UpdateSecurityState(nsIRequest* aRequest,
 // must not fail, by definition, only trivial assignments
 // or string operations are allowed
 // returns true if our overall state has changed and we must send out notifications
-bool nsSecureBrowserUIImpl::UpdateMyFlags(bool &showWarning, lockIconState &warnSecurityState)
+PRBool nsSecureBrowserUIImpl::UpdateMyFlags(PRBool &showWarning, lockIconState &warnSecurityState)
 {
   ReentrantMonitorAutoEnter lock(mReentrantMonitor);
-  bool mustTellTheWorld = false;
+  PRBool mustTellTheWorld = PR_FALSE;
 
   lockIconState newSecurityState;
 
@@ -1366,7 +1370,7 @@ bool nsSecureBrowserUIImpl::UpdateMyFlags(bool &showWarning, lockIconState &warn
 
   if (mNotifiedSecurityState != newSecurityState)
   {
-    mustTellTheWorld = true;
+    mustTellTheWorld = PR_TRUE;
 
     // we'll treat "broken" exactly like "insecure",
     // i.e. we do not show alerts when switching between broken and insecure
@@ -1403,7 +1407,7 @@ bool nsSecureBrowserUIImpl::UpdateMyFlags(bool &showWarning, lockIconState &warn
       high        high
     */
 
-    showWarning = true;
+    showWarning = PR_TRUE;
     
     switch (mNotifiedSecurityState)
     {
@@ -1413,7 +1417,7 @@ bool nsSecureBrowserUIImpl::UpdateMyFlags(bool &showWarning, lockIconState &warn
         {
           case lis_no_security:
           case lis_broken_security:
-            showWarning = false;
+            showWarning = PR_FALSE;
             break;
           
           default:
@@ -1439,20 +1443,20 @@ bool nsSecureBrowserUIImpl::UpdateMyFlags(bool &showWarning, lockIconState &warn
   }
 
   if (mNotifiedToplevelIsEV != mNewToplevelIsEV) {
-    mustTellTheWorld = true;
+    mustTellTheWorld = PR_TRUE;
     mNotifiedToplevelIsEV = mNewToplevelIsEV;
   }
 
   return mustTellTheWorld;
 }
 
-nsresult nsSecureBrowserUIImpl::TellTheWorld(bool showWarning, 
+nsresult nsSecureBrowserUIImpl::TellTheWorld(PRBool showWarning, 
                                              lockIconState warnSecurityState, 
                                              nsIRequest* aRequest)
 {
   nsCOMPtr<nsISecurityEventSink> temp_ToplevelEventSink;
   lockIconState temp_NotifiedSecurityState;
-  bool temp_NotifiedToplevelIsEV;
+  PRBool temp_NotifiedToplevelIsEV;
 
   {
     ReentrantMonitorAutoEnter lock(mReentrantMonitor);
@@ -1511,8 +1515,7 @@ nsresult nsSecureBrowserUIImpl::TellTheWorld(bool showWarning,
 NS_IMETHODIMP
 nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
                                         nsIRequest* aRequest,
-                                        nsIURI* aLocation,
-                                        PRUint32 aFlags)
+                                        nsIURI* aLocation)
 {
 #ifdef DEBUG
   nsAutoAtomic atomic(mOnStateLocationChangeReentranceDetection);
@@ -1522,13 +1525,13 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
   PR_LOG(gSecureDocLog, PR_LOG_DEBUG,
          ("SecureUI:%p: OnLocationChange\n", this));
 
-  bool updateIsViewSource = false;
-  bool temp_IsViewSource = false;
+  PRBool updateIsViewSource = PR_FALSE;
+  PRBool temp_IsViewSource = PR_FALSE;
   nsCOMPtr<nsIDOMWindow> window;
 
   if (aLocation)
   {
-    bool vs;
+    PRBool vs;
 
     nsresult rv = aLocation->SchemeIs("view-source", &vs);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1538,7 +1541,7 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
              ("SecureUI:%p: OnLocationChange: view-source\n", this));
     }
 
-    updateIsViewSource = true;
+    updateIsViewSource = PR_TRUE;
     temp_IsViewSource = vs;
   }
 
@@ -1552,10 +1555,9 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
     NS_ASSERTION(window, "Window has gone away?!");
   }
 
-  // When |aRequest| is null, basically we don't trust that document. But if
-  // docshell insists that the document has not changed at all, we will reuse
-  // the previous security state, no matter what |aRequest| may be.
-  if (aFlags & LOCATION_CHANGE_SAME_DOCUMENT)
+  // If the location change does not have a corresponding request, then we
+  // assume that it does not impact the security state.
+  if (!aRequest)
     return NS_OK;
 
   // The location bar has changed, so we must update the security state.  The
@@ -1573,7 +1575,7 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
 
   if (windowForProgress.get() == window.get()) {
     // For toplevel channels, update the security state right away.
-    return EvaluateAndUpdateSecurityState(aRequest, securityInfo, true);
+    return EvaluateAndUpdateSecurityState(aRequest, securityInfo, PR_TRUE);
   }
 
   // For channels in subdocuments we only update our subrequest state members.
@@ -1590,14 +1592,14 @@ nsSecureBrowserUIImpl::OnLocationChange(nsIWebProgress* aWebProgress,
   //
   // We skip updating the security state in this case.
 
-  bool temp_NewToplevelSecurityStateKnown;
+  PRBool temp_NewToplevelSecurityStateKnown;
   {
     ReentrantMonitorAutoEnter lock(mReentrantMonitor);
     temp_NewToplevelSecurityStateKnown = mNewToplevelSecurityStateKnown;
   }
 
   if (temp_NewToplevelSecurityStateKnown)
-    return UpdateSecurityState(aRequest, true, false, false);
+    return UpdateSecurityState(aRequest, PR_TRUE, PR_FALSE, PR_FALSE);
 
   return NS_OK;
 }
@@ -1639,7 +1641,7 @@ nsSecureBrowserUIImpl::OnSecurityChange(nsIWebProgress *aWebProgress,
 
 // nsISSLStatusProvider methods
 NS_IMETHODIMP
-nsSecureBrowserUIImpl::GetSSLStatus(nsISSLStatus** _result)
+nsSecureBrowserUIImpl::GetSSLStatus(nsISupports** _result)
 {
   NS_ENSURE_ARG_POINTER(_result);
 
@@ -1667,9 +1669,9 @@ nsSecureBrowserUIImpl::GetSSLStatus(nsISSLStatus** _result)
 }
 
 nsresult
-nsSecureBrowserUIImpl::IsURLHTTPS(nsIURI* aURL, bool* value)
+nsSecureBrowserUIImpl::IsURLHTTPS(nsIURI* aURL, PRBool* value)
 {
-  *value = false;
+  *value = PR_FALSE;
 
   if (!aURL)
     return NS_OK;
@@ -1678,9 +1680,9 @@ nsSecureBrowserUIImpl::IsURLHTTPS(nsIURI* aURL, bool* value)
 }
 
 nsresult
-nsSecureBrowserUIImpl::IsURLJavaScript(nsIURI* aURL, bool* value)
+nsSecureBrowserUIImpl::IsURLJavaScript(nsIURI* aURL, PRBool* value)
 {
-  *value = false;
+  *value = PR_FALSE;
 
   if (!aURL)
     return NS_OK;
@@ -1715,10 +1717,10 @@ nsSecureBrowserUIImpl::GetBundleString(const PRUnichar* name,
 }
 
 nsresult
-nsSecureBrowserUIImpl::CheckPost(nsIURI *formURL, nsIURI *actionURL, bool *okayToPost)
+nsSecureBrowserUIImpl::CheckPost(nsIURI *formURL, nsIURI *actionURL, PRBool *okayToPost)
 {
-  bool formSecure, actionSecure, actionJavaScript;
-  *okayToPost = true;
+  PRBool formSecure, actionSecure, actionJavaScript;
+  *okayToPost = PR_TRUE;
 
   nsresult rv = IsURLHTTPS(formURL, &formSecure);
   if (NS_FAILED(rv))
@@ -1807,18 +1809,35 @@ NS_IMETHODIMP nsUIContext::GetInterface(const nsIID & uuid, void * *result)
   return rv;
 }
 
-bool
-nsSecureBrowserUIImpl::GetNSSDialogs(nsCOMPtr<nsISecurityWarningDialogs> & dialogs,
-                                     nsCOMPtr<nsIInterfaceRequestor> & ctx)
+nsresult nsSecureBrowserUIImpl::
+GetNSSDialogs(nsISecurityWarningDialogs **result)
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("nsSecureBrowserUIImpl::GetNSSDialogs called off the main thread");
-    return false;
+  nsresult rv;
+  nsCOMPtr<nsISecurityWarningDialogs> my_result(do_GetService(NS_SECURITYWARNINGDIALOGS_CONTRACTID, &rv));
+
+  if (NS_FAILED(rv)) 
+    return rv;
+
+  nsCOMPtr<nsISupports> proxiedResult;
+  NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                       NS_GET_IID(nsISecurityWarningDialogs),
+                       my_result, NS_PROXY_SYNC,
+                       getter_AddRefs(proxiedResult));
+
+  if (!proxiedResult) {
+    return NS_ERROR_FAILURE;
   }
 
-  dialogs = do_GetService(NS_SECURITYWARNINGDIALOGS_CONTRACTID);
-  if (!dialogs)
-    return false;
+  return CallQueryInterface(proxiedResult, result);
+}
+
+PRBool nsSecureBrowserUIImpl::
+ConfirmEnteringSecure()
+{
+  nsCOMPtr<nsISecurityWarningDialogs> dialogs;
+
+  GetNSSDialogs(getter_AddRefs(dialogs));
+  if (!dialogs) return PR_FALSE;  // Should this allow PR_TRUE for unimplemented?
 
   nsCOMPtr<nsIDOMWindow> window;
   {
@@ -1826,117 +1845,144 @@ nsSecureBrowserUIImpl::GetNSSDialogs(nsCOMPtr<nsISecurityWarningDialogs> & dialo
     window = do_QueryReferent(mWindow);
     NS_ASSERTION(window, "Window has gone away?!");
   }
-  ctx = new nsUIContext(window);
-  
-  return true;
-}
 
-bool nsSecureBrowserUIImpl::
-ConfirmEnteringSecure()
-{
-  nsCOMPtr<nsISecurityWarningDialogs> dialogs;
-  nsCOMPtr<nsIInterfaceRequestor> ctx;
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsUIContext(window);
 
-  if (!GetNSSDialogs(dialogs, ctx)) {
-    return false; // Should this allow true for unimplemented?
-  }
-
-  bool confirms;
+  PRBool confirms;
   dialogs->ConfirmEnteringSecure(ctx, &confirms);
 
   return confirms;
 }
 
-bool nsSecureBrowserUIImpl::
+PRBool nsSecureBrowserUIImpl::
 ConfirmEnteringWeak()
 {
   nsCOMPtr<nsISecurityWarningDialogs> dialogs;
-  nsCOMPtr<nsIInterfaceRequestor> ctx;
 
-  if (!GetNSSDialogs(dialogs, ctx)) {
-    return false; // Should this allow true for unimplemented?
+  GetNSSDialogs(getter_AddRefs(dialogs));
+  if (!dialogs) return PR_FALSE;  // Should this allow PR_TRUE for unimplemented?
+
+  nsCOMPtr<nsIDOMWindow> window;
+  {
+    ReentrantMonitorAutoEnter lock(mReentrantMonitor);
+    window = do_QueryReferent(mWindow);
+    NS_ASSERTION(window, "Window has gone away?!");
   }
 
-  bool confirms;
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsUIContext(window);
+
+  PRBool confirms;
   dialogs->ConfirmEnteringWeak(ctx, &confirms);
 
   return confirms;
 }
 
-bool nsSecureBrowserUIImpl::
+PRBool nsSecureBrowserUIImpl::
 ConfirmLeavingSecure()
 {
   nsCOMPtr<nsISecurityWarningDialogs> dialogs;
-  nsCOMPtr<nsIInterfaceRequestor> ctx;
 
-  if (!GetNSSDialogs(dialogs, ctx)) {
-    return false; // Should this allow true for unimplemented?
+  GetNSSDialogs(getter_AddRefs(dialogs));
+  if (!dialogs) return PR_FALSE;  // Should this allow PR_TRUE for unimplemented?
+
+  nsCOMPtr<nsIDOMWindow> window;
+  {
+    ReentrantMonitorAutoEnter lock(mReentrantMonitor);
+    window = do_QueryReferent(mWindow);
+    NS_ASSERTION(window, "Window has gone away?!");
   }
 
-  bool confirms;
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsUIContext(window);
+
+  PRBool confirms;
   dialogs->ConfirmLeavingSecure(ctx, &confirms);
 
   return confirms;
 }
 
-bool nsSecureBrowserUIImpl::
+PRBool nsSecureBrowserUIImpl::
 ConfirmMixedMode()
 {
   nsCOMPtr<nsISecurityWarningDialogs> dialogs;
-  nsCOMPtr<nsIInterfaceRequestor> ctx;
 
-  if (!GetNSSDialogs(dialogs, ctx)) {
-    return false; // Should this allow true for unimplemented?
+  GetNSSDialogs(getter_AddRefs(dialogs));
+  if (!dialogs) return PR_FALSE;  // Should this allow PR_TRUE for unimplemented?
+
+  nsCOMPtr<nsIDOMWindow> window;
+  {
+    ReentrantMonitorAutoEnter lock(mReentrantMonitor);
+    window = do_QueryReferent(mWindow);
+    NS_ASSERTION(window, "Window has gone away?!");
   }
 
-  bool confirms;
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsUIContext(window);
+
+  PRBool confirms;
   dialogs->ConfirmMixedMode(ctx, &confirms);
 
   return confirms;
 }
 
 /**
- * ConfirmPostToInsecure - returns true if
+ * ConfirmPostToInsecure - returns PR_TRUE if
  *   the user approves the submit (or doesn't care).
- *   returns false on errors.
+ *   returns PR_FALSE on errors.
  */
-bool nsSecureBrowserUIImpl::
+PRBool nsSecureBrowserUIImpl::
 ConfirmPostToInsecure()
 {
-  nsCOMPtr<nsISecurityWarningDialogs> dialogs;
-  nsCOMPtr<nsIInterfaceRequestor> ctx;
+  nsresult rv;
 
-  if (!GetNSSDialogs(dialogs, ctx)) {
-    return false; // Should this allow true for unimplemented?
+  nsCOMPtr<nsISecurityWarningDialogs> dialogs;
+
+  GetNSSDialogs(getter_AddRefs(dialogs));
+  if (!dialogs) return PR_FALSE;  // Should this allow PR_TRUE for unimplemented?
+
+  nsCOMPtr<nsIDOMWindow> window;
+  {
+    ReentrantMonitorAutoEnter lock(mReentrantMonitor);
+    window = do_QueryReferent(mWindow);
+    NS_ASSERTION(window, "Window has gone away?!");
   }
 
-  bool result;
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsUIContext(window);
 
-  nsresult rv = dialogs->ConfirmPostToInsecure(ctx, &result);
-  if (NS_FAILED(rv)) return false;
+  PRBool result;
+
+  rv = dialogs->ConfirmPostToInsecure(ctx, &result);
+  if (NS_FAILED(rv)) return PR_FALSE;
 
   return result;
 }
 
 /**
- * ConfirmPostToInsecureFromSecure - returns true if
+ * ConfirmPostToInsecureFromSecure - returns PR_TRUE if
  *   the user approves the submit (or doesn't care).
- *   returns false on errors.
+ *   returns PR_FALSE on errors.
  */
-bool nsSecureBrowserUIImpl::
+PRBool nsSecureBrowserUIImpl::
 ConfirmPostToInsecureFromSecure()
 {
-  nsCOMPtr<nsISecurityWarningDialogs> dialogs;
-  nsCOMPtr<nsIInterfaceRequestor> ctx;
+  nsresult rv;
 
-  if (!GetNSSDialogs(dialogs, ctx)) {
-    return false; // Should this allow true for unimplemented?
+  nsCOMPtr<nsISecurityWarningDialogs> dialogs;
+
+  GetNSSDialogs(getter_AddRefs(dialogs));
+  if (!dialogs) return PR_FALSE;  // Should this allow PR_TRUE for unimplemented?
+
+  nsCOMPtr<nsIDOMWindow> window;
+  {
+    ReentrantMonitorAutoEnter lock(mReentrantMonitor);
+    window = do_QueryReferent(mWindow);
+    NS_ASSERTION(window, "Window has gone away?!");
   }
 
-  bool result;
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsUIContext(window);
 
-  nsresult rv = dialogs->ConfirmPostToInsecureFromSecure(ctx, &result);
-  if (NS_FAILED(rv)) return false;
+  PRBool result;
+
+  rv = dialogs->ConfirmPostToInsecureFromSecure(ctx, &result);
+  if (NS_FAILED(rv)) return PR_FALSE;
 
   return result;
 }

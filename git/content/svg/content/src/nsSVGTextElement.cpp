@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGGraphicElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGTextElement.h"
@@ -93,7 +91,7 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGTextElementBase::)
 
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -351,7 +349,7 @@ nsSVGTextElement::SelectSubString(PRUint32 charnum, PRUint32 nchars)
 //----------------------------------------------------------------------
 // nsIContent methods
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsSVGTextElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -359,7 +357,7 @@ nsSVGTextElement::IsAttributeMapped(const nsIAtom* name) const
     sFontSpecificationMap
   };
 
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGTextElementBase::IsAttributeMapped(name);
 }
 
@@ -368,17 +366,17 @@ nsSVGTextElement::IsAttributeMapped(const nsIAtom* name) const
 
 nsSVGElement::LengthListInfo nsSVGTextElement::sLengthListInfo[4] =
 {
-  { &nsGkAtoms::x,  nsSVGUtils::X, false },
-  { &nsGkAtoms::y,  nsSVGUtils::Y, false },
-  { &nsGkAtoms::dx, nsSVGUtils::X, true },
-  { &nsGkAtoms::dy, nsSVGUtils::Y, true }
+  { &nsGkAtoms::x,  nsSVGUtils::X, PR_FALSE },
+  { &nsGkAtoms::y,  nsSVGUtils::Y, PR_FALSE },
+  { &nsGkAtoms::dx, nsSVGUtils::X, PR_TRUE },
+  { &nsGkAtoms::dy, nsSVGUtils::Y, PR_TRUE }
 };
 
 nsSVGElement::LengthListAttributesInfo
 nsSVGTextElement::GetLengthListInfo()
 {
   return LengthListAttributesInfo(mLengthListAttributes, sLengthListInfo,
-                                  ArrayLength(sLengthListInfo));
+                                  NS_ARRAY_LENGTH(sLengthListInfo));
 }
 
 nsSVGElement::NumberListInfo nsSVGTextElement::sNumberListInfo[1] =
@@ -390,6 +388,6 @@ nsSVGElement::NumberListAttributesInfo
 nsSVGTextElement::GetNumberListInfo()
 {
   return NumberListAttributesInfo(mNumberListAttributes, sNumberListInfo,
-                                  ArrayLength(sNumberListInfo));
+                                  NS_ARRAY_LENGTH(sNumberListInfo));
 }
 

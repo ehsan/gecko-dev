@@ -51,14 +51,14 @@ nsBidiKeyboard::~nsBidiKeyboard()
 {
 }
 
-NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(bool *aIsRTL)
+NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(PRBool *aIsRTL)
 {
-    *aIsRTL = false;
+    *aIsRTL = PR_FALSE;
 
     Qt::LayoutDirection layoutDir = QApplication::keyboardInputDirection();
 
     if (layoutDir == Qt::RightToLeft) {
-        *aIsRTL = true;
+        *aIsRTL = PR_TRUE;
     }
     
     return NS_OK;
@@ -69,7 +69,7 @@ NS_IMETHODIMP nsBidiKeyboard::SetLangFromBidiLevel(PRUint8 aLevel)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsBidiKeyboard::GetHaveBidiKeyboards(bool* aResult)
+NS_IMETHODIMP nsBidiKeyboard::GetHaveBidiKeyboards(PRBool* aResult)
 {
   // not implemented yet
   return NS_ERROR_NOT_IMPLEMENTED;

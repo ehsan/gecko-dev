@@ -54,7 +54,7 @@ public:
   nsSMILTimeValueSpecParams()
   :
     mType(INDEFINITE),
-    mSyncBegin(false),
+    mSyncBegin(PR_FALSE),
     mRepeatIterationOrAccessKey(0)
   { }
 
@@ -90,7 +90,7 @@ public:
   // Indicates if this specification refers to the begin or end of the dependent
   // element.
   // Only used for SYNCBASE types.
-  bool              mSyncBegin;
+  PRPackedBool      mSyncBegin;
 
   // The repeat iteration (type=REPEAT) or access key (type=ACCESSKEY) to
   // respond to.

@@ -2,7 +2,6 @@
 
 == image-fill-01.svg          ../pass.svg
 == image-filter-01.svg        image-filter-01-ref.svg
-== image-load-01.svg          ../pass.svg
 == image-opacity-01.svg       image-opacity-01-ref.svg
 == image-opacity-02.svg       image-opacity-02-ref.svg
 == image-rotate-01.svg        image-rotate-01-ref.svg
@@ -18,8 +17,6 @@
 == image-zoom-01a.svg         image-zoom-01-ref.svg
 == image-zoom-01b.svg         image-zoom-01-ref.svg
 == image-zoom-02.svg          image-zoom-02-ref.svg
-== imported-image-01.svg      imported-image-ref.svg
-== imported-image-02.svg      imported-image-ref.svg
 
 # Tests for <image> with preserveAspectRatio
 == image-preserveAspectRatio-01-raster.svg image-preserveAspectRatio-01-ref.svg

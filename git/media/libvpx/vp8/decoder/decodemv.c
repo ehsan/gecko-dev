@@ -10,10 +10,10 @@
 
 
 #include "treereader.h"
-#include "vp8/common/entropymv.h"
-#include "vp8/common/entropymode.h"
+#include "entropymv.h"
+#include "entropymode.h"
 #include "onyxd_int.h"
-#include "vp8/common/findnearmv.h"
+#include "findnearmv.h"
 
 #if CONFIG_DEBUG
 #include <assert.h>
@@ -94,10 +94,40 @@ static void vp8_kfread_modes(VP8D_COMP *pbi, MODE_INFO *m, int mb_row, int mb_co
 
                 do
                 {
-                    const B_PREDICTION_MODE A = above_block_mode(m, i, mis);
-                    const B_PREDICTION_MODE L = left_block_mode(m, i);
+                    const B_PREDICTION_MODE A = vp8_above_bmi(m, i, mis)->mode;
+                    const B_PREDICTION_MODE L = vp8_left_bmi(m, i)->mode;
 
-                    m->bmi[i].as_mode = (B_PREDICTION_MODE) vp8_read_bmode(bc, pbi->common.kf_bmode_prob [A] [L]);
+                    m->bmi[i].mode = (B_PREDICTION_MODE) vp8_read_bmode(bc, pbi->common.kf_bmode_prob [A] [L]);
+                }
+                while (++i < 16);
+            }
+            else
+            {
+                int BMode;
+                int i = 0;
+
+                switch (y_mode)
+                {
+                case DC_PRED:
+                    BMode = B_DC_PRED;
+                    break;
+                case V_PRED:
+                    BMode = B_VE_PRED;
+                    break;
+                case H_PRED:
+                    BMode = B_HE_PRED;
+                    break;
+                case TM_PRED:
+                    BMode = B_TM_PRED;
+                    break;
+                default:
+                    BMode = B_DC_PRED;
+                    break;
+                }
+
+                do
+                {
+                    m->bmi[i].mode = (B_PREDICTION_MODE)BMode;
                 }
                 while (++i < 16);
             }
@@ -180,11 +210,11 @@ static MB_PREDICTION_MODE read_mv_ref(vp8_reader *bc, const vp8_prob *p)
     return (MB_PREDICTION_MODE)i;
 }
 
-static B_PREDICTION_MODE sub_mv_ref(vp8_reader *bc, const vp8_prob *p)
+static MB_PREDICTION_MODE sub_mv_ref(vp8_reader *bc, const vp8_prob *p)
 {
     const int i = vp8_treed_read(bc, vp8_sub_mv_ref_tree, p);
 
-    return (B_PREDICTION_MODE)i;
+    return (MB_PREDICTION_MODE)i;
 }
 
 #ifdef VPX_MODE_COUNT
@@ -198,8 +228,15 @@ unsigned int vp8_mv_cont_count[5][4] =
 };
 #endif
 
-static const unsigned char mbsplit_fill_count[4] = {8, 8, 4, 1};
-static const unsigned char mbsplit_fill_offset[4][16] = {
+unsigned char vp8_mbsplit_offset[4][16] = {
+    { 0,  8,  0,  0,  0,  0,  0,  0,  0,  0,   0,  0,  0,  0,  0,  0},
+    { 0,  2,  0,  0,  0,  0,  0,  0,  0,  0,   0,  0,  0,  0,  0,  0},
+    { 0,  2,  8, 10,  0,  0,  0,  0,  0,  0,   0,  0,  0,  0,  0,  0},
+    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15}
+};
+
+unsigned char vp8_mbsplit_fill_count[4] = {8, 8, 4, 1};
+unsigned char vp8_mbsplit_fill_offset[4][16] = {
     { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15},
     { 0,  1,  4,  5,  8,  9, 12, 13,  2,  3,   6,  7, 10, 11, 14, 15},
     { 0,  1,  4,  5,  2,  3,  6,  7,  8,  9,  12, 13, 10, 11, 14, 15},
@@ -209,17 +246,11 @@ static const unsigned char mbsplit_fill_offset[4][16] = {
 
 
 
-static void mb_mode_mv_init(VP8D_COMP *pbi)
+void vp8_mb_mode_mv_init(VP8D_COMP *pbi)
 {
     vp8_reader *const bc = & pbi->bc;
     MV_CONTEXT *const mvc = pbi->common.fc.mvc;
 
-#if CONFIG_ERROR_CONCEALMENT
-    /* Default is that no macroblock is corrupt, therefore we initialize
-     * mvs_corrupt_from_mb to something very big, which we can be sure is
-     * outside the frame. */
-    pbi->mvs_corrupt_from_mb = UINT_MAX;
-#endif
     pbi->prob_skip_false = 0;
     if (pbi->common.mb_no_coeff_skip)
         pbi->prob_skip_false = (vp8_prob)vp8_read_literal(bc, 8);
@@ -256,15 +287,15 @@ static void mb_mode_mv_init(VP8D_COMP *pbi)
     }
 }
 
-
-static void read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi, MB_MODE_INFO *mbmi,
+void vp8_read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi, MB_MODE_INFO *mbmi,
                             int mb_row, int mb_col)
 {
+    const MV Zero = { 0, 0};
     vp8_reader *const bc = & pbi->bc;
     MV_CONTEXT *const mvc = pbi->common.fc.mvc;
     const int mis = pbi->common.mode_info_stride;
 
-    int_mv *const mv = & mbmi->mv;
+    MV *const mv = & mbmi->mv.as_mv;
     int mb_to_left_edge;
     int mb_to_right_edge;
     int mb_to_top_edge;
@@ -301,7 +332,7 @@ static void read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi, MB_MODE_INFO *mbmi,
     {
         int rct[4];
         vp8_prob mv_ref_p [VP8_MVREFS-1];
-        int_mv nearest, nearby, best_mv;
+        MV nearest, nearby, best_mv;
 
         if (vp8_read(bc, pbi->prob_last))
         {
@@ -324,40 +355,39 @@ static void read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi, MB_MODE_INFO *mbmi,
 
             do  /* for each subset j */
             {
-                int_mv leftmv, abovemv;
-                int_mv blockmv;
+                B_MODE_INFO bmi;
+                MV *const mv = & bmi.mv.as_mv;
+
                 int k;  /* first block in subset j */
                 int mv_contz;
                 k = vp8_mbsplit_offset[s][j];
 
-                leftmv.as_int = left_block_mv(mi, k);
-                abovemv.as_int = above_block_mv(mi, k, mis);
-                mv_contz = vp8_mv_cont(&leftmv, &abovemv);
+                mv_contz = vp8_mv_cont(&(vp8_left_bmi(mi, k)->mv.as_mv), &(vp8_above_bmi(mi, k, mis)->mv.as_mv));
 
-                switch (sub_mv_ref(bc, vp8_sub_mv_ref_prob2 [mv_contz])) /*pc->fc.sub_mv_ref_prob))*/
+                switch (bmi.mode = (B_PREDICTION_MODE) sub_mv_ref(bc, vp8_sub_mv_ref_prob2 [mv_contz])) /*pc->fc.sub_mv_ref_prob))*/
                 {
                 case NEW4X4:
-                    read_mv(bc, &blockmv.as_mv, (const MV_CONTEXT *) mvc);
-                    blockmv.as_mv.row += best_mv.as_mv.row;
-                    blockmv.as_mv.col += best_mv.as_mv.col;
+                    read_mv(bc, mv, (const MV_CONTEXT *) mvc);
+                    mv->row += best_mv.row;
+                    mv->col += best_mv.col;
   #ifdef VPX_MODE_COUNT
                     vp8_mv_cont_count[mv_contz][3]++;
   #endif
                     break;
                 case LEFT4X4:
-                    blockmv.as_int = leftmv.as_int;
+                    *mv = vp8_left_bmi(mi, k)->mv.as_mv;
   #ifdef VPX_MODE_COUNT
                     vp8_mv_cont_count[mv_contz][0]++;
   #endif
                     break;
                 case ABOVE4X4:
-                    blockmv.as_int = abovemv.as_int;
+                    *mv = vp8_above_bmi(mi, k, mis)->mv.as_mv;
   #ifdef VPX_MODE_COUNT
                     vp8_mv_cont_count[mv_contz][1]++;
   #endif
                     break;
                 case ZERO4X4:
-                    blockmv.as_int = 0;
+                    *mv = Zero;
   #ifdef VPX_MODE_COUNT
                     vp8_mv_cont_count[mv_contz][2]++;
   #endif
@@ -366,24 +396,24 @@ static void read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi, MB_MODE_INFO *mbmi,
                     break;
                 }
 
-                mbmi->need_to_clamp_mvs |= vp8_check_mv_bounds(&blockmv,
-                                                          mb_to_left_edge,
-                                                          mb_to_right_edge,
-                                                          mb_to_top_edge,
-                                                          mb_to_bottom_edge);
+                mbmi->need_to_clamp_mvs |= (mv->col < mb_to_left_edge) ? 1 : 0;
+                mbmi->need_to_clamp_mvs |= (mv->col > mb_to_right_edge) ? 1 : 0;
+                mbmi->need_to_clamp_mvs |= (mv->row < mb_to_top_edge) ? 1 : 0;
+                mbmi->need_to_clamp_mvs |= (mv->row > mb_to_bottom_edge) ? 1 : 0;
 
                 {
                     /* Fill (uniform) modes, mvs of jth subset.
                      Must do it here because ensuing subsets can
                      refer back to us via "left" or "above". */
-                    const unsigned char *fill_offset;
-                    unsigned int fill_count = mbsplit_fill_count[s];
+                    unsigned char *fill_offset;
+                    unsigned int fill_count = vp8_mbsplit_fill_count[s];
 
-                    fill_offset = &mbsplit_fill_offset[s][(unsigned char)j * mbsplit_fill_count[s]];
+                    fill_offset = &vp8_mbsplit_fill_offset[s][(unsigned char)j * vp8_mbsplit_fill_count[s]];
 
                     do {
-                        mi->bmi[ *fill_offset].mv.as_int = blockmv.as_int;
-                        fill_offset++;
+                        mi->bmi[ *fill_offset] = bmi;
+                      fill_offset++;
+
                     }while (--fill_count);
                 }
 
@@ -391,66 +421,73 @@ static void read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi, MB_MODE_INFO *mbmi,
             while (++j < num_p);
         }
 
-        mv->as_int = mi->bmi[15].mv.as_int;
+        *mv = mi->bmi[15].mv.as_mv;
 
         break;  /* done with SPLITMV */
 
         case NEARMV:
-            mv->as_int = nearby.as_int;
+            *mv = nearby;
             /* Clip "next_nearest" so that it does not extend to far out of image */
-            vp8_clamp_mv(mv, mb_to_left_edge, mb_to_right_edge,
-                         mb_to_top_edge, mb_to_bottom_edge);
+            mv->col = (mv->col < mb_to_left_edge) ? mb_to_left_edge : mv->col;
+            mv->col = (mv->col > mb_to_right_edge) ? mb_to_right_edge : mv->col;
+            mv->row = (mv->row < mb_to_top_edge) ? mb_to_top_edge : mv->row;
+            mv->row = (mv->row > mb_to_bottom_edge) ? mb_to_bottom_edge : mv->row;
             goto propagate_mv;
 
         case NEARESTMV:
-            mv->as_int = nearest.as_int;
+            *mv = nearest;
             /* Clip "next_nearest" so that it does not extend to far out of image */
-            vp8_clamp_mv(mv, mb_to_left_edge, mb_to_right_edge,
-                         mb_to_top_edge, mb_to_bottom_edge);
+            mv->col = (mv->col < mb_to_left_edge) ? mb_to_left_edge : mv->col;
+            mv->col = (mv->col > mb_to_right_edge) ? mb_to_right_edge : mv->col;
+            mv->row = (mv->row < mb_to_top_edge) ? mb_to_top_edge : mv->row;
+            mv->row = (mv->row > mb_to_bottom_edge) ? mb_to_bottom_edge : mv->row;
             goto propagate_mv;
 
         case ZEROMV:
-            mv->as_int = 0;
+            *mv = Zero;
             goto propagate_mv;
 
         case NEWMV:
-            read_mv(bc, &mv->as_mv, (const MV_CONTEXT *) mvc);
-            mv->as_mv.row += best_mv.as_mv.row;
-            mv->as_mv.col += best_mv.as_mv.col;
+            read_mv(bc, mv, (const MV_CONTEXT *) mvc);
+            mv->row += best_mv.row;
+            mv->col += best_mv.col;
 
             /* Don't need to check this on NEARMV and NEARESTMV modes
              * since those modes clamp the MV. The NEWMV mode does not,
              * so signal to the prediction stage whether special
              * handling may be required.
              */
-            mbmi->need_to_clamp_mvs = vp8_check_mv_bounds(mv,
-                                                      mb_to_left_edge,
-                                                      mb_to_right_edge,
-                                                      mb_to_top_edge,
-                                                      mb_to_bottom_edge);
+            mbmi->need_to_clamp_mvs = (mv->col < mb_to_left_edge) ? 1 : 0;
+            mbmi->need_to_clamp_mvs |= (mv->col > mb_to_right_edge) ? 1 : 0;
+            mbmi->need_to_clamp_mvs |= (mv->row < mb_to_top_edge) ? 1 : 0;
+            mbmi->need_to_clamp_mvs |= (mv->row > mb_to_bottom_edge) ? 1 : 0;
 
         propagate_mv:  /* same MV throughout */
-#if CONFIG_ERROR_CONCEALMENT
-            if(pbi->ec_enabled)
             {
-                mi->bmi[ 0].mv.as_int =
-                mi->bmi[ 1].mv.as_int =
-                mi->bmi[ 2].mv.as_int =
-                mi->bmi[ 3].mv.as_int =
-                mi->bmi[ 4].mv.as_int =
-                mi->bmi[ 5].mv.as_int =
-                mi->bmi[ 6].mv.as_int =
-                mi->bmi[ 7].mv.as_int =
-                mi->bmi[ 8].mv.as_int =
-                mi->bmi[ 9].mv.as_int =
-                mi->bmi[10].mv.as_int =
-                mi->bmi[11].mv.as_int =
-                mi->bmi[12].mv.as_int =
-                mi->bmi[13].mv.as_int =
-                mi->bmi[14].mv.as_int =
-                mi->bmi[15].mv.as_int = mv->as_int;
+                /*int i=0;
+                do
+                {
+                  mi->bmi[i].mv.as_mv = *mv;
+                }
+                while( ++i < 16);*/
+
+                mi->bmi[0].mv.as_mv = *mv;
+                mi->bmi[1].mv.as_mv = *mv;
+                mi->bmi[2].mv.as_mv = *mv;
+                mi->bmi[3].mv.as_mv = *mv;
+                mi->bmi[4].mv.as_mv = *mv;
+                mi->bmi[5].mv.as_mv = *mv;
+                mi->bmi[6].mv.as_mv = *mv;
+                mi->bmi[7].mv.as_mv = *mv;
+                mi->bmi[8].mv.as_mv = *mv;
+                mi->bmi[9].mv.as_mv = *mv;
+                mi->bmi[10].mv.as_mv = *mv;
+                mi->bmi[11].mv.as_mv = *mv;
+                mi->bmi[12].mv.as_mv = *mv;
+                mi->bmi[13].mv.as_mv = *mv;
+                mi->bmi[14].mv.as_mv = *mv;
+                mi->bmi[15].mv.as_mv = *mv;
             }
-#endif
             break;
         default:;
   #if CONFIG_DEBUG
@@ -460,16 +497,20 @@ static void read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi, MB_MODE_INFO *mbmi,
     }
     else
     {
-        /* required for left and above block mv */
-        mbmi->mv.as_int = 0;
-
         /* MB is intra coded */
+        int j = 0;
+        do
+        {
+            mi->bmi[j].mv.as_mv = Zero;
+        }
+        while (++j < 16);
+
         if ((mbmi->mode = (MB_PREDICTION_MODE) vp8_read_ymode(bc, pbi->common.fc.ymode_prob)) == B_PRED)
         {
-            int j = 0;
+            j = 0;
             do
             {
-                mi->bmi[j].as_mode = (B_PREDICTION_MODE)vp8_read_bmode(bc, pbi->common.fc.bmode_prob);
+                mi->bmi[j].mode = (B_PREDICTION_MODE)vp8_read_bmode(bc, pbi->common.fc.bmode_prob);
             }
             while (++j < 16);
         }
@@ -484,7 +525,7 @@ void vp8_decode_mode_mvs(VP8D_COMP *pbi)
     MODE_INFO *mi = pbi->common.mi;
     int mb_row = -1;
 
-    mb_mode_mv_init(pbi);
+    vp8_mb_mode_mv_init(pbi);
 
     while (++mb_row < pbi->common.mb_rows)
     {
@@ -502,27 +543,11 @@ void vp8_decode_mode_mvs(VP8D_COMP *pbi)
 
         while (++mb_col < pbi->common.mb_cols)
         {
-#if CONFIG_ERROR_CONCEALMENT
-            int mb_num = mb_row * pbi->common.mb_cols + mb_col;
-#endif
-            /*read_mb_modes_mv(pbi, xd->mode_info_context, &xd->mode_info_context->mbmi, mb_row, mb_col);*/
+            /*vp8_read_mb_modes_mv(pbi, xd->mode_info_context, &xd->mode_info_context->mbmi, mb_row, mb_col);*/
             if(pbi->common.frame_type == KEY_FRAME)
                 vp8_kfread_modes(pbi, mi, mb_row, mb_col);
             else
-                read_mb_modes_mv(pbi, mi, &mi->mbmi, mb_row, mb_col);
-
-#if CONFIG_ERROR_CONCEALMENT
-            /* look for corruption. set mvs_corrupt_from_mb to the current
-             * mb_num if the frame is corrupt from this macroblock. */
-            if (vp8dx_bool_error(&pbi->bc) && mb_num < pbi->mvs_corrupt_from_mb)
-            {
-                pbi->mvs_corrupt_from_mb = mb_num;
-                /* no need to continue since the partition is corrupt from
-                 * here on.
-                 */
-                return;
-            }
-#endif
+                vp8_read_mb_modes_mv(pbi, mi, &mi->mbmi, mb_row, mb_col);
 
             mi++;       /* next macroblock */
         }

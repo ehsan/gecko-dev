@@ -65,7 +65,7 @@ public:
    * @param pData This is an XPCOM getter, so pData is already_addrefed.
    *   If the key doesn't exist, pData will be set to nsnull.
    */
-  bool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const;
+  PRBool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const;
 
   /**
    * @copydoc nsBaseHashtable::Get
@@ -74,11 +74,11 @@ public:
 
   /**
    * Gets a weak reference to the hashtable entry.
-   * @param aFound If not nsnull, will be set to true if the entry is found,
-   *               to false otherwise.
+   * @param aFound If not nsnull, will be set to PR_TRUE if the entry is found,
+   *               to PR_FALSE otherwise.
    * @return The entry, or nsnull if not found. Do not release this pointer!
    */
-  Interface* GetWeak(KeyType aKey, bool* aFound = nsnull) const;
+  Interface* GetWeak(KeyType aKey, PRBool* aFound = nsnull) const;
 };
 
 /**
@@ -102,7 +102,7 @@ public:
    * @param pData This is an XPCOM getter, so pData is already_addrefed.
    *   If the key doesn't exist, pData will be set to nsnull.
    */
-  bool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const;
+  PRBool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const;
 
   // GetWeak does not make sense on a multi-threaded hashtable, where another
   // thread may remove the entry (and hence release it) as soon as GetWeak
@@ -115,7 +115,7 @@ public:
 //
 
 template<class KeyClass,class Interface>
-bool
+PRBool
 nsInterfaceHashtable<KeyClass,Interface>::Get
   (KeyType aKey, UserDataType* pInterface) const
 {
@@ -130,7 +130,7 @@ nsInterfaceHashtable<KeyClass,Interface>::Get
       NS_IF_ADDREF(*pInterface);
     }
 
-    return true;
+    return PR_TRUE;
   }
 
   // if the key doesn't exist, set *pInterface to null
@@ -138,7 +138,7 @@ nsInterfaceHashtable<KeyClass,Interface>::Get
   if (pInterface)
     *pInterface = nsnull;
 
-  return false;
+  return PR_FALSE;
 }
 
 template<class KeyClass, class Interface>
@@ -149,28 +149,28 @@ nsInterfaceHashtable<KeyClass,Interface>::Get(KeyType aKey) const
   if (!ent)
     return NULL;
 
-  nsCOMPtr<Interface> copy = ent->mData;
-  return copy.forget();
+  NS_IF_ADDREF(ent->mData);
+  return already_AddRefed<Interface>(ent->mData);
 }
 
 template<class KeyClass,class Interface>
 Interface*
 nsInterfaceHashtable<KeyClass,Interface>::GetWeak
-  (KeyType aKey, bool* aFound) const
+  (KeyType aKey, PRBool* aFound) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
   if (ent)
   {
     if (aFound)
-      *aFound = true;
+      *aFound = PR_TRUE;
 
     return ent->mData;
   }
 
-  // Key does not exist, return nsnull and set aFound to false
+  // Key does not exist, return nsnull and set aFound to PR_FALSE
   if (aFound)
-    *aFound = false;
+    *aFound = PR_FALSE;
   return nsnull;
 }
 
@@ -179,7 +179,7 @@ nsInterfaceHashtable<KeyClass,Interface>::GetWeak
 //
 
 template<class KeyClass,class Interface>
-bool
+PRBool
 nsInterfaceHashtableMT<KeyClass,Interface>::Get
   (KeyType aKey, UserDataType* pInterface) const
 {
@@ -198,7 +198,7 @@ nsInterfaceHashtableMT<KeyClass,Interface>::Get
 
     PR_Unlock(this->mLock);
 
-    return true;
+    return PR_TRUE;
   }
 
   // if the key doesn't exist, set *pInterface to null
@@ -208,7 +208,7 @@ nsInterfaceHashtableMT<KeyClass,Interface>::Get
 
   PR_Unlock(this->mLock);
 
-  return false;
+  return PR_FALSE;
 }
 
 #endif // nsInterfaceHashtable_h__

@@ -110,7 +110,6 @@ typedef nsCString Buffer;
 
 struct NPRemoteWindow
 {
-  NPRemoteWindow();
   uint64_t window;
   int32_t x;
   int32_t y;
@@ -141,6 +140,13 @@ typedef intptr_t NativeWindowHandle; // never actually used, will always be 0
 typedef base::SharedMemoryHandle WindowsSharedMemoryHandle;
 #else
 typedef mozilla::null_t WindowsSharedMemoryHandle;
+#endif
+
+#ifdef MOZ_CRASHREPORTER
+typedef CrashReporter::ThreadId NativeThreadId;
+#else
+// unused in this case
+typedef int32 NativeThreadId;
 #endif
 
 // XXX maybe not the best place for these. better one?
@@ -253,7 +259,7 @@ NullableString(const char* aString)
 {
     if (!aString) {
         nsCString str;
-        str.SetIsVoid(true);
+        str.SetIsVoid(PR_TRUE);
         return str;
     }
     return nsCString(aString);

@@ -192,7 +192,6 @@ class MochiRemote(Mochitest):
         self._dm = devmgr
         self.runSSLTunnel = False
         self.remoteProfile = options.remoteTestRoot + "/profile"
-        self._automation.setRemoteProfile(self.remoteProfile)
         self.remoteLog = options.remoteLogFile
 
     def cleanup(self, manifest, options):
@@ -346,16 +345,8 @@ def main():
     if (dm.processExist(procName)):
       dm.killProcess(procName)
 
-    try:
-      retVal = mochitest.runTests(options)
-    except:
-      print "TEST-UNEXPECTED-ERROR | | Exception caught while running tests."
-      mochitest.stopWebServer(options)
-      mochitest.stopWebSocketServer(options)
-      sys.exit(1)
-      
-    sys.exit(retVal)
-        
+    sys.exit(mochitest.runTests(options))
+    
 if __name__ == "__main__":
     main()
 

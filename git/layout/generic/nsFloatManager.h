@@ -42,8 +42,6 @@
 #ifndef nsFloatManager_h_
 #define nsFloatManager_h_
 
-#include "mozilla/Attributes.h"
-
 #include "nsIntervalSet.h"
 #include "nsCoord.h"
 #include "nsRect.h"
@@ -63,10 +61,10 @@ class nsPresContext;
  */
 struct nsFlowAreaRect {
   nsRect mRect;
-  bool mHasFloats;
+  PRPackedBool mHasFloats;
 
   nsFlowAreaRect(nscoord aX, nscoord aY, nscoord aWidth, nscoord aHeight,
-                 bool aHasFloats)
+                 PRBool aHasFloats)
     : mRect(aX, aY, aWidth, aHeight), mHasFloats(aHasFloats) {}
 };
 
@@ -112,10 +110,10 @@ public:
   private:
     PRUint32 mFloatInfoCount;
     nscoord mX, mY;
-    bool mPushedLeftFloatPastBreak;
-    bool mPushedRightFloatPastBreak;
-    bool mSplitLeftFloatAcrossBreak;
-    bool mSplitRightFloatAcrossBreak;
+    PRPackedBool mPushedLeftFloatPastBreak;
+    PRPackedBool mPushedRightFloatPastBreak;
+    PRPackedBool mSplitLeftFloatAcrossBreak;
+    PRPackedBool mSplitRightFloatAcrossBreak;
 
     friend class nsFloatManager;
   };
@@ -193,9 +191,9 @@ public:
    * also means that any clear needs to continue to the next column.)
    */
   void SetPushedLeftFloatPastBreak()
-    { mPushedLeftFloatPastBreak = true; }
+    { mPushedLeftFloatPastBreak = PR_TRUE; }
   void SetPushedRightFloatPastBreak()
-    { mPushedRightFloatPastBreak = true; }
+    { mPushedRightFloatPastBreak = PR_TRUE; }
 
   /**
    * Notify that we split a float, with part of it needing to be pushed
@@ -203,9 +201,9 @@ public:
    * continue to the next page/column.)
    */
   void SetSplitLeftFloatAcrossBreak()
-    { mSplitLeftFloatAcrossBreak = true; }
+    { mSplitLeftFloatAcrossBreak = PR_TRUE; }
   void SetSplitRightFloatAcrossBreak()
-    { mSplitRightFloatAcrossBreak = true; }
+    { mSplitRightFloatAcrossBreak = PR_TRUE; }
 
   /**
    * Remove the regions associated with this floating frame and its
@@ -221,13 +219,13 @@ private:
   struct FloatInfo;
 public:
 
-  bool HasAnyFloats() const { return !mFloats.IsEmpty(); }
+  PRBool HasAnyFloats() const { return !mFloats.IsEmpty(); }
 
   /**
    * Methods for dealing with the propagation of float damage during
    * reflow.
    */
-  bool HasFloatDamage() const
+  PRBool HasFloatDamage() const
   {
     return !mFloatDamage.IsEmpty();
   }
@@ -237,7 +235,7 @@ public:
     mFloatDamage.IncludeInterval(aIntervalBegin + mY, aIntervalEnd + mY);
   }
 
-  bool IntersectsDamage(nscoord aIntervalBegin, nscoord aIntervalEnd) const
+  PRBool IntersectsDamage(nscoord aIntervalBegin, nscoord aIntervalEnd) const
   {
     return mFloatDamage.Intersects(aIntervalBegin + mY, aIntervalEnd + mY);
   }
@@ -285,7 +283,7 @@ public:
    * Checks if clear would pass into the floats' BFC's next-in-flow,
    * i.e. whether floats affecting this clear have continuations.
    */
-  bool ClearContinues(PRUint8 aBreakType) const;
+  PRBool ClearContinues(PRUint8 aBreakType) const;
 
   void AssertStateMatches(SavedState *aState) const
   {
@@ -334,20 +332,20 @@ private:
   // float cannot be above the top of an earlier float.  And we also
   // need to apply this information to 'clear', and thus need to
   // separate left and right floats.
-  bool mPushedLeftFloatPastBreak;
-  bool mPushedRightFloatPastBreak;
+  PRPackedBool mPushedLeftFloatPastBreak;
+  PRPackedBool mPushedRightFloatPastBreak;
 
   // Did we split a float, with part of it needing to be pushed to the
   // next page/column.  This means that any 'clear' needs to continue to
   // the next page/column.
-  bool mSplitLeftFloatAcrossBreak;
-  bool mSplitRightFloatAcrossBreak;
+  PRPackedBool mSplitLeftFloatAcrossBreak;
+  PRPackedBool mSplitRightFloatAcrossBreak;
 
   static PRInt32 sCachedFloatManagerCount;
   static void* sCachedFloatManagers[NS_FLOAT_MANAGER_CACHE_SIZE];
 
-  nsFloatManager(const nsFloatManager&) MOZ_DELETE;
-  void operator=(const nsFloatManager&) MOZ_DELETE;
+  nsFloatManager(const nsFloatManager&);  // no implementation
+  void operator=(const nsFloatManager&);  // no implementation
 };
 
 /**

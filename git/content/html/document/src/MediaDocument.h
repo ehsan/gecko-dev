@@ -61,7 +61,7 @@ public:
                                      nsILoadGroup*       aLoadGroup,
                                      nsISupports*        aContainer,
                                      nsIStreamListener** aDocListener,
-                                     bool                aReset = true,
+                                     PRBool              aReset = PR_TRUE,
                                      nsIContentSink*     aSink = nsnull);
 
 protected:
@@ -71,8 +71,6 @@ protected:
   nsresult StartLayout();
 
   void GetFileName(nsAString& aResult);
-
-  nsresult LinkStylesheet(const nsAString& aStylesheet);
 
   // |aFormatNames[]| needs to have four elements in the following order: 
   // a format name with neither dimension nor file, a format name with

@@ -78,18 +78,14 @@ NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsMenuBarFrame)
 
-NS_QUERYFRAME_HEAD(nsMenuBarFrame)
-  NS_QUERYFRAME_ENTRY(nsMenuBarFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
-
 //
 // nsMenuBarFrame cntr
 //
 nsMenuBarFrame::nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext),
     mMenuBarListener(nsnull),
-    mStayActive(false),
-    mIsActive(false),
+    mStayActive(PR_FALSE),
+    mIsActive(PR_FALSE),
     mCurrentMenu(nsnull),
     mTarget(nsnull)
 {
@@ -117,20 +113,20 @@ nsMenuBarFrame::Init(nsIContent*      aContent,
   // Also hook up the listener to the window listening for focus events. This is so we can keep proper
   // state as the user alt-tabs through processes.
   
-  target->AddEventListener(NS_LITERAL_STRING("keypress"), mMenuBarListener, false); 
-  target->AddEventListener(NS_LITERAL_STRING("keydown"), mMenuBarListener, false);  
-  target->AddEventListener(NS_LITERAL_STRING("keyup"), mMenuBarListener, false);   
+  target->AddEventListener(NS_LITERAL_STRING("keypress"), mMenuBarListener, PR_FALSE); 
+  target->AddEventListener(NS_LITERAL_STRING("keydown"), mMenuBarListener, PR_FALSE);  
+  target->AddEventListener(NS_LITERAL_STRING("keyup"), mMenuBarListener, PR_FALSE);   
 
   // mousedown event should be handled in all phase
-  target->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, true);
-  target->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, false);
-  target->AddEventListener(NS_LITERAL_STRING("blur"), mMenuBarListener, true);   
+  target->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, PR_TRUE);
+  target->AddEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, PR_FALSE);
+  target->AddEventListener(NS_LITERAL_STRING("blur"), mMenuBarListener, PR_TRUE);   
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsMenuBarFrame::SetActive(bool aActiveFlag)
+nsMenuBarFrame::SetActive(PRBool aActiveFlag)
 {
   // If the activity is not changed, there is nothing to do.
   if (mIsActive == aActiveFlag)
@@ -154,7 +150,7 @@ nsMenuBarFrame::SetActive(bool aActiveFlag)
     InstallKeyboardNavigator();
   }
   else {
-    mActiveByKeyboard = false;
+    mActiveByKeyboard = PR_FALSE;
     RemoveKeyboardNavigator();
   }
 
@@ -171,10 +167,10 @@ nsMenuBarFrame::ToggleMenuActiveState()
 {
   if (mIsActive) {
     // Deactivate the menu bar
-    SetActive(false);
+    SetActive(PR_FALSE);
     if (mCurrentMenu) {
       nsMenuFrame* closeframe = mCurrentMenu;
-      closeframe->SelectMenu(false);
+      closeframe->SelectMenu(PR_FALSE);
       mCurrentMenu = nsnull;
       return closeframe;
     }
@@ -182,17 +178,17 @@ nsMenuBarFrame::ToggleMenuActiveState()
   else {
     // if the menu bar is already selected (eg. mouseover), deselect it
     if (mCurrentMenu)
-      mCurrentMenu->SelectMenu(false);
+      mCurrentMenu->SelectMenu(PR_FALSE);
     
     // Activate the menu bar
-    SetActive(true);
+    SetActive(PR_TRUE);
 
     // Set the active menu to be the top left item (e.g., the File menu).
     // We use an attribute called "menuactive" to track the current 
     // active menu.
-    nsMenuFrame* firstFrame = nsXULPopupManager::GetNextMenuItem(this, nsnull, false);
+    nsMenuFrame* firstFrame = nsXULPopupManager::GetNextMenuItem(this, nsnull, PR_FALSE);
     if (firstFrame) {
-      firstFrame->SelectMenu(true);
+      firstFrame->SelectMenu(PR_TRUE);
       
       // Track this item for keyboard navigation.
       mCurrentMenu = firstFrame;
@@ -244,7 +240,7 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
     nsIContent* current = currFrame->GetContent();
 
     // See if it's a menu item.
-    if (nsXULPopupManager::IsValidMenuItem(PresContext(), current, false)) {
+    if (nsXULPopupManager::IsValidMenuItem(PresContext(), current, PR_FALSE)) {
       // Get the shortcut attribute.
       nsAutoString shortcutKey;
       current->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, shortcutKey);
@@ -281,11 +277,11 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
   if (pm) {
     nsIFrame* popup = pm->GetTopPopup(ePopupTypeAny);
     if (popup)
-      pm->HidePopup(popup->GetContent(), true, true, true);
+      pm->HidePopup(popup->GetContent(), PR_TRUE, PR_TRUE, PR_TRUE);
   }
 
   SetCurrentMenuItem(nsnull);
-  SetActive(false);
+  SetActive(PR_FALSE);
 
 #endif  // #ifdef XP_WIN
 
@@ -305,10 +301,10 @@ nsMenuBarFrame::SetCurrentMenuItem(nsMenuFrame* aMenuItem)
     return NS_OK;
 
   if (mCurrentMenu)
-    mCurrentMenu->SelectMenu(false);
+    mCurrentMenu->SelectMenu(PR_FALSE);
 
   if (aMenuItem)
-    aMenuItem->SelectMenu(true);
+    aMenuItem->SelectMenu(PR_TRUE);
 
   mCurrentMenu = aMenuItem;
 
@@ -318,7 +314,7 @@ nsMenuBarFrame::SetCurrentMenuItem(nsMenuFrame* aMenuItem)
 void
 nsMenuBarFrame::CurrentMenuIsBeingDestroyed()
 {
-  mCurrentMenu->SelectMenu(false);
+  mCurrentMenu->SelectMenu(PR_FALSE);
   mCurrentMenu = nsnull;
 }
 
@@ -328,7 +324,7 @@ public:
   nsMenuBarSwitchMenu(nsIContent* aMenuBar,
                       nsIContent *aOldMenu,
                       nsIContent *aNewMenu,
-                      bool aSelectFirstItem)
+                      PRBool aSelectFirstItem)
     : mMenuBar(aMenuBar), mOldMenu(aOldMenu), mNewMenu(aNewMenu),
       mSelectFirstItem(aSelectFirstItem)
   {
@@ -345,21 +341,21 @@ public:
     nsMenuBarFrame* menubar = nsnull;
     if (mOldMenu && mNewMenu) {
       menubar = static_cast<nsMenuBarFrame *>
-        (pm->GetFrameOfTypeForContent(mMenuBar, nsGkAtoms::menuBarFrame, false));
+        (pm->GetFrameOfTypeForContent(mMenuBar, nsGkAtoms::menuBarFrame, PR_FALSE));
       if (menubar)
-        menubar->SetStayActive(true);
+        menubar->SetStayActive(PR_TRUE);
     }
 
     if (mOldMenu) {
       nsWeakFrame weakMenuBar(menubar);
-      pm->HidePopup(mOldMenu, false, false, false);
+      pm->HidePopup(mOldMenu, PR_FALSE, PR_FALSE, PR_FALSE);
       // clear the flag again
       if (mNewMenu && weakMenuBar.IsAlive())
-        menubar->SetStayActive(false);
+        menubar->SetStayActive(PR_FALSE);
     }
 
     if (mNewMenu)
-      pm->ShowMenu(mNewMenu, mSelectFirstItem, false);
+      pm->ShowMenu(mNewMenu, mSelectFirstItem, PR_FALSE);
 
     return NS_OK;
   }
@@ -368,12 +364,12 @@ private:
   nsCOMPtr<nsIContent> mMenuBar;
   nsCOMPtr<nsIContent> mOldMenu;
   nsCOMPtr<nsIContent> mNewMenu;
-  bool mSelectFirstItem;
+  PRBool mSelectFirstItem;
 };
 
 NS_IMETHODIMP
 nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
-                               bool aSelectFirstItem)
+                               PRBool aSelectFirstItem)
 {
   if (mCurrentMenu == aMenuItem)
     return NS_OK;
@@ -386,10 +382,10 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
   nsIContent* aOldMenu = nsnull, *aNewMenu = nsnull;
   
   // Unset the current child.
-  bool wasOpen = false;
+  PRBool wasOpen = PR_FALSE;
   if (mCurrentMenu) {
     wasOpen = mCurrentMenu->IsOpen();
-    mCurrentMenu->SelectMenu(false);
+    mCurrentMenu->SelectMenu(PR_FALSE);
     if (wasOpen) {
       nsMenuPopupFrame* popupFrame = mCurrentMenu->GetPopup();
       if (popupFrame)
@@ -403,7 +399,7 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
   // Set the new child.
   if (aMenuItem) {
     nsCOMPtr<nsIContent> content = aMenuItem->GetContent();
-    aMenuItem->SelectMenu(true);
+    aMenuItem->SelectMenu(PR_TRUE);
     mCurrentMenu = aMenuItem;
     if (wasOpen && !aMenuItem->IsDisabled())
       aNewMenu = content;
@@ -428,16 +424,16 @@ nsMenuBarFrame::Enter(nsGUIEvent* aEvent)
   return mCurrentMenu;
 }
 
-bool
+PRBool
 nsMenuBarFrame::MenuClosed()
 {
-  SetActive(false);
+  SetActive(PR_FALSE);
   if (!mIsActive && mCurrentMenu) {
-    mCurrentMenu->SelectMenu(false);
+    mCurrentMenu->SelectMenu(PR_FALSE);
     mCurrentMenu = nsnull;
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -445,7 +441,7 @@ nsMenuBarFrame::InstallKeyboardNavigator()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
-    pm->SetActiveMenuBar(this, true);
+    pm->SetActiveMenuBar(this, PR_TRUE);
 }
 
 void
@@ -454,7 +450,7 @@ nsMenuBarFrame::RemoveKeyboardNavigator()
   if (!mIsActive) {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm)
-      pm->SetActiveMenuBar(this, false);
+      pm->SetActiveMenuBar(this, PR_FALSE);
   }
 }
 
@@ -463,15 +459,15 @@ nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
-    pm->SetActiveMenuBar(this, false);
+    pm->SetActiveMenuBar(this, PR_FALSE);
 
-  mTarget->RemoveEventListener(NS_LITERAL_STRING("keypress"), mMenuBarListener, false); 
-  mTarget->RemoveEventListener(NS_LITERAL_STRING("keydown"), mMenuBarListener, false);  
-  mTarget->RemoveEventListener(NS_LITERAL_STRING("keyup"), mMenuBarListener, false);
+  mTarget->RemoveEventListener(NS_LITERAL_STRING("keypress"), mMenuBarListener, PR_FALSE); 
+  mTarget->RemoveEventListener(NS_LITERAL_STRING("keydown"), mMenuBarListener, PR_FALSE);  
+  mTarget->RemoveEventListener(NS_LITERAL_STRING("keyup"), mMenuBarListener, PR_FALSE);
 
-  mTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, true);
-  mTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, false);
-  mTarget->RemoveEventListener(NS_LITERAL_STRING("blur"), mMenuBarListener, true);
+  mTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, PR_TRUE);
+  mTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"), mMenuBarListener, PR_FALSE);
+  mTarget->RemoveEventListener(NS_LITERAL_STRING("blur"), mMenuBarListener, PR_TRUE);
 
   NS_IF_RELEASE(mMenuBarListener);
 

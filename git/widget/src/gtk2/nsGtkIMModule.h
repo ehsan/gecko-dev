@@ -47,7 +47,6 @@
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "nsGUIEvent.h"
-#include "nsIWidget.h"
 
 // If software keyboard is needed in password field and uses GTK2 IM module
 // for inputting characters, we need to enable IME in password field too.
@@ -59,10 +58,6 @@ class nsWindow;
 
 class nsGtkIMModule
 {
-protected:
-    typedef mozilla::widget::InputContext InputContext;
-    typedef mozilla::widget::InputContextAction InputContextAction;
-
 public:
     nsrefcnt AddRef()
     {
@@ -96,7 +91,7 @@ public:
 
     // "Enabled" means the users can use all IMEs.
     // I.e., the focus is in the normal editors.
-    bool IsEnabled();
+    PRBool IsEnabled();
 
     // OnFocusWindow is a notification that aWindow is going to be focused.
     void OnFocusWindow(nsWindow* aWindow);
@@ -105,27 +100,25 @@ public:
     // OnDestroyWindow is a notification that aWindow is going to be destroyed.
     void OnDestroyWindow(nsWindow* aWindow);
     // OnFocusChangeInGecko is a notification that an editor gets focus.
-    void OnFocusChangeInGecko(bool aFocus);
+    void OnFocusChangeInGecko(PRBool aFocus);
 
     // OnKeyEvent is called when aWindow gets a native key press event or a
     // native key release event.  If this returns TRUE, the key event was
     // filtered by IME.  Otherwise, this returns FALSE.
     // NOTE: When the keypress event starts composition, this returns TRUE but
     //       this dispatches keydown event before compositionstart event.
-    bool OnKeyEvent(nsWindow* aWindow, GdkEventKey* aEvent,
-                      bool aKeyDownEventWasSent = false);
+    PRBool OnKeyEvent(nsWindow* aWindow, GdkEventKey* aEvent,
+                      PRBool aKeyDownEventWasSent = PR_FALSE);
 
     // IME related nsIWidget methods.
     nsresult ResetInputState(nsWindow* aCaller);
-    void SetInputContext(nsWindow* aCaller,
-                         const InputContext* aContext,
-                         const InputContextAction* aAction);
-    InputContext GetInputContext();
+    nsresult SetInputMode(nsWindow* aCaller, const IMEContext* aContext);
+    nsresult GetInputMode(IMEContext* aContext);
     nsresult CancelIMEComposition(nsWindow* aCaller);
 
     // If a software keyboard has been opened, this returns TRUE.
     // Otherwise, FALSE.
-    static bool IsVirtualKeyboardOpened();
+    static PRBool IsVirtualKeyboardOpened();
 
 protected:
     // Owner of an instance of this class. This should be top level window.
@@ -155,9 +148,9 @@ protected:
     // always "closed", so it closes IME forcedly.
     GtkIMContext       *mDummyContext;
 
-    // IME enabled state and other things defined in InputContext.
+    // IME enabled state and other things defined in IMEContext.
     // Use following helper methods if you don't need the detail of the status.
-    InputContext mInputContext;
+    IMEContext mIMEContext;
 
     // mCompositionStart is the start offset of the composition string in the
     // current content.  When <textarea> or <input> have focus, it means offset
@@ -178,25 +171,25 @@ protected:
     // event.  And it's set to FALSE when we dispatches the composition end
     // event.  Note that mCompositionString can be empty string even if this is
     // TRUE.
-    bool mIsComposing;
+    PRPackedBool mIsComposing;
     // mIsIMFocused is set to TRUE when we call gtk_im_context_focus_in(). And
     // it's set to FALSE when we call gtk_im_context_focus_out().
-    bool mIsIMFocused;
+    PRPackedBool mIsIMFocused;
     // mFilterKeyEvent is used by OnKeyEvent().  If the commit event should
     // be processed as simple key event, this is set to TRUE by the commit
     // handler.
-    bool mFilterKeyEvent;
+    PRPackedBool mFilterKeyEvent;
     // When mIgnoreNativeCompositionEvent is TRUE, all native composition
     // should be ignored except that the compositon should be restarted in
     // another content (nsIContent).  Don't refer this value directly, use
     // ShouldIgnoreNativeCompositionEvent().
-    bool mIgnoreNativeCompositionEvent;
+    PRPackedBool mIgnoreNativeCompositionEvent;
     // mKeyDownEventWasSent is used by OnKeyEvent() and
     // DispatchCompositionStart().  DispatchCompositionStart() dispatches
     // a keydown event if the composition start is caused by a native
     // keypress event.  If this is true, the keydown event has been dispatched.
     // Then, DispatchCompositionStart() doesn't dispatch keydown event.
-    bool mKeyDownEventWasSent;
+    PRPackedBool mKeyDownEventWasSent;
 
     // sLastFocusedModule is a pointer to the last focused instance of this
     // class.  When a instance is destroyed and sLastFocusedModule refers it,
@@ -241,10 +234,10 @@ protected:
     // use IMEs but they can use dead keys.
     // I.e., the focus is in the normal editors or the password editors or
     // the |ime-mode: disabled;| editors.
-    bool IsEditable();
+    PRBool IsEditable();
 
     // If the owner window and IM context have been destroyed, returns TRUE.
-    bool IsDestroyed() { return !mOwnerWindow; }
+    PRBool IsDestroyed() { return !mOwnerWindow; }
 
     // Sets focus to the instance of this class.
     void Focus();
@@ -283,7 +276,7 @@ protected:
     // Called before destroying the context to work around some platform bugs.
     void PrepareToDestroyContext(GtkIMContext *aContext);
 
-    bool ShouldIgnoreNativeCompositionEvent();
+    PRBool ShouldIgnoreNativeCompositionEvent();
 
     /**
      *  WARNING:
@@ -297,16 +290,16 @@ protected:
      */
 
     // Commits the current composition by the aString.
-    bool CommitCompositionBy(const nsAString& aString);
+    PRBool CommitCompositionBy(const nsAString& aString);
 
     // Dispatches a composition start event or a composition end event.
-    bool DispatchCompositionStart();
-    bool DispatchCompositionEnd();
+    PRBool DispatchCompositionStart();
+    PRBool DispatchCompositionEnd();
 
     // Dispatches a text event.  If aCheckAttr is TRUE, dispatches a committed
     // text event.  Otherwise, dispatches a composing text event.
-    bool DispatchTextEvent(const nsAString& aCompositionString,
-                             bool aCheckAttr);
+    PRBool DispatchTextEvent(const nsAString& aCompositionString,
+                             PRBool aCheckAttr);
 
 };
 

@@ -60,8 +60,8 @@ namespace net {
 
 HttpChannelChild::HttpChannelChild()
   : HttpAsyncAborter<HttpChannelChild>(this)
-  , mIsFromCache(false)
-  , mCacheEntryAvailable(false)
+  , mIsFromCache(PR_FALSE)
+  , mCacheEntryAvailable(PR_FALSE)
   , mCacheExpirationTime(nsICache::NO_EXPIRATION_TIME)
   , mSendResumeAt(false)
   , mIPCOpen(false)
@@ -186,7 +186,7 @@ HttpChannelChild::AssociateApplicationCache(const nsCString &groupID,
   if (NS_FAILED(rv))
     return;
 
-  mLoadedFromApplicationCache = true;
+  mLoadedFromApplicationCache = PR_TRUE;
   mApplicationCache->InitAsHandle(groupID, clientID);
 }
 
@@ -195,10 +195,10 @@ class StartRequestEvent : public ChannelEvent
  public:
   StartRequestEvent(HttpChannelChild* child,
                     const nsHttpResponseHead& responseHead,
-                    const bool& useResponseHead,
+                    const PRBool& useResponseHead,
                     const RequestHeaderTuples& requestHeaders,
-                    const bool& isFromCache,
-                    const bool& cacheEntryAvailable,
+                    const PRBool& isFromCache,
+                    const PRBool& cacheEntryAvailable,
                     const PRUint32& cacheExpirationTime,
                     const nsCString& cachedCharset,
                     const nsCString& securityInfoSerialization,
@@ -228,9 +228,9 @@ class StartRequestEvent : public ChannelEvent
   HttpChannelChild* mChild;
   nsHttpResponseHead mResponseHead;
   RequestHeaderTuples mRequestHeaders;
-  bool mUseResponseHead;
-  bool mIsFromCache;
-  bool mCacheEntryAvailable;
+  PRPackedBool mUseResponseHead;
+  PRPackedBool mIsFromCache;
+  PRPackedBool mCacheEntryAvailable;
   PRUint32 mCacheExpirationTime;
   nsCString mCachedCharset;
   nsCString mSecurityInfoSerialization;
@@ -240,10 +240,10 @@ class StartRequestEvent : public ChannelEvent
 
 bool 
 HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
-                                     const bool& useResponseHead,
+                                     const PRBool& useResponseHead,
                                      const RequestHeaderTuples& requestHeaders,
-                                     const bool& isFromCache,
-                                     const bool& cacheEntryAvailable,
+                                     const PRBool& isFromCache,
+                                     const PRBool& cacheEntryAvailable,
                                      const PRUint32& cacheExpirationTime,
                                      const nsCString& cachedCharset,
                                      const nsCString& securityInfoSerialization,
@@ -267,10 +267,10 @@ HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
 
 void 
 HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
-                                 const bool& useResponseHead,
+                                 const PRBool& useResponseHead,
                                  const RequestHeaderTuples& requestHeaders,
-                                 const bool& isFromCache,
-                                 const bool& cacheEntryAvailable,
+                                 const PRBool& isFromCache,
+                                 const PRBool& cacheEntryAvailable,
                                  const PRUint32& cacheExpirationTime,
                                  const nsCString& cachedCharset,
                                  const nsCString& securityInfoSerialization,
@@ -303,7 +303,7 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
 
   // notify "http-on-examine-response" observers
   gHttpHandler->OnExamineResponse(this);
-  mTracingEnabled = false;
+  mTracingEnabled = PR_FALSE;
 
   nsresult rv = mListener->OnStartRequest(this, mListenerContext);
   if (NS_FAILED(rv)) {
@@ -471,7 +471,7 @@ HttpChannelChild::OnStopRequest(const nsresult& statusCode)
   LOG(("HttpChannelChild::OnStopRequest [this=%x status=%u]\n", 
            this, statusCode));
 
-  mIsPending = false;
+  mIsPending = PR_FALSE;
 
   if (!mCanceled && NS_SUCCEEDED(mStatus))
     mStatus = statusCode;
@@ -485,7 +485,7 @@ HttpChannelChild::OnStopRequest(const nsresult& statusCode)
 
     mListener = 0;
     mListenerContext = 0;
-    mCacheEntryAvailable = false;
+    mCacheEntryAvailable = PR_FALSE;
     if (mLoadGroup)
       mLoadGroup->RemoveRequest(this, nsnull, mStatus);
   }
@@ -647,7 +647,7 @@ HttpChannelChild::FailedAsyncOpen(const nsresult& status)
   LOG(("HttpChannelChild::FailedAsyncOpen [this=%p status=%x]\n", this, status));
 
   mStatus = status;
-  mIsPending = false;
+  mIsPending = PR_FALSE;
   // We're already being called from IPDL, therefore already "async"
   HandleAsyncAbort();
 }
@@ -757,10 +757,8 @@ HttpChannelChild::Redirect1Begin(const PRUint32& newChannelId,
   mResponseHead = new nsHttpResponseHead(responseHead);
   SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
 
-  bool rewriteToGET = ShouldRewriteRedirectToGET(mResponseHead->Status(), 
-                                                 mRequestHead.Method());
-  
-  rv = SetupReplacementChannel(uri, newChannel, !rewriteToGET);
+  PRBool preserveMethod = (mResponseHead->Status() == 307);
+  rv = SetupReplacementChannel(uri, newChannel, preserveMethod);
   if (NS_FAILED(rv)) {
     // Veto redirect.  nsHttpChannel decides to cancel or continue.
     OnRedirectVerifyCallback(rv);
@@ -865,8 +863,8 @@ HttpChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
    * channel reflect AsyncOpen'ed state.
    */
 
-  mIsPending = true;
-  mWasOpened = true;
+  mIsPending = PR_TRUE;
+  mWasOpened = PR_TRUE;
   mListener = listener;
   mListenerContext = aContext;
 
@@ -1020,8 +1018,8 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   // notify "http-on-modify-request" observers
   gHttpHandler->OnModifyRequest(this);
 
-  mIsPending = true;
-  mWasOpened = true;
+  mIsPending = PR_TRUE;
+  mWasOpened = PR_TRUE;
   mListener = listener;
   mListenerContext = aContext;
 
@@ -1079,7 +1077,7 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
                 mPriority, mRedirectionLimit, mAllowPipelining,
                 mForceAllowThirdPartyCookie, mSendResumeAt,
                 mStartPos, mEntityID, mChooseApplicationCache, 
-                appCacheClientId, mAllowSpdy);
+                appCacheClientId);
 
   return NS_OK;
 }
@@ -1091,7 +1089,7 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
 NS_IMETHODIMP
 HttpChannelChild::SetRequestHeader(const nsACString& aHeader, 
                                    const nsACString& aValue, 
-                                   bool aMerge)
+                                   PRBool aMerge)
 {
   nsresult rv = HttpBaseChannel::SetRequestHeader(aHeader, aValue, aMerge);
   if (NS_FAILED(rv))
@@ -1185,7 +1183,7 @@ HttpChannelChild::SetCacheTokenCachedCharset(const nsACString &aCharset)
 }
 
 NS_IMETHODIMP
-HttpChannelChild::IsFromCache(bool *value)
+HttpChannelChild::IsFromCache(PRBool *value)
 {
   if (!mIsPending)
     return NS_ERROR_NOT_AVAILABLE;
@@ -1260,34 +1258,34 @@ HttpChannelChild::SetApplicationCache(nsIApplicationCache *aApplicationCache)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpChannelChild::GetLoadedFromApplicationCache(bool *aLoadedFromApplicationCache)
+HttpChannelChild::GetLoadedFromApplicationCache(PRBool *aLoadedFromApplicationCache)
 {
   *aLoadedFromApplicationCache = mLoadedFromApplicationCache;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpChannelChild::GetInheritApplicationCache(bool *aInherit)
+HttpChannelChild::GetInheritApplicationCache(PRBool *aInherit)
 {
   *aInherit = mInheritApplicationCache;
   return NS_OK;
 }
 NS_IMETHODIMP
-HttpChannelChild::SetInheritApplicationCache(bool aInherit)
+HttpChannelChild::SetInheritApplicationCache(PRBool aInherit)
 {
   mInheritApplicationCache = aInherit;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpChannelChild::GetChooseApplicationCache(bool *aChoose)
+HttpChannelChild::GetChooseApplicationCache(PRBool *aChoose)
 {
   *aChoose = mChooseApplicationCache;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpChannelChild::SetChooseApplicationCache(bool aChoose)
+HttpChannelChild::SetChooseApplicationCache(PRBool aChoose)
 {
   mChooseApplicationCache = aChoose;
   return NS_OK;

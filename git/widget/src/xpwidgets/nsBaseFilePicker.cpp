@@ -44,6 +44,8 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIBaseWindow.h"
+#include "nsIContentViewer.h"
+#include "nsIDocumentViewer.h"
 #include "nsIWidget.h"
 
 #include "nsIStringBundle.h"
@@ -63,7 +65,7 @@ using namespace mozilla::widget;
 #define FILEPICKER_FILTERS "chrome://global/content/filepicker.properties"
 
 nsBaseFilePicker::nsBaseFilePicker() :
-  mAddToRecentDocs(true)
+  mAddToRecentDocs(PR_TRUE)
 {
 
 }
@@ -222,14 +224,14 @@ NS_IMETHODIMP nsBaseFilePicker::GetDisplayDirectory(nsILocalFile **aDirectory)
 #endif
 
 NS_IMETHODIMP
-nsBaseFilePicker::GetAddToRecentDocs(bool *aFlag)
+nsBaseFilePicker::GetAddToRecentDocs(PRBool *aFlag)
 {
   *aFlag = mAddToRecentDocs;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsBaseFilePicker::SetAddToRecentDocs(bool aFlag)
+nsBaseFilePicker::SetAddToRecentDocs(PRBool aFlag)
 {
   mAddToRecentDocs = aFlag;
   return NS_OK;

@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsHTMLTableElement.h"
 #include "nsIDOMHTMLTableCaptionElem.h"
 #include "nsIDOMHTMLTableSectionElem.h"
@@ -53,63 +50,47 @@
 #include "nsStyleContext.h"
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
+/* for collections */
 #include "nsIDOMElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIHTMLCollection.h"
+/* end for collections */
 #include "nsHTMLStyleSheet.h"
-#include "dombindings.h"
-
-using namespace mozilla;
 
 /* ------------------------------ TableRowsCollection -------------------------------- */
 /**
  * This class provides a late-bound collection of rows in a table.
  * mParent is NOT ref-counted to avoid circular references
  */
-class TableRowsCollection : public nsIHTMLCollection,
-                            public nsWrapperCache
+class TableRowsCollection : public nsIHTMLCollection 
 {
 public:
   TableRowsCollection(nsHTMLTableElement *aParent);
   virtual ~TableRowsCollection();
 
+  nsresult Init();
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsINode* GetParentObject()
-  {
-    return mParent;
-  }
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
+  virtual nsISupports* GetNamedItem(const nsAString& aName,
+                                    nsWrapperCache **aCache);
 
   NS_IMETHOD    ParentDestroyed();
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(TableRowsCollection)
-
-  // nsWrapperCache
-  virtual JSObject* WrapObject(JSContext *cx, XPCWrappedNativeScope *scope,
-                               bool *triedToWrap)
-  {
-    return mozilla::dom::binding::HTMLCollection::create(cx, scope, this,
-                                                         triedToWrap);
-  }
+  NS_DECL_CYCLE_COLLECTION_CLASS(TableRowsCollection)
 
 protected:
   // Those rows that are not in table sections
-  nsHTMLTableElement* mParent;
   nsRefPtr<nsContentList> mOrphanRows;  
+  nsHTMLTableElement * mParent;
 };
 
 
 TableRowsCollection::TableRowsCollection(nsHTMLTableElement *aParent)
   : mParent(aParent)
-  , mOrphanRows(new nsContentList(mParent,
-                                  kNameSpaceID_XHTML,
-                                  nsGkAtoms::tr,
-                                  nsGkAtoms::tr,
-                                  false))
 {
-  // Mark ourselves as a proxy
-  SetIsProxy();
 }
 
 TableRowsCollection::~TableRowsCollection()
@@ -121,28 +102,32 @@ TableRowsCollection::~TableRowsCollection()
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(TableRowsCollection)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(TableRowsCollection)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_UNLINK_0(TableRowsCollection)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(TableRowsCollection)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mOrphanRows,
                                                        nsIDOMNodeList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(TableRowsCollection)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(TableRowsCollection)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(TableRowsCollection)
 
 NS_INTERFACE_TABLE_HEAD(TableRowsCollection)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_TABLE2(TableRowsCollection, nsIHTMLCollection,
                       nsIDOMHTMLCollection)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(TableRowsCollection)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLCollection)
 NS_INTERFACE_MAP_END
+
+nsresult
+TableRowsCollection::Init()
+{
+  mOrphanRows = new nsContentList(mParent,
+                                  mParent->NodeInfo()->NamespaceID(),
+                                  nsGkAtoms::tr,
+                                  nsGkAtoms::tr,
+                                  PR_FALSE);
+  return NS_OK;
+}
 
 // Macro that can be used to avoid copy/pasting code to iterate over the
 // rowgroups.  _code should be the code to execute for each rowgroup.  The
@@ -383,23 +368,27 @@ NS_IMPL_STRING_ATTR(nsHTMLTableElement, Summary, summary)
 NS_IMPL_STRING_ATTR(nsHTMLTableElement, Width, width)
 
 
-already_AddRefed<nsIDOMHTMLTableCaptionElement>
-nsHTMLTableElement::GetCaption()
-{
-  for (nsIContent* cur = nsINode::GetFirstChild(); cur; cur = cur->GetNextSibling()) {
-    nsCOMPtr<nsIDOMHTMLTableCaptionElement> caption = do_QueryInterface(cur);
-    if (caption) {
-      return caption.forget();
-    }
-  }
-  return nsnull;
-}
-
 NS_IMETHODIMP
 nsHTMLTableElement::GetCaption(nsIDOMHTMLTableCaptionElement** aValue)
 {
-  nsCOMPtr<nsIDOMHTMLTableCaptionElement> caption = GetCaption();
-  caption.forget(aValue);
+  *aValue = nsnull;
+  nsCOMPtr<nsIDOMNode> child;
+  GetFirstChild(getter_AddRefs(child));
+
+  while (child) {
+    nsCOMPtr<nsIDOMHTMLTableCaptionElement> caption(do_QueryInterface(child));
+
+    if (caption) {
+      *aValue = caption;
+      NS_ADDREF(*aValue);
+
+      break;
+    }
+
+    nsIDOMNode *temp = child.get();
+    temp->GetNextSibling(getter_AddRefs(child));
+  }
+
   return NS_OK;
 }
 
@@ -421,14 +410,23 @@ nsHTMLTableElement::SetCaption(nsIDOMHTMLTableCaptionElement* aValue)
 already_AddRefed<nsIDOMHTMLTableSectionElement>
 nsHTMLTableElement::GetSection(nsIAtom *aTag)
 {
-  for (nsIContent* child = nsINode::GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    nsCOMPtr<nsIDOMHTMLTableSectionElement> section = do_QueryInterface(child);
+  PRUint32 childCount = GetChildCount();
+
+  nsCOMPtr<nsIDOMHTMLTableSectionElement> section;
+
+  for (PRUint32 i = 0; i < childCount; ++i) {
+    nsIContent *child = GetChildAt(i);
+
+    section = do_QueryInterface(child);
+
     if (section && child->NodeInfo()->Equals(aTag)) {
-      return section.forget();
+      nsIDOMHTMLTableSectionElement *result = section;
+      NS_ADDREF(result);
+
+      return result;
     }
   }
+
   return nsnull;
 }
 
@@ -502,7 +500,15 @@ NS_IMETHODIMP
 nsHTMLTableElement::GetRows(nsIDOMHTMLCollection** aValue)
 {
   if (!mRows) {
+    // XXX why was this here NS_ADDREF(nsGkAtoms::tr);
     mRows = new TableRowsCollection(this);
+    NS_ENSURE_TRUE(mRows, NS_ERROR_OUT_OF_MEMORY);
+
+    nsresult rv = mRows->Init();
+    if (NS_FAILED(rv)) {
+      mRows = nsnull;
+      return rv;
+    }
   }
 
   *aValue = mRows;
@@ -524,10 +530,10 @@ nsHTMLTableElement::TBodies()
   if (!mTBodies) {
     // Not using NS_GetContentList because this should not be cached
     mTBodies = new nsContentList(this,
-                                 kNameSpaceID_XHTML,
+                                 mNodeInfo->NamespaceID(),
                                  nsGkAtoms::tbody,
                                  nsGkAtoms::tbody,
-                                 false);
+                                 PR_FALSE);
   }
 
   return mTBodies;
@@ -537,34 +543,41 @@ NS_IMETHODIMP
 nsHTMLTableElement::CreateTHead(nsIDOMHTMLElement** aValue)
 {
   *aValue = nsnull;
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIDOMHTMLTableSectionElement> head;
 
-  nsRefPtr<nsIDOMHTMLTableSectionElement> head = GetTHead();
-  if (head) {
-    // return the existing thead
-    head.forget(aValue);
-    return NS_OK;
+  GetTHead(getter_AddRefs(head));
+
+  if (head) { // return the existing thead
+    CallQueryInterface(head, aValue);
+
+    NS_ASSERTION(*aValue, "head must be a DOMHTMLElement");
+  }
+  else
+  { // create a new head rowgroup
+    nsCOMPtr<nsINodeInfo> nodeInfo;
+
+    nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::thead,
+                                getter_AddRefs(nodeInfo));
+
+    nsCOMPtr<nsIContent> newHead = NS_NewHTMLTableSectionElement(nodeInfo.forget());
+
+    if (newHead) {
+      nsCOMPtr<nsIDOMNode> child;
+
+      rv = GetFirstChild(getter_AddRefs(child));
+
+      if (NS_FAILED(rv)) {
+        return rv;
+      }
+
+      CallQueryInterface(newHead, aValue);
+
+      nsCOMPtr<nsIDOMNode> resultChild;
+      rv = InsertBefore(*aValue, child, getter_AddRefs(resultChild));
+    }
   }
 
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-  nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::thead,
-                              getter_AddRefs(nodeInfo));
-
-  nsCOMPtr<nsIContent> newHead =
-    NS_NewHTMLTableSectionElement(nodeInfo.forget());
-
-  if (!newHead) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIDOMNode> child;
-  nsresult rv = GetFirstChild(getter_AddRefs(child));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIDOMHTMLElement> newHeadAsDOMElement = do_QueryInterface(newHead);
-
-  nsCOMPtr<nsIDOMNode> resultChild;
-  InsertBefore(newHeadAsDOMElement, child, getter_AddRefs(resultChild));
-  newHeadAsDOMElement.forget(aValue);
   return NS_OK;
 }
 
@@ -587,26 +600,30 @@ NS_IMETHODIMP
 nsHTMLTableElement::CreateTFoot(nsIDOMHTMLElement** aValue)
 {
   *aValue = nsnull;
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIDOMHTMLTableSectionElement> foot;
 
-  nsRefPtr<nsIDOMHTMLTableSectionElement> foot = GetTFoot();
-  if (foot) {
-    // return the existing tfoot
-    foot.forget(aValue);
-    return NS_OK;
+  GetTFoot(getter_AddRefs(foot));
+
+  if (foot) { // return the existing tfoot
+    CallQueryInterface(foot, aValue);
+
+    NS_ASSERTION(*aValue, "foot must be a DOMHTMLElement");
   }
-  // create a new foot rowgroup
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-  nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tfoot,
-                              getter_AddRefs(nodeInfo));
+  else
+  { // create a new foot rowgroup
+    nsCOMPtr<nsINodeInfo> nodeInfo;
+    nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tfoot,
+                                getter_AddRefs(nodeInfo));
 
-  nsCOMPtr<nsIContent> newFoot = NS_NewHTMLTableSectionElement(nodeInfo.forget());
+    nsCOMPtr<nsIContent> newFoot = NS_NewHTMLTableSectionElement(nodeInfo.forget());
 
-  if (!newFoot) {
-    return NS_OK;
+    if (newFoot) {
+      rv = AppendChildTo(newFoot, PR_TRUE);
+      CallQueryInterface(newFoot, aValue);
+    }
   }
-  AppendChildTo(newFoot, true);
-  nsCOMPtr<nsIDOMHTMLElement> newFootAsDOMElement = do_QueryInterface(newFoot);
-  newFootAsDOMElement.forget(aValue);
+
   return NS_OK;
 }
 
@@ -629,28 +646,30 @@ NS_IMETHODIMP
 nsHTMLTableElement::CreateCaption(nsIDOMHTMLElement** aValue)
 {
   *aValue = nsnull;
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIDOMHTMLTableCaptionElement> caption;
 
-  if (nsRefPtr<nsIDOMHTMLTableCaptionElement> caption = GetCaption()) {
-    // return the existing caption
-    caption.forget(aValue);
-    return NS_OK;
+  GetCaption(getter_AddRefs(caption));
+
+  if (caption) { // return the existing thead
+    CallQueryInterface(caption, aValue);
+
+    NS_ASSERTION(*aValue, "caption must be a DOMHTMLElement");
+  }
+  else
+  { // create a new head rowgroup
+    nsCOMPtr<nsINodeInfo> nodeInfo;
+    nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::caption,
+                                getter_AddRefs(nodeInfo));
+
+    nsCOMPtr<nsIContent> newCaption = NS_NewHTMLTableCaptionElement(nodeInfo.forget());
+
+    if (newCaption) {
+      rv = AppendChildTo(newCaption, PR_TRUE);
+      CallQueryInterface(newCaption, aValue);
+    }
   }
 
-  // create a new head rowgroup
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-  nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::caption,
-                              getter_AddRefs(nodeInfo));
-
-  nsCOMPtr<nsIContent> newCaption = NS_NewHTMLTableCaptionElement(nodeInfo.forget());
-
-  if (!newCaption) {
-    return NS_OK;
-  }
-
-  AppendChildTo(newCaption, true);
-  nsCOMPtr<nsIDOMHTMLElement> captionAsDOMElement =
-    do_QueryInterface(newCaption);
-  captionAsDOMElement.forget(aValue);
   return NS_OK;
 }
 
@@ -685,6 +704,8 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
+  nsresult rv;
+
   nsCOMPtr<nsIDOMHTMLCollection> rows;
   GetRows(getter_AddRefs(rows));
 
@@ -698,7 +719,6 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
   // use local variable refIndex so we can remember original aIndex
   PRUint32 refIndex = (PRUint32)aIndex;
 
-  nsresult rv;
   if (rowCount > 0) {
     if (refIndex == rowCount || aIndex == -1) {
       // we set refIndex to the last row so we can get the last row's
@@ -740,17 +760,19 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
         CallQueryInterface(retChild, aValue);
       }
     }
-  } else {
-    // the row count was 0, so 
+  }
+  else
+  { // the row count was 0, so 
     // find the first row group and insert there as first child
     nsCOMPtr<nsIDOMNode> rowGroup;
 
-    for (nsIContent* child = nsINode::GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    PRInt32 namespaceID = mNodeInfo->NamespaceID();
+    PRUint32 childCount = GetChildCount();
+    for (PRUint32 i = 0; i < childCount; ++i) {
+      nsIContent* child = GetChildAt(i);
       nsINodeInfo *childInfo = child->NodeInfo();
       nsIAtom *localName = childInfo->NameAtom();
-      if (childInfo->NamespaceID() == kNameSpaceID_XHTML &&
+      if (childInfo->NamespaceID() == namespaceID &&
           (localName == nsGkAtoms::thead ||
            localName == nsGkAtoms::tbody ||
            localName == nsGkAtoms::tfoot)) {
@@ -769,7 +791,7 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
         NS_NewHTMLTableSectionElement(nodeInfo.forget());
 
       if (newRowGroup) {
-        rv = AppendChildTo(newRowGroup, true);
+        rv = AppendChildTo(newRowGroup, PR_TRUE);
 
         rowGroup = do_QueryInterface(newRowGroup);
       }
@@ -880,7 +902,7 @@ static const nsAttrValue::EnumTable kLayoutTable[] = {
 };
 
 
-bool
+PRBool
 nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
@@ -908,7 +930,7 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
                  (type == nsAttrValue::ePercent &&
                   aResult.GetPercentValue() == 0.0f));
       }
-      return false;
+      return PR_FALSE;
     }
     
     if (aAttribute == nsGkAtoms::align) {
@@ -919,13 +941,13 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseColor(aValue);
     }
     if (aAttribute == nsGkAtoms::frame) {
-      return aResult.ParseEnumValue(aValue, kFrameTable, false);
+      return aResult.ParseEnumValue(aValue, kFrameTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::layout) {
-      return aResult.ParseEnumValue(aValue, kLayoutTable, false);
+      return aResult.ParseEnumValue(aValue, kLayoutTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::rules) {
-      return aResult.ParseEnumValue(aValue, kRulesTable, false);
+      return aResult.ParseEnumValue(aValue, kRulesTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::hspace ||
         aAttribute == nsGkAtoms::vspace) {
@@ -995,6 +1017,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     }
   }
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) {
+    const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
     // align; Check for enumerated type (it may be another type if
     // illegal)
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
@@ -1107,7 +1130,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTableElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry attributes[] = {
@@ -1133,7 +1156,7 @@ nsHTMLTableElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sBackgroundAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 nsMapRuleToAttributesFunc
@@ -1237,7 +1260,7 @@ nsHTMLTableElement::BuildInheritedAttributes()
 nsresult
 nsHTMLTableElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers)
+                              PRBool aCompileEventHandlers)
 {
   ReleaseInheritedAttributes();
   return nsGenericHTMLElement::BindToTree(aDocument, aParent,
@@ -1246,7 +1269,7 @@ nsHTMLTableElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsHTMLTableElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsHTMLTableElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   ReleaseInheritedAttributes();
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -1255,7 +1278,7 @@ nsHTMLTableElement::UnbindFromTree(bool aDeep, bool aNullParent)
 nsresult
 nsHTMLTableElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAString* aValue,
-                                  bool aNotify)
+                                  PRBool aNotify)
 {
   if (aName == nsGkAtoms::cellpadding && aNameSpaceID == kNameSpaceID_None) {
     ReleaseInheritedAttributes();
@@ -1267,7 +1290,7 @@ nsHTMLTableElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 nsresult
 nsHTMLTableElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue,
-                                 bool aNotify)
+                                 PRBool aNotify)
 {
   if (aName == nsGkAtoms::cellpadding && aNameSpaceID == kNameSpaceID_None) {
     BuildInheritedAttributes();

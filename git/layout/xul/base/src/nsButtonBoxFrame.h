@@ -48,7 +48,7 @@ public:
   friend nsIFrame* NS_NewButtonBoxFrame(nsIPresShell* aPresShell);
 
   nsButtonBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
-    :nsBoxFrame(aPresShell, aContext, false) {
+    :nsBoxFrame(aPresShell, aContext, PR_FALSE) {
     UpdateMouseThrough();
   }
 
@@ -61,7 +61,7 @@ public:
                                       nsEventStatus* aEventStatus);
 
   virtual void MouseClicked (nsPresContext* aPresContext, nsGUIEvent* aEvent)
-  { DoMouseClick(aEvent, false); }
+  { DoMouseClick(aEvent, PR_FALSE); }
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const {
@@ -71,9 +71,9 @@ public:
 
   /**
    * Our implementation of MouseClicked. 
-   * @param aTrustEvent if true and aEvent as null, then assume the event was trusted
+   * @param aTrustEvent if PR_TRUE and aEvent as null, then assume the event was trusted
    */
-  void DoMouseClick(nsGUIEvent* aEvent, bool aTrustEvent);
+  void DoMouseClick(nsGUIEvent* aEvent, PRBool aTrustEvent);
   void UpdateMouseThrough() { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
 }; // class nsButtonBoxFrame
 

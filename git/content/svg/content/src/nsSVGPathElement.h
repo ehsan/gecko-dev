@@ -75,11 +75,11 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGPathElementBase::)
 
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   // nsSVGPathGeometryElement methods:
-  virtual bool AttributeDefinesGeometry(const nsIAtom *aName);
-  virtual bool IsMarkable();
+  virtual PRBool AttributeDefinesGeometry(const nsIAtom *aName);
+  virtual PRBool IsMarkable();
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);
 
@@ -98,17 +98,7 @@ public:
     return nsGkAtoms::d;
   }
 
-  enum PathLengthScaleForType {
-    eForTextPath,
-    eForStroking
-  };
-
-  /**
-   * Gets the ratio of the actual path length to the content author's estimated
-   * length (as provided by the <path> element's 'pathLength' attribute). This
-   * is used to scale stroke dashing, and to scale offsets along a textPath.
-   */
-  gfxFloat GetPathLengthScale(PathLengthScaleForType aFor);
+  gfxFloat GetScale();
 
 protected:
 

@@ -75,7 +75,7 @@ nsButtonFrameRenderer::GetFrame()
 }
 
 void
-nsButtonFrameRenderer::SetDisabled(bool aDisabled, bool notify)
+nsButtonFrameRenderer::SetDisabled(PRBool aDisabled, PRBool notify)
 {
   if (aDisabled)
     mFrame->GetContent()->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, EmptyString(),
@@ -84,7 +84,7 @@ nsButtonFrameRenderer::SetDisabled(bool aDisabled, bool notify)
     mFrame->GetContent()->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled, notify);
 }
 
-bool
+PRBool
 nsButtonFrameRenderer::isDisabled() 
 {
   return mFrame->GetContent()->AsElement()->
@@ -114,7 +114,7 @@ private:
 
 nsRect
 nsDisplayButtonBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
-  return mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
+  return mFrame->GetVisualOverflowRect() + ToReferenceFrame();
 }
 
 void

@@ -108,10 +108,10 @@ CommonAnimationManager::HasStateDependentStyle(StateRuleProcessorData* aData)
   return nsRestyleHint(0);
 }
 
-bool
+PRBool
 CommonAnimationManager::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 {
-  return false;
+  return PR_FALSE;
 }
 
 nsRestyleHint
@@ -120,10 +120,10 @@ CommonAnimationManager::HasAttributeDependentStyle(AttributeRuleProcessorData* a
   return nsRestyleHint(0);
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 CommonAnimationManager::MediumFeaturesChanged(nsPresContext* aPresContext)
 {
-  return false;
+  return PR_FALSE;
 }
 
 /* virtual */ PRInt64
@@ -132,13 +132,13 @@ CommonAnimationManager::SizeOf() const
   return sizeof(*this);
 }
 
-/* static */ bool
+/* static */ PRBool
 CommonAnimationManager::ExtractComputedValueForTransition(
                           nsCSSProperty aProperty,
                           nsStyleContext* aStyleContext,
                           nsStyleAnimation::Value& aComputedValue)
 {
-  bool result =
+  PRBool result =
     nsStyleAnimation::ExtractComputedValue(aProperty, aStyleContext,
                                            aComputedValue);
   if (aProperty == eCSSProperty_visibility) {
@@ -172,7 +172,7 @@ AnimValuesStyleRule::MapRuleInfoInto(nsRuleData* aRuleData)
       nsCSSValue *prop = aRuleData->ValueFor(cv.mProperty);
       if (prop->GetUnit() == eCSSUnit_Null) {
 #ifdef DEBUG
-        bool ok =
+        PRBool ok =
 #endif
           nsStyleAnimation::UncomputeValue(cv.mProperty,
                                            aRuleData->mPresContext,
@@ -226,7 +226,7 @@ ComputedTimingFunction::GetValue(double aPortion) const
       // really meant it.
       return 1.0 - StepEnd(mSteps, 1.0 - aPortion);
     default:
-      NS_ABORT_IF_FALSE(false, "bad type");
+      NS_ABORT_IF_FALSE(PR_FALSE, "bad type");
       // fall through
     case nsTimingFunction::StepEnd:
       return StepEnd(mSteps, aPortion);

@@ -66,9 +66,9 @@ public:
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers);
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true);
+                              PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
 
   // nsIStyleSheetLinkingElement
   virtual void OverrideBaseURI(nsIURI* aNewBaseURI);
@@ -80,13 +80,13 @@ public:
 protected:
   nsCOMPtr<nsIURI> mOverriddenBaseURI;
 
-  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline);
+  already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
-                         bool* aIsAlternate);
+                         PRBool* aIsAlternate);
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
-                                              bool aCloneText) const;
+                                              PRBool aCloneText) const;
 };
 
 // nsISupports implementation
@@ -119,7 +119,7 @@ nsXMLStylesheetPI::~nsXMLStylesheetPI()
 nsresult
 nsXMLStylesheetPI::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers)
+                              PRBool aCompileEventHandlers)
 {
   nsresult rv = nsXMLProcessingInstruction::BindToTree(aDocument, aParent,
                                                        aBindingParent,
@@ -133,7 +133,7 @@ nsXMLStylesheetPI::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsXMLStylesheetPI::UnbindFromTree(bool aDeep, bool aNullParent)
+nsXMLStylesheetPI::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
 
@@ -148,7 +148,7 @@ nsXMLStylesheetPI::SetNodeValue(const nsAString& aNodeValue)
 {
   nsresult rv = nsGenericDOMDataNode::SetNodeValue(aNodeValue);
   if (NS_SUCCEEDED(rv)) {
-    UpdateStyleSheetInternal(nsnull, true);
+    UpdateStyleSheetInternal(nsnull, PR_TRUE);
   }
   return rv;
 }
@@ -168,9 +168,9 @@ nsXMLStylesheetPI::OverrideBaseURI(nsIURI* aNewBaseURI)
 }
 
 already_AddRefed<nsIURI>
-nsXMLStylesheetPI::GetStyleSheetURL(bool* aIsInline)
+nsXMLStylesheetPI::GetStyleSheetURL(PRBool* aIsInline)
 {
-  *aIsInline = false;
+  *aIsInline = PR_FALSE;
 
   nsAutoString href;
   if (!GetAttrValue(nsGkAtoms::href, href)) {
@@ -179,11 +179,15 @@ nsXMLStylesheetPI::GetStyleSheetURL(bool* aIsInline)
 
   nsIURI *baseURL;
   nsCAutoString charset;
-  nsIDocument *document = OwnerDoc();
-  baseURL = mOverriddenBaseURI ?
-            mOverriddenBaseURI.get() :
-            document->GetDocBaseURI();
-  charset = document->GetDocumentCharacterSet();
+  nsIDocument *document = GetOwnerDoc();
+  if (document) {
+    baseURL = mOverriddenBaseURI ?
+              mOverriddenBaseURI.get() :
+              document->GetDocBaseURI();
+    charset = document->GetDocumentCharacterSet();
+  } else {
+    baseURL = mOverriddenBaseURI;
+  }
 
   nsCOMPtr<nsIURI> aURI;
   NS_NewURI(getter_AddRefs(aURI), href, charset.get(), baseURL);
@@ -194,12 +198,12 @@ void
 nsXMLStylesheetPI::GetStyleSheetInfo(nsAString& aTitle,
                                      nsAString& aType,
                                      nsAString& aMedia,
-                                     bool* aIsAlternate)
+                                     PRBool* aIsAlternate)
 {
   aTitle.Truncate();
   aType.Truncate();
   aMedia.Truncate();
-  *aIsAlternate = false;
+  *aIsAlternate = PR_FALSE;
 
   // xml-stylesheet PI is special only in prolog
   if (!nsContentUtils::InProlog(this)) {
@@ -220,7 +224,7 @@ nsXMLStylesheetPI::GetStyleSheetInfo(nsAString& aTitle,
       return;
     }
 
-    *aIsAlternate = true;
+    *aIsAlternate = PR_TRUE;
   }
 
   nsParserUtils::GetQuotedAttributeValue(data, nsGkAtoms::media, aMedia);
@@ -243,7 +247,7 @@ nsXMLStylesheetPI::GetStyleSheetInfo(nsAString& aTitle,
 }
 
 nsGenericDOMDataNode*
-nsXMLStylesheetPI::CloneDataNode(nsINodeInfo *aNodeInfo, bool aCloneText) const
+nsXMLStylesheetPI::CloneDataNode(nsINodeInfo *aNodeInfo, PRBool aCloneText) const
 {
   nsAutoString data;
   nsGenericDOMDataNode::GetData(data);

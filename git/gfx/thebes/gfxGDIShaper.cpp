@@ -49,7 +49,7 @@
  *
  **********************************************************************/
 
-bool
+PRBool
 gfxGDIShaper::InitTextRun(gfxContext *aContext,
                           gfxTextRun *aTextRun,
                           const PRUnichar *aString,
@@ -58,29 +58,28 @@ gfxGDIShaper::InitTextRun(gfxContext *aContext,
                           PRInt32 aRunScript)
 {
     DCFromContext dc(aContext);
-    AutoSelectFont selectFont(dc, static_cast<gfxGDIFont*>(mFont)->GetHFONT());
 
     nsAutoTArray<WORD,500> glyphArray;
     if (!glyphArray.SetLength(aRunLength)) {
-        return false;
+        return PR_FALSE;
     }
     WORD *glyphs = glyphArray.Elements();
 
     DWORD ret = ::GetGlyphIndicesW(dc, aString + aRunStart, aRunLength,
                                    glyphs, GGI_MARK_NONEXISTING_GLYPHS);
     if (ret == GDI_ERROR) {
-        return false;
+        return PR_FALSE;
     }
 
     for (int k = 0; k < aRunLength; k++) {
         if (glyphs[k] == 0xFFFF)
-            return false;
+            return PR_FALSE;
     }
  
     SIZE size;
     nsAutoTArray<int,500> partialWidthArray;
     if (!partialWidthArray.SetLength(aRunLength)) {
-        return false;
+        return PR_FALSE;
     }
 
     BOOL success = ::GetTextExtentExPointI(dc,
@@ -91,7 +90,7 @@ gfxGDIShaper::InitTextRun(gfxContext *aContext,
                                            partialWidthArray.Elements(),
                                            &size);
     if (!success) {
-        return false;
+        return PR_FALSE;
     }
 
     gfxTextRun::CompressedGlyph g;
@@ -106,7 +105,7 @@ gfxGDIShaper::InitTextRun(gfxContext *aContext,
         WCHAR glyph = glyphs[i];
         NS_ASSERTION(!gfxFontGroup::IsInvalidChar(aTextRun->GetChar(offset)),
                      "Invalid character detected!");
-        bool atClusterStart = aTextRun->IsClusterStart(offset);
+        PRBool atClusterStart = aTextRun->IsClusterStart(offset);
         if (advanceAppUnits >= 0 &&
             gfxTextRun::CompressedGlyph::IsSimpleAdvance(advanceAppUnits) &&
             gfxTextRun::CompressedGlyph::IsSimpleGlyphID(glyph) &&
@@ -121,10 +120,10 @@ gfxGDIShaper::InitTextRun(gfxContext *aContext,
             details.mXOffset = 0;
             details.mYOffset = 0;
             aTextRun->SetGlyphs(offset,
-                                g.SetComplex(atClusterStart, true, 1),
+                                g.SetComplex(atClusterStart, PR_TRUE, 1),
                                 &details);
         }
     }
 
-    return true;
+    return PR_TRUE;
 }

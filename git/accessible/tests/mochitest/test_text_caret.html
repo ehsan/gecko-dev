@@ -34,11 +34,9 @@
     /**
      * Invokers.
      */
-    function setCaretOffsetInvoker(aID, aOffset, aFocusableContainerID)
+    function setCaretOffsetInvoker(aID, aOffset)
     {
       this.target = getAccessible(aID, [nsIAccessibleText]);
-      this.focus = aFocusableContainerID ?
-        getAccessible(aFocusableContainerID) : this.target;
 
       this.invoke = function setCaretOffsetInvoker_invoke()
       {
@@ -47,23 +45,13 @@
 
       this.getID = function setCaretOffsetInvoker_getID()
       {
-        return "Set caretOffset on " + prettyName(aID) + " at " + aOffset;
+        return "nsIAccessibleText::caretOffset test";
       }
 
       this.eventSeq = [
-        new caretMovedChecker(this.target, aOffset),
-        new asyncInvokerChecker(EVENT_FOCUS, this.focus)
+        new invokerChecker(EVENT_FOCUS, this.target),
+        new caretMovedChecker(this.target, aOffset)
       ];
-    }
-
-    /**
-     * Turn on/off the caret browsing mode.
-     */
-    function turnCaretBrowsing(aIsOn)
-    {
-      var prefs = Components.classes["@mozilla.org/preferences-service;1"].
-        getService(Components.interfaces.nsIPrefBranch);
-      prefs.setBoolPref("accessibility.browsewithcaret", aIsOn);
     }
 
     /**
@@ -71,23 +59,15 @@
      */
     var gQueue = null;
 
-    //gA11yEventDumpID = "eventdump"; // debug stuff
-    //gA11yEventDumpToConsole = true;
+    // gA11yEventDumpID = "eventdump"; // debug stuff
 
     function doTests()
     {
-      turnCaretBrowsing(true);
-
       // test caret move events and caret offsets
       gQueue = new eventQueue();
 
       gQueue.push(new setCaretOffsetInvoker("textbox", 1));
       gQueue.push(new setCaretOffsetInvoker("link", 1));
-      gQueue.push(new setCaretOffsetInvoker("heading", 1, document));
-      gQueue.onFinish = function()
-      {
-        turnCaretBrowsing(false);
-      }
 
       gQueue.invoke(); // Will call SimpleTest.finish();
     }
@@ -104,11 +84,6 @@
      title="HyperText accessible should get focus when the caret is positioned inside of it, text is changed or copied into clipboard by ATs">
     Mozilla Bug 524115
   </a>
-  <a target="_blank"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=546068"
-     title="Position is not being updated when atk_text_set_caret_offset is used">
-    Mozilla Bug 546068
-  </a>
   <p id="display"></p>
   <div id="content" style="display: none"></div>
   <pre id="test">
@@ -116,7 +91,6 @@
 
   <input id="textbox" value="hello"/>
   <a id="link" href="about:">about mozilla</a>
-  <h5 id="heading">heading</h5>
 
   <div id="eventdump"></div>
 </body>

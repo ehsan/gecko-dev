@@ -90,34 +90,28 @@ public:
     nsresult Init();
     nsresult AddStandardRequestHeaders(nsHttpHeaderArray *,
                                        PRUint8 capabilities,
-                                       bool useProxy);
-    bool     IsAcceptableEncoding(const char *encoding);
+                                       PRBool useProxy);
+    PRBool   IsAcceptableEncoding(const char *encoding);
 
     const nsAFlatCString &UserAgent();
 
     nsHttpVersion  HttpVersion()             { return mHttpVersion; }
     nsHttpVersion  ProxyHttpVersion()        { return mProxyHttpVersion; }
     PRUint8        ReferrerLevel()           { return mReferrerLevel; }
-    bool           SendSecureXSiteReferrer() { return mSendSecureXSiteReferrer; }
+    PRBool         SendSecureXSiteReferrer() { return mSendSecureXSiteReferrer; }
     PRUint8        RedirectionLimit()        { return mRedirectionLimit; }
     PRUint16       IdleTimeout()             { return mIdleTimeout; }
-    PRUint16       SpdyTimeout()             { return mSpdyTimeout; }
     PRUint16       MaxRequestAttempts()      { return mMaxRequestAttempts; }
     const char    *DefaultSocketType()       { return mDefaultSocketType.get(); /* ok to return null */ }
     nsIIDNService *IDNConverter()            { return mIDNConverter; }
     PRUint32       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     PRUint8        GetQoSBits()              { return mQoSBits; }
     PRUint16       GetIdleSynTimeout()       { return mIdleSynTimeout; }
-    bool           FastFallbackToIPv4()      { return mFastFallbackToIPv4; }
-    PRUint32       MaxSocketCount();
+    PRBool         FastFallbackToIPv4()      { return mFastFallbackToIPv4; }
 
-    bool           IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
+    PRBool         IsPersistentHttpsCachingEnabled() { return mEnablePersistentHttpsCaching; }
 
-    bool           IsSpdyEnabled() { return mEnableSpdy; }
-    bool           CoalesceSpdy() { return mCoalesceSpdy; }
-    bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
-
-    bool           PromptTempRedirect()      { return mPromptTempRedirect; }
+    PRBool         PromptTempRedirect()      { return mPromptTempRedirect; }
 
     nsHttpAuthCache     *AuthCache() { return &mAuthCache; }
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
@@ -177,7 +171,7 @@ public:
     }
 
     // for anything that wants to know if we're in private browsing mode.
-    bool InPrivateBrowsingMode();
+    PRBool InPrivateBrowsingMode();
 
     //
     // The HTTP handler caches pointers to specific XPCOM services, and
@@ -266,10 +260,9 @@ private:
     PRUint8  mProxyCapabilities;
     PRUint8  mReferrerLevel;
 
-    bool mFastFallbackToIPv4;
+    PRPackedBool mFastFallbackToIPv4;
 
     PRUint16 mIdleTimeout;
-    PRUint16 mSpdyTimeout;
     PRUint16 mMaxRequestAttempts;
     PRUint16 mMaxRequestDelay;
     PRUint16 mIdleSynTimeout;
@@ -290,12 +283,12 @@ private:
 
     PRUint8  mQoSBits;
 
-    bool mPipeliningOverSSL;
+    PRPackedBool mPipeliningOverSSL;
 
     // cached value of whether or not the browser is in private browsing mode.
     enum {
-        PRIVATE_BROWSING_OFF = false,
-        PRIVATE_BROWSING_ON = true,
+        PRIVATE_BROWSING_OFF = PR_FALSE,
+        PRIVATE_BROWSING_ON = PR_TRUE,
         PRIVATE_BROWSING_UNKNOWN = 2
     } mInPrivateBrowsingMode;
 
@@ -323,25 +316,20 @@ private:
 
     nsCString      mUserAgent;
     nsXPIDLCString mUserAgentOverride;
-    bool           mUserAgentIsDirty; // true if mUserAgent should be rebuilt
+    PRPackedBool   mUserAgentIsDirty; // true if mUserAgent should be rebuilt
 
-    bool           mUseCache;
+    PRPackedBool   mUseCache;
 
-    bool           mPromptTempRedirect;
+    PRPackedBool   mPromptTempRedirect;
     // mSendSecureXSiteReferrer: default is false, 
     // if true allow referrer headers between secure non-matching hosts
-    bool           mSendSecureXSiteReferrer;
+    PRPackedBool   mSendSecureXSiteReferrer;
 
     // Persistent HTTPS caching flag
-    bool           mEnablePersistentHttpsCaching;
+    PRPackedBool   mEnablePersistentHttpsCaching;
 
     // For broadcasting the preference to not be tracked
-    bool           mDoNotTrackEnabled;
-    
-    // Try to use SPDY features instead of HTTP/1.1 over SSL
-    bool           mEnableSpdy;
-    bool           mCoalesceSpdy;
-    bool           mUseAlternateProtocol;
+    PRPackedBool   mDoNotTrackEnabled;
 };
 
 //-----------------------------------------------------------------------------

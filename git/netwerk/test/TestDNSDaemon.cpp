@@ -206,7 +206,7 @@ main(int argc, char* argv[])
   int socket_fd = 0;
 
 
-  bool notDone = true;
+  PRBool notDone = PR_TRUE;
   char buf[1024];
 
   while(notDone) {
@@ -235,7 +235,7 @@ main(int argc, char* argv[])
 	if(!strcmp(line, "quit") || !strcmp(line, "exit"))
 	  {
 	    fprintf(stderr, "bye now.\n");
-	    notDone = false;
+	    notDone = PR_FALSE;
 	  }
 	else if (!strncmp(line, "abort ", 6))
 	  {

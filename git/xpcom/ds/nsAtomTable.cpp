@@ -72,7 +72,7 @@ static nsDataHashtable<nsStringHashKey, nsIAtom*>* gStaticAtomTable = 0;
 /**
  * Whether it is still OK to add atoms to gStaticAtomTable.
  */
-static bool gStaticAtomTableSealed = false;
+static PRBool gStaticAtomTableSealed = PR_FALSE;
 
 //----------------------------------------------------------------------
 
@@ -107,7 +107,7 @@ AtomTableGetHash(PLDHashTable *table, const void *key)
   const AtomTableKey *k = static_cast<const AtomTableKey*>(key);
 
   if (k->mUTF8String) {
-    bool err;
+    PRBool err;
     PRUint32 hash = nsCRT::HashCodeAsUTF16(k->mUTF8String, k->mLength, &err);
     if (err) {
       AtomTableKey* mutableKey = const_cast<AtomTableKey*>(k);
@@ -121,7 +121,7 @@ AtomTableGetHash(PLDHashTable *table, const void *key)
   return nsCRT::HashCode(k->mUTF16String, k->mLength);
 }
 
-static bool
+static PRBool
 AtomTableMatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
                   const void *key)
 {
@@ -137,7 +137,7 @@ AtomTableMatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
 
   PRUint32 length = he->mAtom->GetLength();
   if (length != k->mLength) {
-    return false;
+    return PR_FALSE;
   }
 
   return memcmp(he->mAtom->GetUTF16String(),
@@ -162,13 +162,13 @@ AtomTableClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   }
 }
 
-static bool
+static PRBool
 AtomTableInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
                    const void *key)
 {
   static_cast<AtomTableEntry*>(entry)->mAtom = nsnull;
 
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -313,16 +313,16 @@ NS_IMETHODIMP_(nsrefcnt) PermanentAtomImpl::Release()
   return 1;
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 AtomImpl::IsPermanent()
 {
-  return false;
+  return PR_FALSE;
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 PermanentAtomImpl::IsPermanent()
 {
-  return true;
+  return PR_TRUE;
 }
 
 void* PermanentAtomImpl::operator new ( size_t size, AtomImpl* aAtom ) CPP_THROW_NEW {
@@ -347,7 +347,7 @@ AtomImpl::ToUTF8String(nsACString& aBuf)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 AtomImpl::EqualsUTF8(const nsACString& aString)
 {
   return CompareUTF8toUTF16(aString,
@@ -355,13 +355,13 @@ AtomImpl::EqualsUTF8(const nsACString& aString)
 }
 
 NS_IMETHODIMP
-AtomImpl::ScriptableEquals(const nsAString& aString, bool* aResult)
+AtomImpl::ScriptableEquals(const nsAString& aString, PRBool* aResult)
 {
   *aResult = aString.Equals(nsDependentString(mString, mLength));
   return NS_OK;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 AtomImpl::IsStaticAtom()
 {
   return IsPermanent();
@@ -589,5 +589,5 @@ NS_GetStaticAtom(const nsAString& aUTF16String)
 void
 NS_SealStaticAtomTable()
 {
-  gStaticAtomTableSealed = true;
+  gStaticAtomTableSealed = PR_TRUE;
 }

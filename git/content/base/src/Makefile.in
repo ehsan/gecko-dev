@@ -64,7 +64,6 @@ EXPORTS		= \
 		nsStubMutationObserver.h \
 		nsTextFragment.h \
 		mozAutoDocUpdate.h \
-		nsFrameMessageManager.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla/dom
@@ -73,7 +72,7 @@ EXPORTS_mozilla/dom = \
   Link.h \
   $(NULL)
 
-LOCAL_INCLUDES = -I$(srcdir)/js/xpconnect/src
+LOCAL_INCLUDES = -I$(srcdir)/js/src/xpconnect/src
 
 CPPSRCS		= \
 		mozSanitizingSerializer.cpp \
@@ -96,6 +95,7 @@ CPPSRCS		= \
 		nsDOMAttribute.cpp \
 		nsDOMAttributeMap.cpp \
 		nsDOMBlobBuilder.cpp \
+		nsDOMCaretPosition.cpp \
 		nsDOMDocumentType.cpp \
 		nsDOMEventTargetWrapperCache.cpp \
 		nsDOMFile.cpp \
@@ -155,7 +155,6 @@ CPPSRCS		= \
 		nsInProcessTabChildGlobal.cpp \
 		ThirdPartyUtil.cpp \
 		nsEventSource.cpp \
-		FileIOObject.cpp \
 		$(NULL)
 
 # Are we targeting x86-32 or x86-64?  If so, we want to include SSE2 code for
@@ -203,7 +202,7 @@ INCLUDES	+= \
 		-I$(srcdir)/../../xml/document/src \
 		-I$(topsrcdir)/xpcom/io \
 		-I$(topsrcdir)/dom/ipc \
-		-I$(topsrcdir)/js/xpconnect/src \
+		-I$(topsrcdir)/js/src/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
 		-I$(topsrcdir)/netwerk/base/src \
 		$(NULL)

@@ -54,17 +54,10 @@ pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul
 // Enables some extra Extension System Logging (can reduce performance)
 pref("extensions.logging.enabled", false);
 
-// Disables strict compatibility, making addons compatible-by-default.
-pref("extensions.strictCompatibility", false);
-
-// Specifies a minimum maxVersion an addon needs to say it's compatible with
-// for it to be compatible by default.
-pref("extensions.minCompatibleAppVersion", "4.0");
-
 // Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", true);
 pref("extensions.getAddons.maxResults", 15);
-pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%");
+pref("extensions.getAddons.get.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/guid:%IDS%?src=firefox&appOS=%OS%&appVersion=%VERSION%&tMain=%TIME_MAIN%&tFirstPaint=%TIME_FIRST_PAINT%&tSessionRestored=%TIME_SESSION_RESTORED%");
 pref("extensions.getAddons.search.browseURL", "https://addons.mozilla.org/%LOCALE%/firefox/search?q=%TERMS%");
 pref("extensions.getAddons.search.url", "https://services.addons.mozilla.org/%LOCALE%/firefox/api/%API_VERSION%/search/%TERMS%/all/%MAX_RESULTS%/%OS%/%VERSION%?src=firefox");
 pref("extensions.webservice.discoverURL", "https://services.addons.mozilla.org/%LOCALE%/firefox/discovery/pane/%VERSION%/%OS%");
@@ -84,7 +77,7 @@ pref("extensions.update.autoUpdateDefault", true);
 // Disable add-ons installed into the shared user and shared system areas by
 // default. This does not include the application directory. See the SCOPE
 // constants in AddonManager.jsm for values to use here
-pref("extensions.autoDisableScopes", 15);
+pref("extensions.autoDisableScopes", 10);
 
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/dictionaries/");
@@ -177,8 +170,9 @@ pref("app.update.url", "https://aus3.mozilla.org/update/3/%PRODUCT%/%VERSION%/%B
 //pref("app.update.url.override", "");
 
 // app.update.interval is in branding section
-// app.update.promptWaitTime is in branding section
 
+// Give the user x seconds to react before showing the big UI. default=12 hours
+pref("app.update.promptWaitTime", 43200);
 // Show the Update Checking/Ready UI when the user was idle for x seconds
 pref("app.update.idletime", 60);
 
@@ -203,7 +197,7 @@ pref("app.update.incompatible.mode", 0);
 //  .. etc ..
 //
 pref("extensions.update.enabled", true);
-pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%&compatMode=%COMPATIBILITY_MODE%");
+pref("extensions.update.url", "https://versioncheck.addons.mozilla.org/update/VersionCheck.php?reqVersion=%REQ_VERSION%&id=%ITEM_ID%&version=%ITEM_VERSION%&maxAppVersion=%ITEM_MAXAPPVERSION%&status=%ITEM_STATUS%&appID=%APP_ID%&appVersion=%APP_VERSION%&appOS=%APP_OS%&appABI=%APP_ABI%&locale=%APP_LOCALE%&currentAppVersion=%CURRENT_APP_VERSION%&updateType=%UPDATE_TYPE%");
 pref("extensions.update.interval", 86400);  // Check for updates to Extensions and 
                                             // Themes every day
 // Non-symmetric (not shared by extensions) extension-specific [update] preferences
@@ -260,7 +254,7 @@ pref("browser.warnOnRestart", false);
 pref("browser.showQuitWarning", false);
 pref("browser.fullscreen.autohide", true);
 pref("browser.fullscreen.animateUp", 1);
-pref("browser.overlink-delay", 80);
+pref("browser.overlink-delay", 70);
 
 #ifdef UNIX_BUT_NOT_MAC
 pref("browser.urlbar.clickSelectsAll", false);
@@ -363,13 +357,8 @@ pref("browser.search.suggest.enabled", true);
 pref("browser.sessionhistory.max_entries", 50);
 
 // handle links targeting new windows
-// 1=current window/tab, 2=new window, 3=new tab in most recent window
+// 0=default window, 1=current window/tab, 2=new window, 3=new tab in most recent window
 pref("browser.link.open_newwindow", 3);
-
-// handle external links (i.e. links opened from a different application)
-// default: use browser.link.open_newwindow
-// 1-3: see browser.link.open_newwindow for interpretation
-pref("browser.link.open_newwindow.override.external", -1);
 
 // 0: no restrictions - divert everything
 // 1: don't divert window.open at all
@@ -877,6 +866,10 @@ pref("browser.privatebrowsing.dont_prompt_on_enter", false);
 // bookmarking dialog
 pref("browser.bookmarks.editDialog.firstEditField", "namePicker");
 
+// base url for the wifi geolocation network provider
+pref("geo.wifi.uri", "https://maps.googleapis.com/maps/api/browserlocation/json");
+pref("geo.wifi.protocol", 0);
+
 // Whether to use a panel that looks like an OS X sheet for customization
 #ifdef XP_MACOSX
 pref("toolbar.customization.usesheet", true);
@@ -1007,25 +1000,15 @@ pref("devtools.errorconsole.enabled", false);
 
 // Enable the Inspector
 pref("devtools.inspector.enabled", true);
-pref("devtools.inspector.htmlHeight", 112);
 
 // Enable the style inspector
 pref("devtools.styleinspector.enabled", true);
 
-// Enable the rules view
-pref("devtools.ruleview.enabled", true);
-
 // Enable the Scratchpad tool.
 pref("devtools.scratchpad.enabled", true);
 
-// Enable the Style Editor.
-pref("devtools.styleeditor.enabled", true);
-
 // Enable tools for Chrome development.
 pref("devtools.chrome.enabled", false);
-
-// Disable the GCLI enhanced command line.
-pref("devtools.gcli.enable", false);
 
 // The last Web Console height. This is initially 0 which means that the Web
 // Console will use the default height next time it shows.
@@ -1037,18 +1020,6 @@ pref("devtools.hud.height", 0);
 //   below - below the web page,
 //   window - in a separate window/popup panel.
 pref("devtools.webconsole.position", "above");
-
-// Remember the Web Console filters
-pref("devtools.webconsole.filter.network", true);
-pref("devtools.webconsole.filter.networkinfo", true);
-pref("devtools.webconsole.filter.csserror", true);
-pref("devtools.webconsole.filter.cssparser", true);
-pref("devtools.webconsole.filter.exception", true);
-pref("devtools.webconsole.filter.jswarn", true);
-pref("devtools.webconsole.filter.error", true);
-pref("devtools.webconsole.filter.warn", true);
-pref("devtools.webconsole.filter.info", true);
-pref("devtools.webconsole.filter.log", true);
 
 // The number of lines that are displayed in the web console for the Net,
 // CSS, JS and Web Developer categories.
@@ -1082,6 +1053,3 @@ pref("browser.menu.showCharacterEncoding", "chrome://browser/locale/browser.prop
 pref("prompts.tab_modal.enabled", true);
 // Whether the Panorama should animate going in/out of tabs
 pref("browser.panorama.animate_zoom", true);
-
-// Enable the DOM full-screen API.
-pref("full-screen-api.enabled", true);

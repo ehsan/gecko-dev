@@ -43,49 +43,7 @@
 
 #include "String.h"
 
-#include "jscntxt.h"
-#include "jsgcmark.h"
-
 #include "jsgcinlines.h"
-
-inline void
-JSString::writeBarrierPre(JSString *str)
-{
-#ifdef JSGC_INCREMENTAL
-    if (!str)
-        return;
-
-    JSCompartment *comp = str->compartment();
-    if (comp->needsBarrier())
-        MarkStringUnbarriered(comp->barrierTracer(), str, "write barrier");
-#endif
-}
-
-inline void
-JSString::writeBarrierPost(JSString *str, void *addr)
-{
-}
-
-inline bool
-JSString::needWriteBarrierPre(JSCompartment *comp)
-{
-#ifdef JSGC_INCREMENTAL
-    return comp->needsBarrier();
-#else
-    return false;
-#endif
-}
-
-JS_ALWAYS_INLINE bool
-JSString::validateLength(JSContext *cx, size_t length)
-{
-    if (JS_UNLIKELY(length > JSString::MAX_LENGTH)) {
-        js_ReportAllocationOverflow(cx);
-        return false;
-    }
-
-    return true;
-}
 
 JS_ALWAYS_INLINE void
 JSRope::init(JSString *left, JSString *right, size_t length)
@@ -98,8 +56,6 @@ JSRope::init(JSString *left, JSString *right, size_t length)
 JS_ALWAYS_INLINE JSRope *
 JSRope::new_(JSContext *cx, JSString *left, JSString *right, size_t length)
 {
-    if (!validateLength(cx, length))
-        return NULL;
     JSRope *str = (JSRope *)js_NewGCString(cx);
     if (!str)
         return NULL;
@@ -158,10 +114,9 @@ JSFixedString::init(const jschar *chars, size_t length)
 JS_ALWAYS_INLINE JSFixedString *
 JSFixedString::new_(JSContext *cx, const jschar *chars, size_t length)
 {
+    JS_ASSERT(length <= MAX_LENGTH);
     JS_ASSERT(chars[length] == jschar(0));
 
-    if (!validateLength(cx, length))
-        return NULL;
     JSFixedString *str = (JSFixedString *)js_NewGCString(cx);
     if (!str)
         return NULL;
@@ -230,8 +185,6 @@ JSExternalString::new_(JSContext *cx, const jschar *chars, size_t length, intN t
     JS_ASSERT(uintN(type) < JSExternalString::TYPE_LIMIT);
     JS_ASSERT(chars[length] == 0);
 
-    if (!validateLength(cx, length))
-        return NULL;
     JSExternalString *str = js_NewGCExternalString(cx);
     if (!str)
         return NULL;
@@ -379,15 +332,15 @@ JSFlatString::finalize(JSRuntime *rt)
 inline void
 JSShortString::finalize(JSContext *cx)
 {
-    JS_ASSERT(JSString::isShort());
+    JS_ASSERT(isShort());
 }
 
 inline void
 JSAtom::finalize(JSRuntime *rt)
 {
-    JS_ASSERT(JSString::isAtom());
+    JS_ASSERT(isAtom());
     if (getAllocKind() == js::gc::FINALIZE_STRING)
-        JSFlatString::finalize(rt);
+        asFlat().finalize(rt);
     else
         JS_ASSERT(getAllocKind() == js::gc::FINALIZE_SHORT_STRING);
 }

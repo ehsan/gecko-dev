@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "prtypes.h"
 #include "nsAlgorithm.h"
 #include "prmem.h"
@@ -64,8 +62,6 @@
 #include "gfxUserFontSet.h"
 
 #include "nsUnicodeRange.h"
-
-using namespace mozilla;
 
 // standard font descriptors that we construct the first time they're needed
 CTFontDescriptorRef gfxCoreTextShaper::sDefaultFeaturesDescriptor = NULL;
@@ -107,7 +103,7 @@ gfxCoreTextShaper::~gfxCoreTextShaper()
     }
 }
 
-bool
+PRBool
 gfxCoreTextShaper::InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
@@ -118,20 +114,20 @@ gfxCoreTextShaper::InitTextRun(gfxContext *aContext,
     // aRunStart and aRunLength define the section of the textRun and of aString
     // that is to be drawn with this particular font
 
-    bool disableLigatures = (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES) != 0;
+    PRBool disableLigatures = (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES) != 0;
 
     // Create a CFAttributedString with text and style info, so we can use CoreText to lay it out.
 
-    bool isRTL = aTextRun->IsRightToLeft();
+    PRBool isRTL = aTextRun->IsRightToLeft();
 
     // we need to bidi-wrap the text if the run is RTL,
     // or if it is an LTR run but may contain (overridden) RTL chars
-    bool bidiWrap = isRTL;
+    PRBool bidiWrap = isRTL;
     if (!bidiWrap && (aTextRun->GetFlags() & gfxTextRunFactory::TEXT_IS_8BIT) == 0) {
         PRUint32 i;
         for (i = aRunStart; i < aRunStart + aRunLength; ++i) {
             if (gfxFontUtils::PotentialRTLChar(aString[i])) {
-                bidiWrap = true;
+                bidiWrap = PR_TRUE;
                 break;
             }
         }
@@ -207,12 +203,12 @@ gfxCoreTextShaper::InitTextRun(gfxContext *aContext,
     // Iterate through the glyph runs.
     // Note that this includes the bidi wrapper, so we have to be careful
     // not to include the extra glyphs from there
-    bool success = true;
+    PRBool success = PR_TRUE;
     for (PRUint32 runIndex = 0; runIndex < numRuns; runIndex++) {
         CTRunRef aCTRun = (CTRunRef)::CFArrayGetValueAtIndex(glyphRuns, runIndex);
         if (SetGlyphsFromRun(aTextRun, aCTRun, startOffset,
                              aRunStart, aRunLength) != NS_OK) {
-            success = false;
+            success = PR_FALSE;
             break;
         }
     }
@@ -239,7 +235,7 @@ gfxCoreTextShaper::SetGlyphsFromRun(gfxTextRun *aTextRun,
     // within the textRun that are "real" data we need to handle.
     // aCTRun is a glyph run from the CoreText layout process.
 
-    bool isLTR = !aTextRun->IsRightToLeft();
+    PRBool isLTR = !aTextRun->IsRightToLeft();
     PRInt32 direction = isLTR ? 1 : -1;
 
     PRInt32 numGlyphs = ::CTRunGetGlyphCount(aCTRun);
@@ -366,7 +362,7 @@ gfxCoreTextShaper::SetGlyphsFromRun(gfxTextRun *aTextRun,
 
     while (glyphStart < numGlyphs) { // keep finding groups until all glyphs are accounted for
 
-        bool inOrder = true;
+        PRBool inOrder = PR_TRUE;
         PRInt32 charEnd = glyphToChar[glyphStart] - stringRange.location;
         NS_ASSERTION(charEnd >= 0 && charEnd < stringRange.length,
                      "glyph-to-char mapping points outside string range");
@@ -406,26 +402,26 @@ gfxCoreTextShaper::SetGlyphsFromRun(gfxTextRun *aTextRun,
             // check whether all glyphs in the range are associated with the characters
             // in our clump; if not, we have a discontinuous range, and should extend it
             // unless we've reached the end of the text
-            bool allGlyphsAreWithinCluster = true;
+            PRBool allGlyphsAreWithinCluster = PR_TRUE;
             PRInt32 prevGlyphCharIndex = charStart;
             for (PRInt32 i = glyphStart; i < glyphEnd; ++i) {
                 PRInt32 glyphCharIndex = glyphToChar[i] - stringRange.location;
                 if (isLTR) {
                     if (glyphCharIndex < charStart || glyphCharIndex >= charEnd) {
-                        allGlyphsAreWithinCluster = false;
+                        allGlyphsAreWithinCluster = PR_FALSE;
                         break;
                     }
                     if (glyphCharIndex < prevGlyphCharIndex) {
-                        inOrder = false;
+                        inOrder = PR_FALSE;
                     }
                     prevGlyphCharIndex = glyphCharIndex;
                 } else {
                     if (glyphCharIndex > charStart || glyphCharIndex <= charEnd) {
-                        allGlyphsAreWithinCluster = false;
+                        allGlyphsAreWithinCluster = PR_FALSE;
                         break;
                     }
                     if (glyphCharIndex > prevGlyphCharIndex) {
-                        inOrder = false;
+                        inOrder = PR_FALSE;
                     }
                     prevGlyphCharIndex = glyphCharIndex;
                 }
@@ -510,7 +506,7 @@ gfxCoreTextShaper::SetGlyphsFromRun(gfxTextRun *aTextRun,
 
             gfxTextRun::CompressedGlyph g;
             g.SetComplex(aTextRun->IsClusterStart(baseCharIndex),
-                         true, detailedGlyphs.Length());
+                         PR_TRUE, detailedGlyphs.Length());
             aTextRun->SetGlyphs(baseCharIndex, g, detailedGlyphs.Elements());
 
             detailedGlyphs.Clear();
@@ -519,7 +515,7 @@ gfxCoreTextShaper::SetGlyphsFromRun(gfxTextRun *aTextRun,
         // the rest of the chars in the group are ligature continuations, no associated glyphs
         while (++baseCharIndex != endCharIndex && baseCharIndex < aRunStart + aRunLength) {
             g.SetComplex(inOrder && aTextRun->IsClusterStart(baseCharIndex),
-                         false, 0);
+                         PR_FALSE, 0);
             aTextRun->SetGlyphs(baseCharIndex, g, nsnull);
         }
 
@@ -560,7 +556,7 @@ gfxCoreTextShaper::CreateDefaultFeaturesDescriptor()
         ::CFDictionaryCreate(kCFAllocatorDefault,
                              (const void **) keys,
                              (const void **) values,
-                             ArrayLength(keys),
+                             NS_ARRAY_LENGTH(keys),
                              &kCFTypeDictionaryKeyCallBacks,
                              &kCFTypeDictionaryValueCallBacks);
     ::CFRelease(lineInitialsOffSelector);
@@ -575,7 +571,7 @@ gfxCoreTextShaper::CreateDefaultFeaturesDescriptor()
         ::CFDictionaryCreate(kCFAllocatorDefault,
                              (const void **) keys,
                              (const void **) values,
-                             ArrayLength(keys),
+                             NS_ARRAY_LENGTH(keys),
                              &kCFTypeDictionaryKeyCallBacks,
                              &kCFTypeDictionaryValueCallBacks);
     ::CFRelease(lineFinalsOffSelector);
@@ -584,7 +580,7 @@ gfxCoreTextShaper::CreateDefaultFeaturesDescriptor()
     CFArrayRef featuresArray =
         ::CFArrayCreate(kCFAllocatorDefault,
                         (const void **) featureSettings,
-                        ArrayLength(featureSettings),
+                        NS_ARRAY_LENGTH(featureSettings),
                         &kCFTypeArrayCallBacks);
     ::CFRelease(featureSettings[0]);
     ::CFRelease(featureSettings[1]);
@@ -595,7 +591,7 @@ gfxCoreTextShaper::CreateDefaultFeaturesDescriptor()
         ::CFDictionaryCreate(kCFAllocatorDefault,
                              (const void **) attrKeys,
                              (const void **) attrValues,
-                             ArrayLength(attrKeys),
+                             NS_ARRAY_LENGTH(attrKeys),
                              &kCFTypeDictionaryKeyCallBacks,
                              &kCFTypeDictionaryValueCallBacks);
     ::CFRelease(featuresArray);
@@ -630,7 +626,7 @@ gfxCoreTextShaper::CreateCTFontWithDisabledLigatures(CGFloat aSize)
             ::CFDictionaryCreate(kCFAllocatorDefault,
                                  (const void **) keys,
                                  (const void **) values,
-                                 ArrayLength(keys),
+                                 NS_ARRAY_LENGTH(keys),
                                  &kCFTypeDictionaryKeyCallBacks,
                                  &kCFTypeDictionaryValueCallBacks);
         ::CFRelease(ligaturesType);

@@ -42,9 +42,7 @@
 #define jsoptparse_h__
 
 #include <stdio.h>
-
-#include "js/Vector.h"
-#include "jsalloc.h"
+#include <jsvector.h>
 
 namespace js {
 namespace cli {

@@ -43,7 +43,7 @@
 #include "nsIAtom.h"
 #include "nsStaticAtom.h"
 
-/* static */ bool
+/* static */ PRBool
 nsAtomListUtils::IsMember(nsIAtom *aAtom,
                           const nsStaticAtom* aInfo,
                           PRUint32 aInfoCount)
@@ -51,7 +51,7 @@ nsAtomListUtils::IsMember(nsIAtom *aAtom,
     for (const nsStaticAtom *info = aInfo, *info_end = aInfo + aInfoCount;
          info != info_end; ++info) {
         if (aAtom == *(info->mAtom))
-            return true;
+            return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
 }

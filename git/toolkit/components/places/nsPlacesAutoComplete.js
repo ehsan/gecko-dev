@@ -113,6 +113,9 @@ const kBrowserUrlbarBranch = "browser.urlbar.";
  */
 function initTempTable(aDatabase)
 {
+  // Keep our temporary table in memory.
+  aDatabase.executeSimpleSQL("PRAGMA temp_store = MEMORY");
+
   // Note: this should be kept up-to-date with the definition in
   //       nsPlacesTables.h.
   let stmt = aDatabase.createAsyncStatement(
@@ -251,22 +254,6 @@ function nsPlacesAutoComplete()
     // Create our in-memory tables for tab tracking.
     initTempTable(db);
 
-    // Populate the table with current open pages cache contents.
-    if (this._openPagesCache.length > 0) {
-      // Avoid getter re-entrance from the _registerOpenPageQuery lazy getter.
-      let stmt = this._registerOpenPageQuery =
-        db.createAsyncStatement(this._registerOpenPageQuerySQL);
-      let params = stmt.newBindingParamsArray();
-      for (let i = 0; i < this._openPagesCache.length; i++) {
-        let bp = params.newBindingParams();
-        bp.bindByName("page_url", this._openPagesCache[i]);
-        params.addParams(bp);
-      }
-      stmt.bindParameters(params);
-      stmt.executeAsync();
-      delete this._openPagesCache;
-    }
-
     return db;
   });
 
@@ -392,20 +379,20 @@ function nsPlacesAutoComplete()
     );
   });
 
-  this._registerOpenPageQuerySQL = "INSERT OR REPLACE INTO moz_openpages_temp "
-                                 +   "(url, open_count) "
-                                 + "VALUES (:page_url, "
-                                 +   "IFNULL("
-                                 +     "("
-                                 +        "SELECT open_count + 1 "
-                                 +        "FROM moz_openpages_temp "
-                                 +        "WHERE url = :page_url "
-                                 +      "), "
-                                 +     "1"
-                                 +   ")"
-                                 + ")";
   XPCOMUtils.defineLazyGetter(this, "_registerOpenPageQuery", function() {
-    return this._db.createAsyncStatement(this._registerOpenPageQuerySQL);
+    return this._db.createAsyncStatement(
+      "INSERT OR REPLACE INTO moz_openpages_temp (url, open_count) "
+    + "VALUES (:page_url, "
+    +   "IFNULL("
+    +     "("
+    +        "SELECT open_count + 1 "
+    +        "FROM moz_openpages_temp "
+    +        "WHERE url = :page_url "
+    +      "), "
+    +     "1"
+    +   ")"
+    + ")"
+    );
   });
 
   XPCOMUtils.defineLazyGetter(this, "_unregisterOpenPageQuery", function() {
@@ -522,33 +509,19 @@ nsPlacesAutoComplete.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// mozIPlacesAutoComplete
 
-  // If the connection has not yet been started, use this local cache.  This
-  // prevents autocomplete from initing the database till the first search.
-  _openPagesCache: [],
   registerOpenPage: function PAC_registerOpenPage(aURI)
   {
-    if (!this._databaseInitialized) {
-      this._openPagesCache.push(aURI.spec);
-      return;
-    }
-
     let stmt = this._registerOpenPageQuery;
     stmt.params.page_url = aURI.spec;
+
     stmt.executeAsync();
   },
 
   unregisterOpenPage: function PAC_unregisterOpenPage(aURI)
   {
-    if (!this._databaseInitialized) {
-      let index = this._openPagesCache.indexOf(aURI.spec);
-      if (index != -1) {
-        this._openPagesCache.splice(index, 1);
-      }
-      return;
-    }
-
     let stmt = this._unregisterOpenPageQuery;
     stmt.params.page_url = aURI.spec;
+
     stmt.executeAsync();
   },
 
@@ -640,7 +613,7 @@ nsPlacesAutoComplete.prototype = {
         }
       }
 
-      if (this._databaseInitialized) {
+      if (Object.getOwnPropertyDescriptor(this, "_db").value !== undefined) {
         this._db.asyncClose();
       }
     }
@@ -651,9 +624,6 @@ nsPlacesAutoComplete.prototype = {
 
   //////////////////////////////////////////////////////////////////////////////
   //// nsPlacesAutoComplete
-
-  get _databaseInitialized()
-    Object.getOwnPropertyDescriptor(this, "_db").value !== undefined,
 
   /**
    * Used to unescape encoded URI strings, and drop information that we do not
@@ -1041,7 +1011,7 @@ nsPlacesAutoComplete.prototype = {
                         ["moz-action:switchtab," + escapedEntryURL, "action "] :
                         [escapedEntryURL, ""];
 
-    if (this._inResults(entryId, url)) {
+    if (this._inResults(entryId || url)) {
       return false;
     }
 
@@ -1104,25 +1074,13 @@ nsPlacesAutoComplete.prototype = {
   /**
    * Checks to see if the given place has already been added to the results.
    *
-   * @param aPlaceId
-   *        The place id to check for, may be null.
-   * @param aUrl
-   *        The url to check for.
+   * @param aPlaceIdOrUrl
+   *        The place id or url (if the entry does not have a id) to check for.
    * @return true if the place has been added, false otherwise.
-   *
-   * @note Must check both the id and the url for a negative match, since
-   *       autocomplete may run in the middle of a new page addition.  In such
-   *       a case the switch-to-tab query would hash the page by url, then a
-   *       next query, running after the page addition, would hash it by id.
-   *       It's not possible to just rely on url though, since keywords
-   *       dynamically modify the url to include their search string.
    */
-  _inResults: function PAC_inResults(aPlaceId, aUrl)
+  _inResults: function PAC_inResults(aPlaceIdOrUrl)
   {
-    if (aPlaceId && aPlaceId in this._usedPlaces) {
-      return true;
-    }
-    return aUrl in this._usedPlaces;
+    return aPlaceIdOrUrl in this._usedPlaces;
   },
 
   /**

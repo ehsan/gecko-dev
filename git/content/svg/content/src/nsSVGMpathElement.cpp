@@ -35,20 +35,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGMpathElement.h"
 #include "nsAutoPtr.h"
 #include "nsDebug.h"
 #include "nsSVGPathElement.h"
 #include "nsSVGAnimateMotionElement.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 nsSVGElement::StringInfo nsSVGMpathElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, false }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_FALSE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(Mpath)
@@ -57,7 +54,7 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Mpath)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsSVGMpathElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSVGMpathElement,
                                                 nsSVGMpathElementBase)
-  tmp->UnlinkHrefTarget(false);
+  tmp->UnlinkHrefTarget(PR_FALSE);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSVGMpathElement,
@@ -99,7 +96,7 @@ nsSVGMpathElement::nsSVGMpathElement(already_AddRefed<nsINodeInfo> aNodeInfo)
 
 nsSVGMpathElement::~nsSVGMpathElement()
 {
-  UnlinkHrefTarget(false);
+  UnlinkHrefTarget(PR_FALSE);
 }
 
 //----------------------------------------------------------------------
@@ -124,7 +121,7 @@ nsresult
 nsSVGMpathElement::BindToTree(nsIDocument* aDocument,
                               nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers)
+                              PRBool aCompileEventHandlers)
 {
   NS_ABORT_IF_FALSE(!mHrefTarget.get(),
                     "Shouldn't have href-target yet "
@@ -146,19 +143,19 @@ nsSVGMpathElement::BindToTree(nsIDocument* aDocument,
 }
 
 void
-nsSVGMpathElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsSVGMpathElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  UnlinkHrefTarget(true);
+  UnlinkHrefTarget(PR_TRUE);
   nsSVGMpathElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
-bool
+PRBool
 nsSVGMpathElement::ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
                                   nsAttrValue& aResult)
 {
-  bool returnVal =
+  PRBool returnVal =
     nsSVGMpathElementBase::ParseAttribute(aNamespaceID, aAttribute,
                                           aValue, aResult);
   if (aNamespaceID == kNameSpaceID_XLink &&
@@ -173,7 +170,7 @@ nsSVGMpathElement::ParseAttribute(PRInt32 aNamespaceID,
 
 nsresult
 nsSVGMpathElement::UnsetAttr(PRInt32 aNamespaceID,
-                             nsIAtom* aAttribute, bool aNotify)
+                             nsIAtom* aAttribute, PRBool aNotify)
 {
   nsresult rv = nsSVGMpathElementBase::UnsetAttr(aNamespaceID, aAttribute,
                                                  aNotify);
@@ -181,7 +178,7 @@ nsSVGMpathElement::UnsetAttr(PRInt32 aNamespaceID,
 
   if (aNamespaceID == kNameSpaceID_XLink &&
       aAttribute == nsGkAtoms::href) {
-    UnlinkHrefTarget(true);
+    UnlinkHrefTarget(PR_TRUE);
   }
 
   return NS_OK;
@@ -194,7 +191,7 @@ nsSVGElement::StringAttributesInfo
 nsSVGMpathElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              ArrayLength(sStringInfo));
+                              NS_ARRAY_LENGTH(sStringInfo));
 }
 
 //----------------------------------------------------------------------
@@ -229,7 +226,6 @@ nsSVGMpathElement::GetReferencedPath()
 
   nsIContent* genericTarget = mHrefTarget.get();
   if (genericTarget &&
-      genericTarget->GetNameSpaceID() == kNameSpaceID_SVG &&
       genericTarget->Tag() == nsGkAtoms::path) {
     return static_cast<nsSVGPathElement*>(genericTarget);
   }
@@ -246,7 +242,7 @@ nsSVGMpathElement::UpdateHrefTarget(nsIContent* aParent,
   nsCOMPtr<nsIURI> targetURI;
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI),
-                                            aHrefStr, OwnerDoc(), baseURI);
+                                            aHrefStr, GetOwnerDoc(), baseURI);
 
   // Stop observing old target (if any)
   if (mHrefTarget.get()) {
@@ -273,7 +269,7 @@ nsSVGMpathElement::UpdateHrefTarget(nsIContent* aParent,
 }
 
 void
-nsSVGMpathElement::UnlinkHrefTarget(bool aNotifyParent)
+nsSVGMpathElement::UnlinkHrefTarget(PRBool aNotifyParent)
 {
   // Stop observing old target (if any)
   if (mHrefTarget.get()) {

@@ -58,7 +58,7 @@ NS_IMPL_FRAMEARENA_HELPERS(nsXULLabelFrame)
 // If you make changes to this function, check its counterparts 
 // in nsBoxFrame and nsTextBoxFrame
 nsresult
-nsXULLabelFrame::RegUnregAccessKey(bool aDoReg)
+nsXULLabelFrame::RegUnregAccessKey(PRBool aDoReg)
 {
   // if we have no content, we can't do anything
   if (!mContent)
@@ -104,14 +104,14 @@ nsXULLabelFrame::Init(nsIContent*      aContent,
     return rv;
 
   // register access key
-  return RegUnregAccessKey(true);
+  return RegUnregAccessKey(PR_TRUE);
 }
 
 void
 nsXULLabelFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   // unregister access key
-  RegUnregAccessKey(false);
+  RegUnregAccessKey(PR_FALSE);
   nsBlockFrame::DestroyFrom(aDestructRoot);
 } 
 
@@ -126,7 +126,7 @@ nsXULLabelFrame::AttributeChanged(PRInt32 aNameSpaceID,
   // If the accesskey changed, register for the new value
   // The old value has been unregistered in nsXULElement::SetAttr
   if (aAttribute == nsGkAtoms::accesskey || aAttribute == nsGkAtoms::control)
-    RegUnregAccessKey(true);
+    RegUnregAccessKey(PR_TRUE);
 
   return rv;
 }

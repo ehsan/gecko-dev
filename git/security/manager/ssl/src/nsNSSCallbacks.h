@@ -52,6 +52,11 @@ char* PR_CALLBACK
 PK11PasswordPrompt(PK11SlotInfo *slot, PRBool retry, void* arg);
 
 void PR_CALLBACK HandshakeCallback(PRFileDesc *fd, void *client_data);
+SECStatus PR_CALLBACK AuthCertificateCallback(void* client_data, PRFileDesc* fd,
+                                              PRBool checksig, PRBool isServer);
+
+PRErrorCode PSM_SSL_BlacklistDigiNotar(CERTCertificate * serverCert,
+                                       CERTCertList * serverCertChain);
 
 SECStatus RegisterMyOCSPAIAInfoCallback();
 SECStatus UnregisterMyOCSPAIAInfoCallback();
@@ -74,7 +79,7 @@ public:
 
   nsresult mResultCode;
 
-  bool mHttpRequestSucceeded;
+  PRBool mHttpRequestSucceeded;
   PRUint16 mHttpResponseCode;
   nsCString mHttpResponseContentType;
 
@@ -83,9 +88,9 @@ public:
   
   mozilla::Mutex mLock;
   mozilla::CondVar mCondition;
-  volatile bool mWaitFlag;
+  volatile PRBool mWaitFlag;
   
-  bool mResponsibleForDoneSignal;
+  PRBool mResponsibleForDoneSignal;
   void send_done_signal();
 
   // no nsCOMPtr. When I use it, I get assertions about
@@ -94,7 +99,7 @@ public:
   // it on the network thread ourselves.
   nsILoadGroup *mLoadGroup;
   PRThread *mLoadGroupOwnerThread;
-  void FreeLoadGroup(bool aCancelLoad);
+  void FreeLoadGroup(PRBool aCancelLoad);
 };
 
 class nsNSSHttpServerSession
@@ -144,7 +149,7 @@ public:
   nsCString mURL;
   nsCString mRequestMethod;
   
-  bool mHasPostData;
+  PRBool mHasPostData;
   nsCString mPostData;
   nsCString mPostContentType;
   
@@ -156,7 +161,7 @@ protected:
   nsNSSHttpRequestSession();
   ~nsNSSHttpRequestSession();
 
-  SECStatus internal_send_receive_attempt(bool &retryable_error,
+  SECStatus internal_send_receive_attempt(PRBool &retryable_error,
                                           PRPollDesc **pPollDesc,
                                           PRUint16 *http_response_code,
                                           const char **http_response_content_type,

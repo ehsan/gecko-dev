@@ -65,8 +65,8 @@ static const PRLogModuleInfo *gUrlClassifierStreamUpdaterLog = nsnull;
 // Handles creating/running the stream listener
 
 nsUrlClassifierStreamUpdater::nsUrlClassifierStreamUpdater()
-  : mIsUpdating(false), mInitialized(false), mDownloadError(false),
-    mBeganStream(false), mUpdateUrl(nsnull), mChannel(nsnull)
+  : mIsUpdating(PR_FALSE), mInitialized(PR_FALSE), mDownloadError(PR_FALSE),
+    mBeganStream(PR_FALSE), mUpdateUrl(nsnull), mChannel(nsnull)
 {
 #if defined(PR_LOGGING)
   if (!gUrlClassifierStreamUpdaterLog)
@@ -93,10 +93,10 @@ void
 nsUrlClassifierStreamUpdater::DownloadDone()
 {
   LOG(("nsUrlClassifierStreamUpdater::DownloadDone [this=%p]", this));
-  mIsUpdating = false;
+  mIsUpdating = PR_FALSE;
 
   mPendingUpdates.Clear();
-  mDownloadError = false;
+  mDownloadError = PR_FALSE;
   mSuccessCallback = nsnull;
   mUpdateErrorCallback = nsnull;
   mDownloadErrorCallback = nsnull;
@@ -140,7 +140,7 @@ nsUrlClassifierStreamUpdater::FetchUpdate(nsIURI *aUpdateUrl,
                      loadFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mBeganStream = false;
+  mBeganStream = PR_FALSE;
 
   if (!aRequestBody.IsEmpty()) {
     rv = AddRequestBody(aRequestBody);
@@ -149,7 +149,7 @@ nsUrlClassifierStreamUpdater::FetchUpdate(nsIURI *aUpdateUrl,
 
   // Set the appropriate content type for file/data URIs, for unit testing
   // purposes.
-  bool match;
+  PRBool match;
   if ((NS_SUCCEEDED(aUpdateUrl->SchemeIs("file", &match)) && match) ||
       (NS_SUCCEEDED(aUpdateUrl->SchemeIs("data", &match)) && match)) {
     mChannel->SetContentType(NS_LITERAL_CSTRING("application/vnd.google.safebrowsing-update"));
@@ -188,7 +188,7 @@ nsUrlClassifierStreamUpdater::DownloadUpdates(
                                 nsIUrlClassifierCallback *aSuccessCallback,
                                 nsIUrlClassifierCallback *aUpdateErrorCallback,
                                 nsIUrlClassifierCallback *aDownloadErrorCallback,
-                                bool *_retval)
+                                PRBool *_retval)
 {
   NS_ENSURE_ARG(aSuccessCallback);
   NS_ENSURE_ARG(aUpdateErrorCallback);
@@ -196,7 +196,7 @@ nsUrlClassifierStreamUpdater::DownloadUpdates(
 
   if (mIsUpdating) {
     LOG(("already updating, skipping update"));
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
   }
 
@@ -216,18 +216,18 @@ nsUrlClassifierStreamUpdater::DownloadUpdates(
     if (!observerService)
       return NS_ERROR_FAILURE;
 
-    observerService->AddObserver(this, gQuitApplicationMessage, false);
+    observerService->AddObserver(this, gQuitApplicationMessage, PR_FALSE);
 
     mDBService = do_GetService(NS_URLCLASSIFIERDBSERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mInitialized = true;
+    mInitialized = PR_TRUE;
   }
 
   rv = mDBService->BeginUpdate(this, aRequestTables, aClientKey);
   if (rv == NS_ERROR_NOT_AVAILABLE) {
     LOG(("already updating, skipping update"));
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
   } else if (NS_FAILED(rv)) {
     return rv;
@@ -237,8 +237,8 @@ nsUrlClassifierStreamUpdater::DownloadUpdates(
   mUpdateErrorCallback = aUpdateErrorCallback;
   mDownloadErrorCallback = aDownloadErrorCallback;
 
-  mIsUpdating = true;
-  *_retval = true;
+  mIsUpdating = PR_TRUE;
+  *_retval = PR_TRUE;
 
 
   return FetchUpdate(mUpdateUrl, aRequestBody, EmptyCString(), EmptyCString());
@@ -301,7 +301,7 @@ nsUrlClassifierStreamUpdater::FetchNext()
     // We can commit the urls that we've applied so far.  This is
     // probably a transient server problem, so trigger backoff.
     mDownloadErrorCallback->HandleEvent(EmptyCString());
-    mDownloadError = true;
+    mDownloadError = PR_TRUE;
     mDBService->FinishUpdate();
     return rv;
   }
@@ -416,7 +416,7 @@ nsUrlClassifierStreamUpdater::OnStartRequest(nsIRequest *request,
                                              nsISupports* context)
 {
   nsresult rv;
-  bool downloadError = false;
+  PRBool downloadError = PR_FALSE;
   nsCAutoString strStatus;
   nsresult status = NS_OK;
 
@@ -429,11 +429,11 @@ nsUrlClassifierStreamUpdater::OnStartRequest(nsIRequest *request,
     if (NS_ERROR_CONNECTION_REFUSED == status ||
         NS_ERROR_NET_TIMEOUT == status) {
       // Assume we're overloading the server and trigger backoff.
-      downloadError = true;
+      downloadError = PR_TRUE;
     }
 
     if (NS_SUCCEEDED(status)) {
-      bool succeeded = false;
+      PRBool succeeded = PR_FALSE;
       rv = httpChannel->GetRequestSucceeded(&succeeded);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -445,17 +445,17 @@ nsUrlClassifierStreamUpdater::OnStartRequest(nsIRequest *request,
         NS_ENSURE_SUCCESS(rv, rv);
 
         strStatus.AppendInt(status);
-        downloadError = true;
+        downloadError = PR_TRUE;
       }
     }
   }
 
   if (downloadError) {
     mDownloadErrorCallback->HandleEvent(strStatus);
-    mDownloadError = true;
+    mDownloadError = PR_TRUE;
     status = NS_ERROR_ABORT;
   } else if (NS_SUCCEEDED(status)) {
-    mBeganStream = true;
+    mBeganStream = PR_TRUE;
     rv = mDBService->BeginStream(mStreamTable, mServerMAC);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -536,7 +536,7 @@ nsUrlClassifierStreamUpdater::Observe(nsISupports *aSubject, const char *aTopic,
       nsresult rv;
       rv = mChannel->Cancel(NS_ERROR_ABORT);
       NS_ENSURE_SUCCESS(rv, rv);
-      mIsUpdating = false;
+      mIsUpdating = PR_FALSE;
       mChannel = nsnull;
     }
     if (mTimer) {
@@ -554,9 +554,9 @@ NS_IMETHODIMP
 nsUrlClassifierStreamUpdater::NotifyCertProblem(nsIInterfaceRequestor *socketInfo, 
                                                 nsISSLStatus *status, 
                                                 const nsACString &targetSite, 
-                                                bool *_retval)
+                                                PRBool *_retval)
 {
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 
@@ -567,9 +567,9 @@ NS_IMETHODIMP
 nsUrlClassifierStreamUpdater::NotifySSLError(nsIInterfaceRequestor *socketInfo, 
                                              PRInt32 error, 
                                              const nsACString &targetSite, 
-                                             bool *_retval)
+                                             PRBool *_retval)
 {
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 

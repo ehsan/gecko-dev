@@ -70,43 +70,29 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
-  NS_SCRIPTABLE NS_IMETHOD Click() {
-    return nsGenericHTMLElement::Click();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetTabIndex(PRInt32* aTabIndex) {
-    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD SetTabIndex(PRInt32 aTabIndex) {
-    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
-  }
-  NS_SCRIPTABLE NS_IMETHOD Focus() {
-    return nsGenericHTMLElement::Focus();
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetDraggable(bool* aDraggable) {
-    return nsGenericHTMLElement::GetDraggable(aDraggable);
-  }
-  NS_SCRIPTABLE NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
-  NS_SCRIPTABLE NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML);
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLStyleElement
   NS_DECL_NSIDOMHTMLSTYLEELEMENT
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers);
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true);
+                              PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
+                   const nsAString& aValue, PRBool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
   }
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify);
+                           PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify);
+                             PRBool aNotify);
+
+  virtual nsresult GetInnerHTML(nsAString& aInnerHTML);
+  virtual nsresult SetInnerHTML(const nsAString& aInnerHTML);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -118,11 +104,11 @@ public:
 
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
-  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline);
+  already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
-                         bool* aIsAlternate);
+                         PRBool* aIsAlternate);
   /**
    * Common method to call from the various mutation observer methods.
    * aContent is a content node that's either the one that changed or its
@@ -168,26 +154,38 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLStyleElement)
 
 
 NS_IMETHODIMP
-nsHTMLStyleElement::GetDisabled(bool* aDisabled)
+nsHTMLStyleElement::GetDisabled(PRBool* aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss = do_QueryInterface(GetStyleSheet());
-  if (!ss) {
-    *aDisabled = false;
-    return NS_OK;
+  nsresult result = NS_OK;
+  
+  if (GetStyleSheet()) {
+    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+
+    if (ss) {
+      result = ss->GetDisabled(aDisabled);
+    }
+  }
+  else {
+    *aDisabled = PR_FALSE;
   }
 
-  return ss->GetDisabled(aDisabled);
+  return result;
 }
 
 NS_IMETHODIMP 
-nsHTMLStyleElement::SetDisabled(bool aDisabled)
+nsHTMLStyleElement::SetDisabled(PRBool aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss = do_QueryInterface(GetStyleSheet());
-  if (!ss) {
-    return NS_OK;
+  nsresult result = NS_OK;
+  
+  if (GetStyleSheet()) {
+    nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+
+    if (ss) {
+      result = ss->SetDisabled(aDisabled);
+    }
   }
 
-  return ss->SetDisabled(aDisabled);
+  return result;
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLStyleElement, Media, media)
@@ -240,7 +238,7 @@ nsHTMLStyleElement::ContentChanged(nsIContent* aContent)
 nsresult
 nsHTMLStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
-                               bool aCompileEventHandlers)
+                               PRBool aCompileEventHandlers)
 {
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
@@ -254,7 +252,7 @@ nsHTMLStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsHTMLStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsHTMLStyleElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
 
@@ -265,7 +263,7 @@ nsHTMLStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 nsresult
 nsHTMLStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                             nsIAtom* aPrefix, const nsAString& aValue,
-                            bool aNotify)
+                            PRBool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
                                               aValue, aNotify);
@@ -282,7 +280,7 @@ nsHTMLStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsHTMLStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                              bool aNotify)
+                              PRBool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
                                                 aNotify);
@@ -300,27 +298,27 @@ nsHTMLStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 nsresult
 nsHTMLStyleElement::GetInnerHTML(nsAString& aInnerHTML)
 {
-  nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
   return NS_OK;
 }
 
 nsresult
 nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  SetEnableUpdates(false);
+  SetEnableUpdates(PR_FALSE);
 
-  nsresult rv = nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
+  nsresult rv = nsContentUtils::SetNodeTextContent(this, aInnerHTML, PR_TRUE);
   
-  SetEnableUpdates(true);
+  SetEnableUpdates(PR_TRUE);
   
   UpdateStyleSheetInternal(nsnull);
   return rv;
 }
 
 already_AddRefed<nsIURI>
-nsHTMLStyleElement::GetStyleSheetURL(bool* aIsInline)
+nsHTMLStyleElement::GetStyleSheetURL(PRBool* aIsInline)
 {
-  *aIsInline = true;
+  *aIsInline = PR_TRUE;
   return nsnull;
 }
 
@@ -328,12 +326,12 @@ void
 nsHTMLStyleElement::GetStyleSheetInfo(nsAString& aTitle,
                                       nsAString& aType,
                                       nsAString& aMedia,
-                                      bool* aIsAlternate)
+                                      PRBool* aIsAlternate)
 {
   aTitle.Truncate();
   aType.Truncate();
   aMedia.Truncate();
-  *aIsAlternate = false;
+  *aIsAlternate = PR_FALSE;
 
   nsAutoString title;
   GetAttr(kNameSpaceID_None, nsGkAtoms::title, title);
@@ -355,4 +353,6 @@ nsHTMLStyleElement::GetStyleSheetInfo(nsAString& aTitle,
   // If we get here we assume that we're loading a css file, so set the
   // type to 'text/css'
   aType.AssignLiteral("text/css");
+
+  return;
 }

@@ -44,6 +44,7 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMNSElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMWindow.h"
@@ -82,7 +83,7 @@ const int MIN_INT =((int) (1 << (sizeof(int) * 8 - 1)));
 static int g_lastX=MIN_INT;
 static int g_lastY=MIN_INT;
 static PRInt32 g_panning = 0;
-static bool g_is_scrollable = false;
+static PRBool g_is_scrollable = PR_FALSE;
 
 #define EM_MULT 16.
 #define NS_FRAME_HAS_RELATIVE_SIZE 0x01000000
@@ -112,7 +113,7 @@ private:
   void RemoveWindowListeners(nsIDOMWindow *aDOMWin);
   void GetChromeEventHandler(nsIDOMWindow *aDOMWin, nsIDOMEventTarget **aChromeTarget);
   void AttachWindowListeners(nsIDOMWindow *aDOMWin);
-  bool IsXULNode(nsIDOMNode *aNode, PRUint32 *aType = 0);
+  PRBool IsXULNode(nsIDOMNode *aNode, PRUint32 *aType = 0);
   nsresult GetDOMWindowByNode(nsIDOMNode *aNode, nsIDOMWindow * *aDOMWindow);
   nsresult UpdateFromEvent(nsIDOMEvent *aDOMEvent);
   nsresult MouseDown(nsIDOMEvent* aDOMEvent);
@@ -139,9 +140,9 @@ nsWidgetUtils::Init()
     do_GetService("@mozilla.org/observer-service;1");
   NS_ENSURE_STATE(obsSvc);
 
-  rv = obsSvc->AddObserver(this, "domwindowopened", false);
+  rv = obsSvc->AddObserver(this, "domwindowopened", PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = obsSvc->AddObserver(this, "domwindowclosed", false);
+  rv = obsSvc->AddObserver(this, "domwindowclosed", PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
   mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
 }
@@ -162,7 +163,7 @@ nsWidgetUtils::UpdateFromEvent(nsIDOMEvent *aDOMEvent)
   nsCOMPtr<nsIDOMNode> mOrigNode;
 
   PRUint32 type = 0;
-  bool isXul = false;
+  PRBool isXul = PR_FALSE;
   {
     nsCOMPtr <nsIDOMNSEvent> aEvent = do_QueryInterface(aDOMEvent);
     nsCOMPtr<nsIDOMEventTarget> eventOrigTarget;
@@ -205,11 +206,11 @@ nsWidgetUtils::UpdateFromEvent(nsIDOMEvent *aDOMEvent)
 nsresult
 nsWidgetUtils::MouseDown(nsIDOMEvent* aDOMEvent)
 {
-  g_is_scrollable = false;
+  g_is_scrollable = PR_FALSE;
   // Return TRUE from your signal handler to mark the event as consumed.
   if (NS_FAILED(UpdateFromEvent(aDOMEvent)))
     return NS_OK;
-  g_is_scrollable = true;
+  g_is_scrollable = PR_TRUE;
   if (g_is_scrollable) {
      aDOMEvent->StopPropagation();
      aDOMEvent->PreventDefault();
@@ -220,7 +221,7 @@ nsWidgetUtils::MouseDown(nsIDOMEvent* aDOMEvent)
 /* static */ void
 nsWidgetUtils::StopPanningCallback(nsITimer *timer, void *closure)
 {
-  g_panning = false;
+  g_panning = PR_FALSE;
 }
 
 nsresult
@@ -233,7 +234,7 @@ nsWidgetUtils::MouseUp(nsIDOMEvent* aDOMEvent)
   // Return TRUE from your signal handler to mark the event as consumed.
   g_lastX = MIN_INT;
   g_lastY = MIN_INT;
-  g_is_scrollable = false;
+  g_is_scrollable = PR_FALSE;
   if (g_panning) {
      aDOMEvent->StopPropagation();
      aDOMEvent->PreventDefault();
@@ -244,7 +245,7 @@ nsWidgetUtils::MouseUp(nsIDOMEvent* aDOMEvent)
        if (NS_SUCCEEDED(rv))
          return NS_OK;
      }
-     g_panning = false;
+     g_panning = PR_FALSE;
   }
   return NS_OK;
 }
@@ -272,24 +273,24 @@ nsWidgetUtils::MouseMove(nsIDOMEvent* aDOMEvent)
       return NS_OK;
 
   nsEventStatus statusX;
-  nsMouseScrollEvent scrollEventX(true, NS_MOUSE_SCROLL, mWidget);
+  nsMouseScrollEvent scrollEventX(PR_TRUE, NS_MOUSE_SCROLL, mWidget);
   scrollEventX.delta = dx;
   scrollEventX.scrollFlags = nsMouseScrollEvent::kIsHorizontal | nsMouseScrollEvent::kHasPixels;
   mViewManager->DispatchEvent(&scrollEventX, aView, &statusX);
   if(statusX != nsEventStatus_eIgnore ){
     if (dx > 5)
-      g_panning = true;
+      g_panning = PR_TRUE;
     g_lastX = x;
   }
 
   nsEventStatus statusY;
-  nsMouseScrollEvent scrollEventY(true, NS_MOUSE_SCROLL, mWidget);
+  nsMouseScrollEvent scrollEventY(PR_TRUE, NS_MOUSE_SCROLL, mWidget);
   scrollEventY.delta = dy;
   scrollEventY.scrollFlags = nsMouseScrollEvent::kIsVertical | nsMouseScrollEvent::kHasPixels;
   mViewManager->DispatchEvent(&scrollEventY, aView, &statusY);
   if(statusY != nsEventStatus_eIgnore ){
     if (dy > 5)
-      g_panning = true;
+      g_panning = PR_TRUE;
     g_lastY = y;
   }
   if (g_panning) {
@@ -365,10 +366,10 @@ nsWidgetUtils::ShouldProcess(PRUint32          aContentType,
     return NS_OK;
 }
 
-bool
+PRBool
 nsWidgetUtils::IsXULNode(nsIDOMNode *aNode, PRUint32 *aType)
 {
-  bool retval = false;
+  PRBool retval = PR_FALSE;
   if (!aNode) return retval;
 
   nsString sorigNode;
@@ -382,7 +383,7 @@ nsWidgetUtils::IsXULNode(nsIDOMNode *aNode, PRUint32 *aType)
   if (sorigNode.EqualsLiteral("xul:thumb")
       || sorigNode.EqualsLiteral("xul:vbox")
       || sorigNode.EqualsLiteral("xul:spacer"))
-    *aType = false; // Magic
+    *aType = PR_FALSE; // Magic
   else if (sorigNode.EqualsLiteral("xul:slider"))
     *aType = 2; // Magic
   else if (sorigNode.EqualsLiteral("xul:scrollbarbutton"))
@@ -434,11 +435,11 @@ nsWidgetUtils::RemoveWindowListeners(nsIDOMWindow *aDOMWin)
 
     // Remove DOM Text listener for IME text events
     chromeEventHandler->RemoveEventListener(NS_LITERAL_STRING("mousedown"),
-                                            this, false);
+                                            this, PR_FALSE);
     chromeEventHandler->RemoveEventListener(NS_LITERAL_STRING("mouseup"),
-                                            this, false);
+                                            this, PR_FALSE);
     chromeEventHandler->RemoveEventListener(NS_LITERAL_STRING("mousemove"),
-                                            this, false);
+                                            this, PR_FALSE);
 }
 
 void
@@ -455,11 +456,11 @@ nsWidgetUtils::AttachWindowListeners(nsIDOMWindow *aDOMWin)
 
     // Attach menu listeners, this will help us ignore keystrokes meant for menus
     chromeEventHandler->AddEventListener(NS_LITERAL_STRING("mousedown"), this,
-                                         false, false);
+                                         PR_FALSE, PR_FALSE);
     chromeEventHandler->AddEventListener(NS_LITERAL_STRING("mouseup"), this,
-                                         false, false);
+                                         PR_FALSE, PR_FALSE);
     chromeEventHandler->AddEventListener(NS_LITERAL_STRING("mousemove"), this,
-                                         false, false);
+                                         PR_FALSE, PR_FALSE);
 }
 
 nsWidgetUtils::~nsWidgetUtils()
@@ -528,16 +529,16 @@ static NS_METHOD WidgetUtilsRegistration(nsIComponentManager *aCompMgr,
     rv = catman->AddCategoryEntry("app-startup",
                                   "WidgetUtils",
                                   WidgetUtils_ContractID,
-                                  true,
-                                  true,
+                                  PR_TRUE,
+                                  PR_TRUE,
                                   &previous);
     if (previous)
         nsMemory::Free(previous);
     rv = catman->AddCategoryEntry("content-policy",
                                   "WidgetUtils",
                                   WidgetUtils_ContractID,
-                                  true,
-                                  true,
+                                  PR_TRUE,
+                                  PR_TRUE,
                                   &previous);
     if (previous)
         nsMemory::Free(previous);
@@ -566,10 +567,10 @@ static NS_METHOD WidgetUtilsUnregistration(nsIComponentManager *aCompMgr,
 
     rv = catman->DeleteCategoryEntry("app-startup",
                                      "WidgetUtils",
-                                     true);
+                                     PR_TRUE);
     rv = catman->DeleteCategoryEntry("content-policy",
                                      "WidgetUtils",
-                                     true);
+                                     PR_TRUE);
 
     return rv;
 }

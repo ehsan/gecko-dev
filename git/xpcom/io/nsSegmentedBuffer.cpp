@@ -109,7 +109,7 @@ nsSegmentedBuffer::AppendNewSegment()
     return seg;
 }
 
-bool
+PRBool
 nsSegmentedBuffer::DeleteFirstSegment()
 {
     NS_ASSERTION(mSegmentArray[mFirstSegmentIndex] != nsnull, "deleting bad segment");
@@ -118,15 +118,15 @@ nsSegmentedBuffer::DeleteFirstSegment()
     PRInt32 last = ModSegArraySize(mLastSegmentIndex - 1);
     if (mFirstSegmentIndex == last) {
         mLastSegmentIndex = last;
-        return true;
+        return PR_TRUE;
     }
     else {
         mFirstSegmentIndex = ModSegArraySize(mFirstSegmentIndex + 1);
-        return false;
+        return PR_FALSE;
     }
 }
 
-bool
+PRBool
 nsSegmentedBuffer::DeleteLastSegment()
 {
     PRInt32 last = ModSegArraySize(mLastSegmentIndex - 1);
@@ -134,10 +134,10 @@ nsSegmentedBuffer::DeleteLastSegment()
     (void)mSegAllocator->Free(mSegmentArray[last]);
     mSegmentArray[last] = nsnull;
     mLastSegmentIndex = last;
-    return (bool)(mLastSegmentIndex == mFirstSegmentIndex);
+    return (PRBool)(mLastSegmentIndex == mFirstSegmentIndex);
 }
 
-bool
+PRBool
 nsSegmentedBuffer::ReallocLastSegment(size_t newSize)
 {
     PRInt32 last = ModSegArraySize(mLastSegmentIndex - 1);
@@ -146,9 +146,9 @@ nsSegmentedBuffer::ReallocLastSegment(size_t newSize)
         (char*)mSegAllocator->Realloc(mSegmentArray[last], newSize);
     if (newSegment) {
         mSegmentArray[last] = newSegment;
-        return true;
+        return PR_TRUE;
     } else {
-        return false;
+        return PR_FALSE;
     }
 }
 
@@ -175,7 +175,7 @@ TestSegmentedBuffer()
     NS_ASSERTION(buf, "out of memory");
     buf->Init(4, 16);
     char* seg;
-    bool empty;
+    PRBool empty;
     seg = buf->AppendNewSegment();
     NS_ASSERTION(seg, "AppendNewSegment failed");
     seg = buf->AppendNewSegment();

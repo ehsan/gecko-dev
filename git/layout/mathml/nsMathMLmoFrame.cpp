@@ -85,34 +85,34 @@ nsMathMLmoFrame::GetMathMLFrameType()
 // since a mouse click implies selection, we cannot just rely on the
 // frame's state bit in our child text frame. So we will first check
 // its selected state bit, and use this little helper to double check.
-bool
+PRBool
 nsMathMLmoFrame::IsFrameInSelection(nsIFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "null arg");
   if (!aFrame)
-    return false;
+    return PR_FALSE;
 
-  bool isSelected = false;
+  PRBool isSelected = PR_FALSE;
   aFrame->GetSelected(&isSelected);
   if (!isSelected)
-    return false;
+    return PR_FALSE;
 
   const nsFrameSelection* frameSelection = aFrame->GetConstFrameSelection();
   SelectionDetails* details =
-    frameSelection->LookUpSelection(aFrame->GetContent(), 0, 1, true);
+    frameSelection->LookUpSelection(aFrame->GetContent(), 0, 1, PR_TRUE);
 
   if (!details)
-    return false;
+    return PR_FALSE;
 
   while (details) {
     SelectionDetails* next = details->mNext;
     delete details;
     details = next;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsMathMLmoFrame::UseMathMLChar()
 {
   return (NS_MATHML_OPERATOR_GET_FORM(mFlags) &&
@@ -127,7 +127,7 @@ nsMathMLmoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsDisplayListSet& aLists)
 {
   nsresult rv = NS_OK;
-  bool useMathMLChar = UseMathMLChar();
+  PRBool useMathMLChar = UseMathMLChar();
 
   if (!useMathMLChar) {
     // let the base class do everything
@@ -138,12 +138,12 @@ nsMathMLmoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     NS_ENSURE_SUCCESS(rv, rv);
     
     // make our char selected if our inner child text frame is selected
-    bool isSelected = false;
+    PRBool isSelected = PR_FALSE;
     nsRect selectedRect;
     nsIFrame* firstChild = mFrames.FirstChild();
     if (IsFrameInSelection(firstChild)) {
       selectedRect = firstChild->GetRect();
-      isSelected = true;
+      isSelected = PR_TRUE;
     }
     rv = mMathMLChar.Display(aBuilder, this, aLists, isSelected ? &selectedRect : nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -163,7 +163,7 @@ nsMathMLmoFrame::ProcessTextData()
   mFlags = 0;
 
   nsAutoString data;
-  nsContentUtils::GetNodeTextContent(mContent, false, data);
+  nsContentUtils::GetNodeTextContent(mContent, PR_FALSE, data);
   PRInt32 length = data.Length();
   PRUnichar ch = (length == 0) ? kNullCh : data[0];
 
@@ -180,7 +180,7 @@ nsMathMLmoFrame::ProcessTextData()
   if (NS_MATHML_OPERATOR_IS_INVISIBLE(mFlags) || mFrames.GetLength() != 1) {
     data.Truncate(); // empty data to reset the char
     mMathMLChar.SetData(presContext, data);
-    ResolveMathMLCharStyle(presContext, mContent, mStyleContext, &mMathMLChar, false);
+    ResolveMathMLCharStyle(presContext, mContent, mStyleContext, &mMathMLChar, PR_FALSE);
     return;
   }
 
@@ -210,7 +210,7 @@ nsMathMLmoFrame::ProcessTextData()
   mFlags |= allFlags & NS_MATHML_OPERATOR_ACCENT;
   mFlags |= allFlags & NS_MATHML_OPERATOR_MOVABLELIMITS;
 
-  bool isMutable =
+  PRBool isMutable =
     NS_MATHML_OPERATOR_IS_STRETCHY(allFlags) ||
     NS_MATHML_OPERATOR_IS_LARGEOP(allFlags);
   if (isMutable)
@@ -386,7 +386,7 @@ nsMathMLmoFrame::ProcessOperatorData()
     float rspace = 0.0f;
     nsAutoString data;
     mMathMLChar.GetData(data);
-    bool found = nsMathMLOperators::LookupOperator(data, form, &mFlags, &lspace, &rspace);
+    PRBool found = nsMathMLOperators::LookupOperator(data, form, &mFlags, &lspace, &rspace);
     if (found && (lspace || rspace)) {
       // cache the default values of lspace & rspace that we get from the dictionary.
       // since these values are relative to the 'em' unit, convert to twips now
@@ -581,7 +581,7 @@ nsMathMLmoFrame::ProcessOperatorData()
 
 static PRUint32
 GetStretchHint(nsOperatorFlags aFlags, nsPresentationData aPresentationData,
-               bool aIsVertical)
+               PRBool aIsVertical)
 {
   PRUint32 stretchHint = NS_STRETCH_NONE;
   // See if it is okay to stretch,
@@ -650,16 +650,16 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
   // Operators that are stretchy, or those that are to be centered
   // to cater for fonts that are not math-aware, are handled by the MathMLChar
   // ('form' is reset if stretch fails -- i.e., we don't bother to stretch next time)
-  bool useMathMLChar = UseMathMLChar();
+  PRBool useMathMLChar = UseMathMLChar();
 
   nsBoundingMetrics charSize;
   nsBoundingMetrics container = aDesiredStretchSize.mBoundingMetrics;
-  bool isVertical = false;
+  PRBool isVertical = PR_FALSE;
 
   if (((aStretchDirection == NS_STRETCH_DIRECTION_VERTICAL) ||
        (aStretchDirection == NS_STRETCH_DIRECTION_DEFAULT))  &&
       (mEmbellishData.direction == NS_STRETCH_DIRECTION_VERTICAL)) {
-    isVertical = true;
+    isVertical = PR_TRUE;
   }
 
   PRUint32 stretchHint =
@@ -770,7 +770,7 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
       // gracefully handle cases where stretching the char failed (i.e., GetBoundingMetrics failed)
       // clear our 'form' to behave as if the operator wasn't in the dictionary
       mFlags &= ~NS_MATHML_OPERATOR_FORM;
-      useMathMLChar = false;
+      useMathMLChar = PR_FALSE;
     }
   }
 
@@ -778,7 +778,7 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
   if (!NS_MATHML_OPERATOR_IS_INVISIBLE(mFlags)) {
     // Place our children using the default method
     // This will allow our child text frame to get its DidReflow()
-    nsresult rv = Place(aRenderingContext, true, aDesiredStretchSize);
+    nsresult rv = Place(aRenderingContext, PR_TRUE, aDesiredStretchSize);
     if (NS_MATHML_HAS_ERROR(mPresentationData.flags) || NS_FAILED(rv)) {
       // Make sure the child frames get their DidReflow() calls.
       DidReflowChildren(mFrames.FirstChild());
@@ -794,7 +794,7 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
     if (mMathMLChar.GetStretchDirection() != NS_STRETCH_DIRECTION_UNSUPPORTED ||
         NS_MATHML_OPERATOR_IS_CENTERED(mFlags)) {
 
-      bool largeopOnly =
+      PRBool largeopOnly =
         (NS_STRETCH_LARGEOP & stretchHint) != 0 &&
         (NS_STRETCH_VARIABLE_MASK & stretchHint) == 0;
 
@@ -833,7 +833,7 @@ nsMathMLmoFrame::Stretch(nsRenderingContext& aRenderingContext,
 
   // special case for accents... keep them short to improve mouse operations...
   // an accent can only be the non-first child of <mover>, <munder>, <munderover>
-  bool isAccent =
+  PRBool isAccent =
     NS_MATHML_EMBELLISH_IS_ACCENT(mEmbellishData.flags);
   if (isAccent) {
     nsEmbellishData parentData;
@@ -1006,7 +1006,7 @@ nsMathMLmoFrame::GetIntrinsicWidth(nsRenderingContext *aRenderingContext)
   ProcessOperatorData();
   nscoord width;
   if (UseMathMLChar()) {
-    PRUint32 stretchHint = GetStretchHint(mFlags, mPresentationData, true);
+    PRUint32 stretchHint = GetStretchHint(mFlags, mPresentationData, PR_TRUE);
     width = mMathMLChar.
       GetMaxWidth(PresContext(), *aRenderingContext,
                   stretchHint, mMaxSize,

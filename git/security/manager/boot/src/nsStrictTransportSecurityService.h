@@ -63,8 +63,8 @@
 //
 // Each nsSTSHostEntry contains:
 //  - Expiry time
-//  - Deleted flag (boolean, default false)
-//  - Subdomains flag (boolean, default false)
+//  - Deleted flag (boolean, default PR_FALSE)
+//  - Subdomains flag (boolean, default PR_FALSE)
 //
 // The existence of the nsSTSHostEntry implies STS state is set for the given
 // host -- unless the deleted flag is set, in which case not only is the STS
@@ -92,8 +92,8 @@ class nsSTSHostEntry : public PLDHashEntryHdr
 
     nsCString    mHost;
     PRInt64      mExpireTime;
-    bool mDeleted;
-    bool mIncludeSubdomains;
+    PRPackedBool mDeleted;
+    PRPackedBool mIncludeSubdomains;
 
     // Hash methods
     typedef const char* KeyType;
@@ -104,7 +104,7 @@ class nsSTSHostEntry : public PLDHashEntryHdr
       return mHost.get();
     }
 
-    bool KeyEquals(KeyTypePointer aKey) const
+    PRBool KeyEquals(KeyTypePointer aKey) const
     {
       return !strcmp(mHost.get(), aKey);
     }
@@ -120,7 +120,7 @@ class nsSTSHostEntry : public PLDHashEntryHdr
     }
 
     // force the hashtable to use the copy constructor.
-    enum { ALLOW_MEMMOVE = false };
+    enum { ALLOW_MEMMOVE = PR_FALSE };
 };
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,7 +138,7 @@ public:
 
 private:
   nsresult GetHost(nsIURI *aURI, nsACString &aResult);
-  nsresult SetStsState(nsIURI* aSourceURI, PRInt64 maxage, bool includeSubdomains);
+  nsresult SetStsState(nsIURI* aSourceURI, PRInt64 maxage, PRBool includeSubdomains);
   nsresult ProcessStsHeaderMutating(nsIURI* aSourceURI, char* aHeader);
 
   // private-mode-preserving permission manager overlay functions
@@ -152,13 +152,13 @@ private:
   nsresult TestPermission(nsIURI     *aURI,
                           const char *aType,
                           PRUint32   *aPermission,
-                          bool       testExact);
+                          PRBool     testExact);
 
   // cached services
   nsCOMPtr<nsIPermissionManager> mPermMgr;
   nsCOMPtr<nsIObserverService> mObserverService;
 
-  bool mInPrivateMode;
+  PRBool mInPrivateMode;
   nsTHashtable<nsSTSHostEntry> mPrivateModeHostTable;
 };
 

@@ -44,7 +44,7 @@ class Display
 
     EGLSurface createWindowSurface(HWND window, EGLConfig config, const EGLint *attribList);
     EGLSurface createOffscreenSurface(EGLConfig config, HANDLE shareHandle, const EGLint *attribList);
-    EGLContext createContext(EGLConfig configHandle, const gl::Context *shareContext, bool notifyResets, bool robustAccess);
+    EGLContext createContext(EGLConfig configHandle, const gl::Context *shareContext);
 
     void destroySurface(egl::Surface *surface);
     void destroyContext(gl::Context *context);
@@ -61,24 +61,19 @@ class Display
     virtual IDirect3DDevice9 *getDevice();
     virtual D3DCAPS9 getDeviceCaps();
     virtual D3DADAPTER_IDENTIFIER9 *getAdapterIdentifier();
-    virtual bool testDeviceLost();
-    virtual bool testDeviceResettable();
+    bool isDeviceLost();
     virtual void getMultiSampleSupport(D3DFORMAT format, bool *multiSampleArray);
     virtual bool getDXT1TextureSupport();
     virtual bool getDXT3TextureSupport();
     virtual bool getDXT5TextureSupport();
     virtual bool getEventQuerySupport();
-    virtual bool getFloat32TextureSupport(bool *filtering, bool *renderable);
-    virtual bool getFloat16TextureSupport(bool *filtering, bool *renderable);
+    virtual bool getFloatTextureSupport(bool *filtering, bool *renderable);
+    virtual bool getHalfFloatTextureSupport(bool *filtering, bool *renderable);
     virtual bool getLuminanceTextureSupport();
     virtual bool getLuminanceAlphaTextureSupport();
     virtual bool getVertexTextureSupport() const;
     virtual bool getNonPower2TextureSupport() const;
     virtual D3DPOOL getBufferPool(DWORD usage) const;
-    virtual D3DPOOL getTexturePool(bool renderable) const;
-
-    virtual void notifyDeviceLost();
-    bool isDeviceLost();
 
     bool isD3d9ExDevice() { return mD3d9Ex != NULL; }
     const char *getExtensionString() const;
@@ -89,8 +84,6 @@ class Display
     Display(EGLNativeDisplayType displayId, HDC deviceContext, bool software);
 
     D3DPRESENT_PARAMETERS getDefaultPresentParameters();
-
-    bool restoreLostDevice();
 
     EGLNativeDisplayType mDisplayId;
     const HDC mDc;
@@ -119,7 +112,6 @@ class Display
 
     typedef std::set<gl::Context*> ContextSet;
     ContextSet mContextSet;
-    bool mDeviceLost;
 
     bool createDevice();
     bool resetDevice();

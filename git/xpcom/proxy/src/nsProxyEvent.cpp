@@ -143,16 +143,16 @@ nsProxyObjectCallInfo::nsProxyObjectCallInfo(nsProxyEventObject* owner,
     NS_ASSERTION(owner, "No nsProxyObject!");
     NS_ASSERTION(methodInfo, "No nsXPTMethodInfo!");
 
-    RefCountInInterfacePointers(true);
+    RefCountInInterfacePointers(PR_TRUE);
     if (mOwner->GetProxyType() & NS_PROXY_ASYNC)
-        CopyStrings(true);
+        CopyStrings(PR_TRUE);
 }
 
 nsProxyObjectCallInfo::~nsProxyObjectCallInfo()
 {
-    RefCountInInterfacePointers(false);
+    RefCountInInterfacePointers(PR_FALSE);
     if (mOwner->GetProxyType() & NS_PROXY_ASYNC)
-        CopyStrings(false);
+        CopyStrings(PR_FALSE);
 
     mOwner = nsnull;
     
@@ -189,7 +189,7 @@ nsProxyObjectCallInfo::Run()
 }
 
 void
-nsProxyObjectCallInfo::RefCountInInterfacePointers(bool addRef)
+nsProxyObjectCallInfo::RefCountInInterfacePointers(PRBool addRef)
 {
     for (PRUint32 i = 0; i < mParameterCount; i++)
     {
@@ -217,7 +217,7 @@ nsProxyObjectCallInfo::RefCountInInterfacePointers(bool addRef)
 }
 
 void
-nsProxyObjectCallInfo::CopyStrings(bool copy)
+nsProxyObjectCallInfo::CopyStrings(PRBool copy)
 {
     for (PRUint32 i = 0; i < mParameterCount; i++)
     {
@@ -291,7 +291,7 @@ nsProxyObjectCallInfo::CopyStrings(bool copy)
     }
 }
 
-bool                  
+PRBool                
 nsProxyObjectCallInfo::GetCompleted()
 {
     return !!mCompleted;

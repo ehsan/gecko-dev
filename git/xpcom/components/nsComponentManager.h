@@ -165,16 +165,16 @@ public:
     class ComponentLocationComparator
     {
     public:
-      bool Equals(const ComponentLocation& a, const ComponentLocation& b) const
+      PRBool Equals(const ComponentLocation& a, const ComponentLocation& b) const
       {
         if (a.type == b.type && a.jar == b.jar) {
-          bool res;
+          PRBool res;
           nsresult rv = a.location->Equals(b.location, &res);
           NS_ASSERTION(NS_SUCCEEDED(rv), "Error comparing locations");
           return res;
         }
 
-        return false;
+        return PR_FALSE;
       }
     };
 

@@ -427,7 +427,7 @@ int main(int argc, char **argv)
         printf("------------------\n\n");
 
         PRInt32 urlFactory = URL_FACTORY_DEFAULT;
-        bool bMakeAbs= false;
+        PRBool bMakeAbs= PR_FALSE;
         char* relativePath = 0;
         char* url = 0;
         for (int i=1; i<argc; i++) {
@@ -447,7 +447,7 @@ int main(int argc, char **argv)
                     relativePath = argv[i+1];
                     i++;
                 }
-                bMakeAbs = true;
+                bMakeAbs = PR_TRUE;
             }
             else if (PL_strcasecmp(argv[i], "-file") == 0)
             {

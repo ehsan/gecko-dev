@@ -57,14 +57,14 @@ nsQtNetworkLinkService::~nsQtNetworkLinkService()
 }
 
 NS_IMETHODIMP
-nsQtNetworkLinkService::GetIsLinkUp(bool* aIsUp)
+nsQtNetworkLinkService::GetIsLinkUp(PRBool* aIsUp)
 {
   *aIsUp = nsQtNetworkManager::get()->isOnline();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsQtNetworkLinkService::GetLinkStatusKnown(bool* aIsKnown)
+nsQtNetworkLinkService::GetLinkStatusKnown(PRBool* aIsKnown)
 {
   *aIsKnown = nsQtNetworkManager::get()->isOnline();
   return NS_OK;
@@ -109,12 +109,12 @@ nsQtNetworkLinkService::Init(void)
   nsQtNetworkManager::create();
   nsresult rv;
 
-  rv = observerService->AddObserver(this, "xpcom-shutdown", false);
+  rv = observerService->AddObserver(this, "xpcom-shutdown", PR_FALSE);
   if (NS_FAILED(rv)) {
     return NS_ERROR_FAILURE;
   }
 
-  rv = observerService->AddObserver(this, "browser-lastwindow-close-granted", false);
+  rv = observerService->AddObserver(this, "browser-lastwindow-close-granted", PR_FALSE);
   if (NS_FAILED(rv)) {
     return NS_ERROR_FAILURE;
   }

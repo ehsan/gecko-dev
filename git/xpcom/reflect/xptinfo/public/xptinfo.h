@@ -71,49 +71,40 @@ public:
     operator PRUint8() const
         {return flags;}
 
-    // 'Arithmetic' here roughly means that the value is self-contained and
-    // doesn't depend on anything else in memory (ie: not a pointer, not an
-    // XPCOM object, not a jsval, etc).
-    //
-    // Supposedly this terminology comes from Harbison/Steele, but it's still
-    // a rather crappy name. We'd change it if it wasn't used all over the
-    // place in xptcall. :-(
-    bool IsArithmetic() const
+    PRBool IsPointer() const
+        {return 0 != (XPT_TDP_IS_POINTER(flags));}
+
+    PRBool IsReference() const
+        {return 0 != (XPT_TDP_IS_REFERENCE(flags));}
+
+    PRBool IsArithmetic() const     // terminology from Harbison/Steele
         {return flags <= T_WCHAR;}
 
-    // We used to abuse 'pointer' flag bit in typelib format quite extensively.
-    // We've gotten rid of most of the cases, but there's still a fair amount
-    // of refactoring to be done in XPCWrappedJSClass before we can safely stop
-    // asking about this. In the mean time, we've got a temporary version of
-    // IsPointer() that should be equivalent to what's in the typelib.
-    bool deprecated_IsPointer() const
-        {return !IsArithmetic() && TagPart() != T_JSVAL;}
-
-    bool IsInterfacePointer() const
+    PRBool IsInterfacePointer() const
         {  switch (TagPart()) {
              default:
-               return false;
+               return PR_FALSE;
              case T_INTERFACE:
              case T_INTERFACE_IS:
-               return true;
+               return PR_TRUE;
            }
         }
 
-    bool IsArray() const
+    PRBool IsArray() const
         {return TagPart() == T_ARRAY;}
 
     // 'Dependent' means that params of this type are dependent upon other 
     // params. e.g. an T_INTERFACE_IS is dependent upon some other param at 
     // runtime to say what the interface type of this param really is.
-    bool IsDependent() const
+    PRBool IsDependent() const
         {  switch (TagPart()) {
              default:
-               return false;
+               return PR_FALSE;
              case T_INTERFACE_IS:
              case TD_ARRAY:
              case T_PSTRING_SIZE_IS:
              case T_PWSTRING_SIZE_IS:
-               return true;
+               return PR_TRUE;
            }
         }
 
@@ -161,18 +152,18 @@ public:
         {*(XPTParamDescriptor*)this = desc;}
 
 
-    bool IsIn()  const    {return 0 != (XPT_PD_IS_IN(flags));}
-    bool IsOut() const    {return 0 != (XPT_PD_IS_OUT(flags));}
-    bool IsRetval() const {return 0 != (XPT_PD_IS_RETVAL(flags));}
-    bool IsShared() const {return 0 != (XPT_PD_IS_SHARED(flags));}
-    bool IsDipper() const {return 0 != (XPT_PD_IS_DIPPER(flags));}
-    bool IsOptional() const {return 0 != (XPT_PD_IS_OPTIONAL(flags));}
+    PRBool IsIn()  const    {return 0 != (XPT_PD_IS_IN(flags));}
+    PRBool IsOut() const    {return 0 != (XPT_PD_IS_OUT(flags));}
+    PRBool IsRetval() const {return 0 != (XPT_PD_IS_RETVAL(flags));}
+    PRBool IsShared() const {return 0 != (XPT_PD_IS_SHARED(flags));}
+    PRBool IsDipper() const {return 0 != (XPT_PD_IS_DIPPER(flags));}
+    PRBool IsOptional() const {return 0 != (XPT_PD_IS_OPTIONAL(flags));}
     const nsXPTType GetType() const {return type.prefix;}
 
     // Whether this parameter is passed indirectly on the stack. This mainly
     // applies to out/inout params, but we use it unconditionally for certain
     // types.
-    bool IsIndirect() const {return IsOut() ||
+    PRBool IsIndirect() const {return IsOut() ||
                                GetType().TagPart() == nsXPTType::T_JSVAL;}
 
     // NOTE: other activities on types are done via methods on nsIInterfaceInfo
@@ -189,13 +180,13 @@ public:
     nsXPTMethodInfo(const XPTMethodDescriptor& desc)
         {*(XPTMethodDescriptor*)this = desc;}
 
-    bool IsGetter()      const {return 0 != (XPT_MD_IS_GETTER(flags) );}
-    bool IsSetter()      const {return 0 != (XPT_MD_IS_SETTER(flags) );}
-    bool IsNotXPCOM()    const {return 0 != (XPT_MD_IS_NOTXPCOM(flags));}
-    bool IsConstructor() const {return 0 != (XPT_MD_IS_CTOR(flags)   );}
-    bool IsHidden()      const {return 0 != (XPT_MD_IS_HIDDEN(flags) );}
-    bool WantsOptArgc()  const {return 0 != (XPT_MD_WANTS_OPT_ARGC(flags));}
-    bool WantsContext()  const {return 0 != (XPT_MD_WANTS_CONTEXT(flags));}
+    PRBool IsGetter()      const {return 0 != (XPT_MD_IS_GETTER(flags) );}
+    PRBool IsSetter()      const {return 0 != (XPT_MD_IS_SETTER(flags) );}
+    PRBool IsNotXPCOM()    const {return 0 != (XPT_MD_IS_NOTXPCOM(flags));}
+    PRBool IsConstructor() const {return 0 != (XPT_MD_IS_CTOR(flags)   );}
+    PRBool IsHidden()      const {return 0 != (XPT_MD_IS_HIDDEN(flags) );}
+    PRBool WantsOptArgc()  const {return 0 != (XPT_MD_WANTS_OPT_ARGC(flags));}
+    PRBool WantsContext()  const {return 0 != (XPT_MD_WANTS_CONTEXT(flags));}
     const char* GetName()  const {return name;}
     PRUint8 GetParamCount()  const {return num_args;}
     /* idx was index before I got _sick_ of the warnings on Unix, sorry jband */

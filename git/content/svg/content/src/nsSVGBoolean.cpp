@@ -35,8 +35,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGBoolean.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SMILBoolType.h"
+#endif // MOZ_SMIL
 
 using namespace mozilla;
 
@@ -57,14 +59,14 @@ NS_INTERFACE_MAP_END
 
 static nsresult
 GetValueFromString(const nsAString &aValueAsString,
-                   bool *aValue)
+                   PRBool *aValue)
 {
   if (aValueAsString.EqualsLiteral("true")) {
-    *aValue = true;
+    *aValue = PR_TRUE;
     return NS_OK;
   }
   if (aValueAsString.EqualsLiteral("false")) {
-    *aValue = false;
+    *aValue = PR_FALSE;
     return NS_OK;
   }
   return NS_ERROR_DOM_SYNTAX_ERR;
@@ -72,9 +74,10 @@ GetValueFromString(const nsAString &aValueAsString,
 
 nsresult
 nsSVGBoolean::SetBaseValueString(const nsAString &aValueAsString,
-                                 nsSVGElement *aSVGElement)
+                                 nsSVGElement *aSVGElement,
+                                 PRBool aDoSetAttr)
 {
-  bool val;
+  PRBool val;
 
   nsresult rv = GetValueFromString(aValueAsString, &val);
   if (NS_FAILED(rv)) {
@@ -85,9 +88,11 @@ nsSVGBoolean::SetBaseValueString(const nsAString &aValueAsString,
   if (!mIsAnimated) {
     mAnimVal = mBaseVal;
   }
+#ifdef MOZ_SMIL
   else {
     aSVGElement->AnimationNeedsResample();
   }
+#endif
 
   // We don't need to call DidChange* here - we're only called by
   // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
@@ -104,28 +109,30 @@ nsSVGBoolean::GetBaseValueString(nsAString & aValueAsString)
 }
 
 void
-nsSVGBoolean::SetBaseValue(bool aValue,
+nsSVGBoolean::SetBaseValue(PRBool aValue,
                            nsSVGElement *aSVGElement)
 {
-  NS_PRECONDITION(aValue == true || aValue == false, "Boolean out of range");
+  NS_PRECONDITION(aValue == PR_TRUE || aValue == PR_FALSE, "Boolean out of range");
 
   if (aValue != mBaseVal) {
     mBaseVal = aValue;
     if (!mIsAnimated) {
       mAnimVal = mBaseVal;
     }
+#ifdef MOZ_SMIL
     else {
       aSVGElement->AnimationNeedsResample();
     }
-    aSVGElement->DidChangeBoolean(mAttrEnum, true);
+#endif
+    aSVGElement->DidChangeBoolean(mAttrEnum, PR_TRUE);
   }
 }
 
 void
-nsSVGBoolean::SetAnimValue(bool aValue, nsSVGElement *aSVGElement)
+nsSVGBoolean::SetAnimValue(PRBool aValue, nsSVGElement *aSVGElement)
 {
   mAnimVal = aValue;
-  mIsAnimated = true;
+  mIsAnimated = PR_TRUE;
   aSVGElement->DidAnimateBoolean(mAttrEnum);
 }
 
@@ -141,6 +148,7 @@ nsSVGBoolean::ToDOMAnimatedBoolean(nsIDOMSVGAnimatedBoolean **aResult,
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 nsSVGBoolean::ToSMILAttr(nsSVGElement *aSVGElement)
 {
@@ -151,9 +159,9 @@ nsresult
 nsSVGBoolean::SMILBool::ValueFromString(const nsAString& aStr,
                                         const nsISMILAnimationElement* /*aSrcElement*/,
                                         nsSMILValue& aValue,
-                                        bool& aPreventCachingOfSandwich) const
+                                        PRBool& aPreventCachingOfSandwich) const
 {
-  bool value;
+  PRBool value;
   nsresult rv = GetValueFromString(aStr, &value);
   if (NS_FAILED(rv)) {
     return rv;
@@ -162,7 +170,7 @@ nsSVGBoolean::SMILBool::ValueFromString(const nsAString& aStr,
   nsSMILValue val(&SMILBoolType::sSingleton);
   val.mU.mBool = value;
   aValue = val;
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
 
   return NS_OK;
 }
@@ -180,7 +188,7 @@ nsSVGBoolean::SMILBool::ClearAnimValue()
 {
   if (mVal->mIsAnimated) {
     mVal->SetAnimValue(mVal->mBaseVal, mSVGElement);
-    mVal->mIsAnimated = false;
+    mVal->mIsAnimated = PR_FALSE;
   }
 }
 
@@ -194,3 +202,4 @@ nsSVGBoolean::SMILBool::SetAnimValue(const nsSMILValue& aValue)
   }
   return NS_OK;
 }
+#endif // MOZ_SMIL

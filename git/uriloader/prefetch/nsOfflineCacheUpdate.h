@@ -102,7 +102,7 @@ public:
 
     nsresult OpenChannel();
     nsresult Cancel();
-    nsresult GetRequestSucceeded(bool * succeeded);
+    nsresult GetRequestSucceeded(PRBool * succeeded);
 
 private:
     nsOfflineCacheUpdate*          mUpdate;
@@ -135,9 +135,9 @@ public:
     nsIArray *GetNamespaces()
         { return mNamespaces.get(); }
 
-    bool ParseSucceeded()
+    PRBool ParseSucceeded()
         { return (mParserState != PARSE_INIT && mParserState != PARSE_ERROR); }
-    bool NeedsUpdate() { return mParserState != PARSE_INIT && mNeedsUpdate; }
+    PRBool NeedsUpdate() { return mParserState != PARSE_INIT && mNeedsUpdate; }
 
     void GetManifestHash(nsCString &aManifestHash)
         { aManifestHash = mManifestHashValue; }
@@ -164,7 +164,7 @@ private:
      */
     nsresult GetOldManifestContentHash(nsIRequest *aRequest);
     /**
-     * This method setups the mNeedsUpdate to false when hash value
+     * This method setups the mNeedsUpdate to PR_FALSE when hash value
      * of the just downloaded manifest file is the same as stored in cache's 
      * "offline-manifest-hash" meta data. Otherwise stores the new value
      * to this meta data.
@@ -194,12 +194,12 @@ private:
     // manifest.
     nsCOMPtr<nsIMutableArray> mNamespaces;
 
-    bool mNeedsUpdate;
-    bool mStrictFileOriginPolicy;
+    PRBool mNeedsUpdate;
+    PRBool mStrictFileOriginPolicy;
 
     // manifest hash data
     nsCOMPtr<nsICryptoHash> mManifestHash;
-    bool mManifestHashInitialized;
+    PRBool mManifestHashInitialized;
     nsCString mManifestHashValue;
     nsCString mOldManifestHashValue;
 };
@@ -239,7 +239,7 @@ public:
     virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);
 
 private:
-    nsresult HandleManifest(bool *aDoUpdate);
+    nsresult HandleManifest(PRBool *aDoUpdate);
     nsresult AddURI(nsIURI *aURI, PRUint32 aItemType);
 
     nsresult ProcessNextURI();
@@ -268,10 +268,10 @@ private:
 
     nsOfflineCacheUpdateOwner *mOwner;
 
-    bool mAddedItems;
-    bool mPartialUpdate;
-    bool mSucceeded;
-    bool mObsolete;
+    PRPackedBool mAddedItems;
+    PRPackedBool mPartialUpdate;
+    PRPackedBool mSucceeded;
+    PRPackedBool mObsolete;
 
     nsCString mUpdateDomain;
     nsCOMPtr<nsIURI> mManifestURI;
@@ -345,8 +345,8 @@ private:
 
     nsTArray<nsRefPtr<nsOfflineCacheUpdate> > mUpdates;
 
-    bool mDisabled;
-    bool mUpdateRunning;
+    PRBool mDisabled;
+    PRBool mUpdateRunning;
 };
 
 #endif

@@ -43,8 +43,6 @@
 #include "jsobj.h"
 #include "jscell.h"
 
-#include "gc/Barrier.h"
-
 extern const char js_AnyName_str[];
 extern const char js_AttributeName_str[];
 extern const char js_isXMLName_str[];
@@ -55,16 +53,14 @@ extern const char js_gt_entity_str[];
 extern const char js_lt_entity_str[];
 extern const char js_quot_entity_str[];
 
-template<class T>
-struct JSXMLArrayCursor;
+typedef JSBool
+(* JSIdentityOp)(const void *a, const void *b);
 
-template<class T>
-struct JSXMLArray
-{
+struct JSXMLArray {
     uint32              length;
     uint32              capacity;
-    js::HeapPtr<T>      *vector;
-    JSXMLArrayCursor<T> *cursors;
+    void                **vector;
+    JSXMLArrayCursor    *cursors;
 
     void init() {
         length = capacity = 0;
@@ -78,18 +74,15 @@ struct JSXMLArray
     void trim();
 };
 
-template<class T>
 struct JSXMLArrayCursor
 {
-    typedef js::HeapPtr<T> HeapPtrT;
+    JSXMLArray       *array;
+    uint32           index;
+    JSXMLArrayCursor *next;
+    JSXMLArrayCursor **prevp;
+    void             *root;
 
-    JSXMLArray<T>       *array;
-    uint32              index;
-    JSXMLArrayCursor<T> *next;
-    JSXMLArrayCursor<T> **prevp;
-    HeapPtrT            root;
-
-    JSXMLArrayCursor(JSXMLArray<T> *array)
+    JSXMLArrayCursor(JSXMLArray *array)
       : array(array), index(0), next(array->cursors), prevp(&array->cursors),
         root(NULL)
     {
@@ -107,25 +100,22 @@ struct JSXMLArrayCursor
             next->prevp = prevp;
         *prevp = next;
         array = NULL;
-        root.~HeapPtrT();
     }
 
-    T *getNext() {
+    void *getNext() {
         if (!array || index >= array->length)
             return NULL;
         return root = array->vector[index++];
     }
 
-    T *getCurrent() {
+    void *getCurrent() {
         if (!array || index >= array->length)
             return NULL;
         return root = array->vector[index];
     }
-};
 
-template<class T>
-void
-js_XMLArrayCursorTrace(JSTracer *trc, JSXMLArrayCursor<T> *cursor);
+    void trace(JSTracer *trc);
+};
 
 #define JSXML_PRESET_CAPACITY   JS_BIT(31)
 #define JSXML_CAPACITY_MASK     JS_BITMASK(31)
@@ -156,24 +146,24 @@ typedef enum JSXMLClass {
 #endif
 
 typedef struct JSXMLListVar {
-    JSXMLArray<JSXML>   kids;           /* NB: must come first */
-    js::HeapPtrXML      target;
-    js::HeapPtrObject   targetprop;
+    JSXMLArray          kids;           /* NB: must come first */
+    JSXML               *target;
+    JSObject            *targetprop;
 } JSXMLListVar;
 
 typedef struct JSXMLElemVar {
-    JSXMLArray<JSXML>    kids;          /* NB: must come first */
-    JSXMLArray<JSObject> namespaces;
-    JSXMLArray<JSXML>    attrs;
+    JSXMLArray          kids;           /* NB: must come first */
+    JSXMLArray          namespaces;
+    JSXMLArray          attrs;
 } JSXMLElemVar;
 
 /* union member shorthands */
-#define xml_kids        list.kids
-#define xml_target      list.target
-#define xml_targetprop  list.targetprop
-#define xml_namespaces  elem.namespaces
-#define xml_attrs       elem.attrs
-#define xml_value       value
+#define xml_kids        u.list.kids
+#define xml_target      u.list.target
+#define xml_targetprop  u.list.targetprop
+#define xml_namespaces  u.elem.namespaces
+#define xml_attrs       u.elem.attrs
+#define xml_value       u.value
 
 /* xml_class-testing macros */
 #define JSXML_HAS_KIDS(xml)     JSXML_CLASS_HAS_KIDS((xml)->xml_class)
@@ -188,26 +178,30 @@ struct JSXML : js::gc::Cell {
     JSCList             links;
     uint32              serial;
 #endif
-    js::HeapPtrObject   object;
+    JSObject            *object;
     void                *domnode;       /* DOM node if mapped info item */
-    js::HeapPtrXML      parent;
-    js::HeapPtrObject   name;
+    JSXML               *parent;
+    JSObject            *name;
     uint32              xml_class;      /* discriminates u, below */
     uint32              xml_flags;      /* flags, see below */
-
-    JSXMLListVar        list;
-    JSXMLElemVar        elem;
-    js::HeapPtrString   value;
-
-#if JS_BITS_PER_WORD == 32
-    /* The size of every GC thing must be divisible by the FreeCell size. */
-    void *pad;
+    union {
+        JSXMLListVar    list;
+        JSXMLElemVar    elem;
+        JSString        *value;
+    } u;
+    
+    void finalize(JSContext *cx) {
+        if (JSXML_HAS_KIDS(this)) {
+            xml_kids.finish(cx);
+            if (xml_class == JSXML_CLASS_ELEMENT) {
+                xml_namespaces.finish(cx);
+                xml_attrs.finish(cx);
+            }
+        }
+#ifdef DEBUG_notme
+        JS_REMOVE_LINK(&links);
 #endif
-
-    void finalize(JSContext *cx);
-
-    static void writeBarrierPre(JSXML *xml);
-    static void writeBarrierPost(JSXML *xml, void *addr);
+    }
 };
 
 /* xml_flags values */
@@ -337,12 +331,5 @@ js_TestXMLEquality(JSContext *cx, const js::Value &v1, const js::Value &v2,
 
 extern JSBool
 js_ConcatenateXML(JSContext *cx, JSObject *obj1, JSObject *obj2, js::Value *vp);
-
-namespace js {
-
-extern bool
-GetLocalNameFromFunctionQName(JSObject *qn, JSAtom **namep, JSContext *cx);
-
-} /* namespace js */
 
 #endif /* jsxml_h___ */

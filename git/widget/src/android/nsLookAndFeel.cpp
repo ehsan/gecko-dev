@@ -45,11 +45,11 @@
 using namespace mozilla;
 using mozilla::dom::ContentChild;
 
-bool nsLookAndFeel::mInitializedSystemColors = false;
+PRBool nsLookAndFeel::mInitializedSystemColors = PR_FALSE;
 AndroidSystemColors nsLookAndFeel::mSystemColors;
 
-bool nsLookAndFeel::mInitializedShowPassword = false;
-bool nsLookAndFeel::mShowPassword = true;
+PRBool nsLookAndFeel::mInitializedShowPassword = PR_FALSE;
+PRBool nsLookAndFeel::mShowPassword = PR_TRUE;
 
 nsLookAndFeel::nsLookAndFeel()
     : nsXPLookAndFeel()
@@ -79,7 +79,7 @@ nsLookAndFeel::GetSystemColors()
 
     AndroidBridge::Bridge()->GetSystemColors(&mSystemColors);
 
-    mInitializedSystemColors = true;
+    mInitializedSystemColors = PR_TRUE;
 
     return NS_OK;
 }
@@ -105,7 +105,7 @@ nsLookAndFeel::CallRemoteGetSystemColors()
     // so just copy the memory block
     memcpy(&mSystemColors, colors.Elements(), sizeof(nscolor) * colorsCount);
 
-    mInitializedSystemColors = true;
+    mInitializedSystemColors = PR_TRUE;
 
     return NS_OK;
 }
@@ -430,10 +430,6 @@ nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
             aResult = NS_STYLE_TEXT_DECORATION_STYLE_WAVY;
             break;
 
-        case eIntID_ScrollbarButtonAutoRepeatBehavior:
-            aResult = 0;
-            break;
-
         default:
             aResult = 0;
             rv = NS_ERROR_FAILURE;
@@ -468,7 +464,7 @@ nsLookAndFeel::GetFloatImpl(FloatID aID, float &aResult)
 }
 
 /*virtual*/
-bool
+PRBool
 nsLookAndFeel::GetEchoPasswordImpl()
 {
     if (!mInitializedShowPassword) {
@@ -480,7 +476,7 @@ nsLookAndFeel::GetEchoPasswordImpl()
         } else {
             ContentChild::GetSingleton()->SendGetShowPasswordSetting(&mShowPassword);
         }
-        mInitializedShowPassword = true;
+        mInitializedShowPassword = PR_TRUE;
     }
     return mShowPassword;
 }

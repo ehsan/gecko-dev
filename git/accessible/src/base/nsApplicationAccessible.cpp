@@ -174,10 +174,12 @@ nsApplicationAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
 nsAccessible*
 nsApplicationAccessible::FocusedChild()
 {
-  nsAccessible* focus = FocusMgr()->FocusedAccessible();
-  if (focus && focus->Parent() == this)
-    return focus;
-
+  if (gLastFocusedNode) {
+    nsAccessible* focusedChild =
+      GetAccService()->GetAccessible(gLastFocusedNode);
+    if (focusedChild && focusedChild->Parent() == this)
+      return focusedChild;
+  }
   return nsnull;
 }
 
@@ -203,7 +205,7 @@ nsApplicationAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::SetSelected(bool aIsSelected)
+nsApplicationAccessible::SetSelected(PRBool aIsSelected)
 {
   return NS_OK;
 }
@@ -314,11 +316,11 @@ nsApplicationAccessible::IsDefunct() const
   return nsAccessibilityService::IsShutdown();
 }
 
-bool
+PRBool
 nsApplicationAccessible::Init()
 {
   mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -391,7 +393,7 @@ nsApplicationAccessible::CacheChildren()
   if (NS_FAILED(rv))
     return;
 
-  bool hasMore = false;
+  PRBool hasMore = PR_FALSE;
   windowEnumerator->HasMoreElements(&hasMore);
   while (hasMore) {
     nsCOMPtr<nsISupports> window;

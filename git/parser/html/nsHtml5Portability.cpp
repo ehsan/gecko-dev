@@ -115,17 +115,17 @@ nsHtml5Portability::releaseString(nsString* str)
   delete str;
 }
 
-bool
+PRBool
 nsHtml5Portability::localEqualsBuffer(nsIAtom* local, PRUnichar* buf, PRInt32 offset, PRInt32 length)
 {
   return local->Equals(nsDependentSubstring(buf + offset, buf + offset + length));
 }
 
-bool
+PRBool
 nsHtml5Portability::lowerCaseLiteralIsPrefixOfIgnoreAsciiCaseString(const char* lowerCaseLiteral, nsString* string)
 {
   if (!string) {
-    return false;
+    return PR_FALSE;
   }
   const char* litPtr = lowerCaseLiteral;
   const PRUnichar* strPtr = string->BeginReading();
@@ -134,40 +134,40 @@ nsHtml5Portability::lowerCaseLiteralIsPrefixOfIgnoreAsciiCaseString(const char* 
   while ((litChar = *litPtr)) {
     NS_ASSERTION(!(litChar >= 'A' && litChar <= 'Z'), "Literal isn't in lower case.");
     if (strPtr == end) {
-      return false;
+      return PR_FALSE;
     }
     PRUnichar strChar = *strPtr;
     if (strChar >= 'A' && strChar <= 'Z') {
       strChar += 0x20;
     }
     if (litChar != strChar) {
-      return false;
+      return PR_FALSE;
     }
     ++litPtr;
     ++strPtr;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsHtml5Portability::lowerCaseLiteralEqualsIgnoreAsciiCaseString(const char* lowerCaseLiteral, nsString* string)
 {
   if (!string) {
-    return false;
+    return PR_FALSE;
   }
   return string->LowerCaseEqualsASCII(lowerCaseLiteral);
 }
 
-bool
+PRBool
 nsHtml5Portability::literalEqualsString(const char* literal, nsString* string)
 {
   if (!string) {
-    return false;
+    return PR_FALSE;
   }
   return string->EqualsASCII(literal);
 }
 
-bool
+PRBool
 nsHtml5Portability::stringEqualsString(nsString* one, nsString* other)
 {
   return one->Equals(*other);

@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGeoPosition.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 
 ////////////////////////////////////////////////////
 // nsGeoPositionAddress

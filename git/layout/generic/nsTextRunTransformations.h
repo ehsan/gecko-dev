@@ -51,11 +51,11 @@ public:
   nsTransformedTextRun* MakeTextRun(const PRUint8* aString, PRUint32 aLength,
                                     const gfxFontGroup::Parameters* aParams,
                                     gfxFontGroup* aFontGroup, PRUint32 aFlags,
-                                    nsStyleContext** aStyles, bool aOwnsFactory = true);
+                                    nsStyleContext** aStyles, PRBool aOwnsFactory = PR_TRUE);
   nsTransformedTextRun* MakeTextRun(const PRUnichar* aString, PRUint32 aLength,
                                     const gfxFontGroup::Parameters* aParams,
                                     gfxFontGroup* aFontGroup, PRUint32 aFlags,
-                                    nsStyleContext** aStyles, bool aOwnsFactory = true);
+                                    nsStyleContext** aStyles, PRBool aOwnsFactory = PR_TRUE);
 
   virtual void RebuildTextRun(nsTransformedTextRun* aTextRun, gfxContext* aRefContext) = 0;
 };
@@ -83,7 +83,7 @@ public:
   
   // Takes ownership of aInnerTransformTextRunFactory
   nsCaseTransformTextRunFactory(nsTransformingTextRunFactory* aInnerTransformingTextRunFactory,
-                                bool aAllUppercase = false)
+                                PRBool aAllUppercase = PR_FALSE)
     : mInnerTransformingTextRunFactory(aInnerTransformingTextRunFactory),
       mAllUppercase(aAllUppercase) {}
 
@@ -91,7 +91,7 @@ public:
 
 protected:
   nsAutoPtr<nsTransformingTextRunFactory> mInnerTransformingTextRunFactory;
-  bool                                    mAllUppercase;
+  PRPackedBool                            mAllUppercase;
 };
 
 /**
@@ -105,7 +105,7 @@ public:
                                       gfxFontGroup* aFontGroup,
                                       const PRUnichar* aString, PRUint32 aLength,
                                       const PRUint32 aFlags, nsStyleContext** aStyles,
-                                      bool aOwnsFactory);
+                                      PRBool aOwnsFactory);
 
   ~nsTransformedTextRun() {
     if (mOwnsFactory) {
@@ -114,9 +114,9 @@ public:
   }
   
   void SetCapitalization(PRUint32 aStart, PRUint32 aLength,
-                         bool* aCapitalization,
+                         PRPackedBool* aCapitalization,
                          gfxContext* aRefContext);
-  virtual bool SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
+  virtual PRBool SetPotentialLineBreaks(PRUint32 aStart, PRUint32 aLength,
                                         PRUint8* aBreakBefore,
                                         gfxContext* aRefContext);
   /**
@@ -127,20 +127,16 @@ public:
   void FinishSettingProperties(gfxContext* aRefContext)
   {
     if (mNeedsRebuild) {
-      mNeedsRebuild = false;
+      mNeedsRebuild = PR_FALSE;
       mFactory->RebuildTextRun(this, aRefContext);
     }
   }
 
-  // override the gfxTextRun impls to account for additional members here
-  virtual NS_MUST_OVERRIDE size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf);
-  virtual NS_MUST_OVERRIDE size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
-
   nsTransformingTextRunFactory       *mFactory;
   nsTArray<nsRefPtr<nsStyleContext> > mStyles;
-  nsTArray<bool>              mCapitalize;
-  bool                                mOwnsFactory;
-  bool                                mNeedsRebuild;
+  nsTArray<PRPackedBool>              mCapitalize;
+  PRPackedBool                        mOwnsFactory;
+  PRPackedBool                        mNeedsRebuild;
 
 private:
   nsTransformedTextRun(const gfxTextRunFactory::Parameters* aParams,
@@ -148,10 +144,10 @@ private:
                        gfxFontGroup* aFontGroup,
                        const PRUnichar* aString, PRUint32 aLength,
                        const PRUint32 aFlags, nsStyleContext** aStyles,
-                       bool aOwnsFactory,
+                       PRBool aOwnsFactory,
                        CompressedGlyph *aGlyphStorage)
     : gfxTextRun(aParams, aString, aLength, aFontGroup, aFlags, aGlyphStorage),
-      mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(true)
+      mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(PR_TRUE)
   {
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {

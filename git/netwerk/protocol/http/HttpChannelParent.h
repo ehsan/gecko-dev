@@ -88,17 +88,16 @@ protected:
                              const RequestHeaderTuples& requestHeaders,
                              const nsHttpAtom&          requestMethod,
                              const IPC::InputStream&    uploadStream,
-                             const bool&              uploadStreamHasHeaders,
+                             const PRBool&              uploadStreamHasHeaders,
                              const PRUint16&            priority,
                              const PRUint8&             redirectionLimit,
-                             const bool&              allowPipelining,
-                             const bool&              forceAllowThirdPartyCookie,
+                             const PRBool&              allowPipelining,
+                             const PRBool&              forceAllowThirdPartyCookie,
                              const bool&                doResumeAt,
                              const PRUint64&            startPos,
                              const nsCString&           entityID,
                              const bool&                chooseApplicationCache,
-                             const nsCString&           appCacheClientID,
-                             const bool&                allowSpdy);
+                             const nsCString&           appCacheClientID);
 
   virtual bool RecvConnectChannel(const PRUint32& channelId);
   virtual bool RecvSetPriority(const PRUint16& priority);

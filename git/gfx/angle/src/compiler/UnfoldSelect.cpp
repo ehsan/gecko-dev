@@ -20,9 +20,8 @@ UnfoldSelect::UnfoldSelect(TParseContext &context, OutputHLSL *outputHLSL) : mCo
 
 void UnfoldSelect::traverse(TIntermNode *node)
 {
-    int rewindIndex = mTemporaryIndex;
+    mTemporaryIndex++;
     node->traverse(this);
-    mTemporaryIndex = rewindIndex;
 }
 
 bool UnfoldSelect::visitSelection(Visit visit, TIntermSelection *node)
@@ -31,66 +30,36 @@ bool UnfoldSelect::visitSelection(Visit visit, TIntermSelection *node)
 
     if (node->usesTernaryOperator())
     {
-        int i = mTemporaryIndex;
+        int i = mTemporaryIndex++;
 
-        out << mOutputHLSL->typeString(node->getType()) << " s" << i << ";\n";
+        out << mOutputHLSL->typeString(node->getType()) << " t" << i << ";\n";
 
-        mTemporaryIndex = i + 1;
         node->getCondition()->traverse(this);
         out << "if(";
-        mTemporaryIndex = i + 1;
         node->getCondition()->traverse(mOutputHLSL);
         out << ")\n"
                "{\n";
-        mTemporaryIndex = i + 1;
         node->getTrueBlock()->traverse(this);
-        out << "    s" << i << " = ";
-        mTemporaryIndex = i + 1;
+        out << "    t" << i << " = ";
         node->getTrueBlock()->traverse(mOutputHLSL);
         out << ";\n"
                "}\n"
                "else\n"
                "{\n";
-        mTemporaryIndex = i + 1;
         node->getFalseBlock()->traverse(this);
-        out << "    s" << i << " = ";
-        mTemporaryIndex = i + 1;
+        out << "    t" << i << " = ";
         node->getFalseBlock()->traverse(mOutputHLSL);
         out << ";\n"
                "}\n";
 
-        mTemporaryIndex = i + 1;
+        mTemporaryIndex--;
     }
 
     return false;
 }
 
-bool UnfoldSelect::visitLoop(Visit visit, TIntermLoop *node)
+int UnfoldSelect::getTemporaryIndex()
 {
-    int rewindIndex = mTemporaryIndex;
-
-    if (node->getInit())
-    {
-        node->getInit()->traverse(this);
-    }
-    
-    if (node->getCondition())
-    {
-        node->getCondition()->traverse(this);
-    }
-
-    if (node->getExpression())
-    {
-        node->getExpression()->traverse(this);
-    }
-
-    mTemporaryIndex = rewindIndex;
-
-    return false;
-}
-
-int UnfoldSelect::getNextTemporaryIndex()
-{
-    return mTemporaryIndex++;
+    return mTemporaryIndex;
 }
 }

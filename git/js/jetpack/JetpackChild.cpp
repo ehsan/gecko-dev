@@ -37,7 +37,6 @@
 
 #include "base/basictypes.h"
 #include "jscntxt.h"
-#include "jswrapper.h"
 #include "nsXULAppAPI.h"
 #include "nsNativeCharsetUtils.h"
 
@@ -130,7 +129,8 @@ JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
   JS_SetVersion(mCx, JSVERSION_LATEST);
   JS_SetOptions(mCx, JS_GetOptions(mCx) |
                 JSOPTION_DONT_REPORT_UNCAUGHT |
-                JSOPTION_ATLINE);
+                JSOPTION_ATLINE |
+                JSOPTION_JIT);
   JS_SetErrorReporter(mCx, ReportError);
 
   {
@@ -486,7 +486,7 @@ JetpackChild::EvalInSandbox(JSContext* cx, uintN argc, jsval* vp)
   }
 
   // Unwrap, and switch compartments
-  obj = js::UnwrapObject(obj);
+  obj = obj->unwrap();
 
   JSAutoEnterCompartment ac;
   if (!ac.enter(cx, obj))

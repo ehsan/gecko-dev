@@ -117,7 +117,7 @@ public:
   /// This may return an incomplete string on OOM, but that's acceptable.
   void GetValueAsString(nsAString& aValue) const;
 
-  bool IsEmpty() const {
+  PRBool IsEmpty() const {
     return mData.IsEmpty();
   }
 
@@ -142,7 +142,7 @@ public:
   }
 
   // Used by nsSMILCompositor to check if the cached base val is out of date
-  bool operator==(const SVGPathData& rhs) const {
+  PRBool operator==(const SVGPathData& rhs) const {
     // We use memcmp so that we don't need to worry that the data encoded in
     // the first float may have the same bit pattern as a NaN.
     return mData.Length() == rhs.mData.Length() &&
@@ -150,7 +150,7 @@ public:
                   mData.Length() * sizeof(float)) == 0;
   }
 
-  bool SetCapacity(PRUint32 aSize) {
+  PRBool SetCapacity(PRUint32 aSize) {
     return mData.SetCapacity(aSize);
   }
 
@@ -166,14 +166,14 @@ public:
   void GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const;
 
   /**
-   * Returns true, except on OOM, in which case returns false.
+   * Returns PR_TRUE, except on OOM, in which case returns PR_FALSE.
    */
-  bool GetSegmentLengths(nsTArray<double> *aLengths) const;
+  PRBool GetSegmentLengths(nsTArray<double> *aLengths) const;
 
   /**
-   * Returns true, except on OOM, in which case returns false.
+   * Returns PR_TRUE, except on OOM, in which case returns PR_FALSE.
    */
-  bool GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aArray) const;
+  PRBool GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aArray) const;
 
   already_AddRefed<gfxFlattenedPath>
   ToFlattenedPath(const gfxMatrix& aMatrix) const;
@@ -204,10 +204,10 @@ protected:
   }
 
   /**
-   * This may fail (return false) on OOM if the internal capacity is being
+   * This may fail (return PR_FALSE) on OOM if the internal capacity is being
    * increased, in which case the list will be left unmodified.
    */
-  bool SetLength(PRUint32 aLength) {
+  PRBool SetLength(PRUint32 aLength) {
     return mData.SetLength(aLength);
   }
 
@@ -223,7 +223,7 @@ protected:
   // * InsertItem(PRUint32 aDataIndex, PRUint32 aType, const float *aArgs);
   // * ReplaceItem(PRUint32 aDataIndex, PRUint32 aType, const float *aArgs);
   // * RemoveItem(PRUint32 aDataIndex);
-  // * bool AppendItem(PRUint32 aType, const float *aArgs);
+  // * PRBool AppendItem(PRUint32 aType, const float *aArgs);
 
   nsresult AppendSeg(PRUint32 aType, ...); // variable number of float args
 
@@ -263,12 +263,12 @@ public:
     return SVGPathData::CopyFrom(rhs);
   }
 
-  bool IsIdentity() const {
+  PRBool IsIdentity() const {
     if (!mElement) {
       NS_ABORT_IF_FALSE(IsEmpty(), "target element propagation failure");
-      return true;
+      return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
   /**

@@ -44,7 +44,7 @@
 #include "nsObjCExceptions.h"
 #include "nsCocoaUtils.h"
 #include "nsCocoaWindow.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMEventTarget.h"
@@ -56,7 +56,7 @@ void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
 {
   NS_PRECONDITION(aTargetContent, "null ptr");
 
-  nsIDocument* doc = aTargetContent->OwnerDoc();
+  nsIDocument* doc = aTargetContent->GetOwnerDoc();
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(doc);
   nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTargetContent);
   if (domDoc && target) {
@@ -70,12 +70,12 @@ void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
     // pressed keys, but this is a big old edge case anyway. -dwh
     if (pEvent &&
         NS_SUCCEEDED(command->InitCommandEvent(NS_LITERAL_STRING("command"),
-                                               true, true,
+                                               PR_TRUE, PR_TRUE,
                                                doc->GetWindow(), 0,
-                                               false, false, false,
-                                               false, nsnull))) {
-      pEvent->SetTrusted(true);
-      bool dummy;
+                                               PR_FALSE, PR_FALSE, PR_FALSE,
+                                               PR_FALSE, nsnull))) {
+      pEvent->SetTrusted(PR_TRUE);
+      PRBool dummy;
       target->DispatchEvent(event, &dummy);
     }
   }
@@ -202,12 +202,12 @@ NSMenuItem* nsMenuUtilsX::GetStandardEditMenuItem()
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-bool nsMenuUtilsX::NodeIsHiddenOrCollapsed(nsIContent* inContent)
+PRBool nsMenuUtilsX::NodeIsHiddenOrCollapsed(nsIContent* inContent)
 {
-  return (inContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
-                                 nsGkAtoms::_true, eCaseMatters) ||
-          inContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::collapsed,
-                                 nsGkAtoms::_true, eCaseMatters));
+  return (inContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::hidden,
+                                 nsWidgetAtoms::_true, eCaseMatters) ||
+          inContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::collapsed,
+                                 nsWidgetAtoms::_true, eCaseMatters));
 }
 
 // Determines how many items are visible among the siblings in a menu that are

@@ -55,22 +55,6 @@ struct Margin :
     : Super(aLeft, aTop, aRight, aBottom) {}
 };
 
-struct IntRect :
-    public BaseRect<int32_t, IntRect, IntPoint, IntSize, Margin> {
-    typedef BaseRect<int32_t, IntRect, IntPoint, mozilla::gfx::IntSize, Margin> Super;
-
-    IntRect() : Super() {}
-    IntRect(IntPoint aPos, mozilla::gfx::IntSize aSize) :
-        Super(aPos, aSize) {}
-    IntRect(int32_t _x, int32_t _y, int32_t _width, int32_t _height) :
-        Super(_x, _y, _width, _height) {}
-
-    // Rounding isn't meaningful on an integer rectangle.
-    void Round() {}
-    void RoundIn() {}
-    void RoundOut() {}
-};
-
 struct Rect :
     public BaseRect<Float, Rect, Point, Size, Margin> {
     typedef BaseRect<Float, Rect, Point, mozilla::gfx::Size, Margin> Super;
@@ -80,9 +64,17 @@ struct Rect :
         Super(aPos, aSize) {}
     Rect(Float _x, Float _y, Float _width, Float _height) :
         Super(_x, _y, _width, _height) {}
-    explicit Rect(const IntRect& rect) :
-        Super(float(rect.x), float(rect.y),
-              float(rect.width), float(rect.height)) {}
+};
+
+struct IntRect :
+    public BaseRect<int32_t, IntRect, IntPoint, IntSize, Margin> {
+    typedef BaseRect<int32_t, IntRect, IntPoint, mozilla::gfx::IntSize, Margin> Super;
+
+    IntRect() : Super() {}
+    IntRect(IntPoint aPos, mozilla::gfx::IntSize aSize) :
+        Super(aPos, aSize) {}
+    IntRect(int32_t _x, int32_t _y, int32_t _width, int32_t _height) :
+        Super(_x, _y, _width, _height) {}
 };
 
 }

@@ -13,12 +13,10 @@
 #include "vpx_mem/vpx_mem.h"
 
 
-static void copy_and_extend_plane
+static void extend_plane_borders
 (
     unsigned char *s, /* source */
-    int sp,           /* source pitch */
-    unsigned char *d, /* destination */
-    int dp,           /* destination pitch */
+    int sp,           /* pitch */
     int h,            /* height */
     int w,            /* width */
     int et,           /* extend top border */
@@ -27,6 +25,7 @@ static void copy_and_extend_plane
     int er            /* extend right border */
 )
 {
+
     int i;
     unsigned char *src_ptr1, *src_ptr2;
     unsigned char *dest_ptr1, *dest_ptr2;
@@ -35,72 +34,67 @@ static void copy_and_extend_plane
     /* copy the left and right most columns out */
     src_ptr1 = s;
     src_ptr2 = s + w - 1;
-    dest_ptr1 = d - el;
-    dest_ptr2 = d + w;
+    dest_ptr1 = s - el;
+    dest_ptr2 = s + w;
 
-    for (i = 0; i < h; i++)
+    for (i = 0; i < h - 0 + 1; i++)
     {
-        vpx_memset(dest_ptr1, src_ptr1[0], el);
-        vpx_memcpy(dest_ptr1 + el, src_ptr1, w);
+        /* Some linkers will complain if we call vpx_memset with el set to a
+         * constant 0.
+         */
+        if (el)
+            vpx_memset(dest_ptr1, src_ptr1[0], el);
         vpx_memset(dest_ptr2, src_ptr2[0], er);
         src_ptr1  += sp;
         src_ptr2  += sp;
-        dest_ptr1 += dp;
-        dest_ptr2 += dp;
+        dest_ptr1 += sp;
+        dest_ptr2 += sp;
     }
 
-    /* Now copy the top and bottom lines into each line of the respective
-     * borders
-     */
-    src_ptr1 = d - el;
-    src_ptr2 = d + dp * (h - 1) - el;
-    dest_ptr1 = d + dp * (-et) - el;
-    dest_ptr2 = d + dp * (h) - el;
-    linesize = el + er + w;
+    /* Now copy the top and bottom source lines into each line of the respective borders */
+    src_ptr1 = s - el;
+    src_ptr2 = s + sp * (h - 1) - el;
+    dest_ptr1 = s + sp * (-et) - el;
+    dest_ptr2 = s + sp * (h) - el;
+    linesize = el + er + w + 1;
 
-    for (i = 0; i < et; i++)
+    for (i = 0; i < (int)et; i++)
     {
         vpx_memcpy(dest_ptr1, src_ptr1, linesize);
-        dest_ptr1 += dp;
+        dest_ptr1 += sp;
     }
 
-    for (i = 0; i < eb; i++)
+    for (i = 0; i < (int)eb; i++)
     {
         vpx_memcpy(dest_ptr2, src_ptr2, linesize);
-        dest_ptr2 += dp;
+        dest_ptr2 += sp;
     }
 }
 
 
-void vp8_copy_and_extend_frame(YV12_BUFFER_CONFIG *src,
-                               YV12_BUFFER_CONFIG *dst)
+void vp8_extend_to_multiple_of16(YV12_BUFFER_CONFIG *ybf, int width, int height)
 {
-    int et = dst->border;
-    int el = dst->border;
-    int eb = dst->border + dst->y_height - src->y_height;
-    int er = dst->border + dst->y_width - src->y_width;
+    int er = 0xf & (16 - (width & 0xf));
+    int eb = 0xf & (16 - (height & 0xf));
 
-    copy_and_extend_plane(src->y_buffer, src->y_stride,
-                          dst->y_buffer, dst->y_stride,
-                          src->y_height, src->y_width,
-                          et, el, eb, er);
+    /* check for non multiples of 16 */
+    if (er != 0 || eb != 0)
+    {
+        extend_plane_borders(ybf->y_buffer, ybf->y_stride, height, width, 0, 0, eb, er);
 
-    et = dst->border >> 1;
-    el = dst->border >> 1;
-    eb = (dst->border >> 1) + dst->uv_height - src->uv_height;
-    er = (dst->border >> 1) + dst->uv_width - src->uv_width;
+        /* adjust for uv */
+        height = (height + 1) >> 1;
+        width  = (width  + 1) >> 1;
+        er = 0x7 & (8 - (width  & 0x7));
+        eb = 0x7 & (8 - (height & 0x7));
 
-    copy_and_extend_plane(src->u_buffer, src->uv_stride,
-                          dst->u_buffer, dst->uv_stride,
-                          src->uv_height, src->uv_width,
-                          et, el, eb, er);
-
-    copy_and_extend_plane(src->v_buffer, src->uv_stride,
-                          dst->v_buffer, dst->uv_stride,
-                          src->uv_height, src->uv_width,
-                          et, el, eb, er);
+        if (er || eb)
+        {
+            extend_plane_borders(ybf->u_buffer, ybf->uv_stride, height, width, 0, 0, eb, er);
+            extend_plane_borders(ybf->v_buffer, ybf->uv_stride, height, width, 0, 0, eb, er);
+        }
+    }
 }
-
 
 /* note the extension is only for the last row, for intra prediction purpose */
 void vp8_extend_mb_row(YV12_BUFFER_CONFIG *ybf, unsigned char *YPtr, unsigned char *UPtr, unsigned char *VPtr)

@@ -38,8 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsPrintPreviewListener.h"
-
-#include "mozilla/dom/Element.h"
+#include "nsIContent.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"
@@ -50,8 +49,6 @@
 #include "nsPresContext.h"
 #include "nsFocusManager.h"
 #include "nsLiteralString.h"
-
-using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(nsPrintPreviewListener, nsIDOMEventListener)
 
@@ -139,7 +136,7 @@ GetActionForEvent(nsIDOMEvent* aEvent)
 
   nsCOMPtr<nsIDOMKeyEvent> keyEvent(do_QueryInterface(aEvent));
   if (keyEvent) {
-    bool b;
+    PRBool b;
     keyEvent->GetAltKey(&b);
     if (b) return eEventAction_Suppress;
     keyEvent->GetCtrlKey(&b);
@@ -197,10 +194,10 @@ nsPrintPreviewListener::HandleEvent(nsIDOMEvent* aEvent)
 
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm && win) {
-            dom::Element* fromElement = parentDoc->FindContentForSubDocument(doc);
-            nsCOMPtr<nsIDOMElement> from = do_QueryInterface(fromElement);
+            nsIContent* fromContent = parentDoc->FindContentForSubDocument(doc);
+            nsCOMPtr<nsIDOMElement> from = do_QueryInterface(fromContent);
 
-            bool forward = (action == eEventAction_Tab);
+            PRBool forward = (action == eEventAction_Tab);
             nsCOMPtr<nsIDOMElement> result;
             fm->MoveFocus(win, from,
                           forward ? nsIFocusManager::MOVEFOCUS_FORWARD :

@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "gfxFontconfigUtils.h"
 #include "gfxFont.h"
 #include "gfxAtoms.h"
@@ -312,7 +310,7 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
         AddString(pattern, FC_LANG, aLang);
     }
 
-    bool useWeakBinding = false;
+    PRBool useWeakBinding = PR_FALSE;
     for (PRUint32 i = 0; i < aFamilies.Length(); ++i) {
         NS_ConvertUTF16toUTF8 family(aFamilies[i]);
         if (!useWeakBinding) {
@@ -325,11 +323,11 @@ gfxFontconfigUtils::NewPattern(const nsTArray<nsString>& aFamilies,
             // families do not have a higher priority, they are given weak
             // bindings.
             for (PRUint32 g = 0;
-                 g < ArrayLength(sFontconfigGenerics);
+                 g < NS_ARRAY_LENGTH(sFontconfigGenerics);
                  ++g) {
                 if (0 == FcStrCmpIgnoreCase(ToFcChar8(sFontconfigGenerics[g]),
                                             ToFcChar8(family.get()))) {
-                    useWeakBinding = true;
+                    useWeakBinding = PR_TRUE;
                     break;
                 }
             }
@@ -429,7 +427,7 @@ const MozLangGroupData MozLangGroups[] = {
     { gfxAtoms::x_user_def,     0    }
 };
 
-static bool
+static PRBool
 TryLangForGroup(const nsACString& aOSLang, nsIAtom *aLangGroup,
                 nsACString *aFcLang)
 {
@@ -472,7 +470,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
 
     const MozLangGroupData *langGroup = nsnull;
 
-    for (unsigned int i = 0; i < ArrayLength(MozLangGroups); ++i) {
+    for (unsigned int i = 0; i < NS_ARRAY_LENGTH(MozLangGroups); ++i) {
         if (aLangGroup == MozLangGroups[i].mozLangGroup) {
             langGroup = &MozLangGroups[i];
             break;
@@ -497,7 +495,7 @@ gfxFontconfigUtils::GetSampleLangForGroup(nsIAtom *aLangGroup,
         if (languages) {
             const char separator = ':';
 
-            for (const char *pos = languages; true; ++pos) {
+            for (const char *pos = languages; PR_TRUE; ++pos) {
                 if (*pos == '\0' || *pos == separator) {
                     if (languages < pos &&
                         TryLangForGroup(Substring(languages, pos),
@@ -588,11 +586,11 @@ gfxFontconfigUtils::GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
 nsresult
 gfxFontconfigUtils::UpdateFontList()
 {
-    return UpdateFontListInternal(true);
+    return UpdateFontListInternal(PR_TRUE);
 }
 
 nsresult
-gfxFontconfigUtils::UpdateFontListInternal(bool aForce)
+gfxFontconfigUtils::UpdateFontListInternal(PRBool aForce)
 {
     if (!aForce) {
         // This checks periodically according to fontconfig's configured
@@ -630,7 +628,7 @@ gfxFontconfigUtils::UpdateFontListInternal(bool aForce)
              ++v) {
             FontsByFcStrEntry *entry = mFontsByFamily.PutEntry(family);
             if (entry) {
-                bool added = entry->AddFont(font);
+                PRBool added = entry->AddFont(font);
 
                 if (!entry->mKey) {
                     // The reference to the font pattern keeps the pointer to
@@ -670,7 +668,7 @@ gfxFontconfigUtils::UpdateFontListInternal(bool aForce)
             while (++p != p_end && *p != kComma)
                 /* nothing */ ;
             nsCAutoString name(Substring(start, p));
-            name.CompressWhitespace(false, true);
+            name.CompressWhitespace(PR_FALSE, PR_TRUE);
             mAliasForMultiFonts.AppendElement(name);
             p++;
         }
@@ -759,10 +757,10 @@ gfxFontconfigUtils::GetStandardFamilyName(const nsAString& aFontName, nsAString&
         if (candidateFS->nfont != givenFS->nfont)
             continue;
 
-        bool equal = true;
+        PRBool equal = PR_TRUE;
         for (int i = 0; i < givenFS->nfont; ++i) {
             if (!FcPatternEqual(candidateFS->fonts[i], givenFS->fonts[i])) {
-                equal = false;
+                equal = PR_FALSE;
                 break;
             }
         }
@@ -793,9 +791,9 @@ nsresult
 gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
                                     gfxPlatform::FontResolverCallback aCallback,
                                     void *aClosure,
-                                    bool& aAborted)
+                                    PRBool& aAborted)
 {
-    aAborted = false;
+    aAborted = PR_FALSE;
 
     nsresult rv = UpdateFontListInternal();
     if (NS_FAILED(rv))
@@ -821,7 +819,7 @@ gfxFontconfigUtils::ResolveFontName(const nsAString& aFontName,
     return NS_OK;
 }
 
-bool
+PRBool
 gfxFontconfigUtils::IsExistingFamily(const nsCString& aFamilyName)
 {
     return mFontsByFamily.GetEntry(ToFcChar8(aFamilyName)) != nsnull;
@@ -843,13 +841,13 @@ gfxFontconfigUtils::GetFontsForFamily(const FcChar8 *aFamilyName)
 // must be generated from the family and style properties.  Only the first
 // family and style is checked, but that should be OK, as I don't expect
 // non-SFNT fonts to have multiple families or styles.
-bool
+PRBool
 gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(FcPattern *aFont,
                                                   nsACString *aFullname)
 {
     FcChar8 *family;
     if (FcPatternGetString(aFont, FC_FAMILY, 0, &family) != FcResultMatch)
-        return false;
+        return PR_FALSE;
 
     aFullname->Truncate();
     aFullname->Append(ToCString(family));
@@ -861,10 +859,10 @@ gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(FcPattern *aFont,
         aFullname->Append(ToCString(style));
     }
 
-    return true;
+    return PR_TRUE;
 }
 
-bool
+PRBool
 gfxFontconfigUtils::FontsByFullnameEntry::KeyEquals(KeyTypePointer aKey) const
 {
     const FcChar8 *key = mKey;
@@ -899,7 +897,7 @@ gfxFontconfigUtils::AddFullnameEntries()
                 // entry always has space for one font, so the first AddFont
                 // will always succeed, and so the entry will always have a
                 // font from which to obtain the key.
-                bool added = entry->AddFont(font);
+                PRBool added = entry->AddFont(font);
                 // The key may be NULL either if this is the first font, or if
                 // the first font does not have a fullname property, and so
                 // the key is obtained from the font.  Set the key in both
@@ -1014,7 +1012,7 @@ gfxFontconfigUtils::GetLangSupport(FcPattern *aFont, const FcChar8 *aLang)
 }
 
 gfxFontconfigUtils::LangSupportEntry *
-gfxFontconfigUtils::GetLangSupportEntry(const FcChar8 *aLang, bool aWithFonts)
+gfxFontconfigUtils::GetLangSupportEntry(const FcChar8 *aLang, PRBool aWithFonts)
 {
     // Currently any unrecognized languages from documents will be converted
     // to x-unicode by nsILanguageAtomService, so there is a limit on the
@@ -1081,7 +1079,7 @@ gfxFontconfigUtils::GetLangSupportEntry(const FcChar8 *aLang, bool aWithFonts)
             // indication that the set of installed fonts has changed, so
             // update all caches.
             mLastConfig = NULL; // invalidates caches
-            UpdateFontListInternal(true);
+            UpdateFontListInternal(PR_TRUE);
             return GetLangSupportEntry(aLang, aWithFonts);
         }
     }
@@ -1094,7 +1092,7 @@ gfxFontconfigUtils::GetBestLangSupport(const FcChar8 *aLang)
 {
     UpdateFontListInternal();
 
-    LangSupportEntry *entry = GetLangSupportEntry(aLang, false);
+    LangSupportEntry *entry = GetLangSupportEntry(aLang, PR_FALSE);
     if (!entry)
         return FcLangEqual;
 
@@ -1104,18 +1102,18 @@ gfxFontconfigUtils::GetBestLangSupport(const FcChar8 *aLang)
 const nsTArray< nsCountedRef<FcPattern> >&
 gfxFontconfigUtils::GetFontsForLang(const FcChar8 *aLang)
 {
-    LangSupportEntry *entry = GetLangSupportEntry(aLang, true);
+    LangSupportEntry *entry = GetLangSupportEntry(aLang, PR_TRUE);
     if (!entry)
         return mEmptyPatternArray;
 
     return entry->mFonts;
 }
 
-bool
+PRBool
 gfxFontNameList::Exists(nsAString& aName) {
     for (PRUint32 i = 0; i < Length(); i++) {
         if (aName.Equals(ElementAt(i)))
-            return true;
+            return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
 }

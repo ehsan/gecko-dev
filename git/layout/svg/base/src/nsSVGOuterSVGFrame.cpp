@@ -142,11 +142,11 @@ nsSVGOuterSVGFrame::nsSVGOuterSVGFrame(nsStyleContext* aContext)
     : nsSVGOuterSVGFrameBase(aContext)
     ,  mRedrawSuspendCount(0)
     , mFullZoom(0)
-    , mViewportInitialized(false)
+    , mViewportInitialized(PR_FALSE)
 #ifdef XP_MACOSX
-    , mEnableBitmapFallback(false)
+    , mEnableBitmapFallback(PR_FALSE)
 #endif
-    , mIsRootContent(false)
+    , mIsRootContent(PR_FALSE)
 {
 }
 
@@ -175,7 +175,7 @@ nsSVGOuterSVGFrame::Init(nsIContent* aContent,
   if (doc) {
     // we only care about our content's zoom and pan values if it's the root element
     if (doc->GetRootElement() == mContent) {
-      mIsRootContent = true;
+      mIsRootContent = PR_TRUE;
     }
     // sSVGMutationObserver has the same lifetime as the document so does
     // not need to be removed
@@ -307,7 +307,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
 nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                                bool aShrinkWrap)
+                                PRBool aShrinkWrap)
 {
   nsSVGSVGElement* content = static_cast<nsSVGSVGElement*>(mContent);
 
@@ -337,8 +337,8 @@ nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
 
       nsSVGLength2 &height =
         content->mLengthAttributes[nsSVGSVGElement::HEIGHT];
-      NS_ASSERTION(aCBSize.height != NS_AUTOHEIGHT,
-                   "root should not have auto-height containing block");
+      NS_ABORT_IF_FALSE(aCBSize.height != NS_AUTOHEIGHT,
+                        "root should not have auto-height containing block");
       if (height.IsPercentage()) {
         NS_ABORT_IF_FALSE(intrinsicSize.height.GetUnit() == eStyleUnit_None,
                           "GetIntrinsicSize should have reported no "
@@ -400,7 +400,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
   if (newViewportSize != svgElem->GetViewportSize() ||
       mFullZoom != PresContext()->GetFullZoom()) {
     svgElem->SetViewportSize(newViewportSize);
-    mViewportInitialized = true;
+    mViewportInitialized = PR_TRUE;
     mFullZoom = PresContext()->GetFullZoom();
     NotifyViewportChange();
   }
@@ -425,7 +425,7 @@ nsSVGOuterSVGFrame::DidReflow(nsPresContext*   aPresContext,
                               const nsHTMLReflowState*  aReflowState,
                               nsDidReflowStatus aStatus)
 {
-  bool firstReflow = (GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
+  PRBool firstReflow = (GetStateBits() & NS_FRAME_FIRST_REFLOW) != 0;
 
   nsresult rv = nsSVGOuterSVGFrameBase::DidReflow(aPresContext,aReflowState,aStatus);
 
@@ -510,7 +510,7 @@ nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 // helper
-static inline bool
+static inline PRBool
 DependsOnIntrinsicSize(const nsIFrame* aEmbeddingFrame)
 {
   const nsStylePosition *pos = aEmbeddingFrame->GetStylePosition();
@@ -530,36 +530,22 @@ nsSVGOuterSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                      PRInt32  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
-      !(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    if (aAttribute == nsGkAtoms::viewBox ||
-        aAttribute == nsGkAtoms::preserveAspectRatio ||
-        aAttribute == nsGkAtoms::transform) {
-
-      // make sure our cached transform matrix gets (lazily) updated
-      mCanvasTM = nsnull;
-
-      nsSVGUtils::NotifyChildrenOfSVGChange(
-          this, aAttribute == nsGkAtoms::viewBox ?
-                  TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED : TRANSFORM_CHANGED);
-
-    } else if (aAttribute == nsGkAtoms::width ||
-               aAttribute == nsGkAtoms::height) {
-
-        nsIFrame* embeddingFrame;
-        if (IsRootOfReplacedElementSubDoc(&embeddingFrame) && embeddingFrame) {
-          if (DependsOnIntrinsicSize(embeddingFrame)) {
-            // Tell embeddingFrame's presShell it needs to be reflowed (which takes
-            // care of reflowing us too).
-            embeddingFrame->PresContext()->PresShell()->
-              FrameNeedsReflow(embeddingFrame, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-          }
-          // else our width and height is overridden - don't reflow anything
-        } else {
-          // We are not embedded by reference, so our 'width' and 'height'
-          // attributes are not overridden - we need to reflow.
-          PresContext()->PresShell()->
-            FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-        }
+      !(GetStateBits() & NS_FRAME_FIRST_REFLOW) &&
+      (aAttribute == nsGkAtoms::width || aAttribute == nsGkAtoms::height)) {
+    nsIFrame* embeddingFrame;
+    if (IsRootOfReplacedElementSubDoc(&embeddingFrame) && embeddingFrame) {
+      if (DependsOnIntrinsicSize(embeddingFrame)) {
+        // Tell embeddingFrame's presShell it needs to be reflowed (which takes
+        // care of reflowing us too).
+        embeddingFrame->PresContext()->PresShell()->
+          FrameNeedsReflow(embeddingFrame, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
+      }
+      // else our width and height is overridden - don't reflow anything
+    } else {
+      // We are not embedded by reference, so our 'width' and 'height'
+      // attributes are not overridden - we need to reflow.
+      PresContext()->PresShell()->
+        FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
     }
   }
 
@@ -608,7 +594,7 @@ nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
   nsSVGRenderState ctx(&aRenderingContext);
 
   if (aBuilder->IsPaintingToWindow()) {
-    ctx.SetPaintingToWindow(true);
+    ctx.SetPaintingToWindow(PR_TRUE);
   }
 
 #ifdef XP_MACOSX
@@ -629,7 +615,7 @@ nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
   }
   
   if (ctx.GetGfxContext()->HasError() && !mEnableBitmapFallback) {
-    mEnableBitmapFallback = true;
+    mEnableBitmapFallback = PR_TRUE;
     // It's not really clear what area to invalidate here. We might have
     // stuffed up rendering for the entire window in this paint pass,
     // so we can't just invalidate our own rect. Invalidate everything
@@ -639,7 +625,7 @@ nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
     // documents. Better to fix things so we don't need fallback.
     nsIFrame* frame = this;
     PRUint32 flags = 0;
-    while (true) {
+    while (PR_TRUE) {
       nsIFrame* next = nsLayoutUtils::GetCrossDocParentFrame(frame);
       if (!next)
         break;
@@ -690,25 +676,25 @@ nsSVGOuterSVGFrame::InvalidateCoveredRegion(nsIFrame *aFrame)
   Invalidate(rect);
 }
 
-bool
+PRBool
 nsSVGOuterSVGFrame::UpdateAndInvalidateCoveredRegion(nsIFrame *aFrame)
 {
   nsISVGChildFrame *svgFrame = do_QueryFrame(aFrame);
   if (!svgFrame)
-    return false;
+    return PR_FALSE;
 
   nsRect oldRegion = svgFrame->GetCoveredRegion();
   Invalidate(nsSVGUtils::FindFilterInvalidation(aFrame, oldRegion));
   svgFrame->UpdateCoveredRegion();
   nsRect newRegion = svgFrame->GetCoveredRegion();
   if (oldRegion.IsEqualInterior(newRegion))
-    return false;
+    return PR_FALSE;
 
   Invalidate(nsSVGUtils::FindFilterInvalidation(aFrame, newRegion));
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsSVGOuterSVGFrame::IsRedrawSuspended()
 {
   return (mRedrawSuspendCount>0) || !mViewportInitialized;
@@ -844,7 +830,7 @@ nsSVGOuterSVGFrame::UnregisterForeignObject(nsSVGForeignObjectFrame* aFrame)
   return mForeignObjectHash.RemoveEntry(aFrame);
 }
 
-bool
+PRBool
 nsSVGOuterSVGFrame::IsRootOfReplacedElementSubDoc(nsIFrame **aEmbeddingFrame)
 {
   if (!mContent->GetParent()) {
@@ -863,17 +849,17 @@ nsSVGOuterSVGFrame::IsRootOfReplacedElementSubDoc(nsIFrame **aEmbeddingFrame)
             static_cast<nsGenericElement*>(element.get())->GetPrimaryFrame();
           NS_ASSERTION(*aEmbeddingFrame, "Yikes, no embedding frame!");
         }
-        return true;
+        return PR_TRUE;
       }
     }
   }
   if (aEmbeddingFrame) {
     *aEmbeddingFrame = nsnull;
   }
-  return false;
+  return PR_FALSE;
 }
 
-bool
+PRBool
 nsSVGOuterSVGFrame::IsRootOfImage()
 {
   if (!mContent->GetParent()) {
@@ -881,9 +867,9 @@ nsSVGOuterSVGFrame::IsRootOfImage()
     nsIDocument* doc = mContent->GetCurrentDoc();
     if (doc && doc->IsBeingUsedAsImage()) {
       // Our document is being used as an image
-      return true;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }

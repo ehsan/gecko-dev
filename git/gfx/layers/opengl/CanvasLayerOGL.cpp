@@ -45,7 +45,6 @@
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
 #include "GLContextProvider.h"
-#include "gfxPlatform.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsSurface.h"
@@ -74,7 +73,7 @@ CanvasLayerOGL::Destroy()
       cx->fDeleteTextures(1, &mTexture);
     }
 
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
   }
 }
 
@@ -92,12 +91,9 @@ CanvasLayerOGL::Initialize(const Data& aData)
 
   mOGLManager->MakeCurrent();
 
-  if (aData.mDrawTarget) {
-    mDrawTarget = aData.mDrawTarget;
-    mNeedsYFlip = false;
-  } else if (aData.mSurface) {
+  if (aData.mSurface) {
     mCanvasSurface = aData.mSurface;
-    mNeedsYFlip = false;
+    mNeedsYFlip = PR_FALSE;
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     if (aData.mSurface->GetType() == gfxASurface::SurfaceTypeXlib) {
         gfxXlibSurface *xsurf = static_cast<gfxXlibSurface*>(aData.mSurface);
@@ -121,7 +117,7 @@ CanvasLayerOGL::Initialize(const Data& aData)
     mCanvasGLContext = aData.mGLContext;
     mGLBufferIsPremultiplied = aData.mGLBufferIsPremultiplied;
 
-    mNeedsYFlip = true;
+    mNeedsYFlip = PR_TRUE;
   } else {
     NS_WARNING("CanvasLayerOGL::Initialize called without surface or GL context!");
     return;
@@ -133,11 +129,11 @@ CanvasLayerOGL::Initialize(const Data& aData)
   // images of up to 2 + GL_MAX_TEXTURE_SIZE
   GLint texSize = gl()->GetMaxTextureSize();
   if (mBounds.width > (2 + texSize) || mBounds.height > (2 + texSize)) {
-    mDelayedUpdates = true;
+    mDelayedUpdates = PR_TRUE;
     MakeTexture();
     // This should only ever occur with 2d canvas, WebGL can't already have a texture
     // of this size can it?
-    NS_ABORT_IF_FALSE(mCanvasSurface || mDrawTarget, 
+    NS_ABORT_IF_FALSE(mCanvasSurface, 
                       "Invalid texture size when WebGL surface already exists at that size?");
   }
 }
@@ -164,7 +160,7 @@ CanvasLayerOGL::UpdateSurface()
 {
   if (!mDirty)
     return;
-  mDirty = false;
+  mDirty = PR_FALSE;
 
   if (mDestroyed || mDelayedUpdates) {
     return;
@@ -188,11 +184,7 @@ CanvasLayerOGL::UpdateSurface()
     }
   } else {
     nsRefPtr<gfxASurface> updatedAreaSurface;
-    if (mDrawTarget) {
-      // TODO: This is suboptimal - We should have direct handling for the surface types instead of
-      // going via a gfxASurface.
-      updatedAreaSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
-    } else if (mCanvasSurface) {
+    if (mCanvasSurface) {
       updatedAreaSurface = mCanvasSurface;
     } else if (mCanvasGLContext) {
       nsRefPtr<gfxImageSurface> updatedAreaImageSurface =
@@ -242,11 +234,11 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
   if (useGLContext) {
     mCanvasGLContext->MakeCurrent();
-    mCanvasGLContext->fFinish();
+    mCanvasGLContext->fFlush();
 
     gl()->MakeCurrent();
     gl()->BindTex2DOffscreen(mCanvasGLContext);
-    program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), true);
+    program = mOGLManager->GetBasicLayerProgram(CanUseOpaqueSurface(), PR_TRUE);
   } else if (mDelayedUpdates) {
     NS_ABORT_IF_FALSE(mCanvasSurface, "WebGL canvases should always be using full texture upload");
     
@@ -269,7 +261,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
   }
 #endif
 
-  gl()->ApplyFilterToBoundTexture(mFilter);
+  ApplyFilter(mFilter);
 
   program->Activate();
   program->SetLayerQuadRect(drawRect);
@@ -295,7 +287,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 ShadowCanvasLayerOGL::ShadowCanvasLayerOGL(LayerManagerOGL* aManager)
   : ShadowCanvasLayer(aManager, nsnull)
   , LayerOGL(aManager)
-  , mNeedsYFlip(false)
+  , mNeedsYFlip(PR_FALSE)
 {
   mImplData = static_cast<LayerOGL*>(this);
 }
@@ -310,28 +302,24 @@ ShadowCanvasLayerOGL::Initialize(const Data& aData)
 }
 
 void
-ShadowCanvasLayerOGL::Init(const CanvasSurface& aNewFront, bool needYFlip)
+ShadowCanvasLayerOGL::Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip)
 {
-  nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
+  mDeadweight = aNewFront;
+  nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(mDeadweight);
 
-  mTexImage = gl()->CreateTextureImage(surf->GetSize(),
+  mTexImage = gl()->CreateTextureImage(nsIntSize(aSize.width, aSize.height),
                                        surf->GetContentType(),
                                        LOCAL_GL_CLAMP_TO_EDGE);
   mNeedsYFlip = needYFlip;
 }
 
 void
-ShadowCanvasLayerOGL::Swap(const CanvasSurface& aNewFront,
-                           bool needYFlip,
-                           CanvasSurface* aNewBack)
+ShadowCanvasLayerOGL::Swap(const SurfaceDescriptor& aNewFront,
+                           SurfaceDescriptor* aNewBack)
 {
-  if (!mDestroyed) {
+  if (!mDestroyed && mTexImage) {
     nsRefPtr<gfxASurface> surf = ShadowLayerForwarder::OpenDescriptor(aNewFront);
-    gfxIntSize sz = surf->GetSize();
-    if (!mTexImage || mTexImage->GetSize() != sz ||
-        mTexImage->GetContentType() != surf->GetContentType()) {
-      Init(aNewFront, needYFlip);
-    }
+    gfxSize sz = surf->GetSize();
     nsIntRegion updateRegion(nsIntRect(0, 0, sz.width, sz.height));
     mTexImage->DirectUpdate(surf, updateRegion);
   }
@@ -343,6 +331,9 @@ void
 ShadowCanvasLayerOGL::DestroyFrontBuffer()
 {
   mTexImage = nsnull;
+  if (IsSurfaceDescriptorValid(mDeadweight)) {
+    mOGLManager->DestroySharedSurface(&mDeadweight, mAllocator);
+  }
 }
 
 void
@@ -355,7 +346,7 @@ void
 ShadowCanvasLayerOGL::Destroy()
 {
   if (!mDestroyed) {
-    mDestroyed = true;
+    mDestroyed = PR_TRUE;
     mTexImage = nsnull;
   }
 }
@@ -375,33 +366,17 @@ ShadowCanvasLayerOGL::RenderLayer(int aPreviousFrameBuffer,
   ColorTextureLayerProgram *program =
     mOGLManager->GetColorTextureLayerProgram(mTexImage->GetShaderProgramType());
 
-
-  gfx3DMatrix effectiveTransform = GetEffectiveTransform();
-#ifdef ANDROID
-  // Bug 691354
-  // Using the LINEAR filter we get unexplained artifacts.
-  // Use NEAREST when no scaling is required.
-  gfxMatrix matrix;
-  bool is2D = GetEffectiveTransform().Is2D(&matrix);
-  if (is2D && !matrix.HasNonTranslationOrFlip()) {
-    mTexImage->SetFilter(gfxPattern::FILTER_NEAREST);
-  } else {
-    mTexImage->SetFilter(mFilter);
-  }
-#else
-  mTexImage->SetFilter(mFilter);
-#endif
-
+  ApplyFilter(mFilter);
 
   program->Activate();
-  program->SetLayerTransform(effectiveTransform);
+  program->SetLayerTransform(GetEffectiveTransform());
   program->SetLayerOpacity(GetEffectiveOpacity());
   program->SetRenderOffset(aOffset);
   program->SetTextureUnit(0);
 
   mTexImage->BeginTileIteration();
   do {
-    TextureImage::ScopedBindTextureAndApplyFilter texBind(mTexImage, LOCAL_GL_TEXTURE0);
+    TextureImage::ScopedBindTexture texBind(mTexImage, LOCAL_GL_TEXTURE0);
     program->SetLayerQuadRect(mTexImage->GetTileRect());
     mOGLManager->BindAndDrawQuad(program, mNeedsYFlip); // FIXME flip order of tiles?
   } while (mTexImage->NextTile());

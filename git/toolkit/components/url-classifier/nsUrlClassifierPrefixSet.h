@@ -45,19 +45,16 @@
 #include "nsID.h"
 #include "nsIFile.h"
 #include "nsIUrlClassifierPrefixSet.h"
-#include "nsIMemoryReporter.h"
 #include "nsToolkitCompsCID.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/FileUtils.h"
 
-class nsPrefixSetReporter;
-
 class nsUrlClassifierPrefixSet : public nsIUrlClassifierPrefixSet
 {
 public:
   nsUrlClassifierPrefixSet();
-  virtual ~nsUrlClassifierPrefixSet();
+  virtual ~nsUrlClassifierPrefixSet() {};
 
   // Can send an empty Array to clean the tree
   NS_IMETHOD SetPrefixes(const PRUint32* aArray, PRUint32 aLength);
@@ -65,15 +62,15 @@ public:
   // anything currently in the Prefix Set
   NS_IMETHOD AddPrefixes(const PRUint32* aArray, PRUint32 aLength);
   // Does the PrefixSet contain this prefix? not thread-safe
-  NS_IMETHOD Contains(PRUint32 aPrefix, bool* aFound);
+  NS_IMETHOD Contains(PRUint32 aPrefix, PRBool* aFound);
   // Do a lookup in the PrefixSet
   // if aReady is set, we will block until there are any entries
   // if not set, we will return in aReady whether we were ready or not
-  NS_IMETHOD Probe(PRUint32 aPrefix, PRUint32 aKey, bool* aReady, bool* aFound);
+  NS_IMETHOD Probe(PRUint32 aPrefix, PRUint32 aKey, PRBool* aReady, PRBool* aFound);
   // Return the estimated size of the set on disk and in memory,
   // in bytes
-  NS_IMETHOD SizeOfIncludingThis(PRUint32* aSize);
-  NS_IMETHOD IsEmpty(bool * aEmpty);
+  NS_IMETHOD EstimateSize(PRUint32* aSize);
+  NS_IMETHOD IsEmpty(PRBool * aEmpty);
   NS_IMETHOD LoadFromFile(nsIFile* aFile);
   NS_IMETHOD StoreToFile(nsIFile* aFile);
   // Return a key that is used to randomize the collisions in the prefixes
@@ -88,7 +85,6 @@ protected:
 
   mozilla::Mutex mPrefixSetLock;
   mozilla::CondVar mSetIsReady;
-  nsRefPtr<nsPrefixSetReporter> mReporter;
 
   PRUint32 BinSearch(PRUint32 start, PRUint32 end, PRUint32 target);
   nsresult LoadFromFd(mozilla::AutoFDClose & fileFd);
@@ -97,7 +93,7 @@ protected:
 
   // boolean indicating whether |setPrefixes| has been
   // called with a non-empty array.
-  bool mHasPrefixes;
+  PRBool mHasPrefixes;
   // key used to randomize hash collisions
   PRUint32 mRandomKey;
   // the prefix for each index.
@@ -107,7 +103,6 @@ protected:
   nsTArray<PRUint32> mIndexStarts;
   // array containing deltas from indices.
   nsTArray<PRUint16> mDeltas;
-
 };
 
 #endif

@@ -71,7 +71,7 @@ nsLegendFrame::GetType() const
 void
 nsLegendFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), false);
+  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
   nsBlockFrame::DestroyFrom(aDestructRoot);
 }
 
@@ -88,7 +88,7 @@ nsLegendFrame::Reflow(nsPresContext*          aPresContext,
   DO_GLOBAL_REFLOW_COUNT("nsLegendFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   if (mState & NS_FRAME_FIRST_REFLOW) {
-    nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), true);
+    nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_TRUE);
   }
   return nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 }

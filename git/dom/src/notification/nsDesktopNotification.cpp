@@ -105,21 +105,21 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
   , mDescription(description)
   , mIconURL(iconURL)
   , mURI(uri)
-  , mAllow(false)
-  , mShowHasBeenCalled(false)
+  , mAllow(PR_FALSE)
+  , mShowHasBeenCalled(PR_FALSE)
 {
   mOwner = aWindow;
   mScriptContext = aScriptContext;
 
-  if (Preferences::GetBool("notification.disabled", false)) {
+  if (Preferences::GetBool("notification.disabled", PR_FALSE)) {
     return;
   }
 
   // If we are in testing mode (running mochitests, for example)
   // and we are suppose to allow requests, then just post an allow event.
-  if (Preferences::GetBool("notification.prompt.testing", false) &&
-      Preferences::GetBool("notification.prompt.testing.allow", true)) {
-    mAllow = true;
+  if (Preferences::GetBool("notification.prompt.testing", PR_FALSE) &&
+      Preferences::GetBool("notification.prompt.testing.allow", PR_TRUE)) {
+    mAllow = PR_TRUE;
     return;
   }
 
@@ -140,10 +140,10 @@ nsDOMDesktopNotification::nsDOMDesktopNotification(const nsAString & title,
     
     // Retain a reference so the object isn't deleted without IPDL's knowledge.
     // Corresponding release occurs in DeallocPContentPermissionRequest.
-    nsRefPtr<nsDesktopNotificationRequest> copy = request;
+    request->AddRef();
 
     nsCString type = NS_LITERAL_CSTRING("desktop-notification");
-    child->SendPContentPermissionRequestConstructor(copy.forget().get(), type, IPC::URI(mURI));
+    child->SendPContentPermissionRequestConstructor(request, type, IPC::URI(mURI));
     
     request->Sendprompt();
     return;
@@ -172,17 +172,17 @@ nsDOMDesktopNotification::DispatchNotificationEvent(const nsString& aName)
   nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), nsnull, nsnull);
   if (NS_SUCCEEDED(rv)) {
     // it doesn't bubble, and it isn't cancelable
-    rv = event->InitEvent(aName, false, false);
+    rv = event->InitEvent(aName, PR_FALSE, PR_FALSE);
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
-      privateEvent->SetTrusted(true);
+      privateEvent->SetTrusted(PR_TRUE);
       DispatchDOMEvent(nsnull, event, nsnull, nsnull);
     }
   }
 }
 
 void
-nsDOMDesktopNotification::SetAllow(bool aAllow)
+nsDOMDesktopNotification::SetAllow(PRBool aAllow)
 {
   mAllow = aAllow;
 
@@ -207,7 +207,7 @@ nsDOMDesktopNotification::HandleAlertServiceNotification(const char *aTopic)
 NS_IMETHODIMP
 nsDOMDesktopNotification::Show()
 {
-  mShowHasBeenCalled = true;
+  mShowHasBeenCalled = PR_TRUE;
 
   if (!mAllow)
     return NS_OK;
@@ -312,7 +312,7 @@ nsDesktopNotificationRequest::GetElement(nsIDOMElement * *aElement)
 NS_IMETHODIMP
 nsDesktopNotificationRequest::Cancel()
 {
-  mDesktopNotification->SetAllow(false);
+  mDesktopNotification->SetAllow(PR_FALSE);
   mDesktopNotification = nsnull;
   return NS_OK;
 }
@@ -320,7 +320,7 @@ nsDesktopNotificationRequest::Cancel()
 NS_IMETHODIMP
 nsDesktopNotificationRequest::Allow()
 {
-  mDesktopNotification->SetAllow(true);
+  mDesktopNotification->SetAllow(PR_TRUE);
   mDesktopNotification = nsnull;
   return NS_OK;
 }

@@ -221,7 +221,7 @@ XULContentSinkImpl::XULContentSinkImpl()
     : mText(nsnull),
       mTextLength(0),
       mTextSize(0),
-      mConstrainSize(true),
+      mConstrainSize(PR_TRUE),
       mState(eInProlog),
       mParser(nsnull)
 {
@@ -270,7 +270,7 @@ XULContentSinkImpl::WillBuildModel(nsDTDMode aDTDMode)
 }
 
 NS_IMETHODIMP 
-XULContentSinkImpl::DidBuildModel(bool aTerminated)
+XULContentSinkImpl::DidBuildModel(PRBool aTerminated)
 {
     nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
     if (doc) {
@@ -372,7 +372,7 @@ XULContentSinkImpl::Init(nsIDocument* aDocument,
 // Text buffering
 //
 
-bool
+PRBool
 XULContentSinkImpl::IsDataInBuffer(PRUnichar* buffer, PRInt32 length)
 {
     for (PRInt32 i = 0; i < length; ++i) {
@@ -382,14 +382,14 @@ XULContentSinkImpl::IsDataInBuffer(PRUnichar* buffer, PRInt32 length)
             buffer[i] == '\r')
             continue;
 
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
 }
 
 
 nsresult
-XULContentSinkImpl::FlushText(bool aCreateTextNode)
+XULContentSinkImpl::FlushText(PRBool aCreateTextNode)
 {
     nsresult rv;
 
@@ -406,7 +406,7 @@ XULContentSinkImpl::FlushText(bool aCreateTextNode)
         rv = mContextStack.GetTopNode(node);
         if (NS_FAILED(rv)) return rv;
 
-        bool stripWhitespace = false;
+        PRBool stripWhitespace = PR_FALSE;
         if (node->mType == nsXULPrototypeNode::eType_Element) {
             nsINodeInfo *nodeInfo =
                 static_cast<nsXULPrototypeElement*>(node.get())->mNodeInfo;
@@ -604,13 +604,13 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
         if (! script->mSrcURI && ! script->mScriptObject.mObject) {
             nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
 
-            script->mOutOfLine = false;
+            script->mOutOfLine = PR_FALSE;
             if (doc)
                 script->Compile(mText, mTextLength, mDocumentURL,
                                 script->mLineNo, doc, mPrototype);
         }
 
-        FlushText(false);
+        FlushText(PR_FALSE);
     }
     break;
 
@@ -727,12 +727,12 @@ NS_IMETHODIMP
 XULContentSinkImpl::ReportError(const PRUnichar* aErrorText, 
                                 const PRUnichar* aSourceText,
                                 nsIScriptError *aError,
-                                bool *_retval)
+                                PRBool *_retval)
 {
   NS_PRECONDITION(aError && aSourceText && aErrorText, "Check arguments!!!");
 
   // The expat driver should report the error.
-  *_retval = true;
+  *_retval = PR_TRUE;
 
   nsresult rv = NS_OK;
 
@@ -795,7 +795,7 @@ XULContentSinkImpl::SetElementScriptType(nsXULPrototypeElement* element,
     // First check if the attributes specify an explicit script type.
     nsresult rv = NS_OK;
     PRUint32 i;
-    bool found = false;
+    PRBool found = PR_FALSE;
     for (i=0;i<aAttrLen;i++) {
         const nsDependentString key(aAttributes[i*2]);
         if (key.EqualsLiteral("script-type")) {
@@ -813,7 +813,7 @@ XULContentSinkImpl::SetElementScriptType(nsXULPrototypeElement* element,
                     NS_ASSERTION(element->mScriptTypeID == nsIProgrammingLanguage::UNKNOWN,
                                  "Default script type should be unknown");
                 }
-                found = true;
+                found = PR_TRUE;
                 break;
             }
         }
@@ -1011,10 +1011,10 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
               nsnull
           };
 
-          bool isJavaScript = false;
+          PRBool isJavaScript = PR_FALSE;
           for (PRInt32 i = 0; jsTypes[i]; i++) {
               if (mimeType.LowerCaseEqualsASCII(jsTypes[i])) {
-                  isJavaScript = true;
+                  isJavaScript = PR_TRUE;
                   break;
               }
           }
@@ -1156,7 +1156,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
 
       children->AppendElement(script);
 
-      mConstrainSize = false;
+      mConstrainSize = PR_FALSE;
 
       mContextStack.Push(script, mState);
       mState = eInScript;

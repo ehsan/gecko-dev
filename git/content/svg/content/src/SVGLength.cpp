@@ -34,8 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "SVGLength.h"
 #include "nsSVGElement.h"
 #include "nsSVGSVGElement.h"
@@ -66,7 +64,7 @@ SVGLength::GetValueAsString(nsAString &aValue) const
   aValue.Append(unitString);
 }
 
-bool
+PRBool
 SVGLength::SetValueFromString(const nsAString &aValue)
 {
   float tmpValue;
@@ -90,7 +88,7 @@ SVGLength::SetValueFromString(const nsAString &aValue)
       tmpUnit = GetUnitTypeForString(unitStr.get());
       if (tmpUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_UNKNOWN) {
         // nsSVGUtils::ReportToConsole
-        return false;
+        return PR_FALSE;
       }
     } else {
       tmpUnit = nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER;
@@ -101,13 +99,13 @@ SVGLength::SetValueFromString(const nsAString &aValue)
     if (!*theRest) {
       mValue = tmpValue;
       mUnit = tmpUnit;
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
-inline static bool
+inline static PRBool
 IsAbsoluteUnit(PRUint8 aUnit)
 {
   return aUnit >= nsIDOMSVGLength::SVG_LENGTHTYPE_CM &&
@@ -273,7 +271,7 @@ GetUnitTypeForString(const char* unitStr)
 
   nsCOMPtr<nsIAtom> unitAtom = do_GetAtom(unitStr);
 
-  for (PRUint32 i = 1 ; i < ArrayLength(unitMap) ; i++) {
+  for (PRUint32 i = 1 ; i < NS_ARRAY_LENGTH(unitMap) ; i++) {
     if (unitMap[i] && *unitMap[i] == unitAtom) {
       return i;
     }

@@ -114,7 +114,7 @@ public:
         return true;
     }
 
-#if defined(XP_UNIX) && !defined(XP_MACOSX) && !defined(MOZ_WIDGET_GONK)
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs,
                                    NPPluginFuncs* pFuncs, NPError* error);
 #else
@@ -146,7 +146,7 @@ public:
     virtual nsresult GetImageSize(NPP instance, nsIntSize* aSize);
     NS_OVERRIDE virtual bool UseAsyncPainting() { return false; }
 #if defined(XP_MACOSX)
-    virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
+    virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing);
 #endif
     NS_OVERRIDE
     virtual nsresult SetBackgroundUnknown(NPP instance);

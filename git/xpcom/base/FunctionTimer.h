@@ -213,7 +213,7 @@ public:
     }
 
     FunctionTimer(double minms, const char *s, ...)
-        : mMinMs(minms), mHasMinMs(true),
+        : mMinMs(minms), mHasMinMs(PR_TRUE),
           mEnabled(sLog && s && *s), mDepth(++sDepth)
     {
         va_list ap;
@@ -225,7 +225,7 @@ public:
     }
 
     FunctionTimer(const char *s, ...)
-        : mMinMs(0.0), mHasMinMs(false),
+        : mMinMs(0.0), mHasMinMs(PR_FALSE),
           mEnabled(sLog && s && *s), mDepth(++sDepth)
     {
         va_list ap;
@@ -274,8 +274,8 @@ public:
     TimeStamp mStart, mLastMark;
     const double mMinMs;
     char mString[BUF_LOG_LENGTH+1];
-    const bool mHasMinMs;
-    const bool mEnabled;
+    const PRBool mHasMinMs;
+    const PRBool mEnabled;
     const unsigned mDepth;
 };
 

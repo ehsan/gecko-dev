@@ -43,7 +43,9 @@
 
 class nsSVGElement;
 
+#ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
+#endif // MOZ_SMIL
 
 namespace mozilla {
 
@@ -68,7 +70,7 @@ class SVGAnimatedTransformList
   friend class DOMSVGTransformList;
 
 public:
-  SVGAnimatedTransformList() : mIsAttrSet(false) { }
+  SVGAnimatedTransformList() : mIsAttrSet(PR_FALSE) { }
 
   /**
    * Because it's so important that mBaseVal and its DOMSVGTransformList wrapper
@@ -94,14 +96,16 @@ public:
 
   void ClearAnimValue(nsSVGElement *aElement);
 
-  bool IsExplicitlySet() const;
+  PRBool IsExplicitlySet() const;
 
-  bool IsAnimating() const {
+  PRBool IsAnimating() const {
     return !!mAnimVal;
   }
 
+#ifdef MOZ_SMIL
   /// Callers own the returned nsISMILAttr
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
+#endif // MOZ_SMIL
 
 private:
 
@@ -112,8 +116,9 @@ private:
 
   SVGTransformList mBaseVal;
   nsAutoPtr<SVGTransformList> mAnimVal;
-  bool mIsAttrSet;
+  PRPackedBool mIsAttrSet;
 
+#ifdef MOZ_SMIL
   struct SMILAnimatedTransformList : public nsISMILAttr
   {
   public:
@@ -127,7 +132,7 @@ private:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     bool& aPreventCachingOfSandwich) const;
+                                     PRBool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
@@ -145,6 +150,7 @@ private:
     SVGAnimatedTransformList* mVal;
     nsSVGElement* mElement;
   };
+#endif // MOZ_SMIL
 };
 
 } // namespace mozilla

@@ -57,12 +57,8 @@ public:
   NS_DECL_NSITHREADINTERNAL
   NS_DECL_NSISUPPORTSPRIORITY
 
-  enum MainThreadFlag {
-    MAIN_THREAD,
-    NOT_MAIN_THREAD
-  };
-
-  nsThread(MainThreadFlag aMainThread, PRUint32 aStackSize);
+  nsThread();
+  nsThread(PRUint32 aStackSize);
 
   // Initialize this as a wrapper for a new PRThread.
   nsresult Init();
@@ -75,7 +71,7 @@ public:
 
   // If this flag is true, then the nsThread was created using
   // nsIThreadManager::NewThread.
-  bool ShutdownRequired() { return mShutdownRequired; }
+  PRBool ShutdownRequired() { return mShutdownRequired; }
 
   // The global thread observer
   static nsIThreadObserver* sGlobalObserver;
@@ -85,7 +81,7 @@ private:
 
   ~nsThread();
 
-  bool ShuttingDown() { return mShutdownContext != nsnull; }
+  PRBool ShuttingDown() { return mShutdownContext != nsnull; }
 
   static void ThreadFunc(void *arg);
 
@@ -97,7 +93,7 @@ private:
   }
 
   // Wrappers for event queue methods:
-  bool GetEvent(bool mayWait, nsIRunnable **event) {
+  PRBool GetEvent(PRBool mayWait, nsIRunnable **event) {
     return mEvents->GetEvent(mayWait, event);
   }
   nsresult PutEvent(nsIRunnable *event);
@@ -109,13 +105,13 @@ private:
       : mNext(nsnull), mFilter(filter) {
     }
 
-    bool GetEvent(bool mayWait, nsIRunnable **event) {
+    PRBool GetEvent(PRBool mayWait, nsIRunnable **event) {
       return mQueue.GetEvent(mayWait, event);
     }
 
-    bool PutEvent(nsIRunnable *event);
+    PRBool PutEvent(nsIRunnable *event);
     
-    bool HasPendingEvent() {
+    PRBool HasPendingEvent() {
       return mQueue.HasPendingEvent();
     }
 
@@ -147,11 +143,10 @@ private:
 
   struct nsThreadShutdownContext *mShutdownContext;
 
-  bool mShutdownRequired;
-  bool mShutdownPending;
+  PRPackedBool mShutdownRequired;
+  PRPackedBool mShutdownPending;
   // Set to true when events posted to this thread will never run.
-  bool mEventsAreDoomed;
-  MainThreadFlag mIsMainThread;
+  PRPackedBool mEventsAreDoomed;
 };
 
 //-----------------------------------------------------------------------------
@@ -162,7 +157,7 @@ public:
     : mOrigin(origin), mSyncTask(task), mResult(NS_ERROR_NOT_INITIALIZED) {
   }
 
-  bool IsPending() {
+  PRBool IsPending() {
     return mSyncTask != nsnull;
   }
 

@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsIDOMHTMLOListElement.h"
 #include "nsIDOMHTMLDListElement.h"
 #include "nsIDOMHTMLUListElement.h"
@@ -46,8 +43,6 @@
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
-
-using namespace mozilla;
 
 class nsHTMLSharedListElement : public nsGenericHTMLElement,
                                 public nsIDOMHTMLOListElement,
@@ -79,12 +74,12 @@ public:
   // nsIDOMHTMLUListElement
   // fully declared by NS_DECL_NSIDOMHTMLOLISTELEMENT
 
-  virtual bool ParseAttribute(PRInt32 aNamespaceID,
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo()
   {
@@ -177,7 +172,7 @@ static const nsAttrValue::EnumTable kOldListTypeTable[] = {
   { 0 }
 };
 
-bool
+PRBool
 nsHTMLSharedListElement::ParseAttribute(PRInt32 aNamespaceID,
                                         nsIAtom* aAttribute,
                                         const nsAString& aValue,
@@ -187,8 +182,8 @@ nsHTMLSharedListElement::ParseAttribute(PRInt32 aNamespaceID,
     if (mNodeInfo->Equals(nsGkAtoms::ol) ||
         mNodeInfo->Equals(nsGkAtoms::ul)) {
       if (aAttribute == nsGkAtoms::type) {
-        return aResult.ParseEnumValue(aValue, kListTypeTable, false) ||
-               aResult.ParseEnumValue(aValue, kOldListTypeTable, true);
+        return aResult.ParseEnumValue(aValue, kListTypeTable, PR_FALSE) ||
+               aResult.ParseEnumValue(aValue, kOldListTypeTable, PR_TRUE);
       }
       if (aAttribute == nsGkAtoms::start) {
         return aResult.ParseIntValue(aValue);
@@ -220,7 +215,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aData)
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLSharedListElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   if (mNodeInfo->Equals(nsGkAtoms::ol) ||
@@ -235,7 +230,7 @@ nsHTMLSharedListElement::IsAttributeMapped(const nsIAtom* aAttribute) const
       sCommonAttributeMap,
     };
 
-    return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+    return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
   }
 
   return nsGenericHTMLElement::IsAttributeMapped(aAttribute);

@@ -38,8 +38,10 @@
 #include "DOMSVGPathSegList.h"
 #include "nsSVGElement.h"
 #include "nsSVGAttrTearoffTable.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGPathSegListSMILType.h"
+#endif // MOZ_SMIL
 
 // See the comments in this file's header!
 
@@ -172,6 +174,7 @@ SVGAnimatedPathSegList::ClearAnimValue(nsSVGElement *aElement)
   aElement->DidAnimatePathSegList();
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 SVGAnimatedPathSegList::ToSMILAttr(nsSVGElement *aElement)
 {
@@ -183,7 +186,7 @@ SVGAnimatedPathSegList::
   SMILAnimatedPathSegList::ValueFromString(const nsAString& aStr,
                                const nsISMILAnimationElement* /*aSrcElement*/,
                                nsSMILValue& aValue,
-                               bool& aPreventCachingOfSandwich) const
+                               PRBool& aPreventCachingOfSandwich) const
 {
   nsSMILValue val(&SVGPathSegListSMILType::sSingleton);
   SVGPathDataAndOwner *list = static_cast<SVGPathDataAndOwner*>(val.mU.mPtr);
@@ -192,7 +195,7 @@ SVGAnimatedPathSegList::
     list->SetElement(mElement);
     aValue.Swap(val);
   }
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return rv;
 }
 
@@ -233,5 +236,6 @@ SVGAnimatedPathSegList::SMILAnimatedPathSegList::ClearAnimValue()
     mVal->ClearAnimValue(mElement);
   }
 }
+#endif // MOZ_SMIL
 
 } // namespace mozilla

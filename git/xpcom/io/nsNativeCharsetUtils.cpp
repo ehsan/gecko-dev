@@ -298,7 +298,7 @@ public:
 
     static void GlobalInit();
     static void GlobalShutdown();
-    static bool IsNativeUTF8();
+    static PRBool IsNativeUTF8();
 
 private:
     static iconv_t gNativeToUnicode;
@@ -310,8 +310,8 @@ private:
     static iconv_t gUTF8ToUnicode;
 #endif
     static Mutex  *gLock;
-    static bool    gInitialized;
-    static bool    gIsNativeUTF8;
+    static PRBool  gInitialized;
+    static PRBool  gIsNativeUTF8;
 
     static void LazyInit();
 
@@ -328,8 +328,8 @@ iconv_t nsNativeCharsetConverter::gUnicodeToUTF8   = INVALID_ICONV_T;
 iconv_t nsNativeCharsetConverter::gUTF8ToUnicode   = INVALID_ICONV_T;
 #endif
 Mutex  *nsNativeCharsetConverter::gLock            = nsnull;
-bool    nsNativeCharsetConverter::gInitialized     = false;
-bool    nsNativeCharsetConverter::gIsNativeUTF8    = false;
+PRBool  nsNativeCharsetConverter::gInitialized     = PR_FALSE;
+PRBool  nsNativeCharsetConverter::gIsNativeUTF8    = PR_FALSE;
 
 void
 nsNativeCharsetConverter::LazyInit()
@@ -348,7 +348,7 @@ nsNativeCharsetConverter::LazyInit()
     // Most, if not all, Unixen supporting UTF-8 and nl_langinfo(CODESET) 
     // return 'UTF-8' (or 'utf-8')
     if (!PL_strcasecmp(native_charset, "UTF-8"))
-        gIsNativeUTF8 = true;
+        gIsNativeUTF8 = PR_TRUE;
 
     gNativeToUnicode = xp_iconv_open(UTF_16_NAMES, native_charset_list);
     gUnicodeToNative = xp_iconv_open(native_charset_list, UTF_16_NAMES);
@@ -403,7 +403,7 @@ nsNativeCharsetConverter::LazyInit()
     }
 #endif
 
-    gInitialized = true;
+    gInitialized = PR_TRUE;
 }
 
 void
@@ -449,7 +449,7 @@ nsNativeCharsetConverter::GlobalShutdown()
     }
 #endif
 
-    gInitialized = false;
+    gInitialized = PR_FALSE;
 }
 
 nsNativeCharsetConverter::nsNativeCharsetConverter()
@@ -626,7 +626,7 @@ nsNativeCharsetConverter::UnicodeToNative(const PRUnichar **input,
     return NS_OK;
 }
 
-bool
+PRBool
 nsNativeCharsetConverter::IsNativeUTF8()
 {
     if (!gInitialized) {
@@ -660,17 +660,17 @@ public:
 
     static void GlobalInit();
     static void GlobalShutdown() { }
-    static bool IsNativeUTF8();
+    static PRBool IsNativeUTF8();
 
 private:
-    static bool gWCharIsUnicode;
+    static PRBool gWCharIsUnicode;
 
 #if defined(HAVE_WCRTOMB) || defined(HAVE_MBRTOWC)
     mbstate_t ps;
 #endif
 };
 
-bool nsNativeCharsetConverter::gWCharIsUnicode = false;
+PRBool nsNativeCharsetConverter::gWCharIsUnicode = PR_FALSE;
 
 nsNativeCharsetConverter::nsNativeCharsetConverter()
 {
@@ -790,10 +790,10 @@ nsNativeCharsetConverter::UnicodeToNative(const PRUnichar **input,
 }
 
 // XXX : for now, return false
-bool
+PRBool
 nsNativeCharsetConverter::IsNativeUTF8()
 {
-    return false;
+    return PR_FALSE;
 }
 
 #endif // USE_STDCONV
@@ -868,7 +868,7 @@ NS_CopyUnicodeToNative(const nsAString &input, nsACString &output)
     return NS_OK;
 }
 
-bool
+PRBool
 NS_IsNativeUTF8()
 {
     return nsNativeCharsetConverter::IsNativeUTF8();

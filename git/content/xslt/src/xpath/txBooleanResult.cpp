@@ -43,10 +43,10 @@
 #include "txExprResult.h"
 
 /**
- * Creates a new BooleanResult with the value of the given bool parameter
- * @param boolean the bool to use for initialization of this BooleanResult's value
+ * Creates a new BooleanResult with the value of the given MBool parameter
+ * @param boolean the MBool to use for initialization of this BooleanResult's value
 **/
-BooleanResult::BooleanResult(bool boolean)
+BooleanResult::BooleanResult(PRBool boolean)
     : txAExprResult(nsnull)
 {
     this->value = boolean;
@@ -80,7 +80,7 @@ BooleanResult::stringValuePointer()
     return nsnull;
 }
 
-bool BooleanResult::booleanValue() {
+MBool BooleanResult::booleanValue() {
    return this->value;
 } //-- toBoolean
 

@@ -48,7 +48,7 @@ struct ObjectHashEntry : PLDHashEntryHdr {
   nsNSSShutDownObject *obj;
 };
 
-PR_STATIC_CALLBACK(bool)
+PR_STATIC_CALLBACK(PRBool)
 ObjectSetMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                          const void *key)
 {
@@ -56,13 +56,13 @@ ObjectSetMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->obj == static_cast<const nsNSSShutDownObject*>(key);
 }
 
-PR_STATIC_CALLBACK(bool)
+PR_STATIC_CALLBACK(PRBool)
 ObjectSetInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
                      const void *key)
 {
   ObjectHashEntry *entry = static_cast<ObjectHashEntry*>(hdr);
   entry->obj = const_cast<nsNSSShutDownObject*>(static_cast<const nsNSSShutDownObject*>(key));
-  return true;
+  return PR_TRUE;
 }
 
 static PLDHashTableOps gSetOps = {
@@ -162,14 +162,14 @@ void nsNSSShutDownList::trackSSLSocketClose()
   --singleton->mActiveSSLSockets;
 }
   
-bool nsNSSShutDownList::areSSLSocketsActive()
+PRBool nsNSSShutDownList::areSSLSocketsActive()
 {
   if (!singleton) {
-    // I'd rather prefer to be pessimistic and return true.
+    // I'd rather prefer to be pessimistic and return PR_TRUE.
     // However, maybe we will get called at a time when the singleton
-    // has already been freed, and returning true would bring up an 
+    // has already been freed, and returning PR_TRUE would bring up an 
     // unnecessary warning.
-    return false;
+    return PR_FALSE;
   }
   
   MutexAutoLock lock(singleton->mListLock);
@@ -179,8 +179,8 @@ bool nsNSSShutDownList::areSSLSocketsActive()
 nsresult nsNSSShutDownList::doPK11Logout()
 {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("canceling all open SSL sockets to disallow future IO\n"));
-  // During our iteration we will set a bunch of PRBools to true.
-  // Nobody else ever modifies that bool, only we do.
+  // During our iteration we will set a bunch of PRBools to PR_TRUE.
+  // Nobody else ever modifies that PRBool, only we do.
   // We only must ensure that our objects do not go away.
   // This is guaranteed by holding the list lock.
 
@@ -206,16 +206,16 @@ nsNSSShutDownList::doPK11LogoutHelper(PLDHashTable *table,
   return PL_DHASH_NEXT;
 }
 
-bool nsNSSShutDownList::isUIActive()
+PRBool nsNSSShutDownList::isUIActive()
 {
-  bool canDisallow = mActivityState.ifPossibleDisallowUI(nsNSSActivityState::test_only);
-  bool bIsUIActive = !canDisallow;
+  PRBool canDisallow = mActivityState.ifPossibleDisallowUI(nsNSSActivityState::test_only);
+  PRBool bIsUIActive = !canDisallow;
   return bIsUIActive;
 }
 
-bool nsNSSShutDownList::ifPossibleDisallowUI()
+PRBool nsNSSShutDownList::ifPossibleDisallowUI()
 {
-  bool isNowDisallowed = mActivityState.ifPossibleDisallowUI(nsNSSActivityState::do_it_for_real);
+  PRBool isNowDisallowed = mActivityState.ifPossibleDisallowUI(nsNSSActivityState::do_it_for_real);
   return isNowDisallowed;
 }
 
@@ -274,7 +274,7 @@ nsNSSActivityState::nsNSSActivityState()
                      "nsNSSActivityState.mNSSActivityStateLock"),
  mNSSActivityCounter(0),
  mBlockingUICounter(0),
- mIsUIForbidden(false),
+ mIsUIForbidden(PR_FALSE),
  mNSSRestrictedThread(nsnull)
 {
 }
@@ -317,31 +317,31 @@ void nsNSSActivityState::leaveBlockingUIState()
   --mBlockingUICounter;
 }
 
-bool nsNSSActivityState::isBlockingUIActive()
+PRBool nsNSSActivityState::isBlockingUIActive()
 {
   MutexAutoLock lock(mNSSActivityStateLock);
   return (mBlockingUICounter > 0);
 }
 
-bool nsNSSActivityState::isUIForbidden()
+PRBool nsNSSActivityState::isUIForbidden()
 {
   MutexAutoLock lock(mNSSActivityStateLock);
   return mIsUIForbidden;
 }
 
-bool nsNSSActivityState::ifPossibleDisallowUI(RealOrTesting rot)
+PRBool nsNSSActivityState::ifPossibleDisallowUI(RealOrTesting rot)
 {
-  bool retval = false;
+  PRBool retval = PR_FALSE;
   MutexAutoLock lock(mNSSActivityStateLock);
 
   // Checking and disallowing the UI must be done atomically.
 
   if (!mBlockingUICounter) {
     // No UI is currently shown, we are able to evaporate.
-    retval = true;
+    retval = PR_TRUE;
     if (rot == do_it_for_real) {
       // Remember to disallow UI.
-      mIsUIForbidden = true;
+      mIsUIForbidden = PR_TRUE;
         
       // to clear the "forbidden" state,
       // one must either call 
@@ -357,7 +357,7 @@ void nsNSSActivityState::allowUI()
 {
   MutexAutoLock lock(mNSSActivityStateLock);
 
-  mIsUIForbidden = false;
+  mIsUIForbidden = PR_FALSE;
 }
 
 PRStatus nsNSSActivityState::restrictActivityToCurrentThread()
@@ -389,7 +389,7 @@ void nsNSSActivityState::releaseCurrentThreadActivityRestriction()
   MutexAutoLock lock(mNSSActivityStateLock);
 
   mNSSRestrictedThread = nsnull;
-  mIsUIForbidden = false;
+  mIsUIForbidden = PR_FALSE;
 
   mNSSActivityChanged.NotifyAll();
 }
@@ -430,11 +430,11 @@ nsPSMUITracker::~nsPSMUITracker()
   state->leaveBlockingUIState();
 }
 
-bool nsPSMUITracker::isUIForbidden()
+PRBool nsPSMUITracker::isUIForbidden()
 {
   nsNSSActivityState *state = nsNSSShutDownList::getActivityState();
   if (!state)
-    return false;
+    return PR_FALSE;
 
   return state->isUIForbidden();
 }

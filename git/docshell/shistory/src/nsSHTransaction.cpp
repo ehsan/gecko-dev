@@ -44,7 +44,7 @@
 //***    nsSHTransaction: Object Management
 //*****************************************************************************
 
-nsSHTransaction::nsSHTransaction() : mPersist(true), mPrev(nsnull) 
+nsSHTransaction::nsSHTransaction() : mPersist(PR_TRUE), mPrev(nsnull) 
 {
 }
 
@@ -137,14 +137,14 @@ nsSHTransaction::GetPrev(nsISHTransaction ** aResult)
 }
 
 NS_IMETHODIMP
-nsSHTransaction::SetPersist(bool aPersist)
+nsSHTransaction::SetPersist(PRBool aPersist)
 {
    mPersist = aPersist;
    return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSHTransaction::GetPersist(bool* aPersist)
+nsSHTransaction::GetPersist(PRBool* aPersist)
 {
    NS_ENSURE_ARG_POINTER(aPersist);
 

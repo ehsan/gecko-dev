@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsHTMLEntities.h"
 
 
@@ -45,8 +43,6 @@
 #include "nsCRT.h"
 #include "prtypes.h"
 #include "pldhash.h"
-
-using namespace mozilla;
 
 struct EntityNode {
   const char* mStr; // never owns buffer
@@ -58,7 +54,7 @@ struct EntityNodeEntry : public PLDHashEntryHdr
   const EntityNode* node;
 }; 
 
-static bool
+static PRBool
   matchNodeString(PLDHashTable*, const PLDHashEntryHdr* aHdr,
                   const void* key)
 {
@@ -67,7 +63,7 @@ static bool
   return (nsCRT::strcmp(entry->node->mStr, str) == 0);
 }
 
-static bool
+static PRBool
   matchNodeUnicode(PLDHashTable*, const PLDHashEntryHdr* aHdr,
                    const void* key)
 {
@@ -116,7 +112,7 @@ static const EntityNode gEntityArray[] = {
 };
 #undef HTML_ENTITY
 
-#define NS_HTML_ENTITY_COUNT ((PRInt32)ArrayLength(gEntityArray))
+#define NS_HTML_ENTITY_COUNT ((PRInt32)NS_ARRAY_LENGTH(gEntityArray))
 
 nsresult
 nsHTMLEntities::AddRefTable(void) 
@@ -136,7 +132,7 @@ nsHTMLEntities::AddRefTable(void)
       return NS_ERROR_OUT_OF_MEMORY;
     }
     for (const EntityNode *node = gEntityArray,
-                 *node_end = ArrayEnd(gEntityArray);
+                 *node_end = gEntityArray + NS_ARRAY_LENGTH(gEntityArray);
          node < node_end; ++node) {
 
       // add to Entity->Unicode table

@@ -229,7 +229,7 @@ public:
     NS_DECL_NSISAFEOUTPUTSTREAM
 
     nsSafeFileOutputStream() :
-        mTargetFileExists(true),
+        mTargetFileExists(PR_TRUE),
         mWriteResult(NS_OK) {}
 
     virtual ~nsSafeFileOutputStream() { nsSafeFileOutputStream::Close(); }
@@ -244,7 +244,7 @@ protected:
     nsCOMPtr<nsIFile>         mTargetFile;
     nsCOMPtr<nsIFile>         mTempFile;
 
-    bool     mTargetFileExists;
+    PRBool   mTargetFileExists;
     nsresult mWriteResult; // Internally set in Write()
 };
 

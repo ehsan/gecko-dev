@@ -50,7 +50,7 @@
 #include <base64.h>
 #include <nsString.h>
 
-static bool
+static PRBool
 hex_from_2char(const unsigned char *c2, unsigned char *byteval)
 {
   int i;
@@ -67,26 +67,26 @@ hex_from_2char(const unsigned char *c2, unsigned char *byteval)
       offset = c2[i] - 'A';
       *byteval |= (offset + 10) << 4*(1-i);
     } else {
-      return false;
+      return PR_FALSE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
-static bool
+static PRBool
 fromHex(const char * str, unsigned char * p, size_t sLen)
 {
   size_t i;
   if (sLen & 1)
-    return false;
+    return PR_FALSE;
 
   for (i = 0; i < sLen / 2; ++i) {
     if (!hex_from_2char((const unsigned char *) str + (2*i),
                         (unsigned char *) p + i)) {
-      return false;
+      return PR_FALSE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 static nsresult
@@ -101,18 +101,18 @@ fromHexString(const nsACString & str, unsigned char * p, size_t pMaxLen)
   return NS_OK;
 }
 
-static bool
+static PRBool
 toHexString(const unsigned char * str, unsigned len, nsACString & out)
 {
   static const char digits[] = "0123456789ABCDEF";
   if (!out.SetCapacity(2 * len))
-    return false;
+    return PR_FALSE;
   out.SetLength(0);
   for (unsigned i = 0; i < len; ++i) {
     out.Append(digits[str[i] >> 4]);
     out.Append(digits[str[i] & 0x0f]);
   }
-  return true;
+  return PR_TRUE;
 }
 
 static nsresult
@@ -246,10 +246,10 @@ NS_IMETHODIMP nsSyncJPAKE::Round2(const nsACString & aPeerID,
   /* PIN cannot be equal to zero when converted to a bignum. NSS 3.12.9 J-PAKE
      assumes that the caller has already done this check. Future versions of 
      NSS J-PAKE will do this check internally. See Bug 609068 Comment 4 */
-  bool foundNonZero = false;
+  PRBool foundNonZero = PR_FALSE;
   for (size_t i = 0; i < aPIN.Length(); ++i) {
     if (aPIN[i] != 0) {
-      foundNonZero = true;
+      foundNonZero = PR_TRUE;
       break;
     }
   }
@@ -281,10 +281,10 @@ NS_IMETHODIMP nsSyncJPAKE::Round2(const nsACString & aPeerID,
   rp.A.pR    = rABuf;  rp.A  .ulRLen  = sizeof gxABuf;
 
   // Bug 629090: NSS 3.12.9 J-PAKE fails to check that gx^4 != 1, so check here.
-  bool gx4Good = false;
+  PRBool gx4Good = PR_FALSE;
   for (unsigned i = 0; i < rp.gx4.ulGXLen; ++i) {
     if (rp.gx4.pGX[i] > 1 || (rp.gx4.pGX[i] != 0 && i < rp.gx4.ulGXLen - 1)) {
-      gx4Good = true;
+      gx4Good = PR_TRUE;
       break;
     }
   }
@@ -305,7 +305,7 @@ NS_IMETHODIMP nsSyncJPAKE::Round2(const nsACString & aPeerID,
                                                 CKA_DERIVE, 0,
                                                 keyTemplate,
                                                 NUM_ELEM(keyTemplate),
-                                                false);
+                                                PR_FALSE);
   if (newKey != NULL) {
     if (toHexString(rp.A.pGX, rp.A.ulGXLen, aA) &&
         toHexString(rp.A.pGV, rp.A.ulGVLen, aGVA) &&

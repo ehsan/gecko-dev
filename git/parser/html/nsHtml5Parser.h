@@ -56,7 +56,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIInputStream.h"
 #include "nsDetectionConfident.h"
-#include "nsHtml5OwningUTF16Buffer.h"
+#include "nsHtml5UTF16Buffer.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
@@ -137,7 +137,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Get the stream parser for this parser
      */
-    virtual nsIStreamListener* GetStreamListener();
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /**
      * Don't call. For interface compat only.
@@ -157,17 +157,17 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Query whether the parser is enabled (i.e. not blocked) or not.
      */
-    NS_IMETHOD_(bool) IsParserEnabled();
+    NS_IMETHOD_(PRBool) IsParserEnabled();
 
     /**
      * Query whether the parser thinks it's done with parsing.
      */
-    NS_IMETHOD_(bool) IsComplete();
+    NS_IMETHOD_(PRBool) IsComplete();
 
     /**
      * Set up request observer.
      *
-     * @param   aURL used for View Source title
+     * @param   aURL ignored (for interface compat only)
      * @param   aListener a listener to forward notifications to
      * @param   aKey the root context key (used for document.write)
      * @param   aMode ignored (for interface compat only)
@@ -182,14 +182,14 @@ class nsHtml5Parser : public nsIParser,
      *
      * @param   aSourceBuffer the argument of document.write (empty for .close())
      * @param   aKey a key unique to the script element that caused this call
-     * @param   aContentType "text/html" for HTML mode, else text/plain mode
+     * @param   aContentType ignored (for interface compat only)
      * @param   aLastCall true if .close() false if .write()
      * @param   aMode ignored (for interface compat only)
      */
     NS_IMETHOD Parse(const nsAString& aSourceBuffer,
                      void* aKey,
                      const nsACString& aContentType,
-                     bool aLastCall,
+                     PRBool aLastCall,
                      nsDTDMode aMode = eDTDMode_autodetect);
 
     /**
@@ -226,12 +226,12 @@ class nsHtml5Parser : public nsIParser,
     /**
      * True in fragment mode and during synchronous document.write
      */
-    virtual bool CanInterrupt();
+    virtual PRBool CanInterrupt();
 
     /**
      * True if the insertion point (per HTML5) is defined.
      */
-    virtual bool IsInsertionPointDefined();
+    virtual PRBool IsInsertionPointDefined();
 
     /**
      * Call immediately before starting to evaluate a parser-inserted script.
@@ -246,16 +246,13 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Marks the HTML5 parser as not a script-created parser: Prepares the 
      * parser to be able to read a stream.
-     *
-     * @param aCommand the parser command (Yeah, this is bad API design. Let's
-     * make this better when retiring nsIParser)
      */
-    virtual void MarkAsNotScriptCreated(const char* aCommand);
+    virtual void MarkAsNotScriptCreated();
 
     /**
      * True if this is a script-created HTML5 parser.
      */
-    virtual bool IsScriptCreated();
+    virtual PRBool IsScriptCreated();
 
     /* End nsIParser  */
 
@@ -275,8 +272,8 @@ class nsHtml5Parser : public nsIParser,
                                 nsIContent* aTargetNode,
                                 nsIAtom* aContextLocalName,
                                 PRInt32 aContextNamespace,
-                                bool aQuirks,
-                                bool aPreventScriptExecution);
+                                PRBool aQuirks,
+                                PRBool aPreventScriptExecution);
 
     // Not from an external interface
     // Non-inherited methods
@@ -304,7 +301,7 @@ class nsHtml5Parser : public nsIParser,
       }
     }
     
-    void StartTokenizer(bool aScriptingEnabled);
+    void StartTokenizer(PRBool aScriptingEnabled);
     
     void ContinueAfterFailedCharsetSwitch();
 
@@ -324,28 +321,28 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Whether the last character tokenized was a carriage return (for CRLF)
      */
-    bool                          mLastWasCR;
+    PRBool                        mLastWasCR;
 
     /**
      * Whether the last character tokenized was a carriage return (for CRLF)
      * when preparsing document.write.
      */
-    bool                          mDocWriteSpeculativeLastWasCR;
+    PRBool                        mDocWriteSpeculativeLastWasCR;
 
     /**
      * The parser is in the fragment mode
      */
-    bool                          mFragmentMode;
+    PRBool                        mFragmentMode;
 
     /**
      * The parser is blocking on a script
      */
-    bool                          mBlocked;
+    PRBool                        mBlocked;
 
     /**
      * Whether the document.write() speculator is already active.
      */
-    bool                          mDocWriteSpeculatorActive;
+    PRBool                        mDocWriteSpeculatorActive;
     
     /**
      * The number of parser-inserted script currently being evaluated.
@@ -355,9 +352,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * True if document.close() has been called.
      */
-    bool                          mDocumentClosed;
-
-    bool                          mInDocumentWrite;
+    PRBool                        mDocumentClosed;
 
     // Gecko integration
     void*                         mRootContextKey;
@@ -366,13 +361,13 @@ class nsHtml5Parser : public nsIParser,
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsRefPtr<nsHtml5OwningUTF16Buffer>  mFirstBuffer;
+    nsRefPtr<nsHtml5UTF16Buffer>  mFirstBuffer;
 
     /**
-     * The last buffer in the pending UTF-16 buffer queue. Always points
-     * to a sentinel object with nsnull as its parser key.
+     * The last buffer in the pending UTF-16 buffer queue
      */
-    nsHtml5OwningUTF16Buffer* mLastBuffer; // weak ref;
+    nsHtml5UTF16Buffer*           mLastBuffer; // weak ref; always points to
+                      // a buffer of the size NS_HTML5_PARSER_READ_BUFFER_SIZE
 
     /**
      * The tree operation executor
@@ -412,7 +407,7 @@ class nsHtml5Parser : public nsIParser,
     /**
      * Whether it's OK to transfer parsing back to the stream parser
      */
-    bool                                mReturnToStreamParserPermitted;
+    PRBool                              mReturnToStreamParserPermitted;
 
     /**
      * The scoped atom table

@@ -46,8 +46,7 @@ def getmtime(path):
 
 def stripdotslash(s):
     if s.startswith('./'):
-        st = s[2:]
-        return st if st != '' else '.'
+        return s[2:]
     return s
 
 def stripdotslashes(sl):

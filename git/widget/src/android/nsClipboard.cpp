@@ -142,9 +142,9 @@ nsClipboard::EmptyClipboard(PRInt32 aWhichClipboard)
 NS_IMETHODIMP
 nsClipboard::HasDataMatchingFlavors(const char **aFlavorList,
                                     PRUint32 aLength, PRInt32 aWhichClipboard,
-                                    bool *aHasText NS_OUTPARAM)
+                                    PRBool *aHasText NS_OUTPARAM)
 {
-  *aHasText = false;
+  *aHasText = PR_FALSE;
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
@@ -157,9 +157,9 @@ nsClipboard::HasDataMatchingFlavors(const char **aFlavorList,
 }
 
 NS_IMETHODIMP
-nsClipboard::SupportsSelectionClipboard(bool *aIsSupported NS_OUTPARAM)
+nsClipboard::SupportsSelectionClipboard(PRBool *aIsSupported NS_OUTPARAM)
 {
-  *aIsSupported = false;
+  *aIsSupported = PR_FALSE;
   return NS_OK;
 }
 

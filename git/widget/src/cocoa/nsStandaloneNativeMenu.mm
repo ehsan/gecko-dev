@@ -43,7 +43,7 @@
 #include "nsIMutationObserver.h"
 #include "nsEvent.h"
 #include "nsGUIEvent.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsContentUtils.h"
 #include "nsObjCExceptions.h"
 
@@ -72,7 +72,7 @@ nsStandaloneNativeMenu::Init(nsIDOMElement * aDOMElement)
 
   nsIAtom * tag = content->Tag();
   if (!content->IsXUL() ||
-      (tag != nsGkAtoms::menu && tag != nsGkAtoms::menupopup))
+      (tag != nsWidgetAtoms::menu && tag != nsWidgetAtoms::menupopup))
     return NS_ERROR_FAILURE;
 
   rv = nsMenuGroupOwnerX::Create(content);
@@ -106,7 +106,7 @@ UpdateMenu(nsMenuX * aMenu)
 }
 
 NS_IMETHODIMP
-nsStandaloneNativeMenu::MenuWillOpen(bool * aResult)
+nsStandaloneNativeMenu::MenuWillOpen(PRBool * aResult)
 {
   NS_ASSERTION(mMenu != nsnull, "nsStandaloneNativeMenu::OnOpen - mMenu is null!");
 
@@ -114,7 +114,7 @@ nsStandaloneNativeMenu::MenuWillOpen(bool * aResult)
   // its submenus.
   UpdateMenu(mMenu);
 
-  *aResult = true;
+  *aResult = PR_TRUE;
   return NS_OK;
 }
 

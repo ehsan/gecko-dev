@@ -58,7 +58,7 @@ public:
     : CanvasLayer(aManager, NULL),
       LayerOGL(aManager),
       mTexture(0),
-      mDelayedUpdates(false)
+      mDelayedUpdates(PR_FALSE)
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
       ,mPixmap(0)
 #endif
@@ -82,14 +82,13 @@ protected:
   nsRefPtr<gfxASurface> mCanvasSurface;
   nsRefPtr<GLContext> mCanvasGLContext;
   gl::ShaderProgramType mLayerProgram;
-  RefPtr<gfx::DrawTarget> mDrawTarget;
 
   void MakeTexture();
   GLuint mTexture;
 
-  bool mDelayedUpdates;
-  bool mGLBufferIsPremultiplied;
-  bool mNeedsYFlip;
+  PRPackedBool mDelayedUpdates;
+  PRPackedBool mGLBufferIsPremultiplied;
+  PRPackedBool mNeedsYFlip;
 #if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
   GLXPixmap mPixmap;
 #endif
@@ -109,15 +108,14 @@ public:
 
   // CanvasLayer impl
   virtual void Initialize(const Data& aData);
-  virtual void Init(const CanvasSurface& aNewFront, bool needYFlip);
+  virtual void Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip);
 
   // This isn't meaningful for shadow canvas.
   virtual void Updated(const nsIntRect&) {}
 
   // ShadowCanvasLayer impl
-  virtual void Swap(const CanvasSurface& aNewFront,
-                    bool needYFlip,
-                    CanvasSurface* aNewBack);
+  virtual void Swap(const SurfaceDescriptor& aNewFront,
+                    SurfaceDescriptor* aNewBack);
 
   virtual void DestroyFrontBuffer();
 
@@ -132,7 +130,8 @@ public:
 private:
   nsRefPtr<TextureImage> mTexImage;
 
-  bool mNeedsYFlip;
+  SurfaceDescriptor mDeadweight;
+  PRPackedBool mNeedsYFlip;
 };
 
 } /* layers */

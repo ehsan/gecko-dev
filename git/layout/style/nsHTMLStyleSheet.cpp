@@ -153,7 +153,7 @@ MappedAttrTable_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
   memset(entry, 0, sizeof(MappedAttrTableEntry));
 }
 
-static bool
+static PRBool
 MappedAttrTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                            const void *key)
 {
@@ -262,10 +262,10 @@ nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
   return nsRestyleHint(0);
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 nsHTMLStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 {
-  return false;
+  return PR_FALSE;
 }
 
 /* virtual */ nsRestyleHint
@@ -305,10 +305,10 @@ nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
   return nsRestyleHint(0);
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
 {
-  return false;
+  return PR_FALSE;
 }
 
 /* virtual */ PRInt64
@@ -359,27 +359,27 @@ nsHTMLStyleSheet::GetType(nsString& aType) const
   aType.AssignLiteral("text/html");
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 nsHTMLStyleSheet::HasRules() const
 {
-  return true; // We have rules at all reasonable times
+  return PR_TRUE; // We have rules at all reasonable times
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 nsHTMLStyleSheet::IsApplicable() const
 {
-  return true;
+  return PR_TRUE;
 }
 
 /* virtual */ void
-nsHTMLStyleSheet::SetEnabled(bool aEnabled)
+nsHTMLStyleSheet::SetEnabled(PRBool aEnabled)
 { // these can't be disabled
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 nsHTMLStyleSheet::IsComplete() const
 {
-  return true;
+  return PR_TRUE;
 }
 
 /* virtual */ void
@@ -482,7 +482,7 @@ already_AddRefed<nsMappedAttributes>
 nsHTMLStyleSheet::UniqueMappedAttributes(nsMappedAttributes* aMapped)
 {
   if (!mMappedAttrTable.ops) {
-    bool res = PL_DHashTableInit(&mMappedAttrTable, &MappedAttrTable_Ops,
+    PRBool res = PL_DHashTableInit(&mMappedAttrTable, &MappedAttrTable_Ops,
                                    nsnull, sizeof(MappedAttrTableEntry), 16);
     if (!res) {
       mMappedAttrTable.ops = nsnull;

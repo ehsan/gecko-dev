@@ -64,17 +64,17 @@ public:
   ~nsBlockReflowContext() { }
 
   nsresult ReflowBlock(const nsRect&       aSpace,
-                       bool                aApplyTopMargin,
+                       PRBool              aApplyTopMargin,
                        nsCollapsingMargin& aPrevMargin,
                        nscoord             aClearance,
-                       bool                aIsAdjacentWithTop,
+                       PRBool              aIsAdjacentWithTop,
                        nsLineBox*          aLine,
                        nsHTMLReflowState&  aReflowState,
                        nsReflowStatus&     aReflowStatus,
                        nsBlockReflowState& aState);
 
-  bool PlaceBlock(const nsHTMLReflowState& aReflowState,
-                    bool                     aForceFit,
+  PRBool PlaceBlock(const nsHTMLReflowState& aReflowState,
+                    PRBool                   aForceFit,
                     nsLineBox*               aLine,
                     nsCollapsingMargin&      aBottomMarginResult /* out */,
                     nsRect&                  aInFlowBounds,
@@ -105,11 +105,11 @@ public:
    * If in the optimistic pass any frame is encountered that might possibly need
    * clearance (i.e., if we really needed the optimism assumption) then we set aMayNeedRetry
    * to true.
-   * We return true if we changed the clearance state of any line and marked it dirty.
+   * We return PR_TRUE if we changed the clearance state of any line and marked it dirty.
    */
-  static bool ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
+  static PRBool ComputeCollapsedTopMargin(const nsHTMLReflowState& aRS,
                                           nsCollapsingMargin* aMargin, nsIFrame* aClearanceFrame,
-                                          bool* aMayNeedRetry, bool* aIsEmpty = nsnull);
+                                          PRBool* aMayNeedRetry, PRBool* aIsEmpty = nsnull);
 
 protected:
   nsPresContext* mPresContext;

@@ -134,17 +134,16 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
                                  const RequestHeaderTuples& requestHeaders,
                                  const nsHttpAtom&          requestMethod,
                                  const IPC::InputStream&    uploadStream,
-                                 const bool&              uploadStreamHasHeaders,
+                                 const PRBool&              uploadStreamHasHeaders,
                                  const PRUint16&            priority,
                                  const PRUint8&             redirectionLimit,
-                                 const bool&              allowPipelining,
-                                 const bool&              forceAllowThirdPartyCookie,
+                                 const PRBool&              allowPipelining,
+                                 const PRBool&              forceAllowThirdPartyCookie,
                                  const bool&                doResumeAt,
                                  const PRUint64&            startPos,
                                  const nsCString&           entityID,
                                  const bool&                chooseApplicationCache,
-                                 const nsCString&           appCacheClientID,
-                                 const bool&                allowSpdy)
+                                 const nsCString&           appCacheClientID)
 {
   nsCOMPtr<nsIURI> uri(aURI);
   nsCOMPtr<nsIURI> originalUri(aOriginalURI);
@@ -204,26 +203,25 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
   httpChan->SetRedirectionLimit(redirectionLimit);
   httpChan->SetAllowPipelining(allowPipelining);
   httpChan->SetForceAllowThirdPartyCookie(forceAllowThirdPartyCookie);
-  httpChan->SetAllowSpdy(allowSpdy);
 
   nsCOMPtr<nsIApplicationCacheChannel> appCacheChan =
     do_QueryInterface(mChannel);
   nsCOMPtr<nsIApplicationCacheService> appCacheService =
     do_GetService(NS_APPLICATIONCACHESERVICE_CONTRACTID);
 
-  bool setChooseApplicationCache = chooseApplicationCache;
+  PRBool setChooseApplicationCache = chooseApplicationCache;
   if (appCacheChan && appCacheService) {
     // We might potentially want to drop this flag (that is TRUE by default)
     // after we succefully associate the channel with an application cache
     // reported by the channel child.  Dropping it here may be too early.
-    appCacheChan->SetInheritApplicationCache(false);
+    appCacheChan->SetInheritApplicationCache(PR_FALSE);
     if (!appCacheClientID.IsEmpty()) {
       nsCOMPtr<nsIApplicationCache> appCache;
       rv = appCacheService->GetApplicationCache(appCacheClientID,
                                                 getter_AddRefs(appCache));
       if (NS_SUCCEEDED(rv)) {
         appCacheChan->SetApplicationCache(appCache);
-        setChooseApplicationCache = false;
+        setChooseApplicationCache = PR_FALSE;
       }
     }
 
@@ -236,7 +234,7 @@ HttpChannelParent::RecvAsyncOpen(const IPC::URI&            aURI,
                                                            &setChooseApplicationCache);
 
         if (setChooseApplicationCache && NS_SUCCEEDED(rv))
-          appCacheChan->SetChooseApplicationCache(true);
+          appCacheChan->SetChooseApplicationCache(PR_TRUE);
       }
     }
   }
@@ -380,14 +378,14 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
   nsHttpChannel *chan = static_cast<nsHttpChannel *>(aRequest);
   nsHttpResponseHead *responseHead = chan->GetResponseHead();
   nsHttpRequestHead  *requestHead = chan->GetRequestHead();
-  bool isFromCache = false;
+  PRBool isFromCache = false;
   chan->IsFromCache(&isFromCache);
   PRUint32 expirationTime = nsICache::NO_EXPIRATION_TIME;
   chan->GetCacheTokenExpirationTime(&expirationTime);
   nsCString cachedCharset;
   chan->GetCacheTokenCachedCharset(cachedCharset);
 
-  bool loadedFromApplicationCache;
+  PRBool loadedFromApplicationCache;
   chan->GetLoadedFromApplicationCache(&loadedFromApplicationCache);
   if (loadedFromApplicationCache) {
     nsCOMPtr<nsIApplicationCache> appCache;
@@ -405,7 +403,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 
   nsCOMPtr<nsIEncodedChannel> encodedChannel = do_QueryInterface(aRequest);
   if (encodedChannel)
-    encodedChannel->SetApplyConversion(false);
+    encodedChannel->SetApplyConversion(PR_FALSE);
 
   // Keep the cache entry for future use in RecvSetCacheTokenCachedCharset().
   // It could be already released by nsHttpChannel at that time.
@@ -433,7 +431,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
                           !!responseHead,
                           headers,
                           isFromCache,
-                          mCacheDescriptor ? true : false,
+                          mCacheDescriptor ? PR_TRUE : PR_FALSE,
                           expirationTime, cachedCharset, secInfoSerialization,
                           httpChan->GetSelfAddr(), httpChan->GetPeerAddr())) 
   {
@@ -579,7 +577,7 @@ HttpChannelParent::StartRedirect(PRUint32 newChannelId,
 }
 
 NS_IMETHODIMP
-HttpChannelParent::CompleteRedirect(bool succeeded)
+HttpChannelParent::CompleteRedirect(PRBool succeeded)
 {
   if (succeeded && !mIPCClosed) {
     // TODO: check return value: assume child dead if failed

@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsIDOMHTMLTableRowElement.h"
 #include "nsIDOMHTMLTableElement.h"
 #include "nsIDOMHTMLTableSectionElem.h"
@@ -51,8 +48,6 @@
 #include "nsHTMLParts.h"
 #include "nsRuleData.h"
 #include "nsContentUtils.h"
-
-using namespace mozilla;
 
 class nsHTMLTableRowElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLTableRowElement
@@ -75,12 +70,12 @@ public:
   // nsIDOMHTMLTableRowElement
   NS_DECL_NSIDOMHTMLTABLEROWELEMENT
 
-  virtual bool ParseAttribute(PRInt32 aNamespaceID,
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -134,10 +129,15 @@ nsresult
 nsHTMLTableRowElement::GetSection(nsIDOMHTMLTableSectionElement** aSection)
 {
   NS_ENSURE_ARG_POINTER(aSection);
-  nsCOMPtr<nsIDOMHTMLTableSectionElement> section =
-    do_QueryInterface(GetParent());
-  section.forget(aSection);
-  return NS_OK;
+  *aSection = nsnull;
+
+  nsCOMPtr<nsIDOMNode> sectionNode;
+  nsresult rv = GetParentNode(getter_AddRefs(sectionNode));
+  if (NS_SUCCEEDED(rv) && sectionNode) {
+    rv = CallQueryInterface(sectionNode, aSection);
+  }
+
+  return rv;
 }
 
 // protected method
@@ -147,25 +147,25 @@ nsHTMLTableRowElement::GetTable(nsIDOMHTMLTableElement** aTable)
   NS_ENSURE_ARG_POINTER(aTable);
   *aTable = nsnull;
 
-  nsIContent* parent = GetParent();
-  if (!parent) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMNode> sectionNode;
+  nsresult rv = GetParentNode(getter_AddRefs(sectionNode));
+  if (!sectionNode) {
+    return rv;
   }
 
   // We may not be in a section
-  nsCOMPtr<nsIDOMHTMLTableElement> table = do_QueryInterface(parent);
-  if (table) {
-    table.forget(aTable);
-    return NS_OK;
+  rv = CallQueryInterface(sectionNode, aTable);
+  if (NS_SUCCEEDED(rv)) {
+    return rv;
   }
 
-  parent = parent->GetParent();
-  if (!parent) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMNode> tableNode;
+  rv = sectionNode->GetParentNode(getter_AddRefs(tableNode));
+  if (!tableNode) {
+    return rv;
   }
-  table = do_QueryInterface(parent);
-  table.forget(aTable);
-  return NS_OK;
+  
+  return CallQueryInterface(tableNode, aTable);
 }
 
 NS_IMETHODIMP
@@ -173,52 +173,68 @@ nsHTMLTableRowElement::GetRowIndex(PRInt32* aValue)
 {
   *aValue = -1;
   nsCOMPtr<nsIDOMHTMLTableElement> table;
-  nsresult rv = GetTable(getter_AddRefs(table));
-  if (NS_FAILED(rv) || !table) {
-    return rv;
-  }
 
-  nsCOMPtr<nsIDOMHTMLCollection> rows;
-  table->GetRows(getter_AddRefs(rows));
+  nsresult result = GetTable(getter_AddRefs(table));
 
-  PRUint32 numRows;
-  rows->GetLength(&numRows);
+  if (NS_SUCCEEDED(result) && table) {
+    nsCOMPtr<nsIDOMHTMLCollection> rows;
 
-  for (PRUint32 i = 0; i < numRows; i++) {
-    if (rows->GetNodeAt(i) == static_cast<nsIContent*>(this)) {
-      *aValue = i;
-      break;
+    table->GetRows(getter_AddRefs(rows));
+
+    PRUint32 numRows;
+    rows->GetLength(&numRows);
+
+    PRBool found = PR_FALSE;
+
+    for (PRUint32 i = 0; (i < numRows) && !found; i++) {
+      nsCOMPtr<nsIDOMNode> node;
+
+      rows->Item(i, getter_AddRefs(node));
+
+      if (node.get() == static_cast<nsIDOMNode *>(this)) {
+        *aValue = i;
+        found = PR_TRUE;
+      }
     }
   }
-  return NS_OK;
+
+  return result;
 }
 
 NS_IMETHODIMP
 nsHTMLTableRowElement::GetSectionRowIndex(PRInt32* aValue)
 {
   *aValue = -1;
+
   nsCOMPtr<nsIDOMHTMLTableSectionElement> section;
-  nsresult rv = GetSection(getter_AddRefs(section));
-  if (NS_FAILED(rv) || !section) {
-    return rv;
-  }
 
-  nsCOMPtr<nsIDOMHTMLCollection> rows;
-  section->GetRows(getter_AddRefs(rows));
+  nsresult result = GetSection(getter_AddRefs(section));
 
-  PRUint32 numRows;
-  rows->GetLength(&numRows);
-  for (PRUint32 i = 0; i < numRows; i++) {
-    if (rows->GetNodeAt(i) == static_cast<nsIContent*>(this)) {
-      *aValue = i;
-      break;
-    }
+  if (NS_SUCCEEDED(result) && section) {
+    nsCOMPtr<nsIDOMHTMLCollection> rows;
+
+    section->GetRows(getter_AddRefs(rows));
+
+    PRBool found = PR_FALSE;
+    PRUint32 numRows;
+
+    rows->GetLength(&numRows);
+
+    for (PRUint32 i = 0; (i < numRows) && !found; i++) {
+      nsCOMPtr<nsIDOMNode> node;
+      rows->Item(i, getter_AddRefs(node));
+
+      if (node.get() == static_cast<nsIDOMNode *>(this)) {
+        *aValue = i;
+        found = PR_TRUE;
+      }
+    } 
   }
 
   return NS_OK;
 }
 
-static bool
+static PRBool
 IsCell(nsIContent *aContent, PRInt32 aNamespaceID,
        nsIAtom* aAtom, void *aData)
 {
@@ -236,10 +252,12 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
                                IsCell,
                                nsnull, // destroy func
                                nsnull, // closure data
-                               false,
+                               PR_FALSE,
                                nsnull,
                                kNameSpaceID_XHTML,
-                               false);
+                               PR_FALSE);
+
+    NS_ENSURE_TRUE(mCells, NS_ERROR_OUT_OF_MEMORY);
   }
 
   NS_ADDREF(*aValue = mCells);
@@ -349,7 +367,7 @@ NS_IMPL_STRING_ATTR(nsHTMLTableRowElement, ChOff, charoff)
 NS_IMPL_STRING_ATTR(nsHTMLTableRowElement, VAlign, valign)
 
 
-bool
+PRBool
 nsHTMLTableRowElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsIAtom* aAttribute,
                                       const nsAString& aValue,
@@ -423,7 +441,7 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aD
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTableRowElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry attributes[] = {
@@ -439,7 +457,7 @@ nsHTMLTableRowElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sBackgroundAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 nsMapRuleToAttributesFunc
@@ -447,3 +465,4 @@ nsHTMLTableRowElement::GetAttributeMappingFunction() const
 {
   return &MapAttributesIntoRule;
 }
+

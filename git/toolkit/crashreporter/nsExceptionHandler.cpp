@@ -1,4 +1,4 @@
-  /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -37,15 +37,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/dom/CrashReporterChild.h"
-#include "mozilla/Services.h"
-#include "nsIObserverService.h"
-#include "mozilla/Util.h"
-
-#include "nsXULAppAPI.h"
-
 #include "nsExceptionHandler.h"
-#include "nsThreadUtils.h"
 
 #if defined(XP_WIN32)
 #ifdef WIN32_LEAN_AND_MEAN
@@ -118,9 +110,8 @@ CFStringRef reporterClientAppID = CFSTR("org.mozilla.crashreporter");
 
 using google_breakpad::CrashGenerationServer;
 using google_breakpad::ClientInfo;
-using namespace mozilla;
-using mozilla::dom::CrashReporterChild;
-using mozilla::dom::PCrashReporterChild;
+using mozilla::Mutex;
+using mozilla::MutexAutoLock;
 
 namespace CrashReporter {
 
@@ -206,7 +197,6 @@ static const int kAvailableVirtualMemoryParameterLen =
   sizeof(kAvailableVirtualMemoryParameter)-1;
 
 // this holds additional data sent via the API
-static Mutex* crashReporterAPILock;
 static AnnotationTable* crashReporterAPIData_Hash;
 static nsCString* crashReporterAPIData = nsnull;
 static nsCString* notesField = nsnull;
@@ -241,10 +231,6 @@ static const char* kSubprocessBlacklist[] = {
   "URL"
 };
 
-// If annotations are attempted before the crash reporter is enabled,
-// they queue up here.
-class DelayedNote;
-nsTArray<nsAutoPtr<DelayedNote> >* gDelayedAnnotations;
 
 #ifdef XP_MACOSX
 static cpu_type_t pref_cpu_types[2] = {
@@ -306,13 +292,13 @@ my_timetostring(time_t t, char* buffer, size_t buffer_length)
 static void
 CreateFileFromPath(const xpstring& path, nsILocalFile** file)
 {
-  NS_NewLocalFile(nsDependentString(path.c_str()), false, file);
+  NS_NewLocalFile(nsDependentString(path.c_str()), PR_FALSE, file);
 }
 #else
 static void
 CreateFileFromPath(const xpstring& path, nsILocalFile** file)
 {
-  NS_NewNativeLocalFile(nsDependentCString(path.c_str()), false, file);
+  NS_NewNativeLocalFile(nsDependentCString(path.c_str()), PR_FALSE, file);
 }
 #endif
 
@@ -619,9 +605,6 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   crashReporterAPIData = new nsCString();
   NS_ENSURE_TRUE(crashReporterAPIData, NS_ERROR_OUT_OF_MEMORY);
 
-  NS_ASSERTION(!crashReporterAPILock, "Shouldn't have a lock yet");
-  crashReporterAPILock = new Mutex("crashReporterAPILock");
-
   crashReporterAPIData_Hash =
     new nsDataHashtable<nsCStringHashKey,nsCString>();
   NS_ENSURE_TRUE(crashReporterAPIData_Hash, NS_ERROR_OUT_OF_MEMORY);
@@ -711,7 +694,7 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
   }
 
   // Set spawn attributes.
-  size_t attr_count = ArrayLength(pref_cpu_types);
+  size_t attr_count = NS_ARRAY_LENGTH(pref_cpu_types);
   size_t attr_ocount = 0;
   if (posix_spawnattr_setbinpref_np(&spawnattr,
                                     attr_count,
@@ -818,7 +801,7 @@ nsresult SetExceptionHandler(nsILocalFile* aXREDirectory,
 
 bool GetEnabled()
 {
-  return gExceptionHandler != nsnull;
+  return gExceptionHandler != nsnull && !gExceptionHandler->IsOutOfProcess();
 }
 
 bool GetMinidumpPath(nsAString& aPath)
@@ -895,7 +878,7 @@ static nsresult
 GetOrInit(nsIFile* aDir, const nsACString& filename,
           nsACString& aContents, InitDataFunc aInitFunc)
 {
-  bool exists;
+  PRBool exists;
 
   nsCOMPtr<nsIFile> dataFile;
   nsresult rv = aDir->Clone(getter_AddRefs(dataFile));
@@ -955,7 +938,7 @@ nsresult SetupExtraData(nsILocalFile* aAppDataDirectory,
   rv = dataDirectory->AppendNative(NS_LITERAL_CSTRING("Crash Reports"));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool exists;
+  PRBool exists;
   rv = dataDirectory->Exists(&exists);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1042,17 +1025,20 @@ nsresult UnsetExceptionHandler()
 
   // do this here in the unlikely case that we succeeded in allocating
   // our strings but failed to allocate gExceptionHandler.
-  delete crashReporterAPIData_Hash;
-  crashReporterAPIData_Hash = nsnull;
+  if (crashReporterAPIData_Hash) {
+    delete crashReporterAPIData_Hash;
+    crashReporterAPIData_Hash = nsnull;
+  }
 
-  delete crashReporterAPILock;
-  crashReporterAPILock = nsnull;
+  if (crashReporterAPIData) {
+    delete crashReporterAPIData;
+    crashReporterAPIData = nsnull;
+  }
 
-  delete crashReporterAPIData;
-  crashReporterAPIData = nsnull;
-
-  delete notesField;
-  notesField = nsnull;
+  if (notesField) {
+    delete notesField;
+    notesField = nsnull;
+  }
 
   if (crashReporterPath) {
     NS_Free(crashReporterPath);
@@ -1091,7 +1077,7 @@ static void ReplaceChar(nsCString& str, const nsACString& character,
   }
 }
 
-static bool DoFindInReadable(const nsACString& str, const nsACString& value)
+static PRBool DoFindInReadable(const nsACString& str, const nsACString& value)
 {
   nsACString::const_iterator start, end;
   str.BeginReading(start);
@@ -1109,13 +1095,11 @@ static PLDHashOperator EnumerateEntries(const nsACString& key,
   return PL_DHASH_NEXT;
 }
 
-// This function is miscompiled with MSVC 2005/2008 when PGO is on.
-#ifdef _MSC_VER
-#pragma optimize("", off)
-#endif
-static nsresult
-EscapeAnnotation(const nsACString& key, const nsACString& data, nsCString& escapedData)
+nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data)
 {
+  if (!GetEnabled())
+    return NS_ERROR_NOT_INITIALIZED;
+
   if (DoFindInReadable(key, NS_LITERAL_CSTRING("=")) ||
       DoFindInReadable(key, NS_LITERAL_CSTRING("\n")))
     return NS_ERROR_INVALID_ARG;
@@ -1123,7 +1107,7 @@ EscapeAnnotation(const nsACString& key, const nsACString& data, nsCString& escap
   if (DoFindInReadable(data, NS_LITERAL_CSTRING("\0")))
     return NS_ERROR_INVALID_ARG;
 
-  escapedData = data;
+  nsCString escapedData(data);
 
   // escape backslashes
   ReplaceChar(escapedData, NS_LITERAL_CSTRING("\\"),
@@ -1131,73 +1115,8 @@ EscapeAnnotation(const nsACString& key, const nsACString& data, nsCString& escap
   // escape newlines
   ReplaceChar(escapedData, NS_LITERAL_CSTRING("\n"),
               NS_LITERAL_CSTRING("\\n"));
-  return NS_OK;
-}
-#ifdef _MSC_VER
-#pragma optimize("", on)
-#endif
 
-class DelayedNote
-{
- public:
-  DelayedNote(const nsACString& aKey, const nsACString& aData)
-  : mKey(aKey), mData(aData), mType(Annotation) {}
-
-  DelayedNote(const nsACString& aData)
-  : mData(aData), mType(AppNote) {}
-
-  void Run()
-  {
-    if (mType == Annotation) {
-      AnnotateCrashReport(mKey, mData);
-    } else {
-      AppendAppNotesToCrashReport(mData);
-    }
-  }
-  
- private:
-  nsCString mKey;
-  nsCString mData;
-  enum AnnotationType { Annotation, AppNote } mType;
-};
-
-static void
-EnqueueDelayedNote(DelayedNote* aNote)
-{
-  if (!gDelayedAnnotations) {
-    gDelayedAnnotations = new nsTArray<nsAutoPtr<DelayedNote> >();
-  }
-  gDelayedAnnotations->AppendElement(aNote);
-}
-
-nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data)
-{
-  if (!GetEnabled())
-    return NS_ERROR_NOT_INITIALIZED;
-
-  nsCString escapedData;
-  nsresult rv = EscapeAnnotation(key, data, escapedData);
-  if (NS_FAILED(rv))
-    return rv;
-
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    if (!NS_IsMainThread()) {
-      NS_ERROR("Cannot call AnnotateCrashReport in child processes from non-main thread.");
-      return NS_ERROR_FAILURE;
-    }
-    PCrashReporterChild* reporter = CrashReporterChild::GetCrashReporter();
-    if (!reporter) {
-      EnqueueDelayedNote(new DelayedNote(key, data));
-      return NS_OK;
-    }
-    if (!reporter->SendAnnotateCrashReport(nsCString(key), escapedData))
-      return NS_ERROR_FAILURE;
-    return NS_OK;
-  }
-
-  MutexAutoLock lock(*crashReporterAPILock);
-
-  rv = crashReporterAPIData_Hash->Put(key, escapedData);
+  nsresult rv = crashReporterAPIData_Hash->Put(key, escapedData);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // now rebuild the file contents
@@ -1215,26 +1134,6 @@ nsresult AppendAppNotesToCrashReport(const nsACString& data)
 
   if (DoFindInReadable(data, NS_LITERAL_CSTRING("\0")))
     return NS_ERROR_INVALID_ARG;
-
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    PCrashReporterChild* reporter = CrashReporterChild::GetCrashReporter();
-    if (!reporter) {
-      EnqueueDelayedNote(new DelayedNote(data));
-      return NS_OK;
-    }
-
-    // Since we don't go through AnnotateCrashReport in the parent process,
-    // we must ensure that the data is escaped and valid before the parent
-    // sees it.
-    nsCString escapedData;
-    nsresult rv = EscapeAnnotation(NS_LITERAL_CSTRING("Notes"), data, escapedData);
-    if (NS_FAILED(rv))
-      return rv;
-
-    if (!reporter->SendAppendAppNotes(escapedData))
-      return NS_ERROR_FAILURE;
-    return NS_OK;
-  }
 
   notesField->Append(data);
   return AnnotateCrashReport(NS_LITERAL_CSTRING("Notes"), *notesField);
@@ -1382,7 +1281,7 @@ nsresult AppendObjCExceptionInfoToAppNotes(void *inException)
  * Combined code to get/set the crash reporter submission pref on
  * different platforms.
  */
-static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
+static nsresult PrefSubmitReports(PRBool* aSubmitReports, bool writePref)
 {
   nsresult rv;
 #if defined(XP_WIN32)
@@ -1449,7 +1348,7 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
                     NS_ConvertUTF8toUTF16(regPath),
                     nsIWindowsRegKey::ACCESS_QUERY_VALUE);
   if (NS_FAILED(rv)) {
-    *aSubmitReports = true;
+    *aSubmitReports = PR_TRUE;
     return NS_OK;
   }
   
@@ -1474,7 +1373,7 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
       rv = NS_ERROR_FAILURE;
   }
   else {
-    *aSubmitReports = true;
+    *aSubmitReports = PR_TRUE;
     Boolean keyExistsAndHasValidFormat = false;
     Boolean prefValue = ::CFPreferencesGetAppBooleanValue(CFSTR("submitReport"),
                                                           reporterClientAppID,
@@ -1494,13 +1393,13 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
   reporterINI->AppendNative(NS_LITERAL_CSTRING("Crash Reports"));
   reporterINI->AppendNative(NS_LITERAL_CSTRING("crashreporter.ini"));
 
-  bool exists;
+  PRBool exists;
   rv = reporterINI->Exists(&exists);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!exists) {
     if (!writePref) {
         // If reading the pref, default to true if .ini doesn't exist.
-        *aSubmitReports = true;
+        *aSubmitReports = PR_TRUE;
         return NS_OK;
     }
     // Create the file so the INI processor can write to it.
@@ -1540,11 +1439,11 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
 
   // Default to "true" if the pref can't be found.
   if (NS_FAILED(rv))
-    *aSubmitReports = true;
+    *aSubmitReports = PR_TRUE;
   else if (submitReportValue.EqualsASCII("0"))
-    *aSubmitReports = false;
+    *aSubmitReports = PR_FALSE;
   else
-    *aSubmitReports = true;
+    *aSubmitReports = PR_TRUE;
 
   return NS_OK;
 #else
@@ -1552,28 +1451,14 @@ static nsresult PrefSubmitReports(bool* aSubmitReports, bool writePref)
 #endif
 }
 
-nsresult GetSubmitReports(bool* aSubmitReports)
+nsresult GetSubmitReports(PRBool* aSubmitReports)
 {
     return PrefSubmitReports(aSubmitReports, false);
 }
 
-nsresult SetSubmitReports(bool aSubmitReports)
+nsresult SetSubmitReports(PRBool aSubmitReports)
 {
-    nsresult rv;
-
-    nsCOMPtr<nsIObserverService> obsServ =
-      mozilla::services::GetObserverService();
-    if (!obsServ) {
-      return NS_ERROR_FAILURE;
-    }
-
-    rv = PrefSubmitReports(&aSubmitReports, true);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    obsServ->NotifyObservers(nsnull, "submit-reports-pref-changed", nsnull);
-    return NS_OK;
+    return PrefSubmitReports(&aSubmitReports, true);
 }
 
 // The "pending" dir is Crash Reports/pending, from which minidumps
@@ -1847,7 +1732,7 @@ OnChildProcessDumpRequested(void* aContext,
 
   if (!WriteExtraForMinidump(minidump,
                              Blacklist(kSubprocessBlacklist,
-                                       ArrayLength(kSubprocessBlacklist)),
+                                       NS_ARRAY_LENGTH(kSubprocessBlacklist)),
                              getter_AddRefs(extraFile)))
     return;
 
@@ -1989,7 +1874,7 @@ SetRemoteExceptionHandler(const nsACString& crashPipe)
 
   gExceptionHandler = new google_breakpad::
     ExceptionHandler(L"",
-                     FPEFilter,
+                     NULL,    // no filter callback
                      NULL,    // no minidump callback
                      NULL,    // no callback context
                      google_breakpad::ExceptionHandler::HANDLER_ALL,
@@ -2039,13 +1924,6 @@ SetRemoteExceptionHandler()
                      NULL,    // no callback context
                      true,    // install signal handlers
                      kMagicChildCrashReportFd);
-
-  if (gDelayedAnnotations) {
-    for (PRUint32 i = 0; i < gDelayedAnnotations->Length(); i++) {
-      gDelayedAnnotations->ElementAt(i)->Run();
-    }
-    delete gDelayedAnnotations;
-  }
 
   // we either do remote or nothing, no fallback to regular crash reporting
   return gExceptionHandler->IsOutOfProcess();
@@ -2199,7 +2077,7 @@ CreatePairedMinidumps(ProcessHandle childPid,
   nsCOMPtr<nsILocalFile> childMinidump;
   nsCOMPtr<nsILocalFile> childExtra;
   Blacklist childBlacklist(kSubprocessBlacklist,
-                           ArrayLength(kSubprocessBlacklist));
+                           NS_ARRAY_LENGTH(kSubprocessBlacklist));
   PairedDumpContext childCtx =
     { &childMinidump, &childExtra, childBlacklist };
   if (!google_breakpad::ExceptionHandler::WriteMinidumpForChild(

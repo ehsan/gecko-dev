@@ -62,6 +62,7 @@
 #include "nsIImageLoadingContent.h"
 #include "imgIContainer.h"
 #include "imgIRequest.h"
+#include "nsIViewObserver.h"
 #include "nsRegion.h"
 #include "nsGUIEvent.h"
 #include "nsXULPopupManager.h"
@@ -76,8 +77,8 @@ using namespace mozilla;
 #define DRAGIMAGES_PREF "nglayout.enable_drag_images"
 
 nsBaseDragService::nsBaseDragService()
-  : mCanDrop(false), mOnlyChromeDrop(false), mDoingDrag(false),
-    mHasImage(false), mUserCancelled(false),
+  : mCanDrop(PR_FALSE), mOnlyChromeDrop(PR_FALSE), mDoingDrag(PR_FALSE),
+    mHasImage(PR_FALSE), mUserCancelled(PR_FALSE),
     mDragAction(DRAGDROP_ACTION_NONE), mTargetSize(0,0),
     mImageX(0), mImageY(0), mScreenX(-1), mScreenY(-1), mSuppressLevel(0),
     mInputSource(nsIDOMMouseEvent::MOZ_SOURCE_MOUSE)
@@ -92,7 +93,7 @@ NS_IMPL_ISUPPORTS2(nsBaseDragService, nsIDragService, nsIDragSession)
 
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsBaseDragService::SetCanDrop(bool aCanDrop)
+nsBaseDragService::SetCanDrop(PRBool aCanDrop)
 {
   mCanDrop = aCanDrop;
   return NS_OK;
@@ -100,14 +101,14 @@ nsBaseDragService::SetCanDrop(bool aCanDrop)
 
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsBaseDragService::GetCanDrop(bool * aCanDrop)
+nsBaseDragService::GetCanDrop(PRBool * aCanDrop)
 {
   *aCanDrop = mCanDrop;
   return NS_OK;
 }
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsBaseDragService::SetOnlyChromeDrop(bool aOnlyChrome)
+nsBaseDragService::SetOnlyChromeDrop(PRBool aOnlyChrome)
 {
   mOnlyChromeDrop = aOnlyChrome;
   return NS_OK;
@@ -115,7 +116,7 @@ nsBaseDragService::SetOnlyChromeDrop(bool aOnlyChrome)
 
 //---------------------------------------------------------
 NS_IMETHODIMP
-nsBaseDragService::GetOnlyChromeDrop(bool* aOnlyChrome)
+nsBaseDragService::GetOnlyChromeDrop(PRBool* aOnlyChrome)
 {
   *aOnlyChrome = mOnlyChromeDrop;
   return NS_OK;
@@ -206,7 +207,7 @@ nsBaseDragService::GetData(nsITransferable * aTransferable,
 //-------------------------------------------------------------------------
 NS_IMETHODIMP
 nsBaseDragService::IsDataFlavorSupported(const char *aDataFlavor,
-                                         bool *_retval)
+                                         PRBool *_retval)
 {
   return NS_ERROR_FAILURE;
 }
@@ -245,7 +246,13 @@ nsBaseDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
   // capture. However, this gets in the way of determining drag
   // feedback for things like trees because the event coordinates
   // are in the wrong coord system, so turn off mouse capture.
-  nsIPresShell::ClearMouseCapture(nsnull);
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(mSourceDocument);
+  if (doc) {
+    nsCOMPtr<nsIViewObserver> viewObserver = do_QueryInterface(doc->GetShell());
+    if (viewObserver) {
+      viewObserver->ClearMouseCapture(nsnull);
+    }
+  }
 
   return NS_OK;
 }
@@ -266,7 +273,7 @@ nsBaseDragService::InvokeDragSessionWithImage(nsIDOMNode* aDOMNode,
 
   mDataTransfer = aDataTransfer;
   mSelection = nsnull;
-  mHasImage = true;
+  mHasImage = PR_TRUE;
   mDragPopup = nsnull;
   mImage = aImage;
   mImageX = aImageX;
@@ -292,7 +299,7 @@ nsBaseDragService::InvokeDragSessionWithSelection(nsISelection* aSelection,
 
   mDataTransfer = aDataTransfer;
   mSelection = aSelection;
-  mHasImage = true;
+  mHasImage = PR_TRUE;
   mDragPopup = nsnull;
   mImage = nsnull;
   mImageX = 0;
@@ -337,9 +344,9 @@ nsBaseDragService::StartDragSession()
   if (mDoingDrag) {
     return NS_ERROR_FAILURE;
   }
-  mDoingDrag = true;
+  mDoingDrag = PR_TRUE;
   // By default dispatch drop also to content.
-  mOnlyChromeDrop = false;
+  mOnlyChromeDrop = PR_FALSE;
 
   return NS_OK;
 }
@@ -350,14 +357,14 @@ nsBaseDragService::OpenDragPopup()
   if (mDragPopup) {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm) {
-      pm->ShowPopupAtScreen(mDragPopup, mScreenX - mImageX, mScreenY - mImageY, false, nsnull);
+      pm->ShowPopupAtScreen(mDragPopup, mScreenX - mImageX, mScreenY - mImageY, PR_FALSE, nsnull);
     }
   }
 }
 
 //-------------------------------------------------------------------------
 NS_IMETHODIMP
-nsBaseDragService::EndDragSession(bool aDoneDrag)
+nsBaseDragService::EndDragSession(PRBool aDoneDrag)
 {
   if (!mDoingDrag) {
     return NS_ERROR_FAILURE;
@@ -369,19 +376,19 @@ nsBaseDragService::EndDragSession(bool aDoneDrag)
   if (mDragPopup) {
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm) {
-      pm->HidePopup(mDragPopup, false, true, false);
+      pm->HidePopup(mDragPopup, PR_FALSE, PR_TRUE, PR_FALSE);
     }
   }
 
-  mDoingDrag = false;
+  mDoingDrag = PR_FALSE;
 
   // release the source we've been holding on to.
   mSourceDocument = nsnull;
   mSourceNode = nsnull;
   mSelection = nsnull;
   mDataTransfer = nsnull;
-  mHasImage = false;
-  mUserCancelled = false;
+  mHasImage = PR_FALSE;
+  mUserCancelled = PR_FALSE;
   mDragPopup = nsnull;
   mImage = nsnull;
   mImageX = 0;
@@ -402,7 +409,7 @@ nsBaseDragService::FireDragEventAtSource(PRUint32 aMsg)
       nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
       if (presShell) {
         nsEventStatus status = nsEventStatus_eIgnore;
-        nsDragEvent event(true, aMsg, nsnull);
+        nsDragEvent event(PR_TRUE, aMsg, nsnull);
         event.inputSource = mInputSource;
         if (aMsg == NS_DRAGDROP_END) {
           event.refPoint.x = mEndDragPoint.x;
@@ -429,7 +436,7 @@ nsBaseDragService::DragMoved(PRInt32 aX, PRInt32 aY)
   if (mDragPopup) {
     nsIFrame* frame = mDragPopup->GetPrimaryFrame();
     if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame) {
-      (static_cast<nsMenuPopupFrame *>(frame))->MoveTo(aX - mImageX, aY - mImageY, true);
+      (static_cast<nsMenuPopupFrame *>(frame))->MoveTo(aX - mImageX, aY - mImageY, PR_TRUE);
     }
   }
 
@@ -484,7 +491,7 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   *aPresContext = presShell->GetPresContext();
 
   // check if drag images are disabled
-  bool enableDragImages = Preferences::GetBool(DRAGIMAGES_PREF, true);
+  PRBool enableDragImages = Preferences::GetBool(DRAGIMAGES_PREF, PR_TRUE);
 
   // didn't want an image, so just set the screen rectangle to the frame size
   if (!enableDragImages || !mHasImage) {
@@ -683,7 +690,7 @@ nsBaseDragService::ConvertToUnscaledDevPixels(nsPresContext* aPresContext,
 NS_IMETHODIMP
 nsBaseDragService::Suppress()
 {
-  EndDragSession(false);
+  EndDragSession(PR_FALSE);
   ++mSuppressLevel;
   return NS_OK;
 }

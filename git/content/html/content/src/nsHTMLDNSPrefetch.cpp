@@ -68,8 +68,8 @@ using namespace mozilla::dom;
 using namespace mozilla::net;
 
 static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
-bool sDisablePrefetchHTTPSPref;
-static bool sInitialized = false;
+PRBool sDisablePrefetchHTTPSPref;
+static PRBool sInitialized = PR_FALSE;
 static nsIDNSService *sDNSService = nsnull;
 static nsHTMLDNSPrefetch::nsDeferrals *sPrefetches = nsnull;
 static nsHTMLDNSPrefetch::nsListener *sDNSListener = nsnull;
@@ -101,7 +101,7 @@ nsHTMLDNSPrefetch::Initialize()
   
   // Default is false, so we need an explicit call to prime the cache.
   sDisablePrefetchHTTPSPref = 
-    Preferences::GetBool("network.dns.disablePrefetchFromHTTPS", true);
+    Preferences::GetBool("network.dns.disablePrefetchFromHTTPS", PR_TRUE);
   
   NS_IF_RELEASE(sDNSService);
   nsresult rv;
@@ -111,7 +111,7 @@ nsHTMLDNSPrefetch::Initialize()
   if (IsNeckoChild())
     NeckoChild::InitNeckoChild();
 
-  sInitialized = true;
+  sInitialized = PR_TRUE;
   return NS_OK;
 }
 
@@ -122,7 +122,7 @@ nsHTMLDNSPrefetch::Shutdown()
     NS_WARNING("Not Initialized");
     return NS_OK;
   }
-  sInitialized = false;
+  sInitialized = PR_FALSE;
   NS_IF_RELEASE(sDNSService);
   NS_IF_RELEASE(sPrefetches);
   NS_IF_RELEASE(sDNSListener);
@@ -130,7 +130,7 @@ nsHTMLDNSPrefetch::Shutdown()
   return NS_OK;
 }
 
-bool
+PRBool
 nsHTMLDNSPrefetch::IsAllowed (nsIDocument *aDocument)
 {
   // There is no need to do prefetch on non UI scenarios such as XMLHttpRequest.
@@ -233,7 +233,7 @@ nsHTMLDNSPrefetch::nsDeferrals::nsDeferrals()
   : mHead(0),
     mTail(0),
     mActiveLoaderCount(0),
-    mTimerArmed(false)
+    mTimerArmed(PR_FALSE)
 {
   mTimer = do_CreateInstance("@mozilla.org/timer;1");
 }
@@ -241,7 +241,7 @@ nsHTMLDNSPrefetch::nsDeferrals::nsDeferrals()
 nsHTMLDNSPrefetch::nsDeferrals::~nsDeferrals()
 {
   if (mTimerArmed) {
-    mTimerArmed = false;
+    mTimerArmed = PR_FALSE;
     mTimer->Cancel();
   }
 
@@ -276,7 +276,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Add(PRUint16 flags, Link *aElement)
   mHead = (mHead + 1) & sMaxDeferredMask;
 
   if (!mActiveLoaderCount && !mTimerArmed && mTimer) {
-    mTimerArmed = true;
+    mTimerArmed = PR_TRUE;
     mTimer->InitWithFuncCallback(Tick, this, 2000, nsITimer::TYPE_ONE_SHOT);
   }
   
@@ -292,7 +292,7 @@ nsHTMLDNSPrefetch::nsDeferrals::SubmitQueue()
 
   while (mHead != mTail) {
     nsCOMPtr<nsIContent> content = do_QueryReferent(mEntries[mTail].mElement);
-    if (content) {
+    if (content && content->GetOwnerDoc()) {
       nsCOMPtr<Link> link = do_QueryInterface(content);
       nsCOMPtr<nsIURI> hrefURI(link ? link->GetURI() : nsnull);
       if (hrefURI)
@@ -312,7 +312,7 @@ nsHTMLDNSPrefetch::nsDeferrals::SubmitQueue()
   }
   
   if (mTimerArmed) {
-    mTimerArmed = false;
+    mTimerArmed = PR_FALSE;
     mTimer->Cancel();
   }
 }
@@ -330,7 +330,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Activate()
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService)
-    observerService->AddObserver(this, "xpcom-shutdown", true);
+    observerService->AddObserver(this, "xpcom-shutdown", PR_TRUE);
 }
 
 // nsITimer related method
@@ -343,7 +343,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Tick(nsITimer *aTimer, void *aClosure)
   NS_ASSERTION(NS_IsMainThread(), "nsDeferrals::Tick must be on main thread");
   NS_ASSERTION(self->mTimerArmed, "Timer is not armed");
   
-  self->mTimerArmed = false;
+  self->mTimerArmed = PR_FALSE;
 
   // If the queue is not submitted here because there are outstanding pages being loaded,
   // there is no need to rearm the timer as the queue will be submtited when those 
@@ -395,8 +395,7 @@ nsHTMLDNSPrefetch::nsDeferrals::OnProgressChange(nsIWebProgress *aProgress,
 NS_IMETHODIMP
 nsHTMLDNSPrefetch::nsDeferrals::OnLocationChange(nsIWebProgress* aWebProgress,
                                                  nsIRequest* aRequest,
-                                                 nsIURI *location,
-                                                 PRUint32 aFlags)
+                                                 nsIURI *location)
 {
   return NS_OK;
 }

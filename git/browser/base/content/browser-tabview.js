@@ -42,7 +42,6 @@ let TabView = {
   _window: null,
   _initialized: false,
   _browserKeyHandlerInitialized: false,
-  _closedLastVisibleTabBeforeFrameInitialized: false,
   _isFrameLoading: false,
   _initFrameCallbacks: [],
   _lastSessionGroupName: null,
@@ -52,6 +51,7 @@ let TabView = {
   PREF_RESTORE_ENABLED_ONCE: "browser.panorama.session_restore_enabled_once",
   GROUPS_IDENTIFIER: "tabview-groups",
   VISIBILITY_IDENTIFIER: "tabview-visibility",
+  LAST_SESSION_GROUP_NAME_IDENTIFIER: "tabview-last-session-group-name",
 
   // ----------
   get windowTitle() {
@@ -92,11 +92,6 @@ let TabView = {
 
   // ----------
   init: function TabView_init() {
-    // disable the ToggleTabView command for popup windows
-    goSetCommandEnabled("Browser:ToggleTabView", window.toolbar.visible);
-    if (!window.toolbar.visible)
-      return;
-
     if (this._initialized)
       return;
 
@@ -123,24 +118,18 @@ let TabView = {
         let self = this;
         // if a tab is changed from hidden to unhidden and the iframe is not
         // initialized, load the iframe and setup the tab.
-        this._tabShowEventListener = function(event) {
+        this._tabShowEventListener = function (event) {
           if (!self._window)
             self._initFrame(function() {
               self._window.UI.onTabSelect(gBrowser.selectedTab);
-              if (self._closedLastVisibleTabBeforeFrameInitialized) {
-                self._closedLastVisibleTabBeforeFrameInitialized = false;
-                self._window.UI.showTabView(false);
-              }
             });
         };
-        this._tabCloseEventListener = function(event) {
-          if (!self._window && gBrowser.visibleTabs.length == 0)
-            self._closedLastVisibleTabBeforeFrameInitialized = true;
-        };
         gBrowser.tabContainer.addEventListener(
-          "TabShow", this._tabShowEventListener, false);
-        gBrowser.tabContainer.addEventListener(
-          "TabClose", this._tabCloseEventListener, false);
+          "TabShow", this._tabShowEventListener, true);
+
+       // grab the last used group title
+       this._lastSessionGroupName = sessionstore.getWindowValue(window,
+         this.LAST_SESSION_GROUP_NAME_IDENTIFIER);
       }
     }
 
@@ -166,13 +155,10 @@ let TabView = {
 
     Services.prefs.removeObserver(this.PREF_BRANCH, this);
 
-    if (this._tabShowEventListener)
+    if (this._tabShowEventListener) {
       gBrowser.tabContainer.removeEventListener(
-        "TabShow", this._tabShowEventListener, false);
-
-    if (this._tabCloseEventListener)
-      gBrowser.tabContainer.removeEventListener(
-        "TabClose", this._tabCloseEventListener, false);
+        "TabShow", this._tabShowEventListener, true);
+    }
 
     this._initialized = false;
   },
@@ -182,10 +168,6 @@ let TabView = {
   // If the frame already exists, calls the callback immediately. 
   _initFrame: function TabView__initFrame(callback) {
     let hasCallback = typeof callback == "function";
-
-    // prevent frame to be initialized for popup windows
-    if (!window.toolbar.visible)
-      return;
 
     if (this._window) {
       if (hasCallback)
@@ -208,7 +190,6 @@ let TabView = {
     this._iframe = document.createElement("iframe");
     this._iframe.id = "tab-view";
     this._iframe.setAttribute("transparent", "true");
-    this._iframe.setAttribute("tooltip", "tab-view-tooltip");
     this._iframe.flex = 1;
 
     let self = this;
@@ -222,26 +203,16 @@ let TabView = {
 
       if (self._tabShowEventListener) {
         gBrowser.tabContainer.removeEventListener(
-          "TabShow", self._tabShowEventListener, false);
+          "TabShow", self._tabShowEventListener, true);
         self._tabShowEventListener = null;
       }
-      if (self._tabCloseEventListener) {
-        gBrowser.tabContainer.removeEventListener(
-          "TabClose", self._tabCloseEventListener, false);
-        self._tabCloseEventListener = null;
-      }
+
       self._initFrameCallbacks.forEach(function (cb) cb());
       self._initFrameCallbacks = [];
     }, false);
 
     this._iframe.setAttribute("src", "chrome://browser/content/tabview.html");
     this._deck.appendChild(this._iframe);
-
-    // ___ create tooltip
-    let tooltip = document.createElement("tooltip");
-    tooltip.id = "tab-view-tooltip";
-    tooltip.setAttribute("onpopupshowing", "return TabView.fillInTooltip(document.tooltipNode);");
-    document.getElementById("mainPopupSet").appendChild(tooltip);
   },
 
   // ----------
@@ -255,7 +226,7 @@ let TabView = {
   },
 
   // ----------
-  show: function TabView_show() {
+  show: function() {
     if (this.isVisible())
       return;
 
@@ -266,7 +237,7 @@ let TabView = {
   },
 
   // ----------
-  hide: function TabView_hide() {
+  hide: function() {
     if (!this.isVisible())
       return;
 
@@ -274,15 +245,39 @@ let TabView = {
   },
 
   // ----------
-  toggle: function TabView_toggle() {
+  toggle: function() {
     if (this.isVisible())
       this.hide();
     else 
       this.show();
   },
+  
+  getActiveGroupName: function TabView_getActiveGroupName() {
+    if (!this._window)
+      return this._lastSessionGroupName;
+
+    // We get the active group this way, instead of querying
+    // GroupItems.getActiveGroupItem() because the tabSelect event
+    // will not have happened by the time the browser tries to
+    // update the title.
+    let groupItem = null;
+    let activeTab = window.gBrowser.selectedTab;
+    let activeTabItem = activeTab._tabViewTabItem;
+
+    if (activeTab.pinned) {
+      // It's an app tab, so it won't have a .tabItem. However, its .parent
+      // will already be set as the active group. 
+      groupItem = this._window.GroupItems.getActiveGroupItem();
+    } else if (activeTabItem) {
+      groupItem = activeTabItem.parent;
+    }
+
+    // groupItem may still be null, if the active tab is an orphan.
+    return groupItem ? groupItem.getTitle() : "";
+  },
 
   // ----------
-  updateContextMenu: function TabView_updateContextMenu(tab, popup) {
+  updateContextMenu: function(tab, popup) {
     let separator = document.getElementById("context_tabViewNamedGroups");
     let isEmpty = true;
 
@@ -360,10 +355,8 @@ let TabView = {
           if (!tabItem)
             return;
 
-          if (gBrowser.selectedTab.pinned)
-            groupItems.updateActiveGroupItemAndTabBar(tabItem, {dontSetActiveTabInGroup: true});
-          else
-            gBrowser.selectedTab = tabItem.tab;
+          // Switch to the new tab
+          window.gBrowser.selectedTab = tabItem.tab;
         });
       }
     }, true);
@@ -371,7 +364,7 @@ let TabView = {
 
   // ----------
   // Prepares the tab view for undo close tab.
-  prepareUndoCloseTab: function TabView_prepareUndoCloseTab(blankTabToRemove) {
+  prepareUndoCloseTab: function(blankTabToRemove) {
     if (this._window) {
       this._window.UI.restoredClosedTab = true;
 
@@ -382,7 +375,7 @@ let TabView = {
 
   // ----------
   // Cleans up the tab view after undo close tab.
-  afterUndoCloseTab: function TabView_afterUndoCloseTab() {
+  afterUndoCloseTab: function () {
     if (this._window)
       this._window.UI.restoredClosedTab = false;
   },
@@ -432,7 +425,7 @@ let TabView = {
   // Function: enableSessionRestore
   // Enables automatic session restore when the browser is started. Does
   // nothing if we already did that once in the past.
-  enableSessionRestore: function TabView_enableSessionRestore() {
+  enableSessionRestore: function UI_enableSessionRestore() {
     if (!this._window || !this.firstUseExperienced)
       return;
 
@@ -449,29 +442,5 @@ let TabView = {
       // show banner
       this._window.UI.notifySessionRestoreEnabled();
     }
-  },
-
-  // ----------
-  // Function: fillInTooltip
-  // Fills in the tooltip text.
-  fillInTooltip: function fillInTooltip(tipElement) {
-    let retVal = false;
-    let titleText = null;
-    let direction = tipElement.ownerDocument.dir;
-
-    while (!titleText && tipElement) {
-      if (tipElement.nodeType == Node.ELEMENT_NODE)
-        titleText = tipElement.getAttribute("title");
-      tipElement = tipElement.parentNode;
-    }
-    let tipNode = document.getElementById("tab-view-tooltip");
-    tipNode.style.direction = direction;
-
-    if (titleText) {
-      tipNode.setAttribute("label", titleText);
-      retVal = true;
-    }
-
-    return retVal;
   }
 };

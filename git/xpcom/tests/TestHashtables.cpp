@@ -105,10 +105,10 @@ public:
   EntityToUnicodeEntry(const EntityToUnicodeEntry& aEntry) { mNode = aEntry.mNode; }
   ~EntityToUnicodeEntry() { };
 
-  bool KeyEquals(const char* aEntity) const { return !strcmp(mNode->mStr, aEntity); }
+  PRBool KeyEquals(const char* aEntity) const { return !strcmp(mNode->mStr, aEntity); }
   static const char* KeyToPointer(const char* aEntity) { return aEntity; }
   static PLDHashNumber HashKey(const char* aEntity) { return HashString(aEntity); }
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
   const EntityNode* mNode;
 };

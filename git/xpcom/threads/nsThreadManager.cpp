@@ -98,7 +98,7 @@ nsThreadManager::Init()
   mLock = new Mutex("nsThreadManager.mLock");
 
   // Setup "main" thread
-  mMainThread = new nsThread(nsThread::MAIN_THREAD, 0);
+  mMainThread = new nsThread();
   if (!mMainThread)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -118,7 +118,7 @@ nsThreadManager::Init()
   gTLSThreadID = mozilla::threads::Main;
 #endif
 
-  mInitialized = true;
+  mInitialized = PR_TRUE;
   return NS_OK;
 }
 
@@ -132,7 +132,7 @@ nsThreadManager::Shutdown()
   // XXX What happens if shutdown happens before NewThread completes?
   //     Fortunately, NewThread is only called on the main thread for now.
   //
-  mInitialized = false;
+  mInitialized = PR_FALSE;
 
   // Empty the main thread event queue before we begin shutting down threads.
   NS_ProcessPendingEvents(mMainThread);
@@ -224,7 +224,7 @@ nsThreadManager::GetCurrentThread()
   }
 
   // OK, that's fine.  We'll dynamically create one :-)
-  nsRefPtr<nsThread> thread = new nsThread(nsThread::NOT_MAIN_THREAD, 0);
+  nsRefPtr<nsThread> thread = new nsThread();
   if (!thread || NS_FAILED(thread->InitCurrentThread()))
     return nsnull;
 
@@ -239,7 +239,7 @@ nsThreadManager::NewThread(PRUint32 creationFlags,
   // No new threads during Shutdown
   NS_ENSURE_TRUE(mInitialized, NS_ERROR_NOT_INITIALIZED);
 
-  nsThread *thr = new nsThread(nsThread::NOT_MAIN_THREAD, stackSize);
+  nsThread *thr = new nsThread(stackSize);
   if (!thr)
     return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(thr);
@@ -297,7 +297,7 @@ nsThreadManager::GetCurrentThread(nsIThread **result)
 }
 
 NS_IMETHODIMP
-nsThreadManager::GetIsMainThread(bool *result)
+nsThreadManager::GetIsMainThread(PRBool *result)
 {
   // This method may be called post-Shutdown
 
@@ -306,8 +306,8 @@ nsThreadManager::GetIsMainThread(bool *result)
 }
 
 NS_IMETHODIMP
-nsThreadManager::GetIsCycleCollectorThread(bool *result)
+nsThreadManager::GetIsCycleCollectorThread(PRBool *result)
 {
-  *result = bool(NS_IsCycleCollectorThread());
+  *result = PRBool(NS_IsCycleCollectorThread());
   return NS_OK;
 }

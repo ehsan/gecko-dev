@@ -53,7 +53,6 @@
     <content>
       <xul:hbox class="select-keep select-cell">
         <xul:checkbox class="addon-keep-checkbox" anonid="keep"
-                      xbl:inherits="tooltiptext=name"
                       oncommand="document.getBindingParent(this).keepChanged();"/>
       </xul:hbox>
       <xul:hbox class="select-icon select-cell">
@@ -119,15 +118,20 @@
           this.setAttribute("name", aAddon.name);
           this.setAttribute("type", aAddon.type);
 
-          // User and bundled add-ons default to staying enabled,
+          // User and application installed add-ons default to staying enabled,
           // others default to disabled.
-          switch (aAddon.scope) {
+          let scope = aAddon.scope;
+          if (aDistroInstalled)
+            scope = AddonManager.SCOPE_APPLICATION;
+
+          switch (scope) {
             case AddonManager.SCOPE_PROFILE:
               this._keep.checked = !aAddon.userDisabled;
-              if (aDistroInstalled)
-                this.setAttribute("source", this._strings.getString("source.bundled"));
-              else
-                this.setAttribute("source", this._strings.getString("source.profile"));
+              this.setAttribute("source", this._strings.getString("source.profile"));
+              break;
+            case AddonManager.SCOPE_APPLICATION:
+              this._keep.checked = !aAddon.userDisabled;
+              this.setAttribute("source", this._strings.getString("source.bundled"));
               break;
             default:
               this._keep.checked = false;

@@ -75,21 +75,21 @@ nsEventListenerInfo::GetType(nsAString& aType)
 }
 
 NS_IMETHODIMP
-nsEventListenerInfo::GetCapturing(bool* aCapturing)
+nsEventListenerInfo::GetCapturing(PRBool* aCapturing)
 {
   *aCapturing = mCapturing;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsEventListenerInfo::GetAllowsUntrusted(bool* aAllowsUntrusted)
+nsEventListenerInfo::GetAllowsUntrusted(PRBool* aAllowsUntrusted)
 {
   *aAllowsUntrusted = mAllowsUntrusted;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsEventListenerInfo::GetInSystemEventGroup(bool* aInSystemEventGroup)
+nsEventListenerInfo::GetInSystemEventGroup(PRBool* aInSystemEventGroup)
 {
   *aInSystemEventGroup = mInSystemEventGroup;
   return NS_OK;
@@ -98,38 +98,33 @@ nsEventListenerInfo::GetInSystemEventGroup(bool* aInSystemEventGroup)
 NS_IMPL_ISUPPORTS1(nsEventListenerService, nsIEventListenerService)
 
 // Caller must root *aJSVal!
-bool
-nsEventListenerInfo::GetJSVal(JSContext* aCx, JSAutoEnterCompartment& aAc, jsval* aJSVal)
+PRBool
+nsEventListenerInfo::GetJSVal(jsval* aJSVal)
 {
   *aJSVal = JSVAL_NULL;
   nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(mListener);
   if (wrappedJS) {
     JSObject* object = nsnull;
-    if (NS_FAILED(wrappedJS->GetJSObject(&object)) || !aAc.enter(aCx, object)) {
-      return false;
-    }
+    wrappedJS->GetJSObject(&object);
     *aJSVal = OBJECT_TO_JSVAL(object);
-    return true;
+    return PR_TRUE;
   }
 
   nsCOMPtr<nsIJSEventListener> jsl = do_QueryInterface(mListener);
   if (jsl) {
-    JSObject *handler = jsl->GetHandler();
+    void *handler = jsl->GetHandler();
     if (handler) {
-      if (!aAc.enter(aCx, handler)) {
-        return false;
-      }
-      *aJSVal = OBJECT_TO_JSVAL(handler);
-      return true;
+      *aJSVal = OBJECT_TO_JSVAL(static_cast<JSObject*>(handler));
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP
 nsEventListenerInfo::ToSource(nsAString& aResult)
 {
-  aResult.SetIsVoid(true);
+  aResult.SetIsVoid(PR_TRUE);
 
   nsCOMPtr<nsIThreadJSContextStack> stack =
     nsContentUtils::ThreadJSContextStack();
@@ -140,9 +135,8 @@ nsEventListenerInfo::ToSource(nsAString& aResult)
       {
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
-        JSAutoEnterCompartment ac;
         jsval v = JSVAL_NULL;
-        if (GetJSVal(cx, ac, &v)) {
+        if (GetJSVal(&v)) {
           JSString* str = JS_ValueToSource(cx, v);
           if (str) {
             nsDependentJSString depStr;
@@ -170,7 +164,7 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
     do_GetService("@mozilla.org/js/jsd/debugger-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, NS_OK);
   
-  bool isOn = false;
+  PRBool isOn = PR_FALSE;
   jsd->GetIsOn(&isOn);
   NS_ENSURE_TRUE(isOn, NS_OK);
 
@@ -183,9 +177,9 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
       {
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
-        JSAutoEnterCompartment ac;
+
         jsval v = JSVAL_NULL;
-        if (GetJSVal(cx, ac, &v)) {
+        if (GetJSVal(&v)) {
           nsCOMPtr<jsdIValue> jsdValue;
           jsd->WrapJSValue(v, getter_AddRefs(jsdValue));
           *aRetVal = jsdValue.forget().get();
@@ -204,12 +198,11 @@ nsEventListenerService::GetListenerInfoFor(nsIDOMEventTarget* aEventTarget,
                                            PRUint32* aCount,
                                            nsIEventListenerInfo*** aOutArray)
 {
-  NS_ENSURE_ARG_POINTER(aEventTarget);
   *aCount = 0;
   *aOutArray = nsnull;
   nsCOMArray<nsIEventListenerInfo> listenerInfos;
   nsEventListenerManager* elm =
-    aEventTarget->GetListenerManager(false);
+    aEventTarget->GetListenerManager(PR_FALSE);
   if (elm) {
     elm->GetListenerInfo(&listenerInfos);
   }
@@ -239,7 +232,7 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
   *aCount = 0;
   *aOutArray = nsnull;
   NS_ENSURE_ARG(aEventTarget);
-  nsEvent event(true, NS_EVENT_TYPE_NULL);
+  nsEvent event(PR_TRUE, NS_EVENT_TYPE_NULL);
   nsCOMArray<nsIDOMEventTarget> targets;
   nsresult rv = nsEventDispatcher::Dispatch(aEventTarget, nsnull, &event,
                                             nsnull, nsnull, nsnull, &targets);
@@ -265,9 +258,9 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
 NS_IMETHODIMP
 nsEventListenerService::HasListenersFor(nsIDOMEventTarget* aEventTarget,
                                         const nsAString& aType,
-                                        bool* aRetVal)
+                                        PRBool* aRetVal)
 {
-  nsEventListenerManager* elm = aEventTarget->GetListenerManager(false);
+  nsEventListenerManager* elm = aEventTarget->GetListenerManager(PR_FALSE);
   *aRetVal = elm && elm->HasListenersFor(aType);
   return NS_OK;
 }
@@ -276,12 +269,12 @@ NS_IMETHODIMP
 nsEventListenerService::AddSystemEventListener(nsIDOMEventTarget *aTarget,
                                                const nsAString& aType,
                                                nsIDOMEventListener* aListener,
-                                               bool aUseCapture)
+                                               PRBool aUseCapture)
 {
   NS_PRECONDITION(aTarget, "Missing target");
   NS_PRECONDITION(aListener, "Missing listener");
 
-  nsEventListenerManager* manager = aTarget->GetListenerManager(true);
+  nsEventListenerManager* manager = aTarget->GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(manager);
 
   PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
@@ -296,12 +289,12 @@ NS_IMETHODIMP
 nsEventListenerService::RemoveSystemEventListener(nsIDOMEventTarget *aTarget,
                                                   const nsAString& aType,
                                                   nsIDOMEventListener* aListener,
-                                                  bool aUseCapture)
+                                                  PRBool aUseCapture)
 {
   NS_PRECONDITION(aTarget, "Missing target");
   NS_PRECONDITION(aListener, "Missing listener");
 
-  nsEventListenerManager* manager = aTarget->GetListenerManager(false);
+  nsEventListenerManager* manager = aTarget->GetListenerManager(PR_FALSE);
   if (manager) {
     PRInt32 flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
                                   NS_EVENT_FLAG_SYSTEM_EVENT :

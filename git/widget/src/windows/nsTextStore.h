@@ -110,29 +110,25 @@ public: /*ITfContextOwnerCompositionSink*/
   STDMETHODIMP OnUpdateComposition(ITfCompositionView*, ITfRange*);
   STDMETHODIMP OnEndComposition(ITfCompositionView*);
 
-protected:
-  typedef mozilla::widget::IMEState IMEState;
-  typedef mozilla::widget::InputContext InputContext;
-
 public:
   static void     Initialize(void);
   static void     Terminate(void);
-  static void     SetIMEOpenState(bool);
-  static bool     GetIMEOpenState(void);
+  static void     SetIMEOpenState(PRBool);
+  static PRBool   GetIMEOpenState(void);
 
-  static void     CommitComposition(bool aDiscard)
+  static void     CommitComposition(PRBool aDiscard)
   {
     if (!sTsfTextStore) return;
     sTsfTextStore->CommitCompositionInternal(aDiscard);
   }
 
-  static void     SetInputContext(const InputContext& aContext)
+  static void     SetInputMode(const IMEContext& aContext)
   {
     if (!sTsfTextStore) return;
-    sTsfTextStore->SetInputContextInternal(aContext.mIMEState.mEnabled);
+    sTsfTextStore->SetInputModeInternal(aContext.mStatus);
   }
 
-  static nsresult OnFocusChange(bool, nsWindow*, IMEState::Enabled);
+  static nsresult OnFocusChange(PRBool, nsWindow*, PRUint32);
 
   static nsresult OnTextChange(PRUint32 aStart,
                                PRUint32 aOldEnd,
@@ -184,18 +180,18 @@ protected:
   nsTextStore();
   ~nsTextStore();
 
-  bool     Create(nsWindow*, IMEState::Enabled);
-  bool     Destroy(void);
+  PRBool   Create(nsWindow*, PRUint32);
+  PRBool   Destroy(void);
 
   // If aDispatchTextEvent is true, this method will dispatch text event if
   // this is called during IME composing.  aDispatchTextEvent should be true
   // only when this is called from SetSelection.  Because otherwise, the text
   // event should not be sent from here.
   HRESULT  SetSelectionInternal(const TS_SELECTION_ACP*,
-                                bool aDispatchTextEvent = false);
-  HRESULT  OnStartCompositionInternal(ITfCompositionView*, ITfRange*, bool);
-  void     CommitCompositionInternal(bool);
-  void     SetInputContextInternal(IMEState::Enabled aState);
+                                PRBool aDispatchTextEvent = PR_FALSE);
+  HRESULT  OnStartCompositionInternal(ITfCompositionView*, ITfRange*, PRBool);
+  void     CommitCompositionInternal(PRBool);
+  void     SetInputModeInternal(PRUint32 aState);
   nsresult OnTextChangeInternal(PRUint32, PRUint32, PRUint32);
   void     OnTextChangeMsgInternal(void);
   nsresult OnSelectionChangeInternal(void);

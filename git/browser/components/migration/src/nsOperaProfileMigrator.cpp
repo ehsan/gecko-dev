@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsBrowserProfileMigratorUtils.h"
 #include "nsDirectoryServiceDefs.h"
@@ -69,8 +67,6 @@
 #ifdef XP_WIN
 #include <windows.h>
 #endif
-
-using namespace mozilla;
 
 #define MIGRATION_BUNDLE "chrome://browser/locale/migration/migration.properties"
 
@@ -113,7 +109,7 @@ NS_IMETHODIMP
 nsOperaProfileMigrator::Migrate(PRUint16 aItems, nsIProfileStartup* aStartup, const PRUnichar* aProfile)
 {
   nsresult rv = NS_OK;
-  bool aReplace = aStartup ? true : false;
+  PRBool aReplace = aStartup ? PR_TRUE : PR_FALSE;
 
   if (aStartup) {
     rv = aStartup->DoStartup();
@@ -137,7 +133,7 @@ nsOperaProfileMigrator::Migrate(PRUint16 aItems, nsIProfileStartup* aStartup, co
 
 NS_IMETHODIMP
 nsOperaProfileMigrator::GetMigrateData(const PRUnichar* aProfile, 
-                                       bool aReplace,
+                                       PRBool aReplace,
                                        PRUint16* aResult)
 {
   *aResult = 0;
@@ -149,16 +145,16 @@ nsOperaProfileMigrator::GetMigrateData(const PRUnichar* aProfile,
 
   MigrationData data[] = { { ToNewUnicode(OPERA_PREFERENCES_FILE_NAME),
                              nsIBrowserProfileMigrator::SETTINGS,
-                             false },
+                             PR_FALSE },
                            { ToNewUnicode(OPERA_COOKIES_FILE_NAME),
                              nsIBrowserProfileMigrator::COOKIES,
-                             false },
+                             PR_FALSE },
                            { ToNewUnicode(OPERA_HISTORY_FILE_NAME),
                              nsIBrowserProfileMigrator::HISTORY,
-                             false },
+                             PR_FALSE },
                            { ToNewUnicode(OPERA_BOOKMARKS_FILE_NAME),
                              nsIBrowserProfileMigrator::BOOKMARKS,
-                             false } };
+                             PR_FALSE } };
                                                                   
   // Frees file name strings allocated above.
   GetMigrateDataFromArray(data, sizeof(data)/sizeof(MigrationData), 
@@ -168,48 +164,48 @@ nsOperaProfileMigrator::GetMigrateData(const PRUnichar* aProfile,
 }
 
 NS_IMETHODIMP
-nsOperaProfileMigrator::GetSourceExists(bool* aResult)
+nsOperaProfileMigrator::GetSourceExists(PRBool* aResult)
 {
-  nsCOMPtr<nsIArray> profiles;
+  nsCOMPtr<nsISupportsArray> profiles;
   GetSourceProfiles(getter_AddRefs(profiles));
 
   if (profiles) { 
     PRUint32 count;
-    profiles->GetLength(&count);
+    profiles->Count(&count);
     *aResult = count > 0;
   }
   else
-    *aResult = false;
+    *aResult = PR_FALSE;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsOperaProfileMigrator::GetSourceHasMultipleProfiles(bool* aResult)
+nsOperaProfileMigrator::GetSourceHasMultipleProfiles(PRBool* aResult)
 {
-  nsCOMPtr<nsIArray> profiles;
+  nsCOMPtr<nsISupportsArray> profiles;
   GetSourceProfiles(getter_AddRefs(profiles));
 
 #ifdef XP_WIN
   if (profiles) {
     PRUint32 count;
-    profiles->GetLength(&count);
+    profiles->Count(&count);
     *aResult = count > 1;
   }
   else
 #endif
-    *aResult = false;
+    *aResult = PR_FALSE;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsOperaProfileMigrator::GetSourceProfiles(nsIArray** aResult)
+nsOperaProfileMigrator::GetSourceProfiles(nsISupportsArray** aResult)
 {
   if (!mProfiles) {
     nsresult rv;
 
-    mProfiles = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+    mProfiles = do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID, &rv);
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIProperties> fileLocator(do_GetService("@mozilla.org/file/directory_service;1"));
@@ -225,20 +221,20 @@ nsOperaProfileMigrator::GetSourceProfiles(nsIArray** aResult)
     if (NS_FAILED(rv))
       return rv;
 
-    bool hasMore;
+    PRBool hasMore;
     e->HasMoreElements(&hasMore);
     while (hasMore) {
       nsCOMPtr<nsILocalFile> curr;
       e->GetNext(getter_AddRefs(curr));
 
-      bool isDirectory = false;
+      PRBool isDirectory = PR_FALSE;
       curr->IsDirectory(&isDirectory);
       if (isDirectory) {
         nsCOMPtr<nsISupportsString> string(do_CreateInstance("@mozilla.org/supports-string;1"));
         nsAutoString leafName;
         curr->GetLeafName(leafName);
         string->SetData(leafName);
-        mProfiles->AppendElement(string, false);
+        mProfiles->AppendElement(string);
       }
 
       e->HasMoreElements(&hasMore);
@@ -249,26 +245,26 @@ nsOperaProfileMigrator::GetSourceProfiles(nsIArray** aResult)
     file->Append(NS_LITERAL_STRING("Preferences"));
     file->Append(OPERA_PREFERENCES_FOLDER_NAME);
     
-    bool exists;
+    PRBool exists;
     file->Exists(&exists);
     
     if (exists) {
       nsCOMPtr<nsISupportsString> string(do_CreateInstance("@mozilla.org/supports-string;1"));
       string->SetData(OPERA_PREFERENCES_FOLDER_NAME);
-      mProfiles->AppendElement(string, false);
+      mProfiles->AppendElement(string);
     }
 #elif defined (XP_UNIX)
     fileLocator->Get(NS_UNIX_HOME_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(file));
     
     file->Append(OPERA_PREFERENCES_FOLDER_NAME);
     
-    bool exists;
+    PRBool exists;
     file->Exists(&exists);
     
     if (exists) {
       nsCOMPtr<nsISupportsString> string(do_CreateInstance("@mozilla.org/supports-string;1"));
       string->SetData(OPERA_PREFERENCES_FOLDER_NAME);
-      mProfiles->AppendElement(string, false);
+      mProfiles->AppendElement(string);
     }
 #endif
   }
@@ -310,24 +306,24 @@ nsOperaProfileMigrator::GetSourceHomePageURL(nsACString& aResult)
 
 static
 nsOperaProfileMigrator::PrefTransform gTransforms[] = {
-  { "User Prefs", "Download Directory", _OPM(STRING), "browser.download.dir", _OPM(SetFile), false, { -1 } },
-  { nsnull, "Enable Cookies", _OPM(INT), "network.cookie.cookieBehavior", _OPM(SetCookieBehavior), false, { -1 } },
-  { nsnull, "Accept Cookies Session Only", _OPM(BOOL), "network.cookie.lifetimePolicy", _OPM(SetCookieLifetime), false, { -1 } },
-  { nsnull, "Allow script to resize window", _OPM(BOOL), "dom.disable_window_move_resize", _OPM(SetBool), false, { -1 } },
-  { nsnull, "Allow script to move window", _OPM(BOOL), "dom.disable_window_move_resize", _OPM(SetBool), false, { -1 } },
-  { nsnull, "Allow script to raise window", _OPM(BOOL), "dom.disable_window_flip", _OPM(SetBool), false, { -1 } },
-  { nsnull, "Allow script to change status", _OPM(BOOL), "dom.disable_window_status_change", _OPM(SetBool), false, { -1 } },
-  { nsnull, "Ignore Unrequested Popups", _OPM(BOOL), "dom.disable_open_during_load", _OPM(SetBool), false, { -1 } },
-  { nsnull, "Load Figures", _OPM(BOOL), "permissions.default.image", _OPM(SetImageBehavior), false, { -1 } },
+  { "User Prefs", "Download Directory", _OPM(STRING), "browser.download.dir", _OPM(SetFile), PR_FALSE, { -1 } },
+  { nsnull, "Enable Cookies", _OPM(INT), "network.cookie.cookieBehavior", _OPM(SetCookieBehavior), PR_FALSE, { -1 } },
+  { nsnull, "Accept Cookies Session Only", _OPM(BOOL), "network.cookie.lifetimePolicy", _OPM(SetCookieLifetime), PR_FALSE, { -1 } },
+  { nsnull, "Allow script to resize window", _OPM(BOOL), "dom.disable_window_move_resize", _OPM(SetBool), PR_FALSE, { -1 } },
+  { nsnull, "Allow script to move window", _OPM(BOOL), "dom.disable_window_move_resize", _OPM(SetBool), PR_FALSE, { -1 } },
+  { nsnull, "Allow script to raise window", _OPM(BOOL), "dom.disable_window_flip", _OPM(SetBool), PR_FALSE, { -1 } },
+  { nsnull, "Allow script to change status", _OPM(BOOL), "dom.disable_window_status_change", _OPM(SetBool), PR_FALSE, { -1 } },
+  { nsnull, "Ignore Unrequested Popups", _OPM(BOOL), "dom.disable_open_during_load", _OPM(SetBool), PR_FALSE, { -1 } },
+  { nsnull, "Load Figures", _OPM(BOOL), "permissions.default.image", _OPM(SetImageBehavior), PR_FALSE, { -1 } },
 
-  { "Visited link", nsnull, _OPM(COLOR), "browser.visited_color", _OPM(SetString), false, { -1 } },
-  { "Link", nsnull, _OPM(COLOR), "browser.anchor_color", _OPM(SetString), false, { -1 } },
-  { nsnull, "Underline", _OPM(BOOL), "browser.underline_anchors", _OPM(SetBool), false, { -1 } },
+  { "Visited link", nsnull, _OPM(COLOR), "browser.visited_color", _OPM(SetString), PR_FALSE, { -1 } },
+  { "Link", nsnull, _OPM(COLOR), "browser.anchor_color", _OPM(SetString), PR_FALSE, { -1 } },
+  { nsnull, "Underline", _OPM(BOOL), "browser.underline_anchors", _OPM(SetBool), PR_FALSE, { -1 } },
 
-  { nsnull, "Enable SSL v3", _OPM(BOOL), "security.enable_ssl3", _OPM(SetBool), false, { -1 } },
-  { nsnull, "Enable TLS v1.0", _OPM(BOOL), "security.enable_tls", _OPM(SetBool), false, { -1 } },
+  { nsnull, "Enable SSL v3", _OPM(BOOL), "security.enable_ssl3", _OPM(SetBool), PR_FALSE, { -1 } },
+  { nsnull, "Enable TLS v1.0", _OPM(BOOL), "security.enable_tls", _OPM(SetBool), PR_FALSE, { -1 } },
 
-  { "Extensions", "Scripting", _OPM(BOOL), "javascript.enabled", _OPM(SetBool), false, { -1 } }
+  { "Extensions", "Scripting", _OPM(BOOL), "javascript.enabled", _OPM(SetBool), PR_FALSE, { -1 } }
 };
 
 nsresult 
@@ -393,7 +389,7 @@ nsOperaProfileMigrator::SetString(void* aTransform, nsIPrefBranch* aBranch)
 }
 
 nsresult
-nsOperaProfileMigrator::CopyPreferences(bool aReplace)
+nsOperaProfileMigrator::CopyPreferences(PRBool aReplace)
 {
   nsresult rv;
 
@@ -425,7 +421,7 @@ nsOperaProfileMigrator::CopyPreferences(bool aReplace)
       if (NS_SUCCEEDED(rv)) {
         transform->stringValue = colorString;
 
-        transform->prefHasValue = true;
+        transform->prefHasValue = PR_TRUE;
         transform->prefSetterFunc(transform, branch);
       }
       if (colorString)
@@ -453,7 +449,7 @@ nsOperaProfileMigrator::CopyPreferences(bool aReplace)
         default:
           break;
         }
-        transform->prefHasValue = true;
+        transform->prefHasValue = PR_TRUE;
         transform->prefSetterFunc(transform, branch);
         if (transform->type == _OPM(STRING) && transform->stringValue) {
           NS_Free(transform->stringValue);
@@ -486,7 +482,7 @@ nsOperaProfileMigrator::CopyProxySettings(nsINIParser &aParser,
   char toggleBuf[15], serverBuf[20], serverPrefBuf[20], 
        serverPortPrefBuf[25];
   PRInt32 enabled;
-  for (PRUint32 i = 0; i < ArrayLength(protocols); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(protocols); ++i) {
     sprintf(toggleBuf, "Use %s", protocols[i]);
     GetInteger(aParser, "Proxy", toggleBuf, &enabled);
     if (enabled) {
@@ -584,12 +580,12 @@ nsOperaProfileMigrator::CopyUserContentSheet(nsINIParser &aParser)
 
   // Copy the file
   nsCOMPtr<nsILocalFile> userContentCSSFile;
-  rv = NS_NewNativeLocalFile(userContentCSS, true,
+  rv = NS_NewNativeLocalFile(userContentCSS, PR_TRUE,
                              getter_AddRefs(userContentCSSFile));
   if (NS_FAILED(rv))
     return NS_OK;
 
-  bool exists;
+  PRBool exists;
   rv = userContentCSSFile->Exists(&exists);
   if (NS_FAILED(rv) || !exists)
     return NS_OK;
@@ -607,7 +603,7 @@ nsOperaProfileMigrator::CopyUserContentSheet(nsINIParser &aParser)
 }
 
 nsresult
-nsOperaProfileMigrator::CopyCookies(bool aReplace)
+nsOperaProfileMigrator::CopyCookies(PRBool aReplace)
 {
   nsresult rv = NS_OK;
 
@@ -638,13 +634,13 @@ nsOperaProfileMigrator::CopyCookies(bool aReplace)
 
 nsOperaCookieMigrator::nsOperaCookieMigrator(nsIInputStream* aSourceStream) :
   mAppVersion(0), mFileVersion(0), mTagTypeLength(0), mPayloadTypeLength(0), 
-  mCookieOpen(false), mCurrHandlingInfo(0)
+  mCookieOpen(PR_FALSE), mCurrHandlingInfo(0)
 {
   mStream = do_CreateInstance("@mozilla.org/binaryinputstream;1");
   if (mStream)
     mStream->SetInputStream(aSourceStream);
 
-  mCurrCookie.isSecure = false;
+  mCurrCookie.isSecure = PR_FALSE;
   mCurrCookie.expiryTime = 0;
 }
 
@@ -762,7 +758,7 @@ nsOperaCookieMigrator::Migrate()
           AddCookie(manager);
 
         mStream->Read16(&segmentLength);
-        mCookieOpen = true;
+        mCookieOpen = PR_TRUE;
       }
       break;
     case COOKIE_ID:
@@ -796,7 +792,7 @@ nsOperaCookieMigrator::Migrate()
       mStream->Read32(reinterpret_cast<PRUint32*>(&(mCurrCookie.expiryTime)));
       break;
     case COOKIE_SECURE:
-      mCurrCookie.isSecure = true;
+      mCurrCookie.isSecure = PR_TRUE;
       break;
 
     // We don't support any of these fields but we must read them in
@@ -899,15 +895,15 @@ nsOperaCookieMigrator::AddCookie(nsICookieManager2* aManager)
   nsCString path;
   SynthesizePath(getter_Copies(path));
 
-  mCookieOpen = false;
+  mCookieOpen = PR_FALSE;
   
   nsresult rv = aManager->Add(domain, 
                               path, 
                               mCurrCookie.id, 
                               mCurrCookie.data, 
                               mCurrCookie.isSecure, 
-                              false, // isHttpOnly
-                              false, // isSession
+                              PR_FALSE, // isHttpOnly
+                              PR_FALSE, // isSession
                               PRInt64(mCurrCookie.expiryTime));
 
   mCurrCookie.isSecure = 0;
@@ -975,16 +971,16 @@ nsOperaProfileMigrator::RunBatched(nsISupports* aUserData)
 
   switch (batchAction) {
     case BATCH_ACTION_HISTORY:
-      rv = CopyHistoryBatched(false);
+      rv = CopyHistoryBatched(PR_FALSE);
       break;
     case BATCH_ACTION_HISTORY_REPLACE:
-      rv = CopyHistoryBatched(true);
+      rv = CopyHistoryBatched(PR_TRUE);
       break;
     case BATCH_ACTION_BOOKMARKS:
-      rv = CopyBookmarksBatched(false);
+      rv = CopyBookmarksBatched(PR_FALSE);
       break;
     case BATCH_ACTION_BOOKMARKS_REPLACE:
-      rv = CopyBookmarksBatched(true);
+      rv = CopyBookmarksBatched(PR_TRUE);
       break;
   }
   NS_ENSURE_SUCCESS(rv, rv);
@@ -993,7 +989,7 @@ nsOperaProfileMigrator::RunBatched(nsISupports* aUserData)
 }
 
 nsresult
-nsOperaProfileMigrator::CopyHistory(bool aReplace) 
+nsOperaProfileMigrator::CopyHistory(PRBool aReplace) 
 {
   nsresult rv;
   nsCOMPtr<nsINavHistoryService> history =
@@ -1015,7 +1011,7 @@ nsOperaProfileMigrator::CopyHistory(bool aReplace)
 }
  
 nsresult
-nsOperaProfileMigrator::CopyHistoryBatched(bool aReplace) 
+nsOperaProfileMigrator::CopyHistoryBatched(PRBool aReplace) 
 {
   nsCOMPtr<nsIBrowserHistory> hist(do_GetService(NS_GLOBALHISTORY2_CONTRACTID));
 
@@ -1033,7 +1029,7 @@ nsOperaProfileMigrator::CopyHistoryBatched(bool aReplace)
   nsCAutoString buffer, url;
   nsAutoString title;
   PRTime lastVisitDate;
-  bool moreData = false;
+  PRBool moreData = PR_FALSE;
 
   enum { TITLE, URL, LASTVISIT } state = TITLE;
 
@@ -1077,7 +1073,7 @@ nsOperaProfileMigrator::CopyHistoryBatched(bool aReplace)
 }
 
 nsresult
-nsOperaProfileMigrator::CopyBookmarks(bool aReplace)
+nsOperaProfileMigrator::CopyBookmarks(PRBool aReplace)
 {
   nsresult rv;
   nsCOMPtr<nsINavBookmarksService> bookmarks =
@@ -1099,7 +1095,7 @@ nsOperaProfileMigrator::CopyBookmarks(bool aReplace)
 }
 
 nsresult
-nsOperaProfileMigrator::CopyBookmarksBatched(bool aReplace)
+nsOperaProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
 {
   // Find Opera Bookmarks
   nsCOMPtr<nsIFile> operaBookmarks;
@@ -1339,12 +1335,12 @@ nsOperaProfileMigrator::ParseBookmarksFolder(nsILineInputStream* aStream,
                                              nsINavBookmarksService* aBMS)
 {
   nsresult rv;
-  bool moreData = false;
+  PRBool moreData = PR_FALSE;
   nsAutoString buffer;
   EntryType entryType = EntryType_BOOKMARK;
   nsAutoString keyword, description;
   nsCAutoString url, name;
-  bool onToolbar = false;
+  PRBool onToolbar = PR_FALSE;
   do {
     nsCAutoString cBuffer;
     rv = aStream->ReadLine(cBuffer, &moreData);
@@ -1380,7 +1376,7 @@ nsOperaProfileMigrator::ParseBookmarksFolder(nsILineInputStream* aStream,
       break;
     case LineType_ONTOOLBAR:
       if (NS_LITERAL_STRING("YES").Equals(data))
-        onToolbar = true;
+        onToolbar = PR_TRUE;
       break;
     case LineType_NL: {
       // XXX We don't know for sure how Opera deals with IDN hostnames in URL.
@@ -1404,7 +1400,7 @@ nsOperaProfileMigrator::ParseBookmarksFolder(nsILineInputStream* aStream,
           url.Truncate();
           keyword.Truncate();
           description.Truncate();
-          onToolbar = false;
+          onToolbar = PR_FALSE;
         }
       }
       else if (entryType == EntryType_FOLDER) {

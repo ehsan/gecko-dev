@@ -64,7 +64,7 @@ txMozillaTextOutput::txMozillaTextOutput(nsIDOMDocumentFragment* aDest)
 {
     MOZ_COUNT_CTOR(txMozillaTextOutput);
     mTextParent = do_QueryInterface(aDest);
-    mDocument = mTextParent->OwnerDoc();
+    mDocument = mTextParent->GetOwnerDoc();
 }
 
 txMozillaTextOutput::~txMozillaTextOutput()
@@ -89,7 +89,7 @@ txMozillaTextOutput::attribute(nsIAtom* aPrefix, const nsSubstring& aName,
 }
 
 nsresult
-txMozillaTextOutput::characters(const nsSubstring& aData, bool aDOE)
+txMozillaTextOutput::characters(const nsSubstring& aData, PRBool aDOE)
 {
     mText.Append(aData);
 
@@ -112,8 +112,8 @@ txMozillaTextOutput::endDocument(nsresult aResult)
                                  mDocument->NodeInfoManager());
     NS_ENSURE_SUCCESS(rv, rv);
     
-    text->SetText(mText, false);
-    rv = mTextParent->AppendChildTo(text, true);
+    text->SetText(mText, PR_FALSE);
+    rv = mTextParent->AppendChildTo(text, PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (NS_SUCCEEDED(aResult)) {
@@ -169,7 +169,7 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIDocument> source = do_QueryInterface(aSourceDocument);
     NS_ENSURE_STATE(source);
-    bool hasHadScriptObject = false;
+    PRBool hasHadScriptObject = PR_FALSE;
     nsIScriptGlobalObject* sgo =
       source->GetScriptHandlingObject(hasHadScriptObject);
     NS_ENSURE_STATE(sgo || !hasHadScriptObject);
@@ -213,11 +213,11 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
 
         rv = mDocument->CreateElem(nsDependentAtomString(nsGkAtoms::result),
                                    nsGkAtoms::transformiix, namespaceID,
-                                   getter_AddRefs(mTextParent));
+                                   PR_FALSE, getter_AddRefs(mTextParent));
         NS_ENSURE_SUCCESS(rv, rv);
 
 
-        rv = mDocument->AppendChildTo(mTextParent, true);
+        rv = mDocument->AppendChildTo(mTextParent, PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -228,13 +228,13 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
         rv = createXHTMLElement(nsGkAtoms::head, getter_AddRefs(head));
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = html->AppendChildTo(head, false);
+        rv = html->AppendChildTo(head, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
 
         rv = createXHTMLElement(nsGkAtoms::body, getter_AddRefs(body));
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = html->AppendChildTo(body, false);
+        rv = html->AppendChildTo(body, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
 
         rv = createXHTMLElement(nsGkAtoms::pre, getter_AddRefs(mTextParent));
@@ -242,13 +242,13 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
 
         rv = mTextParent->SetAttr(kNameSpaceID_None, nsGkAtoms::id,
                                   NS_LITERAL_STRING("transformiixResult"),
-                                  false);
+                                  PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = body->AppendChildTo(mTextParent, false);
+        rv = body->AppendChildTo(mTextParent, PR_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = mDocument->AppendChildTo(html, true);
+        rv = mDocument->AppendChildTo(html, PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 

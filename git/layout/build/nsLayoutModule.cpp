@@ -38,7 +38,7 @@
 
 #include "base/basictypes.h"
 
-#include "XPCModule.h"
+#include "xpcmodule.h"
 #include "mozilla/ModuleUtils.h"
 #include "nsLayoutStatics.h"
 #include "nsContentCID.h"
@@ -53,13 +53,13 @@
 #include "nsIComponentManager.h"
 #include "nsIContentIterator.h"
 #include "nsIContentSerializer.h"
-#include "nsIContentViewer.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMDOMImplementation.h"
 #include "nsIDOMRange.h"
 #include "nsIDocument.h"
 #include "nsIDocumentEncoder.h"
+#include "nsIDocumentViewer.h"
 #include "nsIFactory.h"
 #include "nsIFrameUtil.h"
 #include "nsHTMLStyleSheet.h"
@@ -86,6 +86,7 @@
 #include "nsIFrameTraversal.h"
 #include "nsLayoutCID.h"
 #include "nsStyleSheetService.h"
+#include "nsXULPopupManager.h"
 #include "nsFocusManager.h"
 #include "ThirdPartyUtil.h"
 #include "mozilla/Services.h"
@@ -147,7 +148,7 @@ using mozilla::dom::indexedDB::IndexedDatabaseManager;
 #include "nsNullPrincipal.h"
 #include "nsNetCID.h"
 #include "nsINodeInfo.h"
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_PLATFORM_MAEMO)
+#if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
 #include "nsHapticFeedback.h"
 #endif
 
@@ -276,19 +277,13 @@ static void Shutdown();
 #endif
 
 #include "nsGeolocation.h"
-#ifndef MOZ_WIDGET_GONK
 #if defined(XP_UNIX)    || \
     defined(_WINDOWS)   || \
     defined(machintosh) || \
     defined(android)
 #include "nsDeviceMotionSystem.h"
 #endif
-#endif
 #include "nsCSPService.h"
-#include "nsISmsService.h"
-#include "mozilla/dom/sms/SmsServiceFactory.h"
-
-using namespace mozilla::dom::sms;
 
 // Transformiix
 /* 5d5d92cd-6bf8-11d9-bf4a-000a95dc234c */
@@ -315,19 +310,16 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsChannelPolicy)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(IndexedDatabaseManager,
                                          IndexedDatabaseManager::FactoryCreate)
-#ifndef MOZ_WIDGET_GONK
 #if defined(XP_UNIX)    || \
     defined(_WINDOWS)   || \
     defined(machintosh) || \
     defined(android)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeviceMotionSystem)
 #endif
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(ThirdPartyUtil, Init)
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHapticFeedback)
 #endif
-#endif
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(ThirdPartyUtil, Init)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsISmsService, SmsServiceFactory::Create)
 
 //-----------------------------------------------------------------------------
 
@@ -360,7 +352,7 @@ LayoutShutdownObserver::Observe(nsISupports *aSubject,
 
 //-----------------------------------------------------------------------------
 
-static bool gInitialized = false;
+static PRBool gInitialized = PR_FALSE;
 
 // Perform our one-time intialization for this module
 
@@ -377,7 +369,7 @@ Initialize()
                "Eeek! You'll need to adjust the size of PtrBits to the size "
                "of a pointer on your platform.");
 
-  gInitialized = true;
+  gInitialized = PR_TRUE;
 
   nsresult rv;
   rv = xpcModuleCtor();
@@ -403,7 +395,7 @@ Initialize()
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    observerService->AddObserver(observer, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+    observerService->AddObserver(observer, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
   } else {
     NS_WARNING("Could not get an observer service.  We will leak on shutdown.");
   }
@@ -421,7 +413,7 @@ Shutdown()
   if (!gInitialized)
     return;
 
-  gInitialized = false;
+  gInitialized = PR_FALSE;
 
   nsLayoutStatics::Release();
 }
@@ -449,7 +441,7 @@ nsresult NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult
 nsresult NS_CreateFrameTraversal(nsIFrameTraversal** aResult);
 
 nsresult NS_NewDomSelection(nsISelection** aResult);
-nsresult NS_NewContentViewer(nsIContentViewer** aResult);
+nsresult NS_NewDocumentViewer(nsIDocumentViewer** aResult);
 nsresult NS_NewRange(nsIDOMRange** aResult);
 nsresult NS_NewRangeUtils(nsIRangeUtils** aResult);
 nsresult NS_NewContentIterator(nsIContentIterator** aResult);
@@ -513,7 +505,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(inCSSValueSearch)
 NS_GENERIC_FACTORY_CONSTRUCTOR(inDOMUtils)
 
 MAKE_CTOR(CreateNameSpaceManager,         nsINameSpaceManager,         NS_GetNameSpaceManager)
-MAKE_CTOR(CreateContentViewer,            nsIContentViewer,            NS_NewContentViewer)
+MAKE_CTOR(CreateDocumentViewer,           nsIDocumentViewer,           NS_NewDocumentViewer)
 MAKE_CTOR(CreateHTMLDocument,             nsIDocument,                 NS_NewHTMLDocument)
 MAKE_CTOR(CreateXMLDocument,              nsIDocument,                 NS_NewXMLDocument)
 MAKE_CTOR(CreateSVGDocument,              nsIDocument,                 NS_NewSVGDocument)
@@ -542,6 +534,7 @@ MAKE_CTOR(CreateXULSortService,           nsIXULSortService,           NS_NewXUL
 // NS_NewXULTreeBuilder
 MAKE_CTOR(CreateXULDocument,              nsIXULDocument,              NS_NewXULDocument)
 // NS_NewXULControllers
+MAKE_CTOR(CreateXULPopupManager,      nsISupports,      NS_NewXULPopupManager)
 #endif
 #ifdef MOZ_XTF
 MAKE_CTOR(CreateXTFService,               nsIXTFService,               NS_NewXTFService)
@@ -747,7 +740,7 @@ NS_DEFINE_NAMED_CID(IN_FLASHER_CID);
 NS_DEFINE_NAMED_CID(IN_CSSVALUESEARCH_CID);
 NS_DEFINE_NAMED_CID(IN_DOMUTILS_CID);
 NS_DEFINE_NAMED_CID(NS_NAMESPACEMANAGER_CID);
-NS_DEFINE_NAMED_CID(NS_CONTENT_VIEWER_CID);
+NS_DEFINE_NAMED_CID(NS_DOCUMENT_VIEWER_CID);
 NS_DEFINE_NAMED_CID(NS_HTMLDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_XMLDOCUMENT_CID);
 NS_DEFINE_NAMED_CID(NS_SVGDOCUMENT_CID);
@@ -765,6 +758,7 @@ NS_DEFINE_NAMED_CID(NS_HTMLAUDIOELEMENT_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXT2D_CID);
 NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXT2DTHEBES_CID);
+NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXT2DAZURE_CID);
 NS_DEFINE_NAMED_CID(NS_CANVASRENDERINGCONTEXTWEBGL_CID);
 NS_DEFINE_NAMED_CID(NS_TEXT_ENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_HTMLCOPY_TEXT_ENCODER_CID);
@@ -782,6 +776,7 @@ NS_DEFINE_NAMED_CID(NS_XULCONTROLLERS_CID);
 NS_DEFINE_NAMED_CID(NS_XULSORTSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_XULTEMPLATEBUILDER_CID);
 NS_DEFINE_NAMED_CID(NS_XULTREEBUILDER_CID);
+NS_DEFINE_NAMED_CID(NS_XULPOPUPMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_XULDOCUMENT_CID);
 #endif
 #ifdef MOZ_XTF
@@ -844,7 +839,6 @@ NS_DEFINE_NAMED_CID(NS_SECURITYNAMESET_CID);
 NS_DEFINE_NAMED_CID(THIRDPARTYUTIL_CID);
 NS_DEFINE_NAMED_CID(NS_STRUCTUREDCLONECONTAINER_CID);
 
-#ifndef MOZ_WIDGET_GONK
 #if defined(XP_UNIX)    || \
     defined(_WINDOWS)   || \
     defined(machintosh) || \
@@ -854,8 +848,6 @@ NS_DEFINE_NAMED_CID(NS_DEVICE_MOTION_CID);
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
 NS_DEFINE_NAMED_CID(NS_HAPTICFEEDBACK_CID);
 #endif
-#endif
-NS_DEFINE_NAMED_CID(NS_SMSSERVICE_CID);
 
 static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   XPCONNECT_CIDENTRIES
@@ -882,7 +874,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kIN_CSSVALUESEARCH_CID, false, NULL, inCSSValueSearchConstructor },
   { &kIN_DOMUTILS_CID, false, NULL, inDOMUtilsConstructor },
   { &kNS_NAMESPACEMANAGER_CID, false, NULL, CreateNameSpaceManager },
-  { &kNS_CONTENT_VIEWER_CID, false, NULL, CreateContentViewer },
+  { &kNS_DOCUMENT_VIEWER_CID, false, NULL, CreateDocumentViewer },
   { &kNS_HTMLDOCUMENT_CID, false, NULL, CreateHTMLDocument },
   { &kNS_XMLDOCUMENT_CID, false, NULL, CreateXMLDocument },
   { &kNS_SVGDOCUMENT_CID, false, NULL, CreateSVGDocument },
@@ -917,6 +909,7 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_XULSORTSERVICE_CID, false, NULL, CreateXULSortService },
   { &kNS_XULTEMPLATEBUILDER_CID, false, NULL, NS_NewXULContentBuilder },
   { &kNS_XULTREEBUILDER_CID, false, NULL, NS_NewXULTreeBuilder },
+  { &kNS_XULPOPUPMANAGER_CID, false, NULL, CreateXULPopupManager },
   { &kNS_XULDOCUMENT_CID, false, NULL, CreateXULDocument },
 #endif
 #ifdef MOZ_XTF
@@ -976,7 +969,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kNS_SYSTEMPRINCIPAL_CID, false, NULL, nsSystemPrincipalConstructor },
   { &kNS_NULLPRINCIPAL_CID, false, NULL, nsNullPrincipalConstructor },
   { &kNS_SECURITYNAMESET_CID, false, NULL, nsSecurityNameSetConstructor },
-#ifndef MOZ_WIDGET_GONK
 #if defined(XP_UNIX)    || \
     defined(_WINDOWS)   || \
     defined(machintosh) || \
@@ -986,10 +978,8 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
   { &kNS_HAPTICFEEDBACK_CID, false, NULL, nsHapticFeedbackConstructor },
 #endif
-#endif
   { &kTHIRDPARTYUTIL_CID, false, NULL, ThirdPartyUtilConstructor },
   { &kNS_STRUCTUREDCLONECONTAINER_CID, false, NULL, nsStructuredCloneContainerConstructor },
-  { &kNS_SMSSERVICE_CID, false, NULL, nsISmsServiceConstructor },
   { NULL }
 };
 
@@ -1054,6 +1044,7 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/xul/xul-sort-service;1", &kNS_XULSORTSERVICE_CID },
   { "@mozilla.org/xul/xul-template-builder;1", &kNS_XULTEMPLATEBUILDER_CID },
   { "@mozilla.org/xul/xul-tree-builder;1", &kNS_XULTREEBUILDER_CID },
+  { "@mozilla.org/xul/xul-popup-manager;1", &kNS_XULPOPUPMANAGER_CID },
   { "@mozilla.org/xul/xul-document;1", &kNS_XULDOCUMENT_CID },
 #endif
 #ifdef MOZ_XTF
@@ -1106,7 +1097,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { NS_SYSTEMPRINCIPAL_CONTRACTID, &kNS_SYSTEMPRINCIPAL_CID },
   { NS_NULLPRINCIPAL_CONTRACTID, &kNS_NULLPRINCIPAL_CID },
   { NS_SECURITYNAMESET_CONTRACTID, &kNS_SECURITYNAMESET_CID },
-#ifndef MOZ_WIDGET_GONK
 #if defined(XP_UNIX)    || \
     defined(_WINDOWS)   || \
     defined(machintosh) || \
@@ -1116,10 +1106,8 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
 #if defined(ANDROID) || defined(MOZ_PLATFORM_MAEMO)
   { "@mozilla.org/widget/hapticfeedback;1", &kNS_HAPTICFEEDBACK_CID },
 #endif
-#endif
   { THIRDPARTYUTIL_CONTRACTID, &kTHIRDPARTYUTIL_CID },
   { NS_STRUCTUREDCLONECONTAINER_CONTRACTID, &kNS_STRUCTUREDCLONECONTAINER_CID },
-  { SMSSERVICE_CONTRACTID, &kNS_SMSSERVICE_CID },
   { NULL }
 };
 

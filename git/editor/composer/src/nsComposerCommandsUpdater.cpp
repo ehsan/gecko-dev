@@ -56,7 +56,7 @@
 nsComposerCommandsUpdater::nsComposerCommandsUpdater()
 :  mDirtyState(eStateUninitialized)
 ,  mSelectionCollapsed(eStateUninitialized)
-,  mFirstDoOfFirstUndo(true)
+,  mFirstDoOfFirstUndo(PR_TRUE)
 {
 }
 
@@ -105,7 +105,7 @@ nsComposerCommandsUpdater::NotifyDocumentWillBeDestroyed()
 
 
 NS_IMETHODIMP
-nsComposerCommandsUpdater::NotifyDocumentStateChanged(bool aNowDirty)
+nsComposerCommandsUpdater::NotifyDocumentStateChanged(PRBool aNowDirty)
 {
   // update document modified. We should have some other notifications for this too.
   return UpdateDirtyState(aNowDirty);
@@ -124,9 +124,9 @@ nsComposerCommandsUpdater::NotifySelectionChanged(nsIDOMDocument *,
 
 NS_IMETHODIMP
 nsComposerCommandsUpdater::WillDo(nsITransactionManager *aManager,
-                                  nsITransaction *aTransaction, bool *aInterrupt)
+                                  nsITransaction *aTransaction, PRBool *aInterrupt)
 {
-  *aInterrupt = false;
+  *aInterrupt = PR_FALSE;
   return NS_OK;
 }
 
@@ -141,7 +141,7 @@ nsComposerCommandsUpdater::DidDo(nsITransactionManager *aManager,
   {
     if (mFirstDoOfFirstUndo)
       UpdateCommandGroup(NS_LITERAL_STRING("undo"));
-    mFirstDoOfFirstUndo = false;
+    mFirstDoOfFirstUndo = PR_FALSE;
   }
 	
   return NS_OK;
@@ -150,9 +150,9 @@ nsComposerCommandsUpdater::DidDo(nsITransactionManager *aManager,
 NS_IMETHODIMP 
 nsComposerCommandsUpdater::WillUndo(nsITransactionManager *aManager,
                                     nsITransaction *aTransaction,
-                                    bool *aInterrupt)
+                                    PRBool *aInterrupt)
 {
-  *aInterrupt = false;
+  *aInterrupt = PR_FALSE;
   return NS_OK;
 }
 
@@ -164,7 +164,7 @@ nsComposerCommandsUpdater::DidUndo(nsITransactionManager *aManager,
   PRInt32 undoCount;
   aManager->GetNumberOfUndoItems(&undoCount);
   if (undoCount == 0)
-    mFirstDoOfFirstUndo = true;    // reset the state for the next do
+    mFirstDoOfFirstUndo = PR_TRUE;    // reset the state for the next do
 
   UpdateCommandGroup(NS_LITERAL_STRING("undo"));
   return NS_OK;
@@ -173,9 +173,9 @@ nsComposerCommandsUpdater::DidUndo(nsITransactionManager *aManager,
 NS_IMETHODIMP
 nsComposerCommandsUpdater::WillRedo(nsITransactionManager *aManager,
                                     nsITransaction *aTransaction,
-                                    bool *aInterrupt)
+                                    PRBool *aInterrupt)
 {
-  *aInterrupt = false;
+  *aInterrupt = PR_FALSE;
   return NS_OK;
 }
 
@@ -190,9 +190,9 @@ nsComposerCommandsUpdater::DidRedo(nsITransactionManager *aManager,
 
 NS_IMETHODIMP
 nsComposerCommandsUpdater::WillBeginBatch(nsITransactionManager *aManager,
-                                          bool *aInterrupt)
+                                          PRBool *aInterrupt)
 {
-  *aInterrupt = false;
+  *aInterrupt = PR_FALSE;
   return NS_OK;
 }
 
@@ -205,9 +205,9 @@ nsComposerCommandsUpdater::DidBeginBatch(nsITransactionManager *aManager,
 
 NS_IMETHODIMP
 nsComposerCommandsUpdater::WillEndBatch(nsITransactionManager *aManager,
-                                        bool *aInterrupt)
+                                        PRBool *aInterrupt)
 {
-  *aInterrupt = false;
+  *aInterrupt = PR_FALSE;
   return NS_OK;
 }
 
@@ -222,9 +222,9 @@ NS_IMETHODIMP
 nsComposerCommandsUpdater::WillMerge(nsITransactionManager *aManager,
                                      nsITransaction *aTopTransaction,
                                      nsITransaction *aTransactionToMerge,
-                                     bool *aInterrupt)
+                                     PRBool *aInterrupt)
 {
-  *aInterrupt = false;
+  *aInterrupt = PR_FALSE;
   return NS_OK;
 }
 
@@ -232,7 +232,7 @@ NS_IMETHODIMP
 nsComposerCommandsUpdater::DidMerge(nsITransactionManager *aManager,
                                     nsITransaction *aTopTransaction,
                                     nsITransaction *aTransactionToMerge,
-                                    bool aDidMerge, nsresult aMergeResult)
+                                    PRBool aDidMerge, nsresult aMergeResult)
 {
   return NS_OK;
 }
@@ -275,7 +275,7 @@ nsComposerCommandsUpdater::PrimeUpdateTimer()
 void nsComposerCommandsUpdater::TimerCallback()
 {
   // if the selection state has changed, update stuff
-  bool isCollapsed = SelectionIsCollapsed();
+  PRBool isCollapsed = SelectionIsCollapsed();
   if (isCollapsed != mSelectionCollapsed)
   {
     UpdateCommandGroup(NS_LITERAL_STRING("select"));
@@ -288,7 +288,7 @@ void nsComposerCommandsUpdater::TimerCallback()
 }
 
 nsresult
-nsComposerCommandsUpdater::UpdateDirtyState(bool aNowDirty)
+nsComposerCommandsUpdater::UpdateDirtyState(PRBool aNowDirty)
 {
   if (mDirtyState != aNowDirty)
   {
@@ -365,23 +365,23 @@ nsComposerCommandsUpdater::UpdateOneCommand(const char *aCommand)
   return NS_OK;  
 }
 
-bool
+PRBool
 nsComposerCommandsUpdater::SelectionIsCollapsed()
 {
   nsCOMPtr<nsIDOMWindow> domWindow = do_QueryReferent(mDOMWindow);
-  NS_ENSURE_TRUE(domWindow, true);
+  NS_ENSURE_TRUE(domWindow, PR_TRUE);
 
   nsCOMPtr<nsISelection> domSelection;
   if (NS_SUCCEEDED(domWindow->GetSelection(getter_AddRefs(domSelection))) && domSelection)
   {
-    bool selectionCollapsed = false;
+    PRBool selectionCollapsed = PR_FALSE;
     domSelection->GetIsCollapsed(&selectionCollapsed);
     return selectionCollapsed;
   }
 
   NS_WARNING("nsComposerCommandsUpdater::SelectionIsCollapsed - no domSelection");
 
-  return false;
+  return PR_FALSE;
 }
 
 already_AddRefed<nsPICommandUpdater>

@@ -44,7 +44,6 @@
 #include "ScaledFontDWrite.h"
 #include "Logging.h"
 #include "Tools.h"
-#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -188,20 +187,6 @@ DrawTargetD2D::~DrawTargetD2D()
   if (mTempRT) {
     mTempRT->EndDraw();
   }
-
-  // Targets depending on us can break that dependency, since we're obviously not going to
-  // be modified in the future.
-  for (std::vector<DrawTargetD2D*>::iterator iter = mDependentTargets.begin();
-       iter != mDependentTargets.end(); iter++) {
-    (*iter)->mDependingOnTargets.erase(
-      std::find((*iter)->mDependingOnTargets.begin(), (*iter)->mDependingOnTargets.end(), this));
-  }
-  // Our dependencies on other targets no longer matter.
-  for (std::vector<DrawTargetD2D*>::iterator iter = mDependingOnTargets.begin();
-       iter != mDependingOnTargets.end(); iter++) {
-    (*iter)->mDependentTargets.erase(
-      std::find((*iter)->mDependentTargets.begin(), (*iter)->mDependentTargets.end(), this));
-  }
 }
 
 /*
@@ -233,14 +218,6 @@ DrawTargetD2D::Flush()
   if (FAILED(hr)) {
     gfxWarning() << "Error reported when trying to flush D2D rendertarget. Code: " << hr;
   }
-
-  // We no longer depend on any target.
-  for (std::vector<DrawTargetD2D*>::iterator iter = mDependingOnTargets.begin();
-       iter != mDependingOnTargets.end(); iter++) {
-    (*iter)->mDependentTargets.erase(
-      std::find((*iter)->mDependentTargets.begin(), (*iter)->mDependentTargets.end(), this));
-  }
-  mDependingOnTargets.clear();
 }
 
 void
@@ -295,7 +272,6 @@ DrawTargetD2D::DrawSurface(SourceSurface *aSurface,
 
       if (!srcSurf->IsCopy()) {
         srcSurf->mDrawTarget->mDependentTargets.push_back(this);
-        mDependingOnTargets.push_back(srcSurf->mDrawTarget);
       }
     }
     break;
@@ -666,8 +642,6 @@ DrawTargetD2D::DrawSurfaceWithShadow(SourceSurface *aSurface,
 void
 DrawTargetD2D::ClearRect(const Rect &aRect)
 {
-  MarkChanged();
-
   mRT->SetTransform(D2DMatrix(mTransform));
   PopAllClips();
 
@@ -696,8 +670,6 @@ DrawTargetD2D::CopySurface(SourceSurface *aSurface,
                            const IntRect &aSourceRect,
                            const IntPoint &aDestination)
 {
-  MarkChanged();
-
   Rect srcRect(Float(aSourceRect.x), Float(aSourceRect.y),
                Float(aSourceRect.width), Float(aSourceRect.height));
   Rect dstRect(Float(aDestination.x), Float(aDestination.y),
@@ -724,7 +696,6 @@ DrawTargetD2D::CopySurface(SourceSurface *aSurface,
 
       if (!srcSurf->IsCopy()) {
         srcSurf->mDrawTarget->mDependentTargets.push_back(this);
-        mDependingOnTargets.push_back(srcSurf->mDrawTarget);
       }
     }
     break;
@@ -1280,14 +1251,11 @@ DrawTargetD2D::MarkChanged()
     mSnapshots.clear();
   }
   if (mDependentTargets.size()) {
-    // Copy mDependentTargets since the Flush()es below will modify it.
-    std::vector<DrawTargetD2D*> tmpTargets = mDependentTargets;
-    for (std::vector<DrawTargetD2D*>::iterator iter = tmpTargets.begin();
-         iter != tmpTargets.end(); iter++) {
+    for (std::vector<RefPtr<DrawTargetD2D>>::iterator iter = mDependentTargets.begin();
+         iter != mDependentTargets.end(); iter++) {
       (*iter)->Flush();
     }
-    // The Flush() should have broken all dependencies on this target.
-    MOZ_ASSERT(!mDependentTargets.size());
+    mDependentTargets.clear();
   }
 }
 
@@ -1683,7 +1651,6 @@ DrawTargetD2D::CreateBrushForPattern(const Pattern &aPattern, Float aAlpha)
 
         if (!surf->IsCopy()) {
           surf->mDrawTarget->mDependentTargets.push_back(this);
-          mDependingOnTargets.push_back(surf->mDrawTarget);
         }
       }
       break;

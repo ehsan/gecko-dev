@@ -42,8 +42,7 @@
 #define ParseMapPool_inl_h__
 
 #include "jscntxt.h"
-
-#include "frontend/ParseNode.h" /* Need sizeof(js::Definition). */
+#include "jsparse.h" /* Need sizeof(JSDefinition). */
 
 #include "ParseMaps.h"
 
@@ -81,7 +80,7 @@ ParseMapPool::allocate()
     return map;
 }
 
-inline Definition *
+inline JSDefinition *
 AtomDecls::lookupFirst(JSAtom *atom)
 {
     JS_ASSERT(map);
@@ -101,7 +100,7 @@ AtomDecls::lookupMulti(JSAtom *atom)
     JS_ASSERT(map);
     AtomDOHPtr p = map->lookup(atom);
     if (!p)
-        return MultiDeclRange((Definition *) NULL);
+        return MultiDeclRange((JSDefinition *) NULL);
 
     DefnOrHeader &doh = p.value();
     if (doh.isHeader())
@@ -110,7 +109,7 @@ AtomDecls::lookupMulti(JSAtom *atom)
 }
 
 inline bool
-AtomDecls::addUnique(JSAtom *atom, Definition *defn)
+AtomDecls::addUnique(JSAtom *atom, JSDefinition *defn)
 {
     JS_ASSERT(map);
     AtomDOHAddPtr p = map->lookupForAdd(atom);

@@ -41,4 +41,5 @@ add_makefiles "
   extensions/pref/autoconfig/Makefile
   extensions/pref/autoconfig/public/Makefile
   extensions/pref/autoconfig/src/Makefile
+  extensions/pref/autoconfig/resources/Makefile
 "

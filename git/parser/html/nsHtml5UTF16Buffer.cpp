@@ -33,13 +33,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 #include "nsHtml5Tokenizer.h"
@@ -53,6 +57,15 @@
 #include "nsHtml5Portability.h"
 
 #include "nsHtml5UTF16Buffer.h"
+
+
+nsHtml5UTF16Buffer::nsHtml5UTF16Buffer(PRUnichar* buffer, PRInt32 start, PRInt32 end)
+  : buffer(buffer),
+    start(start),
+    end(end)
+{
+  MOZ_COUNT_CTOR(nsHtml5UTF16Buffer);
+}
 
 PRInt32 
 nsHtml5UTF16Buffer::getStart()
@@ -78,14 +91,14 @@ nsHtml5UTF16Buffer::getEnd()
   return end;
 }
 
-bool 
+PRBool 
 nsHtml5UTF16Buffer::hasMore()
 {
   return start < end;
 }
 
 void 
-nsHtml5UTF16Buffer::adjust(bool lastWasCR)
+nsHtml5UTF16Buffer::adjust(PRBool lastWasCR)
 {
   if (lastWasCR && buffer[start] == '\n') {
     start++;

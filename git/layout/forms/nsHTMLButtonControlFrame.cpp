@@ -87,8 +87,7 @@ nsHTMLButtonControlFrame::~nsHTMLButtonControlFrame()
 void
 nsHTMLButtonControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), false);
-  DestroyAbsoluteFrames(aDestructRoot);
+  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
   nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
 
@@ -131,7 +130,7 @@ nsHTMLButtonControlFrame::GetType() const
 }
 
 void 
-nsHTMLButtonControlFrame::SetFocus(bool aOn, bool aRepaint)
+nsHTMLButtonControlFrame::SetFocus(PRBool aOn, PRBool aRepaint)
 {
 }
 
@@ -240,7 +239,7 @@ nsHTMLButtonControlFrame::Reflow(nsPresContext* aPresContext,
                   "Should have real computed width by now");
 
   if (mState & NS_FRAME_FIRST_REFLOW) {
-    nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), true);
+    nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_TRUE);
   }
 
   // Reflow the child
@@ -282,7 +281,7 @@ nsHTMLButtonControlFrame::Reflow(nsPresContext* aPresContext,
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   ConsiderChildOverflow(aDesiredSize.mOverflowAreas, firstKid);
-  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
+  FinishAndStoreOverflow(&aDesiredSize);
 
   aStatus = NS_FRAME_COMPLETE;
 
@@ -362,6 +361,12 @@ nsHTMLButtonControlFrame::ReflowButtonContents(nsPresContext* aPresContext,
   aDesiredSize.ascent += yoff;
 }
 
+/* virtual */ PRBool
+nsHTMLButtonControlFrame::IsContainingBlock() const
+{
+  return PR_TRUE;
+}
+
 PRIntn
 nsHTMLButtonControlFrame::GetSkipSides() const
 {
@@ -372,7 +377,7 @@ nsresult nsHTMLButtonControlFrame::SetFormProperty(nsIAtom* aName, const nsAStri
 {
   if (nsGkAtoms::value == aName) {
     return mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::value,
-                             aValue, true);
+                             aValue, PR_TRUE);
   }
   return NS_OK;
 }

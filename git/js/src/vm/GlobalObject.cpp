@@ -41,17 +41,13 @@
 #include "GlobalObject.h"
 
 #include "jscntxt.h"
+#include "jsemit.h"
 #include "jsexn.h"
 #include "jsmath.h"
 #include "json.h"
 
-#include "builtin/RegExp.h"
-#include "frontend/BytecodeEmitter.h"
-#include "vm/GlobalObject-inl.h"
-
 #include "jsobjinlines.h"
-#include "vm/RegExpObject-inl.h"
-#include "vm/RegExpStatics-inl.h"
+#include "jsregexpinlines.h"
 
 using namespace js;
 
@@ -60,7 +56,13 @@ js_InitObjectClass(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isNative());
 
-    return obj->asGlobal()->getOrCreateObjectPrototype(cx);
+    GlobalObject *global = obj->asGlobal();
+    if (!global->functionObjectClassesInitialized()) {
+        if (!global->initFunctionAndObjectClasses(cx))
+            return NULL;
+    }
+
+    return global->getObjectPrototype();
 }
 
 JSObject *
@@ -68,7 +70,10 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isNative());
 
-    return obj->asGlobal()->getOrCreateFunctionPrototype(cx);
+    GlobalObject *global = obj->asGlobal();
+    return global->functionObjectClassesInitialized()
+           ? global->getFunctionPrototype()
+           : global->initFunctionAndObjectClasses(cx);
 }
 
 static JSBool
@@ -136,9 +141,10 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
         script->noScriptRval = true;
         script->code[0] = JSOP_STOP;
         script->code[1] = SRC_NULL;
-        functionProto->initScript(script);
+        functionProto->u.i.script = script;
         functionProto->getType(cx)->interpretedFunction = functionProto;
         script->hasFunction = true;
+        script->setOwnerObject(functionProto);
     }
 
     /* Create the Object function now that we have a [[Prototype]] for it. */
@@ -202,9 +208,9 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
 
     /* Add the global Function and Object properties now. */
     if (!addDataProperty(cx, objectId, JSProto_Object + JSProto_LIMIT * 2, 0))
-        return NULL;
+        return false;
     if (!addDataProperty(cx, functionId, JSProto_Function + JSProto_LIMIT * 2, 0))
-        return NULL;
+        return false;
 
     /* Heavy lifting done, but lingering tasks remain. */
 
@@ -218,9 +224,6 @@ GlobalObject::initFunctionAndObjectClasses(JSContext *cx)
     /* ES5 13.2.3: Construct the unique [[ThrowTypeError]] function object. */
     JSFunction *throwTypeError = js_NewFunction(cx, NULL, ThrowTypeError, 0, 0, this, NULL);
     if (!throwTypeError)
-        return NULL;
-    AutoIdVector ids(cx);
-    if (!throwTypeError->preventExtensions(cx, &ids))
         return NULL;
     setThrowTypeError(throwTypeError);
 
@@ -257,11 +260,11 @@ GlobalObject::create(JSContext *cx, Class *clasp)
     globalObj->syncSpecialEquality();
 
     /* Construct a regexp statics object for this global object. */
-    JSObject *res = RegExpStatics::create(cx, globalObj);
+    JSObject *res = regexp_statics_construct(cx, globalObj);
     if (!res)
         return NULL;
-    globalObj->initSlot(REGEXP_STATICS, ObjectValue(*res));
-    globalObj->initFlags(0);
+    globalObj->setSlot(REGEXP_STATICS, ObjectValue(*res));
+    globalObj->setFlags(0);
 
     return globalObj;
 }
@@ -275,7 +278,7 @@ GlobalObject::initStandardClasses(JSContext *cx)
     JSAtomState &state = cx->runtime->atomState;
 
     /* Define a top-level property 'undefined' with the undefined value. */
-    if (!defineProperty(cx, state.typeAtoms[JSTYPE_VOID], UndefinedValue(),
+    if (!defineProperty(cx, ATOM_TO_JSID(state.typeAtoms[JSTYPE_VOID]), UndefinedValue(),
                         JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT | JSPROP_READONLY))
     {
         return false;
@@ -307,14 +310,11 @@ GlobalObject::initStandardClasses(JSContext *cx)
 void
 GlobalObject::clear(JSContext *cx)
 {
-    /* This can return false but that doesn't mean it failed. */
-    unbrand(cx);
-
     for (int key = JSProto_Null; key < JSProto_LIMIT * 3; key++)
         setSlot(key, UndefinedValue());
 
     /* Clear regexp statics. */
-    getRegExpStatics()->clear();
+    RegExpStatics::extractFrom(this)->clear();
 
     /* Clear the runtime-codegen-enabled cache. */
     setSlot(RUNTIME_CODEGEN_ENABLED, UndefinedValue());
@@ -339,7 +339,7 @@ GlobalObject::clear(JSContext *cx)
 bool
 GlobalObject::isRuntimeCodeGenEnabled(JSContext *cx)
 {
-    HeapValue &v = getSlotRef(RUNTIME_CODEGEN_ENABLED);
+    Value &v = getSlotRef(RUNTIME_CODEGEN_ENABLED);
     if (v.isUndefined()) {
         JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(cx);
 
@@ -347,9 +347,8 @@ GlobalObject::isRuntimeCodeGenEnabled(JSContext *cx)
          * If there are callbacks, make sure that the CSP callback is installed
          * and that it permits runtime code generation, then cache the result.
          */
-        v.set(compartment(),
-              BooleanValue((!callbacks || !callbacks->contentSecurityPolicyAllows) ||
-                           callbacks->contentSecurityPolicyAllows(cx)));
+        v = BooleanValue((!callbacks || !callbacks->contentSecurityPolicyAllows) ||
+                         callbacks->contentSecurityPolicyAllows(cx));
     }
     return !v.isFalse();
 }
@@ -394,8 +393,8 @@ CreateBlankProto(JSContext *cx, Class *clasp, JSObject &proto, GlobalObject &glo
 JSObject *
 GlobalObject::createBlankPrototype(JSContext *cx, Class *clasp)
 {
-    JSObject *objectProto = getOrCreateObjectPrototype(cx);
-    if (!objectProto)
+    JSObject *objectProto;
+    if (!js_GetClassPrototype(cx, this, JSProto_Object, &objectProto))
         return NULL;
 
     return CreateBlankProto(cx, clasp, *objectProto, *this);
@@ -410,10 +409,10 @@ GlobalObject::createBlankPrototypeInheriting(JSContext *cx, Class *clasp, JSObje
 bool
 LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto)
 {
-    return ctor->defineProperty(cx, cx->runtime->atomState.classPrototypeAtom,
+    return ctor->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
                                 ObjectValue(*proto), JS_PropertyStub, JS_StrictPropertyStub,
                                 JSPROP_PERMANENT | JSPROP_READONLY) &&
-           proto->defineProperty(cx, cx->runtime->atomState.constructorAtom,
+           proto->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.constructorAtom),
                                  ObjectValue(*ctor), JS_PropertyStub, JS_StrictPropertyStub, 0);
 }
 
@@ -422,8 +421,6 @@ DefinePropertiesAndBrand(JSContext *cx, JSObject *obj, JSPropertySpec *ps, JSFun
 {
     if ((ps && !JS_DefineProperties(cx, obj, ps)) || (fs && !JS_DefineFunctions(cx, obj, fs)))
         return false;
-    if (!cx->typeInferenceEnabled())
-        obj->brand(cx);
     return true;
 }
 

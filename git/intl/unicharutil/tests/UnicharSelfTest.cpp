@@ -372,11 +372,11 @@ bool CharByCharCompareEqual(const char *a, const char *b,
   const char *aEnd = a + aLen;
   const char *bEnd = b + bLen;
   while (a < aEnd && b < bEnd) {
-    bool err;
+    PRBool err;
     if (!CaseInsensitiveUTF8CharsEqual(a, b, aEnd, bEnd, &a, &b, &err) || err)
-      return false;
+      return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 void TestCaseConversion()

@@ -59,7 +59,7 @@ extern char *program;
 
 extern void fail(char *format, ...);
 extern char *getcomponent(char *path, char *name);
-extern char *ino2name(ino_t ino);
+extern char *ino2name(ino_t ino, char *dir);
 extern void *xmalloc(size_t size);
 extern char *xstrdup(char *s);
 extern char *xbasename(char *path);

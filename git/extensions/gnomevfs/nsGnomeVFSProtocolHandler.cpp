@@ -265,7 +265,7 @@ ProxiedAuthCallback(gconstpointer in,
 
   // Prompt the user...
   nsresult rv;
-  bool retval = false;
+  PRBool retval = PR_FALSE;
   PRUnichar *user = nsnull, *pass = nsnull;
 
   rv = prompt->PromptUsernameAndPassword(nsnull, message.get(),
@@ -355,7 +355,7 @@ class nsGnomeVFSInputStream : public nsIInputStream
       , mDirList(nsnull)
       , mDirListPtr(nsnull)
       , mDirBufCursor(0)
-      , mDirOpen(false) {}
+      , mDirOpen(PR_FALSE) {}
 
    ~nsGnomeVFSInputStream() { Close(); }
 
@@ -392,7 +392,7 @@ class nsGnomeVFSInputStream : public nsIInputStream
     GList                   *mDirListPtr;
     nsCString                mDirBuf;
     PRUint32                 mDirBufCursor;
-    bool                     mDirOpen;
+    PRPackedBool             mDirOpen;
 };
 
 GnomeVFSResult
@@ -470,7 +470,7 @@ nsGnomeVFSInputStream::DoOpen()
     }
     else
     {
-      mDirOpen = true;
+      mDirOpen = PR_TRUE;
 
       // Sort mDirList
       mDirList = g_list_sort(mDirList, FileInfoComparator);
@@ -756,9 +756,9 @@ nsGnomeVFSInputStream::ReadSegments(nsWriteSegmentFun aWriter,
 }
 
 NS_IMETHODIMP
-nsGnomeVFSInputStream::IsNonBlocking(bool *aResult)
+nsGnomeVFSInputStream::IsNonBlocking(PRBool *aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }
 
@@ -776,7 +776,7 @@ class nsGnomeVFSProtocolHandler : public nsIProtocolHandler
 
   private:
     void   InitSupportedProtocolsPref(nsIPrefBranch *prefs);
-    bool IsSupportedProtocol(const nsCString &spec);
+    PRBool IsSupportedProtocol(const nsCString &spec);
 
     nsCString mSupportedProtocols;
 };
@@ -803,7 +803,7 @@ nsGnomeVFSProtocolHandler::Init()
   if (prefs)
   {
     InitSupportedProtocolsPref(prefs);
-    prefs->AddObserver(MOZ_GNOMEVFS_SUPPORTED_PROTOCOLS, this, false);
+    prefs->AddObserver(MOZ_GNOMEVFS_SUPPORTED_PROTOCOLS, this, PR_FALSE);
   }
 
   return NS_OK;
@@ -825,13 +825,13 @@ nsGnomeVFSProtocolHandler::InitSupportedProtocolsPref(nsIPrefBranch *prefs)
   LOG(("gnomevfs: supported protocols \"%s\"\n", mSupportedProtocols.get()));
 }
 
-bool
+PRBool
 nsGnomeVFSProtocolHandler::IsSupportedProtocol(const nsCString &aSpec)
 {
   const char *specString = aSpec.get();
   const char *colon = strchr(specString, ':');
   if (!colon)
-    return false;
+    return PR_FALSE;
 
   PRUint32 length = colon - specString + 1;
 
@@ -840,12 +840,12 @@ nsGnomeVFSProtocolHandler::IsSupportedProtocol(const nsCString &aSpec)
 
   char *found = PL_strcasestr(mSupportedProtocols.get(), scheme.get());
   if (!found)
-    return false;
+    return PR_FALSE;
 
   if (found[length] != ',' && found[length] != '\0')
-    return false;
+    return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -955,10 +955,10 @@ nsGnomeVFSProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
 NS_IMETHODIMP
 nsGnomeVFSProtocolHandler::AllowPort(PRInt32 aPort,
                                      const char *aScheme,
-                                     bool *aResult)
+                                     PRBool *aResult)
 {
   // Don't override anything.
-  *aResult = false; 
+  *aResult = PR_FALSE; 
   return NS_OK;
 }
 

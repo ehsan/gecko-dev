@@ -44,16 +44,9 @@
 #include "nsDocAccessible.h"
 #include "nsEventShell.h"
 #include "nsTextAccessible.h"
-#include "FocusManager.h"
 #include "TextUpdater.h"
-
 #include "mozilla/dom/Element.h"
 
-using namespace mozilla::a11y;
-
-// Defines the number of selection add/remove events in the queue when they
-// aren't packed into single selection within event.
-const unsigned int kSelChangeCountToPack = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 // NotificationCollector
@@ -189,8 +182,7 @@ NotificationController::IsUpdatePending()
   return mPresShell->IsLayoutFlushObserver() ||
     mObservingState == eRefreshProcessingForUpdate ||
     mContentInsertions.Length() != 0 || mNotifications.Length() != 0 ||
-    mTextHash.Count() != 0 ||
-    !mDocument->HasLoadState(nsDocAccessible::eTreeConstructed);
+    mTextHash.Count() != 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,10 +206,8 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
   if (!mDocument->HasLoadState(nsDocAccessible::eTreeConstructed)) {
     // If document is not bound to parent at this point then the document is not
     // ready yet (process notifications later).
-    if (!mDocument->IsBoundToParent()) {
-      mObservingState = eRefreshObserving;
+    if (!mDocument->IsBoundToParent())
       return;
-    }
 
 #ifdef DEBUG_NOTIFICATIONS
     printf("\ninitial tree created, document: %p, document node: %p\n",
@@ -322,19 +312,8 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
   for (PRUint32 idx = 0; idx < eventCount; idx++) {
     AccEvent* accEvent = events[idx];
     if (accEvent->mEventRule != AccEvent::eDoNotEmit) {
-      nsAccessible* target = accEvent->GetAccessible();
-      if (!target || target->IsDefunct())
-        continue;
-
-      // Dispatch the focus event if target is still focused.
-      if (accEvent->mEventType == nsIAccessibleEvent::EVENT_FOCUS) {
-        FocusMgr()->ProcessFocusEvent(accEvent);
-        continue;
-      }
-
       mDocument->ProcessPendingEvent(accEvent);
 
-      // Fire text change event caused by tree mutation.
       AccMutationEvent* showOrHideEvent = downcast_accEvent(accEvent);
       if (showOrHideEvent) {
         if (showOrHideEvent->mTextChangeEvent)
@@ -366,14 +345,14 @@ NotificationController::CoalesceEvents()
   PRInt32 tail = numQueuedEvents - 1;
   AccEvent* tailEvent = mEvents[tail];
 
+  // No node means this is application accessible (which can be a subject
+  // of reorder events), we do not coalesce events for it currently.
+  if (!tailEvent->mNode)
+    return;
+
   switch(tailEvent->mEventRule) {
     case AccEvent::eCoalesceFromSameSubtree:
     {
-      // No node means this is application accessible (which is a subject of
-      // reorder events), we do not coalesce events for it currently.
-      if (!tailEvent->mNode)
-        return;
-
       for (PRInt32 index = tail - 1; index >= 0; index--) {
         AccEvent* thisEvent = mEvents[index];
 
@@ -384,7 +363,7 @@ NotificationController::CoalesceEvents()
         // is supported. Ignore events from different documents since we don't
         // coalesce them.
         if (!thisEvent->mNode ||
-            thisEvent->mNode->OwnerDoc() != tailEvent->mNode->OwnerDoc())
+            thisEvent->mNode->GetOwnerDoc() != tailEvent->mNode->GetOwnerDoc())
           continue;
 
         // Coalesce earlier event for the same target.
@@ -467,18 +446,21 @@ NotificationController::CoalesceEvents()
 
     } break; // case eCoalesceFromSameSubtree
 
-    case AccEvent::eCoalesceOfSameType:
+    case AccEvent::eCoalesceFromSameDocument:
     {
-      // Coalesce old events by newer event.
+      // Used for focus event, coalesce more older event since focus event
+      // for accessible can be duplicated by event for its document, we are
+      // interested in focus event for accessible.
       for (PRInt32 index = tail - 1; index >= 0; index--) {
-        AccEvent* accEvent = mEvents[index];
-        if (accEvent->mEventType == tailEvent->mEventType &&
-            accEvent->mEventRule == tailEvent->mEventRule) {
-          accEvent->mEventRule = AccEvent::eDoNotEmit;
+        AccEvent* thisEvent = mEvents[index];
+        if (thisEvent->mEventType == tailEvent->mEventType &&
+            thisEvent->mEventRule == tailEvent->mEventRule &&
+            thisEvent->GetDocAccessible() == tailEvent->GetDocAccessible()) {
+          thisEvent->mEventRule = AccEvent::eDoNotEmit;
           return;
         }
       }
-    } break; // case eCoalesceOfSameType
+    } break; // case eCoalesceFromSameDocument
 
     case AccEvent::eRemoveDupes:
     {
@@ -494,26 +476,6 @@ NotificationController::CoalesceEvents()
         }
       }
     } break; // case eRemoveDupes
-
-    case AccEvent::eCoalesceSelectionChange:
-    {
-      AccSelChangeEvent* tailSelChangeEvent = downcast_accEvent(tailEvent);
-      PRInt32 index = tail - 1;
-      for (; index >= 0; index--) {
-        AccEvent* thisEvent = mEvents[index];
-        if (thisEvent->mEventRule == tailEvent->mEventRule) {
-          AccSelChangeEvent* thisSelChangeEvent =
-            downcast_accEvent(thisEvent);
-
-          // Coalesce selection change events within same control.
-          if (tailSelChangeEvent->mWidget == thisSelChangeEvent->mWidget) {
-            CoalesceSelChangeEvents(tailSelChangeEvent, thisSelChangeEvent, index);
-            return;
-          }
-        }
-      }
-
-    } break; // eCoalesceSelectionChange
 
     default:
       break; // case eAllowDupes, eDoNotEmit
@@ -533,86 +495,6 @@ NotificationController::ApplyToSiblings(PRUint32 aStart, PRUint32 aEnd,
       accEvent->mEventRule = aEventRule;
     }
   }
-}
-
-void
-NotificationController::CoalesceSelChangeEvents(AccSelChangeEvent* aTailEvent,
-                                                AccSelChangeEvent* aThisEvent,
-                                                PRInt32 aThisIndex)
-{
-  aTailEvent->mPreceedingCount = aThisEvent->mPreceedingCount + 1;
-
-  // Pack all preceding events into single selection within event
-  // when we receive too much selection add/remove events.
-  if (aTailEvent->mPreceedingCount >= kSelChangeCountToPack) {
-    aTailEvent->mEventType = nsIAccessibleEvent::EVENT_SELECTION_WITHIN;
-    aTailEvent->mAccessible = aTailEvent->mWidget;
-    aThisEvent->mEventRule = AccEvent::eDoNotEmit;
-
-    // Do not emit any preceding selection events for same widget if they
-    // weren't coalesced yet.
-    if (aThisEvent->mEventType != nsIAccessibleEvent::EVENT_SELECTION_WITHIN) {
-      for (PRInt32 jdx = aThisIndex - 1; jdx >= 0; jdx--) {
-        AccEvent* prevEvent = mEvents[jdx];
-        if (prevEvent->mEventRule == aTailEvent->mEventRule) {
-          AccSelChangeEvent* prevSelChangeEvent =
-            downcast_accEvent(prevEvent);
-          if (prevSelChangeEvent->mWidget == aTailEvent->mWidget)
-            prevSelChangeEvent->mEventRule = AccEvent::eDoNotEmit;
-        }
-      }
-    }
-    return;
-  }
-
-  // Pack sequential selection remove and selection add events into
-  // single selection change event.
-  if (aTailEvent->mPreceedingCount == 1 &&
-      aTailEvent->mItem != aThisEvent->mItem) {
-    if (aTailEvent->mSelChangeType == AccSelChangeEvent::eSelectionAdd &&
-        aThisEvent->mSelChangeType == AccSelChangeEvent::eSelectionRemove) {
-      aThisEvent->mEventRule = AccEvent::eDoNotEmit;
-      aTailEvent->mEventType = nsIAccessibleEvent::EVENT_SELECTION;
-      aTailEvent->mPackedEvent = aThisEvent;
-      return;
-    }
-
-    if (aThisEvent->mSelChangeType == AccSelChangeEvent::eSelectionAdd &&
-        aTailEvent->mSelChangeType == AccSelChangeEvent::eSelectionRemove) {
-      aTailEvent->mEventRule = AccEvent::eDoNotEmit;
-      aThisEvent->mEventType = nsIAccessibleEvent::EVENT_SELECTION;
-      aThisEvent->mPackedEvent = aThisEvent;
-      return;
-    }
-  }
-
-  // Unpack the packed selection change event because we've got one
-  // more selection add/remove.
-  if (aThisEvent->mEventType == nsIAccessibleEvent::EVENT_SELECTION) {
-    if (aThisEvent->mPackedEvent) {
-      aThisEvent->mPackedEvent->mEventType =
-        aThisEvent->mPackedEvent->mSelChangeType == AccSelChangeEvent::eSelectionAdd ?
-          nsIAccessibleEvent::EVENT_SELECTION_ADD :
-          nsIAccessibleEvent::EVENT_SELECTION_REMOVE;
-
-      aThisEvent->mPackedEvent->mEventRule =
-        AccEvent::eCoalesceSelectionChange;
-
-      aThisEvent->mPackedEvent = nsnull;
-    }
-
-    aThisEvent->mEventType =
-      aThisEvent->mSelChangeType == AccSelChangeEvent::eSelectionAdd ?
-        nsIAccessibleEvent::EVENT_SELECTION_ADD :
-        nsIAccessibleEvent::EVENT_SELECTION_REMOVE;
-
-    return;
-  }
-
-  // Convert into selection add since control has single selection but other
-  // selection events for this control are queued.
-  if (aTailEvent->mEventType == nsIAccessibleEvent::EVENT_SELECTION)
-    aTailEvent->mEventType = nsIAccessibleEvent::EVENT_SELECTION_ADD;
 }
 
 void
@@ -683,7 +565,7 @@ NotificationController::CreateTextChangeEventFor(AccMutationEvent* aEvent)
     nsCOMPtr<nsIEditor> editor;
     textAccessible->GetAssociatedEditor(getter_AddRefs(editor));
     if (editor) {
-      bool isEmpty = false;
+      PRBool isEmpty = PR_FALSE;
       editor->GetDocumentIsEmpty(&isEmpty);
       if (isEmpty)
         return;

@@ -65,12 +65,12 @@ public:
   ~nsAtomList(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsAtomList* Clone() const { return Clone(true); }
+  nsAtomList* Clone() const { return Clone(PR_TRUE); }
 
   nsCOMPtr<nsIAtom> mAtom;
   nsAtomList*       mNext;
 private: 
-  nsAtomList* Clone(bool aDeep) const;
+  nsAtomList* Clone(PRBool aDeep) const;
 
   // These are not supported and are not implemented! 
   nsAtomList(const nsAtomList& aCopy);
@@ -87,7 +87,7 @@ public:
   ~nsPseudoClassList(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsPseudoClassList* Clone() const { return Clone(true); }
+  nsPseudoClassList* Clone() const { return Clone(PR_TRUE); }
 
   union {
     // For a given value of mType, we have either:
@@ -107,7 +107,7 @@ public:
   nsCSSPseudoClasses::Type mType;
   nsPseudoClassList* mNext;
 private: 
-  nsPseudoClassList* Clone(bool aDeep) const;
+  nsPseudoClassList* Clone(PRBool aDeep) const;
 
   // These are not supported and are not implemented! 
   nsPseudoClassList(const nsPseudoClassList& aCopy);
@@ -126,14 +126,14 @@ struct nsAttrSelector {
 public:
   nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr);
   nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunction, 
-                 const nsString& aValue, bool aCaseSensitive);
+                 const nsString& aValue, PRBool aCaseSensitive);
   nsAttrSelector(PRInt32 aNameSpace, nsIAtom* aLowercaseAttr, 
                  nsIAtom* aCasedAttr, PRUint8 aFunction, 
-                 const nsString& aValue, bool aCaseSensitive);
+                 const nsString& aValue, PRBool aCaseSensitive);
   ~nsAttrSelector(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsAttrSelector* Clone() const { return Clone(true); }
+  nsAttrSelector* Clone() const { return Clone(PR_TRUE); }
 
   nsString        mValue;
   nsAttrSelector* mNext;
@@ -141,10 +141,10 @@ public:
   nsCOMPtr<nsIAtom> mCasedAttr;
   PRInt32         mNameSpace;
   PRUint8         mFunction;
-  bool            mCaseSensitive; // If we are in an HTML document,
+  PRPackedBool    mCaseSensitive; // If we are in an HTML document,
                                   // is the value case sensitive?
 private: 
-  nsAttrSelector* Clone(bool aDeep) const;
+  nsAttrSelector* Clone(PRBool aDeep) const;
 
   // These are not supported and are not implemented! 
   nsAttrSelector(const nsAttrSelector& aCopy);
@@ -157,7 +157,7 @@ public:
   ~nsCSSSelector(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsCSSSelector* Clone() const { return Clone(true, true); }
+  nsCSSSelector* Clone() const { return Clone(PR_TRUE, PR_TRUE); }
 
   void Reset(void);
   void SetNameSpace(PRInt32 aNameSpace);
@@ -172,14 +172,14 @@ public:
                       nsCSSSelectorList* aSelectorList);
   void AddAttribute(PRInt32 aNameSpace, const nsString& aAttr);
   void AddAttribute(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunc, 
-                    const nsString& aValue, bool aCaseSensitive);
+                    const nsString& aValue, PRBool aCaseSensitive);
   void SetOperator(PRUnichar aOperator);
 
-  inline bool HasTagSelector() const {
+  inline PRBool HasTagSelector() const {
     return !!mCasedTag;
   }
 
-  inline bool IsPseudoElement() const {
+  inline PRBool IsPseudoElement() const {
     return mLowercaseTag && !mCasedTag;
   }
 
@@ -187,22 +187,22 @@ public:
   PRInt32 CalcWeight() const;
 
   void ToString(nsAString& aString, nsCSSStyleSheet* aSheet,
-                bool aAppend = false) const;
+                PRBool aAppend = PR_FALSE) const;
 
 private:
   void AddPseudoClassInternal(nsPseudoClassList *aPseudoClass);
-  nsCSSSelector* Clone(bool aDeepNext, bool aDeepNegations) const;
+  nsCSSSelector* Clone(PRBool aDeepNext, PRBool aDeepNegations) const;
 
   void AppendToStringWithoutCombinators(nsAString& aString,
                                         nsCSSStyleSheet* aSheet) const;
   void AppendToStringWithoutCombinatorsOrNegations(nsAString& aString,
                                                    nsCSSStyleSheet* aSheet,
-                                                   bool aIsNegated)
+                                                   PRBool aIsNegated)
                                                         const;
   // Returns true if this selector can have a namespace specified (which
   // happens if and only if the default namespace would apply to this
   // selector).
-  bool CanBeNamespaced(bool aIsNegated) const;
+  PRBool CanBeNamespaced(PRBool aIsNegated) const;
   // Calculate the specificity of this selector (not including its mNext
   // or its mNegations).
   PRInt32 CalcWeightWithoutNegations() const;
@@ -269,13 +269,13 @@ struct nsCSSSelectorList {
   /**
    * Do a deep clone.  Should be used only on the first in the list.
    */
-  nsCSSSelectorList* Clone() const { return Clone(true); }
+  nsCSSSelectorList* Clone() const { return Clone(PR_TRUE); }
 
   nsCSSSelector*     mSelectors;
   PRInt32            mWeight;
   nsCSSSelectorList* mNext;
 private: 
-  nsCSSSelectorList* Clone(bool aDeep) const;
+  nsCSSSelectorList* Clone(PRBool aDeep) const;
 
   // These are not supported and are not implemented! 
   nsCSSSelectorList(const nsCSSSelectorList& aCopy);
@@ -318,7 +318,7 @@ protected:
   friend class StyleRule;
 };
 
-class StyleRule : public Rule
+class NS_FINAL_CLASS StyleRule : public Rule
 {
  public:
   StyleRule(nsCSSSelectorList* aSelector,
@@ -352,7 +352,7 @@ public:
    * sheet or group rule if |aHandleContainer| is true.
    */
   already_AddRefed<StyleRule>
-  DeclarationChanged(Declaration* aDecl, bool aHandleContainer);
+  DeclarationChanged(Declaration* aDecl, PRBool aHandleContainer);
 
   nsIStyleRule* GetImportantRule() const { return mImportantRule; }
 

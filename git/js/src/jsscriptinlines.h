@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=79 ft=cpp:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -45,11 +45,10 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsopcode.h"
+#include "jsregexp.h"
 #include "jsscript.h"
 #include "jsscope.h"
-
 #include "vm/GlobalObject.h"
-#include "vm/RegExpObject.h"
 
 #include "jsscopeinlines.h"
 
@@ -57,12 +56,7 @@ namespace js {
 
 inline
 Bindings::Bindings(JSContext *cx)
-    : nargs(0), nvars(0), nupvars(0), hasExtensibleParents(false)
-{
-}
-
-inline
-Bindings::~Bindings()
+  : lastBinding(NULL), nargs(0), nvars(0), nupvars(0)
 {
 }
 
@@ -70,29 +64,19 @@ inline void
 Bindings::transfer(JSContext *cx, Bindings *bindings)
 {
     JS_ASSERT(!lastBinding);
+    JS_ASSERT(!bindings->lastBinding || !bindings->lastBinding->inDictionary());
 
     *this = *bindings;
 #ifdef DEBUG
     bindings->lastBinding = NULL;
 #endif
-
-    /* Preserve back-pointer invariants across the lastBinding transfer. */
-    if (lastBinding && lastBinding->inDictionary())
-        lastBinding->listp = &this->lastBinding;
 }
 
 inline void
 Bindings::clone(JSContext *cx, Bindings *bindings)
 {
     JS_ASSERT(!lastBinding);
-
-    /*
-     * Non-dictionary bindings are fine to share, as are dictionary bindings if
-     * they're copy-on-modification.
-     */
-    JS_ASSERT(!bindings->lastBinding ||
-              !bindings->lastBinding->inDictionary() ||
-              bindings->lastBinding->frozen());
+    JS_ASSERT(!bindings->lastBinding || !bindings->lastBinding->inDictionary());
 
     *this = *bindings;
 }
@@ -101,7 +85,7 @@ Shape *
 Bindings::lastShape() const
 {
     JS_ASSERT(lastBinding);
-    JS_ASSERT_IF(lastBinding->inDictionary(), lastBinding->frozen());
+    JS_ASSERT(!lastBinding->inDictionary());
     return lastBinding;
 }
 
@@ -114,6 +98,12 @@ Bindings::ensureShape(JSContext *cx)
             return false;
     }
     return true;
+}
+
+bool
+Bindings::extensibleParents()
+{
+    return lastBinding && lastBinding->extensibleParents();
 }
 
 extern const char *
@@ -224,26 +214,6 @@ JSScript::clearNesting()
         js::Foreground::delete_(nesting);
         types->nesting = NULL;
     }
-}
-
-inline void
-JSScript::writeBarrierPre(JSScript *script)
-{
-#ifdef JSGC_INCREMENTAL
-    if (!script)
-        return;
-
-    JSCompartment *comp = script->compartment();
-    if (comp->needsBarrier()) {
-        JS_ASSERT(!comp->rt->gcRunning);
-        MarkScriptUnbarriered(comp->barrierTracer(), script, "write barrier");
-    }
-#endif
-}
-
-inline void
-JSScript::writeBarrierPost(JSScript *script, void *addr)
-{
 }
 
 #endif /* jsscriptinlines_h___ */

@@ -56,17 +56,14 @@ struct StateData
   jsval mStatus;
   jsval mStatusText;
   jsval mReadyState;
-  jsval mResponse;
   bool mResponseTextException;
   bool mStatusException;
   bool mStatusTextException;
   bool mReadyStateException;
-  bool mResponseException;
 };
 
 bool
-UpdateXHRState(JSContext* aCx, JSObject* aObj, bool aIsUpload,
-               const StateData& aNewState);
+UpdateXHRState(JSContext* aCx, JSObject* aObj, const StateData& aNewState);
 
 } // namespace xhr
 

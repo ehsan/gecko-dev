@@ -58,14 +58,14 @@ nsMaemoNetworkLinkService::~nsMaemoNetworkLinkService()
 }
 
 NS_IMETHODIMP
-nsMaemoNetworkLinkService::GetIsLinkUp(bool *aIsUp)
+nsMaemoNetworkLinkService::GetIsLinkUp(PRBool *aIsUp)
 {
   *aIsUp = nsMaemoNetworkManager::IsConnected();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsMaemoNetworkLinkService::GetLinkStatusKnown(bool *aIsKnown)
+nsMaemoNetworkLinkService::GetLinkStatusKnown(PRBool *aIsKnown)
 {
   *aIsKnown = nsMaemoNetworkManager::GetLinkStatusKnown();
   return NS_OK;
@@ -100,7 +100,7 @@ nsMaemoNetworkLinkService::Init(void)
   if (!observerService)
     return NS_ERROR_FAILURE;
 
-  nsresult rv = observerService->AddObserver(this, "xpcom-shutdown", false);
+  nsresult rv = observerService->AddObserver(this, "xpcom-shutdown", PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!nsMaemoNetworkManager::Startup())

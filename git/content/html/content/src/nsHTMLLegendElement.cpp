@@ -83,7 +83,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLLegendElement)
 NS_IMETHODIMP
 nsHTMLLegendElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
-  Element* form = GetFormElement();
+  Element *form = GetFormElement();
 
   return form ? CallQueryInterface(form, aForm) : NS_OK;
 }
@@ -106,21 +106,21 @@ nsHTMLLegendElement::GetFieldSet()
 {
   nsIContent* parent = GetParent();
 
-  if (parent && parent->IsHTML(nsGkAtoms::fieldset)) {
+  if (parent && parent->IsHTML() && parent->Tag() == nsGkAtoms::fieldset) {
     return parent;
   }
 
   return nsnull;
 }
 
-bool
+PRBool
 nsHTMLLegendElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)
 {
   if (aAttribute == nsGkAtoms::align && aNamespaceID == kNameSpaceID_None) {
-    return aResult.ParseEnumValue(aValue, kAlignTable, false);
+    return aResult.ParseEnumValue(aValue, kAlignTable, PR_FALSE);
   }
 
   return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
@@ -142,14 +142,14 @@ nsHTMLLegendElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 nsresult
 nsHTMLLegendElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              nsIAtom* aPrefix, const nsAString& aValue,
-                             bool aNotify)
+                             PRBool aNotify)
 {
   return nsGenericHTMLElement::SetAttr(aNameSpaceID, aAttribute,
                                        aPrefix, aValue, aNotify);
 }
 nsresult
 nsHTMLLegendElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                               bool aNotify)
+                               PRBool aNotify)
 {
   return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
@@ -157,7 +157,7 @@ nsHTMLLegendElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 nsresult
 nsHTMLLegendElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                 nsIContent* aBindingParent,
-                                bool aCompileEventHandlers)
+                                PRBool aCompileEventHandlers)
 {
   return nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                           aBindingParent,
@@ -165,7 +165,7 @@ nsHTMLLegendElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsHTMLLegendElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsHTMLLegendElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
@@ -178,7 +178,7 @@ nsHTMLLegendElement::Focus()
     return NS_OK;
 
   PRInt32 tabIndex;
-  if (frame->IsFocusable(&tabIndex, false))
+  if (frame->IsFocusable(&tabIndex, PR_FALSE))
     return nsGenericHTMLElement::Focus();
 
   // If the legend isn't focusable, focus whatever is focusable following
@@ -193,8 +193,8 @@ nsHTMLLegendElement::Focus()
 }
 
 void
-nsHTMLLegendElement::PerformAccesskey(bool aKeyCausesActivation,
-                                      bool aIsTrustedEvent)
+nsHTMLLegendElement::PerformAccesskey(PRBool aKeyCausesActivation,
+                                      PRBool aIsTrustedEvent)
 {
   // just use the same behaviour as the focus method
   Focus();

@@ -51,7 +51,7 @@ nsIConstraintValidation::nsIConstraintValidation()
   : mValidityBitField(0)
   , mValidity(nsnull)
   // By default, all elements are subjects to constraint validation.
-  , mBarredFromConstraintValidation(false)
+  , mBarredFromConstraintValidation(PR_FALSE)
 {
 }
 
@@ -119,28 +119,28 @@ nsIConstraintValidation::GetValidationMessage(nsAString& aValidationMessage)
 }
 
 nsresult
-nsIConstraintValidation::CheckValidity(bool* aValidity)
+nsIConstraintValidation::CheckValidity(PRBool* aValidity)
 {
   if (!IsCandidateForConstraintValidation() || IsValid()) {
-    *aValidity = true;
+    *aValidity = PR_TRUE;
     return NS_OK;
   }
 
-  *aValidity = false;
+  *aValidity = PR_FALSE;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(this);
   NS_ASSERTION(content, "This class should be inherited by HTML elements only!");
 
-  return nsContentUtils::DispatchTrustedEvent(content->OwnerDoc(), content,
+  return nsContentUtils::DispatchTrustedEvent(content->GetOwnerDoc(), content,
                                               NS_LITERAL_STRING("invalid"),
-                                              false, true);
+                                              PR_FALSE, PR_TRUE);
 }
 
 void
 nsIConstraintValidation::SetValidityState(ValidityStateType aState,
-                                          bool aValue)
+                                          PRBool aValue)
 {
-  bool previousValidity = IsValid();
+  PRBool previousValidity = IsValid();
 
   if (aValue) {
     mValidityBitField |= aState;
@@ -169,9 +169,9 @@ nsIConstraintValidation::SetCustomValidity(const nsAString& aError)
 }
 
 void
-nsIConstraintValidation::SetBarredFromConstraintValidation(bool aBarred)
+nsIConstraintValidation::SetBarredFromConstraintValidation(PRBool aBarred)
 {
-  bool previousBarred = mBarredFromConstraintValidation;
+  PRBool previousBarred = mBarredFromConstraintValidation;
 
   mBarredFromConstraintValidation = aBarred;
 

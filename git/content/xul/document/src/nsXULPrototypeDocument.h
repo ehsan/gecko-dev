@@ -129,10 +129,10 @@ public:
     /**
      * If current prototype document has not yet finished loading,
      * appends aDocument to the list of documents to notify (via
-     * nsXULDocument::OnPrototypeLoadDone()) and sets aLoaded to false.
-     * Otherwise sets aLoaded to true.
+     * nsXULDocument::OnPrototypeLoadDone()) and sets aLoaded to PR_FALSE.
+     * Otherwise sets aLoaded to PR_TRUE.
      */
-    nsresult AwaitLoadDone(nsXULDocument* aDocument, bool* aResult);
+    nsresult AwaitLoadDone(nsXULDocument* aDocument, PRBool* aResult);
 
     /**
      * Notifies each document registered via AwaitLoadDone on this
@@ -158,7 +158,7 @@ protected:
 
     nsRefPtr<nsXULPDGlobalObject> mGlobalObject;
 
-    bool mLoaded;
+    PRPackedBool mLoaded;
     nsTArray< nsRefPtr<nsXULDocument> > mPrototypeWaiters;
 
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;

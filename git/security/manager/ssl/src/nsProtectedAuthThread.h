@@ -44,17 +44,16 @@
 #include "mozilla/Mutex.h"
 #include "nsIProtectedAuthThread.h"
 
-class nsIRunnable;
-
 class nsProtectedAuthThread : public nsIProtectedAuthThread
 {
 private:
     mozilla::Mutex mMutex;
 
-    nsCOMPtr<nsIRunnable> mNotifyObserver;
+    nsCOMPtr<nsIObserver> mStatusObserver;
 
-    bool        mIAmRunning;
-    bool        mLoginReady;
+    PRBool      mIAmRunning;
+    PRBool      mStatusObserverNotified;
+    PRBool      mLoginReady;
 
     PRThread    *mThreadHandle;
 

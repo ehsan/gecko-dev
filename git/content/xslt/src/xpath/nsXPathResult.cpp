@@ -42,7 +42,7 @@
 #include "nsDOMError.h"
 #include "mozilla/dom/Element.h"
 #include "nsIAttribute.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
 #include "nsDOMString.h"
@@ -54,8 +54,8 @@ using namespace mozilla::dom;
 nsXPathResult::nsXPathResult() : mDocument(nsnull),
                                  mCurrentPos(0),
                                  mResultType(ANY_TYPE),
-                                 mInvalidIteratorState(true),
-                                 mBooleanResult(false),
+                                 mInvalidIteratorState(PR_TRUE),
+                                 mBooleanResult(PR_FALSE),
                                  mNumberResult(0)
 {
 }
@@ -145,7 +145,7 @@ nsXPathResult::GetStringValue(nsAString &aStringValue)
 }
 
 NS_IMETHODIMP
-nsXPathResult::GetBooleanValue(bool *aBooleanValue)
+nsXPathResult::GetBooleanValue(PRBool *aBooleanValue)
 {
     if (mResultType != BOOLEAN_TYPE) {
         return NS_ERROR_DOM_TYPE_ERR;
@@ -174,7 +174,7 @@ nsXPathResult::GetSingleNodeValue(nsIDOMNode **aSingleNodeValue)
 }
 
 NS_IMETHODIMP
-nsXPathResult::GetInvalidIteratorState(bool *aInvalidIteratorState)
+nsXPathResult::GetInvalidIteratorState(PRBool *aInvalidIteratorState)
 {
     *aInvalidIteratorState = isIterator() && mInvalidIteratorState;
 
@@ -335,7 +335,7 @@ nsXPathResult::SetExprResult(txAExprResult* aExprResult, PRUint16 aResultType,
         return NS_OK;
     }
 
-    mInvalidIteratorState = false;
+    mInvalidIteratorState = PR_FALSE;
 
     if (mResultNodes.Count() > 0) {
         // If we support the document() function in DOM-XPath we need to
@@ -384,7 +384,7 @@ nsXPathResult::Invalidate(const nsIContent* aChangeRoot)
         }
     }
 
-    mInvalidIteratorState = true;
+    mInvalidIteratorState = PR_TRUE;
     // Make sure nulling out mDocument is the last thing we do.
     if (mDocument) {
         mDocument->RemoveMutationObserver(this);

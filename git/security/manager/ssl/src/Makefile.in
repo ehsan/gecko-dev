@@ -60,13 +60,13 @@ CPPSRCS = 				\
 	nsRecentBadCerts.cpp \
         nsClientAuthRemember.cpp        \
 	nsPSMBackgroundThread.cpp       \
+	nsSSLThread.cpp                 \
 	nsCertVerificationThread.cpp    \
 	nsProtectedAuthThread.cpp \
 	nsNSSCallbacks.cpp		\
 	nsNSSComponent.cpp		\
 	nsNSSErrors.cpp			\
 	nsNSSIOLayer.cpp		\
-	SSLServerCertVerification.cpp   \
 	nsSSLStatus.cpp		\
 	nsNSSModule.cpp			\
 	nsSSLSocketProvider.cpp		\
@@ -103,7 +103,6 @@ CPPSRCS = 				\
   nsRandomGenerator.cpp \
   NSSErrorsService.cpp \
   nsNSSCertificateFakeTransport.cpp \
-  PSMRunnable.cpp \
   $(NULL)
 
 ifdef MOZ_XUL

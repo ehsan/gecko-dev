@@ -370,12 +370,7 @@ public:
     /**
      * Return the appropriate WindowsThemeIdentifier for the current theme.
      */
-    eIntID_WindowsThemeIdentifier,
-    /**
-     * 0: scrollbar button repeats to scroll only when cursor is on the button.
-     * 1: scrollbar button repeats to scroll even if cursor is outside of it.
-     */
-    eIntID_ScrollbarButtonAutoRepeatBehavior
+    eIntID_WindowsThemeIdentifier
   };
 
   /**
@@ -462,7 +457,7 @@ public:
 
   static nscolor GetColor(ColorID aID, nscolor aDefault = NS_RGB(0, 0, 0))
   {
-    nscolor result = NS_RGB(0, 0, 0);
+    nscolor result;
     if (NS_FAILED(GetColor(aID, &result))) {
       return aDefault;
     }
@@ -498,7 +493,7 @@ public:
    * result of GetPasswordCharacter(), GetEchoPassword() returns TRUE.
    * Otherwise, FALSE.
    */
-  static bool GetEchoPassword();
+  static PRBool GetEchoPassword();
 
   /**
    * When system look and feel is changed, Refresh() must be called.  Then,

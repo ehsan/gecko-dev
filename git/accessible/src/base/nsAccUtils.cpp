@@ -320,7 +320,7 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
   }
 }
 
-bool
+PRBool
 nsAccUtils::HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom)
 {
   NS_ASSERTION(aContent, "aContent is null in call to HasDefinedARIAToken!");
@@ -330,9 +330,9 @@ nsAccUtils::HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom)
                             nsGkAtoms::_empty, eCaseMatters) ||
       aContent->AttrValueIs(kNameSpaceID_None, aAtom,
                             nsGkAtoms::_undefined, eCaseMatters)) {
-        return false;
+        return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 nsIAtom*
@@ -400,7 +400,7 @@ nsAccUtils::GetMultiSelectableContainer(nsINode* aNode)
   return nsnull;
 }
 
-bool
+PRBool
 nsAccUtils::IsARIASelected(nsAccessible *aAccessible)
 {
   return aAccessible->GetContent()->
@@ -587,40 +587,40 @@ nsAccUtils::GetAttributeCharacteristics(nsIAtom* aAtom)
     return 0;
 }
 
-bool
+PRBool
 nsAccUtils::GetLiveAttrValue(PRUint32 aRule, nsAString& aValue)
 {
   switch (aRule) {
     case eOffLiveAttr:
       aValue = NS_LITERAL_STRING("off");
-      return true;
+      return PR_TRUE;
     case ePoliteLiveAttr:
       aValue = NS_LITERAL_STRING("polite");
-      return true;
+      return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 #ifdef DEBUG_A11Y
 
-bool
+PRBool
 nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible *aAccessible)
 {
-  bool foundText = false;
+  PRBool foundText = PR_FALSE;
   
   nsCOMPtr<nsIAccessibleDocument> accDoc = do_QueryObject(aAccessible);
   if (accDoc) {
     // Don't test for accessible docs, it makes us create accessibles too
     // early and fire mutation events before we need to
-    return true;
+    return PR_TRUE;
   }
 
   PRInt32 childCount = aAccessible->GetChildCount();
   for (PRint32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessible *child = GetChildAt(childIdx);
     if (IsText(child)) {
-      foundText = true;
+      foundText = PR_TRUE;
       break;
     }
   }
@@ -629,10 +629,10 @@ nsAccUtils::IsTextInterfaceSupportCorrect(nsAccessible *aAccessible)
     // found text child node
     nsCOMPtr<nsIAccessibleText> text = do_QueryObject(aAccessible);
     if (!text)
-      return false;
+      return PR_FALSE;
   }
 
-  return true; 
+  return PR_TRUE; 
 }
 #endif
 
@@ -655,7 +655,7 @@ nsAccUtils::TextLength(nsAccessible *aAccessible)
   return text.Length();
 }
 
-bool
+PRBool
 nsAccUtils::MustPrune(nsIAccessible *aAccessible)
 { 
   PRUint32 role = nsAccUtils::Role(aAccessible);
@@ -693,7 +693,7 @@ nsAccUtils::GetHeaderCellsFor(nsIAccessibleTable *aTable,
   rv = aCell->GetColumnIndex(&colIdx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool moveToLeft = aRowOrColHeaderCells == eRowHeaderCells;
+  PRBool moveToLeft = aRowOrColHeaderCells == eRowHeaderCells;
 
   // Move to the left or top to find row header cells or column header cells.
   PRInt32 index = (moveToLeft ? colIdx : rowIdx) - 1;
@@ -721,12 +721,12 @@ nsAccUtils::GetHeaderCellsFor(nsIAccessibleTable *aTable,
     if (origIdx == index) {
       // Append original header cells only.
       PRUint32 role = Role(cell);
-      bool isHeader = moveToLeft ?
+      PRBool isHeader = moveToLeft ?
         role == nsIAccessibleRole::ROLE_ROWHEADER :
         role == nsIAccessibleRole::ROLE_COLUMNHEADER;
 
       if (isHeader)
-        cells->AppendElement(cell, false);
+        cells->AppendElement(cell, PR_FALSE);
     }
   }
 

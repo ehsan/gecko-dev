@@ -68,19 +68,19 @@ public:
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers);
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true);
+                              PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
+                   const nsAString& aValue, PRBool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
   }
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify);
+                           PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify);
+                             PRBool aNotify);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -101,12 +101,12 @@ protected:
   }
 
   // nsStyleLinkElement overrides
-  already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline);
+  already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
 
   void GetStyleSheetInfo(nsAString& aTitle,
                          nsAString& aType,
                          nsAString& aMedia,
-                         bool* aIsAlternate);
+                         PRBool* aIsAlternate);
   /**
    * Common method to call from the various mutation observer methods.
    * aContent is a content node that's either the one that changed or its
@@ -158,7 +158,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGStyleElement)
 nsresult
 nsSVGStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers)
+                              PRBool aCompileEventHandlers)
 {
   nsresult rv = nsSVGStyleElementBase::BindToTree(aDocument, aParent,
                                                   aBindingParent,
@@ -172,7 +172,7 @@ nsSVGStyleElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsSVGStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsSVGStyleElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
 
@@ -183,7 +183,7 @@ nsSVGStyleElement::UnbindFromTree(bool aDeep, bool aNullParent)
 nsresult
 nsSVGStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify)
+                           PRBool aNotify)
 {
   nsresult rv = nsSVGStyleElementBase::SetAttr(aNameSpaceID, aName, aPrefix,
                                                aValue, aNotify);
@@ -200,7 +200,7 @@ nsSVGStyleElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsSVGStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                              bool aNotify)
+                              PRBool aNotify)
 {
   nsresult rv = nsSVGStyleElementBase::UnsetAttr(aNameSpaceID, aAttribute,
                                                  aNotify);
@@ -274,7 +274,7 @@ NS_IMETHODIMP nsSVGStyleElement::GetXmlspace(nsAString & aXmlspace)
 }
 NS_IMETHODIMP nsSVGStyleElement::SetXmlspace(const nsAString & aXmlspace)
 {
-  return SetAttr(kNameSpaceID_XML, nsGkAtoms::space, aXmlspace, true);
+  return SetAttr(kNameSpaceID_XML, nsGkAtoms::space, aXmlspace, PR_TRUE);
 }
 
 /* attribute DOMString type; */
@@ -286,7 +286,7 @@ NS_IMETHODIMP nsSVGStyleElement::GetType(nsAString & aType)
 }
 NS_IMETHODIMP nsSVGStyleElement::SetType(const nsAString & aType)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::type, aType, true);
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::type, aType, PR_TRUE);
 }
 
 /* attribute DOMString media; */
@@ -298,7 +298,7 @@ NS_IMETHODIMP nsSVGStyleElement::GetMedia(nsAString & aMedia)
 }
 NS_IMETHODIMP nsSVGStyleElement::SetMedia(const nsAString & aMedia)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::media, aMedia, true);
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::media, aMedia, PR_TRUE);
 }
 
 /* attribute DOMString title; */
@@ -310,16 +310,16 @@ NS_IMETHODIMP nsSVGStyleElement::GetTitle(nsAString & aTitle)
 }
 NS_IMETHODIMP nsSVGStyleElement::SetTitle(const nsAString & aTitle)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::title, aTitle, true);
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::title, aTitle, PR_TRUE);
 }
 
 //----------------------------------------------------------------------
 // nsStyleLinkElement methods
 
 already_AddRefed<nsIURI>
-nsSVGStyleElement::GetStyleSheetURL(bool* aIsInline)
+nsSVGStyleElement::GetStyleSheetURL(PRBool* aIsInline)
 {
-  *aIsInline = true;
+  *aIsInline = PR_TRUE;
   return nsnull;
 }
 
@@ -327,9 +327,9 @@ void
 nsSVGStyleElement::GetStyleSheetInfo(nsAString& aTitle,
                                      nsAString& aType,
                                      nsAString& aMedia,
-                                     bool* aIsAlternate)
+                                     PRBool* aIsAlternate)
 {
-  *aIsAlternate = false;
+  *aIsAlternate = PR_FALSE;
 
   nsAutoString title;
   GetAttr(kNameSpaceID_None, nsGkAtoms::title, title);

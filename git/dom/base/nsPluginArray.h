@@ -43,22 +43,16 @@
 #include "nsIDOMPlugin.h"
 #include "nsIPluginHost.h"
 #include "nsIURL.h"
-#include "nsWeakReference.h"
 
-namespace mozilla {
-namespace dom {
-class Navigator;
-} // namespace dom
-} // namespace mozilla
-
+class nsNavigator;
 class nsIDocShell;
 
-// NB: Due to weak references, Navigator has intimate knowledge of our
+// NB: Due to weak references, nsNavigator has intimate knowledge of our
 // internals.
 class nsPluginArray : public nsIDOMPluginArray
 {
 public:
-  nsPluginArray(mozilla::dom::Navigator* navigator, nsIDocShell *aDocShell);
+  nsPluginArray(nsNavigator* navigator, nsIDocShell *aDocShell);
   virtual ~nsPluginArray();
 
   NS_DECL_ISUPPORTS
@@ -90,17 +84,18 @@ public:
 
 private:
   nsresult GetPlugins();
-  bool AllowPlugins();
+  PRBool AllowPlugins();
 
 public:
+  void SetDocShell(nsIDocShell *aDocShell);
   void Invalidate();
 
 protected:
-  mozilla::dom::Navigator* mNavigator;
+  nsNavigator* mNavigator;
   nsCOMPtr<nsIPluginHost> mPluginHost;
   PRUint32 mPluginCount;
   nsIDOMPlugin** mPluginArray;
-  nsWeakPtr mDocShell;
+  nsIDocShell* mDocShell; // weak reference
 };
 
 class nsPluginElement : public nsIDOMPlugin

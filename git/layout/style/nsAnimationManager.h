@@ -75,7 +75,7 @@ public:
                        const nsString& aAnimationName,
                        PRUint32 aMessage, mozilla::TimeDuration aElapsedTime)
       : mElement(aElement),
-        mEvent(true, aMessage, aAnimationName, aElapsedTime.ToSeconds())
+        mEvent(PR_TRUE, aMessage, aAnimationName, aElapsedTime.ToSeconds())
     {
     }
 
@@ -83,7 +83,7 @@ public:
     // to ourselves in order to work with nsTArray
     AnimationEventInfo(const AnimationEventInfo &aOther)
       : mElement(aOther.mElement),
-        mEvent(true, aOther.mEvent.message,
+        mEvent(PR_TRUE, aOther.mEvent.message,
                aOther.mEvent.animationName, aOther.mEvent.elapsedTime)
     {
     }
@@ -115,7 +115,7 @@ public:
                                    mozilla::dom::Element* aElement);
 
   void KeyframesListIsDirty() {
-    mKeyframesListIsDirty = true;
+    mKeyframesListIsDirty = PR_TRUE;
   }
 
   typedef InfallibleTArray<AnimationEventInfo> EventArray;
@@ -132,7 +132,7 @@ public:
 private:
   ElementAnimations* GetElementAnimations(mozilla::dom::Element *aElement,
                                           nsCSSPseudoElements::Type aPseudoType,
-                                          bool aCreateIfNeeded);
+                                          PRBool aCreateIfNeeded);
   void BuildAnimations(nsStyleContext* aStyleContext,
                        InfallibleTArray<ElementAnimation>& aAnimations);
   bool BuildSegment(InfallibleTArray<AnimationPropertySegment>& aSegments,

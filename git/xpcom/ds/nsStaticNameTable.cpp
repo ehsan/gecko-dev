@@ -52,18 +52,18 @@
 struct NameTableKey
 {
     NameTableKey(const nsAFlatCString* aKeyStr)
-        : mIsUnichar(false)
+        : mIsUnichar(PR_FALSE)
     {
         mKeyStr.m1b = aKeyStr;
     }
         
     NameTableKey(const nsAFlatString* aKeyStr)
-        : mIsUnichar(true)
+        : mIsUnichar(PR_TRUE)
     {
         mKeyStr.m2b = aKeyStr;
     }
 
-    bool mIsUnichar;
+    PRBool mIsUnichar;
     union {
         const nsAFlatCString* m1b;
         const nsAFlatString* m2b;
@@ -77,7 +77,7 @@ struct NameTableEntry : public PLDHashEntryHdr
     PRInt32 mIndex;
 };
 
-static bool
+static PRBool
 matchNameKeysCaseInsensitive(PLDHashTable*, const PLDHashEntryHdr* aHdr,
                              const void* key)
 {
@@ -157,7 +157,7 @@ nsStaticCaseInsensitiveNameTable::~nsStaticCaseInsensitiveNameTable()
     MOZ_COUNT_DTOR(nsStaticCaseInsensitiveNameTable);
 }
 
-bool 
+PRBool 
 nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], PRInt32 Count)
 {
     NS_ASSERTION(!mNameArray, "double Init");
@@ -168,13 +168,13 @@ nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], PRInt32 Count
     mNameArray = (nsDependentCString*)
                    nsMemory::Alloc(Count * sizeof(nsDependentCString));
     if (!mNameArray)
-        return false;
+        return PR_FALSE;
 
     if (!PL_DHashTableInit(&mNameTable,
                            &nametable_CaseInsensitiveHashTableOps,
                            nsnull, sizeof(NameTableEntry), Count)) {
         mNameTable.ops = nsnull;
-        return false;
+        return PR_FALSE;
     }
 
     for (PRInt32 index = 0; index < Count; ++index) {
@@ -209,7 +209,7 @@ nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], PRInt32 Count
         entry->mString = strPtr;      // not owned!
         entry->mIndex = index;
     }
-    return true;
+    return PR_TRUE;
 }
 
 PRInt32

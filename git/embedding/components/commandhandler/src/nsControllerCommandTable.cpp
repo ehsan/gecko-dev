@@ -50,8 +50,8 @@ NS_NewControllerCommandTable(nsIControllerCommandTable** aResult);
 
 
 nsControllerCommandTable::nsControllerCommandTable()
-: mCommandsTable(NUM_COMMANDS_BOUNDS, false)
-, mMutable(true)
+: mCommandsTable(NUM_COMMANDS_BOUNDS, PR_FALSE)
+, mMutable(PR_TRUE)
 {
 }
 
@@ -65,7 +65,7 @@ NS_IMPL_ISUPPORTS2(nsControllerCommandTable, nsIControllerCommandTable, nsISuppo
 NS_IMETHODIMP
 nsControllerCommandTable::MakeImmutable(void)
 {
-  mMutable = false;
+  mMutable = PR_FALSE;
   return NS_OK;
 }
 
@@ -93,7 +93,7 @@ nsControllerCommandTable::UnregisterCommand(const char * aCommandName, nsIContro
 
   nsCStringKey commandKey(aCommandName);
 
-  bool wasRemoved = mCommandsTable.Remove(&commandKey);
+  PRBool wasRemoved = mCommandsTable.Remove(&commandKey);
   return wasRemoved ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -118,11 +118,11 @@ nsControllerCommandTable::FindCommandHandler(const char * aCommandName, nsIContr
 
 /* boolean isCommandEnabled (in wstring command); */
 NS_IMETHODIMP
-nsControllerCommandTable::IsCommandEnabled(const char * aCommandName, nsISupports *aCommandRefCon, bool *aResult)
+nsControllerCommandTable::IsCommandEnabled(const char * aCommandName, nsISupports *aCommandRefCon, PRBool *aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
-  *aResult = false;
+  *aResult = PR_FALSE;
       
   // find the command  
   nsCOMPtr<nsIControllerCommand> commandHandler;
@@ -157,13 +157,13 @@ nsControllerCommandTable::UpdateCommandState(const char * aCommandName, nsISuppo
 }
 
 NS_IMETHODIMP
-nsControllerCommandTable::SupportsCommand(const char * aCommandName, nsISupports *aCommandRefCon, bool *aResult)
+nsControllerCommandTable::SupportsCommand(const char * aCommandName, nsISupports *aCommandRefCon, PRBool *aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
   // XXX: need to check the readonly and disabled states
 
-  *aResult = false;
+  *aResult = PR_FALSE;
   
   // find the command  
   nsCOMPtr<nsIControllerCommand> commandHandler;

@@ -173,7 +173,7 @@ already_AddRefed<nsStyleContext>
 nsStyleContext::FindChildWithRules(const nsIAtom* aPseudoTag, 
                                    nsRuleNode* aRuleNode,
                                    nsRuleNode* aRulesIfVisited,
-                                   bool aRelevantLinkVisited)
+                                   PRBool aRelevantLinkVisited)
 {
   NS_ABORT_IF_FALSE(aRulesIfVisited || !aRelevantLinkVisited,
     "aRelevantLinkVisited should only be set when we have a separate style");
@@ -190,7 +190,7 @@ nsStyleContext::FindChildWithRules(const nsIAtom* aPseudoTag,
           child->mPseudoTag == aPseudoTag &&
           !child->IsStyleIfVisited() &&
           child->RelevantLinkVisited() == aRelevantLinkVisited) {
-        bool match = false;
+        PRBool match = PR_FALSE;
         if (aRulesIfVisited) {
           match = child->GetStyleIfVisited() &&
                   child->GetStyleIfVisited()->mRuleNode == aRulesIfVisited;
@@ -243,7 +243,7 @@ const void* nsStyleContext::GetStyleData(nsStyleStructID aSID)
   const void* cachedData = GetCachedStyleData(aSID);
   if (cachedData)
     return cachedData; // We have computed data stored on this node in the context tree.
-  return mRuleNode->GetStyleData(aSID, this, true); // Our rule node will take care of it for us.
+  return mRuleNode->GetStyleData(aSID, this, PR_TRUE); // Our rule node will take care of it for us.
 }
 
 // This is an evil evil function, since it forces you to alloc your own separate copy of
@@ -374,17 +374,10 @@ nsStyleContext::ApplyStyleFixups(nsPresContext* aPresContext)
         disp->mDisplay != NS_STYLE_DISPLAY_TABLE) {
       nsStyleDisplay *mutable_display = static_cast<nsStyleDisplay*>
                                                    (GetUniqueStyleData(eStyleStruct_Display));
-      // If we're in this code, then mOriginalDisplay doesn't matter
-      // for purposes of the cascade (because this nsStyleDisplay
-      // isn't living in the ruletree anyway), and for determining
-      // hypothetical boxes it's better to have mOriginalDisplay
-      // matching mDisplay here.
       if (mutable_display->mDisplay == NS_STYLE_DISPLAY_INLINE_TABLE)
-        mutable_display->mOriginalDisplay = mutable_display->mDisplay =
-          NS_STYLE_DISPLAY_TABLE;
+        mutable_display->mDisplay = NS_STYLE_DISPLAY_TABLE;
       else
-        mutable_display->mOriginalDisplay = mutable_display->mDisplay =
-          NS_STYLE_DISPLAY_BLOCK;
+        mutable_display->mDisplay = NS_STYLE_DISPLAY_BLOCK;
     }
   }
 
@@ -411,7 +404,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
   // called on two style contexts that point to the same element, so we
   // know that our position in the style context tree is the same and
   // our position in the rule node tree is also the same.
-  bool compare = mRuleNode != aOther->mRuleNode;
+  PRBool compare = mRuleNode != aOther->mRuleNode;
 
 #define DO_STRUCT_DIFFERENCE(struct_)                                         \
   PR_BEGIN_MACRO                                                              \
@@ -510,7 +503,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
   } else if (thisVis && !NS_IsHintSubset(nsChangeHint_RepaintFrame, hint)) {
     // Both style contexts have a style-if-visited.
-    bool change = false;
+    PRBool change = PR_FALSE;
 
     // NB: Calling Peek on |this|, not |thisVis|, since callers may look
     // at a struct on |this| without looking at the same struct on
@@ -520,7 +513,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
     if (PeekStyleColor()) {
       if (thisVis->GetStyleColor()->mColor !=
           otherVis->GetStyleColor()->mColor) {
-        change = true;
+        change = PR_TRUE;
       }
     }
 
@@ -528,7 +521,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
     if (!change && PeekStyleBackground()) {
       if (thisVis->GetStyleBackground()->mBackgroundColor !=
           otherVis->GetStyleBackground()->mBackgroundColor) {
-        change = true;
+        change = PR_TRUE;
       }
     }
 
@@ -537,12 +530,12 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
       const nsStyleBorder *thisVisBorder = thisVis->GetStyleBorder();
       const nsStyleBorder *otherVisBorder = otherVis->GetStyleBorder();
       NS_FOR_CSS_SIDES(side) {
-        bool thisFG, otherFG;
+        PRBool thisFG, otherFG;
         nscolor thisColor, otherColor;
         thisVisBorder->GetBorderColor(side, thisColor, thisFG);
         otherVisBorder->GetBorderColor(side, otherColor, otherFG);
         if (thisFG != otherFG || (!thisFG && thisColor != otherColor)) {
-          change = true;
+          change = PR_TRUE;
           break;
         }
       }
@@ -552,14 +545,14 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
     if (!change && PeekStyleOutline()) {
       const nsStyleOutline *thisVisOutline = thisVis->GetStyleOutline();
       const nsStyleOutline *otherVisOutline = otherVis->GetStyleOutline();
-      bool haveColor;
+      PRBool haveColor;
       nscolor thisColor, otherColor;
       if (thisVisOutline->GetOutlineInitialColor() != 
             otherVisOutline->GetOutlineInitialColor() ||
           (haveColor = thisVisOutline->GetOutlineColor(thisColor)) != 
             otherVisOutline->GetOutlineColor(otherColor) ||
           (haveColor && thisColor != otherColor)) {
-        change = true;
+        change = PR_TRUE;
       }
     }
 
@@ -570,7 +563,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
       if (thisVisColumn->mColumnRuleColor != otherVisColumn->mColumnRuleColor ||
           thisVisColumn->mColumnRuleColorIsForeground !=
             otherVisColumn->mColumnRuleColorIsForeground) {
-        change = true;
+        change = PR_TRUE;
       }
     }
 
@@ -579,14 +572,14 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
       const nsStyleTextReset *thisVisTextReset = thisVis->GetStyleTextReset();
       const nsStyleTextReset *otherVisTextReset = otherVis->GetStyleTextReset();
       nscolor thisVisDecColor, otherVisDecColor;
-      bool thisVisDecColorIsFG, otherVisDecColorIsFG;
+      PRBool thisVisDecColorIsFG, otherVisDecColorIsFG;
       thisVisTextReset->GetDecorationColor(thisVisDecColor,
                                            thisVisDecColorIsFG);
       otherVisTextReset->GetDecorationColor(otherVisDecColor,
                                             otherVisDecColorIsFG);
       if (thisVisDecColorIsFG != otherVisDecColorIsFG ||
           (!thisVisDecColorIsFG && thisVisDecColor != otherVisDecColor)) {
-        change = true;
+        change = PR_TRUE;
       }
     }
 
@@ -596,7 +589,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther)
       const nsStyleSVG *otherVisSVG = otherVis->GetStyleSVG();
       if (thisVisSVG->mFill != otherVisSVG->mFill ||
           thisVisSVG->mStroke != otherVisSVG->mStroke) {
-        change = true;
+        change = PR_TRUE;
       }
     }
 
@@ -726,7 +719,7 @@ static nscolor ExtractColor(nsCSSProperty aProperty,
 {
   nsStyleAnimation::Value val;
 #ifdef DEBUG
-  bool success =
+  PRBool success =
 #endif
     nsStyleAnimation::ExtractComputedValue(aProperty, aStyleContext, val);
   NS_ABORT_IF_FALSE(success,
@@ -771,14 +764,14 @@ nsStyleContext::GetVisitedDependentColor(nsCSSProperty aProperty)
 }
 
 /* static */ nscolor
-nsStyleContext::CombineVisitedColors(nscolor *aColors, bool aLinkIsVisited)
+nsStyleContext::CombineVisitedColors(nscolor *aColors, PRBool aLinkIsVisited)
 {
   if (NS_GET_A(aColors[1]) == 0) {
     // If the style-if-visited is transparent, then just use the
     // unvisited style rather than using the (meaningless) color
     // components of the visited style along with a potentially
     // non-transparent alpha value.
-    aLinkIsVisited = false;
+    aLinkIsVisited = PR_FALSE;
   }
 
   // NOTE: We want this code to have as little timing dependence as

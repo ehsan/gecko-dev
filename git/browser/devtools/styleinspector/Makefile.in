@@ -44,7 +44,9 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 ifdef ENABLE_TESTS
-DIRS += test/browser
+ifneq (mobile,$(MOZ_BUILD_APP))
+	DIRS += test
+endif
 endif
 
 include $(topsrcdir)/config/rules.mk

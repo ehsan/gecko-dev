@@ -336,10 +336,9 @@ LayerManagerD3D10::EndEmptyTransaction()
 
 void
 LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
-                                  void* aCallbackData,
-                                  EndTransactionFlags aFlags)
+                                  void* aCallbackData)
 {
-  if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
+  if (mRoot) {
     mCurrentCallbackInfo.Callback = aCallback;
     mCurrentCallbackInfo.CallbackData = aCallbackData;
 
@@ -605,6 +604,7 @@ LayerManagerD3D10::VerifyBufferSize()
   nsIntRect rect;
   mWidget->GetClientBounds(rect);
 
+  HRESULT hr;
   if (mSwapChain) {
     DXGI_SWAP_CHAIN_DESC swapDesc;
     mSwapChain->GetDesc(&swapDesc);
@@ -642,11 +642,11 @@ LayerManagerD3D10::VerifyBufferSize()
     desc.MiscFlags = D3D10_RESOURCE_MISC_SHARED
                      // FIXME/bug 662109: synchronize using KeyedMutex
                      /*D3D10_RESOURCE_MISC_SHARED_KEYEDMUTEX*/;
-    HRESULT hr = device()->CreateTexture2D(&desc, nsnull, getter_AddRefs(mBackBuffer));
+    hr = device()->CreateTexture2D(&desc, nsnull, getter_AddRefs(mBackBuffer));
     if (FAILED(hr)) {
-      ReportFailure(NS_LITERAL_CSTRING("LayerManagerD3D10::VerifyBufferSize(): Failed to create shared texture"),
-                    hr);
-      NS_RUNTIMEABORT("Failed to create back buffer");
+        ReportFailure(nsDependentCString("Failed to create shared texture"),
+                      hr);
+        NS_RUNTIMEABORT("Failed to create back buffer");
     }
 
     // XXX resize texture?
@@ -728,6 +728,11 @@ LayerManagerD3D10::Render()
         windowLayer = new WindowLayer(this);
         windowLayer->SetShadow(ConstructShadowFor(windowLayer));
         CreatedThebesLayer(windowLayer);
+        ShadowLayerForwarder::CreatedThebesBuffer(windowLayer,
+                                                  contentRect,
+                                                  contentRect,
+                                                  SurfaceDescriptor());
+
         mRootForShadowTree->InsertAfter(windowLayer, nsnull);
         ShadowLayerForwarder::InsertAfter(mRootForShadowTree, windowLayer);
     }
@@ -798,12 +803,7 @@ LayerManagerD3D10::PaintToTarget()
 
   nsRefPtr<ID3D10Texture2D> readTexture;
 
-  HRESULT hr = device()->CreateTexture2D(&softDesc, NULL, getter_AddRefs(readTexture));
-  if (FAILED(hr)) {
-    ReportFailure(NS_LITERAL_CSTRING("LayerManagerD3D10::PaintToTarget(): Failed to create texture"),
-                  hr);
-    return;
-  }
+  device()->CreateTexture2D(&softDesc, NULL, getter_AddRefs(readTexture));
 
   device()->CopyResource(readTexture, backBuf);
 

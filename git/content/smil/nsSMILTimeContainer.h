@@ -99,18 +99,18 @@ public:
    * does not test if aType is the exclusive pause source.
    *
    * @param @aType The pause source to test for.
-   * @return true if this container is paused by aType.
+   * @return PR_TRUE if this container is paused by aType.
    */
-  bool IsPausedByType(PRUint32 aType) const { return mPauseState & aType; }
+  PRBool IsPausedByType(PRUint32 aType) const { return mPauseState & aType; }
 
   /**
    * Returns true if this time container is paused.
    * Generally you should test for a specific type of pausing using
    * IsPausedByType.
    *
-   * @return true if this container is paused, false otherwise.
+   * @return PR_TRUE if this container is paused, PR_FALSE otherwise.
    */
-  bool IsPaused() const { return mPauseState != 0; }
+  PRBool IsPaused() const { return mPauseState != 0; }
 
   /*
    * Return the time elapsed since this time container's begin time (expressed
@@ -169,22 +169,22 @@ public:
    * This is most useful as an optimisation for skipping time containers that
    * don't require a sample.
    */
-  bool NeedsSample() const { return !mPauseState || mNeedsPauseSample; }
+  PRBool NeedsSample() const { return !mPauseState || mNeedsPauseSample; }
 
   /*
    * Indicates if the elements of this time container need to be rewound.
    * This occurs during a backwards seek.
    */
-  bool NeedsRewind() const { return mNeedsRewind; }
-  void ClearNeedsRewind() { mNeedsRewind = false; }
+  PRBool NeedsRewind() const { return mNeedsRewind; }
+  void ClearNeedsRewind() { mNeedsRewind = PR_FALSE; }
 
   /*
    * Indicates the time container is currently processing a SetCurrentTime
    * request and appropriate seek behaviour should be applied by child elements
    * (e.g. not firing time events).
    */
-  bool IsSeeking() const { return mIsSeeking; }
-  void MarkSeekFinished() { mIsSeeking = false; }
+  PRBool IsSeeking() const { return mIsSeeking; }
+  void MarkSeekFinished() { mIsSeeking = PR_FALSE; }
 
   /*
    * Sets the parent time container.
@@ -199,9 +199,9 @@ public:
    * @param   aMilestone  The milestone to register in container time.
    * @param   aElement    The timebase element that needs a sample at
    *                      aMilestone.
-   * @return  true if the element was successfully added, false otherwise.
+   * @return  PR_TRUE if the element was successfully added, PR_FALSE otherwise.
    */
-  bool AddMilestone(const nsSMILMilestone& aMilestone,
+  PRBool AddMilestone(const nsSMILMilestone& aMilestone,
                       nsISMILAnimationElement& aElement);
 
   /*
@@ -215,10 +215,10 @@ public:
    *
    * @param[out] aNextMilestone The next milestone with time in parent time.
    *
-   * @return true if there exists another milestone, false otherwise in
+   * @return PR_TRUE if there exists another milestone, PR_FALSE otherwise in
    * which case aNextMilestone will be unmodified.
    */
-  bool GetNextMilestoneInParentTime(nsSMILMilestone& aNextMilestone) const;
+  PRBool GetNextMilestoneInParentTime(nsSMILMilestone& aNextMilestone) const;
 
   typedef nsTArray<nsRefPtr<nsISMILAnimationElement> > AnimElemArray;
 
@@ -230,9 +230,9 @@ public:
    *                         must be <= GetNextMilestoneInParentTime.
    * @param[out] aMatchedElements The array to which matching elements will be
    *                              appended.
-   * @return true if one or more elements match, false otherwise.
+   * @return PR_TRUE if one or more elements match, PR_FALSE otherwise.
    */
-  bool PopMilestoneElementsAtMilestone(const nsSMILMilestone& aMilestone,
+  PRBool PopMilestoneElementsAtMilestone(const nsSMILMilestone& aMilestone,
                                          AnimElemArray& aMatchedElements);
 
   // Cycle-collection support
@@ -293,10 +293,10 @@ protected:
   nsSMILTime mPauseStart;
 
   // Whether or not a pause sample is required
-  bool mNeedsPauseSample;
+  PRPackedBool mNeedsPauseSample;
 
-  bool mNeedsRewind; // Backwards seek performed
-  bool mIsSeeking; // Currently in the middle of a seek operation
+  PRPackedBool mNeedsRewind; // Backwards seek performed
+  PRPackedBool mIsSeeking; // Currently in the middle of a seek operation
 
   // A bitfield of the pause state for all pause requests
   PRUint32 mPauseState;
@@ -308,7 +308,7 @@ protected:
       : mMilestone(aMilestone), mTimebase(&aElement)
     { }
 
-    bool operator<(const MilestoneEntry& aOther) const
+    PRBool operator<(const MilestoneEntry& aOther) const
     {
       return mMilestone < aOther.mMilestone;
     }

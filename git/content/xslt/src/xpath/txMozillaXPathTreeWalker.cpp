@@ -96,11 +96,11 @@ txXPathTreeWalker::moveToRoot()
     mDescendants.Clear();
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToElementById(const nsAString& aID)
 {
     if (aID.IsEmpty()) {
-        return false;
+        return PR_FALSE;
     }
 
     nsIDocument* doc = mPosition.mNode->GetCurrentDoc();
@@ -121,7 +121,7 @@ txXPathTreeWalker::moveToElementById(const nsAString& aID)
     }
 
     if (!content) {
-        return false;
+        return PR_FALSE;
     }
 
     mPosition.mIndex = txXPathNode::eContent;
@@ -129,38 +129,38 @@ txXPathTreeWalker::moveToElementById(const nsAString& aID)
     mCurrentIndex = kUnknownIndex;
     mDescendants.Clear();
 
-    return true;
+    return PR_TRUE;
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToFirstAttribute()
 {
     if (!mPosition.isContent()) {
-        return false;
+        return PR_FALSE;
     }
 
     return moveToValidAttribute(0);
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToNextAttribute()
 {
     // XXX an assertion should be enough here with the current code
     if (!mPosition.isAttribute()) {
-        return false;
+        return PR_FALSE;
     }
 
     return moveToValidAttribute(mPosition.mIndex + 1);
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToValidAttribute(PRUint32 aStartIndex)
 {
     NS_ASSERTION(!mPosition.isDocument(), "documents doesn't have attrs");
 
     PRUint32 total = mPosition.Content()->GetAttrCount();
     if (aStartIndex >= total) {
-        return false;
+        return PR_FALSE;
     }
 
     PRUint32 index;
@@ -171,17 +171,17 @@ txXPathTreeWalker::moveToValidAttribute(PRUint32 aStartIndex)
         if (name->NamespaceID() != kNameSpaceID_XMLNS) {
             mPosition.mIndex = index;
 
-            return true;
+            return PR_TRUE;
         }
     }
-    return false;
+    return PR_FALSE;
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToNamedAttribute(nsIAtom* aLocalName, PRInt32 aNSID)
 {
     if (!mPosition.isContent()) {
-        return false;
+        return PR_FALSE;
     }
 
     const nsAttrName* name;
@@ -190,17 +190,17 @@ txXPathTreeWalker::moveToNamedAttribute(nsIAtom* aLocalName, PRInt32 aNSID)
         if (name->Equals(aLocalName, aNSID)) {
             mPosition.mIndex = i;
 
-            return true;
+            return PR_TRUE;
         }
     }
-    return false;
+    return PR_FALSE;
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToFirstChild()
 {
     if (mPosition.isAttribute()) {
-        return false;
+        return PR_FALSE;
     }
 
     NS_ASSERTION(!mPosition.isDocument() ||
@@ -209,9 +209,9 @@ txXPathTreeWalker::moveToFirstChild()
     NS_ASSERTION(mCurrentIndex != kUnknownIndex || mDescendants.IsEmpty(),
                  "Index should be known if parents index are");
 
-    nsIContent* child = mPosition.mNode->GetFirstChild();
+    nsIContent* child = mPosition.mNode->GetChildAt(0);
     if (!child) {
-        return false;
+        return PR_FALSE;
     }
     mPosition.mIndex = txXPathNode::eContent;
     mPosition.mNode = child;
@@ -222,14 +222,14 @@ txXPathTreeWalker::moveToFirstChild()
     }
     mCurrentIndex = 0;
 
-    return true;
+    return PR_TRUE;
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToLastChild()
 {
     if (mPosition.isAttribute()) {
-        return false;
+        return PR_FALSE;
     }
 
     NS_ASSERTION(!mPosition.isDocument() ||
@@ -240,9 +240,9 @@ txXPathTreeWalker::moveToLastChild()
 
     PRUint32 total = mPosition.mNode->GetChildCount();
     if (!total) {
-        return false;
+        return PR_FALSE;
     }
-    mPosition.mNode = mPosition.mNode->GetLastChild();
+    mPosition.mNode = mPosition.mNode->GetChildAt(total - 1);
 
     if (mCurrentIndex != kUnknownIndex &&
         !mDescendants.AppendValue(mCurrentIndex)) {
@@ -250,45 +250,45 @@ txXPathTreeWalker::moveToLastChild()
     }
     mCurrentIndex = total - 1;
 
-    return true;
+    return PR_TRUE;
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToNextSibling()
 {
     if (!mPosition.isContent()) {
-        return false;
+        return PR_FALSE;
     }
 
     return moveToSibling(1);
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToPreviousSibling()
 {
     if (!mPosition.isContent()) {
-        return false;
+        return PR_FALSE;
     }
 
     return moveToSibling(-1);
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToParent()
 {
     if (mPosition.isDocument()) {
-        return false;
+        return PR_FALSE;
     }
 
     if (mPosition.isAttribute()) {
         mPosition.mIndex = txXPathNode::eContent;
 
-        return true;
+        return PR_TRUE;
     }
 
     nsINode* parent = mPosition.mNode->GetNodeParent();
     if (!parent) {
-        return false;
+        return PR_FALSE;
     }
 
     PRUint32 count = mDescendants.Length();
@@ -304,10 +304,10 @@ txXPathTreeWalker::moveToParent()
       txXPathNode::eContent : txXPathNode::eDocument;
     mPosition.mNode = parent;
 
-    return true;
+    return PR_TRUE;
 }
 
-bool
+PRBool
 txXPathTreeWalker::moveToSibling(PRInt32 aDir)
 {
     NS_ASSERTION(mPosition.isContent(),
@@ -315,7 +315,7 @@ txXPathTreeWalker::moveToSibling(PRInt32 aDir)
 
     nsINode* parent = mPosition.mNode->GetNodeParent();
     if (!parent) {
-        return false;
+        return PR_FALSE;
     }
     if (mCurrentIndex == kUnknownIndex) {
         mCurrentIndex = parent->IndexOf(mPosition.mNode);
@@ -326,13 +326,13 @@ txXPathTreeWalker::moveToSibling(PRInt32 aDir)
     PRUint32 newIndex = mCurrentIndex + aDir;
     nsIContent* newChild = parent->GetChildAt(newIndex);
     if (!newChild) {
-        return false;
+        return PR_FALSE;
     }
 
     mPosition.mNode = newChild;
     mCurrentIndex = newIndex;
 
-    return true;
+    return PR_TRUE;
 }
 
 txXPathNode::txXPathNode(const txXPathNode& aNode)
@@ -356,12 +356,12 @@ txXPathNode::~txXPathNode()
 }
 
 /* static */
-bool
+PRBool
 txXPathNodeUtils::getAttr(const txXPathNode& aNode, nsIAtom* aLocalName,
                           PRInt32 aNSID, nsAString& aValue)
 {
     if (aNode.isDocument() || aNode.isAttribute()) {
-        return false;
+        return PR_FALSE;
     }
 
     return aNode.Content()->GetAttr(aNSID, aLocalName, aValue);
@@ -545,7 +545,7 @@ txXPathNodeUtils::appendNodeValue(const txXPathNode& aNode, nsAString& aResult)
     if (aNode.isDocument() ||
         aNode.mNode->IsElement() ||
         aNode.mNode->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT)) {
-        nsContentUtils::AppendNodeTextContent(aNode.mNode, true, aResult);
+        nsContentUtils::AppendNodeTextContent(aNode.mNode, PR_TRUE, aResult);
 
         return;
     }
@@ -554,7 +554,7 @@ txXPathNodeUtils::appendNodeValue(const txXPathNode& aNode, nsAString& aResult)
 }
 
 /* static */
-bool
+PRBool
 txXPathNodeUtils::isWhitespace(const txXPathNode& aNode)
 {
     NS_ASSERTION(aNode.isContent() && isText(aNode), "Wrong type!");
@@ -574,7 +574,8 @@ txXPathNodeUtils::getDocument(const txXPathNode& aNode)
 txXPathNode*
 txXPathNodeUtils::getOwnerDocument(const txXPathNode& aNode)
 {
-    return new txXPathNode(aNode.mNode->OwnerDoc());
+    nsIDocument* document = aNode.mNode->GetOwnerDoc();
+    return document ? new txXPathNode(document) : nsnull;
 }
 
 #ifndef HAVE_64BIT_OS
@@ -722,7 +723,7 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
 
 /* static */
 txXPathNode*
-txXPathNativeNode::createXPathNode(nsIContent* aContent, bool aKeepRootAlive)
+txXPathNativeNode::createXPathNode(nsIContent* aContent, PRBool aKeepRootAlive)
 {
     nsINode* root = aKeepRootAlive ? txXPathNode::RootOf(aContent) : nsnull;
 
@@ -731,7 +732,7 @@ txXPathNativeNode::createXPathNode(nsIContent* aContent, bool aKeepRootAlive)
 
 /* static */
 txXPathNode*
-txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, bool aKeepRootAlive)
+txXPathNativeNode::createXPathNode(nsIDOMNode* aNode, PRBool aKeepRootAlive)
 {
     PRUint16 nodeType;
     aNode->GetNodeType(&nodeType);

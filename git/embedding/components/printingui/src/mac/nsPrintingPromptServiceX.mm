@@ -90,10 +90,10 @@ nsPrintingPromptService::ShowProgress(nsIDOMWindow*            parent,
                                       nsIWebBrowserPrint*      webBrowserPrint,    // ok to be null
                                       nsIPrintSettings*        printSettings,      // ok to be null
                                       nsIObserver*             openDialogObserver, // ok to be null
-                                      bool                     isForPrinting,
+                                      PRBool                   isForPrinting,
                                       nsIWebProgressListener** webProgressListener,
                                       nsIPrintProgressParams** printProgressParams,
-                                      bool*                  notifyOnOpen)
+                                      PRBool*                  notifyOnOpen)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -136,9 +136,9 @@ nsPrintingPromptService::OnProgressChange(nsIWebProgress *aWebProgress, nsIReque
     return NS_OK;
 }
 
-/* void onLocationChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsIURI location, in unsigned long aFlags); */
+/* void onLocationChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsIURI location); */
 NS_IMETHODIMP 
-nsPrintingPromptService::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location, PRUint32 aFlags)
+nsPrintingPromptService::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location)
 {
     return NS_OK;
 }

@@ -75,14 +75,14 @@ public:
 protected:
   // In the case of jar: uris, we sometimes want the place the jar was
   // fetched from as the URI instead of the jar: uri itself.  Pass in
-  // true for aGetInnermostURI when that's the case.
-  nsresult GetURI(nsIURI** aURL, bool aGetInnermostURI = false);
+  // PR_TRUE for aGetInnermostURI when that's the case.
+  nsresult GetURI(nsIURI** aURL, PRBool aGetInnermostURI = PR_FALSE);
   nsresult GetWritableURI(nsIURI** aURL);
-  nsresult SetURI(nsIURI* aURL, bool aReplace = false);
+  nsresult SetURI(nsIURI* aURL, PRBool aReplace = PR_FALSE);
   nsresult SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
-                           bool aReplace);
+                           PRBool aReplace);
   nsresult SetHrefWithContext(JSContext* cx, const nsAString& aHref,
-                              bool aReplace);
+                              PRBool aReplace);
 
   nsresult GetSourceBaseURL(JSContext* cx, nsIURI** sourceURL);
   nsresult GetSourceDocument(JSContext* cx, nsIDocument** aDocument);

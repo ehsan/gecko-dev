@@ -169,7 +169,7 @@ struct TimeStampInitialization
 };
 
 static TimeStampInitialization initOnce;
-static bool gInitialized = false;
+static PRBool gInitialized = PR_FALSE;
 
 nsresult
 TimeStamp::Startup()
@@ -190,7 +190,7 @@ TimeStamp::Startup()
          || 10*sResolutionSigDigs > sResolution);
        sResolutionSigDigs *= 10);
 
-  gInitialized = true;
+  gInitialized = PR_TRUE;
   return NS_OK;
 }
 

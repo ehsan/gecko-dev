@@ -49,7 +49,7 @@ nsSMILInstanceTime::nsSMILInstanceTime(const nsSMILTimeValue& aTime,
                                        nsSMILInterval* aBaseInterval)
   : mTime(aTime),
     mFlags(0),
-    mVisited(false),
+    mVisited(PR_FALSE),
     mFixedEndpointRefCnt(0),
     mSerial(0),
     mCreator(aCreator),
@@ -100,8 +100,8 @@ nsSMILInstanceTime::Unlink()
 void
 nsSMILInstanceTime::HandleChangedInterval(
     const nsSMILTimeContainer* aSrcContainer,
-    bool aBeginObjectChanged,
-    bool aEndObjectChanged)
+    PRBool aBeginObjectChanged,
+    PRBool aEndObjectChanged)
 {
   // It's possible a sequence of notifications might cause our base interval to
   // be updated and then deleted. Furthermore, the delete might happen whilst
@@ -118,11 +118,11 @@ nsSMILInstanceTime::HandleChangedInterval(
     return;
   }
 
-  bool objectChanged = mCreator->DependsOnBegin() ? aBeginObjectChanged :
+  PRBool objectChanged = mCreator->DependsOnBegin() ? aBeginObjectChanged :
                                                       aEndObjectChanged;
 
-  mozilla::AutoRestore<bool> setVisited(mVisited);
-  mVisited = true;
+  mozilla::AutoRestore<PRPackedBool> setVisited(mVisited);
+  mVisited = PR_TRUE;
 
   nsRefPtr<nsSMILInstanceTime> deathGrip(this);
   mCreator->HandleChangedInstanceTime(*GetBaseTime(), aSrcContainer, *this,
@@ -155,7 +155,7 @@ nsSMILInstanceTime::HandleFilteredInterval()
   mCreator = nsnull;
 }
 
-bool
+PRBool
 nsSMILInstanceTime::ShouldPreserve() const
 {
   return mFixedEndpointRefCnt > 0 || (mFlags & kWasDynamicEndpoint);
@@ -186,22 +186,22 @@ nsSMILInstanceTime::ReleaseFixedEndpoint()
   }
 }
 
-bool
+PRBool
 nsSMILInstanceTime::IsDependentOn(const nsSMILInstanceTime& aOther) const
 {
   if (mVisited)
-    return false;
+    return PR_FALSE;
 
   const nsSMILInstanceTime* myBaseTime = GetBaseTime();
   if (!myBaseTime)
-    return false;
+    return PR_FALSE;
 
   if (myBaseTime == &aOther)
-    return true;
+    return PR_TRUE;
 
   // mVisited is mutable
-  mozilla::AutoRestore<bool> setVisited(const_cast<nsSMILInstanceTime*>(this)->mVisited);
-  const_cast<nsSMILInstanceTime*>(this)->mVisited = true;
+  mozilla::AutoRestore<PRPackedBool> setVisited(const_cast<nsSMILInstanceTime*>(this)->mVisited);
+  const_cast<nsSMILInstanceTime*>(this)->mVisited = PR_TRUE;
   return myBaseTime->IsDependentOn(aOther);
 }
 

@@ -49,7 +49,7 @@
 
 void
 nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
-                           bool aWatch, bool aReferenceImage)
+                           PRBool aWatch, PRBool aReferenceImage)
 {
   NS_ABORT_IF_FALSE(aFromContent, "Reset() expects non-null content pointer");
 
@@ -83,7 +83,7 @@ nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
   if (bindingParent) {
     nsXBLBinding* binding = doc->BindingManager()->GetBinding(bindingParent);
     if (binding) {
-      bool isEqualExceptRef;
+      PRBool isEqualExceptRef;
       rv = aURI->EqualsExceptRef(binding->PrototypeBinding()->DocURI(),
                                  &isEqualExceptRef);
       if (NS_SUCCEEDED(rv) && isEqualExceptRef) {
@@ -114,7 +114,7 @@ nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
     }
   }
 
-  bool isEqualExceptRef;
+  PRBool isEqualExceptRef;
   rv = aURI->EqualsExceptRef(doc->GetDocumentURI(), &isEqualExceptRef);
   if (NS_FAILED(rv) || !isEqualExceptRef) {
     nsRefPtr<nsIDocument::ExternalResourceLoad> load;
@@ -150,7 +150,7 @@ nsReferencedElement::Reset(nsIContent* aFromContent, nsIURI* aURI,
 
 void
 nsReferencedElement::ResetWithID(nsIContent* aFromContent, const nsString& aID,
-                                 bool aWatch)
+                                 PRBool aWatch)
 {
   nsIDocument *doc = aFromContent->GetCurrentDoc();
   if (!doc)
@@ -165,13 +165,13 @@ nsReferencedElement::ResetWithID(nsIContent* aFromContent, const nsString& aID,
     atom.swap(mWatchID);
   }
 
-  mReferencingImage = false;
+  mReferencingImage = PR_FALSE;
 
   HaveNewDocument(doc, aWatch, aID);
 }
 
 void
-nsReferencedElement::HaveNewDocument(nsIDocument* aDocument, bool aWatch,
+nsReferencedElement::HaveNewDocument(nsIDocument* aDocument, PRBool aWatch,
                                      const nsString& aRef)
 {
   if (aWatch) {
@@ -217,10 +217,10 @@ nsReferencedElement::Unlink()
   mWatchDocument = nsnull;
   mWatchID = nsnull;
   mElement = nsnull;
-  mReferencingImage = false;
+  mReferencingImage = PR_FALSE;
 }
 
-bool
+PRBool
 nsReferencedElement::Observe(Element* aOldElement,
                              Element* aNewElement, void* aData)
 {
@@ -234,7 +234,7 @@ nsReferencedElement::Observe(Element* aOldElement,
     p->mPendingNotification = watcher;
     nsContentUtils::AddScriptRunner(watcher);
   }
-  bool keepTracking = p->IsPersistent();
+  PRBool keepTracking = p->IsPersistent();
   if (!keepTracking) {
     p->mWatchDocument = nsnull;
     p->mWatchID = nsnull;
@@ -260,7 +260,7 @@ nsReferencedElement::DocumentLoadNotification::Observe(nsISupports* aSubject,
     mTarget->mPendingNotification = nsnull;
     NS_ASSERTION(!mTarget->mElement, "Why do we have content here?");
     // If we got here, that means we had Reset() called with aWatch ==
-    // true.  So keep watching if IsPersistent().
+    // PR_TRUE.  So keep watching if IsPersistent().
     mTarget->HaveNewDocument(doc, mTarget->IsPersistent(), mRef);
     mTarget->ElementChanged(nsnull, mTarget->mElement);
   }

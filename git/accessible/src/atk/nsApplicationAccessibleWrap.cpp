@@ -44,8 +44,7 @@
 #include "nsMai.h"
 #include "prlink.h"
 #include "prenv.h"
-#include "mozilla/Preferences.h"
-#include "nsIGConfService.h"
+#include "nsIPrefBranch.h"
 #include "nsIServiceManager.h"
 #include "nsAutoPtr.h"
 #include "nsAccessibilityService.h"
@@ -53,8 +52,6 @@
 
 #include <gtk/gtk.h>
 #include <atk/atk.h>
-
-using namespace mozilla;
 
 typedef GType (* AtkGetTypeType) (void);
 GType g_atk_hyperlink_impl_type = G_TYPE_INVALID;
@@ -64,12 +61,10 @@ static const char sATKLibName[] = "libatk-1.0.so.0";
 static const char sATKHyperlinkImplGetTypeSymbol[] =
     "atk_hyperlink_impl_get_type";
 static const char sAccEnv [] = "GNOME_ACCESSIBILITY";
-static const char sUseSystemPrefsKey[] =
-    "config.use_system_prefs";
+static const char sSysPrefService [] =
+    "@mozilla.org/system-preference-service;1";
 static const char sAccessibilityKey [] =
     "config.use_system_prefs.accessibility";
-static const char sGconfAccessibilityKey[] =
-    "/desktop/gnome/interface/accessibility";
 
 /* gail function pointer */
 static guint (* gail_add_global_event_listener) (GSignalEmissionHook listener,
@@ -616,7 +611,7 @@ toplevel_event_watcher(GSignalInvocationHint* ihint,
   return TRUE;
 }
 
-bool
+PRBool
 nsApplicationAccessibleWrap::Init()
 {
     // XXX following code is copied from widget/src/gtk2/nsWindow.cpp
@@ -624,23 +619,17 @@ nsApplicationAccessibleWrap::Init()
     // see bug 390761
 
     // check if accessibility enabled/disabled by environment variable
-    bool isGnomeATEnabled = false;
+    PRBool isGnomeATEnabled = PR_FALSE;
     const char *envValue = PR_GetEnv(sAccEnv);
     if (envValue) {
         isGnomeATEnabled = !!atoi(envValue);
     } else {
         //check gconf-2 setting
-        if (Preferences::GetBool(sUseSystemPrefsKey, false)) {
-            nsresult rv;
-            nsCOMPtr<nsIGConfService> gconf =
-                do_GetService(NS_GCONFSERVICE_CONTRACTID, &rv);
-            if (NS_SUCCEEDED(rv) && gconf) {
-                gconf->GetBool(NS_LITERAL_CSTRING(sGconfAccessibilityKey),
-                               &isGnomeATEnabled);
-            }
-        } else {
-            isGnomeATEnabled =
-                Preferences::GetBool(sAccessibilityKey, false);
+        nsresult rv;
+        nsCOMPtr<nsIPrefBranch> sysPrefService =
+            do_GetService(sSysPrefService, &rv);
+        if (NS_SUCCEEDED(rv) && sysPrefService) {
+            sysPrefService->GetBoolPref(sAccessibilityKey, &isGnomeATEnabled);
         }
     }
 
@@ -763,11 +752,11 @@ gboolean fireRootAccessibleAddedCB(gpointer data)
     return FALSE;
 }
 
-bool
+PRBool
 nsApplicationAccessibleWrap::AppendChild(nsAccessible *aChild)
 {
     if (!nsApplicationAccessible::AppendChild(aChild))
-      return false;
+      return PR_FALSE;
 
     AtkObject *atkAccessible = nsAccessibleWrap::GetAtkObject(aChild);
     atk_object_set_parent(atkAccessible, mAtkObject);
@@ -787,10 +776,10 @@ nsApplicationAccessibleWrap::AppendChild(nsAccessible *aChild)
       g_timeout_add(0, fireRootAccessibleAddedCB, eventData);
     }
 
-    return true;
+    return PR_TRUE;
 }
 
-bool
+PRBool
 nsApplicationAccessibleWrap::RemoveChild(nsAccessible* aChild)
 {
     PRInt32 index = aChild->IndexInParent();

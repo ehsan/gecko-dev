@@ -83,7 +83,7 @@ nsTreeColFrame::Init(nsIContent*      aContent,
 void
 nsTreeColFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  InvalidateColumns(false);
+  InvalidateColumns(PR_FALSE);
   nsBoxFrame::DestroyFrom(aDestructRoot);
 }
 
@@ -112,17 +112,17 @@ nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder, const
   nsRect rect = aRect - ToReferenceFrame();
   // If we are in either in the first 4 pixels or the last 4 pixels, we're going to
   // do something really strange.  Check for an adjacent splitter.
-  bool left = false;
-  bool right = false;
+  PRBool left = PR_FALSE;
+  PRBool right = PR_FALSE;
   if (mFrame->GetSize().width - nsPresContext::CSSPixelsToAppUnits(4) <= rect.XMost()) {
-    right = true;
+    right = PR_TRUE;
   } else if (nsPresContext::CSSPixelsToAppUnits(4) > rect.x) {
-    left = true;
+    left = PR_TRUE;
   }
 
   // Swap left and right for RTL trees in order to find the correct splitter
   if (mFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-    bool tmp = left;
+    PRBool tmp = left;
     left = right;
     right = tmp;
   }
@@ -180,7 +180,7 @@ nsTreeColFrame::AttributeChanged(PRInt32 aNameSpaceID,
 void
 nsTreeColFrame::SetBounds(nsBoxLayoutState& aBoxLayoutState,
                           const nsRect& aRect,
-                          bool aRemoveOverflowArea) {
+                          PRBool aRemoveOverflowArea) {
   nscoord oldWidth = mRect.width;
 
   nsBoxFrame::SetBounds(aBoxLayoutState, aRect, aRemoveOverflowArea);
@@ -213,7 +213,7 @@ nsTreeColFrame::GetTreeBoxObject()
 }
 
 void
-nsTreeColFrame::InvalidateColumns(bool aCanWalkFrameTree)
+nsTreeColFrame::InvalidateColumns(PRBool aCanWalkFrameTree)
 {
   nsITreeBoxObject* treeBoxObject = GetTreeBoxObject();
   if (treeBoxObject) {

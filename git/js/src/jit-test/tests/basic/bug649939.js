@@ -20,7 +20,7 @@ function assertRaises(exc, callback) {
     try {
         callback();
     } catch (e) {
-        assertEq(e instanceof StopIteration, true);
+        assertEq(e instanceof InternalError, true);
         caught = true;
     }
     assertEq(caught, true);

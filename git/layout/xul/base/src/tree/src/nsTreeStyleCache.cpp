@@ -108,22 +108,22 @@ nsTreeStyleCache::GetStyleContext(nsICSSPseudoComparator* aComparator,
   return result;
 }
 
-bool
+PRBool
 nsTreeStyleCache::DeleteDFAState(nsHashKey *aKey,
                                  void *aData,
                                  void *closure)
 {
   nsDFAState* entry = static_cast<nsDFAState*>(aData);
   delete entry;
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsTreeStyleCache::ReleaseStyleContext(nsHashKey *aKey,
                                       void *aData,
                                       void *closure)
 {
   nsStyleContext* context = static_cast<nsStyleContext*>(aData);
   context->Release();
-  return true;
+  return PR_TRUE;
 }

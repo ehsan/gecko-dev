@@ -815,11 +815,11 @@ LoginManagerPrompter.prototype = {
         if (aLogin.username) {
             var displayUser = this._sanitizeUsername(aLogin.username);
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordMsg",
+                                        "rememberPasswordText",
                                         [displayUser, displayHost]);
         } else {
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordMsgNoUsername",
+                                        "rememberPasswordTextNoUsername",
                                         [displayHost]);
         }
 
@@ -947,11 +947,11 @@ LoginManagerPrompter.prototype = {
         if (aLogin.username) {
             var displayUser = this._sanitizeUsername(aLogin.username);
             dialogText = this._getLocalizedString(
-                                 "rememberPasswordMsg",
+                                 "rememberPasswordText",
                                  [displayUser, displayHost]);
         } else {
             dialogText = this._getLocalizedString(
-                                 "rememberPasswordMsgNoUsername",
+                                 "rememberPasswordTextNoUsername",
                                  [displayHost]);
 
         }
@@ -1018,11 +1018,11 @@ LoginManagerPrompter.prototype = {
         var notificationText;
         if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordMsg",
+                                          "updatePasswordText",
                                           [aOldLogin.username]);
         else
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordMsgNoUser");
+                                          "updatePasswordTextNoUser");
 
         var changeButtonText =
               this._getLocalizedString("notifyBarUpdateButtonText");
@@ -1100,11 +1100,11 @@ LoginManagerPrompter.prototype = {
         var dialogText;
         if (aOldLogin.username)
             dialogText  = this._getLocalizedString(
-                                    "updatePasswordMsg",
+                                    "updatePasswordText",
                                     [aOldLogin.username]);
         else
             dialogText  = this._getLocalizedString(
-                                    "updatePasswordMsgNoUser");
+                                    "updatePasswordTextNoUser");
 
         var dialogTitle = this._getLocalizedString(
                                     "passwordChangeTitle");

@@ -35,16 +35,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-protected:
-  nsHtml5UTF16Buffer(PRUnichar* aBuffer, PRInt32 aEnd);
-  ~nsHtml5UTF16Buffer();
+  public:
+    nsHtml5UTF16Buffer(PRInt32 size);
+    nsHtml5UTF16Buffer(void* key);
+    ~nsHtml5UTF16Buffer();
+    nsRefPtr<nsHtml5UTF16Buffer> next;
+    void* key;
+    nsrefcnt AddRef();
+    nsrefcnt Release();
+  private:
+    nsAutoRefCnt mRefCnt;
 
-  /**
-   * For working around the privacy of |buffer| in the generated code.
-   */
-  void DeleteBuffer();
-
-  /**
-   * For working around the privacy of |buffer| in the generated code.
-   */
-  void Swap(nsHtml5UTF16Buffer* aOther);

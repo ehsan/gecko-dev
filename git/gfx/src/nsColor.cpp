@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "plstr.h"
 #include "nsColor.h"
 #include "nsColorNames.h"
@@ -48,8 +46,6 @@
 #include <math.h>
 #include "prprf.h"
 #include "nsStaticNameTable.h"
-
-using namespace mozilla;
 
 // define an array of all color names
 #define GFX_COLOR(_name, _value) #_name,
@@ -65,7 +61,7 @@ static const nscolor kColors[] = {
 };
 #undef GFX_COLOR
 
-#define eColorName_COUNT (ArrayLength(kColorNames))
+#define eColorName_COUNT (NS_ARRAY_LENGTH(kColorNames))
 #define eColorName_UNKNOWN (-1)
 
 static nsStaticCaseInsensitiveNameTable* gColorTable = nsnull;
@@ -123,7 +119,7 @@ static int ComponentValue(const PRUnichar* aColorSpec, int aLen, int color, int 
   return component;
 }
 
-NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
+NS_GFX_(PRBool) NS_HexToRGB(const nsString& aColorSpec,
                                        nscolor* aResult)
 {
   const PRUnichar* buffer = aColorSpec.get();
@@ -140,7 +136,7 @@ NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
         continue;
       }
       // Whoops. Illegal character.
-      return false;
+      return PR_FALSE;
     }
 
     // Convert the ascii to binary
@@ -160,19 +156,19 @@ NS_GFX_(bool) NS_HexToRGB(const nsString& aColorSpec,
     NS_ASSERTION((g >= 0) && (g <= 255), "bad g");
     NS_ASSERTION((b >= 0) && (b <= 255), "bad b");
     *aResult = NS_RGB(r, g, b);
-    return true;
+    return PR_TRUE;
   }
 
   // Improperly formatted color value
-  return false;
+  return PR_FALSE;
 }
 
 // This implements part of the algorithm for legacy behavior described in
 // http://www.whatwg.org/specs/web-apps/current-work/complete/common-microsyntaxes.html#rules-for-parsing-a-legacy-color-value
-NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
+NS_GFX_(PRBool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
 {
   if (aColorSpec.EqualsLiteral("transparent")) {
-    return false;
+    return PR_FALSE;
   }
 
   int nameLen = aColorSpec.Length();
@@ -201,7 +197,7 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
   // that would leave a nonzero value, but not past 2 characters per
   // component.
   while (newdpc > 2) {
-    bool haveNonzero = false;
+    PRBool haveNonzero = PR_FALSE;
     for (int c = 0; c < 3; ++c) {
       NS_ABORT_IF_FALSE(c * dpc < nameLen,
                         "should not pass end of string while newdpc > 2");
@@ -209,7 +205,7 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
       if (('1' <= ch && ch <= '9') ||
           ('A' <= ch && ch <= 'F') ||
           ('a' <= ch && ch <= 'f')) {
-        haveNonzero = true;
+        haveNonzero = PR_TRUE;
         break;
       }
     }
@@ -230,12 +226,12 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aColorSpec, nscolor* aResult)
   NS_ASSERTION((b >= 0) && (b <= 255), "bad b");
 
   *aResult = NS_RGB(r, g, b);
-  return true;
+  return PR_TRUE;
 }
 
-NS_GFX_(bool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
+NS_GFX_(PRBool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
 {
-  if (!gColorTable) return false;
+  if (!gColorTable) return PR_FALSE;
 
   PRInt32 id = gColorTable->Lookup(aColorName);
   if (eColorName_UNKNOWN < id) {
@@ -244,9 +240,9 @@ NS_GFX_(bool) NS_ColorNameToRGB(const nsAString& aColorName, nscolor* aResult)
     if (aResult) {
       *aResult = kColors[id];
     }
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 // Macro to blend two colors

@@ -8,54 +8,51 @@
 }
 
 .viewContent {
-}/* Styles for rulers */
-.ruler {
-	background-color: white;
-}
-.ruler.annotations {
-	border-right: 1px solid lightgray;
+}.ruler_annotation {
+	background-color: #e1ebfb;
 	width: 16px;
 }
-.ruler.folding {
-	border-right: 1px solid lightgray;
-	width: 14px;
+
+.ruler_annotation_todo {
 }
-.ruler.lines {
-	border-right: 1px solid lightgray;
+
+.ruler_annotation_todo_overview {
+	background-color: lightgreen;
+	border: 1px solid green;
+}
+
+.ruler_annotation_breakpoint {
+}
+
+.ruler_annotation_breakpoint_overview {
+	background-color: lightblue;
+	border: 1px solid blue;
+}
+
+.ruler_lines {
+	background-color: #e1ebfb;
+	border-right: 1px solid #b1badf;
 	text-align: right;
 }
-.ruler.overview {
-	width: 14px;
+
+.ruler_overview {
+	background-color: #e1ebfb;
 }
 
-/* Styles for the line number ruler */
-.rulerLines {
+.ruler_lines_even {
+	background-color: #e1ebfb;
+}
+
+.ruler_lines_odd {
 	background-color: white;
 }
-.rulerLines.even
-.rulerLines.odd {
-}.token_singleline_comment {
+
+.token_comment {
 	color: green;
 }
 
-.token_multiline_comment {
-	color: green;
-}
-
-.token_doc_comment {
+.token_javadoc {
 	color: #00008F;
-}
-
-.token_doc_html_markup {
-	color: #7F7F9F;
-}
-
-.token_doc_tag {
-	color: #7F9FBF;
-}
-
-.token_task_tag {
-	color: #7F9FBF;
 }
 
 .token_string {
@@ -77,24 +74,20 @@
 }
 
 .token_space {
-	/* images/white_space.png */
-	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAkAAAAJCAIAAABv85FHAAAABnRSTlMA/wAAAACkwsAdAAAAIUlEQVR4nGP4z8CAC+GUIEXuABhgkTuABEiRw2cmae4EAH05X7xDolNRAAAAAElFTkSuQmCC");
+	background-image: url('/examples/textview/images/white_space.png');
 	background-repeat: no-repeat;
  	background-position: center center;
 }
 
 .token_tab {
-	/* images/white_tab.png */
-	background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAJCAIAAACJ2loDAAAABnRSTlMA/wD/AP83WBt9AAAAMklEQVR4nGP4TwRgoK6i52c3bz5w6zMSA6tJn28d2Lx589nnCAYu63AaSLxJRLoJPwAAeNk0aG4opfMAAAAASUVORK5CYII=");
+	background-image: url('/examples/textview/images/white_tab.png');
 	background-repeat: no-repeat;
  	background-position: left center;
 }
 
 .line_caret {
 	background-color: #EAF2FE;
-}
-
-/* Styling for html syntax highlighting */
+}/* Styling for html syntax highlighting */
 .entity-name-tag {
 	color: #3f7f7f;
 }

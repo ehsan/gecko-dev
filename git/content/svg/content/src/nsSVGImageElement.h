@@ -78,14 +78,14 @@ public:
 
   // nsIContent interface
   virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                const nsAString* aValue, bool aNotify);
+                                const nsAString* aValue, PRBool aNotify);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers);
+                              PRBool aCompileEventHandlers);
 
   virtual nsEventStates IntrinsicState() const;
 
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   // nsSVGPathGeometryElement methods:
   virtual void ConstructPath(gfxContext *aCtx);
@@ -96,15 +96,14 @@ public:
 
   void MaybeLoadSVGImage();
 
-  bool IsImageSrcSetDisabled() const;
-
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
-  nsresult LoadSVGImage(bool aForce, bool aNotify);
+  nsresult LoadSVGImage(PRBool aForce, PRBool aNotify);
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
+  virtual void DidAnimateString(PRUint8 aAttrEnum);
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];

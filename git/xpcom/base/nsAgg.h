@@ -69,9 +69,9 @@ public:                                                                     \
     nsISupports* InnerObject(void) { return &fAggregated; }                 \
                                                                             \
     /**                                                                     \
-     * Returns true if this object is part of an aggregated object.      \
+     * Returns PR_TRUE if this object is part of an aggregated object.      \
      */                                                                     \
-    bool IsPartOfAggregated(void) { return fOuter != InnerObject(); }     \
+    PRBool IsPartOfAggregated(void) { return fOuter != InnerObject(); }     \
                                                                             \
 private:                                                                    \
                                                                             \

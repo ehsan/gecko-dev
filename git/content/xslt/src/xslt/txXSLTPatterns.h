@@ -59,7 +59,7 @@ public:
     /*
      * Determines whether this Pattern matches the given node.
      */
-    virtual bool matches(const txXPathNode& aNode,
+    virtual MBool matches(const txXPathNode& aNode,
                           txIMatchContext* aContext) = 0;
 
     /*
@@ -119,7 +119,7 @@ public:
 };
 
 #define TX_DECL_PATTERN_BASE \
-    bool matches(const txXPathNode& aNode, txIMatchContext* aContext); \
+    MBool matches(const txXPathNode& aNode, txIMatchContext* aContext); \
     double getDefaultPriority(); \
     virtual Expr* getSubExprAt(PRUint32 aPos); \
     virtual void setSubExprAt(PRUint32 aPos, Expr* aExpr); \
@@ -177,7 +177,7 @@ private:
 class txLocPathPattern : public txPattern
 {
 public:
-    nsresult addStep(txPattern* aPattern, bool isChild);
+    nsresult addStep(txPattern* aPattern, PRBool isChild);
 
     TX_DECL_PATTERN;
 
@@ -185,7 +185,7 @@ private:
     class Step {
     public:
         nsAutoPtr<txPattern> pattern;
-        bool isChild;
+        PRBool isChild;
     };
 
     nsTArray<Step> mSteps;
@@ -196,7 +196,7 @@ class txRootPattern : public txPattern
 public:
 #ifdef TX_TO_STRING
     txRootPattern()
-        : mSerialize(true)
+        : mSerialize(PR_TRUE)
     {
     }
 #endif
@@ -205,14 +205,14 @@ public:
 
 #ifdef TX_TO_STRING
 public:
-    void setSerialize(bool aSerialize)
+    void setSerialize(PRBool aSerialize)
     {
         mSerialize = aSerialize;
     }
 
 private:
     // Don't serialize txRootPattern if it's used in a txLocPathPattern
-    bool mSerialize;
+    PRBool mSerialize;
 #endif
 };
 
@@ -254,7 +254,7 @@ class txStepPattern : public txPattern,
                       public PredicateList
 {
 public:
-    txStepPattern(txNodeTest* aNodeTest, bool isAttr)
+    txStepPattern(txNodeTest* aNodeTest, PRBool isAttr)
         : mNodeTest(aNodeTest), mIsAttr(isAttr)
     {
     }
@@ -274,7 +274,7 @@ public:
 
 private:
     nsAutoPtr<txNodeTest> mNodeTest;
-    bool mIsAttr;
+    PRBool mIsAttr;
 };
 
 #endif // TX_XSLT_PATTERNS_H

@@ -36,9 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <math.h>
-
-#include "mozilla/Util.h"
-
 #include "nsStyleUtil.h"
 #include "nsCRT.h"
 #include "nsStyleConsts.h"
@@ -53,8 +50,6 @@
 #include "nsContentUtils.h"
 #include "nsTextFormatter.h"
 #include "nsCSSProps.h"
-
-using namespace mozilla;
 
 //------------------------------------------------------------------------------
 // Font Algorithm Code
@@ -331,7 +326,7 @@ nsStyleUtil::ConstrainFontWeight(PRInt32 aWeight)
   aWeight = ((aWeight < 100) ? 100 : ((aWeight > 900) ? 900 : aWeight));
   PRInt32 base = ((aWeight / 100) * 100);
   PRInt32 step = (aWeight % 100);
-  bool    negativeStep = bool(50 < step);
+  PRBool  negativeStep = PRBool(50 < step);
   PRInt32 maxStep;
   if (negativeStep) {
     step = 100 - step;
@@ -348,15 +343,15 @@ nsStyleUtil::ConstrainFontWeight(PRInt32 aWeight)
 }
 
 // Compare two language strings
-bool nsStyleUtil::DashMatchCompare(const nsAString& aAttributeValue,
+PRBool nsStyleUtil::DashMatchCompare(const nsAString& aAttributeValue,
                                      const nsAString& aSelectorValue,
                                      const nsStringComparator& aComparator)
 {
-  bool result;
+  PRBool result;
   PRUint32 selectorLen = aSelectorValue.Length();
   PRUint32 attributeLen = aAttributeValue.Length();
   if (selectorLen > attributeLen) {
-    result = false;
+    result = PR_FALSE;
   }
   else {
     nsAString::const_iterator iter;
@@ -366,7 +361,7 @@ bool nsStyleUtil::DashMatchCompare(const nsAString& aAttributeValue,
       // to match, the aAttributeValue must have a dash after the end of
       // the aSelectorValue's text (unless the aSelectorValue and the
       // aAttributeValue have the same text)
-      result = false;
+      result = PR_FALSE;
     }
     else {
       result = StringBeginsWith(aAttributeValue, aSelectorValue, aComparator);
@@ -394,7 +389,7 @@ void nsStyleUtil::AppendEscapedCSSString(const nsString& aString,
       characters ("\XX "+NUL).
      */
      PRUnichar buf[5];
-     nsTextFormatter::snprintf(buf, ArrayLength(buf), NS_LITERAL_STRING("\\%hX ").get(), *in);
+     nsTextFormatter::snprintf(buf, NS_ARRAY_LENGTH(buf), NS_LITERAL_STRING("\\%hX ").get(), *in);
      aReturn.Append(buf);
    
     } else switch (*in) {
@@ -434,8 +429,8 @@ nsStyleUtil::AppendEscapedCSSIdent(const nsString& aIdent, nsAString& aReturn)
     ++in;
   }
 
-  bool first = true;
-  for (; in != end; ++in, first = false)
+  PRBool first = PR_TRUE;
+  for (; in != end; ++in, first = PR_FALSE)
   {
     if (*in < 0x20 || (first && '0' <= *in && *in <= '9'))
     {
@@ -450,7 +445,7 @@ nsStyleUtil::AppendEscapedCSSIdent(const nsString& aIdent, nsAString& aReturn)
        don't need more than 5 characters ("\XX "+NUL).
       */
       PRUnichar buf[5];
-      nsTextFormatter::snprintf(buf, ArrayLength(buf),
+      nsTextFormatter::snprintf(buf, NS_ARRAY_LENGTH(buf),
                                 NS_LITERAL_STRING("\\%hX ").get(), *in);
       aReturn.Append(buf);
     } else {
@@ -504,18 +499,18 @@ nsStyleUtil::ColorComponentToFloat(PRUint8 aAlpha)
   return rounded;
 }
 
-/* static */ bool
-nsStyleUtil::IsSignificantChild(nsIContent* aChild, bool aTextIsSignificant,
-                                bool aWhitespaceIsSignificant)
+/* static */ PRBool
+nsStyleUtil::IsSignificantChild(nsIContent* aChild, PRBool aTextIsSignificant,
+                                PRBool aWhitespaceIsSignificant)
 {
   NS_ASSERTION(!aWhitespaceIsSignificant || aTextIsSignificant,
                "Nonsensical arguments");
 
-  bool isText = aChild->IsNodeOfType(nsINode::eTEXT);
+  PRBool isText = aChild->IsNodeOfType(nsINode::eTEXT);
 
   if (!isText && !aChild->IsNodeOfType(nsINode::eCOMMENT) &&
       !aChild->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION)) {
-    return true;
+    return PR_TRUE;
   }
 
   return aTextIsSignificant && isText && aChild->TextLength() != 0 &&

@@ -205,59 +205,59 @@ const unsigned char nsLowerUpperUtils::kLower2Upper[256] = {
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
 
-bool NS_IsUpper(char aChar)
+PRBool NS_IsUpper(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kUpper2Lower[(unsigned char)aChar];
 }
 
-bool NS_IsLower(char aChar)
+PRBool NS_IsLower(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kLower2Upper[(unsigned char)aChar];
 }
 
-bool NS_IsAscii(PRUnichar aChar)
+PRBool NS_IsAscii(PRUnichar aChar)
 {
   return (0x0080 > aChar);
 }
 
-bool NS_IsAscii(const PRUnichar *aString)
+PRBool NS_IsAscii(const PRUnichar *aString)
 {
   while(*aString) {
     if( 0x0080 <= *aString)
-      return false;
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool NS_IsAscii(const char *aString)
+PRBool NS_IsAscii(const char *aString)
 {
   while(*aString) {
     if( 0x80 & *aString)
-      return false;
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool NS_IsAscii(const char* aString, PRUint32 aLength)
+PRBool NS_IsAscii(const char* aString, PRUint32 aLength)
 {
   const char* end = aString + aLength;
   while (aString < end) {
     if (0x80 & *aString)
-      return false;
+      return PR_FALSE;
     ++aString;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool NS_IsAsciiAlpha(PRUnichar aChar)
+PRBool NS_IsAsciiAlpha(PRUnichar aChar)
 {
   return ((aChar >= 'A') && (aChar <= 'Z')) ||
          ((aChar >= 'a') && (aChar <= 'z'));
 }
 
-bool NS_IsAsciiWhitespace(PRUnichar aChar)
+PRBool NS_IsAsciiWhitespace(PRUnichar aChar)
 {
   return aChar == ' ' ||
          aChar == '\r' ||
@@ -265,7 +265,7 @@ bool NS_IsAsciiWhitespace(PRUnichar aChar)
          aChar == '\t';
 }
 
-bool NS_IsAsciiDigit(PRUnichar aChar)
+PRBool NS_IsAsciiDigit(PRUnichar aChar)
 {
   return aChar >= '0' && aChar <= '9';
 }

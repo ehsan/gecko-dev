@@ -100,7 +100,7 @@ pre {
  color: steelblue;
  font-style: italic;
 }
-span:not(.error), a:not(.error) {
+span:not(.error) {
  unicode-bidi: embed;
 }
 .error, 

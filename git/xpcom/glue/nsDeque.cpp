@@ -165,18 +165,18 @@ nsDeque& nsDeque::Erase() {
  * in the deque are stored sequentially
  *
  * If the deque actually overflows, there's very little we can do.
- * Perhaps this function should return bool/nsresult indicating success/failure.
+ * Perhaps this function should return PRBool/nsresult indicating success/failure.
  *
  * @return  whether growing succeeded
  */
-bool nsDeque::GrowCapacity() {
+PRBool nsDeque::GrowCapacity() {
   PRInt32 theNewSize=mCapacity<<2;
   NS_ASSERTION(theNewSize>mCapacity, "Overflow");
   if (theNewSize<=mCapacity)
-    return false;
+    return PR_FALSE;
   void** temp=(void**)malloc(theNewSize * sizeof(void*));
   if (!temp)
-    return false;
+    return PR_FALSE;
 
   //Here's the interesting part: You can't just move the elements
   //directly (in situ) from the old buffer to the new one.
@@ -194,7 +194,7 @@ bool nsDeque::GrowCapacity() {
   mOrigin=0; //now realign the origin...
   mData=temp;
 
-  return true;
+  return PR_TRUE;
 }
 
 /**
@@ -469,8 +469,8 @@ nsDequeIterator& nsDequeIterator::operator=(const nsDequeIterator& aCopy) {
  * @param   aIter is the object to be compared to
  * @return  TRUE if NOT equal.
  */
-bool nsDequeIterator::operator!=(nsDequeIterator& aIter) {
-  return bool(!this->operator==(aIter));
+PRBool nsDequeIterator::operator!=(nsDequeIterator& aIter) {
+  return PRBool(!this->operator==(aIter));
 }
 
 /**
@@ -481,8 +481,8 @@ bool nsDequeIterator::operator!=(nsDequeIterator& aIter) {
  *          the element pointed to by aIter.
  *          FALSE if this and aIter are not iterating over the same deque.
  */
-bool nsDequeIterator::operator<(nsDequeIterator& aIter) {
-  return bool(((mIndex<aIter.mIndex) && (&mDeque==&aIter.mDeque)));
+PRBool nsDequeIterator::operator<(nsDequeIterator& aIter) {
+  return PRBool(((mIndex<aIter.mIndex) && (&mDeque==&aIter.mDeque)));
 }
 
 /**
@@ -491,8 +491,8 @@ bool nsDequeIterator::operator<(nsDequeIterator& aIter) {
  * @param   aIter is the other iterator to be compared to
  * @return  TRUE if EQUAL
  */
-bool nsDequeIterator::operator==(nsDequeIterator& aIter) {
-  return bool(((mIndex==aIter.mIndex) && (&mDeque==&aIter.mDeque)));
+PRBool nsDequeIterator::operator==(nsDequeIterator& aIter) {
+  return PRBool(((mIndex==aIter.mIndex) && (&mDeque==&aIter.mDeque)));
 }
 
 /**
@@ -503,8 +503,8 @@ bool nsDequeIterator::operator==(nsDequeIterator& aIter) {
  *          an element after the element pointed to by aIter.
  *          FALSE if this and aIter are not iterating over the same deque.
  */
-bool nsDequeIterator::operator>=(nsDequeIterator& aIter) {
-  return bool(((mIndex>=aIter.mIndex) && (&mDeque==&aIter.mDeque)));
+PRBool nsDequeIterator::operator>=(nsDequeIterator& aIter) {
+  return PRBool(((mIndex>=aIter.mIndex) && (&mDeque==&aIter.mDeque)));
 }
 
 /**

@@ -79,13 +79,13 @@ NS_IMPL_ISUPPORTS1(inDOMUtils, inIDOMUtils)
 
 NS_IMETHODIMP
 inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
-                                  bool *aReturn)
+                                  PRBool *aReturn)
 {
   NS_PRECONDITION(aReturn, "Must have an out parameter");
 
   NS_ENSURE_ARG_POINTER(aDataNode);
 
-  *aReturn = false;
+  *aReturn = PR_FALSE;
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aDataNode);
   NS_ASSERTION(content, "Does not implement nsIContent!");
@@ -111,7 +111,7 @@ inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
   }
   else {
     // empty inter-tag text node without frame, e.g., in between <table>\n<tr>
-    *aReturn = true;
+    *aReturn = PR_TRUE;
   }
 
   return NS_OK;
@@ -119,7 +119,7 @@ inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
 
 NS_IMETHODIMP
 inDOMUtils::GetParentForNode(nsIDOMNode* aNode,
-                             bool aShowingAnonymousContent,
+                             PRBool aShowingAnonymousContent,
                              nsIDOMNode** aParent)
 {
   NS_ENSURE_ARG_POINTER(aNode);
@@ -154,7 +154,7 @@ inDOMUtils::GetParentForNode(nsIDOMNode* aNode,
 
 NS_IMETHODIMP
 inDOMUtils::GetChildrenForNode(nsIDOMNode* aNode,
-                               bool aShowingAnonymousContent,
+                               PRBool aShowingAnonymousContent,
                                nsIDOMNodeList** aChildren)
 {
   NS_ENSURE_ARG_POINTER(aNode);
@@ -244,24 +244,6 @@ inDOMUtils::GetRuleLine(nsIDOMCSSStyleRule *aRule, PRUint32 *_retval)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-inDOMUtils::IsInheritedProperty(const nsAString &aPropertyName, bool *_retval)
-{
-  nsCSSProperty prop = nsCSSProps::LookupProperty(aPropertyName);
-  if (prop == eCSSProperty_UNKNOWN) {
-    *_retval = false;
-    return NS_OK;
-  }
-
-  if (nsCSSProps::IsShorthand(prop)) {
-    prop = nsCSSProps::SubpropertyEntryFor(prop)[0];
-  }
-
-  nsStyleStructID sid = nsCSSProps::kSIDTable[prop];
-  *_retval = !nsCachedStyleData::IsReset(sid);
-  return NS_OK;
-}
-
 NS_IMETHODIMP 
 inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
 {
@@ -276,12 +258,14 @@ inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   NS_ASSERTION(content, "elements must implement nsIContent");
 
-  nsIDocument *ownerDoc = content->OwnerDoc();
-  nsXBLBinding *binding = ownerDoc->BindingManager()->GetBinding(content);
+  nsIDocument *ownerDoc = content->GetOwnerDoc();
+  if (ownerDoc) {
+    nsXBLBinding *binding = ownerDoc->BindingManager()->GetBinding(content);
 
-  while (binding) {
-    urls->AppendElement(binding->PrototypeBinding()->BindingURI(), false);
-    binding = binding->GetBaseBinding();
+    while (binding) {
+      urls->AppendElement(binding->PrototypeBinding()->BindingURI(), PR_FALSE);
+      binding = binding->GetBaseBinding();
+    }
   }
 
   NS_ADDREF(*_retval = urls);
@@ -339,7 +323,7 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
   nsPresContext *presContext = presShell->GetPresContext();
   NS_ENSURE_TRUE(presContext, NS_ERROR_UNEXPECTED);
 
-  bool safe = presContext->EnsureSafeToHandOutCSSRules();
+  PRBool safe = presContext->EnsureSafeToHandOutCSSRules();
   NS_ENSURE_TRUE(safe, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<nsStyleContext> sContext =

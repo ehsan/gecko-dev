@@ -38,7 +38,7 @@
 #include "nsIServiceManager.h"
 #include "nsRDFCID.h"
 #include "nsIRDFService.h"
-#include "nsString.h"
+
 #include "nsXULTemplateResultStorage.h"
 
 static NS_DEFINE_CID(kRDFServiceCID, NS_RDFSERVICE_CID);
@@ -56,23 +56,23 @@ nsXULTemplateResultStorage::nsXULTemplateResultStorage(nsXULTemplateResultSetSto
 }
 
 NS_IMETHODIMP
-nsXULTemplateResultStorage::GetIsContainer(bool* aIsContainer)
+nsXULTemplateResultStorage::GetIsContainer(PRBool* aIsContainer)
 {
-    *aIsContainer = false;
+    *aIsContainer = PR_FALSE;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTemplateResultStorage::GetIsEmpty(bool* aIsEmpty)
+nsXULTemplateResultStorage::GetIsEmpty(PRBool* aIsEmpty)
 {
-    *aIsEmpty = true;
+    *aIsEmpty = PR_TRUE;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsXULTemplateResultStorage::GetMayProcessChildren(bool* aMayProcessChildren)
+nsXULTemplateResultStorage::GetMayProcessChildren(PRBool* aMayProcessChildren)
 {
-    *aMayProcessChildren = false;
+    *aMayProcessChildren = PR_FALSE;
     return NS_OK;
 }
 

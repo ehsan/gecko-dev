@@ -42,8 +42,6 @@
 
 #include "mozilla/IHistory.h"
 #include "mozIAsyncHistory.h"
-#include "Database.h"
-
 #include "mozilla/dom/Link.h"
 #include "nsTHashtable.h"
 #include "nsString.h"
@@ -52,6 +50,7 @@
 #include "nsDeque.h"
 #include "nsIObserver.h"
 #include "mozIStorageConnection.h"
+#include "mozilla/storage/StatementCache.h"
 
 namespace mozilla {
 namespace places {
@@ -112,12 +111,6 @@ public:
   bool FetchPageInfo(VisitData& _place);
 
   /**
-   * Get the number of bytes of memory this History object is using,
-   * including sizeof(*this))
-   */
-  PRInt64 SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
-
-  /**
    * Obtains a pointer to this service.
    */
   static History* GetService();
@@ -128,14 +121,10 @@ public:
    */
   static History* GetSingleton();
 
-  template<int N>
-  already_AddRefed<mozIStorageStatement>
-  GetStatement(const char (&aQuery)[N])
-  {
-    mozIStorageConnection* dbConn = GetDBConn();
-    NS_ENSURE_TRUE(dbConn, nsnull);
-    return mDB->GetStatement(aQuery);
-  }
+  /**
+   * Statement cache that is used for background thread statements only.
+   */
+  storage::StatementCache<mozIStorageStatement> syncStatements;
 
 private:
   virtual ~History();
@@ -146,11 +135,13 @@ private:
   mozIStorageConnection* GetDBConn();
 
   /**
-   * The database handle.  This is initialized lazily by the first call to
-   * GetDBConn(), so never use it directly, or, if you really need, always
-   * invoke GetDBConn() before.
+   * A read-write database connection used for adding history visits and setting
+   * a page's title.
+   *
+   * @note this should only be accessed by GetDBConn.
+   * @note this is the same connection as the one found on nsNavHistory.
    */
-  nsRefPtr<mozilla::places::Database> mDB;
+  nsCOMPtr<mozIStorageConnection> mDBConn;
 
   /**
    * A read-only database connection used for checking if a URI is visited.
@@ -192,11 +183,6 @@ private:
     }
     ObserverArray array;
   };
-
-  /**
-   * Helper function for nsTHashtable::EnumerateEntries call in SizeOf().
-   */
-  static PLDHashOperator SizeOfEnumerator(KeyClass* aEntry, void* aArg);
 
   nsTHashtable<KeyClass> mObservers;
 };

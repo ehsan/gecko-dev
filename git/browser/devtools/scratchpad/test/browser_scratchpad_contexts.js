@@ -28,11 +28,11 @@ function runTests()
 
   let contentMenu = gScratchpadWindow.document.getElementById("sp-menu-content");
   let chromeMenu = gScratchpadWindow.document.getElementById("sp-menu-browser");
-  let notificationBox = sp.notificationBox;
+  let statusbar = sp.statusbarStatus;
 
   ok(contentMenu, "found #sp-menu-content");
   ok(chromeMenu, "found #sp-menu-browser");
-  ok(notificationBox, "found Scratchpad.notificationBox");
+  ok(statusbar, "found Scratchpad.statusbarStatus");
 
   sp.setContentContext();
 
@@ -45,8 +45,8 @@ function runTests()
   ok(!chromeMenu.hasAttribute("checked"),
      "chrome menuitem is not checked");
 
-  ok(!notificationBox.currentNotification,
-     "there is no notification in content context");
+  is(statusbar.getAttribute("label"), contentMenu.getAttribute("label"),
+     "statusbar label is correct");
 
   sp.setText("window.foobarBug636725 = 'aloha';");
 
@@ -69,8 +69,8 @@ function runTests()
   ok(!contentMenu.hasAttribute("checked"),
      "content menuitem is not checked");
 
-  ok(notificationBox.currentNotification,
-     "there is a notification in browser context");
+  is(statusbar.getAttribute("label"), chromeMenu.getAttribute("label"),
+     "statusbar label is correct");
 
   sp.setText("2'", 31, 33);
 
@@ -88,31 +88,31 @@ function runTests()
   ok(sp.getText(), "window.gBrowser",
      "setText() worked with no end for the replace range");
 
-  is(typeof sp.run()[2].addTab, "function",
+  is(typeof sp.run()[1].addTab, "function",
      "chrome context has access to chrome objects");
 
   // Check that the sandbox is cached.
 
   sp.setText("typeof foobarBug636725cache;");
-  is(sp.run()[2], "undefined", "global variable does not exist");
+  is(sp.run()[1], "undefined", "global variable does not exist");
 
   sp.setText("var foobarBug636725cache = 'foo';");
   sp.run();
 
   sp.setText("typeof foobarBug636725cache;");
-  is(sp.run()[2], "string",
+  is(sp.run()[1], "string",
      "global variable exists across two different executions");
 
   sp.resetContext();
 
-  is(sp.run()[2], "undefined",
+  is(sp.run()[1], "undefined",
      "global variable no longer exists after calling resetContext()");
 
   sp.setText("var foobarBug636725cache2 = 'foo';");
   sp.run();
 
   sp.setText("typeof foobarBug636725cache2;");
-  is(sp.run()[2], "string",
+  is(sp.run()[1], "string",
      "global variable exists across two different executions");
 
   sp.setContentContext();
@@ -120,8 +120,11 @@ function runTests()
   is(sp.executionContext, gScratchpadWindow.SCRATCHPAD_CONTEXT_CONTENT,
      "executionContext is content");
 
-  is(sp.run()[2], "undefined",
+  is(sp.run()[1], "undefined",
      "global variable no longer exists after changing the context");
 
+  gScratchpadWindow.close();
+  gScratchpadWindow = null;
+  gBrowser.removeCurrentTab();
   finish();
 }

@@ -66,8 +66,7 @@ nsSHEntry::nsSHEntry()
   , mID(gEntryID++)
   , mScrollPositionX(0)
   , mScrollPositionY(0)
-  , mParent(nsnull)
-  , mURIWasModified(false)
+  , mURIWasModified(PR_FALSE)
 {
   mShared = new nsSHEntryShared();
 }
@@ -82,19 +81,18 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   , mID(other.mID)
   , mScrollPositionX(0)  // XXX why not copy?
   , mScrollPositionY(0)  // XXX why not copy?
-  , mParent(other.mParent)
   , mURIWasModified(other.mURIWasModified)
   , mStateData(other.mStateData)
 {
 }
 
-static bool
+static PRBool
 ClearParentPtr(nsISHEntry* aEntry, void* /* aData */)
 {
   if (aEntry) {
     aEntry->SetParent(nsnull);
   }
-  return true;
+  return PR_TRUE;
 }
 
 nsSHEntry::~nsSHEntry()
@@ -128,13 +126,13 @@ NS_IMETHODIMP nsSHEntry::GetScrollPosition(PRInt32 *x, PRInt32 *y)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::GetURIWasModified(bool* aOut)
+NS_IMETHODIMP nsSHEntry::GetURIWasModified(PRBool* aOut)
 {
   *aOut = mURIWasModified;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::SetURIWasModified(bool aIn)
+NS_IMETHODIMP nsSHEntry::SetURIWasModified(PRBool aIn)
 {
   mURIWasModified = aIn;
   return NS_OK;
@@ -213,14 +211,14 @@ nsSHEntry::GetAnyContentViewer(nsISHEntry **aOwnerEntry,
 }
 
 NS_IMETHODIMP
-nsSHEntry::SetSticky(bool aSticky)
+nsSHEntry::SetSticky(PRBool aSticky)
 {
   mShared->mSticky = aSticky;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSHEntry::GetSticky(bool *aSticky)
+nsSHEntry::GetSticky(PRBool *aSticky)
 {
   *aSticky = mShared->mSticky;
   return NS_OK;
@@ -306,13 +304,13 @@ nsSHEntryShared* nsSHEntry::GetSharedState()
   return mShared;
 }
 
-NS_IMETHODIMP nsSHEntry::GetIsSubFrame(bool * aFlag)
+NS_IMETHODIMP nsSHEntry::GetIsSubFrame(PRBool * aFlag)
 {
   *aFlag = mShared->mIsFrameNavigation;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::SetIsSubFrame(bool    aFlag)
+NS_IMETHODIMP nsSHEntry::SetIsSubFrame(PRBool  aFlag)
 {
   mShared->mIsFrameNavigation = aFlag;
   return NS_OK;
@@ -331,13 +329,13 @@ NS_IMETHODIMP nsSHEntry::SetCacheKey(nsISupports* aCacheKey)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::GetSaveLayoutStateFlag(bool * aFlag)
+NS_IMETHODIMP nsSHEntry::GetSaveLayoutStateFlag(PRBool * aFlag)
 {
   *aFlag = mShared->mSaveLayoutState;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::SetSaveLayoutStateFlag(bool    aFlag)
+NS_IMETHODIMP nsSHEntry::SetSaveLayoutStateFlag(PRBool  aFlag)
 {
   mShared->mSaveLayoutState = aFlag;
   if (mShared->mLayoutHistoryState) {
@@ -347,13 +345,13 @@ NS_IMETHODIMP nsSHEntry::SetSaveLayoutStateFlag(bool    aFlag)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::GetExpirationStatus(bool * aFlag)
+NS_IMETHODIMP nsSHEntry::GetExpirationStatus(PRBool * aFlag)
 {
   *aFlag = mShared->mExpired;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::SetExpirationStatus(bool    aFlag)
+NS_IMETHODIMP nsSHEntry::SetExpirationStatus(PRBool  aFlag)
 {
   mShared->mExpired = aFlag;
   return NS_OK;
@@ -377,7 +375,7 @@ nsSHEntry::Create(nsIURI * aURI, const nsAString &aTitle,
                   nsILayoutHistoryState * aLayoutHistoryState,
                   nsISupports * aCacheKey, const nsACString& aContentType,
                   nsISupports* aOwner,
-                  PRUint64 aDocShellID, bool aDynamicCreation)
+                  PRUint64 aDocShellID, PRBool aDynamicCreation)
 {
   mURI = aURI;
   mTitle = aTitle;
@@ -395,14 +393,14 @@ nsSHEntry::Create(nsIURI * aURI, const nsAString &aTitle,
   // By default all entries are set false for subframe flag. 
   // nsDocShell::CloneAndReplace() which creates entries for
   // all subframe navigations, sets the flag to true.
-  mShared->mIsFrameNavigation = false;
+  mShared->mIsFrameNavigation = PR_FALSE;
 
   // By default we save LayoutHistoryState
-  mShared->mSaveLayoutState = true;
+  mShared->mSaveLayoutState = PR_TRUE;
   mShared->mLayoutHistoryState = aLayoutHistoryState;
 
   //By default the page is not expired
-  mShared->mExpired = false;
+  mShared->mExpired = PR_FALSE;
 
   return NS_OK;
 }
@@ -419,7 +417,7 @@ NS_IMETHODIMP
 nsSHEntry::GetParent(nsISHEntry ** aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = mParent;
+  *aResult = mShared->mParent;
   NS_IF_ADDREF(*aResult);
   return NS_OK;
 }
@@ -432,7 +430,7 @@ nsSHEntry::SetParent(nsISHEntry * aParent)
    *
    * XXX this method should not be scriptable if this is the case!!
    */
-  mParent = aParent;
+  mShared->mParent = aParent;
   return NS_OK;
 }
 
@@ -486,7 +484,7 @@ nsSHEntry::GetBFCacheEntry(nsIBFCacheEntry **aEntry)
   return NS_OK;
 }
 
-bool
+PRBool
 nsSHEntry::HasBFCacheEntry(nsIBFCacheEntry *aEntry)
 {
   return static_cast<nsIBFCacheEntry*>(mShared) == aEntry;
@@ -506,7 +504,7 @@ nsSHEntry::AdoptBFCacheEntry(nsISHEntry *aEntry)
 }
 
 NS_IMETHODIMP
-nsSHEntry::SharesDocumentWith(nsISHEntry *aEntry, bool *aOut)
+nsSHEntry::SharesDocumentWith(nsISHEntry *aEntry, PRBool *aOut)
 {
   NS_ENSURE_ARG_POINTER(aOut);
 
@@ -558,7 +556,7 @@ nsSHEntry::AddChild(nsISHEntry * aChild, PRInt32 aOffset)
   //
   NS_ASSERTION(aOffset < (mChildren.Count()+1023), "Large frames array!\n");
 
-  bool newChildIsDyn = false;
+  PRBool newChildIsDyn = PR_FALSE;
   if (aChild) {
     aChild->IsDynamicallyAdded(&newChildIsDyn);
   }
@@ -570,7 +568,7 @@ nsSHEntry::AddChild(nsISHEntry * aChild, PRInt32 aOffset)
     for (PRInt32 i = aOffset; i < mChildren.Count(); ++i) {
       nsISHEntry* entry = mChildren[i];
       if (entry) {
-        bool dyn = false;
+        PRBool dyn = PR_FALSE;
         entry->IsDynamicallyAdded(&dyn);
         if (dyn) {
           break;
@@ -601,7 +599,7 @@ nsSHEntry::AddChild(nsISHEntry * aChild, PRInt32 aOffset)
       for (PRInt32 i = start; i >= 0; --i) {
         nsISHEntry* entry = mChildren[i];
         if (entry) {
-          bool dyn = false;
+          PRBool dyn = PR_FALSE;
           entry->IsDynamicallyAdded(&dyn);
           if (dyn) {
             dynEntryIndex = i;
@@ -644,8 +642,8 @@ NS_IMETHODIMP
 nsSHEntry::RemoveChild(nsISHEntry * aChild)
 {
   NS_ENSURE_TRUE(aChild, NS_ERROR_FAILURE);
-  bool childRemoved = false;
-  bool dynamic = false;
+  PRBool childRemoved = PR_FALSE;
+  PRBool dynamic = PR_FALSE;
   aChild->IsDynamicallyAdded(&dynamic);
   if (dynamic) {
     childRemoved = mChildren.RemoveObject(aChild);
@@ -745,7 +743,7 @@ nsSHEntry::SetEditorData(nsDocShellEditorData* aData)
   }
 }
 
-bool
+PRBool
 nsSHEntry::HasDetachedEditor()
 {
   return mShared->mEditorData != nsnull;
@@ -767,16 +765,16 @@ nsSHEntry::SetStateData(nsIStructuredCloneContainer *aContainer)
 }
 
 NS_IMETHODIMP
-nsSHEntry::IsDynamicallyAdded(bool* aAdded)
+nsSHEntry::IsDynamicallyAdded(PRBool* aAdded)
 {
   *aAdded = mShared->mDynamicallyCreated;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSHEntry::HasDynamicallyAddedChild(bool* aAdded)
+nsSHEntry::HasDynamicallyAddedChild(PRBool* aAdded)
 {
-  *aAdded = false;
+  *aAdded = PR_FALSE;
   for (PRInt32 i = 0; i < mChildren.Count(); ++i) {
     nsISHEntry* entry = mChildren[i];
     if (entry) {

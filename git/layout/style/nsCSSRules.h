@@ -43,8 +43,6 @@
 #ifndef nsCSSRules_h_
 #define nsCSSRules_h_
 
-#include "mozilla/Attributes.h"
-
 #include "mozilla/css/GroupRule.h"
 #include "nsIDOMCSSMediaRule.h"
 #include "nsIDOMCSSMozDocumentRule.h"
@@ -72,8 +70,8 @@ class nsMediaList;
 namespace mozilla {
 namespace css {
 
-class MediaRule : public GroupRule,
-                  public nsIDOMCSSMediaRule
+class NS_FINAL_CLASS MediaRule : public GroupRule,
+                                 public nsIDOMCSSMediaRule
 {
 public:
   MediaRule();
@@ -105,7 +103,7 @@ public:
   NS_DECL_NSIDOMCSSMEDIARULE
 
   // rest of GroupRule
-  virtual bool UseForPresentation(nsPresContext* aPresContext,
+  virtual PRBool UseForPresentation(nsPresContext* aPresContext,
                                     nsMediaQueryResultCacheKey& aKey);
 
   // @media rule methods
@@ -115,8 +113,8 @@ protected:
   nsRefPtr<nsMediaList> mMedia;
 };
 
-class DocumentRule : public GroupRule,
-                     public nsIDOMCSSMozDocumentRule
+class NS_FINAL_CLASS DocumentRule : public GroupRule,
+                                    public nsIDOMCSSMozDocumentRule
 {
 public:
   DocumentRule();
@@ -147,7 +145,7 @@ public:
   NS_DECL_NSIDOMCSSMOZDOCUMENTRULE
 
   // rest of GroupRule
-  virtual bool UseForPresentation(nsPresContext* aPresContext,
+  virtual PRBool UseForPresentation(nsPresContext* aPresContext,
                                     nsMediaQueryResultCacheKey& aKey);
 
   enum Function {
@@ -214,8 +212,8 @@ private:
   void* operator new(size_t size) CPP_THROW_NEW;
 };
 
-class nsCSSFontFaceRule MOZ_FINAL : public mozilla::css::Rule,
-                                    public nsIDOMCSSFontFaceRule
+class NS_FINAL_CLASS nsCSSFontFaceRule : public mozilla::css::Rule,
+                                         public nsIDOMCSSFontFaceRule
 {
 public:
   nsCSSFontFaceRule() {}
@@ -275,8 +273,8 @@ nsCSSFontFaceStyleDecl::ContainingRule() const
 namespace mozilla {
 namespace css {
 
-class CharsetRule MOZ_FINAL : public Rule,
-                              public nsIDOMCSSCharsetRule
+class NS_FINAL_CLASS CharsetRule : public Rule,
+                                   public nsIDOMCSSCharsetRule
 {
 public:
   CharsetRule(const nsAString& aEncoding);
@@ -315,7 +313,8 @@ private:
 
 class nsCSSKeyframeRule;
 
-class nsCSSKeyframeStyleDeclaration : public nsDOMCSSDeclaration
+class NS_FINAL_CLASS nsCSSKeyframeStyleDeclaration
+                         : public nsDOMCSSDeclaration
 {
 public:
   nsCSSKeyframeStyleDeclaration(nsCSSKeyframeRule *aRule);
@@ -323,7 +322,7 @@ public:
 
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
   void DropReference() { mRule = nsnull; }
-  virtual mozilla::css::Declaration* GetCSSDeclaration(bool aAllocate);
+  virtual mozilla::css::Declaration* GetCSSDeclaration(PRBool aAllocate);
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration* aDecl);
   virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
   virtual nsIDocument* DocToUpdate();
@@ -345,8 +344,8 @@ protected:
   nsCSSKeyframeRule *mRule;
 };
 
-class nsCSSKeyframeRule MOZ_FINAL : public mozilla::css::Rule,
-                                    public nsIDOMMozCSSKeyframeRule
+class NS_FINAL_CLASS nsCSSKeyframeRule : public mozilla::css::Rule,
+                                         public nsIDOMMozCSSKeyframeRule
 {
 public:
   // WARNING: Steals the contents of aKeys *and* aDeclaration
@@ -390,8 +389,8 @@ private:
   nsRefPtr<nsCSSKeyframeStyleDeclaration>    mDOMDeclaration;
 };
 
-class nsCSSKeyframesRule : public mozilla::css::GroupRule,
-                           public nsIDOMMozCSSKeyframesRule
+class NS_FINAL_CLASS nsCSSKeyframesRule : public mozilla::css::GroupRule,
+                                          public nsIDOMMozCSSKeyframesRule
 {
 public:
   nsCSSKeyframesRule(const nsSubstring& aName)
@@ -424,7 +423,7 @@ public:
   NS_DECL_NSIDOMMOZCSSKEYFRAMESRULE
 
   // rest of GroupRule
-  virtual bool UseForPresentation(nsPresContext* aPresContext,
+  virtual PRBool UseForPresentation(nsPresContext* aPresContext,
                                     nsMediaQueryResultCacheKey& aKey);
 
   const nsString& GetName() { return mName; }

@@ -234,11 +234,6 @@ nsresult nsZipHandle::Init(nsZipArchive *zip, const char *entry,
   return NS_OK;
 }
 
-PRInt64 nsZipHandle::SizeOfMapping()
-{
-    return mLen;
-}
-
 nsZipHandle::~nsZipHandle()
 {
   if (mMap) {
@@ -270,7 +265,7 @@ nsresult nsZipArchive::OpenArchive(nsZipHandle *aZipHandle)
   char *env = PR_GetEnv("MOZ_JAR_LOG_DIR");
   if (env && NS_SUCCEEDED(rv) && aZipHandle->mFile) {
     nsCOMPtr<nsILocalFile> logFile;
-    nsresult rv2 = NS_NewLocalFile(NS_ConvertUTF8toUTF16(env), false, getter_AddRefs(logFile));
+    nsresult rv2 = NS_NewLocalFile(NS_ConvertUTF8toUTF16(env), PR_FALSE, getter_AddRefs(logFile));
     
     if (!NS_SUCCEEDED(rv2))
       return rv;
@@ -464,7 +459,7 @@ nsZipArchive::FindInit(const char * aPattern, nsZipFind **aFind)
   // null out param in case an error happens
   *aFind = NULL;
 
-  bool    regExp = false;
+  PRBool  regExp = PR_FALSE;
   char*   pattern = 0;
 
   // Create synthetic directory entries on demand
@@ -481,16 +476,16 @@ nsZipArchive::FindInit(const char * aPattern, nsZipFind **aFind)
         return NS_ERROR_ILLEGAL_VALUE;
 
       case NON_SXP:
-        regExp = false;
+        regExp = PR_FALSE;
         break;
 
       case VALID_SXP:
-        regExp = true;
+        regExp = PR_TRUE;
         break;
 
       default:
         // undocumented return value from RegExpValid!
-        PR_ASSERT(false);
+        PR_ASSERT(PR_FALSE);
         return NS_ERROR_ILLEGAL_VALUE;
     }
 
@@ -527,17 +522,17 @@ MOZ_WIN_MEM_TRY_BEGIN
     // move to next in current chain, or move to new slot
     mItem = mItem ? mItem->next : mArchive->mFiles[mSlot];
 
-    bool found = false;
+    PRBool found = PR_FALSE;
     if (!mItem)
       ++mSlot;                          // no more in this chain, move to next slot
     else if (!mPattern)
-      found = true;            // always match
+      found = PR_TRUE;            // always match
     else if (mRegExp)
     {
       char buf[kMaxNameLength+1];
       memcpy(buf, mItem->Name(), mItem->nameLength);
       buf[mItem->nameLength]='\0';
-      found = (NS_WildCardMatch(buf, mPattern, false) == MATCH);
+      found = (NS_WildCardMatch(buf, mPattern, PR_FALSE) == MATCH);
     }
     else
       found = ((mItem->nameLength == strlen(mPattern)) &&
@@ -702,14 +697,14 @@ MOZ_WIN_MEM_TRY_BEGIN
 
         // Is the directory already in the file table?
         PRUint32 hash = HashName(item->Name(), dirlen);
-        bool found = false;
+        PRBool found = PR_FALSE;
         for (nsZipItem* zi = mFiles[hash]; zi != NULL; zi = zi->next)
         {
           if ((dirlen == zi->nameLength) &&
               (0 == memcmp(item->Name(), zi->Name(), dirlen)))
           {
             // we've already added this dir and all its parents
-            found = true;
+            found = PR_TRUE;
             break;
           }
         }
@@ -780,14 +775,6 @@ MOZ_WIN_MEM_TRY_BEGIN
 MOZ_WIN_MEM_TRY_CATCH(return nsnull)
 }
 
-//---------------------------------------------
-// nsZipArchive::SizeOfMapping
-//---------------------------------------------
-PRInt64 nsZipArchive::SizeOfMapping()
-{
-    return mFd ? mFd->SizeOfMapping() : 0;
-}
-
 //------------------------------------------
 // nsZipArchive constructor and destructor
 //------------------------------------------
@@ -813,7 +800,7 @@ nsZipArchive::~nsZipArchive()
 // nsZipFind constructor and destructor
 //------------------------------------------
 
-nsZipFind::nsZipFind(nsZipArchive* aZip, char* aPattern, bool aRegExp) : 
+nsZipFind::nsZipFind(nsZipArchive* aZip, char* aPattern, PRBool aRegExp) : 
   mArchive(aZip),
   mPattern(aPattern),
   mItem(0),

@@ -42,10 +42,10 @@
 #include "nsGkAtoms.h"
 
 PlaceholderTxn::PlaceholderTxn() :  EditAggregateTxn(), 
-                                    mAbsorb(true), 
+                                    mAbsorb(PR_TRUE), 
                                     mForwarding(nsnull),
                                     mIMETextTxn(nsnull),
-                                    mCommitted(false),
+                                    mCommitted(PR_FALSE),
                                     mStartSel(nsnull),
                                     mEndSel(),
                                     mEditor(nsnull)
@@ -121,12 +121,12 @@ NS_IMETHODIMP PlaceholderTxn::RedoTransaction(void)
 }
 
 
-NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge)
+NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMerge)
 {
   NS_ENSURE_TRUE(aDidMerge && aTransaction, NS_ERROR_NULL_POINTER);
 
   // set out param default value
-  *aDidMerge=false;
+  *aDidMerge=PR_FALSE;
     
   if (mForwarding) 
   {
@@ -165,7 +165,7 @@ NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, bool *aDidMerg
       }
       else  
       {
-        bool didMerge;
+        PRBool didMerge;
         mIMETextTxn->Merge(otherTxn, &didMerge);
         if (!didMerge)
         {
@@ -181,7 +181,7 @@ NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, bool *aDidMerg
     {                  // their children will be swallowed by this preexisting one.
       AppendChild(editTxn);
     }
-    *aDidMerge = true;
+    *aDidMerge = PR_TRUE;
 //  RememberEndingSelection();
 //  efficiency hack: no need to remember selection here, as we haven't yet 
 //  finished the initial batch and we know we will be told when the batch ends.
@@ -206,11 +206,11 @@ NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, bool *aDidMerg
         {
           // check if start selection of next placeholder matches
           // end selection of this placeholder
-          bool isSame;
+          PRBool isSame;
           plcTxn->StartSelectionEquals(&mEndSel, &isSame);
           if (isSame)
           {
-            mAbsorb = true;  // we need to start absorbing again
+            mAbsorb = PR_TRUE;  // we need to start absorbing again
             plcTxn->ForwardEndBatchTo(this);
             // AppendChild(editTxn);
             // see bug 171243: we don't need to merge placeholders
@@ -218,7 +218,7 @@ NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, bool *aDidMerg
             // placeholder and drop the new one on the floor.  The EndPlaceHolderBatch()
             // call on the new placeholder will be forwarded to this older one.
             RememberEndingSelection();
-            *aDidMerge = true;
+            *aDidMerge = PR_TRUE;
           }
         }
       }
@@ -246,14 +246,14 @@ NS_IMETHODIMP PlaceholderTxn::GetTxnName(nsIAtom **aName)
   return GetName(aName);
 }
 
-NS_IMETHODIMP PlaceholderTxn::StartSelectionEquals(nsSelectionState *aSelState, bool *aResult)
+NS_IMETHODIMP PlaceholderTxn::StartSelectionEquals(nsSelectionState *aSelState, PRBool *aResult)
 {
   // determine if starting selection matches the given selection state.
   // note that we only care about collapsed selections.
   NS_ENSURE_TRUE(aResult && aSelState, NS_ERROR_NULL_POINTER);
   if (!mStartSel->IsCollapsed() || !aSelState->IsCollapsed())
   {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
   }
   *aResult = mStartSel->IsEqual(aSelState);
@@ -262,7 +262,7 @@ NS_IMETHODIMP PlaceholderTxn::StartSelectionEquals(nsSelectionState *aSelState, 
 
 NS_IMETHODIMP PlaceholderTxn::EndPlaceHolderBatch()
 {
-  mAbsorb = false;
+  mAbsorb = PR_FALSE;
   
   if (mForwarding) 
   {
@@ -282,7 +282,7 @@ NS_IMETHODIMP PlaceholderTxn::ForwardEndBatchTo(nsIAbsorbingTransaction *aForwar
 
 NS_IMETHODIMP PlaceholderTxn::Commit()
 {
-  mCommitted = true;
+  mCommitted = PR_TRUE;
   return NS_OK;
 }
 

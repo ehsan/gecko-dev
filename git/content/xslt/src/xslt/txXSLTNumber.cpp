@@ -76,7 +76,7 @@ nsresult txXSLTNumber::createNumber(Expr* aValueExpr, txPattern* aCountPattern,
 
     // Create resulting string
     aResult = head;
-    bool first = true;
+    MBool first = MB_TRUE;
     txListIterator valueIter(&values);
     txListIterator counterIter(&counters);
     valueIter.resetToEnd();
@@ -92,7 +92,7 @@ nsresult txXSLTNumber::createNumber(Expr* aValueExpr, txPattern* aCountPattern,
         }
 
         counter->appendNumber(value, aResult);
-        first = false;
+        first = MB_FALSE;
     }
     
     aResult.Append(tail);
@@ -122,9 +122,9 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
 
         double value = result->numberValue();
 
-        if (txDouble::isInfinite(value) || txDouble::isNaN(value) ||
+        if (Double::isInfinite(value) || Double::isNaN(value) ||
             value < 0.5) {
-            txDouble::toString(value, aValueString);
+            Double::toString(value, aValueString);
             return NS_OK;
         }
         
@@ -136,13 +136,13 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
     // Otherwise use count/from/level
 
     txPattern* countPattern = aCountPattern;
-    bool ownsCountPattern = false;
+    MBool ownsCountPattern = MB_FALSE;
     const txXPathNode& currNode = aContext->getContextNode();
 
     // Parse count- and from-attributes
 
     if (!aCountPattern) {
-        ownsCountPattern = true;
+        ownsCountPattern = MB_TRUE;
         txNodeTest* nodeTest;
         PRUint16 nodeType = txXPathNodeUtils::getNodeType(currNode);
         switch (nodeType) {
@@ -191,7 +191,7 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
         }
         NS_ENSURE_TRUE(nodeTest, NS_ERROR_OUT_OF_MEMORY);
 
-        countPattern = new txStepPattern(nodeTest, false);
+        countPattern = new txStepPattern(nodeTest, MB_FALSE);
         if (!countPattern) {
             // XXX error reporting
             delete nodeTest;
@@ -223,7 +223,7 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
         // ancestor that matches the from-pattern, so keep going to make
         // sure that there is an ancestor that does.
         if (aFromPattern && aValues.getLength()) {
-            bool hasParent;
+            PRBool hasParent;
             while ((hasParent = walker.moveToParent())) {
                 if (aFromPattern->matches(walker.getCurrentPosition(), aContext)) {
                     break;
@@ -239,12 +239,12 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
     else if (aLevel == eLevelMultiple) {
         // find all ancestor-or-selfs that matches count until...
         txXPathTreeWalker walker(currNode);
-        bool matchedFrom = false;
+        MBool matchedFrom = MB_FALSE;
         do {
             if (aFromPattern && !walker.isOnNode(currNode) &&
                 aFromPattern->matches(walker.getCurrentPosition(), aContext)) {
                 //... we find one that matches from
-                matchedFrom = true;
+                matchedFrom = MB_TRUE;
                 break;
             }
 
@@ -264,13 +264,13 @@ txXSLTNumber::getValueList(Expr* aValueExpr, txPattern* aCountPattern,
     // level = "any"
     else if (aLevel == eLevelAny) {
         PRInt32 value = 0;
-        bool matchedFrom = false;
+        MBool matchedFrom = MB_FALSE;
 
         txXPathTreeWalker walker(currNode);
         do {
             if (aFromPattern && !walker.isOnNode(currNode) &&
                 aFromPattern->matches(walker.getCurrentPosition(), aContext)) {
-                matchedFrom = true;
+                matchedFrom = MB_TRUE;
                 break;
             }
 
@@ -318,7 +318,7 @@ txXSLTNumber::getCounters(Expr* aGroupSize, Expr* aGroupSeparator,
         rv = aGroupSize->evaluateToString(aContext, sizeStr);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        double size = txDouble::toDouble(sizeStr);
+        double size = Double::toDouble(sizeStr);
         groupSize = (PRInt32)size;
         if ((double)groupSize != size) {
             groupSize = 0;
@@ -438,24 +438,24 @@ txXSLTNumber::getSiblingCount(txXPathTreeWalker& aWalker,
     return value;
 }
 
-bool
+PRBool
 txXSLTNumber::getPrevInDocumentOrder(txXPathTreeWalker& aWalker)
 {
     if (aWalker.moveToPreviousSibling()) {
         while (aWalker.moveToLastChild()) {
             // do nothing
         }
-        return true;
+        return PR_TRUE;
     }
     return aWalker.moveToParent();
 }
 
-#define TX_CHAR_RANGE(ch, a, b) if (ch < a) return false; \
-    if (ch <= b) return true
-#define TX_MATCH_CHAR(ch, a) if (ch < a) return false; \
-    if (ch == a) return true
+#define TX_CHAR_RANGE(ch, a, b) if (ch < a) return MB_FALSE; \
+    if (ch <= b) return MB_TRUE
+#define TX_MATCH_CHAR(ch, a) if (ch < a) return MB_FALSE; \
+    if (ch == a) return MB_TRUE
 
-bool txXSLTNumber::isAlphaNumeric(PRUnichar ch)
+MBool txXSLTNumber::isAlphaNumeric(PRUnichar ch)
 {
     TX_CHAR_RANGE(ch, 0x0030, 0x0039);
     TX_CHAR_RANGE(ch, 0x0041, 0x005A);
@@ -747,5 +747,5 @@ bool txXSLTNumber::isAlphaNumeric(PRUnichar ch)
     TX_CHAR_RANGE(ch, 0xFFC2, 0xFFC7);
     TX_CHAR_RANGE(ch, 0xFFCA, 0xFFCF);
     TX_CHAR_RANGE(ch, 0xFFD2, 0xFFD7);
-    return false;
+    return MB_FALSE;
 }

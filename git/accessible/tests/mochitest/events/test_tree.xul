@@ -159,11 +159,6 @@
         new rowCountChangedChecker("insertRow: ", 0, 1),
         new treeInvalidatedChecker("insertRow", 0, 5, null, null)
       ];
-
-      this.getID = function insertRow_getID()
-      {
-        return "insert row";
-      }
     }
 
     /**
@@ -172,7 +167,7 @@
      */
     function invalidateColumn()
     {
-      this.invoke = function invalidateColumn_invoke()
+      this.invoke = function()
       {
         // Make sure accessibles for the tree is created because it makes
         // sure accessible events will be fired.
@@ -198,11 +193,6 @@
         new nameChangeChecker("invalidateColumn: ", 5, 0),
         new treeInvalidatedChecker("invalidateColumn", null, null, 0, 0)
       ];
-
-      this.getID = function invalidateColumn_getID()
-      {
-        return "invalidate column";
-      }
     }
 
     /**
@@ -212,7 +202,7 @@
      */
     function invalidateRow()
     {
-      this.invoke = function invalidateRow_invoke()
+      this.invoke = function()
       {
         // Fire 'TreeInvalidated' event by InvalidateRow()
         var colCount = gTree.columns.count;
@@ -231,11 +221,6 @@
         new nameChangeChecker("invalidateColumn: ", 1, 1),
         new treeInvalidatedChecker("invalidateColumn", 1, 1, null, null)
       ];
-
-      this.getID = function invalidateRow_getID()
-      {
-        return "invalidate row";
-      }
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -247,7 +232,6 @@
     var gQueue = null;
 
     // gA11yEventDumpID = "debug";
-    gA11yEventDumpToConsole = true; // debuggin
 
     function doTest()
     {

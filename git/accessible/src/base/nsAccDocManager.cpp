@@ -94,23 +94,11 @@ nsAccDocManager::FindAccessibleInCache(nsINode* aNode) const
   return arg.mAccessible;
 }
 
-#ifdef DEBUG
-bool
-nsAccDocManager::IsProcessingRefreshDriverNotification() const
-{
-  bool isDocRefreshing = false;
-  mDocAccessibleCache.EnumerateRead(SearchIfDocIsRefreshing,
-                                    static_cast<void*>(&isDocRefreshing));
-
-  return isDocRefreshing;
-}
-#endif
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccDocManager protected
 
-bool
+PRBool
 nsAccDocManager::Init()
 {
   mDocAccessibleCache.Init(4);
@@ -119,12 +107,12 @@ nsAccDocManager::Init()
     do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID);
 
   if (!progress)
-    return false;
+    return PR_FALSE;
 
   progress->AddProgressListener(static_cast<nsIWebProgressListener*>(this),
                                 nsIWebProgress::NOTIFY_STATE_DOCUMENT);
 
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -238,8 +226,7 @@ nsAccDocManager::OnProgressChange(nsIWebProgress *aWebProgress,
 
 NS_IMETHODIMP
 nsAccDocManager::OnLocationChange(nsIWebProgress *aWebProgress,
-                                  nsIRequest *aRequest, nsIURI *aLocation,
-                                  PRUint32 aFlags)
+                                  nsIRequest *aRequest, nsIURI *aLocation)
 {
   NS_NOTREACHED("notification excluded in AddProgressListener(...)");
   return NS_OK;
@@ -338,11 +325,11 @@ nsAccDocManager::HandleDOMDocumentLoad(nsIDocument *aDocument,
 
 void
 nsAccDocManager::AddListeners(nsIDocument *aDocument,
-                              bool aAddDOMContentLoadedListener)
+                              PRBool aAddDOMContentLoadedListener)
 {
   nsPIDOMWindow *window = aDocument->GetWindow();
   nsIDOMEventTarget *target = window->GetChromeEventHandler();
-  nsEventListenerManager* elm = target->GetListenerManager(true);
+  nsEventListenerManager* elm = target->GetListenerManager(PR_TRUE);
   elm->AddEventListenerByType(this, NS_LITERAL_STRING("pagehide"),
                               NS_EVENT_FLAG_CAPTURE);
 
@@ -375,7 +362,7 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
   if (!rootElm)
     return nsnull;
 
-  bool isRootDoc = nsCoreUtils::IsRootDocument(aDocument);
+  PRBool isRootDoc = nsCoreUtils::IsRootDocument(aDocument);
 
   nsDocAccessible* parentDocAcc = nsnull;
   if (!isRootDoc) {
@@ -431,7 +418,6 @@ nsAccDocManager::CreateDocOrRootAccessible(nsIDocument *aDocument)
   }
 
   NS_LOG_ACCDOCCREATE("document creation finished", aDocument)
-  NS_LOG_ACCDOCCREATE_STACK
 
   AddListeners(aDocument, isRootDoc);
   return docAcc;
@@ -480,22 +466,3 @@ nsAccDocManager::SearchAccessibleInDocCache(const nsIDocument* aKey,
 
   return PL_DHASH_NEXT;
 }
-
-#ifdef DEBUG
-PLDHashOperator
-nsAccDocManager::SearchIfDocIsRefreshing(const nsIDocument* aKey,
-                                         nsDocAccessible* aDocAccessible,
-                                         void* aUserArg)
-{
-  NS_ASSERTION(aDocAccessible,
-               "No doc accessible for the object in doc accessible cache!");
-
-  if (aDocAccessible && aDocAccessible->mNotificationController &&
-      aDocAccessible->mNotificationController->IsUpdating()) {
-    *(static_cast<bool*>(aUserArg)) = true;
-    return PL_DHASH_STOP;
-  }
-
-  return PL_DHASH_NEXT;
-}
-#endif

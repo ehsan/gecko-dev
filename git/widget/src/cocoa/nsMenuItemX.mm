@@ -45,7 +45,7 @@
 #include "nsObjCExceptions.h"
 
 #include "nsCOMPtr.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsGUIEvent.h"
 
 #include "mozilla/dom/Element.h"
@@ -62,7 +62,7 @@ nsMenuItemX::nsMenuItemX()
   mNativeMenuItem = nil;
   mMenuParent     = nsnull;
   mMenuGroupOwner = nsnull;
-  mIsChecked      = false;
+  mIsChecked      = PR_FALSE;
 
   MOZ_COUNT_CTOR(nsMenuItemX);
 }
@@ -109,7 +109,7 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
   // to the command DOM node
   if (doc) {
     nsAutoString ourCommand;
-    mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::command, ourCommand);
+    mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::command, ourCommand);
 
     if (!ourCommand.IsEmpty()) {
       nsIContent *commandElement = doc->GetElementById(ourCommand);
@@ -124,11 +124,11 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
 
   // decide enabled state based on command content if it exists, otherwise do it based
   // on our own content
-  bool isEnabled;
+  PRBool isEnabled;
   if (mCommandContent)
-    isEnabled = !mCommandContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled, nsGkAtoms::_true, eCaseMatters);
+    isEnabled = !mCommandContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled, nsWidgetAtoms::_true, eCaseMatters);
   else
-    isEnabled = !mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled, nsGkAtoms::_true, eCaseMatters);
+    isEnabled = !mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled, nsWidgetAtoms::_true, eCaseMatters);
 
   // set up the native menu item
   if (mType == eSeparatorMenuItemType) {
@@ -140,8 +140,8 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
 
     [mNativeMenuItem setEnabled:(BOOL)isEnabled];
 
-    SetChecked(mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::checked,
-                                     nsGkAtoms::_true, eCaseMatters));
+    SetChecked(mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::checked,
+                                     nsWidgetAtoms::_true, eCaseMatters));
     SetKeyEquiv();
   }
 
@@ -154,7 +154,7 @@ nsresult nsMenuItemX::Create(nsMenuX* aParent, const nsString& aLabel, EMenuItem
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-nsresult nsMenuItemX::SetChecked(bool aIsChecked)
+nsresult nsMenuItemX::SetChecked(PRBool aIsChecked)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -162,8 +162,8 @@ nsresult nsMenuItemX::SetChecked(bool aIsChecked)
   
   // update the content model. This will also handle unchecking our siblings
   // if we are a radiomenu
-  mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::checked, 
-                    mIsChecked ? NS_LITERAL_STRING("true") : NS_LITERAL_STRING("false"), true);
+  mContent->SetAttr(kNameSpaceID_None, nsWidgetAtoms::checked, 
+                    mIsChecked ? NS_LITERAL_STRING("true") : NS_LITERAL_STRING("false"), PR_TRUE);
   
   // update native menu item
   if (mIsChecked)
@@ -188,8 +188,8 @@ void nsMenuItemX::DoCommand()
   // flip "checked" state if we're a checkbox menu, or an un-checked radio menu
   if (mType == eCheckboxMenuItemType ||
       (mType == eRadioMenuItemType && !mIsChecked)) {
-    if (!mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::autocheck,
-                               nsGkAtoms::_false, eCaseMatters))
+    if (!mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::autocheck,
+                               nsWidgetAtoms::_false, eCaseMatters))
     SetChecked(!mIsChecked);
     /* the AttributeChanged code will update all the internal state */
   }
@@ -197,13 +197,17 @@ void nsMenuItemX::DoCommand()
   nsMenuUtilsX::DispatchCommandTo(mContent);
 }
 
-nsresult nsMenuItemX::DispatchDOMEvent(const nsString &eventName, bool *preventDefaultCalled)
+nsresult nsMenuItemX::DispatchDOMEvent(const nsString &eventName, PRBool *preventDefaultCalled)
 {
   if (!mContent)
     return NS_ERROR_FAILURE;
 
   // get owner document for content
-  nsCOMPtr<nsIDocument> parentDoc = mContent->OwnerDoc();
+  nsCOMPtr<nsIDocument> parentDoc = mContent->GetOwnerDoc();
+  if (!parentDoc) {
+    NS_WARNING("Failed to get owner nsIDocument for menu item content");
+    return NS_ERROR_FAILURE;
+  }
 
   // get interface for creating DOM events from content owner document
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(parentDoc);
@@ -219,11 +223,11 @@ nsresult nsMenuItemX::DispatchDOMEvent(const nsString &eventName, bool *preventD
     NS_WARNING("Failed to create nsIDOMEvent");
     return rv;
   }
-  event->InitEvent(eventName, true, true);
+  event->InitEvent(eventName, PR_TRUE, PR_TRUE);
 
   // mark DOM event as trusted
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
-  privateEvent->SetTrusted(true);
+  privateEvent->SetTrusted(PR_TRUE);
 
   // send DOM event
   nsCOMPtr<nsIDOMEventTarget> eventTarget = do_QueryInterface(mContent);
@@ -241,7 +245,7 @@ nsresult nsMenuItemX::DispatchDOMEvent(const nsString &eventName, bool *preventD
 void nsMenuItemX::UncheckRadioSiblings(nsIContent* inCheckedContent)
 {
   nsAutoString myGroupName;
-  inCheckedContent->GetAttr(kNameSpaceID_None, nsGkAtoms::name, myGroupName);
+  inCheckedContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::name, myGroupName);
   if (!myGroupName.Length()) // no groupname, nothing to do
     return;
   
@@ -256,9 +260,9 @@ void nsMenuItemX::UncheckRadioSiblings(nsIContent* inCheckedContent)
     if (sibling) {      
       if (sibling != inCheckedContent) { // skip this node
         // if the current sibling is in the same group, clear it
-        if (sibling->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+        if (sibling->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::name,
                                  myGroupName, eCaseMatters))
-          sibling->SetAttr(kNameSpaceID_None, nsGkAtoms::checked, NS_LITERAL_STRING("false"), true);
+          sibling->SetAttr(kNameSpaceID_None, nsWidgetAtoms::checked, NS_LITERAL_STRING("false"), PR_TRUE);
       }
     }    
   }
@@ -270,15 +274,15 @@ void nsMenuItemX::SetKeyEquiv()
 
   // Set key shortcut and modifiers
   nsAutoString keyValue;
-  mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::key, keyValue);
+  mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::key, keyValue);
   if (!keyValue.IsEmpty() && mContent->GetCurrentDoc()) {
     nsIContent *keyContent = mContent->GetCurrentDoc()->GetElementById(keyValue);
     if (keyContent) {
       nsAutoString keyChar(NS_LITERAL_STRING(" "));
-      keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::key, keyChar);
+      keyContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::key, keyChar);
 
       nsAutoString modifiersStr;
-      keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiersStr);
+      keyContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::modifiers, modifiersStr);
       PRUint8 modifiers = nsMenuUtilsX::GeckoModifiersForNodeAttribute(modifiersStr);
 
       unsigned int macModifiers = nsMenuUtilsX::MacModifiersForGeckoModifiers(modifiers);
@@ -314,29 +318,29 @@ nsMenuItemX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConten
     return;
   
   if (aContent == mContent) { // our own content node changed
-    if (aAttribute == nsGkAtoms::checked) {
+    if (aAttribute == nsWidgetAtoms::checked) {
       // if we're a radio menu, uncheck our sibling radio items. No need to
       // do any of this if we're just a normal check menu.
       if (mType == eRadioMenuItemType) {
-        if (mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::checked,
-                                  nsGkAtoms::_true, eCaseMatters))
+        if (mContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::checked,
+                                  nsWidgetAtoms::_true, eCaseMatters))
           UncheckRadioSiblings(mContent);
       }
-      mMenuParent->SetRebuild(true);
+      mMenuParent->SetRebuild(PR_TRUE);
     }
-    else if (aAttribute == nsGkAtoms::hidden ||
-             aAttribute == nsGkAtoms::collapsed ||
-             aAttribute == nsGkAtoms::label) {
-      mMenuParent->SetRebuild(true);
+    else if (aAttribute == nsWidgetAtoms::hidden ||
+             aAttribute == nsWidgetAtoms::collapsed ||
+             aAttribute == nsWidgetAtoms::label) {
+      mMenuParent->SetRebuild(PR_TRUE);
     }
-    else if (aAttribute == nsGkAtoms::key) {
+    else if (aAttribute == nsWidgetAtoms::key) {
       SetKeyEquiv();
     }
-    else if (aAttribute == nsGkAtoms::image) {
+    else if (aAttribute == nsWidgetAtoms::image) {
       SetupIcon();
     }
-    else if (aAttribute == nsGkAtoms::disabled) {
-      if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled, nsGkAtoms::_true, eCaseMatters))
+    else if (aAttribute == nsWidgetAtoms::disabled) {
+      if (aContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled, nsWidgetAtoms::_true, eCaseMatters))
         [mNativeMenuItem setEnabled:NO];
       else
         [mNativeMenuItem setEnabled:YES];
@@ -345,21 +349,21 @@ nsMenuItemX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConten
   else if (aContent == mCommandContent) {
     // the only thing that really matters when the menu isn't showing is the
     // enabled state since it enables/disables keyboard commands
-    if (aAttribute == nsGkAtoms::disabled) {
+    if (aAttribute == nsWidgetAtoms::disabled) {
       // first we sync our menu item DOM node with the command DOM node
       nsAutoString commandDisabled;
       nsAutoString menuDisabled;
-      aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandDisabled);
-      mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, menuDisabled);
+      aContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::disabled, commandDisabled);
+      mContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::disabled, menuDisabled);
       if (!commandDisabled.Equals(menuDisabled)) {
         // The menu's disabled state needs to be updated to match the command.
         if (commandDisabled.IsEmpty()) 
-          mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled, true);
+          mContent->UnsetAttr(kNameSpaceID_None, nsWidgetAtoms::disabled, PR_TRUE);
         else
-          mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandDisabled, true);
+          mContent->SetAttr(kNameSpaceID_None, nsWidgetAtoms::disabled, commandDisabled, PR_TRUE);
       }
       // now we sync our native menu item with the command DOM node
-      if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled, nsGkAtoms::_true, eCaseMatters))
+      if (aContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::disabled, nsWidgetAtoms::_true, eCaseMatters))
         [mNativeMenuItem setEnabled:NO];
       else
         [mNativeMenuItem setEnabled:YES];
@@ -376,13 +380,13 @@ void nsMenuItemX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChi
     mCommandContent = nsnull;
   }
 
-  mMenuParent->SetRebuild(true);
+  mMenuParent->SetRebuild(PR_TRUE);
 }
 
 void nsMenuItemX::ObserveContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
                                          nsIContent *aChild)
 {
-  mMenuParent->SetRebuild(true);
+  mMenuParent->SetRebuild(PR_TRUE);
 }
 
 void nsMenuItemX::SetupIcon()

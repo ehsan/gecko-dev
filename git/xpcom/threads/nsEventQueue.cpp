@@ -67,8 +67,8 @@ nsEventQueue::~nsEventQueue()
     FreePage(mHead);
 }
 
-bool
-nsEventQueue::GetEvent(bool mayWait, nsIRunnable **result)
+PRBool
+nsEventQueue::GetEvent(PRBool mayWait, nsIRunnable **result)
 {
   {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -77,7 +77,7 @@ nsEventQueue::GetEvent(bool mayWait, nsIRunnable **result)
       if (!mayWait) {
         if (result)
           *result = nsnull;
-        return false;
+        return PR_FALSE;
       }
       LOG(("EVENTQ(%p): wait begin\n", this)); 
       mon.Wait();
@@ -97,22 +97,22 @@ nsEventQueue::GetEvent(bool mayWait, nsIRunnable **result)
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsEventQueue::PutEvent(nsIRunnable *runnable)
 {
   // Avoid calling AddRef+Release while holding our monitor.
   nsRefPtr<nsIRunnable> event(runnable);
-  bool rv = true;
+  PRBool rv = PR_TRUE;
   {
     ReentrantMonitorAutoEnter mon(mReentrantMonitor);
 
     if (!mHead) {
       mHead = NewPage();
       if (!mHead) {
-        rv = false;
+        rv = PR_FALSE;
       } else {
         mTail = mHead;
         mOffsetHead = 0;
@@ -121,7 +121,7 @@ nsEventQueue::PutEvent(nsIRunnable *runnable)
     } else if (mOffsetTail == EVENTS_PER_PAGE) {
       Page *page = NewPage();
       if (!page) {
-        rv = false;
+        rv = PR_FALSE;
       } else {
         mTail->mNext = page;
         mTail = page;

@@ -47,7 +47,7 @@ class nsMacShellService : public nsIMacShellService,
                           public nsIWebProgressListener
 {
 public:
-  nsMacShellService() : mCheckedThisSession(false) {};
+  nsMacShellService() : mCheckedThisSession(PR_FALSE) {};
   virtual ~nsMacShellService() {};
 
   NS_DECL_ISUPPORTS
@@ -60,7 +60,7 @@ protected:
 private:
   nsCOMPtr<nsILocalFile> mBackgroundFile;
 
-  bool      mCheckedThisSession;
+  PRBool    mCheckedThisSession;
 };
 
 #endif // nsmacshellservice_h____

@@ -61,10 +61,10 @@ static gboolean
 
 static void InitPangoLib()
 {
-    static bool initialized = false;
+    static PRBool initialized = PR_FALSE;
     if (initialized)
         return;
-    initialized = true;
+    initialized = PR_TRUE;
 
     PRLibrary *pangoLib = nsnull;
     PTR_pango_font_description_get_size_is_absolute =
@@ -88,7 +88,7 @@ MOZ_pango_font_description_get_size_is_absolute(PangoFontDescription *desc)
     }
 
     // In old versions of pango, this was always false.
-    return false;
+    return PR_FALSE;
 }
 #else
 static inline void InitPangoLib()
@@ -200,7 +200,7 @@ nsSystemFontsGTK2::GetSystemFontInfo(GtkWidget *aWidget, nsString *aFontName,
     PangoFontDescription *desc;
     desc = pango_font_description_from_string(fontname);
 
-    aFontStyle->systemFont = true;
+    aFontStyle->systemFont = PR_TRUE;
 
     g_free(fontname);
 
@@ -231,7 +231,7 @@ nsSystemFontsGTK2::GetSystemFontInfo(GtkWidget *aWidget, nsString *aFontName,
 #else
     /* FIXME: DFB FT2 Hardcoding the system font info for now.. */
     aFontStyle->style       = FONT_STYLE_NORMAL;
-    aFontStyle->systemFont = true;
+    aFontStyle->systemFont = PR_TRUE;
 
     NS_NAMED_LITERAL_STRING(fontname, "\"Sans\"");
     *aFontName = fontname;

@@ -76,12 +76,12 @@ nsXBLPrototypeResources::AddResource(nsIAtom* aResourceType, const nsAString& aS
 }
  
 void
-nsXBLPrototypeResources::LoadResources(bool* aResult)
+nsXBLPrototypeResources::LoadResources(PRBool* aResult)
 {
   if (mLoader)
     mLoader->LoadResources(aResult);
   else
-    *aResult = true; // All resources loaded.
+    *aResult = PR_TRUE; // All resources loaded.
 }
 
 void
@@ -91,12 +91,12 @@ nsXBLPrototypeResources::AddResourceListener(nsIContent* aBoundElement)
     mLoader->AddResourceListener(aBoundElement);
 }
 
-static bool IsChromeURI(nsIURI* aURI)
+static PRBool IsChromeURI(nsIURI* aURI)
 {
-  bool isChrome=false;
+  PRBool isChrome=PR_FALSE;
   if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)) && isChrome)
-    return true;
-  return false;
+    return PR_TRUE;
+  return PR_FALSE;
 }
 
 nsresult
@@ -137,13 +137,5 @@ nsXBLPrototypeResources::FlushSkinSheets()
   mRuleProcessor = new nsCSSRuleProcessor(mStyleSheetList, 
                                           nsStyleSet::eDocSheet);
 
-  return NS_OK;
-}
-
-nsresult
-nsXBLPrototypeResources::Write(nsIObjectOutputStream* aStream)
-{
-  if (mLoader)
-    return mLoader->Write(aStream);
   return NS_OK;
 }

@@ -54,8 +54,6 @@ let EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
 
 const FINISHED_MAINTENANCE_TOPIC = "places-maintenance-finished";
 
-const BYTES_PER_MEBIBYTE = 1048576;
-
 ////////////////////////////////////////////////////////////////////////////////
 //// Smart getters
 
@@ -117,6 +115,7 @@ let PlacesDBUtils = {
       this.checkIntegrity
     , this.checkCoherence
     , this._refreshUI
+    , this._telemetry
     ]);
     tasks.callback = aCallback;
     tasks.scope = aScope;
@@ -487,7 +486,7 @@ let PlacesDBUtils = {
     cleanupStatements.push(fixInvalidKeywords);
 
     // D.6 fix wrong item types
-    //     Folders and separators should not have an fk.
+    //     Folders, separators and dynamic containers should not have an fk.
     //     If they have a valid fk convert them to bookmarks. Later in D.9 we
     //     will move eventual children to unsorted bookmarks.
     let fixBookmarksAsFolders = DBConn.createAsyncStatement(
@@ -495,12 +494,13 @@ let PlacesDBUtils = {
         "SELECT folder_id FROM moz_bookmarks_roots " + // skip roots
       ") AND id IN ( " +
         "SELECT id FROM moz_bookmarks b " +
-        "WHERE type IN (:folder_type, :separator_type) " +
+        "WHERE type IN (:folder_type, :separator_type, :dynamic_type) " +
           "AND fk NOTNULL " +
       ")");
     fixBookmarksAsFolders.params["bookmark_type"] = PlacesUtils.bookmarks.TYPE_BOOKMARK;
     fixBookmarksAsFolders.params["folder_type"] = PlacesUtils.bookmarks.TYPE_FOLDER;
     fixBookmarksAsFolders.params["separator_type"] = PlacesUtils.bookmarks.TYPE_SEPARATOR;
+    fixBookmarksAsFolders.params["dynamic_type"] = PlacesUtils.bookmarks.TYPE_DYNAMIC_CONTAINER;
     cleanupStatements.push(fixBookmarksAsFolders);
 
     // D.7 fix wrong item types
@@ -518,8 +518,23 @@ let PlacesDBUtils = {
     fixFoldersAsBookmarks.params["folder_type"] = PlacesUtils.bookmarks.TYPE_FOLDER;
     cleanupStatements.push(fixFoldersAsBookmarks);
 
+    // D.8 fix wrong item types
+    //     Dynamic containers should have a folder_type, if they don't have any
+    //     convert them to folders.
+    let fixFoldersAsDynamic = DBConn.createAsyncStatement(
+      "UPDATE moz_bookmarks SET type = :folder_type WHERE id NOT IN ( " +
+        "SELECT folder_id FROM moz_bookmarks_roots " + // skip roots
+      ") AND id IN ( " +
+        "SELECT id FROM moz_bookmarks b " +
+        "WHERE type = :dynamic_type " +
+          "AND folder_type IS NULL " +
+      ")");
+    fixFoldersAsDynamic.params["dynamic_type"] = PlacesUtils.bookmarks.TYPE_DYNAMIC_CONTAINER;
+    fixFoldersAsDynamic.params["folder_type"] = PlacesUtils.bookmarks.TYPE_FOLDER;
+    cleanupStatements.push(fixFoldersAsDynamic);
+
     // D.9 fix wrong parents
-    //     Items cannot have separators or other bookmarks
+    //     Items cannot have dynamic containers, separators or other bookmarks
     //     as parent, if they have bad parent move them to unsorted bookmarks.
     let fixInvalidParents = DBConn.createAsyncStatement(
       "UPDATE moz_bookmarks SET parent = :unsorted_folder WHERE id NOT IN ( " +
@@ -528,12 +543,13 @@ let PlacesDBUtils = {
         "SELECT id FROM moz_bookmarks b " +
         "WHERE EXISTS " +
           "(SELECT id FROM moz_bookmarks WHERE id = b.parent " +
-            "AND type IN (:bookmark_type, :separator_type) " +
+            "AND type IN (:bookmark_type, :separator_type, :dynamic_type) " +
             "LIMIT 1) " +
       ")");
     fixInvalidParents.params["unsorted_folder"] = PlacesUtils.unfiledBookmarksFolderId;
     fixInvalidParents.params["bookmark_type"] = PlacesUtils.bookmarks.TYPE_BOOKMARK;
     fixInvalidParents.params["separator_type"] = PlacesUtils.bookmarks.TYPE_SEPARATOR;
+    fixInvalidParents.params["dynamic_type"] = PlacesUtils.bookmarks.TYPE_DYNAMIC_CONTAINER;
     cleanupStatements.push(fixInvalidParents);
 
     // D.10 recalculate positions
@@ -688,21 +704,24 @@ let PlacesDBUtils = {
       ")");
     cleanupStatements.push(fixInvalidFaviconIds);
 
-    // L.2 recalculate visit_count and last_visit_date
-    let fixVisitStats = DBConn.createAsyncStatement(
-      "UPDATE moz_places " +
-      "SET visit_count = (SELECT count(*) FROM moz_historyvisits " +
-                         "WHERE place_id = moz_places.id AND visit_type NOT IN (0,4,7,8)), " +
-          "last_visit_date = (SELECT MAX(visit_date) FROM moz_historyvisits " +
-                             "WHERE place_id = moz_places.id) " +
-      "WHERE id IN ( " +
-        "SELECT h.id FROM moz_places h " +
-        "WHERE visit_count <> (SELECT count(*) FROM moz_historyvisits v " +
-                              "WHERE v.place_id = h.id AND visit_type NOT IN (0,4,7,8)) " +
-           "OR last_visit_date <> (SELECT MAX(visit_date) FROM moz_historyvisits v " +
-                                  "WHERE v.place_id = h.id) " +
-      ")");
-    cleanupStatements.push(fixVisitStats);
+/* XXX needs test
+    // L.2 recalculate visit_count
+    let detectWrongCountPlaces = DBConn.createStatement(
+      "SELECT id FROM moz_places h " +
+      "WHERE h.visit_count <> " +
+          "(SELECT count(*) FROM moz_historyvisits " +
+            "WHERE place_id = h.id AND visit_type NOT IN (0,4,7,8))");
+    while (detectWrongCountPlaces.executeStep()) {
+      let placeId = detectWrongCountPlaces.getInt64(0);
+      let fixCountForPlace = DBConn.createStatement(
+        "UPDATE moz_places SET visit_count = ( " +
+          "(SELECT count(*) FROM moz_historyvisits " +
+            "WHERE place_id = :place_id AND visit_type NOT IN (0,4,7,8)) + "
+        ") WHERE id = :place_id");
+      fixCountForPlace.params["place_id"] = placeId;
+      cleanupStatements.push(fixCountForPlace);
+    }
+*/
 
     // MAINTENANCE STATEMENTS SHOULD GO ABOVE THIS POINT!
 
@@ -842,7 +861,7 @@ let PlacesDBUtils = {
    * @param [optional] aTasks
    *        Tasks object to execute.
    */
-  telemetry: function PDBU_telemetry(aTasks)
+  _telemetry: function PDBU__telemetry(aTasks)
   {
     let tasks = new Tasks(aTasks);
 
@@ -892,7 +911,7 @@ let PlacesDBUtils = {
         let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
         DBFile.append("places.sqlite");
         try {
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
+          return parseInt(DBFile.fileSize / 1024);
         } catch (ex) {
           return 0;
         }
@@ -902,7 +921,7 @@ let PlacesDBUtils = {
         let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
         DBFile.append("places.sqlite-wal");
         try {
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
+          return parseInt(DBFile.fileSize / 1024);
         } catch (ex) {
           return 0;
         }

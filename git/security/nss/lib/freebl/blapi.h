@@ -37,7 +37,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: blapi.h,v 1.43 2011/10/29 23:28:45 wtc%google.com Exp $ */
+/* $Id: blapi.h,v 1.41 2010/12/06 17:22:49 kaie%kuix.de Exp $ */
 
 #ifndef _BLAPI_H_
 #define _BLAPI_H_
@@ -273,7 +273,7 @@ JPAKE_Sign(PLArenaPool * arena, const PQGParams * pqg, HASH_HashType hashType,
  * The arena is *not* optional so do not pass NULL for the arena parameter. 
  */
 SECStatus
-JPAKE_Verify(PLArenaPool * arena, const PQGParams * pqg,
+JPAKE_Verify(PRArenaPool * arena, const PQGParams * pqg,
              HASH_HashType hashType, const SECItem * signerID,
              const SECItem * peerID, const SECItem * gx,
              const SECItem * gv, const SECItem * r);
@@ -1256,6 +1256,13 @@ PRNGTEST_Generate(PRUint8 *bytes, unsigned int bytes_len,
 
 extern SECStatus
 PRNGTEST_Uninstantiate(void);
+
+/*
+ * Mask generation function MGF1
+ */
+extern SECStatus
+MGF1(HASH_HashType hashAlg, unsigned char *mask, unsigned int maskLen,
+     const unsigned char *mgfSeed, unsigned int mgfSeedLen);
 
 /* Generate PQGParams and PQGVerify structs.
  * Length of seed and length of h both equal length of P. 

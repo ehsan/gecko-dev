@@ -58,12 +58,10 @@ class nsCSSStyleSheet;
 class nsXBLPrototypeResources
 {
 public:
-  void LoadResources(bool* aResult);
+  void LoadResources(PRBool* aResult);
   void AddResource(nsIAtom* aResourceType, const nsAString& aSrc);
   void AddResourceListener(nsIContent* aElement);
   nsresult FlushSkinSheets();
-
-  nsresult Write(nsIObjectOutputStream* aStream);
 
   nsXBLPrototypeResources(nsXBLPrototypeBinding* aBinding);
   ~nsXBLPrototypeResources();

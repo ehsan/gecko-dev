@@ -103,7 +103,8 @@ public:
    */
   PRUint32 Length() const {
     NS_ABORT_IF_FALSE(mItems.Length() == 0 ||
-                      mItems.Length() == InternalList().Length(),
+                      mItems.Length() ==
+                        const_cast<DOMSVGLengthList*>(this)->InternalList().Length(),
                       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
@@ -115,7 +116,7 @@ public:
 
 private:
 
-  nsSVGElement* Element() const {
+  nsSVGElement* Element() {
     return mAList->mElement;
   }
 
@@ -128,7 +129,7 @@ private:
   }
 
   /// Used to determine if this list is the baseVal or animVal list.
-  bool IsAnimValList() const {
+  PRBool IsAnimValList() const {
     NS_ABORT_IF_FALSE(this == mAList->mBaseVal || this == mAList->mAnimVal,
                       "Calling IsAnimValList() too early?!");
     return this == mAList->mAnimVal;
@@ -142,7 +143,7 @@ private:
    * get const protection, but our setter methods guard against changing
    * animVal lists.
    */
-  SVGLengthList& InternalList() const;
+  SVGLengthList& InternalList();
 
   /// Creates a DOMSVGLength for aIndex, if it doesn't already exist.
   void EnsureItemAt(PRUint32 aIndex);

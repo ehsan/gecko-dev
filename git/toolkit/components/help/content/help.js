@@ -543,7 +543,7 @@ nsHelpStatusHandler.prototype = {
         aMaxSelfProgress, aCurTotalProgress, aMaxTotalProgress) {},
     onStatusChange : function(aWebProgress, aRequest, aStatus, aMessage) {},
     onSecurityChange : function(aWebProgress, aRequest, state) {},
-    onLocationChange : function(aWebProgress, aRequest, aLocation, aFlags) {
+    onLocationChange : function(aWebProgress, aRequest, aLocation) {
         UpdateBackForwardButtons();
     },
     QueryInterface : function(aIID) {

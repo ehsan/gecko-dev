@@ -48,8 +48,6 @@
 
 /* loading of CSS style sheets using the network APIs */
 
-#include "mozilla/Util.h"
-
 #include "mozilla/css/Loader.h"
 #include "nsIRunnable.h"
 #include "nsIUnicharStreamLoader.h"
@@ -83,7 +81,6 @@
 #include "nsThreadUtils.h"
 #include "nsGkAtoms.h"
 #include "nsDocShellCID.h"
-#include "nsIThreadInternal.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPrototypeCache.h"
@@ -135,8 +132,7 @@ namespace css {
  *********************************************/
 
 class SheetLoadData : public nsIRunnable,
-                      public nsIUnicharStreamLoaderObserver,
-                      public nsIThreadObserver
+                      public nsIUnicharStreamLoaderObserver
 {
 public:
   virtual ~SheetLoadData(void);
@@ -146,7 +142,7 @@ public:
                 nsIURI* aURI,
                 nsCSSStyleSheet* aSheet,
                 nsIStyleSheetLinkingElement* aOwningElement,
-                bool aIsAlternate,
+                PRBool aIsAlternate,
                 nsICSSLoaderObserver* aObserver,
                 nsIPrincipal* aLoaderPrincipal);
 
@@ -162,20 +158,17 @@ public:
   SheetLoadData(Loader* aLoader,
                 nsIURI* aURI,
                 nsCSSStyleSheet* aSheet,
-                bool aSyncLoad,
-                bool aAllowUnsafeRules,
-                bool aUseSystemPrincipal,
+                PRBool aSyncLoad,
+                PRBool aAllowUnsafeRules,
+                PRBool aUseSystemPrincipal,
                 const nsCString& aCharset,
                 nsICSSLoaderObserver* aObserver,
                 nsIPrincipal* aLoaderPrincipal);
 
   already_AddRefed<nsIURI> GetReferrerURI();
 
-  void ScheduleLoadEventIfNeeded(nsresult aStatus);
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
-  NS_DECL_NSITHREADOBSERVER
   NS_DECL_NSIUNICHARSTREAMLOADEROBSERVER
 
   // Hold a ref to the CSSLoader so we can call back to it to let it
@@ -210,51 +203,45 @@ public:
 
   // mSyncLoad is true when the load needs to be synchronous -- right
   // now only for LoadSheetSync and children of sync loads.
-  bool                       mSyncLoad : 1;
+  PRPackedBool               mSyncLoad : 1;
 
   // mIsNonDocumentSheet is true if the load was triggered by LoadSheetSync or
   // LoadSheet or an @import from such a sheet.  Non-document sheet loads can
   // proceed even if we have no document.
-  bool                       mIsNonDocumentSheet : 1;
+  PRPackedBool               mIsNonDocumentSheet : 1;
 
   // mIsLoading is true from the moment we are placed in the loader's
   // "loading datas" table (right after the async channel is opened)
   // to the moment we are removed from said table (due to the load
   // completing or being cancelled).
-  bool                       mIsLoading : 1;
+  PRPackedBool               mIsLoading : 1;
 
   // mIsCancelled is set to true when a sheet load is stopped by
   // Stop() or StopLoadingSheet() (which was removed in Bug 556446).
   // SheetLoadData::OnStreamComplete() checks this to avoid parsing
   // sheets that have been cancelled and such.
-  bool                       mIsCancelled : 1;
+  PRPackedBool               mIsCancelled : 1;
 
   // mMustNotify is true if the load data is being loaded async and
   // the original function call that started the load has returned.
-  // This applies only to observer notifications; load/error events
-  // are fired for any SheetLoadData that has a non-null
-  // mOwningElement.
-  bool                       mMustNotify : 1;
+  // XXXbz sort our relationship with load/error events!
+  PRPackedBool               mMustNotify : 1;
 
   // mWasAlternate is true if the sheet was an alternate when the load data was
   // created.
-  bool                       mWasAlternate : 1;
+  PRPackedBool               mWasAlternate : 1;
 
   // mAllowUnsafeRules is true if we should allow unsafe rules to be parsed
   // in the loaded sheet.
-  bool                       mAllowUnsafeRules : 1;
+  PRPackedBool               mAllowUnsafeRules : 1;
 
   // mUseSystemPrincipal is true if the system principal should be used for
   // this sheet, no matter what the channel principal is.  Only true for sync
   // loads.
-  bool                       mUseSystemPrincipal : 1;
-
-  // If true, this SheetLoadData is being used as a way to handle
-  // async observer notification for an already-complete sheet.
-  bool                       mSheetAlreadyComplete : 1;
+  PRPackedBool               mUseSystemPrincipal : 1;
 
   // This is the element that imported the sheet.  Needed to get the
-  // charset set on it and to fire load/error events.
+  // charset set on it.
   nsCOMPtr<nsIStyleSheetLinkingElement> mOwningElement;
 
   // The observer that wishes to be notified of load completion
@@ -266,15 +253,6 @@ public:
   // The charset to use if the transport and sheet don't indicate one.
   // May be empty.  Must be empty if mOwningElement is non-null.
   nsCString                             mCharsetHint;
-
-  // The status our load ended up with; this determines whether we
-  // should fire error events or load events.  This gets initialized
-  // by ScheduleLoadEventIfNeeded, and is only used after that has
-  // been called.
-  nsresult                              mStatus;
-
-private:
-  void FireLoadEvent(nsIThreadInternal* aThread);
 };
 
 #ifdef MOZ_LOGGING
@@ -326,15 +304,14 @@ static const char* const gStateStrings[] = {
 /********************************
  * SheetLoadData implementation *
  ********************************/
-NS_IMPL_ISUPPORTS3(SheetLoadData, nsIUnicharStreamLoaderObserver, nsIRunnable,
-                   nsIThreadObserver)
+NS_IMPL_ISUPPORTS2(SheetLoadData, nsIUnicharStreamLoaderObserver, nsIRunnable)
 
 SheetLoadData::SheetLoadData(Loader* aLoader,
                              const nsSubstring& aTitle,
                              nsIURI* aURI,
                              nsCSSStyleSheet* aSheet,
                              nsIStyleSheetLinkingElement* aOwningElement,
-                             bool aIsAlternate,
+                             PRBool aIsAlternate,
                              nsICSSLoaderObserver* aObserver,
                              nsIPrincipal* aLoaderPrincipal)
   : mLoader(aLoader),
@@ -345,15 +322,14 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
     mNext(nsnull),
     mParentData(nsnull),
     mPendingChildren(0),
-    mSyncLoad(false),
-    mIsNonDocumentSheet(false),
-    mIsLoading(false),
-    mIsCancelled(false),
-    mMustNotify(false),
+    mSyncLoad(PR_FALSE),
+    mIsNonDocumentSheet(PR_FALSE),
+    mIsLoading(PR_FALSE),
+    mIsCancelled(PR_FALSE),
+    mMustNotify(PR_FALSE),
     mWasAlternate(aIsAlternate),
-    mAllowUnsafeRules(false),
-    mUseSystemPrincipal(false),
-    mSheetAlreadyComplete(false),
+    mAllowUnsafeRules(PR_FALSE),
+    mUseSystemPrincipal(PR_FALSE),
     mOwningElement(aOwningElement),
     mObserver(aObserver),
     mLoaderPrincipal(aLoaderPrincipal)
@@ -375,15 +351,14 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
     mNext(nsnull),
     mParentData(aParentData),
     mPendingChildren(0),
-    mSyncLoad(false),
-    mIsNonDocumentSheet(false),
-    mIsLoading(false),
-    mIsCancelled(false),
-    mMustNotify(false),
-    mWasAlternate(false),
-    mAllowUnsafeRules(false),
-    mUseSystemPrincipal(false),
-    mSheetAlreadyComplete(false),
+    mSyncLoad(PR_FALSE),
+    mIsNonDocumentSheet(PR_FALSE),
+    mIsLoading(PR_FALSE),
+    mIsCancelled(PR_FALSE),
+    mMustNotify(PR_FALSE),
+    mWasAlternate(PR_FALSE),
+    mAllowUnsafeRules(PR_FALSE),
+    mUseSystemPrincipal(PR_FALSE),
     mOwningElement(nsnull),
     mObserver(aObserver),
     mLoaderPrincipal(aLoaderPrincipal)
@@ -406,9 +381,9 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
 SheetLoadData::SheetLoadData(Loader* aLoader,
                              nsIURI* aURI,
                              nsCSSStyleSheet* aSheet,
-                             bool aSyncLoad,
-                             bool aAllowUnsafeRules,
-                             bool aUseSystemPrincipal,
+                             PRBool aSyncLoad,
+                             PRBool aAllowUnsafeRules,
+                             PRBool aUseSystemPrincipal,
                              const nsCString& aCharset,
                              nsICSSLoaderObserver* aObserver,
                              nsIPrincipal* aLoaderPrincipal)
@@ -420,14 +395,13 @@ SheetLoadData::SheetLoadData(Loader* aLoader,
     mParentData(nsnull),
     mPendingChildren(0),
     mSyncLoad(aSyncLoad),
-    mIsNonDocumentSheet(true),
-    mIsLoading(false),
-    mIsCancelled(false),
-    mMustNotify(false),
-    mWasAlternate(false),
+    mIsNonDocumentSheet(PR_TRUE),
+    mIsLoading(PR_FALSE),
+    mIsCancelled(PR_FALSE),
+    mMustNotify(PR_FALSE),
+    mWasAlternate(PR_FALSE),
     mAllowUnsafeRules(aAllowUnsafeRules),
     mUseSystemPrincipal(aUseSystemPrincipal),
-    mSheetAlreadyComplete(false),
     mOwningElement(nsnull),
     mObserver(aObserver),
     mLoaderPrincipal(aLoaderPrincipal),
@@ -454,78 +428,6 @@ SheetLoadData::Run()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-SheetLoadData::OnDispatchedEvent(nsIThreadInternal* aThread)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SheetLoadData::OnProcessNextEvent(nsIThreadInternal* aThread,
-                                  bool aMayWait,
-                                  PRUint32 aRecursionDepth)
-{
-  // We want to fire our load even before or after event processing,
-  // whichever comes first.
-  FireLoadEvent(aThread);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SheetLoadData::AfterProcessNextEvent(nsIThreadInternal* aThread,
-                                     PRUint32 aRecursionDepth)
-{
-  // We want to fire our load even before or after event processing,
-  // whichever comes first.
-  FireLoadEvent(aThread);
-  return NS_OK;
-}
-
-void
-SheetLoadData::FireLoadEvent(nsIThreadInternal* aThread)
-{
-  
-  // First remove ourselves as a thread observer.  But we need to keep
-  // ourselves alive while doing that!
-  nsRefPtr<SheetLoadData> kungFuDeathGrip(this);
-  aThread->RemoveObserver(this);
-
-  // Now fire the event
-  nsCOMPtr<nsINode> node = do_QueryInterface(mOwningElement);
-  NS_ASSERTION(node, "How did that happen???");
-
-  nsContentUtils::DispatchTrustedEvent(node->OwnerDoc(),
-                                       node,
-                                       NS_SUCCEEDED(mStatus) ?
-                                         NS_LITERAL_STRING("load") :
-                                         NS_LITERAL_STRING("error"),
-                                       false, false);
-
-  // And unblock onload
-  if (mLoader->mDocument) {
-    mLoader->mDocument->UnblockOnload(true);
-  }  
-}
-
-void
-SheetLoadData::ScheduleLoadEventIfNeeded(nsresult aStatus)
-{
-  if (!mOwningElement) {
-    return;
-  }
-
-  mStatus = aStatus;
-
-  nsCOMPtr<nsIThread> thread = do_GetMainThread();
-  nsCOMPtr<nsIThreadInternal> internalThread = do_QueryInterface(thread);
-  if (NS_SUCCEEDED(internalThread->AddObserver(this))) {
-    // Make sure to block onload here
-    if (mLoader->mDocument) {
-      mLoader->mDocument->BlockOnload();
-    }
-  }
-}
-
 /*************************
  * Loader Implementation *
  *************************/
@@ -534,9 +436,9 @@ Loader::Loader(void)
   : mDocument(nsnull)
   , mDatasToNotifyOn(0)
   , mCompatMode(eCompatibility_FullStandards)
-  , mEnabled(true)
+  , mEnabled(PR_TRUE)
 #ifdef DEBUG
-  , mSyncCallback(false)
+  , mSyncCallback(PR_FALSE)
 #endif
 {
 }
@@ -545,9 +447,9 @@ Loader::Loader(nsIDocument* aDocument)
   : mDocument(aDocument)
   , mDatasToNotifyOn(0)
   , mCompatMode(eCompatibility_FullStandards)
-  , mEnabled(true)
+  , mEnabled(PR_TRUE)
 #ifdef DEBUG
-  , mSyncCallback(false)
+  , mSyncCallback(PR_FALSE)
 #endif
 {
   // We can just use the preferred set, since there are no sheets in the
@@ -594,8 +496,8 @@ CollectNonAlternates(URIAndPrincipalHashKey *aKey,
   NS_PRECONDITION(aClosure, "Must have an array");
 
   // Note that we don't want to affect what the selected style set is,
-  // so use true for aHasAlternateRel.
-  if (aData->mLoader->IsAlternate(aData->mTitle, true)) {
+  // so use PR_TRUE for aHasAlternateRel.
+  if (aData->mLoader->IsAlternate(aData->mTitle, PR_TRUE)) {
     return PL_DHASH_NEXT;
   }
 
@@ -647,7 +549,7 @@ static nsresult GetCharsetFromData(const unsigned char* aStyleSheetData,
     return NS_ERROR_NOT_AVAILABLE;
   PRUint32 step = 1;
   PRUint32 pos = 0;
-  bool bigEndian = false;
+  PRBool bigEndian = PR_FALSE;
   // Determine the encoding type.  If we have a BOM, set aCharset to the
   // charset listed for that BOM in http://www.w3.org/TR/REC-xml#sec-guessing;
   // that way even if we don't have a valid @charset rule we can use the BOM to
@@ -917,7 +819,7 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
   // error document we got.
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
   if (httpChannel) {
-    bool requestSucceeded;
+    PRBool requestSucceeded;
     result = httpChannel->GetRequestSucceeded(&requestSucceeded);
     if (NS_SUCCEEDED(result) && !requestSucceeded) {
       LOG(("  Load returned an error page"));
@@ -936,20 +838,20 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
   // MIME type, but only if the style sheet is same-origin with the
   // requesting document or parent sheet.  See bug 524223.
 
-  bool validType = contentType.EqualsLiteral("text/css") ||
+  PRBool validType = contentType.EqualsLiteral("text/css") ||
     contentType.EqualsLiteral(UNKNOWN_CONTENT_TYPE) ||
     contentType.IsEmpty();
 
   if (!validType) {
     const char *errorMessage;
     PRUint32 errorFlag;
-    bool sameOrigin = true;
+    PRBool sameOrigin = PR_TRUE;
 
     if (mLoaderPrincipal) {
-      bool subsumed;
+      PRBool subsumed;
       result = mLoaderPrincipal->Subsumes(principal, &subsumed);
       if (NS_FAILED(result) || !subsumed) {
-        sameOrigin = false;
+        sameOrigin = PR_FALSE;
       }
     }
 
@@ -971,7 +873,7 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
     nsCOMPtr<nsIURI> referrer = GetReferrerURI();
     nsContentUtils::ReportToConsole(nsContentUtils::eCSS_PROPERTIES,
                                     errorMessage,
-                                    strings, ArrayLength(strings),
+                                    strings, NS_ARRAY_LENGTH(strings),
                                     referrer, EmptyString(), 0, 0, errorFlag,
                                     "CSS Loader", mLoader->mDocument);
 
@@ -987,24 +889,24 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
   // the same mInner as mSheet and will thus get the same URI.
   mSheet->SetURIs(channelURI, originalURI, channelURI);
 
-  bool completed;
+  PRBool completed;
   result = mLoader->ParseSheet(aBuffer, this, completed);
   NS_ASSERTION(completed || !mSyncLoad, "sync load did not complete");
   return result;
 }
 
 #ifdef MOZ_XUL
-static bool IsChromeURI(nsIURI* aURI)
+static PRBool IsChromeURI(nsIURI* aURI)
 {
   NS_ASSERTION(aURI, "Have to pass in a URI");
-  bool isChrome = false;
+  PRBool isChrome = PR_FALSE;
   aURI->SchemeIs("chrome", &isChrome);
   return isChrome;
 }
 #endif
 
-bool
-Loader::IsAlternate(const nsAString& aTitle, bool aHasAlternateRel)
+PRBool
+Loader::IsAlternate(const nsAString& aTitle, PRBool aHasAlternateRel)
 {
   // A sheet is alternate if it has a nonempty title that doesn't match the
   // currently selected style set.  But if there _is_ no currently selected
@@ -1012,7 +914,7 @@ Loader::IsAlternate(const nsAString& aTitle, bool aHasAlternateRel)
   // is nonempty, we should select the style set corresponding to aTitle, since
   // that's a preferred sheet.
   if (aTitle.IsEmpty()) {
-    return false;
+    return PR_FALSE;
   }
 
   if (!aHasAlternateRel && mDocument && mPreferredSheet.IsEmpty()) {
@@ -1020,7 +922,7 @@ Loader::IsAlternate(const nsAString& aTitle, bool aHasAlternateRel)
     // Make that be the preferred set.
     mDocument->SetHeaderData(nsGkAtoms::headerDefaultStyle, aTitle);
     // We're definitely not an alternate
-    return false;
+    return PR_FALSE;
   }
 
   return !aTitle.Equals(mPreferredSheet);
@@ -1092,11 +994,8 @@ nsresult
 Loader::CreateSheet(nsIURI* aURI,
                     nsIContent* aLinkingContent,
                     nsIPrincipal* aLoaderPrincipal,
-                    bool aSyncLoad,
-                    bool aHasAlternateRel,
-                    const nsAString& aTitle,                       
+                    PRBool aSyncLoad,
                     StyleSheetState& aSheetState,
-                    bool *aIsAlternate,
                     nsCSSStyleSheet** aSheet)
 {
   LOG(("css::Loader::CreateSheet"));
@@ -1110,10 +1009,6 @@ Loader::CreateSheet(nsIURI* aURI,
   nsresult rv = NS_OK;
   *aSheet = nsnull;
   aSheetState = eSheetStateUnknown;
-
-  // Check the alternate state before doing anything else, because it
-  // can mess with our hashtables.
-  *aIsAlternate = IsAlternate(aTitle, aHasAlternateRel);
 
   if (aURI) {
     aSheetState = eSheetComplete;
@@ -1165,7 +1060,7 @@ Loader::CreateSheet(nsIURI* aURI,
         LOG(("  From loading: %p", sheet.get()));
 
 #ifdef DEBUG
-        bool debugEqual;
+        PRBool debugEqual;
         NS_ASSERTION((!aLoaderPrincipal && !loadData->mLoaderPrincipal) ||
                      (aLoaderPrincipal && loadData->mLoaderPrincipal &&
                       NS_SUCCEEDED(aLoaderPrincipal->
@@ -1185,7 +1080,7 @@ Loader::CreateSheet(nsIURI* aURI,
           LOG(("  From pending: %p", sheet.get()));
 
 #ifdef DEBUG
-          bool debugEqual;
+          PRBool debugEqual;
           NS_ASSERTION((!aLoaderPrincipal && !loadData->mLoaderPrincipal) ||
                        (aLoaderPrincipal && loadData->mLoaderPrincipal &&
                         NS_SUCCEEDED(aLoaderPrincipal->
@@ -1248,7 +1143,8 @@ Loader::PrepareSheet(nsCSSStyleSheet* aSheet,
                      const nsSubstring& aTitle,
                      const nsSubstring& aMediaString,
                      nsMediaList* aMediaList,
-                     bool isAlternate)
+                     PRBool aHasAlternateRel,
+                     PRBool *aIsAlternate)
 {
   NS_PRECONDITION(aSheet, "Must have a sheet!");
 
@@ -1264,16 +1160,20 @@ Loader::PrepareSheet(nsCSSStyleSheet* aSheet,
     nsCSSParser mediumParser(this);
 
     // We have aMediaString only when linked from link elements, style
-    // elements, or PIs, so pass true.
+    // elements, or PIs, so pass PR_TRUE.
     rv = mediumParser.ParseMediaList(aMediaString, nsnull, 0, mediaList,
-                                     true);
+                                     PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   aSheet->SetMedia(mediaList);
 
   aSheet->SetTitle(aTitle);
-  aSheet->SetEnabled(! isAlternate);
+  PRBool alternate = IsAlternate(aTitle, aHasAlternateRel);
+  aSheet->SetEnabled(! alternate);
+  if (aIsAlternate) {
+    *aIsAlternate = alternate;
+  }
   return NS_OK;
 }
 
@@ -1382,7 +1282,7 @@ Loader::InsertChildSheet(nsCSSStyleSheet* aSheet,
 
   // child sheets should always start out enabled, even if they got
   // cloned off of top-level sheets which were disabled
-  aSheet->SetEnabled(true);
+  aSheet->SetEnabled(PR_TRUE);
 
   aParentSheet->AppendStyleSheet(aSheet);
   aParentRule->SetSheet(aSheet); // This sets the ownerRule on the sheet
@@ -1516,7 +1416,7 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
   }
 
 #ifdef DEBUG
-  mSyncCallback = true;
+  mSyncCallback = PR_TRUE;
 #endif
   nsCOMPtr<nsILoadGroup> loadGroup;
   // Content Security Policy information to pass into channel
@@ -1543,7 +1443,7 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
 
   if (NS_FAILED(rv)) {
 #ifdef DEBUG
-    mSyncCallback = false;
+    mSyncCallback = PR_FALSE;
 #endif
     LOG_ERROR(("  Failed to create channel"));
     SheetComplete(aLoadData, rv);
@@ -1555,7 +1455,7 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     // send a minimal Accept header for text/css
     httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
                                   NS_LITERAL_CSTRING("text/css,*/*;q=0.1"),
-                                  false);
+                                  PR_FALSE);
     nsCOMPtr<nsIURI> referrerURI = aLoadData->GetReferrerURI();
     if (referrerURI)
       httpChannel->SetReferrer(referrerURI);
@@ -1566,14 +1466,14 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
   channel->SetContentType(NS_LITERAL_CSTRING("text/css"));
 
   if (aLoadData->mLoaderPrincipal) {
-    bool inherit;
+    PRBool inherit;
     rv = NS_URIChainHasFlags(aLoadData->mURI,
                              nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT,
                              &inherit);
     if ((NS_SUCCEEDED(rv) && inherit) ||
         (nsContentUtils::URIIsLocalFile(aLoadData->mURI) &&
          NS_SUCCEEDED(aLoadData->mLoaderPrincipal->
-                      CheckMayLoad(aLoadData->mURI, false)))) {
+                      CheckMayLoad(aLoadData->mURI, PR_FALSE)))) {
       channel->SetOwner(aLoadData->mLoaderPrincipal);
     }
   }
@@ -1588,7 +1488,7 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     rv = channel->AsyncOpen(streamLoader, nsnull);
 
 #ifdef DEBUG
-  mSyncCallback = false;
+  mSyncCallback = PR_FALSE;
 #endif
 
   if (NS_FAILED(rv)) {
@@ -1599,13 +1499,13 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
 
   if (!mLoadingDatas.Put(&key, aLoadData)) {
     LOG_ERROR(("  Failed to put data in loading table"));
-    aLoadData->mIsCancelled = true;
+    aLoadData->mIsCancelled = PR_TRUE;
     channel->Cancel(NS_ERROR_OUT_OF_MEMORY);
     SheetComplete(aLoadData, NS_ERROR_OUT_OF_MEMORY);
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  aLoadData->mIsLoading = true;
+  aLoadData->mIsLoading = PR_TRUE;
 
   return NS_OK;
 }
@@ -1619,7 +1519,7 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
 nsresult
 Loader::ParseSheet(const nsAString& aInput,
                    SheetLoadData* aLoadData,
-                   bool& aCompleted)
+                   PRBool& aCompleted)
 {
   LOG(("css::Loader::ParseSheet"));
   NS_PRECONDITION(aLoadData, "Must have load data");
@@ -1631,7 +1531,7 @@ Loader::ParseSheet(const nsAString& aInput,
   NS_TIME_FUNCTION_FMT("Parsing stylesheet (url: %s)", spec__.get());
 #endif
 
-  aCompleted = false;
+  aCompleted = PR_FALSE;
 
   nsCSSParser parser(this, aLoadData->mSheet);
 
@@ -1656,7 +1556,7 @@ Loader::ParseSheet(const nsAString& aInput,
 
   if (aLoadData->mPendingChildren == 0) {
     LOG(("  No pending kids from parse"));
-    aCompleted = true;
+    aCompleted = PR_TRUE;
     SheetComplete(aLoadData, NS_OK);
   }
   // Otherwise, the children are holding strong refs to the data and
@@ -1741,22 +1641,16 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
 #endif
 
       mLoadingDatas.Remove(&key);
-      aLoadData->mIsLoading = false;
+      aLoadData->mIsLoading = PR_FALSE;
     }
   }
 
   // Go through and deal with the whole linked list.
   SheetLoadData* data = aLoadData;
   while (data) {
-    if (!data->mSheetAlreadyComplete) {
-      // If mSheetAlreadyComplete, then the sheet could well be modified between
-      // when we posted the async call to SheetComplete and now, since the sheet
-      // was page-accessible during that whole time.
-      NS_ABORT_IF_FALSE(!data->mSheet->IsModified(),
-                        "should not get marked modified during parsing");
-      data->mSheet->SetComplete();
-      data->ScheduleLoadEventIfNeeded(aStatus);
-    }
+    NS_ABORT_IF_FALSE(!data->mSheet->IsModified(),
+                      "should not get marked modified during parsing");
+    data->mSheet->SetComplete();
     if (data->mMustNotify && (data->mObserver || !mObservers.IsEmpty())) {
       // Don't notify here so we don't trigger script.  Remember the
       // info we need to notify, then do it later when it's safe.
@@ -1784,10 +1678,7 @@ Loader::DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
     data = data->mNext;
   }
 
-  // Now that it's marked complete, put the sheet in our cache.
-  // If we ever start doing this for failure aStatus, we'll need to
-  // adjust the PostLoadEvent code that thinks anything already
-  // complete must have loaded succesfully.
+  // Now that it's marked complete, put the sheet in our cache
   if (NS_SUCCEEDED(aStatus) && aLoadData->mURI) {
 #ifdef MOZ_XUL
     if (IsChromeURI(aLoadData->mURI)) {
@@ -1819,13 +1710,13 @@ Loader::LoadInlineStyle(nsIContent* aElement,
                         const nsAString& aTitle,
                         const nsAString& aMedia,
                         nsICSSLoaderObserver* aObserver,
-                        bool* aCompleted,
-                        bool* aIsAlternate)
+                        PRBool* aCompleted,
+                        PRBool* aIsAlternate)
 {
   LOG(("css::Loader::LoadInlineStyle"));
   NS_ASSERTION(mParsingDatas.Length() == 0, "We're in the middle of a parse?");
 
-  *aCompleted = true;
+  *aCompleted = PR_TRUE;
 
   if (!mEnabled) {
     LOG_WARN(("  Not enabled"));
@@ -1841,16 +1732,17 @@ Loader::LoadInlineStyle(nsIContent* aElement,
   // load data or to CreateSheet().
   StyleSheetState state;
   nsRefPtr<nsCSSStyleSheet> sheet;
-  nsresult rv = CreateSheet(nsnull, aElement, nsnull, false, false,
-                            aTitle, state, aIsAlternate, getter_AddRefs(sheet));
+  nsresult rv = CreateSheet(nsnull, aElement, nsnull, PR_FALSE, state,
+                            getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ASSERTION(state == eSheetNeedsParser,
                "Inline sheets should not be cached");
 
-  LOG(("  Sheet is alternate: %d", *aIsAlternate));
-
-  rv = PrepareSheet(sheet, aTitle, aMedia, nsnull, *aIsAlternate);
+  rv = PrepareSheet(sheet, aTitle, aMedia, nsnull, PR_FALSE,
+                    aIsAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  LOG(("  Sheet is alternate: %d", *aIsAlternate));
 
   rv = InsertSheetInDoc(sheet, aElement, mDocument);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1858,6 +1750,11 @@ Loader::LoadInlineStyle(nsIContent* aElement,
   SheetLoadData* data = new SheetLoadData(this, aTitle, nsnull, sheet,
                                           owningElement, *aIsAlternate,
                                           aObserver, nsnull);
+
+  if (!data) {
+    sheet->SetComplete();
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   // We never actually load this, so just set its principal directly
   sheet->SetPrincipal(aElement->NodePrincipal());
@@ -1870,7 +1767,7 @@ Loader::LoadInlineStyle(nsIContent* aElement,
 
   // If aCompleted is true, |data| may well be deleted by now.
   if (!*aCompleted) {
-    data->mMustNotify = true;
+    data->mMustNotify = PR_TRUE;
   }
   return rv;
 }
@@ -1880,9 +1777,9 @@ Loader::LoadStyleLink(nsIContent* aElement,
                       nsIURI* aURL,
                       const nsAString& aTitle,
                       const nsAString& aMedia,
-                      bool aHasAlternateRel,
+                      PRBool aHasAlternateRel,
                       nsICSSLoaderObserver* aObserver,
-                      bool* aIsAlternate)
+                      PRBool* aIsAlternate)
 {
   LOG(("css::Loader::LoadStyleLink"));
   NS_PRECONDITION(aURL, "Must have URL to load");
@@ -1914,36 +1811,41 @@ Loader::LoadStyleLink(nsIContent* aElement,
 
   StyleSheetState state;
   nsRefPtr<nsCSSStyleSheet> sheet;
-  rv = CreateSheet(aURL, aElement, principal, false, aHasAlternateRel,
-                   aTitle, state, aIsAlternate, getter_AddRefs(sheet));
+  rv = CreateSheet(aURL, aElement, principal, PR_FALSE, state,
+                   getter_AddRefs(sheet));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = PrepareSheet(sheet, aTitle, aMedia, nsnull, aHasAlternateRel,
+                    aIsAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
 
   LOG(("  Sheet is alternate: %d", *aIsAlternate));
 
-  rv = PrepareSheet(sheet, aTitle, aMedia, nsnull, *aIsAlternate);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   rv = InsertSheetInDoc(sheet, aElement, mDocument);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIStyleSheetLinkingElement> owningElement(do_QueryInterface(aElement));
 
   if (state == eSheetComplete) {
     LOG(("  Sheet already complete: 0x%p",
          static_cast<void*>(sheet.get())));
-    if (aObserver || !mObservers.IsEmpty() || owningElement) {
-      rv = PostLoadEvent(aURL, sheet, aObserver, *aIsAlternate,
-                         owningElement);
+    if (aObserver) {
+      rv = PostLoadEvent(aURL, sheet, aObserver, *aIsAlternate);
       return rv;
     }
 
     return NS_OK;
   }
 
+  nsCOMPtr<nsIStyleSheetLinkingElement> owningElement(do_QueryInterface(aElement));
+
   // Now we need to actually load it
   SheetLoadData* data = new SheetLoadData(this, aTitle, aURL, sheet,
                                           owningElement, *aIsAlternate,
                                           aObserver, principal);
+  if (!data) {
+    sheet->SetComplete();
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(data);
 
   // If we have to parse and it's an alternate non-inline, defer it
@@ -1955,7 +1857,7 @@ Loader::LoadStyleLink(nsIContent* aElement,
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    data->mMustNotify = true;
+    data->mMustNotify = PR_TRUE;
     return NS_OK;
   }
 
@@ -1963,23 +1865,23 @@ Loader::LoadStyleLink(nsIContent* aElement,
   rv = LoadSheet(data, state);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  data->mMustNotify = true;
+  data->mMustNotify = PR_TRUE;
   return rv;
 }
 
-static bool
+static PRBool
 HaveAncestorDataWithURI(SheetLoadData *aData, nsIURI *aURI)
 {
   if (!aData->mURI) {
     // Inline style; this won't have any ancestors
     NS_ABORT_IF_FALSE(!aData->mParentData,
                       "How does inline style have a parent?");
-    return false;
+    return PR_FALSE;
   }
 
-  bool equal;
+  PRBool equal;
   if (NS_FAILED(aData->mURI->Equals(aURI, &equal)) || equal) {
-    return true;
+    return PR_TRUE;
   }
 
   // Datas down the mNext chain have the same URI as aData, so we
@@ -1988,13 +1890,13 @@ HaveAncestorDataWithURI(SheetLoadData *aData, nsIURI *aURI)
   while (aData) {
     if (aData->mParentData &&
         HaveAncestorDataWithURI(aData->mParentData, aURI)) {
-      return true;
+      return PR_TRUE;
     }
 
     aData = aData->mNext;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
@@ -2070,15 +1972,14 @@ Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
   // Now that we know it's safe to load this (passes security check and not a
   // loop) do so
   nsRefPtr<nsCSSStyleSheet> sheet;
-  bool isAlternate;
   StyleSheetState state;
-  const nsSubstring& empty = EmptyString();
   rv = CreateSheet(aURL, nsnull, principal,
-                   parentData ? parentData->mSyncLoad : false,
-                   false, empty, state, &isAlternate, getter_AddRefs(sheet));
+                   parentData ? parentData->mSyncLoad : PR_FALSE,
+                   state, getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = PrepareSheet(sheet, empty, empty, aMedia, isAlternate);
+  const nsSubstring& empty = EmptyString();
+  rv = PrepareSheet(sheet, empty, empty, aMedia);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InsertChildSheet(sheet, aParentSheet, aParentRule);
@@ -2095,8 +1996,13 @@ Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
   SheetLoadData* data = new SheetLoadData(this, aURL, sheet, parentData,
                                           observer, principal);
 
+  if (!data) {
+    sheet->SetComplete();
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(data);
-  bool syncLoad = data->mSyncLoad;
+  PRBool syncLoad = data->mSyncLoad;
 
   // Load completion will release the data
   rv = LoadSheet(data, state);
@@ -2104,14 +2010,14 @@ Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
 
   // If syncLoad is true, |data| will be deleted by now.
   if (!syncLoad) {
-    data->mMustNotify = true;
+    data->mMustNotify = PR_TRUE;
   }
   return rv;
 }
 
 nsresult
-Loader::LoadSheetSync(nsIURI* aURL, bool aAllowUnsafeRules,
-                      bool aUseSystemPrincipal,
+Loader::LoadSheetSync(nsIURI* aURL, PRBool aAllowUnsafeRules,
+                      PRBool aUseSystemPrincipal,
                       nsCSSStyleSheet** aSheet)
 {
   LOG(("css::Loader::LoadSheetSync"));
@@ -2129,7 +2035,7 @@ Loader::LoadSheet(nsIURI* aURL,
 {
   LOG(("css::Loader::LoadSheet(aURL, aObserver, aSheet) api call"));
   NS_PRECONDITION(aSheet, "aSheet is null");
-  return InternalLoadNonDocumentSheet(aURL, false, false,
+  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, PR_FALSE,
                                       aOriginPrincipal, aCharset,
                                       aSheet, aObserver);
 }
@@ -2141,15 +2047,15 @@ Loader::LoadSheet(nsIURI* aURL,
                   nsICSSLoaderObserver* aObserver)
 {
   LOG(("css::Loader::LoadSheet(aURL, aObserver) api call"));
-  return InternalLoadNonDocumentSheet(aURL, false, false,
+  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, PR_FALSE,
                                       aOriginPrincipal, aCharset,
                                       nsnull, aObserver);
 }
 
 nsresult
 Loader::InternalLoadNonDocumentSheet(nsIURI* aURL,
-                                     bool aAllowUnsafeRules,
-                                     bool aUseSystemPrincipal,
+                                     PRBool aAllowUnsafeRules,
+                                     PRBool aUseSystemPrincipal,
                                      nsIPrincipal* aOriginPrincipal,
                                      const nsCString& aCharset,
                                      nsCSSStyleSheet** aSheet,
@@ -2178,22 +2084,21 @@ Loader::InternalLoadNonDocumentSheet(nsIURI* aURL,
   }
 
   StyleSheetState state;
-  bool isAlternate;
   nsRefPtr<nsCSSStyleSheet> sheet;
-  bool syncLoad = (aObserver == nsnull);
-  const nsSubstring& empty = EmptyString();
+  PRBool syncLoad = (aObserver == nsnull);
 
-  rv = CreateSheet(aURL, nsnull, aOriginPrincipal, syncLoad, false, empty,
-                   state, &isAlternate, getter_AddRefs(sheet));
+  rv = CreateSheet(aURL, nsnull, aOriginPrincipal, syncLoad, state,
+                   getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = PrepareSheet(sheet, empty, empty, nsnull, isAlternate);
+  const nsSubstring& empty = EmptyString();
+  rv = PrepareSheet(sheet, empty, empty, nsnull);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (state == eSheetComplete) {
     LOG(("  Sheet already complete"));
-    if (aObserver || !mObservers.IsEmpty()) {
-      rv = PostLoadEvent(aURL, sheet, aObserver, false, nsnull);
+    if (aObserver) {
+      rv = PostLoadEvent(aURL, sheet, aObserver, PR_FALSE);
     }
     if (aSheet) {
       sheet.swap(*aSheet);
@@ -2206,6 +2111,11 @@ Loader::InternalLoadNonDocumentSheet(nsIURI* aURL,
                       aUseSystemPrincipal, aCharset, aObserver,
                       aOriginPrincipal);
 
+  if (!data) {
+    sheet->SetComplete();
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
   NS_ADDREF(data);
   rv = LoadSheet(data, state);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2214,7 +2124,7 @@ Loader::InternalLoadNonDocumentSheet(nsIURI* aURL,
     sheet.swap(*aSheet);
   }
   if (aObserver) {
-    data->mMustNotify = true;
+    data->mMustNotify = PR_TRUE;
   }
 
   return rv;
@@ -2224,19 +2134,17 @@ nsresult
 Loader::PostLoadEvent(nsIURI* aURI,
                       nsCSSStyleSheet* aSheet,
                       nsICSSLoaderObserver* aObserver,
-                      bool aWasAlternate,
-                      nsIStyleSheetLinkingElement* aElement)
+                      PRBool aWasAlternate)
 {
   LOG(("css::Loader::PostLoadEvent"));
   NS_PRECONDITION(aSheet, "Must have sheet");
-  NS_PRECONDITION(aObserver || !mObservers.IsEmpty() || aElement,
-                  "Must have observer or element");
+  NS_PRECONDITION(aObserver, "Must have observer");
 
   nsRefPtr<SheetLoadData> evt =
     new SheetLoadData(this, EmptyString(), // title doesn't matter here
                       aURI,
                       aSheet,
-                      aElement,
+                      nsnull,  // owning element doesn't matter here
                       aWasAlternate,
                       aObserver,
                       nsnull);
@@ -2257,14 +2165,7 @@ Loader::PostLoadEvent(nsIURI* aURI,
     }
 
     // We want to notify the observer for this data.
-    evt->mMustNotify = true;
-    evt->mSheetAlreadyComplete = true;
-
-    // If we get to this code, aSheet loaded correctly at some point, so
-    // we can just use NS_OK for the status.  Note that we do this here
-    // and not from inside our SheetComplete so that we don't end up
-    // running the load event async.
-    evt->ScheduleLoadEventIfNeeded(NS_OK);
+    evt->mMustNotify = PR_TRUE;
   }
 
   return rv;
@@ -2277,12 +2178,6 @@ Loader::HandleLoadEvent(SheetLoadData* aEvent)
   // we're unblocking the parser
   // NS_ASSERTION(aEvent->mObserver, "Must have observer");
   NS_ASSERTION(aEvent->mSheet, "Must have sheet");
-
-  // Very important: this needs to come before the SheetComplete call
-  // below, so that HasPendingLoads() will test true as needed under
-  // notifications we send from that SheetComplete call.
-  mPostedEvents.RemoveElement(aEvent);
-
   if (!aEvent->mIsCancelled) {
     // SheetComplete will call Release(), so give it a reference to do
     // that with.
@@ -2290,8 +2185,10 @@ Loader::HandleLoadEvent(SheetLoadData* aEvent)
     SheetComplete(aEvent, NS_OK);
   }
 
+  mPostedEvents.RemoveElement(aEvent);
+
   if (mDocument) {
-    mDocument->UnblockOnload(true);
+    mDocument->UnblockOnload(PR_TRUE);
   }
 }
 
@@ -2303,8 +2200,8 @@ StopLoadingSheetCallback(URIAndPrincipalHashKey* aKey,
   NS_PRECONDITION(aData, "Must have a data!");
   NS_PRECONDITION(aClosure, "Must have a loader");
 
-  aData->mIsLoading = false; // we will handle the removal right here
-  aData->mIsCancelled = true;
+  aData->mIsLoading = PR_FALSE; // we will handle the removal right here
+  aData->mIsCancelled = PR_TRUE;
 
   static_cast<Loader::LoadDataArray*>(aClosure)->AppendElement(aData);
 
@@ -2330,7 +2227,7 @@ Loader::Stop()
   PRUint32 i;
   for (i = 0; i < mPostedEvents.Length(); ++i) {
     SheetLoadData* data = mPostedEvents[i];
-    data->mIsCancelled = true;
+    data->mIsCancelled = PR_TRUE;
     if (arr.AppendElement(data)) {
       // SheetComplete() calls Release(), so give this an extra ref.
       NS_ADDREF(data);
@@ -2352,7 +2249,7 @@ Loader::Stop()
   return NS_OK;
 }
 
-bool
+PRBool
 Loader::HasPendingLoads()
 {
   return

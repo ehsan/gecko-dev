@@ -104,7 +104,6 @@ class gfxSkipChars;
 class gfxSkipCharsIterator;
 class gfxContext;
 class nsLineList_iterator;
-class nsAbsoluteContainingBlock;
 
 struct nsPeekOffsetStruct;
 struct nsPoint;
@@ -159,6 +158,9 @@ typedef PRUint64 nsFrameState;
 #define NS_FRAME_STATE_BIT(n_) (nsFrameState(1) << (n_))
 
 #define NS_FRAME_IN_REFLOW                          NS_FRAME_STATE_BIT(0)
+
+// This is only set during painting
+#define NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO    NS_FRAME_STATE_BIT(0)
 
 // This bit is set when a frame is created. After it has been reflowed
 // once (during the DidReflow with a finished state) the bit is
@@ -284,20 +286,8 @@ typedef PRUint64 nsFrameState;
 // bit; we could free up this bit with a little extra complexity.
 #define NS_FRAME_UPDATE_LAYER_TREE                  NS_FRAME_STATE_BIT(36)
 
-// Frame can accept absolutely positioned children.
-#define NS_FRAME_HAS_ABSPOS_CHILDREN                NS_FRAME_STATE_BIT(37)
-
-// A display item for this frame has been painted as part of a ThebesLayer.
-#define NS_FRAME_PAINTED_THEBES                     NS_FRAME_STATE_BIT(38)
-
-// Frame is or is a descendant of something with a fixed height, and
-// has no closer ancestor that is overflow:auto or overflow:scroll.
-#define NS_FRAME_IN_CONSTRAINED_HEIGHT              NS_FRAME_STATE_BIT(39)
-
-// This is only set during painting
-#define NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO    NS_FRAME_STATE_BIT(40)
-
-// Bits 0-19 and bits 32-59 of the frame state are reserved by this API.
+// The lower 20 bits and upper 32 bits of the frame state are reserved
+// by this API.
 #define NS_FRAME_RESERVED                           ~NS_FRAME_IMPL_RESERVED
 
 // Box layout bits
@@ -484,10 +474,10 @@ void NS_MergeReflowStatusInto(nsReflowStatus* aPrimary,
 /**
  * DidReflow status values.
  */
-typedef bool nsDidReflowStatus;
+typedef PRBool nsDidReflowStatus;
 
-#define NS_FRAME_REFLOW_NOT_FINISHED false
-#define NS_FRAME_REFLOW_FINISHED     true
+#define NS_FRAME_REFLOW_NOT_FINISHED PR_FALSE
+#define NS_FRAME_REFLOW_FINISHED     PR_TRUE
 
 /**
  * When there is no scrollable overflow rect, the visual overflow rect
@@ -582,10 +572,6 @@ protected:
   /**
    * Implements Destroy(). Do not call this directly except from within a
    * DestroyFrom() implementation.
-   *
-   * @note This will always be called, so it is not necessary to override
-   *       Destroy() in subclasses of nsFrame, just DestroyFrom().
-   *
    * @param  aDestructRoot is the root of the subtree being destroyed
    */
   virtual void DestroyFrom(nsIFrame* aDestructRoot) = 0;
@@ -603,8 +589,6 @@ public:
    * @param   aListID the child list identifier.
    * @param   aChildList list of child frames. Each of the frames has its
    *            NS_FRAME_IS_DIRTY bit set.  Must not be empty.
-   *            This method cannot handle the child list returned by
-   *            GetAbsoluteListID().
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame or if the
@@ -798,9 +782,9 @@ public:
                                          nsStyleContext* aStyleContext) = 0;
 
   /**
-   * @return false if this frame definitely has no borders at all
+   * @return PR_FALSE if this frame definitely has no borders at all
    */                 
-  bool HasBorder() const;
+  PRBool HasBorder() const;
 
   /**
    * Accessor functions for geometric parent
@@ -908,11 +892,6 @@ public:
   NS_DECLARE_FRAME_PROPERTY(PreEffectsBBoxProperty, DestroyRect)
   NS_DECLARE_FRAME_PROPERTY(PreTransformBBoxProperty, DestroyRect)
 
-  // The initial overflow area passed to FinishAndStoreOverflow. This is only set
-  // on frames that Preserve3D(), and when at least one of the overflow areas
-  // differs from the frame bound rect.
-  NS_DECLARE_FRAME_PROPERTY(InitialOverflowProperty, DestroyOverflowAreas);
-
   NS_DECLARE_FRAME_PROPERTY(UsedMarginProperty, DestroyMargin)
   NS_DECLARE_FRAME_PROPERTY(UsedPaddingProperty, DestroyMargin)
   NS_DECLARE_FRAME_PROPERTY(UsedBorderProperty, DestroyMargin)
@@ -990,7 +969,7 @@ public:
    *
    * Return whether any radii are nonzero.
    */
-  static bool ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
+  static PRBool ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
                                    const nsSize& aFrameSize,
                                    const nsSize& aBorderArea,
                                    PRIntn aSkipSides,
@@ -1018,10 +997,10 @@ public:
    *
    * Indices into aRadii are the NS_CORNER_* constants in nsStyleConsts.h
    */
-  virtual bool GetBorderRadii(nscoord aRadii[8]) const;
+  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const;
 
-  bool GetPaddingBoxBorderRadii(nscoord aRadii[8]) const;
-  bool GetContentBoxBorderRadii(nscoord aRadii[8]) const;
+  PRBool GetPaddingBoxBorderRadii(nscoord aRadii[8]) const;
+  PRBool GetContentBoxBorderRadii(nscoord aRadii[8]) const;
 
   /**
    * Get the position of the frame's baseline, relative to the top of
@@ -1136,24 +1115,24 @@ public:
   virtual nscolor GetCaretColorAt(PRInt32 aOffset);
 
  
-  bool IsThemed(nsITheme::Transparency* aTransparencyState = nsnull) const {
+  PRBool IsThemed(nsITheme::Transparency* aTransparencyState = nsnull) const {
     return IsThemed(GetStyleDisplay(), aTransparencyState);
   }
-  bool IsThemed(const nsStyleDisplay* aDisp,
+  PRBool IsThemed(const nsStyleDisplay* aDisp,
                   nsITheme::Transparency* aTransparencyState = nsnull) const {
     nsIFrame* mutable_this = const_cast<nsIFrame*>(this);
     if (!aDisp->mAppearance)
-      return false;
+      return PR_FALSE;
     nsPresContext* pc = PresContext();
     nsITheme *theme = pc->GetTheme();
     if(!theme ||
        !theme->ThemeSupportsWidget(pc, mutable_this, aDisp->mAppearance))
-      return false;
+      return PR_FALSE;
     if (aTransparencyState) {
       *aTransparencyState =
         theme->GetWidgetTransparency(mutable_this, aDisp->mAppearance);
     }
-    return true;
+    return PR_TRUE;
   }
   
   /**
@@ -1172,7 +1151,7 @@ public:
    * are clipped. In other words, descendant elements whose CSS boxes do not
    * have this frame as a container are not clipped. Also,
    * border/background/outline items for this frame are not clipped,
-   * unless aClipBorderBackground is set to true. (We need this because
+   * unless aClipBorderBackground is set to PR_TRUE. (We need this because
    * a scrollframe must overflow-clip its scrolled child's background/borders.)
    *
    * Indices into aClipRadii are the NS_CORNER_* constants in nsStyleConsts.h
@@ -1182,8 +1161,8 @@ public:
                         const nsDisplayListSet& aToSet,
                         const nsRect&           aClipRect,
                         const nscoord           aClipRadii[8],
-                        bool                    aClipBorderBackground = false,
-                        bool                    aClipAll = false);
+                        PRBool                  aClipBorderBackground = PR_FALSE,
+                        PRBool                  aClipAll = PR_FALSE);
 
   enum {
     DISPLAY_CHILD_FORCE_PSEUDO_STACKING_CONTEXT = 0x01,
@@ -1217,25 +1196,25 @@ public:
   /**
    * Does this frame need a view?
    */
-  virtual bool NeedsView() { return false; }
+  virtual PRBool NeedsView() { return PR_FALSE; }
 
   /**
    * Returns whether this frame has a transform matrix applied to it.  This is true
    * if we have the -moz-transform property or if we're an SVGForeignObjectFrame.
    */
-  virtual bool IsTransformed() const;
+  virtual PRBool IsTransformed() const;
 
   /**
    * Returns whether this frame will attempt to preserve the 3d transforms of its
    * children. This is a direct indicator of -moz-transform-style: preserve-3d.
    */
-  bool Preserves3DChildren() const;
+  PRBool Preserves3DChildren() const;
 
   /**
    * Returns whether this frame has a parent that Preserves3DChildren() and
    * can respect this. Returns false if the frame is clipped.
    */
-  bool Preserves3D() const;
+  PRBool Preserves3D() const;
 
   // Calculate the overflow size of all child frames, taking preserve-3d into account
   void ComputePreserve3DChildrenOverflow(nsOverflowAreas& aOverflowAreas, const nsRect& aBounds);
@@ -1261,7 +1240,8 @@ public:
                           nsGUIEvent*     aEvent,
                           nsEventStatus*  aEventStatus) = 0;
 
-  NS_IMETHOD  GetContentForEvent(nsEvent* aEvent,
+  NS_IMETHOD  GetContentForEvent(nsPresContext* aPresContext,
+                                 nsEvent* aEvent,
                                  nsIContent** aContent) = 0;
 
   // This structure keeps track of the content node and offsets associated with
@@ -1275,7 +1255,7 @@ public:
   // EndOffset helpers can be used.
   struct NS_STACK_CLASS ContentOffsets {
     nsCOMPtr<nsIContent> content;
-    bool IsNull() { return !content; }
+    PRBool IsNull() { return !content; }
     PRInt32 offset;
     PRInt32 secondaryOffset;
     // Helpers for places that need the ends of the offsets and expect them in
@@ -1285,7 +1265,7 @@ public:
     // This boolean indicates whether the associated content is before or after
     // the offset; the most visible use is to allow the caret to know which line
     // to display on.
-    bool associateWithNext;
+    PRBool associateWithNext;
   };
   /**
    * This function calculates the content offsets for selection relative to
@@ -1295,10 +1275,10 @@ public:
    * @param aPoint point relative to this frame
    */
   ContentOffsets GetContentOffsetsFromPoint(nsPoint aPoint,
-                                            bool aIgnoreSelectionStyle = false);
+                                            PRBool aIgnoreSelectionStyle = PR_FALSE);
 
   virtual ContentOffsets GetContentOffsetsFromPointExternal(nsPoint aPoint,
-                                                            bool aIgnoreSelectionStyle = false)
+                                                            PRBool aIgnoreSelectionStyle = PR_FALSE)
   { return GetContentOffsetsFromPoint(aPoint, aIgnoreSelectionStyle); }
 
   /**
@@ -1309,7 +1289,7 @@ public:
   struct NS_STACK_CLASS Cursor {
     nsCOMPtr<imgIContainer> mContainer;
     PRInt32                 mCursor;
-    bool                    mHaveHotspot;
+    PRBool                  mHaveHotspot;
     float                   mHotspotX, mHotspotY;
   };
   /**
@@ -1335,7 +1315,7 @@ public:
    * next in case the offset falls on a boundary.
    */
   NS_IMETHOD  GetChildFrameContainingOffset(PRInt32       inContentOffset,
-                                 bool                     inHint,//false stick left
+                                 PRBool                   inHint,//false stick left
                                  PRInt32*                 outFrameContentOffset,
                                  nsIFrame*                *outChildFrame) = 0;
 
@@ -1483,7 +1463,7 @@ public:
       , lineContainer(nsnull)
       , prevLines(0)
       , currentLine(0)
-      , skipWhitespace(true)
+      , skipWhitespace(PR_TRUE)
       , trailingWhitespace(0)
     {}
 
@@ -1505,7 +1485,7 @@ public:
     // True if initial collapsable whitespace should be skipped.  This
     // should be true at the beginning of a block, after hard breaks
     // and when the last text ended with whitespace.
-    bool skipWhitespace;
+    PRBool skipWhitespace;
 
     // This contains the width of the trimmable whitespace at the end of
     // |currentLine|; it is zero if there is no such whitespace.
@@ -1518,7 +1498,7 @@ public:
   struct InlineMinWidthData : public InlineIntrinsicWidthData {
     InlineMinWidthData()
       : trailingTextFrame(nsnull)
-      , atStartOfLine(true)
+      , atStartOfLine(PR_TRUE)
     {}
 
     // We need to distinguish forced and optional breaks for cases where the
@@ -1540,7 +1520,7 @@ public:
     // Whether we're currently at the start of the line.  If we are, we
     // can't break (for example, between the text-indent and the first
     // word).
-    bool atStartOfLine;
+    PRBool atStartOfLine;
   };
 
   struct InlinePrefWidthData : public InlineIntrinsicWidthData {
@@ -1619,10 +1599,10 @@ public:
     IntrinsicSize& operator=(const IntrinsicSize& rhs) {
       width = rhs.width; height = rhs.height; return *this;
     }
-    bool operator==(const IntrinsicSize& rhs) {
+    PRBool operator==(const IntrinsicSize& rhs) {
       return width == rhs.width && height == rhs.height;
     }
-    bool operator!=(const IntrinsicSize& rhs) {
+    PRBool operator!=(const IntrinsicSize& rhs) {
       return !(*this == rhs);
     }
   };
@@ -1681,7 +1661,7 @@ public:
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             bool aShrinkWrap) = 0;
+                             PRBool aShrinkWrap) = 0;
 
   /**
    * Compute a tight bounding rectangle for the frame. This is a rectangle
@@ -1783,11 +1763,11 @@ public:
    * that proper word-breaking can be done.
    *
    * @return 
-   *    true if we can continue a "text run" through the frame. A
+   *    PR_TRUE if we can continue a "text run" through the frame. A
    *    text run is text that should be treated contiguously for line
    *    and word breaking.
    */
-  virtual bool CanContinueTextRun() const = 0;
+  virtual PRBool CanContinueTextRun() const = 0;
 
   /**
    * Append the rendered text to the passed-in string.
@@ -1816,15 +1796,15 @@ public:
    * This method is only available for text frames, and it will return false
    * for all other frame types.
    */
-  virtual bool HasAnyNoncollapsedCharacters()
-  { return false; }
+  virtual PRBool HasAnyNoncollapsedCharacters()
+  { return PR_FALSE; }
 
   /**
    * Accessor functions to get/set the associated view object
    *
    * GetView returns non-null if and only if |HasView| returns true.
    */
-  bool HasView() const { return !!(mState & NS_FRAME_HAS_VIEW); }
+  PRBool HasView() const { return !!(mState & NS_FRAME_HAS_VIEW); }
   nsIView* GetView() const;
   virtual nsIView* GetViewExternal() const;
   nsresult SetView(nsIView* aView);
@@ -1905,6 +1885,12 @@ public:
                                 nsIView** aView) const = 0;
 
   /**
+   * Returns true if and only if all views, from |GetClosestView| up to
+   * the top of the view hierarchy are visible.
+   */
+  virtual PRBool AreAncestorViewsVisible() const;
+
+  /**
    * Returns the nearest widget containing this frame. If this frame has a
    * view and the view has a widget, then this frame's widget is
    * returned, otherwise this frame's geometric parent is checked
@@ -1981,7 +1967,7 @@ public:
    * Implementations should always override with inline virtual
    * functions that call the base class's IsFrameOfType method.
    */
-  virtual bool IsFrameOfType(PRUint32 aFlags) const
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
 #ifdef DEBUG
     return !(aFlags & ~(nsIFrame::eDEBUGAllFrames));
@@ -1991,23 +1977,15 @@ public:
   }
 
   /**
-   * Returns true if the frame is a block wrapper.
+   * Is this frame a containing block for non-positioned elements?
    */
-  bool IsBlockWrapper() const;
-
-  /**
-   * Get this frame's CSS containing block.
-   *
-   * The algorithm is defined in
-   * http://www.w3.org/TR/CSS2/visudet.html#containing-block-details.
-   */
-  nsIFrame* GetContainingBlock() const;
+  virtual PRBool IsContainingBlock() const = 0;
 
   /**
    * Is this frame a containing block for floating elements?
    * Note that very few frames are, so default to false.
    */
-  virtual bool IsFloatContainingBlock() const { return false; }
+  virtual PRBool IsFloatContainingBlock() const { return PR_FALSE; }
 
   /**
    * Is this a leaf frame?  Frames that want the frame constructor to be able
@@ -2018,7 +1996,7 @@ public:
    * (non-anonymous, XBL-bound, CSS generated content, etc) children should not
    * be constructed.
    */
-  virtual bool IsLeaf() const;
+  virtual PRBool IsLeaf() const;
 
   /**
    * This must only be called on frames that are display roots (see
@@ -2052,7 +2030,7 @@ public:
   /**
    * Return true if this frame is marked as needing active layers.
    */
-  bool AreLayersMarkedActive();
+  PRBool AreLayersMarkedActive();
   /**
    * Return true if this frame is marked as needing active layers.
    * @param aChangeHint nsChangeHint_UpdateTransformLayer or
@@ -2060,7 +2038,7 @@ public:
    * a change in the transform or opacity has been recorded while layers have
    * been marked active for this frame.
    */
-  bool AreLayersMarkedActive(nsChangeHint aChangeHint);
+  PRBool AreLayersMarkedActive(nsChangeHint aChangeHint);
 
   /**
    * @param aFlags see InvalidateInternal below
@@ -2205,7 +2183,7 @@ public:
    * frame's outline, and descentant frames' outline, but does not include
    * areas clipped out by the CSS "overflow" and "clip" properties.
    *
-   * HasOverflowRects() (below) will return true when this overflow
+   * HasOverflowRects() (below) will return PR_TRUE when this overflow
    * rect has been explicitly set, even if it matches mRect.
    * XXX Note: because of a space optimization using the formula above,
    * during reflow this function does not give accurate data if
@@ -2233,7 +2211,7 @@ public:
    * It does not include areas clipped out by the CSS "overflow" and
    * "clip" properties.
    *
-   * HasOverflowRects() (below) will return true when this overflow
+   * HasOverflowRects() (below) will return PR_TRUE when this overflow
    * rect has been explicitly set, even if it matches mRect.
    * XXX Note: because of a space optimization using the formula above,
    * during reflow this function does not give accurate data if
@@ -2288,7 +2266,7 @@ public:
    * Returns whether the frame has an overflow rect that is different from
    * its border-box.
    */
-  bool HasOverflowAreas() const {
+  PRBool HasOverflowAreas() const {
     return mOverflow.mType != NS_FRAME_OVERFLOW_NONE;
   }
 
@@ -2318,10 +2296,10 @@ public:
    *  @param aSelected is it selected?
    *  @param aType the selection type of the selection that you are setting on the frame
    */
-  virtual void SetSelected(bool          aSelected,
+  virtual void SetSelected(PRBool        aSelected,
                            SelectionType aType);
 
-  NS_IMETHOD  GetSelected(bool *aSelected) const = 0;
+  NS_IMETHOD  GetSelected(PRBool *aSelected) const = 0;
 
   /**
    *  called to discover where this frame, or a parent frame has user-select style
@@ -2332,7 +2310,7 @@ public:
    *  @param aSelectStyle  out param. Returns the type of selection style found
    *                        (using values defined in nsStyleConsts.h).
    */
-  NS_IMETHOD  IsSelectable(bool* aIsSelectable, PRUint8* aSelectStyle) const = 0;
+  NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const = 0;
 
   /** 
    *  Called to retrieve the SelectionController associated with the frame.
@@ -2367,7 +2345,7 @@ public:
   /**
    *  called to find the previous/next selectable leaf frame.
    *  @param aDirection [in] the direction to move in (eDirPrevious or eDirNext)
-   *  @param aVisual [in] whether bidi caret behavior is visual (true) or logical (false)
+   *  @param aVisual [in] whether bidi caret behavior is visual (PR_TRUE) or logical (PR_FALSE)
    *  @param aJumpLines [in] whether to allow jumping across line boundaries
    *  @param aScrollViewStop [in] whether to stop when reaching a scroll frame boundary
    *  @param aOutFrame [out] the previous/next selectable leaf frame
@@ -2375,22 +2353,22 @@ public:
    *                          -1 indicates that we arrived at its end.
    *  @param aOutJumpedLine [out] whether this frame and the returned frame are on different lines
    */
-  nsresult GetFrameFromDirection(nsDirection aDirection, bool aVisual,
-                                 bool aJumpLines, bool aScrollViewStop, 
-                                 nsIFrame** aOutFrame, PRInt32* aOutOffset, bool* aOutJumpedLine);
+  nsresult GetFrameFromDirection(nsDirection aDirection, PRBool aVisual,
+                                 PRBool aJumpLines, PRBool aScrollViewStop, 
+                                 nsIFrame** aOutFrame, PRInt32* aOutOffset, PRBool* aOutJumpedLine);
 
   /**
    *  called to see if the children of the frame are visible from indexstart to index end.
-   *  this does not change any state. returns true only if the indexes are valid and any of
+   *  this does not change any state. returns PR_TRUE only if the indexes are valid and any of
    *  the children are visible.  for textframes this index is the character index.
-   *  if aStart = aEnd result will be false
+   *  if aStart = aEnd result will be PR_FALSE
    *  @param aStart start index of first child from 0-N (number of children)
    *  @param aEnd   end index of last child from 0-N
    *  @param aRecurse should this frame talk to siblings to get to the contents other children?
    *  @param aFinished did this frame have the aEndIndex? or is there more work to do
    *  @param _retval  return value true or false. false = range is not rendered.
    */
-  NS_IMETHOD CheckVisibility(nsPresContext* aContext, PRInt32 aStartIndex, PRInt32 aEndIndex, bool aRecurse, bool *aFinished, bool *_retval)=0;
+  NS_IMETHOD CheckVisibility(nsPresContext* aContext, PRInt32 aStartIndex, PRInt32 aEndIndex, PRBool aRecurse, PRBool *aFinished, PRBool *_retval)=0;
 
   /**
    * Called to tell a frame that one of its child frames is dirty (i.e.,
@@ -2428,40 +2406,40 @@ public:
    * Determines whether a frame is visible for painting;
    * taking into account whether it is painting a selection or printing.
    */
-  bool IsVisibleForPainting(nsDisplayListBuilder* aBuilder);
+  PRBool IsVisibleForPainting(nsDisplayListBuilder* aBuilder);
   /**
    * Determines whether a frame is visible for painting or collapsed;
    * taking into account whether it is painting a selection or printing,
    */
-  bool IsVisibleOrCollapsedForPainting(nsDisplayListBuilder* aBuilder);
+  PRBool IsVisibleOrCollapsedForPainting(nsDisplayListBuilder* aBuilder);
   /**
    * As above, but slower because we have to recompute some stuff that
    * aBuilder already has.
    */
-  bool IsVisibleForPainting();
+  PRBool IsVisibleForPainting();
   /**
    * Check whether this frame is visible in the current selection. Returns
-   * true if there is no current selection.
+   * PR_TRUE if there is no current selection.
    */
-  bool IsVisibleInSelection(nsDisplayListBuilder* aBuilder);
+  PRBool IsVisibleInSelection(nsDisplayListBuilder* aBuilder);
 
   /**
    * Overridable function to determine whether this frame should be considered
    * "in" the given non-null aSelection for visibility purposes.
    */  
-  virtual bool IsVisibleInSelection(nsISelection* aSelection);
+  virtual PRBool IsVisibleInSelection(nsISelection* aSelection);
 
   /**
    * Determines whether this frame is a pseudo stacking context, looking
    * only as style --- i.e., assuming that it's in-flow and not a replaced
    * element.
    */
-  bool IsPseudoStackingContextFromStyle() {
+  PRBool IsPseudoStackingContextFromStyle() {
     const nsStyleDisplay* disp = GetStyleDisplay();
     return disp->mOpacity != 1.0f || disp->IsPositioned() || disp->IsFloating();
   }
   
-  virtual bool HonorPrintBackgroundSettings() { return true; }
+  virtual PRBool HonorPrintBackgroundSettings() { return PR_TRUE; }
 
   /**
    * Determine whether the frame is logically empty, which is roughly
@@ -2472,17 +2450,17 @@ public:
    * only whitespace that does not contribute to the height of the line
    * should return true.
    */
-  virtual bool IsEmpty() = 0;
+  virtual PRBool IsEmpty() = 0;
   /**
    * Return the same as IsEmpty(). This may only be called after the frame
    * has been reflowed and before any further style or content changes.
    */
-  virtual bool CachedIsEmpty();
+  virtual PRBool CachedIsEmpty();
   /**
    * Determine whether the frame is logically empty, assuming that all
    * its children are empty.
    */
-  virtual bool IsSelfEmpty() = 0;
+  virtual PRBool IsSelfEmpty() = 0;
 
   /**
    * IsGeneratedContentFrame returns whether a frame corresponds to
@@ -2490,7 +2468,7 @@ public:
    *
    * @return whether the frame correspods to generated content
    */
-  bool IsGeneratedContentFrame() {
+  PRBool IsGeneratedContentFrame() {
     return (mState & NS_FRAME_GENERATED_CONTENT) != 0;
   }
 
@@ -2502,7 +2480,7 @@ public:
    * @param aParentContent the content node corresponding to the parent frame
    * @return whether the frame is a pseudo frame
    */   
-  bool IsPseudoFrame(nsIContent* aParentContent) {
+  PRBool IsPseudoFrame(nsIContent* aParentContent) {
     return mContent == aParentContent;
   }
 
@@ -2520,19 +2498,19 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::BaseLevelProperty()))
 NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
 
   /**
-   * Return true if and only if this frame obeys visibility:hidden.
+   * Return PR_TRUE if and only if this frame obeys visibility:hidden.
    * if it does not, then nsContainerFrame will hide its view even though
    * this means children can't be made visible again.
    */
-  virtual bool SupportsVisibilityHidden() { return true; }
+  virtual PRBool SupportsVisibilityHidden() { return PR_TRUE; }
 
   /**
-   * Returns true if the frame is absolutely positioned and has a clip
+   * Returns PR_TRUE if the frame is absolutely positioned and has a clip
    * rect set via the 'clip' property. If true, then we also set aRect
    * to the computed clip rect coordinates relative to this frame's origin.
    * aRect must not be null!
    */
-  bool GetAbsPosClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
+  PRBool GetAbsPosClipRect(const nsStyleDisplay* aDisp, nsRect* aRect,
                            const nsSize& aSize) const;
 
   /**
@@ -2553,16 +2531,16 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
    * @param  [in, optional] aWithMouse, is this focus query for mouse clicking
    * @return whether the frame is focusable via mouse, kbd or script.
    */
-  virtual bool IsFocusable(PRInt32 *aTabIndex = nsnull, bool aWithMouse = false);
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
 
   // BOX LAYOUT METHODS
   // These methods have been migrated from nsIBox and are in the process of
   // being refactored. DO NOT USE OUTSIDE OF XUL.
-  bool IsBoxFrame() const
+  PRBool IsBoxFrame() const
   {
     return IsFrameOfType(nsIFrame::eXULBox);
   }
-  bool IsBoxWrapped() const
+  PRBool IsBoxWrapped() const
   { return (!IsBoxFrame() && mParent && mParent->IsBoxFrame()); }
 
   enum Halignment {
@@ -2610,14 +2588,14 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
 
   virtual nscoord GetFlex(nsBoxLayoutState& aBoxLayoutState) = 0;
   virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState) = 0;
-  virtual bool IsCollapsed(nsBoxLayoutState& aBoxLayoutState) = 0;
+  virtual PRBool IsCollapsed(nsBoxLayoutState& aBoxLayoutState) = 0;
   // This does not alter the overflow area. If the caller is changing
   // the box size, the caller is responsible for updating the overflow
   // area. It's enough to just call Layout or SyncLayout on the
-  // box. You can pass true to aRemoveOverflowArea as a
+  // box. You can pass PR_TRUE to aRemoveOverflowArea as a
   // convenience.
   virtual void SetBounds(nsBoxLayoutState& aBoxLayoutState, const nsRect& aRect,
-                         bool aRemoveOverflowAreas = false) = 0;
+                         PRBool aRemoveOverflowAreas = PR_FALSE) = 0;
   NS_HIDDEN_(nsresult) Layout(nsBoxLayoutState& aBoxLayoutState);
   nsIBox* GetChildBox() const
   {
@@ -2647,32 +2625,32 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
   virtual Valignment GetVAlign() const = 0;
   virtual Halignment GetHAlign() const = 0;
 
-  bool IsHorizontal() const { return (mState & NS_STATE_IS_HORIZONTAL) != 0; }
-  bool IsNormalDirection() const { return (mState & NS_STATE_IS_DIRECTION_NORMAL) != 0; }
+  PRBool IsHorizontal() const { return (mState & NS_STATE_IS_HORIZONTAL) != 0; }
+  PRBool IsNormalDirection() const { return (mState & NS_STATE_IS_DIRECTION_NORMAL) != 0; }
 
   NS_HIDDEN_(nsresult) Redraw(nsBoxLayoutState& aState, const nsRect* aRect = nsnull);
   NS_IMETHOD RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild)=0;
   // XXX take this out after we've branched
-  virtual bool GetMouseThrough() const { return false; };
+  virtual PRBool GetMouseThrough() const { return PR_FALSE; };
 
 #ifdef DEBUG_LAYOUT
-  NS_IMETHOD SetDebug(nsBoxLayoutState& aState, bool aDebug)=0;
-  NS_IMETHOD GetDebug(bool& aDebug)=0;
+  NS_IMETHOD SetDebug(nsBoxLayoutState& aState, PRBool aDebug)=0;
+  NS_IMETHOD GetDebug(PRBool& aDebug)=0;
 
   NS_IMETHOD DumpBox(FILE* out)=0;
 #endif
 
   /**
-   * @return true if this text frame ends with a newline character.  It
-   * should return false if this is not a text frame.
+   * @return PR_TRUE if this text frame ends with a newline character.  It
+   * should return PR_FALSE if this is not a text frame.
    */
-  virtual bool HasTerminalNewline() const;
+  virtual PRBool HasTerminalNewline() const;
 
-  static bool AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, bool& aWidth, bool& aHeightSet);
-  static bool AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox,
-                              nsSize& aSize, bool& aWidth, bool& aHeightSet);
-  static bool AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, bool& aWidth, bool& aHeightSet);
-  static bool AddCSSFlex(nsBoxLayoutState& aState, nsIBox* aBox, nscoord& aFlex);
+  static PRBool AddCSSPrefSize(nsIBox* aBox, nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
+  static PRBool AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox,
+                              nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
+  static PRBool AddCSSMaxSize(nsIBox* aBox, nsSize& aSize, PRBool& aWidth, PRBool& aHeightSet);
+  static PRBool AddCSSFlex(nsBoxLayoutState& aState, nsIBox* aBox, nscoord& aFlex);
 
   // END OF BOX LAYOUT METHODS
   // The above methods have been migrated from nsIBox and are in the process of
@@ -2689,7 +2667,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
    *         the returned value is a 'best effort' in case errors
    *         are encountered rummaging through the frame.
    */
-  nsPeekOffsetStruct GetExtremeCaretPosition(bool aStart);
+  nsPeekOffsetStruct GetExtremeCaretPosition(PRBool aStart);
 
   /**
    * Same thing as nsFrame::CheckInvalidateSizeChange, but more flexible.  The
@@ -2746,34 +2724,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
       }
     }
   }  
-
-  /**
-   * Accessors for the absolute containing block.
-   */
-  bool IsAbsoluteContainer() const { return !!(mState & NS_FRAME_HAS_ABSPOS_CHILDREN); }
-  bool HasAbsolutelyPositionedChildren() const;
-  nsAbsoluteContainingBlock* GetAbsoluteContainingBlock() const;
-  virtual void MarkAsAbsoluteContainingBlock();
-  // Child frame types override this function to select their own child list name
-  virtual mozilla::layout::FrameChildListID GetAbsoluteListID() const { return kAbsoluteList; }
-
-  // Checks if we (or any of our descendents) have NS_FRAME_PAINTED_THEBES set, and
-  // clears this bit if so.
-  bool CheckAndClearPaintedState();
-
-  // CSS visibility just doesn't cut it because it doesn't inherit through
-  // documents. Also if this frame is in a hidden card of a deck then it isn't
-  // visible either and that isn't expressed using CSS visibility. Also if it
-  // is in a hidden view (there are a few cases left and they are hopefully
-  // going away soon).
-  // If the VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY flag is passed then we
-  // ignore the chrome/content boundary, otherwise we stop looking when we
-  // reach it.
-  enum {
-    VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY = 0x01
-  };
-  bool IsVisibleConsideringAncestors(PRUint32 aFlags = 0) const;
-
+  
 protected:
   // Members
   nsRect           mRect;
@@ -2783,8 +2734,6 @@ protected:
 private:
   nsIFrame*        mNextSibling;  // doubly-linked list of frames
   nsIFrame*        mPrevSibling;  // Do not touch outside SetNextSibling!
-
-  void MarkAbsoluteFramesForDisplayList(nsDisplayListBuilder* aBuilder, const nsRect& aDirtyRect);
 
   static void DestroyPaintedPresShellList(void* propertyValue) {
     nsTArray<nsWeakPtr>* list = static_cast<nsTArray<nsWeakPtr>*>(propertyValue);
@@ -2844,11 +2793,11 @@ protected:
    * @param  aForward [in] Are we moving forward (or backward) in content order.
    * @param  aOffset [in/out] At what offset into the frame to start looking.
    *         on output - what offset was reached (whether or not we found a place to stop).
-   * @return true: An appropriate offset was found within this frame,
+   * @return PR_TRUE: An appropriate offset was found within this frame,
    *         and is given by aOffset.
-   *         false: Not found within this frame, need to try the next frame.
+   *         PR_FALSE: Not found within this frame, need to try the next frame.
    */
-  virtual bool PeekOffsetNoAmount(bool aForward, PRInt32* aOffset) = 0;
+  virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset) = 0;
   
   /**
    * Search the frame for the next character
@@ -2858,65 +2807,65 @@ protected:
    * @param  aRespectClusters [in] Whether to restrict result to valid cursor locations
    *         (between grapheme clusters) - default TRUE maintains "normal" behavior,
    *         FALSE is used for selection by "code unit" (instead of "character")
-   * @return true: An appropriate offset was found within this frame,
+   * @return PR_TRUE: An appropriate offset was found within this frame,
    *         and is given by aOffset.
-   *         false: Not found within this frame, need to try the next frame.
+   *         PR_FALSE: Not found within this frame, need to try the next frame.
    */
-  virtual bool PeekOffsetCharacter(bool aForward, PRInt32* aOffset,
-                                     bool aRespectClusters = true) = 0;
+  virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset,
+                                     PRBool aRespectClusters = PR_TRUE) = 0;
   
   /**
    * Search the frame for the next word boundary
    * @param  aForward [in] Are we moving forward (or backward) in content order.
-   * @param  aWordSelectEatSpace [in] true: look for non-whitespace following
+   * @param  aWordSelectEatSpace [in] PR_TRUE: look for non-whitespace following
    *         whitespace (in the direction of movement).
-   *         false: look for whitespace following non-whitespace (in the
+   *         PR_FALSE: look for whitespace following non-whitespace (in the
    *         direction  of movement).
    * @param  aIsKeyboardSelect [in] Was the action initiated by a keyboard operation?
-   *         If true, punctuation immediately following a word is considered part
+   *         If PR_TRUE, punctuation immediately following a word is considered part
    *         of that word. Otherwise, a sequence of punctuation is always considered
    *         as a word on its own.
    * @param  aOffset [in/out] At what offset into the frame to start looking.
    *         on output - what offset was reached (whether or not we found a place to stop).
    * @param  aState [in/out] the state that is carried from frame to frame
-   * @return true: An appropriate offset was found within this frame,
+   * @return PR_TRUE: An appropriate offset was found within this frame,
    *         and is given by aOffset.
-   *         false: Not found within this frame, need to try the next frame.
+   *         PR_FALSE: Not found within this frame, need to try the next frame.
    */
   struct PeekWordState {
     // true when we're still at the start of the search, i.e., we can't return
     // this point as a valid offset!
-    bool mAtStart;
+    PRPackedBool mAtStart;
     // true when we've encountered at least one character of the pre-boundary type
     // (whitespace if aWordSelectEatSpace is true, non-whitespace otherwise)
-    bool mSawBeforeType;
+    PRPackedBool mSawBeforeType;
     // true when the last character encountered was punctuation
-    bool mLastCharWasPunctuation;
+    PRPackedBool mLastCharWasPunctuation;
     // true when the last character encountered was whitespace
-    bool mLastCharWasWhitespace;
+    PRPackedBool mLastCharWasWhitespace;
     // true when we've seen non-punctuation since the last whitespace
-    bool mSeenNonPunctuationSinceWhitespace;
+    PRPackedBool mSeenNonPunctuationSinceWhitespace;
     // text that's *before* the current frame when aForward is true, *after*
     // the current frame when aForward is false. Only includes the text
     // on the current line.
     nsAutoString mContext;
 
-    PeekWordState() : mAtStart(true), mSawBeforeType(false),
-        mLastCharWasPunctuation(false), mLastCharWasWhitespace(false),
-        mSeenNonPunctuationSinceWhitespace(false) {}
-    void SetSawBeforeType() { mSawBeforeType = true; }
-    void Update(bool aAfterPunctuation, bool aAfterWhitespace) {
+    PeekWordState() : mAtStart(PR_TRUE), mSawBeforeType(PR_FALSE),
+        mLastCharWasPunctuation(PR_FALSE), mLastCharWasWhitespace(PR_FALSE),
+        mSeenNonPunctuationSinceWhitespace(PR_FALSE) {}
+    void SetSawBeforeType() { mSawBeforeType = PR_TRUE; }
+    void Update(PRBool aAfterPunctuation, PRBool aAfterWhitespace) {
       mLastCharWasPunctuation = aAfterPunctuation;
       mLastCharWasWhitespace = aAfterWhitespace;
       if (aAfterWhitespace) {
-        mSeenNonPunctuationSinceWhitespace = false;
+        mSeenNonPunctuationSinceWhitespace = PR_FALSE;
       } else if (!aAfterPunctuation) {
-        mSeenNonPunctuationSinceWhitespace = true;
+        mSeenNonPunctuationSinceWhitespace = PR_TRUE;
       }
-      mAtStart = false;
+      mAtStart = PR_FALSE;
     }
   };
-  virtual bool PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboardSelect,
+  virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
                                 PRInt32* aOffset, PeekWordState* aState) = 0;
 
   /**
@@ -3015,7 +2964,7 @@ public:
     mPrev = nsnull;
   }
 
-  bool IsAlive() { return !!mFrame; }
+  PRBool IsAlive() { return !!mFrame; }
 
   nsIFrame* GetFrame() const { return mFrame; }
 

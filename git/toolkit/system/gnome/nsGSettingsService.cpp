@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsGSettingsService.h"
 #include "nsStringAPI.h"
 #include "nsCOMPtr.h"
@@ -47,8 +45,6 @@
 
 #include <glib.h>
 #include <glib-object.h>
-
-using namespace mozilla;
 
 typedef struct _GSettings GSettings;
 typedef struct _GVariantType GVariantType;
@@ -114,8 +110,8 @@ public:
   ~nsGSettingsCollection();
 
 private:
-  bool KeyExists(const nsACString& aKey);
-  bool SetValue(const nsACString& aKey,
+  PRBool KeyExists(const nsACString& aKey);
+  PRBool SetValue(const nsACString& aKey,
                   GVariant *aValue);
 
   GSettings *mSettings;
@@ -128,7 +124,7 @@ nsGSettingsCollection::~nsGSettingsCollection()
   g_object_unref(mSettings);
 }
 
-bool
+PRBool
 nsGSettingsCollection::KeyExists(const nsACString& aKey)
 {
   if (!mKeys)
@@ -136,13 +132,13 @@ nsGSettingsCollection::KeyExists(const nsACString& aKey)
 
   for (PRUint32 i = 0; mKeys[i] != NULL; i++) {
     if (aKey.Equals(mKeys[i]))
-      return true;
+      return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
-bool
+PRBool
 nsGSettingsCollection::SetValue(const nsACString& aKey,
                                 GVariant *aValue)
 {
@@ -151,7 +147,7 @@ nsGSettingsCollection::SetValue(const nsACString& aKey,
                               PromiseFlatCString(aKey).get(),
                               aValue)) {
     g_variant_unref(aValue);
-    return false;
+    return PR_FALSE;
   }
 
   return g_settings_set_value(mSettings,
@@ -169,20 +165,20 @@ nsGSettingsCollection::SetString(const nsACString& aKey,
   if (!value)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  bool res = SetValue(aKey, value);
+  PRBool res = SetValue(aKey, value);
 
   return res ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
 nsGSettingsCollection::SetBoolean(const nsACString& aKey,
-                                  bool aValue)
+                                  PRBool aValue)
 {
   GVariant *value = g_variant_new_boolean(aValue);
   if (!value)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  bool res = SetValue(aKey, value);
+  PRBool res = SetValue(aKey, value);
 
   return res ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -195,7 +191,7 @@ nsGSettingsCollection::SetInt(const nsACString& aKey,
   if (!value)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  bool res = SetValue(aKey, value);
+  PRBool res = SetValue(aKey, value);
 
   return res ? NS_OK : NS_ERROR_FAILURE;
 }
@@ -224,7 +220,7 @@ nsGSettingsCollection::GetString(const nsACString& aKey,
 
 NS_IMETHODIMP
 nsGSettingsCollection::GetBoolean(const nsACString& aKey,
-                                  bool* aResult)
+                                  PRBool* aResult)
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
@@ -239,7 +235,7 @@ nsGSettingsCollection::GetBoolean(const nsACString& aKey,
   }
 
   gboolean res = g_variant_get_boolean(value);
-  *aResult = res ? true : false;
+  *aResult = res ? PR_TRUE : PR_FALSE;
   g_variant_unref(value);
 
   return NS_OK;
@@ -267,20 +263,15 @@ nsGSettingsCollection::GetInt(const nsACString& aKey,
   return NS_OK;
 }
 
-// These types are local to nsGSettingsService::Init, but ISO C++98 doesn't
-// allow a template (ArrayLength) to be instantiated based on a local type.
-// Boo-urns!
-typedef void (*nsGSettingsFunc)();
-struct nsGSettingsDynamicFunction {
-  const char *functionName;
-  nsGSettingsFunc *function;
-};
-
 nsresult
 nsGSettingsService::Init()
 {
 #define FUNC(name, type, params) { #name, (nsGSettingsFunc *)&_##name },
-  static const nsGSettingsDynamicFunction kGSettingsSymbols[] = {
+  typedef void (*nsGSettingsFunc)();
+  static const struct nsGSettingsDynamicFunction {
+    const char *functionName;
+    nsGSettingsFunc *function;
+  } kGSettingsSymbols[] = {
     GSETTINGS_FUNCTIONS
   };
 #undef FUNC
@@ -291,7 +282,7 @@ nsGSettingsService::Init()
       return NS_ERROR_FAILURE;
   }
 
-  for (PRUint32 i = 0; i < ArrayLength(kGSettingsSymbols); i++) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(kGSettingsSymbols); i++) {
     *kGSettingsSymbols[i].function =
       PR_FindFunctionSymbol(gioLib, kGSettingsSymbols[i].functionName);
     if (!*kGSettingsSymbols[i].function) {

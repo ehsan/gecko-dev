@@ -53,7 +53,7 @@ from mozprofile import Profile
 
 from tps.firefoxrunner import TPSFirefoxRunner
 from tps.phase import TPSTestPhase
-from tps.mozhttpd import MozHttpd
+
 
 class TempFile(object):
   """Class for temporary files that delete themselves when garbage-collected.
@@ -103,10 +103,7 @@ class TPSTestRunner(object):
                           'services.sync.log.appender.console': 'Trace',
                           'services.sync.log.appender.debugLog.enabled': True,
                           'browser.dom.window.dump.enabled': True,
-                          # Allow installing extensions dropped into the profile folder
-                          'extensions.autoDisableScopes': 10,
-                          # Don't open a dialog to show available add-on updates
-                          'extensions.update.notifyUser' : False,
+                          'extensions.checkCompatibility.4.0': False,
                         }
   syncVerRe = re.compile(
       r"Sync version: (?P<syncversion>.*)\n")
@@ -397,9 +394,6 @@ class TPSTestRunner(object):
       testlist = [os.path.basename(self.testfile)]
     testdir = os.path.dirname(self.testfile)
 
-    self.mozhttpd = MozHttpd(port=4567, docroot=testdir)
-    self.mozhttpd.start()
-
     # run each test, and save the results
     for test in testlist:
       result = self.run_single_test(testdir, test)
@@ -417,8 +411,6 @@ class TPSTestRunner(object):
         self.numpassed += 1
       else:
         self.numfailed += 1
-
-    self.mozhttpd.stop()
 
     # generate the postdata we'll use to post the results to the db
     self.postdata = { 'tests': self.results, 
@@ -438,14 +430,7 @@ class TPSTestRunner(object):
       from tps.emailtemplate import GenerateEmailBody
 
       if body is None:
-        buildUrl = None
-        if self.firefoxRunner and self.firefoxRunner.url:
-          buildUrl = self.firefoxRunner.url
-        body = GenerateEmailBody(self.postdata,
-                                 self.numpassed,
-                                 self.numfailed,
-                                 self.config['account']['serverURL'],
-                                 buildUrl)
+        body = GenerateEmailBody(self.postdata, self.numpassed, self.numfailed, self.config['account']['serverURL'])
 
       subj = "TPS Report: "
       if self.numfailed == 0 and self.numpassed > 0:

@@ -196,7 +196,7 @@ nsAboutCacheEntry::OpenCacheEntry(nsIURI *uri, nsICacheEntryDescriptor **result)
 {
     nsresult rv;
     nsCAutoString clientID, key;
-    bool streamBased = true;
+    PRBool streamBased = PR_TRUE;
 
     rv = ParseURI(uri, clientID, streamBased, key);
     if (NS_FAILED(rv)) return rv;
@@ -212,10 +212,10 @@ nsAboutCacheEntry::OpenCacheEntry(nsIURI *uri, nsICacheEntryDescriptor **result)
                              getter_AddRefs(session));
     if (NS_FAILED(rv)) return rv;
 
-    rv = session->SetDoomEntriesIfExpired(false);
+    rv = session->SetDoomEntriesIfExpired(PR_FALSE);
     if (NS_FAILED(rv)) return rv;
 
-    rv = session->OpenCacheEntry(key, nsICache::ACCESS_READ, false, result);
+    rv = session->OpenCacheEntry(key, nsICache::ACCESS_READ, PR_FALSE, result);
     return rv;
 }
 
@@ -273,8 +273,8 @@ nsAboutCacheEntry::WriteCacheEntryDescription(nsIOutputStream *outputStream,
 
     // Test if the key is actually a URI
     nsCOMPtr<nsIURI> uri;
-    bool isJS = false;
-    bool isData = false;
+    PRBool isJS = PR_FALSE;
+    PRBool isData = PR_FALSE;
 
     rv = NS_NewURI(getter_AddRefs(uri), str);
     // javascript: and data: URLs should not be linkified
@@ -432,7 +432,7 @@ nsAboutCacheEntry::WriteCacheEntryUnavailable(nsIOutputStream *outputStream)
 
 nsresult
 nsAboutCacheEntry::ParseURI(nsIURI *uri, nsCString &clientID,
-                            bool &streamBased, nsCString &key)
+                            PRBool &streamBased, nsCString &key)
 {
     //
     // about:cache-entry?client=[string]&sb=[boolean]&key=[string]
@@ -482,7 +482,7 @@ nsAboutCacheEntry::ParseURI(nsIURI *uri, nsCString &clientID,
 NS_IMETHODIMP
 nsAboutCacheEntry::VisitMetaDataElement(const char * key,
                                         const char * value,
-                                        bool *     keepGoing)
+                                        PRBool *     keepGoing)
 {
     mBuffer->AppendLiteral("  <tr>\n"
                            "    <th>");
@@ -495,6 +495,6 @@ nsAboutCacheEntry::VisitMetaDataElement(const char * key,
     mBuffer->AppendLiteral("</td>\n"
                            "  </tr>\n");
 
-    *keepGoing = true;
+    *keepGoing = PR_TRUE;
     return NS_OK;
 }

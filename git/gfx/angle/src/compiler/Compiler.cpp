@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -88,8 +88,7 @@ TShHandleBase::~TShHandleBase() {
 
 TCompiler::TCompiler(ShShaderType type, ShShaderSpec spec)
     : shaderType(type),
-      shaderSpec(spec),
-      builtInFunctionEmulator(type)
+      shaderSpec(spec) 
 {
 }
 
@@ -209,8 +208,6 @@ void TCompiler::clearResults()
 
     attribs.clear();
     uniforms.clear();
-
-    builtInFunctionEmulator.Cleanup();
 }
 
 bool TCompiler::detectRecursion(TIntermNode* root)
@@ -252,7 +249,7 @@ void TCompiler::mapLongVariableNames(TIntermNode* root)
 
 int TCompiler::getMappedNameMaxLength() const
 {
-    return MAX_SHORTENED_IDENTIFIER_SIZE + 1;
+    return MAX_IDENTIFIER_NAME_SIZE + 1;
 }
 
 const TExtensionBehavior& TCompiler::getExtensionBehavior() const

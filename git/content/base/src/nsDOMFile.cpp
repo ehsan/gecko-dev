@@ -41,7 +41,7 @@
 #include "nsCExternalHandlerService.h"
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsICharsetAlias.h"
 #include "nsICharsetDetector.h"
@@ -148,7 +148,7 @@ NS_INTERFACE_MAP_BEGIN(nsDOMFileBase)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(Blob, !mIsFile)
 NS_INTERFACE_MAP_END
 
-// Threadsafe when GetMutable() == false
+// Threadsafe when GetMutable() == PR_FALSE
 NS_IMPL_THREADSAFE_ADDREF(nsDOMFileBase)
 NS_IMPL_THREADSAFE_RELEASE(nsDOMFileBase)
 
@@ -322,14 +322,14 @@ nsDOMFileBase::GetSendInfo(nsIInputStream** aBody,
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::GetMutable(bool* aMutable)
+nsDOMFileBase::GetMutable(PRBool* aMutable)
 {
   *aMutable = !mImmutable;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::SetMutable(bool aMutable)
+nsDOMFileBase::SetMutable(PRBool aMutable)
 {
   nsresult rv = NS_OK;
 
@@ -419,7 +419,7 @@ nsDOMFileFile::GetType(nsAString &aType)
     }
 
     AppendUTF8toUTF16(mimeType, mContentType);
-    mContentType.SetIsVoid(false);
+    mContentType.SetIsVoid(PR_FALSE);
   }
 
   aType = mContentType;
@@ -488,19 +488,19 @@ nsDOMFileFile::Initialize(nsISupports* aOwner,
     }
 
     nsCOMPtr<nsILocalFile> localFile;
-    rv = NS_NewLocalFile(xpcomStr, false, getter_AddRefs(localFile));
+    rv = NS_NewLocalFile(xpcomStr, PR_FALSE, getter_AddRefs(localFile));
     NS_ENSURE_SUCCESS(rv, rv);
 
     file = do_QueryInterface(localFile);
     NS_ASSERTION(file, "This should never happen");
   }
 
-  bool exists;
+  PRBool exists;
   rv = file->Exists(&exists);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(exists, NS_ERROR_FILE_NOT_FOUND);
 
-  bool isDir;
+  PRBool isDir;
   rv = file->IsDirectory(&isDir);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_FALSE(isDir, NS_ERROR_FILE_IS_DIRECTORY);

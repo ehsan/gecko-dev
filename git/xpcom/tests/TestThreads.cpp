@@ -112,7 +112,7 @@ public:
 
     NS_IMETHOD Run() {
         NS_ASSERTION(!mWasRun, "run twice!");
-        mWasRun = true;
+        mWasRun = PR_TRUE;
         PR_Sleep(1);
         if (!PR_AtomicDecrement(&gNum)) {
             printf("   last thread was %d\n", mNum);
@@ -120,7 +120,7 @@ public:
         return NS_OK;
     }
 
-    nsStressRunner(int num) : mNum(num), mWasRun(false) {
+    nsStressRunner(int num) : mNum(num), mWasRun(PR_FALSE) {
         PR_AtomicIncrement(&gNum);
     }
 
@@ -134,7 +134,7 @@ private:
 protected:
     static PRInt32 gNum;
     PRInt32 mNum;
-    bool mWasRun;
+    PRBool mWasRun;
 };
 
 PRInt32 nsStressRunner::gNum = 0;

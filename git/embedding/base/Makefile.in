@@ -46,6 +46,9 @@ XPIDL_MODULE	= embed_base
 
 include $(DEPTH)/config/autoconf.mk
 
+
+DEFINES += -DMOZILLA_STRICT_API
+
 SDK_HEADERS         = \
                 nsEmbedCID.h \
                 $(NULL)

@@ -47,7 +47,8 @@
 #include "nsServiceManagerUtils.h"
 #include "nsXPCOMCIDInternal.h"
 
-using mozilla::MonitorAutoLock;
+using mozilla::MutexAutoLock;
+using mozilla::MutexAutoUnlock;
 
 USING_INDEXEDDB_NAMESPACE
 
@@ -222,7 +223,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
   // AddRef here because removing from the hash will call Release.
   nsRefPtr<IDBTransaction> transaction(aTransaction);
 
-  nsIAtom* databaseId = aTransaction->mDatabase->Id();
+  const PRUint32 databaseId = aTransaction->mDatabase->Id();
 
   DatabaseTransactionInfo* dbTransactionInfo;
   if (!mTransactionsInProgress.Get(databaseId, &dbTransactionInfo)) {
@@ -237,6 +238,7 @@ TransactionThreadPool::FinishTransaction(IDBTransaction* aTransaction)
 
 #ifdef DEBUG
   if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
+    NS_ASSERTION(dbTransactionInfo->locked, "Should be locked!");
     NS_ASSERTION(transactionCount == 1,
                  "More transactions running than should be!");
   }
@@ -323,7 +325,7 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
   NS_ASSERTION(aCanRun, "Null pointer!");
   NS_ASSERTION(aExistingQueue, "Null pointer!");
 
-  nsIAtom* databaseId = aTransaction->mDatabase->Id();
+  const PRUint32 databaseId = aTransaction->mDatabase->Id();
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
   const PRUint16 mode = aTransaction->mMode;
 
@@ -342,6 +344,10 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
   PRUint32 transactionCount = transactionsInProgress.Length();
   NS_ASSERTION(transactionCount, "Should never be 0!");
 
+  if (mode == IDBTransaction::VERSION_CHANGE) {
+    dbTransactionInfo->lockPending = true;
+  }
+
   for (PRUint32 index = 0; index < transactionCount; index++) {
     // See if this transaction is in out list of current transactions.
     const TransactionInfo& info = transactionsInProgress[index];
@@ -352,7 +358,11 @@ TransactionThreadPool::TransactionCanRun(IDBTransaction* aTransaction,
     }
   }
 
-  NS_ASSERTION(mode != IDBTransaction::VERSION_CHANGE, "How did we get here?");
+  if (dbTransactionInfo->locked || dbTransactionInfo->lockPending) {
+    *aCanRun = false;
+    *aExistingQueue = nsnull;
+    return NS_OK;
+  }
 
   bool writeOverlap;
   nsresult rv =
@@ -420,7 +430,7 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
     return NS_OK;
   }
 
-  nsIAtom* databaseId = aTransaction->mDatabase->Id();
+  const PRUint32 databaseId = aTransaction->mDatabase->Id();
 
 #ifdef DEBUG
   if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
@@ -436,6 +446,11 @@ TransactionThreadPool::Dispatch(IDBTransaction* aTransaction,
     // Make a new struct for this transaction.
     autoDBTransactionInfo = new DatabaseTransactionInfo();
     dbTransactionInfo = autoDBTransactionInfo;
+  }
+
+  if (aTransaction->mMode == IDBTransaction::VERSION_CHANGE) {
+    NS_ASSERTION(!dbTransactionInfo->locked, "Already locked?!");
+    dbTransactionInfo->locked = true;
   }
 
   const nsTArray<nsString>& objectStoreNames = aTransaction->mObjectStoreNames;
@@ -603,7 +618,8 @@ TransactionThreadPool::MaybeFireCallback(PRUint32 aCallbackIndex)
 TransactionThreadPool::
 TransactionQueue::TransactionQueue(IDBTransaction* aTransaction,
                                    nsIRunnable* aRunnable)
-: mMonitor("TransactionQueue::mMonitor"),
+: mMutex("TransactionQueue::mMutex"),
+  mCondVar(mMutex, "TransactionQueue::mCondVar"),
   mTransaction(aTransaction),
   mShouldFinish(false)
 {
@@ -615,26 +631,29 @@ TransactionQueue::TransactionQueue(IDBTransaction* aTransaction,
 void
 TransactionThreadPool::TransactionQueue::Dispatch(nsIRunnable* aRunnable)
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mMutex);
 
   NS_ASSERTION(!mShouldFinish, "Dispatch called after Finish!");
 
-  mQueue.AppendElement(aRunnable);
+  if (!mQueue.AppendElement(aRunnable)) {
+    MutexAutoUnlock unlock(mMutex);
+    NS_RUNTIMEABORT("Out of memory!");
+  }
 
-  mMonitor.Notify();
+  mCondVar.Notify();
 }
 
 void
 TransactionThreadPool::TransactionQueue::Finish(nsIRunnable* aFinishRunnable)
 {
-  MonitorAutoLock lock(mMonitor);
+  MutexAutoLock lock(mMutex);
 
   NS_ASSERTION(!mShouldFinish, "Finish called more than once!");
 
   mShouldFinish = true;
   mFinishRunnable = aFinishRunnable;
 
-  mMonitor.Notify();
+  mCondVar.Notify();
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(TransactionThreadPool::TransactionQueue,
@@ -651,9 +670,9 @@ TransactionThreadPool::TransactionQueue::Run()
     NS_ASSERTION(queue.IsEmpty(), "Should have cleared this!");
 
     {
-      MonitorAutoLock lock(mMonitor);
+      MutexAutoLock lock(mMutex);
       while (!mShouldFinish && mQueue.IsEmpty()) {
-        if (NS_FAILED(mMonitor.Wait())) {
+        if (NS_FAILED(mCondVar.Wait())) {
           NS_ERROR("Failed to wait!");
         }
       }

@@ -211,7 +211,7 @@ public:
     nsString mValue;
 };
 
-txBufferingHandler::txBufferingHandler() : mCanAddAttribute(false)
+txBufferingHandler::txBufferingHandler() : mCanAddAttribute(PR_FALSE)
 {
     MOZ_COUNT_CTOR(txBufferingHandler);
     mBuffer = new txResultBuffer();
@@ -262,11 +262,11 @@ txBufferingHandler::attribute(nsIAtom* aPrefix, const nsSubstring& aLocalName,
 }
 
 nsresult
-txBufferingHandler::characters(const nsSubstring& aData, bool aDOE)
+txBufferingHandler::characters(const nsSubstring& aData, PRBool aDOE)
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
-    mCanAddAttribute = false;
+    mCanAddAttribute = PR_FALSE;
 
     txOutputTransaction::txTransactionType type =
          aDOE ? txOutputTransaction::eCharacterNoOETransaction
@@ -292,7 +292,7 @@ txBufferingHandler::comment(const nsString& aData)
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
-    mCanAddAttribute = false;
+    mCanAddAttribute = PR_FALSE;
 
     txOutputTransaction* transaction = new txCommentTransaction(aData);
     NS_ENSURE_TRUE(transaction, NS_ERROR_OUT_OF_MEMORY);
@@ -317,7 +317,7 @@ txBufferingHandler::endElement()
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
-    mCanAddAttribute = false;
+    mCanAddAttribute = PR_FALSE;
 
     txOutputTransaction* transaction =
         new txOutputTransaction(txOutputTransaction::eEndElementTransaction);
@@ -332,7 +332,7 @@ txBufferingHandler::processingInstruction(const nsString& aTarget,
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
-    mCanAddAttribute = false;
+    mCanAddAttribute = PR_FALSE;
 
     txOutputTransaction* transaction =
         new txPITransaction(aTarget, aData);
@@ -360,7 +360,7 @@ txBufferingHandler::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
-    mCanAddAttribute = true;
+    mCanAddAttribute = PR_TRUE;
 
     txOutputTransaction* transaction =
         new txStartElementAtomTransaction(aPrefix, aLocalName,
@@ -377,7 +377,7 @@ txBufferingHandler::startElement(nsIAtom* aPrefix,
 {
     NS_ENSURE_TRUE(mBuffer, NS_ERROR_OUT_OF_MEMORY);
 
-    mCanAddAttribute = true;
+    mCanAddAttribute = PR_TRUE;
 
     txOutputTransaction* transaction =
         new txStartElementTransaction(aPrefix, aLocalName, aNsID);

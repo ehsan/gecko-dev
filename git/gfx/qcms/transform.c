@@ -1078,8 +1078,7 @@ qcms_transform* qcms_transform_precacheLUT_float(qcms_transform *transform, qcms
 	//XXX: qcms_modular_transform_data may return either the src or dest buffer. If so it must not be free-ed
 	if (src && lut != src) {
 		free(src);
-	}
-	if (dest && lut != dest) {
+	} else if (dest && lut != src) {
 		free(dest);
 	}
 

@@ -85,6 +85,8 @@ using namespace mozilla;
 // ShortIdleTimeoutSeconds of idle time. Smaller pools use LongIdleTimeoutSeconds for a 
 // timeout period.
 
+#define MAX_NON_PRIORITY_REQUESTS 150
+
 #define HighThreadThreshold     MAX_RESOLVER_THREADS_FOR_ANY_PRIORITY
 #define LongIdleTimeoutSeconds  300           // for threads 1 -> HighThreadThreshold
 #define ShortIdleTimeoutSeconds 60            // for threads HighThreadThreshold+1 -> MAX_RESOLVER_THREADS
@@ -151,11 +153,11 @@ public:
     {
     }
 
-    bool Reset()
+    PRBool Reset()
     {
         // reset no more than once per second
         if (PR_IntervalToSeconds(PR_IntervalNow() - mLastReset) < 1)
-            return false;
+            return PR_FALSE;
 
         LOG(("calling res_ninit\n"));
 
@@ -182,10 +184,10 @@ nsHostRecord::nsHostRecord(const nsHostKey *key)
     , addr_info_gencnt(0)
     , addr_info(nsnull)
     , addr(nsnull)
-    , negative(false)
-    , resolving(false)
-    , onQueue(false)
-    , usingAnyThread(false)
+    , negative(PR_FALSE)
+    , resolving(PR_FALSE)
+    , onQueue(PR_FALSE)
+    , usingAnyThread(PR_FALSE)
 {
     host = ((char *) this) + sizeof(nsHostRecord);
     memcpy((char *) host, key->host, strlen(key->host) + 1);
@@ -218,7 +220,7 @@ nsHostRecord::~nsHostRecord()
         free(addr);
 }
 
-bool
+PRBool
 nsHostRecord::Blacklisted(PRNetAddr *aQuery)
 {
     // must call locked
@@ -226,11 +228,11 @@ nsHostRecord::Blacklisted(PRNetAddr *aQuery)
 
     // skip the string conversion for the common case of no blacklist
     if (!mBlacklistedItems.Length())
-        return false;
+        return PR_FALSE;
     
     char buf[64];
     if (PR_NetAddrToString(aQuery, buf, sizeof(buf)) != PR_SUCCESS)
-        return false;
+        return PR_FALSE;
 
     nsDependentCString strQuery(buf);
     LOG(("nsHostRecord::Blacklisted() query %s\n", buf));
@@ -238,10 +240,10 @@ nsHostRecord::Blacklisted(PRNetAddr *aQuery)
     for (PRUint32 i = 0; i < mBlacklistedItems.Length(); i++)
         if (mBlacklistedItems.ElementAt(i).Equals(strQuery)) {
             LOG(("nsHostRecord::Blacklisted() %s blacklist confirmed\n", buf));
-            return true;
+            return PR_TRUE;
         }
 
-    return false;
+    return PR_FALSE;
 }
 
 void
@@ -279,7 +281,7 @@ HostDB_HashKey(PLDHashTable *table, const void *key)
     return PL_DHashStringKey(table, hk->host) ^ RES_KEY_FLAGS(hk->flags) ^ hk->af;
 }
 
-static bool
+static PRBool
 HostDB_MatchEntry(PLDHashTable *table,
                   const PLDHashEntryHdr *entry,
                   const void *key)
@@ -331,14 +333,14 @@ HostDB_ClearEntry(PLDHashTable *table,
     NS_RELEASE(he->rec);
 }
 
-static bool
+static PRBool
 HostDB_InitEntry(PLDHashTable *table,
                  PLDHashEntryHdr *entry,
                  const void *key)
 {
     nsHostDBEnt *he = static_cast<nsHostDBEnt *>(entry);
     nsHostRecord::Create(static_cast<const nsHostKey *>(key), &he->rec);
-    return true;
+    return PR_TRUE;
 }
 
 static PLDHashTableOps gHostDB_ops =
@@ -375,7 +377,7 @@ nsHostResolver::nsHostResolver(PRUint32 maxCacheEntries,
     , mActiveAnyThreadCount(0)
     , mEvictionQSize(0)
     , mPendingCount(0)
-    , mShutdown(true)
+    , mShutdown(PR_TRUE)
 {
     mCreationTime = PR_Now();
     PR_INIT_CLIST(&mHighQ);
@@ -399,7 +401,7 @@ nsHostResolver::Init()
 
     PL_DHashTableInit(&mDB, &gHostDB_ops, nsnull, sizeof(nsHostDBEnt), 0);
 
-    mShutdown = false;
+    mShutdown = PR_FALSE;
 
 #if defined(HAVE_RES_NINIT)
     // We want to make sure the system is using the correct resolver settings,
@@ -444,7 +446,7 @@ nsHostResolver::Shutdown()
     {
         MutexAutoLock lock(mLock);
         
-        mShutdown = true;
+        mShutdown = PR_TRUE;
 
         MoveCList(mHighQ, pendingQHigh);
         MoveCList(mMediumQ, pendingQMed);
@@ -489,19 +491,19 @@ nsHostResolver::Shutdown()
 #endif
 }
 
-static inline bool
+static inline PRBool
 IsHighPriority(PRUint16 flags)
 {
     return !(flags & (nsHostResolver::RES_PRIORITY_LOW | nsHostResolver::RES_PRIORITY_MEDIUM));
 }
 
-static inline bool
+static inline PRBool
 IsMediumPriority(PRUint16 flags)
 {
     return flags & nsHostResolver::RES_PRIORITY_MEDIUM;
 }
 
-static inline bool
+static inline PRBool
 IsLowPriority(PRUint16 flags)
 {
     return flags & nsHostResolver::RES_PRIORITY_LOW;
@@ -729,8 +731,8 @@ nsHostResolver::IssueLookup(nsHostRecord *rec)
         PR_APPEND_LINK(rec, &mLowQ);
     mPendingCount++;
     
-    rec->resolving = true;
-    rec->onQueue = true;
+    rec->resolving = PR_TRUE;
+    rec->onQueue = PR_TRUE;
 
     rv = ConditionallyCreateThread(rec);
     
@@ -749,13 +751,13 @@ nsHostResolver::DeQueue(PRCList &aQ, nsHostRecord **aResult)
     *aResult = static_cast<nsHostRecord *>(aQ.next);
     PR_REMOVE_AND_INIT_LINK(*aResult);
     mPendingCount--;
-    (*aResult)->onQueue = false;
+    (*aResult)->onQueue = PR_FALSE;
 }
 
-bool
+PRBool
 nsHostResolver::GetHostToLookup(nsHostRecord **result)
 {
-    bool timedOut = false;
+    PRBool timedOut = PR_FALSE;
     PRIntervalTime epoch, now, timeout;
     
     MutexAutoLock lock(mLock);
@@ -768,22 +770,22 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
         
         if (!PR_CLIST_IS_EMPTY(&mHighQ)) {
             DeQueue (mHighQ, result);
-            return true;
+            return PR_TRUE;
         }
 
         if (mActiveAnyThreadCount < HighThreadThreshold) {
             if (!PR_CLIST_IS_EMPTY(&mMediumQ)) {
                 DeQueue (mMediumQ, result);
                 mActiveAnyThreadCount++;
-                (*result)->usingAnyThread = true;
-                return true;
+                (*result)->usingAnyThread = PR_TRUE;
+                return PR_TRUE;
             }
             
             if (!PR_CLIST_IS_EMPTY(&mLowQ)) {
                 DeQueue (mLowQ, result);
                 mActiveAnyThreadCount++;
-                (*result)->usingAnyThread = true;
-                return true;
+                (*result)->usingAnyThread = PR_TRUE;
+                return PR_TRUE;
             }
         }
         
@@ -804,7 +806,7 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
         now = PR_IntervalNow();
         
         if ((PRIntervalTime)(now - epoch) >= timeout)
-            timedOut = true;
+            timedOut = PR_TRUE;
         else {
             // It is possible that PR_WaitCondVar() was interrupted and returned early,
             // in which case we will loop back and re-enter it. In that case we want to
@@ -816,7 +818,7 @@ nsHostResolver::GetHostToLookup(nsHostRecord **result)
     
     // tell thread to exit...
     mThreadCount--;
-    return false;
+    return PR_FALSE;
 }
 
 void
@@ -846,17 +848,17 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, PRAddrInfo 
         rec->expiration = NowInMinutes();
         if (result) {
             rec->expiration += mMaxCacheLifetime;
-            rec->negative = false;
+            rec->negative = PR_FALSE;
         }
         else {
             rec->expiration += 1;                 /* one minute for negative cache */
-            rec->negative = true;
+            rec->negative = PR_TRUE;
         }
-        rec->resolving = false;
+        rec->resolving = PR_FALSE;
         
         if (rec->usingAnyThread) {
             mActiveAnyThreadCount--;
-            rec->usingAnyThread = false;
+            rec->usingAnyThread = PR_FALSE;
         }
 
         if (rec->addr_info && !mShutdown) {

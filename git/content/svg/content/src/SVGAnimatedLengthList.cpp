@@ -38,8 +38,10 @@
 #include "DOMSVGAnimatedLengthList.h"
 #include "nsSVGElement.h"
 #include "nsSVGAttrTearoffTable.h"
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGLengthListSMILType.h"
+#endif // MOZ_SMIL
 
 namespace mozilla {
 
@@ -147,11 +149,12 @@ SVGAnimatedLengthList::ClearAnimValue(nsSVGElement *aElement,
   aElement->DidAnimateLengthList(aAttrEnum);
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 SVGAnimatedLengthList::ToSMILAttr(nsSVGElement *aSVGElement,
                                   PRUint8 aAttrEnum,
                                   PRUint8 aAxis,
-                                  bool aCanZeroPadList)
+                                  PRBool aCanZeroPadList)
 {
   return new SMILAnimatedLengthList(this, aSVGElement, aAttrEnum, aAxis, aCanZeroPadList);
 }
@@ -161,7 +164,7 @@ SVGAnimatedLengthList::
   SMILAnimatedLengthList::ValueFromString(const nsAString& aStr,
                                const nsISMILAnimationElement* /*aSrcElement*/,
                                nsSMILValue& aValue,
-                               bool& aPreventCachingOfSandwich) const
+                               PRBool& aPreventCachingOfSandwich) const
 {
   nsSMILValue val(&SVGLengthListSMILType::sSingleton);
   SVGLengthListAndInfo *llai = static_cast<SVGLengthListAndInfo*>(val.mU.mPtr);
@@ -184,13 +187,13 @@ SVGAnimatedLengthList::
     // sandwich layer, causing the animation sandwich to be recalculated every
     // single sample.
 
-    aPreventCachingOfSandwich = false;
+    aPreventCachingOfSandwich = PR_FALSE;
     for (PRUint32 i = 0; i < llai->Length(); ++i) {
       PRUint8 unit = (*llai)[i].GetUnit();
       if (unit == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE ||
           unit == nsIDOMSVGLength::SVG_LENGTHTYPE_EMS ||
           unit == nsIDOMSVGLength::SVG_LENGTHTYPE_EXS) {
-        aPreventCachingOfSandwich = true;
+        aPreventCachingOfSandwich = PR_TRUE;
         break;
       }
     }
@@ -236,5 +239,6 @@ SVGAnimatedLengthList::SMILAnimatedLengthList::ClearAnimValue()
     mVal->ClearAnimValue(mElement, mAttrEnum);
   }
 }
+#endif // MOZ_SMIL
 
 } // namespace mozilla

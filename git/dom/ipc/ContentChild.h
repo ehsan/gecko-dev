@@ -64,12 +64,6 @@ public:
     ContentChild();
     virtual ~ContentChild();
 
-    struct AppInfo
-    {
-        nsCString version;
-        nsCString buildID;
-    };
-
     bool Init(MessageLoop* aIOLoop,
               base::ProcessHandle aParentHandle,
               IPC::Channel* aChannel);
@@ -80,24 +74,14 @@ public:
         return sSingleton;
     }
 
-    const AppInfo& GetAppInfo() {
-        return mAppInfo;
-    }
-
     /* if you remove this, please talk to cjones or dougt */
     virtual bool RecvDummy(Shmem& foo) { return true; }
 
     virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
-    virtual PCrashReporterChild*
-    AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                        const PRUint32& processType);
-    virtual bool
-    DeallocPCrashReporter(PCrashReporterChild*);
-
-    NS_OVERRIDE virtual PHalChild* AllocPHal();
-    NS_OVERRIDE virtual bool DeallocPHal(PHalChild*);
+    virtual PCrashReporterChild* AllocPCrashReporter();
+    virtual bool DeallocPCrashReporter(PCrashReporterChild*);
 
     virtual PMemoryReportRequestChild*
     AllocPMemoryReportRequest();
@@ -129,9 +113,6 @@ public:
             const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
-    virtual PSmsChild* AllocPSms();
-    virtual bool DeallocPSms(PSmsChild*);
-
     virtual PStorageChild* AllocPStorage(const StorageConstructData& aData);
     virtual bool DeallocPStorage(PStorageChild* aActor);
 
@@ -140,7 +121,7 @@ public:
                                     const InfallibleTArray<OverrideMapping>& overrides,
                                     const nsCString& locale);
 
-    virtual bool RecvSetOffline(const bool& offline);
+    virtual bool RecvSetOffline(const PRBool& offline);
 
     virtual bool RecvNotifyVisited(const IPC::URI& aURI);
     // auto remove when alertfinished is received.
@@ -170,9 +151,6 @@ public:
     virtual bool RecvGarbageCollect();
     virtual bool RecvCycleCollect();
 
-    virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID);
-    virtual bool RecvSetID(const PRUint64 &id);
-
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
 #endif
@@ -180,8 +158,6 @@ public:
     // Get the directory for IndexedDB files. We query the parent for this and
     // cache the value
     nsString &GetIndexedDBPath();
-
-    PRUint64 GetID() { return mID; }
 
 private:
     NS_OVERRIDE
@@ -201,17 +177,6 @@ private:
 #ifdef ANDROID
     gfxIntSize mScreenSize;
 #endif
-
-    AppInfo mAppInfo;
-
-    /**
-     * An ID unique to the process containing our corresponding
-     * content parent.
-     *
-     * We expect our content parent to set this ID immediately after opening a
-     * channel to us.
-     */
-    PRUint64 mID;
 
     static ContentChild* sSingleton;
 

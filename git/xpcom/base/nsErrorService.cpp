@@ -44,11 +44,11 @@ CloneCString(nsHashKey *aKey, void *aData, void* closure)
   return NS_strdup((const char*)aData);
 }
 
-static bool
+static PRBool
 DeleteCString(nsHashKey *aKey, void *aData, void* closure)
 {
   NS_Free(aData);
-  return true;
+  return PR_TRUE;
 }
 
 nsInt2StrHashtable::nsInt2StrHashtable()

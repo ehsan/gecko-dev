@@ -79,9 +79,9 @@
  * other code needs to see import declarations when using mfbt.
  */
 #if defined(IMPL_MFBT)
-#  define MFBT_API(type_)       MOZ_EXPORT_API(type_)
+# define MFBT_API(type_)       MOZ_EXPORT_API(type_)
 #else
-#  define MFBT_API(type_)       MOZ_IMPORT_API(type_)
+# define MFBT_API(type_)       MOZ_IMPORT_API(type_)
 #endif
 
 

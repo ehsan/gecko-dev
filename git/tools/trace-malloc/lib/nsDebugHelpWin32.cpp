@@ -62,14 +62,14 @@ DHWImportHooker*  DHWImportHooker::gHooks = nsnull;
 GETPROCADDRESS    DHWImportHooker::gRealGetProcAddress = nsnull;
 
 
-static bool
+static PRBool
 dhwEnsureImageHlpInitialized()
 {
-  static bool gInitialized = false;
-  static bool gTried       = false;
+  static PRBool gInitialized = PR_FALSE;
+  static PRBool gTried       = PR_FALSE;
 
   if (!gInitialized && !gTried) {
-    gTried = true;
+    gTried = PR_TRUE;
     HMODULE module = ::LoadLibrary("DBGHELP.DLL");
     if (!module) {
       DWORD dw = GetLastError();
@@ -77,12 +77,12 @@ dhwEnsureImageHlpInitialized()
              "                 This DLL is needed for succeessfully implementing trace-malloc.\n"
              "                 This dll ships by default on Win2k. Disabling trace-malloc functionality.\n"
              , dw);
-      return false;
+      return PR_FALSE;
     }
 
 #define INIT_PROC(typename_, name_) \
     dhw##name_ = (typename_) ::GetProcAddress(module, #name_); \
-    if(!dhw##name_) return false;
+    if(!dhw##name_) return PR_FALSE;
 
 #ifdef _WIN64
     INIT_PROC(ENUMERATELOADEDMODULES64, EnumerateLoadedModules64);
@@ -93,7 +93,7 @@ dhwEnsureImageHlpInitialized()
 
 #undef INIT_PROC
 
-    gInitialized = true;
+    gInitialized = PR_TRUE;
   }
 
   return gInitialized;
@@ -152,14 +152,14 @@ static HMODULE ThisModule()
 DHWImportHooker::DHWImportHooker(const char* aModuleName,
                                  const char* aFunctionName,
                                  PROC aHook,
-                                 bool aExcludeOurModule /* = false */)
+                                 PRBool aExcludeOurModule /* = PR_FALSE */)
     :   mNext(nsnull),
         mModuleName(aModuleName),
         mFunctionName(aFunctionName),
         mOriginal(nsnull),
         mHook(aHook),
         mIgnoreModule(aExcludeOurModule ? ThisModule() : nsnull),
-        mHooking(true)
+        mHooking(PR_TRUE)
 {
     //printf("DHWImportHooker hooking %s, function %s\n",aModuleName, aFunctionName);
 
@@ -187,7 +187,7 @@ DHWImportHooker::~DHWImportHooker()
 {
     PR_Lock(gLock);
 
-    mHooking = false;
+    mHooking = PR_FALSE;
     PatchAllModules();
 
     for (DHWImportHooker **cur = &gHooks;
@@ -230,7 +230,7 @@ static BOOL CALLBACK ModuleEnumCallback(PCSTR ModuleName,
     return self->PatchOneModule(aModule, ModuleName);
 }
 
-bool 
+PRBool 
 DHWImportHooker::PatchAllModules()
 {
     // Need to cast to PENUMLOADED_MODULES_CALLBACK because the
@@ -246,12 +246,12 @@ DHWImportHooker::PatchAllModules()
 #endif
 }    
                                 
-bool 
+PRBool 
 DHWImportHooker::PatchOneModule(HMODULE aModule, const char* name)
 {
     if(aModule == mIgnoreModule)
     {
-        return true;
+        return PR_TRUE;
     }
 
     // do the fun stuff...
@@ -260,12 +260,12 @@ DHWImportHooker::PatchOneModule(HMODULE aModule, const char* name)
     uint32 size;
 
     desc = (PIMAGE_IMPORT_DESCRIPTOR) 
-        dhwImageDirectoryEntryToData(aModule, true, 
+        dhwImageDirectoryEntryToData(aModule, PR_TRUE, 
                                      IMAGE_DIRECTORY_ENTRY_IMPORT, &size);
 
     if(!desc)
     {
-        return true;
+        return PR_TRUE;
     }
 
     for(; desc->Name; desc++)
@@ -278,7 +278,7 @@ DHWImportHooker::PatchOneModule(HMODULE aModule, const char* name)
 
     if(!desc->Name)
     {
-        return true;
+        return PR_TRUE;
     }
 
     PIMAGE_THUNK_DATA thunk = (PIMAGE_THUNK_DATA)
@@ -311,7 +311,7 @@ DHWImportHooker::PatchOneModule(HMODULE aModule, const char* name)
             {
               printf("failure name %s  func %x\n",name,*ppfn);
               DWORD error = GetLastError();
-              return true;
+              return PR_TRUE;
             }
             else
             {
@@ -322,10 +322,10 @@ DHWImportHooker::PatchOneModule(HMODULE aModule, const char* name)
         }
 
     }
-    return true;
+    return PR_TRUE;
 }
 
-bool 
+PRBool 
 DHWImportHooker::ModuleLoaded(HMODULE aModule, DWORD flags)
 {
     //printf("ModuleLoaded\n");
@@ -338,7 +338,7 @@ DHWImportHooker::ModuleLoaded(HMODULE aModule, DWORD flags)
             cur->PatchAllModules();
         PR_Unlock(gLock);
     }
-    return true;
+    return PR_TRUE;
 }
 
 // static 

@@ -75,15 +75,15 @@ public:
 	
   NS_DECL_EDITTXN
 
-  NS_IMETHOD Merge(nsITransaction *aTransaction, bool *aDidMerge);
+  NS_IMETHOD Merge(nsITransaction *aTransaction, PRBool *aDidMerge);
 
   /** return the string data associated with this transaction */
   NS_IMETHOD GetData(nsString& aResult);
 
 protected:
 
-  /** return true if aOtherTxn immediately follows this txn */
-  virtual bool IsSequentialInsert(InsertTextTxn *aOtherTxn);
+  /** return PR_TRUE if aOtherTxn immediately follows this txn */
+  virtual PRBool IsSequentialInsert(InsertTextTxn *aOtherTxn);
   
   /** the text element to operate upon */
   nsCOMPtr<nsIDOMCharacterData> mElement;

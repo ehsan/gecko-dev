@@ -100,18 +100,18 @@ nsHttpConnectionInfo::Clone() const
     return clone;
 }
 
-bool
+PRBool
 nsHttpConnectionInfo::ShouldForceConnectMethod()
 {
     if (!mProxyInfo)
-        return false;
+        return PR_FALSE;
     
     PRUint32 resolveFlags;
     nsresult rv;
     
     rv = mProxyInfo->GetResolveFlags(&resolveFlags);
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     return resolveFlags & nsIProtocolProxyService::RESOLVE_ALWAYS_TUNNEL;
 }

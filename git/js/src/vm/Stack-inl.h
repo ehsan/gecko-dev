@@ -62,7 +62,7 @@ StackFrame::initPrev(JSContext *cx)
         prev_ = regs->fp();
         prevpc_ = regs->pc;
         prevInline_ = regs->inlined();
-        JS_ASSERT_IF(!prev_->isDummyFrame(),
+        JS_ASSERT_IF(!prev_->isDummyFrame() && !prev_->hasImacropc(),
                      uint32(prevpc_ - prev_->script()->code) < prev_->script()->length);
     } else {
         prev_ = NULL;
@@ -120,6 +120,7 @@ StackFrame::initCallFrame(JSContext *cx, JSObject &callee, JSFunction *fun,
     scopeChain_ = callee.getParent();
     ncode_ = NULL;
     initPrev(cx);
+    JS_ASSERT(!hasImacropc());
     JS_ASSERT(!hasHookData());
     JS_ASSERT(annotation() == NULL);
     JS_ASSERT(!hasCallObj());
@@ -355,8 +356,10 @@ StackFrame::callObj() const
     JS_ASSERT_IF(isNonEvalFunctionFrame() || isStrictEvalFrame(), hasCallObj());
 
     JSObject *pobj = &scopeChain();
-    while (JS_UNLIKELY(!pobj->isCall()))
+    while (JS_UNLIKELY(!pobj->isCall())) {
+        JS_ASSERT(IsCacheableNonGlobalScope(pobj) || pobj->isWith());
         pobj = pobj->getParent();
+    }
     return pobj->asCall();
 }
 
@@ -444,6 +447,16 @@ StackFrame::markFunctionEpilogueDone()
 
 /*****************************************************************************/
 
+#ifdef JS_TRACER
+JS_ALWAYS_INLINE bool
+StackSpace::ensureEnoughSpaceToEnterTrace(JSContext *cx)
+{
+    ptrdiff_t needed = TraceNativeStorage::MAX_NATIVE_STACK_SLOTS +
+                       TraceNativeStorage::MAX_CALL_STACK_ENTRIES * VALUES_PER_STACK_FRAME;
+    return ensureSpace(cx, DONT_REPORT_ERROR, firstUnused(), needed);
+}
+#endif
+
 STATIC_POSTCONDITION(!return || ubound(from) >= nvals)
 JS_ALWAYS_INLINE bool
 StackSpace::ensureSpace(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals,
@@ -473,7 +486,7 @@ StackSpace::getStackLimit(JSContext *cx, MaybeReportError report)
 
 JS_ALWAYS_INLINE StackFrame *
 ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArgs &args,
-                           JSFunction *fun, JSScript *script, /*StackFrame::Flags*/ uint32 *flags) const
+                           JSFunction *fun, JSScript *script, StackFrame::Flags *flags) const
 {
     JS_ASSERT(fun->script() == script);
     uintN nformal = fun->nargs;
@@ -486,15 +499,15 @@ ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArg
 
     /* Maintain layout invariant: &formalArgs[0] == ((Value *)fp) - nformal. */
 
-    if (args.length() == nformal) {
+    if (args.argc() == nformal) {
         if (!space().ensureSpace(cx, report, firstUnused, nvals))
             return NULL;
         return reinterpret_cast<StackFrame *>(firstUnused);
     }
 
-    if (args.length() < nformal) {
+    if (args.argc() < nformal) {
         *flags = StackFrame::Flags(*flags | StackFrame::UNDERFLOW_ARGS);
-        uintN nmissing = nformal - args.length();
+        uintN nmissing = nformal - args.argc();
         if (!space().ensureSpace(cx, report, firstUnused, nmissing + nvals))
             return NULL;
         SetValueRangeToUndefined(firstUnused, nmissing);
@@ -522,13 +535,13 @@ ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &ar
     JS_ASSERT(callee.getFunctionPrivate() == fun);
     JS_ASSERT(fun->script() == script);
 
-    /*StackFrame::Flags*/ uint32 flags = ToFrameFlags(initial);
+    StackFrame::Flags flags = ToFrameFlags(initial);
     StackFrame *fp = getCallFrame(cx, REPORT_ERROR, args, fun, script, &flags);
     if (!fp)
         return false;
 
     /* Initialize frame, locals, regs. */
-    fp->initCallFrame(cx, callee, fun, script, args.length(), (StackFrame::Flags) flags);
+    fp->initCallFrame(cx, callee, fun, script, args.argc(), flags);
 
     /*
      * N.B. regs may differ from the active registers, if the parent is about
@@ -558,14 +571,14 @@ ContextStack::getFixupFrame(JSContext *cx, MaybeReportError report,
     JS_ASSERT(args.callee().getFunctionPrivate() == fun);
     JS_ASSERT(fun->script() == script);
 
-    /*StackFrame::Flags*/ uint32 flags = ToFrameFlags(initial);
+    StackFrame::Flags flags = ToFrameFlags(initial);
     StackFrame *fp = getCallFrame(cx, report, args, fun, script, &flags);
     if (!fp)
         return NULL;
 
     /* Do not init late prologue or regs; this is done by jit code. */
-    fp->initJitFrameCallerHalf(cx->fp(), (StackFrame::Flags) flags, ncode);
-    fp->initJitFrameEarlyPrologue(fun, args.length());
+    fp->initJitFrameCallerHalf(cx->fp(), flags, ncode);
+    fp->initJitFrameEarlyPrologue(fun, args.argc());
 
     *stackLimit = space().conservativeEnd_;
     return fp;
@@ -673,6 +686,13 @@ ArgumentsObject::getElement(uint32 i, Value *vp)
         return false;
 
     /*
+     * If this arguments object was created on trace the actual argument value
+     * could be in a register or something, so we can't optimize.
+     */
+    if (onTrace())
+        return false;
+
+    /*
      * If this arguments object has an associated stack frame, that contains
      * the canonical argument value.  Note that strict arguments objects do not
      * alias named arguments and never have a stack frame.
@@ -707,6 +727,10 @@ ArgumentsObject::getElements(uint32 start, uint32 count, Value *vp)
         }
         return true;
     }
+
+    /* If we're on trace, there's no canonical location for elements: fail. */
+    if (onTrace())
+        return false;
 
     /* Otherwise, element values are on the stack. */
     JS_ASSERT(fp->numActualArgs() <= StackSpace::ARGS_LENGTH_MAX);

@@ -80,7 +80,7 @@ NS_IMETHODIMP nsContainerBoxObject::GetDocShell(nsIDocShell** aResult)
 {
   *aResult = nsnull;
 
-  nsIFrame *frame = GetFrame(false);
+  nsIFrame *frame = GetFrame(PR_FALSE);
 
   if (frame) {
     nsSubDocumentFrame *subDocFrame = do_QueryFrame(frame);

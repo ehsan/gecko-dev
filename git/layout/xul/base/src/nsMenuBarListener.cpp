@@ -73,10 +73,10 @@ NS_IMPL_ISUPPORTS1(nsMenuBarListener, nsIDOMEventListener)
 
 PRInt32 nsMenuBarListener::mAccessKey = -1;
 PRUint32 nsMenuBarListener::mAccessKeyMask = 0;
-bool nsMenuBarListener::mAccessKeyFocuses = false;
+PRBool nsMenuBarListener::mAccessKeyFocuses = PR_FALSE;
 
 nsMenuBarListener::nsMenuBarListener(nsMenuBarFrame* aMenuBar) 
-  :mAccessKeyDown(false), mAccessKeyDownCanceled(false)
+  :mAccessKeyDown(PR_FALSE), mAccessKeyDownCanceled(PR_FALSE)
 {
   mMenuBarFrame = aMenuBar;
 }
@@ -133,7 +133,7 @@ nsMenuBarListener::ToggleMenuActiveState()
   if (pm && closemenu) {
     nsMenuPopupFrame* popupFrame = closemenu->GetPopup();
     if (popupFrame)
-      pm->HidePopup(popupFrame->GetContent(), false, false, true);
+      pm->HidePopup(popupFrame->GetContent(), PR_FALSE, PR_FALSE, PR_TRUE);
   }
 }
 
@@ -150,7 +150,7 @@ nsMenuBarListener::KeyUp(nsIDOMEvent* aKeyEvent)
 
   //handlers shouldn't be triggered by non-trusted events.
   nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
-  bool trustedEvent = false;
+  PRBool trustedEvent = PR_FALSE;
 
   if (domNSEvent) {
     domNSEvent->GetIsTrusted(&trustedEvent);
@@ -177,10 +177,10 @@ nsMenuBarListener::KeyUp(nsIDOMEvent* aKeyEvent)
       }
       ToggleMenuActiveState();
     }
-    mAccessKeyDown = false;
-    mAccessKeyDownCanceled = false;
+    mAccessKeyDown = PR_FALSE;
+    mAccessKeyDownCanceled = PR_FALSE;
 
-    bool active = mMenuBarFrame->IsActive();
+    PRBool active = mMenuBarFrame->IsActive();
     if (active) {
       aKeyEvent->StopPropagation();
       aKeyEvent->PreventDefault();
@@ -198,7 +198,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
   // if event has already been handled, bail
   nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
   if (domNSEvent) {
-    bool eventHandled = false;
+    PRBool eventHandled = PR_FALSE;
     domNSEvent->GetPreventDefault(&eventHandled);
     if (eventHandled) {
       return NS_OK;       // don't consume event
@@ -206,7 +206,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
   }
 
   //handlers shouldn't be triggered by non-trusted events.
-  bool trustedEvent = false;
+  PRBool trustedEvent = PR_FALSE;
   if (domNSEvent) {
     domNSEvent->GetIsTrusted(&trustedEvent);
   }
@@ -220,7 +220,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
 
   if (mAccessKey)
   {
-    bool preventDefault;
+    PRBool preventDefault;
     domNSEvent->GetPreventDefault(&preventDefault);
     if (!preventDefault) {
       nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
@@ -228,7 +228,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
       keyEvent->GetKeyCode(&keyCode);
       keyEvent->GetCharCode(&charCode);
 
-      bool hasAccessKeyCandidates = charCode != 0;
+      PRBool hasAccessKeyCandidates = charCode != 0;
       if (!hasAccessKeyCandidates) {
         nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
         nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
@@ -241,7 +241,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
 
       // Cancel the access key flag unless we are pressing the access key.
       if (keyCode != (PRUint32)mAccessKey) {
-        mAccessKeyDownCanceled = true;
+        mAccessKeyDownCanceled = PR_TRUE;
       }
 
       if (IsAccessKeyPressed(keyEvent) && hasAccessKeyCandidates) {
@@ -251,12 +251,12 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
         nsMenuFrame* result = mMenuBarFrame->FindMenuWithShortcut(keyEvent);
         if (result) {
           mMenuBarFrame->SetActiveByKeyboard();
-          mMenuBarFrame->SetActive(true);
-          result->OpenMenu(true);
+          mMenuBarFrame->SetActive(PR_TRUE);
+          result->OpenMenu(PR_TRUE);
 
           // The opened menu will listen next keyup event.
           // Therefore, we should clear the keydown flags here.
-          mAccessKeyDown = mAccessKeyDownCanceled = false;
+          mAccessKeyDown = mAccessKeyDownCanceled = PR_FALSE;
 
           aKeyEvent->StopPropagation();
           aKeyEvent->PreventDefault();
@@ -284,7 +284,7 @@ nsMenuBarListener::KeyPress(nsIDOMEvent* aKeyEvent)
   return retVal;
 }
 
-bool
+PRBool
 nsMenuBarListener::IsAccessKeyPressed(nsIDOMKeyEvent* aKeyEvent)
 {
   InitAccessKey();
@@ -300,7 +300,7 @@ PRUint32
 nsMenuBarListener::GetModifiers(nsIDOMKeyEvent* aKeyEvent)
 {
   PRUint32 modifiers = 0;
-  bool modifier;
+  PRBool modifier;
 
   aKeyEvent->GetShiftKey(&modifier);
   if (modifier)
@@ -329,7 +329,7 @@ nsMenuBarListener::KeyDown(nsIDOMEvent* aKeyEvent)
 
   //handlers shouldn't be triggered by non-trusted events.
   nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aKeyEvent);
-  bool trustedEvent = false;
+  PRBool trustedEvent = PR_FALSE;
 
   if (domNSEvent) {
     domNSEvent->GetIsTrusted(&trustedEvent);
@@ -350,14 +350,14 @@ nsMenuBarListener::KeyDown(nsIDOMEvent* aKeyEvent)
       // Especially CTRL.  CTRL+ALT == AltGR, and
       // we'll fuck up on non-US enhanced 102-key
       // keyboards if we don't check this.
-      mAccessKeyDown = true;
+      mAccessKeyDown = PR_TRUE;
     }
     else {
       // Some key other than the access key just went down,
       // so we won't activate the menu bar when the access
       // key is released.
 
-      mAccessKeyDownCanceled = true;
+      mAccessKeyDownCanceled = PR_TRUE;
     }
   }
 
@@ -371,8 +371,8 @@ nsMenuBarListener::Blur(nsIDOMEvent* aEvent)
 {
   if (!mMenuBarFrame->IsMenuOpen() && mMenuBarFrame->IsActive()) {
     ToggleMenuActiveState();
-    mAccessKeyDown = false;
-    mAccessKeyDownCanceled = false;
+    mAccessKeyDown = PR_FALSE;
+    mAccessKeyDownCanceled = PR_FALSE;
   }
   return NS_OK; // means I am NOT consuming event
 }
@@ -387,7 +387,7 @@ nsMenuBarListener::MouseDown(nsIDOMEvent* aMouseEvent)
   // to activate the menu.  Therefore, we need to record it at capturing (or
   // target) phase.
   if (mAccessKeyDown) {
-    mAccessKeyDownCanceled = true;
+    mAccessKeyDownCanceled = PR_TRUE;
   }
 
   PRUint16 phase = 0;

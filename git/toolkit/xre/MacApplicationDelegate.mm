@@ -86,7 +86,7 @@ private:
 
 @end
 
-static bool sProcessedGetURLEvent = false;
+static PRBool sProcessedGetURLEvent = PR_FALSE;
 
 @class GeckoNSApplication;
 
@@ -140,9 +140,9 @@ void
 ProcessPendingGetURLAppleEvents()
 {
   AutoAutoreleasePool pool;
-  bool keepSpinning = true;
+  PRBool keepSpinning = PR_TRUE;
   while (keepSpinning) {
-    sProcessedGetURLEvent = false;
+    sProcessedGetURLEvent = PR_FALSE;
     NSEvent *event = [NSApp nextEventMatchingMask:NSAnyEventMask
                                         untilDate:nil
                                            inMode:NSDefaultRunLoopMode
@@ -238,7 +238,7 @@ ProcessPendingGetURLAppleEvents()
     return YES;
 
   nsCOMPtr<nsILocalFileMac> inFile;
-  nsresult rv = NS_NewLocalFileWithCFURL((CFURLRef)url, true, getter_AddRefs(inFile));
+  nsresult rv = NS_NewLocalFileWithCFURL((CFURLRef)url, PR_TRUE, getter_AddRefs(inFile));
   if (NS_FAILED(rv))
     return NO;
 
@@ -302,7 +302,7 @@ ProcessPendingGetURLAppleEvents()
 
   // Determine if the dock menu items should be displayed. This also gives
   // the menu the opportunity to update itself before display.
-  bool shouldShowItems;
+  PRBool shouldShowItems;
   rv = dockMenu->MenuWillOpen(&shouldShowItems);
   if (NS_FAILED(rv) || !shouldShowItems)
     return menu;
@@ -346,10 +346,10 @@ ProcessPendingGetURLAppleEvents()
   if (!cancelQuit)
     return NSTerminateNow;
 
-  cancelQuit->SetData(false);
+  cancelQuit->SetData(PR_FALSE);
   obsServ->NotifyObservers(cancelQuit, "quit-application-requested", nsnull);
 
-  bool abortQuit;
+  PRBool abortQuit;
   cancelQuit->GetData(&abortQuit);
   if (abortQuit)
     return NSTerminateCancel;
@@ -369,10 +369,10 @@ ProcessPendingGetURLAppleEvents()
 
   AutoAutoreleasePool pool;
 
-  bool isGetURLEvent =
+  PRBool isGetURLEvent =
     ([event eventClass] == kInternetEventClass && [event eventID] == kAEGetURL);
   if (isGetURLEvent)
-    sProcessedGetURLEvent = true;
+    sProcessedGetURLEvent = PR_TRUE;
 
   if (isGetURLEvent ||
       ([event eventClass] == 'WWW!' && [event eventID] == 'OURL')) {

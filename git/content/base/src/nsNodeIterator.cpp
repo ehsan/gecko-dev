@@ -57,47 +57,47 @@
  * NodePointer implementation
  */
 nsNodeIterator::NodePointer::NodePointer(nsINode *aNode,
-                                         bool aBeforeNode) :
+                                         PRBool aBeforeNode) :
     mNode(aNode),
     mBeforeNode(aBeforeNode)
 {
 }
 
-bool nsNodeIterator::NodePointer::MoveToNext(nsINode *aRoot)
+PRBool nsNodeIterator::NodePointer::MoveToNext(nsINode *aRoot)
 {
     if (!mNode)
-      return false;
+      return PR_FALSE;
 
     if (mBeforeNode) {
-        mBeforeNode = false;
-        return true;
+        mBeforeNode = PR_FALSE;
+        return PR_TRUE;
     }
 
     nsINode* child = mNode->GetFirstChild();
     if (child) {
         mNode = child;
-        return true;
+        return PR_TRUE;
     }
 
     return MoveForward(aRoot, mNode);
 }
 
-bool nsNodeIterator::NodePointer::MoveToPrevious(nsINode *aRoot)
+PRBool nsNodeIterator::NodePointer::MoveToPrevious(nsINode *aRoot)
 {
     if (!mNode)
-      return false;
+      return PR_FALSE;
 
     if (!mBeforeNode) {
-        mBeforeNode = true;
-        return true;
+        mBeforeNode = PR_TRUE;
+        return PR_TRUE;
     }
 
     if (mNode == aRoot)
-        return false;
+        return PR_FALSE;
 
     MoveBackward(mNode->GetNodeParent(), mNode->GetPreviousSibling());
 
-    return true;
+    return PR_TRUE;
 }
 
 void nsNodeIterator::NodePointer::AdjustAfterRemoval(nsINode *aRoot,
@@ -129,13 +129,13 @@ void nsNodeIterator::NodePointer::AdjustAfterRemoval(nsINode *aRoot,
             return;
 
         // No suitable node was found so try going backwards
-        mBeforeNode = false;
+        mBeforeNode = PR_FALSE;
     }
 
     MoveBackward(aContainer, aPreviousSibling);
 }
 
-bool nsNodeIterator::NodePointer::MoveForward(nsINode *aRoot, nsINode *aNode)
+PRBool nsNodeIterator::NodePointer::MoveForward(nsINode *aRoot, nsINode *aNode)
 {
     while (1) {
         if (aNode == aRoot)
@@ -144,12 +144,12 @@ bool nsNodeIterator::NodePointer::MoveForward(nsINode *aRoot, nsINode *aNode)
         nsINode *sibling = aNode->GetNextSibling();
         if (sibling) {
             mNode = sibling;
-            return true;
+            return PR_TRUE;
         }
         aNode = aNode->GetNodeParent();
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 void nsNodeIterator::NodePointer::MoveBackward(nsINode *aParent, nsINode *aNode)
@@ -171,10 +171,10 @@ void nsNodeIterator::NodePointer::MoveBackward(nsINode *aParent, nsINode *aNode)
 nsNodeIterator::nsNodeIterator(nsINode *aRoot,
                                PRUint32 aWhatToShow,
                                nsIDOMNodeFilter *aFilter,
-                               bool aExpandEntityReferences) :
+                               PRBool aExpandEntityReferences) :
     nsTraversal(aRoot, aWhatToShow, aFilter, aExpandEntityReferences),
-    mDetached(false),
-    mPointer(mRoot, true)
+    mDetached(PR_FALSE),
+    mPointer(mRoot, PR_TRUE)
 {
     aRoot->AddMutationObserver(this);
 }
@@ -245,7 +245,7 @@ NS_IMETHODIMP nsNodeIterator::GetFilter(nsIDOMNodeFilter **aFilter)
 }
 
 /* readonly attribute boolean expandEntityReferences; */
-NS_IMETHODIMP nsNodeIterator::GetExpandEntityReferences(bool *aExpandEntityReferences)
+NS_IMETHODIMP nsNodeIterator::GetExpandEntityReferences(PRBool *aExpandEntityReferences)
 {
     *aExpandEntityReferences = mExpandEntityReferences;
     return NS_OK;
@@ -308,7 +308,7 @@ NS_IMETHODIMP nsNodeIterator::Detach(void)
 
         mPointer.Clear();
 
-        mDetached = true;
+        mDetached = PR_TRUE;
     }
 
     return NS_OK;
@@ -325,7 +325,7 @@ NS_IMETHODIMP nsNodeIterator::GetReferenceNode(nsIDOMNode * *aRefNode)
 }
 
 /* readonly attribute boolean pointerBeforeReferenceNode; */
-NS_IMETHODIMP nsNodeIterator::GetPointerBeforeReferenceNode(bool *aBeforeNode)
+NS_IMETHODIMP nsNodeIterator::GetPointerBeforeReferenceNode(PRBool *aBeforeNode)
 {
     *aBeforeNode = mPointer.mBeforeNode;
     return NS_OK;

@@ -66,7 +66,7 @@ enum InternalState
 
 static InternalState gInternalState = InternalState_Invalid;
 static ConIcConnection* gConnection = nsnull;
-static bool gConnectionCallbackInvoked = false;
+static PRBool gConnectionCallbackInvoked = PR_FALSE;
 
 using namespace mozilla;
 
@@ -94,25 +94,25 @@ connection_event_callback(ConIcConnection *aConnection,
     gInternalState = (CON_IC_STATUS_CONNECTED == status ?
                      InternalState_Connected : InternalState_Disconnected);
 
-    gConnectionCallbackInvoked = true;
+    gConnectionCallbackInvoked = PR_TRUE;
     mon.Notify();
   }
 
   NotifyNetworkLinkObservers();
 }
 
-bool
+PRBool
 nsMaemoNetworkManager::OpenConnectionSync()
 {
   if (NS_IsMainThread() || !gConnection)
-    return false;
+    return PR_FALSE;
 
   // protect gInternalState.  This also allows us
   // to block and wait in this method on this thread
   // until our callback on the main thread.
   ReentrantMonitorAutoEnter mon(*gReentrantMonitor);
 
-  gConnectionCallbackInvoked = false;
+  gConnectionCallbackInvoked = PR_FALSE;
 
   if (!con_ic_connection_connect(gConnection,
                                  CON_IC_CONNECT_FLAG_NONE))
@@ -123,9 +123,9 @@ nsMaemoNetworkManager::OpenConnectionSync()
     mon.Wait();
 
   if (gInternalState == InternalState_Connected)
-    return true;
+    return PR_TRUE;
 
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -135,27 +135,27 @@ nsMaemoNetworkManager::CloseConnection()
     con_ic_connection_disconnect(gConnection);
 }
 
-bool
+PRBool
 nsMaemoNetworkManager::IsConnected()
 {
   return gInternalState == InternalState_Connected;
 }
 
-bool
+PRBool
 nsMaemoNetworkManager::GetLinkStatusKnown()
 {
   return gInternalState != InternalState_Invalid;
 }
 
-bool
+PRBool
 nsMaemoNetworkManager::Startup()
 {
   if (gConnection)
-    return true;
+    return PR_TRUE;
 
   gReentrantMonitor = new ReentrantMonitor("MaemoAutodialer");
   if (!gReentrantMonitor)
-    return false;
+    return PR_FALSE;
 
   DBusError error;
   dbus_error_init(&error);
@@ -171,7 +171,7 @@ nsMaemoNetworkManager::Startup()
   if (!gConnection) {
     delete gReentrantMonitor;
     gReentrantMonitor = nsnull;
-    return false;
+    return PR_FALSE;
   }
 
   g_signal_connect(G_OBJECT(gConnection),
@@ -181,9 +181,9 @@ nsMaemoNetworkManager::Startup()
   
   g_object_set(G_OBJECT(gConnection),
                "automatic-connection-events",
-               true,
+               PR_TRUE,
                nsnull);
-  return true;
+  return PR_TRUE;
 }
 
 void

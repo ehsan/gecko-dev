@@ -60,7 +60,7 @@
  * The function used for whitespace detection is a template argument.
  * By default, it is NS_IsAsciiWhitespace.
  */
-template<bool IsWhitespace(PRUnichar) = NS_IsAsciiWhitespace>
+template<PRBool IsWhitespace(PRUnichar) = NS_IsAsciiWhitespace>
 class nsCharSeparatedTokenizerTemplate
 {
 public:
@@ -73,9 +73,9 @@ public:
     nsCharSeparatedTokenizerTemplate(const nsSubstring& aSource,
                                      PRUnichar aSeparatorChar,
                                      PRUint32  aFlags = 0)
-        : mFirstTokenBeganWithWhitespace(false),
-          mLastTokenEndedWithWhitespace(false),
-          mLastTokenEndedWithSeparator(false),
+        : mFirstTokenBeganWithWhitespace(PR_FALSE),
+          mLastTokenEndedWithWhitespace(PR_FALSE),
+          mLastTokenEndedWithSeparator(PR_FALSE),
           mSeparatorChar(aSeparatorChar),
           mFlags(aFlags)
     {
@@ -84,7 +84,7 @@ public:
 
         // Skip initial whitespace
         while (mIter != mEnd && IsWhitespace(*mIter)) {
-            mFirstTokenBeganWithWhitespace = true;
+            mFirstTokenBeganWithWhitespace = PR_TRUE;
             ++mIter;
         }
     }
@@ -92,7 +92,7 @@ public:
     /**
      * Checks if any more tokens are available.
      */
-    bool hasMoreTokens()
+    PRBool hasMoreTokens()
     {
         NS_ASSERTION(mIter == mEnd || !IsWhitespace(*mIter),
                      "Should be at beginning of token if there is one");
@@ -100,17 +100,17 @@ public:
         return mIter != mEnd;
     }
 
-    bool firstTokenBeganWithWhitespace() const
+    PRBool firstTokenBeganWithWhitespace() const
     {
         return mFirstTokenBeganWithWhitespace;
     }
 
-    bool lastTokenEndedWithSeparator() const
+    PRBool lastTokenEndedWithSeparator() const
     {
         return mLastTokenEndedWithSeparator;
     }
 
-    bool lastTokenEndedWithWhitespace() const
+    PRBool lastTokenEndedWithWhitespace() const
     {
         return mLastTokenEndedWithWhitespace;
     }
@@ -136,9 +136,9 @@ public:
           end = mIter;
 
           // Skip whitespace after current word.
-          mLastTokenEndedWithWhitespace = false;
+          mLastTokenEndedWithWhitespace = PR_FALSE;
           while (mIter != mEnd && IsWhitespace(*mIter)) {
-              mLastTokenEndedWithWhitespace = true;
+              mLastTokenEndedWithWhitespace = PR_TRUE;
               ++mIter;
           }
           if (mFlags & SEPARATOR_OPTIONAL) {
@@ -170,9 +170,9 @@ public:
 
 private:
     nsSubstring::const_char_iterator mIter, mEnd;
-    bool mFirstTokenBeganWithWhitespace;
-    bool mLastTokenEndedWithWhitespace;
-    bool mLastTokenEndedWithSeparator;
+    PRPackedBool mFirstTokenBeganWithWhitespace;
+    PRPackedBool mLastTokenEndedWithWhitespace;
+    PRPackedBool mLastTokenEndedWithSeparator;
     PRUnichar mSeparatorChar;
     PRUint32  mFlags;
 };
@@ -206,7 +206,7 @@ public:
     /**
      * Checks if any more tokens are available.
      */
-    bool hasMoreTokens()
+    PRBool hasMoreTokens()
     {
         return mIter != mEnd;
     }
@@ -248,7 +248,7 @@ private:
     nsCSubstring::const_char_iterator mIter, mEnd;
     char mSeparatorChar;
 
-    bool isWhitespace(unsigned char aChar)
+    PRBool isWhitespace(unsigned char aChar)
     {
         return aChar <= ' ' &&
                (aChar == ' ' || aChar == '\n' ||

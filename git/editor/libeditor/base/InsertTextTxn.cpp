@@ -41,7 +41,7 @@
 #include "EditAggregateTxn.h"
 
 #ifdef NS_DEBUG
-static bool gNoisy = false;
+static PRBool gNoisy = PR_FALSE;
 #endif
 
 InsertTextTxn::InsertTextTxn()
@@ -109,7 +109,7 @@ NS_IMETHODIMP InsertTextTxn::DoTransaction(void)
   NS_ENSURE_SUCCESS(result, result);
 
   // only set selection to insertion point if editor gives permission
-  bool bAdjustSelection;
+  PRBool bAdjustSelection;
   mEditor->ShouldTxnSetSelection(&bAdjustSelection);
   if (bAdjustSelection)
   {
@@ -145,11 +145,11 @@ NS_IMETHODIMP InsertTextTxn::UndoTransaction(void)
   return mElement->DeleteData(mOffset, length);
 }
 
-NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge)
+NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMerge)
 {
   // set out param default value
   if (aDidMerge)
-    *aDidMerge = false;
+    *aDidMerge = PR_FALSE;
   nsresult result = NS_OK;
   if (aDidMerge && aTransaction)
   {
@@ -164,7 +164,7 @@ NS_IMETHODIMP InsertTextTxn::Merge(nsITransaction *aTransaction, bool *aDidMerge
         nsAutoString otherData;
         otherInsTxn->GetData(otherData);
         mStringToInsert += otherData;
-        *aDidMerge = true;
+        *aDidMerge = PR_TRUE;
 #ifdef NS_DEBUG
         if (gNoisy)
         {
@@ -194,7 +194,7 @@ NS_IMETHODIMP InsertTextTxn::GetData(nsString& aResult)
   return NS_OK;
 }
 
-bool InsertTextTxn::IsSequentialInsert(InsertTextTxn *aOtherTxn)
+PRBool InsertTextTxn::IsSequentialInsert(InsertTextTxn *aOtherTxn)
 {
   NS_ASSERTION(aOtherTxn, "null param");
   if (aOtherTxn && aOtherTxn->mElement == mElement)
@@ -202,7 +202,7 @@ bool InsertTextTxn::IsSequentialInsert(InsertTextTxn *aOtherTxn)
     // here, we need to compare offsets.
     PRInt32 length = mStringToInsert.Length();
     if (aOtherTxn->mOffset == (mOffset + length))
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }

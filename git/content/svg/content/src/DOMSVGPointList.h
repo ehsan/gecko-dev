@@ -104,7 +104,7 @@ public:
   static already_AddRefed<DOMSVGPointList>
   GetDOMWrapper(void *aList,
                 nsSVGElement *aElement,
-                bool aIsAnimValList);
+                PRBool aIsAnimValList);
 
   /**
    * This method returns the DOMSVGPointList wrapper for an internal
@@ -120,7 +120,8 @@ public:
    */
   PRUint32 Length() const {
     NS_ABORT_IF_FALSE(mItems.Length() == 0 ||
-                      mItems.Length() == InternalList().Length(),
+                      mItems.Length() ==
+                        const_cast<DOMSVGPointList*>(this)->InternalList().Length(),
                       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
@@ -149,7 +150,7 @@ public:
    * Returns true if our attribute is animating (in which case our animVal is
    * not simply a mirror of our baseVal).
    */
-  bool AttrIsAnimating() const;
+  PRBool AttrIsAnimating() const;
 
 private:
 
@@ -157,7 +158,7 @@ private:
    * Only our static GetDOMWrapper() factory method may create objects of our
    * type.
    */
-  DOMSVGPointList(nsSVGElement *aElement, bool aIsAnimValList)
+  DOMSVGPointList(nsSVGElement *aElement, PRBool aIsAnimValList)
     : mElement(aElement)
     , mIsAnimValList(aIsAnimValList)
   {
@@ -171,7 +172,7 @@ private:
   }
 
   /// Used to determine if this list is the baseVal or animVal list.
-  bool IsAnimValList() const {
+  PRBool IsAnimValList() const {
     return mIsAnimValList;
   }
 
@@ -183,9 +184,9 @@ private:
    * get const protection, but our setter methods guard against changing
    * anim val lists.
    */
-  SVGPointList& InternalList() const;
+  SVGPointList& InternalList();
 
-  SVGAnimatedPointList& InternalAList() const;
+  SVGAnimatedPointList& InternalAList();
 
   /// Creates a DOMSVGPoint for aIndex, if it doesn't already exist.
   void EnsureItemAt(PRUint32 aIndex);
@@ -201,7 +202,7 @@ private:
   // ourself, but also for our DOMSVGPoint items too.
   nsRefPtr<nsSVGElement> mElement;
 
-  bool mIsAnimValList;
+  PRPackedBool mIsAnimValList;
 };
 
 } // namespace mozilla

@@ -47,13 +47,13 @@ inline int test_common_init(int *argc, char ***argv)
 
 //-----------------------------------------------------------------------------
 
-static bool gKeepPumpingEvents = false;
+static PRBool gKeepPumpingEvents = PR_FALSE;
 
 class nsQuitPumpingEvent : public nsIRunnable {
 public:
   NS_DECL_ISUPPORTS
   NS_IMETHOD Run() {
-    gKeepPumpingEvents = false;
+    gKeepPumpingEvents = PR_FALSE;
     return NS_OK;
   }
 };
@@ -63,7 +63,7 @@ static inline void PumpEvents()
 {
   nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
 
-  gKeepPumpingEvents = true;
+  gKeepPumpingEvents = PR_TRUE;
   while (gKeepPumpingEvents)
     NS_ProcessNextEvent(thread);
 

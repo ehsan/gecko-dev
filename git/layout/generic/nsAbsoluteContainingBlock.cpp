@@ -122,7 +122,7 @@ nsAbsoluteContainingBlock::RemoveFrame(nsIFrame*       aDelegatingFrame,
   nsIFrame* nif = aOldFrame->GetNextInFlow();
   if (nif) {
     static_cast<nsContainerFrame*>(nif->GetParent())
-      ->DeleteNextInFlowChild(aOldFrame->PresContext(), nif, false);
+      ->DeleteNextInFlowChild(aOldFrame->PresContext(), nif, PR_FALSE);
   }
 
   mAbsoluteFrames.DestroyFrame(aOldFrame);
@@ -135,19 +135,19 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
                                   nsReflowStatus&          aReflowStatus,
                                   nscoord                  aContainingBlockWidth,
                                   nscoord                  aContainingBlockHeight,
-                                  bool                     aConstrainHeight,
-                                  bool                     aCBWidthChanged,
-                                  bool                     aCBHeightChanged,
+                                  PRBool                   aConstrainHeight,
+                                  PRBool                   aCBWidthChanged,
+                                  PRBool                   aCBHeightChanged,
                                   nsOverflowAreas*         aOverflowAreas)
 {
   nsReflowStatus reflowStatus = NS_FRAME_COMPLETE;
 
-  bool reflowAll = aReflowState.ShouldReflowAllKids();
+  PRBool reflowAll = aReflowState.ShouldReflowAllKids();
 
   nsIFrame* kidFrame;
-  nsOverflowContinuationTracker tracker(aPresContext, aDelegatingFrame, true);
+  nsOverflowContinuationTracker tracker(aPresContext, aDelegatingFrame, PR_TRUE);
   for (kidFrame = mAbsoluteFrames.FirstChild(); kidFrame; kidFrame = kidFrame->GetNextSibling()) {
-    bool kidNeedsReflow = reflowAll || NS_SUBTREE_DIRTY(kidFrame) ||
+    PRBool kidNeedsReflow = reflowAll || NS_SUBTREE_DIRTY(kidFrame) ||
       FrameDependsOnContainer(kidFrame, aCBWidthChanged, aCBHeightChanged);
     if (kidNeedsReflow && !aPresContext->HasPendingInterrupt()) {
       // Reflow the frame
@@ -176,7 +176,7 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
         if (nextFrame) {
           tracker.Finish(kidFrame);
           static_cast<nsContainerFrame*>(nextFrame->GetParent())
-            ->DeleteNextInFlowChild(aPresContext, nextFrame, true);
+            ->DeleteNextInFlowChild(aPresContext, nextFrame, PR_TRUE);
         }
       }
     }
@@ -224,10 +224,10 @@ static inline bool IsFixedMarginSize(const nsStyleCoord& aCoord)
 static inline bool IsFixedOffset(const nsStyleCoord& aCoord)
   { return aCoord.ConvertsToLength(); }
 
-bool
+PRBool
 nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
-                                                   bool aCBWidthChanged,
-                                                   bool aCBHeightChanged)
+                                                   PRBool aCBWidthChanged,
+                                                   PRBool aCBHeightChanged)
 {
   const nsStylePosition* pos = f->GetStylePosition();
   // See if f's position might have changed because it depends on a
@@ -245,11 +245,11 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
        pos->mOffset.GetBottomUnit() == eStyleUnit_Auto) ||
       (pos->mOffset.GetLeftUnit() == eStyleUnit_Auto &&
        pos->mOffset.GetRightUnit() == eStyleUnit_Auto)) {
-    return true;
+    return PR_TRUE;
   }
   if (!aCBWidthChanged && !aCBHeightChanged) {
     // skip getting style data
-    return false;
+    return PR_FALSE;
   }
   const nsStylePadding* padding = f->GetStylePadding();
   const nsStyleMargin* margin = f->GetStyleMargin();
@@ -265,7 +265,7 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
         pos->MaxWidthDependsOnContainer() ||
         !IsFixedPaddingSize(padding->mPadding.GetLeft()) ||
         !IsFixedPaddingSize(padding->mPadding.GetRight())) {
-      return true;
+      return PR_TRUE;
     }
 
     // See if f's position might have changed. If we're RTL then the
@@ -273,7 +273,7 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
     // margins will always induce a dependency on the size
     if (!IsFixedMarginSize(margin->mMargin.GetLeft()) ||
         !IsFixedMarginSize(margin->mMargin.GetRight())) {
-      return true;
+      return PR_TRUE;
     }
     if (f->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
       // Note that even if 'left' is a length, our position can
@@ -284,11 +284,11 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
       // we can be sure of.
       if (!IsFixedOffset(pos->mOffset.GetLeft()) ||
           pos->mOffset.GetRightUnit() != eStyleUnit_Auto) {
-        return true;
+        return PR_TRUE;
       }
     } else {
       if (!IsFixedOffset(pos->mOffset.GetLeft())) {
-        return true;
+        return PR_TRUE;
       }
     }
   }
@@ -307,19 +307,19 @@ nsAbsoluteContainingBlock::FrameDependsOnContainer(nsIFrame* f,
         pos->MaxHeightDependsOnContainer() ||
         !IsFixedPaddingSize(padding->mPadding.GetTop()) ||
         !IsFixedPaddingSize(padding->mPadding.GetBottom())) { 
-      return true;
+      return PR_TRUE;
     }
       
     // See if f's position might have changed.
     if (!IsFixedMarginSize(margin->mMargin.GetTop()) ||
         !IsFixedMarginSize(margin->mMargin.GetBottom())) {
-      return true;
+      return PR_TRUE;
     }
     if (!IsFixedOffset(pos->mOffset.GetTop())) {
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
@@ -332,24 +332,24 @@ nsAbsoluteContainingBlock::DestroyFrames(nsIFrame* aDelegatingFrame,
 void
 nsAbsoluteContainingBlock::MarkSizeDependentFramesDirty()
 {
-  DoMarkFramesDirty(false);
+  DoMarkFramesDirty(PR_FALSE);
 }
 
 void
 nsAbsoluteContainingBlock::MarkAllFramesDirty()
 {
-  DoMarkFramesDirty(true);
+  DoMarkFramesDirty(PR_TRUE);
 }
 
 void
-nsAbsoluteContainingBlock::DoMarkFramesDirty(bool aMarkAllDirty)
+nsAbsoluteContainingBlock::DoMarkFramesDirty(PRBool aMarkAllDirty)
 {
   for (nsIFrame* kidFrame = mAbsoluteFrames.FirstChild();
        kidFrame;
        kidFrame = kidFrame->GetNextSibling()) {
     if (aMarkAllDirty) {
       kidFrame->AddStateBits(NS_FRAME_IS_DIRTY);
-    } else if (FrameDependsOnContainer(kidFrame, true, true)) {
+    } else if (FrameDependsOnContainer(kidFrame, PR_TRUE, PR_TRUE)) {
       // Add the weakest flags that will make sure we reflow this frame later
       kidFrame->AddStateBits(NS_FRAME_HAS_DIRTY_CHILDREN);
     }
@@ -370,7 +370,7 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
                                                const nsHTMLReflowState& aReflowState,
                                                nscoord                  aContainingBlockWidth,
                                                nscoord                  aContainingBlockHeight,
-                                               bool                     aConstrainHeight,
+                                               PRBool                   aConstrainHeight,
                                                nsIFrame*                aKidFrame,
                                                nsReflowStatus&          aStatus,
                                                nsOverflowAreas*         aOverflowAreas)
@@ -424,10 +424,10 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   // Send the WillReflow() notification and position the frame
   aKidFrame->WillReflow(aPresContext);
 
-  bool constrainHeight = (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE)
+  PRBool constrainHeight = (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE)
     && aConstrainHeight
        // Don't split if told not to (e.g. for fixed frames)
-    && (aDelegatingFrame->GetType() != nsGkAtoms::inlineFrame)
+    && (aDelegatingFrame->GetType() != nsGkAtoms::positionedInlineFrame)
        //XXX we don't handle splitting frames for inline absolute containing blocks yet
     && (aKidFrame->GetRect().y <= aReflowState.availableHeight);
        // Don't split things below the fold. (Ideally we shouldn't *have*

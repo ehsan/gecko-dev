@@ -109,7 +109,7 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
     // Unfortunately, people create random about: URIs that don't correspond to
     // about: modules...  Since those URIs will never open a channel, might as
     // well consider them unsafe for better perf, and just in case.
-    bool isSafe = false;
+    PRBool isSafe = PR_FALSE;
     
     nsCOMPtr<nsIAboutModule> aboutMod;
     rv = NS_GetAboutModule(url, getter_AddRefs(aboutMod));
@@ -195,10 +195,10 @@ nsAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 }
 
 NS_IMETHODIMP 
-nsAboutProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
+nsAboutProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval)
 {
     // don't override anything.  
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
@@ -261,10 +261,10 @@ nsSafeAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 }
 
 NS_IMETHODIMP 
-nsSafeAboutProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
+nsSafeAboutProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval)
 {
     // don't override anything.  
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
@@ -283,13 +283,13 @@ nsNestedAboutURI::Read(nsIObjectInputStream* aStream)
     nsresult rv = nsSimpleNestedURI::Read(aStream);
     if (NS_FAILED(rv)) return rv;
 
-    bool haveBase;
+    PRBool haveBase;
     rv = aStream->ReadBoolean(&haveBase);
     if (NS_FAILED(rv)) return rv;
 
     if (haveBase) {
         nsCOMPtr<nsISupports> supports;
-        rv = aStream->ReadObject(true, getter_AddRefs(supports));
+        rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(supports));
         if (NS_FAILED(rv)) return rv;
 
         mBaseURI = do_QueryInterface(supports, &rv);
@@ -318,7 +318,7 @@ nsNestedAboutURI::Write(nsIObjectOutputStream* aStream)
         // switch to reading it as nsISupports, with a post-read QI to get to
         // nsIURI.
         rv = aStream->WriteCompoundObject(mBaseURI, NS_GET_IID(nsISupports),
-                                          true);
+                                          PR_TRUE);
         if (NS_FAILED(rv)) return rv;
     }
 
@@ -326,19 +326,19 @@ nsNestedAboutURI::Write(nsIObjectOutputStream* aStream)
 }
 
 // nsIIPCSerializable
-bool
+PRBool
 nsNestedAboutURI::Read(const IPC::Message *aMsg, void **aIter)
 {
     if (!nsSimpleNestedURI::Read(aMsg, aIter))
-        return false;
+        return PR_FALSE;
 
     IPC::URI uri;
     if (!ReadParam(aMsg, aIter, &uri))
-        return false;
+        return PR_FALSE;
 
     mBaseURI = uri;
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -369,7 +369,7 @@ nsNestedAboutURI::StartClone(nsSimpleURI::RefHandlingEnum aRefHandlingMode)
     }
 
     nsNestedAboutURI* url = new nsNestedAboutURI(innerClone, mBaseURI);
-    url->SetMutable(false);
+    url->SetMutable(PR_FALSE);
 
     return url;
 }

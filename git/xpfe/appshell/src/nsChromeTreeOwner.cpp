@@ -182,7 +182,7 @@ NS_IMETHODIMP nsChromeTreeOwner::FindItemWithName(const PRUnichar* aName,
 
    *aFoundItem = nsnull;
 
-   bool fIs_Content = false;
+   PRBool fIs_Content = PR_FALSE;
 
    /* Special Cases */
    if(!aName || !*aName)
@@ -197,7 +197,7 @@ NS_IMETHODIMP nsChromeTreeOwner::FindItemWithName(const PRUnichar* aName,
    if(name.LowerCaseEqualsLiteral("_content") || name.EqualsLiteral("_main"))
       {
       NS_ENSURE_STATE(mXULWindow);
-      fIs_Content = true;
+      fIs_Content = PR_TRUE;
       mXULWindow->GetPrimaryContentShell(aFoundItem);
       if(*aFoundItem)
          return NS_OK;
@@ -211,7 +211,7 @@ NS_IMETHODIMP nsChromeTreeOwner::FindItemWithName(const PRUnichar* aName,
    NS_ENSURE_SUCCESS(windowMediator->GetXULWindowEnumerator(nsnull, 
       getter_AddRefs(windowEnumerator)), NS_ERROR_FAILURE);
    
-   bool more;
+   PRBool more;
    
    windowEnumerator->HasMoreElements(&more);
    while(more)
@@ -262,7 +262,7 @@ NS_IMETHODIMP nsChromeTreeOwner::FindItemWithName(const PRUnichar* aName,
 
 NS_IMETHODIMP
 nsChromeTreeOwner::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
-                                     bool aPrimary, bool aTargetable,
+                                     PRBool aPrimary, PRBool aTargetable,
                                      const nsAString& aID)
 {
   NS_ENSURE_STATE(mXULWindow);
@@ -291,9 +291,9 @@ NS_IMETHODIMP nsChromeTreeOwner::SizeShellTo(nsIDocShellTreeItem* aShellItem,
 }
 
 NS_IMETHODIMP
-nsChromeTreeOwner::SetPersistence(bool aPersistPosition,
-                                  bool aPersistSize,
-                                  bool aPersistSizeMode)
+nsChromeTreeOwner::SetPersistence(PRBool aPersistPosition,
+                                  PRBool aPersistSize,
+                                  PRBool aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
   nsCOMPtr<nsIDOMElement> docShellElement;
@@ -304,17 +304,17 @@ nsChromeTreeOwner::SetPersistence(bool aPersistPosition,
   nsAutoString persistString;
   docShellElement->GetAttribute(gLiterals->kPersist, persistString);
 
-  bool saveString = false;
+  PRBool saveString = PR_FALSE;
   PRInt32 index;
 
 #define FIND_PERSIST_STRING(aString, aCond)            \
   index = persistString.Find(aString);                 \
   if (!aCond && index > kNotFound) {                   \
     persistString.Cut(index, aString.Length());        \
-    saveString = true;                              \
+    saveString = PR_TRUE;                              \
   } else if (aCond && index == kNotFound) {            \
     persistString.Append(gLiterals->kSpace + aString); \
-    saveString = true;                              \
+    saveString = PR_TRUE;                              \
   }
   FIND_PERSIST_STRING(gLiterals->kScreenX,  aPersistPosition);
   FIND_PERSIST_STRING(gLiterals->kScreenY,  aPersistPosition);
@@ -329,9 +329,9 @@ nsChromeTreeOwner::SetPersistence(bool aPersistPosition,
 }
 
 NS_IMETHODIMP
-nsChromeTreeOwner::GetPersistence(bool* aPersistPosition,
-                                  bool* aPersistSize,
-                                  bool* aPersistSizeMode)
+nsChromeTreeOwner::GetPersistence(PRBool* aPersistPosition,
+                                  PRBool* aPersistSize,
+                                  PRBool* aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
   nsCOMPtr<nsIDOMElement> docShellElement;
@@ -371,14 +371,14 @@ NS_IMETHODIMP nsChromeTreeOwner::InitWindow(nativeWindow aParentNativeWindow,
    nsIWidget* parentWidget, PRInt32 x, PRInt32 y, PRInt32 cx, PRInt32 cy)   
 {
    // Ignore widget parents for now.  Don't think those are a vaild thing to call.
-   NS_ENSURE_SUCCESS(SetPositionAndSize(x, y, cx, cy, false), NS_ERROR_FAILURE);
+   NS_ENSURE_SUCCESS(SetPositionAndSize(x, y, cx, cy, PR_FALSE), NS_ERROR_FAILURE);
 
    return NS_OK;
 }
 
 NS_IMETHODIMP nsChromeTreeOwner::Create()
 {
-   NS_ASSERTION(false, "You can't call this");
+   NS_ASSERTION(PR_FALSE, "You can't call this");
    return NS_ERROR_UNEXPECTED;
 }
 
@@ -400,7 +400,7 @@ NS_IMETHODIMP nsChromeTreeOwner::GetPosition(PRInt32* x, PRInt32* y)
    return mXULWindow->GetPosition(x, y);
 }
 
-NS_IMETHODIMP nsChromeTreeOwner::SetSize(PRInt32 cx, PRInt32 cy, bool fRepaint)
+NS_IMETHODIMP nsChromeTreeOwner::SetSize(PRInt32 cx, PRInt32 cy, PRBool fRepaint)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetSize(cx, cy, fRepaint);
@@ -413,7 +413,7 @@ NS_IMETHODIMP nsChromeTreeOwner::GetSize(PRInt32* cx, PRInt32* cy)
 }
 
 NS_IMETHODIMP nsChromeTreeOwner::SetPositionAndSize(PRInt32 x, PRInt32 y, PRInt32 cx,
-   PRInt32 cy, bool fRepaint)
+   PRInt32 cy, PRBool fRepaint)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetPositionAndSize(x, y, cx, cy, fRepaint);
@@ -426,7 +426,7 @@ NS_IMETHODIMP nsChromeTreeOwner::GetPositionAndSize(PRInt32* x, PRInt32* y, PRIn
    return mXULWindow->GetPositionAndSize(x, y, cx, cy);
 }
 
-NS_IMETHODIMP nsChromeTreeOwner::Repaint(bool aForce)
+NS_IMETHODIMP nsChromeTreeOwner::Repaint(PRBool aForce)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->Repaint(aForce);
@@ -440,7 +440,7 @@ NS_IMETHODIMP nsChromeTreeOwner::GetParentWidget(nsIWidget** aParentWidget)
 
 NS_IMETHODIMP nsChromeTreeOwner::SetParentWidget(nsIWidget* aParentWidget)
 {
-   NS_ASSERTION(false, "You can't call this");
+   NS_ASSERTION(PR_FALSE, "You can't call this");
    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -452,32 +452,44 @@ NS_IMETHODIMP nsChromeTreeOwner::GetParentNativeWindow(nativeWindow* aParentNati
 
 NS_IMETHODIMP nsChromeTreeOwner::SetParentNativeWindow(nativeWindow aParentNativeWindow)
 {
-   NS_ASSERTION(false, "You can't call this");
+   NS_ASSERTION(PR_FALSE, "You can't call this");
    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP nsChromeTreeOwner::GetVisibility(bool* aVisibility)
+NS_IMETHODIMP nsChromeTreeOwner::GetVisibility(PRBool* aVisibility)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->GetVisibility(aVisibility);
 }
 
-NS_IMETHODIMP nsChromeTreeOwner::SetVisibility(bool aVisibility)
+NS_IMETHODIMP nsChromeTreeOwner::SetVisibility(PRBool aVisibility)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetVisibility(aVisibility);
 }
 
-NS_IMETHODIMP nsChromeTreeOwner::GetEnabled(bool *aEnabled)
+NS_IMETHODIMP nsChromeTreeOwner::GetEnabled(PRBool *aEnabled)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->GetEnabled(aEnabled);
 }
 
-NS_IMETHODIMP nsChromeTreeOwner::SetEnabled(bool aEnable)
+NS_IMETHODIMP nsChromeTreeOwner::SetEnabled(PRBool aEnable)
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->SetEnabled(aEnable);
+}
+
+NS_IMETHODIMP nsChromeTreeOwner::GetBlurSuppression(PRBool *aBlurSuppression)
+{
+  NS_ENSURE_STATE(mXULWindow);
+  return mXULWindow->GetBlurSuppression(aBlurSuppression);
+}
+
+NS_IMETHODIMP nsChromeTreeOwner::SetBlurSuppression(PRBool aBlurSuppression)
+{
+  NS_ENSURE_STATE(mXULWindow);
+  return mXULWindow->SetBlurSuppression(aBlurSuppression);
 }
 
 NS_IMETHODIMP nsChromeTreeOwner::GetMainWidget(nsIWidget** aMainWidget)
@@ -535,10 +547,9 @@ nsChromeTreeOwner::OnStateChange(nsIWebProgress* aWebProgress,
 
 NS_IMETHODIMP nsChromeTreeOwner::OnLocationChange(nsIWebProgress* aWebProgress,
                                                   nsIRequest* aRequest,
-                                                  nsIURI* aLocation,
-                                                  PRUint32 aFlags)
+                                                  nsIURI* aLocation)
 {
-  bool itsForYou = true;
+  PRBool itsForYou = PR_TRUE;
 
   if (aWebProgress) {
     NS_ENSURE_STATE(mXULWindow);
@@ -550,13 +561,13 @@ NS_IMETHODIMP nsChromeTreeOwner::OnLocationChange(nsIWebProgress* aWebProgress,
     nsCOMPtr<nsIDOMWindow> ourWin(do_QueryInterface(docshell));
 
     if (ourWin != progressWin)
-      itsForYou = false;
+      itsForYou = PR_FALSE;
   }
 
    // If loading a new root .xul document, then redo chrome.
   if (itsForYou) {
     NS_ENSURE_STATE(mXULWindow);
-    mXULWindow->mChromeLoaded = false;
+    mXULWindow->mChromeLoaded = PR_FALSE;
   }
   return NS_OK;
 }

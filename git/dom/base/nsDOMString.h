@@ -42,14 +42,14 @@
 
 #include "nsStringGlue.h"
 
-inline bool DOMStringIsNull(const nsAString& aString)
+inline PRBool DOMStringIsNull(const nsAString& aString)
 {
   return aString.IsVoid();
 }
 
 inline void SetDOMStringToNull(nsAString& aString)
 {
-  aString.SetIsVoid(true);
+  aString.SetIsVoid(PR_TRUE);
 }
 
 #endif /* nsDOMString_h___ */

@@ -40,7 +40,7 @@ namespace mozilla {
 namespace net {
 
 template<class KeyClass, class T>
-bool
+PRBool
 RedirectChannelRegistrar::nsCOMPtrHashtable<KeyClass,T>::Get(KeyType aKey, T** retVal) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
@@ -49,13 +49,13 @@ RedirectChannelRegistrar::nsCOMPtrHashtable<KeyClass,T>::Get(KeyType aKey, T** r
     if (retVal)
       NS_IF_ADDREF(*retVal = ent->mData);
 
-    return true;
+    return PR_TRUE;
   }
 
   if (retVal)
     *retVal = nsnull;
 
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMPL_ISUPPORTS1(RedirectChannelRegistrar, nsIRedirectChannelRegistrar)

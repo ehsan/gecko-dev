@@ -216,12 +216,12 @@ BaseWebSocketChannel::NewChannel(nsIURI *aURI, nsIChannel **_retval NS_OUTPARAM)
 
 NS_IMETHODIMP
 BaseWebSocketChannel::AllowPort(PRInt32 port, const char *scheme,
-                                bool *_retval NS_OUTPARAM)
+                                PRBool *_retval NS_OUTPARAM)
 {
   LOG(("BaseWebSocketChannel::AllowPort() %p\n", this));
 
   // do not override any blacklisted ports
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 

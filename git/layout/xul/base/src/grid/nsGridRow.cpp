@@ -46,7 +46,7 @@
 #include "nsIFrame.h"
 #include "nsBoxLayoutState.h"
 
-nsGridRow::nsGridRow():mIsBogus(false),
+nsGridRow::nsGridRow():mIsBogus(PR_FALSE),
                        mBox(nsnull), 
                        mFlex(-1),
                        mPref(-1),
@@ -62,7 +62,7 @@ nsGridRow::nsGridRow():mIsBogus(false),
 }
 
 void
-nsGridRow::Init(nsIBox* aBox, bool aIsBogus)
+nsGridRow::Init(nsIBox* aBox, PRBool aIsBogus)
 {
   mBox = aBox;
   mIsBogus = aIsBogus;
@@ -81,7 +81,7 @@ nsGridRow::~nsGridRow()
    MOZ_COUNT_DTOR(nsGridRow);
 }
 
-bool 
+PRBool 
 nsGridRow::IsCollapsed(nsBoxLayoutState& aState)
 {
   return mBox && mBox->IsCollapsed(aState);

@@ -52,6 +52,7 @@ interface nsIDOMNodeIterator;
 interface nsIDOMNodeFilter;
 interface nsIDOMTreeWalker;
 interface nsIDOMLocation;
+interface nsIDOMCaretPosition;
 
 /**
  * The nsIDOMDocument interface represents the entire HTML or XML document.
@@ -66,7 +67,7 @@ interface nsIDOMLocation;
  * http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html
  */
 
-[scriptable, uuid(5c3bff4d-ae7f-4c93-948c-519589672c30)]
+[scriptable, uuid(C54536AF-C238-4D8B-A339-54E2A0649FF5)]
 interface nsIDOMDocument : nsIDOMNode
 {
   readonly attribute nsIDOMDocumentType         doctype;
@@ -87,8 +88,8 @@ interface nsIDOMDocument : nsIDOMNode
   nsIDOMNodeList                getElementsByTagName(in DOMString tagname);
 
   // Introduced in DOM Level 2:
-  [optional_argc] nsIDOMNode    importNode(in nsIDOMNode importedNode,
-                                           [optional] in boolean deep)
+  nsIDOMNode                    importNode(in nsIDOMNode importedNode,
+                                           in boolean deep)
                                   raises(DOMException);
   // Introduced in DOM Level 2:
   nsIDOMElement                 createElementNS(in DOMString namespaceURI,
@@ -106,7 +107,15 @@ interface nsIDOMDocument : nsIDOMNode
   // Introduced in DOM Level 3:
   readonly attribute DOMString       inputEncoding;
   // Introduced in DOM Level 3:
-  readonly attribute DOMString       documentURI;
+  readonly attribute DOMString       xmlEncoding;
+  // Introduced in DOM Level 3:
+           attribute boolean         xmlStandalone;
+                                        // raises(DOMException) on setting
+  // Introduced in DOM Level 3:
+           attribute DOMString       xmlVersion;
+                                        // raises(DOMException) on setting
+  // Introduced in DOM Level 3:
+           attribute DOMString       documentURI;
   // Introduced in DOM Level 3:
   nsIDOMNode         adoptNode(in nsIDOMNode source)
                                         raises(DOMException);
@@ -364,6 +373,8 @@ interface nsIDOMDocument : nsIDOMNode
    */
   void mozSetImageElement(in DOMString aImageElementId,
                           in nsIDOMElement aImageElement);
+
+  nsIDOMCaretPosition caretPositionFromPoint(in float x, in float y);
   
   /**
    * Element which is currently the full-screen element as per the DOM
@@ -390,25 +401,7 @@ interface nsIDOMDocument : nsIDOMNode
   readonly attribute boolean mozFullScreen;  
 
   /**
-   * Denotes whether the full-screen-api.enabled is true, no windowed
-   * plugins are present, and all ancestor documents have the
-   * mozallowfullscreen attribute set.
-   *
-   * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
-   */
-  readonly attribute boolean mozFullScreenEnabled;
-
-  /**
    * Inline event handler for readystatechange events.
    */
   [implicit_jscontext] attribute jsval onreadystatechange;
-
-  [implicit_jscontext] attribute jsval onmouseenter;
-  [implicit_jscontext] attribute jsval onmouseleave;
-
-  /**
-   * Visibility API implementation.
-   */
-  readonly attribute boolean mozHidden;
-  readonly attribute DOMString mozVisibilityState;
 };

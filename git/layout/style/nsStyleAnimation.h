@@ -58,7 +58,7 @@ struct nsCSSValuePair;
 struct nsCSSValueTriplet;
 struct nsCSSValuePairList;
 struct nsCSSRect;
-class gfx3DMatrix;
+struct gfxMatrix;
 
 namespace mozilla {
 namespace dom {
@@ -85,9 +85,9 @@ public:
    * @param aDest       The value to add to.
    * @param aValueToAdd The value to add.
    * @param aCount      The number of times to add aValueToAdd.
-   * @return true on success, false on failure.
+   * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static bool Add(nsCSSProperty aProperty, Value& aDest,
+  static PRBool Add(nsCSSProperty aProperty, Value& aDest,
                     const Value& aValueToAdd, PRUint32 aCount) {
     return AddWeighted(aProperty, 1.0, aDest, aCount, aValueToAdd, aDest);
   }
@@ -108,9 +108,9 @@ public:
    * @param aEndValue   The end of the interval for which the distance
    *                    should be calculated.
    * @param aDistance   The result of the calculation.
-   * @return true on success, false on failure.
+   * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static bool ComputeDistance(nsCSSProperty aProperty,
+  static PRBool ComputeDistance(nsCSSProperty aProperty,
                                 const Value& aStartValue,
                                 const Value& aEndValue,
                                 double& aDistance);
@@ -129,9 +129,9 @@ public:
    * @param aPortion    A number in the range [0.0, 1.0] defining the
    *                    distance of the interpolated value in the interval.
    * @param [out] aResultValue The resulting interpolated value.
-   * @return true on success, false on failure.
+   * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static bool Interpolate(nsCSSProperty aProperty,
+  static PRBool Interpolate(nsCSSProperty aProperty,
                             const Value& aStartValue,
                             const Value& aEndValue,
                             double aPortion,
@@ -146,7 +146,7 @@ public:
    *
    * @param [out] aResultValue The resulting interpolated value.  May be
    *                           the same as aValue1 or aValue2.
-   * @return true on success, false on failure.
+   * @return PR_TRUE on success, PR_FALSE on failure.
    *
    * NOTE: Current callers always pass aCoeff1 and aCoeff2 >= 0.  They
    * are currently permitted to be negative; however, if, as we add
@@ -154,7 +154,7 @@ public:
    * difficulty, we might change this to restrict them to being
    * positive.
    */
-  static bool AddWeighted(nsCSSProperty aProperty,
+  static PRBool AddWeighted(nsCSSProperty aProperty,
                             double aCoeff1, const Value& aValue1,
                             double aCoeff2, const Value& aValue2,
                             Value& aResultValue);
@@ -176,21 +176,21 @@ public:
    *                        |aSpecifiedValue| in SVG mode.
    * @param [out] aComputedValue The resulting computed value.
    * @param [out] aIsContextSensitive
-   *                        Set to true if |aSpecifiedValue| may produce
+   *                        Set to PR_TRUE if |aSpecifiedValue| may produce
    *                        a different |aComputedValue| depending on other CSS
    *                        properties on |aTargetElement| or its ancestors.
-   *                        false otherwise.
+   *                        PR_FALSE otherwise.
    *                        Note that the operation of this method is
    *                        significantly faster when |aIsContextSensitive| is
    *                        nsnull.
-   * @return true on success, false on failure.
+   * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static bool ComputeValue(nsCSSProperty aProperty,
+  static PRBool ComputeValue(nsCSSProperty aProperty,
                              mozilla::dom::Element* aTargetElement,
                              const nsAString& aSpecifiedValue,
-                             bool aUseSVGMode,
+                             PRBool aUseSVGMode,
                              Value& aComputedValue,
-                             bool* aIsContextSensitive = nsnull);
+                             PRBool* aIsContextSensitive = nsnull);
 
   /**
    * Creates a specified value for the given computed value.
@@ -205,13 +205,13 @@ public:
    *                       which we're working.
    * @param aComputedValue The computed value to be converted.
    * @param [out] aSpecifiedValue The resulting specified value.
-   * @return true on success, false on failure.
+   * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static bool UncomputeValue(nsCSSProperty aProperty,
+  static PRBool UncomputeValue(nsCSSProperty aProperty,
                                nsPresContext* aPresContext,
                                const Value& aComputedValue,
                                nsCSSValue& aSpecifiedValue);
-  static bool UncomputeValue(nsCSSProperty aProperty,
+  static PRBool UncomputeValue(nsCSSProperty aProperty,
                                nsPresContext* aPresContext,
                                const Value& aComputedValue,
                                nsAString& aSpecifiedValue);
@@ -223,9 +223,9 @@ public:
    * @param aProperty     The property whose value we're looking up.
    * @param aStyleContext The style context to check for the computed value.
    * @param [out] aComputedValue The resulting computed value.
-   * @return true on success, false on failure.
+   * @return PR_TRUE on success, PR_FALSE on failure.
    */
-  static bool ExtractComputedValue(nsCSSProperty aProperty,
+  static PRBool ExtractComputedValue(nsCSSProperty aProperty,
                                      nsStyleContext* aStyleContext,
                                      Value& aComputedValue);
 
@@ -233,12 +233,12 @@ public:
     * Interpolates between 2 matrices by decomposing them.
     *
     * @param aMatrix1   First matrix, using CSS pixel units.
+    * @param aCoeff1    Interpolation value in the range [0.0, 1.0]
     * @param aMatrix2   Second matrix, using CSS pixel units.
-    * @param aProgress  Interpolation value in the range [0.0, 1.0]
+    * @param aCoeff2    Interpolation value in the range [0.0, 1.0]
     */
-   static gfx3DMatrix InterpolateTransformMatrix(const gfx3DMatrix &aMatrix1,
-                                                 const gfx3DMatrix &aMatrix2, 
-                                                 double aProgress);
+   static gfxMatrix InterpolateTransformMatrix(const gfxMatrix &aMatrix1, double aCoeff1,
+                                               const gfxMatrix &aMatrix2, double aCoeff2);
 
   /**
    * The types and values for the values that we extract and animate.
@@ -292,7 +292,7 @@ public:
 
     // Accessor to let us verify assumptions about presence of null unit,
     // without tripping the assertion in GetUnit().
-    bool IsNull() const {
+    PRBool IsNull() const {
       return mUnit == eUnit_Null;
     }
 
@@ -392,8 +392,8 @@ public:
 
     Value& operator=(const Value& aOther);
 
-    bool operator==(const Value& aOther) const;
-    bool operator!=(const Value& aOther) const
+    PRBool operator==(const Value& aOther) const;
+    PRBool operator!=(const Value& aOther) const
       { return !(*this == aOther); }
 
   private:
@@ -403,30 +403,30 @@ public:
       return static_cast<PRUnichar*>(aBuffer->Data());
     }
 
-    static bool IsIntUnit(Unit aUnit) {
+    static PRBool IsIntUnit(Unit aUnit) {
       return aUnit == eUnit_Enumerated || aUnit == eUnit_Visibility ||
              aUnit == eUnit_Integer;
     }
-    static bool IsCSSValueUnit(Unit aUnit) {
+    static PRBool IsCSSValueUnit(Unit aUnit) {
       return aUnit == eUnit_Calc;
     }
-    static bool IsCSSValuePairUnit(Unit aUnit) {
+    static PRBool IsCSSValuePairUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePair;
     }
-    static bool IsCSSValueTripletUnit(Unit aUnit) {
+    static PRBool IsCSSValueTripletUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValueTriplet;
     }
-    static bool IsCSSRectUnit(Unit aUnit) {
+    static PRBool IsCSSRectUnit(Unit aUnit) {
       return aUnit == eUnit_CSSRect;
     }
-    static bool IsCSSValueListUnit(Unit aUnit) {
+    static PRBool IsCSSValueListUnit(Unit aUnit) {
       return aUnit == eUnit_Dasharray || aUnit == eUnit_Shadow ||
              aUnit == eUnit_Transform;
     }
-    static bool IsCSSValuePairListUnit(Unit aUnit) {
+    static PRBool IsCSSValuePairListUnit(Unit aUnit) {
       return aUnit == eUnit_CSSValuePairList;
     }
-    static bool IsStringUnit(Unit aUnit) {
+    static PRBool IsStringUnit(Unit aUnit) {
       return aUnit == eUnit_UnparsedString;
     }
   };

@@ -54,59 +54,59 @@ SVGMotionSMILPathUtils::PathGenerator::
 {
   NS_ABORT_IF_FALSE(!mHaveReceivedCommands,
                     "Not expecting requests for mid-path MoveTo commands");
-  mHaveReceivedCommands = true;
+  mHaveReceivedCommands = PR_TRUE;
   mGfxContext.MoveTo(gfxPoint(0, 0));
 }
 
 // For 'from' and the first entry in 'values'.
-bool
+PRBool
 SVGMotionSMILPathUtils::PathGenerator::
   MoveToAbsolute(const nsAString& aCoordPairStr)
 {
   NS_ABORT_IF_FALSE(!mHaveReceivedCommands,
                     "Not expecting requests for mid-path MoveTo commands");
-  mHaveReceivedCommands = true;
+  mHaveReceivedCommands = PR_TRUE;
 
   float xVal, yVal;
   if (!ParseCoordinatePair(aCoordPairStr, xVal, yVal)) {
-    return false;
+    return PR_FALSE;
   }
   mGfxContext.MoveTo(gfxPoint(xVal, yVal));
-  return true;
+  return PR_TRUE;
 }
 
 // For 'to' and every entry in 'values' except the first.
-bool
+PRBool
 SVGMotionSMILPathUtils::PathGenerator::
   LineToAbsolute(const nsAString& aCoordPairStr, double& aSegmentDistance)
 {
-  mHaveReceivedCommands = true;
+  mHaveReceivedCommands = PR_TRUE;
 
   float xVal, yVal;
   if (!ParseCoordinatePair(aCoordPairStr, xVal, yVal)) {
-    return false;
+    return PR_FALSE;
   }
   gfxPoint initialPoint = mGfxContext.CurrentPoint();
 
   mGfxContext.LineTo(gfxPoint(xVal, yVal));
   aSegmentDistance = NS_hypot(initialPoint.x - xVal, initialPoint.y -yVal);
-  return true;
+  return PR_TRUE;
 }
 
 // For 'by'.
-bool
+PRBool
 SVGMotionSMILPathUtils::PathGenerator::
   LineToRelative(const nsAString& aCoordPairStr, double& aSegmentDistance)
 {
-  mHaveReceivedCommands = true;
+  mHaveReceivedCommands = PR_TRUE;
 
   float xVal, yVal;
   if (!ParseCoordinatePair(aCoordPairStr, xVal, yVal)) {
-    return false;
+    return PR_FALSE;
   }
   mGfxContext.LineTo(mGfxContext.CurrentPoint() + gfxPoint(xVal, yVal));
   aSegmentDistance = NS_hypot(xVal, yVal);
-  return true;
+  return PR_TRUE;
 }
 
 already_AddRefed<gfxFlattenedPath>
@@ -118,7 +118,7 @@ SVGMotionSMILPathUtils::PathGenerator::GetResultingPath()
 //----------------------------------------------------------------------
 // Helper / protected methods
 
-bool
+PRBool
 SVGMotionSMILPathUtils::PathGenerator::
   ParseCoordinatePair(const nsAString& aCoordPairStr,
                       float& aXVal, float& aYVal)
@@ -131,27 +131,27 @@ SVGMotionSMILPathUtils::PathGenerator::
 
   if (!tokenizer.hasMoreTokens() ||
       !x.SetValueFromString(tokenizer.nextToken())) {
-    return false;
+    return PR_FALSE;
   }
 
   if (!tokenizer.hasMoreTokens() ||
       !y.SetValueFromString(tokenizer.nextToken())) { 
-    return false;
+    return PR_FALSE;
   }
 
   if (tokenizer.lastTokenEndedWithSeparator() || // Trailing comma.
       tokenizer.hasMoreTokens()) {               // More text remains
-    return false;
+    return PR_FALSE;
   }
 
   float xRes = x.GetValueInUserUnits(mSVGElement, nsSVGUtils::X);
   float yRes = y.GetValueInUserUnits(mSVGElement, nsSVGUtils::Y);
 
-  NS_ENSURE_FINITE2(xRes, yRes, false);
+  NS_ENSURE_FINITE2(xRes, yRes, PR_FALSE);
 
   aXVal = xRes;
   aYVal = yRes;
-  return true;
+  return PR_TRUE;
 }
 
 //----------------------------------------------------------------------
@@ -160,7 +160,7 @@ nsresult
 SVGMotionSMILPathUtils::MotionValueParser::
   Parse(const nsAString& aValueStr)
 {
-  bool success;
+  PRBool success;
   if (!mPathGenerator->HaveReceivedCommands()) {
     // Interpret first value in "values" attribute as the path's initial MoveTo
     success = mPathGenerator->MoveToAbsolute(aValueStr);

@@ -115,11 +115,13 @@
 #include "mozilla/ipc/DocumentRendererParent.h"
 
 #include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/PathHelpers.h"
-#include "mozilla/Preferences.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
+#endif
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
 #endif
 
 // windows.h (included by chromium code) defines this, in its infinite wisdom
@@ -304,8 +306,8 @@ public:
   nsCanvasPatternAzure(SourceSurface* aSurface,
                        RepeatMode aRepeat,
                        nsIPrincipal* principalForSecurityCheck,
-                       bool forceWriteOnly,
-                       bool CORSUsed)
+                       PRBool forceWriteOnly,
+                       PRBool CORSUsed)
     : mSurface(aSurface)
     , mRepeat(aRepeat)
     , mPrincipal(principalForSecurityCheck)
@@ -319,8 +321,8 @@ public:
   RefPtr<SourceSurface> mSurface;
   const RepeatMode mRepeat;
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  const bool mForceWriteOnly;
-  const bool mCORSUsed;
+  const PRPackedBool mForceWriteOnly;
+  const PRPackedBool mCORSUsed;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasPatternAzure, NS_CANVASPATTERNAZURE_PRIVATE_IID)
@@ -411,13 +413,13 @@ public:
   TemporaryRef<SourceSurface> GetSurfaceSnapshot()
   { return mTarget ? mTarget->Snapshot() : nsnull; }
 
-  NS_IMETHOD SetIsOpaque(bool isOpaque);
+  NS_IMETHOD SetIsOpaque(PRBool isOpaque);
   NS_IMETHOD Reset();
   already_AddRefed<CanvasLayer> GetCanvasLayer(nsDisplayListBuilder* aBuilder,
                                                 CanvasLayer *aOldLayer,
                                                 LayerManager *aManager);
   void MarkContextClean();
-  NS_IMETHOD SetIsIPC(bool isIPC);
+  NS_IMETHOD SetIsIPC(PRBool isIPC);
   // this rect is in canvas device space
   void Redraw(const mgfx::Rect &r);
   NS_IMETHOD Redraw(const gfxRect &r) { Redraw(ToRect(r)); return NS_OK; }
@@ -438,9 +440,6 @@ public:
     STYLE_FILL,
     STYLE_MAX
   };
-  
-  nsresult LineTo(const Point& aPoint);
-  nsresult BezierTo(const Point& aCP1, const Point& aCP2, const Point& aCP3);
 
 protected:
   nsresult InitializeWithTarget(DrawTarget *surface, PRInt32 width, PRInt32 height);
@@ -507,18 +506,18 @@ protected:
   // This is true when the canvas is valid, false otherwise, this occurs when
   // for some reason initialization of the drawtarget fails. If the canvas
   // is invalid certain behavior is expected.
-  bool mValid;
+  PRPackedBool mValid;
   // This is true when the canvas is valid, but of zero size, this requires
   // specific behavior on some operations.
-  bool mZero;
+  PRPackedBool mZero;
 
-  bool mOpaque;
+  PRPackedBool mOpaque;
 
   // This is true when the next time our layer is retrieved we need to
   // recreate it (i.e. our backing surface changed)
-  bool mResetLayer;
+  PRPackedBool mResetLayer;
   // This is needed for drawing in drawAsyncXULElement
-  bool mIPC;
+  PRPackedBool mIPC;
 
   // the canvas element we're a context of
   nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
@@ -533,13 +532,13 @@ protected:
     * Flag to avoid duplicate calls to InvalidateFrame. Set to true whenever
     * Redraw is called, reset to false when Render is called.
     */
-  bool mIsEntireFrameInvalid;
+  PRPackedBool mIsEntireFrameInvalid;
   /**
     * When this is set, the first call to Redraw(gfxRect) should set
     * mIsEntireFrameInvalid since we expect it will be followed by
     * many more Redraw calls.
     */
-  bool mPredictManyRedrawCalls;
+  PRPackedBool mPredictManyRedrawCalls;
 
   // This is stored after GetThebesSurface has been called once to avoid
   // excessive ThebesSurface initialization overhead.
@@ -585,7 +584,7 @@ protected:
     * Returns true if a shadow should be drawn along with a
     * drawing operation.
     */
-  bool NeedToDrawShadow()
+  PRBool NeedToDrawShadow()
   {
     const ContextState& state = CurrentState();
 
@@ -611,7 +610,8 @@ protected:
   nsIPresShell *GetPresShell() {
     nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
     if (content) {
-      return content->OwnerDoc()->GetShell();
+      nsIDocument* ownerDoc = content->GetOwnerDoc();
+      return ownerDoc ? ownerDoc->GetShell() : nsnull;
     }
     if (mDocShell) {
       nsCOMPtr<nsIPresShell> shell;
@@ -672,7 +672,7 @@ protected:
                        fillRule(FILL_WINDING),
                        lineCap(CAP_BUTT),
                        lineJoin(JOIN_MITER_OR_BEVEL),
-                       imageSmoothingEnabled(true)
+                       imageSmoothingEnabled(PR_TRUE)
       { }
 
       ContextState(const ContextState& other)
@@ -721,7 +721,7 @@ protected:
       /**
         * returns true iff the given style is a solid color.
         */
-      bool StyleIsColor(Style whichStyle) const
+      PRBool StyleIsColor(Style whichStyle) const
       {
           return !(patternStyles[whichStyle] ||
                     gradientStyles[whichStyle]);
@@ -755,7 +755,7 @@ protected:
       CapStyle lineCap;
       JoinStyle lineJoin;
 
-      bool imageSmoothingEnabled;
+      PRPackedBool imageSmoothingEnabled;
   };
 
   class GeneralPattern
@@ -989,16 +989,15 @@ PRUint8 (*nsCanvasRenderingContext2DAzure::sPremultiplyTable)[256] = nsnull;
 nsresult
 NS_NewCanvasRenderingContext2DAzure(nsIDOMCanvasRenderingContext2D** aResult)
 {
-#ifdef XP_WIN
-  if ((gfxWindowsPlatform::GetPlatform()->GetRenderMode() !=
+#ifndef XP_WIN
+  return NS_ERROR_NOT_AVAILABLE;
+#else
+
+  if (gfxWindowsPlatform::GetPlatform()->GetRenderMode() !=
       gfxWindowsPlatform::RENDER_DIRECT2D ||
-      !gfxWindowsPlatform::GetPlatform()->DWriteEnabled()) &&
-      !Preferences::GetBool("gfx.canvas.azure.prefer-skia", false)) {
+      !gfxWindowsPlatform::GetPlatform()->DWriteEnabled()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
-#elif !defined(XP_MACOSX) && !defined(ANDROID)
-  return NS_ERROR_NOT_AVAILABLE;
-#endif
 
   nsRefPtr<nsIDOMCanvasRenderingContext2D> ctx = new nsCanvasRenderingContext2DAzure();
   if (!ctx)
@@ -1006,14 +1005,15 @@ NS_NewCanvasRenderingContext2DAzure(nsIDOMCanvasRenderingContext2D** aResult)
 
   *aResult = ctx.forget().get();
   return NS_OK;
+#endif
 }
 
 nsCanvasRenderingContext2DAzure::nsCanvasRenderingContext2DAzure()
-  : mValid(false), mZero(false), mOpaque(false), mResetLayer(true)
-  , mIPC(false)
+  : mValid(PR_FALSE), mZero(PR_FALSE), mOpaque(PR_FALSE), mResetLayer(PR_TRUE)
+  , mIPC(PR_FALSE)
   , mCanvasElement(nsnull)
-  , mIsEntireFrameInvalid(false)
-  , mPredictManyRedrawCalls(false), mPathTransformWillUpdate(false)
+  , mIsEntireFrameInvalid(PR_FALSE)
+  , mPredictManyRedrawCalls(PR_FALSE), mPathTransformWillUpdate(false)
   , mInvalidateCount(0)
 {
   sNumLivingContexts++;
@@ -1049,9 +1049,9 @@ nsCanvasRenderingContext2DAzure::Reset()
   // Since the target changes the backing texture will change, and this will
   // no longer be valid.
   mThebesSurface = nsnull;
-  mValid = false;
-  mIsEntireFrameInvalid = false;
-  mPredictManyRedrawCalls = false;
+  mValid = PR_FALSE;
+  mIsEntireFrameInvalid = PR_FALSE;
+  mPredictManyRedrawCalls = PR_FALSE;
 
   return NS_OK;
 }
@@ -1066,7 +1066,7 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
 
   if (!aStr.IsVoid()) {
     nsIDocument* document = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
     // Pass the CSS Loader object to the parser, to allow parser error
     // reports to include the outer window ID.
@@ -1103,7 +1103,7 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
     EmptyString(), 0, 0,
     nsIScriptError::warningFlag,
     "Canvas",
-    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull);
+    mCanvasElement ? HTMLCanvasElement()->GetOwnerDoc() : nsnull);
 
   return NS_OK;
 }
@@ -1117,11 +1117,11 @@ nsCanvasRenderingContext2DAzure::GetStyleAsStringOrInterface(nsAString& aStr,
   const ContextState &state = CurrentState();
 
   if (state.patternStyles[aWhichStyle]) {
-    aStr.SetIsVoid(true);
+    aStr.SetIsVoid(PR_TRUE);
     NS_ADDREF(*aInterface = state.patternStyles[aWhichStyle]);
     *aType = CMG_STYLE_PATTERN;
   } else if (state.gradientStyles[aWhichStyle]) {
-    aStr.SetIsVoid(true);
+    aStr.SetIsVoid(PR_TRUE);
     NS_ADDREF(*aInterface = state.gradientStyles[aWhichStyle]);
     *aType = CMG_STYLE_GRADIENT;
   } else {
@@ -1162,7 +1162,7 @@ nsCanvasRenderingContext2DAzure::Redraw()
     return NS_OK;
   }
 
-  mIsEntireFrameInvalid = true;
+  mIsEntireFrameInvalid = PR_TRUE;
 
   if (!mCanvasElement) {
     NS_ASSERTION(mDocShell, "Redraw with no canvas element or docshell!");
@@ -1226,11 +1226,11 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
 
   // Zero sized surfaces cause issues, so just go with 1x1.
   if (height == 0 || width == 0) {
-    mZero = true;
+    mZero = PR_TRUE;
     height = 1;
     width = 1;
   } else {
-    mZero = false;
+    mZero = PR_FALSE;
   }
 
   // Check that the dimensions are sane
@@ -1241,7 +1241,7 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
     nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
     nsIDocument* ownerDoc = nsnull;
     if (content) {
-      ownerDoc = content->OwnerDoc();
+      ownerDoc = content->GetOwnerDoc();
     }
 
     nsRefPtr<LayerManager> layerManager = nsnull;
@@ -1254,7 +1254,7 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
     if (layerManager) {
       target = layerManager->CreateDrawTarget(size, format);
     } else {
-      target = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(size, format);
+      target = Factory::CreateDrawTarget(BACKEND_DIRECT2D, size, format);
     }
   }
 
@@ -1265,10 +1265,7 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
     }
 
     gCanvasAzureMemoryUsed += width * height * 4;
-    JSContext* context = nsContentUtils::GetCurrentJSContext();
-    if (context) {
-      JS_updateMallocCounter(context, width * height * 4);
-    }
+    JS_updateMallocCounter(nsContentUtils::GetCurrentJSContext(), width * height * 4);
   }
 
   return InitializeWithTarget(target, width, height);
@@ -1287,16 +1284,16 @@ nsCanvasRenderingContext2DAzure::InitializeWithTarget(DrawTarget *target, PRInt3
 
   mTarget = target;
 
-  mResetLayer = true;
+  mResetLayer = PR_TRUE;
 
   /* Create dummy surfaces here - target can be null when a canvas was created
    * that is too large to support.
    */
   if (!target)
   {
-    mTarget = gfxPlatform::GetPlatform()->CreateOffscreenDrawTarget(IntSize(1, 1), FORMAT_B8G8R8A8);
+    mTarget = Factory::CreateDrawTarget(BACKEND_DIRECT2D, IntSize(1, 1), FORMAT_B8G8R8A8);
   } else {
-    mValid = true;
+    mValid = PR_TRUE;
   }
 
   // set up the initial canvas defaults
@@ -1322,7 +1319,7 @@ nsCanvasRenderingContext2DAzure::InitializeWithTarget(DrawTarget *target, PRInt3
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::SetIsOpaque(bool isOpaque)
+nsCanvasRenderingContext2DAzure::SetIsOpaque(PRBool isOpaque)
 {
   if (isOpaque == mOpaque)
     return NS_OK;
@@ -1340,7 +1337,7 @@ nsCanvasRenderingContext2DAzure::SetIsOpaque(bool isOpaque)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::SetIsIPC(bool isIPC)
+nsCanvasRenderingContext2DAzure::SetIsIPC(PRBool isIPC)
 {
   if (isIPC == mIPC)
       return NS_OK;
@@ -1692,7 +1689,7 @@ nsCanvasRenderingContext2DAzure::SetStrokeStyle(nsIVariant *aValue)
       NS_Free(iid);
     }
 
-    str.SetIsVoid(true);
+    str.SetIsVoid(PR_TRUE);
     return SetStrokeStyle_multi(str, sup);
   }
 
@@ -1752,7 +1749,7 @@ nsCanvasRenderingContext2DAzure::SetFillStyle(nsIVariant *aValue)
     rv = aValue->GetAsInterface(&iid, getter_AddRefs(sup));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    str.SetIsVoid(true);
+    str.SetIsVoid(PR_TRUE);
     return SetFillStyle_multi(str, sup);
   }
 
@@ -1928,7 +1925,7 @@ nsCanvasRenderingContext2DAzure::CreatePattern(nsIDOMHTMLElement *image,
         RefPtr<SourceSurface> srcSurf = srcCanvas->GetSurfaceSnapshot();
 
         nsRefPtr<nsCanvasPatternAzure> pat =
-          new nsCanvasPatternAzure(srcSurf, repeatMode, content->NodePrincipal(), canvas->IsWriteOnly(), false);
+          new nsCanvasPatternAzure(srcSurf, repeatMode, content->NodePrincipal(), canvas->IsWriteOnly(), PR_FALSE);
 
         *_retval = pat.forget().get();
         return NS_OK;
@@ -2023,7 +2020,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetShadowColor(const nsAString& colorstr)
 {
   nsIDocument* document = mCanvasElement ?
-                          HTMLCanvasElement()->OwnerDoc() : nsnull;
+                          HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
   // Pass the CSS Loader object to the parser, to allow parser error reports
   // to include the outer window ID.
@@ -2316,16 +2313,10 @@ nsCanvasRenderingContext2DAzure::LineTo(float x, float y)
 
   EnsureWritablePath();
     
-  return LineTo(Point(x, y));;
-}
-  
-nsresult 
-nsCanvasRenderingContext2DAzure::LineTo(const Point& aPoint)
-{
   if (mPathBuilder) {
-    mPathBuilder->LineTo(aPoint);
+    mPathBuilder->LineTo(Point(x, y));
   } else {
-    mDSPathBuilder->LineTo(mTarget->GetTransform() * aPoint);
+    mDSPathBuilder->LineTo(mTarget->GetTransform() * Point(x, y));
   }
 
   return NS_OK;
@@ -2344,7 +2335,7 @@ nsCanvasRenderingContext2DAzure::QuadraticCurveTo(float cpx, float cpy, float x,
     mPathBuilder->QuadraticBezierTo(Point(cpx, cpy), Point(x, y));
   } else {
     Matrix transform = mTarget->GetTransform();
-    mDSPathBuilder->QuadraticBezierTo(transform * Point(cpx, cpy), transform * Point(x, y));
+    mDSPathBuilder->QuadraticBezierTo(transform * Point(cpx, cpy), transform * Point(cpx, cpy));
   }
 
   return NS_OK;
@@ -2361,21 +2352,13 @@ nsCanvasRenderingContext2DAzure::BezierCurveTo(float cp1x, float cp1y,
 
   EnsureWritablePath();
 
-  return BezierTo(Point(cp1x, cp1y), Point(cp2x, cp2y), Point(x, y));
-}
-
-nsresult
-nsCanvasRenderingContext2DAzure::BezierTo(const Point& aCP1,
-                                          const Point& aCP2,
-                                          const Point& aCP3)
-{
   if (mPathBuilder) {
-    mPathBuilder->BezierTo(aCP1, aCP2, aCP3);
+    mPathBuilder->BezierTo(Point(cp1x, cp1y), Point(cp2x, cp2y), Point(x, y));
   } else {
     Matrix transform = mTarget->GetTransform();
-    mDSPathBuilder->BezierTo(transform * aCP1,
-                              transform * aCP2,
-                              transform * aCP3);
+    mDSPathBuilder->BezierTo(transform * Point(cp1x, cp1y),
+                              transform * Point(cp2x, cp2y),
+                              transform * Point(x, y));
   }
 
   return NS_OK;
@@ -2465,7 +2448,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::Arc(float x, float y,
                                      float r,
                                      float startAngle, float endAngle,
-                                     bool ccw)
+                                     PRBool ccw)
 {
   if (!FloatValidate(x, y, r, startAngle, endAngle)) {
     return NS_OK;
@@ -2476,7 +2459,83 @@ nsCanvasRenderingContext2DAzure::Arc(float x, float y,
 
   EnsureWritablePath();
 
-  ArcToBezier(this, Point(x, y), r, startAngle, endAngle, ccw);
+  // We convert to Bezier curve here, since we need to be able to write in
+  // device space, but a transformed arc is no longer representable by an arc.
+
+  Point startPoint(x + cos(startAngle) * r, y + sin(startAngle) * r);
+
+  if (mPathBuilder) {
+    mPathBuilder->LineTo(startPoint);
+  } else {
+    mDSPathBuilder->LineTo(mTarget->GetTransform() * startPoint);
+  }
+
+  // Clockwise we always sweep from the smaller to the larger angle, ccw
+  // it's vice versa.
+  if (!ccw && (endAngle < startAngle)) {
+    Float correction = ceil((startAngle - endAngle) / (2.0f * M_PI));
+    endAngle += correction * 2.0f * M_PI;
+  } else if (ccw && (startAngle < endAngle)) {
+    Float correction = ceil((endAngle - startAngle) / (2.0f * M_PI));
+    startAngle += correction * 2.0f * M_PI;
+  }
+
+  // Sweeping more than 2 * pi is a full circle.
+  if (!ccw && (endAngle - startAngle > 2 * M_PI)) {
+    endAngle = startAngle + 2.0f * M_PI;
+  } else if (ccw && (startAngle - endAngle > 2.0f * M_PI)) {
+    endAngle = startAngle - 2.0f * M_PI;
+  }
+
+  // Calculate the total arc we're going to sweep.
+  Float arcSweepLeft = abs(endAngle - startAngle);
+
+  Float sweepDirection = ccw ? -1.0f : 1.0f;
+
+  Float currentStartAngle = startAngle;
+
+  while (arcSweepLeft > 0) {
+    // We guarantee here the current point is the start point of the next
+    // curve segment.
+    Float currentEndAngle;
+
+    if (arcSweepLeft > M_PI / 2.0f) {
+      currentEndAngle = currentStartAngle + M_PI / 2.0f * sweepDirection;
+    } else {
+      currentEndAngle = currentStartAngle + arcSweepLeft * sweepDirection;
+    }
+
+    Point currentStartPoint(x + cos(currentStartAngle) * r,
+                              y + sin(currentStartAngle) * r);
+    Point currentEndPoint(x + cos(currentEndAngle) * r,
+                            y + sin(currentEndAngle) * r);
+
+    // Calculate kappa constant for partial curve. The sign of angle in the
+    // tangent will actually ensure this is negative for a counter clockwise
+    // sweep, so changing signs later isn't needed.
+    Float kappa = (4.0f / 3.0f) * tan((currentEndAngle - currentStartAngle) / 4.0f) * r;
+
+    Point tangentStart(-sin(currentStartAngle), cos(currentStartAngle));
+    Point cp1 = currentStartPoint;
+    cp1 += tangentStart * kappa;
+
+    Point revTangentEnd(sin(currentEndAngle), -cos(currentEndAngle));
+    Point cp2 = currentEndPoint;
+    cp2 += revTangentEnd * kappa;
+
+    if (mPathBuilder) {
+      mPathBuilder->BezierTo(cp1, cp2, currentEndPoint);
+    } else {
+      mDSPathBuilder->BezierTo(mTarget->GetTransform() * cp1,
+                               mTarget->GetTransform() * cp2,
+                               mTarget->GetTransform() * currentEndPoint);
+    }
+
+    arcSweepLeft -= M_PI / 2.0f;
+    currentStartAngle = currentEndAngle;
+  }
+
+
   return NS_OK;
 }
 
@@ -2613,10 +2672,10 @@ CreateFontStyleRule(const nsAString& aFont,
                     StyleRule** aResult)
 {
   nsRefPtr<StyleRule> rule;
-  bool changed;
+  PRBool changed;
 
   nsIPrincipal* principal = aNode->NodePrincipal();
-  nsIDocument* document = aNode->OwnerDoc();
+  nsIDocument* document = aNode->GetOwnerDoc();
 
   nsIURI* docURL = document->GetDocumentURI();
   nsIURI* baseURL = document->GetDocBaseURI();
@@ -2633,14 +2692,14 @@ CreateFontStyleRule(const nsAString& aFont,
 
   rv = parser.ParseProperty(eCSSProperty_font, aFont, docURL, baseURL,
                             principal, rule->GetDeclaration(), &changed,
-                            false);
+                            PR_FALSE);
   if (NS_FAILED(rv))
     return rv;
 
   rv = parser.ParseProperty(eCSSProperty_line_height,
                             NS_LITERAL_STRING("normal"), docURL, baseURL,
                             principal, rule->GetDeclaration(), &changed,
-                            false);
+                            PR_FALSE);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -2755,7 +2814,7 @@ nsCanvasRenderingContext2DAzure::SetFont(const nsAString& font)
   // un-zoom the font size to avoid being affected by text-only zoom
   const nscoord fontSize = nsStyleFont::UnZoomText(parentContext->PresContext(), fontStyle->mFont.size);
 
-  bool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
+  PRBool printerFont = (presShell->GetPresContext()->Type() == nsPresContext::eContext_PrintPreview ||
                         presShell->GetPresContext()->Type() == nsPresContext::eContext_Print);
 
   gfxFontStyle style(fontStyle->mFont.style,
@@ -2807,6 +2866,9 @@ nsCanvasRenderingContext2DAzure::SetTextAlign(const nsAString& ta)
     CurrentState().textAlign = TEXT_ALIGN_RIGHT;
   else if (ta.EqualsLiteral("center"))
     CurrentState().textAlign = TEXT_ALIGN_CENTER;
+  // spec says to not throw error for invalid arg, but do it anyway
+  else
+    return NS_ERROR_INVALID_ARG;
 
   return NS_OK;
 }
@@ -2854,6 +2916,9 @@ nsCanvasRenderingContext2DAzure::SetTextBaseline(const nsAString& tb)
     CurrentState().textBaseline = TEXT_BASELINE_IDEOGRAPHIC;
   else if (tb.EqualsLiteral("bottom"))
     CurrentState().textBaseline = TEXT_BASELINE_BOTTOM;
+  // spec says to not throw error for invalid arg, but do it anyway
+  else
+    return NS_ERROR_INVALID_ARG;
 
   return NS_OK;
 }
@@ -3007,8 +3072,6 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
     Point baselineOrigin =
       Point(point.x * devUnitsPerAppUnit, point.y * devUnitsPerAppUnit);
 
-    float advanceSum = 0;
-
     for (PRUint32 c = 0; c < numRuns; c++) {
       gfxFont *font = runs[c].mFont;
       PRUint32 endRun = 0;
@@ -3026,6 +3089,8 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
       GlyphBuffer buffer;
 
       std::vector<Glyph> glyphBuf;
+
+      float advanceSum = 0;
 
       for (PRUint32 i = runs[c].mCharacterOffset; i < endRun; i++) {
         Glyph newGlyph;
@@ -3126,7 +3191,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
   gfxRect mBoundingBox;
 
   // true iff the bounding box should be measured
-  bool mDoMeasureBoundingBox;
+  PRBool mDoMeasureBoundingBox;
 };
 
 nsresult
@@ -3166,7 +3231,7 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   TextReplaceWhitespaceCharacters(textToDraw);
 
   // for now, default to ltr if not in doc
-  bool isRTL = false;
+  PRBool isRTL = PR_FALSE;
 
   if (content && content->IsInDoc()) {
     // try to find the closest context
@@ -3187,7 +3252,7 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   const ContextState &state = CurrentState();
 
   // This is only needed to know if we can know the drawing bounding box easily.
-  bool doDrawShadow = aOp == TEXT_DRAW_OPERATION_FILL && NeedToDrawShadow();
+  PRBool doDrawShadow = aOp == TEXT_DRAW_OPERATION_FILL && NeedToDrawShadow();
 
   nsCanvasBidiProcessorAzure processor;
 
@@ -3310,7 +3375,7 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   gfxRect boundingBox = processor.mBoundingBox;
 
   // don't ever need to measure the bounding box twice
-  processor.mDoMeasureBoundingBox = false;
+  processor.mDoMeasureBoundingBox = PR_FALSE;
 
   rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
                                     textToDraw.Length(),
@@ -3535,16 +3600,16 @@ nsCanvasRenderingContext2DAzure::GetMozDashOffset(float* offset)
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::IsPointInPath(float x, float y, bool *retVal)
+nsCanvasRenderingContext2DAzure::IsPointInPath(float x, float y, PRBool *retVal)
 {
   if (!FloatValidate(x,y)) {
-    *retVal = false;
+    *retVal = PR_FALSE;
     return NS_OK;
   }
 
   EnsureUserSpacePath();
 
-  *retVal = false;
+  *retVal = PR_FALSE;
 
   if (mPath) {
     *retVal = mPath->ContainsPoint(Point(x, y), mTarget->GetTransform());
@@ -3617,27 +3682,6 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
     imgSize = gfxIntSize(mWidth, mHeight);
   }
 
-  // Special case for Canvas, which could be an Azure canvas!
-  if (canvas) {
-    if (canvas->CountContexts() == 1) {
-      nsICanvasRenderingContextInternal *srcCanvas = canvas->GetContextAtIndex(0);
-
-      // This might not be an Azure canvas!
-      if (srcCanvas) {
-        srcSurf = srcCanvas->GetSurfaceSnapshot();
-
-        if (srcSurf && mCanvasElement) {
-          // Do security check here.
-          CanvasUtils::DoDrawImageSecurityCheck(HTMLCanvasElement(),
-                                                content->NodePrincipal(), canvas->IsWriteOnly(),
-                                                false);
-
-          imgSize = gfxIntSize(srcSurf->GetSize().width, srcSurf->GetSize().height);
-        }
-      }
-    }
-  }
-
   if (!srcSurf) {
     // The canvas spec says that drawImage should draw the first frame
     // of animated images
@@ -3650,8 +3694,8 @@ nsCanvasRenderingContext2DAzure::DrawImage(nsIDOMElement *imgElt, float a1,
       return res.mIsStillLoading ? NS_OK : NS_ERROR_NOT_AVAILABLE;
     }
 
-    // Ignore cairo surfaces that are bad! See bug 666312.
-    if (res.mSurface->CairoStatus()) {
+    // Ignore nsnull cairo surfaces! See bug 666312.
+    if (!res.mSurface->CairoSurface()) {
       return NS_OK;
     }
 
@@ -3846,7 +3890,7 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
   nscolor bgColor;
 
   nsIDocument* elementDoc = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
   // Pass the CSS Loader object to the parser, to allow parser error reports
   // to include the outer window ID.
@@ -3933,7 +3977,7 @@ nsCanvasRenderingContext2DAzure::AsyncDrawXULElement(nsIDOMXULElement* aElem,
     if (!gfxASurface::CheckSurfaceSize(gfxIntSize(aW, aH), 0xffff))
         return NS_ERROR_FAILURE;
 
-    bool flush =
+    PRBool flush =
         (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH) == 0;
 
     PRUint32 renderDocFlags = nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING;
@@ -4137,7 +4181,7 @@ nsCanvasRenderingContext2DAzure::PutImageData()
 NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::PutImageData_explicit(PRInt32 x, PRInt32 y, PRUint32 w, PRUint32 h,
                                                        unsigned char *aData, PRUint32 aDataLen,
-                                                       bool hasDirtyRect, PRInt32 dirtyX, PRInt32 dirtyY,
+                                                       PRBool hasDirtyRect, PRInt32 dirtyX, PRInt32 dirtyY,
                                                        PRInt32 dirtyWidth, PRInt32 dirtyHeight)
 {
   if (!mValid) {
@@ -4269,8 +4313,8 @@ nsCanvasRenderingContext2DAzure::GetThebesSurface(gfxASurface **surface)
     mTarget->Flush();
   }
 
+  mThebesSurface->AddRef();
   *surface = mThebesSurface;
-  NS_ADDREF(*surface);
 
   return NS_OK;
 }
@@ -4283,14 +4327,14 @@ nsCanvasRenderingContext2DAzure::CreateImageData()
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::GetMozImageSmoothingEnabled(bool *retVal)
+nsCanvasRenderingContext2DAzure::GetMozImageSmoothingEnabled(PRBool *retVal)
 {
   *retVal = CurrentState().imageSmoothingEnabled;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2DAzure::SetMozImageSmoothingEnabled(bool val)
+nsCanvasRenderingContext2DAzure::SetMozImageSmoothingEnabled(PRBool val)
 {
   if (val != CurrentState().imageSmoothingEnabled) {
       CurrentState().imageSmoothingEnabled = val;
@@ -4368,7 +4412,7 @@ nsCanvasRenderingContext2DAzure::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
   canvasLayer->SetContentFlags(flags);
   canvasLayer->Updated();
 
-  mResetLayer = false;
+  mResetLayer = PR_FALSE;
 
   return canvasLayer.forget();
 }
@@ -4379,7 +4423,7 @@ nsCanvasRenderingContext2DAzure::MarkContextClean()
   if (mInvalidateCount > 0) {
     mPredictManyRedrawCalls = mInvalidateCount > kCanvasMaxInvalidateCount;
   }
-  mIsEntireFrameInvalid = false;
+  mIsEntireFrameInvalid = PR_FALSE;
   mInvalidateCount = 0;
 }
 

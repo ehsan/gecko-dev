@@ -51,11 +51,11 @@
 
 nsresult
 txExpandedName::init(const nsAString& aQName, txNamespaceMap* aResolver,
-                     bool aUseDefault)
+                     MBool aUseDefault)
 {
     const nsAFlatString& qName = PromiseFlatString(aQName);
     const PRUnichar* colon;
-    bool valid = XMLUtils::isValidQName(qName, &colon);
+    PRBool valid = XMLUtils::isValidQName(qName, &colon);
     if (!valid) {
         return NS_ERROR_FAILURE;
     }
@@ -149,7 +149,7 @@ XMLUtils::splitQName(const nsAString& aName, nsIAtom** aPrefix,
 {
     const nsAFlatString& qName = PromiseFlatString(aName);
     const PRUnichar* colon;
-    bool valid = XMLUtils::isValidQName(qName, &colon);
+    PRBool valid = XMLUtils::isValidQName(qName, &colon);
     if (!valid) {
         return NS_ERROR_FAILURE;
     }
@@ -184,17 +184,17 @@ const nsDependentSubstring XMLUtils::getLocalPart(const nsAString& src)
 /**
  * Returns true if the given string has only whitespace characters
  */
-bool XMLUtils::isWhitespace(const nsAFlatString& aText)
+PRBool XMLUtils::isWhitespace(const nsAFlatString& aText)
 {
     nsAFlatString::const_char_iterator start, end;
     aText.BeginReading(start);
     aText.EndReading(end);
     for ( ; start != end; ++start) {
         if (!isWhitespace(*start)) {
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }
 
 /**
@@ -230,20 +230,20 @@ void XMLUtils::normalizePIValue(nsAString& piValue)
 }
 
 //static
-bool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
+MBool XMLUtils::getXMLSpacePreserve(const txXPathNode& aNode)
 {
     nsAutoString value;
     txXPathTreeWalker walker(aNode);
     do {
         if (walker.getAttr(nsGkAtoms::space, kNameSpaceID_XML, value)) {
             if (TX_StringEqualsAtom(value, nsGkAtoms::preserve)) {
-                return true;
+                return PR_TRUE;
             }
             if (TX_StringEqualsAtom(value, nsGkAtoms::_default)) {
-                return false;
+                return PR_FALSE;
             }
         }
     } while (walker.moveToParent());
 
-    return false;
+    return PR_FALSE;
 }

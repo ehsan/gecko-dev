@@ -83,7 +83,7 @@ private:
     : mCurThreadIndex(0)
     , mMainPRThread(nsnull)
     , mLock(nsnull)
-    , mInitialized(false) {
+    , mInitialized(PR_FALSE) {
   }
   
   static nsThreadManager sInstance;
@@ -95,7 +95,7 @@ private:
   // This is a pointer in order to allow creating nsThreadManager from
   // the static context in debug builds.
   nsAutoPtr<mozilla::Mutex> mLock;  // protects tables
-  bool                mInitialized;
+  PRBool              mInitialized;
 };
 
 #define NS_THREADMANAGER_CLASSNAME "nsThreadManager"

@@ -338,7 +338,7 @@ nsresult nsBinHexDecoder::ProcessNextState(nsIRequest * aRequest, nsISupports * 
 
 nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * aContext, PRUint32 numBytesInBuffer)
 {
-  bool foundStart;
+  PRBool foundStart;
   PRInt16 octetpos, c = 0;
   PRUint32 val;
   mPosInDataBuffer = 0; // use member variable.
@@ -348,7 +348,7 @@ nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * 
   //  if it is the first time, seek to the right start place.
   if (mState == BINHEX_STATE_START)
   {
-    foundStart = false;
+    foundStart = PR_FALSE;
     // go through the line, until we get a ':'
     while (mPosInDataBuffer < numBytesInBuffer)
     {
@@ -361,7 +361,7 @@ nsresult nsBinHexDecoder::ProcessNextChunk(nsIRequest * aRequest, nsISupports * 
         c = mDataBuffer[mPosInDataBuffer++];
         if (c == ':')
         {
-          foundStart = true;
+          foundStart = PR_TRUE;
           break;
         }
       }
@@ -487,7 +487,7 @@ nsBinHexDecoder::OnStartRequest(nsIRequest* request, nsISupports *aCtxt)
   rv = NS_NewPipe(getter_AddRefs(mInputStream), getter_AddRefs(mOutputStream),
                   nsIOService::gDefaultSegmentSize,
                   nsIOService::gDefaultSegmentSize,
-                  true, true);
+                  PR_TRUE, PR_TRUE);
 
   // don't propagate the on start request to mNextListener until we have determined the content type.
   return rv;

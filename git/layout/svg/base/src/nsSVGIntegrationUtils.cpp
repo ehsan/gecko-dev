@@ -52,11 +52,11 @@
 
 // ----------------------------------------------------------------------
 
-bool
+PRBool
 nsSVGIntegrationUtils::UsingEffectsForFrame(const nsIFrame* aFrame)
 {
   if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    return false;
+    return PR_FALSE;
   }
   const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
   return (style->mFilter || style->mClipPath || style->mMask);
@@ -196,7 +196,7 @@ nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
   return r - offset;
 }
 
-bool
+PRBool
 nsSVGIntegrationUtils::HitTestFrameForEffects(nsIFrame* aFrame, const nsPoint& aPt)
 {
   nsIFrame* firstFrame =
@@ -269,12 +269,12 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
    * + Merge opacity and masking if both used together.
    */
 
-  bool isOK = true;
+  PRBool isOK = PR_TRUE;
   nsSVGClipPathFrame *clipPathFrame = effectProperties.GetClipPathFrame(&isOK);
   nsSVGFilterFrame *filterFrame = effectProperties.GetFilterFrame(&isOK);
   nsSVGMaskFrame *maskFrame = effectProperties.GetMaskFrame(&isOK);
 
-  bool isTrivialClip = clipPathFrame ? clipPathFrame->IsTrivial() : true;
+  PRBool isTrivialClip = clipPathFrame ? clipPathFrame->IsTrivial() : PR_TRUE;
 
   if (!isOK) {
     // Some resource is missing. We shouldn't paint anything.
@@ -292,11 +292,11 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
 
   gfxMatrix matrix = GetInitialMatrix(aEffectsFrame);
 
-  bool complexEffects = false;
+  PRBool complexEffects = PR_FALSE;
   /* Check if we need to do additional operations on this child's
    * rendering, which necessitates rendering into another surface. */
   if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
-    complexEffects = true;
+    complexEffects = PR_TRUE;
     gfx->Save();
     aCtx->IntersectClip(aEffectsFrame->GetVisualOverflowRect());
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
@@ -421,7 +421,7 @@ public:
    , mPaintServerSize(aPaintServerSize)
    , mRenderSize(aRenderSize)
   {}
-  virtual bool operator()(gfxContext* aContext,
+  virtual PRBool operator()(gfxContext* aContext,
                             const gfxRect& aFillRect,
                             const gfxPattern::GraphicsFilter& aFilter,
                             const gfxMatrix& aTransform);
@@ -432,14 +432,14 @@ private:
   gfxIntSize mRenderSize;
 };
 
-bool
+PRBool
 PaintFrameCallback::operator()(gfxContext* aContext,
                                const gfxRect& aFillRect,
                                const gfxPattern::GraphicsFilter& aFilter,
                                const gfxMatrix& aTransform)
 {
   if (mFrame->GetStateBits() & NS_FRAME_DRAWING_AS_PAINTSERVER)
-    return false;
+    return PR_FALSE;
 
   mFrame->AddStateBits(NS_FRAME_DRAWING_AS_PAINTSERVER);
 
@@ -485,7 +485,7 @@ PaintFrameCallback::operator()(gfxContext* aContext,
 
   mFrame->RemoveStateBits(NS_FRAME_DRAWING_AS_PAINTSERVER);
 
-  return true;
+  return PR_TRUE;
 }
 
 static already_AddRefed<gfxDrawable>

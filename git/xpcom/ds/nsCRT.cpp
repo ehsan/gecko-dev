@@ -276,13 +276,13 @@ PRUint32 nsCRT::HashCode(const PRUnichar* start, PRUint32 length)
 }
 
 PRUint32 nsCRT::HashCodeAsUTF16(const char* start, PRUint32 length,
-                                bool* err)
+                                PRBool* err)
 {
   PRUint32 h = 0;
   const char* s = start;
   const char* end = start + length;
 
-  *err = false;
+  *err = PR_FALSE;
 
   while ( s < end )
     {

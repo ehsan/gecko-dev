@@ -42,11 +42,10 @@
 
 #include "gfxPattern.h"
 #include "nsThreadUtils.h"
+#include "nsCoreAnimationSupport.h"
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/mozalloc.h"
-
-class nsIOSurface;
 
 namespace mozilla {
 namespace layers {
@@ -138,7 +137,7 @@ public:
   ImageContainer() :
     mReentrantMonitor("ImageContainer.mReentrantMonitor"),
     mPaintCount(0),
-    mPreviousImagePainted(false)
+    mPreviousImagePainted(PR_FALSE)
   {}
 
   virtual ~ImageContainer() {}
@@ -168,7 +167,7 @@ public:
    * Ask any PlanarYCbCr images created by this container to delay
    * YUV -> RGB conversion until draw time. See PlanarYCbCrImage::SetDelayedConversion.
    */
-  virtual void SetDelayedConversion(bool aDelayed) {}
+  virtual void SetDelayedConversion(PRBool aDelayed) {}
 
   /**
    * Get the current Image.
@@ -222,7 +221,7 @@ public:
    * either of the same type as the container's current layer manager,
    * or null.  TRUE is returned on success. Main thread only.
    */
-  virtual bool SetLayerManager(LayerManager *aManager) = 0;
+  virtual PRBool SetLayerManager(LayerManager *aManager) = 0;
 
   /**
    * Sets a size that the image is expected to be rendered at.
@@ -278,7 +277,7 @@ public:
       // still must count it as painted, but can't set mPaintTime, since we're
       // no longer the current image.
       mPaintCount++;
-      mPreviousImagePainted = true;
+      mPreviousImagePainted = PR_TRUE;
     }
   }
 
@@ -294,7 +293,7 @@ protected:
     mManager(aManager),
     mReentrantMonitor("ImageContainer.mReentrantMonitor"),
     mPaintCount(0),
-    mPreviousImagePainted(false)
+    mPreviousImagePainted(PR_FALSE)
   {}
 
   // Performs necessary housekeeping to ensure the painted frame statistics
@@ -316,7 +315,7 @@ protected:
   TimeStamp mPaintTime;
 
   // Denotes whether the previous image was painted.
-  bool mPreviousImagePainted;
+  PRPackedBool mPreviousImagePainted;
 };
 
 /**
@@ -434,7 +433,7 @@ public:
    * the original data available through GetData. This is optional,
    * and not all PlanarYCbCrImages will support it.
    */
-  virtual void SetDelayedConversion(bool aDelayed) { }
+  virtual void SetDelayedConversion(PRBool aDelayed) { }
 
   /**
    * Grab the original YUV data. This is optional.

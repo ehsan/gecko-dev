@@ -150,10 +150,10 @@ public:
    * This method is typically called by an nsSMILTimeValueSpec.
    *
    * @param aInstanceTime   The time to add, expressed in container time.
-   * @param aIsBegin        true if the time to be added represents a begin
-   *                        time or false if it represents an end time.
+   * @param aIsBegin        PR_TRUE if the time to be added represents a begin
+   *                        time or PR_FALSE if it represents an end time.
    */
-  void AddInstanceTime(nsSMILInstanceTime* aInstanceTime, bool aIsBegin);
+  void AddInstanceTime(nsSMILInstanceTime* aInstanceTime, PRBool aIsBegin);
 
   /**
    * Requests this element update the given instance time.
@@ -164,13 +164,13 @@ public:
    * @param aUpdatedTime    The time to update aInstanceTime with.
    * @param aDependentTime  The instance time upon which aInstanceTime should be
    *                        based.
-   * @param aIsBegin        true if the time to be updated represents a begin
-   *                        instance time or false if it represents an end
+   * @param aIsBegin        PR_TRUE if the time to be updated represents a begin
+   *                        instance time or PR_FALSE if it represents an end
    *                        instance time.
    */
   void UpdateInstanceTime(nsSMILInstanceTime* aInstanceTime,
                           nsSMILTimeValue& aUpdatedTime,
-                          bool aIsBegin);
+                          PRBool aIsBegin);
 
   /**
    * Removes an instance time object from this element's list of instance times.
@@ -178,10 +178,10 @@ public:
    * This method is typically called by a child nsSMILTimeValueSpec.
    *
    * @param aInstanceTime   The instance time to remove.
-   * @param aIsBegin        true if the time to be removed represents a begin
-   *                        time or false if it represents an end time.
+   * @param aIsBegin        PR_TRUE if the time to be removed represents a begin
+   *                        time or PR_FALSE if it represents an end time.
    */
-  void RemoveInstanceTime(nsSMILInstanceTime* aInstanceTime, bool aIsBegin);
+  void RemoveInstanceTime(nsSMILInstanceTime* aInstanceTime, PRBool aIsBegin);
 
   /**
    * Removes all the instance times associated with the given
@@ -190,11 +190,11 @@ public:
    *
    * @param aSpec    The nsSMILTimeValueSpec object whose created
    *                 nsSMILInstanceTime's should be removed.
-   * @param aIsBegin true if the times to be removed represent begin
-   *                 times or false if they are end times.
+   * @param aIsBegin PR_TRUE if the times to be removed represent begin
+   *                 times or PR_FALSE if they are end times.
    */
   void RemoveInstanceTimesForCreator(const nsSMILTimeValueSpec* aSpec,
-                                     bool aIsBegin);
+                                     PRBool aIsBegin);
 
   /**
    * Sets the object that will be called by this timed element each time it is
@@ -267,10 +267,10 @@ public:
    * @param[out] aParseResult The result of parsing the attribute. Will be set
    *                          to NS_OK if parsing is successful.
    *
-   * @return true if the given attribute is a timing attribute, false
+   * @return PR_TRUE if the given attribute is a timing attribute, PR_FALSE
    * otherwise.
    */
-  bool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
+  PRBool SetAttr(nsIAtom* aAttribute, const nsAString& aValue,
                  nsAttrValue& aResult, Element* aContextNode,
                  nsresult* aParseResult = nsnull);
 
@@ -281,10 +281,10 @@ public:
    *                    namespace of the attribute is not specified (see
    *                    SetAttr).
    *
-   * @return true if the given attribute is a timing attribute, false
+   * @return PR_TRUE if the given attribute is a timing attribute, PR_FALSE
    * otherwise.
    */
-  bool UnsetAttr(nsIAtom* aAttribute);
+  PRBool UnsetAttr(nsIAtom* aAttribute);
 
   /**
    * Adds a syncbase dependency to the list of dependents that will be notified
@@ -313,11 +313,11 @@ public:
    * cases the element is not considered a time dependent of any other element.
    *
    * @param aOther    The potential syncbase element.
-   * @return true if this timed element's begin time for the currently
-   * effective interval is directly or indirectly derived from aOther, false
+   * @return PR_TRUE if this timed element's begin time for the currently
+   * effective interval is directly or indirectly derived from aOther, PR_FALSE
    * otherwise.
    */
-  bool IsTimeDependent(const nsSMILTimedElement& aOther) const;
+  PRBool IsTimeDependent(const nsSMILTimedElement& aOther) const;
 
   /**
    * Called when the timed element has been bound to the document so that
@@ -346,7 +346,7 @@ public:
   void Traverse(nsCycleCollectionTraversalCallback* aCallback);
   void Unlink();
 
-  typedef bool (*RemovalTestFunction)(nsSMILInstanceTime* aInstance);
+  typedef PRBool (*RemovalTestFunction)(nsSMILInstanceTime* aInstance);
 
 protected:
   // Typedefs
@@ -359,9 +359,9 @@ protected:
   // Helper classes
   class InstanceTimeComparator {
     public:
-      bool Equals(const nsSMILInstanceTime* aElem1,
+      PRBool Equals(const nsSMILInstanceTime* aElem1,
                     const nsSMILInstanceTime* aElem2) const;
-      bool LessThan(const nsSMILInstanceTime* aElem1,
+      PRBool LessThan(const nsSMILInstanceTime* aElem1,
                       const nsSMILInstanceTime* aElem2) const;
   };
 
@@ -404,13 +404,13 @@ protected:
 
   nsresult          SetBeginOrEndSpec(const nsAString& aSpec,
                                       Element* aContextNode,
-                                      bool aIsBegin,
+                                      PRBool aIsBegin,
                                       RemovalTestFunction aRemove);
   void              ClearSpecs(TimeValueSpecList& aSpecs,
                                InstanceTimeList& aInstances,
                                RemovalTestFunction aRemove);
   void              ClearIntervals();
-  void              DoSampleAt(nsSMILTime aContainerTime, bool aEndOnly);
+  void              DoSampleAt(nsSMILTime aContainerTime, PRBool aEndOnly);
 
   /**
    * Helper function to check for an early end and, if necessary, update the
@@ -423,10 +423,10 @@ protected:
    *                    applied at the last possible moment (i.e. if they are at
    *                    or before the current sample time) and only if the
    *                    current interval is not already ending.
-   * @return true if the end time of the current interval was updated,
-   *         false otherwise.
+   * @return PR_TRUE if the end time of the current interval was updated,
+   *         PR_FALSE otherwise.
    */
-  bool ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime);
+  PRBool ApplyEarlyEnd(const nsSMILTimeValue& aSampleTime);
 
   /**
    * Clears certain state in response to the element restarting.
@@ -480,11 +480,11 @@ protected:
    *                        should be updated such as when the animation is in
    *                        the ACTIVE state. May be nsnull.
    * @param[out] aResult    The next interval. Will be unchanged if no suitable
-   *                        interval was found (in which case false will be
+   *                        interval was found (in which case PR_FALSE will be
    *                        returned).
-   * @return  true if a suitable interval was found, false otherwise.
+   * @return  PR_TRUE if a suitable interval was found, PR_FALSE otherwise.
    */
-  bool              GetNextInterval(const nsSMILInterval* aPrevInterval,
+  PRBool            GetNextInterval(const nsSMILInterval* aPrevInterval,
                                     const nsSMILInterval* aReplacedInterval,
                                     const nsSMILInstanceTime* aFixedBeginTime,
                                     nsSMILInterval& aResult) const;
@@ -502,13 +502,13 @@ protected:
                                            PRUint32& aRepeatIteration);
   nsSMILInstanceTime* CheckForEarlyEnd(
                         const nsSMILTimeValue& aContainerTime) const;
-  void              UpdateCurrentInterval(bool aForceChangeNotice = false);
+  void              UpdateCurrentInterval(PRBool aForceChangeNotice = PR_FALSE);
   void              SampleSimpleTime(nsSMILTime aActiveTime);
   void              SampleFillValue();
   nsresult          AddInstanceTimeFromCurrentTime(nsSMILTime aCurrentTime,
-                        double aOffsetSeconds, bool aIsBegin);
+                        double aOffsetSeconds, PRBool aIsBegin);
   void              RegisterMilestone();
-  bool              GetNextMilestone(nsSMILMilestone& aNextMilestone) const;
+  PRBool            GetNextMilestone(nsSMILMilestone& aNextMilestone) const;
 
   // Notification methods. Note that these notifications can result in nested
   // calls to this same object. Therefore,
@@ -518,16 +518,15 @@ protected:
   //      element may have changed.
   void              NotifyNewInterval();
   void              NotifyChangedInterval(nsSMILInterval* aInterval,
-                                          bool aBeginObjectChanged,
-                                          bool aEndObjectChanged);
+                                          PRBool aBeginObjectChanged,
+                                          PRBool aEndObjectChanged);
 
   void              FireTimeEventAsync(PRUint32 aMsg, PRInt32 aDetail);
   const nsSMILInstanceTime* GetEffectiveBeginInstance() const;
   const nsSMILInterval* GetPreviousInterval() const;
-  bool              HasPlayed() const { return !mOldIntervals.IsEmpty(); }
-  bool              EndHasEventConditions() const;
-  bool              AreEndTimesDependentOn(
-                      const nsSMILInstanceTime* aBase) const;
+  PRBool            HasPlayed() const { return !mOldIntervals.IsEmpty(); }
+  PRBool            HaveDefiniteEndTimes() const;
+  PRBool            EndHasEventConditions() const;
 
   // Reset the current interval by first passing ownership to a temporary
   // variable so that if Unlink() results in us receiving a callback,
@@ -624,8 +623,8 @@ protected:
 
   // Used to batch updates to the timing model
   class AutoIntervalUpdateBatcher;
-  bool mDeferIntervalUpdates;
-  bool mDoDeferredUpdate; // Set if an update to the current interval
+  PRPackedBool mDeferIntervalUpdates;
+  PRPackedBool mDoDeferredUpdate; // Set if an update to the current interval
                                   // was requested while mDeferIntervalUpdates
                                   // was set
 

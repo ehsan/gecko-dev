@@ -41,14 +41,14 @@
 #include "nsContentUtils.h"
 
 nsDOMMozTouchEvent::nsDOMMozTouchEvent(nsPresContext* aPresContext, nsMozTouchEvent* aEvent)
-  : nsDOMMouseEvent(aPresContext, aEvent ? aEvent : new nsMozTouchEvent(false, 0, nsnull, 0))
+  : nsDOMMouseEvent(aPresContext, aEvent ? aEvent : new nsMozTouchEvent(PR_FALSE, 0, nsnull, 0))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_MOZTOUCH_EVENT, "event type mismatch NS_MOZTOUCH_EVENT");
 
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   } else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
   }
@@ -83,18 +83,18 @@ nsDOMMozTouchEvent::GetStreamId(PRUint32 *aStreamId)
 
 NS_IMETHODIMP
 nsDOMMozTouchEvent::InitMozTouchEvent(const nsAString& aTypeArg,
-                                      bool aCanBubbleArg,
-                                      bool aCancelableArg,
+                                      PRBool aCanBubbleArg,
+                                      PRBool aCancelableArg,
                                       nsIDOMWindow* aViewArg,
                                       PRInt32 aDetailArg,
                                       PRInt32 aScreenX,
                                       PRInt32 aScreenY,
                                       PRInt32 aClientX,
                                       PRInt32 aClientY,
-                                      bool aCtrlKeyArg,
-                                      bool aAltKeyArg,
-                                      bool aShiftKeyArg,
-                                      bool aMetaKeyArg,
+                                      PRBool aCtrlKeyArg,
+                                      PRBool aAltKeyArg,
+                                      PRBool aShiftKeyArg,
+                                      PRBool aMetaKeyArg,
                                       PRUint16 aButton,
                                       nsIDOMEventTarget* aRelatedTarget,
                                       PRUint32 aStreamId)

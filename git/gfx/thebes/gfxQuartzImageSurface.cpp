@@ -42,7 +42,7 @@
 
 gfxQuartzImageSurface::gfxQuartzImageSurface(gfxImageSurface *imageSurface)
 {
-    if (imageSurface->CairoSurface() == NULL)
+    if (imageSurface->CairoStatus() || imageSurface->CairoSurface() == NULL)
         return;
 
     cairo_surface_t *surf = cairo_quartz_image_surface_create (imageSurface->CairoSurface());
@@ -51,7 +51,7 @@ gfxQuartzImageSurface::gfxQuartzImageSurface(gfxImageSurface *imageSurface)
 
 gfxQuartzImageSurface::gfxQuartzImageSurface(cairo_surface_t *csurf)
 {
-    Init (csurf, true);
+    Init (csurf, PR_TRUE);
 }
 
 gfxQuartzImageSurface::~gfxQuartzImageSurface()

@@ -44,10 +44,6 @@
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
-
-/* This must occur *after* plugins/PluginModuleChild.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "mozilla/ipc/SyncChannel.h"
 
 #ifdef MOZ_WIDGET_GTK2
@@ -70,7 +66,6 @@
 #include "mozilla/plugins/BrowserStreamChild.h"
 #include "mozilla/plugins/PluginStreamChild.h"
 #include "PluginIdentifierChild.h"
-#include "mozilla/dom/CrashReporterChild.h"
 
 #include "nsNPAPIPlugin.h"
 
@@ -85,10 +80,7 @@
 #include "PluginUtilsOSX.h"
 #endif
 
-using namespace mozilla;
 using namespace mozilla::plugins;
-using mozilla::dom::CrashReporterChild;
-using mozilla::dom::PCrashReporterChild;
 
 #if defined(XP_WIN)
 const PRUnichar * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
@@ -137,7 +129,7 @@ PluginModuleChild::PluginModuleChild()
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
-    mUserAgent.SetIsVoid(true);
+    mUserAgent.SetIsVoid(PR_TRUE);
 #ifdef XP_MACOSX
     mac_plugin_interposing::child::SetUpCocoaInterposing();
 #endif
@@ -198,10 +190,10 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     mPluginFilename = aPluginFilename.c_str();
     nsCOMPtr<nsILocalFile> localFile;
     NS_NewLocalFile(NS_ConvertUTF8toUTF16(mPluginFilename),
-                    true,
+                    PR_TRUE,
                     getter_AddRefs(localFile));
 
-    bool exists;
+    PRBool exists;
     localFile->Exists(&exists);
     NS_ASSERTION(exists, "plugin file ain't there");
 
@@ -600,6 +592,7 @@ PluginModuleChild::InitGraphics()
     // Do this after initializing GDK, or GDK will install its own handler.
     XRE_InstallX11ErrorHandler();
 #endif
+
     return true;
 }
 
@@ -710,33 +703,6 @@ PluginModuleChild::QuickExit()
 {
     NS_WARNING("plugin process _exit()ing");
     _exit(0);
-}
-
-PCrashReporterChild*
-PluginModuleChild::AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                                       PRUint32* processType)
-{
-    return new CrashReporterChild();
-}
-
-bool
-PluginModuleChild::DeallocPCrashReporter(PCrashReporterChild* actor)
-{
-    delete actor;
-    return true;
-}
-
-bool
-PluginModuleChild::AnswerPCrashReporterConstructor(
-        PCrashReporterChild* actor,
-        mozilla::dom::NativeThreadId* id,
-        PRUint32* processType)
-{
-#ifdef MOZ_CRASHREPORTER
-    *id = CrashReporter::CurrentThreadId();
-    *processType = XRE_GetProcessType();
-#endif
-    return true;
 }
 
 void
@@ -1835,10 +1801,16 @@ PluginModuleChild::AnswerNP_GetEntryPoints(NPError* _retval)
 }
 
 bool
-PluginModuleChild::AnswerNP_Initialize(NPError* _retval)
+PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
+
+#ifdef MOZ_CRASHREPORTER
+    *tid = CrashReporter::CurrentThreadId();
+#else
+    *tid = 0;
+#endif
 
 #ifdef OS_WIN
     SetEventHooks();
@@ -1908,7 +1880,7 @@ PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
 
   if (!sBrowserHwnd) {
       PRUnichar szClass[20];
-      if (GetClassNameW(hWnd, szClass, ArrayLength(szClass)) &&
+      if (GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass)) && 
           !wcscmp(szClass, kMozillaWindowClass)) {
           sBrowserHwnd = hWnd;
       }
@@ -1986,16 +1958,6 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
     NS_NAMED_LITERAL_CSTRING(quicktime, "npqtplugin");
     if (FindInReadable(quicktime, mPluginFilename)) {
       mQuirks |= QUIRK_QUICKTIME_AVOID_SETWINDOW;
-    }
-#endif
-
-#ifdef XP_MACOSX
-    // Whitelist Flash and Quicktime to support offline renderer
-    NS_NAMED_LITERAL_CSTRING(flash, "application/x-shockwave-flash");
-    NS_NAMED_LITERAL_CSTRING(quicktime, "QuickTime Plugin.plugin");
-    if (FindInReadable(flash, aMimeType) ||
-        FindInReadable(quicktime, mPluginFilename)) {
-        mQuirks |= QUIRK_ALLOW_OFFLINE_RENDERER;
     }
 #endif
 }
@@ -2266,7 +2228,7 @@ PluginModuleChild::NPN_GetIntIdentifier(int32_t aIntId)
     PluginIdentifierChildInt* ident = self->mIntIdentifiers.Get(aIntId);
     if (!ident) {
         nsCString voidString;
-        voidString.SetIsVoid(true);
+        voidString.SetIsVoid(PR_TRUE);
 
         ident = new PluginIdentifierChildInt(aIntId);
         self->SendPPluginIdentifierConstructor(ident, voidString, aIntId, false);

@@ -38,14 +38,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "jsapi.h"
 #include "jsprvtd.h"
-#include "jsalloc.h"
-
-#include "js/Vector.h"
-
+#include "jsvector.h"
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -374,7 +369,7 @@ class JSAPITest
 
         JS_SetNativeStackQuota(cx, MAX_STACK_SIZE);
 
-        JS_SetOptions(cx, JSOPTION_VAROBJFIX);
+        JS_SetOptions(cx, JSOPTION_VAROBJFIX | JSOPTION_JIT);
         JS_SetVersion(cx, JSVERSION_LATEST);
         JS_SetErrorReporter(cx, &reportError);
         return cx;

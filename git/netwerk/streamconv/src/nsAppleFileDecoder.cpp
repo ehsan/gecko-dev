@@ -53,7 +53,7 @@ nsAppleFileDecoder::nsAppleFileDecoder()
   m_rfRefNum = -1;
   m_totalDataForkWritten = 0;
   m_totalResourceForkWritten = 0;
-  m_headerOk = false;
+  m_headerOk = PR_FALSE;
   
   m_comment[0] = 0;
   memset(&m_dates, 0, sizeof(m_dates));
@@ -76,9 +76,9 @@ NS_IMETHODIMP nsAppleFileDecoder::Initialize(nsIOutputStream *outputStream, nsIF
   m_output = outputStream;
   
   nsCOMPtr<nsILocalFileMac> macFile = do_QueryInterface(outputFile);
-  bool saveFollowLinks;
+  PRBool saveFollowLinks;
   macFile->GetFollowLinks(&saveFollowLinks);
-  macFile->SetFollowLinks(true);
+  macFile->SetFollowLinks(PR_TRUE);
   macFile->GetFSSpec(&m_fsFileSpec);
   macFile->SetFollowLinks(saveFollowLinks);
 
@@ -101,22 +101,22 @@ NS_IMETHODIMP nsAppleFileDecoder::Close(void)
   /* Check if the file is complete and if it's the case, write file attributes */
   if (m_headerOk)
   {
-    bool dataOk = true; /* It's ok if the file doesn't have a datafork, therefore set it to true by default. */
+    PRBool dataOk = PR_TRUE; /* It's ok if the file doesn't have a datafork, therefore set it to true by default. */
     if (m_headers.magic == APPLESINGLE_MAGIC)
     {
       for (i = 0; i < m_headers.entriesCount; i ++)
         if (ENT_DFORK == m_entries[i].id)
         {
-          dataOk = (bool)(m_totalDataForkWritten == m_entries[i].length);
+          dataOk = (PRBool)(m_totalDataForkWritten == m_entries[i].length);
           break;
         }
     }
 
-    bool resourceOk = FALSE;
+    PRBool resourceOk = FALSE;
     for (i = 0; i < m_headers.entriesCount; i ++)
       if (ENT_RFORK == m_entries[i].id)
       {
-        resourceOk = (bool)(m_totalResourceForkWritten == m_entries[i].length);
+        resourceOk = (PRBool)(m_totalResourceForkWritten == m_entries[i].length);
         break;
       }
       
@@ -173,7 +173,7 @@ NS_IMETHODIMP nsAppleFileDecoder::Close(void)
   }
   
   /* setting m_headerOk to false will prevent us to reprocess the header in case the Close function is called several time*/
-  m_headerOk = false;
+  m_headerOk = PR_FALSE;
 
   return rv;
 }
@@ -193,7 +193,7 @@ NS_IMETHODIMP nsAppleFileDecoder::WriteSegments(nsReadSegmentFun reader, void * 
   return m_output->WriteSegments(reader, closure, count, _retval);
 }
 
-NS_IMETHODIMP nsAppleFileDecoder::IsNonBlocking(bool *aNonBlocking)
+NS_IMETHODIMP nsAppleFileDecoder::IsNonBlocking(PRBool *aNonBlocking)
 {
   return m_output->IsNonBlocking(aNonBlocking);
 }
@@ -282,7 +282,7 @@ NS_IMETHODIMP nsAppleFileDecoder::Write(const char *buffer, PRUint32 bufferSize,
                 m_dataForkOffset = offset;
             }
           }
-          m_headerOk = true;          
+          m_headerOk = PR_TRUE;          
           m_state = parseLookupPart;
         }
         }

@@ -81,7 +81,7 @@
 
 #define VERSION_MAXLEN 128
 
-static void Output(bool isError, const char *fmt, ... )
+static void Output(PRBool isError, const char *fmt, ... )
 {
   va_list ap;
   va_start(ap, fmt);
@@ -116,7 +116,7 @@ static void Output(bool isError, const char *fmt, ... )
 /**
  * Return true if |arg| matches the given argument name.
  */
-static bool IsArg(const char* arg, const char* s)
+static PRBool IsArg(const char* arg, const char* s)
 {
   if (*arg == '-')
   {
@@ -130,13 +130,13 @@ static bool IsArg(const char* arg, const char* s)
     return !strcasecmp(++arg, s);
 #endif
 
-  return false;
+  return PR_FALSE;
 }
 
 /**
  * Return true if |aDir| is a valid file/directory.
  */
-static bool FolderExists(const char* aDir)
+static PRBool FolderExists(const char* aDir)
 {
 #ifdef XP_WIN
   wchar_t wideDir[MAX_PATH];
@@ -200,7 +200,7 @@ main(int argc, char **argv)
   char iniPath[MAXPATHLEN];
   char tmpPath[MAXPATHLEN];
   char greDir[MAXPATHLEN];
-  bool greFound = false;
+  PRBool greFound = PR_FALSE;
 
 #if defined(XP_MACOSX)
   CFBundleRef appBundle = CFBundleGetMainBundle();
@@ -277,12 +277,12 @@ main(int argc, char **argv)
     if (!pathdup)
       return 1;
 
-    bool found = false;
+    PRBool found = PR_FALSE;
     char *token = strtok(pathdup, ":");
     while (token) {
       sprintf(tmpPath, "%s/%s", token, argv[0]);
       if (stat(tmpPath, &fileStat) == 0) {
-        found = true;
+        found = PR_TRUE;
         lastSlash = strrchr(tmpPath, '/');
         *lastSlash = 0;
         realpath(tmpPath, iniPath);
@@ -334,7 +334,7 @@ main(int argc, char **argv)
   if (!appDataFile || !*appDataFile) 
     if (argc > 1 && IsArg(argv[1], "app")) {
       if (argc == 2) {
-        Output(false, "specify APP-FILE (optional)\n");
+        Output(PR_FALSE, "specify APP-FILE (optional)\n");
         return 1;
       }
       argv[1] = argv[0];
@@ -349,11 +349,11 @@ main(int argc, char **argv)
       char kAppEnv[MAXPATHLEN];
       snprintf(kAppEnv, MAXPATHLEN, "XUL_APP_FILE=%s", appDataFile);
       if (putenv(kAppEnv)) 
-        Output(false, "Couldn't set %s.\n", kAppEnv);
+        Output(PR_FALSE, "Couldn't set %s.\n", kAppEnv);
 
       char *result = (char*) calloc(sizeof(char), MAXPATHLEN);
       if (NS_FAILED(GetRealPath(appDataFile, &result))) {
-        Output(true, "Invalid application.ini path.\n");
+        Output(PR_TRUE, "Invalid application.ini path.\n");
         return 1;
       }
       
@@ -396,23 +396,23 @@ main(int argc, char **argv)
       CFURLRef xulurl =
         CFURLCreateCopyAppendingPathComponent(NULL, absfwurl,
                                               CFSTR("XUL.Framework"),
-                                              true);
+                                              PR_TRUE);
 
       if (xulurl) {
         CFURLRef xpcomurl =
           CFURLCreateCopyAppendingPathComponent(NULL, xulurl,
                                                 CFSTR("libxpcom.dylib"),
-                                                false);
+                                                PR_FALSE);
 
         if (xpcomurl) {
           char tbuffer[MAXPATHLEN];
 
-          if (CFURLGetFileSystemRepresentation(xpcomurl, true,
+          if (CFURLGetFileSystemRepresentation(xpcomurl, PR_TRUE,
                                                (UInt8*) tbuffer,
                                                sizeof(tbuffer)) &&
               access(tbuffer, R_OK | X_OK) == 0) {
             if (realpath(tbuffer, greDir)) {
-              greFound = true;
+              greFound = PR_TRUE;
             }
             else {
               greDir[0] = '\0';
@@ -429,7 +429,7 @@ main(int argc, char **argv)
     }
 #endif
     if (!greFound) {
-      Output(false, "Could not find the Mozilla runtime.\n");
+      Output(PR_FALSE, "Could not find the Mozilla runtime.\n");
       return 1;
     }
   }
@@ -449,10 +449,10 @@ main(int argc, char **argv)
     if (rv == NS_ERROR_OUT_OF_MEMORY) {
       char applicationName[2000] = "this application";
       parser.GetString("App", "Name", applicationName, sizeof(applicationName));
-      Output(true, "Not enough memory available to start %s.\n",
+      Output(PR_TRUE, "Not enough memory available to start %s.\n",
              applicationName);
     } else {
-      Output(true, "Couldn't load XPCOM.\n");
+      Output(PR_TRUE, "Couldn't load XPCOM.\n");
     }
     return 1;
   }
@@ -466,7 +466,7 @@ main(int argc, char **argv)
 
   rv = XPCOMGlueLoadXULFunctions(kXULFuncs);
   if (NS_FAILED(rv)) {
-    Output(true, "Couldn't load XRE functions.\n");
+    Output(PR_TRUE, "Couldn't load XRE functions.\n");
     return 1;
   }
 
@@ -478,20 +478,20 @@ main(int argc, char **argv)
     nsCOMPtr<nsILocalFile> iniFile;
 #ifdef XP_WIN
     // On Windows iniPath is UTF-8 encoded so we need to convert it.
-    rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(iniPath), false,
+    rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(iniPath), PR_FALSE,
                          getter_AddRefs(iniFile));
 #else
-    rv = NS_NewNativeLocalFile(nsDependentCString(iniPath), false,
+    rv = NS_NewNativeLocalFile(nsDependentCString(iniPath), PR_FALSE,
                                getter_AddRefs(iniFile));
 #endif
     if (NS_FAILED(rv)) {
-      Output(true, "Couldn't find application.ini file.\n");
+      Output(PR_TRUE, "Couldn't find application.ini file.\n");
       return 1;
     }
 
     AutoAppData appData(iniFile);
     if (!appData) {
-      Output(true, "Error: couldn't parse application.ini.\n");
+      Output(PR_TRUE, "Error: couldn't parse application.ini.\n");
       return 1;
     }
 
@@ -505,10 +505,10 @@ main(int argc, char **argv)
       }
 #ifdef XP_WIN
       // same as iniPath.
-      NS_NewLocalFile(NS_ConvertUTF8toUTF16(greDir), false,
+      NS_NewLocalFile(NS_ConvertUTF8toUTF16(greDir), PR_FALSE,
                       &appData->xreDirectory);
 #else
-      NS_NewNativeLocalFile(nsDependentCString(greDir), false,
+      NS_NewNativeLocalFile(nsDependentCString(greDir), PR_FALSE,
                             &appData->xreDirectory);
 #endif
     }

@@ -51,10 +51,10 @@ nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
 
   archString.Truncate();
 
-  bool foundPPC = false,
-         foundX86 = false,
-         foundPPC64 = false,
-         foundX86_64 = false;
+  PRBool foundPPC = PR_FALSE,
+         foundX86 = PR_FALSE,
+         foundPPC64 = PR_FALSE,
+         foundX86_64 = PR_FALSE;
 
   CFBundleRef mainBundle = ::CFBundleGetMainBundle();
   if (!mainBundle) {
@@ -77,13 +77,13 @@ nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
     }
 
     if (archInt == kCFBundleExecutableArchitecturePPC)
-      foundPPC = true;
+      foundPPC = PR_TRUE;
     else if (archInt == kCFBundleExecutableArchitectureI386)
-      foundX86 = true;
+      foundX86 = PR_TRUE;
     else if (archInt == kCFBundleExecutableArchitecturePPC64)
-      foundPPC64 = true;
+      foundPPC64 = PR_TRUE;
     else if (archInt == kCFBundleExecutableArchitectureX86_64)
-      foundX86_64 = true;
+      foundX86_64 = PR_TRUE;
   }
 
   ::CFRelease(archList);
@@ -120,10 +120,10 @@ nsresult nsMacUtilsImpl::GetArchString(nsAString& archString)
   return (archString.IsEmpty() ? NS_ERROR_FAILURE : NS_OK);
 }
 
-NS_IMETHODIMP nsMacUtilsImpl::GetIsUniversalBinary(bool *aIsUniversalBinary)
+NS_IMETHODIMP nsMacUtilsImpl::GetIsUniversalBinary(PRBool *aIsUniversalBinary)
 {
   NS_ENSURE_ARG_POINTER(aIsUniversalBinary);
-  *aIsUniversalBinary = false;
+  *aIsUniversalBinary = PR_FALSE;
 
   nsAutoString archString;
   nsresult rv = GetArchString(archString);
@@ -144,10 +144,10 @@ NS_IMETHODIMP nsMacUtilsImpl::GetArchitecturesInBinary(nsAString& archString)
 
 /* readonly attribute boolean isTranslated; */
 // True when running under binary translation (Rosetta).
-NS_IMETHODIMP nsMacUtilsImpl::GetIsTranslated(bool *aIsTranslated)
+NS_IMETHODIMP nsMacUtilsImpl::GetIsTranslated(PRBool *aIsTranslated)
 {
 #ifdef __ppc__
-  static bool    sInitialized = false;
+  static PRBool  sInitialized = PR_FALSE;
 
   // Initialize sIsNative to 1.  If the sysctl fails because it doesn't
   // exist, then translation is not possible, so the process must not be
@@ -157,14 +157,14 @@ NS_IMETHODIMP nsMacUtilsImpl::GetIsTranslated(bool *aIsTranslated)
   if (!sInitialized) {
     size_t sz = sizeof(sIsNative);
     sysctlbyname("sysctl.proc_native", &sIsNative, &sz, NULL, 0);
-    sInitialized = true;
+    sInitialized = PR_TRUE;
   }
 
   *aIsTranslated = !sIsNative;
 #else
   // Translation only exists for ppc code.  Other architectures aren't
   // translated.
-  *aIsTranslated = false;
+  *aIsTranslated = PR_FALSE;
 #endif
 
   return NS_OK;

@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsClipboardPrivacyHandler.h"
 #include "nsITransferable.h"
 #include "nsISupportsPrimitives.h"
@@ -54,8 +52,6 @@
 #include <ole2.h>
 #endif
 
-using namespace mozilla;
-
 #define NS_MOZ_DATA_FROM_PRIVATEBROWSING "application/x-moz-private-browsing"
 
 NS_IMPL_ISUPPORTS2(nsClipboardPrivacyHandler, nsIObserver, nsISupportsWeakReference)
@@ -68,7 +64,7 @@ nsClipboardPrivacyHandler::Init()
   if (!observerService)
     return NS_ERROR_FAILURE;
   return observerService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC,
-                                      true);
+                                      PR_TRUE);
 }
 
 /**
@@ -84,13 +80,13 @@ nsClipboardPrivacyHandler::PrepareDataForClipboard(nsITransferable * aTransferab
   if (InPrivateBrowsing()) {
     nsCOMPtr<nsISupportsPRBool> data = do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
     if (data) {
-      rv = data->SetData(true);
+      rv = data->SetData(PR_TRUE);
       NS_ENSURE_SUCCESS(rv, rv);
 
       rv = aTransferable->AddDataFlavor(NS_MOZ_DATA_FROM_PRIVATEBROWSING);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = aTransferable->SetTransferData(NS_MOZ_DATA_FROM_PRIVATEBROWSING, data, sizeof(bool));
+      rv = aTransferable->SetTransferData(NS_MOZ_DATA_FROM_PRIVATEBROWSING, data, sizeof(PRBool));
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -108,9 +104,9 @@ nsClipboardPrivacyHandler::Observe(nsISupports *aSubject, char const *aTopic, PR
     NS_ENSURE_SUCCESS(rv, rv);
 
     const char * flavors[] = { NS_MOZ_DATA_FROM_PRIVATEBROWSING };
-    bool haveFlavors;
+    PRBool haveFlavors;
     rv = clipboard->HasDataMatchingFlavors(flavors,
-                                           ArrayLength(flavors),
+                                           NS_ARRAY_LENGTH(flavors),
                                            nsIClipboard::kGlobalClipboard,
                                            &haveFlavors);
     if (NS_SUCCEEDED(rv) && haveFlavors) {
@@ -136,10 +132,10 @@ nsClipboardPrivacyHandler::Observe(nsISupports *aSubject, char const *aTopic, PR
   return NS_OK;
 }
 
-bool
+PRBool
 nsClipboardPrivacyHandler::InPrivateBrowsing()
 {
-  bool inPrivateBrowsingMode = false;
+  PRBool inPrivateBrowsingMode = PR_FALSE;
   if (!mPBService)
     mPBService = do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
   if (mPBService)

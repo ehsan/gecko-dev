@@ -103,7 +103,7 @@ nsScriptableUnescapeHTML::Unescape(const nsAString & aFromStr,
   parser->SetContentSink(sink);
 
   parser->Parse(aFromStr, 0, NS_LITERAL_CSTRING("text/html"),
-                true, eDTDMode_fragment);
+                PR_TRUE, eDTDMode_fragment);
   
   return NS_OK;
 }
@@ -113,7 +113,7 @@ nsScriptableUnescapeHTML::Unescape(const nsAString & aFromStr,
 // context like innerHTML does, because feed DOMs shouldn't have that.
 NS_IMETHODIMP
 nsScriptableUnescapeHTML::ParseFragment(const nsAString &aFragment,
-                                        bool aIsXML,
+                                        PRBool aIsXML,
                                         nsIURI* aBaseURI,
                                         nsIDOMElement* aContextElement,
                                         nsIDOMDocumentFragment** aReturn)
@@ -135,13 +135,13 @@ nsScriptableUnescapeHTML::ParseFragment(const nsAString &aFragment,
 
   // stop scripts
   nsRefPtr<nsScriptLoader> loader;
-  bool scripts_enabled = false;
+  PRBool scripts_enabled = PR_FALSE;
   if (document) {
     loader = document->ScriptLoader();
     scripts_enabled = loader->GetEnabled();
   }
   if (scripts_enabled) {
-    loader->SetEnabled(false);
+    loader->SetEnabled(PR_FALSE);
   }
 
   // Wrap things in a div or body for parsing, but it won't show up in
@@ -173,19 +173,19 @@ nsScriptableUnescapeHTML::ParseFragment(const nsAString &aFragment,
       rv = nsContentUtils::ParseFragmentXML(aFragment,
                                             document,
                                             tagStack,
-                                            true,
+                                            PR_TRUE,
                                             aReturn);
       fragment = do_QueryInterface(*aReturn);
     } else {
       NS_NewDocumentFragment(aReturn,
                              document->NodeInfoManager());
       fragment = do_QueryInterface(*aReturn);
-      rv = nsContentUtils::ParseFragmentHTML(aFragment,
-                                             fragment,
-                                             nsGkAtoms::body,
-                                             kNameSpaceID_XHTML,
-                                             false,
-                                             true);
+      nsContentUtils::ParseFragmentHTML(aFragment,
+                                        fragment,
+                                        nsGkAtoms::body,
+                                        kNameSpaceID_XHTML,
+                                        PR_FALSE,
+                                        PR_TRUE);
       // Now, set the base URI on all subtree roots.
       if (aBaseURI) {
         aBaseURI->GetSpec(spec);
@@ -198,20 +198,20 @@ nsScriptableUnescapeHTML::ParseFragment(const nsAString &aFragment,
                           nsGkAtoms::base,
                           nsGkAtoms::xml,
                           spec16,
-                          false);
+                          PR_FALSE);
           }
           node = node->GetNextSibling();
         }
       }
     }
     if (fragment) {
-      nsTreeSanitizer sanitizer(false, false);
+      nsTreeSanitizer sanitizer(PR_FALSE, PR_FALSE);
       sanitizer.Sanitize(fragment);
     }
   }
 
   if (scripts_enabled)
-      loader->SetEnabled(true);
+      loader->SetEnabled(PR_TRUE);
   
   return rv;
 }

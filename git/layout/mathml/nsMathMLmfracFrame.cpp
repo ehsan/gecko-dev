@@ -91,7 +91,7 @@ nsMathMLmfracFrame::TransmitAutomaticData()
   //    false increments scriptlevel by 1, within numerator and denominator.
   // 2. The TeXbook (Ch 17. p.141) says the numerator inherits the compression
   //    while the denominator is compressed
-  bool increment = !NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags);
+  PRBool increment = !NS_MATHML_IS_DISPLAYSTYLE(mPresentationData.flags);
   SetIncrementScriptLevel(0, increment);
   SetIncrementScriptLevel(1, increment);
 
@@ -189,9 +189,9 @@ nsMathMLmfracFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
                                     nsHTMLReflowMetrics& aDesiredSize)
 {
   return PlaceInternal(aRenderingContext,
-                       false,
+                       PR_FALSE,
                        aDesiredSize,
-                       true);
+                       PR_TRUE);
 }
 
 nscoord
@@ -206,20 +206,20 @@ nsMathMLmfracFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 
 /* virtual */ nsresult
 nsMathMLmfracFrame::Place(nsRenderingContext& aRenderingContext,
-                          bool                 aPlaceOrigin,
+                          PRBool               aPlaceOrigin,
                           nsHTMLReflowMetrics& aDesiredSize)
 {
   return PlaceInternal(aRenderingContext,
                        aPlaceOrigin,
                        aDesiredSize,
-                       false);
+                       PR_FALSE);
 }
 
 nsresult
 nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
-                                  bool                 aPlaceOrigin,
+                                  PRBool               aPlaceOrigin,
                                   nsHTMLReflowMetrics& aDesiredSize,
-                                  bool                 aWidthOnly)
+                                  PRBool               aWidthOnly)
 {
   ////////////////////////////////////
   // Get the children's desired sizes
@@ -575,7 +575,7 @@ void nsDisplayMathMLSlash::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
   
   // paint with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->SetColor(mFrame->GetStyleColor()->mColor);
  
   // draw the slash as a parallelogram 
   gfxContext *gfxCtx = aCtx->ThebesContext();

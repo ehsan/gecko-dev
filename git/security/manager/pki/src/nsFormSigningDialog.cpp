@@ -62,9 +62,9 @@ nsFormSigningDialog::ConfirmSignText(nsIInterfaceRequestor *aContext,
                                      const PRUnichar **aCertNickList,
                                      const PRUnichar **aCertDetailsList,
                                      PRUint32 aCount, PRInt32 *aSelectedIndex,
-                                     nsAString &aPassword, bool *aCanceled) 
+                                     nsAString &aPassword, PRBool *aCanceled) 
 {
-  *aCanceled = true;
+  *aCanceled = PR_TRUE;
 
   // Get the parent window for the dialog
   nsCOMPtr<nsIDOMWindow> parent = do_GetInterface(aContext);
@@ -104,10 +104,10 @@ nsFormSigningDialog::ConfirmSignText(nsIInterfaceRequestor *aContext,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (status == 0) {
-    *aCanceled = true;
+    *aCanceled = PR_TRUE;
   }
   else {
-    *aCanceled = false;
+    *aCanceled = PR_FALSE;
 
     rv = block->GetInt(1, aSelectedIndex);
     NS_ENSURE_SUCCESS(rv, rv);

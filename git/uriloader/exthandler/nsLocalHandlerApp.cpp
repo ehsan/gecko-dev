@@ -86,11 +86,11 @@ nsLocalHandlerApp::GetDetailedDescription(nsAString& aDescription)
 }
 
 NS_IMETHODIMP
-nsLocalHandlerApp::Equals(nsIHandlerApp *aHandlerApp, bool *_retval)
+nsLocalHandlerApp::Equals(nsIHandlerApp *aHandlerApp, PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(aHandlerApp);
 
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   // If the handler app isn't a local handler app, then it's not the same app.
   nsCOMPtr <nsILocalHandlerApp> localHandlerApp = do_QueryInterface(aHandlerApp);
@@ -106,7 +106,7 @@ nsLocalHandlerApp::Equals(nsIHandlerApp *aHandlerApp, bool *_retval)
 
   // Equality for two empty nsIHandlerApp
   if (!executable && !mExecutable) {
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 
@@ -154,7 +154,7 @@ nsLocalHandlerApp::LaunchWithIProcess(const nsCString& aArg)
 
   const char *string = aArg.get();
 
-  return process->Run(false, &string, 1);
+  return process->Run(PR_FALSE, &string, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,7 +212,7 @@ nsLocalHandlerApp::GetParameter(PRUint32 parameterIndex, nsAString & _retval)
 
 /* boolean parameterExists (in AString param); */
 NS_IMETHODIMP
-nsLocalHandlerApp::ParameterExists(const nsAString & aParam, bool *_retval)
+nsLocalHandlerApp::ParameterExists(const nsAString & aParam, PRBool *_retval)
 {
   *_retval = mParameters.Contains(aParam);
   return NS_OK;

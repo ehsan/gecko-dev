@@ -62,6 +62,7 @@ import android.util.*;
 import android.net.*;
 import android.database.*;
 import android.provider.*;
+import android.telephony.*;
 import android.content.pm.*;
 import android.content.pm.PackageManager.*;
 import dalvik.system.*;
@@ -79,7 +80,6 @@ abstract public class GeckoApp
 
     public static AbsoluteLayout mainLayout;
     public static GeckoSurfaceView surfaceView;
-    public static SurfaceView cameraView;
     public static GeckoApp mAppContext;
     public static boolean mFullscreen = false;
     public static File sGREDir = null;
@@ -87,10 +87,9 @@ abstract public class GeckoApp
     public Handler mMainHandler;
     private IntentFilter mConnectivityFilter;
     private BroadcastReceiver mConnectivityReceiver;
-    private BroadcastReceiver mBatteryReceiver;
-    private BroadcastReceiver mSmsReceiver;
+    private PhoneStateListener mPhoneStateListener;
 
-    enum LaunchState {PreLaunch, Launching, WaitForDebugger,
+    enum LaunchState {PreLaunch, Launching, WaitButton,
                       Launched, GeckoRunning, GeckoExiting};
     private static LaunchState sLaunchState = LaunchState.PreLaunch;
     private static boolean sTryCatchAttached = false;
@@ -332,9 +331,7 @@ abstract public class GeckoApp
                 } catch (Exception e) {
                     Log.e(LOG_FILE_NAME, "top level exception", e);
                     StringWriter sw = new StringWriter();
-                    PrintWriter pw = new PrintWriter(sw);
-                    e.printStackTrace(pw);
-                    pw.flush();
+                    e.printStackTrace(new PrintWriter(sw));
                     GeckoAppShell.reportJavaCrash(sw.toString());
                 }
             }
@@ -358,9 +355,7 @@ abstract public class GeckoApp
                     } catch (Exception e) {
                         Log.e(LOG_FILE_NAME, "top level exception", e);
                         StringWriter sw = new StringWriter();
-                        PrintWriter pw = new PrintWriter(sw);
-                        e.printStackTrace(pw);
-                        pw.flush();
+                        e.printStackTrace(new PrintWriter(sw));
                         GeckoAppShell.reportJavaCrash(sw.toString());
                     }
                     // resetting this is kinda pointless, but oh well
@@ -384,11 +379,6 @@ abstract public class GeckoApp
                              WindowManager.LayoutParams.FLAG_FULLSCREEN : 0,
                              WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
-        if (cameraView == null) {
-            cameraView = new SurfaceView(this);
-            cameraView.getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-        }
-
         if (surfaceView == null)
             surfaceView = new GeckoSurfaceView(this);
         else
@@ -400,7 +390,6 @@ abstract public class GeckoApp
                                                            AbsoluteLayout.LayoutParams.MATCH_PARENT,
                                                            0,
                                                            0));
-
         setContentView(mainLayout,
                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT,
                                                   ViewGroup.LayoutParams.FILL_PARENT));
@@ -409,15 +398,7 @@ abstract public class GeckoApp
         mConnectivityFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
         mConnectivityReceiver = new GeckoConnectivityReceiver();
 
-        IntentFilter batteryFilter = new IntentFilter();
-        batteryFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
-        mBatteryReceiver = new GeckoBatteryManager();
-        registerReceiver(mBatteryReceiver, batteryFilter);
-
-        IntentFilter smsFilter = new IntentFilter();
-        smsFilter.addAction("android.provider.Telephony.SMS_RECEIVED");
-        mSmsReceiver = new GeckoSmsManager();
-        registerReceiver(mSmsReceiver, smsFilter);
+        mPhoneStateListener = new GeckoPhoneStateListener();
 
         if (!checkAndSetLaunchState(LaunchState.PreLaunch,
                                     LaunchState.Launching))
@@ -440,15 +421,6 @@ abstract public class GeckoApp
         mLibLoadThread.start();
     }
 
-    public void enableCameraView() {
-        // Some phones (eg. nexus S) need at least a 8x16 preview size
-        mainLayout.addView(cameraView, new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
-    }
-
-    public void disableCameraView() {
-        mainLayout.removeView(cameraView);
-    }
-
     @Override
     protected void onNewIntent(Intent intent) {
         if (checkLaunchState(LaunchState.GeckoExiting)) {
@@ -459,19 +431,21 @@ abstract public class GeckoApp
         }
         final String action = intent.getAction();
         if (ACTION_DEBUG.equals(action) &&
-            checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitForDebugger)) {
-
-            mMainHandler.postDelayed(new Runnable() {
-                public void run() {
-                    Log.i(LOG_FILE_NAME, "Launching from debug intent after 5s wait");
+            checkAndSetLaunchState(LaunchState.Launching, LaunchState.WaitButton)) {
+            final Button launchButton = new Button(this);
+            launchButton.setText("Launch"); // don't need to localize
+            launchButton.setOnClickListener(new Button.OnClickListener() {
+                public void onClick (View v) {
+                    // hide the button so we can't be launched again
+                    mainLayout.removeView(launchButton);
                     setLaunchState(LaunchState.Launching);
                     launch(null);
                 }
-            }, 1000 * 5 /* 5 seconds */);
-            Log.i(LOG_FILE_NAME, "Intent : ACTION_DEBUG - waiting 5s before launching");
+            });
+            mainLayout.addView(launchButton, 300, 200);
             return;
         }
-        if (checkLaunchState(LaunchState.WaitForDebugger) || launch(intent))
+        if (checkLaunchState(LaunchState.WaitButton) || launch(intent))
             return;
 
         if (Intent.ACTION_MAIN.equals(action)) {
@@ -511,6 +485,10 @@ abstract public class GeckoApp
         super.onPause();
 
         unregisterReceiver(mConnectivityReceiver);
+
+        TelephonyManager tm = (TelephonyManager)
+            GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
     }
 
     @Override
@@ -529,6 +507,13 @@ abstract public class GeckoApp
             onNewIntent(getIntent());
 
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
+
+        TelephonyManager tm = (TelephonyManager)
+            GeckoApp.mAppContext.getSystemService(Context.TELEPHONY_SERVICE);
+        tm.listen(mPhoneStateListener, PhoneStateListener.LISTEN_DATA_CONNECTION_STATE);
+
+        // Notify if network state changed since we paused
+        GeckoAppShell.onNetworkStateChange(true);
     }
 
     @Override
@@ -545,6 +530,7 @@ abstract public class GeckoApp
         // Instead, what we should do here is save prefs, session,
         // etc., and generally mark the profile as 'clean', and then
         // dirty it again if we get an onResume.
+
 
         GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
         super.onStop();
@@ -571,16 +557,12 @@ abstract public class GeckoApp
     public void onDestroy()
     {
         Log.i(LOG_FILE_NAME, "destroy");
-
         // Tell Gecko to shutting down; we'll end up calling System.exit()
         // in onXreExit.
         if (isFinishing())
             GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_SHUTDOWN));
 
         super.onDestroy();
-
-        unregisterReceiver(mSmsReceiver);
-        unregisterReceiver(mBatteryReceiver);
     }
 
     @Override
@@ -626,6 +608,11 @@ abstract public class GeckoApp
             // This file may not be there, so just log any errors and move on
             Log.w(LOG_FILE_NAME, "error removing files", ex);
         }
+        unpackFile(zip, buf, null, "application.ini");
+        unpackFile(zip, buf, null, getContentProcessName());
+        try {
+            unpackFile(zip, buf, null, "update.locale");
+        } catch (Exception e) {/* this is non-fatal */}
 
         // copy any .xpi file into an extensions/ directory
         Enumeration<? extends ZipEntry> zipEntries = zip.entries();

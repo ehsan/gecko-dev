@@ -65,6 +65,7 @@ typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
 namespace mozilla {
 
 class Preferences : public nsIPrefService,
+                    public nsIPrefServiceInternal,
                     public nsIObserver,
                     public nsIPrefBranchInternal,
                     public nsSupportsWeakReference
@@ -72,6 +73,7 @@ class Preferences : public nsIPrefService,
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFSERVICE
+  NS_DECL_NSIPREFSERVICEINTERNAL
   NS_FORWARD_NSIPREFBRANCH(sRootBranch->)
   NS_FORWARD_NSIPREFBRANCH2(sRootBranch->)
   NS_DECL_NSIOBSERVER
@@ -125,9 +127,9 @@ public:
    * Gets int or bool type pref value with default value if failed to get
    * the pref.
    */
-  static bool GetBool(const char* aPref, bool aDefault = false)
+  static PRBool GetBool(const char* aPref, PRBool aDefault = PR_FALSE)
   {
-    bool result = aDefault;
+    PRBool result = aDefault;
     GetBool(aPref, &result);
     return result;
   }
@@ -179,7 +181,7 @@ public:
    * @param aResult     Must not be NULL.  The value is never modified when
    *                    these methods fail.
    */
-  static nsresult GetBool(const char* aPref, bool* aResult);
+  static nsresult GetBool(const char* aPref, PRBool* aResult);
   static nsresult GetInt(const char* aPref, PRInt32* aResult);
   static nsresult GetUint(const char* aPref, PRUint32* aResult)
   {
@@ -209,7 +211,7 @@ public:
   /**
    * Sets various type pref values.
    */
-  static nsresult SetBool(const char* aPref, bool aValue);
+  static nsresult SetBool(const char* aPref, PRBool aValue);
   static nsresult SetInt(const char* aPref, PRInt32 aValue);
   static nsresult SetUint(const char* aPref, PRUint32 aValue)
   {
@@ -231,7 +233,7 @@ public:
   /**
    * Whether the pref has a user value or not.
    */
-  static bool HasUserValue(const char* aPref);
+  static PRBool HasUserValue(const char* aPref);
 
   /**
    * Adds/Removes the observer for the root pref branch.
@@ -270,9 +272,9 @@ public:
    * changed but note that even if you modified it, the value isn't assigned to
    * the pref.
    */
-  static nsresult AddBoolVarCache(bool* aVariable,
+  static nsresult AddBoolVarCache(PRBool* aVariable,
                                   const char* aPref,
-                                  bool aDefault = false);
+                                  PRBool aDefault = PR_FALSE);
   static nsresult AddIntVarCache(PRInt32* aVariable,
                                  const char* aPref,
                                  PRInt32 aDefault = 0);
@@ -286,7 +288,7 @@ public:
    * If the pref could have any value, you needed to use these methods.
    * If not so, you could use below methods.
    */
-  static nsresult GetDefaultBool(const char* aPref, bool* aResult);
+  static nsresult GetDefaultBool(const char* aPref, PRBool* aResult);
   static nsresult GetDefaultInt(const char* aPref, PRInt32* aResult);
   static nsresult GetDefaultUint(const char* aPref, PRUint32* aResult)
   {
@@ -299,9 +301,9 @@ public:
    * methods failed to get the default value, they would return the
    * aFailedResult value.
    */
-  static bool GetDefaultBool(const char* aPref, bool aFailedResult)
+  static PRBool GetDefaultBool(const char* aPref, PRBool aFailedResult)
   {
-    bool result;
+    PRBool result;
     return NS_SUCCEEDED(GetDefaultBool(aPref, &result)) ? result :
                                                           aFailedResult;
   }
@@ -339,14 +341,6 @@ public:
   static nsresult GetDefaultComplex(const char* aPref, const nsIID &aType,
                                     void** aResult);
 
-  // Used to synchronise preferences between chrome and content processes.
-  static nsresult ReadExtensionPrefs(nsIFile *aFile);
-  static void MirrorPreferences(nsTArray<PrefTuple,
-                                nsTArrayInfallibleAllocator> *aArray);
-  static bool MirrorPreference(const char *aPref, PrefTuple *aTuple);
-  static void ClearContentPref(const char *aPref);
-  static void SetPreference(const PrefTuple *aTuple);
-
 protected:
   nsresult NotifyServiceObservers(const char *aSubject);
   nsresult UseDefaultPrefFile();
@@ -364,12 +358,12 @@ private:
   static nsIPrefBranch2*   sRootBranch;
   // NOTE: default branch doesn't return nsIPrefBranch2 interface at query.
   static nsIPrefBranch*    sDefaultRootBranch;
-  static bool              sShutdown;
+  static PRBool            sShutdown;
 
   /**
    * Init static members.  TRUE if it succeeded.  Otherwise, FALSE.
    */
-  static bool InitStaticMembers();
+  static PRBool InitStaticMembers(PRBool aForService = PR_FALSE);
 };
 
 } // namespace mozilla

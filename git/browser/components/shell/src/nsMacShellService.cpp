@@ -66,9 +66,9 @@
 NS_IMPL_ISUPPORTS3(nsMacShellService, nsIMacShellService, nsIShellService, nsIWebProgressListener)
 
 NS_IMETHODIMP
-nsMacShellService::IsDefaultBrowser(bool aStartupCheck, bool* aIsDefaultBrowser)
+nsMacShellService::IsDefaultBrowser(PRBool aStartupCheck, PRBool* aIsDefaultBrowser)
 {
-  *aIsDefaultBrowser = false;
+  *aIsDefaultBrowser = PR_FALSE;
 
   CFStringRef firefoxID = ::CFBundleGetIdentifier(::CFBundleGetMainBundle());
   if (!firefoxID) {
@@ -89,13 +89,13 @@ nsMacShellService::IsDefaultBrowser(bool aStartupCheck, bool* aIsDefaultBrowser)
   // checked this session (so that subsequent window opens don't show the 
   // default browser dialog).
   if (aStartupCheck)
-    mCheckedThisSession = true;
+    mCheckedThisSession = PR_TRUE;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsMacShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
+nsMacShellService::SetDefaultBrowser(PRBool aClaimAllTypes, PRBool aForAllUsers)
 {
   // Note: We don't support aForAllUsers on Mac OS X.
 
@@ -124,12 +124,12 @@ nsMacShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
 }
 
 NS_IMETHODIMP
-nsMacShellService::GetShouldCheckDefaultBrowser(bool* aResult)
+nsMacShellService::GetShouldCheckDefaultBrowser(PRBool* aResult)
 {
   // If we've already checked, the browser has been started and this is a 
   // new window open, and we don't want to check again.
   if (mCheckedThisSession) {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
   }
 
@@ -144,7 +144,7 @@ nsMacShellService::GetShouldCheckDefaultBrowser(bool* aResult)
 }
 
 NS_IMETHODIMP
-nsMacShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
+nsMacShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
 {
   nsCOMPtr<nsIPrefBranch> prefs;
   nsCOMPtr<nsIPrefService> pserve(do_GetService(NS_PREFSERVICE_CONTRACTID));
@@ -174,8 +174,12 @@ nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement,
   // We need the referer URI for nsIWebBrowserPersist::saveURI
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDocument> doc;
+  doc = content->GetOwnerDoc();
+  if (!doc)
+    return NS_ERROR_FAILURE;
 
-  nsIURI *docURI = content->OwnerDoc()->GetDocumentURI();
+  nsIURI *docURI = doc->GetDocumentURI();
   if (!docURI)
     return NS_ERROR_FAILURE;
 
@@ -235,8 +239,7 @@ nsMacShellService::OnProgressChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsMacShellService::OnLocationChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
-                                    nsIURI* aLocation,
-                                    PRUint32 aFlags)
+                                    nsIURI* aLocation)
 {
   return NS_OK;
 }
@@ -269,7 +272,7 @@ nsMacShellService::OnStateChange(nsIWebProgress* aWebProgress,
     if (os)
       os->NotifyObservers(nsnull, "shell:desktop-background-changed", nsnull);
 
-    bool exists = false;
+    PRBool exists = PR_FALSE;
     mBackgroundFile->Exists(&exists);
     if (!exists)
       return NS_OK;
@@ -357,9 +360,9 @@ nsMacShellService::OpenApplication(PRInt32 aApplication)
   case nsIMacShellService::APPLICATION_NETWORK:
     {
       nsCOMPtr<nsILocalFile> lf;
-      rv = NS_NewNativeLocalFile(NETWORK_PREFPANE, true, getter_AddRefs(lf));
+      rv = NS_NewNativeLocalFile(NETWORK_PREFPANE, PR_TRUE, getter_AddRefs(lf));
       NS_ENSURE_SUCCESS(rv, rv);
-      bool exists;
+      PRBool exists;
       lf->Exists(&exists);
       if (!exists)
         return NS_ERROR_FILE_NOT_FOUND;
@@ -369,9 +372,9 @@ nsMacShellService::OpenApplication(PRInt32 aApplication)
   case nsIMacShellService::APPLICATION_DESKTOP:
     {
       nsCOMPtr<nsILocalFile> lf;
-      rv = NS_NewNativeLocalFile(DESKTOP_PREFPANE, true, getter_AddRefs(lf));
+      rv = NS_NewNativeLocalFile(DESKTOP_PREFPANE, PR_TRUE, getter_AddRefs(lf));
       NS_ENSURE_SUCCESS(rv, rv);
-      bool exists;
+      PRBool exists;
       lf->Exists(&exists);
       if (!exists)
         return NS_ERROR_FILE_NOT_FOUND;

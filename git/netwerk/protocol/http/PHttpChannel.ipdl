@@ -72,17 +72,16 @@ parent:
             RequestHeaderTuples requestHeaders,
             nsHttpAtom          requestMethod,
             InputStream         uploadStream,
-            bool                uploadStreamHasHeaders,
+            PRBool              uploadStreamHasHeaders,
             PRUint16            priority,
             PRUint8             redirectionLimit,
-            bool                allowPipelining,
-            bool                forceAllowThirdPartyCookie,
+            PRBool              allowPipelining,
+            PRBool              forceAllowThirdPartyCookie,
             bool                resumeAt,
             PRUint64            startPos,
             nsCString           entityID,
             bool                chooseApplicationCache,
-            nsCString           appCacheClientID,
-            bool                allowSpdy);
+            nsCString           appCacheClientID);
 
   // Used to connect redirected-to channel on the parent with redirected-to
   // channel on the child.
@@ -128,10 +127,10 @@ parent:
 
 child:
   OnStartRequest(nsHttpResponseHead  responseHead,
-                 bool                useResponseHead,
+                 PRBool              useResponseHead,
                  RequestHeaderTuples requestHeaders,
-                 bool                isFromCache,
-                 bool                cacheEntryAvailable,
+                 PRBool              isFromCache,
+                 PRBool              cacheEntryAvailable,
                  PRUint32            cacheExpirationTime,
                  nsCString           cachedCharset,
                  nsCString           securityInfoSerialization,

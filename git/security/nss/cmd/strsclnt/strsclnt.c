@@ -1190,11 +1190,7 @@ client_main(
 	errExit("SSL_OptionSet SSL_SECURITY");
     }
 
-    rv = SSL_OptionSet(model_sock, SSL_ENABLE_SSL2, !disableSSL2);
-    if (rv != SECSuccess) {
-	errExit("error enabling SSLv2 ");
-    }
-
+    /* disabling SSL2 compatible hellos also disables SSL2 */
     rv = SSL_OptionSet(model_sock, SSL_V2_COMPATIBLE_HELLO, !disableSSL2);
     if (rv != SECSuccess) {
 	errExit("error enabling SSLv2 compatible hellos ");

@@ -51,7 +51,7 @@
 #include "prmem.h"
 
 nsresult
-nsDataChannel::OpenContentStream(bool async, nsIInputStream **result,
+nsDataChannel::OpenContentStream(PRBool async, nsIInputStream **result,
                                  nsIChannel** channel)
 {
     NS_ENSURE_TRUE(URI(), NS_ERROR_NOT_INITIALIZED);
@@ -63,7 +63,7 @@ nsDataChannel::OpenContentStream(bool async, nsIInputStream **result,
     if (NS_FAILED(rv)) return rv;
 
     nsCString contentType, contentCharset, dataBuffer, hashRef;
-    bool lBase64;
+    PRBool lBase64;
     rv = nsDataHandler::ParseURI(spec, contentType, contentCharset,
                                  lBase64, dataBuffer, hashRef);
 
@@ -84,7 +84,7 @@ nsDataChannel::OpenContentStream(bool async, nsIInputStream **result,
                     getter_AddRefs(bufOutStream),
                     nsIOService::gDefaultSegmentSize,
                     PR_UINT32_MAX,
-                    async, true);
+                    async, PR_TRUE);
     if (NS_FAILED(rv))
         return rv;
 

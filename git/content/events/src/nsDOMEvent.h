@@ -149,9 +149,11 @@ public:
     eDOMEvents_SVGResize,
     eDOMEvents_SVGScroll,
     eDOMEvents_SVGZoom,
+#ifdef MOZ_SMIL
     eDOMEvents_beginEvent,
     eDOMEvents_endEvent,
     eDOMEvents_repeatEvent,
+#endif // MOZ_SMIL
 #ifdef MOZ_MEDIA
     eDOMEvents_loadstart,
     eDOMEvents_progress,
@@ -176,9 +178,9 @@ public:
     eDOMEvents_mozaudioavailable,
 #endif
     eDOMEvents_afterpaint,
+    eDOMEvents_beforepaint,
     eDOMEvents_beforeresize,
     eDOMEvents_mozfullscreenchange,
-    eDOMEvents_mozfullscreenerror,
     eDOMEvents_MozSwipeGesture,
     eDOMEvents_MozMagnifyGestureStart,
     eDOMEvents_MozMagnifyGestureUpdate,
@@ -215,12 +217,12 @@ public:
   // nsIPrivateDOMEvent interface
   NS_IMETHOD    DuplicatePrivateData();
   NS_IMETHOD    SetTarget(nsIDOMEventTarget* aTarget);
-  NS_IMETHOD_(bool)    IsDispatchStopped();
+  NS_IMETHOD_(PRBool)    IsDispatchStopped();
   NS_IMETHOD_(nsEvent*)    GetInternalNSEvent();
-  NS_IMETHOD    SetTrusted(bool aTrusted);
+  NS_IMETHOD    SetTrusted(PRBool aTrusted);
 
-  virtual void Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType);
-  virtual bool Deserialize(const IPC::Message* aMsg, void** aIter);
+  virtual void Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType);
+  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter);
 
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
@@ -240,8 +242,8 @@ protected:
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
   nsIDOMEventTarget*          mExplicitOriginalTarget;
   nsString                    mCachedType;
-  bool                        mEventIsInternal;
-  bool                        mPrivateDataDuplicated;
+  PRPackedBool                mEventIsInternal;
+  PRPackedBool                mPrivateDataDuplicated;
 };
 
 #define NS_FORWARD_TO_NSDOMEVENT \

@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Darin Fisher <darin@meer.net>
  *   Jim Mathies <jmathies@mozilla.com>
- *   Guillermo Robla Vicario <groblavicario@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -53,9 +52,6 @@
 #include "nsIServiceManager.h"
 #include "nsIHttpAuthenticableChannel.h"
 #include "nsIURI.h"
-#include "nsIX509Cert.h"
-#include "nsISSLStatus.h"
-#include "nsISSLStatusProvider.h"
 
 static const char kAllowProxies[] = "network.automatic-ntlm-auth.allow-proxies";
 static const char kTrustedURIs[]  = "network.automatic-ntlm-auth.trusted-uris";
@@ -65,7 +61,7 @@ static const char kForceGeneric[] = "network.auth.force-generic-ntlm";
 // but since that file lives in a separate library we cannot directly share it.
 // bug 236865 addresses this problem.
 
-static bool
+static PRBool
 MatchesBaseURI(const nsCSubstring &matchScheme,
                const nsCSubstring &matchHost,
                PRInt32             matchPort,
@@ -79,7 +75,7 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
     if (schemeEnd) {
         // the given scheme must match the parsed scheme exactly
         if (!matchScheme.Equals(Substring(baseStart, schemeEnd)))
-            return false;
+            return PR_FALSE;
         hostStart = schemeEnd + 3;
     }
     else
@@ -91,7 +87,7 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
         // the given port must match the parsed port exactly
         int port = atoi(hostEnd + 1);
         if (matchPort != (PRInt32) port)
-            return false;
+            return PR_FALSE;
     }
     else
         hostEnd = baseEnd;
@@ -99,13 +95,13 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
 
     // if we didn't parse out a host, then assume we got a match.
     if (hostStart == hostEnd)
-        return true;
+        return PR_TRUE;
 
     PRUint32 hostLen = hostEnd - hostStart;
 
     // matchHost must either equal host or be a subdomain of host
     if (matchHost.Length() < hostLen)
-        return false;
+        return PR_FALSE;
 
     const char *end = matchHost.EndReading();
     if (PL_strncasecmp(end - hostLen, hostStart, hostLen) == 0) {
@@ -115,32 +111,32 @@ MatchesBaseURI(const nsCSubstring &matchScheme,
         if (matchHost.Length() == hostLen ||
             *(end - hostLen) == '.' ||
             *(end - hostLen - 1) == '.')
-            return true;
+            return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
-static bool
+static PRBool
 TestPref(nsIURI *uri, const char *pref)
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
-        return false;
+        return PR_FALSE;
 
     nsCAutoString scheme, host;
     PRInt32 port;
 
     if (NS_FAILED(uri->GetScheme(scheme)))
-        return false;
+        return PR_FALSE;
     if (NS_FAILED(uri->GetAsciiHost(host)))
-        return false;
+        return PR_FALSE;
     if (NS_FAILED(uri->GetPort(&port)))
-        return false;
+        return PR_FALSE;
 
     char *hostList;
     if (NS_FAILED(prefs->GetCharPref(pref, &hostList)) || !hostList)
-        return false;
+        return PR_FALSE;
 
     // pseudo-BNF
     // ----------
@@ -165,52 +161,52 @@ TestPref(nsIURI *uri, const char *pref)
         if (start == end)
             break;
         if (MatchesBaseURI(scheme, host, port, start, end))
-            return true;
+            return PR_TRUE;
         if (*end == '\0')
             break;
         start = end + 1;
     }
     
     nsMemory::Free(hostList);
-    return false;
+    return PR_FALSE;
 }
 
 // Check to see if we should use our generic (internal) NTLM auth module.
-static bool
+static PRBool
 ForceGenericNTLM()
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
-        return false;
-    bool flag = false;
+        return PR_FALSE;
+    PRBool flag = PR_FALSE;
 
     if (NS_FAILED(prefs->GetBoolPref(kForceGeneric, &flag)))
-        flag = false;
+        flag = PR_FALSE;
 
     LOG(("Force use of generic ntlm auth module: %d\n", flag));
     return flag;
 }
 
 // Check to see if we should use default credentials for this host or proxy.
-static bool
+static PRBool
 CanUseDefaultCredentials(nsIHttpAuthenticableChannel *channel,
-                         bool isProxyAuth)
+                         PRBool isProxyAuth)
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
-        return false;
+        return PR_FALSE;
 
     if (isProxyAuth) {
-        bool val;
+        PRBool val;
         if (NS_FAILED(prefs->GetBoolPref(kAllowProxies, &val)))
-            val = false;
+            val = PR_FALSE;
         LOG(("Default credentials allowed for proxy: %d\n", val));
         return val;
     }
 
     nsCOMPtr<nsIURI> uri;
     channel->GetURI(getter_AddRefs(uri));
-    bool isTrustedHost = (uri && TestPref(uri, kTrustedURIs));
+    PRBool isTrustedHost = (uri && TestPref(uri, kTrustedURIs));
     LOG(("Default credentials allowed for host: %d\n", isTrustedHost));
     return isTrustedHost;
 }
@@ -231,20 +227,17 @@ NS_IMPL_ISUPPORTS1(nsHttpNTLMAuth, nsIHttpAuthenticator)
 NS_IMETHODIMP
 nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
                                   const char     *challenge,
-                                  bool            isProxyAuth,
+                                  PRBool          isProxyAuth,
                                   nsISupports   **sessionState,
                                   nsISupports   **continuationState,
-                                  bool           *identityInvalid)
+                                  PRBool         *identityInvalid)
 {
     LOG(("nsHttpNTLMAuth::ChallengeReceived [ss=%p cs=%p]\n",
          *sessionState, *continuationState));
 
-    // Use the native NTLM if available
-    mUseNative = true;
-
     // NOTE: we don't define any session state, but we do use the pointer.
 
-    *identityInvalid = false;
+    *identityInvalid = PR_FALSE;
 
     // Start a new auth sequence if the challenge is exactly "NTLM".
     // If native NTLM auth apis are available and enabled through prefs,
@@ -256,7 +249,7 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
         // through UseGenericNTLM. (We use native auth by default if the
         // system provides it.) If *sessionState is non-null, we failed to
         // instantiate a native NTLM module the last time, so skip trying again.
-        bool forceGeneric = ForceGenericNTLM();
+        PRBool forceGeneric = ForceGenericNTLM();
         if (!forceGeneric && !*sessionState) {
             // Check for approved default credentials hosts and proxies. If 
             // *continuationState is non-null, the last authentication attempt
@@ -275,7 +268,7 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
                 // will be sent. We rely on windows internal apis to decide whether
                 // we should support this older, less secure version of the protocol.
                 module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "sys-ntlm");
-                *identityInvalid = true;
+                *identityInvalid = PR_TRUE;
             }
 #endif // XP_WIN
 #ifdef PR_LOGGING
@@ -305,11 +298,9 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
             // see bug 520607 for details.
             LOG(("Trying to fall back on internal ntlm auth.\n"));
             module = do_CreateInstance(NS_AUTH_MODULE_CONTRACTID_PREFIX "ntlm");
-	    
-            mUseNative = false;
 
             // Prompt user for domain, username, and password.
-            *identityInvalid = true;
+            *identityInvalid = PR_TRUE;
         }
 
         // If this fails, then it means that we cannot do NTLM auth.
@@ -328,7 +319,7 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
 NS_IMETHODIMP
 nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
                                     const char      *challenge,
-                                    bool             isProxyAuth,
+                                    PRBool           isProxyAuth,
                                     const PRUnichar *domain,
                                     const PRUnichar *user,
                                     const PRUnichar *pass,
@@ -344,7 +335,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
     *aFlags = 0;
 
     // if user or password is empty, ChallengeReceived returned
-    // identityInvalid = false, that means we are using default user
+    // identityInvalid = PR_FALSE, that means we are using default user
     // credentials; see  nsAuthSSPI::Init method for explanation of this 
     // condition
     if (!user || !pass)
@@ -375,61 +366,8 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
         if (NS_FAILED(rv))
             return rv;
 
-// This update enables updated Windows machines (Win7 or patched previous
-// versions) and Linux machines running Samba (updated for Channel 
-// Binding), to perform Channel Binding when authenticating using NTLMv2 
-// and an outer secure channel.
-// 
-// Currently only implemented for Windows, linux support will be landing in 
-// a separate patch, update this #ifdef accordingly then.
-#if defined (XP_WIN) /* || defined (LINUX) */
-        // We should retrieve the server certificate and compute the CBT, 
-        // but only when we are using the native NTLM implementation and 
-        // not the internal one.
-        // It is a valid case not having the security info object.  This
-        // occures when we connect an https site through an ntlm proxy.
-        // After the ssl tunnel has been created, we get here the second
-        // time and now generate the CBT from now valid security info.
-        nsCOMPtr<nsIChannel> channel = do_QueryInterface(authChannel, &rv);
-        if (NS_FAILED(rv))
-            return rv;
-
-        nsCOMPtr<nsISupports> security;
-        rv = channel->GetSecurityInfo(getter_AddRefs(security));
-        if (NS_FAILED(rv))
-            return rv;
-
-        nsCOMPtr<nsISSLStatusProvider> statusProvider =
-            do_QueryInterface(security);
-
-        if (mUseNative && statusProvider) {
-            nsCOMPtr<nsISSLStatus> status;
-            rv = statusProvider->GetSSLStatus(getter_AddRefs(status));
-            if (NS_FAILED(rv))
-                return rv;
-
-            nsCOMPtr<nsIX509Cert> cert;
-            rv = status->GetServerCert(getter_AddRefs(cert));
-            if (NS_FAILED(rv))
-                return rv;
-
-            PRUint32 length;
-            PRUint8* certArray;
-            cert->GetRawDER(&length, &certArray);						  
-			
-            // If there is a server certificate, we pass it along the
-            // first time we call GetNextToken().
-            inBufLen = length;
-            inBuf = certArray;
-        } else { 
-            // If there is no server certificate, we don't pass anything.
-            inBufLen = 0;
-            inBuf = nsnull;
-        }
-#else // Extended protection update is just for Linux and Windows machines.
         inBufLen = 0;
         inBuf = nsnull;
-#endif
     }
     else {
         // decode challenge; skip past "NTLM " to the start of the base64

@@ -43,11 +43,9 @@
  */
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/Util.h"
-
 #include "jstypes.h"
 #include "jsstdint.h"
+#include "jsbit.h"
 #include "jsutil.h"
 #include "jsprf.h"
 #include "jsapi.h"
@@ -63,18 +61,16 @@
 #include "jsopcode.h"
 #include "jsscope.h"
 #include "jsscript.h"
+#include "jsstaticcheck.h"
 #include "jswrapper.h"
 
 #include "vm/GlobalObject.h"
 
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
-#include "jsstrinlines.h"
 
 #include "vm/Stack-inl.h"
-#include "vm/String-inl.h"
 
-using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
@@ -115,7 +111,7 @@ Class js::ErrorClass = {
 };
 
 typedef struct JSStackTraceElem {
-    js::HeapPtrString   funName;
+    JSString            *funName;
     size_t              argc;
     const char          *filename;
     uintN               ulineno;
@@ -124,8 +120,8 @@ typedef struct JSStackTraceElem {
 typedef struct JSExnPrivate {
     /* A copy of the JSErrorReport originally generated. */
     JSErrorReport       *errorReport;
-    js::HeapPtrString   message;
-    js::HeapPtrString   filename;
+    JSString            *message;
+    JSString            *filename;
     uintN               lineno;
     size_t              stackDepth;
     intN                exnType;
@@ -330,12 +326,12 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
                 return false;
             JSStackTraceElem &frame = frames.back();
             if (fp->isNonEvalFunctionFrame()) {
-                frame.funName.init(fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString);
+                frame.funName = fp->fun()->atom ? fp->fun()->atom : cx->runtime->emptyString;
                 frame.argc = fp->numActualArgs();
                 if (!fp->forEachCanonicalActualArg(AppendArg(values)))
                     return false;
             } else {
-                frame.funName.init(NULL);
+                frame.funName = NULL;
                 frame.argc = 0;
             }
             if (fp->isScriptFrame()) {
@@ -359,9 +355,6 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     if (!priv)
         return false;
 
-    /* Initialize to zero so that write barriers don't witness undefined values. */
-    memset(priv, 0, nbytes);
-
     if (report) {
         /*
          * Construct a new copy of the error report struct. We can't use the
@@ -378,8 +371,8 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
         priv->errorReport = NULL;
     }
 
-    priv->message.init(message);
-    priv->filename.init(filename);
+    priv->message = message;
+    priv->filename = filename;
     priv->lineno = lineno;
     priv->stackDepth = frames.length();
     priv->exnType = exnType;
@@ -427,9 +420,8 @@ exn_trace(JSTracer *trc, JSObject *obj)
         }
         vp = GetStackTraceValueBuffer(priv);
         for (i = 0; i != vcount; ++i, ++vp) {
-            /* This value is read-only, so it's okay for it to be Unbarriered. */
             v = *vp;
-            MarkValueUnbarriered(trc, v, "stack trace argument");
+            JS_CALL_VALUE_TRACER(trc, v, "stack trace argument");
         }
     }
 }
@@ -500,6 +492,8 @@ exn_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
             if (!stack)
                 return false;
 
+            /* Allow to GC all things that were used to build stack trace. */
+            priv->stackDepth = 0;
             prop = js_stack_str;
             v = STRING_TO_JSVAL(stack);
             attrs = JSPROP_ENUMERATE;
@@ -624,8 +618,8 @@ StackTraceToString(JSContext *cx, JSExnPrivate *priv)
                 length_ >= STACK_LENGTH_LIMIT - stacklen) {                   \
                 goto done;                                                    \
             }                                                                 \
-            stackmax = RoundUpPow2(stacklen + length_);                       \
-            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));     \
+            stackmax = JS_BIT(JS_CeilingLog2(stacklen + length_));            \
+            ptr_ = cx->realloc_(stackbuf, (stackmax+1) * sizeof(jschar));      \
             if (!ptr_)                                                        \
                 goto bad;                                                     \
             stackbuf = (jschar *) ptr_;                                       \
@@ -732,7 +726,7 @@ Exception(JSContext *cx, uintN argc, Value *vp)
 
     /* Set the 'message' property. */
     JSString *message;
-    if (args.length() != 0 && !args[0].isUndefined()) {
+    if (args.argc() != 0 && !args[0].isUndefined()) {
         message = js_ValueToString(cx, args[0]);
         if (!message)
             return false;
@@ -748,7 +742,7 @@ Exception(JSContext *cx, uintN argc, Value *vp)
 
     /* Set the 'fileName' property. */
     JSString *filename;
-    if (args.length() > 1) {
+    if (args.argc() > 1) {
         filename = js_ValueToString(cx, args[1]);
         if (!filename)
             return false;
@@ -765,7 +759,7 @@ Exception(JSContext *cx, uintN argc, Value *vp)
 
     /* Set the 'lineNumber' property. */
     uint32_t lineno;
-    if (args.length() > 2) {
+    if (args.argc() > 2) {
         if (!ValueToECMAUint32(cx, args[2], &lineno))
             return false;
     } else {
@@ -867,7 +861,7 @@ exn_toSource(JSContext *cx, uintN argc, Value *vp)
     vp->setString(name);
 
     {
-        AutoArrayRooter tvr(cx, ArrayLength(localroots), localroots);
+        AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(localroots), localroots);
 
 #ifdef __GNUC__
         message = filename = NULL;
@@ -1162,7 +1156,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
 
     /* Protect the newly-created strings below from nesting GCs. */
     PodArrayZero(tv);
-    AutoArrayRooter tvr(cx, ArrayLength(tv), tv);
+    AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(tv), tv);
 
     /*
      * Try to get an appropriate prototype by looking up the corresponding
@@ -1227,7 +1221,7 @@ js_ReportUncaughtException(JSContext *cx)
         return false;
 
     PodArrayZero(roots);
-    AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
+    AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(roots), roots);
 
     /*
      * Because js_ValueToString below could error and an exception object
@@ -1245,7 +1239,7 @@ js_ReportUncaughtException(JSContext *cx)
     JS_ClearPendingException(cx);
     reportp = js_ErrorFromException(cx, exn);
 
-    /* XXX L10N angels cry once again. see also everywhere else */
+    /* XXX L10N angels cry once again (see also jsemit.c, /L10N gaffes/) */
     str = js_ValueToString(cx, exn);
     JSAutoByteString bytesStorage;
     if (!str) {
@@ -1346,11 +1340,11 @@ js_CopyErrorObject(JSContext *cx, JSObject *errobj, JSObject *scope)
     } else {
         copy->errorReport = NULL;
     }
-    copy->message.init(priv->message);
+    copy->message = priv->message;
     if (!cx->compartment->wrap(cx, &copy->message))
         return NULL;
     JS::Anchor<JSString *> messageAnchor(copy->message);
-    copy->filename.init(priv->filename);
+    copy->filename = priv->filename;
     if (!cx->compartment->wrap(cx, &copy->filename))
         return NULL;
     JS::Anchor<JSString *> filenameAnchor(copy->filename);

@@ -60,8 +60,8 @@ FTPChannelChild::FTPChannelChild(nsIURI* uri)
 , mEventQ(static_cast<nsIFTPChannel*>(this))
 , mCanceled(false)
 , mSuspendCount(0)
-, mIsPending(false)
-, mWasOpened(false)
+, mIsPending(PR_FALSE)
+, mWasOpened(PR_FALSE)
 , mLastModifiedTime(0)
 , mStartPos(0)
 {
@@ -199,21 +199,21 @@ FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)
   // us until OnStopRequest is called.
   AddIPDLReference();
 
-  mIsPending = true;
-  mWasOpened = true;
+  mIsPending = PR_TRUE;
+  mWasOpened = PR_TRUE;
 
   return rv;
 }
 
 NS_IMETHODIMP
-FTPChannelChild::IsPending(bool* result)
+FTPChannelChild::IsPending(PRBool* result)
 {
   *result = mIsPending;
   return NS_OK;
 }
 
 nsresult
-FTPChannelChild::OpenContentStream(bool async,
+FTPChannelChild::OpenContentStream(PRBool async,
                                    nsIInputStream** stream,
                                    nsIChannel** channel)
 {
@@ -378,7 +378,7 @@ FTPChannelChild::DoOnStopRequest(const nsresult& statusCode)
 
   { // Ensure that all queued ipdl events are dispatched before
     // we initiate protocol deletion below.
-    mIsPending = false;
+    mIsPending = PR_FALSE;
     AutoEventEnqueuer ensureSerialDispatch(mEventQ);
     (void)mListener->OnStopRequest(this, mListenerContext, statusCode);
     mListener = nsnull;
@@ -423,7 +423,7 @@ FTPChannelChild::DoCancelEarly(const nsresult& statusCode)
 
   mCanceled = true;
   mStatus = statusCode;
-  mIsPending = false;
+  mIsPending = PR_FALSE;
   
   if (mLoadGroup)
     mLoadGroup->RemoveRequest(this, nsnull, statusCode);
@@ -533,8 +533,8 @@ FTPChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);
 
-  mIsPending = true;
-  mWasOpened = true;
+  mIsPending = PR_TRUE;
+  mWasOpened = PR_TRUE;
   mListener = listener;
   mListenerContext = aContext;
 

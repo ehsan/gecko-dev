@@ -45,7 +45,6 @@
 #include "nsIMutationObserver.h"
 #include "nsExpirationTracker.h"
 #include "nsRect.h"
-#include "nsString.h"
 
 class nsSHEntry;
 class nsISHEntry;
@@ -99,11 +98,12 @@ class nsSHEntryShared : public nsIBFCacheEntry,
     PRUint64                        mDocShellID;
     nsCOMArray<nsIDocShellTreeItem> mChildShells;
     nsCOMPtr<nsISupports>           mOwner;
+    nsISHEntry*                     mParent;
     nsCString                       mContentType;
-    bool                            mIsFrameNavigation;
-    bool                            mSaveLayoutState;
-    bool                            mSticky;
-    bool                            mDynamicallyCreated;
+    PRPackedBool                    mIsFrameNavigation;
+    PRPackedBool                    mSaveLayoutState;
+    PRPackedBool                    mSticky;
+    PRPackedBool                    mDynamicallyCreated;
     nsCOMPtr<nsISupports>           mCacheKey;
     PRUint32                        mLastTouched;
 
@@ -113,7 +113,7 @@ class nsSHEntryShared : public nsIBFCacheEntry,
     nsCOMPtr<nsIContentViewer>      mContentViewer;
     nsCOMPtr<nsIDocument>           mDocument;
     nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;
-    bool                            mExpired;
+    PRPackedBool                    mExpired;
     nsCOMPtr<nsISupports>           mWindowState;
     nsIntRect                       mViewerBounds;
     nsCOMPtr<nsISupportsArray>      mRefreshURIList;

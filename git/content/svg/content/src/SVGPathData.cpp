@@ -38,6 +38,7 @@
 #include "SVGAnimatedPathSegList.h"
 #include "SVGPathSegUtils.h"
 #include "nsSVGElement.h"
+#include "nsISVGValueUtils.h"
 #include "nsDOMError.h"
 #include "nsContentUtils.h"
 #include "nsString.h"
@@ -50,7 +51,7 @@
 
 using namespace mozilla;
 
-static bool IsMoveto(PRUint16 aSegType)
+static PRBool IsMoveto(PRUint16 aSegType)
 {
   return aSegType == nsIDOMSVGPathSeg::PATHSEG_MOVETO_ABS ||
          aSegType == nsIDOMSVGPathSeg::PATHSEG_MOVETO_REL;
@@ -153,7 +154,7 @@ SVGPathData::CountItems() const
 }
 #endif
 
-bool
+PRBool
 SVGPathData::GetSegmentLengths(nsTArray<double> *aLengths) const
 {
   aLengths->Clear();
@@ -165,17 +166,17 @@ SVGPathData::GetSegmentLengths(nsTArray<double> *aLengths) const
     SVGPathSegUtils::TraversePathSegment(&mData[i], state);
     if (!aLengths->AppendElement(state.length)) {
       aLengths->Clear();
-      return false;
+      return PR_FALSE;
     }
     i += 1 + SVGPathSegUtils::ArgCountForType(mData[i]);
   }
 
   NS_ABORT_IF_FALSE(i == mData.Length(), "Very, very bad - mData corrupt");
 
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 SVGPathData::GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aOutput) const
 {
   SVGPathTraversalState state;
@@ -200,7 +201,7 @@ SVGPathData::GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aOu
     if (i == 0 || (segType != nsIDOMSVGPathSeg::PATHSEG_MOVETO_ABS &&
                    segType != nsIDOMSVGPathSeg::PATHSEG_MOVETO_REL)) {
       if (!aOutput->AppendElement(state.length)) {
-        return false;
+        return PR_FALSE;
       }
     }
     i += 1 + SVGPathSegUtils::ArgCountForType(segType);
@@ -208,7 +209,7 @@ SVGPathData::GetDistancesFromOriginToEndsOfVisibleSegments(nsTArray<double> *aOu
 
   NS_ABORT_IF_FALSE(i == mData.Length(), "Very, very bad - mData corrupt?");
 
-  return true;
+  return PR_TRUE;
 }
 
 PRUint32
@@ -287,9 +288,9 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
     return; // paths without an initial moveto are invalid
   }
 
-  bool capsAreSquare = aCtx->CurrentLineCap() == gfxContext::LINE_CAP_SQUARE;
-  bool subpathHasLength = false;  // visual length
-  bool subpathContainsNonArc = false;
+  PRBool capsAreSquare = aCtx->CurrentLineCap() == gfxContext::LINE_CAP_SQUARE;
+  PRBool subpathHasLength = PR_FALSE;  // visual length
+  PRBool subpathContainsNonArc = PR_FALSE;
 
   PRUint32 segType, prevSegType = nsIDOMSVGPathSeg::PATHSEG_UNKNOWN;
   gfxPoint pathStart(0.0, 0.0); // start point of [sub]path
@@ -311,7 +312,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
     {
     case nsIDOMSVGPathSeg::PATHSEG_CLOSEPATH:
       // set this early to allow drawing of square caps for "M{x},{y} Z":
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       MAYBE_APPROXIMATE_ZERO_LENGTH_SUBPATH_SQUARE_CAPS;
       segEnd = pathStart;
       aCtx->ClosePath();
@@ -321,16 +322,16 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       MAYBE_APPROXIMATE_ZERO_LENGTH_SUBPATH_SQUARE_CAPS;
       pathStart = segEnd = gfxPoint(mData[i], mData[i+1]);
       aCtx->MoveTo(segEnd);
-      subpathHasLength = false;
-      subpathContainsNonArc = false;
+      subpathHasLength = PR_FALSE;
+      subpathContainsNonArc = PR_FALSE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_MOVETO_REL:
       MAYBE_APPROXIMATE_ZERO_LENGTH_SUBPATH_SQUARE_CAPS;
       pathStart = segEnd = segStart + gfxPoint(mData[i], mData[i+1]);
       aCtx->MoveTo(segEnd);
-      subpathHasLength = false;
-      subpathContainsNonArc = false;
+      subpathHasLength = PR_FALSE;
+      subpathContainsNonArc = PR_FALSE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_LINETO_ABS:
@@ -339,7 +340,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_LINETO_REL:
@@ -348,7 +349,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_ABS:
@@ -359,7 +360,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1 || segEnd != cp2);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_REL:
@@ -370,7 +371,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1 || segEnd != cp2);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_ABS:
@@ -383,7 +384,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_REL:
@@ -396,7 +397,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_ARC_ABS:
@@ -430,7 +431,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_LINETO_HORIZONTAL_REL:
@@ -439,7 +440,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_ABS:
@@ -448,7 +449,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_REL:
@@ -457,7 +458,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_ABS:
@@ -468,7 +469,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1 || segEnd != cp2);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_REL:
@@ -479,7 +480,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1 || segEnd != cp2);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_ABS:
@@ -492,7 +493,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL:
@@ -505,7 +506,7 @@ SVGPathData::ConstructPath(gfxContext *aCtx) const
       if (!subpathHasLength) {
         subpathHasLength = (segEnd != segStart || segEnd != cp1);
       }
-      subpathContainsNonArc = true;
+      subpathContainsNonArc = PR_TRUE;
       break;
 
     default:
@@ -666,8 +667,8 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       double rx = mData[i];
       double ry = mData[i+1];
       double angle = mData[i+2];
-      bool largeArcFlag = mData[i+3] != 0.0f;
-      bool sweepFlag = mData[i+4] != 0.0f;
+      PRBool largeArcFlag = mData[i+3] != 0.0f;
+      PRBool sweepFlag = mData[i+4] != 0.0f;
       if (segType == nsIDOMSVGPathSeg::PATHSEG_ARC_ABS) {
         segEnd = gfxPoint(mData[i+5], mData[i+6]);
       } else {
@@ -830,7 +831,7 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
     default:
       // Leave any existing marks in aMarks so we have a visual indication of
       // when things went wrong.
-      NS_ABORT_IF_FALSE(false, "Unknown segment type - path corruption?");
+      NS_ABORT_IF_FALSE(PR_FALSE, "Unknown segment type - path corruption?");
       return;
     }
 

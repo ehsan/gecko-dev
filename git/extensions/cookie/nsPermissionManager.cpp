@@ -65,7 +65,7 @@ using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
 using mozilla::unused; // ha!
 
-static bool
+static PRBool
 IsChildProcess()
 {
   return XRE_GetProcessType() == GeckoProcessType_Content;
@@ -199,8 +199,8 @@ nsPermissionManager::Init()
 
   mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
   if (NS_SUCCEEDED(rv)) {
-    mObserverService->AddObserver(this, "profile-before-change", true);
-    mObserverService->AddObserver(this, "profile-do-change", true);
+    mObserverService->AddObserver(this, "profile-before-change", PR_TRUE);
+    mObserverService->AddObserver(this, "profile-do-change", PR_TRUE);
   }
 
   if (IsChildProcess()) {
@@ -221,13 +221,13 @@ nsPermissionManager::Init()
   // ignore failure here, since it's non-fatal (we can run fine without
   // persistent storage - e.g. if there's no profile).
   // XXX should we tell the user about this?
-  InitDB(false);
+  InitDB(PR_FALSE);
 
   return NS_OK;
 }
 
 nsresult
-nsPermissionManager::InitDB(bool aRemoveFile)
+nsPermissionManager::InitDB(PRBool aRemoveFile)
 {
   nsCOMPtr<nsIFile> permissionsFile;
   NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(permissionsFile));
@@ -238,11 +238,11 @@ nsPermissionManager::InitDB(bool aRemoveFile)
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aRemoveFile) {
-    bool exists = false;
+    PRBool exists = PR_FALSE;
     rv = permissionsFile->Exists(&exists);
     NS_ENSURE_SUCCESS(rv, rv);
     if (exists) {
-      rv = permissionsFile->Remove(false);
+      rv = permissionsFile->Remove(PR_FALSE);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -255,11 +255,11 @@ nsPermissionManager::InitDB(bool aRemoveFile)
   rv = storage->OpenDatabase(permissionsFile, getter_AddRefs(mDBConn));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool ready;
+  PRBool ready;
   mDBConn->GetConnectionReady(&ready);
   if (!ready) {
     // delete and try again
-    rv = permissionsFile->Remove(false);
+    rv = permissionsFile->Remove(PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = storage->OpenDatabase(permissionsFile, getter_AddRefs(mDBConn));
@@ -270,7 +270,7 @@ nsPermissionManager::InitDB(bool aRemoveFile)
       return NS_ERROR_UNEXPECTED;
   }
 
-  bool tableExists = false;
+  PRBool tableExists = PR_FALSE;
   mDBConn->TableExists(NS_LITERAL_CSTRING("moz_hosts"), &tableExists);
   if (!tableExists) {
     rv = CreateTable();
@@ -464,7 +464,7 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
   }
 
   // look up the type index
-  PRInt32 typeIndex = GetTypeIndex(aType.get(), true);
+  PRInt32 typeIndex = GetTypeIndex(aType.get(), PR_TRUE);
   NS_ENSURE_TRUE(typeIndex != -1, NS_ERROR_OUT_OF_MEMORY);
 
   // When an entry already exists, PutEntry will return that, instead
@@ -633,7 +633,7 @@ nsPermissionManager::RemoveAllInternal()
       mStmtDelete = nsnull;
       mStmtUpdate = nsnull;
       mDBConn = nsnull;
-      rv = InitDB(true);
+      rv = InitDB(PR_TRUE);
       return rv;
     }
   }
@@ -646,7 +646,7 @@ nsPermissionManager::TestExactPermission(nsIURI     *aURI,
                                          const char *aType,
                                          PRUint32   *aPermission)
 {
-  return CommonTestPermission(aURI, aType, aPermission, true);
+  return CommonTestPermission(aURI, aType, aPermission, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -654,14 +654,14 @@ nsPermissionManager::TestPermission(nsIURI     *aURI,
                                     const char *aType,
                                     PRUint32   *aPermission)
 {
-  return CommonTestPermission(aURI, aType, aPermission, false);
+  return CommonTestPermission(aURI, aType, aPermission, PR_FALSE);
 }
 
 nsresult
 nsPermissionManager::CommonTestPermission(nsIURI     *aURI,
                                           const char *aType,
                                           PRUint32   *aPermission,
-                                          bool        aExactHostMatch)
+                                          PRBool      aExactHostMatch)
 {
   NS_ENSURE_ARG_POINTER(aURI);
   NS_ENSURE_ARG_POINTER(aType);
@@ -674,7 +674,7 @@ nsPermissionManager::CommonTestPermission(nsIURI     *aURI,
   // No host doesn't mean an error. Just return the default. Unless this is
   // a file uri. In that case use a magic host.
   if (NS_FAILED(rv)) {
-    bool isFile;
+    PRBool isFile;
     rv = aURI->SchemeIs("file", &isFile);
     NS_ENSURE_SUCCESS(rv, rv);
     if (isFile) {
@@ -685,7 +685,7 @@ nsPermissionManager::CommonTestPermission(nsIURI     *aURI,
     }
   }
   
-  PRInt32 typeIndex = GetTypeIndex(aType, false);
+  PRInt32 typeIndex = GetTypeIndex(aType, PR_FALSE);
   // If type == -1, the type isn't known,
   // so just return NS_OK
   if (typeIndex == -1) return NS_OK;
@@ -705,7 +705,7 @@ nsPermissionManager::CommonTestPermission(nsIURI     *aURI,
 nsHostEntry *
 nsPermissionManager::GetHostEntry(const nsAFlatCString &aHost,
                                   PRUint32              aType,
-                                  bool                  aExactHostMatch)
+                                  PRBool                aExactHostMatch)
 {
   PRUint32 offset = 0;
   nsHostEntry *entry;
@@ -792,16 +792,10 @@ NS_IMETHODIMP nsPermissionManager::Observe(nsISupports *aSubject, const char *aT
     } else {
       RemoveAllFromMemory();
     }
-    if (mDBConn) {
-      // Null the statements, this will finalize them.
-      mStmtInsert = nsnull;
-      mStmtDelete = nsnull;
-      mStmtUpdate = nsnull;
-    }
   }
   else if (!nsCRT::strcmp(aTopic, "profile-do-change")) {
     // the profile has already changed; init the db from the new location
-    InitDB(false);
+    InitDB(PR_FALSE);
   }
 
   return NS_OK;
@@ -828,7 +822,7 @@ nsPermissionManager::RemoveAllFromMemory()
 // Returns -1 on failure
 PRInt32
 nsPermissionManager::GetTypeIndex(const char *aType,
-                                  bool        aAdd)
+                                  PRBool      aAdd)
 {
   for (PRUint32 i = 0; i < mTypeArray.Length(); ++i)
     if (mTypeArray[i].Equals(aType))
@@ -903,7 +897,7 @@ nsPermissionManager::Read()
     rv = stmtDeleteExpired->BindInt64ByIndex(1, PR_Now() / 1000);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    bool hasResult;
+    PRBool hasResult;
     rv = stmtDeleteExpired->ExecuteStep(&hasResult);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -919,7 +913,7 @@ nsPermissionManager::Read()
   PRUint32 permission;
   PRUint32 expireType;
   PRInt64 expireTime;
-  bool hasResult;
+  PRBool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
     // explicitly set our entry id counter for use in AddInternal(),
     // and keep track of the largest id so we know where to pick up.
@@ -973,7 +967,7 @@ nsPermissionManager::Import()
 
   // start a transaction on the storage db, to optimize insertions.
   // transaction will automically commit on completion
-  mozStorageTransaction transaction(mDBConn, true);
+  mozStorageTransaction transaction(mDBConn, PR_TRUE);
 
   /* format is:
    * matchtype \t type \t permission \t host
@@ -983,7 +977,7 @@ nsPermissionManager::Import()
    */
 
   nsCAutoString buffer;
-  bool isMore = true;
+  PRBool isMore = PR_TRUE;
   while (isMore && NS_SUCCEEDED(lineInputStream->ReadLine(buffer, &isMore))) {
     if (buffer.IsEmpty() || buffer.First() == '#') {
       continue;
@@ -1016,7 +1010,7 @@ nsPermissionManager::Import()
   }
 
   // we're done importing - delete the old file
-  permissionsFile->Remove(false);
+  permissionsFile->Remove(PR_FALSE);
 
   return NS_OK;
 }
@@ -1118,7 +1112,7 @@ nsPermissionManager::UpdateDB(OperationType         aOp,
   }
 
   if (NS_SUCCEEDED(rv)) {
-    bool hasResult;
+    PRBool hasResult;
     rv = aStmt->ExecuteStep(&hasResult);
     aStmt->Reset();
   }

@@ -38,7 +38,6 @@
 
 #include "nsXULSliderAccessible.h"
 
-#include "nsAccessibilityService.h"
 #include "States.h"
 
 #include "nsIDOMDocument.h"
@@ -83,7 +82,7 @@ nsXULSliderAccessible::NativeState()
   if (frame && frame->IsFocusable())
     states |= states::FOCUSABLE;
 
-  if (FocusMgr()->IsFocused(this))
+  if (gLastFocusedNode == mContent)
     states |= states::FOCUSED;
 
   return states;
@@ -188,11 +187,11 @@ nsXULSliderAccessible::SetCurrentValue(double aValue)
   return SetSliderAttr(nsGkAtoms::curpos, aValue);
 }
 
-bool
+PRBool
 nsXULSliderAccessible::GetAllowsAnonChildAccessibles()
 {
   // Do not allow anonymous xul:slider be accessible.
-  return false;
+  return PR_FALSE;
 }
 
 // Utils
@@ -204,7 +203,11 @@ nsXULSliderAccessible::GetSliderNode()
     return nsnull;
 
   if (!mSliderNode) {
-    nsCOMPtr<nsIDOMDocumentXBL> xblDoc(do_QueryInterface(mContent->OwnerDoc()));
+    nsIDocument* document = mContent->GetOwnerDoc();
+    if (!document)
+      return nsnull;
+
+    nsCOMPtr<nsIDOMDocumentXBL> xblDoc(do_QueryInterface(document));
     if (!xblDoc)
       return nsnull;
 
@@ -247,7 +250,7 @@ nsXULSliderAccessible::SetSliderAttr(nsIAtom *aName, const nsAString& aValue)
   nsCOMPtr<nsIContent> sliderNode(GetSliderNode());
   NS_ENSURE_STATE(sliderNode);
 
-  sliderNode->SetAttr(kNameSpaceID_None, aName, aValue, true);
+  sliderNode->SetAttr(kNameSpaceID_None, aName, aValue, PR_TRUE);
   return NS_OK;
 }
 

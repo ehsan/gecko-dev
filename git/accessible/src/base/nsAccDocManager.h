@@ -91,17 +91,13 @@ public:
     mDocAccessibleCache.Remove(aDocument);
   }
 
-#ifdef DEBUG
-  bool IsProcessingRefreshDriverNotification() const;
-#endif
-
 protected:
   nsAccDocManager() { };
 
   /**
    * Initialize the manager.
    */
-  bool Init();
+  PRBool Init();
 
   /**
    * Shutdown the manager.
@@ -127,7 +123,7 @@ private:
   /**
    * Add 'pagehide' and 'DOMContentLoaded' event listeners.
    */
-  void AddListeners(nsIDocument *aDocument, bool aAddPageShowListener);
+  void AddListeners(nsIDocument *aDocument, PRBool aAddPageShowListener);
 
   /**
    * Create document or root accessible.
@@ -161,12 +157,6 @@ private:
                                nsDocAccessible* aDocAccessible,
                                void* aUserArg);
 
-#ifdef DEBUG
-  static PLDHashOperator
-    SearchIfDocIsRefreshing(const nsIDocument* aKey,
-                            nsDocAccessible* aDocAccessible, void* aUserArg);
-#endif
-
   nsDocAccessibleHashtable mDocAccessibleCache;
 };
 
@@ -174,8 +164,6 @@ private:
  * nsAccDocManager debugging macros.
  */
 #ifdef DEBUG_ACCDOCMGR
-
-#include "nsTraceRefcntImpl.h"
 
 // Enable these to log accessible document loading, creation or destruction.
 #define DEBUG_ACCDOCMGR_DOCLOAD
@@ -194,7 +182,7 @@ private:
 
 #define NS_LOG_ACCDOC_TYPE(aDocument)                                          \
   if (aDocument->IsActive()) {                                                 \
-    bool isContent = nsCoreUtils::IsContentDocument(aDocument);              \
+    PRBool isContent = nsCoreUtils::IsContentDocument(aDocument);              \
     printf("%s document", (isContent ? "content" : "chrome"));                 \
   } else {                                                                     \
     printf("document type: [failed]");                                         \
@@ -417,10 +405,6 @@ private:
 #define NS_LOG_ACCDOC_TEXT(aMsg)                                               \
   printf("  " aMsg "\n");
 
-#define NS_LOG_ACCDOC_STACK                                                    \
-  printf("  stack: \n");                                                       \
-  nsTraceRefcntImpl::WalkTheStack(stdout);
-
 // Accessible document loading macros.
 #ifdef DEBUG_ACCDOCMGR_DOCLOAD
 
@@ -474,7 +458,7 @@ private:
         NS_LOG_ACCDOCLOAD_REQUEST(aRequest)                                    \
         printf("\n");                                                          \
         printf("    state flags: %x", aStateFlags);                            \
-        bool isDocLoading;                                                   \
+        PRBool isDocLoading;                                                   \
         aWebProgress->GetIsLoadingDocument(&isDocLoading);                     \
         printf(", document is %sloading\n", (isDocLoading ? "" : "not "));     \
         printf("  }\n");                                                       \
@@ -531,10 +515,7 @@ private:
   NS_LOG_ACCDOC_ACCADDRESS(aName, aAcc)
 
 #define NS_LOG_ACCDOCCREATE_TEXT(aMsg)                                         \
-  NS_LOG_ACCDOC_TEXT(aMsg)
-
-#define NS_LOG_ACCDOCCREATE_STACK                                              \
-  NS_LOG_ACCDOC_STACK
+    NS_LOG_ACCDOC_TEXT(aMsg)
 
 #endif // DEBUG_ACCDOCMGR_DOCCREATE
 
@@ -578,7 +559,6 @@ private:
 #define NS_LOG_ACCDOCCREATE(aMsg, aDocument)
 #define NS_LOG_ACCDOCCREATE_ACCADDRESS(aName, aAcc)
 #define NS_LOG_ACCDOCCREATE_TEXT(aMsg)
-#define NS_LOG_ACCDOCCREATE_STACK
 #endif
 
 #ifndef DEBUG_ACCDOCMGR_DOCDESTROY

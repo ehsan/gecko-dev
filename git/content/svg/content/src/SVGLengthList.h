@@ -70,7 +70,7 @@ public:
   /// This may return an incomplete string on OOM, but that's acceptable.
   void GetValueAsString(nsAString& aValue) const;
 
-  bool IsEmpty() const {
+  PRBool IsEmpty() const {
     return mLengths.IsEmpty();
   }
 
@@ -82,9 +82,9 @@ public:
     return mLengths[aIndex];
   }
 
-  bool operator==(const SVGLengthList& rhs) const;
+  PRBool operator==(const SVGLengthList& rhs) const;
 
-  bool SetCapacity(PRUint32 size) {
+  PRBool SetCapacity(PRUint32 size) {
     return mLengths.SetCapacity(size);
   }
 
@@ -112,10 +112,10 @@ protected:
   }
 
   /**
-   * This may fail (return false) on OOM if the internal capacity is being
+   * This may fail (return PR_FALSE) on OOM if the internal capacity is being
    * increased, in which case the list will be left unmodified.
    */
-  bool SetLength(PRUint32 aNumberOfItems) {
+  PRBool SetLength(PRUint32 aNumberOfItems) {
     return mLengths.SetLength(aNumberOfItems);
   }
 
@@ -131,7 +131,7 @@ private:
     mLengths.Clear();
   }
 
-  bool InsertItem(PRUint32 aIndex, const SVGLength &aLength) {
+  PRBool InsertItem(PRUint32 aIndex, const SVGLength &aLength) {
     if (aIndex >= mLengths.Length()) aIndex = mLengths.Length();
     return !!mLengths.InsertElementAt(aIndex, aLength);
   }
@@ -148,7 +148,7 @@ private:
     mLengths.RemoveElementAt(aIndex);
   }
 
-  bool AppendItem(SVGLength aLength) {
+  PRBool AppendItem(SVGLength aLength) {
     return !!mLengths.AppendElement(aLength);
   }
 
@@ -203,16 +203,16 @@ public:
   SVGLengthListAndInfo()
     : mElement(nsnull)
     , mAxis(0)
-    , mCanZeroPadList(false)
+    , mCanZeroPadList(PR_FALSE)
   {}
 
-  SVGLengthListAndInfo(nsSVGElement *aElement, PRUint8 aAxis, bool aCanZeroPadList)
+  SVGLengthListAndInfo(nsSVGElement *aElement, PRUint8 aAxis, PRBool aCanZeroPadList)
     : mElement(do_GetWeakReference(static_cast<nsINode*>(aElement)))
     , mAxis(aAxis)
     , mCanZeroPadList(aCanZeroPadList)
   {}
 
-  void SetInfo(nsSVGElement *aElement, PRUint8 aAxis, bool aCanZeroPadList) {
+  void SetInfo(nsSVGElement *aElement, PRUint8 aAxis, PRBool aCanZeroPadList) {
     mElement = do_GetWeakReference(static_cast<nsINode*>(aElement));
     mAxis = aAxis;
     mCanZeroPadList = aCanZeroPadList;
@@ -232,13 +232,13 @@ public:
    * The value returned by this function depends on which attribute this object
    * is for. If appending a list of zeros to the attribute's list would have no
    * affect on rendering (e.g. the attributes 'dx' and 'dy' on <text>), then
-   * this method will return true. If appending a list of zeros to the
+   * this method will return PR_TRUE. If appending a list of zeros to the
    * attribute's list could *change* rendering (e.g. the attributes 'x' and 'y'
-   * on <text>), then this method will return false.
+   * on <text>), then this method will return PR_FALSE.
    *
    * The reason that this method exists is because the SMIL code needs to know
    * what to do when it's asked to animate between lists of different length.
-   * If this method returns true, then it can zero pad the short list before
+   * If this method returns PR_TRUE, then it can zero pad the short list before
    * carrying out its operations. However, in the case of the 'x' and 'y'
    * attributes on <text>, zero would mean "zero in the current coordinate
    * system", whereas we would want to pad shorter lists with the coordinates
@@ -253,13 +253,13 @@ public:
    * determine padding values for lists that can't be zero padded. See
    * https://bugzilla.mozilla.org/show_bug.cgi?id=573431
    */
-  bool CanZeroPadList() const {
+  PRBool CanZeroPadList() const {
     //NS_ASSERTION(mElement, "CanZeroPadList() isn't valid");
     return mCanZeroPadList;
   }
 
   // For the SMIL code. See comment in SVGLengthListSMILType::Add().
-  void SetCanZeroPadList(bool aCanZeroPadList) {
+  void SetCanZeroPadList(PRBool aCanZeroPadList) {
     mCanZeroPadList = aCanZeroPadList;
   }
 
@@ -288,7 +288,7 @@ public:
   SVGLength& operator[](PRUint32 aIndex) {
     return SVGLengthList::operator[](aIndex);
   }
-  bool SetLength(PRUint32 aNumberOfItems) {
+  PRBool SetLength(PRUint32 aNumberOfItems) {
     return SVGLengthList::SetLength(aNumberOfItems);
   }
 
@@ -299,7 +299,7 @@ private:
   // See also https://bugzilla.mozilla.org/show_bug.cgi?id=653497
   nsWeakPtr mElement;
   PRUint8 mAxis;
-  bool mCanZeroPadList;
+  PRPackedBool mCanZeroPadList;
 };
 
 

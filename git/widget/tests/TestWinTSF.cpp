@@ -123,38 +123,38 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIWEBPROGRESSLISTENER
 
-  TestApp() : mFailed(false) {}
+  TestApp() : mFailed(PR_FALSE) {}
   ~TestApp() {}
 
   nsresult Run(void);
-  bool CheckFailed(void);
+  PRBool CheckFailed(void);
 
-  typedef bool (TestApp::*test_type)(void);
+  typedef PRBool (TestApp::*test_type)(void);
 
 protected:
   nsresult Init(void);
   nsresult Term(void);
-  bool RunTest(test_type aTest, bool aLock = true);
+  PRBool RunTest(test_type aTest, PRBool aLock = PR_TRUE);
 
-  bool TestFocus(void);
-  bool TestClustering(void);
-  bool TestSelection(void);
-  bool TestText(void);
-  bool TestExtents(void);
-  bool TestComposition(void);
-  bool TestNotification(void);
-  bool TestEditMessages(void);
-  bool TestScrollMessages(void);
+  PRBool TestFocus(void);
+  PRBool TestClustering(void);
+  PRBool TestSelection(void);
+  PRBool TestText(void);
+  PRBool TestExtents(void);
+  PRBool TestComposition(void);
+  PRBool TestNotification(void);
+  PRBool TestEditMessages(void);
+  PRBool TestScrollMessages(void);
 
-  bool TestSelectionInternal(char* aTestName,
+  PRBool TestSelectionInternal(char* aTestName,
                                         LONG aStart,
                                         LONG aEnd,
                                         TsActiveSelEnd aSelEnd);
-  bool TestCompositionSelectionAndText(char* aTestName,
+  PRBool TestCompositionSelectionAndText(char* aTestName,
                                          LONG aExpectedSelStart,
                                          LONG aExpectedSelEnd,
                                          nsString& aReferenceString);
-  bool TestNotificationTextChange(nsIWidget* aWidget,
+  PRBool TestNotificationTextChange(nsIWidget* aWidget,
                                     PRUint32 aCode,
                                     const nsAString& aCharacter,
                                     LONG aStart,
@@ -162,9 +162,9 @@ protected:
                                     LONG aNewEnd);
   nsresult GetSelCon(nsISelectionController** aSelCon);
 
-  bool GetWidget(nsIWidget** aWidget);
+  PRBool GetWidget(nsIWidget** aWidget);
 
-  bool mFailed;
+  PRBool mFailed;
   nsString mTestString;
   nsRefPtr<TSFMgrImpl> mMgr;
   nsCOMPtr<nsIAppShell> mAppShell;
@@ -189,8 +189,7 @@ TestApp::OnProgressChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 TestApp::OnLocationChange(nsIWebProgress *aWebProgress,
                            nsIRequest *aRequest,
-                           nsIURI *aLocation,
-                           PRUint32 aFlags)
+                           nsIURI *aLocation)
 {
   return NS_OK;
 }
@@ -786,14 +785,14 @@ private:
 public:
   nsRefPtr<TSFAttrPropImpl> mAttrProp;
   nsRefPtr<TSFDocumentMgrImpl> mDocMgr;
-  bool mTextChanged;
-  bool mSelChanged;
+  PRBool mTextChanged;
+  PRBool mSelChanged;
   TS_TEXTCHANGE mTextChangeData;
 
 public:
   TSFContextImpl(TSFDocumentMgrImpl* aDocMgr) :
-      mDocMgr(aDocMgr), mRefCnt(0), mTextChanged(false),
-      mSelChanged(false)
+      mDocMgr(aDocMgr), mRefCnt(0), mTextChanged(PR_FALSE),
+      mSelChanged(PR_FALSE)
   {
     mAttrProp = new TSFAttrPropImpl();
     if (!mAttrProp) {
@@ -969,14 +968,14 @@ public: // ITextStoreACPSink
 
   STDMETHODIMP OnTextChange(DWORD dwFlags, const TS_TEXTCHANGE *pChange)
   {
-    mTextChanged = true;
+    mTextChanged = PR_TRUE;
     mTextChangeData = *pChange;
     return S_OK;
   }
 
   STDMETHODIMP OnSelectionChange(void)
   {
-    mSelChanged = true;
+    mSelChanged = PR_TRUE;
     return S_OK;
   }
 
@@ -1152,12 +1151,12 @@ private:
 public:
   nsRefPtr<TestApp> mTestApp;
   TestApp::test_type mTest;
-  bool mDeactivated;
+  PRBool mDeactivated;
   TSFDocumentMgrImpl* mFocusedDocument; // Must be raw pointer, but strong.
   PRInt32 mFocusCount;
 
   TSFMgrImpl(TestApp* test) : mTestApp(test), mTest(nsnull), mRefCnt(0),
-    mDeactivated(false), mFocusedDocument(nsnull), mFocusCount(0)
+    mDeactivated(PR_FALSE), mFocusedDocument(nsnull), mFocusCount(0)
   {
   }
 
@@ -1203,7 +1202,7 @@ public: // ITfThreadMgr
 
   STDMETHODIMP Deactivate(void)
   {
-    mDeactivated = true;
+    mDeactivated = PR_TRUE;
     return S_OK;
   }
 
@@ -1469,7 +1468,7 @@ TestApp::Run(void)
                            nsIWebBrowserChrome::CHROME_DEFAULT,
                            800 /*nsIAppShellService::SIZE_TO_CONTENT*/,
                            600 /*nsIAppShellService::SIZE_TO_CONTENT*/,
-                           getter_AddRefs(mWindow));
+                           mAppShell, getter_AddRefs(mWindow));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDocShell> docShell;
@@ -1486,13 +1485,13 @@ TestApp::Run(void)
   return NS_OK;
 }
 
-bool
+PRBool
 TestApp::CheckFailed(void)
 {
   // All windows should be closed by now
   if (mMgr && !mMgr->mDeactivated) {
     fail("TSF not terminated properly");
-    mFailed = true;
+    mFailed = PR_TRUE;
   }
   mMgr = nsnull;
   return mFailed;
@@ -1611,7 +1610,7 @@ TestApp::Init(void)
   nsCOMPtr<nsIDOMHTMLBodyElement>(do_QueryInterface(htmlBody))->
       SetBgColor(NS_LITERAL_STRING("white"));
 
-  widget->Show(true);
+  widget->Show(PR_TRUE);
   widget->SetFocus();
   return NS_OK;
 }
@@ -1636,10 +1635,10 @@ TestApp::Term(void)
   return NS_OK;
 }
 
-bool
-TestApp::RunTest(test_type aTest, bool aLock)
+PRBool
+TestApp::RunTest(test_type aTest, PRBool aLock)
 {
-  bool succeeded;
+  PRBool succeeded;
   if (aLock && mMgr && mMgr->GetFocusedStore()) {
     mMgr->mTest = aTest;
     HRESULT hr = E_FAIL;
@@ -1669,7 +1668,7 @@ TestApp::OnStateChange(nsIWebProgress *aWebProgress,
     if (RunTest(&TestApp::TestScrollMessages))
       passed("TestScrollMessages");
 
-    if (RunTest(&TestApp::TestFocus, false))
+    if (RunTest(&TestApp::TestFocus, PR_FALSE))
       passed("TestFocus");
 
     mCurrentNode = mInput;
@@ -1679,7 +1678,7 @@ TestApp::OnStateChange(nsIWebProgress *aWebProgress,
         passed("TestClustering");
     } else {
       fail("no text store (clustering)");
-      mFailed = true;
+      mFailed = PR_TRUE;
     }
 
     printf("Testing TSF support in text input element...\n");
@@ -1697,11 +1696,11 @@ TestApp::OnStateChange(nsIWebProgress *aWebProgress,
         passed("TestExtents (input)");
       if (RunTest(&TestApp::TestComposition))
         passed("TestComposition (input)");
-      if (RunTest(&TestApp::TestNotification, false))
+      if (RunTest(&TestApp::TestNotification, PR_FALSE))
         passed("TestNotification (input)");
     } else {
       fail("no text store (input)");
-      mFailed = true;
+      mFailed = PR_TRUE;
     }
 
     printf("Testing TSF support in textarea element...\n");
@@ -1719,21 +1718,21 @@ TestApp::OnStateChange(nsIWebProgress *aWebProgress,
         passed("TestExtents (textarea)");
       if (RunTest(&TestApp::TestComposition))
         passed("TestComposition (textarea)");
-      if (RunTest(&TestApp::TestNotification, false))
+      if (RunTest(&TestApp::TestNotification, PR_FALSE))
         passed("TestNotification (textarea)");
     } else {
       fail("no text store (textarea)");
-      mFailed = true;
+      mFailed = PR_TRUE;
     }
   } else {
     fail("initialization");
-    mFailed = true;
+    mFailed = PR_TRUE;
   }
   Term();
   return NS_OK;
 }
 
-bool
+PRBool
 TestApp::TestFocus(void)
 {
   PRUint32 focus = mMgr->mFocusCount;
@@ -1754,7 +1753,7 @@ TestApp::TestFocus(void)
         mMgr->mFocusCount - focus == 1 &&
         mMgr->GetFocusedStore())) {
     fail("TestFocus: document focus was not set");
-    return false;
+    return PR_FALSE;
   }
 
   rv = mTextArea->Focus();
@@ -1763,7 +1762,7 @@ TestApp::TestFocus(void)
         mMgr->mFocusCount - focus == 2 &&
         mMgr->GetFocusedStore())) {
     fail("TestFocus: document focus was not changed");
-    return false;
+    return PR_FALSE;
   }
 
   rv = mButton->Focus();
@@ -1772,12 +1771,12 @@ TestApp::TestFocus(void)
         mMgr->mFocusCount - focus == 2 &&
         !mMgr->GetFocusedStore())) {
     fail("TestFocus: document focus was changed");
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 TestApp::TestClustering(void)
 {
   // Text for testing
@@ -1789,7 +1788,7 @@ TestApp::TestClustering(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestClustering: GetFocusedStore returns null #1");
-    return false;
+    return PR_FALSE;
   }
 
   // Replace entire string with our string
@@ -1801,7 +1800,7 @@ TestApp::TestClustering(void)
         0 == textChange.acpStart &&
         STRING_LENGTH == textChange.acpNewEnd)) {
     fail("TestClustering: SetText");
-    return false;
+    return PR_FALSE;
   }
 
   TsViewCookie view;
@@ -1810,18 +1809,18 @@ TestApp::TestClustering(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestClustering: GetFocusedStore returns null #2");
-    return false;
+    return PR_FALSE;
   }
 
   hr = mMgr->GetFocusedStore()->GetActiveView(&view);
   if (!(SUCCEEDED(hr))) {
     fail("TestClustering: GetActiveView");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestClustering: GetFocusedStore returns null #3");
-    return false;
+    return PR_FALSE;
   }
 
   // Get rect of first char (the letter)
@@ -1829,12 +1828,12 @@ TestApp::TestClustering(void)
                                            &rectLetter, &clipped);
   if (!(SUCCEEDED(hr))) {
     fail("TestClustering: GetTextExt (letter)");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestClustering: GetFocusedStore returns null #4");
-    return false;
+    return PR_FALSE;
   }
 
   // Get rect of second char (the accent)
@@ -1843,12 +1842,12 @@ TestApp::TestClustering(void)
                                            &rectAccent, &clipped);
   if (!(SUCCEEDED(hr))) {
     fail("TestClustering: GetTextExt (accent)");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestClustering: GetFocusedStore returns null #5");
-    return false;
+    return PR_FALSE;
   }
 
   // Get rect of combined char
@@ -1856,31 +1855,31 @@ TestApp::TestClustering(void)
                                            &rectWhole, &clipped);
   if (!(SUCCEEDED(hr))) {
     fail("TestClustering: GetTextExt (whole)");
-    return false;
+    return PR_FALSE;
   }
 
   nonEmpty = ::UnionRect(&rectCombined, &rectLetter, &rectAccent);
   if (!(nonEmpty &&
         ::EqualRect(&rectCombined, &rectWhole))) {
     fail("TestClustering: unexpected combined rect");
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 TestApp::TestSelectionInternal(char* aTestName,
                                LONG aStart,
                                LONG aEnd,
                                TsActiveSelEnd aSelEnd)
 {
-  bool succeeded = true, continueTest = true;
+  PRBool succeeded = PR_TRUE, continueTest = PR_TRUE;
   TS_SELECTION_ACP sel, testSel;
   ULONG selFetched;
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestSelectionInternal: GetFocusedStore returns null #1");
-    return false;
+    return PR_FALSE;
   }
 
   sel.acpStart = aStart;
@@ -1890,13 +1889,13 @@ TestApp::TestSelectionInternal(char* aTestName,
   HRESULT hr = mMgr->GetFocusedStore()->SetSelection(1, &sel);
   if (!(SUCCEEDED(hr))) {
     fail("TestSelection: SetSelection (%s)", aTestName);
-    continueTest = succeeded = false;
+    continueTest = succeeded = PR_FALSE;
   }
 
   if (continueTest) {
     if (!mMgr->GetFocusedStore()) {
       fail("TestSelectionInternal: GetFocusedStore returns null #2");
-      return false;
+      return PR_FALSE;
     }
 
     hr = mMgr->GetFocusedStore()->GetSelection(TS_DEFAULT_SELECTION, 1,
@@ -1905,16 +1904,16 @@ TestApp::TestSelectionInternal(char* aTestName,
           selFetched == 1 &&
           !memcmp(&sel, &testSel, sizeof(sel)))) {
       fail("TestSelection: unexpected GetSelection result (%s)", aTestName);
-      succeeded = false;
+      succeeded = PR_FALSE;
     }
   }
   return succeeded;
 }
 
-bool
+PRBool
 TestApp::TestSelection(void)
 {
-  bool succeeded = true;
+  PRBool succeeded = PR_TRUE;
 
   /* If these fail the cause is probably one or more of:
    * nsTextStore::GetSelection not sending NS_QUERY_SELECTED_TEXT
@@ -1930,7 +1929,7 @@ TestApp::TestSelection(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestSelection: GetFocusedStore returns null");
-    return false;
+    return PR_FALSE;
   }
 
   HRESULT hr =
@@ -1938,7 +1937,7 @@ TestApp::TestSelection(void)
   if (!(SUCCEEDED(hr) &&
         selFetched == 1)) {
     fail("TestSelection: GetSelection");
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
   const LONG SELECTION1_START            = 0;
@@ -1949,7 +1948,7 @@ TestApp::TestSelection(void)
                              SELECTION1_START,
                              SELECTION1_END,
                              SELECTION1_SELEND)) {
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
   const LONG SELECTION2_START            = mTestString.Length() / 2;
@@ -1960,7 +1959,7 @@ TestApp::TestSelection(void)
                              SELECTION2_START,
                              SELECTION2_END,
                              SELECTION2_SELEND)) {
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
   const LONG SELECTION3_START            = 12;
@@ -1971,18 +1970,18 @@ TestApp::TestSelection(void)
                              SELECTION3_START,
                              SELECTION3_END,
                              SELECTION3_SELEND)) {
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
   return succeeded;
 }
 
-bool
+PRBool
 TestApp::TestText(void)
 {
   const PRUint32 BUFFER_SIZE  = (0x100);
   const PRUint32 RUNINFO_SIZE = (0x10);
 
-  bool succeeded = true, continueTest;
+  PRBool succeeded = PR_TRUE, continueTest;
   PRUnichar buffer[BUFFER_SIZE];
   TS_RUNINFO runInfo[RUNINFO_SIZE];
   ULONG bufferRet, runInfoRet;
@@ -2001,7 +2000,7 @@ TestApp::TestText(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestText: GetFocusedStore returns null #1");
-    return false;
+    return PR_FALSE;
   }
 
   // Get all text
@@ -2014,13 +2013,13 @@ TestApp::TestText(void)
         acpRet == LONG(bufferRet) &&
         runInfoRet > 0)) {
     fail("TestText: GetText 1");
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestText: GetFocusedStore returns null #2");
-    return false;
+    return PR_FALSE;
   }
 
   // Get text from GETTEXT2_START to GETTEXT2_END
@@ -2038,13 +2037,13 @@ TestApp::TestText(void)
         acpRet == LONG(bufferRet) + GETTEXT2_START &&
         runInfoRet > 0)) {
     fail("TestText: GetText 2");
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestText: GetFocusedStore returns null #3");
-    return false;
+    return PR_FALSE;
   }
 
   // Replace text from SETTEXT1_START to SETTEXT1_END with insertString
@@ -2054,7 +2053,7 @@ TestApp::TestText(void)
                                           SETTEXT1_TAIL_LENGTH);
   NS_NAMED_LITERAL_STRING(insertString, "(Inserted string)");
 
-  continueTest = true;
+  continueTest = PR_TRUE;
   hr = mMgr->GetFocusedStore()->SetText(0, SETTEXT1_START, SETTEXT1_END,
                                         insertString.get(),
                                         insertString.Length(), &textChange);
@@ -2064,7 +2063,7 @@ TestApp::TestText(void)
         textChange.acpNewEnd == LONG(SETTEXT1_START +
                                 insertString.Length()))) {
     fail("TestText: SetText 1");
-    continueTest = succeeded = false;
+    continueTest = succeeded = PR_FALSE;
   }
 
   const PRUint32 SETTEXT1_FINAL_LENGTH = (SETTEXT1_START +
@@ -2076,7 +2075,7 @@ TestApp::TestText(void)
     while (acpCurrent < LONG(SETTEXT1_FINAL_LENGTH)) {
       if (!mMgr->GetFocusedStore()) {
         fail("TestText: GetFocusedStore returns null #4");
-        return false;
+        return PR_FALSE;
       }
 
       hr = mMgr->GetFocusedStore()->GetText(acpCurrent, -1, &buffer[acpCurrent],
@@ -2087,7 +2086,7 @@ TestApp::TestText(void)
             bufferRet <= SETTEXT1_FINAL_LENGTH &&
             runInfoRet > 0)) {
         fail("TestText: GetText failed after SetTest 1");
-        continueTest = succeeded = false;
+        continueTest = succeeded = PR_FALSE;
         break;
       }
       acpCurrent = acpRet;
@@ -2102,18 +2101,18 @@ TestApp::TestText(void)
           !wcsncmp(&buffer[SETTEXT1_START + insertString.Length()],
                    mTestString.get() + SETTEXT1_END, SETTEXT1_TAIL_LENGTH))) {
       fail("TestText: unexpected GetText result after SetText 1");
-      succeeded = false;
+      succeeded = PR_FALSE;
     }
   }
 
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestText: GetFocusedStore returns null #5");
-    return false;
+    return PR_FALSE;
   }
 
   // Restore entire text to original text (mTestString)
-  continueTest = true;
+  continueTest = PR_TRUE;
   hr = mMgr->GetFocusedStore()->SetText(0, 0, -1, mTestString.get(),
                                         mTestString.Length(), &textChange);
   if (!(SUCCEEDED(hr) &&
@@ -2121,7 +2120,7 @@ TestApp::TestText(void)
         textChange.acpOldEnd == LONG(SETTEXT1_FINAL_LENGTH) &&
         textChange.acpNewEnd == LONG(mTestString.Length()))) {
     fail("TestText: SetText 2");
-    continueTest = succeeded = false;
+    continueTest = succeeded = PR_FALSE;
   }
 
   if (continueTest) {
@@ -2129,7 +2128,7 @@ TestApp::TestText(void)
     while (acpCurrent < LONG(mTestString.Length())) {
       if (!mMgr->GetFocusedStore()) {
         fail("TestText: GetFocusedStore returns null #6");
-        return false;
+        return PR_FALSE;
       }
 
       hr = mMgr->GetFocusedStore()->GetText(acpCurrent, -1, &buffer[acpCurrent],
@@ -2140,7 +2139,7 @@ TestApp::TestText(void)
             bufferRet <= mTestString.Length() &&
             runInfoRet > 0)) {
         fail("TestText: GetText failed after SetText 2");
-        continueTest = succeeded = false;
+        continueTest = succeeded = PR_FALSE;
         break;
       }
       acpCurrent = acpRet;
@@ -2151,18 +2150,18 @@ TestApp::TestText(void)
     if (!(acpCurrent == LONG(mTestString.Length()) &&
           !wcsncmp(buffer, mTestString.get(), mTestString.Length()))) {
       fail("TestText: unexpected GetText result after SetText 2");
-      succeeded = false;
+      succeeded = PR_FALSE;
     }
   }
   return succeeded;
 }
 
-bool
+PRBool
 TestApp::TestExtents(void)
 {
   if (!mMgr->GetFocusedStore()) {
     fail("TestExtents: GetFocusedStore returns null #1");
-    return false;
+    return PR_FALSE;
   }
 
   TS_SELECTION_ACP sel;
@@ -2175,15 +2174,15 @@ TestApp::TestExtents(void)
   nsCOMPtr<nsISelectionController> selCon;
   if (!(NS_SUCCEEDED(GetSelCon(getter_AddRefs(selCon))) && selCon)) {
     fail("TestExtents: get nsISelectionController");
-    return false;
+    return PR_FALSE;
   }
   selCon->ScrollSelectionIntoView(nsISelectionController::SELECTION_NORMAL,
-              nsISelectionController::SELECTION_FOCUS_REGION, true);
+              nsISelectionController::SELECTION_FOCUS_REGION, PR_TRUE);
 
   nsCOMPtr<nsIDOMWindow> window(do_GetInterface(mWindow));
   if (!window) {
     fail("TestExtents: get nsIDOMWindow");
-    return false;
+    return PR_FALSE;
   }
   RECT windowRect, screenRect, textRect1, textRect2;
   BOOL clipped;
@@ -2201,39 +2200,39 @@ TestApp::TestExtents(void)
   windowRect.bottom = windowRect.top + val;
   if (!(NS_SUCCEEDED(nsr))) {
     fail("TestExtents: get window rect failed");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestExtents: GetFocusedStore returns null #2");
-    return false;
+    return PR_FALSE;
   }
 
   hr = mMgr->GetFocusedStore()->GetActiveView(&view);
   if (!(SUCCEEDED(hr))) {
     fail("TestExtents: GetActiveView");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestExtents: GetFocusedStore returns null #3");
-    return false;
+    return PR_FALSE;
   }
 
-  bool succeeded = true;
+  PRBool succeeded = PR_TRUE;
   HWND hwnd;
   hr = mMgr->GetFocusedStore()->GetWnd(view, &hwnd);
   if (!(SUCCEEDED(hr) &&
         ::IsWindow(hwnd))) {
     fail("TestExtents: GetWnd");
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
   ::SetRectEmpty(&screenRect);
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestExtents: GetFocusedStore returns null #4");
-    return false;
+    return PR_FALSE;
   }
 
   hr = mMgr->GetFocusedStore()->GetScreenExt(view, &screenRect);
@@ -2245,7 +2244,7 @@ TestApp::TestExtents(void)
         screenRect.right < windowRect.right &&
         screenRect.bottom < windowRect.bottom)) {
     fail("TestExtents: GetScreenExt");
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
   const LONG GETTEXTEXT1_START = 0;
@@ -2255,7 +2254,7 @@ TestApp::TestExtents(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestExtents: GetFocusedStore returns null #5");
-    return false;
+    return PR_FALSE;
   }
 
   hr = mMgr->GetFocusedStore()->GetTextExt(view, GETTEXTEXT1_START,
@@ -2270,7 +2269,7 @@ TestApp::TestExtents(void)
         textRect1.bottom > textRect1.top)) {
     fail("TestExtents: GetTextExt (offset %ld to %ld)",
          GETTEXTEXT1_START, GETTEXTEXT1_END);
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
   const LONG GETTEXTEXT2_START = 10;
@@ -2280,7 +2279,7 @@ TestApp::TestExtents(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestExtents: GetFocusedStore returns null #6");
-    return false;
+    return PR_FALSE;
   }
 
   hr = mMgr->GetFocusedStore()->GetTextExt(view, GETTEXTEXT2_START,
@@ -2295,7 +2294,7 @@ TestApp::TestExtents(void)
         textRect2.bottom > textRect2.top)) {
     fail("TestExtents: GetTextExt (offset %ld to %ld)",
          GETTEXTEXT2_START, GETTEXTEXT2_END);
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
 
   // Offsets must be between GETTEXTEXT2_START and GETTEXTEXT2_END
@@ -2306,7 +2305,7 @@ TestApp::TestExtents(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestExtents: GetFocusedStore returns null #7");
-    return false;
+    return PR_FALSE;
   }
 
   hr = mMgr->GetFocusedStore()->GetTextExt(view, GETTEXTEXT3_START,
@@ -2324,12 +2323,12 @@ TestApp::TestExtents(void)
         textRect1.bottom > textRect1.top))) {
     fail("TestExtents: GetTextExt (offset %ld to %ld)",
          GETTEXTEXT3_START, GETTEXTEXT3_END);
-    succeeded = false;
+    succeeded = PR_FALSE;
   }
   return succeeded;
 }
 
-bool
+PRBool
 TestApp::TestCompositionSelectionAndText(char* aTestName,
                                          LONG aExpectedSelStart,
                                          LONG aExpectedSelEnd,
@@ -2337,7 +2336,7 @@ TestApp::TestCompositionSelectionAndText(char* aTestName,
 {
   if (!mMgr->GetFocusedStore()) {
     fail("TestCompositionSelectionAndText: GetFocusedStore returns null #1");
-    return false;
+    return PR_FALSE;
   }
 
   TS_SELECTION_ACP currentSel;
@@ -2349,7 +2348,7 @@ TestApp::TestCompositionSelectionAndText(char* aTestName,
         currentSel.acpStart == aExpectedSelStart &&
         currentSel.acpEnd == aExpectedSelEnd)) {
     fail("TestComposition: GetSelection (%s)", aTestName);
-    return false;
+    return PR_FALSE;
   }
 
   const PRUint32 bufferSize = 0x100, runInfoSize = 0x10;
@@ -2360,7 +2359,7 @@ TestApp::TestCompositionSelectionAndText(char* aTestName,
   while (acpCurrent < LONG(aReferenceString.Length())) {
     if (!mMgr->GetFocusedStore()) {
       fail("TestCompositionSelectionAndText: GetFocusedStore returns null #2");
-      return false;
+      return PR_FALSE;
     }
 
     hr = mMgr->GetFocusedStore()->GetText(acpCurrent, aReferenceString.Length(),
@@ -2372,24 +2371,24 @@ TestApp::TestCompositionSelectionAndText(char* aTestName,
           bufferRet <= aReferenceString.Length() &&
           runInfoRet > 0)) {
       fail("TestComposition: GetText (%s)", aTestName);
-      return false;
+      return PR_FALSE;
     }
     acpCurrent = acpRet;
   }
   if (!(acpCurrent == aReferenceString.Length() &&
         !wcsncmp(buffer, aReferenceString.get(), aReferenceString.Length()))) {
     fail("TestComposition: unexpected GetText result (%s)", aTestName);
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 TestApp::TestComposition(void)
 {
   if (!mMgr->GetFocusedStore()) {
     fail("TestComposition: GetFocusedStore returns null #1");
-    return false;
+    return PR_FALSE;
   }
 
   nsRefPtr<ITfContextOwnerCompositionSink> sink;
@@ -2398,7 +2397,7 @@ TestApp::TestComposition(void)
                                             getter_AddRefs(sink));
   if (!(SUCCEEDED(hr))) {
     fail("TestComposition: QueryInterface");
-    return false;
+    return PR_FALSE;
   }
 
   const LONG PRECOMPOSITION_SEL_START            = 2;
@@ -2413,12 +2412,12 @@ TestApp::TestComposition(void)
   hr = mMgr->GetFocusedStore()->SetSelection(1, &sel);
   if (!(SUCCEEDED(hr))) {
     fail("TestComposition: SetSelection (pre-composition)");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestComposition: GetFocusedStore returns null #2");
-    return false;
+    return PR_FALSE;
   }
 
   TS_TEXTCHANGE textChange;
@@ -2432,13 +2431,13 @@ TestApp::TestComposition(void)
         sel.acpEnd == textChange.acpOldEnd &&
         sel.acpEnd + insertString1.Length() == textChange.acpNewEnd)) {
     fail("TestComposition: InsertTextAtSelection");
-    return false;
+    return PR_FALSE;
   }
   sel.acpEnd = textChange.acpNewEnd;
 
   if (!mMgr->GetFocusedAttrProp()) {
     fail("TestComposition: GetFocusedAttrProp returns null #1");
-    return false;
+    return PR_FALSE;
   }
   mMgr->GetFocusedAttrProp()->mRanges.Clear();
   nsRefPtr<TSFRangeImpl> range =
@@ -2446,7 +2445,7 @@ TestApp::TestComposition(void)
                      textChange.acpNewEnd - textChange.acpOldEnd);
   if (!mMgr->GetFocusedAttrProp()) {
     fail("TestComposition: GetFocusedAttrProp returns null #2");
-    return false;
+    return PR_FALSE;
   }
   mMgr->GetFocusedAttrProp()->mRanges.AppendElement(range);
 
@@ -2455,13 +2454,13 @@ TestApp::TestComposition(void)
   if (!(SUCCEEDED(hr) &&
         okay)) {
     fail("TestComposition: OnStartComposition");
-    return false;
+    return PR_FALSE;
   }
 
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestComposition: GetFocusedStore returns null #3");
-    return false;
+    return PR_FALSE;
   }
 
   NS_NAMED_LITERAL_STRING(insertString2, "Composition2");
@@ -2475,7 +2474,7 @@ TestApp::TestComposition(void)
         sel.acpEnd == textChange.acpOldEnd &&
         sel.acpEnd + insertString2.Length() == textChange.acpNewEnd)) {
     fail("TestComposition: SetText 1");
-    return false;
+    return PR_FALSE;
   }
   sel.acpEnd = textChange.acpNewEnd;
   range->mLength += textChange.acpNewEnd - textChange.acpOldEnd;
@@ -2483,7 +2482,7 @@ TestApp::TestComposition(void)
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestComposition: GetFocusedStore returns null #4");
-    return false;
+    return PR_FALSE;
   }
 
   const LONG COMPOSITION3_TEXT_START_OFFSET = -8; // offset 8 from the end
@@ -2507,7 +2506,7 @@ TestApp::TestComposition(void)
         sel.acpEnd + insertString3.Length() + COMPOSITION3_TEXT_START_OFFSET ==
             textChange.acpNewEnd)) {
     fail("TestComposition: SetText 2");
-    return false;
+    return PR_FALSE;
   }
   sel.acpEnd = textChange.acpNewEnd;
   range->mLength += textChange.acpNewEnd - textChange.acpOldEnd;
@@ -2527,12 +2526,12 @@ TestApp::TestComposition(void)
   if (!TestCompositionSelectionAndText("composition",
            sel.acpEnd, sel.acpEnd,
            referenceString))
-    return false;
+    return PR_FALSE;
 
 
   if (!mMgr->GetFocusedStore()) {
     fail("TestComposition: GetFocusedStore returns null #5");
-    return false;
+    return PR_FALSE;
   }
 
   const LONG POSTCOMPOSITION_SEL_START = sel.acpEnd - 8;
@@ -2543,25 +2542,25 @@ TestApp::TestComposition(void)
   hr = mMgr->GetFocusedStore()->SetSelection(1, &sel);
   if (!(SUCCEEDED(hr))) {
     fail("TestComposition: SetSelection (composition)");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedAttrProp()) {
     fail("TestComposition: GetFocusedAttrProp returns null #3");
-    return false;
+    return PR_FALSE;
   }
   mMgr->GetFocusedAttrProp()->mRanges.Clear();
 
   hr = sink->OnEndComposition(mMgr->GetFocusedContext());
   if (!(SUCCEEDED(hr))) {
     fail("TestComposition: OnEndComposition");
-    return false;
+    return PR_FALSE;
   }
 
   if (!TestCompositionSelectionAndText("post-composition",
            sel.acpStart, sel.acpEnd,
            referenceString))
-    return false;
+    return PR_FALSE;
 
   const LONG EMPTYCOMPOSITION_START  = range->mStart + 2;
   const LONG EMPTYCOMPOSITION_LENGTH = range->mLength - 4;
@@ -2570,7 +2569,7 @@ TestApp::TestComposition(void)
   range->mLength = EMPTYCOMPOSITION_LENGTH;
   if (!mMgr->GetFocusedAttrProp()) {
     fail("TestComposition: GetFocusedAttrProp returns null #4");
-    return false;
+    return PR_FALSE;
   }
   mMgr->GetFocusedAttrProp()->mRanges.AppendElement(range);
 
@@ -2579,30 +2578,30 @@ TestApp::TestComposition(void)
   if (!(SUCCEEDED(hr) &&
         okay)) {
     fail("TestComposition: OnStartComposition (empty composition)");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedAttrProp()) {
     fail("TestComposition: GetFocusedAttrProp returns null #5");
-    return false;
+    return PR_FALSE;
   }
   mMgr->GetFocusedAttrProp()->mRanges.Clear();
 
   hr = sink->OnEndComposition(mMgr->GetFocusedContext());
   if (!(SUCCEEDED(hr))) {
     fail("TestComposition: OnEndComposition (empty composition)");
-    return false;
+    return PR_FALSE;
   }
 
   if (!TestCompositionSelectionAndText("empty composition",
            range->mStart, range->mStart + range->mLength,
            referenceString))
-    return false;
+    return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 TestApp::TestNotificationTextChange(nsIWidget* aWidget,
                                     PRUint32 aCode,
                                     const nsAString& aCharacter,
@@ -2616,9 +2615,9 @@ TestApp::TestNotificationTextChange(nsIWidget* aWidget,
     ::DispatchMessageW(&msg);
   if (!mMgr->GetFocusedContext()) {
     fail("TestNotificationTextChange: GetFocusedContext returns null");
-    return false;
+    return PR_FALSE;
   }
-  mMgr->GetFocusedContext()->mTextChanged = false;
+  mMgr->GetFocusedContext()->mTextChanged = PR_FALSE;
   nsresult nsr = aWidget->SynthesizeNativeKeyEvent(0, aCode, 0,
                               aCharacter, aCharacter);
   if (::PeekMessageW(&msg, NULL, WM_USER_TSF_TEXTCHANGE,
@@ -2631,7 +2630,7 @@ TestApp::TestNotificationTextChange(nsIWidget* aWidget,
          aNewEnd == mMgr->GetFocusedContext()->mTextChangeData.acpNewEnd;
 }
 
-bool
+PRBool
 TestApp::TestNotification(void)
 {
   nsresult nsr;
@@ -2639,45 +2638,45 @@ TestApp::TestNotification(void)
   nsCOMPtr<nsISelectionController> selCon;
   if (!(NS_SUCCEEDED(GetSelCon(getter_AddRefs(selCon))) && selCon)) {
     fail("TestNotification: get nsISelectionController");
-    return false;
+    return PR_FALSE;
   }
 
-  nsr = selCon->CompleteMove(false, false);
+  nsr = selCon->CompleteMove(PR_FALSE, PR_FALSE);
   if (!(NS_SUCCEEDED(nsr))) {
     fail("TestNotification: CompleteMove");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedContext()) {
     fail("TestNotification: GetFocusedContext returns null #1");
-    return false;
+    return PR_FALSE;
   }
 
-  mMgr->GetFocusedContext()->mSelChanged = false;
-  nsr = selCon->CharacterMove(true, false);
+  mMgr->GetFocusedContext()->mSelChanged = PR_FALSE;
+  nsr = selCon->CharacterMove(PR_TRUE, PR_FALSE);
   if (!(NS_SUCCEEDED(nsr) &&
         mMgr->GetFocusedContext()->mSelChanged)) {
     fail("TestNotification: CharacterMove");
-    return false;
+    return PR_FALSE;
   }
 
   if (!mMgr->GetFocusedContext()) {
     fail("TestNotification: GetFocusedContext returns null #2");
-    return false;
+    return PR_FALSE;
   }
 
-  mMgr->GetFocusedContext()->mSelChanged = false;
-  nsr = selCon->CharacterMove(true, true);
+  mMgr->GetFocusedContext()->mSelChanged = PR_FALSE;
+  nsr = selCon->CharacterMove(PR_TRUE, PR_TRUE);
   if (!(NS_SUCCEEDED(nsr) &&
         mMgr->GetFocusedContext()->mSelChanged)) {
     fail("TestNotification: CharacterMove (extend)");
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIWidget> widget;
   if (!GetWidget(getter_AddRefs(widget))) {
     fail("TestNotification: get nsIWidget");
-    return false;
+    return PR_FALSE;
   }
 
   NS_NAMED_LITERAL_STRING(character, "");
@@ -2692,7 +2691,7 @@ TestApp::TestNotification(void)
   if (!TestNotificationTextChange(widget, 'A', characterA,
         TEXTCHANGE1_START, TEXTCHANGE1_OLDEND, TEXTCHANGE1_NEWEND)) {
     fail("TestNotification: text change 1");
-    return false;
+    return PR_FALSE;
   }
 
   const LONG TEXTCHANGE2_START  = TEXTCHANGE1_NEWEND;
@@ -2703,7 +2702,7 @@ TestApp::TestNotification(void)
   if (!TestNotificationTextChange(widget, 'A', characterA,
         TEXTCHANGE2_START, TEXTCHANGE2_OLDEND, TEXTCHANGE2_NEWEND)) {
     fail("TestNotification: text change 2");
-    return false;
+    return PR_FALSE;
   }
 
   const LONG TEXTCHANGE3_START  = TEXTCHANGE2_NEWEND - 1;
@@ -2714,12 +2713,12 @@ TestApp::TestNotification(void)
   if (!TestNotificationTextChange(widget, '\b', character,
         TEXTCHANGE3_START, TEXTCHANGE3_OLDEND, TEXTCHANGE3_NEWEND)) {
     fail("TestNotification: text change 3");
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 TestApp::TestEditMessages(void)
 {
   mTestString = NS_LITERAL_STRING(
@@ -2736,26 +2735,26 @@ TestApp::TestEditMessages(void)
   nsCOMPtr<nsIWidget> widget;
   if (!GetWidget(getter_AddRefs(widget))) {
     fail("TestEditMessages: get nsIWidget");
-    return false;
+    return PR_FALSE;
   }
 
   HWND wnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW);
-  bool result = true;
+  PRBool result = PR_TRUE;
 
   if (!::SendMessage(wnd, EM_CANUNDO, 0, 0)) {
     fail("TestEditMessages: EM_CANUNDO");
-    return false;
+    return PR_FALSE;
   }
 
   if (::SendMessage(wnd, EM_CANREDO, 0, 0)) {
     fail("TestEditMessages: EM_CANREDO #1");
-    return false;
+    return PR_FALSE;
   }
 
 
   if (!::SendMessage(wnd, EM_UNDO, 0, 0)) {
     fail("TestEditMessages: EM_UNDO #1");
-    return false;
+    return PR_FALSE;
   }
 
   nsAutoString str;
@@ -2763,24 +2762,24 @@ TestApp::TestEditMessages(void)
   if (str == mTestString) {
     fail("TestEditMessage: EM_UNDO #1, failed to execute");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   if (!::SendMessage(wnd, EM_CANREDO, 0, 0)) {
     fail("TestEditMessages: EM_CANREDO #2");
-    return false;
+    return PR_FALSE;
   }
 
   if (!::SendMessage(wnd, EM_REDO, 0, 0)) {
     fail("TestEditMessages: EM_REDO #1");
-    return false;
+    return PR_FALSE;
   }
 
   mTextArea->GetValue(str);
   if (str != mTestString) {
     fail("TestEditMessage: EM_REDO #1, failed to execute");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   TS_SELECTION_ACP sel;
@@ -2793,7 +2792,7 @@ TestApp::TestEditMessages(void)
   hr = mMgr->GetFocusedStore()->SetSelection(1, &sel);
   if (!(SUCCEEDED(hr))) {
     fail("TestEditMessages: SetSelection #1");
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_CUT, 0, 0);
@@ -2801,7 +2800,7 @@ TestApp::TestEditMessages(void)
   if (!str.IsEmpty()) {
     fail("TestEditMessages: WM_CUT");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_PASTE, 0, 0);
@@ -2809,7 +2808,7 @@ TestApp::TestEditMessages(void)
   if (str != mTestString) {
     fail("TestEditMessages: WM_PASTE #1");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_PASTE, 0, 0);
@@ -2819,7 +2818,7 @@ TestApp::TestEditMessages(void)
   if (str != expectedStr) {
     fail("TestEditMessages: WM_PASTE #2");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   sel.acpStart = 0;
@@ -2827,7 +2826,7 @@ TestApp::TestEditMessages(void)
   hr = mMgr->GetFocusedStore()->SetSelection(1, &sel);
   if (!(SUCCEEDED(hr))) {
     fail("TestEditMessages: SetSelection #2");
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_CLEAR, 0, 0);
@@ -2835,7 +2834,7 @@ TestApp::TestEditMessages(void)
   if (str != mTestString) {
     fail("TestEditMessages: WM_CLEAR #1");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   sel.acpStart = 4;
@@ -2843,7 +2842,7 @@ TestApp::TestEditMessages(void)
   hr = mMgr->GetFocusedStore()->SetSelection(1, &sel);
   if (!(SUCCEEDED(hr))) {
     fail("TestEditMessages: SetSelection #3");
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_COPY, 0, 0);
@@ -2851,22 +2850,22 @@ TestApp::TestEditMessages(void)
   if (str != mTestString) {
     fail("TestEditMessages: WM_COPY");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   if (!::SendMessage(wnd, EM_CANPASTE, 0, 0)) {
     fail("TestEditMessages: EM_CANPASTE #1");
-    return false;
+    return PR_FALSE;
   }
 
   if (!::SendMessage(wnd, EM_CANPASTE, CF_TEXT, 0)) {
     fail("TestEditMessages: EM_CANPASTE #2");
-    return false;
+    return PR_FALSE;
   }
 
   if (!::SendMessage(wnd, EM_CANPASTE, CF_UNICODETEXT, 0)) {
     fail("TestEditMessages: EM_CANPASTE #3");
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_PASTE, 0, 0);
@@ -2874,7 +2873,7 @@ TestApp::TestEditMessages(void)
   if (str != mTestString) {
     fail("TestEditMessages: WM_PASTE #3");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   sel.acpStart = 4;
@@ -2882,7 +2881,7 @@ TestApp::TestEditMessages(void)
   hr = mMgr->GetFocusedStore()->SetSelection(1, &sel);
   if (!(SUCCEEDED(hr))) {
     fail("TestEditMessages: SetSelection #3");
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_CLEAR, 0, 0);
@@ -2890,7 +2889,7 @@ TestApp::TestEditMessages(void)
   if (str != NS_LITERAL_STRING("This")) {
     fail("TestEditMessages: WM_CLEAR #2");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
   ::SendMessage(wnd, WM_PASTE, 0, 0);
@@ -2898,13 +2897,13 @@ TestApp::TestEditMessages(void)
   if (str != mTestString) {
     fail("TestEditMessages: WM_PASTE #4");
     printf("Current Str: \"%s\"\n", NS_ConvertUTF16toUTF8(str).get());
-    return false;
+    return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 TestApp::TestScrollMessages(void)
 {
   NS_NAMED_LITERAL_STRING(kLine, "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\n");
@@ -2922,14 +2921,14 @@ TestApp::TestScrollMessages(void)
   if (!GetWidget(getter_AddRefs(widget))) {
     fail("TestScrollMessages: get nsIWidget");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIDOMNSElement> textAreaNS(do_QueryInterface(mTextArea));
   if (!textAreaNS) {
     fail("TestScrollMessages: get nsIDOMNSElement");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
 #define DO_CHECK(aFailureCondition, aDescription) \
@@ -2939,7 +2938,7 @@ TestApp::TestScrollMessages(void)
     str.Append(#aFailureCondition); \
     fail(str.get()); \
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString()); \
-    return false; \
+    return PR_FALSE; \
   }
 
   HWND wnd = (HWND)widget->GetNativeData(NS_NATIVE_WINDOW);
@@ -2950,7 +2949,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_VSCROLL, SB_LINEDOWN, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_VSCROLL #1");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   PRInt32 x, y, prevX, prevY;
@@ -2963,7 +2962,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_HSCROLL, SB_LINERIGHT, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_HSCROLL #1");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -2980,7 +2979,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_VSCROLL, SB_LINEUP, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_VSCROLL #2");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -2994,7 +2993,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_HSCROLL, SB_LINELEFT, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_HSCROLL #2");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3008,7 +3007,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_VSCROLL, SB_PAGEDOWN, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_VSCROLL #3");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3022,7 +3021,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_HSCROLL, SB_PAGERIGHT, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_HSCROLL #3");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3052,7 +3051,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_VSCROLL, SB_PAGEUP, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_VSCROLL #4");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3066,7 +3065,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_HSCROLL, SB_PAGELEFT, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_HSCROLL #4");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3080,7 +3079,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_VSCROLL, SB_BOTTOM, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_VSCROLL #5");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3094,7 +3093,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_HSCROLL, SB_RIGHT, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_HSCROLL #6");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3132,7 +3131,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_VSCROLL, SB_TOP, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_VSCROLL #6");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3146,7 +3145,7 @@ TestApp::TestScrollMessages(void)
   if (::SendMessage(wnd, WM_HSCROLL, SB_LEFT, 0) != 0) {
     fail("TestScrollMessages: SendMessage WM_HSCROLL #4");
     mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-    return false;
+    return PR_FALSE;
   }
 
   prevX = x;
@@ -3159,27 +3158,27 @@ TestApp::TestScrollMessages(void)
 #undef DO_CHECK
 
   mTextArea->SetAttribute(NS_LITERAL_STRING("style"), EmptyString());
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 TestApp::GetWidget(nsIWidget** aWidget)
 {
   nsCOMPtr<nsIDocShell> docShell;
   nsresult rv = mWindow->GetDocShell(getter_AddRefs(docShell));
   if (NS_FAILED(rv) || !docShell) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIPresShell> presShell;
   rv = docShell->GetPresShell(getter_AddRefs(presShell));
   if (NS_FAILED(rv) || !presShell) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCOMPtr<nsIViewManager> viewManager = presShell->GetViewManager();
   if (!viewManager) {
-    return false;
+    return PR_FALSE;
   }
 
   rv = viewManager->GetRootWidget(aWidget);

@@ -41,23 +41,23 @@
 #include "nsQuoteList.h"
 #include "nsReadableUtils.h"
 
-bool
+PRBool
 nsQuoteNode::InitTextFrame(nsGenConList* aList, nsIFrame* aPseudoFrame,
                            nsIFrame* aTextFrame)
 {
   nsGenConNode::InitTextFrame(aList, aPseudoFrame, aTextFrame);
 
   nsQuoteList* quoteList = static_cast<nsQuoteList*>(aList);
-  bool dirty = false;
+  PRBool dirty = PR_FALSE;
   quoteList->Insert(this);
   if (quoteList->IsLast(this))
     quoteList->Calc(this);
   else
-    dirty = true;
+    dirty = PR_TRUE;
 
   // Don't set up text for 'no-open-quote' and 'no-close-quote'.
   if (IsRealQuote()) {
-    aTextFrame->GetContent()->SetText(*Text(), false);
+    aTextFrame->GetContent()->SetText(*Text(), PR_FALSE);
   }
   return dirty;
 }

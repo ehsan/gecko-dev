@@ -82,7 +82,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTION_1(mozPersonalDictionary, mEncoder)
 
 mozPersonalDictionary::mozPersonalDictionary()
- : mDirty(false)
+ : mDirty(PR_FALSE)
 {
 }
 
@@ -100,7 +100,7 @@ nsresult mozPersonalDictionary::Init()
            do_GetService("@mozilla.org/observer-service;1", &rv);
    
   if (NS_SUCCEEDED(rv) && svc) 
-    rv = svc->AddObserver(this, "profile-do-change", true); // we want to reload the dictionary if the profile switches
+    rv = svc->AddObserver(this, "profile-do-change", PR_TRUE); // we want to reload the dictionary if the profile switches
 
   if (NS_FAILED(rv)) return rv;
 
@@ -115,7 +115,7 @@ NS_IMETHODIMP mozPersonalDictionary::Load()
   //FIXME Deinst  -- get dictionary name from prefs;
   nsresult res;
   nsCOMPtr<nsIFile> theFile;
-  bool dictExists;
+  PRBool dictExists;
 
   res = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(theFile));
   if(NS_FAILED(res)) return res;
@@ -143,22 +143,22 @@ NS_IMETHODIMP mozPersonalDictionary::Load()
 
   PRUnichar c;
   PRUint32 nRead;
-  bool done = false;
+  PRBool done = PR_FALSE;
   do{  // read each line of text into the string array.
     if( (NS_OK != convStream->Read(&c, 1, &nRead)) || (nRead != 1)) break;
     while(!done && ((c == '\n') || (c == '\r'))){
-      if( (NS_OK != convStream->Read(&c, 1, &nRead)) || (nRead != 1)) done = true;
+      if( (NS_OK != convStream->Read(&c, 1, &nRead)) || (nRead != 1)) done = PR_TRUE;
     }
     if (!done){ 
       nsAutoString word;
       while((c != '\n') && (c != '\r') && !done){
         word.Append(c);
-        if( (NS_OK != convStream->Read(&c, 1, &nRead)) || (nRead != 1)) done = true;
+        if( (NS_OK != convStream->Read(&c, 1, &nRead)) || (nRead != 1)) done = PR_TRUE;
       }
       mDictionaryTable.PutEntry(word.get());
     }
   } while(!done);
-  mDirty = false;
+  mDirty = PR_FALSE;
   
   return res;
 }
@@ -228,7 +228,7 @@ NS_IMETHODIMP mozPersonalDictionary::GetWordList(nsIStringEnumerator **aWords)
 }
 
 /* boolean Check (in wstring word, in wstring language); */
-NS_IMETHODIMP mozPersonalDictionary::Check(const PRUnichar *aWord, const PRUnichar *aLanguage, bool *aResult)
+NS_IMETHODIMP mozPersonalDictionary::Check(const PRUnichar *aWord, const PRUnichar *aLanguage, PRBool *aResult)
 {
   NS_ENSURE_ARG_POINTER(aWord);
   NS_ENSURE_ARG_POINTER(aResult);
@@ -241,7 +241,7 @@ NS_IMETHODIMP mozPersonalDictionary::Check(const PRUnichar *aWord, const PRUnich
 NS_IMETHODIMP mozPersonalDictionary::AddWord(const PRUnichar *aWord, const PRUnichar *aLang)
 {
   mDictionaryTable.PutEntry(aWord);
-  mDirty = true;
+  mDirty = PR_TRUE;
   return NS_OK;
 }
 
@@ -249,7 +249,7 @@ NS_IMETHODIMP mozPersonalDictionary::AddWord(const PRUnichar *aWord, const PRUni
 NS_IMETHODIMP mozPersonalDictionary::RemoveWord(const PRUnichar *aWord, const PRUnichar *aLang)
 {
   mDictionaryTable.RemoveEntry(aWord);
-  mDirty = true;
+  mDirty = PR_TRUE;
   return NS_OK;
 }
 

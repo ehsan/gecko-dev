@@ -39,11 +39,13 @@
 #define nsContentDLF_h__
 
 #include "nsIDocumentLoaderFactory.h"
+#include "nsIDocumentViewer.h"
 #include "nsIDocument.h"
 #include "nsMimeTypes.h"
 
 class nsIChannel;
 class nsIContentViewer;
+class nsIDocumentViewer;
 class nsIFile;
 class nsIInputStream;
 class nsILoadGroup;
@@ -69,7 +71,7 @@ public:
                           nsISupports* aContainer,
                           const nsCID& aDocumentCID,
                           nsIStreamListener** aDocListener,
-                          nsIContentViewer** aContentViewer);
+                          nsIContentViewer** aDocViewer);
 
   nsresult CreateXULDocument(const char* aCommand,
                              nsIChannel* aChannel,
@@ -78,11 +80,11 @@ public:
                              nsISupports* aContainer,
                              nsISupports* aExtraInfo,
                              nsIStreamListener** aDocListener,
-                             nsIContentViewer** aContentViewer);
+                             nsIContentViewer** aDocViewer);
 
 private:
   static nsresult EnsureUAStyleSheet();
-  static bool IsImageContentType(const char* aContentType);
+  static PRBool IsImageContentType(const char* aContentType);
 };
 
 nsresult

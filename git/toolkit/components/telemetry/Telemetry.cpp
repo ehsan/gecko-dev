@@ -217,10 +217,6 @@ JSHistogram_Add(JSContext *cx, uintN argc, jsval *vp)
 
   if (TelemetryImpl::CanRecord()) {
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if (!obj) {
-      return JS_FALSE;
-    }
-
     Histogram *h = static_cast<Histogram*>(JS_GetPrivate(cx, obj));
     if (h->histogram_type() == Histogram::BOOLEAN_HISTOGRAM)
       h->Add(!!value);
@@ -234,10 +230,6 @@ JSBool
 JSHistogram_Snapshot(JSContext *cx, uintN argc, jsval *vp)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj) {
-    return JS_FALSE;
-  }
-
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(cx, obj));
   JSObject *snapshot = JS_NewObject(cx, NULL, NULL, NULL);
   if (!snapshot)
@@ -341,13 +333,13 @@ TelemetryImpl::GetHistogramById(const nsACString &name, JSContext *cx, jsval *re
 }
 
 NS_IMETHODIMP
-TelemetryImpl::GetCanRecord(bool *ret) {
+TelemetryImpl::GetCanRecord(PRBool *ret) {
   *ret = mCanRecord;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TelemetryImpl::SetCanRecord(bool canRecord) {
+TelemetryImpl::SetCanRecord(PRBool canRecord) {
   mCanRecord = !!canRecord;
   return NS_OK;
 }
@@ -417,13 +409,6 @@ Accumulate(ID aHistogram, PRUint32 aSample)
   nsresult rv = GetHistogramByEnumId(aHistogram, &h);
   if (NS_SUCCEEDED(rv))
     h->Add(aSample);
-}
-
-void
-AccumulateTimeDelta(ID aHistogram, TimeStamp start, TimeStamp end)
-{
-  Accumulate(aHistogram,
-             static_cast<PRUint32>((end - start).ToMilliseconds()));
 }
 
 base::Histogram*

@@ -46,7 +46,7 @@ nsBaseClipboard::nsBaseClipboard()
 {
   mClipboardOwner          = nsnull;
   mTransferable            = nsnull;
-  mIgnoreEmptyNotification = false;
+  mIgnoreEmptyNotification = PR_FALSE;
 
 }
 
@@ -69,7 +69,7 @@ NS_IMETHODIMP nsBaseClipboard::SetData(nsITransferable * aTransferable, nsIClipb
 
   if (aTransferable == mTransferable && anOwner == mClipboardOwner)
     return NS_OK;
-  bool selectClipPresent;
+  PRBool selectClipPresent;
   SupportsSelectionClipboard(&selectClipPresent);
   if ( !selectClipPresent && aWhichClipboard != kGlobalClipboard )
     return NS_ERROR_FAILURE;
@@ -106,7 +106,7 @@ NS_IMETHODIMP nsBaseClipboard::GetData(nsITransferable * aTransferable, PRInt32 
 {
   NS_ASSERTION ( aTransferable, "clipboard given a null transferable" );
   
-  bool selectClipPresent;
+  PRBool selectClipPresent;
   SupportsSelectionClipboard(&selectClipPresent);
   if ( !selectClipPresent && aWhichClipboard != kGlobalClipboard )
     return NS_ERROR_FAILURE;
@@ -119,7 +119,7 @@ NS_IMETHODIMP nsBaseClipboard::GetData(nsITransferable * aTransferable, PRInt32 
 
 NS_IMETHODIMP nsBaseClipboard::EmptyClipboard(PRInt32 aWhichClipboard)
 {
-  bool selectClipPresent;
+  PRBool selectClipPresent;
   SupportsSelectionClipboard(&selectClipPresent);
   if ( !selectClipPresent && aWhichClipboard != kGlobalClipboard )
     return NS_ERROR_FAILURE;
@@ -141,15 +141,15 @@ NS_IMETHODIMP
 nsBaseClipboard::HasDataMatchingFlavors(const char** aFlavorList,
                                         PRUint32 aLength,
                                         PRInt32 aWhichClipboard,
-                                        bool* outResult) 
+                                        PRBool* outResult) 
 {
-  *outResult = true;  // say we always do.
+  *outResult = PR_TRUE;  // say we always do.
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsBaseClipboard::SupportsSelectionClipboard(bool* _retval)
+nsBaseClipboard::SupportsSelectionClipboard(PRBool* _retval)
 {
-  *_retval = false;   // we don't support the selection clipboard by default.
+  *_retval = PR_FALSE;   // we don't support the selection clipboard by default.
   return NS_OK;
 }

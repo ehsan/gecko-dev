@@ -84,7 +84,7 @@ SpanningCellSorter::HashTableHashKey(PLDHashTable *table, const void *key)
     return NS_PTR_TO_INT32(key);
 }
 
-/* static */ bool
+/* static */ PRBool
 SpanningCellSorter::HashTableMatchEntry(PLDHashTable *table,
                                         const PLDHashEntryHdr *hdr,
                                         const void *key)
@@ -93,14 +93,14 @@ SpanningCellSorter::HashTableMatchEntry(PLDHashTable *table,
     return NS_PTR_TO_INT32(key) == entry->mColSpan;
 }
 
-bool
+PRBool
 SpanningCellSorter::AddCell(PRInt32 aColSpan, PRInt32 aRow, PRInt32 aCol)
 {
     NS_ASSERTION(mState == ADDING, "cannot call AddCell after GetNext");
     NS_ASSERTION(aColSpan >= ARRAY_BASE, "cannot add cells with colspan<2");
 
     Item *i = (Item*) mPresShell->AllocateStackMemory(sizeof(Item));
-    NS_ENSURE_TRUE(i != nsnull, false);
+    NS_ENSURE_TRUE(i != nsnull, PR_FALSE);
 
     i->row = aRow;
     i->col = aCol;
@@ -115,12 +115,12 @@ SpanningCellSorter::AddCell(PRInt32 aColSpan, PRInt32 aRow, PRInt32 aCol)
                                sizeof(HashTableEntry), PL_DHASH_MIN_SIZE)) {
             NS_NOTREACHED("table init failed");
             mHashTable.entryCount = 0;
-            return false;
+            return PR_FALSE;
         }
         HashTableEntry *entry = static_cast<HashTableEntry*>
                                            (PL_DHashTableOperate(&mHashTable, NS_INT32_TO_PTR(aColSpan),
                                  PL_DHASH_ADD));
-        NS_ENSURE_TRUE(entry, false);
+        NS_ENSURE_TRUE(entry, PR_FALSE);
 
         NS_ASSERTION(entry->mColSpan == 0 || entry->mColSpan == aColSpan,
                      "wrong entry");
@@ -132,7 +132,7 @@ SpanningCellSorter::AddCell(PRInt32 aColSpan, PRInt32 aRow, PRInt32 aCol)
         entry->mItems = i;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 /* static */ PLDHashOperator

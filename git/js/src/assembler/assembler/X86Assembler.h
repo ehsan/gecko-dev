@@ -37,7 +37,7 @@
 #include "AssemblerBuffer.h"
 #include "jsstdint.h"
 #include "assembler/wtf/Assertions.h"
-#include "js/Vector.h"
+#include "jsvector.h"
 
 #include "methodjit/Logging.h"
 #define IPFX  "        %s"
@@ -2937,11 +2937,10 @@ private:
         {
             // A base of esp or r12 would be interpreted as a sib, so force a sib with no index & put the base in there.
 #if WTF_CPU_X86_64
-            if ((base == hasSib) || (base == hasSib2))
+            if ((base == hasSib) || (base == hasSib2)) {
 #else
-            if (base == hasSib)
+            if (base == hasSib) {
 #endif
-            {
                 if (!offset) // No need to check if the base is noBase, since we know it is hasSib!
                     putModRmSib(ModRmMemoryNoDisp, reg, base, noIndex, 0);
                 else if (CAN_SIGN_EXTEND_8_32(offset)) {
@@ -2972,11 +2971,10 @@ private:
         {
             // A base of esp or r12 would be interpreted as a sib, so force a sib with no index & put the base in there.
 #if WTF_CPU_X86_64
-            if ((base == hasSib) || (base == hasSib2))
+            if ((base == hasSib) || (base == hasSib2)) {
 #else
-            if (base == hasSib)
+            if (base == hasSib) {
 #endif
-            {
                 putModRmSib(ModRmMemoryDisp32, reg, base, noIndex, 0);
                 m_buffer.putIntUnchecked(offset);
             } else {

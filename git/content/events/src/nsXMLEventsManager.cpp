@@ -51,14 +51,14 @@
 
 using namespace mozilla::dom;
 
-bool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
+PRBool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
                                                   nsXMLEventsManager * aManager,
                                                   nsIContent * aContent)
 {
   nsresult rv;
   PRInt32 nameSpaceID;
   if (aContent->GetDocument() != aDocument)
-    return false;
+    return PR_FALSE;
   if (aContent->NodeInfo()->Equals(nsGkAtoms::listener,
                                    kNameSpaceID_XMLEvents))
     nameSpaceID = kNameSpaceID_None;
@@ -67,18 +67,18 @@ bool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
   nsAutoString eventType;
   aContent->GetAttr(nameSpaceID, nsGkAtoms::event, eventType);
   if (eventType.IsEmpty())
-    return false;
+    return PR_FALSE;
   nsAutoString handlerURIStr;
-  bool hasHandlerURI = false;
+  PRBool hasHandlerURI = PR_FALSE;
   nsIContent *handler = nsnull;
   nsAutoString observerID;
   nsAutoString targetIdref;
   
   if (aContent->GetAttr(nameSpaceID, nsGkAtoms::handler, handlerURIStr)) {
-    hasHandlerURI = true;
+    hasHandlerURI = PR_TRUE;
     nsCAutoString handlerRef;
     nsCOMPtr<nsIURI> handlerURI;
-    bool equals = false;
+    PRBool equals = PR_FALSE;
     nsIURI *docURI = aDocument->GetDocumentURI();
     nsIURI *baseURI = aDocument->GetDocBaseURI();
     rv = NS_NewURI( getter_AddRefs(handlerURI), handlerURIStr, nsnull, baseURI);
@@ -94,22 +94,22 @@ bool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
   else
     handler = aContent;
   if (!handler)
-    return false;
+    return PR_FALSE;
 
   aContent->GetAttr(nameSpaceID, nsGkAtoms::target, targetIdref);
 
-  bool hasObserver = 
+  PRBool hasObserver = 
     aContent->GetAttr(nameSpaceID, nsGkAtoms::observer, observerID);
 
-  bool capture =
+  PRBool capture =
     aContent->AttrValueIs(nameSpaceID, nsGkAtoms::phase,
                           nsGkAtoms::capture, eCaseMatters);
 
-  bool stopPropagation = 
+  PRBool stopPropagation = 
     aContent->AttrValueIs(nameSpaceID, nsGkAtoms::propagate,
                           nsGkAtoms::stop, eCaseMatters);
 
-  bool cancelDefault = 
+  PRBool cancelDefault = 
     aContent->AttrValueIs(nameSpaceID, nsGkAtoms::defaultAction,
                           nsGkAtoms::cancel, eCaseMatters);
 
@@ -140,13 +140,13 @@ bool nsXMLEventsListener::InitXMLEventsListener(nsIDocument * aDocument,
         aManager->RemoveXMLEventsContent(aContent);
         aManager->RemoveListener(aContent);
         aManager->AddListener(aContent, eli);
-        return true;
+        return PR_TRUE;
       }
       else
         delete eli;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsXMLEventsListener::nsXMLEventsListener(nsXMLEventsManager * aManager,
@@ -154,9 +154,9 @@ nsXMLEventsListener::nsXMLEventsListener(nsXMLEventsManager * aManager,
                                          nsIContent * aObserver,
                                          nsIContent * aHandler,
                                          const nsAString& aEvent,
-                                         bool aPhase,
-                                         bool aStopPropagation,
-                                         bool aCancelDefault,
+                                         PRBool aPhase,
+                                         PRBool aStopPropagation,
+                                         PRBool aCancelDefault,
                                          const nsAString& aTarget)
  : mManager(aManager),
    mElement(aElement),
@@ -192,12 +192,12 @@ void nsXMLEventsListener::SetIncomplete()
   mElement = nsnull;
 }
 
-bool nsXMLEventsListener::ObserverEquals(nsIContent * aTarget)
+PRBool nsXMLEventsListener::ObserverEquals(nsIContent * aTarget)
 {
   return aTarget == mObserver;
 }
 
-bool nsXMLEventsListener::HandlerEquals(nsIContent * aTarget)
+PRBool nsXMLEventsListener::HandlerEquals(nsIContent * aTarget)
 {
   return aTarget == mHandler;
 }
@@ -208,15 +208,15 @@ nsXMLEventsListener::HandleEvent(nsIDOMEvent* aEvent)
 {
   if (!aEvent) 
     return NS_ERROR_INVALID_ARG;
-  bool targetMatched = true;
+  PRBool targetMatched = PR_TRUE;
   nsCOMPtr<nsIDOMEvent> event(aEvent);
   if (mTarget) {
-    targetMatched = false;
+    targetMatched = PR_FALSE;
     nsCOMPtr<nsIDOMEventTarget> target;
     aEvent->GetTarget(getter_AddRefs(target));
     nsCOMPtr<nsIContent> targetEl(do_QueryInterface(target));
     if (targetEl && targetEl->GetID() == mTarget) 
-        targetMatched = true;
+        targetMatched = PR_TRUE;
   }
   if (!targetMatched)
     return NS_OK;
@@ -289,16 +289,16 @@ void nsXMLEventsManager::AddListener(nsIContent * aContent,
   mListeners.Put(aContent, aListener);
 }
 
-bool nsXMLEventsManager::RemoveListener(nsIContent * aContent)
+PRBool nsXMLEventsManager::RemoveListener(nsIContent * aContent)
 {
   nsCOMPtr<nsXMLEventsListener> listener;
   mListeners.Get(aContent, getter_AddRefs(listener));
   if (listener) {
     listener->Unregister();
     mListeners.Remove(aContent);
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 void nsXMLEventsManager::AddListeners(nsIDocument* aDocument)

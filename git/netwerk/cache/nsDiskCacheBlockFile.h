@@ -59,13 +59,13 @@ public:
            , mBlockSize(0)
            , mBitMapWords(0)
            , mFileSize(0)
-           , mBitMapDirty(false)
+           , mBitMapDirty(PR_FALSE)
             {}
-    ~nsDiskCacheBlockFile() { (void) Close(true); }
+    ~nsDiskCacheBlockFile() { (void) Close(PR_TRUE); }
     
     nsresult  Open( nsILocalFile *  blockFile, PRUint32  blockSize,
                     PRUint32  bitMapSize);
-    nsresult  Close(bool flush);
+    nsresult  Close(PRBool flush);
     
     /*
      * Trim
@@ -93,7 +93,7 @@ private:
     PRUint32                    mBlockSize;
     PRUint32                    mBitMapWords;
     PRInt32                     mFileSize;
-    bool                        mBitMapDirty;
+    PRBool                      mBitMapDirty;
 };
 
 #endif // _nsDiskCacheBlockFile_h_

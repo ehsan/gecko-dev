@@ -89,9 +89,9 @@ public:
    *
    * @return true if supported.
    */
-  virtual bool SupportsIsindexSubmission()
+  virtual PRBool SupportsIsindexSubmission()
   {
-    return false;
+    return PR_FALSE;
   }
 
   /**

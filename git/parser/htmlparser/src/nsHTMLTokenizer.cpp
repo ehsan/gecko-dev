@@ -127,7 +127,7 @@ nsHTMLTokenizer::GetFlags(const nsIContentSink* aSink)
   nsCOMPtr<nsIHTMLContentSink> sink =
     do_QueryInterface(const_cast<nsIContentSink*>(aSink));
   if (sink) {
-    bool enabled = true;
+    PRBool enabled = PR_TRUE;
     sink->IsEnabled(eHTMLTag_frameset, &enabled);
     if (enabled) {
       flags |= NS_IPARSER_FLAG_FRAMES_ENABLED;
@@ -269,7 +269,7 @@ nsHTMLTokenizer::GetTokenAt(PRInt32 anIndex)
  * @return Our success in setting up.
  */
 nsresult
-nsHTMLTokenizer::WillTokenize(bool aIsFinalChunk,
+nsHTMLTokenizer::WillTokenize(PRBool aIsFinalChunk,
                               nsTokenAllocator* aTokenAllocator)
 {
   mTokenAllocator = aTokenAllocator;
@@ -351,7 +351,7 @@ FindLastIndexOfTag(eHTMLTags aTag, nsDeque &aTagStack)
  * @param aFinalChunk Is unused.
  * @return Success (currently, this function cannot fail).
  */
-nsresult nsHTMLTokenizer::ScanDocStructure(bool aFinalChunk)
+nsresult nsHTMLTokenizer::ScanDocStructure(PRBool aFinalChunk)
 {
   nsresult result = NS_OK;
   if (!mTokenDeque.GetSize()) {
@@ -387,9 +387,9 @@ nsresult nsHTMLTokenizer::ScanDocStructure(bool aFinalChunk)
     eHTMLTags       theTag  = (eHTMLTags)theToken->GetTypeID();
 
     if (nsHTMLElement::IsContainer(theTag)) { // Bug 54117
-      bool theTagIsBlock  = gHTMLElements[theTag].IsMemberOf(kBlockEntity);
-      bool theTagIsInline = theTagIsBlock
-                              ? false
+      PRBool theTagIsBlock  = gHTMLElements[theTag].IsMemberOf(kBlockEntity);
+      PRBool theTagIsInline = theTagIsBlock
+                              ? PR_FALSE
                               : gHTMLElements[theTag].IsMemberOf(kInlineEntity);
 
       if (theTagIsBlock || theTagIsInline || eHTMLTag_table == theTag) {
@@ -486,7 +486,7 @@ nsresult nsHTMLTokenizer::ScanDocStructure(bool aFinalChunk)
  * @return Error result.
  */
 nsresult
-nsHTMLTokenizer::DidTokenize(bool aFinalChunk)
+nsHTMLTokenizer::DidTokenize(PRBool aFinalChunk)
 {
   return ScanDocStructure(aFinalChunk);
 }
@@ -504,7 +504,7 @@ nsHTMLTokenizer::DidTokenize(bool aFinalChunk)
  * @return Success or error
  */
 nsresult
-nsHTMLTokenizer::ConsumeToken(nsScanner& aScanner, bool& aFlushTokens)
+nsHTMLTokenizer::ConsumeToken(nsScanner& aScanner, PRBool& aFlushTokens)
 {
   PRUnichar theChar;
   CToken* theToken = nsnull;
@@ -563,7 +563,7 @@ nsresult
 nsHTMLTokenizer::ConsumeTag(PRUnichar aChar,
                             CToken*& aToken,
                             nsScanner& aScanner,
-                            bool& aFlushTokens)
+                            PRBool& aFlushTokens)
 {
   PRUnichar theNextChar, oldChar;
   nsresult result = aScanner.Peek(aChar, 1);
@@ -579,7 +579,7 @@ nsHTMLTokenizer::ConsumeTag(PRUnichar aChar,
 
           // XML allows non ASCII tag names, consume this as an end tag. This
           // is needed to make XML view source work
-          bool isXML = !!(mFlags & NS_IPARSER_FLAG_XML);
+          PRBool isXML = !!(mFlags & NS_IPARSER_FLAG_XML);
           if (nsCRT::IsAsciiAlpha(theNextChar) ||
               kGreaterThan == theNextChar      ||
               (isXML && !nsCRT::IsAscii(theNextChar))) {
@@ -615,7 +615,7 @@ nsHTMLTokenizer::ConsumeTag(PRUnichar aChar,
 
       default:
         // XML allows non ASCII tag names, consume this as a start tag.
-        bool isXML = !!(mFlags & NS_IPARSER_FLAG_XML);
+        PRBool isXML = !!(mFlags & NS_IPARSER_FLAG_XML);
         if (nsCRT::IsAsciiAlpha(aChar) ||
             (isXML && !nsCRT::IsAscii(aChar))) {
           // Get the original "<" (we've already seen it with a Peek)
@@ -653,7 +653,7 @@ nsHTMLTokenizer::ConsumeAttributes(PRUnichar aChar,
                                    CToken* aToken,
                                    nsScanner& aScanner)
 {
-  bool done = false;
+  PRBool done = PR_FALSE;
   nsresult result = NS_OK;
   PRInt16 theAttrCount = 0;
 
@@ -696,17 +696,17 @@ nsHTMLTokenizer::ConsumeAttributes(PRUnichar aChar,
       if (NS_SUCCEEDED(result)) {
         if (aChar == kGreaterThan) { // You just ate the '>'
           aScanner.GetChar(aChar); // Skip the '>'
-          done = true;
+          done = PR_TRUE;
         } else if (aChar == kLessThan) {
-          aToken->SetInError(true);
-          done = true;
+          aToken->SetInError(PR_TRUE);
+          done = PR_TRUE;
         }
       }
     }
   }
 
   if (NS_FAILED(result)) {
-    aToken->SetInError(true);
+    aToken->SetInError(PR_TRUE);
 
     if (!aScanner.IsIncremental()) {
       result = NS_OK;
@@ -732,7 +732,7 @@ nsresult
 nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
                                  CToken*& aToken,
                                  nsScanner& aScanner,
-                                 bool& aFlushTokens)
+                                 PRBool& aFlushTokens)
 {
   // Remember this for later in case you have to unwind...
   PRInt32 theDequeSize = mTokenDeque.GetSize();
@@ -754,7 +754,7 @@ nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
     // If so, we have a complete tag, otherwise, we have attributes.
     result = aScanner.Peek(aChar);
     if (NS_FAILED(result)) {
-      aToken->SetInError(true);
+      aToken->SetInError(PR_TRUE);
 
       // Don't return early here so we can create a text and end token for
       // the special <iframe>, <script> and similar tags down below.
@@ -774,8 +774,8 @@ nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
         document is XML.
      */
     if (NS_SUCCEEDED(result) && !(mFlags & NS_IPARSER_FLAG_XML)) {
-      bool isCDATA = gHTMLElements[theTag].CanContainType(kCDATA);
-      bool isPCDATA = eHTMLTag_textarea == theTag ||
+      PRBool isCDATA = gHTMLElements[theTag].CanContainType(kCDATA);
+      PRBool isPCDATA = eHTMLTag_textarea == theTag ||
                         eHTMLTag_title    == theTag;
 
       // XXX This is an evil hack, we should be able to handle these properly
@@ -787,13 +787,13 @@ nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
           (eHTMLTag_noscript == theTag &&
             (mFlags & NS_IPARSER_FLAG_SCRIPT_ENABLED)) ||
           (eHTMLTag_noembed == theTag)) {
-        isCDATA = true;
+        isCDATA = PR_TRUE;
       }
 
       // Plaintext contains CDATA, but it's special, so we handle it
       // differently than the other CDATA elements
       if (eHTMLTag_plaintext == theTag) {
-        isCDATA = false;
+        isCDATA = PR_FALSE;
 
         // Note: We check in ConsumeToken() for this flag, and if we see it
         // we only construct text tokens (which is what we want).
@@ -802,7 +802,7 @@ nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
 
 
       if (isCDATA || isPCDATA) {
-        bool done = false;
+        PRBool done = PR_FALSE;
         nsDependentString endTagName(nsHTMLTags::GetStringValue(theTag)); 
 
         CToken* text =
@@ -862,7 +862,7 @@ nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
               // we're going to execute this script (since the result means
               // that we've found an end tag that satisfies all of the right
               // conditions).
-              endToken->SetInError(false);
+              endToken->SetInError(PR_FALSE);
             }
           } else if (result == kFakeEndTag &&
                     !(mFlags & NS_IPARSER_FLAG_VIEW_SOURCE)) {
@@ -871,7 +871,7 @@ nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
                                                        endTagName);
             AddToken(endToken, result, &mTokenDeque, theAllocator);
             if (NS_LIKELY(endToken != nsnull)) {
-              endToken->SetInError(true);
+              endToken->SetInError(PR_TRUE);
             }
             else {
               result = NS_ERROR_OUT_OF_MEMORY;
@@ -942,7 +942,7 @@ nsHTMLTokenizer::ConsumeEndTag(PRUnichar aChar,
 
   result = aScanner.Peek(aChar);
   if (NS_FAILED(result)) {
-    aToken->SetInError(true);
+    aToken->SetInError(PR_TRUE);
 
     // Note: We know here that the scanner is not incremental since if
     // this peek fails, then we've already masked over a kEOF coming from
@@ -1011,7 +1011,7 @@ nsHTMLTokenizer::ConsumeEntity(PRUnichar aChar,
     // If the last character in the file is an &, consume it as text.
     result = ConsumeText(aToken, aScanner);
     if (aToken) {
-      aToken->SetInError(true);
+      aToken->SetInError(PR_TRUE);
     }
   }
 
@@ -1138,7 +1138,7 @@ nsHTMLTokenizer::ConsumeSpecialMarkup(PRUnichar aChar,
   nsAutoString theBufCopy;
   aScanner.Peek(theBufCopy, 20);
   ToUpperCase(theBufCopy);
-  PRInt32 theIndex = theBufCopy.Find("DOCTYPE", false, 0, 0);
+  PRInt32 theIndex = theBufCopy.Find("DOCTYPE", PR_FALSE, 0, 0);
   nsTokenAllocator* theAllocator = this->GetTokenAllocator();
 
   if (theIndex == kNotFound) {

@@ -97,17 +97,7 @@ int main(int argc, char* argv[])
                     failCode = EFailUsage;
                 }
                 break;
-            case 'x':
-                if (argv[0][2] == '=') {
-                    switch (argv[0][3]) {
-                    case 'i': resources.OES_EGL_image_external = 1; break;
-                    case 'd': resources.OES_standard_derivatives = 1; break;
-                    default: failCode = EFailUsage;
-                    }
-                } else {
-                    failCode = EFailUsage;
-                }
-                break;
+            case 'a': resources.OES_EGL_image_external = 1; break;
             default: failCode = EFailUsage;
             }
         } else {
@@ -149,12 +139,12 @@ int main(int argc, char* argv[])
               }
               if (compiled && (compileOptions & SH_ATTRIBUTES_UNIFORMS)) {
                   LogMsg("BEGIN", "COMPILER", numCompiles, "ACTIVE ATTRIBS");
-                  PrintActiveVariables(compiler, SH_ACTIVE_ATTRIBUTES, (compileOptions & SH_MAP_LONG_VARIABLE_NAMES) != 0);
+                  PrintActiveVariables(compiler, SH_ACTIVE_ATTRIBUTES, compileOptions & SH_MAP_LONG_VARIABLE_NAMES);
                   LogMsg("END", "COMPILER", numCompiles, "ACTIVE ATTRIBS");
                   printf("\n\n");
 
                   LogMsg("BEGIN", "COMPILER", numCompiles, "ACTIVE UNIFORMS");
-                  PrintActiveVariables(compiler, SH_ACTIVE_UNIFORMS, (compileOptions & SH_MAP_LONG_VARIABLE_NAMES) != 0);
+                  PrintActiveVariables(compiler, SH_ACTIVE_UNIFORMS, compileOptions & SH_MAP_LONG_VARIABLE_NAMES);
                   LogMsg("END", "COMPILER", numCompiles, "ACTIVE UNIFORMS");
                   printf("\n\n");
               }
@@ -188,7 +178,7 @@ int main(int argc, char* argv[])
 //
 void usage()
 {
-    printf("Usage: translate [-i -m -o -u -l -e -b=e -b=g -b=h -x=i -x=d] file1 file2 ...\n"
+    printf("Usage: translate [-i -m -o -u -l -e -b=e -b=g -b=h -a] file1 file2 ...\n"
         "Where: filename : filename ending in .frag or .vert\n"
         "       -i       : print intermediate tree\n"
         "       -m       : map long variable names\n"
@@ -199,8 +189,7 @@ void usage()
         "       -b=e     : output GLSL ES code (this is by default)\n"
         "       -b=g     : output GLSL code\n"
         "       -b=h     : output HLSL code\n"
-        "       -x=i     : enable GL_OES_EGL_image_external\n"
-        "       -x=d     : enable GL_OES_EGL_standard_derivatives\n");
+        "       -a       : enable GL_OES_EGL_image_external\n");
 }
 
 //

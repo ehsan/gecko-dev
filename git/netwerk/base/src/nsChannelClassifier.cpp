@@ -85,7 +85,7 @@ nsChannelClassifier::Start(nsIChannel *aChannel)
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Don't bother checking certain types of URIs.
-    bool hasFlags;
+    PRBool hasFlags;
     rv = NS_URIChainHasFlags(uri,
                              nsIProtocolHandler::URI_DANGEROUS_TO_LOAD,
                              &hasFlags);
@@ -119,7 +119,7 @@ nsChannelClassifier::Start(nsIChannel *aChannel)
     }
     NS_ENSURE_SUCCESS(rv, rv);
 
-    bool expectCallback;
+    PRBool expectCallback;
     rv = uriClassifier->Classify(uri, this, &expectCallback);
     if (NS_FAILED(rv)) return rv;
 
@@ -171,32 +171,32 @@ nsChannelClassifier::MarkEntryClassified(nsresult status)
                                    NS_SUCCEEDED(status) ? "1" : nsnull);
 }
 
-bool
+PRBool
 nsChannelClassifier::HasBeenClassified(nsIChannel *aChannel)
 {
     nsCOMPtr<nsICachingChannel> cachingChannel =
         do_QueryInterface(aChannel);
     if (!cachingChannel) {
-        return false;
+        return PR_FALSE;
     }
 
     // Only check the tag if we are loading from the cache without
     // validation.
-    bool fromCache;
+    PRBool fromCache;
     if (NS_FAILED(cachingChannel->IsFromCache(&fromCache)) || !fromCache) {
-        return false;
+        return PR_FALSE;
     }
 
     nsCOMPtr<nsISupports> cacheToken;
     cachingChannel->GetCacheToken(getter_AddRefs(cacheToken));
     if (!cacheToken) {
-        return false;
+        return PR_FALSE;
     }
 
     nsCOMPtr<nsICacheEntryDescriptor> cacheEntry =
         do_QueryInterface(cacheToken);
     if (!cacheEntry) {
-        return false;
+        return PR_FALSE;
     }
 
     nsXPIDLCString tag;

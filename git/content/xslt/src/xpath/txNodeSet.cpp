@@ -129,7 +129,7 @@ nsresult txNodeSet::add(const txXPathNode& aNode)
         return append(aNode);
     }
 
-    bool dupe;
+    PRBool dupe;
     txXPathNode* pos = findPosition(aNode, mStart, mEnd, dupe);
 
     if (dupe) {
@@ -251,7 +251,7 @@ nsresult txNodeSet::add(const txNodeSet& aNodes, transferOp aTransfer,
     // Pointer to the insertion point in this nodeset
     txXPathNode* insertPos = mEndBuffer;
 
-    bool dupe;
+    PRBool dupe;
     txXPathNode* pos;
     PRInt32 count;
     while (thisPos > mStart || otherPos > aNodes.mStart) {
@@ -384,15 +384,15 @@ txNodeSet::mark(PRInt32 aIndex)
                  "index out of bounds");
     if (!mMarks) {
         PRInt32 length = size();
-        mMarks = new bool[length];
+        mMarks = new PRPackedBool[length];
         NS_ENSURE_TRUE(mMarks, NS_ERROR_OUT_OF_MEMORY);
-        memset(mMarks, 0, length * sizeof(bool));
+        memset(mMarks, 0, length * sizeof(PRPackedBool));
     }
     if (mDirection == kForward) {
-        mMarks[aIndex] = true;
+        mMarks[aIndex] = PR_TRUE;
     }
     else {
-        mMarks[size() - aIndex - 1] = true;
+        mMarks[size() - aIndex - 1] = PR_TRUE;
     }
 
     return NS_OK;
@@ -490,7 +490,7 @@ txNodeSet::getResultType()
     return txAExprResult::NODESET;
 }
 
-bool
+PRBool
 txNodeSet::booleanValue()
 {
     return !isEmpty();
@@ -501,7 +501,7 @@ txNodeSet::numberValue()
     nsAutoString str;
     stringValue(str);
 
-    return txDouble::toDouble(str);
+    return Double::toDouble(str);
 }
 
 void
@@ -521,15 +521,15 @@ txNodeSet::stringValuePointer()
     return nsnull;
 }
 
-bool txNodeSet::ensureGrowSize(PRInt32 aSize)
+PRBool txNodeSet::ensureGrowSize(PRInt32 aSize)
 {
     // check if there is enough place in the buffer as is
     if (mDirection == kForward && aSize <= mEndBuffer - mEnd) {
-        return true;
+        return PR_TRUE;
     }
 
     if (mDirection == kReversed && aSize <= mStart - mStartBuffer) {
-        return true;
+        return PR_TRUE;
     }
 
     // check if we just have to align mStart to have enough space
@@ -547,7 +547,7 @@ bool txNodeSet::ensureGrowSize(PRInt32 aSize)
         mStart = dest;
         mEnd = dest + oldSize;
             
-        return true;
+        return PR_TRUE;
     }
 
     // This isn't 100% safe. But until someone manages to make a 1gig nodeset
@@ -562,7 +562,7 @@ bool txNodeSet::ensureGrowSize(PRInt32 aSize)
                                      (nsMemory::Alloc(newLength *
                                                          sizeof(txXPathNode)));
     if (!newArr) {
-        return false;
+        return PR_FALSE;
     }
 
     txXPathNode* dest = newArr;
@@ -588,14 +588,14 @@ bool txNodeSet::ensureGrowSize(PRInt32 aSize)
     mStart = dest;
     mEnd = dest + oldSize;
 
-    return true;
+    return PR_TRUE;
 }
 
 txXPathNode*
 txNodeSet::findPosition(const txXPathNode& aNode, txXPathNode* aFirst,
-                        txXPathNode* aLast, bool& aDupe) const
+                        txXPathNode* aLast, PRBool& aDupe) const
 {
-    aDupe = false;
+    aDupe = PR_FALSE;
     if (aLast - aFirst <= 2) {
         // If we search 2 nodes or less there is no point in further divides
         txXPathNode* pos = aFirst;
@@ -606,7 +606,7 @@ txNodeSet::findPosition(const txXPathNode& aNode, txXPathNode* aFirst,
             }
 
             if (cmp == 0) {
-                aDupe = true;
+                aDupe = PR_TRUE;
 
                 return pos;
             }
@@ -618,7 +618,7 @@ txNodeSet::findPosition(const txXPathNode& aNode, txXPathNode* aFirst,
     txXPathNode* midpos = aFirst + (aLast - aFirst) / 2;
     PRIntn cmp = txXPathNodeUtils::comparePosition(aNode, *midpos);
     if (cmp == 0) {
-        aDupe = true;
+        aDupe = PR_TRUE;
 
         return midpos;
     }

@@ -56,7 +56,6 @@ BrowserStreamChild::BrowserStreamChild(PluginInstanceChild* instance,
   , mStreamStatus(kStreamOpen)
   , mDestroyPending(NOT_DESTROYED)
   , mNotifyPending(false)
-  , mStreamAsFilePending(false)
   , mInstanceDying(false)
   , mState(CONSTRUCTING)
   , mURL(url)
@@ -141,7 +140,7 @@ BrowserStreamChild::RecvWrite(const int32_t& offset,
 }
 
 bool
-BrowserStreamChild::RecvNPP_StreamAsFile(const nsCString& fname)
+BrowserStreamChild::AnswerNPP_StreamAsFile(const nsCString& fname)
 {
   PLUGIN_LOG_DEBUG(("%s (fname=%s)", FULLFUNCTION, fname.get()));
 
@@ -153,10 +152,8 @@ BrowserStreamChild::RecvNPP_StreamAsFile(const nsCString& fname)
   if (kStreamOpen != mStreamStatus)
     return true;
 
-  mStreamAsFilePending = true;
-  mStreamAsFileName = fname;
-  EnsureDeliveryPending();
-
+  mInstance->mPluginIface->asfile(&mInstance->mData, &mStream,
+                                  fname.get());
   return true;
 }
 
@@ -240,20 +237,6 @@ BrowserStreamChild::Deliver()
   NS_ASSERTION(kStreamOpen != mStreamStatus || 0 == mPendingData.Length(),
                "Exit out of the data-delivery loop with pending data");
   mPendingData.Clear();
-
-  // NPP_StreamAsFile() is documented (at MDN) to be called "when the stream
-  // is complete" -- i.e. after all calls to NPP_WriteReady() and NPP_Write()
-  // have finished.  We make these calls asynchronously (from
-  // DeliverPendingData()).  So we need to make sure all the "pending data"
-  // has been "delivered" before calling NPP_StreamAsFile() (also
-  // asynchronously).  Doing this resolves bug 687610, bug 670036 and possibly
-  // also other bugs.
-  if (mStreamAsFilePending) {
-    if (mStreamStatus == kStreamOpen)
-      mInstance->mPluginIface->asfile(&mInstance->mData, &mStream,
-                                      mStreamAsFileName.get());
-    mStreamAsFilePending = false;
-  }
 
   if (DESTROY_PENDING == mDestroyPending) {
     mDestroyPending = DESTROYED;

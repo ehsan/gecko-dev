@@ -47,11 +47,9 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsgc.h"
+#include "jshashtable.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
-
-#include "gc/Barrier.h"
-#include "js/HashTable.h"
 #include "vm/GlobalObject.h"
 
 namespace js {
@@ -61,6 +59,8 @@ class Debugger {
     friend JSBool (::JS_DefineDebuggerObject)(JSContext *cx, JSObject *obj);
 
   public:
+    enum NewScriptKind { NewNonHeldScript, NewHeldScript };
+
     enum Hook {
         OnDebuggerStatement,
         OnExceptionUnwind,
@@ -82,9 +82,9 @@ class Debugger {
 
   private:
     JSCList link;                       /* See JSRuntime::debuggerList. */
-    HeapPtrObject object;               /* The Debugger object. Strong reference. */
+    JSObject *object;                   /* The Debugger object. Strong reference. */
     GlobalObjectSet debuggees;          /* Debuggee globals. Cross-compartment weak references. */
-    js::HeapPtrObject uncaughtExceptionHook; /* Strong reference. */
+    JSObject *uncaughtExceptionHook;    /* Strong reference. */
     bool enabled;
     JSCList breakpoints;                /* cyclic list of all js::Breakpoints in this debugger */
 
@@ -101,17 +101,45 @@ class Debugger {
      * that way, but since stack frames are not gc-things, the implementation
      * has to be different.
      */
-    typedef HashMap<StackFrame *, HeapPtrObject, DefaultHasher<StackFrame *>, RuntimeAllocPolicy>
+    typedef HashMap<StackFrame *, JSObject *, DefaultHasher<StackFrame *>, RuntimeAllocPolicy>
         FrameMap;
     FrameMap frames;
 
     /* The map from debuggee objects to their Debugger.Object instances. */
-    typedef WeakMap<HeapPtrObject, HeapPtrObject> ObjectWeakMap;
+    typedef WeakMap<JSObject *, JSObject *, DefaultHasher<JSObject *>, CrossCompartmentMarkPolicy>
+        ObjectWeakMap;
     ObjectWeakMap objects;
 
-    /* An ephemeral map from JSScript* to Debugger.Script instances. */
-    typedef WeakMap<HeapPtrScript, HeapPtrObject> ScriptWeakMap;
-    ScriptWeakMap scripts;
+    /*
+     * An ephemeral map from script-holding objects to Debugger.Script
+     * instances.
+     */
+    typedef WeakMap<JSObject *, JSObject *, DefaultHasher<JSObject *>, CrossCompartmentMarkPolicy>
+        ScriptWeakMap;
+
+    /*
+     * Map of Debugger.Script instances for garbage-collected JSScripts. For
+     * function scripts, the key is the compiler-created, internal JSFunction;
+     * for scripts returned by JSAPI functions, the key is the "Script"-class
+     * JSObject.
+     */
+    ScriptWeakMap heldScripts;
+
+    /*
+     * An ordinary (non-ephemeral) map from JSScripts to Debugger.Script
+     * instances, for non-held scripts that are explicitly freed.
+     */
+    typedef HashMap<JSScript *, JSObject *, DefaultHasher<JSScript *>, RuntimeAllocPolicy>
+        ScriptMap;
+
+    /*
+     * Map from non-held JSScripts to their Debugger.Script objects. Non-held
+     * scripts are scripts created for eval or JS_Evaluate* calls that are
+     * explicitly destroyed when the call returns. Debugger.Script objects are
+     * not strong references to such JSScripts; the Debugger.Script becomes
+     * "dead" when the eval call returns.
+     */
+    ScriptMap nonHeldScripts;
 
     bool addDebuggeeGlobal(JSContext *cx, GlobalObject *obj);
     void removeDebuggeeGlobal(JSContext *cx, GlobalObject *global,
@@ -167,7 +195,7 @@ class Debugger {
     static void traceObject(JSTracer *trc, JSObject *obj);
     void trace(JSTracer *trc);
     static void finalize(JSContext *cx, JSObject *obj);
-    void markKeysInCompartment(JSTracer *tracer);
+    static void markKeysInCompartment(JSTracer *tracer, const ObjectWeakMap &map);
 
     static Class jsclass;
 
@@ -201,8 +229,10 @@ class Debugger {
 
     static void slowPathOnEnterFrame(JSContext *cx);
     static void slowPathOnLeaveFrame(JSContext *cx);
-    static void slowPathOnNewScript(JSContext *cx, JSScript *script,
-                                    GlobalObject *compileAndGoGlobal);
+    static void slowPathOnNewScript(JSContext *cx, JSScript *script, JSObject *obj,
+                                    NewScriptKind kind);
+    static void slowPathOnDestroyScript(JSScript *script);
+
     static JSTrapStatus dispatchHook(JSContext *cx, js::Value *vp, Hook which);
 
     JSTrapStatus fireDebuggerStatement(JSContext *cx, Value *vp);
@@ -210,16 +240,27 @@ class Debugger {
     void fireEnterFrame(JSContext *cx);
 
     /*
-     * Allocate and initialize a Debugger.Script instance whose referent is
-     * |script|.
+     * Allocate and initialize a Debugger.Script instance whose referent is |script| and
+     * whose holder is |obj|. If |obj| is NULL, this creates a Debugger.Script whose holder
+     * is null, for non-held scripts.
      */
-    JSObject *newDebuggerScript(JSContext *cx, JSScript *script);
+    JSObject *newDebuggerScript(JSContext *cx, JSScript *script, JSObject *obj);
+
+    /* Helper function for wrapFunctionScript and wrapJSAPIscript. */
+    JSObject *wrapHeldScript(JSContext *cx, JSScript *script, JSObject *obj);
 
     /*
      * Receive a "new script" event from the engine. A new script was compiled
-     * or deserialized.
+     * or deserialized. If kind is NewHeldScript, obj must be the holder
+     * object. Otherwise, kind must be NewNonHeldScript, script must be an eval
+     * or JS_Evaluate* script, and we must have
+     *     obj->getGlobal() == scopeObj->getGlobal()
+     * where scopeObj is the scope in which the new script will be executed.
      */
-    void fireNewScript(JSContext *cx, JSScript *script);
+    void fireNewScript(JSContext *cx, JSScript *script, JSObject *obj, NewScriptKind kind);
+
+    /* Remove script from our table of non-held scripts. */
+    void destroyNonHeldScript(JSScript *script);
 
     static inline Debugger *fromLinks(JSCList *links);
     inline Breakpoint *firstBreakpoint() const;
@@ -229,7 +270,7 @@ class Debugger {
     ~Debugger();
 
     bool init(JSContext *cx);
-    inline const js::HeapPtrObject &toJSObject() const;
+    inline JSObject *toJSObject() const;
     static inline Debugger *fromJSObject(JSObject *obj);
     static Debugger *fromChildJSObject(JSObject *obj);
 
@@ -260,8 +301,9 @@ class Debugger {
     static inline void onLeaveFrame(JSContext *cx);
     static inline JSTrapStatus onDebuggerStatement(JSContext *cx, js::Value *vp);
     static inline JSTrapStatus onExceptionUnwind(JSContext *cx, js::Value *vp);
-    static inline void onNewScript(JSContext *cx, JSScript *script,
-                                   GlobalObject *compileAndGoGlobal);
+    static inline void onNewScript(JSContext *cx, JSScript *script, JSObject *obj,
+                                   NewScriptKind kind);
+    static inline void onDestroyScript(JSScript *script);
     static JSTrapStatus onTrap(JSContext *cx, Value *vp);
     static JSTrapStatus onSingleStep(JSContext *cx, Value *vp);
 
@@ -269,7 +311,7 @@ class Debugger {
 
     inline bool observesEnterFrame() const;
     inline bool observesNewScript() const;
-    inline bool observesGlobal(GlobalObject *global) const;
+    inline bool observesScope(JSObject *obj) const;
     inline bool observesFrame(StackFrame *fp) const;
 
     /*
@@ -330,11 +372,27 @@ class Debugger {
     bool newCompletionValue(AutoCompartment &ac, bool ok, Value val, Value *vp);
 
     /*
-     * Return the Debugger.Script object for |script|, or create a new one if
-     * needed. The context |cx| must be in the debugger compartment; |script|
-     * must be a script in a debuggee compartment.
+     * Return the Debugger.Script object for |fun|'s script, or create a new
+     * one if needed.  The context |cx| must be in the debugger compartment;
+     * |fun| must be a cross-compartment wrapper referring to the JSFunction in
+     * a debuggee compartment.
      */
-    JSObject *wrapScript(JSContext *cx, JSScript *script);
+    JSObject *wrapFunctionScript(JSContext *cx, JSFunction *fun);
+
+    /*
+     * Return the Debugger.Script object for the Script object |obj|'s
+     * JSScript, or create a new one if needed. The context |cx| must be in the
+     * debugger compartment; |obj| must be a cross-compartment wrapper
+     * referring to a script object in a debuggee compartment.
+     */
+    JSObject *wrapJSAPIScript(JSContext *cx, JSObject *scriptObj);
+
+    /*
+     * Return the Debugger.Script object for the non-held script |script|, or
+     * create a new one if needed. The context |cx| must be in the debugger
+     * compartment; |script| must be a script in a debuggee compartment.
+     */
+    JSObject *wrapNonHeldScript(JSContext *cx, JSScript *script);
 
   private:
     /* Prohibit copying. */
@@ -355,15 +413,15 @@ class BreakpointSite {
   private:
     /*
      * The holder object for script, if known, else NULL.  This is NULL for
-     * cached eval scripts and for JSD1 traps. It is always non-null for JSD2
+     * non-held scripts and for JSD1 traps. It is always non-null for JSD2
      * breakpoints in held scripts.
      */
-    GlobalObject *scriptGlobal;
+    JSObject *scriptObject;
 
     JSCList breakpoints;  /* cyclic list of all js::Breakpoints at this instruction */
     size_t enabledCount;  /* number of breakpoints in the list that are enabled */
     JSTrapHandler trapHandler;  /* jsdbgapi trap state */
-    HeapValue trapClosure;
+    Value trapClosure;
 
     bool recompile(JSContext *cx, bool forTrap);
 
@@ -372,7 +430,7 @@ class BreakpointSite {
     Breakpoint *firstBreakpoint() const;
     bool hasBreakpoint(Breakpoint *bp);
     bool hasTrap() const { return !!trapHandler; }
-    GlobalObject *getScriptGlobal() const { return scriptGlobal; }
+    JSObject *getScriptObject() const { return scriptObject; }
 
     bool inc(JSContext *cx);
     void dec(JSContext *cx);
@@ -408,7 +466,7 @@ class Breakpoint {
     Debugger * const debugger;
     BreakpointSite * const site;
   private:
-    js::HeapPtrObject handler;
+    JSObject *handler;
     JSCList debuggerLinks;
     JSCList siteLinks;
 
@@ -419,7 +477,7 @@ class Breakpoint {
     void destroy(JSContext *cx, BreakpointSiteMap::Enum *e = NULL);
     Breakpoint *nextInDebugger();
     Breakpoint *nextInSite();
-    const HeapPtrObject &getHandler() const { return handler; }
+    JSObject *getHandler() const { return handler; }
 };
 
 Debugger *
@@ -437,7 +495,7 @@ Debugger::firstBreakpoint() const
     return Breakpoint::fromDebuggerLinks(JS_NEXT_LINK(&breakpoints));
 }
 
-const js::HeapPtrObject &
+JSObject *
 Debugger::toJSObject() const
 {
     JS_ASSERT(object);
@@ -464,15 +522,15 @@ Debugger::observesNewScript() const
 }
 
 bool
-Debugger::observesGlobal(GlobalObject *global) const
+Debugger::observesScope(JSObject *obj) const
 {
-    return debuggees.has(global);
+    return debuggees.has(obj->getGlobal());
 }
 
 bool
 Debugger::observesFrame(StackFrame *fp) const
 {
-    return observesGlobal(fp->scopeChain().getGlobal());
+    return observesScope(&fp->scopeChain());
 }
 
 void
@@ -506,12 +564,18 @@ Debugger::onExceptionUnwind(JSContext *cx, js::Value *vp)
 }
 
 void
-Debugger::onNewScript(JSContext *cx, JSScript *script, GlobalObject *compileAndGoGlobal)
+Debugger::onNewScript(JSContext *cx, JSScript *script, JSObject *obj, NewScriptKind kind)
 {
-    JS_ASSERT_IF(script->compileAndGo, compileAndGoGlobal);
-    JS_ASSERT_IF(!script->compileAndGo, !compileAndGoGlobal);
+    JS_ASSERT_IF(kind == NewHeldScript || script->compileAndGo, obj);
     if (!script->compartment()->getDebuggees().empty())
-        slowPathOnNewScript(cx, script, compileAndGoGlobal);
+        slowPathOnNewScript(cx, script, obj, kind);
+}
+
+void
+Debugger::onDestroyScript(JSScript *script)
+{
+    if (!script->compartment()->getDebuggees().empty())
+        slowPathOnDestroyScript(script);
 }
 
 extern JSBool

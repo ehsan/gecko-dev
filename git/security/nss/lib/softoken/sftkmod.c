@@ -179,18 +179,15 @@ char *sftk_getOldSecmodName(const char *dbname,const char *filename)
     char *sep;
 
     sep = PORT_Strrchr(dirPath,*PATH_SEPARATOR);
-#ifdef _WIN32
+#ifdef WINDOWS
     if (!sep) {
-	/* pkcs11i.h defines PATH_SEPARATOR as "/" for all platforms. */
-	sep = PORT_Strrchr(dirPath,'\\');
+	sep = PORT_Strrchr(dirPath,'/');
     }
 #endif
     if (sep) {
-	*sep = 0;
-	file = PR_smprintf("%s"PATH_SEPARATOR"%s", dirPath, filename);
-    } else {
-	file = PR_smprintf("%s", filename);
+	*(sep)=0;
     }
+    file= PR_smprintf("%s"PATH_SEPARATOR"%s", dirPath, filename);
     PORT_Free(dirPath);
     return file;
 }
@@ -245,17 +242,12 @@ sftkdb_ReadSecmodDB(SDBType dbType, const char *appName,
     char *paramsValue=NULL;
     PRBool failed = PR_TRUE;
 
-    if ((dbname != NULL) &&
-		((dbType == SDB_LEGACY) || (dbType == SDB_MULTIACCESS))) {
+    if ((dbType == SDB_LEGACY) || (dbType == SDB_MULTIACCESS)) {
 	return sftkdbCall_ReadSecmodDB(appName, filename, dbname, params, rw);
     }
 
     moduleList = (char **) PORT_ZAlloc(useCount*sizeof(char **));
     if (moduleList == NULL) return NULL;
-
-    if (dbname == NULL) {
-	goto return_default;
-    }
 
     /* do we really want to use streams here */
     fd = fopen(dbname, "r");
@@ -413,11 +405,7 @@ sftkdb_ReadSecmodDB(SDBType dbType, const char *appName,
 	moduleString = NULL;
     }
 done:
-    /* If we couldn't open a pkcs11 database, look for the old one.
-     * This is necessary to maintain the semantics of the transition from
-     * old to new DB's. If there is an old DB and not new DB, we will
-     * automatically use the old DB. If the DB was opened read/write, we
-     * create a new db and upgrade it from the old one. */
+    /* if we couldn't open a pkcs11 database, look for the old one */
     if (fd == NULL) {
 	char *olddbname = sftk_getOldSecmodName(dbname,filename);
 	PRStatus status;
@@ -474,8 +462,6 @@ bail:
 	    PR_smprintf_free(olddbname);
 	}
     }
-
-return_default:
 	
     if (!moduleList[0]) {
 	char * newParams;
@@ -529,8 +515,7 @@ sftkdb_ReleaseSecmodDBData(SDBType dbType, const char *appName,
 			const char *filename, const char *dbname, 
 			char **moduleSpecList, PRBool rw)
 {
-    if ((dbname != NULL) &&
-		((dbType == SDB_LEGACY) || (dbType == SDB_MULTIACCESS))) {
+    if ((dbType == SDB_LEGACY) || (dbType == SDB_MULTIACCESS)) {
 	return sftkdbCall_ReleaseSecmodDBData(appName, filename, dbname, 
 					  moduleSpecList, rw);
     }
@@ -560,10 +545,6 @@ sftkdb_DeleteSecmodDB(SDBType dbType, const char *appName,
     int name_len, lib_len;
     PRBool skip = PR_FALSE;
     PRBool found = PR_FALSE;
-
-    if (dbname == NULL) {
-	return SECFailure;
-    }
 
     if ((dbType == SDB_LEGACY) || (dbType == SDB_MULTIACCESS)) {
 	return sftkdbCall_DeleteSecmodDB(appName, filename, dbname, args, rw);
@@ -687,10 +668,6 @@ sftkdb_AddSecmodDB(SDBType dbType, const char *appName,
     FILE *fd = NULL;
     char *block = NULL;
     PRBool libFound = PR_FALSE;
-
-    if (dbname == NULL) {
-	return SECFailure;
-    }
 
     if ((dbType == SDB_LEGACY) || (dbType == SDB_MULTIACCESS)) {
 	return sftkdbCall_AddSecmodDB(appName, filename, dbname, module, rw);

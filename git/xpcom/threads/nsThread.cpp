@@ -45,7 +45,6 @@
 #include "nsCOMPtr.h"
 #include "prlog.h"
 #include "nsThreadUtilsInternal.h"
-#include "mozilla/HangMonitor.h"
 
 #define HAVE_UALARM _BSD_SOURCE || (_XOPEN_SOURCE >= 500 ||                 \
                       _XOPEN_SOURCE && _XOPEN_SOURCE_EXTENDED) &&           \
@@ -197,25 +196,25 @@ public:
 private:
   NS_IMETHOD Run() {
     ReentrantMonitorAutoEnter mon(mMon);
-    mInitialized = true;
+    mInitialized = PR_TRUE;
     mon.Notify();
     return NS_OK;
   }
 
   nsThreadStartupEvent()
     : mMon("nsThreadStartupEvent.mMon")
-    , mInitialized(false) {
+    , mInitialized(PR_FALSE) {
   }
 
   ReentrantMonitor mMon;
-  bool       mInitialized;
+  PRBool     mInitialized;
 };
 
 //-----------------------------------------------------------------------------
 
 struct nsThreadShutdownContext {
   nsThread *joiningThread;
-  bool      shutdownAck;
+  PRBool    shutdownAck;
 };
 
 // This event is responsible for notifying nsThread::Shutdown that it is time
@@ -226,7 +225,7 @@ public:
     : mShutdownContext(ctx) {
   }
   NS_IMETHOD Run() {
-    mShutdownContext->shutdownAck = true;
+    mShutdownContext->shutdownAck = PR_TRUE;
     return NS_OK;
   }
 private:
@@ -261,7 +260,7 @@ nsThread::ThreadFunc(void *arg)
 
   // Wait for and process startup event
   nsCOMPtr<nsIRunnable> event;
-  if (!self->GetEvent(true, getter_AddRefs(event))) {
+  if (!self->GetEvent(PR_TRUE, getter_AddRefs(event))) {
     NS_WARNING("failed waiting for thread startup event");
     return;
   }
@@ -277,7 +276,7 @@ nsThread::ThreadFunc(void *arg)
   // invariant here is that we will never permit PutEvent to succeed if the
   // event would be left in the queue after our final call to
   // NS_ProcessPendingEvents.
-  while (true) {
+  while (PR_TRUE) {
     {
       MutexAutoLock lock(self->mLock);
       if (!self->mEvents->HasPendingEvent()) {
@@ -285,7 +284,7 @@ nsThread::ThreadFunc(void *arg)
         // events be added, since they won't be processed. It is critical
         // that no PutEvent can occur between testing that the event queue is
         // empty and setting mEventsAreDoomed!
-        self->mEventsAreDoomed = true;
+        self->mEventsAreDoomed = PR_TRUE;
         break;
       }
     }
@@ -307,7 +306,20 @@ nsThread::ThreadFunc(void *arg)
 
 //-----------------------------------------------------------------------------
 
-nsThread::nsThread(MainThreadFlag aMainThread, PRUint32 aStackSize)
+nsThread::nsThread()
+  : mLock("nsThread.mLock")
+  , mEvents(&mEventsRoot)
+  , mPriority(PRIORITY_NORMAL)
+  , mThread(nsnull)
+  , mRunningEvent(0)
+  , mStackSize(0)
+  , mShutdownContext(nsnull)
+  , mShutdownRequired(PR_FALSE)
+  , mEventsAreDoomed(PR_FALSE)
+{
+}
+
+nsThread::nsThread(PRUint32 aStackSize)
   : mLock("nsThread.mLock")
   , mEvents(&mEventsRoot)
   , mPriority(PRIORITY_NORMAL)
@@ -315,9 +327,8 @@ nsThread::nsThread(MainThreadFlag aMainThread, PRUint32 aStackSize)
   , mRunningEvent(0)
   , mStackSize(aStackSize)
   , mShutdownContext(nsnull)
-  , mShutdownRequired(false)
-  , mEventsAreDoomed(false)
-  , mIsMainThread(aMainThread)
+  , mShutdownRequired(PR_FALSE)
+  , mEventsAreDoomed(PR_FALSE)
 {
 }
 
@@ -334,7 +345,7 @@ nsThread::Init()
  
   NS_ADDREF_THIS();
  
-  mShutdownRequired = true;
+  mShutdownRequired = PR_TRUE;
 
   // ThreadFunc is responsible for setting mThread
   PRThread *thr = PR_CreateThread(PR_USER_THREAD, ThreadFunc, this,
@@ -425,7 +436,7 @@ nsThread::Dispatch(nsIRunnable *event, PRUint32 flags)
 }
 
 NS_IMETHODIMP
-nsThread::IsOnCurrentThread(bool *result)
+nsThread::IsOnCurrentThread(PRBool *result)
 {
   *result = (PR_GetCurrentThread() == mThread);
   return NS_OK;
@@ -459,12 +470,12 @@ nsThread::Shutdown()
     MutexAutoLock lock(mLock);
     if (!mShutdownRequired)
       return NS_ERROR_UNEXPECTED;
-    mShutdownRequired = false;
+    mShutdownRequired = PR_FALSE;
   }
 
   nsThreadShutdownContext context;
   context.joiningThread = nsThreadManager::get()->GetCurrentThread();
-  context.shutdownAck = false;
+  context.shutdownAck = PR_FALSE;
 
   // Set mShutdownContext and wake up the thread in case it is waiting for
   // events to process.
@@ -498,11 +509,11 @@ nsThread::Shutdown()
 }
 
 NS_IMETHODIMP
-nsThread::HasPendingEvents(bool *result)
+nsThread::HasPendingEvents(PRBool *result)
 {
   NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);
 
-  *result = mEvents->GetEvent(false, nsnull);
+  *result = mEvents->GetEvent(PR_FALSE, nsnull);
   return NS_OK;
 }
 
@@ -568,16 +579,13 @@ void canary_alarm_handler (int signum)
   PR_END_MACRO
 
 NS_IMETHODIMP
-nsThread::ProcessNextEvent(bool mayWait, bool *result)
+nsThread::ProcessNextEvent(PRBool mayWait, PRBool *result)
 {
   LOG(("THRD(%p) ProcessNextEvent [%u %u]\n", this, mayWait, mRunningEvent));
 
   NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);
 
-  if (MAIN_THREAD == mIsMainThread && mayWait && !ShuttingDown())
-    HangMonitor::Suspend();
-
-  bool notifyGlobalObserver = (sGlobalObserver != nsnull);
+  PRBool notifyGlobalObserver = (sGlobalObserver != nsnull);
   if (notifyGlobalObserver) 
     sGlobalObserver->OnProcessNextEvent(this, mayWait && !ShuttingDown(),
                                         mRunningEvent);
@@ -607,7 +615,7 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
 
 #ifdef NS_FUNCTION_TIMER
     char message[1024] = {'\0'};
-    if (MAIN_THREAD == mIsMainThread) {
+    if (NS_IsMainThread()) {
         mozilla::FunctionTimer::ft_snprintf(message, sizeof(message), 
                                             "@ Main Thread Event %p", (void*)event.get());
     }
@@ -620,8 +628,6 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
 
     if (event) {
       LOG(("THRD(%p) running [%p]\n", this, event.get()));
-      if (MAIN_THREAD == mIsMainThread)
-        HangMonitor::NotifyActivity();
       event->Run();
     } else if (mayWait) {
       NS_ASSERTION(ShuttingDown(),
@@ -732,7 +738,7 @@ nsThread::PopEventQueue()
   mEvents = mEvents->mNext;
 
   nsCOMPtr<nsIRunnable> event;
-  while (queue->GetEvent(false, getter_AddRefs(event)))
+  while (queue->GetEvent(PR_FALSE, getter_AddRefs(event)))
     mEvents->PutEvent(event);
 
   delete queue;
@@ -740,10 +746,10 @@ nsThread::PopEventQueue()
   return NS_OK;
 }
 
-bool
+PRBool
 nsThread::nsChainedEventQueue::PutEvent(nsIRunnable *event)
 {
-  bool val;
+  PRBool val;
   if (!mFilter || mFilter->AcceptEvent(event)) {
     val = mQueue.PutEvent(event);
   } else {

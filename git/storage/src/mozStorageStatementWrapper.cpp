@@ -109,15 +109,15 @@ StatementWrapper::Reset()
 }
 
 NS_IMETHODIMP
-StatementWrapper::Step(bool *_hasMoreResults)
+StatementWrapper::Step(PRBool *_hasMoreResults)
 {
   if (!mStatement)
     return NS_ERROR_FAILURE;
 
-  bool hasMore = false;
+  PRBool hasMore = PR_FALSE;
   nsresult rv = mStatement->ExecuteStep(&hasMore);
   if (NS_SUCCEEDED(rv) && !hasMore) {
-    *_hasMoreResults = false;
+    *_hasMoreResults = PR_FALSE;
     (void)mStatement->Reset();
     return NS_OK;
   }
@@ -188,13 +188,13 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
                        PRUint32 aArgc,
                        jsval *aArgv,
                        jsval *_vp,
-                       bool *_retval)
+                       PRBool *_retval)
 {
   if (!mStatement)
     return NS_ERROR_FAILURE;
 
   if (aArgc != mParamCount) {
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_ERROR_FAILURE;
   }
 
@@ -206,7 +206,7 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
     nsCOMPtr<nsIVariant> variant(convertJSValToVariant(aCtx, aArgv[i]));
     if (!variant ||
         NS_FAILED(mStatement->BindByIndex(i, variant))) {
-      *_retval = false;
+      *_retval = PR_FALSE;
       return NS_ERROR_INVALID_ARG;
     }
   }
@@ -216,7 +216,7 @@ StatementWrapper::Call(nsIXPConnectWrappedNative *aWrapper,
     (void)mStatement->Execute();
 
   *_vp = JSVAL_TRUE;
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 

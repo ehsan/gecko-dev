@@ -38,7 +38,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsCRTGlue.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMError.h"
 #include "nsDOMException.h"
 #include "nsIDOMDOMException.h"
@@ -49,6 +49,7 @@
 #include "nsIIDBDatabaseException.h"
 #include "nsString.h"
 #include "prprf.h"
+#include "nsIDOMEventException.h"
 
 #define DOM_MSG_DEF(val, message) {(val), #val, message},
 
@@ -226,6 +227,23 @@ IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsDOMFileException, nsIDOMFileException,
 
 NS_IMETHODIMP
 nsDOMFileException::GetCode(PRUint16* aCode)
+{
+  NS_ENSURE_ARG_POINTER(aCode);
+  nsresult result;
+  GetResult(&result);
+  *aCode = NS_ERROR_GET_CODE(result);
+
+  return NS_OK;
+}
+
+IMPL_INTERNAL_DOM_EXCEPTION_HEAD(nsDOMEventException, nsIDOMEventException)
+  NS_DECL_NSIDOMEVENTEXCEPTION
+IMPL_INTERNAL_DOM_EXCEPTION_TAIL(nsDOMEventException, nsIDOMEventException,
+                                 EventException, NS_ERROR_MODULE_DOM_EVENTS,
+                                 NSResultToNameAndMessage)
+
+NS_IMETHODIMP
+nsDOMEventException::GetCode(PRUint16* aCode)
 {
   NS_ENSURE_ARG_POINTER(aCode);
   nsresult result;

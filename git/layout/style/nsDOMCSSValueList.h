@@ -42,8 +42,7 @@
 
 #include "nsIDOMCSSValue.h"
 #include "nsIDOMCSSValueList.h"
-#include "nsTArray.h"
-
+#include "nsCOMArray.h"
 
 #include "nsCOMPtr.h"
 
@@ -59,7 +58,7 @@ public:
   NS_DECL_NSIDOMCSSVALUE
 
   // nsDOMCSSValueList
-  nsDOMCSSValueList(bool aCommaDelimited, bool aReadonly);
+  nsDOMCSSValueList(PRBool aCommaDelimited, PRBool aReadonly);
   virtual ~nsDOMCSSValueList();
 
   /**
@@ -90,11 +89,11 @@ public:
   }
 
 private:
-  bool                        mCommaDelimited;  // some value lists use a comma
+  PRPackedBool                mCommaDelimited;  // some value lists use a comma
                                                 // as the delimiter, some just use
                                                 // spaces.
 
-  bool                        mReadonly;    // Are we read-only?
+  PRPackedBool                mReadonly;    // Are we read-only?
 
   InfallibleTArray<nsCOMPtr<nsIDOMCSSValue> > mCSSValues;
 };

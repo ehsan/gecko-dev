@@ -68,14 +68,14 @@ public:
 
   // Used for parsing the |keyTimes| and |keyPoints| attributes.
   static nsresult ParseSemicolonDelimitedProgressList(const nsAString& aSpec,
-                                                      bool aNonDecreasing,
+                                                      PRBool aNonDecreasing,
                                                       nsTArray<double>& aArray);
 
   static nsresult ParseValues(const nsAString& aSpec,
                               const nsISMILAnimationElement* aSrcElement,
                               const nsISMILAttr& aAttribute,
                               nsTArray<nsSMILValue>& aValuesArray,
-                              bool& aPreventCachingOfSandwich);
+                              PRBool& aPreventCachingOfSandwich);
 
   // Generic method that will run some code on each sub-section of an animation
   // element's "values" list.
@@ -113,7 +113,7 @@ public:
    * @param aFlags   A combination of the kClockValue* bit flags OR'ed together
    *                 to define what additional syntax is allowed.
    * @param aIsMedia Optional out parameter which, if not null, will be set to
-   *                 true if the value is the string "media", false
+   *                 PR_TRUE if the value is the string "media", PR_FALSE
    *                 otherwise. If it is null, the string "media" is not
    *                 allowed.
    *
@@ -123,7 +123,7 @@ public:
   static nsresult ParseClockValue(const nsAString& aSpec,
                                   nsSMILTimeValue* aResult,
                                   PRUint32 aFlags = 0,
-                                  bool* aIsMedia = nsnull);
+                                  PRBool* aIsMedia = nsnull);
 
   /*
    * This method checks whether the given string looks like a negative number.

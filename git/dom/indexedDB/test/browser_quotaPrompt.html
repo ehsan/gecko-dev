@@ -10,7 +10,6 @@
       const READ_WRITE = Components.interfaces.nsIIDBTransaction.READ_WRITE;
 
       let db;
-      let version = window.location.href.charAt(window.location.href.length - 1);
 
       function onAddMore() {
         let transaction = db.transaction("foo", READ_WRITE);
@@ -37,11 +36,10 @@
         window.removeEventListener("indexedDB-addMore", onAddMore, true);
         window.removeEventListener("indexedDB-done", onDone, true);
 
-        let request = mozIndexedDB.open(window.location.pathname, version++);
+        let request = db.setVersion("2");
         request.onerror = errorHandler;
-        request.onupgradeneeded = function(event) {
+        request.onsuccess = function(event) {
           db.deleteObjectStore("foo");
-          db.onversionchange = function () { db.close(); };
           request.transaction.oncomplete = function(event) {
             testResult = "finished";
             testException = undefined;
@@ -58,19 +56,19 @@
         window.addEventListener("indexedDB-addMore", onAddMore, true);
         window.addEventListener("indexedDB-done", onDone, true);
 
-        let request = mozIndexedDB.open(name, version++, description);
+        let request = mozIndexedDB.open(name, description);
         request.onerror = errorHandler;
-        request.onupgradeneeded = grabEventAndContinueHandler;
+        request.onsuccess = grabEventAndContinueHandler;
         let event = yield;
 
         db = event.target.result;
 
-        db.onversionchange = function () { db.close(); };
+        request = db.setVersion("1");
+        request.onerror = errorHandler;
+        request.onsuccess = grabEventAndContinueHandler;
+        event = yield;
 
         db.createObjectStore("foo", { autoIncrement: true });
-
-        request.onsuccess = grabEventAndContinueHandler;
-        yield;
 
         setTimeout(testFinishedCallback, 0, "ready");
         yield;

@@ -43,16 +43,28 @@
 #define jsinfer_h___
 
 #include "jsalloc.h"
+#include "jsarena.h"
 #include "jscell.h"
-#include "jsfriendapi.h"
+#include "jstl.h"
 #include "jsprvtd.h"
+#include "jshashtable.h"
 
-#include "ds/LifoAlloc.h"
-#include "gc/Barrier.h"
-#include "js/HashTable.h"
+namespace js {
+    class CallArgs;
+    namespace analyze {
+        class ScriptAnalysis;
+    }
+    class GlobalObject;
+}
 
 namespace js {
 namespace types {
+
+/* Forward declarations. */
+class TypeSet;
+struct TypeCallsite;
+struct TypeObject;
+struct TypeCompartment;
 
 /* Type set entry for either a JSObject with singleton type or a non-singleton TypeObject. */
 struct TypeObjectKey {
@@ -302,40 +314,37 @@ enum {
      * Some objects are not dense arrays, or are dense arrays whose length
      * property does not fit in an int32.
      */
-    OBJECT_FLAG_NON_DENSE_ARRAY       = 0x00010000,
+    OBJECT_FLAG_NON_DENSE_ARRAY       = 0x0010000,
 
     /* Whether any objects this represents are not packed arrays. */
-    OBJECT_FLAG_NON_PACKED_ARRAY      = 0x00020000,
+    OBJECT_FLAG_NON_PACKED_ARRAY      = 0x0020000,
 
     /* Whether any objects this represents are not typed arrays. */
-    OBJECT_FLAG_NON_TYPED_ARRAY       = 0x00040000,
+    OBJECT_FLAG_NON_TYPED_ARRAY       = 0x0040000,
 
     /* Whether any represented script has had arguments objects created. */
-    OBJECT_FLAG_CREATED_ARGUMENTS     = 0x00080000,
+    OBJECT_FLAG_CREATED_ARGUMENTS     = 0x0080000,
 
     /* Whether any represented script is considered uninlineable. */
-    OBJECT_FLAG_UNINLINEABLE          = 0x00100000,
+    OBJECT_FLAG_UNINLINEABLE          = 0x0100000,
 
     /* Whether any objects have an equality hook. */
-    OBJECT_FLAG_SPECIAL_EQUALITY      = 0x00200000,
+    OBJECT_FLAG_SPECIAL_EQUALITY      = 0x0200000,
 
     /* Whether any objects have been iterated over. */
-    OBJECT_FLAG_ITERATED              = 0x00400000,
+    OBJECT_FLAG_ITERATED              = 0x0400000,
 
     /* Outer function which has been marked reentrant. */
-    OBJECT_FLAG_REENTRANT_FUNCTION    = 0x00800000,
-
-    /* For a global object, whether flags were set on the RegExpStatics. */
-    OBJECT_FLAG_REGEXP_FLAGS_SET      = 0x01000000,
+    OBJECT_FLAG_REENTRANT_FUNCTION    = 0x0800000,
 
     /* Flags which indicate dynamic properties of represented objects. */
-    OBJECT_FLAG_DYNAMIC_MASK          = 0x01ff0000,
+    OBJECT_FLAG_DYNAMIC_MASK          = 0x0ff0000,
 
     /*
      * Whether all properties of this object are considered unknown.
      * If set, all flags in DYNAMIC_MASK will also be set.
      */
-    OBJECT_FLAG_UNKNOWN_PROPERTIES    = 0x80000000,
+    OBJECT_FLAG_UNKNOWN_PROPERTIES    = 0x1000000,
 
     /* Mask for objects created with unknown properties. */
     OBJECT_FLAG_UNKNOWN_MASK =
@@ -492,9 +501,6 @@ class TypeSet
     /* Get whether this type set is non-empty. */
     bool knownNonEmpty(JSContext *cx);
 
-    /* Get whether this type set is known to be a subset of other. */
-    bool knownSubset(JSContext *cx, TypeSet *other);
-
     /*
      * Get the typed array type of all objects in this set. Returns
      * TypedArray::TYPE_MAX if the set contains different array types.
@@ -508,15 +514,6 @@ class TypeSet
     bool hasGlobalObject(JSContext *cx, JSObject *global);
 
     inline void clearObjects();
-
-    /*
-     * Whether a location with this TypeSet needs a write barrier (i.e., whether
-     * it can hold GC things). The type set is frozen if no barrier is needed.
-     */
-    bool needsBarrier(JSContext *cx);
-
-    /* The type set is frozen if no barrier is needed. */
-    bool propertyNeedsBarrier(JSContext *cx, jsid id);
 
   private:
     uint32 baseObjectCount() const {
@@ -631,13 +628,18 @@ struct TypeBarrier
 struct Property
 {
     /* Identifier for this property, JSID_VOID for the aggregate integer index property. */
-    HeapId id;
+    jsid id;
 
     /* Possible types for this property, including types inherited from prototypes. */
     TypeSet types;
 
-    inline Property(jsid id);
-    inline Property(const Property &o);
+    Property(jsid id)
+        : id(id)
+    {}
+
+    Property(const Property &o)
+        : id(o.id), types(o.types)
+    {}
 
     static uint32 keyBits(jsid id) { return (uint32) JSID_BITS(id); }
     static jsid getKey(Property *p) { return p->id; }
@@ -655,7 +657,7 @@ struct Property
  */
 struct TypeNewScript
 {
-    HeapPtrFunction fun;
+    JSFunction *fun;
 
     /* Allocation kind to use for newly constructed objects. */
     gc::AllocKind allocKind;
@@ -664,7 +666,7 @@ struct TypeNewScript
      * Shape to use for newly constructed objects. Reflects all definite
      * properties the object will have.
      */
-    HeapPtr<const Shape> shape;
+    const Shape *shape;
 
     /*
      * Order in which properties become initialized. We need this in case a
@@ -687,9 +689,6 @@ struct TypeNewScript
         {}
     };
     Initializer *initializerList;
-
-    static inline void writeBarrierPre(TypeNewScript *newScript);
-    static inline void writeBarrierPost(TypeNewScript *newScript, void *addr);
 };
 
 /*
@@ -722,17 +721,17 @@ struct TypeNewScript
 struct TypeObject : gc::Cell
 {
     /* Prototype shared by objects using this type. */
-    HeapPtrObject proto;
+    JSObject *proto;
 
     /*
      * Whether there is a singleton JS object with this type. That JS object
      * must appear in type sets instead of this; we include the back reference
      * here to allow reverting the JS object to a lazy type.
      */
-    HeapPtrObject singleton;
+    JSObject *singleton;
 
     /* Lazily filled array of empty shapes for each size of objects with this type. */
-    HeapPtr<EmptyShape> *emptyShapes;
+    js::EmptyShape **emptyShapes;
 
     /* Flags for this object. */
     TypeObjectFlags flags;
@@ -742,7 +741,7 @@ struct TypeObject : gc::Cell
      * 'new' on the specified script, which adds some number of properties to
      * the object in a definite order before the object escapes.
      */
-    HeapPtr<TypeNewScript> newScript;
+    TypeNewScript *newScript;
 
     /*
      * Estimate of the contribution of this object to the type sets it appears in.
@@ -791,7 +790,7 @@ struct TypeObject : gc::Cell
     Property **propertySet;
 
     /* If this is an interpreted function, the function object. */
-    HeapPtrFunction interpretedFunction;
+    JSFunction *interpretedFunction;
 
     inline TypeObject(JSObject *proto, bool isFunction, bool unknown);
 
@@ -876,16 +875,9 @@ struct TypeObject : gc::Cell
      */
     void finalize(JSContext *cx) {}
 
-    static inline void writeBarrierPre(TypeObject *type);
-    static inline void writeBarrierPost(TypeObject *type, void *addr);
-
   private:
     inline uint32 basePropertyCount() const;
     inline void setBasePropertyCount(uint32 count);
-
-    static void staticAsserts() {
-        JS_STATIC_ASSERT(offsetof(TypeObject, proto) == offsetof(js::shadow::TypeObject, proto));
-    }
 };
 
 /* Global singleton for the generic type of objects with no prototype. */
@@ -995,8 +987,8 @@ struct TypeScriptNesting
      * these fields can be embedded directly in JIT code (though remember to
      * use 'addDependency == true' when calling resolveNameAccess).
      */
-    const Value *argArray;
-    const Value *varArray;
+    Value *argArray;
+    Value *varArray;
 
     /* Number of frames for this function on the stack. */
     uint32 activeFrames;
@@ -1021,7 +1013,7 @@ class TypeScript
     analyze::ScriptAnalysis *analysis;
 
     /* Function for the script, if it has one. */
-    HeapPtrFunction function;
+    JSFunction *function;
 
     /*
      * Information about the scope in which a script executes. This information
@@ -1031,20 +1023,22 @@ class TypeScript
     static const size_t GLOBAL_MISSING_SCOPE = 0x1;
 
     /* Global object for the script, if compileAndGo. */
-    HeapPtr<GlobalObject> global;
-
-  public:
+    js::GlobalObject *global;
 
     /* Nesting state for outer or inner function scripts. */
     TypeScriptNesting *nesting;
 
+  public:
+
     /* Dynamic types generated at points within this script. */
     TypeResult *dynamicList;
 
-    inline TypeScript(JSFunction *fun);
-    inline ~TypeScript();
+    TypeScript(JSFunction *fun) {
+        this->function = fun;
+        this->global = (js::GlobalObject *) GLOBAL_MISSING_SCOPE;
+    }
 
-    bool hasScope() { return size_t(global.get()) != GLOBAL_MISSING_SCOPE; }
+    bool hasScope() { return size_t(global) != GLOBAL_MISSING_SCOPE; }
 
     /* Array of type type sets for variables and JOF_TYPESET ops. */
     TypeSet *typeArray() { return (TypeSet *) (jsuword(this) + sizeof(TypeScript)); }
@@ -1194,7 +1188,7 @@ struct TypeCompartment
 
     /* Add a type to register with a list of constraints. */
     inline void addPending(JSContext *cx, TypeConstraint *constraint, TypeSet *source, Type type);
-    bool growPendingArray(JSContext *cx);
+    void growPendingArray(JSContext *cx);
 
     /* Resolve pending type registrations, excluding delayed ones. */
     inline void resolvePending(JSContext *cx);

@@ -40,8 +40,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsXRemoteService.h"
 #include "nsIObserverService.h"
 #include "nsCOMPtr.h"
@@ -71,7 +69,6 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 
-using namespace mozilla;
 
 #define MOZILLA_VERSION_PROP   "_MOZILLA_VERSION"
 #define MOZILLA_LOCK_PROP      "_MOZILLA_LOCK"
@@ -117,7 +114,7 @@ Atom nsXRemoteService::sMozCommandLineAtom;
 nsXRemoteService * nsXRemoteService::sRemoteImplementation = 0;
 
 
-static bool
+static PRBool
 FindExtensionParameterInCommand(const char* aParameterName,
                                 const nsACString& aCommand,
                                 char aSeparator,
@@ -132,7 +129,7 @@ FindExtensionParameterInCommand(const char* aParameterName,
   aCommand.BeginReading(start);
   aCommand.EndReading(end);
   if (!FindInReadable(searchFor, start, end))
-    return false;
+    return PR_FALSE;
 
   nsACString::const_iterator charStart, charEnd;
   charStart = end;
@@ -144,7 +141,7 @@ FindExtensionParameterInCommand(const char* aParameterName,
     idEnd = charEnd;
   }
   *aValue = nsDependentCSubstring(idStart, idEnd);
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -164,8 +161,8 @@ nsXRemoteService::XRemoteBaseStartup(const char *aAppName, const char *aProfileN
 
     nsCOMPtr<nsIObserverService> obs(do_GetService("@mozilla.org/observer-service;1"));
     if (obs) {
-      obs->AddObserver(this, "xpcom-shutdown", false);
-      obs->AddObserver(this, "quit-application", false);
+      obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+      obs->AddObserver(this, "quit-application", PR_FALSE);
     }
 }
 
@@ -208,7 +205,7 @@ nsXRemoteService::Observe(nsISupports* aSubject,
   return NS_OK;
 }
 
-bool
+PRBool
 nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
                                     Time aEventTime,
                                     Atom aChangedAtom,
@@ -242,11 +239,11 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
 
     // Failed to get property off the window?
     if (result != Success)
-      return false;
+      return PR_FALSE;
 
     // Failed to get the data off the window or it was the wrong type?
     if (!data || !TO_LITTLE_ENDIAN32(*reinterpret_cast<PRInt32*>(data)))
-      return false;
+      return PR_FALSE;
 
     // cool, we got the property data.
     const char *response = NULL;
@@ -262,20 +259,20 @@ nsXRemoteService::HandleNewProperty(XID aWindowId, Display* aDisplay,
                      (const unsigned char *)response,
                      strlen (response));
     XFree(data);
-    return true;
+    return PR_TRUE;
   }
 
   else if (aChangedAtom == sMozResponseAtom) {
     // client accepted the response.  party on wayne.
-    return true;
+    return PR_TRUE;
   }
 
   else if (aChangedAtom == sMozLockAtom) {
     // someone locked the window
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 const char*
@@ -302,7 +299,7 @@ nsXRemoteService::HandleCommand(char* aCommand, nsIDOMWindow* aWindow,
   }
 
   command.Truncate(p1);
-  command.Trim(" ", true, true);
+  command.Trim(" ", PR_TRUE, PR_TRUE);
   ToLowerCase(command);
 
   if (!command.EqualsLiteral("ping")) {
@@ -354,7 +351,7 @@ nsXRemoteService::HandleCommandLine(char* aBuffer, nsIDOMWindow* aWindow,
   char *wd   = aBuffer + ((argc + 1) * sizeof(PRInt32));
 
   nsCOMPtr<nsILocalFile> lf;
-  rv = NS_NewNativeLocalFile(nsDependentCString(wd), true,
+  rv = NS_NewNativeLocalFile(nsDependentCString(wd), PR_TRUE,
                              getter_AddRefs(lf));
   if (NS_FAILED(rv))
     return "509 internal error";
@@ -407,7 +404,7 @@ nsXRemoteService::EnsureAtoms(void)
   if (sMozVersionAtom)
     return;
 
-  XInternAtoms(mozilla::DefaultXDisplay(), XAtomNames, ArrayLength(XAtomNames),
+  XInternAtoms(mozilla::DefaultXDisplay(), XAtomNames, NS_ARRAY_LENGTH(XAtomNames),
                False, XAtoms);
 
   int i = 0;

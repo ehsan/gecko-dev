@@ -38,6 +38,7 @@
 
 #include "nsIDOMSVGTextElement.h"
 #include "nsSVGTextFrame.h"
+#include "nsWeakReference.h"
 #include "SVGLengthList.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIDOMSVGAnimatedNumber.h"
@@ -118,7 +119,7 @@ nsSVGTextFrame::GetType() const
 PRUint32
 nsSVGTextFrame::GetNumberOfChars()
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetNumberOfChars();
 }
@@ -126,7 +127,7 @@ nsSVGTextFrame::GetNumberOfChars()
 float
 nsSVGTextFrame::GetComputedTextLength()
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetComputedTextLength();
 }
@@ -134,7 +135,7 @@ nsSVGTextFrame::GetComputedTextLength()
 float
 nsSVGTextFrame::GetSubStringLength(PRUint32 charnum, PRUint32 nchars)
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetSubStringLength(charnum, nchars);
 }
@@ -142,7 +143,7 @@ nsSVGTextFrame::GetSubStringLength(PRUint32 charnum, PRUint32 nchars)
 PRInt32
 nsSVGTextFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetCharNumAtPosition(point);
 }
@@ -150,7 +151,7 @@ nsSVGTextFrame::GetCharNumAtPosition(nsIDOMSVGPoint *point)
 NS_IMETHODIMP
 nsSVGTextFrame::GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval)
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetStartPositionOfChar(charnum,  _retval);
 }
@@ -158,7 +159,7 @@ nsSVGTextFrame::GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retva
 NS_IMETHODIMP
 nsSVGTextFrame::GetEndPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval)
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetEndPositionOfChar(charnum,  _retval);
 }
@@ -166,7 +167,7 @@ nsSVGTextFrame::GetEndPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval)
 NS_IMETHODIMP
 nsSVGTextFrame::GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval)
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetExtentOfChar(charnum,  _retval);
 }
@@ -174,7 +175,7 @@ nsSVGTextFrame::GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval)
 NS_IMETHODIMP
 nsSVGTextFrame::GetRotationOfChar(PRUint32 charnum, float *_retval)
 {
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return nsSVGTextFrameBase::GetRotationOfChar(charnum,  _retval);
 }
@@ -215,7 +216,7 @@ NS_IMETHODIMP
 nsSVGTextFrame::NotifyRedrawUnsuspended()
 {
   mMetricsState = unsuspended;
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
   return nsSVGTextFrameBase::NotifyRedrawUnsuspended();
 }
 
@@ -223,7 +224,7 @@ NS_IMETHODIMP
 nsSVGTextFrame::PaintSVG(nsSVGRenderState* aContext,
                          const nsIntRect *aDirtyRect)
 {
-  UpdateGlyphPositioning(true);
+  UpdateGlyphPositioning(PR_TRUE);
   
   return nsSVGTextFrameBase::PaintSVG(aContext, aDirtyRect);
 }
@@ -231,7 +232,7 @@ nsSVGTextFrame::PaintSVG(nsSVGRenderState* aContext,
 NS_IMETHODIMP_(nsIFrame*)
 nsSVGTextFrame::GetFrameForPoint(const nsPoint &aPoint)
 {
-  UpdateGlyphPositioning(true);
+  UpdateGlyphPositioning(PR_TRUE);
   
   return nsSVGTextFrameBase::GetFrameForPoint(aPoint);
 }
@@ -239,7 +240,7 @@ nsSVGTextFrame::GetFrameForPoint(const nsPoint &aPoint)
 NS_IMETHODIMP
 nsSVGTextFrame::UpdateCoveredRegion()
 {
-  UpdateGlyphPositioning(true);
+  UpdateGlyphPositioning(PR_TRUE);
   
   return nsSVGTextFrameBase::UpdateCoveredRegion();
 }
@@ -249,18 +250,17 @@ nsSVGTextFrame::InitialUpdate()
 {
   nsresult rv = nsSVGTextFrameBase::InitialUpdate();
   
-  UpdateGlyphPositioning(false);
+  UpdateGlyphPositioning(PR_FALSE);
 
   return rv;
 }  
 
 gfxRect
-nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                    PRUint32 aFlags)
+nsSVGTextFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
 {
-  UpdateGlyphPositioning(true);
+  UpdateGlyphPositioning(PR_TRUE);
 
-  return nsSVGTextFrameBase::GetBBoxContribution(aToBBoxUserspace, aFlags);
+  return nsSVGTextFrameBase::GetBBoxContribution(aToBBoxUserspace);
 }
 
 //----------------------------------------------------------------------
@@ -289,8 +289,8 @@ nsSVGTextFrame::GetCanvasTM()
 void
 nsSVGTextFrame::NotifyGlyphMetricsChange()
 {
-  mPositioningDirty = true;
-  UpdateGlyphPositioning(false);
+  mPositioningDirty = PR_TRUE;
+  UpdateGlyphPositioning(PR_FALSE);
 }
 
 void
@@ -298,7 +298,7 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
 {
   SetWhitespaceCompression();
 
-  bool trimLeadingWhitespace = true;
+  PRBool trimLeadingWhitespace = PR_TRUE;
   nsSVGGlyphFrame* lastNonWhitespaceFrame = aFrame;
 
   while (aFrame) {
@@ -312,16 +312,16 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
     aFrame = aFrame->GetNextGlyphFrame();
   }
 
-  lastNonWhitespaceFrame->SetTrimTrailingWhitespace(true);
+  lastNonWhitespaceFrame->SetTrimTrailingWhitespace(PR_TRUE);
 }
 
 void
-nsSVGTextFrame::UpdateGlyphPositioning(bool aForceGlobalTransform)
+nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 {
   if (mMetricsState == suspended || !mPositioningDirty)
     return;
 
-  mPositioningDirty = false;
+  mPositioningDirty = PR_FALSE;
 
   nsISVGGlyphFragmentNode* node = GetFirstGlyphFragmentChildNode();
   if (!node)

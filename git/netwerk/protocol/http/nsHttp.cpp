@@ -102,7 +102,7 @@ StringHash(PLDHashTable *table, const void *key)
     return h;
 }
 
-static bool
+static PRBool
 StringCompare(PLDHashTable *table, const PLDHashEntryHdr *entry,
               const void *testKey)
 {
@@ -250,19 +250,19 @@ static const char kValidTokenMap[128] = {
     1, 1, 1, 1, 1, 1, 1, 1, // 112
     1, 1, 1, 0, 1, 0, 1, 0  // 120
 };
-bool
+PRBool
 nsHttp::IsValidToken(const char *start, const char *end)
 {
     if (start == end)
-        return false;
+        return PR_FALSE;
 
     for (; start != end; ++start) {
         const unsigned char idx = *start;
         if (idx > 127 || !kValidTokenMap[idx])
-            return false;
+            return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 const char *
@@ -292,7 +292,7 @@ nsHttp::FindToken(const char *input, const char *token, const char *seps)
     return nsnull;
 }
 
-bool
+PRBool
 nsHttp::ParseInt64(const char *input, const char **next, PRInt64 *r)
 {
     const char *start = input;
@@ -300,13 +300,13 @@ nsHttp::ParseInt64(const char *input, const char **next, PRInt64 *r)
     while (*input >= '0' && *input <= '9') {
         PRInt64 next = 10 * (*r) + (*input - '0');
         if (next < *r) // overflow?
-            return false;
+            return PR_FALSE;
         *r = next;
         ++input;
     }
     if (input == start) // nothing parsed?
-        return false;
+        return PR_FALSE;
     if (next)
         *next = input;
-    return true;
+    return PR_TRUE;
 }

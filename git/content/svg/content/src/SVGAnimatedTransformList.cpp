@@ -37,11 +37,13 @@
 #include "SVGAnimatedTransformList.h"
 #include "DOMSVGAnimatedTransformList.h"
 
+#ifdef MOZ_SMIL
 #include "nsSMILValue.h"
 #include "SVGTransform.h"
 #include "SVGTransformListSMILType.h"
 #include "nsSVGUtils.h"
 #include "prdtoa.h"
+#endif // MOZ_SMIL
 
 namespace mozilla {
 
@@ -75,7 +77,7 @@ SVGAnimatedTransformList::SetBaseValueString(const nsAString& aValue)
     // back to the same length:
     domWrapper->InternalBaseValListWillChangeLengthTo(mBaseVal.Length());
   } else {
-    mIsAttrSet = true;
+    mIsAttrSet = PR_TRUE;
   }
   return rv;
 }
@@ -90,7 +92,7 @@ SVGAnimatedTransformList::ClearBaseValue()
     domWrapper->InternalBaseValListWillChangeLengthTo(0);
   }
   mBaseVal.Clear();
-  mIsAttrSet = false;
+  mIsAttrSet = PR_FALSE;
   // Caller notifies
 }
 
@@ -150,14 +152,14 @@ SVGAnimatedTransformList::ClearAnimValue(nsSVGElement *aElement)
   aElement->DidAnimateTransformList();
 }
 
-bool
+PRBool
 SVGAnimatedTransformList::IsExplicitlySet() const
 {
   // Like other methods of this name, we need to know when a transform value has
   // been explicitly set.
   //
   // There are three ways an animated list can become set:
-  // 1) Markup -- we set mIsAttrSet to true on any successful call to
+  // 1) Markup -- we set mIsAttrSet to PR_TRUE on any successful call to
   //    SetBaseValueString and clear it on ClearBaseValue (as called by
   //    nsSVGElement::UnsetAttr or a failed nsSVGElement::ParseAttribute)
   // 2) DOM call -- simply fetching the baseVal doesn't mean the transform value
@@ -167,6 +169,7 @@ SVGAnimatedTransformList::IsExplicitlySet() const
   return mIsAttrSet || !mBaseVal.IsEmpty() || mAnimVal;
 }
 
+#ifdef MOZ_SMIL
 nsISMILAttr*
 SVGAnimatedTransformList::ToSMILAttr(nsSVGElement* aSVGElement)
 {
@@ -178,7 +181,7 @@ SVGAnimatedTransformList::SMILAnimatedTransformList::ValueFromString(
   const nsAString& aStr,
   const nsISMILAnimationElement* aSrcElement,
   nsSMILValue& aValue,
-  bool& aPreventCachingOfSandwich) const
+  PRBool& aPreventCachingOfSandwich) const
 {
   NS_ENSURE_TRUE(aSrcElement, NS_ERROR_FAILURE);
   NS_ABORT_IF_FALSE(aValue.IsNull(),
@@ -197,7 +200,7 @@ SVGAnimatedTransformList::SMILAnimatedTransformList::ValueFromString(
   }
 
   ParseValue(aStr, transformType, aValue);
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return aValue.IsNull() ? NS_ERROR_FAILURE : NS_OK;
 }
 
@@ -346,5 +349,7 @@ SVGAnimatedTransformList::SMILAnimatedTransformList::ClearAnimValue()
     mVal->ClearAnimValue(mElement);
   }
 }
+
+#endif // MOZ_SMIL
 
 } // namespace mozilla

@@ -59,7 +59,7 @@
 
 static NS_DEFINE_CID(kIOServiceCID,              NS_IOSERVICE_CID);
 
-static bool gError = false;
+static PRBool gError = PR_FALSE;
 static PRInt32 gKeepRunning = 0;
 
 #define NS_IEQUALS_IID \
@@ -69,7 +69,7 @@ static PRInt32 gKeepRunning = 0;
 class nsIEquals : public nsISupports {
 public:
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IEQUALS_IID)
-    NS_IMETHOD Equals(void *aPtr, bool *_retval) = 0;
+    NS_IMETHOD Equals(void *aPtr, PRBool *_retval) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIEquals, NS_IEQUALS_IID)
@@ -80,9 +80,9 @@ public:
 
     ConsumerContext() { }
 
-    NS_IMETHOD Equals(void *aPtr, bool *_retval) {
-        *_retval = true;
-        if (aPtr != this) *_retval = false;
+    NS_IMETHOD Equals(void *aPtr, PRBool *_retval) {
+        *_retval = PR_TRUE;
+        if (aPtr != this) *_retval = PR_FALSE;
         return NS_OK;
     };
 };
@@ -101,8 +101,8 @@ public:
     nsresult Validate(nsIRequest *request, nsISupports *aContext);
 
     // member data
-    bool    mOnStart; // have we received an OnStart?
-    bool    mOnStop;  // have we received an onStop?
+    PRBool  mOnStart; // have we received an OnStart?
+    PRBool  mOnStop;  // have we received an onStop?
     PRInt32 mOnDataCount; // number of times OnData was called.
     nsCOMPtr<nsIURI>     mURI;
     nsCOMPtr<nsIChannel> mChannel;
@@ -121,7 +121,7 @@ Consumer::OnStartRequest(nsIRequest *request, nsISupports* aContext) {
     if (mOnStart) {
         fprintf(stderr, "INFO: multiple OnStarts received\n");
     }
-    mOnStart = true;
+    mOnStart = PR_TRUE;
 
     nsresult rv = Validate(request, aContext);
     if (NS_FAILED(rv)) return rv;
@@ -136,7 +136,7 @@ Consumer::OnStopRequest(nsIRequest *request, nsISupports *aContext,
     fprintf(stderr, "Consumer::OnStop() -> in\n\n");
 
     if (!mOnStart) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: No OnStart received\n");
     }
 
@@ -146,7 +146,7 @@ Consumer::OnStopRequest(nsIRequest *request, nsISupports *aContext,
 
     fprintf(stderr, "INFO: received %d OnData()s\n", mOnDataCount);
 
-    mOnStop = true;
+    mOnStop = PR_TRUE;
 
     nsresult rv = Validate(request, aContext);
     if (NS_FAILED(rv)) return rv;
@@ -164,7 +164,7 @@ Consumer::OnDataAvailable(nsIRequest *request, nsISupports *aContext,
     fprintf(stderr, "Consumer::OnData() -> in\n\n");
 
     if (!mOnStart) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: No OnStart received\n");
     }
 
@@ -179,7 +179,7 @@ Consumer::OnDataAvailable(nsIRequest *request, nsISupports *aContext,
 
 // Consumer implementation
 Consumer::Consumer() {
-    mOnStart = mOnStop = false;
+    mOnStart = mOnStop = PR_FALSE;
     mOnDataCount = 0;
     gKeepRunning++;
 }
@@ -188,12 +188,12 @@ Consumer::~Consumer() {
     fprintf(stderr, "Consumer::~Consumer -> in\n\n");
 
     if (!mOnStart) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: Never got an OnStart\n");
     }
 
     if (!mOnStop) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: Never got an OnStop \n");
     }
 
@@ -219,7 +219,7 @@ Consumer::Validate(nsIRequest* request, nsISupports *aContext) {
     rv = aChannel->GetURI(getter_AddRefs(uri));
     if (NS_FAILED(rv)) return rv;
 
-    bool same = false;
+    PRBool same = PR_FALSE;
 
     rv = mURI->Equals(uri, &same);
     if (NS_FAILED(rv)) return rv;
@@ -231,7 +231,7 @@ Consumer::Validate(nsIRequest* request, nsISupports *aContext) {
     if (NS_FAILED(rv)) return rv;
 
     if (!same) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: Contexts do not match\n");
     }
     return rv;
@@ -244,11 +244,11 @@ int main(int argc, char *argv[]) {
         return -1;
 
     nsresult rv = NS_OK;
-    bool cmdLineURL = false;
+    PRBool cmdLineURL = PR_FALSE;
 
     if (argc > 1) {
         // run in signle url mode
-        cmdLineURL = true;
+        cmdLineURL = PR_TRUE;
     }
 
     rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);

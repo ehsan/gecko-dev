@@ -98,8 +98,8 @@ nsAppShell::ScheduleNativeEventCallback()
 }
 
 
-bool
-nsAppShell::ProcessNextNativeEvent(bool mayWait)
+PRBool
+nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
 {
     QEventLoop::ProcessEventsFlags flags = QEventLoop::AllEvents;
 
@@ -108,9 +108,9 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 
     QAbstractEventDispatcher *dispatcher =  QAbstractEventDispatcher::instance(qApp->thread());
     if (!dispatcher)
-        return false;
+        return PR_FALSE;
 
-    return dispatcher->processEvents(flags) ? true : false;
+    return dispatcher->processEvents(flags) ? PR_TRUE : PR_FALSE;
 }
 
 bool

@@ -53,26 +53,19 @@
 #define ERROR_EVT_STR "error"
 #define COMPLETE_EVT_STR "complete"
 #define ABORT_EVT_STR "abort"
+#define TIMEOUT_EVT_STR "timeout"
 #define VERSIONCHANGE_EVT_STR "versionchange"
 #define BLOCKED_EVT_STR "blocked"
-#define UPGRADENEEDED_EVT_STR "upgradeneeded"
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-enum Bubbles {
-  eDoesNotBubble,
-  eDoesBubble
-};
-
-enum Cancelable {
-  eNotCancelable,
-  eCancelable
-};
-
 already_AddRefed<nsDOMEvent>
 CreateGenericEvent(const nsAString& aType,
-                   Bubbles aBubbles,
-                   Cancelable aCancelable);
+                   PRBool aBubblesAndCancelable = PR_FALSE);
+
+already_AddRefed<nsIRunnable>
+CreateGenericEventRunnable(const nsAString& aType,
+                           nsIDOMEventTarget* aTarget);
 
 class IDBVersionChangeEvent : public nsDOMEvent,
                               public nsIIDBVersionChangeEvent
@@ -82,65 +75,48 @@ public:
   NS_FORWARD_TO_NSDOMEVENT
   NS_DECL_NSIIDBVERSIONCHANGEEVENT
 
-  inline static already_AddRefed<nsDOMEvent>
-  Create(PRInt64 aOldVersion,
-         PRInt64 aNewVersion)
+  inline static already_AddRefed<nsIDOMEvent>
+  Create(const nsAString& aVersion)
   {
-    return CreateInternal(NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
-                          aOldVersion, aNewVersion);
+    return CreateInternal(NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR), aVersion);
   }
 
-  inline static already_AddRefed<nsDOMEvent>
-  CreateBlocked(PRUint64 aOldVersion,
-                PRUint64 aNewVersion)
+  inline static already_AddRefed<nsIDOMEvent>
+  CreateBlocked(const nsAString& aVersion)
   {
-    return CreateInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR),
-                          aOldVersion, aNewVersion);
-  }
-
-  inline static already_AddRefed<nsDOMEvent>
-  CreateUpgradeNeeded(PRUint64 aOldVersion,
-                      PRUint64 aNewVersion)
-  {
-    return CreateInternal(NS_LITERAL_STRING(UPGRADENEEDED_EVT_STR),
-                          aOldVersion, aNewVersion);
+    return CreateInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR), aVersion);
   }
 
   inline static already_AddRefed<nsIRunnable>
-  CreateRunnable(PRUint64 aOldVersion,
-                 PRUint64 aNewVersion,
+  CreateRunnable(const nsAString& aVersion,
                  nsIDOMEventTarget* aTarget)
   {
     return CreateRunnableInternal(NS_LITERAL_STRING(VERSIONCHANGE_EVT_STR),
-                                  aOldVersion, aNewVersion, aTarget);
+                                  aVersion, aTarget);
   }
 
   static already_AddRefed<nsIRunnable>
-  CreateBlockedRunnable(PRUint64 aOldVersion,
-                        PRUint64 aNewVersion,
+  CreateBlockedRunnable(const nsAString& aVersion,
                         nsIDOMEventTarget* aTarget)
   {
-    return CreateRunnableInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR),
-                                  aOldVersion, aNewVersion, aTarget);
+    return CreateRunnableInternal(NS_LITERAL_STRING(BLOCKED_EVT_STR), aVersion,
+                                  aTarget);
   }
 
 protected:
   IDBVersionChangeEvent() : nsDOMEvent(nsnull, nsnull) { }
   virtual ~IDBVersionChangeEvent() { }
 
-  static already_AddRefed<nsDOMEvent>
+  static already_AddRefed<nsIDOMEvent>
   CreateInternal(const nsAString& aType,
-                 PRUint64 aOldVersion,
-                 PRUint64 aNewVersion);
+                 const nsAString& aVersion);
 
   static already_AddRefed<nsIRunnable>
   CreateRunnableInternal(const nsAString& aType,
-                         PRUint64 aOldVersion,
-                         PRUint64 aNewVersion,
+                         const nsAString& aVersion,
                          nsIDOMEventTarget* aTarget);
 
-  PRUint64 mOldVersion;
-  PRUint64 mNewVersion;
+  nsString mVersion;
 };
 
 END_INDEXEDDB_NAMESPACE

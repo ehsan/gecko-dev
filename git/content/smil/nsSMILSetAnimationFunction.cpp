@@ -37,7 +37,7 @@
 
 #include "nsSMILSetAnimationFunction.h"
 
-inline bool
+inline PRBool
 nsSMILSetAnimationFunction::IsDisallowedAttribute(
     const nsIAtom* aAttribute) const
 {
@@ -55,13 +55,13 @@ nsSMILSetAnimationFunction::IsDisallowedAttribute(
       aAttribute == nsGkAtoms::by ||
       aAttribute == nsGkAtoms::additive ||
       aAttribute == nsGkAtoms::accumulate) {
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
-bool
+PRBool
 nsSMILSetAnimationFunction::SetAttr(nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult,
@@ -80,28 +80,28 @@ nsSMILSetAnimationFunction::SetAttr(nsIAtom* aAttribute,
       // attribute types too.
       *aParseResult = NS_OK;
     }
-    return true;
+    return PR_TRUE;
   }
 
   return nsSMILAnimationFunction::SetAttr(aAttribute, aValue,
                                           aResult, aParseResult);
 }
 
-bool
+PRBool
 nsSMILSetAnimationFunction::UnsetAttr(nsIAtom* aAttribute)
 {
   if (IsDisallowedAttribute(aAttribute)) {
-    return true;
+    return PR_TRUE;
   }
 
   return nsSMILAnimationFunction::UnsetAttr(aAttribute);
 }
 
-bool
+PRBool
 nsSMILSetAnimationFunction::HasAttr(nsIAtom* aAttName) const
 {
   if (IsDisallowedAttribute(aAttName))
-    return false;
+    return PR_FALSE;
 
   return nsSMILAnimationFunction::HasAttr(aAttName);
 }
@@ -115,7 +115,7 @@ nsSMILSetAnimationFunction::GetAttr(nsIAtom* aAttName) const
   return nsSMILAnimationFunction::GetAttr(aAttName);
 }
 
-bool
+PRBool
 nsSMILSetAnimationFunction::GetAttr(nsIAtom* aAttName,
                                     nsAString& aResult) const
 {
@@ -125,8 +125,8 @@ nsSMILSetAnimationFunction::GetAttr(nsIAtom* aAttName,
   return nsSMILAnimationFunction::GetAttr(aAttName, aResult);
 }
 
-bool
+PRBool
 nsSMILSetAnimationFunction::WillReplace() const
 {
-  return true;
+  return PR_TRUE;
 }

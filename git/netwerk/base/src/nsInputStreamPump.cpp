@@ -69,8 +69,8 @@ nsInputStreamPump::nsInputStreamPump()
     , mStatus(NS_OK)
     , mSuspendCount(0)
     , mLoadFlags(LOAD_NORMAL)
-    , mWaiting(false)
-    , mCloseWhenDone(false)
+    , mWaiting(PR_FALSE)
+    , mCloseWhenDone(PR_FALSE)
 {
 #if defined(PR_LOGGING)
     if (!gStreamPumpLog)
@@ -89,7 +89,7 @@ nsInputStreamPump::Create(nsInputStreamPump  **result,
                           PRInt64              streamLen,
                           PRUint32             segsize,
                           PRUint32             segcount,
-                          bool                 closeWhenDone)
+                          PRBool               closeWhenDone)
 {
     nsresult rv = NS_ERROR_OUT_OF_MEMORY;
     nsRefPtr<nsInputStreamPump> pump = new nsInputStreamPump();
@@ -156,7 +156,7 @@ nsInputStreamPump::EnsureWaiting()
             NS_ERROR("AsyncWait failed");
             return rv;
         }
-        mWaiting = true;
+        mWaiting = PR_TRUE;
     }
     return NS_OK;
 }
@@ -185,7 +185,7 @@ nsInputStreamPump::GetName(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsInputStreamPump::IsPending(bool *result)
+nsInputStreamPump::IsPending(PRBool *result)
 {
     *result = (mState != STATE_IDLE);
     return NS_OK;
@@ -282,7 +282,7 @@ NS_IMETHODIMP
 nsInputStreamPump::Init(nsIInputStream *stream,
                         PRInt64 streamPos, PRInt64 streamLen,
                         PRUint32 segsize, PRUint32 segcount,
-                        bool closeWhenDone)
+                        PRBool closeWhenDone)
 {
     NS_ENSURE_TRUE(mState == STATE_IDLE, NS_ERROR_IN_PROGRESS);
 
@@ -310,7 +310,7 @@ nsInputStreamPump::AsyncRead(nsIStreamListener *listener, nsISupports *ctxt)
     // (2) the stream does not support nsIAsyncInputStream
     //
 
-    bool nonBlocking;
+    PRBool nonBlocking;
     nsresult rv = mStream->IsNonBlocking(&nonBlocking);
     if (NS_FAILED(rv)) return rv;
 
@@ -387,7 +387,7 @@ nsInputStreamPump::OnInputStreamReady(nsIAsyncInputStream *stream)
 
     for (;;) {
         if (mSuspendCount || mState == STATE_IDLE) {
-            mWaiting = false;
+            mWaiting = PR_FALSE;
             break;
         }
 
@@ -408,7 +408,7 @@ nsInputStreamPump::OnInputStreamReady(nsIAsyncInputStream *stream)
             NS_ASSERTION(mState == STATE_TRANSFER, "unexpected state");
             NS_ASSERTION(NS_SUCCEEDED(mStatus), "unexpected status");
 
-            mWaiting = false;
+            mWaiting = PR_FALSE;
             mStatus = EnsureWaiting();
             if (NS_SUCCEEDED(mStatus))
                 break;
@@ -573,7 +573,7 @@ nsInputStreamPump::OnStateStop()
 
     mAsyncStream = 0;
     mTargetThread = 0;
-    mIsPending = false;
+    mIsPending = PR_FALSE;
 
     mListener->OnStopRequest(this, mListenerContext, mStatus);
     mListener = 0;

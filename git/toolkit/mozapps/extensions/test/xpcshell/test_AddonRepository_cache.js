@@ -39,8 +39,7 @@ const ADDON_PROPERTIES = ["id", "type", "name", "version", "creator",
                           "optionsURL", "aboutURL", "contributionURL",
                           "contributionAmount", "averageRating", "reviewCount",
                           "reviewURL", "totalDownloads", "weeklyDownloads",
-                          "dailyUsers", "sourceURI", "repositoryStatus",
-                          "compatibilityOverrides"];
+                          "dailyUsers", "sourceURI", "repositoryStatus"];
 
 // The size and updateDate properties are annoying to test for XPI add-ons.
 // However, since we only care about whether the repository value vs. the
@@ -91,22 +90,7 @@ const REPOSITORY_ADDONS = [{
   weeklyDownloads:        3331,
   dailyUsers:             4441,
   sourceURI:              BASE_URL + "/repo/1/install.xpi",
-  repositoryStatus:       4,
-  compatibilityOverrides: [{
-                            type: "incompatible",
-                            minVersion: 0.1,
-                            maxVersion: 0.2,
-                            appID: "xpcshell@tests.mozilla.org",
-                            appMinVersion: 3.0,
-                            appMaxVersion: 4.0
-                          }, {
-                            type: "incompatible",
-                            minVersion: 0.2,
-                            maxVersion: 0.3,
-                            appID: "xpcshell@tests.mozilla.org",
-                            appMinVersion: 5.0,
-                            appMaxVersion: 6.0
-                          }]
+  repositoryStatus:       4
 }, {
   id:                     ADDON_IDS[1],
   type:                   "theme",
@@ -238,22 +222,7 @@ const WITH_CACHE = [{
   weeklyDownloads:        3331,
   dailyUsers:             4441,
   sourceURI:              NetUtil.newURI(ADDON_FILES[0]).spec,
-  repositoryStatus:       4,
-  compatibilityOverrides: [{
-                            type: "incompatible",
-                            minVersion: 0.1,
-                            maxVersion: 0.2,
-                            appID: "xpcshell@tests.mozilla.org",
-                            appMinVersion: 3.0,
-                            appMaxVersion: 4.0
-                          }, {
-                            type: "incompatible",
-                            minVersion: 0.2,
-                            maxVersion: 0.3,
-                            appID: "xpcshell@tests.mozilla.org",
-                            appMinVersion: 5.0,
-                            appMaxVersion: 6.0
-                          }]
+  repositoryStatus:       4
 }, {
   id:                     ADDON_IDS[1],
   type:                   "theme",
@@ -350,22 +319,7 @@ const WITH_EXTENSION_CACHE = [{
   weeklyDownloads:        3331,
   dailyUsers:             4441,
   sourceURI:              NetUtil.newURI(ADDON_FILES[0]).spec,
-  repositoryStatus:       4,
-  compatibilityOverrides: [{
-                            type: "incompatible",
-                            minVersion: 0.1,
-                            maxVersion: 0.2,
-                            appID: "xpcshell@tests.mozilla.org",
-                            appMinVersion: 3.0,
-                            appMaxVersion: 4.0
-                          }, {
-                            type: "incompatible",
-                            minVersion: 0.2,
-                            maxVersion: 0.3,
-                            appID: "xpcshell@tests.mozilla.org",
-                            appMinVersion: 5.0,
-                            appMaxVersion: 6.0
-                          }]
+  repositoryStatus:       4
 }, {
   id:                     ADDON_IDS[1],
   type:                   "theme",

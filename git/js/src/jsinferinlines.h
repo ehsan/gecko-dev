@@ -71,7 +71,7 @@ Type::ObjectType(JSObject *obj)
 Type::ObjectType(TypeObject *obj)
 {
     if (obj->singleton)
-        return Type((jsuword) obj->singleton.get() | 1);
+        return Type((jsuword) obj->singleton | 1);
     return Type((jsuword) obj);
 }
 
@@ -459,18 +459,6 @@ UseNewTypeAtEntry(JSContext *cx, StackFrame *fp)
 // Script interface functions
 /////////////////////////////////////////////////////////////////////
 
-inline
-TypeScript::TypeScript(JSFunction *fun)
-  : function(fun),
-    global((js::GlobalObject *) GLOBAL_MISSING_SCOPE)
-{
-}
-
-inline
-TypeScript::~TypeScript()
-{
-}
-
 /* static */ inline unsigned
 TypeScript::NumTypeSets(JSScript *script)
 {
@@ -701,9 +689,9 @@ void
 TypeScript::trace(JSTracer *trc)
 {
     if (function)
-        gc::MarkObject(trc, function, "script_fun");
+        gc::MarkObject(trc, *function, "script_fun");
     if (hasScope() && global)
-        gc::MarkObject(trc, global, "script_global");
+        gc::MarkObject(trc, *global, "script_global");
 
     /* Note: nesting does not keep anything alive. */
 }
@@ -728,8 +716,8 @@ TypeCompartment::addPending(JSContext *cx, TypeConstraint *constraint, TypeSet *
               InferSpewColor(constraint), constraint, InferSpewColorReset(),
               TypeString(type));
 
-    if ((pendingCount == pendingCapacity) && !growPendingArray(cx))
-        return;
+    if (pendingCount == pendingCapacity)
+        growPendingArray(cx);
 
     PendingWork &pending = pendingArray[pendingCount++];
     pending.constraint = constraint;
@@ -832,7 +820,7 @@ HashSetInsertTry(JSCompartment *compartment, U **&values, unsigned &count, T key
         return &values[insertpos];
     }
 
-    U **newValues = compartment->typeLifoAlloc.newArray<U*>(newCapacity);
+    U **newValues = ArenaArray<U*>(compartment->pool, newCapacity);
     if (!newValues)
         return NULL;
     PodZero(newValues, newCapacity);
@@ -873,7 +861,7 @@ HashSetInsert(JSCompartment *compartment, U **&values, unsigned &count, T key)
         if (KEY::getKey(oldData) == key)
             return (U **) &values;
 
-        values = compartment->typeLifoAlloc.newArray<U*>(SET_ARRAY_SIZE);
+        values = ArenaArray<U*>(compartment->pool, SET_ARRAY_SIZE);
         if (!values) {
             values = (U **) oldData;
             return NULL;
@@ -974,9 +962,8 @@ TypeSet::addType(JSContext *cx, Type type)
         return;
 
     if (type.isUnknown()) {
-        flags |= TYPE_FLAG_BASE_MASK;
+        flags = TYPE_FLAG_UNKNOWN | (flags & ~baseFlags());
         clearObjects();
-        JS_ASSERT(unknown());
     } else if (type.isPrimitive()) {
         TypeFlags flag = PrimitiveTypeFlag(type.primitive());
         if (flags & flag)
@@ -1110,7 +1097,7 @@ TypeCallsite::TypeCallsite(JSContext *cx, JSScript *script, jsbytecode *pc,
       thisTypes(NULL), returnTypes(NULL)
 {
     /* Caller must check for failure. */
-    argumentTypes = cx->typeLifoAlloc().newArray<TypeSet*>(argumentCount);
+    argumentTypes = ArenaArray<TypeSet*>(cx->compartment->pool, argumentCount);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -1264,56 +1251,6 @@ TypeObject::getGlobal()
     return NULL;
 }
 
-inline void
-TypeObject::writeBarrierPre(TypeObject *type)
-{
-#ifdef JSGC_INCREMENTAL
-    if (!type || type == &js::types::emptyTypeObject)
-        return;
-
-    JSCompartment *comp = type->compartment();
-    if (comp->needsBarrier())
-        MarkTypeObjectUnbarriered(comp->barrierTracer(), type, "write barrier");
-#endif
-}
-
-inline void
-TypeObject::writeBarrierPost(TypeObject *type, void *addr)
-{
-}
-
-inline void
-TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
-{
-#ifdef JSGC_INCREMENTAL
-    if (!newScript)
-        return;
-
-    JSCompartment *comp = newScript->fun->compartment();
-    if (comp->needsBarrier()) {
-        MarkObjectUnbarriered(comp->barrierTracer(), newScript->fun, "write barrier");
-        MarkShapeUnbarriered(comp->barrierTracer(), newScript->shape, "write barrier");
-    }
-#endif
-}
-
-inline void
-TypeNewScript::writeBarrierPost(TypeNewScript *newScript, void *addr)
-{
-}
-
-inline
-Property::Property(jsid id)
-  : id(id)
-{
-}
-
-inline
-Property::Property(const Property &o)
-  : id(o.id.get()), types(o.types)
-{
-}
-
 } } /* namespace js::types */
 
 inline bool
@@ -1344,8 +1281,7 @@ JSScript::ensureRanInference(JSContext *cx)
         js::types::AutoEnterTypeInference enter(cx);
         analysis()->analyzeTypes(cx);
     }
-    return !analysis()->OOM() &&
-        !cx->compartment->types.pendingNukeTypes;
+    return !analysis()->OOM();
 }
 
 inline bool

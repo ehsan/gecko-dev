@@ -82,8 +82,7 @@ protected:
 
     nsISupports*                mStream;        // cast to appropriate subclass
 
-    bool                        mBufferDisabled;
-    bool                        mEOF;  // True if mStream is at EOF
+    PRPackedBool                mBufferDisabled;
     PRUint8                     mGetBufferCount;
 };
 

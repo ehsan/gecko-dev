@@ -43,15 +43,8 @@
 #include "nsIWinAccessNode.h"
 #include "nsRootAccessible.h"
 
-#include "mozilla/Preferences.h"
 #include "nsArrayUtils.h"
 #include "nsIDocShellTreeItem.h"
-
-using namespace mozilla;
-
-// Window property used by ipc related code in identifying accessible
-// tab windows.
-const PRUnichar* kPropNameTabContent = L"AccessibleTabWindow";
 
 HRESULT
 nsWinUtils::ConvertToIA2Array(nsIArray *aGeckoArray, IUnknown ***aIA2Array,
@@ -156,19 +149,14 @@ nsWinUtils::CreateNativeWindow(LPCWSTR aWindowClass, HWND aParentWnd,
                                int aX, int aY, int aWidth, int aHeight,
                                bool aIsActive)
 {
-  HWND hwnd = ::CreateWindowExW(WS_EX_TRANSPARENT, aWindowClass,
-                                L"NetscapeDispatchWnd",
-                                WS_CHILD | (aIsActive ? WS_VISIBLE : 0),
-                                aX, aY, aWidth, aHeight,
-                                aParentWnd,
-                                NULL,
-                                GetModuleHandle(NULL),
-                                NULL);
-  if (hwnd) {
-    // Mark this window so that ipc related code can identify it.
-    ::SetPropW(hwnd, kPropNameTabContent, (HANDLE)1);
-  }
-  return hwnd;
+  return ::CreateWindowExW(WS_EX_TRANSPARENT, aWindowClass,
+                           L"NetscapeDispatchWnd",
+                           WS_CHILD | (aIsActive ? WS_VISIBLE : 0),
+                           aX, aY, aWidth, aHeight,
+                           aParentWnd,
+                           NULL,
+                           GetModuleHandle(NULL),
+                           NULL);
 }
 
 void
@@ -188,12 +176,13 @@ nsWinUtils::HideNativeWindow(HWND aWnd)
 bool
 nsWinUtils::IsWindowEmulationFor(LPCWSTR kModuleHandle)
 {
+#ifdef MOZ_E10S_COMPAT
   // Window emulation is always enabled in multiprocess Firefox.
-  if (Preferences::GetBool("browser.tabs.remote"))
-    return kModuleHandle ? ::GetModuleHandleW(kModuleHandle) : true;
-
+  return kModuleHandle ? ::GetModuleHandleW(kModuleHandle) : true;
+#else
   return kModuleHandle ? ::GetModuleHandleW(kModuleHandle) :
     ::GetModuleHandleW(kJAWSModuleHandle) ||
     ::GetModuleHandleW(kWEModuleHandle)  ||
     ::GetModuleHandleW(kDolphinModuleHandle);
+#endif
 }

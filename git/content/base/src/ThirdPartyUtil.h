@@ -56,8 +56,9 @@ public:
   nsresult Init();
 
 private:
+  nsresult GetBaseDomain(nsIURI* aHostURI, nsCString& aBaseDomain);
   nsresult IsThirdPartyInternal(const nsCString& aFirstDomain,
-    nsIURI* aSecondURI, bool* aResult);
+    nsIURI* aSecondURI, PRBool* aResult);
   static already_AddRefed<nsIURI> GetURIFromWindow(nsIDOMWindow* aWin);
 
   nsCOMPtr<nsIEffectiveTLDService> mTLDService;

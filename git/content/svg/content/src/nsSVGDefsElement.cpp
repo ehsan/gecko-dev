@@ -36,12 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGGraphicElement.h"
 #include "nsIDOMSVGDefsElement.h"
-
-using namespace mozilla;
 
 typedef nsSVGGraphicElement nsSVGDefsElementBase;
 
@@ -65,7 +61,7 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGDefsElementBase::)
 
   // nsIContent
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
@@ -112,7 +108,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGDefsElement)
 //----------------------------------------------------------------------
 // nsIContent methods
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsSVGDefsElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -126,6 +122,6 @@ nsSVGDefsElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap
   };
   
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGDefsElementBase::IsAttributeMapped(name);
 }

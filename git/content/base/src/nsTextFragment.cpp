@@ -117,7 +117,7 @@ nsTextFragment::ReleaseText()
   }
 
   m1b = nsnull;
-  mState.mIsBidi = false;
+  mState.mIsBidi = PR_FALSE;
 
   // Set mState.mIs2b, mState.mInHeap, and mState.mLength = 0 with mAllBits;
   mAllBits = 0;
@@ -217,7 +217,7 @@ FirstNon8Bit(const PRUnichar *str, const PRUnichar *end)
 }
 
 void
-nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength, bool aUpdateBidi)
+nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength, PRBool aUpdateBidi)
 {
   ReleaseText();
 
@@ -228,8 +228,8 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength, bool aUpdateBid
   PRUnichar firstChar = *aBuffer;
   if (aLength == 1 && firstChar < 256) {
     m1b = sSingleCharSharedString + firstChar;
-    mState.mInHeap = false;
-    mState.mIs2b = false;
+    mState.mInHeap = PR_FALSE;
+    mState.mIs2b = PR_FALSE;
     mState.mLength = 1;
 
     return;
@@ -267,8 +267,8 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength, bool aUpdateBid
         ++m1b;
       }
 
-      mState.mInHeap = false;
-      mState.mIs2b = false;
+      mState.mInHeap = PR_FALSE;
+      mState.mIs2b = PR_FALSE;
       mState.mLength = aLength;
 
       return;        
@@ -286,7 +286,7 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength, bool aUpdateBid
       return;
     }
 
-    mState.mIs2b = true;
+    mState.mIs2b = PR_TRUE;
     if (aUpdateBidi) {
       UpdateBidiFlag(aBuffer + first16bit, aLength - first16bit);
     }
@@ -302,11 +302,11 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength, bool aUpdateBid
     LossyConvertEncoding16to8 converter(buff);
     copy_string(aBuffer, aBuffer+aLength, converter);
     m1b = buff;
-    mState.mIs2b = false;
+    mState.mIs2b = PR_FALSE;
   }
 
   // Setup our fields
-  mState.mInHeap = true;
+  mState.mInHeap = PR_TRUE;
   mState.mLength = aLength;
 }
 
@@ -337,7 +337,7 @@ nsTextFragment::CopyTo(PRUnichar *aDest, PRInt32 aOffset, PRInt32 aCount)
 }
 
 void
-nsTextFragment::Append(const PRUnichar* aBuffer, PRUint32 aLength, bool aUpdateBidi)
+nsTextFragment::Append(const PRUnichar* aBuffer, PRUint32 aLength, PRBool aUpdateBidi)
 {
   // This is a common case because some callsites create a textnode
   // with a value by creating the node and then calling AppendData.
@@ -385,14 +385,14 @@ nsTextFragment::Append(const PRUnichar* aBuffer, PRUint32 aLength, bool aUpdateB
 
     memcpy(buff + mState.mLength, aBuffer, aLength * sizeof(PRUnichar));
     mState.mLength += aLength;
-    mState.mIs2b = true;
+    mState.mIs2b = PR_TRUE;
 
     if (mState.mInHeap) {
       nsMemory::Free(m2b);
     }
     m2b = buff;
 
-    mState.mInHeap = true;
+    mState.mInHeap = PR_TRUE;
 
     if (aUpdateBidi) {
       UpdateBidiFlag(aBuffer + first16bit, aLength - first16bit);
@@ -417,7 +417,7 @@ nsTextFragment::Append(const PRUnichar* aBuffer, PRUint32 aLength, bool aUpdateB
     }
 
     memcpy(buff, m1b, mState.mLength);
-    mState.mInHeap = true;
+    mState.mInHeap = PR_TRUE;
   }
 
   // Copy aBuffer into buff.
@@ -447,7 +447,7 @@ nsTextFragment::UpdateBidiFlag(const PRUnichar* aBuffer, PRUint32 aLength)
         utf32Char = SURROGATE_TO_UCS4(ch1, ch2);
       }
       if (UTF32_CHAR_IS_BIDI(utf32Char) || IS_BIDI_CONTROL_CHAR(utf32Char)) {
-        mState.mIsBidi = true;
+        mState.mIsBidi = PR_TRUE;
         break;
       }
     }

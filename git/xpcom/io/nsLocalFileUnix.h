@@ -53,7 +53,7 @@
 #include "nsReadableUtils.h"
 #include "nsIHashable.h"
 #include "nsIClassInfoImpl.h"
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
 #endif
 
@@ -109,7 +109,7 @@
 
 
 class nsLocalFile :
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
                            public nsILocalFileMac,
 #else
                            public nsILocalFile,
@@ -126,7 +126,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIFILE
     NS_DECL_NSILOCALFILE
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
     NS_DECL_NSILOCALFILEMAC
 #endif
     NS_DECL_NSIHASHABLE
@@ -154,7 +154,7 @@ protected:
                                      const nsACString &newName,
                                      nsACString &_retval);
 
-    bool FillStatCache();
+    PRBool FillStatCache();
 
     nsresult CreateAndKeepOpen(PRUint32 type, PRIntn flags,
                                PRUint32 permissions, PRFileDesc **_retval);

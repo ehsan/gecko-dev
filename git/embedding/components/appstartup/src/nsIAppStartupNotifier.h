@@ -58,7 +58,7 @@
 
     categoryManager->AddCategoryEntry(APPSTARTUP_CATEGORY, "testcomp",
                         "service," NS_WALLETSERVICE_CONTRACTID
-                        true, true,
+                        PR_TRUE, PR_TRUE,
                         getter_Copies(previous));
 
  Presence of the "service" keyword indicates the components desire to 

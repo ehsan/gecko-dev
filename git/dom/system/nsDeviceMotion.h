@@ -40,7 +40,6 @@
 #include "nsIDeviceMotion.h"
 #include "nsIDOMDeviceMotionEvent.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
 
@@ -69,7 +68,7 @@ private:
 
   void StartDisconnectTimer();
 
-  bool mStarted;
+  PRBool mStarted;
 
   nsCOMPtr<nsITimer> mTimeoutTimer;
   static void TimeoutHandler(nsITimer *aTimer, void *aClosure);
@@ -89,7 +88,7 @@ private:
                           double z);
 
   PRUint32 mUpdateInterval;
-  bool     mEnabled;
+  PRBool   mEnabled;
 
   virtual void Startup()  = 0;
   virtual void Shutdown() = 0;

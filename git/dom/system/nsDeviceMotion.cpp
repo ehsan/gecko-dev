@@ -116,9 +116,9 @@ NS_IMETHODIMP nsDeviceMotionData::GetZ(double *aZ)
 NS_IMPL_ISUPPORTS2(nsDeviceMotion, nsIDeviceMotion, nsIDeviceMotionUpdate)
 
 nsDeviceMotion::nsDeviceMotion()
-: mStarted(false),
+: mStarted(PR_FALSE),
   mUpdateInterval(50), /* default to 50 ms */
-  mEnabled(true)
+  mEnabled(PR_TRUE)
 {
   nsCOMPtr<nsIPrefBranch> prefSrv = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefSrv) {
@@ -127,10 +127,10 @@ nsDeviceMotion::nsDeviceMotion()
     if (NS_SUCCEEDED(rv))
       mUpdateInterval = value;
 
-    bool bvalue;
+    PRBool bvalue;
     rv = prefSrv->GetBoolPref("device.motion.enabled", &bvalue);
-    if (NS_SUCCEEDED(rv) && bvalue == false)
-      mEnabled = false;
+    if (NS_SUCCEEDED(rv) && bvalue == PR_FALSE)
+      mEnabled = PR_FALSE;
   }
 }
 
@@ -169,7 +169,7 @@ nsDeviceMotion::TimeoutHandler(nsITimer *aTimer, void *aClosure)
   // what about listeners that don't clean up properly?  they will leak
   if (self->mListeners.Count() == 0 && self->mWindowListeners.Length() == 0) {
     self->Shutdown();
-    self->mStarted = false;
+    self->mStarted = PR_FALSE;
   }
 }
 
@@ -178,8 +178,8 @@ NS_IMETHODIMP nsDeviceMotion::AddListener(nsIDeviceMotionListener *aListener)
   if (mListeners.IndexOf(aListener) != -1)
     return NS_OK; // already exists
 
-  if (mStarted == false) {
-    mStarted = true;
+  if (mStarted == PR_FALSE) {
+    mStarted = PR_TRUE;
     Startup();
   }
 
@@ -199,8 +199,8 @@ NS_IMETHODIMP nsDeviceMotion::RemoveListener(nsIDeviceMotionListener *aListener)
 
 NS_IMETHODIMP nsDeviceMotion::AddWindowListener(nsIDOMWindow *aWindow)
 {
-  if (mStarted == false) {
-    mStarted = true;
+  if (mStarted == PR_FALSE) {
+    mStarted = PR_TRUE;
     Startup();
   }
   if (mWindowListeners.IndexOf(aWindow) == NoIndex)
@@ -263,7 +263,7 @@ nsDeviceMotion::FireDOMOrientationEvent(nsIDOMDocument *domdoc,
                                         double gamma)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  bool defaultActionEnabled = true;
+  PRBool defaultActionEnabled = PR_TRUE;
   domdoc->CreateEvent(NS_LITERAL_STRING("DeviceOrientationEvent"), getter_AddRefs(event));
 
   nsCOMPtr<nsIDOMDeviceOrientationEvent> oe = do_QueryInterface(event);
@@ -273,16 +273,16 @@ nsDeviceMotion::FireDOMOrientationEvent(nsIDOMDocument *domdoc,
   }
 
   oe->InitDeviceOrientationEvent(NS_LITERAL_STRING("deviceorientation"),
-                                 true,
-                                 false,
+                                 PR_TRUE,
+                                 PR_FALSE,
                                  alpha,
                                  beta,
                                  gamma,
-                                 true);
+                                 PR_TRUE);
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
   if (privateEvent)
-    privateEvent->SetTrusted(true);
+    privateEvent->SetTrusted(PR_TRUE);
   
   target->DispatchEvent(event, &defaultActionEnabled);
 }
@@ -295,7 +295,7 @@ nsDeviceMotion::FireDOMMotionEvent(nsIDOMDocument *domdoc,
                                    double y,
                                    double z) {
   nsCOMPtr<nsIDOMEvent> event;
-  bool defaultActionEnabled = true;
+  PRBool defaultActionEnabled = PR_TRUE;
   domdoc->CreateEvent(NS_LITERAL_STRING("DeviceMotionEvent"), getter_AddRefs(event));
 
   nsCOMPtr<nsIDOMDeviceMotionEvent> me = do_QueryInterface(event);
@@ -308,8 +308,8 @@ nsDeviceMotion::FireDOMMotionEvent(nsIDOMDocument *domdoc,
   nsRefPtr<nsDOMDeviceAcceleration> acceleration = new nsDOMDeviceAcceleration(x, y, z);
 
   me->InitDeviceMotionEvent(NS_LITERAL_STRING("devicemotion"),
-                            true,
-                            false,
+                            PR_TRUE,
+                            PR_FALSE,
                             nsnull,
                             acceleration,
                             nsnull,
@@ -317,7 +317,7 @@ nsDeviceMotion::FireDOMMotionEvent(nsIDOMDocument *domdoc,
 
   nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(event);
   if (privateEvent)
-    privateEvent->SetTrusted(true);
+    privateEvent->SetTrusted(PR_TRUE);
   
   target->DispatchEvent(event, &defaultActionEnabled);
 }

@@ -260,10 +260,10 @@ var gTests = [
 function nextTest() {
   if (gTests.length) {
     var test = gTests.shift();
-    waitForFocus(function() {
-      info("Start of test: " + test.desc);
-      test.run();
-    });
+    info("Start of test: " + test.desc);
+    test.run();
+
+    waitForFocus(nextTest);
   }
   else {
     // Collapse the personal toolbar if needed.
@@ -283,6 +283,6 @@ function test() {
   if (wasCollapsed)
     setToolbarVisibility(toolbar, true);
 
-  nextTest();
+  waitForFocus(nextTest);
 }
 

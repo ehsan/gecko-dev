@@ -54,6 +54,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIRDFService.h"
 #include "nsIStringBundle.h"
+#include "nsISupportsArray.h"
 #include "nsXPCOMCID.h"
 
 #define MIGRATION_BUNDLE "chrome://browser/locale/migration/migration.properties"
@@ -126,11 +127,11 @@ void ParseOverrideServers(const nsAString& aServers, nsIPrefBranch* aBranch)
 }
 
 void GetMigrateDataFromArray(MigrationData* aDataArray, PRInt32 aDataArrayLength, 
-                             bool aReplace, nsIFile* aSourceProfile, 
+                             PRBool aReplace, nsIFile* aSourceProfile, 
                              PRUint16* aResult)
 {
   nsCOMPtr<nsIFile> sourceFile; 
-  bool exists;
+  PRBool exists;
   MigrationData* cursor;
   MigrationData* end = aDataArray + aDataArrayLength;
   for (cursor = aDataArray; cursor < end && cursor->fileName; ++cursor) {
@@ -186,7 +187,7 @@ AnnotatePersonalToolbarFolder(nsIFile* aSourceBookmarksFile,
 
   nsCAutoString sourceBuffer;
   nsCAutoString targetBuffer;
-  bool moreData = false;
+  PRBool moreData = PR_FALSE;
   PRUint32 bytesWritten = 0;
   do {
     lineInputStream->ReadLine(sourceBuffer, &moreData);
@@ -218,8 +219,8 @@ AnnotatePersonalToolbarFolder(nsIFile* aSourceBookmarksFile,
 
 nsresult
 ImportBookmarksHTML(nsIFile* aBookmarksFile, 
-                    bool aImportIntoRoot,
-                    bool aOverwriteDefaults,
+                    PRBool aImportIntoRoot,
+                    PRBool aOverwriteDefaults,
                     const PRUnichar* aImportSourceNameKey)
 {
   nsresult rv;
@@ -272,7 +273,7 @@ ImportBookmarksHTML(nsIFile* aBookmarksFile,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Import the bookmarks into the folder.
-  return importer->ImportHTMLFromFileToFolder(localFile, folder, false);
+  return importer->ImportHTMLFromFileToFolder(localFile, folder, PR_FALSE);
 }
 
 nsresult
@@ -282,7 +283,7 @@ InitializeBookmarks(nsIFile* aTargetProfile)
   aTargetProfile->Clone(getter_AddRefs(bookmarksFile));
   bookmarksFile->Append(BOOKMARKS_FILE_NAME);
   
-  nsresult rv = ImportBookmarksHTML(bookmarksFile, true, true, EmptyString().get());
+  nsresult rv = ImportBookmarksHTML(bookmarksFile, PR_TRUE, PR_TRUE, EmptyString().get());
   NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }

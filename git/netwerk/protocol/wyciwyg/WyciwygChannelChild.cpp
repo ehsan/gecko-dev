@@ -58,7 +58,7 @@ NS_IMPL_ISUPPORTS3(WyciwygChannelChild,
 
 WyciwygChannelChild::WyciwygChannelChild()
   : mStatus(NS_OK)
-  , mIsPending(false)
+  , mIsPending(PR_FALSE)
   , mCanceled(false)
   , mLoadFlags(LOAD_NORMAL)
   , mContentLength(-1)
@@ -274,7 +274,7 @@ WyciwygChannelChild::OnStopRequest(const nsresult& statusCode)
 
     mState = WCC_ONSTOP;
 
-    mIsPending = false;
+    mIsPending = PR_FALSE;
 
     if (!mCanceled)
       mStatus = statusCode;
@@ -357,7 +357,7 @@ WyciwygChannelChild::GetName(nsACString & aName)
 
 /* boolean isPending (); */
 NS_IMETHODIMP
-WyciwygChannelChild::IsPending(bool *aIsPending)
+WyciwygChannelChild::IsPending(PRBool *aIsPending)
 {
   *aIsPending = mIsPending;
   return NS_OK;
@@ -589,7 +589,7 @@ WyciwygChannelChild::AsyncOpen(nsIStreamListener *aListener, nsISupports *aConte
 
   mListener = aListener;
   mListenerContext = aContext;
-  mIsPending = true;
+  mIsPending = PR_TRUE;
 
   if (mLoadGroup)
     mLoadGroup->AddRequest(this, nsnull);

@@ -121,8 +121,8 @@ class GeckoSurfaceView
 
         Resources res = getResources();
 
-        File watchDir = new File(GeckoApp.sGREDir, "components");
-        if (watchDir.exists() == false) {
+        File filesDir = new File(GeckoApp.sGREDir, "files");
+        if (filesDir.exists() == false) {
             // Just show the simple splash screen for "new profile" startup
             c.drawColor(res.getColor(R.color.splash_background));
             Drawable drawable = res.getDrawable(R.drawable.splash);
@@ -223,15 +223,13 @@ class GeckoSurfaceView
 
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
 
-        // On pre-Honeycomb, force exactly one frame of the previous size
-        // to render because the surface change is only seen by GLES after we
-        // have swapped the back buffer (i.e. the buffer size only changes 
-        // after the next swap buffer). We need to make sure Gecko's view 
-        // resizes when Android's buffer resizes.
-        // In Honeycomb, the buffer size changes immediately, so rendering a
-        // frame of the previous size is unnecessary (and wrong).
-        if (mDrawMode == DRAW_GLES_2 && 
-            (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.HONEYCOMB)) {
+        // Force exactly one frame to render
+        // because the surface change is only seen after we
+        // have swapped the back buffer.
+        // The buffer size only changes after the next swap buffer.
+        // We need to make sure the Gecko's view resize when Android's 
+        // buffer resizes.
+        if (mDrawMode == DRAW_GLES_2) {
             // When we get a surfaceChange event, we have 0 to n paint events 
             // waiting in the Gecko event queue. We will make the first
             // succeed and the abort the others.
@@ -250,67 +248,75 @@ class GeckoSurfaceView
 
         mSurfaceLock.lock();
 
-        if (mInDrawing) {
-            Log.w(LOG_FILE_NAME, "surfaceChanged while mInDrawing is true!");
-        }
-
-        boolean invalidSize;
-
-        if (width == 0 || height == 0) {
-            mSoftwareBitmap = null;
-            mSoftwareBuffer = null;
-            mSoftwareBufferCopy = null;
-            invalidSize = true;
-        } else {
-            invalidSize = false;
-        }
-
-        boolean doSyncDraw =
-            mDrawMode == DRAW_2D &&
-            !invalidSize &&
-            GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning);
-        mSyncDraw = doSyncDraw;
-
-        mFormat = format;
-        mWidth = width;
-        mHeight = height;
-        mSurfaceValid = true;
-
-        Log.i(LOG_FILE_NAME, "surfaceChanged: fmt: " + format + " dim: " + width + " " + height);
-
         try {
+            if (mInDrawing) {
+                Log.w(LOG_FILE_NAME, "surfaceChanged while mInDrawing is true!");
+            }
+
+            boolean invalidSize;
+
+            if (width == 0 || height == 0) {
+                mSoftwareBitmap = null;
+                mSoftwareBuffer = null;
+                mSoftwareBufferCopy = null;
+                invalidSize = true;
+            } else {
+                invalidSize = false;
+            }
+
+            boolean doSyncDraw =
+                mDrawMode == DRAW_2D &&
+                !invalidSize &&
+                GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning);
+            mSyncDraw = doSyncDraw;
+
+            mFormat = format;
+            mWidth = width;
+            mHeight = height;
+            mSurfaceValid = true;
+
+            Log.i(LOG_FILE_NAME, "surfaceChanged: fmt: " + format + " dim: " + width + " " + height);
+
             DisplayMetrics metrics = new DisplayMetrics();
             GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
 
             GeckoEvent e = new GeckoEvent(GeckoEvent.SIZE_CHANGED, width, height,
                                           metrics.widthPixels, metrics.heightPixels);
             GeckoAppShell.sendEventToGecko(e);
+
+            if (!doSyncDraw) {
+                if (mDrawMode == DRAW_GLES_2 || mShowingSplashScreen)
+                    return;
+                Canvas c = holder.lockCanvas();
+                c.drawARGB(255, 255, 255, 255);
+                holder.unlockCanvasAndPost(c);
+                return;
+            } else {
+                GeckoAppShell.scheduleRedraw();
+            }
         } finally {
             mSurfaceLock.unlock();
+            if (mDrawMode == DRAW_GLES_2) {
+                // Force a frame to be drawn before the surfaceChange returns,
+                // otherwise we get artifacts.
+                GeckoAppShell.scheduleRedraw();
+                GeckoAppShell.geckoEventSync();
+            }
         }
 
-        if (doSyncDraw) {
-            GeckoAppShell.scheduleRedraw();
-
-            Object syncDrawObject = null;
-            try {
-                syncDrawObject = mSyncDraws.take();
-            } catch (InterruptedException ie) {
-                Log.e(LOG_FILE_NAME, "Threw exception while getting sync draw bitmap/buffer: ", ie);
-            }
-            if (syncDrawObject != null) {
-                if (syncDrawObject instanceof Bitmap)
-                    draw(holder, (Bitmap)syncDrawObject);
-                else
-                    draw(holder, (ByteBuffer)syncDrawObject);
-            } else {
-                Log.e("GeckoSurfaceViewJava", "Synchronised draw object is null");
-            }
-        } else if (!mShowingSplashScreen) {
-            // Make sure a frame is drawn before we return
-            // otherwise we see artifacts or a black screen
-            GeckoAppShell.scheduleRedraw();
-            GeckoAppShell.geckoEventSync();
+        Object syncDrawObject = null;
+        try {
+            syncDrawObject = mSyncDraws.take();
+        } catch (InterruptedException ie) {
+            Log.e(LOG_FILE_NAME, "Threw exception while getting sync draw bitmap/buffer: ", ie);
+        }
+        if (syncDrawObject != null) {
+            if (syncDrawObject instanceof Bitmap)
+                draw(holder, (Bitmap)syncDrawObject);
+            else
+                draw(holder, (ByteBuffer)syncDrawObject);
+        } else {
+            Log.e("GeckoSurfaceViewJava", "Synchronised draw object is null");
         }
     }
 
@@ -364,10 +370,6 @@ class GeckoSurfaceView
 
         mDrawMode = DRAW_2D;
         return mSoftwareBuffer;
-    }
-
-    public Surface getSurface() {
-        return getHolder().getSurface();
     }
 
     /*

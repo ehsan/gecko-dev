@@ -62,7 +62,6 @@ class nsAHttpTransaction : public nsISupports
 public:
     // called by the connection when it takes ownership of the transaction.
     virtual void SetConnection(nsAHttpConnection *) = 0;
-    virtual nsAHttpConnection *Connection() = 0;
 
     // called by the connection to get security callbacks to set on the
     // socket transport.
@@ -74,7 +73,7 @@ public:
                                    nsresult status, PRUint64 progress) = 0;
 
     // called to check the transaction status.
-    virtual bool     IsDone() = 0;
+    virtual PRBool   IsDone() = 0;
     virtual nsresult Status() = 0;
 
     // called to find out how much request data is available for writing.
@@ -100,12 +99,11 @@ public:
 
 #define NS_DECL_NSAHTTPTRANSACTION \
     void SetConnection(nsAHttpConnection *); \
-    nsAHttpConnection *Connection(); \
     void GetSecurityCallbacks(nsIInterfaceRequestor **, \
                               nsIEventTarget **);       \
     void OnTransportStatus(nsITransport* transport, \
                            nsresult status, PRUint64 progress); \
-    bool     IsDone(); \
+    PRBool   IsDone(); \
     nsresult Status(); \
     PRUint32 Available(); \
     nsresult ReadSegments(nsAHttpSegmentReader *, PRUint32, PRUint32 *); \

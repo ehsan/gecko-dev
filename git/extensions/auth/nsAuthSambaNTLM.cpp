@@ -77,26 +77,26 @@ nsAuthSambaNTLM::Shutdown()
 
 NS_IMPL_ISUPPORTS1(nsAuthSambaNTLM, nsIAuthModule)
 
-static bool
+static PRBool
 SpawnIOChild(char** aArgs, PRProcess** aPID,
              PRFileDesc** aFromChildFD, PRFileDesc** aToChildFD)
 {
     PRFileDesc* toChildPipeRead;
     PRFileDesc* toChildPipeWrite;
     if (PR_CreatePipe(&toChildPipeRead, &toChildPipeWrite) != PR_SUCCESS)
-        return false;
-    PR_SetFDInheritable(toChildPipeRead, true);
-    PR_SetFDInheritable(toChildPipeWrite, false);
+        return PR_FALSE;
+    PR_SetFDInheritable(toChildPipeRead, PR_TRUE);
+    PR_SetFDInheritable(toChildPipeWrite, PR_FALSE);
 
     PRFileDesc* fromChildPipeRead;
     PRFileDesc* fromChildPipeWrite;
     if (PR_CreatePipe(&fromChildPipeRead, &fromChildPipeWrite) != PR_SUCCESS) {
         PR_Close(toChildPipeRead);
         PR_Close(toChildPipeWrite);
-        return false;
+        return PR_FALSE;
     }
-    PR_SetFDInheritable(fromChildPipeRead, false);
-    PR_SetFDInheritable(fromChildPipeWrite, true);
+    PR_SetFDInheritable(fromChildPipeRead, PR_FALSE);
+    PR_SetFDInheritable(fromChildPipeWrite, PR_TRUE);
 
     PRProcessAttr* attr = PR_NewProcessAttr();
     if (!attr) {
@@ -104,7 +104,7 @@ SpawnIOChild(char** aArgs, PRProcess** aPID,
         PR_Close(fromChildPipeWrite);
         PR_Close(toChildPipeRead);
         PR_Close(toChildPipeWrite);
-        return false;
+        return PR_FALSE;
     }
 
     PR_ProcessAttrSetStdioRedirect(attr, PR_StandardInput, toChildPipeRead);
@@ -118,16 +118,16 @@ SpawnIOChild(char** aArgs, PRProcess** aPID,
         LOG(("ntlm_auth exec failure [%d]", PR_GetError()));
         PR_Close(fromChildPipeRead);
         PR_Close(toChildPipeWrite);
-        return false;        
+        return PR_FALSE;        
     }
 
     *aPID = process;
     *aFromChildFD = fromChildPipeRead;
     *aToChildFD = toChildPipeWrite;
-    return true;
+    return PR_TRUE;
 }
 
-static bool WriteString(PRFileDesc* aFD, const nsACString& aString)
+static PRBool WriteString(PRFileDesc* aFD, const nsACString& aString)
 {
     PRInt32 length = aString.Length();
     const char* s = aString.BeginReading();
@@ -136,14 +136,14 @@ static bool WriteString(PRFileDesc* aFD, const nsACString& aString)
     while (length > 0) {
         int result = PR_Write(aFD, s, length);
         if (result <= 0)
-            return false;
+            return PR_FALSE;
         s += result;
         length -= result;
     }
-    return true;
+    return PR_TRUE;
 }
 
-static bool ReadLine(PRFileDesc* aFD, nsACString& aString)
+static PRBool ReadLine(PRFileDesc* aFD, nsACString& aString)
 {
     // ntlm_auth is defined to only send one line in response to each of our
     // input lines. So this simple unbuffered strategy works as long as we
@@ -153,11 +153,11 @@ static bool ReadLine(PRFileDesc* aFD, nsACString& aString)
         char buf[1024];
         int result = PR_Read(aFD, buf, sizeof(buf));
         if (result <= 0)
-            return false;
+            return PR_FALSE;
         aString.Append(buf, result);
         if (buf[result - 1] == '\n') {
             LOG(("Read from ntlm_auth: %s", nsPromiseFlatCString(aString).get()));
-            return true;
+            return PR_TRUE;
         }
     }
 }
@@ -212,7 +212,7 @@ nsAuthSambaNTLM::SpawnNTLMAuthHelper()
         nsnull
     };
 
-    bool isOK = SpawnIOChild(args, &mChildPID, &mFromChildFD, &mToChildFD);
+    PRBool isOK = SpawnIOChild(args, &mChildPID, &mFromChildFD, &mToChildFD);
     if (!isOK)  
         return NS_ERROR_FAILURE;
 
@@ -308,7 +308,7 @@ nsAuthSambaNTLM::Unwrap(const void *inToken,
 NS_IMETHODIMP
 nsAuthSambaNTLM::Wrap(const void *inToken,
                       PRUint32    inTokenLen,
-                      bool        confidential,
+                      PRBool      confidential,
                       void      **outToken,
                       PRUint32   *outTokenLen)
 {

@@ -67,8 +67,8 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
     if (NS_FAILED(rv)) return rv;
 
     nsTraceRefcntImpl::StatisticsType statType = nsTraceRefcntImpl::ALL_STATS;
-    bool clear = false;
-    bool leaks = false;
+    PRBool clear = PR_FALSE;
+    PRBool leaks = PR_FALSE;
 
     PRInt32 pos = path.Find("?");
     if (pos > 0) {
@@ -77,9 +77,9 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
         if (param.EqualsLiteral("new"))
             statType = nsTraceRefcntImpl::NEW_STATS;
         else if (param.EqualsLiteral("clear"))
-            clear = true;
+            clear = PR_TRUE;
         else if (param.EqualsLiteral("leaks"))
-            leaks = true;
+            leaks = PR_TRUE;
     }
 
     nsCOMPtr<nsIInputStream> inStr;
@@ -107,7 +107,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
         rv = file->AppendNative(NS_LITERAL_CSTRING("bloatlogs"));
         if (NS_FAILED(rv)) return rv;
 
-        bool exists;
+        PRBool exists;
         rv = file->Exists(&exists);
         if (NS_FAILED(rv)) return rv;
 

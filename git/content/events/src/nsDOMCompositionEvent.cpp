@@ -38,20 +38,20 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsDOMCompositionEvent.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 
 nsDOMCompositionEvent::nsDOMCompositionEvent(nsPresContext* aPresContext,
                                              nsCompositionEvent* aEvent)
   : nsDOMUIEvent(aPresContext, aEvent ? aEvent :
-                 new nsCompositionEvent(false, 0, nsnull))
+                 new nsCompositionEvent(PR_FALSE, 0, nsnull))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_COMPOSITION_EVENT,
                "event type mismatch");
 
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   } else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
 
     // XXX compositionstart is cancelable in draft of DOM3 Events.
@@ -98,8 +98,8 @@ nsDOMCompositionEvent::GetLocale(nsAString& aLocale)
 
 NS_IMETHODIMP
 nsDOMCompositionEvent::InitCompositionEvent(const nsAString& aType,
-                                            bool aCanBubble,
-                                            bool aCancelable,
+                                            PRBool aCanBubble,
+                                            PRBool aCancelable,
                                             nsIDOMWindow* aView,
                                             const nsAString& aData,
                                             const nsAString& aLocale)

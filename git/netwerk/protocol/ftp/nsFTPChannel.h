@@ -78,7 +78,7 @@ public:
     nsFtpChannel(nsIURI *uri, nsIProxyInfo *pi)
         : mProxyInfo(pi)
         , mStartPos(0)
-        , mResumeRequested(false)
+        , mResumeRequested(PR_FALSE)
         , mLastModifiedTime(0)
     {
         SetURI(uri);
@@ -89,7 +89,7 @@ public:
     }
 
     // Were we asked to resume a download?
-    bool ResumeRequested() { return mResumeRequested; }
+    PRBool ResumeRequested() { return mResumeRequested; }
 
     // Download from this byte offset
     PRUint64 StartPos() { return mStartPos; }
@@ -122,9 +122,9 @@ public:
 
 protected:
     virtual ~nsFtpChannel() {}
-    virtual nsresult OpenContentStream(bool async, nsIInputStream **result,
+    virtual nsresult OpenContentStream(PRBool async, nsIInputStream **result,
                                        nsIChannel** channel);
-    virtual bool GetStatusArg(nsresult status, nsString &statusArg);
+    virtual PRBool GetStatusArg(nsresult status, nsString &statusArg);
     virtual void OnCallbacksChanged();
 
 private:
@@ -133,7 +133,7 @@ private:
     nsCOMPtr<nsIInputStream>  mUploadStream;
     PRUint64                  mStartPos;
     nsCString                 mEntityID;
-    bool                      mResumeRequested;
+    PRPackedBool              mResumeRequested;
     PRTime                    mLastModifiedTime;
 };
 

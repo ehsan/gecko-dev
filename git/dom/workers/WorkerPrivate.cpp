@@ -39,11 +39,11 @@
 
 #include "WorkerPrivate.h"
 
-#include "mozIThirdPartyUtil.h"
 #include "nsIClassInfo.h"
 #include "nsIConsoleService.h"
 #include "nsIDOMFile.h"
 #include "nsIDocument.h"
+#include "nsIEffectiveTLDService.h"
 #include "nsIJSContextStack.h"
 #include "nsIMemoryReporter.h"
 #include "nsIScriptError.h"
@@ -76,7 +76,6 @@
 #include "Principal.h"
 #include "RuntimeService.h"
 #include "ScriptLoader.h"
-#include "Worker.h"
 #include "WorkerFeature.h"
 #include "WorkerScope.h"
 
@@ -106,10 +105,10 @@ class AutoPtrComparator
   typedef T* B;
 
 public:
-  bool Equals(const A& a, const B& b) const {
+  PRBool Equals(const A& a, const B& b) const {
     return a && b ? *a == *b : !a && !b ? true : false;
   }
-  bool LessThan(const A& a, const B& b) const {
+  PRBool LessThan(const A& a, const B& b) const {
     return a && b ? *a < *b : b ? true : false;
   }
 };
@@ -242,7 +241,7 @@ struct WorkerStructuredCloneCallbacks
         {
           // File should not be mutable.
           nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
-          bool isMutable;
+          PRBool isMutable;
           NS_ASSERTION(NS_SUCCEEDED(mutableFile->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable file should be passed to worker");
@@ -267,7 +266,7 @@ struct WorkerStructuredCloneCallbacks
         {
           // Blob should not be mutable.
           nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
-          bool isMutable;
+          PRBool isMutable;
           NS_ASSERTION(NS_SUCCEEDED(mutableBlob->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable blob should be passed to worker");
@@ -312,7 +311,7 @@ struct WorkerStructuredCloneCallbacks
       nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aCx, aObj);
       if (blob) {
         nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
-        if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(false)) &&
+        if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(PR_FALSE)) &&
             JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
             JS_WriteBytes(aWriter, &blob, sizeof(blob))) {
           clonedObjects->AppendElement(blob);
@@ -358,7 +357,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
         {
           // File should not be mutable.
           nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
-          bool isMutable;
+          PRBool isMutable;
           NS_ASSERTION(NS_SUCCEEDED(mutableFile->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable file should be passed to worker");
@@ -391,7 +390,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
         {
           // Blob should not be mutable.
           nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
-          bool isMutable;
+          PRBool isMutable;
           NS_ASSERTION(NS_SUCCEEDED(mutableBlob->GetMutable(&isMutable)) &&
                        !isMutable,
                        "Only immutable blob should be passed to worker");
@@ -449,7 +448,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
       nsCOMPtr<nsIDOMFile> file = do_QueryInterface(wrappedObject);
       if (file) {
         nsCOMPtr<nsIMutable> mutableFile = do_QueryInterface(file);
-        if (mutableFile && NS_SUCCEEDED(mutableFile->SetMutable(false))) {
+        if (mutableFile && NS_SUCCEEDED(mutableFile->SetMutable(PR_FALSE))) {
           nsIDOMFile* filePtr = file;
           if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_FILE, 0) &&
               JS_WriteBytes(aWriter, &filePtr, sizeof(filePtr))) {
@@ -463,7 +462,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
       nsCOMPtr<nsIDOMBlob> blob = do_QueryInterface(wrappedObject);
       if (blob) {
         nsCOMPtr<nsIMutable> mutableBlob = do_QueryInterface(blob);
-        if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(false))) {
+        if (mutableBlob && NS_SUCCEEDED(mutableBlob->SetMutable(PR_FALSE))) {
           nsIDOMBlob* blobPtr = blob;
           if (JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
               JS_WriteBytes(aWriter, &blobPtr, sizeof(blobPtr))) {
@@ -538,13 +537,6 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
     AssertIsOnMainThread();
 
     JSObject* clone =
-      MainThreadWorkerStructuredCloneCallbacks::Read(aCx, aReader, aTag, aData,
-                                                     aClosure);
-    if (clone) {
-      return clone;
-    }
-
-    clone =
       ChromeWorkerStructuredCloneCallbacks::Read(aCx, aReader, aTag, aData,
                                                  aClosure);
     if (clone) {
@@ -561,15 +553,14 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
   {
     AssertIsOnMainThread();
 
-    if (MainThreadWorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj,
-                                                        aClosure) ||
-        ChromeWorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj,
-                                                    aClosure) ||
-        NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nsnull)) {
-      return true;
+    JSBool ok =
+      ChromeWorkerStructuredCloneCallbacks::Write(aCx, aWriter, aObj, aClosure);
+    if (ok) {
+      return ok;
     }
 
-    return false;
+    JS_ClearPendingException(aCx);
+    return NS_DOMWriteStructuredClone(aCx, aWriter, aObj, nsnull);
   }
 
   static void
@@ -655,7 +646,7 @@ public:
       NS_WARNING("Failed to dispatch, going to leak!");
     }
 
-    mFinishedWorker->FinalizeInstance(aCx, false);
+    mFinishedWorker->FinalizeInstance(aCx);
 
     RuntimeService* runtime = RuntimeService::GetService();
     NS_ASSERTION(runtime, "This should never be null!");
@@ -687,7 +678,7 @@ public:
 
     RuntimeService::AutoSafeJSContext cx;
 
-    mFinishedWorker->FinalizeInstance(cx, false);
+    mFinishedWorker->FinalizeInstance(cx);
 
     RuntimeService* runtime = RuntimeService::GetService();
     NS_ASSERTION(runtime, "This should never be null!");
@@ -1062,10 +1053,7 @@ public:
       NS_ASSERTION(aTarget, "This should never be null!");
 
       bool preventDefaultCalled;
-      nsIScriptGlobalObject* sgo;
-
-      if (aWorkerPrivate ||
-          !(sgo = nsJSUtils::GetStaticScriptGlobal(aCx, aTarget))) {
+      if (aWorkerPrivate) {
         // Fire a normal ErrorEvent if we're running on a worker thread.
         JSObject* event = events::CreateErrorEvent(aCx, message, filename,
                                                    aLineNumber, false);
@@ -1080,6 +1068,10 @@ public:
       }
       else {
         // Icky, we have to fire an nsScriptErrorEvent...
+        nsIScriptGlobalObject* sgo =
+          nsJSUtils::GetStaticScriptGlobal(aCx, aTarget);
+        NS_ASSERTION(sgo, "This should never be null!");
+
         nsScriptErrorEvent event(true, NS_LOAD_ERROR);
         event.lineNr = aLineNumber;
         event.errorMsg = aMessage.get();
@@ -1225,7 +1217,7 @@ public:
   }
 
   NS_IMETHOD
-  IsOnCurrentThread(bool* aIsOnCurrentThread)
+  IsOnCurrentThread(PRBool* aIsOnCurrentThread)
   {
     *aIsOnCurrentThread = false;
     return NS_OK;
@@ -1780,7 +1772,7 @@ WorkerPrivateParent<Derived>::Notify(JSContext* aCx, Status aStatus)
     mParentStatus = aStatus;
   }
 
-  FinalizeInstance(aCx, false);
+  FinalizeInstance(aCx);
 
   if (pending) {
     WorkerPrivate* self = ParentAsWorkerPrivate();
@@ -1875,21 +1867,13 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx)
 
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::FinalizeInstance(JSContext* aCx,
-                                               bool aFromJSFinalizer)
+WorkerPrivateParent<Derived>::FinalizeInstance(JSContext* aCx)
 {
   AssertIsOnParentThread();
 
   if (mJSObject) {
-    // Make sure we're in the right compartment.
-    JSAutoEnterCompartment ac;
-    if (!ac.enter(aCx, mJSObject)) {
-      NS_ERROR("How can this fail?!");
-      return;
-    }
-
     // Decouple the object from the private now.
-    worker::ClearPrivateSlot(aCx, mJSObject, !aFromJSFinalizer);
+    SetJSPrivateSafeish(aCx, mJSObject, nsnull);
 
     // Clear the JS object.
     mJSObject = nsnull;
@@ -2051,7 +2035,7 @@ PRUint64
 WorkerPrivateParent<Derived>::GetInnerWindowId()
 {
   AssertIsOnMainThread();
-  return mDocument ? mDocument->InnerWindowID() : 0;
+  return mDocument->InnerWindowID();
 }
 
 template <class Derived>
@@ -2090,62 +2074,69 @@ WorkerPrivateParent<Derived>::UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal)
 #endif
 
 template <class Derived>
-void
+nsresult
 WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
 {
   AssertIsOnMainThread();
 
   mBaseURI = aBaseURI;
 
-  if (NS_FAILED(aBaseURI->GetSpec(mLocationInfo.mHref))) {
-    mLocationInfo.mHref.Truncate();
-  }
+  nsCOMPtr<nsIURL> url(do_QueryInterface(aBaseURI));
+  NS_ENSURE_TRUE(url, NS_ERROR_NO_INTERFACE);
 
-  if (NS_FAILED(aBaseURI->GetHost(mLocationInfo.mHostname))) {
-    mLocationInfo.mHostname.Truncate();
-  }
+  nsresult rv = url->GetSpec(mLocationInfo.mHref);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (NS_FAILED(aBaseURI->GetPath(mLocationInfo.mPathname))) {
-    mLocationInfo.mPathname.Truncate();
-  }
+  rv = url->GetHost(mLocationInfo.mHostname);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = url->GetPath(mLocationInfo.mPathname);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCString temp;
 
-  nsCOMPtr<nsIURL> url(do_QueryInterface(aBaseURI));
-  if (url && NS_SUCCEEDED(url->GetQuery(temp)) && !temp.IsEmpty()) {
+  rv = url->GetQuery(temp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!temp.IsEmpty()) {
     mLocationInfo.mSearch.AssignLiteral("?");
     mLocationInfo.mSearch.Append(temp);
   }
 
-  if (NS_SUCCEEDED(aBaseURI->GetRef(temp)) && !temp.IsEmpty()) {
+  rv = url->GetRef(temp);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!temp.IsEmpty()) {
+    nsAutoString unicodeRef;
+
     nsCOMPtr<nsITextToSubURI> converter =
-      do_GetService(NS_ITEXTTOSUBURI_CONTRACTID);
-    if (converter) {
+      do_GetService(NS_ITEXTTOSUBURI_CONTRACTID, &rv);
+    if (NS_SUCCEEDED(rv)) {
       nsCString charset;
-      nsAutoString unicodeRef;
-      if (NS_SUCCEEDED(aBaseURI->GetOriginCharset(charset)) &&
-          NS_SUCCEEDED(converter->UnEscapeURIForUI(charset, temp,
-                                                   unicodeRef))) {
-        mLocationInfo.mHash.AssignLiteral("#");
-        mLocationInfo.mHash.Append(NS_ConvertUTF16toUTF8(unicodeRef));
+      rv = url->GetOriginCharset(charset);
+      if (NS_SUCCEEDED(rv)) {
+        rv = converter->UnEscapeURIForUI(charset, temp, unicodeRef);
+        if (NS_SUCCEEDED(rv)) {
+          mLocationInfo.mHash.AssignLiteral("#");
+          mLocationInfo.mHash.Append(NS_ConvertUTF16toUTF8(unicodeRef));
+        }
       }
     }
 
-    if (mLocationInfo.mHash.IsEmpty()) {
+    if (NS_FAILED(rv)) {
       mLocationInfo.mHash.AssignLiteral("#");
       mLocationInfo.mHash.Append(temp);
     }
   }
 
-  if (NS_SUCCEEDED(aBaseURI->GetScheme(mLocationInfo.mProtocol))) {
-    mLocationInfo.mProtocol.AppendLiteral(":");
-  }
-  else {
-    mLocationInfo.mProtocol.Truncate();
-  }
+  rv = url->GetScheme(mLocationInfo.mProtocol);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  mLocationInfo.mProtocol.AppendLiteral(":");
 
   PRInt32 port;
-  if (NS_SUCCEEDED(aBaseURI->GetPort(&port)) && port != -1) {
+  rv = url->GetPort(&port);
+  if (NS_SUCCEEDED(rv) && port != -1) {
     mLocationInfo.mPort.AppendInt(port);
 
     nsCAutoString host(mLocationInfo.mHostname);
@@ -2157,6 +2148,8 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
   else {
     mLocationInfo.mHost.Assign(mLocationInfo.mHostname);
   }
+
+  return NS_OK;
 }
 
 template <class Derived>
@@ -2247,10 +2240,10 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
     nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
     NS_ASSERTION(ssm, "This should never be null!");
 
-    bool isChrome;
+    PRBool isChrome;
     if (NS_FAILED(ssm->IsCapabilityEnabled("UniversalXPConnect", &isChrome))) {
       NS_WARNING("IsCapabilityEnabled failed!");
-      isChrome = false;
+      isChrome = PR_FALSE;
     }
 
     // First check to make sure the caller has permission to make a
@@ -2323,7 +2316,7 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
 
         NS_NAMED_LITERAL_CSTRING(file, "file");
 
-        bool isFile;
+        PRBool isFile;
         if (NS_FAILED(codebase->SchemeIs(file.get(), &isFile))) {
           JS_ReportError(aCx, "Could not determine if codebase is file!");
           return nsnull;
@@ -2334,14 +2327,14 @@ WorkerPrivate::Create(JSContext* aCx, JSObject* aObj, WorkerPrivate* aParent,
           domain = file;
         }
         else {
-          nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
-            do_GetService(THIRDPARTYUTIL_CONTRACTID);
-          if (!thirdPartyUtil) {
-            JS_ReportError(aCx, "Could not get third party helper service!");
+          nsCOMPtr<nsIEffectiveTLDService> tldService =
+            do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID);
+          if (!tldService) {
+            JS_ReportError(aCx, "Could not get TLD service!");
             return nsnull;
           }
 
-          if (NS_FAILED(thirdPartyUtil->GetBaseDomain(codebase, domain))) {
+          if (NS_FAILED(tldService->GetBaseDomain(codebase, 0, domain))) {
             JS_ReportError(aCx, "Could not get domain!");
             return nsnull;
           }
@@ -3576,7 +3569,7 @@ void
 WorkerPrivate::AssertIsOnWorkerThread() const
 {
   if (mThread) {
-    bool current;
+    PRBool current;
     if (NS_FAILED(mThread->IsOnCurrentThread(&current)) || !current) {
       NS_ERROR("Wrong thread!");
     }

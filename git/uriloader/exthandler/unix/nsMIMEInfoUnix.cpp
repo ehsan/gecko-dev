@@ -97,9 +97,9 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 }
 
 NS_IMETHODIMP
-nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
+nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
   if (!mimeInfo) {
     nsCAutoString ext;
@@ -109,7 +109,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
     }
   }
   if (mimeInfo)
-    *_retval = true;
+    *_retval = PR_TRUE;
 
   if (*_retval)
     return NS_OK;
@@ -117,7 +117,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
   HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
   if (action) {
-    *_retval = true;
+    *_retval = PR_TRUE;
     hildon_uri_action_unref(action);
     return NS_OK;
   }
@@ -127,7 +127,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
   ContentAction::Action action = 
     ContentAction::Action::defaultActionForFile(QUrl(), QString(mSchemeOrType.get()));
   if (action.isValid()) {
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 #endif
@@ -240,13 +240,13 @@ nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
   return NS_OK;
 }
 
-/* static */ bool
+/* static */ PRBool
 nsMIMEInfoUnix::HandlerExists(const char *aProtocolScheme)
 {
-  bool isEnabled = false;
+  PRBool isEnabled = PR_FALSE;
   HildonURIAction *action = hildon_uri_get_default_action(aProtocolScheme, nsnull);
   if (action) {
-    isEnabled = true;
+    isEnabled = PR_TRUE;
     hildon_uri_action_unref(action);
   }
   return isEnabled;
@@ -292,7 +292,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
       app->SetObjectPath(objpath);
       app->SetDBusInterface(interface);
 
-      mPossibleApplications->AppendElement(app, false);
+      mPossibleApplications->AppendElement(app, PR_FALSE);
     }
     hildon_uri_free_actions(actions);
   }
@@ -320,7 +320,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
       nsContentHandlerApp* app =
         new nsContentHandlerApp(nsString((PRUnichar*)actions[i].name().data()), 
                                 mSchemeOrType, actions[i]);
-      mPossibleApplications->AppendElement(app, false);
+      mPossibleApplications->AppendElement(app, PR_FALSE);
     }
   }
 

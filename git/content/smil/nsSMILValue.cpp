@@ -76,11 +76,11 @@ nsSMILValue::operator=(const nsSMILValue& aVal)
   return *this;
 }
 
-bool
+PRBool
 nsSMILValue::operator==(const nsSMILValue& aVal) const
 {
   if (&aVal == this)
-    return true;
+    return PR_TRUE;
 
   return mType == aVal.mType && mType->IsEqual(*this, aVal);
 }

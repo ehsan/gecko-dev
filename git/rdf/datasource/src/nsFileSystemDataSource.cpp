@@ -85,10 +85,10 @@
 
 static const char kFileProtocol[]         = "file://";
 
-bool
+PRBool
 FileSystemDataSource::isFileURI(nsIRDFResource *r)
 {
-    bool        isFileURIFlag = false;
+    PRBool      isFileURIFlag = PR_FALSE;
     const char  *uri = nsnull;
     
     r->GetValueConst(&uri);
@@ -97,7 +97,7 @@ FileSystemDataSource::isFileURI(nsIRDFResource *r)
         // XXX HACK HACK HACK
         if (!strchr(uri, '#'))
         {
-            isFileURIFlag = true;
+            isFileURIFlag = PR_TRUE;
         }
     }
     return(isFileURIFlag);
@@ -105,24 +105,24 @@ FileSystemDataSource::isFileURI(nsIRDFResource *r)
 
 
 
-bool
+PRBool
 FileSystemDataSource::isDirURI(nsIRDFResource* source)
 {
     nsresult    rv;
     const char  *uri = nsnull;
 
     rv = source->GetValueConst(&uri);
-    if (NS_FAILED(rv)) return(false);
+    if (NS_FAILED(rv)) return(PR_FALSE);
 
     nsCOMPtr<nsIFile> aDir;
 
     rv = NS_GetFileFromURLSpec(nsDependentCString(uri), getter_AddRefs(aDir));
-    if (NS_FAILED(rv)) return(false);
+    if (NS_FAILED(rv)) return(PR_FALSE);
 
-    bool isDirFlag = false;
+    PRBool isDirFlag = PR_FALSE;
 
     rv = aDir->IsDirectory(&isDirFlag);
-    if (NS_FAILED(rv)) return(false);
+    if (NS_FAILED(rv)) return(PR_FALSE);
 
     return(isDirFlag);
 }
@@ -238,7 +238,7 @@ FileSystemDataSource::GetURI(char **uri)
 NS_IMETHODIMP
 FileSystemDataSource::GetSource(nsIRDFResource* property,
                                 nsIRDFNode* target,
-                                bool tv,
+                                PRBool tv,
                                 nsIRDFResource** source /* out */)
 {
     NS_PRECONDITION(property != nsnull, "null ptr");
@@ -262,7 +262,7 @@ FileSystemDataSource::GetSource(nsIRDFResource* property,
 NS_IMETHODIMP
 FileSystemDataSource::GetSources(nsIRDFResource *property,
                                  nsIRDFNode *target,
-                                 bool tv,
+                                 PRBool tv,
                                  nsISimpleEnumerator **sources /* out */)
 {
 //  NS_NOTYETIMPLEMENTED("write me");
@@ -274,7 +274,7 @@ FileSystemDataSource::GetSources(nsIRDFResource *property,
 NS_IMETHODIMP
 FileSystemDataSource::GetTarget(nsIRDFResource *source,
                                 nsIRDFResource *property,
-                                bool tv,
+                                PRBool tv,
                                 nsIRDFNode **target /* out */)
 {
     NS_PRECONDITION(source != nsnull, "null ptr");
@@ -331,7 +331,7 @@ FileSystemDataSource::GetTarget(nsIRDFResource *source,
         else if (property == mNC_Icon)
         {
             nsCOMPtr<nsIRDFLiteral> url;
-            bool isFavorite = false;
+            PRBool isFavorite = PR_FALSE;
             rv = GetURL(source, &isFavorite, getter_AddRefs(url));
             if (NS_FAILED(rv)) return(rv);
             if (isFavorite || !url) rv = NS_RDF_NO_VALUE;
@@ -422,10 +422,10 @@ FileSystemDataSource::GetTarget(nsIRDFResource *source,
         {
             // Oh this is evil. Somebody kill me now.
             nsCOMPtr<nsISimpleEnumerator> children;
-            rv = GetFolderList(source, false, true, getter_AddRefs(children));
+            rv = GetFolderList(source, PR_FALSE, PR_TRUE, getter_AddRefs(children));
             if (NS_FAILED(rv) || (rv == NS_RDF_NO_VALUE)) return(rv);
 
-            bool hasMore;
+            PRBool hasMore;
             rv = children->HasMoreElements(&hasMore);
             if (NS_FAILED(rv)) return(rv);
 
@@ -458,7 +458,7 @@ FileSystemDataSource::GetTarget(nsIRDFResource *source,
 NS_IMETHODIMP
 FileSystemDataSource::GetTargets(nsIRDFResource *source,
                 nsIRDFResource *property,
-                bool tv,
+                PRBool tv,
                 nsISimpleEnumerator **targets /* out */)
 {
     NS_PRECONDITION(source != nsnull, "null ptr");
@@ -499,7 +499,7 @@ FileSystemDataSource::GetTargets(nsIRDFResource *source,
     {
         if (property == mNC_Child)
         {
-            return GetFolderList(source, false, false, targets);
+            return GetFolderList(source, PR_FALSE, PR_FALSE, targets);
         }
         else if (property == mNC_Name)
         {
@@ -551,7 +551,7 @@ NS_IMETHODIMP
 FileSystemDataSource::Assert(nsIRDFResource *source,
                        nsIRDFResource *property,
                        nsIRDFNode *target,
-                       bool tv)
+                       PRBool tv)
 {
     return NS_RDF_ASSERTION_REJECTED;
 }
@@ -594,8 +594,8 @@ NS_IMETHODIMP
 FileSystemDataSource::HasAssertion(nsIRDFResource *source,
                              nsIRDFResource *property,
                              nsIRDFNode *target,
-                             bool tv,
-                             bool *hasAssertion /* out */)
+                             PRBool tv,
+                             PRBool *hasAssertion /* out */)
 {
     NS_PRECONDITION(source != nsnull, "null ptr");
     if (! source)
@@ -614,7 +614,7 @@ FileSystemDataSource::HasAssertion(nsIRDFResource *source,
         return NS_ERROR_NULL_POINTER;
 
     // we only have positive assertions in the file system data source.
-    *hasAssertion = false;
+    *hasAssertion = PR_FALSE;
 
     if (! tv) {
         return NS_OK;
@@ -627,7 +627,7 @@ FileSystemDataSource::HasAssertion(nsIRDFResource *source,
             nsCOMPtr<nsIRDFResource> resource( do_QueryInterface(target) );
             if (resource.get() == mRDF_type)
             {
-                *hasAssertion = true;
+                *hasAssertion = PR_TRUE;
             }
         }
 #ifdef USE_NC_EXTENSION
@@ -636,7 +636,7 @@ FileSystemDataSource::HasAssertion(nsIRDFResource *source,
             // Cheat just a little here by making dirs always match
             if (isDirURI(source))
             {
-                *hasAssertion = true;
+                *hasAssertion = PR_TRUE;
             }
             else
             {
@@ -644,15 +644,15 @@ FileSystemDataSource::HasAssertion(nsIRDFResource *source,
                 GetExtension(source, getter_AddRefs(extension));
                 if (extension.get() == target)
                 {
-                    *hasAssertion = true;
+                    *hasAssertion = PR_TRUE;
                 }
             }
         }
 #endif
         else if (property == mNC_IsDirectory)
         {
-            bool isDir = isDirURI(source);
-            bool isEqual = false;
+            PRBool isDir = isDirURI(source);
+            PRBool isEqual = PR_FALSE;
             target->EqualsNode(mLiteralTrue, &isEqual);
             if (isEqual)
             {
@@ -673,7 +673,7 @@ FileSystemDataSource::HasAssertion(nsIRDFResource *source,
 
 
 NS_IMETHODIMP 
-FileSystemDataSource::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, bool *result)
+FileSystemDataSource::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, PRBool *result)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -681,9 +681,9 @@ FileSystemDataSource::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, bool *re
 
 
 NS_IMETHODIMP 
-FileSystemDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, bool *result)
+FileSystemDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, PRBool *result)
 {
-    *result = false;
+    *result = PR_FALSE;
 
     if (aSource == mNC_FileSystemRoot)
     {
@@ -693,14 +693,14 @@ FileSystemDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, b
     {
         if (aArc == mNC_pulse)
         {
-            *result = true;
+            *result = PR_TRUE;
         }
         else if (isDirURI(aSource))
         {
 #ifdef  XP_WIN
             *result = isValidFolder(aSource);
 #else
-            *result = true;
+            *result = PR_TRUE;
 #endif
         }
         else if (aArc == mNC_pulse || aArc == mNC_Name || aArc == mNC_Icon ||
@@ -708,7 +708,7 @@ FileSystemDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, b
                  aArc == mNC_FileSystemObject || aArc == mRDF_InstanceOf ||
                  aArc == mRDF_type)
         {
-            *result = true;
+            *result = PR_TRUE;
         }
     }
     return NS_OK;
@@ -816,7 +816,7 @@ NS_IMETHODIMP
 FileSystemDataSource::IsCommandEnabled(nsISupportsArray/*<nsIRDFResource>*/* aSources,
                                        nsIRDFResource*   aCommand,
                                        nsISupportsArray/*<nsIRDFResource>*/* aArguments,
-                                       bool* aResult)
+                                       PRBool* aResult)
 {
     return(NS_ERROR_NOT_IMPLEMENTED);
 }
@@ -924,10 +924,10 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
 
 
 #ifdef  XP_WIN
-bool
+PRBool
 FileSystemDataSource::isValidFolder(nsIRDFResource *source)
 {
-    bool    isValid = true;
+    PRBool  isValid = PR_TRUE;
     if (ieFavoritesDir.IsEmpty())    return(isValid);
 
     nsresult        rv;
@@ -938,16 +938,16 @@ FileSystemDataSource::isValidFolder(nsIRDFResource *source)
     NS_ConvertUTF8toUTF16 theURI(uri);
     if (theURI.Find(ieFavoritesDir) == 0)
     {
-        isValid = false;
+        isValid = PR_FALSE;
 
         nsCOMPtr<nsISimpleEnumerator>   folderEnum;
-        if (NS_SUCCEEDED(rv = GetFolderList(source, true, false, getter_AddRefs(folderEnum))))
+        if (NS_SUCCEEDED(rv = GetFolderList(source, PR_TRUE, PR_FALSE, getter_AddRefs(folderEnum))))
         {
-            bool        hasAny = false, hasMore;
+            PRBool      hasAny = PR_FALSE, hasMore;
             while (NS_SUCCEEDED(folderEnum->HasMoreElements(&hasMore)) &&
                    hasMore)
             {
-                hasAny = true;
+                hasAny = PR_TRUE;
 
                 nsCOMPtr<nsISupports>       isupports;
                 if (NS_FAILED(rv = folderEnum->GetNext(getter_AddRefs(isupports))))
@@ -968,11 +968,11 @@ FileSystemDataSource::isValidFolder(nsIRDFResource *source)
                 // is considered to be a IE Favorite; otherwise, its a folder
                 if (!name.LowerCaseEqualsLiteral("desktop.ini"))
                 {
-                    isValid = true;
+                    isValid = PR_TRUE;
                     break;
                 }
             }
-            if (!hasAny) isValid = true;
+            if (!hasAny) isValid = PR_TRUE;
         }
     }
     return(isValid);
@@ -982,8 +982,8 @@ FileSystemDataSource::isValidFolder(nsIRDFResource *source)
 
 
 nsresult
-FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
-                bool onlyFirst, nsISimpleEnumerator** aResult)
+FileSystemDataSource::GetFolderList(nsIRDFResource *source, PRBool allowHidden,
+                PRBool onlyFirst, nsISimpleEnumerator** aResult)
 {
     if (!isDirURI(source))
         return(NS_RDF_NO_VALUE);
@@ -1008,7 +1008,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
 
     nsCOMPtr<nsIFileURL>    fileURL = do_QueryInterface(aIURI);
     if (!fileURL)
-        return(false);
+        return(PR_FALSE);
 
     nsCOMPtr<nsIFile>   aDir;
     if (NS_FAILED(rv = fileURL->GetFile(getter_AddRefs(aDir))))
@@ -1017,7 +1017,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
     // ensure that we DO NOT resolve aliases
     nsCOMPtr<nsILocalFile>  aDirLocal = do_QueryInterface(aDir);
     if (aDirLocal)
-        aDirLocal->SetFollowLinks(false);
+        aDirLocal->SetFollowLinks(PR_FALSE);
 
     nsCOMPtr<nsISimpleEnumerator>   dirContents;
     if (NS_FAILED(rv = aDir->GetDirectoryEntries(getter_AddRefs(dirContents))))
@@ -1025,7 +1025,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
     if (!dirContents)
         return(NS_ERROR_UNEXPECTED);
 
-    bool            hasMore;
+    PRBool          hasMore;
     while(NS_SUCCEEDED(rv = dirContents->HasMoreElements(&hasMore)) &&
           hasMore)
     {
@@ -1039,7 +1039,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
 
         if (!allowHidden)
         {
-            bool            hiddenFlag = false;
+            PRBool          hiddenFlag = PR_FALSE;
             if (NS_FAILED(rv = aFile->IsHidden(&hiddenFlag)))
                 break;
             if (hiddenFlag)
@@ -1080,7 +1080,7 @@ FileSystemDataSource::GetFolderList(nsIRDFResource *source, bool allowHidden,
         // append the encoded name
         fullURI.Append(leaf);
 
-        bool            dirFlag = false;
+        PRBool          dirFlag = PR_FALSE;
         rv = aFile->IsDirectory(&dirFlag);
         if (NS_SUCCEEDED(rv) && dirFlag)
         {
@@ -1118,7 +1118,7 @@ FileSystemDataSource::GetLastMod(nsIRDFResource *source, nsIRDFDate **aResult)
 
     nsCOMPtr<nsIFileURL>    fileURL = do_QueryInterface(aIURI);
     if (!fileURL)
-        return(false);
+        return(PR_FALSE);
 
     nsCOMPtr<nsIFile>   aFile;
     if (NS_FAILED(rv = fileURL->GetFile(getter_AddRefs(aFile))))
@@ -1129,7 +1129,7 @@ FileSystemDataSource::GetLastMod(nsIRDFResource *source, nsIRDFDate **aResult)
     // ensure that we DO NOT resolve aliases
     nsCOMPtr<nsILocalFile>  aFileLocal = do_QueryInterface(aFile);
     if (aFileLocal)
-        aFileLocal->SetFollowLinks(false);
+        aFileLocal->SetFollowLinks(PR_FALSE);
 
     PRInt64 lastModDate;
     if (NS_FAILED(rv = aFile->GetLastModifiedTime(&lastModDate)))
@@ -1167,7 +1167,7 @@ FileSystemDataSource::GetFileSize(nsIRDFResource *source, nsIRDFInt **aResult)
 
     nsCOMPtr<nsIFileURL>    fileURL = do_QueryInterface(aIURI);
     if (!fileURL)
-        return(false);
+        return(PR_FALSE);
 
     nsCOMPtr<nsIFile>   aFile;
     if (NS_FAILED(rv = fileURL->GetFile(getter_AddRefs(aFile))))
@@ -1178,10 +1178,10 @@ FileSystemDataSource::GetFileSize(nsIRDFResource *source, nsIRDFInt **aResult)
     // ensure that we DO NOT resolve aliases
     nsCOMPtr<nsILocalFile>  aFileLocal = do_QueryInterface(aFile);
     if (aFileLocal)
-        aFileLocal->SetFollowLinks(false);
+        aFileLocal->SetFollowLinks(PR_FALSE);
 
     // don't do anything with directories
-    bool    isDir = false;
+    PRBool  isDir = PR_FALSE;
     if (NS_FAILED(rv = aFile->IsDirectory(&isDir)))
         return(rv);
     if (isDir)
@@ -1220,7 +1220,7 @@ FileSystemDataSource::GetName(nsIRDFResource *source, nsIRDFLiteral **aResult)
 
     nsCOMPtr<nsIFileURL>    fileURL = do_QueryInterface(aIURI);
     if (!fileURL)
-        return(false);
+        return(PR_FALSE);
 
     nsCOMPtr<nsIFile>   aFile;
     if (NS_FAILED(rv = fileURL->GetFile(getter_AddRefs(aFile))))
@@ -1231,7 +1231,7 @@ FileSystemDataSource::GetName(nsIRDFResource *source, nsIRDFLiteral **aResult)
     // ensure that we DO NOT resolve aliases
     nsCOMPtr<nsILocalFile>  aFileLocal = do_QueryInterface(aFile);
     if (aFileLocal)
-        aFileLocal->SetFollowLinks(false);
+        aFileLocal->SetFollowLinks(PR_FALSE);
 
     nsAutoString name;
     if (NS_FAILED(rv = aFile->GetLeafName(name)))
@@ -1304,7 +1304,7 @@ FileSystemDataSource::getIEFavoriteURL(nsIRDFResource *source, nsString aFileURL
     nsCOMPtr<nsIFile> f;
     NS_GetFileFromURLSpec(NS_ConvertUTF16toUTF8(aFileURL), getter_AddRefs(f)); 
 
-    bool value;
+    PRBool value;
 
     if (NS_SUCCEEDED(f->IsDirectory(&value)) && value)
     {
@@ -1331,19 +1331,19 @@ FileSystemDataSource::getIEFavoriteURL(nsIRDFResource *source, nsString aFileURL
     nsCAutoString   cLine;
     while(NS_SUCCEEDED(rv))
     {
-        bool    isEOF;
+        PRBool  isEOF;
         rv = linereader->ReadLine(cLine, &isEOF);
         CopyASCIItoUTF16(cLine, line);
 
         if (isEOF)
         {
-            if (line.Find("URL=", true) == 0)
+            if (line.Find("URL=", PR_TRUE) == 0)
             {
                 line.Cut(0, 4);
                 rv = mRDFService->GetLiteral(line.get(), urlLiteral);
                 break;
             }
-            else if (line.Find("CDFURL=", true) == 0)
+            else if (line.Find("CDFURL=", PR_TRUE) == 0)
             {
                 line.Cut(0, 7);
                 rv = mRDFService->GetLiteral(line.get(), urlLiteral);
@@ -1360,9 +1360,9 @@ FileSystemDataSource::getIEFavoriteURL(nsIRDFResource *source, nsString aFileURL
 
 
 nsresult
-FileSystemDataSource::GetURL(nsIRDFResource *source, bool *isFavorite, nsIRDFLiteral** aResult)
+FileSystemDataSource::GetURL(nsIRDFResource *source, PRBool *isFavorite, nsIRDFLiteral** aResult)
 {
-    if (isFavorite) *isFavorite = false;
+    if (isFavorite) *isFavorite = PR_FALSE;
 
     nsresult        rv;
     nsCString       uri;
@@ -1379,7 +1379,7 @@ FileSystemDataSource::GetURL(nsIRDFResource *source, bool *isFavorite, nsIRDFLit
     {
         if (url.Find(ieFavoritesDir) == 0)
         {
-            if (isFavorite) *isFavorite = true;
+            if (isFavorite) *isFavorite = PR_TRUE;
             rv = getIEFavoriteURL(source, url, aResult);
             return(rv);
         }

@@ -83,7 +83,7 @@ public:
 
   nsCString mAsciiHost;
   PRInt32 mPort;
-  bool mIsTemporary; // true: session only, false: stored on disk
+  PRBool mIsTemporary; // true: session only, false: stored on disk
   nsCString mFingerprint;
   nsCString mFingerprintAlgOID;
   OverrideBits mOverrideBits;
@@ -128,7 +128,7 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
       return HostWithPortPtr();
     }
 
-    bool KeyEquals(KeyTypePointer aKey) const
+    PRBool KeyEquals(KeyTypePointer aKey) const
     {
       return !strcmp(HostWithPortPtr(), aKey);
     }
@@ -145,7 +145,7 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
       return PL_DHashStringKey(nsnull, aKey);
     }
 
-    enum { ALLOW_MEMMOVE = false };
+    enum { ALLOW_MEMMOVE = PR_FALSE };
 
     // get methods
     inline const nsCString &HostWithPort() const { return mHostWithPort; }
@@ -202,7 +202,7 @@ protected:
     nsresult Write();
     nsresult AddEntryToList(const nsACString &host, PRInt32 port,
                             nsIX509Cert *aCert,
-                            const bool aIsTemporary,
+                            const PRBool aIsTemporary,
                             const nsACString &algo_oid, 
                             const nsACString &fingerprint,
                             nsCertOverride::OverrideBits ob,

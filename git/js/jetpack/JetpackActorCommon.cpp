@@ -37,10 +37,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "base/basictypes.h"
+#include "jscntxt.h"
 
 #include "jsapi.h"
-#include "jscntxt.h"
-#include "js/HashTable.h"
+#include "jshashtable.h"
 
 #include "mozilla/jetpack/JetpackActorCommon.h"
 #include "mozilla/jetpack/PJetpack.h"

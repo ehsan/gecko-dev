@@ -48,12 +48,12 @@ ReadbackProcessor::BuildUpdates(ContainerLayer* aContainer)
   if (!aContainer->mMayHaveReadbackChild)
     return;
 
-  aContainer->mMayHaveReadbackChild = false;
+  aContainer->mMayHaveReadbackChild = PR_FALSE;
   // go backwards so the updates read from earlier layers are later in the
   // array.
   for (Layer* l = aContainer->GetLastChild(); l; l = l->GetPrevSibling()) {
     if (l->GetType() == Layer::TYPE_READBACK) {
-      aContainer->mMayHaveReadbackChild = true;
+      aContainer->mMayHaveReadbackChild = PR_TRUE;
       BuildUpdatesForLayer(static_cast<ReadbackLayer*>(l));
     }
   }

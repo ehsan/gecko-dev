@@ -78,7 +78,7 @@ private:
 class StubPropertyProvider : public gfxTextRun::PropertyProvider {
 public:
     virtual void GetHyphenationBreaks(PRUint32 aStart, PRUint32 aLength,
-                                      bool* aBreakBefore) {
+                                      PRPackedBool* aBreakBefore) {
         NS_ERROR("This shouldn't be called because we never call BreakAndMeasureText");
     }
     virtual PRInt8 GetHyphensOption() {
@@ -98,7 +98,7 @@ public:
 } // anon namespace
 
 nsFontMetrics::nsFontMetrics()
-    : mDeviceContext(nsnull), mP2A(0), mTextRunRTL(false)
+    : mDeviceContext(nsnull), mP2A(0), mTextRunRTL(PR_FALSE)
 {
 }
 

@@ -81,7 +81,7 @@ public:
     txOutputFormat* getOutputFormat();
     GlobalVariable* getGlobalVariable(const txExpandedName& aName);
     const txOwningExpandedNameMap<txXSLKey>& getKeyMap();
-    bool isStripSpaceAllowed(const txXPathNode& aNode,
+    PRBool isStripSpaceAllowed(const txXPathNode& aNode,
                                txIMatchContext* aContext);
 
     /**
@@ -128,15 +128,15 @@ public:
         ImportFrame* mFirstNotImported;
     };
 
-    class GlobalVariable : public txObject {
+    class GlobalVariable : public TxObject {
     public:
         GlobalVariable(nsAutoPtr<Expr> aExpr,
                        nsAutoPtr<txInstruction> aFirstInstruction,
-                       bool aIsParam);
+                       PRBool aIsParam);
 
         nsAutoPtr<Expr> mExpr;
         nsAutoPtr<txInstruction> mFirstInstruction;
-        bool mIsParam;
+        PRBool mIsParam;
     };
 
 private:
@@ -192,17 +192,17 @@ private:
 class txStripSpaceTest {
 public:
     txStripSpaceTest(nsIAtom* aPrefix, nsIAtom* aLocalName, PRInt32 aNSID,
-                     bool stripSpace)
+                     MBool stripSpace)
         : mNameTest(aPrefix, aLocalName, aNSID, txXPathNodeType::ELEMENT_NODE),
           mStrips(stripSpace)
     {
     }
 
-    bool matches(const txXPathNode& aNode, txIMatchContext* aContext) {
+    MBool matches(const txXPathNode& aNode, txIMatchContext* aContext) {
         return mNameTest.matches(aNode, aContext);
     }
 
-    bool stripsSpace() {
+    MBool stripsSpace() {
         return mStrips;
     }
 
@@ -212,7 +212,7 @@ public:
 
 protected:
     txNameTest mNameTest;
-    bool mStrips;
+    MBool mStrips;
 };
 
 /**

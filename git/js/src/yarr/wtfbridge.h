@@ -47,6 +47,7 @@
 
 #include "jsstr.h"
 #include "jsprvtd.h"
+#include "jstl.h"
 #include "vm/String.h"
 #include "assembler/wtf/Platform.h"
 #if ENABLE_YARR_JIT

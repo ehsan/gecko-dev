@@ -55,8 +55,8 @@ using namespace mozilla::ipc;
 
 // If XShm isn't available to our client, we'll try XShm once, fail,
 // set this to false and then never try again.
-static bool gShmAvailable = true;
-bool nsShmImage::UseShm()
+static PRBool gShmAvailable = PR_TRUE;
+PRBool nsShmImage::UseShm()
 {
     return gfxPlatform::GetPlatform()->
         ScreenReferenceSurface()->GetType() == gfxASurface::SurfaceTypeImage
@@ -103,11 +103,11 @@ nsShmImage::Create(const gfxIntSize& aSize,
     if (!attachOk || xerror) {
         // Assume XShm isn't available, and don't attempt to use it
         // again.
-        gShmAvailable = false;
+        gShmAvailable = PR_FALSE;
         return nsnull;
     }
 
-    shm->mXAttached = true;
+    shm->mXAttached = PR_TRUE;
     shm->mSize = aSize;
     switch (shm->mImage->depth) {
     case 24:
@@ -124,7 +124,7 @@ nsShmImage::Create(const gfxIntSize& aSize,
     unsupported:
     default:
         NS_WARNING("Unsupported XShm Image format!");
-        gShmAvailable = false;
+        gShmAvailable = PR_FALSE;
         return nsnull;
     }
     return shm.forget();

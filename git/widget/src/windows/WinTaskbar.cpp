@@ -61,8 +61,6 @@
 #include "JumpListBuilder.h"
 #include "nsWidgetsCID.h"
 #include "nsPIDOMWindow.h"
-#include "nsAppDirectoryServiceDefs.h"
-#include "mozilla/Preferences.h"
 #include <io.h>
 #include <propvarutil.h>
 #include <propkey.h>
@@ -198,14 +196,14 @@ DefaultController::GetThumbnailAspectRatio(float *aThumbnailAspectRatio) {
 }
 
 NS_IMETHODIMP
-DefaultController::DrawPreview(nsIDOMCanvasRenderingContext2D *ctx, bool *rDrawFrame) {
-  *rDrawFrame = true;
+DefaultController::DrawPreview(nsIDOMCanvasRenderingContext2D *ctx, PRBool *rDrawFrame) {
+  *rDrawFrame = PR_TRUE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DefaultController::DrawThumbnail(nsIDOMCanvasRenderingContext2D *ctx, PRUint32 width, PRUint32 height, bool *rDrawFrame) {
-  *rDrawFrame = false;
+DefaultController::DrawThumbnail(nsIDOMCanvasRenderingContext2D *ctx, PRUint32 width, PRUint32 height, PRBool *rDrawFrame) {
+  *rDrawFrame = PR_FALSE;
   return NS_OK;
 }
 
@@ -216,8 +214,8 @@ DefaultController::OnClose(void) {
 }
 
 NS_IMETHODIMP
-DefaultController::OnActivate(bool *rAcceptActivation) {
-  *rAcceptActivation = true;
+DefaultController::OnActivate(PRBool *rAcceptActivation) {
+  *rAcceptActivation = PR_TRUE;
   NS_NOTREACHED("OnActivate should not be called for TaskbarWindowPreviews");
   return NS_OK;
 }
@@ -238,10 +236,10 @@ namespace widget {
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(WinTaskbar, nsIWinTaskbar)
 
-bool
+PRBool
 WinTaskbar::Initialize() {
   if (mTaskbar)
-    return true;
+    return PR_TRUE;
 
   ::CoInitialize(NULL);
   HRESULT hr = ::CoCreateInstance(CLSID_TaskbarList,
@@ -250,15 +248,15 @@ WinTaskbar::Initialize() {
                                   IID_ITaskbarList4,
                                   (void**)&mTaskbar);
   if (FAILED(hr))
-    return false;
+    return PR_FALSE;
 
   hr = mTaskbar->HrInit();
   if (FAILED(hr)) {
     NS_WARNING("Unable to initialize taskbar");
     NS_RELEASE(mTaskbar);
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 WinTaskbar::WinTaskbar() 
@@ -273,79 +271,37 @@ WinTaskbar::~WinTaskbar() {
 }
 
 // static
-bool
+PRBool
 WinTaskbar::GetAppUserModelID(nsAString & aDefaultGroupId) {
-  // If marked as such in prefs, use a hash of the profile path for the id
-  // instead of the install path hash setup by the installer.
-  bool useProfile =
-    Preferences::GetBool("taskbar.grouping.useprofile", false);
-  if (useProfile) {
-    nsCOMPtr<nsIFile> profileDir;
-    NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
-                           getter_AddRefs(profileDir));
-    bool exists = false;
-    if (profileDir && NS_SUCCEEDED(profileDir->Exists(&exists)) && exists) {
-      nsCAutoString path;
-      if (NS_SUCCEEDED(profileDir->GetNativePath(path))) {
-        nsAutoString id;
-        id.AppendInt(HashString(path));
-        if (!id.IsEmpty()) {
-          aDefaultGroupId.Assign(id);
-          return true;
-        }
-      }
-    }
-  }
-
-  // The default value is set by the installer and is stored in the registry
-  // under (HKLM||HKCU)/Software/Mozilla/Firefox/TaskBarIDs. If for any reason
-  // hash generation operation fails, the installer will not store a value in
-  // the registry or set ids on shortcuts. A lack of an id can also occur for
-  // zipped builds. We skip setting the global id in this case as well.
   nsCOMPtr<nsIXULAppInfo> appInfo =
     do_GetService("@mozilla.org/xre/app-info;1");
   if (!appInfo)
-    return false;
+    return PR_FALSE;
 
-  nsCString appName;
-  if (NS_FAILED(appInfo->GetName(appName))) {
-    // We just won't register then, let Windows handle it.
-    return false;
+  // The default, pulled from application.ini:
+  // 'vendor.application.version'
+  nsCString val;
+  if (NS_SUCCEEDED(appInfo->GetVendor(val))) {
+    AppendASCIItoUTF16(val, aDefaultGroupId);
+    aDefaultGroupId.Append(PRUnichar('.'));
+  }
+  if (NS_SUCCEEDED(appInfo->GetName(val))) {
+    AppendASCIItoUTF16(val, aDefaultGroupId);
+    aDefaultGroupId.Append(PRUnichar('.'));
+  }
+  if (NS_SUCCEEDED(appInfo->GetVersion(val))) {
+    AppendASCIItoUTF16(val, aDefaultGroupId);
   }
 
-  nsAutoString regKey;
-  regKey.AssignLiteral("Software\\Mozilla\\");
-  AppendASCIItoUTF16(appName, regKey);
-  regKey.AppendLiteral("\\TaskBarIDs");
+  if (aDefaultGroupId.IsEmpty())
+    return PR_FALSE;
 
-  WCHAR path[MAX_PATH];
-  if (GetModuleFileNameW(NULL, path, MAX_PATH)) {
-    PRUnichar* slash = wcsrchr(path, '\\');
-    if (!slash)
-      return false;
-    *slash = '\0'; // no trailing slash
+  // Differentiate 64-bit builds
+#if defined(_WIN64)
+  aDefaultGroupId.AppendLiteral(".Win64");
+#endif
 
-    // The hash is short, but users may customize this, so use a respectable
-    // string buffer.
-    PRUnichar buf[256];
-    if (nsWindow::GetRegistryKey(HKEY_LOCAL_MACHINE,
-                                 regKey.get(),
-                                 path,
-                                 buf,
-                                 sizeof buf)) {
-      aDefaultGroupId.Assign(buf);
-    } else if (nsWindow::GetRegistryKey(HKEY_CURRENT_USER,
-                                        regKey.get(),
-                                        path,
-                                        buf,
-                                        sizeof buf)) {
-      aDefaultGroupId.Assign(buf);
-    }
-  }
-
-  return !aDefaultGroupId.IsEmpty();
-
-  return true;
+  return PR_TRUE;
 }
 
 /* readonly attribute AString defaultGroupId; */
@@ -358,17 +314,17 @@ WinTaskbar::GetDefaultGroupId(nsAString & aDefaultGroupId) {
 }
 
 // (static) Called from AppShell
-bool
+PRBool
 WinTaskbar::RegisterAppUserModelID() {
   if (nsWindow::GetWindowsVersion() < WIN7_VERSION)
-    return false;
+    return PR_FALSE;
 
   SetCurrentProcessExplicitAppUserModelIDPtr funcAppUserModelID = nsnull;
-  bool retVal = false;
+  PRBool retVal = PR_FALSE;
 
   nsAutoString uid;
   if (!GetAppUserModelID(uid))
-    return false;
+    return PR_FALSE;
 
   HMODULE hDLL = ::LoadLibraryW(kShellLibraryName);
 
@@ -377,11 +333,11 @@ WinTaskbar::RegisterAppUserModelID() {
 
   if (!funcAppUserModelID) {
     ::FreeLibrary(hDLL);
-    return false;
+    return PR_FALSE;
   }
 
   if (SUCCEEDED(funcAppUserModelID(uid.get())))
-    retVal = true;
+    retVal = PR_TRUE;
 
   if (hDLL)
     ::FreeLibrary(hDLL);
@@ -390,10 +346,10 @@ WinTaskbar::RegisterAppUserModelID() {
 }
 
 NS_IMETHODIMP
-WinTaskbar::GetAvailable(bool *aAvailable) {
+WinTaskbar::GetAvailable(PRBool *aAvailable) {
   *aAvailable = 
     nsWindow::GetWindowsVersion() < WIN7_VERSION ?
-    false : true;
+    PR_FALSE : PR_TRUE;
 
   return NS_OK;
 }
@@ -460,16 +416,6 @@ WinTaskbar::GetTaskbarProgress(nsIDocShell *shell, nsITaskbarProgress **_retval)
   return CallQueryInterface(preview, _retval);
 }
 
-NS_IMETHODIMP
-WinTaskbar::GetOverlayIconController(nsIDocShell *shell,
-                                     nsITaskbarOverlayIconController **_retval) {
-  nsCOMPtr<nsITaskbarWindowPreview> preview;
-  nsresult rv = GetTaskbarWindowPreview(shell, getter_AddRefs(preview));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return CallQueryInterface(preview, _retval);
-}
-
 /* nsIJumpListBuilder createJumpListBuilder(); */
 NS_IMETHODIMP
 WinTaskbar::CreateJumpListBuilder(nsIJumpListBuilder * *aJumpListBuilder) {
@@ -497,7 +443,7 @@ WinTaskbar::SetGroupIdForWindow(nsIDOMWindow *aParent,
 
 /* void prepareFullScreen(in nsIDOMWindow aWindow, in boolean aFullScreen); */
 NS_IMETHODIMP
-WinTaskbar::PrepareFullScreen(nsIDOMWindow *aWindow, bool aFullScreen) {
+WinTaskbar::PrepareFullScreen(nsIDOMWindow *aWindow, PRBool aFullScreen) {
   NS_ENSURE_ARG_POINTER(aWindow);
 
   HWND toplevelHWND = ::GetAncestor(GetHWNDFromDOMWindow(aWindow), GA_ROOT);
@@ -509,7 +455,7 @@ WinTaskbar::PrepareFullScreen(nsIDOMWindow *aWindow, bool aFullScreen) {
 
 /* void prepareFullScreen(in voidPtr aWindow, in boolean aFullScreen); */
 NS_IMETHODIMP
-WinTaskbar::PrepareFullScreenHWND(void *aHWND, bool aFullScreen) {
+WinTaskbar::PrepareFullScreenHWND(void *aHWND, PRBool aFullScreen) {
   if (!Initialize())
     return NS_ERROR_NOT_AVAILABLE;
 

@@ -639,8 +639,8 @@ BrowserGlue.prototype = {
     var currentVersion = Services.prefs.getIntPref("browser.rights.version");
     Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
 
-    var notification = notifyBox.appendNotification(notifyRightsText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
-    notification.persistence = -1; // Until user closes it
+    var box = notifyBox.appendNotification(notifyRightsText, "about-rights", null, notifyBox.PRIORITY_INFO_LOW, buttons);
+    box.persistence = 3; // arbitrary number, just so bar sticks around for a bit
   },
 
   _showUpdateNotification: function BG__showUpdateNotification() {
@@ -709,10 +709,10 @@ BrowserGlue.prototype = {
                       }
                     ];
 
-      let notification = notifyBox.appendNotification(text, "post-update-notification",
-                                                      null, notifyBox.PRIORITY_INFO_LOW,
-                                                      buttons);
-      notification.persistence = -1; // Until user closes it
+      let box = notifyBox.appendNotification(text, "post-update-notification",
+                                             null, notifyBox.PRIORITY_INFO_LOW,
+                                             buttons);
+      box.persistence = 3;
     }
 
     if (actions.indexOf("showAlert") == -1)
@@ -761,24 +761,17 @@ BrowserGlue.prototype = {
   _showTelemetryNotification: function BG__showTelemetryNotification() {
     const PREF_TELEMETRY_PROMPTED = "toolkit.telemetry.prompted";
     const PREF_TELEMETRY_ENABLED  = "toolkit.telemetry.enabled";
-    const PREF_TELEMETRY_REJECTED  = "toolkit.telemetry.rejected";
     const PREF_TELEMETRY_INFOURL  = "toolkit.telemetry.infoURL";
     const PREF_TELEMETRY_SERVER_OWNER = "toolkit.telemetry.server_owner";
-    // This is used to reprompt users when privacy message changes
-    const TELEMETRY_PROMPT_REV = 2;
 
-    var telemetryPrompted = null;
     try {
-      telemetryPrompted = Services.prefs.getIntPref(PREF_TELEMETRY_PROMPTED);
+      // If the user hasn't already been prompted, ask if they want to
+      // send telemetry data.
+      if (Services.prefs.getBoolPref(PREF_TELEMETRY_ENABLED) ||
+          Services.prefs.getBoolPref(PREF_TELEMETRY_PROMPTED))
+         return;
     } catch(e) {}
-    // If the user has seen the latest telemetry prompt, do not prompt again
-    // else clear old prefs and reprompt
-    if (telemetryPrompted === TELEMETRY_PROMPT_REV)
-      return;
-    
-    Services.prefs.clearUserPref(PREF_TELEMETRY_PROMPTED);
-    Services.prefs.clearUserPref(PREF_TELEMETRY_ENABLED);
-    
+
     // Stick the notification onto the selected tab of the active browser window.
     var win = this.getMostRecentBrowserWindow();
     var browser = win.gBrowser; // for closure in notification bar callback
@@ -789,11 +782,11 @@ BrowserGlue.prototype = {
 
     var productName        = brandBundle.GetStringFromName("brandFullName");
     var serverOwner        = Services.prefs.getCharPref(PREF_TELEMETRY_SERVER_OWNER);
-    var telemetryPrompt    = browserBundle.formatStringFromName("telemetryPrompt", [productName, serverOwner], 2);
+    var telemetryText      = browserBundle.formatStringFromName("telemetryText", [productName, serverOwner], 2);
 
     var buttons = [
                     {
-                      label:     browserBundle.GetStringFromName("telemetryYesButtonLabel2"),
+                      label:     browserBundle.GetStringFromName("telemetryYesButtonLabel"),
                       accessKey: browserBundle.GetStringFromName("telemetryYesButtonAccessKey"),
                       popup:     null,
                       callback:  function(aNotificationBar, aButton) {
@@ -804,18 +797,15 @@ BrowserGlue.prototype = {
                       label:     browserBundle.GetStringFromName("telemetryNoButtonLabel"),
                       accessKey: browserBundle.GetStringFromName("telemetryNoButtonAccessKey"),
                       popup:     null,
-                      callback:  function(aNotificationBar, aButton) {
-                        Services.prefs.setBoolPref(PREF_TELEMETRY_REJECTED, true);
-                      }
+                      callback:  function(aNotificationBar, aButton) {}
                     }
                   ];
 
     // Set pref to indicate we've shown the notification.
-    Services.prefs.setIntPref(PREF_TELEMETRY_PROMPTED, TELEMETRY_PROMPT_REV);
+    Services.prefs.setBoolPref(PREF_TELEMETRY_PROMPTED, true);
 
-    var notification = notifyBox.appendNotification(telemetryPrompt, "telemetry", null, notifyBox.PRIORITY_INFO_LOW, buttons);
-    notification.setAttribute("hideclose", true);
-    notification.persistence = -1;  // Until user closes it
+    var notification = notifyBox.appendNotification(telemetryText, "telemetry", null, notifyBox.PRIORITY_INFO_LOW, buttons);
+    notification.persistence = 3; // arbitrary number, just so bar sticks around for a bit
 
     let XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     let link = notification.ownerDocument.createElementNS(XULNS, "label");
@@ -827,9 +817,8 @@ BrowserGlue.prototype = {
       // Remove the notification on which the user clicked
       notification.parentNode.removeNotification(notification, true);
       // Add a new notification to that tab, with no "Learn more" link
-      notifyBox = browser.getNotificationBox();
-      notification = notifyBox.appendNotification(telemetryPrompt, "telemetry", null, notifyBox.PRIORITY_INFO_LOW, buttons);
-      notification.persistence = -1; // Until user closes it
+      var notifyBox = browser.getNotificationBox();
+      notifyBox.appendNotification(telemetryText, "telemetry", null, notifyBox.PRIORITY_INFO_LOW, buttons);
     }, false);
     let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
     description.appendChild(link);
@@ -1093,10 +1082,10 @@ BrowserGlue.prototype = {
                   ];
 
     var notifyBox = browser.getNotificationBox();
-    var notification = notifyBox.appendNotification(text, title, null,
-                                                    notifyBox.PRIORITY_CRITICAL_MEDIUM,
-                                                    buttons);
-    notification.persistence = -1; // Until user closes it
+    var box = notifyBox.appendNotification(text, title, null,
+                                           notifyBox.PRIORITY_CRITICAL_MEDIUM,
+                                           buttons);
+    box.persistence = -1; // Until user closes it
   },
 
   _migrateUI: function BG__migrateUI() {
@@ -1532,10 +1521,10 @@ ContentPermissionPrompt.prototype = {
 
     // Different message/options if it is a local file
     if (requestingURI.schemeIs("file")) {
-      message = browserBundle.formatStringFromName("geolocation.shareWithFile",
+      message = browserBundle.formatStringFromName("geolocation.fileWantsToKnow",
                                                    [requestingURI.path], 1);
     } else {
-      message = browserBundle.formatStringFromName("geolocation.shareWithSite",
+      message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
                                                    [requestingURI.host], 1);
 
       // Don't offer to "always/never share" in PB mode
@@ -1545,16 +1534,16 @@ ContentPermissionPrompt.prototype = {
 
       if (!inPrivateBrowsing) {
         secondaryActions.push({
-          label: browserBundle.GetStringFromName("geolocation.alwaysShareLocation"),
-          accessKey: browserBundle.GetStringFromName("geolocation.alwaysShareLocation.accesskey"),
+          label: browserBundle.GetStringFromName("geolocation.alwaysShare"),
+          accessKey: browserBundle.GetStringFromName("geolocation.alwaysShare.accesskey"),
           callback: function () {
             Services.perms.add(requestingURI, "geo", Ci.nsIPermissionManager.ALLOW_ACTION);
             request.allow();
           }
         });
         secondaryActions.push({
-          label: browserBundle.GetStringFromName("geolocation.neverShareLocation"),
-          accessKey: browserBundle.GetStringFromName("geolocation.neverShareLocation.accesskey"),
+          label: browserBundle.GetStringFromName("geolocation.neverShare"),
+          accessKey: browserBundle.GetStringFromName("geolocation.neverShare.accesskey"),
           callback: function () {
             Services.perms.add(requestingURI, "geo", Ci.nsIPermissionManager.DENY_ACTION);
             request.cancel();

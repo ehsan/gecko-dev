@@ -53,9 +53,6 @@
 #include "nsXULPrototypeDocument.h"
 #include "nsIInputStream.h"
 #include "nsIStorageStream.h"
-
-#include "jspubtd.h"
-
 #include "mozilla/scache/StartupCache.h"
 
 using namespace mozilla::scache;
@@ -65,7 +62,7 @@ class nsCSSStyleSheet;
 struct CacheScriptEntry
 {
     PRUint32    mScriptTypeID; // the script language ID.
-    JSScript*   mScriptObject; // the script object.
+    void*       mScriptObject; // the script object.
 };
 
 /**
@@ -83,7 +80,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
 
-    bool IsCached(nsIURI* aURI) {
+    PRBool IsCached(nsIURI* aURI) {
         return GetPrototype(aURI) != nsnull;
     }
     void AbortCaching();
@@ -92,7 +89,7 @@ public:
     /**
      * Whether the prototype cache is enabled.
      */
-    bool IsEnabled();
+    PRBool IsEnabled();
 
     /**
      * Flush the cache; remove all XUL prototype documents, style
@@ -107,8 +104,8 @@ public:
     nsXULPrototypeDocument* GetPrototype(nsIURI* aURI);
     nsresult PutPrototype(nsXULPrototypeDocument* aDocument);
 
-    JSScript* GetScript(nsIURI* aURI, PRUint32* langID);
-    nsresult PutScript(nsIURI* aURI, PRUint32 langID, JSScript* aScriptObject);
+    void* GetScript(nsIURI* aURI, PRUint32* langID);
+    nsresult PutScript(nsIURI* aURI, PRUint32 langID, void* aScriptObject);
 
     nsXBLDocumentInfo* GetXBLDocumentInfo(nsIURI* aURL) {
         return mXBLDocTable.GetWeak(aURL);
@@ -148,7 +145,7 @@ public:
     nsresult FinishInputStream(nsIURI* aURI);
     nsresult GetOutputStream(nsIURI* aURI, nsIObjectOutputStream** objectOutput);
     nsresult FinishOutputStream(nsIURI* aURI);
-    nsresult HasData(nsIURI* aURI, bool* exists);
+    nsresult HasData(nsIURI* aURI, PRBool* exists);
 
     static StartupCache* GetStartupCache();
 

@@ -368,11 +368,11 @@ NS_IMPL_CYCLE_COLLECTION_2(nsExpatDriver, mSink, mExtendedSink)
 
 nsExpatDriver::nsExpatDriver()
   : mExpatParser(nsnull),
-    mInCData(false),
-    mInInternalSubset(false),
-    mInExternalDTD(false),
-    mMadeFinalCallToExpat(false),
-    mIsFinalChunk(false),
+    mInCData(PR_FALSE),
+    mInInternalSubset(PR_FALSE),
+    mInExternalDTD(PR_FALSE),
+    mMadeFinalCallToExpat(PR_FALSE),
+    mIsFinalChunk(PR_FALSE),
     mInternalState(NS_OK),
     mExpatBuffered(0),
     mCatalogData(nsnull),
@@ -541,7 +541,7 @@ nsExpatDriver::HandleDefault(const PRUnichar *aValue,
 nsresult
 nsExpatDriver::HandleStartCdataSection()
 {
-  mInCData = true;
+  mInCData = PR_TRUE;
 
   return NS_OK;
 }
@@ -551,7 +551,7 @@ nsExpatDriver::HandleEndCdataSection()
 {
   NS_ASSERTION(mSink, "content sink not found!");
 
-  mInCData = false;
+  mInCData = PR_FALSE;
   if (mSink) {
     nsresult rv = mSink->HandleCDataSection(mCDataText.get(),
                                             mCDataText.Length());
@@ -618,7 +618,7 @@ nsresult
 nsExpatDriver::HandleStartDoctypeDecl(const PRUnichar* aDoctypeName,
                                       const PRUnichar* aSysid,
                                       const PRUnichar* aPubid,
-                                      bool aHasInternalSubset)
+                                      PRBool aHasInternalSubset)
 {
   mDoctypeName = aDoctypeName;
   mSystemID = aSysid;
@@ -633,11 +633,11 @@ nsExpatDriver::HandleStartDoctypeDecl(const PRUnichar* aDoctypeName,
     // Consuming a huge internal subset translates to numerous
     // allocations. In an effort to avoid too many allocations
     // setting mInternalSubset's capacity to be 1K ( just a guesstimate! ).
-    mInInternalSubset = true;
+    mInInternalSubset = PR_TRUE;
     mInternalSubset.SetCapacity(1024);
   } else {
     // Distinguish missing internal subset from an empty one
-    mInternalSubset.SetIsVoid(true);
+    mInternalSubset.SetIsVoid(PR_TRUE);
   }
 
   return NS_OK;
@@ -648,7 +648,7 @@ nsExpatDriver::HandleEndDoctypeDecl()
 {
   NS_ASSERTION(mSink, "content sink not found!");
 
-  mInInternalSubset = false;
+  mInInternalSubset = PR_FALSE;
 
   if (mSink) {
     // let the sink know any additional knowledge that we have about the
@@ -722,7 +722,7 @@ nsExpatDriver::HandleExternalEntityRef(const PRUnichar *openEntityNames,
     if (entParser) {
       XML_SetBase(entParser, absURL.get());
 
-      mInExternalDTD = true;
+      mInExternalDTD = PR_TRUE;
 
       PRUint32 totalRead;
       do {
@@ -732,7 +732,7 @@ nsExpatDriver::HandleExternalEntityRef(const PRUnichar *openEntityNames,
 
       result = XML_Parse(entParser, nsnull, 0, 1);
 
-      mInExternalDTD = false;
+      mInExternalDTD = PR_FALSE;
 
       XML_ParserFree(entParser);
     }
@@ -759,7 +759,7 @@ nsExpatDriver::OpenInputStreamFromExternalDTD(const PRUnichar* aFPIStr,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // check if it is alright to load this uri
-  bool isChrome = false;
+  PRBool isChrome = PR_FALSE;
   uri->SchemeIs("chrome", &isChrome);
   if (!isChrome) {
     // since the url is not a chrome url, check to see if we can map the DTD
@@ -957,7 +957,7 @@ nsExpatDriver::HandleError()
   }
 
   // If it didn't initialize, we can't do any logging.
-  bool shouldReportError = NS_SUCCEEDED(rv);
+  PRBool shouldReportError = NS_SUCCEEDED(rv);
 
   if (mSink && shouldReportError) {
     rv = mSink->ReportError(errorText.get(), 
@@ -965,7 +965,7 @@ nsExpatDriver::HandleError()
                             serr, 
                             &shouldReportError);
     if (NS_FAILED(rv)) {
-      shouldReportError = true;
+      shouldReportError = PR_TRUE;
     }
   }
 
@@ -983,7 +983,7 @@ nsExpatDriver::HandleError()
 void
 nsExpatDriver::ParseBuffer(const PRUnichar *aBuffer,
                            PRUint32 aLength,
-                           bool aIsFinal,
+                           PRBool aIsFinal,
                            PRUint32 *aConsumed)
 {
   NS_ASSERTION((aBuffer && aLength != 0) || (!aBuffer && aLength == 0), "?");
@@ -1035,7 +1035,7 @@ nsExpatDriver::ParseBuffer(const PRUnichar *aBuffer,
 }
 
 NS_IMETHODIMP
-nsExpatDriver::ConsumeToken(nsScanner& aScanner, bool& aFlushTokens)
+nsExpatDriver::ConsumeToken(nsScanner& aScanner, PRBool& aFlushTokens)
 {
   // We keep the scanner pointing to the position where Expat will start
   // parsing.
@@ -1060,8 +1060,8 @@ nsExpatDriver::ConsumeToken(nsScanner& aScanner, bool& aFlushTokens)
   // currently blocked and there's data in Expat's buffer.
   while (start != end || (mIsFinalChunk && !mMadeFinalCallToExpat) ||
          (BlockedOrInterrupted() && mExpatBuffered > 0)) {
-    bool noMoreBuffers = start == end && mIsFinalChunk;
-    bool blocked = BlockedOrInterrupted();
+    PRBool noMoreBuffers = start == end && mIsFinalChunk;
+    PRBool blocked = BlockedOrInterrupted();
 
     const PRUnichar *buffer;
     PRUint32 length;
@@ -1138,14 +1138,14 @@ nsExpatDriver::ConsumeToken(nsScanner& aScanner, bool& aFlushTokens)
              ("Blocked or interrupted parser (probably for loading linked "
               "stylesheets or scripts)."));
 
-      aScanner.SetPosition(currentExpatPosition, true);
+      aScanner.SetPosition(currentExpatPosition, PR_TRUE);
       aScanner.Mark();
 
       return mInternalState;
     }
 
     if (noMoreBuffers && mExpatBuffered == 0) {
-      mMadeFinalCallToExpat = true;
+      mMadeFinalCallToExpat = PR_TRUE;
     }
 
     if (NS_FAILED(mInternalState)) {
@@ -1192,7 +1192,7 @@ nsExpatDriver::ConsumeToken(nsScanner& aScanner, bool& aFlushTokens)
     aScanner.EndReading(end);
   }
 
-  aScanner.SetPosition(currentExpatPosition, true);
+  aScanner.SetPosition(currentExpatPosition, PR_TRUE);
   aScanner.Mark();
 
   PR_LOG(gExpatDriverLog, PR_LOG_DEBUG,
@@ -1243,7 +1243,7 @@ nsExpatDriver::WillBuildModel(const CParserContext& aParserContext,
   if (doc) {
     nsCOMPtr<nsPIDOMWindow> win = doc->GetWindow();
     if (!win) {
-      bool aHasHadScriptHandlingObject;
+      PRBool aHasHadScriptHandlingObject;
       nsIScriptGlobalObject *global =
         doc->GetScriptHandlingObject(aHasHadScriptHandlingObject);
       if (global) {
@@ -1303,8 +1303,8 @@ nsExpatDriver::WillBuildModel(const CParserContext& aParserContext,
 
 NS_IMETHODIMP
 nsExpatDriver::BuildModel(nsITokenizer* aTokenizer,
-                          bool,// aCanInterrupt,
-                          bool,// aCountLines,
+                          PRBool,// aCanInterrupt,
+                          PRBool,// aCountLines,
                           const nsCString*)// aCharsetPtr)
 {
   return mInternalState;
@@ -1320,7 +1320,7 @@ nsExpatDriver::DidBuildModel(nsresult anErrorCode)
 }
 
 NS_IMETHODIMP
-nsExpatDriver::WillTokenize(bool aIsFinalChunk,
+nsExpatDriver::WillTokenize(PRBool aIsFinalChunk,
                             nsTokenAllocator* aTokenAllocator)
 {
   mIsFinalChunk = aIsFinalChunk;
@@ -1328,7 +1328,7 @@ nsExpatDriver::WillTokenize(bool aIsFinalChunk,
 }
 
 NS_IMETHODIMP
-nsExpatDriver::DidTokenize(bool aIsFinalChunk)
+nsExpatDriver::DidTokenize(PRBool aIsFinalChunk)
 {
   return NS_OK;
 }
@@ -1416,16 +1416,16 @@ nsExpatDriver::HandleToken(CToken* aToken)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsExpatDriver::IsContainer(PRInt32 aTag) const
 {
-  return true;
+  return PR_TRUE;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsExpatDriver::CanContain(PRInt32 aParent,PRInt32 aChild) const
 {
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -1446,9 +1446,9 @@ nsExpatDriver::MaybeStopParser(nsresult aState)
     }
 
     // If we get an error then we need to stop Expat (by calling XML_StopParser
-    // with false as the last argument). If the parser should be blocked or
+    // with PR_FALSE as the last argument). If the parser should be blocked or
     // interrupted we need to pause Expat (by calling XML_StopParser with
-    // true as the last argument).
+    // PR_TRUE as the last argument).
     XML_StopParser(mExpatParser, BlockedOrInterrupted());
   }
   else if (NS_SUCCEEDED(mInternalState)) {

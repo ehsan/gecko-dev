@@ -103,7 +103,7 @@ public:
     }
   }
 
-  bool IsValid()
+  PRBool IsValid()
   {
     NS_WARN_IF_FALSE(!!(mTarget), "Event target is not valid!");
     return !!(mTarget);
@@ -119,7 +119,7 @@ public:
     mNewTarget = aNewTarget;
   }
 
-  void SetForceContentDispatch(bool aForce)
+  void SetForceContentDispatch(PRBool aForce)
   {
     if (aForce) {
       mFlags |= NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH;
@@ -128,12 +128,12 @@ public:
     }
   }
 
-  bool ForceContentDispatch()
+  PRBool ForceContentDispatch()
   {
     return !!(mFlags & NS_TARGET_CHAIN_FORCE_CONTENT_DISPATCH);
   }
 
-  void SetWantsWillHandleEvent(bool aWants)
+  void SetWantsWillHandleEvent(PRBool aWants)
   {
     if (aWants) {
       mFlags |= NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT;
@@ -142,12 +142,12 @@ public:
     }
   }
 
-  bool WantsWillHandleEvent()
+  PRBool WantsWillHandleEvent()
   {
     return !!(mFlags & NS_TARGET_CHAIN_WANTS_WILL_HANDLE_EVENT);
   }
 
-  void SetMayHaveListenerManager(bool aMayHave)
+  void SetMayHaveListenerManager(PRBool aMayHave)
   {
     if (aMayHave) {
       mFlags |= NS_TARGET_CHAIN_MAY_HAVE_MANAGER;
@@ -156,7 +156,7 @@ public:
     }
   }
 
-  bool MayHaveListenerManager()
+  PRBool MayHaveListenerManager()
   {
     return !!(mFlags & NS_TARGET_CHAIN_MAY_HAVE_MANAGER);
   }
@@ -175,7 +175,7 @@ public:
   nsresult HandleEventTargetChain(nsEventChainPostVisitor& aVisitor,
                                   PRUint32 aFlags,
                                   nsDispatchingCallback* aCallback,
-                                  bool aMayHaveNewListenerManagers,
+                                  PRBool aMayHaveNewListenerManagers,
                                   nsCxPusher* aPusher);
 
   /**
@@ -189,7 +189,7 @@ public:
    * manager, this method calls nsEventListenerManager::HandleEvent().
    */
   nsresult HandleEvent(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
-                       bool aMayHaveNewListenerManagers,
+                       PRBool aMayHaveNewListenerManagers,
                        nsCxPusher* aPusher)
   {
     if (WantsWillHandleEvent()) {
@@ -203,7 +203,7 @@ public:
         return NS_OK;
       }
       mManager =
-        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(false));
+        static_cast<nsEventListenerManager*>(mTarget->GetListenerManager(PR_FALSE));
     }
     if (mManager) {
       NS_ASSERTION(aVisitor.mEvent->currentTarget == nsnull,
@@ -293,7 +293,7 @@ nsEventTargetChainItem::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 nsresult
 nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
                                                nsDispatchingCallback* aCallback,
-                                               bool aMayHaveNewListenerManagers,
+                                               PRBool aMayHaveNewListenerManagers,
                                                nsCxPusher* aPusher)
 {
   PRUint32 createdELMs = nsEventListenerManager::sCreatedCount;
@@ -376,9 +376,9 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
 
   if (!(aFlags & NS_EVENT_FLAG_SYSTEM_EVENT)) {
     // Dispatch to the system event group.  Make sure to clear the
-    // STOP_DISPATCH flag since this resets for each event group.
-    aVisitor.mEvent->flags &=
-      ~(NS_EVENT_FLAG_STOP_DISPATCH | NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY);
+    // STOP_DISPATCH flag since this resets for each event group
+    // per DOM3 Events.
+    aVisitor.mEvent->flags &= ~NS_EVENT_FLAG_STOP_DISPATCH;
 
     // Setting back the original target of the event.
     aVisitor.mEvent->target = aVisitor.mEvent->originalTarget;
@@ -396,11 +396,6 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
                            aCallback,
                            createdELMs != nsEventListenerManager::sCreatedCount,
                            aPusher);
-
-    // After dispatch, clear all the propagation flags so that
-    // system group listeners don't affect to the event.
-    aVisitor.mEvent->flags &=
-      ~(NS_EVENT_FLAG_STOP_DISPATCH | NS_EVENT_FLAG_STOP_DISPATCH_IMMEDIATELY);
   }
 
   return NS_OK;
@@ -484,7 +479,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   // sure it is initialized!
   // If aTargets is non-null, the event isn't going to be dispatched.
   NS_ENSURE_TRUE(aEvent->message || !aDOMEvent || aTargets,
-                 NS_ERROR_DOM_INVALID_STATE_ERR);
+                 NS_ERROR_DOM_UNSPECIFIED_EVENT_TYPE_ERR);
 
 #ifdef NS_FUNCTION_TIMER
   const char* timer_event_name = nsDOMEvent::GetEventName(aEvent->message);
@@ -494,7 +489,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
   nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTarget);
 
-  bool retargeted = false;
+  PRBool retargeted = PR_FALSE;
 
   if (aEvent->flags & NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS) {
     nsCOMPtr<nsIContent> content = do_QueryInterface(target);
@@ -505,7 +500,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 
       aEvent->originalTarget = target;
       target = newTarget;
-      retargeted = true;
+      retargeted = PR_TRUE;
     }
   }
 
@@ -519,7 +514,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     }
 
     NS_ENSURE_STATE(node);
-    nsIDocument* doc = node->OwnerDoc();
+    nsIDocument* doc = node->GetOwnerDoc();
     if (!nsContentUtils::IsChromeDoc(doc)) {
       nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nsnull;
       // If we can't dispatch the event to chrome, do nothing.
@@ -548,7 +543,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     if (target->GetContextForEventHandlers(&rv) ||
         NS_FAILED(rv)) {
       nsCOMPtr<nsINode> node = do_QueryInterface(target);
-      if (node && nsContentUtils::IsChromeDoc(node->OwnerDoc())) {
+      if (node && nsContentUtils::IsChromeDoc(node->GetOwnerDoc())) {
         NS_WARNING("Fix the caller!");
       } else {
         NS_ERROR("This is unsafe! Fix the caller!");
@@ -567,7 +562,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
 #endif
 
   nsresult rv = NS_OK;
-  bool externalDOMEvent = !!(aDOMEvent);
+  PRBool externalDOMEvent = !!(aDOMEvent);
 
   // If we have a PresContext, make sure it doesn't die before
   // event dispatching is finished.
@@ -610,7 +605,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   }
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aEvent->originalTarget);
-  bool isInAnon = (content && content->IsInAnonymousSubtree());
+  PRBool isInAnon = (content && content->IsInAnonymousSubtree());
 
   NS_MARK_EVENT_DISPATCH_STARTED(aEvent);
 
@@ -673,7 +668,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                                              NS_EVENT_FLAG_BUBBLE |
                                              NS_EVENT_FLAG_CAPTURE,
                                              aCallback,
-                                             false,
+                                             PR_FALSE,
                                              &pusher);
   
         preVisitor.mEventStatus = postVisitor.mEventStatus;
@@ -721,7 +716,7 @@ nsEventDispatcher::DispatchDOMEvent(nsISupports* aTarget,
       nsEvent* innerEvent = privEvt->GetInternalNSEvent();
       NS_ENSURE_TRUE(innerEvent, NS_ERROR_ILLEGAL_VALUE);
 
-      bool dontResetTrusted = false;
+      PRBool dontResetTrusted = PR_FALSE;
       if (innerEvent->flags & NS_EVENT_DISPATCHED) {
         innerEvent->target = nsnull;
         innerEvent->originalTarget = nsnull;
@@ -792,8 +787,10 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_SVGZOOM_EVENT:
       return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext,
                                    static_cast<nsGUIEvent*>(aEvent));
+#ifdef MOZ_SMIL
     case NS_SMIL_TIME_EVENT:
       return NS_NewDOMTimeEvent(aDOMEvent, aPresContext, aEvent);
+#endif // MOZ_SMIL
 
     case NS_COMMAND_EVENT:
       return NS_NewDOMCommandEvent(aDOMEvent, aPresContext,
@@ -857,9 +854,11 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
   if (aEventType.LowerCaseEqualsLiteral("svgzoomevent") ||
       aEventType.LowerCaseEqualsLiteral("svgzoomevents"))
     return NS_NewDOMSVGZoomEvent(aDOMEvent, aPresContext, nsnull);
+#ifdef MOZ_SMIL
   if (aEventType.LowerCaseEqualsLiteral("timeevent") ||
       aEventType.LowerCaseEqualsLiteral("timeevents"))
     return NS_NewDOMTimeEvent(aDOMEvent, aPresContext, nsnull);
+#endif // MOZ_SMIL
   if (aEventType.LowerCaseEqualsLiteral("xulcommandevent") ||
       aEventType.LowerCaseEqualsLiteral("xulcommandevents"))
     return NS_NewDOMXULCommandEvent(aDOMEvent, aPresContext, nsnull);
@@ -904,8 +903,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMHashChangeEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("customevent"))
     return NS_NewDOMCustomEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("mozsmsevent"))
-    return NS_NewDOMSmsEvent(aDOMEvent, aPresContext, nsnull);
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }

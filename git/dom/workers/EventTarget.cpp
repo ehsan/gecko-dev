@@ -139,14 +139,9 @@ JSBool
 EventTarget::AddEventListener(JSContext* aCx, uintN aArgc, jsval* aVp)
 {
   JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-  if (!obj) {
-    return true;
-  }
 
   EventTarget* self = GetPrivate(aCx, obj);
-  if (!self) {
-    return true;
-  }
+  JS_ASSERT(self);
 
   JSString* type;
   JSObject* listener;
@@ -170,14 +165,9 @@ JSBool
 EventTarget::RemoveEventListener(JSContext* aCx, uintN aArgc, jsval* aVp)
 {
   JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-  if (!obj) {
-    return true;
-  }
 
   EventTarget* self = GetPrivate(aCx, obj);
-  if (!self) {
-    return true;
-  }
+  JS_ASSERT(self);
 
   JSString* type;
   JSObject* listener;
@@ -201,14 +191,9 @@ JSBool
 EventTarget::DispatchEvent(JSContext* aCx, uintN aArgc, jsval* aVp)
 {
   JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-  if (!obj) {
-    return true;
-  }
 
   EventTarget* self = GetPrivate(aCx, obj);
-  if (!self) {
-    return true;
-  }
+  JS_ASSERT(self);
 
   JSObject* event;
   if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "o", &event)) {

@@ -37,15 +37,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGPathGeometryElement.h"
 #include "nsIDOMSVGLineElement.h"
 #include "nsSVGLength2.h"
 #include "nsGkAtoms.h"
 #include "gfxContext.h"
-
-using namespace mozilla;
 
 typedef nsSVGPathGeometryElement nsSVGLineElementBase;
 
@@ -68,10 +64,10 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGLineElementBase::)
 
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   // nsSVGPathGeometryElement methods:
-  virtual bool IsMarkable() { return true; }
+  virtual PRBool IsMarkable() { return PR_TRUE; }
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);
 
@@ -154,14 +150,14 @@ NS_IMETHODIMP nsSVGLineElement::GetY2(nsIDOMSVGAnimatedLength * *aY2)
 //----------------------------------------------------------------------
 // nsIContent methods
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsSVGLineElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
     sMarkersMap
   };
   
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGLineElementBase::IsAttributeMapped(name);
 }
 
@@ -172,7 +168,7 @@ nsSVGElement::LengthAttributesInfo
 nsSVGLineElement::GetLengthInfo()
 {
   return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
-                              ArrayLength(sLengthInfo));
+                              NS_ARRAY_LENGTH(sLengthInfo));
 }
 
 //----------------------------------------------------------------------

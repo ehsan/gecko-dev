@@ -86,11 +86,11 @@ NS_IMETHODIMP nsTransactionList::GetNumItems(PRInt32 *aNumItems)
 }
 
 /* boolean itemIsBatch (in long aIndex); */
-NS_IMETHODIMP nsTransactionList::ItemIsBatch(PRInt32 aIndex, bool *aIsBatch)
+NS_IMETHODIMP nsTransactionList::ItemIsBatch(PRInt32 aIndex, PRBool *aIsBatch)
 {
   NS_ENSURE_TRUE(aIsBatch, NS_ERROR_NULL_POINTER);
 
-  *aIsBatch = false;
+  *aIsBatch = PR_FALSE;
 
   nsCOMPtr<nsITransactionManager> txMgr = do_QueryReferent(mTxnMgr);
 

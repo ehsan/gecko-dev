@@ -39,14 +39,29 @@
 
 #include "DatabaseInfo.h"
 
-#include "nsDataHashtable.h"
+#include "nsClassHashtable.h"
+#include "nsHashKeys.h"
 #include "nsThreadUtils.h"
 
 USING_INDEXEDDB_NAMESPACE
 
 namespace {
 
-typedef nsDataHashtable<nsISupportsHashKey, DatabaseInfo*>
+typedef nsClassHashtable<nsStringHashKey, ObjectStoreInfo>
+        ObjectStoreInfoHash;
+
+struct DatabaseInfoHash
+{
+  DatabaseInfoHash(DatabaseInfo* aInfo) {
+    NS_ASSERTION(aInfo, "Null pointer!");
+    info = aInfo;
+  }
+
+  nsAutoPtr<DatabaseInfo> info;
+  nsAutoPtr<ObjectStoreInfoHash> objectStoreHash;
+};
+
+typedef nsClassHashtable<nsUint32HashKey, DatabaseInfoHash>
         DatabaseHash;
 
 DatabaseHash* gDatabaseHash = nsnull;
@@ -64,50 +79,26 @@ EnumerateObjectStoreNames(const nsAString& aKey,
   return PL_DHASH_NEXT;
 }
 
-PLDHashOperator
-CloneObjectStoreInfo(const nsAString& aKey,
-                     ObjectStoreInfo* aData,
-                     void* aUserArg)
-{
-  ObjectStoreInfoHash* hash = static_cast<ObjectStoreInfoHash*>(aUserArg);
-
-  nsAutoPtr<ObjectStoreInfo> newInfo(new ObjectStoreInfo(*aData));
-
-  if (!hash->Put(aKey, newInfo)) {
-    NS_WARNING("Out of memory?");
-    return PL_DHASH_STOP;
-  }
-
-  newInfo.forget();
-  return PL_DHASH_NEXT;
 }
 
+#ifdef NS_BUILD_REFCNT_LOGGING
+DatabaseInfo::DatabaseInfo()
+: id(0),
+  nextObjectStoreId(1),
+  nextIndexId(1)
+{
+  MOZ_COUNT_CTOR(DatabaseInfo);
 }
 
 DatabaseInfo::~DatabaseInfo()
 {
-  // Clones are never in the hash.
-  if (!cloned) {
-    DatabaseInfo::Remove(id);
-  }
+  MOZ_COUNT_DTOR(DatabaseInfo);
 }
-
-#ifdef NS_BUILD_REFCNT_LOGGING
 
 IndexInfo::IndexInfo()
 : id(LL_MININT),
   unique(false),
   autoIncrement(false)
-{
-  MOZ_COUNT_CTOR(IndexInfo);
-}
-
-IndexInfo::IndexInfo(const IndexInfo& aOther)
-: id(aOther.id),
-  name(aOther.name),
-  keyPath(aOther.keyPath),
-  unique(aOther.unique),
-  autoIncrement(aOther.autoIncrement)
 {
   MOZ_COUNT_CTOR(IndexInfo);
 }
@@ -121,17 +112,6 @@ ObjectStoreInfo::ObjectStoreInfo()
 : id(0),
   autoIncrement(false),
   databaseId(0)
-{
-  MOZ_COUNT_CTOR(ObjectStoreInfo);
-}
-
-ObjectStoreInfo::ObjectStoreInfo(ObjectStoreInfo& aOther)
-: name(aOther.name),
-  id(aOther.id),
-  keyPath(aOther.keyPath),
-  autoIncrement(aOther.autoIncrement),
-  databaseId(aOther.databaseId),
-  indexes(aOther.indexes)
 {
   MOZ_COUNT_CTOR(ObjectStoreInfo);
 }
@@ -154,16 +134,20 @@ IndexUpdateInfo::~IndexUpdateInfo()
 
 // static
 bool
-DatabaseInfo::Get(nsIAtom* aId,
+DatabaseInfo::Get(PRUint32 aId,
                   DatabaseInfo** aInfo)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aId, "Bad id!");
 
-  if (gDatabaseHash &&
-      gDatabaseHash->Get(aId, aInfo)) {
-    NS_IF_ADDREF(*aInfo);
-    return true;
+  if (gDatabaseHash) {
+    DatabaseInfoHash* hash;
+    if (gDatabaseHash->Get(aId, &hash)) {
+      if (aInfo) {
+        *aInfo = hash->info;
+      }
+      return true;
+    }
   }
   return false;
 }
@@ -190,24 +174,22 @@ DatabaseInfo::Put(DatabaseInfo* aInfo)
     return false;
   }
 
-  if (!gDatabaseHash->Put(aInfo->id, aInfo)) {
+  nsAutoPtr<DatabaseInfoHash> hash(new DatabaseInfoHash(aInfo));
+  if (!gDatabaseHash->Put(aInfo->id, hash)) {
     NS_ERROR("Put failed!");
     return false;
   }
 
+  hash.forget();
   return true;
 }
 
 // static
 void
-DatabaseInfo::Remove(nsIAtom* aId)
+DatabaseInfo::Remove(PRUint32 aId)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  DatabaseInfo* info = nsnull;
-
-  DebugOnly<bool> got = Get(aId, &info);
-  NS_ASSERTION(got && info, "Don't know anything about this one!");
+  NS_ASSERTION(Get(aId, nsnull), "Don't know anything about this one!");
 
   if (gDatabaseHash) {
     gDatabaseHash->Remove(aId);
@@ -223,10 +205,20 @@ bool
 DatabaseInfo::GetObjectStoreNames(nsTArray<nsString>& aNames)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(Get(id, nsnull), "Don't know anything about this one!");
+
+  if (!gDatabaseHash) {
+    return false;
+  }
+
+  DatabaseInfoHash* info;
+  if (!gDatabaseHash->Get(id, &info)) {
+    return false;
+  }
 
   aNames.Clear();
-  if (objectStoreHash) {
-    objectStoreHash->EnumerateRead(EnumerateObjectStoreNames, &aNames);
+  if (info->objectStoreHash) {
+    info->objectStoreHash->EnumerateRead(EnumerateObjectStoreNames, &aNames);
   }
   return true;
 }
@@ -235,81 +227,85 @@ bool
 DatabaseInfo::ContainsStoreName(const nsAString& aName)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(Get(id, nsnull), "Don't know anything about this one!");
 
-  return objectStoreHash && objectStoreHash->Get(aName, nsnull);
+  DatabaseInfoHash* hash;
+  ObjectStoreInfo* info;
+
+  return gDatabaseHash &&
+         gDatabaseHash->Get(id, &hash) &&
+         hash->objectStoreHash &&
+         hash->objectStoreHash->Get(aName, &info);
 }
 
+// static
 bool
-DatabaseInfo::GetObjectStore(const nsAString& aName,
-                             ObjectStoreInfo** aInfo)
+ObjectStoreInfo::Get(PRUint32 aDatabaseId,
+                     const nsAString& aName,
+                     ObjectStoreInfo** aInfo)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(!aName.IsEmpty(), "Empty object store name!");
 
-  if (objectStoreHash) {
-    return objectStoreHash->Get(aName, aInfo);
+  if (gDatabaseHash) {
+    DatabaseInfoHash* hash;
+    if (gDatabaseHash->Get(aDatabaseId, &hash)) {
+      if (hash->objectStoreHash) {
+        return !!hash->objectStoreHash->Get(aName, aInfo);
+      }
+    }
   }
 
   return false;
 }
 
+// static
 bool
-DatabaseInfo::PutObjectStore(ObjectStoreInfo* aInfo)
+ObjectStoreInfo::Put(ObjectStoreInfo* aInfo)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aInfo, "Null pointer!");
 
-  if (!objectStoreHash) {
-    nsAutoPtr<ObjectStoreInfoHash> hash(new ObjectStoreInfoHash());
-    if (!hash->Init()) {
+  if (!gDatabaseHash) {
+    NS_ERROR("No databases known!");
+    return false;
+  }
+
+  DatabaseInfoHash* hash;
+  if (!gDatabaseHash->Get(aInfo->databaseId, &hash)) {
+    NS_ERROR("Don't know about this database!");
+    return false;
+  }
+
+  if (!hash->objectStoreHash) {
+    nsAutoPtr<ObjectStoreInfoHash> objectStoreHash(new ObjectStoreInfoHash());
+    if (!objectStoreHash->Init()) {
       NS_ERROR("Failed to initialize hashtable!");
       return false;
     }
-    objectStoreHash = hash.forget();
+    hash->objectStoreHash = objectStoreHash.forget();
   }
 
-  if (objectStoreHash->Get(aInfo->name, nsnull)) {
+  if (hash->objectStoreHash->Get(aInfo->name, nsnull)) {
     NS_ERROR("Already have an entry for this objectstore!");
     return false;
   }
 
-  return objectStoreHash->Put(aInfo->name, aInfo);
+  return !!hash->objectStoreHash->Put(aInfo->name, aInfo);
 }
 
+// static
 void
-DatabaseInfo::RemoveObjectStore(const nsAString& aName)
+ObjectStoreInfo::Remove(PRUint32 aDatabaseId,
+                        const nsAString& aName)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(GetObjectStore(aName, nsnull), "Don't know about this one!");
+  NS_ASSERTION(Get(aDatabaseId, aName, nsnull), "Don't know about this one!");
 
-  if (objectStoreHash) {
-    objectStoreHash->Remove(aName);
-  }
-}
-
-already_AddRefed<DatabaseInfo>
-DatabaseInfo::Clone()
-{
-  NS_ASSERTION(!cloned, "Should never clone a clone!");
-
-  nsRefPtr<DatabaseInfo> dbInfo(new DatabaseInfo());
-
-  dbInfo->cloned = true;
-  dbInfo->name = name;
-  dbInfo->version = version;
-  dbInfo->id = id;
-  dbInfo->filePath = filePath;
-  dbInfo->nextObjectStoreId = nextObjectStoreId;
-  dbInfo->nextIndexId = nextIndexId;
-
-  if (objectStoreHash) {
-    dbInfo->objectStoreHash = new ObjectStoreInfoHash();
-    if (!dbInfo->objectStoreHash->Init()) {
-      return nsnull;
+  if (gDatabaseHash) {
+    DatabaseInfoHash* hash;
+    if (gDatabaseHash->Get(aDatabaseId, &hash) && hash->objectStoreHash) {
+      hash->objectStoreHash->Remove(aName);
     }
-
-    objectStoreHash->EnumerateRead(CloneObjectStoreInfo,
-                                   dbInfo->objectStoreHash);
   }
-
-  return dbInfo.forget();
 }

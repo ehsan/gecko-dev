@@ -152,7 +152,7 @@ public:
                                  nsIURI** aClone);
   virtual nsresult EqualsInternal(nsIURI* aOther,
                                   RefHandlingEnum aRefHandlingMode,
-                                  bool* aResult);
+                                  PRBool* aResult);
 
   // Override StartClone to hand back a nsFileDataURI
   virtual nsSimpleURI* StartClone(RefHandlingEnum /* unused */)
@@ -212,7 +212,7 @@ nsFileDataURI::Read(nsIObjectInputStream* aStream)
   nsresult rv = nsSimpleURI::Read(aStream);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_ReadOptionalObject(aStream, true, getter_AddRefs(mPrincipal));
+  return NS_ReadOptionalObject(aStream, PR_TRUE, getter_AddRefs(mPrincipal));
 }
 
 NS_IMETHODIMP
@@ -223,7 +223,7 @@ nsFileDataURI::Write(nsIObjectOutputStream* aStream)
 
   return NS_WriteOptionalCompoundObject(aStream, mPrincipal,
                                         NS_GET_IID(nsIPrincipal),
-                                        true);
+                                        PR_TRUE);
 }
 
 // nsIURI methods:
@@ -254,23 +254,23 @@ nsFileDataURI::CloneInternal(nsSimpleURI::RefHandlingEnum aRefHandlingMode,
 /* virtual */ nsresult
 nsFileDataURI::EqualsInternal(nsIURI* aOther,
                               nsSimpleURI::RefHandlingEnum aRefHandlingMode,
-                              bool* aResult)
+                              PRBool* aResult)
 {
   if (!aOther) {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
   }
   
   nsRefPtr<nsFileDataURI> otherFileDataUri;
   aOther->QueryInterface(kFILEDATAURICID, getter_AddRefs(otherFileDataUri));
   if (!otherFileDataUri) {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
   }
 
   // Compare the member data that our base class knows about.
   if (!nsSimpleURI::EqualsInternal(otherFileDataUri, aRefHandlingMode)) {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
    }
 
@@ -449,9 +449,9 @@ nsFileDataProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 
 NS_IMETHODIMP 
 nsFileDataProtocolHandler::AllowPort(PRInt32 port, const char *scheme,
-                                     bool *_retval)
+                                     PRBool *_retval)
 {
     // don't override anything.  
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }

@@ -45,7 +45,7 @@
 #include "nsITreeView.h"
 #include "nsString.h"
 #include "nsIDOMElement.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsGUIEvent.h"
@@ -195,14 +195,14 @@ struct nsTreeRange
     return NS_OK;
   }
 
-  bool Contains(PRInt32 aIndex) {
+  PRBool Contains(PRInt32 aIndex) {
     if (aIndex >= mMin && aIndex <= mMax)
-      return true;
+      return PR_TRUE;
 
     if (mNext)
       return mNext->Contains(aIndex);
 
-    return false;
+    return PR_FALSE;
   }
 
   PRInt32 Count() {
@@ -279,7 +279,7 @@ struct nsTreeRange
 
 nsTreeSelection::nsTreeSelection(nsITreeBoxObject* aTree)
   : mTree(aTree),
-    mSuppressed(false),
+    mSuppressed(PR_FALSE),
     mCurrentIndex(-1),
     mShiftSelectPivot(-1),
     mFirstRange(nsnull)
@@ -328,7 +328,7 @@ NS_IMETHODIMP nsTreeSelection::SetTree(nsITreeBoxObject * aTree)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsTreeSelection::GetSingle(bool* aSingle)
+NS_IMETHODIMP nsTreeSelection::GetSingle(PRBool* aSingle)
 {
   if (!mTree)
     return NS_ERROR_NULL_POINTER;
@@ -350,21 +350,21 @@ NS_IMETHODIMP nsTreeSelection::GetSingle(bool* aSingle)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsTreeSelection::IsSelected(PRInt32 aIndex, bool* aResult)
+NS_IMETHODIMP nsTreeSelection::IsSelected(PRInt32 aIndex, PRBool* aResult)
 {
   if (mFirstRange)
     *aResult = mFirstRange->Contains(aIndex);
   else
-    *aResult = false;
+    *aResult = PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP nsTreeSelection::TimedSelect(PRInt32 aIndex, PRInt32 aMsec)
 {
-  bool suppressSelect = mSuppressed;
+  PRBool suppressSelect = mSuppressed;
 
   if (aMsec != -1)
-    mSuppressed = true;
+    mSuppressed = PR_TRUE;
 
   nsresult rv = Select(aIndex);
   if (NS_FAILED(rv))
@@ -394,7 +394,7 @@ NS_IMETHODIMP nsTreeSelection::Select(PRInt32 aIndex)
     return rv;
 
   if (mFirstRange) {
-    bool alreadySelected = mFirstRange->Contains(aIndex);
+    PRBool alreadySelected = mFirstRange->Contains(aIndex);
 
     if (alreadySelected) {
       PRInt32 count = mFirstRange->Count();
@@ -443,7 +443,7 @@ NS_IMETHODIMP nsTreeSelection::ToggleSelect(PRInt32 aIndex)
     Select(aIndex);
   else {
     if (!mFirstRange->Contains(aIndex)) {
-      bool single;
+      PRBool single;
       rv = GetSingle(&single);
       if (NS_SUCCEEDED(rv) && !single)
         rv = mFirstRange->Add(aIndex);
@@ -461,9 +461,9 @@ NS_IMETHODIMP nsTreeSelection::ToggleSelect(PRInt32 aIndex)
   return rv;
 }
 
-NS_IMETHODIMP nsTreeSelection::RangedSelect(PRInt32 aStartIndex, PRInt32 aEndIndex, bool aAugment)
+NS_IMETHODIMP nsTreeSelection::RangedSelect(PRInt32 aStartIndex, PRInt32 aEndIndex, PRBool aAugment)
 {
-  bool single;
+  PRBool single;
   nsresult rv = GetSingle(&single);
   if (NS_FAILED(rv))
     return rv;
@@ -571,7 +571,7 @@ NS_IMETHODIMP nsTreeSelection::SelectAll()
 
   PRInt32 rowCount;
   view->GetRowCount(&rowCount);
-  bool single;
+  PRBool single;
   nsresult rv = GetSingle(&single);
   if (NS_FAILED(rv))
     return rv;
@@ -634,13 +634,13 @@ NS_IMETHODIMP nsTreeSelection::GetCount(PRInt32 *count)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsTreeSelection::GetSelectEventsSuppressed(bool *aSelectEventsSuppressed)
+NS_IMETHODIMP nsTreeSelection::GetSelectEventsSuppressed(PRBool *aSelectEventsSuppressed)
 {
   *aSelectEventsSuppressed = mSuppressed;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsTreeSelection::SetSelectEventsSuppressed(bool aSelectEventsSuppressed)
+NS_IMETHODIMP nsTreeSelection::SetSelectEventsSuppressed(PRBool aSelectEventsSuppressed)
 {
   mSuppressed = aSelectEventsSuppressed;
   if (!mSuppressed)
@@ -672,7 +672,7 @@ NS_IMETHODIMP nsTreeSelection::SetCurrentIndex(PRInt32 aIndex)
   if (aIndex != -1)
     mTree->InvalidateRow(aIndex);
 
-  // Fire DOMMenuItemActive or DOMMenuItemInactive event for tree.
+  // Fire DOMMenuItemActive event for tree
   nsCOMPtr<nsIBoxObject> boxObject = do_QueryInterface(mTree);
   NS_ASSERTION(boxObject, "no box object!");
   if (!boxObject)
@@ -683,13 +683,12 @@ NS_IMETHODIMP nsTreeSelection::SetCurrentIndex(PRInt32 aIndex)
   nsCOMPtr<nsINode> treeDOMNode(do_QueryInterface(treeElt));
   NS_ENSURE_STATE(treeDOMNode);
 
-  NS_NAMED_LITERAL_STRING(DOMMenuItemActive, "DOMMenuItemActive");
-  NS_NAMED_LITERAL_STRING(DOMMenuItemInactive, "DOMMenuItemInactive");
-
   nsRefPtr<nsPLDOMEvent> event =
-    new nsPLDOMEvent(treeDOMNode,
-                     (aIndex != -1 ? DOMMenuItemActive : DOMMenuItemInactive),
-                     true, false);
+    new nsPLDOMEvent(treeDOMNode, NS_LITERAL_STRING("DOMMenuItemActive"),
+                     PR_TRUE, PR_FALSE);
+  if (!event)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   return event->PostDOMEvent();
 }
 
@@ -772,7 +771,7 @@ nsTreeSelection::AdjustSelection(PRInt32 aIndex, PRInt32 aCount)
   // no selection, so nothing to do.
   if (!mFirstRange) return NS_OK;
 
-  bool selChanged = false;
+  PRBool selChanged = PR_FALSE;
   nsTreeRange* oldFirstRange = mFirstRange;
   nsTreeRange* curr = mFirstRange;
   mFirstRange = nsnull;
@@ -786,14 +785,14 @@ nsTreeSelection::AdjustSelection(PRInt32 aIndex, PRInt32 aCount)
       else if (aIndex <= curr->mMin) {  
         // adjustment happens before the start of the range, so shift down
         ADD_NEW_RANGE(mFirstRange, this, curr->mMin + aCount, curr->mMax + aCount);
-        selChanged = true;
+        selChanged = PR_TRUE;
       }
       else {
         // adjustment happen inside the range.
         // break apart the range and create two ranges
         ADD_NEW_RANGE(mFirstRange, this, curr->mMin, aIndex - 1);
         ADD_NEW_RANGE(mFirstRange, this, aIndex + aCount, curr->mMax + aCount);
-        selChanged = true;
+        selChanged = PR_TRUE;
       }
     }
     else {
@@ -804,7 +803,7 @@ nsTreeSelection::AdjustSelection(PRInt32 aIndex, PRInt32 aCount)
       }
       else {
         // remember, aCount is negative
-        selChanged = true;
+        selChanged = PR_TRUE;
         PRInt32 lastIndexOfAdjustment = aIndex - aCount - 1;
         if (aIndex <= curr->mMin) {
           if (lastIndexOfAdjustment < curr->mMin) {
@@ -875,7 +874,7 @@ nsTreeSelection::FireOnSelectHandler()
   NS_ENSURE_STATE(node);
 
   nsRefPtr<nsPLDOMEvent> event =
-    new nsPLDOMEvent(node, NS_LITERAL_STRING("select"), true, false);
+    new nsPLDOMEvent(node, NS_LITERAL_STRING("select"), PR_TRUE, PR_FALSE);
   event->RunDOMEventWhenSafe();
   return NS_OK;
 }

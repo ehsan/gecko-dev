@@ -151,7 +151,7 @@ class Builtin(object):
                             calltype != 'in' and '*' or '')
 
 builtinNames = [
-    Builtin('boolean', 'bool'),
+    Builtin('boolean', 'PRBool'),
     Builtin('void', 'void'),
     Builtin('octet', 'PRUint8'),
     Builtin('short', 'PRInt16', True, True),
@@ -502,20 +502,6 @@ class Interface(object):
             if not isinstance(m, CDATA):
                 self.namemap.set(m)
 
-        self.ops = {
-            'index':
-                {
-                    'getter': None,
-                    'setter': None
-                },
-            'name':
-                {
-                    'getter': None,
-                    'setter': None
-                },
-            'stringifier': None
-            }
-
     def __eq__(self, other):
         return self.name == other.name and self.location == other.location
 
@@ -544,16 +530,8 @@ class Interface(object):
             if self.attributes.scriptable and not realbase.attributes.scriptable:
                 print >>sys.stderr, IDLError("interface '%s' is scriptable but derives from non-scriptable '%s'" % (self.name, self.base), self.location, warning=True)
 
-        forwardedMembers = set()
         for member in self.members:
             member.resolve(self)
-            if member.kind is 'method' and member.forward:
-                forwardedMembers.add(member.forward)
-        for member in self.members:
-            if member.kind is 'method' and member.name in forwardedMembers:
-                forwardedMembers.remove(member.name)
-        for member in forwardedMembers:
-            raise IDLError("member '%s' on interface '%s' forwards to '%s' which is not on the interface itself" % (member.name, self.name, member.forward), self.location)
 
         # The number 250 is NOT arbitrary; this number is the maximum number of
         # stub entries defined in xpcom/reflect/xptcall/public/genstubs.pl
@@ -817,10 +795,6 @@ class Method(object):
     nostdcall = False
     optional_argc = False
     deprecated = False
-    getter = False
-    setter = False
-    stringifier = False
-    forward = None
 
     def __init__(self, type, name, attlist, paramlist, location, doccomments, raises):
         self.type = type
@@ -839,13 +813,6 @@ class Method(object):
 
                 self.binaryname = value
                 continue
-            if name == 'forward':
-                if value is None:
-                    raise IDLError("forward attribute requires a value",
-                                   aloc)
-
-                self.forward = value
-                continue
 
             if value is not None:
                 raise IDLError("Unexpected attribute value", aloc)
@@ -862,18 +829,6 @@ class Method(object):
                 self.deprecated = True
             elif name == 'nostdcall':
                 self.nostdcall = True
-            elif name == 'getter':
-                if (len(self.params) != 1):
-                    raise IDLError("Methods marked as getter must take 1 argument", aloc)
-                self.getter = True
-            elif name == 'setter':
-                if (len(self.params) != 2):
-                    raise IDLError("Methods marked as setter must take 2 arguments", aloc)
-                self.setter = True
-            elif name == 'stringifier':
-                if (len(self.params) != 0):
-                    raise IDLError("Methods marked as stringifier must take 0 arguments", aloc)
-                self.stringifier = True
             else:
                 raise IDLError("Unexpected attribute '%s'" % name, aloc)
 
@@ -886,34 +841,6 @@ class Method(object):
         self.realtype = self.iface.idl.getName(self.type, self.location)
         for p in self.params:
             p.resolve(self)
-        if self.getter:
-            if getBuiltinOrNativeTypeName(self.params[0].realtype) == 'unsigned long':
-                ops = 'index'
-            else:
-                if getBuiltinOrNativeTypeName(self.params[0].realtype) != '[domstring]':
-                    raise IDLError("a getter must take a single unsigned long or DOMString argument" % self.iface.name, self.location)
-                ops = 'name'
-            if self.iface.ops[ops]['getter']:
-                raise IDLError("a %s getter was already defined on interface '%s'" % (ops, self.iface.name), self.location)
-            self.iface.ops[ops]['getter'] = self
-        if self.setter:
-            if getBuiltinOrNativeTypeName(self.params[0].realtype) == 'unsigned long':
-                ops = 'index'
-            else:
-                if getBuiltinOrNativeTypeName(self.params[0].realtype) != '[domstring]':
-                    print getBuiltinOrNativeTypeName(self.params[0].realtype)
-                    raise IDLError("a setter must take a unsigned long or DOMString argument" % self.iface.name, self.location)
-                ops = 'name'
-            if self.iface.ops[ops]['setter']:
-                raise IDLError("a %s setter was already defined on interface '%s'" % (ops, self.iface.name), self.location)
-            self.iface.ops[ops]['setter'] = self
-        if self.stringifier:
-            if self.iface.ops['stringifier']:
-                raise IDLError("a stringifier was already defined on interface '%s'" % self.iface.name, self.location)
-            if getBuiltinOrNativeTypeName(self.realtype) != '[domstring]':
-                raise IDLError("'stringifier' attribute can only be used on methods returning DOMString",
-                               self.location)
-            self.iface.ops['stringifier'] = self
 
     def isScriptable(self):
         if not self.iface.attributes.scriptable: return False
@@ -1442,23 +1369,20 @@ class IDLParser(object):
         p[0].insert(0, p[1])
 
     def p_error(self, t):
-        if not t:
-            raise IDLError("Syntax Error at end of file. Possibly due to missing semicolon(;), braces(}) or both", None)
-        else:
-            location = Location(self.lexer, t.lineno, t.lexpos)
-            raise IDLError("invalid syntax", location)
+        location = Location(self.lexer, t.lineno, t.lexpos)
+        raise IDLError("invalid syntax", location)
 
-    def __init__(self, outputdir=''):
+    def __init__(self, outputdir='', regen=False):
         self._doccomments = []
         self.lexer = lex.lex(object=self,
                              outputdir=outputdir,
                              lextab='xpidllex',
-                             optimize=1)
+                             optimize=0 if regen else 1)
         self.parser = yacc.yacc(module=self,
                                 outputdir=outputdir,
                                 debugfile='xpidl_debug',
                                 tabmodule='xpidlyacc',
-                                optimize=1)
+                                optimize=0 if regen else 1)
 
     def clearComments(self):
         self._doccomments = []

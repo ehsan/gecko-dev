@@ -64,14 +64,14 @@
 #include "nsIJSContextStack.h"
 #include "nsXPIDLString.h"
 #include "nsDOMError.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 #include "nsCRT.h"
 #include "nsIProtocolHandler.h"
 #include "nsReadableUtils.h"
 #include "nsITextToSubURI.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
-#include "jsfriendapi.h"
+#include "jsdbgapi.h"
 
 static nsresult
 GetContextFromStack(nsIJSContextStack *aStack, JSContext **aContext)
@@ -83,7 +83,7 @@ GetContextFromStack(nsIJSContextStack *aStack, JSContext **aContext)
   nsresult rv = iterator->Reset(aStack);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool done;
+  PRBool done;
   while (NS_SUCCEEDED(iterator->Done(&done)) && !done) {
     rv = iterator->Prev(aContext);
     NS_ASSERTION(NS_SUCCEEDED(rv), "Broken iterator implementation");
@@ -179,7 +179,7 @@ GetFrameDocument(JSContext *cx, JSStackFrame *fp)
   if (!cx || !fp)
     return nsnull;
 
-  JSObject* scope = JS_GetGlobalForFrame(fp);
+  JSObject* scope = JS_GetFrameScopeChain(cx, fp);
   if (!scope)
     return nsnull;
 
@@ -259,7 +259,7 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
       docCurrentURI = frameDoc->GetDocumentURI();
     }
 
-    bool urisEqual = false;
+    PRBool urisEqual = PR_FALSE;
     if (docOriginalURI && docCurrentURI && principalURI) {
       principalURI->Equals(docOriginalURI, &urisEqual);
     }
@@ -291,7 +291,7 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
 }
 
 nsresult
-nsLocation::GetURI(nsIURI** aURI, bool aGetInnermostURI)
+nsLocation::GetURI(nsIURI** aURI, PRBool aGetInnermostURI)
 {
   *aURI = nsnull;
 
@@ -344,7 +344,7 @@ nsLocation::GetWritableURI(nsIURI** aURI)
 }
 
 nsresult
-nsLocation::SetURI(nsIURI* aURI, bool aReplace)
+nsLocation::SetURI(nsIURI* aURI, PRBool aReplace)
 {
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
   if (docShell) {
@@ -361,7 +361,7 @@ nsLocation::SetURI(nsIURI* aURI, bool aReplace)
     }
 
     return docShell->LoadURI(aURI, loadInfo,
-                             nsIWebNavigation::LOAD_FLAGS_NONE, true);
+                             nsIWebNavigation::LOAD_FLAGS_NONE, PR_TRUE);
   }
 
   return NS_OK;
@@ -447,7 +447,7 @@ nsLocation::GetHost(nsAString& aHost)
   nsCOMPtr<nsIURI> uri;
   nsresult result;
 
-  result = GetURI(getter_AddRefs(uri), true);
+  result = GetURI(getter_AddRefs(uri), PR_TRUE);
 
   if (uri) {
     nsCAutoString hostport;
@@ -486,7 +486,7 @@ nsLocation::GetHostname(nsAString& aHostname)
   nsCOMPtr<nsIURI> uri;
   nsresult result;
 
-  result = GetURI(getter_AddRefs(uri), true);
+  result = GetURI(getter_AddRefs(uri), PR_TRUE);
 
   if (uri) {
     nsCAutoString host;
@@ -559,7 +559,7 @@ nsLocation::SetHref(const nsAString& aHref)
     return NS_ERROR_FAILURE;
 
   if (cx) {
-    rv = SetHrefWithContext(cx, aHref, false);
+    rv = SetHrefWithContext(cx, aHref, PR_FALSE);
   } else {
     rv = GetHref(oldHref);
 
@@ -569,7 +569,7 @@ nsLocation::SetHref(const nsAString& aHref)
       rv = NS_NewURI(getter_AddRefs(oldUri), oldHref);
 
       if (oldUri) {
-        rv = SetHrefWithBase(aHref, oldUri, false);
+        rv = SetHrefWithBase(aHref, oldUri, PR_FALSE);
       }
     }
   }
@@ -579,7 +579,7 @@ nsLocation::SetHref(const nsAString& aHref)
 
 nsresult
 nsLocation::SetHrefWithContext(JSContext* cx, const nsAString& aHref,
-                               bool aReplace)
+                               PRBool aReplace)
 {
   nsCOMPtr<nsIURI> base;
 
@@ -595,7 +595,7 @@ nsLocation::SetHrefWithContext(JSContext* cx, const nsAString& aHref,
 
 nsresult
 nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
-                            bool aReplace)
+                            PRBool aReplace)
 {
   nsresult result;
   nsCOMPtr<nsIURI> newUri;
@@ -619,7 +619,7 @@ nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
      * anywhere else. This is part of solution for bug # 39938, 72197
      * 
      */
-    bool inScriptTag=false;
+    PRBool inScriptTag=PR_FALSE;
     // Get JSContext from stack.
     nsCOMPtr<nsIJSContextStack> stack(do_GetService("@mozilla.org/js/xpc/ContextStack;1", &result));
 
@@ -697,7 +697,7 @@ nsLocation::GetPort(nsAString& aPort)
   nsCOMPtr<nsIURI> uri;
   nsresult result = NS_OK;
 
-  result = GetURI(getter_AddRefs(uri), true);
+  result = GetURI(getter_AddRefs(uri), PR_TRUE);
 
   if (uri) {
     PRInt32 port;
@@ -830,7 +830,7 @@ nsLocation::SetSearch(const nsAString& aSearch)
 }
 
 NS_IMETHODIMP
-nsLocation::Reload(bool aForceget)
+nsLocation::Reload(PRBool aForceget)
 {
   nsresult rv;
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mDocShell));
@@ -892,7 +892,7 @@ nsLocation::Replace(const nsAString& aUrl)
     rv = GetContextFromStack(stack, &cx);
     NS_ENSURE_SUCCESS(rv, rv);
     if (cx) {
-      return SetHrefWithContext(cx, aUrl, true);
+      return SetHrefWithContext(cx, aUrl, PR_TRUE);
     }
   }
 
@@ -906,7 +906,7 @@ nsLocation::Replace(const nsAString& aUrl)
   rv = NS_NewURI(getter_AddRefs(oldUri), oldHref);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return SetHrefWithBase(aUrl, oldUri, true);
+  return SetHrefWithBase(aUrl, oldUri, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -923,7 +923,7 @@ nsLocation::Assign(const nsAString& aUrl)
     result = NS_NewURI(getter_AddRefs(oldUri), oldHref);
 
     if (oldUri) {
-      result = SetHrefWithBase(aUrl, oldUri, false);
+      result = SetHrefWithBase(aUrl, oldUri, PR_FALSE);
     }
   }
 

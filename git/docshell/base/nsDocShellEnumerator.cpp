@@ -46,7 +46,7 @@ nsDocShellEnumerator::nsDocShellEnumerator(PRInt32 inEnumerationDirection)
 : mRootItem(nsnull)
 , mCurIndex(0)
 , mDocShellType(nsIDocShellTreeItem::typeAll)
-, mArrayValid(false)
+, mArrayValid(PR_FALSE)
 , mEnumerationDirection(inEnumerationDirection)
 {
 }
@@ -78,10 +78,10 @@ NS_IMETHODIMP nsDocShellEnumerator::GetNext(nsISupports **outCurItem)
 }
 
 /* boolean hasMoreElements (); */
-NS_IMETHODIMP nsDocShellEnumerator::HasMoreElements(bool *outHasMore)
+NS_IMETHODIMP nsDocShellEnumerator::HasMoreElements(PRBool *outHasMore)
 {
   NS_ENSURE_ARG_POINTER(outHasMore);
-  *outHasMore = false;
+  *outHasMore = PR_FALSE;
 
   nsresult rv = EnsureDocShellArray();
   if (NS_FAILED(rv)) return rv;
@@ -129,7 +129,7 @@ nsresult nsDocShellEnumerator::EnsureDocShellArray()
 {
   if (!mArrayValid)
   {
-    mArrayValid = true;
+    mArrayValid = PR_TRUE;
     return BuildDocShellArray(mItemArray);
   }
   
@@ -139,7 +139,7 @@ nsresult nsDocShellEnumerator::EnsureDocShellArray()
 nsresult nsDocShellEnumerator::ClearState()
 {
   mItemArray.Clear();
-  mArrayValid = false;
+  mArrayValid = PR_FALSE;
   mCurIndex = 0;
   return NS_OK;
 }

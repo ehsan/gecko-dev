@@ -44,12 +44,11 @@
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jscntxt.h"
-#include "jsfriendapi.h"
 #include "nsCOMPtr.h"
 #include "nsJSUtils.h"
 #include "nsStringGlue.h"
 #include "xpcprivate.h"
-#include "XPCQuickStubs.h"
+#include "xpcquickstubs.h"
 
 #include "Exceptions.h"
 #include "WorkerInlines.h"
@@ -185,9 +184,6 @@ private:
   MozSlice(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     nsIDOMBlob* blob = GetInstancePrivate(aCx, obj, "mozSlice");
     if (!blob) {

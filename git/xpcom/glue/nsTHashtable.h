@@ -83,7 +83,7 @@ PL_DHashStubEnumRemove(PLDHashTable    *table,
  *     ~EntryType();
  *
  *     // KeyEquals(): does this entry match this key?
- *     bool KeyEquals(KeyTypePointer aKey) const;
+ *     PRBool KeyEquals(KeyTypePointer aKey) const;
  *
  *     // KeyToPointer(): Convert KeyType to KeyTypePointer
  *     static KeyTypePointer KeyToPointer(KeyType aKey);
@@ -120,15 +120,15 @@ public:
    * Initialize the table.  This function must be called before any other
    * class operations.  This can fail due to OOM conditions.
    * @param initSize the initial number of buckets in the hashtable, default 16
-   * @return true if the class was initialized properly.
+   * @return PR_TRUE if the class was initialized properly.
    */
-  bool Init(PRUint32 initSize = PL_DHASH_MIN_SIZE);
+  PRBool Init(PRUint32 initSize = PL_DHASH_MIN_SIZE);
 
   /**
    * Check whether the table has been initialized. This can be useful for static hashtables.
    * @return the initialization state of the class.
    */
-  bool IsInitialized() const { return !!mTable.entrySize; }
+  PRBool IsInitialized() const { return !!mTable.entrySize; }
 
   /**
    * Return the generation number for the table. This increments whenever
@@ -251,18 +251,6 @@ public:
     PL_DHashTableEnumerate(&mTable, PL_DHashStubEnumRemove, nsnull);
   }
 
-  /**
-   * The "Shallow" means that if the entries contain pointers to other objects,
-   * their size isn't included in the measuring.
-   */
-  size_t ShallowSizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf)
-  {
-    if (IsInitialized()) {
-      return PL_DHashTableShallowSizeOfExcludingThis(&mTable, mallocSizeOf);
-    }
-    return 0;
-  }
-
 protected:
   PLDHashTable mTable;
 
@@ -272,7 +260,7 @@ protected:
   static PLDHashNumber s_HashKey(PLDHashTable *table,
                                  const void   *key);
 
-  static bool s_MatchEntry(PLDHashTable           *table,
+  static PRBool s_MatchEntry(PLDHashTable           *table,
                              const PLDHashEntryHdr  *entry,
                              const void             *key);
   
@@ -283,7 +271,7 @@ protected:
   static void s_ClearEntry(PLDHashTable *table,
                            PLDHashEntryHdr *entry);
 
-  static bool s_InitEntry(PLDHashTable     *table,
+  static PRBool s_InitEntry(PLDHashTable     *table,
                             PLDHashEntryHdr  *entry,
                             const void       *key);
 
@@ -331,13 +319,13 @@ nsTHashtable<EntryType>::~nsTHashtable()
 }
 
 template<class EntryType>
-bool
+PRBool
 nsTHashtable<EntryType>::Init(PRUint32 initSize)
 {
   if (mTable.entrySize)
   {
     NS_ERROR("nsTHashtable::Init() should not be called twice.");
-    return true;
+    return PR_TRUE;
   }
 
   static PLDHashTableOps sOps = 
@@ -361,10 +349,10 @@ nsTHashtable<EntryType>::Init(PRUint32 initSize)
   {
     // if failed, reset "flag"
     mTable.entrySize = 0;
-    return false;
+    return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 // static definitions
@@ -378,7 +366,7 @@ nsTHashtable<EntryType>::s_HashKey(PLDHashTable  *table,
 }
 
 template<class EntryType>
-bool
+PRBool
 nsTHashtable<EntryType>::s_MatchEntry(PLDHashTable          *table,
                                       const PLDHashEntryHdr *entry,
                                       const void            *key)
@@ -410,13 +398,13 @@ nsTHashtable<EntryType>::s_ClearEntry(PLDHashTable    *table,
 }
 
 template<class EntryType>
-bool
+PRBool
 nsTHashtable<EntryType>::s_InitEntry(PLDHashTable    *table,
                                      PLDHashEntryHdr *entry,
                                      const void      *key)
 {
   new(entry) EntryType(reinterpret_cast<KeyTypePointer>(key));
-  return true;
+  return PR_TRUE;
 }
 
 template<class EntryType>

@@ -122,7 +122,7 @@ public:
            nsIRDFResource* aSource,
            nsIRDFResource* aProperty,
            nsIRDFNode* aTarget,
-           bool aTruthValue) {
+           PRBool aTruthValue) {
         void* place = aAllocator.Alloc(sizeof(Assertion));
         return place
             ? ::new (place) Assertion(aSource, aProperty, aTarget, aTruthValue)
@@ -152,7 +152,7 @@ public:
     Assertion(nsIRDFResource* aSource,      // normal assertion
               nsIRDFResource* aProperty,
               nsIRDFNode* aTarget,
-              bool aTruthValue);
+              PRBool aTruthValue);
     Assertion(nsIRDFResource* aSource);     // PLDHashTable assertion variant
 
     ~Assertion();
@@ -175,9 +175,9 @@ public:
     }
 
     // For nsIRDFPurgeableDataSource
-    inline  void    Mark()      { u.as.mMarked = true; }
-    inline  bool    IsMarked()  { return u.as.mMarked; }
-    inline  void    Unmark()    { u.as.mMarked = false; }
+    inline  void    Mark()      { u.as.mMarked = PR_TRUE; }
+    inline  PRBool  IsMarked()  { return u.as.mMarked; }
+    inline  void    Unmark()    { u.as.mMarked = PR_FALSE; }
 
     // public for now, because I'm too lazy to go thru and clean this up.
 
@@ -196,9 +196,9 @@ public:
             nsIRDFResource* mProperty;
             nsIRDFNode*     mTarget;
             Assertion*      mInvNext;
-            // make sure bool are final elements
-            bool            mTruthValue;
-            bool            mMarked;
+            // make sure PRPackedBool are final elements
+            PRPackedBool    mTruthValue;
+            PRPackedBool    mMarked;
         } as;
     } u;
 
@@ -206,7 +206,7 @@ public:
     // but placed after union definition to ensure that
     // all 32-bit entries are long aligned
     PRUint16                    mRefCnt;
-    bool                        mHashEntry;
+    PRPackedBool                mHashEntry;
 
 private:
     // Hide so that only Create() and Destroy() can be used to
@@ -227,7 +227,7 @@ Assertion::Assertion(nsIRDFResource* aSource)
     : mSource(aSource),
       mNext(nsnull),
       mRefCnt(0),
-      mHashEntry(true)
+      mHashEntry(PR_TRUE)
 {
     MOZ_COUNT_CTOR(RDF_Assertion);
 
@@ -240,11 +240,11 @@ Assertion::Assertion(nsIRDFResource* aSource)
 Assertion::Assertion(nsIRDFResource* aSource,
                      nsIRDFResource* aProperty,
                      nsIRDFNode* aTarget,
-                     bool aTruthValue)
+                     PRBool aTruthValue)
     : mSource(aSource),
       mNext(nsnull),
       mRefCnt(0),
-      mHashEntry(false)
+      mHashEntry(PR_FALSE)
 {
     MOZ_COUNT_CTOR(RDF_Assertion);
 
@@ -257,7 +257,7 @@ Assertion::Assertion(nsIRDFResource* aSource,
 
     u.as.mInvNext = nsnull;
     u.as.mTruthValue = aTruthValue;
-    u.as.mMarked = false;
+    u.as.mMarked = PR_FALSE;
 }
 
 Assertion::~Assertion()
@@ -344,7 +344,7 @@ protected:
     LockedAssert(nsIRDFResource* source, 
                  nsIRDFResource* property, 
                  nsIRDFNode* target,
-                 bool tv);
+                 PRBool tv);
 
     nsresult
     LockedUnassert(nsIRDFResource* source,
@@ -424,10 +424,10 @@ public:
                  nsIRDFResource* asource,
                  nsIRDFResource* aProperty,
                  nsIRDFNode* aTarget,
-                 bool aTruthValue = true);
+                 PRBool aTruthValue = PR_TRUE);
 #endif
 
-    bool    mPropagateChanges;
+    PRBool  mPropagateChanges;
 };
 
 //----------------------------------------------------------------------
@@ -447,7 +447,7 @@ private:
     nsIRDFNode*     mTarget;
     nsIRDFNode*     mValue;
     PRInt32         mCount;
-    bool            mTruthValue;
+    PRBool          mTruthValue;
     Assertion*      mNextAssertion;
     nsCOMPtr<nsISupportsArray> mHashArcs;
 
@@ -460,7 +460,7 @@ private:
                                     nsIRDFResource* aSource,
                                     nsIRDFResource* aProperty,
                                     nsIRDFNode* aTarget,
-                                    bool aTruthValue);
+                                    PRBool aTruthValue);
 
     virtual ~InMemoryAssertionEnumeratorImpl();
 
@@ -470,7 +470,7 @@ public:
            nsIRDFResource* aSource,
            nsIRDFResource* aProperty,
            nsIRDFNode* aTarget,
-           bool aTruthValue) {
+           PRBool aTruthValue) {
         void* place = aDataSource->mAllocator.Alloc(sizeof(InMemoryAssertionEnumeratorImpl));
         return place
             ? ::new (place) InMemoryAssertionEnumeratorImpl(aDataSource,
@@ -505,7 +505,7 @@ InMemoryAssertionEnumeratorImpl::InMemoryAssertionEnumeratorImpl(
                  nsIRDFResource* aSource,
                  nsIRDFResource* aProperty,
                  nsIRDFNode* aTarget,
-                 bool aTruthValue)
+                 PRBool aTruthValue)
     : mDataSource(aDataSource),
       mSource(aSource),
       mProperty(aProperty),
@@ -563,15 +563,15 @@ NS_IMPL_RELEASE_WITH_DESTROY(InMemoryAssertionEnumeratorImpl, Destroy(this))
 NS_IMPL_QUERY_INTERFACE1(InMemoryAssertionEnumeratorImpl, nsISimpleEnumerator)
 
 NS_IMETHODIMP
-InMemoryAssertionEnumeratorImpl::HasMoreElements(bool* aResult)
+InMemoryAssertionEnumeratorImpl::HasMoreElements(PRBool* aResult)
 {
     if (mValue) {
-        *aResult = true;
+        *aResult = PR_TRUE;
         return NS_OK;
     }
 
     while (mNextAssertion) {
-        bool foundIt = false;
+        PRBool foundIt = PR_FALSE;
         if ((mProperty == mNextAssertion->u.as.mProperty) &&
             (mTruthValue == mNextAssertion->u.as.mTruthValue)) {
             if (mSource) {
@@ -582,7 +582,7 @@ InMemoryAssertionEnumeratorImpl::HasMoreElements(bool* aResult)
                 mValue = mNextAssertion->mSource;
                 NS_ADDREF(mValue);
             }
-            foundIt = true;
+            foundIt = PR_TRUE;
         }
 
         // Remember the last assertion we were holding on to
@@ -599,12 +599,12 @@ InMemoryAssertionEnumeratorImpl::HasMoreElements(bool* aResult)
         as->Release(mDataSource->mAllocator);
 
         if (foundIt) {
-            *aResult = true;
+            *aResult = PR_TRUE;
             return NS_OK;
         }
     }
 
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
 }
 
@@ -614,7 +614,7 @@ InMemoryAssertionEnumeratorImpl::GetNext(nsISupports** aResult)
 {
     nsresult rv;
 
-    bool hasMore;
+    PRBool hasMore;
     rv = HasMoreElements(&hasMore);
     if (NS_FAILED(rv)) return rv;
 
@@ -757,14 +757,14 @@ NS_IMPL_RELEASE_WITH_DESTROY(InMemoryArcsEnumeratorImpl, Destroy(this))
 NS_IMPL_QUERY_INTERFACE1(InMemoryArcsEnumeratorImpl, nsISimpleEnumerator)
 
 NS_IMETHODIMP
-InMemoryArcsEnumeratorImpl::HasMoreElements(bool* aResult)
+InMemoryArcsEnumeratorImpl::HasMoreElements(PRBool* aResult)
 {
     NS_PRECONDITION(aResult != nsnull, "null ptr");
     if (! aResult)
         return NS_ERROR_NULL_POINTER;
 
     if (mCurrent) {
-        *aResult = true;
+        *aResult = PR_TRUE;
         return NS_OK;
     }
 
@@ -777,7 +777,7 @@ InMemoryArcsEnumeratorImpl::HasMoreElements(bool* aResult)
             mCurrent = static_cast<nsIRDFResource *>
                                   (mHashArcs->ElementAt(itemCount));
             mHashArcs->RemoveElementAt(itemCount);
-            *aResult = true;
+            *aResult = PR_TRUE;
             return NS_OK;
         }
     }
@@ -804,10 +804,10 @@ InMemoryArcsEnumeratorImpl::HasMoreElements(bool* aResult)
             }
             while (mAssertion && (next == mAssertion->u.as.mProperty));
 
-            bool alreadyReturned = false;
+            PRBool alreadyReturned = PR_FALSE;
             for (PRInt32 i = mAlreadyReturned.Length() - 1; i >= 0; --i) {
                 if (mAlreadyReturned[i] == next) {
-                    alreadyReturned = true;
+                    alreadyReturned = PR_TRUE;
                     break;
                 }
             }
@@ -815,12 +815,12 @@ InMemoryArcsEnumeratorImpl::HasMoreElements(bool* aResult)
             if (! alreadyReturned) {
                 mCurrent = next;
                 NS_ADDREF(mCurrent);
-                *aResult = true;
+                *aResult = PR_TRUE;
                 return NS_OK;
             }
         }
 
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
 }
 
@@ -830,7 +830,7 @@ InMemoryArcsEnumeratorImpl::GetNext(nsISupports** aResult)
 {
     nsresult rv;
 
-    bool hasMore;
+    PRBool hasMore;
     rv = HasMoreElements(&hasMore);
     if (NS_FAILED(rv)) return rv;
 
@@ -902,7 +902,7 @@ InMemoryDataSource::InMemoryDataSource(nsISupports* aOuter)
 
     mForwardArcs.ops = nsnull;
     mReverseArcs.ops = nsnull;
-    mPropagateChanges = true;
+    mPropagateChanges = PR_TRUE;
 }
 
 
@@ -1007,7 +1007,7 @@ InMemoryDataSource::LogOperation(const char* aOperation,
                                  nsIRDFResource* aSource,
                                  nsIRDFResource* aProperty,
                                  nsIRDFNode* aTarget,
-                                 bool aTruthValue)
+                                 PRBool aTruthValue)
 {
     if (! PR_LOG_TEST(gLog, PR_LOG_NOTICE))
         return;
@@ -1067,7 +1067,7 @@ InMemoryDataSource::GetURI(char* *uri)
 NS_IMETHODIMP
 InMemoryDataSource::GetSource(nsIRDFResource* property,
                               nsIRDFNode* target,
-                              bool tv,
+                              PRBool tv,
                               nsIRDFResource** source)
 {
     NS_PRECONDITION(source != nsnull, "null ptr");
@@ -1096,7 +1096,7 @@ InMemoryDataSource::GetSource(nsIRDFResource* property,
 NS_IMETHODIMP
 InMemoryDataSource::GetTarget(nsIRDFResource* source,
                               nsIRDFResource* property,
-                              bool tv,
+                              PRBool tv,
                               nsIRDFNode** target)
 {
     NS_PRECONDITION(source != nsnull, "null ptr");
@@ -1145,8 +1145,8 @@ NS_IMETHODIMP
 InMemoryDataSource::HasAssertion(nsIRDFResource* source,
                                  nsIRDFResource* property,
                                  nsIRDFNode* target,
-                                 bool tv,
-                                 bool* hasAssertion)
+                                 PRBool tv,
+                                 PRBool* hasAssertion)
 {
     if (! source)
         return NS_ERROR_NULL_POINTER;
@@ -1165,7 +1165,7 @@ InMemoryDataSource::HasAssertion(nsIRDFResource* source,
             : nsnull;
         while (val) {
             if ((val->u.as.mTarget == target) && (tv == (val->u.as.mTruthValue))) {
-                *hasAssertion = true;
+                *hasAssertion = PR_TRUE;
                 return NS_OK;
             }
             val = val->mNext;
@@ -1184,19 +1184,19 @@ InMemoryDataSource::HasAssertion(nsIRDFResource* source,
             continue;
 
         // found it!
-        *hasAssertion = true;
+        *hasAssertion = PR_TRUE;
         return NS_OK;
     }
 
     // If we get here, we couldn't find the assertion
-    *hasAssertion = false;
+    *hasAssertion = PR_FALSE;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 InMemoryDataSource::GetSources(nsIRDFResource* aProperty,
                                nsIRDFNode* aTarget,
-                               bool aTruthValue,
+                               PRBool aTruthValue,
                                nsISimpleEnumerator** aResult)
 {
     NS_PRECONDITION(aProperty != nsnull, "null ptr");
@@ -1227,7 +1227,7 @@ InMemoryDataSource::GetSources(nsIRDFResource* aProperty,
 NS_IMETHODIMP
 InMemoryDataSource::GetTargets(nsIRDFResource* aSource,
                                nsIRDFResource* aProperty,
-                               bool aTruthValue,
+                               PRBool aTruthValue,
                                nsISimpleEnumerator** aResult)
 {
     NS_PRECONDITION(aSource != nsnull, "null ptr");
@@ -1260,7 +1260,7 @@ nsresult
 InMemoryDataSource::LockedAssert(nsIRDFResource* aSource,
                                  nsIRDFResource* aProperty,
                                  nsIRDFNode* aTarget,
-                                 bool aTruthValue)
+                                 PRBool aTruthValue)
 {
 #ifdef PR_LOGGING
     LogOperation("ASSERT", aSource, aProperty, aTarget, aTruthValue);
@@ -1270,7 +1270,7 @@ InMemoryDataSource::LockedAssert(nsIRDFResource* aSource,
     Assertion* prev = next;
     Assertion* as = nsnull;
 
-    bool    haveHash = (next) ? next->mHashEntry : false;
+    PRBool  haveHash = (next) ? next->mHashEntry : PR_FALSE;
     if (haveHash) {
         PLDHashEntryHdr* hdr = PL_DHashTableOperate(next->u.hash.mPropertyHash, aProperty, PL_DHASH_LOOKUP);
         Assertion* val = PL_DHASH_ENTRY_IS_BUSY(hdr)
@@ -1359,7 +1359,7 @@ NS_IMETHODIMP
 InMemoryDataSource::Assert(nsIRDFResource* aSource,
                            nsIRDFResource* aProperty, 
                            nsIRDFNode* aTarget,
-                           bool aTruthValue) 
+                           PRBool aTruthValue) 
 {
     NS_PRECONDITION(aSource != nsnull, "null ptr");
     if (! aSource)
@@ -1413,19 +1413,19 @@ InMemoryDataSource::LockedUnassert(nsIRDFResource* aSource,
     Assertion* root = next;
     Assertion* as = nsnull;
     
-    bool    haveHash = (next) ? next->mHashEntry : false;
+    PRBool  haveHash = (next) ? next->mHashEntry : PR_FALSE;
     if (haveHash) {
         PLDHashEntryHdr* hdr = PL_DHashTableOperate(next->u.hash.mPropertyHash,
             aProperty, PL_DHASH_LOOKUP);
         prev = next = PL_DHASH_ENTRY_IS_BUSY(hdr)
             ? reinterpret_cast<Entry*>(hdr)->mAssertions
             : nsnull;
-        bool first = true;
+        PRBool first = PR_TRUE;
         while (next) {
             if (aTarget == next->u.as.mTarget) {
                 break;
             }
-            first = false;
+            first = PR_FALSE;
             prev = next;
             next = next->mNext;
         }
@@ -1484,7 +1484,7 @@ InMemoryDataSource::LockedUnassert(nsIRDFResource* aSource,
         return NS_OK;
 
 #ifdef DEBUG
-    bool foundReverseArc = false;
+    PRBool foundReverseArc = PR_FALSE;
 #endif
 
     next = prev = GetReverseArcs(aTarget);
@@ -1496,7 +1496,7 @@ InMemoryDataSource::LockedUnassert(nsIRDFResource* aSource,
                 prev->u.as.mInvNext = next->u.as.mInvNext;
             }
 #ifdef DEBUG
-            foundReverseArc = true;
+            foundReverseArc = PR_TRUE;
 #endif
             break;
         }
@@ -1594,7 +1594,7 @@ InMemoryDataSource::Change(nsIRDFResource* aSource,
     rv = LockedUnassert(aSource, aProperty, aOldTarget);
     if (NS_FAILED(rv)) return rv;
 
-    rv = LockedAssert(aSource, aProperty, aNewTarget, true);
+    rv = LockedAssert(aSource, aProperty, aNewTarget, PR_TRUE);
     if (NS_FAILED(rv)) return rv;
 
     // Notify the world
@@ -1649,7 +1649,7 @@ InMemoryDataSource::Move(nsIRDFResource* aOldSource,
     rv = LockedUnassert(aOldSource, aProperty, aTarget);
     if (NS_FAILED(rv)) return rv;
 
-    rv = LockedAssert(aNewSource, aProperty, aTarget, true);
+    rv = LockedAssert(aNewSource, aProperty, aTarget, PR_TRUE);
     if (NS_FAILED(rv)) return rv;
 
     // Notify the world
@@ -1698,23 +1698,23 @@ InMemoryDataSource::RemoveObserver(nsIRDFObserver* aObserver)
 }
 
 NS_IMETHODIMP 
-InMemoryDataSource::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, bool *result)
+InMemoryDataSource::HasArcIn(nsIRDFNode *aNode, nsIRDFResource *aArc, PRBool *result)
 {
     Assertion* ass = GetReverseArcs(aNode);
     while (ass) {
         nsIRDFResource* elbow = ass->u.as.mProperty;
         if (elbow == aArc) {
-            *result = true;
+            *result = PR_TRUE;
             return NS_OK;
         }
         ass = ass->u.as.mInvNext;
     }
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
 NS_IMETHODIMP 
-InMemoryDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, bool *result)
+InMemoryDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, PRBool *result)
 {
     Assertion* ass = GetForwardArcs(aSource);
     if (ass && ass->mHashEntry) {
@@ -1724,7 +1724,7 @@ InMemoryDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, boo
             ? reinterpret_cast<Entry*>(hdr)->mAssertions
             : nsnull;
         if (val) {
-            *result = true;
+            *result = PR_TRUE;
             return NS_OK;
         }
         ass = ass->mNext;
@@ -1732,12 +1732,12 @@ InMemoryDataSource::HasArcOut(nsIRDFResource *aSource, nsIRDFResource *aArc, boo
     while (ass) {
         nsIRDFResource* elbow = ass->u.as.mProperty;
         if (elbow == aArc) {
-            *result = true;
+            *result = PR_TRUE;
             return NS_OK;
         }
         ass = ass->mNext;
     }
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
@@ -1818,9 +1818,9 @@ NS_IMETHODIMP
 InMemoryDataSource::IsCommandEnabled(nsISupportsArray/*<nsIRDFResource>*/* aSources,
                                      nsIRDFResource*   aCommand,
                                      nsISupportsArray/*<nsIRDFResource>*/* aArguments,
-                                     bool* aResult)
+                                     PRBool* aResult)
 {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
 }
 
@@ -1861,7 +1861,7 @@ NS_IMETHODIMP
 InMemoryDataSource::EnsureFastContainment(nsIRDFResource* aSource)
 {
     Assertion *as = GetForwardArcs(aSource);
-    bool    haveHash = (as) ? as->mHashEntry : false;
+    PRBool  haveHash = (as) ? as->mHashEntry : PR_FALSE;
     
     // if its already a hash, then nothing to do
     if (haveHash)   return(NS_OK);
@@ -1912,14 +1912,14 @@ InMemoryDataSource::EnsureFastContainment(nsIRDFResource* aSource)
 ////////////////////////////////////////////////////////////////////////
 // nsIRDFPropagatableDataSource methods
 NS_IMETHODIMP
-InMemoryDataSource::GetPropagateChanges(bool* aPropagateChanges)
+InMemoryDataSource::GetPropagateChanges(PRBool* aPropagateChanges)
 {
     *aPropagateChanges = mPropagateChanges;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-InMemoryDataSource::SetPropagateChanges(bool aPropagateChanges)
+InMemoryDataSource::SetPropagateChanges(PRBool aPropagateChanges)
 {
     mPropagateChanges = aPropagateChanges;
     return NS_OK;
@@ -1933,8 +1933,8 @@ NS_IMETHODIMP
 InMemoryDataSource::Mark(nsIRDFResource* aSource,
                          nsIRDFResource* aProperty,
                          nsIRDFNode* aTarget,
-                         bool aTruthValue,
-                         bool* aDidMark)
+                         PRBool aTruthValue,
+                         PRBool* aDidMark)
 {
     NS_PRECONDITION(aSource != nsnull, "null ptr");
     if (! aSource)
@@ -1961,7 +1961,7 @@ InMemoryDataSource::Mark(nsIRDFResource* aSource,
 
                 // found it! so mark it.
                 as->Mark();
-                *aDidMark = true;
+                *aDidMark = PR_TRUE;
 
 #ifdef PR_LOGGING
                 LogOperation("MARK", aSource, aProperty, aTarget, aTruthValue);
@@ -1985,7 +1985,7 @@ InMemoryDataSource::Mark(nsIRDFResource* aSource,
 
         // found it! so mark it.
         as->Mark();
-        *aDidMark = true;
+        *aDidMark = PR_TRUE;
 
 #ifdef PR_LOGGING
         LogOperation("MARK", aSource, aProperty, aTarget, aTruthValue);
@@ -1995,7 +1995,7 @@ InMemoryDataSource::Mark(nsIRDFResource* aSource,
     }
 
     // If we get here, we couldn't find the assertion
-    *aDidMark = false;
+    *aDidMark = PR_FALSE;
     return NS_OK;
 }
 
@@ -2155,7 +2155,7 @@ SubjectEnumerator(PLDHashTable* aTable, PLDHashEntryHdr* aHdr,
     nsCOMPtr<nsIRDFNode> subject = do_QueryInterface(entry->mNode, &rv);
     NS_ENSURE_SUCCESS(rv, PL_DHASH_NEXT);
 
-    closure->mRv = closure->mVisitor->Visit(subject, nsnull, nsnull, true);
+    closure->mRv = closure->mVisitor->Visit(subject, nsnull, nsnull, PR_TRUE);
     if (NS_FAILED(closure->mRv) || closure->mRv == NS_RDF_STOP_VISIT)
         return PL_DHASH_STOP;
 

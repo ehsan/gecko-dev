@@ -50,7 +50,7 @@
 // API typically invoked on the socket transport thread
 //-----------------------------------------------------------------------------
 
-bool
+PRBool
 nsNativeConnectionHelper::OnConnectionFailed(const PRUnichar* hostName)
 {
   // On mobile platforms, instead of relying on the link service, we
@@ -59,17 +59,17 @@ nsNativeConnectionHelper::OnConnectionFailed(const PRUnichar* hostName)
   // status changes.
 #if !defined(MOZ_PLATFORM_MAEMO)
     if (gIOService->IsLinkUp())
-        return false;
+        return PR_FALSE;
 #endif
 
     nsAutodial autodial;
     if (autodial.ShouldDialOnNetworkError())
         return NS_SUCCEEDED(autodial.DialDefault(hostName));
 
-    return false;
+    return PR_FALSE;
 }
 
-bool
+PRBool
 nsNativeConnectionHelper::IsAutodialEnabled()
 {
     nsAutodial autodial;

@@ -39,15 +39,15 @@
 
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGPaintServerFrame)
 
-bool
+PRBool
 nsSVGPaintServerFrame::SetupPaintServer(gfxContext *aContext,
                                         nsSVGGeometryFrame *aSource,
                                         float aOpacity)
 {
   nsRefPtr<gfxPattern> pattern = GetPaintServerPattern(aSource, aOpacity);
   if (!pattern)
-    return false;
+    return PR_FALSE;
 
   aContext->SetPattern(pattern);
-  return true;
+  return PR_TRUE;
 }

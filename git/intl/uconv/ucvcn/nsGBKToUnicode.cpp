@@ -274,20 +274,20 @@ void nsGB18030ToUnicode::Create4BytesDecoder()
 {
   m4BytesDecoder = new nsGB18030Unique4BytesToUnicode();
 }
-bool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
+PRBool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
 {
   NS_ASSERTION(FIRST_BYTE_IS_SURROGATE(aSrc[0]),       "illegal first byte");
   NS_ASSERTION(LEGAL_GBK_4BYTE_SECOND_BYTE(aSrc[1]),   "illegal second byte");
   NS_ASSERTION(LEGAL_GBK_4BYTE_THIRD_BYTE(aSrc[2]),    "illegal third byte");
   NS_ASSERTION(LEGAL_GBK_4BYTE_FORTH_BYTE(aSrc[3]),    "illegal forth byte");
   if(! FIRST_BYTE_IS_SURROGATE(aSrc[0]))
-    return false;
+    return PR_FALSE;
   if(! LEGAL_GBK_4BYTE_SECOND_BYTE(aSrc[1]))
-    return false;
+    return PR_FALSE;
   if(! LEGAL_GBK_4BYTE_THIRD_BYTE(aSrc[2]))
-    return false;
+    return PR_FALSE;
   if(! LEGAL_GBK_4BYTE_FORTH_BYTE(aSrc[3]))
-    return false;
+    return PR_FALSE;
 
   PRUint8 a1 = (PRUint8) aSrc[0];
   PRUint8 a2 = (PRUint8) aSrc[1];
@@ -302,9 +302,9 @@ bool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
   *aOut++ = 0xD800 | (0x000003FF & (idx >> 10));
   *aOut = 0xDC00 | (0x000003FF & idx);
 
-  return true;
+  return PR_TRUE;
 }
-bool nsGBKToUnicode::TryExtensionDecoder(const char* aSrc, PRUnichar* aOut)
+PRBool nsGBKToUnicode::TryExtensionDecoder(const char* aSrc, PRUnichar* aOut)
 {
   if(!mExtensionDecoder)
     CreateExtensionDecoder();
@@ -321,15 +321,15 @@ bool nsGBKToUnicode::TryExtensionDecoder(const char* aSrc, PRUnichar* aOut)
      // if we failed, we then just use the 0xfffd 
      // therefore, we ignore the res here. 
     if(NS_SUCCEEDED(res)) 
-      return true;
+      return PR_TRUE;
   }
-  return  false;
+  return  PR_FALSE;
 }
-bool nsGBKToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
+PRBool nsGBKToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
 {
-  return false;
+  return PR_FALSE;
 }
-bool nsGBKToUnicode::Try4BytesDecoder(const char* aSrc, PRUnichar* aOut)
+PRBool nsGBKToUnicode::Try4BytesDecoder(const char* aSrc, PRUnichar* aOut)
 {
   if(!m4BytesDecoder)
     Create4BytesDecoder();
@@ -345,7 +345,7 @@ bool nsGBKToUnicode::Try4BytesDecoder(const char* aSrc, PRUnichar* aOut)
      // if we failed, we then just use the 0xfffd 
      // therefore, we ignore the res here. 
     if(NS_SUCCEEDED(res)) 
-      return true;
+      return PR_TRUE;
   }
-  return  false;
+  return  PR_FALSE;
 }

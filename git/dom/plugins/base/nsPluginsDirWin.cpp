@@ -43,8 +43,6 @@
   by Alex Musil
  */
 
-#include "mozilla/Util.h"
-
 #include "nsPluginsDir.h"
 #include "prlink.h"
 #include "plstr.h"
@@ -59,8 +57,6 @@
 #include "nsUnicharUtils.h"
 #include "nsSetDllDirectory.h"
 
-using namespace mozilla;
-
 /* Local helper functions */
 
 static char* GetKeyValue(void* verbuf, const WCHAR* key,
@@ -72,7 +68,7 @@ static char* GetKeyValue(void* verbuf, const WCHAR* key,
   WCHAR *buf = NULL;
   UINT blen;
 
-  if (_snwprintf_s(keybuf, ArrayLength(keybuf), _TRUNCATE,
+  if (_snwprintf_s(keybuf, NS_ARRAY_LENGTH(keybuf), _TRUNCATE,
                    keyFormat, language, codepage, key) < 0)
   {
     NS_NOTREACHED("plugin info key too long for buffer!");
@@ -175,10 +171,10 @@ static void FreeStringArray(PRUint32 variants, char ** array)
   PR_Free(array);
 }
 
-static bool CanLoadPlugin(const PRUnichar* aBinaryPath)
+static PRBool CanLoadPlugin(const PRUnichar* aBinaryPath)
 {
 #if defined(_M_IX86) || defined(_M_X64) || defined(_M_IA64)
-  bool canLoad = false;
+  PRBool canLoad = PR_FALSE;
 
   HANDLE file = CreateFileW(aBinaryPath, GENERIC_READ,
                             FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
@@ -212,18 +208,18 @@ static bool CanLoadPlugin(const PRUnichar* aBinaryPath)
   return canLoad;
 #else
   // Assume correct binaries for unhandled cases.
-  return true;
+  return PR_TRUE;
 #endif
 }
 
 /* nsPluginsDir implementation */
 
 // The file name must be in the form "np*.dll"
-bool nsPluginsDir::IsPluginFile(nsIFile* file)
+PRBool nsPluginsDir::IsPluginFile(nsIFile* file)
 {
   nsCAutoString path;
   if (NS_FAILED(file->GetNativePath(path)))
-    return false;
+    return PR_FALSE;
 
   const char *cPath = path.get();
 
@@ -245,12 +241,12 @@ bool nsPluginsDir::IsPluginFile(nsIFile* file)
       // don't load OJI-based Java plugins
       if (!PL_strncasecmp(filename, "npoji", 5) ||
           !PL_strncasecmp(filename, "npjava", 6))
-        return false;
-      return true;
+        return PR_FALSE;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 /* nsPluginFile implementation */
@@ -277,7 +273,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
   if (!plugin)
     return NS_ERROR_NULL_POINTER;
 
-  bool protectCurrentDirectory = true;
+  PRBool protectCurrentDirectory = PR_TRUE;
 
   nsAutoString pluginFolderPath;
   plugin->GetPath(pluginFolderPath);
@@ -287,7 +283,7 @@ nsresult nsPluginFile::LoadPlugin(PRLibrary **outLibrary)
     return NS_ERROR_FILE_INVALID_PATH;
 
   if (Substring(pluginFolderPath, idx).LowerCaseEqualsLiteral("\\np32dsw.dll")) {
-    protectCurrentDirectory = false;
+    protectCurrentDirectory = PR_FALSE;
   }
 
   pluginFolderPath.SetLength(idx);

@@ -57,17 +57,16 @@ class nsAttrName;
 class nsTextFragment;
 class nsIDocShell;
 class nsIFrame;
+#ifdef MOZ_SMIL
 class nsISMILAttr;
 class nsIDOMCSSStyleDeclaration;
+#endif // MOZ_SMIL
 
 namespace mozilla {
 namespace css {
 class StyleRule;
-} // namespace css
-namespace widget {
-struct IMEState;
-} // namespace widget
-} // namespace mozilla
+}
+}
 
 enum nsLinkState {
   eLinkState_Unknown    = 0,
@@ -77,9 +76,9 @@ enum nsLinkState {
 };
 
 // IID for the nsIContent interface
-#define NS_ICONTENT_IID \
-{ 0xed40a3e5, 0xd7ed, 0x473e, \
- { 0x85, 0xe3, 0x82, 0xc3, 0xf0, 0x41, 0xdb, 0x52 } }
+#define NS_ICONTENT_IID       \
+{ 0x4aad2c06, 0xd6c3, 0x4f44, \
+ { 0x94, 0xf9, 0xd5, 0xac, 0xe5, 0x04, 0x67, 0xec } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -87,8 +86,6 @@ enum nsLinkState {
  */
 class nsIContent : public nsINode {
 public:
-  typedef mozilla::widget::IMEState IMEState;
-
 #ifdef MOZILLA_INTERNAL_API
   // If you're using the external API, the only thing you can know about
   // nsIContent is that it exists with an IID
@@ -133,7 +130,7 @@ public:
    */
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
-                              bool aCompileEventHandlers) = 0;
+                              PRBool aCompileEventHandlers) = 0;
 
   /**
    * Unbind this content node from a tree.  This will set its current document
@@ -142,15 +139,15 @@ public:
    * parent's child list and after the nsIDocumentObserver notifications for
    * the removal have been dispatched.   
    * @param aDeep Whether to recursively unbind the entire subtree rooted at
-   *        this node.  The only time false should be passed is when the
+   *        this node.  The only time PR_FALSE should be passed is when the
    *        parent node of the content is being destroyed.
    * @param aNullParent Whether to null out the parent pointer as well.  This
    *        is usually desirable.  This argument should only be false while
    *        recursively calling UnbindFromTree when a subtree is detached.
    * @note This method is safe to call on nodes that are not bound to a tree.
    */
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true) = 0;
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE) = 0;
   
   /**
    * DEPRECATED - Use GetCurrentDoc or GetOwnerDoc.
@@ -212,7 +209,7 @@ public:
    * @see nsIAnonymousContentCreator
    * @return whether this content is anonymous
    */
-  bool IsRootOfNativeAnonymousSubtree() const
+  PRBool IsRootOfNativeAnonymousSubtree() const
   {
     NS_ASSERTION(!HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT) ||
                  (HasFlag(NODE_IS_ANONYMOUS) &&
@@ -241,7 +238,7 @@ public:
    * Returns true if and only if this node has a parent, but is not in
    * its parent's child list.
    */
-  bool IsRootOfAnonymousSubtree() const
+  PRBool IsRootOfAnonymousSubtree() const
   {
     NS_ASSERTION(!IsRootOfNativeAnonymousSubtree() ||
                  (GetParent() && GetBindingParent() == GetParent()),
@@ -268,7 +265,7 @@ public:
    * from the top of this node's parent chain back to this node or
    * if the node is in native anonymous subtree without a parent.
    */
-  bool IsInAnonymousSubtree() const
+  PRBool IsInAnonymousSubtree() const
   {
     NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent() || !GetParent(),
                  "must have binding parent when in native anonymous subtree with a parent node");
@@ -279,9 +276,11 @@ public:
    * Return true iff this node is in an HTML document (in the HTML5 sense of
    * the term, i.e. not in an XHTML/XML document).
    */
-  inline bool IsInHTMLDocument() const
+  inline PRBool IsInHTMLDocument() const
   {
-    return OwnerDoc()->IsHTML();
+    nsIDocument* doc = GetOwnerDoc();
+    return doc && // XXX clean up after bug 335998 lands
+           doc->IsHTML();
   }
 
   /**
@@ -311,28 +310,28 @@ public:
     return mNodeInfo;
   }
 
-  inline bool IsInNamespace(PRInt32 aNamespace) const {
+  inline PRBool IsInNamespace(PRInt32 aNamespace) const {
     return mNodeInfo->NamespaceID() == aNamespace;
   }
 
-  inline bool IsHTML() const {
+  inline PRBool IsHTML() const {
     return IsInNamespace(kNameSpaceID_XHTML);
   }
 
-  inline bool IsHTML(nsIAtom* aTag) const {
+  inline PRBool IsHTML(nsIAtom* aTag) const {
     return mNodeInfo->Equals(aTag, kNameSpaceID_XHTML);
   }
 
-  inline bool IsSVG() const {
+  inline PRBool IsSVG() const {
     /* Some things in the SVG namespace are not in fact SVG elements */
     return IsNodeOfType(eSVG);
   }
 
-  inline bool IsXUL() const {
+  inline PRBool IsXUL() const {
     return IsInNamespace(kNameSpaceID_XUL);
   }
 
-  inline bool IsMathML() const {
+  inline PRBool IsMathML() const {
     return IsInNamespace(kNameSpaceID_MathML);
   }
 
@@ -369,7 +368,7 @@ public:
    *        notified of the attribute change.
    */
   nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
+                   const nsAString& aValue, PRBool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
   }
@@ -390,7 +389,7 @@ public:
    */
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) = 0;
+                           PRBool aNotify) = 0;
 
   /**
    * Get the current value of the attribute. This returns a form that is
@@ -399,10 +398,10 @@ public:
    * @param aNameSpaceID the namespace of the attr
    * @param aName the name of the attr
    * @param aResult the value (may legitimately be the empty string) [OUT]
-   * @returns true if the attribute was set (even when set to empty string)
-   *          false when not set.
+   * @returns PR_TRUE if the attribute was set (even when set to empty string)
+   *          PR_FALSE when not set.
    */
-  virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, 
+  virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, 
                          nsAString& aResult) const = 0;
 
   /**
@@ -412,7 +411,7 @@ public:
    * @param aAttr the attribute name
    * @return whether an attribute exists
    */
-  virtual bool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const = 0;
+  virtual PRBool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const = 0;
 
   /**
    * Test whether this content node's given attribute has the given value.  If
@@ -424,12 +423,12 @@ public:
    * @param aValue The value to compare to.
    * @param aCaseSensitive Whether to do a case-sensitive compare on the value.
    */
-  virtual bool AttrValueIs(PRInt32 aNameSpaceID,
+  virtual PRBool AttrValueIs(PRInt32 aNameSpaceID,
                              nsIAtom* aName,
                              const nsAString& aValue,
                              nsCaseTreatment aCaseSensitive) const
   {
-    return false;
+    return PR_FALSE;
   }
   
   /**
@@ -442,12 +441,12 @@ public:
    * @param aValue The value to compare to.  Must not be null.
    * @param aCaseSensitive Whether to do a case-sensitive compare on the value.
    */
-  virtual bool AttrValueIs(PRInt32 aNameSpaceID,
+  virtual PRBool AttrValueIs(PRInt32 aNameSpaceID,
                              nsIAtom* aName,
                              nsIAtom* aValue,
                              nsCaseTreatment aCaseSensitive) const
   {
-    return false;
+    return PR_FALSE;
   }
   
   enum {
@@ -489,7 +488,7 @@ public:
    * notified of the attribute change
    */
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr, 
-                             bool aNotify) = 0;
+                             PRBool aNotify) = 0;
 
 
   /**
@@ -526,36 +525,36 @@ public:
   virtual PRUint32 TextLength() = 0;
 
   /**
-   * Set the text to the given value. If aNotify is true then
+   * Set the text to the given value. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
   virtual nsresult SetText(const PRUnichar* aBuffer, PRUint32 aLength,
-                           bool aNotify) = 0;
+                           PRBool aNotify) = 0;
 
   /**
-   * Append the given value to the current text. If aNotify is true then
+   * Append the given value to the current text. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
   virtual nsresult AppendText(const PRUnichar* aBuffer, PRUint32 aLength,
-                              bool aNotify) = 0;
+                              PRBool aNotify) = 0;
 
   /**
-   * Set the text to the given value. If aNotify is true then
+   * Set the text to the given value. If aNotify is PR_TRUE then
    * the document is notified of the content change.
    * NOTE: For elements this always asserts and returns NS_ERROR_FAILURE
    */
-  nsresult SetText(const nsAString& aStr, bool aNotify)
+  nsresult SetText(const nsAString& aStr, PRBool aNotify)
   {
     return SetText(aStr.BeginReading(), aStr.Length(), aNotify);
   }
 
   /**
    * Query method to see if the frame is nothing but whitespace
-   * NOTE: Always returns false for elements
+   * NOTE: Always returns PR_FALSE for elements
    */
-  virtual bool TextIsOnlyWhitespace() = 0;
+  virtual PRBool TextIsOnlyWhitespace() = 0;
 
   /**
    * Append the text content to aResult.
@@ -585,11 +584,11 @@ public:
    *         > 0 can be tabbed to in the order specified by this value
    * @return whether the content is focusable via mouse, kbd or script.
    */
-  virtual bool IsFocusable(PRInt32 *aTabIndex = nsnull, bool aWithMouse = false)
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE)
   {
     if (aTabIndex) 
       *aTabIndex = -1; // Default, not tabbable
-    return false;
+    return PR_FALSE;
   }
 
   /**
@@ -600,8 +599,8 @@ public:
    * @param aIsTrustedEvent - if true then event that is cause of accesskey
    *                          execution is trusted.
    */
-  virtual void PerformAccesskey(bool aKeyCausesActivation,
-                                bool aIsTrustedEvent)
+  virtual void PerformAccesskey(PRBool aKeyCausesActivation,
+                                PRBool aIsTrustedEvent)
   {
   }
 
@@ -609,18 +608,40 @@ public:
    * Get desired IME state for the content.
    *
    * @return The desired IME status for the content.
-   *         This is a combination of an IME enabled value and
-   *         an IME open value of widget::IMEState.
-   *         If you return DISABLED, you should not set the OPEN and CLOSE
-   *         value.
-   *         PASSWORD should be returned only from password editor, this value
-   *         has a special meaning. It is used as alternative of DISABLED.
-   *         PLUGIN should be returned only when plug-in has focus.  When a
-   *         plug-in is focused content, we should send native events directly.
-   *         Because we don't process some native events, but they may be needed
-   *         by the plug-in.
+   *         This is a combination of IME_STATUS_* flags,
+   *         controlling what happens to IME when the content takes focus.
+   *         If this is IME_STATUS_NONE, IME remains in its current state.
+   *         IME_STATUS_ENABLE and IME_STATUS_DISABLE must not be set
+   *         together; likewise IME_STATUS_OPEN and IME_STATUS_CLOSE must
+   *         not be set together.
+   *         If you return IME_STATUS_DISABLE, you should not set the
+   *         OPEN or CLOSE flag; that way, when IME is next enabled,
+   *         the previous OPEN/CLOSE state will be restored (unless the newly
+   *         focused content specifies the OPEN/CLOSE state by setting the OPEN
+   *         or CLOSE flag with the ENABLE flag).
+   *         IME_STATUS_PASSWORD should be returned only from password editor,
+   *         this value has a special meaning. It is used as alternative of
+   *         IME_STATUS_DISABLED.
+   *         IME_STATUS_PLUGIN should be returned only when plug-in has focus.
+   *         When a plug-in is focused content, we should send native events
+   *         directly. Because we don't process some native events, but they may
+   *         be needed by the plug-in.
    */
-  virtual IMEState GetDesiredIMEState();
+  enum {
+    IME_STATUS_NONE     = 0x0000,
+    IME_STATUS_ENABLE   = 0x0001,
+    IME_STATUS_DISABLE  = 0x0002,
+    IME_STATUS_PASSWORD = 0x0004,
+    IME_STATUS_PLUGIN   = 0x0008,
+    IME_STATUS_OPEN     = 0x0010,
+    IME_STATUS_CLOSE    = 0x0020
+  };
+  enum {
+    IME_STATUS_MASK_ENABLED = IME_STATUS_ENABLE | IME_STATUS_DISABLE |
+                              IME_STATUS_PASSWORD | IME_STATUS_PLUGIN,
+    IME_STATUS_MASK_OPENED  = IME_STATUS_OPEN | IME_STATUS_CLOSE
+  };
+  virtual PRUint32 GetDesiredIMEState();
 
   /**
    * Gets content node with the binding (or native code, possibly on the
@@ -651,11 +672,11 @@ public:
    *             set to this link's URI will be passed out.
    *
    * @note The out param, aURI, is guaranteed to be set to a non-null pointer
-   *   when the return value is true.
+   *   when the return value is PR_TRUE.
    *
    * XXXjwatt: IMO IsInteractiveLink would be a better name.
    */
-  virtual bool IsLink(nsIURI** aURI) const = 0;
+  virtual PRBool IsLink(nsIURI** aURI) const = 0;
 
   /**
    * Get the cached state of the link.  If the state is unknown, 
@@ -736,26 +757,36 @@ public:
    * have the parser pass true.  See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
+   * It is ok to ignore an error returned from this function. However the
+   * following errors may be of interest to some callers:
+   *
+   *   NS_ERROR_HTMLPARSER_BLOCK  Returned by script elements to indicate
+   *                              that a script will be loaded asynchronously
+   *
+   * This means that implementations will have to deal with returned error
+   * codes being ignored.
+   *
    * @param aHaveNotified Whether there has been a
    *        ContentInserted/ContentAppended notification for this content node
    *        yet.
    */
-  virtual void DoneAddingChildren(bool aHaveNotified)
+  virtual nsresult DoneAddingChildren(PRBool aHaveNotified)
   {
+    return NS_OK;
   }
 
   /**
    * For HTML textarea, select, applet, and object elements, returns
-   * true if all children have been added OR if the element was not
-   * created by the parser. Returns true for all other elements.
-   * @returns false if the element was created by the parser and
+   * PR_TRUE if all children have been added OR if the element was not
+   * created by the parser. Returns PR_TRUE for all other elements.
+   * @returns PR_FALSE if the element was created by the parser and
    *                   it is an HTML textarea, select, applet, or object
    *                   element and not all children have been added.
-   * @returns true otherwise.
+   * @returns PR_TRUE otherwise.
    */
-  virtual bool IsDoneAddingChildren()
+  virtual PRBool IsDoneAddingChildren()
   {
-    return true;
+    return PR_TRUE;
   }
 
   /**
@@ -798,7 +829,7 @@ public:
    * Set the inline style rule for this node.  This will send an
    * appropriate AttributeChanged notification if aNotify is true.
    */
-  NS_IMETHOD SetInlineStyleRule(mozilla::css::StyleRule* aStyleRule, bool aNotify) = 0;
+  NS_IMETHOD SetInlineStyleRule(mozilla::css::StyleRule* aStyleRule, PRBool aNotify) = 0;
 
   /**
    * Is the attribute named stored in the mapped attributes?
@@ -807,7 +838,7 @@ public:
    *    returns true here even though it stores nothing in the mapped
    *    attributes.
    */
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const = 0;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const = 0;
 
   /**
    * Get a hint that tells the style system what to do when 
@@ -831,7 +862,7 @@ public:
    * when it is moved into an editable parent, ...).  If aNotify is true and
    * the node is an element, this will notify the state change.
    */
-  virtual void UpdateEditableState(bool aNotify);
+  virtual void UpdateEditableState(PRBool aNotify);
 
   /**
    * Destroy this node and its children. Ideally this shouldn't be needed
@@ -862,6 +893,7 @@ public:
     mPrimaryFrame = aFrame;
   }
 
+#ifdef MOZ_SMIL
   /*
    * Returns a new nsISMILAttr that allows the caller to animate the given
    * attribute on this element.
@@ -893,7 +925,8 @@ public:
    * will be noticed.
    */
   virtual nsresult SetSMILOverrideStyleRule(mozilla::css::StyleRule* aStyleRule,
-                                            bool aNotify) = 0;
+                                            PRBool aNotify) = 0;
+#endif // MOZ_SMIL
 
   nsresult LookupNamespaceURI(const nsAString& aNamespacePrefix,
                               nsAString& aNamespaceURI) const;
@@ -902,7 +935,7 @@ public:
    * If this content has independent selection, e.g., if this is input field
    * or textarea, this return TRUE.  Otherwise, false.
    */
-  bool HasIndependentSelection();
+  PRBool HasIndependentSelection();
 
   /**
    * If the content is a part of HTML editor, this returns editing
@@ -921,7 +954,7 @@ public:
       if (content->GetAttrCount() > 0) {
         // xml:lang has precedence over lang on HTML elements (see
         // XHTML1 section C.7).
-        bool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
+        PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
                                           aResult);
         if (!hasAttr && content->IsHTML()) {
           hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
@@ -973,7 +1006,7 @@ public:
    * file stream. Use aIndent as the base indent during formatting.
    */
   virtual void DumpContent(FILE* out = stdout, PRInt32 aIndent = 0,
-                           bool aDumpAll = true) const = 0;
+                           PRBool aDumpAll = PR_TRUE) const = 0;
 #endif
 
   enum ETabFocusType {
@@ -988,7 +1021,7 @@ public:
 
   // accessibility.tabfocus_applies_to_xul pref - if it is set to true,
   // the tabfocus bit field applies to xul elements.
-  static bool sTabFocusModelAppliesToXUL;
+  static PRBool sTabFocusModelAppliesToXUL;
 
 };
 

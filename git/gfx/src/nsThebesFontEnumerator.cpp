@@ -72,7 +72,7 @@ nsThebesFontEnumerator::EnumerateFonts(const char *aLangGroup,
     if (aGeneric)
         generic.Assign(aGeneric);
     else
-        generic.SetIsVoid(true);
+        generic.SetIsVoid(PR_TRUE);
 
     nsCOMPtr<nsIAtom> langGroupAtom;
     if (aLangGroup) {
@@ -105,11 +105,11 @@ nsThebesFontEnumerator::EnumerateFonts(const char *aLangGroup,
 
 NS_IMETHODIMP
 nsThebesFontEnumerator::HaveFontFor(const char *aLangGroup,
-                                    bool *aResult)
+                                    PRBool *aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
 
-    *aResult = true;
+    *aResult = PR_TRUE;
     return NS_OK;
 }
 
@@ -124,10 +124,10 @@ nsThebesFontEnumerator::GetDefaultFont(const char *aLangGroup,
 }
 
 NS_IMETHODIMP
-nsThebesFontEnumerator::UpdateFontList(bool *_retval)
+nsThebesFontEnumerator::UpdateFontList(PRBool *_retval)
 {
     gfxPlatform::GetPlatform()->UpdateFontList();
-    *_retval = false; // always return false for now
+    *_retval = PR_FALSE; // always return false for now
     return NS_OK;
 }
 

@@ -45,10 +45,10 @@
 #include "nsIXPCScriptNotify.h"
 #include "prtime.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsScriptNameSpaceManager.h"
 
 class nsIXPConnectJSObjectHolder;
-class nsRootedJSValueArray;
-class nsScriptNameSpaceManager;
+class nsAutoPoolRelease;
 namespace js {
 class AutoArrayRooter;
 }
@@ -73,33 +73,34 @@ public:
     { return nsIProgrammingLanguage::JAVASCRIPT; }
 
   virtual nsresult EvaluateString(const nsAString& aScript,
-                                  JSObject* aScopeObject,
+                                  void *aScopeObject,
                                   nsIPrincipal *principal,
                                   const char *aURL,
                                   PRUint32 aLineNo,
                                   PRUint32 aVersion,
                                   nsAString *aRetValue,
-                                  bool* aIsUndefined);
+                                  PRBool* aIsUndefined);
   virtual nsresult EvaluateStringWithValue(const nsAString& aScript,
-                                           JSObject* aScopeObject,
-                                           nsIPrincipal* aPrincipal,
-                                           const char* aURL,
-                                           PRUint32 aLineNo,
-                                           PRUint32 aVersion,
-                                           JS::Value* aRetValue,
-                                           bool* aIsUndefined);
+                                     void *aScopeObject,
+                                     nsIPrincipal *aPrincipal,
+                                     const char *aURL,
+                                     PRUint32 aLineNo,
+                                     PRUint32 aVersion,
+                                     void* aRetValue,
+                                     PRBool* aIsUndefined);
 
   virtual nsresult CompileScript(const PRUnichar* aText,
                                  PRInt32 aTextLength,
+                                 void *aScopeObject,
                                  nsIPrincipal *principal,
                                  const char *aURL,
                                  PRUint32 aLineNo,
                                  PRUint32 aVersion,
                                  nsScriptObjectHolder &aScriptObject);
-  virtual nsresult ExecuteScript(JSScript* aScriptObject,
-                                 JSObject* aScopeObject,
+  virtual nsresult ExecuteScript(void* aScriptObject,
+                                 void *aScopeObject,
                                  nsAString* aRetValue,
-                                 bool* aIsUndefined);
+                                 PRBool* aIsUndefined);
 
   virtual nsresult CompileEventHandler(nsIAtom *aName,
                                        PRUint32 aArgCount,
@@ -108,14 +109,14 @@ public:
                                        const char *aURL, PRUint32 aLineNo,
                                        PRUint32 aVersion,
                                        nsScriptObjectHolder &aHandler);
-  virtual nsresult CallEventHandler(nsISupports* aTarget, JSObject* aScope,
-                                    JSObject* aHandler,
+  virtual nsresult CallEventHandler(nsISupports* aTarget, void *aScope,
+                                    void* aHandler,
                                     nsIArray *argv, nsIVariant **rv);
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
-                                            JSObject *aScope,
-                                            JSObject* aHandler,
+                                            void *aScope,
+                                            void *aHandler,
                                             nsScriptObjectHolder& aBoundHandler);
-  virtual nsresult CompileFunction(JSObject* aTarget,
+  virtual nsresult CompileFunction(void* aTarget,
                                    const nsACString& aName,
                                    PRUint32 aArgCount,
                                    const char** aArgArray,
@@ -123,51 +124,52 @@ public:
                                    const char* aURL,
                                    PRUint32 aLineNo,
                                    PRUint32 aVersion,
-                                   bool aShared,
-                                   JSObject** aFunctionObject);
+                                   PRBool aShared,
+                                   void** aFunctionObject);
 
   virtual void SetDefaultLanguageVersion(PRUint32 aVersion);
   virtual nsIScriptGlobalObject *GetGlobalObject();
   virtual JSContext* GetNativeContext();
-  virtual JSObject* GetNativeGlobal();
+  virtual void *GetNativeGlobal();
   virtual nsresult CreateNativeGlobalForInner(
                                       nsIScriptGlobalObject *aGlobal,
-                                      bool aIsChrome,
+                                      PRBool aIsChrome,
                                       nsIPrincipal *aPrincipal,
-                                      JSObject** aNativeGlobal,
+                                      void **aNativeGlobal,
                                       nsISupports **aHolder);
   virtual nsresult ConnectToInner(nsIScriptGlobalObject *aNewInner,
-                                  JSObject *aOuterGlobal);
+                                  void *aOuterGlobal);
   virtual nsresult InitContext();
   virtual nsresult CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
                                      nsIScriptGlobalObject *aCurrentInner);
-  virtual nsresult SetOuterObject(JSObject* aOuterObject);
+  virtual nsresult SetOuterObject(void *aOuterObject);
   virtual nsresult InitOuterWindow();
-  virtual bool IsContextInitialized();
+  virtual PRBool IsContextInitialized();
   virtual void FinalizeContext();
 
-  virtual void ScriptEvaluated(bool aTerminated);
+  virtual void ScriptEvaluated(PRBool aTerminated);
   virtual nsresult SetTerminationFunction(nsScriptTerminationFunc aFunc,
                                           nsISupports* aRef);
-  virtual bool GetScriptsEnabled();
-  virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
+  virtual PRBool GetScriptsEnabled();
+  virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
 
   virtual nsresult SetProperty(void *aTarget, const char *aPropName, nsISupports *aVal);
 
-  virtual bool GetProcessingScriptTag();
-  virtual void SetProcessingScriptTag(bool aResult);
+  virtual PRBool GetProcessingScriptTag();
+  virtual void SetProcessingScriptTag(PRBool aResult);
 
-  virtual bool GetExecutingScript();
+  virtual PRBool GetExecutingScript();
 
-  virtual void SetGCOnDestruction(bool aGCOnDestruction);
+  virtual void SetGCOnDestruction(PRBool aGCOnDestruction);
 
-  virtual nsresult InitClasses(JSObject* aGlobalObj);
-  virtual void ClearScope(void* aGlobalObj, bool bClearPolluters);
+  virtual nsresult InitClasses(void *aGlobalObj);
+  virtual void ClearScope(void* aGlobalObj, PRBool bClearPolluters);
 
   virtual void WillInitializeContext();
   virtual void DidInitializeContext();
+  virtual void DidSetDocument(nsISupports *aDocdoc, void *aGlobal) {;}
 
-  virtual nsresult Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject);
+  virtual nsresult Serialize(nsIObjectOutputStream* aStream, void *aScriptObject);
   virtual nsresult Deserialize(nsIObjectInputStream* aStream,
                                nsScriptObjectHolder &aResult);
 
@@ -182,7 +184,7 @@ public:
   static void LoadStart();
   static void LoadEnd();
 
-  static void GarbageCollectNow(bool shrinkingGC = false);
+  static void GarbageCollectNow();
   static void CycleCollectNow(nsICycleCollectorListener *aListener = nsnull);
 
   static void PokeGC();
@@ -199,16 +201,17 @@ protected:
 
   // Helper to convert xpcom datatypes to jsvals.
   nsresult ConvertSupportsTojsvals(nsISupports *aArgs,
-                                   JSObject *aScope,
+                                   void *aScope,
                                    PRUint32 *aArgc,
                                    jsval **aArgv,
-                                   mozilla::Maybe<nsRootedJSValueArray> &aPoolRelease);
+                                   mozilla::Maybe<nsAutoPoolRelease> &aPoolRelease,
+                                   mozilla::Maybe<js::AutoArrayRooter> &aRooter);
 
   nsresult AddSupportsPrimitiveTojsvals(nsISupports *aArg, jsval *aArgv);
 
   // given an nsISupports object (presumably an event target or some other
   // DOM object), get (or create) the JSObject wrapping it.
-  nsresult JSObjectFromInterface(nsISupports *aSup, JSObject *aScript,
+  nsresult JSObjectFromInterface(nsISupports *aSup, void *aScript, 
                                  JSObject **aRet);
 
   // Report the pending exception on our mContext, if any.  This
@@ -278,10 +281,10 @@ protected:
   TerminationFuncClosure* mTerminations;
 
 private:
-  bool mIsInitialized;
-  bool mScriptsEnabled;
-  bool mGCOnDestruction;
-  bool mProcessingScriptTag;
+  PRPackedBool mIsInitialized;
+  PRPackedBool mScriptsEnabled;
+  PRPackedBool mGCOnDestruction;
+  PRPackedBool mProcessingScriptTag;
 
   PRUint32 mExecuteDepth;
   PRUint32 mDefaultJSOptions;
@@ -312,10 +315,10 @@ public:
   NS_DECL_ISUPPORTS
 
   virtual PRUint32 GetScriptTypeID() {
-    return nsIProgrammingLanguage::JAVASCRIPT;
+            return nsIProgrammingLanguage::JAVASCRIPT;
   }
 
-  virtual already_AddRefed<nsIScriptContext> CreateContext();
+  virtual nsresult CreateContext(nsIScriptContext **ret);
 
   virtual nsresult ParseVersion(const nsString &aVersionStr, PRUint32 *flags);
 

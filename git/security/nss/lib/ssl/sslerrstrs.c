@@ -38,6 +38,7 @@
 #include "prinit.h"
 #include "nssutil.h"
 #include "ssl.h"
+#include "sslerrstrs.h"
 
 #define ER3(name, value, str) {#name, str},
 
@@ -58,9 +59,8 @@ ssl_InitializePRErrorTableOnce(void) {
 
 static PRCallOnceType once;
 
-SECStatus
+PRStatus
 ssl_InitializePRErrorTable(void)
 {
-    return (PR_SUCCESS == PR_CallOnce(&once, ssl_InitializePRErrorTableOnce))
-		? SECSuccess : SECFailure;
+    return PR_CallOnce(&once, ssl_InitializePRErrorTableOnce);
 }

@@ -100,10 +100,10 @@ function WifiGeoPositionProvider() {
     gTestingEnabled = Services.prefs.getBoolPref("geo.wifi.testing");
   } catch (e) {}
 
-  this.wifiService = null;
-  this.timer = null;
-  this.hasSeenWiFi = false;
-  this.started = false;
+  wifiService = null;
+  timer = null;
+  hasSeenWiFi = false;
+  started = false;
 }
 
 WifiGeoPositionProvider.prototype = {
@@ -187,10 +187,7 @@ WifiGeoPositionProvider.prototype = {
     LOG("onChange called");
     this.hasSeenWiFi = true;
 
-    let providerUrlBase = "https://maps.googleapis.com/maps/api/browserlocation/json";
-    try {
-        providerUrlBase = Services.prefs.getCharPref("geo.wifi.uri");      
-    } catch (x) {};
+    let providerUrlBase = Services.prefs.getCharPref("geo.wifi.uri");
     let providerUrl;
 
     let query = providerUrlBase.indexOf("?");
@@ -203,7 +200,7 @@ WifiGeoPositionProvider.prototype = {
 
     let accessToken = this.getAccessTokenForURL(providerUrlBase);
     if (accessToken !== "")
-      providerUrl = providerUrl + "&access_token="+accessToken;
+      providerUrl = providerUrl + "&access_token="+access_token;
 
     function sort(a, b) {
       return b.signal - a.signal;
@@ -217,7 +214,7 @@ WifiGeoPositionProvider.prototype = {
     };
 
     if (accessPoints) {
-        providerUrl = providerUrl + accessPoints.sort(sort).map(encode).join("");
+        accessPoints.sort(sort).map(encode).join("");
         // max length is 2k.  make sure we are under that
         let x = providerUrl.length - 2000;
         if (x >= 0) {
@@ -239,10 +236,10 @@ WifiGeoPositionProvider.prototype = {
     xhr.mozBackgroundRequest = true;
     xhr.open("GET", providerUrl, false);
     xhr.channel.loadFlags = Ci.nsIChannel.LOAD_ANONYMOUS;
-    xhr.addEventListener("error", function(req) {
+    xhr.onerror = function(req) {
         LOG("onerror: " + req);
-    }, false);
-    xhr.addEventListener("load", function (req) {  
+    };
+    xhr.onload = function (req) {  
         LOG("service returned: " + req.target.responseText);
         response = JSON.parse(req.target.responseText);
         /*
@@ -288,7 +285,7 @@ WifiGeoPositionProvider.prototype = {
               }
           }
         }
-    }, false);
+    };
 
     LOG("************************************* ------>>>> sending.");
     xhr.send(null);

@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsPrintDialogX.h"
 #include "nsIPrintSettings.h"
 #include "nsPrintSettingsX.h"
@@ -50,8 +48,6 @@
 
 #import <Cocoa/Cocoa.h>
 #include "nsObjCExceptions.h"
-
-using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(nsPrintDialogServiceX, nsIPrintDialogService)
 
@@ -346,7 +342,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   [list addItemsWithTitles:items];
 
   NS_ConvertUTF16toUTF8 currentStringUTF8(aCurrentString);
-  for (unsigned int i = 0; i < ArrayLength(sHeaderFooterTags); i++) {
+  for (unsigned int i = 0; i < NS_ARRAY_LENGTH(sHeaderFooterTags); i++) {
     if (!strcmp(currentStringUTF8.get(), sHeaderFooterTags[i])) {
       [list selectItemAtIndex:i];
       break;
@@ -367,7 +363,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   mPrintSelectionOnlyCheckbox = [self checkboxWithLabel:"selectionOnly"
                                                andFrame:NSMakeRect(156, 240, 0, 0)];
 
-  bool canPrintSelection;
+  PRBool canPrintSelection;
   mSettings->GetPrintOptions(nsIPrintSettings::kEnableSelectionRB,
                              &canPrintSelection);
   [mPrintSelectionOnlyCheckbox setEnabled:canPrintSelection];
@@ -384,7 +380,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   mShrinkToFitCheckbox = [self checkboxWithLabel:"shrinkToFit"
                                         andFrame:NSMakeRect(156, 218, 0, 0)];
 
-  bool shrinkToFit;
+  PRBool shrinkToFit;
   mSettings->GetShrinkToFit(&shrinkToFit);
   [mShrinkToFitCheckbox setState:(shrinkToFit ? NSOnState : NSOffState)];
 
@@ -400,7 +396,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
   mPrintBGColorsCheckbox = [self checkboxWithLabel:"printBGColors"
                                           andFrame:NSMakeRect(156, 188, 0, 0)];
 
-  bool geckoBool;
+  PRBool geckoBool;
   mSettings->GetPrintBGColors(&geckoBool);
   [mPrintBGColorsCheckbox setState:(geckoBool ? NSOnState : NSOffState)];
 
@@ -528,7 +524,7 @@ static const char sHeaderFooterTags[][4] =  {"", "&T", "&U", "&D", "&P", "&PT"};
 - (const char*)headerFooterStringForList:(NSPopUpButton*)aList
 {
   NSInteger index = [aList indexOfSelectedItem];
-  NS_ASSERTION(index < NSInteger(ArrayLength(sHeaderFooterTags)), "Index of dropdown is higher than expected!");
+  NS_ASSERTION(index < NSInteger(NS_ARRAY_LENGTH(sHeaderFooterTags)), "Index of dropdown is higher than expected!");
   return sHeaderFooterTags[index];
 }
 

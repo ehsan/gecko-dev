@@ -74,9 +74,9 @@ LazyIdleThread::LazyIdleThread(PRUint32 aIdleTimeoutMS,
   mPendingEventCount(0),
   mIdleNotificationCount(0),
   mShutdownMethod(aShutdownMethod),
-  mShutdown(false),
-  mThreadIsShuttingDown(false),
-  mIdleTimeoutEnabled(true)
+  mShutdown(PR_FALSE),
+  mThreadIsShuttingDown(PR_FALSE),
+  mIdleTimeoutEnabled(PR_TRUE)
 {
   NS_ASSERTION(mOwningThread, "This should never fail!");
 }
@@ -109,7 +109,7 @@ LazyIdleThread::DisableIdleTimeout()
   if (!mIdleTimeoutEnabled) {
     return;
   }
-  mIdleTimeoutEnabled = false;
+  mIdleTimeoutEnabled = PR_FALSE;
 
   if (mIdleTimer && NS_FAILED(mIdleTimer->Cancel())) {
     NS_WARNING("Failed to cancel timer!");
@@ -129,7 +129,7 @@ LazyIdleThread::EnableIdleTimeout()
   if (mIdleTimeoutEnabled) {
     return;
   }
-  mIdleTimeoutEnabled = true;
+  mIdleTimeoutEnabled = PR_TRUE;
 
   {
     MutexAutoLock lock(mMutex);
@@ -180,7 +180,7 @@ LazyIdleThread::EnsureThread()
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = obs->AddObserver(this, "xpcom-shutdown-threads", false);
+    rv = obs->AddObserver(this, "xpcom-shutdown-threads", PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -223,7 +223,7 @@ LazyIdleThread::CleanupThread()
   MutexAutoLock lock(mMutex);
 
   NS_ASSERTION(!mThreadIsShuttingDown, "Shouldn't be true ever!");
-  mThreadIsShuttingDown = true;
+  mThreadIsShuttingDown = PR_TRUE;
 }
 
 void
@@ -231,7 +231,7 @@ LazyIdleThread::ScheduleTimer()
 {
   ASSERT_OWNING_THREAD();
 
-  bool shouldSchedule;
+  PRBool shouldSchedule;
   {
     MutexAutoLock lock(mMutex);
 
@@ -315,7 +315,7 @@ LazyIdleThread::ShutdownThread()
       NS_ASSERTION(!mPendingEventCount, "Huh?!");
       NS_ASSERTION(!mIdleNotificationCount, "Huh?!");
       NS_ASSERTION(mThreadIsShuttingDown, "Huh?!");
-      mThreadIsShuttingDown = false;
+      mThreadIsShuttingDown = PR_FALSE;
     }
   }
 
@@ -416,13 +416,13 @@ LazyIdleThread::Dispatch(nsIRunnable* aEvent,
 }
 
 NS_IMETHODIMP
-LazyIdleThread::IsOnCurrentThread(bool* aIsOnCurrentThread)
+LazyIdleThread::IsOnCurrentThread(PRBool* aIsOnCurrentThread)
 {
   if (mThread) {
     return mThread->IsOnCurrentThread(aIsOnCurrentThread);
   }
 
-  *aIsOnCurrentThread = false;
+  *aIsOnCurrentThread = PR_FALSE;
   return NS_OK;
 }
 
@@ -442,7 +442,7 @@ LazyIdleThread::Shutdown()
 {
   ASSERT_OWNING_THREAD();
 
-  mShutdown = true;
+  mShutdown = PR_TRUE;
 
   nsresult rv = ShutdownThread();
   NS_ASSERTION(!mThread, "Should have destroyed this by now!");
@@ -455,7 +455,7 @@ LazyIdleThread::Shutdown()
 }
 
 NS_IMETHODIMP
-LazyIdleThread::HasPendingEvents(bool* aHasPendingEvents)
+LazyIdleThread::HasPendingEvents(PRBool* aHasPendingEvents)
 {
   // This is only supposed to be called from the thread itself so it's not
   // implemented here.
@@ -464,8 +464,8 @@ LazyIdleThread::HasPendingEvents(bool* aHasPendingEvents)
 }
 
 NS_IMETHODIMP
-LazyIdleThread::ProcessNextEvent(bool aMayWait,
-                                 bool* aEventWasProcessed)
+LazyIdleThread::ProcessNextEvent(PRBool aMayWait,
+                                 PRBool* aEventWasProcessed)
 {
   // This is only supposed to be called from the thread itself so it's not
   // implemented here.
@@ -503,7 +503,7 @@ LazyIdleThread::OnDispatchedEvent(nsIThreadInternal* /*aThread */)
 
 NS_IMETHODIMP
 LazyIdleThread::OnProcessNextEvent(nsIThreadInternal* /* aThread */,
-                                   bool /* aMayWait */,
+                                   PRBool /* aMayWait */,
                                    PRUint32 /* aRecursionDepth */)
 {
   return NS_OK;
@@ -513,7 +513,7 @@ NS_IMETHODIMP
 LazyIdleThread::AfterProcessNextEvent(nsIThreadInternal* /* aThread */,
                                       PRUint32 /* aRecursionDepth */)
 {
-  bool shouldNotifyIdle;
+  PRBool shouldNotifyIdle;
   {
     MutexAutoLock lock(mMutex);
 

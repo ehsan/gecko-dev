@@ -76,7 +76,7 @@ public:
    * group, sequentially. If the method returns false then the iteration is
    * stopped.
    */
-  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem) = 0;
+  virtual PRBool Visit(nsHTMLMenuItemElement* aMenuItem) = 0;
 };
 
 // Find the selected radio, see GetSelectedRadio().
@@ -86,13 +86,13 @@ public:
   GetCheckedVisitor(nsHTMLMenuItemElement** aResult)
     : mResult(aResult)
     { }
-  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
+  virtual PRBool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (aMenuItem->IsChecked()) {
       *mResult = aMenuItem;
-      return false;
+      return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
   }
 protected:
   nsHTMLMenuItemElement** mResult;
@@ -105,12 +105,12 @@ public:
   ClearCheckedVisitor(nsHTMLMenuItemElement* aExcludeMenuItem)
     : mExcludeMenuItem(aExcludeMenuItem)
     { }
-  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
+  virtual PRBool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (aMenuItem != mExcludeMenuItem && aMenuItem->IsChecked()) {
       aMenuItem->ClearChecked();
     }
-    return true;
+    return PR_TRUE;
   }
 protected:
   nsHTMLMenuItemElement* mExcludeMenuItem;
@@ -121,21 +121,21 @@ protected:
 class GetCheckedDirtyVisitor : public Visitor
 {
 public:
-  GetCheckedDirtyVisitor(bool* aCheckedDirty,
+  GetCheckedDirtyVisitor(PRBool* aCheckedDirty,
                          nsHTMLMenuItemElement* aExcludeMenuItem)
     : mCheckedDirty(aCheckedDirty),
       mExcludeMenuItem(aExcludeMenuItem)
     { }
-  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
+  virtual PRBool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (aMenuItem == mExcludeMenuItem) {
-      return true;
+      return PR_TRUE;
     }
     *mCheckedDirty = aMenuItem->IsCheckedDirty();
-    return false;
+    return PR_FALSE;
   }
 protected:
-  bool* mCheckedDirty;
+  PRBool* mCheckedDirty;
   nsHTMLMenuItemElement* mExcludeMenuItem;
 };
 
@@ -145,10 +145,10 @@ class SetCheckedDirtyVisitor : public Visitor
 public:
   SetCheckedDirtyVisitor()
     { }
-  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
+  virtual PRBool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     aMenuItem->SetCheckedDirty();
-    return true;
+    return PR_TRUE;
   }
 };
 
@@ -159,9 +159,9 @@ class CombinedVisitor : public Visitor
 public:
   CombinedVisitor(Visitor* aVisitor1, Visitor* aVisitor2)
     : mVisitor1(aVisitor1), mVisitor2(aVisitor2),
-      mContinue1(true), mContinue2(true)
+      mContinue1(PR_TRUE), mContinue2(PR_TRUE)
     { }
-  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
+  virtual PRBool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (mContinue1) {
       mContinue1 = mVisitor1->Visit(aMenuItem);
@@ -174,8 +174,8 @@ public:
 protected:
   Visitor* mVisitor1;
   Visitor* mVisitor2;
-  bool mContinue1;
-  bool mContinue2;
+  PRPackedBool mContinue1;
+  PRPackedBool mContinue2;
 };
 
 
@@ -253,16 +253,16 @@ NS_IMPL_BOOL_ATTR(nsHTMLMenuItemElement, DefaultChecked, checked)
 NS_IMPL_STRING_ATTR(nsHTMLMenuItemElement, Radiogroup, radiogroup)
 
 NS_IMETHODIMP
-nsHTMLMenuItemElement::GetChecked(bool* aChecked)
+nsHTMLMenuItemElement::GetChecked(PRBool* aChecked)
 {
   *aChecked = mChecked;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHTMLMenuItemElement::SetChecked(bool aChecked)
+nsHTMLMenuItemElement::SetChecked(PRBool aChecked)
 {
-  bool checkedChanged = mChecked != aChecked;
+  PRBool checkedChanged = mChecked != aChecked;
 
   mChecked = aChecked;
 
@@ -293,7 +293,7 @@ nsHTMLMenuItemElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK) {
 
-    bool originalCheckedValue = false;
+    PRBool originalCheckedValue = PR_FALSE;
     switch (mType) {
       case CMD_TYPE_CHECKBOX:
         originalCheckedValue = mChecked;
@@ -306,7 +306,7 @@ nsHTMLMenuItemElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
         originalCheckedValue = mChecked;
         if (!originalCheckedValue) {
-          SetChecked(true);
+          SetChecked(PR_TRUE);
           aVisitor.mItemFlags |= NS_CHECKED_IS_TOGGLED;
         }
         break;
@@ -330,16 +330,16 @@ nsHTMLMenuItemElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK &&
       aVisitor.mItemFlags & NS_CHECKED_IS_TOGGLED &&
       aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault) {
-    bool originalCheckedValue =
+    PRBool originalCheckedValue =
       !!(aVisitor.mItemFlags & NS_ORIGINAL_CHECKED_VALUE);
     PRUint8 oldType = NS_MENUITEM_TYPE(aVisitor.mItemFlags);
 
     nsCOMPtr<nsIDOMHTMLMenuItemElement> selectedRadio =
       do_QueryInterface(aVisitor.mItemData);
     if (selectedRadio) {
-      selectedRadio->SetChecked(true);
+      selectedRadio->SetChecked(PR_TRUE);
       if (mType != CMD_TYPE_RADIO) {
-        SetChecked(false);
+        SetChecked(PR_FALSE);
       }
     } else if (oldType == CMD_TYPE_CHECKBOX) {
       SetChecked(originalCheckedValue);
@@ -352,7 +352,7 @@ nsHTMLMenuItemElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 nsresult
 nsHTMLMenuItemElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                   nsIContent* aBindingParent,
-                                  bool aCompileEventHandlers)
+                                  PRBool aCompileEventHandlers)
 {
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
@@ -365,7 +365,7 @@ nsHTMLMenuItemElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   return rv;
 }
 
-bool
+PRBool
 nsHTMLMenuItemElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsIAtom* aAttribute,
                                       const nsAString& aValue,
@@ -373,8 +373,8 @@ nsHTMLMenuItemElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::type) {
-      bool success = aResult.ParseEnumValue(aValue, kMenuItemTypeTable,
-                                              false);
+      PRBool success = aResult.ParseEnumValue(aValue, kMenuItemTypeTable,
+                                              PR_FALSE);
       if (success) {
         mType = aResult.GetEnumValue();
       } else {
@@ -386,7 +386,7 @@ nsHTMLMenuItemElement::ParseAttribute(PRInt32 aNamespaceID,
 
     if (aAttribute == nsGkAtoms::radiogroup) {
       aResult.ParseAtom(aValue);
-      return true;
+      return PR_TRUE;
     }
   }
 
@@ -409,15 +409,15 @@ void
 nsHTMLMenuItemElement::GetText(nsAString& aText)
 {
   nsAutoString text;
-  nsContentUtils::GetNodeTextContent(this, false, text);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, text);
 
-  text.CompressWhitespace(true, true);
+  text.CompressWhitespace(PR_TRUE, PR_TRUE);
   aText = text;
 }
 
 nsresult
 nsHTMLMenuItemElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                    const nsAString* aValue, bool aNotify)
+                                    const nsAString* aValue, PRBool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if ((aName == nsGkAtoms::radiogroup || aName == nsGkAtoms::type) &&
@@ -455,7 +455,7 @@ nsHTMLMenuItemElement::WalkRadioGroup(Visitor* aVisitor)
 
   nsAttrInfo info1(GetAttrInfo(kNameSpaceID_None,
                                nsGkAtoms::radiogroup));
-  bool info1Empty = !info1.mValue || info1.mValue->IsEmptyString();
+  PRBool info1Empty = !info1.mValue || info1.mValue->IsEmptyString();
 
   for (nsIContent* cur = parent->GetFirstChild();
        cur;
@@ -468,7 +468,7 @@ nsHTMLMenuItemElement::WalkRadioGroup(Visitor* aVisitor)
 
     nsAttrInfo info2(menuitem->GetAttrInfo(kNameSpaceID_None,
                                            nsGkAtoms::radiogroup));
-    bool info2Empty = !info2.mValue || info2.mValue->IsEmptyString();
+    PRBool info2Empty = !info2.mValue || info2.mValue->IsEmptyString();
 
     if (info1Empty != info2Empty ||
         info1.mValue && info2.mValue && !info1.mValue->Equals(*info2.mValue)) {
@@ -495,7 +495,7 @@ nsHTMLMenuItemElement::GetSelectedRadio()
 void
 nsHTMLMenuItemElement::AddedToRadioGroup()
 {
-  bool checkedDirty = mCheckedDirty;
+  PRBool checkedDirty = mCheckedDirty;
   if (mChecked) {
     ClearCheckedVisitor visitor1(this);
     GetCheckedDirtyVisitor visitor2(&checkedDirty, this);
@@ -511,7 +511,7 @@ nsHTMLMenuItemElement::AddedToRadioGroup()
 void
 nsHTMLMenuItemElement::InitChecked()
 {
-  bool defaultChecked;
+  PRBool defaultChecked;
   GetDefaultChecked(&defaultChecked);
   mChecked = defaultChecked;
   if (mType == CMD_TYPE_RADIO) {

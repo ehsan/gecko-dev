@@ -66,15 +66,15 @@ NS_IMPL_ELEMENT_CLONE(nsXMLElement)
 
 nsresult
 nsXMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                        bool aNotify)
+                        PRBool aNotify)
 {
   nsAutoScriptBlocker scriptBlocker;
-  bool isId = false;
+  PRBool isId = PR_FALSE;
   if (aAttribute == GetIDAttributeName() &&
       aNameSpaceID == kNameSpaceID_None) {
     // Have to do this before clearing flag. See RemoveFromIdTable
     RemoveFromIdTable();
-    isId = true;
+    isId = PR_TRUE;
   }
 
   nsMutationGuard guard;
@@ -144,7 +144,7 @@ nsXMLElement::NodeInfoChanged(nsINodeInfo* aOldNodeInfo)
   }
 }
 
-bool
+PRBool
 nsXMLElement::ParseAttribute(PRInt32 aNamespaceID,
                              nsIAtom* aAttribute,
                              const nsAString& aValue,
@@ -157,21 +157,21 @@ nsXMLElement::ParseAttribute(PRInt32 aNamespaceID,
     RemoveFromIdTable();
     if (aValue.IsEmpty()) {
       ClearHasID();
-      return false;
+      return PR_FALSE;
     }
     aResult.ParseAtom(aValue);
     SetHasID();
     AddToIdTable(aResult.GetAtomValue());
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
 nsXMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                          nsIContent* aBindingParent,
-                         bool aCompileEventHandlers)
+                         PRBool aCompileEventHandlers)
 {
   nsresult rv = nsGenericElement::BindToTree(aDocument, aParent,
                                              aBindingParent,
@@ -186,7 +186,7 @@ nsXMLElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsXMLElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsXMLElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   RemoveFromIdTable();
 

@@ -70,8 +70,8 @@ public:
 
 protected:
   nsProgressMeterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) :
-    nsBoxFrame(aPresShell, aContext), mNeedsReflowCallback(true) {}
+    nsBoxFrame(aPresShell, aContext), mNeedsReflowCallback(PR_TRUE) {}
   virtual ~nsProgressMeterFrame();
 
-  bool mNeedsReflowCallback;
+  PRBool mNeedsReflowCallback;
 }; // class nsProgressMeterFrame

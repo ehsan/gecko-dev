@@ -99,8 +99,8 @@ nsDOMScrollAreaEvent::GetHeight(float *aHeight)
 
 NS_IMETHODIMP
 nsDOMScrollAreaEvent::InitScrollAreaEvent(const nsAString &aEventType,
-                                          bool aCanBubble,
-                                          bool aCancelable,
+                                          PRBool aCanBubble,
+                                          PRBool aCancelable,
                                           nsIDOMWindow *aView,
                                           PRInt32 aDetail,
                                           float aX, float aY,
@@ -116,13 +116,13 @@ nsDOMScrollAreaEvent::InitScrollAreaEvent(const nsAString &aEventType,
 
 void
 nsDOMScrollAreaEvent::Serialize(IPC::Message* aMsg,
-                                bool aSerializeInterfaceType)
+                                PRBool aSerializeInterfaceType)
 {
   if (aSerializeInterfaceType) {
     IPC::WriteParam(aMsg, NS_LITERAL_STRING("scrollareaevent"));
   }
 
-  nsDOMEvent::Serialize(aMsg, false);
+  nsDOMEvent::Serialize(aMsg, PR_FALSE);
 
   float val;
   mClientArea.GetLeft(&val);
@@ -135,19 +135,19 @@ nsDOMScrollAreaEvent::Serialize(IPC::Message* aMsg,
   IPC::WriteParam(aMsg, val);
 }
 
-bool
+PRBool
 nsDOMScrollAreaEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 {
-  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), false);
+  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), PR_FALSE);
 
   float x, y, width, height;
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &x), false);
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &y), false);
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &width), false);
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &height), false);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &x), PR_FALSE);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &y), PR_FALSE);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &width), PR_FALSE);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &height), PR_FALSE);
   mClientArea.SetRect(x, y, width, height);
 
-  return true;
+  return PR_TRUE;
 }
 
 nsresult

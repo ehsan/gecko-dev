@@ -79,9 +79,9 @@ nsBase64Encoder::WriteSegments(nsReadSegmentFun aReader,
 }
 
 NS_IMETHODIMP
-nsBase64Encoder::IsNonBlocking(bool* aNonBlocking)
+nsBase64Encoder::IsNonBlocking(PRBool* aNonBlocking)
 {
-  *aNonBlocking = false;
+  *aNonBlocking = PR_FALSE;
   return NS_OK;
 }
 

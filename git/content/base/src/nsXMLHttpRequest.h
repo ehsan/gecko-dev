@@ -106,7 +106,7 @@ public:
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
   NS_DECL_NSIXMLHTTPREQUESTUPLOAD
 
-  bool HasListeners()
+  PRBool HasListeners()
   {
     return mListenerManager && mListenerManager->HasListeners();
   }
@@ -123,7 +123,6 @@ class nsXMLHttpRequest : public nsXHREventTarget,
                          public nsIJSNativeInitializer,
                          public nsITimerCallback
 {
-  friend class nsXHRParseEndListener;
 public:
   nsXMLHttpRequest();
   virtual ~nsXMLHttpRequest();
@@ -174,18 +173,18 @@ public:
                              const nsAString& aType,
                              // Whether to use nsXMLHttpProgressEvent,
                              // which implements LS Progress Event.
-                             bool aUseLSEventWrapper,
-                             bool aLengthComputable,
+                             PRBool aUseLSEventWrapper,
+                             PRBool aLengthComputable,
                              // For Progress Events
                              PRUint64 aLoaded, PRUint64 aTotal,
                              // For LS Progress Events
                              PRUint64 aPosition, PRUint64 aTotalSize);
   void DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
                              const nsAString& aType,
-                             bool aLengthComputable,
+                             PRBool aLengthComputable,
                              PRUint64 aLoaded, PRUint64 aTotal)
   {
-    DispatchProgressEvent(aTarget, aType, false,
+    DispatchProgressEvent(aTarget, aType, PR_FALSE,
                           aLengthComputable, aLoaded, aTotal,
                           aLoaded, aLengthComputable ? aTotal : LL_MAXUINT);
   }
@@ -193,7 +192,7 @@ public:
   // Dispatch the "progress" event on the XHR or XHR.upload object if we've
   // received data since the last "progress" event. Also dispatches
   // "uploadprogress" as needed.
-  void MaybeDispatchProgressEvents(bool aFinalProgress);
+  void MaybeDispatchProgressEvents(PRBool aFinalProgress);
 
   // This is called by the factory constructor.
   nsresult Init();
@@ -202,7 +201,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(nsXMLHttpRequest,
                                            nsXHREventTarget)
-  bool AllowUploadProgress();
+  PRBool AllowUploadProgress();
   void RootResultArrayBuffer();
   
 protected:
@@ -218,10 +217,10 @@ protected:
                 PRUint32 *writeCount);
   nsresult CreateResponseParsedJSON(JSContext* aCx);
   nsresult CreateResponseArrayBuffer(JSContext* aCx);
-  bool CreateResponseBlob(nsIRequest *request);
+  void CreateResponseBlob(nsIRequest *request);
   // Change the state of the object with this. The broadcast argument
   // determines if the onreadystatechange listener should be called.
-  nsresult ChangeState(PRUint32 aState, bool aBroadcast = true);
+  nsresult ChangeState(PRUint32 aState, PRBool aBroadcast = PR_TRUE);
   already_AddRefed<nsILoadGroup> GetLoadGroup() const;
   nsIURI *GetBaseURI();
 
@@ -235,8 +234,6 @@ protected:
   already_AddRefed<nsIHttpChannel> GetCurrentHttpChannel();
 
   bool IsSystemXHR();
-
-  void ChangeStateToDone();
 
   /**
    * Check if aChannel is ok for a cross-site request by making sure no
@@ -339,26 +336,23 @@ protected:
   nsRefPtr<nsXMLHttpRequestUpload> mUpload;
   PRUint64 mUploadTransferred;
   PRUint64 mUploadTotal;
-  bool mUploadLengthComputable;
-  bool mUploadComplete;
-  bool mProgressSinceLastProgressEvent;
+  PRPackedBool mUploadLengthComputable;
+  PRPackedBool mUploadComplete;
+  PRPackedBool mProgressSinceLastProgressEvent;
   PRUint64 mUploadProgress; // For legacy
   PRUint64 mUploadProgressMax; // For legacy
 
-  bool mErrorLoad;
+  PRPackedBool mErrorLoad;
 
-  bool mTimerIsActive;
-  bool mProgressEventWasDelayed;
-  bool mLoadLengthComputable;
-  bool mIsHtml;
-  bool mWarnAboutMultipartHtml;
-  bool mWarnAboutSyncHtml;
+  PRPackedBool mTimerIsActive;
+  PRPackedBool mProgressEventWasDelayed;
+  PRPackedBool mLoadLengthComputable;
   PRUint64 mLoadTotal; // 0 if not known.
   PRUint64 mLoadTransferred;
   nsCOMPtr<nsITimer> mProgressNotifier;
 
-  bool mFirstStartRequestSeen;
-  bool mInLoadProgressEvent;
+  PRPackedBool mFirstStartRequestSeen;
+  PRPackedBool mInLoadProgressEvent;
   
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
@@ -386,8 +380,7 @@ class nsXMLHttpProgressEvent : public nsIDOMProgressEvent,
 public:
   nsXMLHttpProgressEvent(nsIDOMProgressEvent* aInner,
                          PRUint64 aCurrentProgress,
-                         PRUint64 aMaxProgress,
-                         nsPIDOMWindow* aWindow);
+                         PRUint64 aMaxProgress);
   virtual ~nsXMLHttpProgressEvent();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -405,7 +398,7 @@ public:
   {
     return mInner->SetTarget(aTarget);
   }
-  NS_IMETHOD_(bool) IsDispatchStopped()
+  NS_IMETHOD_(PRBool) IsDispatchStopped()
   {
     return mInner->IsDispatchStopped();
   }
@@ -413,49 +406,26 @@ public:
   {
     return mInner->GetInternalNSEvent();
   }
-  NS_IMETHOD SetTrusted(bool aTrusted)
+  NS_IMETHOD SetTrusted(PRBool aTrusted)
   {
     return mInner->SetTrusted(aTrusted);
   }
   virtual void Serialize(IPC::Message* aMsg,
-                         bool aSerializeInterfaceType)
+                         PRBool aSerializeInterfaceType)
   {
     mInner->Serialize(aMsg, aSerializeInterfaceType);
   }
-  virtual bool Deserialize(const IPC::Message* aMsg, void** aIter)
+  virtual PRBool Deserialize(const IPC::Message* aMsg, void** aIter)
   {
     return mInner->Deserialize(aMsg, aIter);
   }
 
 protected:
-  void WarnAboutLSProgressEvent(nsIDocument::DeprecatedOperations);
-
   // Use nsDOMProgressEvent so that we can forward
   // most of the method calls easily.
   nsRefPtr<nsDOMProgressEvent> mInner;
-  nsCOMPtr<nsPIDOMWindow> mWindow;
   PRUint64 mCurProgress;
   PRUint64 mMaxProgress;
-};
-
-class nsXHRParseEndListener : public nsIDOMEventListener
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_IMETHOD HandleEvent(nsIDOMEvent *event)
-  {
-    nsCOMPtr<nsIXMLHttpRequest> xhr = do_QueryReferent(mXHR);
-    if (xhr) {
-      static_cast<nsXMLHttpRequest*>(xhr.get())->ChangeStateToDone();
-    }
-    mXHR = nsnull;
-    return NS_OK;
-  }
-  nsXHRParseEndListener(nsIXMLHttpRequest* aXHR)
-    : mXHR(do_GetWeakReference(aXHR)) {}
-  virtual ~nsXHRParseEndListener() {}
-private:
-  nsWeakPtr mXHR;
 };
 
 #endif

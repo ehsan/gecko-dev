@@ -66,7 +66,7 @@ RDFBindingSet::AddBinding(nsIAtom* aVar, nsIAtom* aRef, nsIRDFResource* aPredica
         while (binding) { 
             // the binding is dependant on the calculation of a previous binding
             if (binding->mSubjectVariable == aVar)
-                newbinding->mHasDependency = true;
+                newbinding->mHasDependency = PR_TRUE;
 
             // if the target variable is already used in a binding, ignore it
             // since it won't be useful for anything
@@ -93,7 +93,7 @@ RDFBindingSet::AddBinding(nsIAtom* aVar, nsIAtom* aRef, nsIRDFResource* aPredica
     return NS_OK;
 }
 
-bool
+PRBool
 RDFBindingSet::SyncAssignments(nsIRDFResource* aSubject,
                                nsIRDFResource* aPredicate,
                                nsIRDFNode* aTarget,
@@ -105,10 +105,10 @@ RDFBindingSet::SyncAssignments(nsIRDFResource* aSubject,
                  "nsBindingValues not for this RDFBindingSet");
     NS_PRECONDITION(aResult, "Must have result");
 
-    bool needSync = false;
+    PRBool needSync = PR_FALSE;
     nsCOMPtr<nsIRDFNode>* valuesArray = aBindingValues.ValuesArray();
     if (!valuesArray)
-        return false;
+        return PR_FALSE;
 
     RDFBinding* binding = mFirst;
     PRInt32 count = 0;
@@ -124,13 +124,13 @@ RDFBindingSet::SyncAssignments(nsIRDFResource* aSubject,
             // if the source of the binding is the member variable, optimize
             if (binding->mSubjectVariable == aMemberVariable) {
                 valuesArray[count] = aTarget;
-                needSync = true;
+                needSync = PR_TRUE;
             }
             else {
                 aResult->GetAssignment(binding->mSubjectVariable, getter_AddRefs(value));
                 if (value == subjectnode) {
                     valuesArray[count] = aTarget;
-                    needSync = true;
+                    needSync = PR_TRUE;
                 }
             }
         }
@@ -284,7 +284,7 @@ nsBindingValues::GetAssignmentFor(nsXULTemplateResultRDF* aResult,
                                        getter_AddRefs(subjectValue));
                 if (subjectValue) {
                     nsCOMPtr<nsIRDFResource> subject = do_QueryInterface(subjectValue);
-                    ds->GetTarget(subject, binding->mPredicate, true, aValue);
+                    ds->GetTarget(subject, binding->mPredicate, PR_TRUE, aValue);
                     if (*aValue)
                         mValues[idx] = *aValue;
                 }

@@ -47,7 +47,7 @@
 #include "txStylesheet.h"
 #include "nsTArray.h"
 
-extern bool
+extern PRBool
 TX_XSLTFunctionAvailable(nsIAtom* aName, PRInt32 aNameSpaceID);
 
 class txHandlerTable;
@@ -60,14 +60,14 @@ class txPushNewContext;
 class txStylesheetCompiler;
 class txInScopeVariable;
 
-class txElementContext : public txObject
+class txElementContext : public TxObject
 {
 public:
     txElementContext(const nsAString& aBaseURI);
     txElementContext(const txElementContext& aOther);
 
-    bool mPreserveWhitespace;
-    bool mForwardsCompatibleParsing;
+    PRBool mPreserveWhitespace;
+    PRBool mForwardsCompatibleParsing;
     nsString mBaseURI;
     nsRefPtr<txNamespaceMap> mMappings;
     nsTArray<PRInt32> mInstructionNamespaces;
@@ -77,8 +77,8 @@ public:
 class txACompileObserver
 {
 public:
-    NS_IMETHOD_(nsrefcnt) AddRef() = 0;
-    NS_IMETHOD_(nsrefcnt) Release() = 0;
+    virtual void AddRef() = 0;
+    virtual void Release() = 0;
 
     virtual nsresult loadURI(const nsAString& aUri,
                              const nsAString& aReferrerUri,
@@ -106,7 +106,7 @@ public:
                   txListIterator* aInsertPosition);
 
     // Embedded stylesheets state
-    bool handleEmbeddedSheet()
+    PRBool handleEmbeddedSheet()
     {
         return mEmbedStatus == eInEmbed;
     }
@@ -122,8 +122,8 @@ public:
     void popSorter();
     nsresult pushChooseGotoList();
     void popChooseGotoList();
-    nsresult pushObject(txObject* aObject);
-    txObject* popObject();
+    nsresult pushObject(TxObject* aObject);
+    TxObject* popObject();
     nsresult pushPtr(void* aPtr);
     void* popPtr();
 
@@ -144,12 +144,12 @@ public:
     nsresult resolveNamespacePrefix(nsIAtom* aPrefix, PRInt32& aID);
     nsresult resolveFunctionCall(nsIAtom* aName, PRInt32 aID,
                                  FunctionCall** aFunction);
-    bool caseInsensitiveNameTests();
+    PRBool caseInsensitiveNameTests();
 
     /**
      * Should the stylesheet be parsed in forwards compatible parsing mode.
      */
-    bool fcp()
+    PRBool fcp()
     {
         return mElementContext->mForwardsCompatibleParsing;
     }
@@ -164,8 +164,8 @@ public:
     nsAutoPtr<txElementContext> mElementContext;
     txPushNewContext* mSorter;
     nsAutoPtr<txList> mChooseGotoList;
-    bool mDOE;
-    bool mSearchingForFallback;
+    PRPackedBool mDOE;
+    PRPackedBool mSearchingForFallback;
 
 protected:
     nsRefPtr<txACompileObserver> mObserver;
@@ -181,8 +181,8 @@ protected:
         eHasEmbed
     } mEmbedStatus;
     nsString mStylesheetURI;
-    bool mIsTopCompiler;
-    bool mDoneWithThisStylesheet;
+    PRPackedBool mIsTopCompiler;
+    PRPackedBool mDoneWithThisStylesheet;
     txStack mObjectStack;
     txStack mOtherStack;
 
@@ -205,7 +205,7 @@ class txStylesheetCompiler : private txStylesheetCompilerState,
 {
 public:
     friend class txStylesheetCompilerState;
-    friend bool TX_XSLTFunctionAvailable(nsIAtom* aName,
+    friend PRBool TX_XSLTFunctionAvailable(nsIAtom* aName,
                                            PRInt32 aNameSpaceID);
     txStylesheetCompiler(const nsAString& aStylesheetURI,
                          txACompileObserver* aObserver);

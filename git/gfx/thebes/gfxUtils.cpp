@@ -40,20 +40,14 @@
 #include "gfxPlatform.h"
 #include "gfxDrawable.h"
 #include "nsRegion.h"
-#include "yuv_convert.h"
-#include "ycbcr_to_rgb565.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
 #endif
 
-using namespace mozilla;
-using namespace mozilla::layers;
-using namespace mozilla::gfx;
-
 static PRUint8 sUnpremultiplyTable[256*256];
 static PRUint8 sPremultiplyTable[256*256];
-static bool sTablesInitialized = false;
+static PRBool sTablesInitialized = PR_FALSE;
 
 static const PRUint8 PremultiplyValue(PRUint8 a, PRUint8 v) {
     return sPremultiplyTable[a*256+v];
@@ -93,7 +87,7 @@ CalculateTables()
         }
     }
 
-    sTablesInitialized = true;
+    sTablesInitialized = PR_TRUE;
 }
 
 void
@@ -210,7 +204,7 @@ gfxUtils::UnpremultiplyImageSurface(gfxImageSurface *aSourceSurface,
     }
 }
 
-static bool
+static PRBool
 IsSafeImageTransformComponent(gfxFloat aValue)
 {
   return aValue >= -32768 && aValue <= 32767;
@@ -278,7 +272,7 @@ CreateSamplingRestrictedDrawable(gfxDrawable* aDrawable,
 
     nsRefPtr<gfxContext> tmpCtx = new gfxContext(temp);
     tmpCtx->SetOperator(OptimalFillOperator());
-    aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), true,
+    aDrawable->Draw(tmpCtx, needed - needed.TopLeft(), PR_TRUE,
                     gfxPattern::FILTER_FAST, gfxMatrix().Translate(needed.TopLeft()));
 
     nsRefPtr<gfxPattern> resultPattern = new gfxPattern(temp);
@@ -298,7 +292,7 @@ struct NS_STACK_CLASS AutoCairoPixmanBugWorkaround
                                  const gfxMatrix& aDeviceSpaceToImageSpace,
                                  const gfxRect&   aFill,
                                  const gfxASurface::gfxSurfaceType& aSurfaceType)
-     : mContext(aContext), mSucceeded(true), mPushedGroup(false)
+     : mContext(aContext), mSucceeded(PR_TRUE), mPushedGroup(PR_FALSE)
     {
         // Quartz's limits for matrix are much larger than pixman
         if (aSurfaceType == gfxASurface::SurfaceTypeQuartz)
@@ -309,7 +303,7 @@ struct NS_STACK_CLASS AutoCairoPixmanBugWorkaround
             !IsSafeImageTransformComponent(aDeviceSpaceToImageSpace.yx) ||
             !IsSafeImageTransformComponent(aDeviceSpaceToImageSpace.yy)) {
             NS_WARNING("Scaling up too much, bailing out");
-            mSucceeded = false;
+            mSucceeded = PR_FALSE;
             return;
         }
 
@@ -333,7 +327,7 @@ struct NS_STACK_CLASS AutoCairoPixmanBugWorkaround
         mContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
         mContext->SetOperator(gfxContext::OPERATOR_OVER);
 
-        mPushedGroup = true;
+        mPushedGroup = PR_TRUE;
     }
 
     ~AutoCairoPixmanBugWorkaround()
@@ -345,13 +339,13 @@ struct NS_STACK_CLASS AutoCairoPixmanBugWorkaround
         }
     }
 
-    bool PushedGroup() { return mPushedGroup; }
-    bool Succeeded() { return mSucceeded; }
+    PRBool PushedGroup() { return mPushedGroup; }
+    PRBool Succeeded() { return mSucceeded; }
 
 private:
     gfxContext* mContext;
-    bool mSucceeded;
-    bool mPushedGroup;
+    PRPackedBool mSucceeded;
+    PRPackedBool mPushedGroup;
 };
 
 static gfxMatrix
@@ -378,7 +372,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
                            const gfxImageSurface::gfxImageFormat aFormat,
                            const gfxPattern::GraphicsFilter& aFilter)
 {
-    bool doTile = !aImageRect.Contains(aSourceRect);
+    PRBool doTile = !aImageRect.Contains(aSourceRect);
 
     nsRefPtr<gfxASurface> currentTarget = aContext->CurrentSurface();
     gfxASurface::gfxSurfaceType surfaceType = currentTarget->GetType();
@@ -411,7 +405,7 @@ gfxUtils::DrawPixelSnapped(gfxContext*      aContext,
         // We no longer need to tile: Either we never needed to, or we already
         // filled a surface with the tiled pattern; this surface can now be
         // drawn without tiling.
-        doTile = false;
+        doTile = PR_FALSE;
     }
 
     gfxContext::GraphicsOperator op = aContext->CurrentOperator();
@@ -443,7 +437,7 @@ gfxUtils::ImageFormatToDepth(gfxASurface::gfxImageFormat aFormat)
 
 static void
 PathFromRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
-                       bool aSnap)
+                       PRBool aSnap)
 {
   aContext->NewPath();
   nsIntRegionRectIterator iter(aRegion);
@@ -455,7 +449,7 @@ PathFromRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
 
 static void
 ClipToRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
-                     bool aSnap)
+                     PRBool aSnap)
 {
   PathFromRegionInternal(aContext, aRegion, aSnap);
   aContext->Clip();
@@ -464,13 +458,13 @@ ClipToRegionInternal(gfxContext* aContext, const nsIntRegion& aRegion,
 /*static*/ void
 gfxUtils::ClipToRegion(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  ClipToRegionInternal(aContext, aRegion, false);
+  ClipToRegionInternal(aContext, aRegion, PR_FALSE);
 }
 
 /*static*/ void
 gfxUtils::ClipToRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  ClipToRegionInternal(aContext, aRegion, true);
+  ClipToRegionInternal(aContext, aRegion, PR_TRUE);
 }
 
 /*static*/ gfxFloat
@@ -505,17 +499,17 @@ gfxUtils::ClampToScaleFactor(gfxFloat aVal)
 /*static*/ void
 gfxUtils::PathFromRegion(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  PathFromRegionInternal(aContext, aRegion, false);
+  PathFromRegionInternal(aContext, aRegion, PR_FALSE);
 }
 
 /*static*/ void
 gfxUtils::PathFromRegionSnapped(gfxContext* aContext, const nsIntRegion& aRegion)
 {
-  PathFromRegionInternal(aContext, aRegion, true);
+  PathFromRegionInternal(aContext, aRegion, PR_TRUE);
 }
 
 
-bool
+PRBool
 gfxUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
 {
   *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
@@ -523,174 +517,3 @@ gfxUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
   return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height).IsEqualEdges(aIn);
 }
 
-void
-gfxUtils::GetYCbCrToRGBDestFormatAndSize(const PlanarYCbCrImage::Data& aData,
-                                         gfxASurface::gfxImageFormat& aSuggestedFormat,
-                                         gfxIntSize& aSuggestedSize)
-{
-  gfx::YUVType yuvtype =
-    gfx::TypeFromSize(aData.mYSize.width,
-                      aData.mYSize.height,
-                      aData.mCbCrSize.width,
-                      aData.mCbCrSize.height);
-
-  // 'prescale' is true if the scaling is to be done as part of the
-  // YCbCr to RGB conversion rather than on the RGB data when rendered.
-  bool prescale = aSuggestedSize.width > 0 && aSuggestedSize.height > 0 &&
-                    aSuggestedSize != aData.mPicSize;
-
-  if (aSuggestedFormat == gfxASurface::ImageFormatRGB16_565) {
-#if defined(HAVE_YCBCR_TO_RGB565)
-    if (prescale &&
-        !gfx::IsScaleYCbCrToRGB565Fast(aData.mPicX,
-                                       aData.mPicY,
-                                       aData.mPicSize.width,
-                                       aData.mPicSize.height,
-                                       aSuggestedSize.width,
-                                       aSuggestedSize.height,
-                                       yuvtype,
-                                       gfx::FILTER_BILINEAR) &&
-        gfx::IsConvertYCbCrToRGB565Fast(aData.mPicX,
-                                        aData.mPicY,
-                                        aData.mPicSize.width,
-                                        aData.mPicSize.height,
-                                        yuvtype)) {
-      prescale = false;
-    }
-#else
-    // yuv2rgb16 function not available
-    aSuggestedFormat = gfxASurface::ImageFormatRGB24;
-#endif
-  }
-  else if (aSuggestedFormat != gfxASurface::ImageFormatRGB24) {
-    // No other formats are currently supported.
-    aSuggestedFormat = gfxASurface::ImageFormatRGB24;
-  }
-  if (aSuggestedFormat == gfxASurface::ImageFormatRGB24) {
-    /* ScaleYCbCrToRGB32 does not support a picture offset, nor 4:4:4 data.
-       See bugs 639415 and 640073. */
-    if (aData.mPicX != 0 || aData.mPicY != 0 || yuvtype == gfx::YV24)
-      prescale = false;
-  }
-  if (!prescale) {
-    aSuggestedSize = aData.mPicSize;
-  }
-}
-
-void
-gfxUtils::ConvertYCbCrToRGB(const PlanarYCbCrImage::Data& aData,
-                            const gfxASurface::gfxImageFormat& aDestFormat,
-                            const gfxIntSize& aDestSize,
-                            unsigned char* aDestBuffer,
-                            PRInt32 aStride)
-{
-  gfx::YUVType yuvtype =
-    gfx::TypeFromSize(aData.mYSize.width,
-                      aData.mYSize.height,
-                      aData.mCbCrSize.width,
-                      aData.mCbCrSize.height);
-
-  // Convert from YCbCr to RGB now, scaling the image if needed.
-  if (aDestSize != aData.mPicSize) {
-#if defined(HAVE_YCBCR_TO_RGB565)
-    if (aDestFormat == gfxASurface::ImageFormatRGB16_565) {
-      gfx::ScaleYCbCrToRGB565(aData.mYChannel,
-                              aData.mCbChannel,
-                              aData.mCrChannel,
-                              aDestBuffer,
-                              aData.mPicX,
-                              aData.mPicY,
-                              aData.mPicSize.width,
-                              aData.mPicSize.height,
-                              aDestSize.width,
-                              aDestSize.height,
-                              aData.mYStride,
-                              aData.mCbCrStride,
-                              aStride,
-                              yuvtype,
-                              gfx::FILTER_BILINEAR);
-    } else
-#endif
-      gfx::ScaleYCbCrToRGB32(aData.mYChannel,
-                             aData.mCbChannel,
-                             aData.mCrChannel,
-                             aDestBuffer,
-                             aData.mPicSize.width,
-                             aData.mPicSize.height,
-                             aDestSize.width,
-                             aDestSize.height,
-                             aData.mYStride,
-                             aData.mCbCrStride,
-                             aStride,
-                             yuvtype,
-                             gfx::ROTATE_0,
-                             gfx::FILTER_BILINEAR);
-  } else { // no prescale
-#if defined(HAVE_YCBCR_TO_RGB565)
-    if (aDestFormat == gfxASurface::ImageFormatRGB16_565) {
-      gfx::ConvertYCbCrToRGB565(aData.mYChannel,
-                                aData.mCbChannel,
-                                aData.mCrChannel,
-                                aDestBuffer,
-                                aData.mPicX,
-                                aData.mPicY,
-                                aData.mPicSize.width,
-                                aData.mPicSize.height,
-                                aData.mYStride,
-                                aData.mCbCrStride,
-                                aStride,
-                                yuvtype);
-    } else // aDestFormat != gfxASurface::ImageFormatRGB16_565
-#endif
-      gfx::ConvertYCbCrToRGB32(aData.mYChannel,
-                               aData.mCbChannel,
-                               aData.mCrChannel,
-                               aDestBuffer,
-                               aData.mPicX,
-                               aData.mPicY,
-                               aData.mPicSize.width,
-                               aData.mPicSize.height,
-                               aData.mYStride,
-                               aData.mCbCrStride,
-                               aStride,
-                               yuvtype);
-  }
-}
-
-#ifdef MOZ_DUMP_PAINTING
-/* static */ void
-gfxUtils::WriteAsPNG(DrawTarget* aDT, const char* aFile)
-{
-  aDT->Flush();
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aDT);
-  if (surf) {
-    surf->WriteAsPNG(aFile);
-  } else {
-    NS_WARNING("Failed to get Thebes surface!");
-  }
-}
-
-/* static */ void
-gfxUtils::DumpAsDataURL(DrawTarget* aDT)
-{
-  aDT->Flush();
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aDT);
-  if (surf) {
-    surf->DumpAsDataURL();
-  } else {
-    NS_WARNING("Failed to get Thebes surface!");
-  }
-}
-
-/* static */ void
-gfxUtils::CopyAsDataURL(DrawTarget* aDT)
-{
-  aDT->Flush();
-  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aDT);
-  if (surf) {
-    surf->CopyAsDataURL();
-  } else {
-    NS_WARNING("Failed to get Thebes surface!");
-  }
-}
-#endif

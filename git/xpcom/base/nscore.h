@@ -57,13 +57,6 @@
  */
 #include "prtypes.h"
 
-/*
- * This is for functions that are like malloc_usable_size but also take a
- * computed size as a fallback.  Such functions are used for measuring the size
- * of data structures.
- */
-typedef size_t(*nsMallocSizeOfFun)(const void *p, size_t computedSize);
-
 /* Core XPCOM declarations. */
 
 /**
@@ -432,6 +425,11 @@ typedef PRUint32 nsrefcnt;
 #define NS_STRINGIFY(x_) NS_STRINGIFY_HELPER(x_)
 
 /*
+ * Use NS_CLAMP to force a value (such as a preference) into a range.
+ */
+#define NS_CLAMP(x, low, high)  (((x) > (high)) ? (high) : (((x) < (low)) ? (low) : (x)))
+
+/*
  * These macros allow you to give a hint to the compiler about branch
  * probability so that it can better optimize.  Use them like this:
  *
@@ -524,7 +522,7 @@ typedef PRUint32 nsrefcnt;
 #define MOZ_SEH_TRY           __try
 #define MOZ_SEH_EXCEPT(expr)  __except(expr)
 #else
-#define MOZ_SEH_TRY           if(true)
+#define MOZ_SEH_TRY           if(PR_TRUE)
 #define MOZ_SEH_EXCEPT(expr)  else
 #endif
 

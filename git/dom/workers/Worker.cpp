@@ -112,29 +112,6 @@ public:
     return proto;
   }
 
-  static void
-  ClearPrivateSlot(JSContext* aCx, JSObject* aObj, bool aSaveEventHandlers)
-  {
-    JS_ASSERT(!JS_IsExceptionPending(aCx));
-
-    WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aCx, aObj);
-    JS_ASSERT(worker);
-
-    if (aSaveEventHandlers) {
-      for (int index = 0; index < STRING_COUNT; index++) {
-        const char* name = sEventStrings[index];
-        jsval listener;
-        if (!worker->GetEventListenerOnEventTarget(aCx, name + 2, &listener) ||
-            !JS_DefineProperty(aCx, aObj, name, listener, NULL, NULL,
-                               (PROPERTY_FLAGS & ~JSPROP_SHARED))) {
-          JS_ClearPendingException(aCx);
-        }
-      }
-    }
-
-    SetJSPrivateSafeish(aCx, aObj, NULL);
-  }
-
 protected:
   static WorkerPrivate*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName);
@@ -214,7 +191,7 @@ private:
     const char* name = sEventStrings[JSID_TO_INT(aIdval)];
     WorkerPrivate* worker = GetInstancePrivate(aCx, aObj, name);
     if (!worker) {
-      return !JS_IsExceptionPending(aCx);
+      return false;
     }
 
     return worker->GetEventListenerOnEventTarget(aCx, name + 2, aVp);
@@ -230,7 +207,7 @@ private:
     const char* name = sEventStrings[JSID_TO_INT(aIdval)];
     WorkerPrivate* worker = GetInstancePrivate(aCx, aObj, name);
     if (!worker) {
-      return !JS_IsExceptionPending(aCx);
+      return false;
     }
 
     return worker->SetEventListenerOnEventTarget(aCx, name + 2, aVp);
@@ -248,7 +225,7 @@ private:
     JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aCx, aObj);
     if (worker) {
-      worker->FinalizeInstance(aCx, true);
+      worker->FinalizeInstance(aCx);
     }
   }
 
@@ -267,14 +244,11 @@ private:
   Terminate(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     const char*& name = sFunctions[0].name;
     WorkerPrivate* worker = GetInstancePrivate(aCx, obj, name);
     if (!worker) {
-      return !JS_IsExceptionPending(aCx);
+      return false;
     }
 
     return worker->Terminate(aCx);
@@ -284,14 +258,11 @@ private:
   PostMessage(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     const char*& name = sFunctions[1].name;
     WorkerPrivate* worker = GetInstancePrivate(aCx, obj, name);
     if (!worker) {
-      return !JS_IsExceptionPending(aCx);
+      return false;
     }
 
     jsval message;
@@ -366,12 +337,6 @@ public:
     return proto;
   }
 
-  static void
-  ClearPrivateSlot(JSContext* aCx, JSObject* aObj, bool aSaveEventHandlers)
-  {
-    Worker::ClearPrivateSlot(aCx, aObj, aSaveEventHandlers);
-  }
-
 private:
   // No instance of this class should ever be created so these are explicitly
   // left without an implementation to prevent linking in case someone tries to
@@ -404,7 +369,7 @@ private:
     JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     WorkerPrivate* worker = GetJSPrivateSafeish<WorkerPrivate>(aCx, aObj);
     if (worker) {
-      worker->FinalizeInstance(aCx, true);
+      worker->FinalizeInstance(aCx);
     }
   }
 
@@ -458,20 +423,6 @@ InitClass(JSContext* aCx, JSObject* aGlobal, JSObject* aProto,
           bool aMainRuntime)
 {
   return Worker::InitClass(aCx, aGlobal, aProto, aMainRuntime);
-}
-
-void
-ClearPrivateSlot(JSContext* aCx, JSObject* aObj, bool aSaveEventHandlers)
-{
-  JSClass* clasp = JS_GET_CLASS(aCx, aObj);
-  JS_ASSERT(clasp == Worker::Class() || clasp == ChromeWorker::Class());
-
-  if (clasp == ChromeWorker::Class()) {
-    ChromeWorker::ClearPrivateSlot(aCx, aObj, aSaveEventHandlers);
-  }
-  else {
-    Worker::ClearPrivateSlot(aCx, aObj, aSaveEventHandlers);
-  }
 }
 
 } // namespace worker

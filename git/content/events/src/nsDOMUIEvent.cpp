@@ -55,14 +55,14 @@
 nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
   : nsDOMEvent(aPresContext, aEvent ?
                static_cast<nsEvent *>(aEvent) :
-               static_cast<nsEvent *>(new nsUIEvent(false, 0, 0)))
+               static_cast<nsEvent *>(new nsUIEvent(PR_FALSE, 0, 0)))
   , mClientPoint(0, 0), mLayerPoint(0, 0), mPagePoint(0, 0)
 {
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
   }
   
@@ -191,8 +191,8 @@ nsDOMUIEvent::GetDetail(PRInt32* aDetail)
 
 NS_IMETHODIMP
 nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
-                          bool canBubbleArg,
-                          bool cancelableArg,
+                          PRBool canBubbleArg,
+                          PRBool cancelableArg,
                           nsIDOMWindow* viewArg,
                           PRInt32 detailArg)
 {
@@ -300,16 +300,16 @@ nsDOMUIEvent::GetRangeOffset(PRInt32* aRangeOffset)
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetCancelBubble(bool* aCancelBubble)
+nsDOMUIEvent::GetCancelBubble(PRBool* aCancelBubble)
 {
   NS_ENSURE_ARG_POINTER(aCancelBubble);
   *aCancelBubble =
-    (mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) ? true : false;
+    (mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::SetCancelBubble(bool aCancelBubble)
+nsDOMUIEvent::SetCancelBubble(PRBool aCancelBubble)
 {
   if (aCancelBubble) {
     mEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
@@ -360,7 +360,7 @@ nsDOMUIEvent::GetLayerY(PRInt32* aLayerY)
 }
 
 NS_IMETHODIMP
-nsDOMUIEvent::GetIsChar(bool* aIsChar)
+nsDOMUIEvent::GetIsChar(PRBool* aIsChar)
 {
   switch(mEvent->eventStructType)
   {
@@ -371,7 +371,7 @@ nsDOMUIEvent::GetIsChar(bool* aIsChar)
       *aIsChar = ((nsTextEvent*)mEvent)->isChar;
       return NS_OK;
     default:
-      *aIsChar = false;
+      *aIsChar = PR_FALSE;
       return NS_OK;
   }
 }
@@ -392,25 +392,25 @@ nsDOMUIEvent::DuplicatePrivateData()
 }
 
 void
-nsDOMUIEvent::Serialize(IPC::Message* aMsg, bool aSerializeInterfaceType)
+nsDOMUIEvent::Serialize(IPC::Message* aMsg, PRBool aSerializeInterfaceType)
 {
   if (aSerializeInterfaceType) {
     IPC::WriteParam(aMsg, NS_LITERAL_STRING("uievent"));
   }
 
-  nsDOMEvent::Serialize(aMsg, false);
+  nsDOMEvent::Serialize(aMsg, PR_FALSE);
 
   PRInt32 detail = 0;
   GetDetail(&detail);
   IPC::WriteParam(aMsg, detail);
 }
 
-bool
+PRBool
 nsDOMUIEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 {
-  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), false);
-  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &mDetail), false);
-  return true;
+  NS_ENSURE_TRUE(nsDOMEvent::Deserialize(aMsg, aIter), PR_FALSE);
+  NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &mDetail), PR_FALSE);
+  return PR_TRUE;
 }
 
 nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,

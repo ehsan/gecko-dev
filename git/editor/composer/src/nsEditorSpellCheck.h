@@ -91,11 +91,11 @@ protected:
 
   nsString mPreferredLang;
 
-  bool mUpdateDictionaryRunning;
+  PRPackedBool mUpdateDictionaryRunning;
 
 public:
-  void BeginUpdateDictionary() { mUpdateDictionaryRunning = true ;}
-  void EndUpdateDictionary() { mUpdateDictionaryRunning = false ;}
+  void BeginUpdateDictionary() { mUpdateDictionaryRunning = PR_TRUE ;}
+  void EndUpdateDictionary() { mUpdateDictionaryRunning = PR_FALSE ;}
 };
 
 #endif // nsEditorSpellCheck_h___

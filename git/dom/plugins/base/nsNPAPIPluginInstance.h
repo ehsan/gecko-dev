@@ -49,9 +49,6 @@
 #include "nsIChannel.h"
 #include "nsInterfaceHashtable.h"
 #include "nsHashKeys.h"
-#ifdef MOZ_WIDGET_ANDROID
-#include "nsIRunnable.h"
-#endif
 
 #include "mozilla/TimeStamp.h"
 #include "mozilla/PluginLibrary.h"
@@ -71,7 +68,7 @@ public:
   uint32_t id;
   nsCOMPtr<nsITimer> timer;
   void (*callback)(NPP npp, uint32_t timerID);
-  bool inCallback;
+  PRBool inCallback;
 };
 
 class nsNPAPIPluginInstance : public nsISupports
@@ -89,28 +86,27 @@ public:
   nsresult NewStreamToPlugin(nsIPluginStreamListener** listener);
   nsresult NewStreamFromPlugin(const char* type, const char* target, nsIOutputStream* *result);
   nsresult Print(NPPrint* platformPrint);
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   nsresult PostEvent(void* event) { return 0; };
 #endif
   nsresult HandleEvent(void* event, PRInt16* result);
   nsresult GetValueFromPlugin(NPPVariable variable, void* value);
   nsresult GetDrawingModel(PRInt32* aModel);
-  nsresult IsRemoteDrawingCoreAnimation(bool* aDrawing);
+  nsresult IsRemoteDrawingCoreAnimation(PRBool* aDrawing);
   nsresult GetJSObject(JSContext *cx, JSObject** outObject);
   nsresult DefineJavaProperties();
-  bool ShouldCache();
-  nsresult IsWindowless(bool* isWindowless);
+  nsresult IsWindowless(PRBool* isWindowless);
   nsresult AsyncSetWindow(NPWindow* window);
   nsresult GetImage(ImageContainer* aContainer, Image** aImage);
   nsresult GetImageSize(nsIntSize* aSize);
   nsresult NotifyPainted(void);
-  nsresult UseAsyncPainting(bool* aIsAsync);
+  nsresult UseAsyncPainting(PRBool* aIsAsync);
   nsresult SetBackgroundUnknown();
   nsresult BeginUpdateBackground(nsIntRect* aRect, gfxContext** aContext);
   nsresult EndUpdateBackground(gfxContext* aContext, nsIntRect* aRect);
-  nsresult IsTransparent(bool* isTransparent);
+  nsresult IsTransparent(PRBool* isTransparent);
   nsresult GetFormValue(nsAString& aValue);
-  nsresult PushPopupsEnabledState(bool aEnabled);
+  nsresult PushPopupsEnabledState(PRBool aEnabled);
   nsresult PopPopupsEnabledState();
   nsresult GetPluginAPIVersion(PRUint16* version);
   nsresult InvalidateRect(NPRect *invalidRect);
@@ -133,27 +129,25 @@ public:
   void SetURI(nsIURI* uri);
   nsIURI* GetURI();
 
-  NPError SetWindowless(bool aWindowless);
+  NPError SetWindowless(PRBool aWindowless);
 
-  NPError SetWindowlessLocal(bool aWindowlessLocal);
+  NPError SetWindowlessLocal(PRBool aWindowlessLocal);
 
-  NPError SetTransparent(bool aTransparent);
+  NPError SetTransparent(PRBool aTransparent);
 
-  NPError SetWantsAllNetworkStreams(bool aWantsAllNetworkStreams);
+  NPError SetWantsAllNetworkStreams(PRBool aWantsAllNetworkStreams);
 
-  NPError SetUsesDOMForCursor(bool aUsesDOMForCursor);
-  bool UsesDOMForCursor();
+  NPError SetUsesDOMForCursor(PRBool aUsesDOMForCursor);
+  PRBool UsesDOMForCursor();
 
 #ifdef XP_MACOSX
   void SetDrawingModel(NPDrawingModel aModel);
   void SetEventModel(NPEventModel aModel);
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   void SetDrawingModel(PRUint32 aModel);
   void* GetJavaSurface();
-  void SetJavaSurface(void* aSurface);
-  void RequestJavaSurface();
 #endif
 
   nsresult NewStreamListener(const char* aURL, void* notifyData,
@@ -178,12 +172,6 @@ public:
   bool CanFireNotifications() {
     return mRunning == RUNNING || mRunning == DESTROYING;
   }
-
-  // return is only valid when the plugin is not running
-  mozilla::TimeStamp StopTime();
-
-  // cache this NPAPI plugin
-  nsresult SetCached(bool aCache);
 
   already_AddRefed<nsPIDOMWindow> GetDOMWindow();
 
@@ -228,9 +216,8 @@ protected:
   NPDrawingModel mDrawingModel;
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   PRUint32 mDrawingModel;
-  nsCOMPtr<nsIRunnable> mSurfaceGetter;
 #endif
 
   enum {
@@ -242,15 +229,14 @@ protected:
 
   // these are used to store the windowless properties
   // which the browser will later query
-  bool mWindowless;
-  bool mWindowlessLocal;
-  bool mTransparent;
-  bool mCached;
-  bool mUsesDOMForCursor;
+  PRPackedBool mWindowless;
+  PRPackedBool mWindowlessLocal;
+  PRPackedBool mTransparent;
+  PRPackedBool mUsesDOMForCursor;
 
 public:
   // True while creating the plugin, or calling NPP_SetWindow() on it.
-  bool mInPluginInitCall;
+  PRPackedBool mInPluginInitCall;
 
   nsXPIDLCString mFakeURL;
 
@@ -274,14 +260,10 @@ private:
   // non-null during a HandleEvent call
   void* mCurrentPluginEvent;
 
-  // Timestamp for the last time this plugin was stopped.
-  // This is only valid when the plugin is actually stopped!
-  mozilla::TimeStamp mStopTime;
-
   nsCOMPtr<nsIURI> mURI;
 
-  bool mUsePluginLayersPref;
-#ifdef MOZ_WIDGET_ANDROID
+  PRPackedBool mUsePluginLayersPref;
+#ifdef ANDROID
   void* mSurface;
 #endif
 };

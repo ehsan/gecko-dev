@@ -93,7 +93,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
   }
 
   nsWeakFrame weakFrame(this);
-  bool doDefault = true;
+  PRBool doDefault = PR_TRUE;
 
   switch (aEvent->message) {
     case NS_MOUSE_BUTTON_DOWN: {
@@ -123,36 +123,34 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
           }
 
           mMouseDownRect = rect.ToNearestPixels(aPresContext->AppUnitsPerDevPixel());
-          doDefault = false;
         }
         else {
-          // If there is no window, then resizing isn't allowed.
-          if (!window)
-            break;
-
-          doDefault = false;
-            
           // ask the widget implementation to begin a resize drag if it can
           Direction direction = GetDirection();
           nsresult rv = aEvent->widget->BeginResizeDrag(aEvent,
                         direction.mHorizontal, direction.mVertical);
-          // for native drags, don't set the fields below
-          if (rv != NS_ERROR_NOT_IMPLEMENTED)
-             break;
-             
-          // if there's no native resize support, we need to do window
-          // resizing ourselves
-          window->GetPositionAndSize(&mMouseDownRect.x, &mMouseDownRect.y,
-                                     &mMouseDownRect.width, &mMouseDownRect.height);
+          if (rv == NS_ERROR_NOT_IMPLEMENTED && window) {
+            // if there's no native resize support, we need to do window
+            // resizing ourselves
+            window->GetPositionAndSize(&mMouseDownRect.x, &mMouseDownRect.y,
+                                       &mMouseDownRect.width, &mMouseDownRect.height);
+          }
+          else {
+            // for native drags, don't set the fields below
+            doDefault = PR_FALSE;
+            break;
+          }
         }
 
         // we're tracking
-        mTrackingMouseMove = true;
+        mTrackingMouseMove = PR_TRUE;
 
         // remember current mouse coordinates
         mMouseDownPoint = aEvent->refPoint + aEvent->widget->WidgetToScreenOffset();
 
         nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
+
+        doDefault = PR_FALSE;
       }
     }
     break;
@@ -163,11 +161,11 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         static_cast<nsMouseEvent*>(aEvent)->button == nsMouseEvent::eLeftButton)
     {
       // we're done tracking.
-      mTrackingMouseMove = false;
+      mTrackingMouseMove = PR_FALSE;
 
       nsIPresShell::SetCapturingContent(nsnull, 0);
 
-      doDefault = false;
+      doDefault = PR_FALSE;
     }
   }
   break;
@@ -259,7 +257,8 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
         nsIntRect oldRect;
         nsWeakFrame weakFrame(menuPopupFrame);
         if (menuPopupFrame) {
-          nsCOMPtr<nsIWidget> widget = menuPopupFrame->GetWidget();
+          nsCOMPtr<nsIWidget> widget;
+          menuPopupFrame->GetWidget(getter_AddRefs(widget));
           if (widget)
             widget->GetScreenBounds(oldRect);
 
@@ -279,14 +278,14 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
             (oldRect.x != rect.x || oldRect.y != rect.y) &&
             (!menuPopupFrame->IsAnchored() ||
              menuPopupFrame->PopupLevel() != ePopupLevelParent)) {
-          menuPopupFrame->MoveTo(rect.x, rect.y, true);
+          menuPopupFrame->MoveTo(rect.x, rect.y, PR_TRUE);
         }
       }
       else {
-        window->SetPositionAndSize(rect.x, rect.y, rect.width, rect.height, true); // do the repaint.
+        window->SetPositionAndSize(rect.x, rect.y, rect.width, rect.height, PR_TRUE); // do the repaint.
       }
 
-      doDefault = false;
+      doDefault = PR_FALSE;
     }
   }
   break;
@@ -346,7 +345,7 @@ nsResizerFrame::GetContentToResize(nsIPresShell* aPresShell, nsIBaseWindow** aWi
     }
 
     // don't allow resizing windows in content shells
-    bool isChromeShell = false;
+    PRBool isChromeShell = PR_FALSE;
     nsCOMPtr<nsISupports> cont = aPresShell->GetPresContext()->GetContainer();
     nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(cont);
     if (dsti) {
@@ -359,7 +358,7 @@ nsResizerFrame::GetContentToResize(nsIPresShell* aPresShell, nsIBaseWindow** aWi
       // don't allow resizers in content shells, except for the viewport
       // scrollbar which doesn't have a parent
       nsIContent* nonNativeAnon = mContent->FindFirstNonNativeAnonymous();
-      if (!nonNativeAnon || nonNativeAnon->GetParent()) {
+      if (nonNativeAnon && !nonNativeAnon->GetParent()) {
         return nsnull;
       }
     }
@@ -426,10 +425,10 @@ nsResizerFrame::ResizeContent(nsIContent* aContent, const Direction& aDirection,
     }
     // only set the property if the element could have changed in that direction
     if (aDirection.mHorizontal) {
-      aContent->SetAttr(kNameSpaceID_None, nsGkAtoms::width, aSizeInfo.width, true);
+      aContent->SetAttr(kNameSpaceID_None, nsGkAtoms::width, aSizeInfo.width, PR_TRUE);
     }
     if (aDirection.mVertical) {
-      aContent->SetAttr(kNameSpaceID_None, nsGkAtoms::height, aSizeInfo.height, true);
+      aContent->SetAttr(kNameSpaceID_None, nsGkAtoms::height, aSizeInfo.height, PR_TRUE);
     }
   }
   else {
@@ -550,5 +549,5 @@ nsResizerFrame::MouseClicked(nsPresContext* aPresContext, nsGUIEvent *aEvent)
   // Execute the oncommand event handler.
   nsContentUtils::DispatchXULCommand(mContent,
                                      aEvent ?
-                                       NS_IS_TRUSTED_EVENT(aEvent) : false);
+                                       NS_IS_TRUSTED_EVENT(aEvent) : PR_FALSE);
 }

@@ -76,7 +76,7 @@ nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
     mClipParentMatrix = new gfxMatrix(aMatrix);
   }
 
-  bool isTrivial = IsTrivial();
+  PRBool isTrivial = IsTrivial();
 
   nsAutoSVGRenderMode mode(aContext,
                            isTrivial ? nsSVGRenderState::CLIP
@@ -87,7 +87,7 @@ nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
 
   nsSVGClipPathFrame *clipPathFrame =
     nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nsnull);
-  bool referencedClipIsTrivial;
+  PRBool referencedClipIsTrivial;
   if (clipPathFrame) {
     referencedClipIsTrivial = clipPathFrame->IsTrivial();
     gfx->Save();
@@ -106,14 +106,14 @@ nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
       SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION | 
                                  nsISVGChildFrame::TRANSFORM_CHANGED);
 
-      bool isOK = true;
+      PRBool isOK = PR_TRUE;
       nsSVGClipPathFrame *clipPathFrame =
         nsSVGEffects::GetEffectProperties(kid).GetClipPathFrame(&isOK);
       if (!isOK) {
         continue;
       }
 
-      bool isTrivial;
+      PRBool isTrivial;
 
       if (clipPathFrame) {
         isTrivial = clipPathFrame->IsTrivial();
@@ -171,7 +171,7 @@ nsSVGClipPathFrame::ClipPaint(nsSVGRenderState* aContext,
   return NS_OK;
 }
 
-bool
+PRBool
 nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
                                 const gfxMatrix &aMatrix,
                                 const nsPoint &aPoint)
@@ -181,7 +181,7 @@ nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
   // and the document has a clip reference loop.
   if (mInUse) {
     NS_WARNING("Clip loop detected!");
-    return false;
+    return PR_FALSE;
   }
   AutoClipPathReferencer clipRef(this);
 
@@ -195,7 +195,7 @@ nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
   nsSVGClipPathFrame *clipPathFrame =
     nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nsnull);
   if (clipPathFrame && !clipPathFrame->ClipHitTest(aParent, aMatrix, aPoint))
-    return false;
+    return PR_FALSE;
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
@@ -207,20 +207,20 @@ nsSVGClipPathFrame::ClipHitTest(nsIFrame* aParent,
       SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
 
       if (SVGFrame->GetFrameForPoint(aPoint))
-        return true;
+        return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
-bool
+PRBool
 nsSVGClipPathFrame::IsTrivial()
 {
   // If the clip path is clipped then it's non-trivial
   if (nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(nsnull))
-    return false;
+    return PR_FALSE;
 
-  bool foundChild = false;
+  PRBool foundChild = PR_FALSE;
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
@@ -229,31 +229,31 @@ nsSVGClipPathFrame::IsTrivial()
       // We consider a non-trivial clipPath to be one containing
       // either more than one svg child and/or a svg container
       if (foundChild || svgChild->IsDisplayContainer())
-        return false;
+        return PR_FALSE;
 
       // or where the child is itself clipped
       if (nsSVGEffects::GetEffectProperties(kid).GetClipPathFrame(nsnull))
-        return false;
+        return PR_FALSE;
 
-      foundChild = true;
+      foundChild = PR_TRUE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsSVGClipPathFrame::IsValid()
 {
   if (mInUse) {
     NS_WARNING("Clip loop detected!");
-    return false;
+    return PR_FALSE;
   }
   AutoClipPathReferencer clipRef(this);
 
-  bool isOK = true;
+  PRBool isOK = PR_TRUE;
   nsSVGEffects::GetEffectProperties(this).GetClipPathFrame(&isOK);
   if (!isOK) {
-    return false;
+    return PR_FALSE;
   }
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
@@ -269,17 +269,17 @@ nsSVGClipPathFrame::IsValid()
 
         if (type != nsGkAtoms::svgPathGeometryFrame &&
             type != nsGkAtoms::svgTextFrame) {
-          return false;
+          return PR_FALSE;
         }
       }
       continue;
     }
     if (type != nsGkAtoms::svgPathGeometryFrame &&
         type != nsGkAtoms::svgTextFrame) {
-      return false;
+      return PR_FALSE;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP

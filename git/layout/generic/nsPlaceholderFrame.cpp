@@ -180,11 +180,11 @@ nsPlaceholderFrame::GetType() const
   return nsGkAtoms::placeholderFrame; 
 }
 
-/* virtual */ bool
+/* virtual */ PRBool
 nsPlaceholderFrame::CanContinueTextRun() const
 {
   if (!mOutOfFlowFrame) {
-    return false;
+    return PR_FALSE;
   }
   // first-letter frames can continue text runs, and placeholders for floated
   // first-letter frames can too

@@ -300,7 +300,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
             return NS_OK;
         }
 
-        NS_IMETHOD HasMoreElements(bool *result)
+        NS_IMETHOD HasMoreElements(PRBool *result)
         {
             nsresult rv;
             if (mNext == nsnull && mDir)
@@ -315,7 +315,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
                         return NS_ERROR_FAILURE;
                     mDir = nsnull;
 
-                    *result = false;
+                    *result = PR_FALSE;
                     return NS_OK;
                 }
 
@@ -329,7 +329,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
                     return rv;
 
                 // make sure the thing exists.  If it does, try the next one.
-                bool exists;
+                PRBool exists;
                 rv = file->Exists(&exists);
                 if (NS_FAILED(rv) || !exists)
                 {
@@ -347,7 +347,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
         NS_IMETHOD GetNext(nsISupports **result)
         {
             nsresult rv;
-            bool hasMore;
+            PRBool hasMore;
             rv = HasMoreElements(&hasMore);
             if (NS_FAILED(rv)) return rv;
 
@@ -361,7 +361,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
         NS_IMETHOD GetNextFile(nsIFile **result)
         {
             *result = nsnull;
-            bool hasMore = false;
+            PRBool hasMore = PR_FALSE;
             nsresult rv = HasMoreElements(&hasMore);
             if (NS_FAILED(rv) || !hasMore)
                 return rv;
@@ -445,7 +445,7 @@ nsresult nsDriveEnumerator::Init()
     return NS_OK;
 }
 
-NS_IMETHODIMP nsDriveEnumerator::HasMoreElements(bool *aHasMore)
+NS_IMETHODIMP nsDriveEnumerator::HasMoreElements(PRBool *aHasMore)
 {
     // no more bits means no more drives
     *aHasMore = (mDrives != 0);
@@ -475,7 +475,7 @@ NS_IMETHODIMP nsDriveEnumerator::GetNext(nsISupports **aNext)
 
     nsILocalFile *file;
     nsresult rv = NS_NewNativeLocalFile(nsDependentCString(drive),
-                                        false, &file);
+                                        PR_FALSE, &file);
     *aNext = file;
 
     return rv;
@@ -587,7 +587,7 @@ char *   TypeEaEnumerator::GetNext(PRUint32 *lth)
 //-----------------------------------------------------------------------------
 
 nsLocalFile::nsLocalFile()
-  : mDirty(true)
+  : mDirty(PR_TRUE)
 {
 }
 
@@ -627,7 +627,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS4(nsLocalFile,
 //-----------------------------------------------------------------------------
 
 nsLocalFile::nsLocalFile(const nsLocalFile& other)
-  : mDirty(true)
+  : mDirty(PR_TRUE)
   , mWorkingPath(other.mWorkingPath)
 {
 }
@@ -665,7 +665,7 @@ nsLocalFile::Stat()
     if (status != PR_SUCCESS)
         return NS_ERROR_FILE_NOT_FOUND;
 
-    mDirty = false;
+    mDirty = PR_FALSE;
     return NS_OK;
 }
 
@@ -839,18 +839,18 @@ NS_IMETHODIMP
 nsLocalFile::AppendNative(const nsACString &node)
 {
     // append this path, multiple components are not permitted
-    return AppendNativeInternal(PromiseFlatCString(node), false);
+    return AppendNativeInternal(PromiseFlatCString(node), PR_FALSE);
 }
 
 NS_IMETHODIMP
 nsLocalFile::AppendRelativeNativePath(const nsACString &node)
 {
     // append this path, multiple components are permitted
-    return AppendNativeInternal(PromiseFlatCString(node), true);
+    return AppendNativeInternal(PromiseFlatCString(node), PR_TRUE);
 }
 
 nsresult
-nsLocalFile::AppendNativeInternal(const nsAFlatCString &node, bool multipleComponents)
+nsLocalFile::AppendNativeInternal(const nsAFlatCString &node, PRBool multipleComponents)
 {
     if (node.IsEmpty())
         return NS_OK;
@@ -1158,7 +1158,7 @@ nsLocalFile::GetFileTypes(nsIArray **_retval)
             nsCAutoString temp;
             temp.Assign(ptr, lth);
             typeString->SetData(temp);
-            mutArray->AppendElement(typeString, false);
+            mutArray->AppendElement(typeString, PR_FALSE);
             cnt++;
         }
     }
@@ -1179,10 +1179,10 @@ nsLocalFile::GetFileTypes(nsIArray **_retval)
 // see if the file is of the requested type
 
 NS_IMETHODIMP
-nsLocalFile::IsFileType(const nsACString& fileType, bool *_retval)
+nsLocalFile::IsFileType(const nsACString& fileType, PRBool *_retval)
 {
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     // fetch the .TYPE ea & prepare for enumeration
     TypeEaEnumerator typeEnum;
@@ -1196,7 +1196,7 @@ nsLocalFile::IsFileType(const nsACString& fileType, bool *_retval)
     // compare each type to the request;  if there's a match, exit
     for (ptr = typeEnum.GetNext(&lth); ptr; ptr = typeEnum.GetNext(&lth))
         if (fileType.EqualsASCII(ptr, lth)) {
-            *_retval = true;
+            *_retval = PR_TRUE;
             break;
         }
 
@@ -1363,7 +1363,7 @@ nsLocalFile::SetFileSource(const nsACString& aURI)
 
 nsresult
 nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
-                            const nsACString &newName, bool move)
+                            const nsACString &newName, PRBool move)
 {
     nsresult rv;
     nsCAutoString filePath;
@@ -1448,7 +1448,7 @@ nsLocalFile::CopySingleFile(nsIFile *sourceFile, nsIFile *destParent,
 
 
 nsresult
-nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
+nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, PRBool move)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
@@ -1475,7 +1475,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
         return NS_ERROR_FILE_DESTINATION_NOT_DIR;
 
     // make sure it exists and is a directory.  Create it if not there.
-    bool exists;
+    PRBool exists;
     newParentDir->Exists(&exists);
     if (!exists)
     {
@@ -1485,7 +1485,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
     }
     else
     {
-        bool isDir;
+        PRBool isDir;
         newParentDir->IsDirectory(&isDir);
         if (!isDir)
         {
@@ -1494,8 +1494,8 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
     }
 
     // Try different ways to move/copy files/directories
-    bool done = false;
-    bool isDir;
+    PRBool done = PR_FALSE;
+    PRBool isDir;
     IsDirectory(&isDir);
 
     // Try to move the file or directory, or try to copy a single file
@@ -1549,7 +1549,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
         else
         {
             // check if the destination directory is writable and empty
-            bool isWritable;
+            PRBool isWritable;
 
             target->IsWritable(&isWritable);
             if (!isWritable)
@@ -1557,10 +1557,8 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
 
             nsCOMPtr<nsISimpleEnumerator> targetIterator;
             rv = target->GetDirectoryEntries(getter_AddRefs(targetIterator));
-            if (NS_FAILED(rv))
-                return rv;
 
-            bool more;
+            PRBool more;
             targetIterator->HasMoreElements(&more);
             // return error if target directory is not empty
             if (more)
@@ -1575,7 +1573,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
             return rv;
         }
 
-        bool more;
+        PRBool more;
         while (NS_SUCCEEDED(dirEnum.HasMoreElements(&more)) && more)
         {
             nsCOMPtr<nsISupports> item;
@@ -1604,7 +1602,7 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
         // to the new location.  nothing should be left in the folder.
         if (move)
         {
-          rv = Remove(false); // recursive
+          rv = Remove(PR_FALSE); // recursive
           NS_ENSURE_SUCCESS(rv,rv);
         }
     }
@@ -1642,19 +1640,19 @@ nsLocalFile::CopyMove(nsIFile *aParentDir, const nsACString &newName, bool move)
 NS_IMETHODIMP
 nsLocalFile::CopyToNative(nsIFile *newParentDir, const nsACString &newName)
 {
-    return CopyMove(newParentDir, newName, false);
+    return CopyMove(newParentDir, newName, PR_FALSE);
 }
 
 NS_IMETHODIMP
 nsLocalFile::CopyToFollowingLinksNative(nsIFile *newParentDir, const nsACString &newName)
 {
-    return CopyMove(newParentDir, newName, false);
+    return CopyMove(newParentDir, newName, PR_FALSE);
 }
 
 NS_IMETHODIMP
 nsLocalFile::MoveToNative(nsIFile *newParentDir, const nsACString &newName)
 {
-    return CopyMove(newParentDir, newName, true);
+    return CopyMove(newParentDir, newName, PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -1663,7 +1661,7 @@ nsLocalFile::Load(PRLibrary * *_retval)
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
 
-    bool isFile;
+    PRBool isFile;
     nsresult rv = IsFile(&isFile);
 
     if (NS_FAILED(rv))
@@ -1673,13 +1671,13 @@ nsLocalFile::Load(PRLibrary * *_retval)
         return NS_ERROR_FILE_IS_DIRECTORY;
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcntImpl::SetActivityIsLegal(false);
+    nsTraceRefcntImpl::SetActivityIsLegal(PR_FALSE);
 #endif
 
     *_retval =  PR_LoadLibrary(mWorkingPath.get());
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcntImpl::SetActivityIsLegal(true);
+    nsTraceRefcntImpl::SetActivityIsLegal(PR_TRUE);
 #endif
 
     if (*_retval)
@@ -1689,12 +1687,12 @@ nsLocalFile::Load(PRLibrary * *_retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::Remove(bool recursive)
+nsLocalFile::Remove(PRBool recursive)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
 
-    bool isDir = false;
+    PRBool isDir = PR_FALSE;
 
     nsresult rv = IsDirectory(&isDir);
     if (NS_FAILED(rv))
@@ -1710,7 +1708,7 @@ nsLocalFile::Remove(bool recursive)
             if (NS_FAILED(rv))
                 return rv;
 
-            bool more;
+            PRBool more;
             while (NS_SUCCEEDED(dirEnum.HasMoreElements(&more)) && more)
             {
                 nsCOMPtr<nsISupports> item;
@@ -1835,7 +1833,7 @@ nsLocalFile::GetPermissions(PRUint32 *aPermissions)
     if (NS_FAILED(rv))
         return rv;
 
-    bool isWritable, isExecutable;
+    PRBool isWritable, isExecutable;
     IsWritable(&isWritable);
     IsExecutable(&isExecutable);
 
@@ -2028,7 +2026,7 @@ nsLocalFile::GetParent(nsIFile * *aParent)
         parentPath.AssignLiteral("\\\\.");
 
     nsCOMPtr<nsILocalFile> localFile;
-    nsresult rv = NS_NewNativeLocalFile(parentPath, false, getter_AddRefs(localFile));
+    nsresult rv = NS_NewNativeLocalFile(parentPath, PR_FALSE, getter_AddRefs(localFile));
 
     if(NS_SUCCEEDED(rv) && localFile)
     {
@@ -2038,13 +2036,13 @@ nsLocalFile::GetParent(nsIFile * *aParent)
 }
 
 NS_IMETHODIMP
-nsLocalFile::Exists(bool *_retval)
+nsLocalFile::Exists(PRBool *_retval)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
 
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     MakeDirty();
     nsresult rv = Stat();
@@ -2054,13 +2052,13 @@ nsLocalFile::Exists(bool *_retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::IsWritable(bool *_retval)
+nsLocalFile::IsWritable(PRBool *_retval)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
 
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsresult rv = Stat();
     if (NS_FAILED(rv))
@@ -2086,38 +2084,38 @@ nsLocalFile::IsWritable(bool *_retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::IsReadable(bool *_retval)
+nsLocalFile::IsReadable(PRBool *_retval)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
 
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsresult rv = Stat();
     if (NS_FAILED(rv))
         return rv;
 
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsLocalFile::IsExecutable(bool *_retval)
+nsLocalFile::IsExecutable(PRBool *_retval)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
 
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsresult rv = Stat();
     if (NS_FAILED(rv))
         return rv;
 
     // no need to bother if this isn't a file
-    bool isFile;
+    PRBool isFile;
     rv = IsFile(&isFile);
     if (NS_FAILED(rv) || !isFile)
         return rv;
@@ -2154,17 +2152,17 @@ nsLocalFile::IsExecutable(bool *_retval)
         stricmp(ext, ".cmd") == 0 ||
         stricmp(ext, ".com") == 0 ||
         stricmp(ext, ".bat") == 0)
-        *_retval = true;
+        *_retval = PR_TRUE;
 
     return NS_OK;
 }
 
 
 NS_IMETHODIMP
-nsLocalFile::IsDirectory(bool *_retval)
+nsLocalFile::IsDirectory(PRBool *_retval)
 {
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsresult rv = Stat();
     if (NS_FAILED(rv))
@@ -2175,10 +2173,10 @@ nsLocalFile::IsDirectory(bool *_retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::IsFile(bool *_retval)
+nsLocalFile::IsFile(PRBool *_retval)
 {
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsresult rv = Stat();
     if (NS_FAILED(rv))
@@ -2189,10 +2187,10 @@ nsLocalFile::IsFile(bool *_retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::IsHidden(bool *_retval)
+nsLocalFile::IsHidden(PRBool *_retval)
 {
     NS_ENSURE_ARG(_retval);
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsresult rv = Stat();
     if (NS_FAILED(rv))
@@ -2217,7 +2215,7 @@ nsLocalFile::IsHidden(bool *_retval)
 
 
 NS_IMETHODIMP
-nsLocalFile::IsSymlink(bool *_retval)
+nsLocalFile::IsSymlink(PRBool *_retval)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
@@ -2225,22 +2223,22 @@ nsLocalFile::IsSymlink(bool *_retval)
     NS_ENSURE_ARG_POINTER(_retval);
 
     // No Symlinks on OS/2
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsLocalFile::IsSpecial(bool *_retval)
+nsLocalFile::IsSpecial(PRBool *_retval)
 {
     NS_ENSURE_ARG(_retval);
 
     // when implemented, IsSpecial will be used for WPS objects
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsLocalFile::Equals(nsIFile *inFile, bool *_retval)
+nsLocalFile::Equals(nsIFile *inFile, PRBool *_retval)
 {
     NS_ENSURE_ARG(inFile);
     NS_ENSURE_ARG(_retval);
@@ -2253,12 +2251,12 @@ nsLocalFile::Equals(nsIFile *inFile, bool *_retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::Contains(nsIFile *inFile, bool recur, bool *_retval)
+nsLocalFile::Contains(nsIFile *inFile, PRBool recur, PRBool *_retval)
 {
     // Check we are correctly initialized.
     CHECK_mWorkingPath();
 
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     nsCAutoString myFilePath;
     if ( NS_FAILED(GetNativeTarget(myFilePath)))
@@ -2277,7 +2275,7 @@ nsLocalFile::Contains(nsIFile *inFile, bool recur, bool *_retval)
 
         if (inFilePath[myFilePathLen] == '\\')
         {
-            *_retval = true;
+            *_retval = PR_TRUE;
         }
 
     }
@@ -2296,15 +2294,15 @@ nsLocalFile::GetNativeTarget(nsACString &_retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::GetFollowLinks(bool *aFollowLinks)
+nsLocalFile::GetFollowLinks(PRBool *aFollowLinks)
 {
     NS_ENSURE_ARG(aFollowLinks);
-    *aFollowLinks = false;
+    *aFollowLinks = PR_FALSE;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsLocalFile::SetFollowLinks(bool aFollowLinks)
+nsLocalFile::SetFollowLinks(PRBool aFollowLinks)
 {
     return NS_OK;
 }
@@ -2330,7 +2328,7 @@ nsLocalFile::GetDirectoryEntries(nsISimpleEnumerator * *entries)
         return NS_OK;
     }
 
-    bool isDir;
+    PRBool isDir;
     rv = IsDirectory(&isDir);
     if (NS_FAILED(rv))
         return rv;
@@ -2372,7 +2370,7 @@ nsLocalFile::SetPersistentDescriptor(const nsACString &aPersistentDescriptor)
 NS_IMETHODIMP
 nsLocalFile::Reveal()
 {
-    bool isDirectory = false;
+    PRBool isDirectory = PR_FALSE;
     nsCAutoString path;
 
     IsDirectory(&isDirectory);
@@ -2409,7 +2407,7 @@ nsLocalFile::Launch()
 }
 
 nsresult
-NS_NewNativeLocalFile(const nsACString &path, bool followLinks, nsILocalFile* *result)
+NS_NewNativeLocalFile(const nsACString &path, PRBool followLinks, nsILocalFile* *result)
 {
     nsLocalFile* file = new nsLocalFile();
     if (file == nsnull)
@@ -2561,11 +2559,11 @@ nsLocalFile::GetTarget(nsAString &_retval)
 // nsIHashable
 
 NS_IMETHODIMP
-nsLocalFile::Equals(nsIHashable* aOther, bool *aResult)
+nsLocalFile::Equals(nsIHashable* aOther, PRBool *aResult)
 {
     nsCOMPtr<nsIFile> otherfile(do_QueryInterface(aOther));
     if (!otherfile) {
-        *aResult = false;
+        *aResult = PR_FALSE;
         return NS_OK;
     }
 
@@ -2580,7 +2578,7 @@ nsLocalFile::GetHashCode(PRUint32 *aResult)
 }
 
 nsresult
-NS_NewLocalFile(const nsAString &path, bool followLinks, nsILocalFile* *result)
+NS_NewLocalFile(const nsAString &path, PRBool followLinks, nsILocalFile* *result)
 {
     nsCAutoString buf;
     nsresult rv = NS_CopyUnicodeToNative(path, buf);

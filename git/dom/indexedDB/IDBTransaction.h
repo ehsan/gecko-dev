@@ -65,15 +65,6 @@ class CommitHelper;
 struct ObjectStoreInfo;
 class TransactionThreadPool;
 
-class IDBTransactionListener
-{
-public:
-  NS_IMETHOD_(nsrefcnt) AddRef() = 0;
-  NS_IMETHOD_(nsrefcnt) Release() = 0;
-
-  virtual nsresult NotifyTransactionComplete(IDBTransaction* aTransaction) = 0;
-};
-
 class IDBTransaction : public nsDOMEventTargetHelper,
                        public nsIIDBTransaction,
                        public nsIThreadObserver
@@ -95,15 +86,14 @@ public:
   Create(IDBDatabase* aDatabase,
          nsTArray<nsString>& aObjectStoreNames,
          PRUint16 aMode,
-         bool aDispatchDelayed);
+         PRUint32 aTimeout,
+         bool aDispatchDelayed = false);
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
   void OnNewRequest();
   void OnRequestFinished();
-
-  void SetTransactionListener(IDBTransactionListener* aListener);
 
   bool StartSavepoint();
   nsresult ReleaseSavepoint();
@@ -118,12 +108,23 @@ public:
                bool aAutoIncrement);
 
   already_AddRefed<mozIStorageStatement>
-  IndexDataInsertStatement(bool aAutoIncrement,
-                           bool aUnique);
+  DeleteStatement(bool aAutoIncrement);
 
   already_AddRefed<mozIStorageStatement>
-  IndexDataDeleteStatement(bool aAutoIncrement,
-                           bool aUnique);
+  GetStatement(bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  IndexGetStatement(bool aUnique,
+                    bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  IndexGetObjectStatement(bool aUnique,
+                          bool aAutoIncrement);
+
+  already_AddRefed<mozIStorageStatement>
+  IndexUpdateStatement(bool aAutoIncrement,
+                       bool aUnique,
+                       bool aOverwrite);
 
   already_AddRefed<mozIStorageStatement>
   GetCachedStatement(const nsACString& aQuery);
@@ -175,6 +176,7 @@ private:
   nsTArray<nsString> mObjectStoreNames;
   PRUint16 mReadyState;
   PRUint16 mMode;
+  PRUint32 mTimeout;
   PRUint32 mPendingRequests;
   PRUint32 mCreatedRecursionDepth;
 
@@ -182,11 +184,10 @@ private:
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnCompleteListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnTimeoutListener;
 
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;
-
-  nsRefPtr<IDBTransactionListener> mListener;
 
   // Only touched on the database thread.
   nsCOMPtr<mozIStorageConnection> mConnection;
@@ -210,8 +211,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  CommitHelper(IDBTransaction* aTransaction,
-               IDBTransactionListener* aListener);
+  CommitHelper(IDBTransaction* aTransaction);
   ~CommitHelper();
 
   template<class T>
@@ -229,11 +229,10 @@ public:
 
 private:
   nsRefPtr<IDBTransaction> mTransaction;
-  nsRefPtr<IDBTransactionListener> mListener;
   nsCOMPtr<mozIStorageConnection> mConnection;
   nsAutoTArray<nsCOMPtr<nsISupports>, 10> mDoomedObjects;
 
-  PRUint64 mOldVersion;
+  nsString mOldVersion;
   nsTArray<nsAutoPtr<ObjectStoreInfo> > mOldObjectStores;
 
   bool mAborted;

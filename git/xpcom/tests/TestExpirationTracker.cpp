@@ -54,27 +54,27 @@
 namespace TestExpirationTracker {
 
 struct Object {
-  Object() : mExpired(false) { Touch(); }
-  void Touch() { mLastUsed = PR_IntervalNow(); mExpired = false; }
+  Object() : mExpired(PR_FALSE) { Touch(); }
+  void Touch() { mLastUsed = PR_IntervalNow(); mExpired = PR_FALSE; }
 
   nsExpirationState mExpiration;
   nsExpirationState* GetExpirationState() { return &mExpiration; }
 
   PRIntervalTime mLastUsed;
-  bool           mExpired;
+  PRPackedBool   mExpired;
 };
 
-static bool error;
+static PRBool error;
 static PRUint32 periodMS = 100;
 static PRUint32 ops = 1000;
 static PRUint32 iterations = 2;
-static bool logging = 0;
+static PRBool logging = 0;
 static PRUint32 sleepPeriodMS = 50;
 static PRUint32 slackMS = 20; // allow this much error
 
 static void SignalError() {
   printf("ERROR!\n");
-  error = true;
+  error = PR_TRUE;
 }
 
 template <PRUint32 K> class Tracker : public nsExpirationTracker<Object,K> {
@@ -164,16 +164,16 @@ protected:
       }
     }
     aObj->Touch();
-    aObj->mExpired = true;
+    aObj->mExpired = PR_TRUE;
     DoRandomOperation();
     DoRandomOperation();
     DoRandomOperation();
   }
 };
 
-template <PRUint32 K> static bool test_random() {
+template <PRUint32 K> static PRBool test_random() {
   srand(K);
-  error = false;
+  error = PR_FALSE;
  
   for (PRUint32 j = 0; j < iterations; ++j) {
     Tracker<K> tracker;
@@ -196,11 +196,11 @@ template <PRUint32 K> static bool test_random() {
   return !error;
 }
 
-static bool test_random3() { return test_random<3>(); }
-static bool test_random4() { return test_random<4>(); }
-static bool test_random8() { return test_random<8>(); }
+static PRBool test_random3() { return test_random<3>(); }
+static PRBool test_random4() { return test_random<4>(); }
+static PRBool test_random8() { return test_random<8>(); }
 
-typedef bool (*TestFunc)();
+typedef PRBool (*TestFunc)();
 #define DECL_TEST(name) { #name, name }
 
 static const struct Test {

@@ -94,17 +94,11 @@ MMX_CFLAGS+=--param inline-unit-growth=10000 --param large-function-growth=10000
 endif
 endif
 ifeq (arm,$(findstring arm,$(OS_TEST)))
-# Apple's arm assembler doesn't support the same syntax as
-# the standard GNU assembler, so use the C fallback paths for now.
-# This may be fixable if clang's ARM/iOS assembler improves into a
-# viable solution in the future.
-ifneq (Darwin,$(OS_ARCH))
 ifdef HAVE_ARM_SIMD
 USE_ARM_SIMD_GCC=1
 endif
 ifdef HAVE_ARM_NEON
 USE_ARM_NEON_GCC=1
-endif
 endif
 endif
 
@@ -171,6 +165,8 @@ EXPORTS		= pixman.h pixman-version.h
 LOCAL_INCLUDES	+= -I$(srcdir) -I$(srcdir)/../../cairo/src
 
 FORCE_STATIC_LIB = 1
+# This library is used by other shared libs in a static build
+FORCE_USE_PIC = 1
 
 include $(topsrcdir)/config/config.mk
 
@@ -185,13 +181,16 @@ endif # GNU_CC
 
 # special rule for pixman-mmx to get the right cflags
 pixman-mmx.$(OBJ_SUFFIX): pixman-mmx.c $(GLOBAL_DEPS)
+	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) $(OUTOPTION)$@ -c $(COMPILE_CFLAGS) $(MMX_CFLAGS) $(_VPATH_SRCS)
 
 pixman-sse2.$(OBJ_SUFFIX): pixman-sse2.c $(GLOBAL_DEPS)
+	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) $(OUTOPTION)$@ -c $(COMPILE_CFLAGS) $(SSE2_CFLAGS) $(_VPATH_SRCS)
 
 pixman-arm-neon.$(OBJ_SUFFIX): pixman-arm-neon.c $(GLOBAL_DEPS)
+	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CC)
 	$(ELOG) $(CC) $(OUTOPTION)$@ -c $(COMPILE_CFLAGS) $(ARM_NEON_CFLAGS) $(_VPATH_SRCS)

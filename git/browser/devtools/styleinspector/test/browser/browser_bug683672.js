@@ -14,22 +14,17 @@ Cu.import("resource:///modules/devtools/CssHtmlTree.jsm");
 function test()
 {
   waitForExplicitFinish();
-  ignoreAllUncaughtExceptions();
   addTab(TEST_URI);
   browser.addEventListener("load", tabLoaded, true);
 }
 
 function tabLoaded()
 {
-  browser.removeEventListener("load", tabLoaded, true);
-  doc = content.document;
   ok(window.StyleInspector, "StyleInspector exists");
-  // ok(StyleInspector.isEnabled, "style inspector preference is enabled");
-  stylePanel = new StyleInspector(window);
+  ok(StyleInspector.isEnabled, "style inspector preference is enabled");
+  stylePanel = StyleInspector.createPanel();
   Services.obs.addObserver(runTests, "StyleInspector-opened", false);
-  stylePanel.createPanel(false, function() {
-    stylePanel.open(doc.body);
-  });
+  stylePanel.openPopup();
 }
 
 function runTests()
@@ -39,11 +34,11 @@ function runTests()
   ok(stylePanel.isOpen(), "style inspector is open");
 
   testMatchedSelectors();
-  //testUnmatchedSelectors();
+  testUnmatchedSelectors();
 
   info("finishing up");
   Services.obs.addObserver(finishUp, "StyleInspector-closed", false);
-  stylePanel.close();
+  stylePanel.hidePopup();
 }
 
 function testMatchedSelectors()
@@ -66,8 +61,15 @@ function testMatchedSelectors()
   is(numMatchedSelectors, 6,
       "CssLogic returns the correct number of matched selectors for div");
 
-  is(propertyView.hasMatchedSelectors, true,
-      "hasMatchedSelectors returns true");
+  let returnedSelectorTitle = propertyView.matchedSelectorTitle();
+  let str = CssHtmlTree.l10n("property.numberOfMatchedSelectors");
+  let calculatedSelectorTitle = PluralForm.get(numMatchedSelectors, str)
+                                      .replace("#1", numMatchedSelectors);
+
+  info("returnedSelectorTitle: '" + returnedSelectorTitle + "'");
+
+  is(returnedSelectorTitle, calculatedSelectorTitle,
+      "returned title for matched selectors is correct");
 }
 
 function testUnmatchedSelectors()
@@ -90,8 +92,15 @@ function testUnmatchedSelectors()
   is(numUnmatchedSelectors, 13,
       "CssLogic returns the correct number of unmatched selectors for body");
 
-  is(propertyView.hasUnmatchedSelectors, true,
-      "hasUnmatchedSelectors returns true");
+  let returnedSelectorTitle = propertyView.unmatchedSelectorTitle();
+  let str = CssHtmlTree.l10n("property.numberOfUnmatchedSelectors");
+  let calculatedSelectorTitle = PluralForm.get(numUnmatchedSelectors, str)
+                                      .replace("#1", numUnmatchedSelectors);
+
+  info("returnedSelectorTitle: '" + returnedSelectorTitle + "'");
+
+  is(returnedSelectorTitle, calculatedSelectorTitle,
+      "returned title for unmatched selectors is correct");
 }
 
 function finishUp()

@@ -94,7 +94,6 @@ EXPORTS = nsWindowsDllInterceptor.h
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 CMMSRCS = nsNativeAppSupportCocoa.mm
-EXPORTS = MacQuirks.h
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 CPPSRCS += nsNativeAppSupportOS2.cpp
@@ -104,6 +103,7 @@ CPPSRCS += nsNativeAppSupportUnix.cpp
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 MOCSRCS += moc_nsNativeAppSupportQt.cpp
+  $(NULL)
 CPPSRCS += $(MOCSRCS)
 CPPSRCS += nsNativeAppSupportQt.cpp
 CPPSRCS += nsQAppInstance.cpp
@@ -128,7 +128,7 @@ ifdef MOZ_X11
 CPPSRCS += nsX11ErrorHandler.cpp
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
+ifeq ($(OS_TARGET),Android)
 CPPSRCS += nsAndroidStartup.cpp
 DEFINES += -DANDROID_PACKAGE_NAME='"$(ANDROID_PACKAGE_NAME)"'
 endif
@@ -199,11 +199,6 @@ LOCAL_INCLUDES += \
   -I$(srcdir)/../profile \
   -I$(topsrcdir)/config \
   $(NULL)
-
-ifdef MOZ_APP_STATIC_INI
-LOCAL_INCLUDES += -I$(DEPTH)/build
-DEFINES += -DMOZ_APP_STATIC_INI
-endif
 
 CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
 

@@ -52,15 +52,13 @@
 #include "AudioChild.h"
 #endif
 
-#include "mozilla/dom/ExternalHelperAppChild.h"
-#include "mozilla/dom/PCrashReporterChild.h"
-#include "mozilla/dom/StorageChild.h"
-#include "mozilla/hal_sandbox/PHalChild.h"
 #include "mozilla/ipc/TestShellChild.h"
+#include "mozilla/net/NeckoChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
-#include "mozilla/net/NeckoChild.h"
-#include "mozilla/Preferences.h"
+#include "mozilla/dom/ExternalHelperAppChild.h"
+#include "mozilla/dom/StorageChild.h"
+#include "mozilla/dom/PCrashReporterChild.h"
 
 #if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
@@ -69,13 +67,13 @@
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
+#include "nsIPrefService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsWeakReference.h"
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
 #include "nsJSEnvironment.h"
-#include "SandboxHal.h"
 
 #include "History.h"
 #include "nsDocShellCID.h"
@@ -98,7 +96,7 @@
 
 #include "nsDeviceMotion.h"
 
-#if defined(MOZ_WIDGET_ANDROID)
+#if defined(ANDROID)
 #include "APKOpen.h"
 #endif
 
@@ -111,14 +109,10 @@
 #include "nsIAccessibilityService.h"
 #endif
 
-#include "mozilla/dom/sms/SmsChild.h"
-
-using namespace mozilla::hal_sandbox;
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
 using namespace mozilla::docshell;
-using namespace mozilla::dom::sms;
 
 namespace mozilla {
 namespace dom {
@@ -236,7 +230,6 @@ ContentChild* ContentChild::sSingleton;
 ContentChild::ContentChild()
 #ifdef ANDROID
  : mScreenSize(0, 0)
- , mID(PRUint64(-1))
 #endif
 {
 }
@@ -272,12 +265,8 @@ ContentChild::Init(MessageLoop* aIOLoop,
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
-#ifdef MOZ_CRASHREPORTER
-    SendPCrashReporterConstructor(CrashReporter::CurrentThreadId(),
-                                  XRE_GetProcessType());
-#if defined(MOZ_WIDGET_ANDROID)
-    PCrashReporterChild* crashreporter = ManagedPCrashReporterChild()[0];
-
+#if defined(ANDROID) && defined(MOZ_CRASHREPORTER)
+    PCrashReporterChild* crashreporter = SendPCrashReporterConstructor();
     InfallibleTArray<Mapping> mappings;
     const struct mapping_info *info = getLibraryMapping();
     while (info && info->name) {
@@ -289,7 +278,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
         info++;
     }
     crashreporter->SendAddLibraryMappings(mappings);
-#endif
 #endif
 
     return true;
@@ -370,7 +358,7 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
     // First do the vanilla memory reporters.
     nsCOMPtr<nsISimpleEnumerator> e;
     mgr->EnumerateReporters(getter_AddRefs(e));
-    bool more;
+    PRBool more;
     while (NS_SUCCEEDED(e->HasMoreElements(&more)) && more) {
       nsCOMPtr<nsIMemoryReporter> r;
       e->GetNext(getter_AddRefs(r));
@@ -430,33 +418,15 @@ ContentChild::DeallocPBrowser(PBrowserChild* iframe)
 }
 
 PCrashReporterChild*
-ContentChild::AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                                  const PRUint32& processType)
+ContentChild::AllocPCrashReporter()
 {
-#ifdef MOZ_CRASHREPORTER
     return new CrashReporterChild();
-#else
-    return nsnull;
-#endif
 }
 
 bool
 ContentChild::DeallocPCrashReporter(PCrashReporterChild* crashreporter)
 {
     delete crashreporter;
-    return true;
-}
-
-PHalChild*
-ContentChild::AllocPHal()
-{
-    return CreateHalChild();
-}
-
-bool
-ContentChild::DeallocPHal(PHalChild* aHal)
-{
-    delete aHal;
     return true;
 }
 
@@ -538,19 +508,6 @@ ContentChild::DeallocPExternalHelperApp(PExternalHelperAppChild* aService)
     return true;
 }
 
-PSmsChild*
-ContentChild::AllocPSms()
-{
-    return new SmsChild();
-}
-
-bool
-ContentChild::DeallocPSms(PSmsChild* aSms)
-{
-    delete aSms;
-    return true;
-}
-
 PStorageChild*
 ContentChild::AllocPStorage(const StorageConstructData& aData)
 {
@@ -580,7 +537,7 @@ ContentChild::RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages
 }
 
 bool
-ContentChild::RecvSetOffline(const bool& offline)
+ContentChild::RecvSetOffline(const PRBool& offline)
 {
   nsCOMPtr<nsIIOService> io (do_GetIOService());
   NS_ASSERTION(io, "IO Service can not be null");
@@ -655,14 +612,24 @@ ContentChild::AddRemoteAlertObserver(const nsString& aData,
 bool
 ContentChild::RecvPreferenceUpdate(const PrefTuple& aPref)
 {
-    Preferences::SetPreference(&aPref);
+    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
+    if (!prefs)
+        return false;
+
+    prefs->SetPreference(&aPref);
+
     return true;
 }
 
 bool
 ContentChild::RecvClearUserPreference(const nsCString& aPrefName)
 {
-    Preferences::ClearContentPref(aPrefName.get());
+    nsCOMPtr<nsIPrefServiceInternal> prefs = do_GetService("@mozilla.org/preferences-service;1");
+    if (!prefs)
+        return false;
+
+    prefs->ClearContentPref(aPrefName);
+
     return true;
 }
 
@@ -700,7 +667,7 @@ ContentChild::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
   nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
   if (cpm) {
     cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
-                        aMsg, false, aJSON, nsnull, nsnull);
+                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
   }
   return true;
 }
@@ -809,24 +776,6 @@ ContentChild::RecvCycleCollect()
 {
     nsJSContext::GarbageCollectNow();
     nsJSContext::CycleCollectNow();
-    return true;
-}
-
-bool
-ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
-{
-    mAppInfo.version.Assign(version);
-    mAppInfo.buildID.Assign(buildID);
-    return true;
-}
-
-bool
-ContentChild::RecvSetID(const PRUint64 &id)
-{
-    if (mID != PRUint64(-1)) {
-        NS_WARNING("Setting content child's ID twice?");
-    }
-    mID = id;
     return true;
 }
 

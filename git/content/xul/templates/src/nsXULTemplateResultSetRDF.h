@@ -62,7 +62,7 @@ private:
 
     InstantiationSet::List *mCurrent;
 
-    bool mCheckedNext;
+    PRBool mCheckedNext;
 
 public:
 
@@ -79,7 +79,7 @@ public:
           mQuery(aQuery),
           mInstantiations(aInstantiations),
           mCurrent(nsnull),
-          mCheckedNext(false)
+          mCheckedNext(PR_FALSE)
     { }
 
     ~nsXULTemplateResultSetRDF()

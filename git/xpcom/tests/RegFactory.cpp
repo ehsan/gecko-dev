@@ -45,7 +45,7 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 
-static bool gUnreg = false;
+static PRBool gUnreg = PR_FALSE;
 
 void print_err(nsresult err)
 {
@@ -73,7 +73,7 @@ nsresult Register(nsIComponentRegistrar* registrar, const char *path)
   nsresult rv =
     NS_NewLocalFile(
       NS_ConvertUTF8toUTF16(path),
-      true,
+      PR_TRUE,
       getter_AddRefs(file));
   if (NS_FAILED(rv)) return rv;
   rv = registrar->AutoRegister(file);
@@ -102,7 +102,7 @@ int ProcessArgs(nsIComponentRegistrar* registrar, int argc, char *argv[])
       for (j = 1; argv[i][j] != '\0'; j++) {
         switch (argv[i][j]) {
         case 'u':
-          gUnreg = true;
+          gUnreg = PR_TRUE;
           break;
         default:
           cerr << "Unknown option '" << argv[i][j] << "'\n";

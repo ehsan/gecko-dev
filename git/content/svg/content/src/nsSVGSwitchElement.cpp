@@ -34,8 +34,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGFeatures.h"
 #include "nsSVGSwitchElement.h"
 #include "nsIFrame.h"
@@ -116,7 +114,7 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGSwitchElement)
 nsresult
 nsSVGSwitchElement::InsertChildAt(nsIContent* aKid,
                                   PRUint32 aIndex,
-                                  bool aNotify)
+                                  PRBool aNotify)
 {
   nsresult rv = nsSVGSwitchElementBase::InsertChildAt(aKid, aIndex, aNotify);
   if (NS_SUCCEEDED(rv)) {
@@ -126,7 +124,7 @@ nsSVGSwitchElement::InsertChildAt(nsIContent* aKid,
 }
 
 nsresult
-nsSVGSwitchElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
+nsSVGSwitchElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
   nsresult rv = nsSVGSwitchElementBase::RemoveChildAt(aIndex, aNotify);
   if (NS_SUCCEEDED(rv)) {
@@ -138,7 +136,7 @@ nsSVGSwitchElement::RemoveChildAt(PRUint32 aIndex, bool aNotify)
 //----------------------------------------------------------------------
 // nsIContent methods
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsSVGSwitchElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -152,7 +150,7 @@ nsSVGSwitchElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap
   };
 
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGSwitchElementBase::IsAttributeMapped(name);
 }
 
@@ -162,19 +160,20 @@ nsSVGSwitchElement::IsAttributeMapped(const nsIAtom* name) const
 nsIContent *
 nsSVGSwitchElement::FindActiveChild() const
 {
-  bool allowReorder = AttrValueIs(kNameSpaceID_None,
+  PRBool allowReorder = AttrValueIs(kNameSpaceID_None,
                                     nsGkAtoms::allowReorder,
                                     nsGkAtoms::yes, eCaseMatters);
 
   const nsAdoptingString& acceptLangs =
     Preferences::GetLocalizedString("intl.accept_languages");
 
+  PRUint32 count = GetChildCount();
+
   if (allowReorder && !acceptLangs.IsEmpty()) {
     PRInt32 bestLanguagePreferenceRank = -1;
     nsIContent *bestChild = nsnull;
-    for (nsIContent* child = nsINode::GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    for (PRUint32 i = 0; i < count; i++) {
+      nsIContent *child = GetChildAt(i);
       if (nsSVGFeatures::PassesConditionalProcessingTests(
             child, nsSVGFeatures::kIgnoreSystemLanguage)) {
         nsAutoString value;
@@ -205,9 +204,8 @@ nsSVGSwitchElement::FindActiveChild() const
     return bestChild;
   }
 
-  for (nsIContent* child = nsINode::GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  for (PRUint32 i = 0; i < count; i++) {
+    nsIContent *child = GetChildAt(i);
     if (nsSVGFeatures::PassesConditionalProcessingTests(child, &acceptLangs)) {
       return child;
     }

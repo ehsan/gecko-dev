@@ -39,6 +39,7 @@
 
 #include "nsISupports.idl"
 
+interface nsIVariant;
 interface nsIIDBObjectStore;
 interface nsIIDBRequest;
 interface nsIIDBTransaction;
@@ -50,12 +51,12 @@ interface nsIDOMEventListener;
  * http://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#idl-def-IDBDatabase
  * for more information.
  */
-[scriptable, builtinclass, uuid(bb877dff-ab5b-4ebb-9b3c-a7fa97cd4b51)]
+[scriptable, uuid(42b38d02-1a29-45f0-99ef-04fd5b441270)]
 interface nsIIDBDatabase : nsISupports
 {
   readonly attribute DOMString name;
 
-  readonly attribute unsigned long long version;
+  readonly attribute DOMString version;
 
   readonly attribute nsIDOMDOMStringList objectStoreNames;
 
@@ -69,21 +70,24 @@ interface nsIIDBDatabase : nsISupports
    */
   [implicit_jscontext]
   nsIIDBObjectStore
-  createObjectStore([Null(Stringify)] in DOMString name,
+  createObjectStore(in AString name,
                     [optional /* none */] in jsval options);
 
   void
-  deleteObjectStore([Null(Stringify)] in DOMString name);
+  deleteObjectStore(in AString name);
+
+  [implicit_jscontext]
+  nsIIDBRequest
+  setVersion(in AString version);
 
   [optional_argc, implicit_jscontext]
   nsIIDBTransaction
-  transaction(in jsval storeNames, // js array of strings
-              [optional /* READ_ONLY */] in unsigned short mode);
+  transaction(in nsIVariant storeNames, // js array of strings
+              [optional /* READ_ONLY */] in unsigned short mode,
+              [optional /* 5000ms */] in unsigned long timeout);
 
   void
   close();
-
-  attribute nsIDOMEventListener onabort;
 
   attribute nsIDOMEventListener onerror;
 

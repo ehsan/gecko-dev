@@ -89,10 +89,10 @@ nsWyciwygProtocolHandler::GetDefaultPort(PRInt32 *result)
 }
 
 NS_IMETHODIMP 
-nsWyciwygProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
+nsWyciwygProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval)
 {
   // don't override anything.  
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 

@@ -51,10 +51,10 @@ nsTextEditRules::CheckBidiLevelForDeletion(nsISelection         *aSelection,
                                            nsIDOMNode           *aSelNode, 
                                            PRInt32               aSelOffset, 
                                            nsIEditor::EDirection aAction,
-                                           bool                 *aCancel)
+                                           PRBool               *aCancel)
 {
   NS_ENSURE_ARG_POINTER(aCancel);
-  *aCancel = false;
+  *aCancel = PR_FALSE;
 
   nsCOMPtr<nsIPresShell> shell = mEditor->GetPresShell();
   NS_ENSURE_TRUE(shell, NS_ERROR_NOT_INITIALIZED);
@@ -79,7 +79,7 @@ nsTextEditRules::CheckBidiLevelForDeletion(nsISelection         *aSelection,
   NS_ENSURE_TRUE(frameSelection, NS_ERROR_NULL_POINTER);
   
   nsPrevNextBidiLevels levels = frameSelection->
-    GetPrevNextBidiLevels(content, aSelOffset, true);
+    GetPrevNextBidiLevels(content, aSelOffset, PR_TRUE);
     
   levelBefore = levels.mLevelBefore;
   levelAfter = levels.mLevelAfter;
@@ -98,7 +98,7 @@ nsTextEditRules::CheckBidiLevelForDeletion(nsISelection         *aSelection,
     if (mDeleteBidiImmediately || levelBefore == levelAfter)
       ; // perform the deletion
     else
-      *aCancel = true;
+      *aCancel = PR_TRUE;
 
     // Set the bidi level of the caret to that of the
     // character that will be (or would have been) deleted

@@ -94,7 +94,7 @@ FunctionCall::evaluateToNodeSet(Expr* aExpr, txIEvalContext* aContext,
     return NS_OK;
 }
 
-bool FunctionCall::requireParams(PRInt32 aParamCountMin,
+PRBool FunctionCall::requireParams(PRInt32 aParamCountMin,
                                    PRInt32 aParamCountMax,
                                    txIEvalContext* aContext)
 {
@@ -108,10 +108,10 @@ bool FunctionCall::requireParams(PRInt32 aParamCountMin,
 #endif
         aContext->receiveError(err, NS_ERROR_XPATH_INVALID_ARG);
 
-        return false;
+        return PR_FALSE;
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 Expr*
@@ -128,17 +128,17 @@ FunctionCall::setSubExprAt(PRUint32 aPos, Expr* aExpr)
     mParams[aPos] = aExpr;
 }
 
-bool
+PRBool
 FunctionCall::argsSensitiveTo(ContextSensitivity aContext)
 {
     PRUint32 i, len = mParams.Length();
     for (i = 0; i < len; ++i) {
         if (mParams[i]->isSensitiveTo(aContext)) {
-            return true;
+            return PR_TRUE;
         }
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 #ifdef TX_TO_STRING

@@ -96,7 +96,7 @@ nsMathMLTokenFrame::GetMathMLFrameType()
   }
   else if(style.EqualsLiteral("invariant")) {
     nsAutoString data;
-    nsContentUtils::GetNodeTextContent(mContent, false, data);
+    nsContentUtils::GetNodeTextContent(mContent, PR_FALSE, data);
     eMATHVARIANT variant = nsMathMLOperators::LookupInvariantChar(data);
 
     switch (variant) {
@@ -124,7 +124,7 @@ CompressWhitespace(nsIContent* aContent)
       nsAutoString text;
       cont->AppendTextTo(text);
       text.CompressWhitespace();
-      cont->SetText(text, false); // not meant to be used if notify is needed
+      cont->SetText(text, PR_FALSE); // not meant to be used if notify is needed
     }
   }
 }
@@ -152,7 +152,7 @@ nsMathMLTokenFrame::SetInitialChildList(ChildListID     aListID,
   if (NS_FAILED(rv))
     return rv;
 
-  SetQuotes(false);
+  SetQuotes(PR_FALSE);
   ProcessTextData();
   return rv;
 }
@@ -207,7 +207,7 @@ nsMathMLTokenFrame::Reflow(nsPresContext*          aPresContext,
 // that do not implement the GetBoundingMetrics() interface.
 /* virtual */ nsresult
 nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
-                          bool                 aPlaceOrigin,
+                          PRBool               aPlaceOrigin,
                           nsHTMLReflowMetrics& aDesiredSize)
 {
   mBoundingMetrics = nsBoundingMetrics();
@@ -268,7 +268,7 @@ nsMathMLTokenFrame::AttributeChanged(PRInt32         aNameSpaceID,
 {
   if (nsGkAtoms::lquote_ == aAttribute ||
       nsGkAtoms::rquote_ == aAttribute) {
-    SetQuotes(true);
+    SetQuotes(PR_TRUE);
   }
 
   return nsMathMLContainerFrame::
@@ -290,7 +290,7 @@ nsMathMLTokenFrame::ProcessTextData()
 ///////////////////////////////////////////////////////////////////////////
 // For <mi>, if the content is not a single character, turn the font to
 // normal (this function will also query attributes from the mstyle hierarchy)
-// Returns true if there is a style change.
+// Returns PR_TRUE if there is a style change.
 //
 // http://www.w3.org/TR/2003/REC-MathML2-20031021/chapter3.html#presm.commatt
 //
@@ -314,24 +314,24 @@ nsMathMLTokenFrame::ProcessTextData()
 //   (non-slanted) for all tokens except mi. ... (The deprecated fontslant
 //   attribute also behaves this way.)"
 
-bool
+PRBool
 nsMathMLTokenFrame::SetTextStyle()
 {
   if (mContent->Tag() != nsGkAtoms::mi_)
-    return false;
+    return PR_FALSE;
 
   if (!mFrames.FirstChild())
-    return false;
+    return PR_FALSE;
 
   // Get the text content that we enclose and its length
   nsAutoString data;
-  nsContentUtils::GetNodeTextContent(mContent, false, data);
+  nsContentUtils::GetNodeTextContent(mContent, PR_FALSE, data);
   PRInt32 length = data.Length();
   if (!length)
-    return false;
+    return PR_FALSE;
 
   nsAutoString fontstyle;
-  bool isSingleCharacter =
+  PRBool isSingleCharacter =
     length == 1 ||
     (length == 2 && NS_IS_HIGH_SURROGATE(data[0]));
   if (isSingleCharacter &&
@@ -367,19 +367,19 @@ nsMathMLTokenFrame::SetTextStyle()
   if (fontstyle.IsEmpty()) {
     if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::_moz_math_fontstyle_)) {
       mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::_moz_math_fontstyle_,
-                          false);
-      return true;
+                          PR_FALSE);
+      return PR_TRUE;
     }
   }
   else if (!mContent->AttrValueIs(kNameSpaceID_None,
                                   nsGkAtoms::_moz_math_fontstyle_,
                                   fontstyle, eCaseMatters)) {
     mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::_moz_math_fontstyle_,
-                      fontstyle, false);
-    return true;
+                      fontstyle, PR_FALSE);
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -399,7 +399,7 @@ nsMathMLTokenFrame::SetTextStyle()
 // We also check that we are not relying on null pointers...
 
 static void
-SetQuote(nsIFrame* aFrame, nsString& aValue, bool aNotify)
+SetQuote(nsIFrame* aFrame, nsString& aValue, PRBool aNotify)
 {
   if (!aFrame)
     return;
@@ -416,7 +416,7 @@ SetQuote(nsIFrame* aFrame, nsString& aValue, bool aNotify)
 }
 
 void
-nsMathMLTokenFrame::SetQuotes(bool aNotify)
+nsMathMLTokenFrame::SetQuotes(PRBool aNotify)
 {
   if (mContent->Tag() != nsGkAtoms::ms_)
     return;

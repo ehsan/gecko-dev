@@ -51,8 +51,6 @@
 #include "nsIObjectOutputStream.h"
 #include "nsIURI.h"
 #include "nsStringAPI.h"
-#include "nsIPrefBranch.h"
-#include "nsIPrefService.h"
 
 namespace mozilla {
 namespace scache {
@@ -91,9 +89,8 @@ WaitForStartupTimer() {
     = do_GetService("@mozilla.org/startupcache/cache;1");
   PR_Sleep(10 * PR_TicksPerSecond());
   
-  bool complete;
+  PRBool complete;
   while (true) {
-    
     NS_ProcessPendingEvents(nsnull);
     rv = sc->StartupWriteComplete(&complete);
     if (NS_FAILED(rv) || complete)
@@ -217,7 +214,7 @@ TestWriteObject() {
     return rv;
   }
   nsCOMPtr<nsISupports> objQI(do_QueryInterface(obj));
-  rv = objectOutput->WriteObject(objQI, true);
+  rv = objectOutput->WriteObject(objQI, PR_TRUE);
   if (NS_FAILED(rv)) {
     fail("failed to write object");
     return rv;
@@ -256,13 +253,13 @@ TestWriteObject() {
   buf2.forget();
 
   nsCOMPtr<nsISupports> deserialized;
-  rv = objectInput->ReadObject(true, getter_AddRefs(deserialized));
+  rv = objectInput->ReadObject(PR_TRUE, getter_AddRefs(deserialized));
   if (NS_FAILED(rv)) {
     fail("failed to read object");
     return rv;
   }
   
-  bool match = false;
+  PRBool match = false;
   nsCOMPtr<nsIURI> uri(do_QueryInterface(deserialized));
   if (uri) {
     nsCString outSpec;
@@ -322,9 +319,6 @@ int main(int argc, char** argv)
   int rv = 0;
   nsresult rv2;
   ScopedXPCOM xpcom("Startup Cache");
-
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  prefs->SetIntPref("hangmonitor.timeout", 0);
   
   if (NS_FAILED(TestStartupWriteRead()))
     rv = 1;

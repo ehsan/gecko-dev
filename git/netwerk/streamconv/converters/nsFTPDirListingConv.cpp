@@ -162,7 +162,7 @@ nsFTPDirListingConv::OnDataAvailable(nsIRequest* request, nsISupports *ctxt,
         rv = GetHeaders(indexFormat, uri);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        mSentHeading = true;
+        mSentHeading = PR_TRUE;
     }
 
     char *line = buffer;
@@ -219,7 +219,7 @@ nsFTPDirListingConv::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
 // nsFTPDirListingConv methods
 nsFTPDirListingConv::nsFTPDirListingConv() {
     mFinalListener      = nsnull;
-    mSentHeading        = false;
+    mSentHeading        = PR_FALSE;
 }
 
 nsFTPDirListingConv::~nsFTPDirListingConv() {
@@ -280,7 +280,7 @@ char *
 nsFTPDirListingConv::DigestBufferLines(char *aBuffer, nsCString &aString) {
     char *line = aBuffer;
     char *eol;
-    bool cr = false;
+    PRBool cr = PR_FALSE;
 
     list_state state;
     state.magic = 0;
@@ -291,10 +291,10 @@ nsFTPDirListingConv::DigestBufferLines(char *aBuffer, nsCString &aString) {
         if (eol > line && *(eol-1) == nsCRT::CR) {
             eol--;
             *eol = '\0';
-            cr = true;
+            cr = PR_TRUE;
         } else {
             *eol = '\0';
-            cr = false;
+            cr = PR_FALSE;
         }
 
         list_result result;

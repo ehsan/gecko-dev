@@ -149,11 +149,11 @@ nsJARInputThunk::EnsureJarStream()
         NS_ENSURE_STATE(!mJarDirSpec.IsEmpty());
 
         rv = mJarReader->GetInputStreamWithSpec(mJarDirSpec,
-                                                mJarEntry,
+                                                mJarEntry.get(),
                                                 getter_AddRefs(mJarStream));
     }
     else {
-        rv = mJarReader->GetInputStream(mJarEntry,
+        rv = mJarReader->GetInputStream(mJarEntry.get(),
                                         getter_AddRefs(mJarStream));
     }
     if (NS_FAILED(rv)) {
@@ -207,9 +207,9 @@ nsJARInputThunk::ReadSegments(nsWriteSegmentFun writer, void *closure,
 }
 
 NS_IMETHODIMP
-nsJARInputThunk::IsNonBlocking(bool *nonBlocking)
+nsJARInputThunk::IsNonBlocking(PRBool *nonBlocking)
 {
-    *nonBlocking = false;
+    *nonBlocking = PR_FALSE;
     return NS_OK;
 }
 
@@ -222,8 +222,8 @@ nsJARChannel::nsJARChannel()
     : mContentLength(-1)
     , mLoadFlags(LOAD_NORMAL)
     , mStatus(NS_OK)
-    , mIsPending(false)
-    , mIsUnsafe(true)
+    , mIsPending(PR_FALSE)
+    , mIsUnsafe(PR_TRUE)
     , mJarInput(nsnull)
 {
 #if defined(PR_LOGGING)
@@ -273,7 +273,7 @@ nsJARChannel::Init(nsIURI *uri)
     rv = mJarURI->GetJARFile(getter_AddRefs(innerURI));
     if (NS_FAILED(rv))
         return rv;
-    bool isJS;
+    PRBool isJS;
     rv = innerURI->SchemeIs("javascript", &isJS);
     if (NS_FAILED(rv))
         return rv;
@@ -303,7 +303,7 @@ nsJARChannel::CreateJarInput(nsIZipReaderCache *jarCache)
         if (mInnerJarEntry.IsEmpty())
             rv = jarCache->GetZip(mJarFile, getter_AddRefs(reader));
         else 
-            rv = jarCache->GetInnerZip(mJarFile, mInnerJarEntry,
+            rv = jarCache->GetInnerZip(mJarFile, mInnerJarEntry.get(),
                                        getter_AddRefs(reader));
     } else {
         // create an uncached jar reader
@@ -322,7 +322,7 @@ nsJARChannel::CreateJarInput(nsIZipReaderCache *jarCache)
             if (NS_FAILED(rv))
                 return rv;
 
-            rv = reader->OpenInner(outerReader, mInnerJarEntry);
+            rv = reader->OpenInner(outerReader, mInnerJarEntry.get());
         }
     }
     if (NS_FAILED(rv))
@@ -336,7 +336,7 @@ nsJARChannel::CreateJarInput(nsIZipReaderCache *jarCache)
 }
 
 nsresult
-nsJARChannel::EnsureJarInput(bool blocking)
+nsJARChannel::EnsureJarInput(PRBool blocking)
 {
     LOG(("nsJARChannel::EnsureJarInput [this=%x %s]\n", this, mSpec.get()));
 
@@ -378,7 +378,7 @@ nsJARChannel::EnsureJarInput(bool blocking)
     }
 
     if (mJarFile) {
-        mIsUnsafe = false;
+        mIsUnsafe = PR_FALSE;
 
         // NOTE: we do not need to deal with mSecurityInfo here,
         // because we're loading from a local file
@@ -411,7 +411,7 @@ nsJARChannel::GetName(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsJARChannel::IsPending(bool *result)
+nsJARChannel::IsPending(PRBool *result)
 {
     *result = mIsPending;
     return NS_OK;
@@ -535,7 +535,7 @@ nsJARChannel::GetOwner(nsISupports **result)
         return NS_ERROR_NOT_INITIALIZED;
 
     nsCOMPtr<nsIPrincipal> cert;
-    rv = jarReader->GetCertificatePrincipal(mJarEntry, getter_AddRefs(cert));
+    rv = jarReader->GetCertificatePrincipal(mJarEntry.get(), getter_AddRefs(cert));
     if (NS_FAILED(rv)) return rv;
 
     if (cert) {
@@ -720,9 +720,9 @@ nsJARChannel::Open(nsIInputStream **stream)
     NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
 
     mJarFile = nsnull;
-    mIsUnsafe = true;
+    mIsUnsafe = PR_TRUE;
 
-    nsresult rv = EnsureJarInput(true);
+    nsresult rv = EnsureJarInput(PR_TRUE);
     if (NS_FAILED(rv)) return rv;
 
     if (!mJarInput)
@@ -746,19 +746,19 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
     NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
 
     mJarFile = nsnull;
-    mIsUnsafe = true;
+    mIsUnsafe = PR_TRUE;
 
     // Initialize mProgressSink
     NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup, mProgressSink);
 
-    nsresult rv = EnsureJarInput(false);
+    nsresult rv = EnsureJarInput(PR_FALSE);
     if (NS_FAILED(rv)) return rv;
 
     // These variables must only be set if we're going to trigger an
     // OnStartRequest, either from AsyncRead or OnDownloadComplete.
     mListener = listener;
     mListenerContext = ctx;
-    mIsPending = true;
+    mIsPending = PR_TRUE;
     if (mJarInput) {
         // create input stream pump and call AsyncRead as a block
         rv = NS_NewInputStreamPump(getter_AddRefs(mPump), mJarInput);
@@ -768,7 +768,7 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
         // If we failed to create the pump or initiate the AsyncRead,
         // then we need to clear these variables.
         if (NS_FAILED(rv)) {
-            mIsPending = false;
+            mIsPending = PR_FALSE;
             mListenerContext = nsnull;
             mListener = nsnull;
             return rv;
@@ -785,7 +785,7 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
 // nsIJARChannel
 //-----------------------------------------------------------------------------
 NS_IMETHODIMP
-nsJARChannel::GetIsUnsafe(bool *isUnsafe)
+nsJARChannel::GetIsUnsafe(PRBool *isUnsafe)
 {
     *isUnsafe = mIsUnsafe;
     return NS_OK;
@@ -854,7 +854,7 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
         } else {
             nsCOMPtr<nsIJARChannel> innerJARChannel(do_QueryInterface(channel));
             if (innerJARChannel) {
-                bool unsafe;
+                PRBool unsafe;
                 innerJARChannel->GetIsUnsafe(&unsafe);
                 mIsUnsafe = unsafe;
             }
@@ -865,7 +865,7 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
     }
 
     if (NS_SUCCEEDED(status) && mIsUnsafe &&
-        !Preferences::GetBool("network.jar.open-unsafe-types", false)) {
+        !Preferences::GetBool("network.jar.open-unsafe-types", PR_FALSE)) {
         status = NS_ERROR_UNSAFE_CONTENT_TYPE;
     }
 
@@ -931,7 +931,7 @@ nsJARChannel::OnStopRequest(nsIRequest *req, nsISupports *ctx, nsresult status)
 
     mPump = 0;
     NS_IF_RELEASE(mJarInput);
-    mIsPending = false;
+    mIsPending = PR_FALSE;
     mDownloader = 0; // this may delete the underlying jar file
 
     // Drop notification callbacks to prevent cycles.

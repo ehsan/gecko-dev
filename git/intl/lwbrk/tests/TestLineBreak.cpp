@@ -95,14 +95,14 @@ static char ruler2[] =
 "0123456789012345678901234567890123456789012345678901234567890123456789012";
 
 
-bool TestASCIILB(nsILineBreaker *lb,
+PRBool TestASCIILB(nsILineBreaker *lb,
                  const char* in, const PRUint32 len, 
                  const PRUint32* out, PRUint32 outlen)
 {
          NS_ConvertASCIItoUTF16 eng1(in);
          PRUint32 i,j;
          PRUint32 res[256];
-         bool ok = true;
+         PRBool ok = PR_TRUE;
          PRInt32 curr;
          for(i = 0, curr = 0; (curr != NS_LINEBREAKER_NEED_MORE_TEXT) && 
              (i < 256); i++)
@@ -113,7 +113,7 @@ bool TestASCIILB(nsILineBreaker *lb,
          }
          if (i != outlen)
          {
-            ok = false;
+            ok = PR_FALSE;
             printf("WARNING!!! return size wrong, expect %d but got %d \n",
                    outlen, i);
          }
@@ -137,18 +137,18 @@ bool TestASCIILB(nsILineBreaker *lb,
             {
                 if (res[j] != out[j])
                 {
-                   ok = false;
+                   ok = PR_FALSE;
                    printf("[%d] expect %d but got %d\n", j, out[j], res[j]);
                 }
             } else {
-                   ok = false;
+                   ok = PR_FALSE;
                    printf("[%d] additional %d\n", j, res[j]);
             }
          }
          return ok;
 }
 
-bool TestASCIIWB(nsIWordBreaker *lb,
+PRBool TestASCIIWB(nsIWordBreaker *lb,
                  const char* in, const PRUint32 len, 
                  const PRUint32* out, PRUint32 outlen)
 {
@@ -156,7 +156,7 @@ bool TestASCIIWB(nsIWordBreaker *lb,
 
          PRUint32 i,j;
          PRUint32 res[256];
-         bool ok = true;
+         PRBool ok = PR_TRUE;
          PRInt32 curr = 0;
 
          for(i = 0, curr = lb->NextWord(eng1.get(), eng1.Length(), curr);
@@ -167,7 +167,7 @@ bool TestASCIIWB(nsIWordBreaker *lb,
          }
          if (i != outlen)
          {
-            ok = false;
+            ok = PR_FALSE;
             printf("WARNING!!! return size wrong, expect %d but got %d\n",
                    outlen, i);
          }
@@ -191,11 +191,11 @@ bool TestASCIIWB(nsIWordBreaker *lb,
             {
                 if (res[j] != out[j])
                 {
-                   ok = false;
+                   ok = PR_FALSE;
                    printf("[%d] expect %d but got %d\n", j, out[j], res[j]);
                 }
             } else {
-                   ok = false;
+                   ok = PR_FALSE;
                    printf("[%d] additional %d\n", j, res[j]);
             }
          }
@@ -203,20 +203,20 @@ bool TestASCIIWB(nsIWordBreaker *lb,
 }
      
      
-bool TestLineBreaker()
+PRBool TestLineBreaker()
 {
    printf("===========================\n");
    printf("Finish nsILineBreaker Test \n");
    printf("===========================\n");
    nsILineBreaker *t = NULL;
    nsresult res;
-   bool ok = true;
+   PRBool ok = PR_TRUE;
    res = CallGetService(kLBrkCID, &t);
            
    printf("Test 1 - GetService():\n");
    if(NS_FAILED(res) || ( t == NULL ) ) {
      printf("\t1st GetService failed\n");
-     ok = false;
+     ok = PR_FALSE;
    }
 
    NS_IF_RELEASE(t);
@@ -225,7 +225,7 @@ bool TestLineBreaker()
  
    if(NS_FAILED(res) || ( t == NULL ) ) {
      printf("\t2nd GetService failed\n");
-     ok = false;
+     ok = PR_FALSE;
    } else {
      printf("Test 4 - {First,Next}ForwardBreak():\n");
      if( TestASCIILB(t, teng1, sizeof(teng1)/sizeof(char), 
@@ -233,7 +233,7 @@ bool TestLineBreaker()
      {
        printf("Test 4 Passed\n\n");
      } else {
-       ok = false;
+       ok = PR_FALSE;
        printf("Test 4 Failed\n\n");
      }
 
@@ -243,7 +243,7 @@ bool TestLineBreaker()
      {
        printf("Test 5 Passed\n\n");
      } else {
-       ok = false;
+       ok = PR_FALSE;
        printf("Test 5 Failed\n\n");
      }
 
@@ -253,7 +253,7 @@ bool TestLineBreaker()
      {
        printf("Test 6 Passed\n\n");
      } else {
-       ok = false;
+       ok = PR_FALSE;
        printf("Test 6 Failed\n\n");
      }
 
@@ -269,20 +269,20 @@ bool TestLineBreaker()
  return ok;
 }
 
-bool TestWordBreaker()
+PRBool TestWordBreaker()
 {
    printf("===========================\n");
    printf("Finish nsIWordBreaker Test \n");
    printf("===========================\n");
    nsIWordBreaker *t = NULL;
    nsresult res;
-   bool ok = true;
+   PRBool ok = PR_TRUE;
    res = CallGetService(kWBrkCID, &t);
            
    printf("Test 1 - GetService():\n");
    if(NS_FAILED(res) || ( t == NULL ) ) {
      printf("\t1st GetService failed\n");
-     ok = false;
+     ok = PR_FALSE;
    } else {
      NS_RELEASE(t);
    }
@@ -291,7 +291,7 @@ bool TestWordBreaker()
            
    if(NS_FAILED(res) || ( t == NULL ) ) {
      printf("\t2nd GetService failed\n");
-     ok = false;
+     ok = PR_FALSE;
    } else {
 
      printf("Test 4 - {First,Next}ForwardBreak():\n");
@@ -300,7 +300,7 @@ bool TestWordBreaker()
      {
         printf("Test 4 Passed\n\n");
      } else {
-       ok = false;
+       ok = PR_FALSE;
        printf("Test 4 Failed\n\n");
      }
 
@@ -310,7 +310,7 @@ bool TestWordBreaker()
      {
        printf("Test 5 Passed\n\n");
      } else {
-       ok = false;
+       ok = PR_FALSE;
        printf("Test 5 Failed\n\n");
      }
 
@@ -320,7 +320,7 @@ bool TestWordBreaker()
      {
        printf("Test 6 Passed\n\n");
      } else {
-       ok = false;
+       ok = PR_FALSE;
        printf("Test 6 Failed\n\n");
      }
 
@@ -393,7 +393,7 @@ void SamplePrintWordWithBreak()
       {
         NS_ConvertASCIItoUTF16 nextFragText(wb[i+1]);
  
-        bool canBreak = true;
+        PRBool canBreak = PR_TRUE;
         canBreak = wbk->BreakInBetween( fragText.get(), 
                                         fragText.Length(),
                                         nextFragText.get(), 
@@ -421,7 +421,7 @@ void SampleFindWordBreakFromPosition(PRUint32 fragN, PRUint32 offset)
    
    nsWordRange res = wbk->FindWord(fragText.get(), fragText.Length(), offset);
 
-   bool canBreak;
+   PRBool canBreak;
    nsAutoString result(Substring(fragText, res.mBegin, res.mEnd-res.mBegin));
 
    if((PRUint32)fragText.Length() == res.mEnd) // if we hit the end of the fragment
@@ -489,8 +489,8 @@ int main(int argc, char** argv) {
    // --------------------------------------------
    printf("Test Line Break\n");
 
-   bool lbok ; 
-   bool wbok ; 
+   PRBool lbok ; 
+   PRBool wbok ; 
    lbok =TestWordBreaker();
    if(lbok)
       printf("Line Break Test\nOK\n");

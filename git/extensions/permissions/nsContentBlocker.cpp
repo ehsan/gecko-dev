@@ -33,7 +33,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
 #include "nsContentBlocker.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -126,7 +125,7 @@ nsContentBlocker::Init()
   mPrefBranchInternal = do_QueryInterface(prefBranch, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mPrefBranchInternal->AddObserver("", this, true);
+  rv = mPrefBranchInternal->AddObserver("", this, PR_TRUE);
   PrefChanged(prefBranch, nsnull);
 
   return rv;
@@ -182,7 +181,7 @@ nsContentBlocker::ShouldLoad(PRUint32          aContentType,
       !scheme.LowerCaseEqualsLiteral("https"))
     return NS_OK;
 
-  bool shouldLoad, fromPrefs;
+  PRBool shouldLoad, fromPrefs;
   rv = TestPermission(aContentLocation, aRequestingLocation, aContentType,
                       &shouldLoad, &fromPrefs);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -262,13 +261,13 @@ nsresult
 nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
                                  nsIURI *aFirstURI,
                                  PRInt32 aContentType,
-                                 bool *aPermission,
-                                 bool *aFromPrefs)
+                                 PRBool *aPermission,
+                                 PRBool *aFromPrefs)
 {
-  *aFromPrefs = false;
+  *aFromPrefs = PR_FALSE;
   // This default will also get used if there is an unknown value in the
   // permission list, or if the permission manager returns unknown values.
-  *aPermission = true;
+  *aPermission = PR_TRUE;
 
   // check the permission list first; if we find an entry, it overrides
   // default prefs.
@@ -283,17 +282,17 @@ nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
   // If there is nothing on the list, use the default.
   if (!permission) {
     permission = mBehaviorPref[aContentType - 1];
-    *aFromPrefs = true;
+    *aFromPrefs = PR_TRUE;
   }
 
   // Use the fact that the nsIPermissionManager values map to 
   // the BEHAVIOR_* values above.
   switch (permission) {
   case BEHAVIOR_ACCEPT:
-    *aPermission = true;
+    *aPermission = PR_TRUE;
     break;
   case BEHAVIOR_REJECT:
-    *aPermission = false;
+    *aPermission = PR_FALSE;
     break;
 
   case BEHAVIOR_NOFOREIGN:
@@ -303,7 +302,7 @@ nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
     if (!aFirstURI)
       return NS_OK;
 
-    bool trustedSource = false;
+    PRBool trustedSource = PR_FALSE;
     rv = aFirstURI->SchemeIs("chrome", &trustedSource);
     NS_ENSURE_SUCCESS(rv,rv);
     if (!trustedSource) {
@@ -341,7 +340,7 @@ nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
 
     // If the tail is longer then the whole firstHost, it will never match
     if (firstHost.Length() < tail.Length()) {
-      *aPermission = false;
+      *aPermission = PR_FALSE;
       return NS_OK;
     }
     
@@ -354,7 +353,7 @@ nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
     if ((firstHost.Length() > tail.Length() && 
          firstHost.CharAt(firstHost.Length() - tail.Length() - 1) != '.') || 
         !tail.Equals(firstTail)) {
-      *aPermission = false;
+      *aPermission = PR_FALSE;
     }
     break;
   }

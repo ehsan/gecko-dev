@@ -64,7 +64,6 @@ class nsLayoutStylesheetCache
   static nsCSSStyleSheet* UserChromeSheet();
   static nsCSSStyleSheet* UASheet();
   static nsCSSStyleSheet* QuirkSheet();
-  static nsCSSStyleSheet* FullScreenOverrideSheet();
 
   static void Shutdown();
 
@@ -76,7 +75,7 @@ private:
   void InitFromProfile();
   static void LoadSheetFile(nsIFile* aFile, nsRefPtr<nsCSSStyleSheet> &aSheet);
   static void LoadSheet(nsIURI* aURI, nsRefPtr<nsCSSStyleSheet> &aSheet,
-                        bool aEnableUnsafeRules);
+                        PRBool aEnableUnsafeRules);
 
   static nsLayoutStylesheetCache* gStyleCache;
   static mozilla::css::Loader* gCSSLoader;
@@ -86,7 +85,6 @@ private:
   nsRefPtr<nsCSSStyleSheet> mUserChromeSheet;
   nsRefPtr<nsCSSStyleSheet> mUASheet;
   nsRefPtr<nsCSSStyleSheet> mQuirkSheet;
-  nsRefPtr<nsCSSStyleSheet> mFullScreenOverrideSheet;
 };
 
 #endif

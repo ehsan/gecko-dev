@@ -75,7 +75,6 @@
 #include "nsStyledElement.h"
 #include "nsDOMScriptObjectHolder.h"
 #include "nsIFrameLoader.h"
-#include "jspubtd.h"
 
 class nsIDocument;
 class nsString;
@@ -126,7 +125,7 @@ public:
     // mEventHandler is only valid for the language ID specified in the
     // containing nsXULPrototypeElement.  We would ideally use
     // nsScriptObjectHolder, but want to avoid the extra lang ID.
-    JSObject* mEventHandler;
+    void* mEventHandler;
 
 #ifdef XUL_PROTOTYPE_ATTRIBUTE_METERING
     /**
@@ -245,10 +244,10 @@ public:
         : nsXULPrototypeNode(eType_Element),
           mNumAttributes(0),
           mAttributes(nsnull),
-          mHasIdAttribute(false),
-          mHasClassAttribute(false),
-          mHasStyleAttribute(false),
-          mHoldsScriptObject(false),
+          mHasIdAttribute(PR_FALSE),
+          mHasClassAttribute(PR_FALSE),
+          mHasStyleAttribute(PR_FALSE),
+          mHoldsScriptObject(PR_FALSE),
           mScriptTypeID(nsIProgrammingLanguage::UNKNOWN)
     {
     }
@@ -292,10 +291,10 @@ public:
     PRUint32                 mNumAttributes;
     nsXULPrototypeAttribute* mAttributes;         // [OWNER]
     
-    bool                     mHasIdAttribute:1;
-    bool                     mHasClassAttribute:1;
-    bool                     mHasStyleAttribute:1;
-    bool                     mHoldsScriptObject:1;
+    PRPackedBool             mHasIdAttribute:1;
+    PRPackedBool             mHasClassAttribute:1;
+    PRPackedBool             mHasStyleAttribute:1;
+    PRPackedBool             mHoldsScriptObject:1;
 
     // The language ID can not be set on a per-node basis, but is tracked
     // so that the language ID from the originating root can be used
@@ -342,9 +341,9 @@ public:
                      "Wrong language, this will leak the previous object.");
 
         mScriptObject.mLangID = aHolder.getScriptTypeID();
-        Set(aHolder.getScript());
+        Set((void*)aHolder);
     }
-    void Set(JSScript* aObject);
+    void Set(void *aObject);
 
     struct ScriptObjectHolder
     {
@@ -353,12 +352,12 @@ public:
         {
         }
         PRUint32 mLangID;
-        JSScript* mObject;
+        void* mObject;
     };
     nsCOMPtr<nsIURI>         mSrcURI;
     PRUint32                 mLineNo;
-    bool                     mSrcLoading;
-    bool                     mOutOfLine;
+    PRPackedBool             mSrcLoading;
+    PRPackedBool             mOutOfLine;
     nsXULDocument*           mSrcLoadWaiters;   // [OWNER] but not COMPtr
     PRUint32                 mLangVersion;
     ScriptObjectHolder       mScriptObject;
@@ -467,7 +466,7 @@ public:
 
     static nsresult
     Create(nsXULPrototypeElement* aPrototype, nsIDocument* aDocument,
-           bool aIsScriptable, mozilla::dom::Element** aResult);
+           PRBool aIsScriptable, mozilla::dom::Element** aResult);
 
     // nsISupports
     NS_DECL_ISUPPORTS_INHERITED
@@ -480,16 +479,16 @@ public:
     // nsIContent
     virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                 nsIContent* aBindingParent,
-                                bool aCompileEventHandlers);
-    virtual void UnbindFromTree(bool aDeep, bool aNullParent);
-    virtual nsresult RemoveChildAt(PRUint32 aIndex, bool aNotify);
-    virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                PRBool aCompileEventHandlers);
+    virtual void UnbindFromTree(PRBool aDeep, PRBool aNullParent);
+    virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+    virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsAString& aResult) const;
-    virtual bool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;
-    virtual bool AttrValueIs(PRInt32 aNameSpaceID, nsIAtom* aName,
+    virtual PRBool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;
+    virtual PRBool AttrValueIs(PRInt32 aNameSpaceID, nsIAtom* aName,
                                const nsAString& aValue,
                                nsCaseTreatment aCaseSensitive) const;
-    virtual bool AttrValueIs(PRInt32 aNameSpaceID, nsIAtom* aName,
+    virtual PRBool AttrValueIs(PRInt32 aNameSpaceID, nsIAtom* aName,
                                nsIAtom* aValue,
                                nsCaseTreatment aCaseSensitive) const;
     virtual PRInt32 FindAttrValueIn(PRInt32 aNameSpaceID,
@@ -497,25 +496,25 @@ public:
                                     AttrValuesArray* aValues,
                                     nsCaseTreatment aCaseSensitive) const;
     virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                               bool aNotify);
+                               PRBool aNotify);
     virtual const nsAttrName* GetAttrNameAt(PRUint32 aIndex) const;
     virtual PRUint32 GetAttrCount() const;
     virtual void DestroyContent();
 
 #ifdef DEBUG
     virtual void List(FILE* out, PRInt32 aIndent) const;
-    virtual void DumpContent(FILE* out, PRInt32 aIndent,bool aDumpAll) const
+    virtual void DumpContent(FILE* out, PRInt32 aIndent,PRBool aDumpAll) const
     {
     }
 #endif
 
-    virtual void PerformAccesskey(bool aKeyCausesActivation,
-                                  bool aIsTrustedEvent);
+    virtual void PerformAccesskey(PRBool aKeyCausesActivation,
+                                  PRBool aIsTrustedEvent);
     nsresult ClickWithInputSource(PRUint16 aInputSource);
 
     virtual nsIContent *GetBindingParent() const;
-    virtual bool IsNodeOfType(PRUint32 aFlags) const;
-    virtual bool IsFocusable(PRInt32 *aTabIndex = nsnull, bool aWithMouse = false);
+    virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
+    virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE);
     virtual nsIAtom* DoGetID() const;
     virtual const nsAttrValue* DoGetClasses() const;
 
@@ -523,7 +522,7 @@ public:
     virtual mozilla::css::StyleRule* GetInlineStyleRule();
     virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                                 PRInt32 aModType) const;
-    NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+    NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
     // XUL element methods
     /**
@@ -532,7 +531,7 @@ public:
      */
     void SetTemplateGenerated() { SetFlags(XUL_ELEMENT_TEMPLATE_GENERATED); }
     void ClearTemplateGenerated() { UnsetFlags(XUL_ELEMENT_TEMPLATE_GENERATED); }
-    bool GetTemplateGenerated() { return HasFlag(XUL_ELEMENT_TEMPLATE_GENERATED); }
+    PRBool GetTemplateGenerated() { return HasFlag(XUL_ELEMENT_TEMPLATE_GENERATED); }
 
     // nsIDOMNode
     NS_FORWARD_NSIDOMNODE(nsGenericElement::)
@@ -626,19 +625,19 @@ protected:
     }
 
     virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                   const nsAString* aValue, bool aNotify);
+                                   const nsAString* aValue, PRBool aNotify);
     virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                  const nsAString* aValue, bool aNotify);
+                                  const nsAString* aValue, PRBool aNotify);
 
-    virtual void UpdateEditableState(bool aNotify);
+    virtual void UpdateEditableState(PRBool aNotify);
 
-    virtual bool ParseAttribute(PRInt32 aNamespaceID,
+    virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
                                   nsAttrValue& aResult);
 
     virtual nsEventListenerManager*
-      GetEventListenerManagerForAttr(nsIAtom* aAttrName, bool* aDefer);
+      GetEventListenerManagerForAttr(PRBool* aDefer);
   
     /**
      * Return our prototype's attribute, if one exists.
@@ -649,18 +648,18 @@ protected:
      * Add a listener for the specified attribute, if appropriate.
      */
     void AddListenerFor(const nsAttrName& aName,
-                        bool aCompileEventHandlers);
+                        PRBool aCompileEventHandlers);
     void MaybeAddPopupListener(nsIAtom* aLocalName);
 
     nsIWidget* GetWindowWidget();
 
     // attribute setters for widget
-    nsresult HideWindowChrome(bool aShouldHide);
+    nsresult HideWindowChrome(PRBool aShouldHide);
     void SetChromeMargins(const nsAString* aValue);
     void ResetChromeMargins();
-    void SetTitlebarColor(nscolor aColor, bool aActive);
+    void SetTitlebarColor(nscolor aColor, PRBool aActive);
 
-    void SetDrawsInTitlebar(bool aState);
+    void SetDrawsInTitlebar(PRBool aState);
 
     const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const;
 
@@ -675,7 +674,7 @@ protected:
     }
 
     void UnregisterAccessKey(const nsAString& aOldValue);
-    bool BoolAttrIsTrue(nsIAtom* aName);
+    PRBool BoolAttrIsTrue(nsIAtom* aName);
 
     friend nsresult
     NS_NewXULElement(nsIContent** aResult, nsINodeInfo *aNodeInfo);
@@ -684,7 +683,7 @@ protected:
 
     static already_AddRefed<nsXULElement>
     Create(nsXULPrototypeElement* aPrototype, nsINodeInfo *aNodeInfo,
-           bool aIsScriptable);
+           PRBool aIsScriptable);
 
     friend class nsScriptEventHandlerOwnerTearoff;
 

@@ -79,11 +79,11 @@ StringResult::stringValuePointer()
     return &mValue;
 }
 
-bool StringResult::booleanValue() {
+MBool StringResult::booleanValue() {
    return !mValue.IsEmpty();
 } //-- booleanValue
 
 double StringResult::numberValue() {
-    return txDouble::toDouble(mValue);
+    return Double::toDouble(mValue);
 } //-- numberValue
 

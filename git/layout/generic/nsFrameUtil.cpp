@@ -120,7 +120,7 @@ public:
 
   static void DumpNode(Node* aNode, FILE* aOutputFile, PRInt32 aIndent);
   static void DumpTree(Node* aNode, FILE* aOutputFile, PRInt32 aIndent);
-  static bool CompareTrees(Node* aNode1, Node* aNode2);
+  static PRBool CompareTrees(Node* aNode1, Node* aNode2);
 };
 
 char*
@@ -351,30 +351,30 @@ static inline int IsWhiteSpace(int c) {
   return (c == ' ') || (c == '\t') || (c == '\n') || (c == '\r');
 }
 
-static bool EatWS(FILE* aFile)
+static PRBool EatWS(FILE* aFile)
 {
   for (;;) {
     int c = getc(aFile);
     if (c < 0) {
-      return false;
+      return PR_FALSE;
     }
     if (!IsWhiteSpace(c)) {
       ungetc(c, aFile);
       break;
     }
   }
-  return true;
+  return PR_TRUE;
 }
 
-static bool Expect(FILE* aFile, char aChar)
+static PRBool Expect(FILE* aFile, char aChar)
 {
   int c = getc(aFile);
-  if (c < 0) return false;
+  if (c < 0) return PR_FALSE;
   if (c != aChar) {
     ungetc(c, aFile);
-    return false;
+    return PR_FALSE;
   }
-  return true;
+  return PR_TRUE;
 }
 
 static char* ReadIdent(FILE* aFile)
@@ -558,10 +558,10 @@ nsFrameUtil::DumpTree(Node* aNode, FILE* aOutputFile, PRInt32 aIndent)
   }
 }
 
-bool
+PRBool
 nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
 {
-  bool result = true;
+  PRBool result = PR_TRUE;
   for (;; tree1 = tree1->next, tree2 = tree2->next) {
     // Make sure both nodes are non-null, or at least agree with each other
     if (nsnull == tree1) {
@@ -569,11 +569,11 @@ nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
         break;
       }
       printf("first tree prematurely ends\n");
-      return false;
+      return PR_FALSE;
     }
     else if (nsnull == tree2) {
       printf("second tree prematurely ends\n");
-      return false;
+      return PR_FALSE;
     }
 
     // Check the attributes that we care about
@@ -583,7 +583,7 @@ nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
       DumpNode(tree1, stdout, 1);
       printf("Node 2:\n");
       DumpNode(tree2, stdout, 1);
-      return false;
+      return PR_FALSE;
     }
 
     // Ignore the XUL scrollbar frames
@@ -598,7 +598,7 @@ nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
       DumpNode(tree1, stdout, 1);
       printf("Node 2:\n");
       DumpNode(tree2, stdout, 1);
-      result = false; // we have a non-critical failure, so remember that but continue
+      result = PR_FALSE; // we have a non-critical failure, so remember that but continue
     }
     if (tree1->bbox.IsEqualInterior(tree2->bbox)) {
       printf("frame bbox mismatch: %d,%d,%d,%d vs. %d,%d,%d,%d\n",
@@ -610,7 +610,7 @@ nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
       DumpNode(tree1, stdout, 1);
       printf("Node 2:\n");
       DumpNode(tree2, stdout, 1);
-      result = false; // we have a non-critical failure, so remember that but continue
+      result = PR_FALSE; // we have a non-critical failure, so remember that but continue
     }
     if (tree1->styleData != tree2->styleData) {
       printf("frame style data mismatch: %s vs. %s\n",
@@ -629,7 +629,7 @@ nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
           DumpNode(tree1, stdout, 1);
           printf("Node 2:\n");
           DumpNode(tree2, stdout, 1);
-          return false;
+          return PR_FALSE;
         }
         else {
           break;
@@ -641,16 +641,16 @@ nsFrameUtil::CompareTrees(Node* tree1, Node* tree2)
         DumpNode(tree1, stdout, 1);
         printf("Node 2:\n");
         DumpNode(tree2, stdout, 1);
-        return false;
+        return PR_FALSE;
       }
       if (0 != PL_strcmp(list1->name, list2->name)) {
         printf("child-list name mismatch: %s vs. %s\n",
                list1->name ? list1->name : "(null)",
                list2->name ? list2->name : "(null)");
-        result = false; // we have a non-critical failure, so remember that but continue
+        result = PR_FALSE; // we have a non-critical failure, so remember that but continue
       }
       else {
-        bool equiv = CompareTrees(list1->node, list2->node);
+        PRBool equiv = CompareTrees(list1->node, list2->node);
         if (!equiv) {
           return equiv;
         }

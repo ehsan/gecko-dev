@@ -65,7 +65,7 @@ nsStubImageDecoderObserver::OnStartFrame(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsStubImageDecoderObserver::OnDataAvailable(imgIRequest *aRequest,
-                                            bool aCurrentFrame,
+                                            PRBool aCurrentFrame,
                                             const nsIntRect * aRect)
 {
     return NS_OK;
@@ -95,19 +95,13 @@ nsStubImageDecoderObserver::OnStopDecode(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsStubImageDecoderObserver::OnStopRequest(imgIRequest *aRequest, 
-                                          bool aIsLastPart)
+                                          PRBool aIsLastPart)
 {
     return NS_OK;
 }
 
 NS_IMETHODIMP 
 nsStubImageDecoderObserver::OnDiscard(imgIRequest *aRequest)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsStubImageDecoderObserver::OnImageIsAnimated(imgIRequest *aRequest)
 {
   return NS_OK;
 }

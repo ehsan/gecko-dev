@@ -199,7 +199,7 @@ nsCSSValue& nsCSSValue::operator=(const nsCSSValue& aCopy)
   return *this;
 }
 
-bool nsCSSValue::operator==(const nsCSSValue& aOther) const
+PRBool nsCSSValue::operator==(const nsCSSValue& aOther) const
 {
   NS_ABORT_IF_FALSE(mUnit != eCSSUnit_ListDep &&
                     aOther.mUnit != eCSSUnit_ListDep &&
@@ -209,7 +209,7 @@ bool nsCSSValue::operator==(const nsCSSValue& aOther) const
 
   if (mUnit == aOther.mUnit) {
     if (mUnit <= eCSSUnit_DummyInherit) {
-      return true;
+      return PR_TRUE;
     }
     else if (UnitHasStringValue()) {
       return (NS_strcmp(GetBufferValue(mValue.mString),
@@ -252,7 +252,7 @@ bool nsCSSValue::operator==(const nsCSSValue& aOther) const
       return mValue.mFloat == aOther.mValue.mFloat;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 double nsCSSValue::GetAngleValueInRadians() const
@@ -604,7 +604,7 @@ void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
   }
 }
 
-bool nsCSSValue::IsNonTransparentColor() const
+PRBool nsCSSValue::IsNonTransparentColor() const
 {
   // We have the value in the form it was specified in at this point, so we
   // have to look for both the keyword 'transparent' and its equivalent in
@@ -621,16 +621,21 @@ nsCSSValue::Array*
 nsCSSValue::InitFunction(nsCSSKeyword aFunctionId, PRUint32 aNumArgs)
 {
   nsRefPtr<nsCSSValue::Array> func = Array::Create(aNumArgs + 1);
+  if (!func) {
+    return nsnull;
+  }
+
   func->Item(0).SetIntValue(aFunctionId, eCSSUnit_Enumerated);
   SetArrayValue(func, eCSSUnit_Function);
+
   return func;
 }
 
-bool
+PRBool
 nsCSSValue::EqualsFunction(nsCSSKeyword aFunctionId) const
 {
   if (mUnit != eCSSUnit_Function) {
-    return false;
+    return PR_FALSE;
   }
 
   nsCSSValue::Array* func = mValue.mArray;
@@ -652,20 +657,18 @@ nsCSSValue::BufferFromString(const nsString& aValue)
     buffer->AddRef();
     return buffer;
   }
-
+  
   PRUnichar length = aValue.Length();
 
   // NOTE: Alloc prouduces a new, already-addref'd (refcnt = 1) buffer.
-  // NOTE: String buffer allocation is currently fallible.
   buffer = nsStringBuffer::Alloc((length + 1) * sizeof(PRUnichar));
-  if (NS_UNLIKELY(!buffer)) {
-    NS_RUNTIMEABORT("out of memory");
+  if (NS_LIKELY(buffer != 0)) {
+    PRUnichar* data = static_cast<PRUnichar*>(buffer->Data());
+    nsCharTraits<PRUnichar>::copy(data, aValue.get(), length);
+    // Null-terminate.
+    data[length] = 0;
   }
 
-  PRUnichar* data = static_cast<PRUnichar*>(buffer->Data());
-  nsCharTraits<PRUnichar>::copy(data, aValue.get(), length);
-  // Null-terminate.
-  data[length] = 0;
   return buffer;
 }
 
@@ -749,7 +752,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
     }
 
     nsCSSValue::Array *array = GetArrayValue();
-    bool mark = false;
+    PRBool mark = PR_FALSE;
     for (size_t i = 0, i_end = array->Count(); i < i_end; ++i) {
       if (aProperty == eCSSProperty_border_image && i >= 5) {
         if (array->Item(i).GetUnit() == eCSSUnit_Null) {
@@ -787,7 +790,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
         ? eCSSProperty_list_style_type : aProperty;
       if (array->Item(i).GetUnit() != eCSSUnit_Null) {
         array->Item(i).AppendToString(prop, aResult);
-        mark = true;
+        mark = PR_TRUE;
       }
     }
     if (eCSSUnit_Array == unit &&
@@ -864,20 +867,6 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
                                            NS_STYLE_PAGE_MARKS_CROP,
                                            NS_STYLE_PAGE_MARKS_REGISTER,
                                            aResult);
-      }
-    }
-    else if (eCSSProperty_unicode_bidi == aProperty) {
-      PR_STATIC_ASSERT(NS_STYLE_UNICODE_BIDI_NORMAL == 0);
-      PRInt32 intValue = GetIntValue();
-      if (NS_STYLE_UNICODE_BIDI_NORMAL == intValue) {
-        AppendASCIItoUTF16(nsCSSProps::LookupPropertyValue(aProperty, intValue),
-                           aResult);
-      } else {
-        nsStyleUtil::AppendBitmaskCSSValue(
-          aProperty, intValue,
-          NS_STYLE_UNICODE_BIDI_EMBED,
-          NS_STYLE_UNICODE_BIDI_PLAINTEXT,
-          aResult);
       }
     }
     else {
@@ -957,23 +946,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
         aResult.AppendLiteral("-moz-linear-gradient(");
     }
 
-    if (gradient->mIsToCorner) {
-      aResult.AppendLiteral("to");
-      NS_ABORT_IF_FALSE(gradient->mBgPos.mXValue.GetUnit() == eCSSUnit_Enumerated &&
-                        gradient->mBgPos.mYValue.GetUnit() == eCSSUnit_Enumerated,
-                        "unexpected unit");
-      if (!(gradient->mBgPos.mXValue.GetIntValue() & NS_STYLE_BG_POSITION_CENTER)) {
-        aResult.AppendLiteral(" ");
-        gradient->mBgPos.mXValue.AppendToString(eCSSProperty_background_position,
-                                                aResult);
-      }
-      if (!(gradient->mBgPos.mYValue.GetIntValue() & NS_STYLE_BG_POSITION_CENTER)) {
-        aResult.AppendLiteral(" ");
-        gradient->mBgPos.mYValue.AppendToString(eCSSProperty_background_position,
-                                                aResult);
-      }
-      aResult.AppendLiteral(", ");
-    } else if (gradient->mBgPos.mXValue.GetUnit() != eCSSUnit_None ||
+    if (gradient->mBgPos.mXValue.GetUnit() != eCSSUnit_None ||
         gradient->mBgPos.mYValue.GetUnit() != eCSSUnit_None ||
         gradient->mAngle.GetUnit() != eCSSUnit_None) {
       if (gradient->mBgPos.mXValue.GetUnit() != eCSSUnit_None) {
@@ -1341,7 +1314,7 @@ nsCSSValue::URL::URL(nsIURI* aURI, nsStringBuffer* aString,
     mString(aString),
     mReferrer(aReferrer),
     mOriginPrincipal(aOriginPrincipal),
-    mURIResolved(true)
+    mURIResolved(PR_TRUE)
 {
   NS_ABORT_IF_FALSE(aOriginPrincipal, "Must have an origin principal");
   mString->AddRef();
@@ -1353,7 +1326,7 @@ nsCSSValue::URL::URL(nsStringBuffer* aString, nsIURI* aBaseURI,
     mString(aString),
     mReferrer(aReferrer),
     mOriginPrincipal(aOriginPrincipal),
-    mURIResolved(false)
+    mURIResolved(PR_FALSE)
 {
   NS_ABORT_IF_FALSE(aOriginPrincipal, "Must have an origin principal");
   mString->AddRef();
@@ -1364,10 +1337,10 @@ nsCSSValue::URL::~URL()
   mString->Release();
 }
 
-bool
+PRBool
 nsCSSValue::URL::operator==(const URL& aOther) const
 {
-  bool eq;
+  PRBool eq;
   return NS_strcmp(GetBufferValue(mString),
                    GetBufferValue(aOther.mString)) == 0 &&
           (GetURI() == aOther.GetURI() || // handles null == null
@@ -1379,12 +1352,12 @@ nsCSSValue::URL::operator==(const URL& aOther) const
                                                   &eq)) && eq));
 }
 
-bool
+PRBool
 nsCSSValue::URL::URIEquals(const URL& aOther) const
 {
   NS_ABORT_IF_FALSE(mURIResolved && aOther.mURIResolved,
                     "How do you know the URIs aren't null?");
-  bool eq;
+  PRBool eq;
   // Worth comparing GetURI() to aOther.GetURI() and mOriginPrincipal to
   // aOther.mOriginPrincipal, because in the (probably common) case when this
   // value was one of the ones that in fact did not change this will be our
@@ -1400,7 +1373,7 @@ nsIURI*
 nsCSSValue::URL::GetURI() const
 {
   if (!mURIResolved) {
-    mURIResolved = true;
+    mURIResolved = PR_TRUE;
     // Be careful to not null out mURI before we've passed it as the base URI
     nsCOMPtr<nsIURI> newURI;
     NS_NewURI(getter_AddRefs(newURI),
@@ -1451,11 +1424,10 @@ nsCSSValueGradientStop::~nsCSSValueGradientStop()
   MOZ_COUNT_DTOR(nsCSSValueGradientStop);
 }
 
-nsCSSValueGradient::nsCSSValueGradient(bool aIsRadial,
-                                       bool aIsRepeating)
+nsCSSValueGradient::nsCSSValueGradient(PRBool aIsRadial,
+                                       PRBool aIsRepeating)
   : mIsRadial(aIsRadial),
     mIsRepeating(aIsRepeating),
-    mIsToCorner(false),
     mBgPos(eCSSUnit_None),
     mAngle(eCSSUnit_None),
     mRadialShape(eCSSUnit_None),

@@ -57,8 +57,8 @@ public:
 
     nsSyncStreamListener()
         : mStatus(NS_OK)
-        , mKeepWaiting(false)
-        , mDone(false) {}
+        , mKeepWaiting(PR_FALSE)
+        , mDone(PR_FALSE) {}
 
     nsresult Init();
 
@@ -70,8 +70,8 @@ private:
     nsCOMPtr<nsIInputStream>    mPipeIn;
     nsCOMPtr<nsIOutputStream>   mPipeOut;
     nsresult                    mStatus;
-    bool                        mKeepWaiting;
-    bool                        mDone;
+    PRPackedBool                mKeepWaiting;
+    PRPackedBool                mDone;
 };
 
 #endif // nsSyncStreamListener_h__

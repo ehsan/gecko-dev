@@ -120,7 +120,7 @@ public:
       return;
 
     // Remove the directory recursively.  
-    tmpFile->Remove(true);
+    tmpFile->Remove(PR_TRUE);
   }
 };
 

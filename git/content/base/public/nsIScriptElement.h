@@ -49,8 +49,8 @@
 #include "nsIDOMHTMLScriptElement.h"
 
 #define NS_ISCRIPTELEMENT_IID \
-{ 0x5bb3b905, 0x5988, 0x476f, \
-  { 0x95, 0x4f, 0x99, 0x02, 0x59, 0x82, 0x24, 0x67 } }
+{ 0x6d625b30, 0xfac4, 0x11de, \
+{ 0x8a, 0x39, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
 
 /**
  * Internal interface implemented by script elements
@@ -61,16 +61,16 @@ public:
 
   nsIScriptElement(mozilla::dom::FromParser aFromParser)
     : mLineNumber(0),
-      mAlreadyStarted(false),
-      mMalformed(false),
+      mAlreadyStarted(PR_FALSE),
+      mMalformed(PR_FALSE),
       mDoneAddingChildren(aFromParser == mozilla::dom::NOT_FROM_PARSER ||
                           aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT),
       mForceAsync(aFromParser == mozilla::dom::NOT_FROM_PARSER ||
                   aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT),
-      mFrozen(false),
-      mDefer(false),
-      mAsync(false),
-      mExternal(false),
+      mFrozen(PR_FALSE),
+      mDefer(PR_FALSE),
+      mAsync(PR_FALSE),
+      mExternal(PR_FALSE),
       mParserCreated(aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT ?
                      mozilla::dom::NOT_FROM_PARSER : aFromParser),
                      // Fragment parser-created scripts (if executable)
@@ -112,7 +112,7 @@ public:
   /**
    * Is the script deferred. Currently only supported by HTML scripts.
    */
-  bool GetScriptDeferred()
+  PRBool GetScriptDeferred()
   {
     NS_PRECONDITION(mFrozen, "Not ready for this call yet!");
     return mDefer;
@@ -121,7 +121,7 @@ public:
   /**
    * Is the script async. Currently only supported by HTML scripts.
    */
-  bool GetScriptAsync()
+  PRBool GetScriptAsync()
   {
     NS_PRECONDITION(mFrozen, "Not ready for this call yet!");
     return mAsync;  
@@ -130,7 +130,7 @@ public:
   /**
    * Is the script an external script?
    */
-  bool GetScriptExternal()
+  PRBool GetScriptExternal()
   {
     NS_PRECONDITION(mFrozen, "Not ready for this call yet!");
     return mExternal;
@@ -155,25 +155,25 @@ public:
 
   void SetIsMalformed()
   {
-    mMalformed = true;
+    mMalformed = PR_TRUE;
   }
-  bool IsMalformed()
+  PRBool IsMalformed()
   {
     return mMalformed;
   }
 
   void PreventExecution()
   {
-    mAlreadyStarted = true;
+    mAlreadyStarted = PR_TRUE;
   }
 
   void LoseParserInsertedness()
   {
-    mFrozen = false;
+    mFrozen = PR_FALSE;
     mUri = nsnull;
     mCreatorParser = nsnull;
     mParserCreated = mozilla::dom::NOT_FROM_PARSER;
-    bool async = false;
+    PRBool async = PR_FALSE;
     nsCOMPtr<nsIDOMHTMLScriptElement> htmlScript = do_QueryInterface(this);
     if (htmlScript) {
       htmlScript->GetAsync(&async);
@@ -217,44 +217,7 @@ public:
     return parser.forget();
   }
 
-  /**
-   * This method is called when the parser finishes creating the script
-   * element's children, if any are present.
-   *
-   * @return whether the parser will be blocked while this script is being
-   *         loaded
-   */
-  bool AttemptToExecute()
-  {
-    mDoneAddingChildren = true;
-    bool block = MaybeProcessScript();
-    if (!mAlreadyStarted) {
-      // Need to lose parser-insertedness here to allow another script to cause
-      // execution later.
-      LoseParserInsertedness();
-    }
-    return block;
-  }
-
 protected:
-  /**
-   * Processes the script if it's in the document-tree and links to or
-   * contains a script. Once it has been evaluated there is no way to make it
-   * reevaluate the script, you'll have to create a new element. This also means
-   * that when adding a src attribute to an element that already contains an
-   * inline script, the script referenced by the src attribute will not be
-   * loaded.
-   *
-   * In order to be able to use multiple childNodes, or to use the
-   * fallback mechanism of using both inline script and linked script you have
-   * to add all attributes and childNodes before adding the element to the
-   * document-tree.
-   *
-   * @return whether the parser will be blocked while this script is being
-   *         loaded
-   */
-  virtual bool MaybeProcessScript() = 0;
-
   /**
    * The start line number of the script.
    */
@@ -263,44 +226,44 @@ protected:
   /**
    * The "already started" flag per HTML5.
    */
-  bool mAlreadyStarted;
+  PRPackedBool mAlreadyStarted;
   
   /**
    * The script didn't have an end tag.
    */
-  bool mMalformed;
+  PRPackedBool mMalformed;
   
   /**
    * False if parser-inserted but the parser hasn't triggered running yet.
    */
-  bool mDoneAddingChildren;
+  PRPackedBool mDoneAddingChildren;
 
   /**
    * If true, the .async property returns true instead of reflecting the
    * content attribute.
    */
-  bool mForceAsync;
+  PRPackedBool mForceAsync;
 
   /**
    * Whether src, defer and async are frozen.
    */
-  bool mFrozen;
+  PRPackedBool mFrozen;
   
   /**
    * The effective deferredness.
    */
-  bool mDefer;
+  PRPackedBool mDefer;
   
   /**
    * The effective asyncness.
    */
-  bool mAsync;
+  PRPackedBool mAsync;
   
   /**
    * The effective externalness. A script can be external with mUri being null
    * if the src attribute contained an invalid URL string.
    */
-  bool mExternal;
+  PRPackedBool mExternal;
 
   /**
    * Whether this element was parser-created.

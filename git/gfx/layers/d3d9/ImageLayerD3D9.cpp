@@ -224,14 +224,14 @@ ImageContainerD3D9::GetCurrentSize()
   return gfxIntSize(0,0);
 }
 
-bool
+PRBool
 ImageContainerD3D9::SetLayerManager(LayerManager *aManager)
 {
   if (aManager->GetBackendType() == LayerManager::LAYERS_D3D9) {
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 Layer*
@@ -398,7 +398,7 @@ ImageLayerD3D9::RenderLayer()
 PlanarYCbCrImageD3D9::PlanarYCbCrImageD3D9()
   : PlanarYCbCrImage(static_cast<ImageD3D9*>(this))
   , mBufferSize(0)
-  , mHasData(false)
+  , mHasData(PR_FALSE)
 {
 }
 
@@ -407,7 +407,7 @@ PlanarYCbCrImageD3D9::SetData(const PlanarYCbCrImage::Data &aData)
 {
   mBuffer = CopyData(mData, mSize, mBufferSize, aData);
 
-  mHasData = true;
+  mHasData = PR_TRUE;
 }
 
 void
@@ -436,43 +436,24 @@ PlanarYCbCrImageD3D9::AllocateTextures(IDirect3DDevice9 *aDevice)
     // D3D9Ex does not support the managed pool, could use dynamic textures
     // here. But since an Image is immutable static textures are probably a
     // better idea.
-
-    HRESULT hr;
-    hr = aDevice->CreateTexture(mData.mYSize.width, mData.mYSize.height,
-                                1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                getter_AddRefs(mYTexture), NULL);
-    if (!FAILED(hr)) {
-      hr = aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                  getter_AddRefs(mCbTexture), NULL);
-    }
-    if (!FAILED(hr)) {
-      hr = aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
-                                  getter_AddRefs(mCrTexture), NULL);
-    }
-    if (!FAILED(hr)) {
-      hr = aDevice->CreateTexture(mData.mYSize.width, mData.mYSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpYTexture), NULL);
-    }
-    if (!FAILED(hr)) {
-      hr = aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpCbTexture), NULL);
-    }
-    if (!FAILED(hr)) {
-      hr = aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
-                                  1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
-                                  getter_AddRefs(tmpCrTexture), NULL);
-    }
-
-    if (FAILED(hr)) {
-      mManager->ReportFailure(NS_LITERAL_CSTRING("PlanarYCbCrImageD3D9::AllocateTextures(): Failed to create texture (isD3D9Ex)"),
-                              hr);
-      return;
-    }
-
+    aDevice->CreateTexture(mData.mYSize.width, mData.mYSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
+                            getter_AddRefs(mYTexture), NULL);
+    aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
+                            getter_AddRefs(mCbTexture), NULL);
+    aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_DEFAULT,
+                            getter_AddRefs(mCrTexture), NULL);
+    aDevice->CreateTexture(mData.mYSize.width, mData.mYSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
+                            getter_AddRefs(tmpYTexture), NULL);
+    aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
+                            getter_AddRefs(tmpCbTexture), NULL);
+    aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_SYSTEMMEM,
+                            getter_AddRefs(tmpCrTexture), NULL);
     tmpYTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceY));
     tmpCbTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceCb));
     tmpCrTexture->GetSurfaceLevel(0, getter_AddRefs(tmpSurfaceCr));
@@ -480,26 +461,15 @@ PlanarYCbCrImageD3D9::AllocateTextures(IDirect3DDevice9 *aDevice)
     tmpSurfaceCb->LockRect(&lockrectCb, NULL, 0);
     tmpSurfaceCr->LockRect(&lockrectCr, NULL, 0);
   } else {
-    HRESULT hr;
-    hr = aDevice->CreateTexture(mData.mYSize.width, mData.mYSize.height,
-                                1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                                getter_AddRefs(mYTexture), NULL);
-    if (!FAILED(hr)) {
-      aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
-                             1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                             getter_AddRefs(mCbTexture), NULL);
-    }
-    if (!FAILED(hr)) {
-      aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
-                             1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
-                             getter_AddRefs(mCrTexture), NULL);
-    }
-
-    if (FAILED(hr)) {
-      mManager->ReportFailure(NS_LITERAL_CSTRING("PlanarYCbCrImageD3D9::AllocateTextures(): Failed to create texture (!isD3D9Ex)"),
-                              hr);
-      return;
-    }
+    aDevice->CreateTexture(mData.mYSize.width, mData.mYSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
+                            getter_AddRefs(mYTexture), NULL);
+    aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
+                            getter_AddRefs(mCbTexture), NULL);
+    aDevice->CreateTexture(mData.mCbCrSize.width, mData.mCbCrSize.height,
+                            1, 0, D3DFMT_L8, D3DPOOL_MANAGED,
+                            getter_AddRefs(mCrTexture), NULL);
 
     /* lock the entire texture */
     mYTexture->LockRect(0, &lockrectY, NULL, 0);
@@ -640,19 +610,40 @@ ShadowImageLayerD3D9::ShadowImageLayerD3D9(LayerManagerD3D9* aManager)
 ShadowImageLayerD3D9::~ShadowImageLayerD3D9()
 {}
 
-void
-ShadowImageLayerD3D9::Swap(const SharedImage& aNewFront,
-                           SharedImage* aNewBack)
+PRBool
+ShadowImageLayerD3D9::Init(const SharedImage& aFront,
+                          const nsIntSize& aSize)
 {
-  if (aNewFront.type() == SharedImage::TSurfaceDescriptor) {
+   if (aFront.type() == SharedImage::TSurfaceDescriptor) {
+    SurfaceDescriptor desc = aFront.get_SurfaceDescriptor();
+    nsRefPtr<gfxASurface> surf = 
+      ShadowLayerForwarder::OpenDescriptor(desc);
+    
     if (!mBuffer) {
       mBuffer = new ShadowBufferD3D9(this);
     }
-    nsRefPtr<gfxASurface> surf =
-      ShadowLayerForwarder::OpenDescriptor(aNewFront.get_SurfaceDescriptor());
-
-    mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
+    return !!mBuffer;
   } else {
+    if (!mYCbCrImage) {
+      mYCbCrImage = new PlanarYCbCrImageD3D9();
+    }
+    return !!mYCbCrImage;
+  }
+}
+
+void
+ShadowImageLayerD3D9::Swap(const SharedImage& aNewFront, SharedImage* aNewBack)
+{
+  
+  if (aNewFront.type() == SharedImage::TSurfaceDescriptor) {
+    nsRefPtr<gfxASurface> surf = 
+      ShadowLayerForwarder::OpenDescriptor(aNewFront.get_SurfaceDescriptor());
+   
+    if (mBuffer) {
+      mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
+    }
+  } else {
+
     const YUVImage& yuv = aNewFront.get_YUVImage();
 
     nsRefPtr<gfxSharedImageSurface> surfY =
@@ -674,15 +665,17 @@ ShadowImageLayerD3D9::Swap(const SharedImage& aNewFront,
     data.mPicX = 0;
     data.mPicY = 0;
 
-    if (!mYCbCrImage) {
-      mYCbCrImage = new PlanarYCbCrImageD3D9();
-    }
-
     mYCbCrImage->SetData(data);
 
   }
   
   *aNewBack = aNewFront;
+}
+
+void
+ShadowImageLayerD3D9::DestroyFrontBuffer()
+{
+  Destroy();
 }
 
 void

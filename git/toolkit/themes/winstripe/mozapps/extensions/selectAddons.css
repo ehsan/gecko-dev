@@ -124,10 +124,6 @@
   width: 13px;
 }
 
-.select-keep .addon-keep-checkbox:-moz-focusring {
-  outline: 1px dotted ThreeDDarkShadow;
-}
-
 .select-keep .checkbox-label-box {
   display: none;
 }
@@ -168,10 +164,6 @@
 
 .addon-icon[type="plugin"] {
   list-style-image: url("chrome://mozapps/skin/plugins/pluginGeneric-16.png");
-}
-
-.addon-icon[type="dictionary"] {
-  list-style-image: url("chrome://mozapps/skin/extensions/dictionaryGeneric-16.png");
 }
 
 .action-list {

@@ -72,13 +72,13 @@ public:
     nsInputStreamTransport(nsIInputStream *source,
                            PRUint64 offset,
                            PRUint64 limit,
-                           bool closeWhenDone)
+                           PRBool closeWhenDone)
         : mSource(source)
         , mOffset(offset)
         , mLimit(limit)
         , mCloseWhenDone(closeWhenDone)
-        , mFirstTime(true)
-        , mInProgress(false)
+        , mFirstTime(PR_TRUE)
+        , mInProgress(PR_FALSE)
     {
     }
 
@@ -95,12 +95,12 @@ private:
     nsCOMPtr<nsIInputStream>        mSource;
     PRUint64                        mOffset;
     PRUint64                        mLimit;
-    bool                            mCloseWhenDone;
-    bool                            mFirstTime;
+    PRPackedBool                    mCloseWhenDone;
+    PRPackedBool                    mFirstTime;
 
     // this variable serves as a lock to prevent the state of the transport
     // from being modified once the copy is in progress.
-    bool                            mInProgress;
+    PRPackedBool                    mInProgress;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsInputStreamTransport,
@@ -126,7 +126,7 @@ nsInputStreamTransport::OpenInputStream(PRUint32 flags,
     //     we'd want to simply return mSource; however, then we would
     //     not be reading mSource on a background thread.  is this ok?
  
-    bool nonblocking = !(flags & OPEN_BLOCKING);
+    PRBool nonblocking = !(flags & OPEN_BLOCKING);
 
     net_ResolveSegmentParams(segsize, segcount);
     nsIMemory *segalloc = net_GetSegmentAlloc(segsize);
@@ -134,11 +134,11 @@ nsInputStreamTransport::OpenInputStream(PRUint32 flags,
     nsCOMPtr<nsIAsyncOutputStream> pipeOut;
     rv = NS_NewPipe2(getter_AddRefs(mPipeIn),
                      getter_AddRefs(pipeOut),
-                     nonblocking, true,
+                     nonblocking, PR_TRUE,
                      segsize, segcount, segalloc);
     if (NS_FAILED(rv)) return rv;
 
-    mInProgress = true;
+    mInProgress = PR_TRUE;
 
     // startup async copy process...
     rv = NS_AsyncCopy(this, pipeOut, target,
@@ -206,7 +206,7 @@ NS_IMETHODIMP
 nsInputStreamTransport::Read(char *buf, PRUint32 count, PRUint32 *result)
 {
     if (mFirstTime) {
-        mFirstTime = false;
+        mFirstTime = PR_FALSE;
         if (mOffset != 0) {
             // read from current position if offset equal to max
             if (mOffset != LL_MAXUINT) {
@@ -247,9 +247,9 @@ nsInputStreamTransport::ReadSegments(nsWriteSegmentFun writer, void *closure,
 }
 
 NS_IMETHODIMP
-nsInputStreamTransport::IsNonBlocking(bool *result)
+nsInputStreamTransport::IsNonBlocking(PRBool *result)
 {
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
@@ -272,13 +272,13 @@ public:
     nsOutputStreamTransport(nsIOutputStream *sink,
                             PRUint64 offset,
                             PRUint64 limit,
-                            bool closeWhenDone)
+                            PRBool closeWhenDone)
         : mSink(sink)
         , mOffset(offset)
         , mLimit(limit)
         , mCloseWhenDone(closeWhenDone)
-        , mFirstTime(true)
-        , mInProgress(false)
+        , mFirstTime(PR_TRUE)
+        , mInProgress(PR_FALSE)
     {
     }
 
@@ -295,12 +295,12 @@ private:
     nsCOMPtr<nsIOutputStream>       mSink;
     PRUint64                        mOffset;
     PRUint64                        mLimit;
-    bool                            mCloseWhenDone;
-    bool                            mFirstTime;
+    PRPackedBool                    mCloseWhenDone;
+    PRPackedBool                    mFirstTime;
 
     // this variable serves as a lock to prevent the state of the transport
     // from being modified once the copy is in progress.
-    bool                            mInProgress;
+    PRPackedBool                    mInProgress;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsOutputStreamTransport,
@@ -337,7 +337,7 @@ nsOutputStreamTransport::OpenOutputStream(PRUint32 flags,
     //     we'd want to simply return mSink; however, then we would
     //     not be writing to mSink on a background thread.  is this ok?
  
-    bool nonblocking = !(flags & OPEN_BLOCKING);
+    PRBool nonblocking = !(flags & OPEN_BLOCKING);
 
     net_ResolveSegmentParams(segsize, segcount);
     nsIMemory *segalloc = net_GetSegmentAlloc(segsize);
@@ -345,11 +345,11 @@ nsOutputStreamTransport::OpenOutputStream(PRUint32 flags,
     nsCOMPtr<nsIAsyncInputStream> pipeIn;
     rv = NS_NewPipe2(getter_AddRefs(pipeIn),
                      getter_AddRefs(mPipeOut),
-                     true, nonblocking,
+                     PR_TRUE, nonblocking,
                      segsize, segcount, segalloc);
     if (NS_FAILED(rv)) return rv;
 
-    mInProgress = true;
+    mInProgress = PR_TRUE;
 
     // startup async copy process...
     rv = NS_AsyncCopy(pipeIn, this, target,
@@ -406,7 +406,7 @@ NS_IMETHODIMP
 nsOutputStreamTransport::Write(const char *buf, PRUint32 count, PRUint32 *result)
 {
     if (mFirstTime) {
-        mFirstTime = false;
+        mFirstTime = PR_FALSE;
         if (mOffset != 0) {
             // write to current position if offset equal to max
             if (mOffset != LL_MAXUINT) {
@@ -453,9 +453,9 @@ nsOutputStreamTransport::WriteFrom(nsIInputStream *in, PRUint32 count, PRUint32 
 }
 
 NS_IMETHODIMP
-nsOutputStreamTransport::IsNonBlocking(bool *result)
+nsOutputStreamTransport::IsNonBlocking(PRBool *result)
 {
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }
 
@@ -482,7 +482,7 @@ nsStreamTransportService::Init()
     nsCOMPtr<nsIObserverService> obsSvc =
         mozilla::services::GetObserverService();
     if (obsSvc)
-        obsSvc->AddObserver(this, "xpcom-shutdown-threads", false);
+        obsSvc->AddObserver(this, "xpcom-shutdown-threads", PR_FALSE);
     return NS_OK;
 }
 
@@ -499,7 +499,7 @@ nsStreamTransportService::Dispatch(nsIRunnable *task, PRUint32 flags)
 }
 
 NS_IMETHODIMP
-nsStreamTransportService::IsOnCurrentThread(bool *result)
+nsStreamTransportService::IsOnCurrentThread(PRBool *result)
 {
     NS_ENSURE_TRUE(mPool, NS_ERROR_NOT_INITIALIZED);
     return mPool->IsOnCurrentThread(result);
@@ -509,7 +509,7 @@ NS_IMETHODIMP
 nsStreamTransportService::CreateInputTransport(nsIInputStream *stream,
                                                PRInt64 offset,
                                                PRInt64 limit,
-                                               bool closeWhenDone,
+                                               PRBool closeWhenDone,
                                                nsITransport **result)
 {
     nsInputStreamTransport *trans =
@@ -524,7 +524,7 @@ NS_IMETHODIMP
 nsStreamTransportService::CreateOutputTransport(nsIOutputStream *stream,
                                                 PRInt64 offset,
                                                 PRInt64 limit,
-                                                bool closeWhenDone,
+                                                PRBool closeWhenDone,
                                                 nsITransport **result)
 {
     nsOutputStreamTransport *trans =

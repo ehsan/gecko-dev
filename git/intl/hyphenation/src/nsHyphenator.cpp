@@ -40,22 +40,22 @@
 #include "nsUTF8Utils.h"
 #include "nsIUGenCategory.h"
 #include "nsUnicharUtilCIID.h"
-#include "nsIURI.h"
+#include "nsNetUtil.h"
 
 #include "hyphen.h"
 
-nsHyphenator::nsHyphenator(nsIURI *aURI)
+nsHyphenator::nsHyphenator(nsIFile *aFile)
   : mDict(nsnull)
 {
-  nsCString uriSpec;
-  nsresult rv = aURI->GetSpec(uriSpec);
+  nsCString urlSpec;
+  nsresult rv = NS_GetURLSpecFromFile(aFile, urlSpec);
   if (NS_FAILED(rv)) {
     return;
   }
-  mDict = hnj_hyphen_load(uriSpec.get());
+  mDict = hnj_hyphen_load(urlSpec.get());
 #ifdef DEBUG
   if (mDict) {
-    printf("loaded hyphenation patterns from %s\n", uriSpec.get());
+    printf("loaded hyphenation patterns from %s\n", urlSpec.get());
   }
 #endif
   mCategories = do_GetService(NS_UNICHARCATEGORY_CONTRACTID, &rv);
@@ -70,7 +70,7 @@ nsHyphenator::~nsHyphenator()
   }
 }
 
-bool
+PRBool
 nsHyphenator::IsValid()
 {
   return (mDict != nsnull) && (mCategories != nsnull);
@@ -78,14 +78,14 @@ nsHyphenator::IsValid()
 
 nsresult
 nsHyphenator::Hyphenate(const nsAString& aString,
-                        nsTArray<bool>& aHyphens)
+                        nsTArray<PRPackedBool>& aHyphens)
 {
   if (!aHyphens.SetLength(aString.Length())) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  memset(aHyphens.Elements(), false, aHyphens.Length());
+  memset(aHyphens.Elements(), PR_FALSE, aHyphens.Length());
 
-  bool inWord = false;
+  PRBool inWord = PR_FALSE;
   PRUint32 wordStart = 0, wordLimit = 0;
   PRUint32 chLen;
   for (PRUint32 i = 0; i < aString.Length(); i += chLen) {
@@ -104,7 +104,7 @@ nsHyphenator::Hyphenate(const nsAString& aString,
     nsIUGenCategory::nsUGenCategory cat = mCategories->Get(ch);
     if (cat == nsIUGenCategory::kLetter || cat == nsIUGenCategory::kMark) {
       if (!inWord) {
-        inWord = true;
+        inWord = PR_TRUE;
         wordStart = i;
       }
       wordLimit = i + chLen;
@@ -136,7 +136,7 @@ nsHyphenator::Hyphenate(const nsAString& aString,
         const PRUnichar *end = begin + wordLimit;
         while (cur < end) {
           if (*hyphPtr & 0x01) {
-            aHyphens[cur - begin] = true;
+            aHyphens[cur - begin] = PR_TRUE;
           }
           cur++;
           if (cur < end && NS_IS_LOW_SURROGATE(*cur) &&
@@ -149,7 +149,7 @@ nsHyphenator::Hyphenate(const nsAString& aString,
       }
     }
     
-    inWord = false;
+    inWord = PR_FALSE;
   }
 
   return NS_OK;

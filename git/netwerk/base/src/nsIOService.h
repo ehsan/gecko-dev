@@ -105,10 +105,10 @@ public:
       return mContentSniffers.GetEntries();
     }
 
-    bool IsOffline() { return mOffline; }
-    bool IsLinkUp();
+    PRBool IsOffline() { return mOffline; }
+    PRBool IsLinkUp();
 
-    bool IsComingOnline() const {
+    PRBool IsComingOnline() const {
       return mOffline && mSettingOffline && !mSetOfflineValue;
     }
 
@@ -131,29 +131,27 @@ private:
     // Prefs wrangling
     NS_HIDDEN_(void) PrefsChanged(nsIPrefBranch *prefs, const char *pref = nsnull);
     NS_HIDDEN_(void) GetPrefBranch(nsIPrefBranch2 **);
-    NS_HIDDEN_(void) ParsePortList(nsIPrefBranch *prefBranch, const char *pref, bool remove);
+    NS_HIDDEN_(void) ParsePortList(nsIPrefBranch *prefBranch, const char *pref, PRBool remove);
 
     nsresult InitializeSocketTransportService();
-    nsresult InitializeNetworkLinkService();
 
 private:
-    bool                                 mOffline;
-    bool                                 mOfflineForProfileChange;
-    bool                                 mManageOfflineStatus;
+    PRPackedBool                         mOffline;
+    PRPackedBool                         mOfflineForProfileChange;
+    PRPackedBool                         mManageOfflineStatus;
 
     // Used to handle SetOffline() reentrancy.  See the comment in
     // SetOffline() for more details.
-    bool                                 mSettingOffline;
-    bool                                 mSetOfflineValue;
+    PRPackedBool                         mSettingOffline;
+    PRPackedBool                         mSetOfflineValue;
 
-    bool                                 mShutdown;
+    PRPackedBool                         mShutdown;
 
     nsCOMPtr<nsPISocketTransportService> mSocketTransportService;
     nsCOMPtr<nsPIDNSService>             mDNSService;
     nsCOMPtr<nsIProtocolProxyService2>   mProxyService;
     nsCOMPtr<nsINetworkLinkService>      mNetworkLinkService;
-    bool                                 mNetworkLinkServiceInitialized;
-
+    
     // Cached protocol handlers
     nsWeakPtr                            mWeakHandler[NS_N(gScheme)];
 
@@ -163,7 +161,7 @@ private:
 
     nsTArray<PRInt32>                    mRestrictedPortList;
 
-    bool                                 mAutoDialEnabled;
+    PRPackedBool                         mAutoDialEnabled;
 public:
     // Necko buffer cache. Used for all default buffer sizes that necko
     // allocates.

@@ -66,7 +66,7 @@ protected:
   nsPopupSetFrame* GetPopupSetFrame();
   nsMenuPopupFrame* GetMenuPopupFrame()
   {
-    nsIFrame* frame = GetFrame(false);
+    nsIFrame* frame = GetFrame(PR_FALSE);
     if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame)
       return static_cast<nsMenuPopupFrame*>(frame);
     return nsnull;
@@ -78,7 +78,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsPopupBoxObject, nsBoxObject, nsIPopupBoxObject)
 nsPopupSetFrame*
 nsPopupBoxObject::GetPopupSetFrame()
 {
-  nsIRootBox* rootBox = nsIRootBox::GetRootBox(GetPresShell(false));
+  nsIRootBox* rootBox = nsIRootBox::GetRootBox(GetPresShell(PR_FALSE));
   if (!rootBox)
     return nsnull;
 
@@ -90,7 +90,7 @@ nsPopupBoxObject::HidePopup()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mContent)
-    pm->HidePopup(mContent, false, true, false);
+    pm->HidePopup(mContent, PR_FALSE, PR_TRUE, PR_FALSE);
 
   return NS_OK;
 }
@@ -123,15 +123,15 @@ NS_IMETHODIMP
 nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
                             const nsAString& aPosition,
                             PRInt32 aXPos, PRInt32 aYPos,
-                            bool aIsContextMenu,
-                            bool aAttributesOverride,
+                            PRBool aIsContextMenu,
+                            PRBool aAttributesOverride,
                             nsIDOMEvent* aTriggerEvent)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mContent) {
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
     pm->ShowPopup(mContent, anchorContent, aPosition, aXPos, aYPos,
-                  aIsContextMenu, aAttributesOverride, false, aTriggerEvent);
+                  aIsContextMenu, aAttributesOverride, PR_FALSE, aTriggerEvent);
   }
 
   return NS_OK;
@@ -139,7 +139,7 @@ nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
 
 NS_IMETHODIMP
 nsPopupBoxObject::OpenPopupAtScreen(PRInt32 aXPos, PRInt32 aYPos,
-                                    bool aIsContextMenu,
+                                    PRBool aIsContextMenu,
                                     nsIDOMEvent* aTriggerEvent)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
@@ -153,7 +153,7 @@ nsPopupBoxObject::MoveTo(PRInt32 aLeft, PRInt32 aTop)
 {
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
-    menuPopupFrame->MoveTo(aLeft, aTop, true);
+    menuPopupFrame->MoveTo(aLeft, aTop, PR_TRUE);
   }
 
   return NS_OK;
@@ -170,14 +170,14 @@ nsPopupBoxObject::SizeTo(PRInt32 aWidth, PRInt32 aHeight)
   height.AppendInt(aHeight);
 
   nsCOMPtr<nsIContent> content = mContent;
-  content->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, false);
-  content->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, true);
+  content->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, PR_FALSE);
+  content->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, PR_TRUE);
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::GetAutoPosition(bool* aShouldAutoPosition)
+nsPopupBoxObject::GetAutoPosition(PRBool* aShouldAutoPosition)
 {
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
@@ -188,7 +188,7 @@ nsPopupBoxObject::GetAutoPosition(bool* aShouldAutoPosition)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::SetAutoPosition(bool aShouldAutoPosition)
+nsPopupBoxObject::SetAutoPosition(PRBool aShouldAutoPosition)
 {
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
@@ -199,7 +199,7 @@ nsPopupBoxObject::SetAutoPosition(bool aShouldAutoPosition)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::EnableRollup(bool aShouldRollup)
+nsPopupBoxObject::EnableRollup(PRBool aShouldRollup)
 {
   // this does nothing now
   return NS_OK;
@@ -217,17 +217,17 @@ nsPopupBoxObject::SetConsumeRollupEvent(PRUint32 aConsume)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::EnableKeyboardNavigator(bool aEnableKeyboardNavigator)
+nsPopupBoxObject::EnableKeyboardNavigator(PRBool aEnableKeyboardNavigator)
 {
   if (!mContent)
     return NS_OK;
 
   // Use ignorekeys="true" on the popup instead of using this function.
   if (aEnableKeyboardNavigator)
-    mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::ignorekeys, true);
+    mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::ignorekeys, PR_TRUE);
   else
     mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::ignorekeys,
-                      NS_LITERAL_STRING("true"), true);
+                      NS_LITERAL_STRING("true"), PR_TRUE);
 
   return NS_OK;
 }

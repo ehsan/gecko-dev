@@ -79,7 +79,7 @@ public:
         mAlternativeString(nsnull), mScriptItem(aItem),
         mScript(aItem->a.eScript),
         mNumGlyphs(0), mMaxGlyphs(ESTIMATE_MAX_GLYPHS(aLength)),
-        mFontSelected(false), mIVS(aIVS)
+        mFontSelected(PR_FALSE), mIVS(aIVS)
     {
         // See bug 394751 for details.
         NS_ASSERTION(mMaxGlyphs < 65535,
@@ -90,7 +90,7 @@ public:
         free(mAlternativeString);
     }
 
-    bool AllocateBuffers() {
+    PRBool AllocateBuffers() {
         return (mGlyphs.SetLength(mMaxGlyphs) &&
                 mClusters.SetLength(mItemLength + 1) &&
                 mAttr.SetLength(mMaxGlyphs));
@@ -107,10 +107,10 @@ public:
 
         const PRUnichar *str = mAlternativeString ? mAlternativeString : mItemString;
 
-        mScriptItem->a.fLogicalOrder = true; 
+        mScriptItem->a.fLogicalOrder = PR_TRUE; 
         SCRIPT_ANALYSIS sa = mScriptItem->a;
 
-        while (true) {
+        while (PR_TRUE) {
 
             rv = ScriptShape(shapeDC, mShaper->ScriptCache(),
                              str, mItemLength,
@@ -182,7 +182,7 @@ public:
         }
     }
 
-    bool ShapingEnabled() {
+    PRBool ShapingEnabled() {
         return (mScriptItem->a.eScript != SCRIPT_UNDEFINED);
     }
     void DisableShaping() {
@@ -201,7 +201,7 @@ public:
         }
     }
 
-    bool IsGlyphMissing(SCRIPT_FONTPROPERTIES *aSFP, PRUint32 aGlyphIndex) {
+    PRBool IsGlyphMissing(SCRIPT_FONTPROPERTIES *aSFP, PRUint32 aGlyphIndex) {
         return (mGlyphs[aGlyphIndex] == aSFP->wgDefault);
     }
 
@@ -217,7 +217,7 @@ public:
 
         SCRIPT_ANALYSIS sa = mScriptItem->a;
 
-        while (true) {
+        while (PR_TRUE) {
             rv = ScriptPlace(placeDC, mShaper->ScriptCache(),
                              mGlyphs.Elements(), mNumGlyphs,
                              mAttr.Elements(), &sa,
@@ -267,16 +267,16 @@ public:
         const PRUint32 appUnitsPerDevUnit = aRun->GetAppUnitsPerDevUnit();
         while (offset < mItemLength) {
             PRUint32 runOffset = offsetInRun + offset;
-            bool atClusterStart = aRun->IsClusterStart(runOffset);
+            PRBool atClusterStart = aRun->IsClusterStart(runOffset);
             if (offset > 0 && mClusters[offset] == mClusters[offset - 1]) {
-                g.SetComplex(atClusterStart, false, 0);
+                g.SetComplex(atClusterStart, PR_FALSE, 0);
                 aRun->SetGlyphs(runOffset, g, nsnull);
             } else {
                 // Count glyphs for this character
                 PRUint32 k = mClusters[offset];
                 PRUint32 glyphCount = mNumGlyphs - k;
                 PRUint32 nextClusterOffset;
-                bool missing = IsGlyphMissing(&sfp, k);
+                PRBool missing = IsGlyphMissing(&sfp, k);
                 for (nextClusterOffset = offset + 1; nextClusterOffset < mItemLength; ++nextClusterOffset) {
                     if (mClusters[nextClusterOffset] > k) {
                         glyphCount = mClusters[nextClusterOffset] - k;
@@ -286,7 +286,7 @@ public:
                 PRUint32 j;
                 for (j = 1; j < glyphCount; ++j) {
                     if (IsGlyphMissing(&sfp, k + j)) {
-                        missing = true;
+                        missing = PR_TRUE;
                     }
                 }
                 PRInt32 advance = mAdvances[k]*appUnitsPerDevUnit;
@@ -324,7 +324,7 @@ public:
                         details->mYOffset = - float(mOffsets[k + i].dv)*appUnitsPerDevUnit;
                     }
                     aRun->SetGlyphs(runOffset,
-                                    g.SetComplex(atClusterStart, true,
+                                    g.SetComplex(atClusterStart, PR_TRUE,
                                                  glyphCount),
                                     detailedGlyphs.Elements());
                 }
@@ -344,7 +344,7 @@ public:
         cairo_scaled_font_t *scaledFont = mShaper->GetFont()->CairoScaledFont();
         cairo_win32_scaled_font_select_font(scaledFont, mDC);
 
-        mFontSelected = true;
+        mFontSelected = PR_TRUE;
     }
 
 private:
@@ -394,7 +394,7 @@ private:
     int mNumGlyphs;
     PRUint32 mIVS;
 
-    bool mFontSelected;
+    PRPackedBool mFontSelected;
 };
 
 class Uniscribe
@@ -413,7 +413,7 @@ public:
         // Lock the direction. Don't allow the itemizer to change directions
         // based on character type.
         mState.uBidiLevel = mTextRun->IsRightToLeft() ? 1 : 0;
-        mState.fOverrideDirection = true;
+        mState.fOverrideDirection = PR_TRUE;
     }
 
 public:
@@ -458,7 +458,7 @@ private:
 };
 
 
-bool
+PRBool
 gfxUniscribeShaper::InitTextRun(gfxContext *aContext,
                                 gfxTextRun *aTextRun,
                                 const PRUnichar *aString,
@@ -468,7 +468,7 @@ gfxUniscribeShaper::InitTextRun(gfxContext *aContext,
 {
     DCFromContext aDC(aContext);
  
-    bool result = true;
+    PRBool result = PR_TRUE;
     HRESULT rv;
 
     Uniscribe us(aString + aRunStart, aRunLength, aTextRun);
@@ -506,7 +506,7 @@ gfxUniscribeShaper::InitTextRun(gfxContext *aContext,
                            iCharPosNext - iCharPos,
                            us.ScriptItem(i), ivs);
         if (!item.AllocateBuffers()) {
-            result = false;
+            result = PR_FALSE;
             break;
         }
 
@@ -542,7 +542,7 @@ gfxUniscribeShaper::InitTextRun(gfxContext *aContext,
             // Uniscribe doesn't like this font for some reason.
             // Returning FALSE will make the gfxGDIFont retry with the
             // "dumb" GDI shaper, unless useUniscribeOnly was set.
-            result = false;
+            result = PR_FALSE;
             break;
         }
 

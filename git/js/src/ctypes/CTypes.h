@@ -41,10 +41,9 @@
 
 #include "jscntxt.h"
 #include "jsapi.h"
+#include "jshashtable.h"
 #include "prlink.h"
 #include "ffi.h"
-
-#include "js/HashTable.h"
 
 namespace js {
 namespace ctypes {
@@ -323,32 +322,14 @@ struct FunctionInfo
 struct ClosureInfo
 {
   JSContext* cx;         // JSContext to use
-  JSRuntime* rt;         // Used in the destructor, where cx might have already
-                         // been GCed.
   JSObject* closureObj;  // CClosure object
   JSObject* typeObj;     // FunctionType describing the C function
   JSObject* thisObj;     // 'this' object to use for the JS function call
   JSObject* jsfnObj;     // JS function
-  void* errResult;       // Result that will be returned if the closure throws
   ffi_closure* closure;  // The C closure itself
 #ifdef DEBUG
   jsword cxThread;       // The thread on which the context may be used
 #endif
-
-  // Anything conditionally freed in the destructor should be initialized to
-  // NULL here.
-  ClosureInfo(JSRuntime* runtime)
-    : rt(runtime)
-    , errResult(NULL)
-    , closure(NULL)
-  {}
-
-  ~ClosureInfo() {
-    if (closure)
-      ffi_closure_free(closure);
-    if (errResult)
-      rt->free_(errResult);
-  };
 };
 
 bool IsCTypesGlobal(JSContext* cx, JSObject* obj);
@@ -392,8 +373,7 @@ enum CTypeProtoSlot {
   SLOT_FUNCTIONDATAPROTO = 8,  // common ancestor of all CData objects of FunctionType
   SLOT_INT64PROTO        = 9,  // ctypes.Int64.prototype object
   SLOT_UINT64PROTO       = 10, // ctypes.UInt64.prototype object
-  SLOT_OURDATAPROTO      = 11, // the data prototype corresponding to this object
-  SLOT_CLOSURECX         = 12, // JSContext for use with FunctionType closures
+  SLOT_CLOSURECX         = 11, // JSContext for use with FunctionType closures
   CTYPEPROTO_SLOTS
 };
 
@@ -458,7 +438,6 @@ namespace CType {
     jsval size, jsval align, ffi_type* ffiType);
 
   bool IsCType(JSContext* cx, JSObject* obj);
-  bool IsCTypeProto(JSContext* cx, JSObject* obj);
   TypeCode GetTypeCode(JSContext* cx, JSObject* typeObj);
   bool TypesEqual(JSContext* cx, JSObject* t1, JSObject* t2);
   size_t GetSize(JSContext* cx, JSObject* obj);
@@ -512,7 +491,7 @@ namespace FunctionType {
 
 namespace CClosure {
   JSObject* Create(JSContext* cx, JSObject* typeObj, JSObject* fnObj,
-    JSObject* thisObj, jsval errVal, PRFuncPtr* fnptr);
+    JSObject* thisObj, PRFuncPtr* fnptr);
 }
 
 namespace CData {
@@ -522,7 +501,6 @@ namespace CData {
   JSObject* GetCType(JSContext* cx, JSObject* dataObj);
   void* GetData(JSContext* cx, JSObject* dataObj);
   bool IsCData(JSContext* cx, JSObject* obj);
-  bool IsCDataProto(JSContext* cx, JSObject* obj);
 
   // Attached by JSAPI as the function 'ctypes.cast'
   JSBool Cast(JSContext* cx, uintN argc, jsval* vp);

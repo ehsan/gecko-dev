@@ -100,11 +100,11 @@ nsresult nsClipboard::GetNativeClipboardData(nsITransferable *aTransferable, PRI
 }
 
 // Get some data from the clipboard
-bool nsClipboard::GetClipboardData(const char *aFlavor)
+PRBool nsClipboard::GetClipboardData(const char *aFlavor)
 {
   PRUint32 ulFormatID = GetFormatID(aFlavor);
   
-  bool found = GetClipboardDataByID( ulFormatID, aFlavor );
+  PRBool found = GetClipboardDataByID( ulFormatID, aFlavor );
 
   if (!found) 
   {
@@ -121,16 +121,16 @@ bool nsClipboard::GetClipboardData(const char *aFlavor)
   return found;
 }
 
-bool nsClipboard::GetClipboardDataByID(PRUint32 aFormatID, const char *aFlavor)
+PRBool nsClipboard::GetClipboardDataByID(PRUint32 aFormatID, const char *aFlavor)
 {
   PVOID pDataMem;
   PRUint32 NumOfBytes;
-  bool TempBufAllocated = false;
+  PRBool TempBufAllocated = PR_FALSE;
 
   PVOID pClipboardData = reinterpret_cast<PVOID>(WinQueryClipbrdData(0, aFormatID));
 
   if (!pClipboardData) 
-    return false;
+    return PR_FALSE;
 
   if (strstr( aFlavor, "text/" ))  // All text/.. flavors are null-terminated
   {
@@ -148,7 +148,7 @@ bool nsClipboard::GetClipboardDataByID(PRUint32 aFormatID, const char *aFlavor)
         MultiByteToWideChar(0, static_cast<char*>(pDataMem), NumOfChars,
                             buffer, bufLength);
         pDataMem = ToNewUnicode(nsDependentString(buffer.Elements()));
-        TempBufAllocated = true;
+        TempBufAllocated = PR_TRUE;
         NumOfBytes = bufLength * sizeof(UniChar);
       }
 
@@ -160,7 +160,7 @@ bool nsClipboard::GetClipboardDataByID(PRUint32 aFormatID, const char *aFlavor)
       PVOID pTempBuf = nsMemory::Alloc(NumOfBytes);
       memcpy(pTempBuf, pDataMem, NumOfBytes);
       pDataMem = pTempBuf;
-      TempBufAllocated = true;
+      TempBufAllocated = PR_TRUE;
     }
 
     // DOM wants LF only, so convert from CRLF
@@ -215,7 +215,7 @@ bool nsClipboard::GetClipboardDataByID(PRUint32 aFormatID, const char *aFlavor)
   if (TempBufAllocated)
     nsMemory::Free(pDataMem);
 
-  return true;
+  return PR_TRUE;
 }
 
 
@@ -409,9 +409,9 @@ PRUint32 nsClipboard::GetFormatID(const char *aMimeStr)
 NS_IMETHODIMP nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,
                                                   PRUint32 aLength,
                                                   PRInt32 aWhichClipboard,
-                                                  bool *_retval)
+                                                  PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   if (aWhichClipboard != kGlobalClipboard || !aFlavorList)
     return NS_OK;
 
@@ -420,14 +420,14 @@ NS_IMETHODIMP nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,
     PRUint32 format = GetFormatID(aFlavorList[i]);
 
     if (WinQueryClipbrdFmtInfo(0/*hab*/, format, &fmtInfo)) {
-      *_retval = true;
+      *_retval = PR_TRUE;
       break;
     }
 
     // if the client asked for unicode and it wasn't present, check if we have CF_TEXT.
     if (!strcmp(aFlavorList[i], kUnicodeMime)) {
       if (WinQueryClipbrdFmtInfo(0/*hab*/, CF_TEXT, &fmtInfo)) {
-        *_retval = true;
+        *_retval = PR_TRUE;
         break;
       }
     }
@@ -439,7 +439,7 @@ NS_IMETHODIMP nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,
 #ifdef DEBUG
         printf("nsClipboard:: Image present on clipboard; need to add BMP conversion!\n");
 #endif
-//          *_retval = true;
+//          *_retval = PR_TRUE;
 //          break;
       }
     }

@@ -83,18 +83,18 @@ public:
     return mMeetOrSlice;
   };
 
-  void SetDefer(bool aDefer) {
+  void SetDefer(PRBool aDefer) {
     mDefer = aDefer;
   };
 
-  bool GetDefer() const {
+  PRBool GetDefer() const {
     return mDefer;
   };
 
 private:
   PRUint8 mAlign;
   PRUint8 mMeetOrSlice;
-  bool mDefer;
+  PRPackedBool mDefer;
 };
 
 class SVGAnimatedPreserveAspectRatio
@@ -103,14 +103,15 @@ public:
   void Init() {
     mBaseVal.mAlign = nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_XMIDYMID;
     mBaseVal.mMeetOrSlice = nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_MEET;
-    mBaseVal.mDefer = false;
+    mBaseVal.mDefer = PR_FALSE;
     mAnimVal = mBaseVal;
-    mIsAnimated = false;
-    mIsBaseSet = false;
+    mIsAnimated = PR_FALSE;
+    mIsBaseSet = PR_FALSE;
   }
 
   nsresult SetBaseValueString(const nsAString& aValue,
-                              nsSVGElement *aSVGElement);
+                              nsSVGElement *aSVGElement,
+                              PRBool aDoSetAttr);
   void GetBaseValueString(nsAString& aValue);
 
   nsresult SetBaseAlign(PRUint16 aAlign, nsSVGElement *aSVGElement);
@@ -121,23 +122,25 @@ public:
     { return mBaseVal; }
   const SVGPreserveAspectRatio &GetAnimValue() const
     { return mAnimVal; }
-  bool IsAnimated() const
+  PRBool IsAnimated() const
     { return mIsAnimated; }
-  bool IsExplicitlySet() const
+  PRBool IsExplicitlySet() const
     { return mIsAnimated || mIsBaseSet; }
 
   nsresult ToDOMAnimatedPreserveAspectRatio(
     nsIDOMSVGAnimatedPreserveAspectRatio **aResult,
     nsSVGElement* aSVGElement);
+#ifdef MOZ_SMIL
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
+#endif // MOZ_SMIL
 
 private:
 
   SVGPreserveAspectRatio mAnimVal;
   SVGPreserveAspectRatio mBaseVal;
-  bool mIsAnimated;
-  bool mIsBaseSet;
+  PRPackedBool mIsAnimated;
+  PRPackedBool mIsBaseSet;
 
   nsresult ToDOMBaseVal(nsIDOMSVGPreserveAspectRatio **aResult,
                         nsSVGElement* aSVGElement);
@@ -182,7 +185,9 @@ public:
     // need to flush any resample requests to reflect these modifications.
     NS_IMETHOD GetAlign(PRUint16* aAlign)
     {
+#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
+#endif
       *aAlign = mVal->GetAnimValue().GetAlign();
       return NS_OK;
     }
@@ -191,7 +196,9 @@ public:
 
     NS_IMETHOD GetMeetOrSlice(PRUint16* aMeetOrSlice)
     {
+#ifdef MOZ_SMIL
       mSVGElement->FlushAnimations();
+#endif
       *aMeetOrSlice = mVal->GetAnimValue().GetMeetOrSlice();
       return NS_OK;
     }
@@ -220,6 +227,7 @@ public:
       { return mVal->ToDOMAnimVal(aAnimVal, mSVGElement); }
   };
 
+#ifdef MOZ_SMIL
   struct SMILPreserveAspectRatio : public nsISMILAttr
   {
   public:
@@ -237,11 +245,12 @@ public:
     virtual nsresult ValueFromString(const nsAString& aStr,
                                      const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
-                                     bool& aPreventCachingOfSandwich) const;
+                                     PRBool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;
     virtual void ClearAnimValue();
     virtual nsresult SetAnimValue(const nsSMILValue& aValue);
   };
+#endif // MOZ_SMIL
 };
 
 } // namespace mozilla

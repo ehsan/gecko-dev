@@ -90,7 +90,6 @@ function run_test()
   timesUsed = stmt.getInt32(0);
   firstUsed = stmt.getInt64(1);
   lastUsed  = stmt.getInt64(2);
-  stmt.finalize();
 
   do_check_eq(1, timesUsed);
   do_check_true(firstUsed == lastUsed);
@@ -123,7 +122,6 @@ function run_test()
   timesUsed = stmt.getInt32(0);
   firstUsed = stmt.getInt64(1);
   lastUsed  = stmt.getInt64(2);
-  stmt.finalize();
 
   do_check_eq(1, timesUsed);
   do_check_true(firstUsed == lastUsed);
@@ -160,7 +158,6 @@ function delayed_test() {
   timesUsed = stmt.getInt32(0);
   var firstUsed2 = stmt.getInt64(1);
   var lastUsed2  = stmt.getInt64(2);
-  stmt.finalize();
 
   do_check_eq(2, timesUsed);
   do_check_true(is_about_now(lastUsed2));

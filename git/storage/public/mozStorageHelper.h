@@ -65,12 +65,12 @@ class mozStorageTransaction
 {
 public:
   mozStorageTransaction(mozIStorageConnection* aConnection,
-                        bool aCommitOnComplete,
+                        PRBool aCommitOnComplete,
                         PRInt32 aType = mozIStorageConnection::TRANSACTION_DEFERRED)
     : mConnection(aConnection),
-      mHasTransaction(false),
+      mHasTransaction(PR_FALSE),
       mCommitOnComplete(aCommitOnComplete),
-      mCompleted(false)
+      mCompleted(PR_FALSE)
   {
     // We won't try to get a transaction if one is already in progress.
     if (mConnection)
@@ -95,12 +95,12 @@ public:
   {
     if (!mConnection || mCompleted)
       return NS_OK; // no connection, or already done
-    mCompleted = true;
+    mCompleted = PR_TRUE;
     if (! mHasTransaction)
       return NS_OK; // transaction not ours, ignore
     nsresult rv = mConnection->CommitTransaction();
     if (NS_SUCCEEDED(rv))
-      mHasTransaction = false;
+      mHasTransaction = PR_FALSE;
 
     return rv;
   }
@@ -114,7 +114,7 @@ public:
   {
     if (!mConnection || mCompleted)
       return NS_OK; // no connection, or already done
-    mCompleted = true;
+    mCompleted = PR_TRUE;
     if (! mHasTransaction)
       return NS_ERROR_FAILURE;
 
@@ -127,7 +127,7 @@ public:
     } while (rv == NS_ERROR_STORAGE_BUSY);
 
     if (NS_SUCCEEDED(rv))
-      mHasTransaction = false;
+      mHasTransaction = PR_FALSE;
 
     return rv;
   }
@@ -137,7 +137,7 @@ public:
    * this object doesn't do anything because there was already a transaction in
    * progress when it was created.
    */
-  bool HasTransaction()
+  PRBool HasTransaction()
   {
     return mHasTransaction;
   }
@@ -146,16 +146,16 @@ public:
    * This sets the default action (commit or rollback) when this object goes
    * out of scope.
    */
-  void SetDefaultAction(bool aCommitOnComplete)
+  void SetDefaultAction(PRBool aCommitOnComplete)
   {
     mCommitOnComplete = aCommitOnComplete;
   }
 
 protected:
   nsCOMPtr<mozIStorageConnection> mConnection;
-  bool mHasTransaction;
-  bool mCommitOnComplete;
-  bool mCompleted;
+  PRBool mHasTransaction;
+  PRBool mCommitOnComplete;
+  PRBool mCompleted;
 };
 
 

@@ -57,7 +57,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   nsScrollbarButtonFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
-    nsButtonBoxFrame(aPresShell, aContext), mCursorOnThis(false) {}
+    nsButtonBoxFrame(aPresShell, aContext) {}
 
   // Overrides
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
@@ -72,14 +72,14 @@ public:
                                   nsIAtom* atom, nsIFrame* start, nsIFrame*& result);
   static nsresult GetParentWithTag(nsIAtom* atom, nsIFrame* start, nsIFrame*& result);
 
-  bool HandleButtonPress(nsPresContext* aPresContext,
+  PRBool HandleButtonPress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,
                          nsEventStatus*  aEventStatus);
 
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
                                  nsGUIEvent *    aEvent,
                                  nsEventStatus*  aEventStatus,
-                                 bool aControlHeld)  { return NS_OK; }
+                                 PRBool aControlHeld)  { return NS_OK; }
 
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         nsGUIEvent *    aEvent,
@@ -91,7 +91,7 @@ public:
 
 protected:
   virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aEvent);
-  void DoButtonAction(bool aSmoothScroll);
+  void DoButtonAction(PRBool aSmoothScroll);
 
   void StartRepeat() {
     nsRepeatService::GetInstance()->Start(Notify, this);
@@ -105,7 +105,6 @@ protected:
   }
   
   PRInt32 mIncrement;  
-  bool mCursorOnThis;
 };
 
 #endif

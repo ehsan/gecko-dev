@@ -54,10 +54,10 @@ public:
         mLimit = base + flen;
     }
 
-    bool NextLine()
+    PRBool NextLine()
     {
         if(mNext >= mLimit)
-            return false;
+            return PR_FALSE;
         
         mCur = mNext;
         mLength = 0;
@@ -70,12 +70,12 @@ public:
                 for(++mNext; mNext < mLimit; ++mNext)
                     if(!IsEOL(*mNext))
                         break;
-                return true;
+                return PR_TRUE;
             }
             ++mNext;
             ++mLength;
         }
-        return false;        
+        return PR_FALSE;        
     }
 
     int ParseLine(char** chunks, int* lengths, int maxChunks)
@@ -109,7 +109,7 @@ public:
     char*       LinePtr() {return mCur;}    
     PRUint32    LineLength() {return mLength;}    
 
-    bool        IsEOL(char c) {return c == '\n' || c == '\r';}
+    PRBool      IsEOL(char c) {return c == '\n' || c == '\r';}
 private:
     char*       mCur;
     PRUint32    mLength;

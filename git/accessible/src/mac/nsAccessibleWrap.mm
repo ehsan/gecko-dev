@@ -60,20 +60,20 @@ nsAccessibleWrap::~nsAccessibleWrap()
   }
 }
 
-bool
+PRBool
 nsAccessibleWrap::Init () 
 {
   if (!nsAccessible::Init())
-    return false;
+    return PR_FALSE;
 
   if (!mNativeWrapper && !AncestorIsFlat()) {
     // Create our native object using the class type specified in GetNativeType().
     mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
     if (!mNativeWrapper)
-      return false;
+      return PR_FALSE;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -211,7 +211,7 @@ nsAccessibleWrap::InvalidateChildren()
 }
 
 PRInt32
-nsAccessibleWrap::GetUnignoredChildCount(bool aDeepCount)
+nsAccessibleWrap::GetUnignoredChildCount(PRBool aDeepCount)
 {
   // if we're flat, we have no children.
   if (nsAccUtils::MustPrune(this))
@@ -234,12 +234,12 @@ nsAccessibleWrap::GetUnignoredChildCount(bool aDeepCount)
 
     if (aDeepCount) {
       // recursively count the unignored children of our children since it's a deep count.
-      resultChildCount += childAcc->GetUnignoredChildCount(true);
+      resultChildCount += childAcc->GetUnignoredChildCount(PR_TRUE);
     } else {
       // no deep counting, but if the child is ignored, we want to substitute it for its
       // children.
       if (childAcc->IsIgnored()) 
-        resultChildCount += childAcc->GetUnignoredChildCount(false);
+        resultChildCount += childAcc->GetUnignoredChildCount(PR_FALSE);
     }
   } 
   
@@ -248,7 +248,7 @@ nsAccessibleWrap::GetUnignoredChildCount(bool aDeepCount)
 
 // if we for some reason have no native accessible, we should be skipped over (and traversed)
 // when fetching all unignored children, etc.  when counting unignored children, we will not be counted.
-bool 
+PRBool 
 nsAccessibleWrap::IsIgnored() 
 {
   return (mNativeWrapper == nsnull) || mNativeWrapper->isIgnored();
@@ -302,7 +302,7 @@ nsAccessibleWrap::GetUnignoredParent()
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibleWrap protected
 
-bool
+PRBool
 nsAccessibleWrap::AncestorIsFlat()
 {
   // We don't create a native object if we're child of a "flat" accessible;
@@ -316,10 +316,10 @@ nsAccessibleWrap::AncestorIsFlat()
   nsAccessible* parent = Parent();
   while (parent) {
     if (nsAccUtils::MustPrune(parent))
-      return true;
+      return PR_TRUE;
 
     parent = parent->Parent();
   }
   // no parent was flat
-  return false;
+  return PR_FALSE;
 }

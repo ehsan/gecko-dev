@@ -57,7 +57,7 @@ public:
     // nsITableLayoutStrategy implementation
     virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
     virtual nscoord GetPrefWidth(nsRenderingContext* aRenderingContext,
-                                 bool aComputingSize);
+                                 PRBool aComputingSize);
     virtual void MarkIntrinsicWidthsDirty();
     virtual void ComputeColumnWidths(const nsHTMLReflowState& aReflowState);
 
@@ -87,7 +87,7 @@ private:
     //              colspan's min & pref width.  BTLS_FINAL_WIDTH is intended
     //              to be used for distributing the table's final width across
     //              all its columns)
-    //  aSpanHasSpecifiedWidth: Should be true iff:
+    //  aSpanHasSpecifiedWidth: Should be PR_TRUE iff:
     //                           - We're distributing a colspanning cell's
     //                             pref or min width to its columns
     //                           - The colspanning cell has a specified width.
@@ -95,7 +95,7 @@ private:
                                   PRInt32 aFirstCol, 
                                   PRInt32 aColCount,
                                   BtlsWidthType aWidthType,
-                                  bool aSpanHasSpecifiedWidth);
+                                  PRBool aSpanHasSpecifiedWidth);
  
 
     // Compute the min and pref widths of the table from the width

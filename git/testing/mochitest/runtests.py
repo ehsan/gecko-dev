@@ -235,18 +235,9 @@ class MochitestOptions(optparse.OptionParser):
     self.add_option("--repeat",
                     action = "store", type = "int",
                     dest = "repeat", metavar = "REPEAT",
-                    help = "repeats the test or set of tests the given number of times, ie: repeat=1 will run the test twice.")                   
+                    help = "repeats the test or set of tests the given number of times, ie: repeat=1 will run the test twice.")
+                   
     defaults["repeat"] = 0
-
-    self.add_option("--run-only-tests",
-                    action = "store", type="string", dest = "runOnlyTests",
-                    help = "JSON list of tests that we only want to run, cannot be specified with --exclude-tests.")
-    defaults["runOnlyTests"] = None
-
-    self.add_option("--exclude-tests",
-                    action = "store", type="string", dest = "excludeTests",
-                    help = "JSON list of tests that we want to not run, cannot be specified with --run-only-tests.")
-    defaults["excludeTests"] = None
 
     # -h, --help are automatically handled by OptionParser
 
@@ -310,17 +301,6 @@ See <http://mochikit.com/doc/html/MochiKit/Logging.html> for details on the logg
       if not os.path.exists(mochitest.vmwareHelperPath):
         self.error("%s not found, cannot automate VMware recording." %
                    mochitest.vmwareHelperPath)
-
-    if options.runOnlyTests != None and options.excludeTests != None:
-      self.error("We can only support --run-only-tests OR --exclude-tests, not both.")
-      
-    if (options.runOnlyTests):
-      if (not os.path.exists(os.path.join(os.path.dirname(__file__), options.runOnlyTests))):
-        self.error("unable to find --run-only-tests file '%s'" % (options.runOnlyTests));
-        
-    if (options.excludeTests):
-      if (not os.path.exists(os.path.join(os.path.dirname(__file__), options.excludeTests))):
-        self.error("unable to find --exclude-tests file '%s'" % (options.excludeTests));
 
     return options
 
@@ -515,11 +495,22 @@ class Mochitest(object):
     """
     return self.getFullPath(logFile)
 
+  def installSpecialPowersExtension(self, options):
+    """ install the Special Powers extension for special testing capabilities """
+    extensionSource = os.path.normpath(os.path.join(self.SCRIPT_DIRECTORY, "specialpowers"))
+    self.automation.log.info("INFO | runtests.py | Installing extension at %s to %s." % 
+                             (extensionSource, options.profilePath))
+
+    self.automation.installExtension(extensionSource, options.profilePath, "special-powers@mozilla.org")
+    self.automation.log.info("INFO | runtests.py | Done installing extension.")
+
   def buildProfile(self, options):
     """ create the profile and add optional chrome bits and files if requested """
     self.automation.initializeProfile(options.profilePath, options.extraPrefs, useServerLocations = True)
     manifest = self.addChromeToProfile(options)
     self.copyExtraFilesToProfile(options)
+
+    self.installSpecialPowersExtension(options)
     self.installExtensionsToProfile(options)
     return manifest
 
@@ -551,7 +542,7 @@ class Mochitest(object):
         URL parameters to test URL:
 
         autorun -- kick off tests automatically
-        closeWhenDone -- closes the browser after the tests
+        closeWhenDone -- runs quit.js after tests
         hideResultsTable -- hides the table of individual test results
         logFile -- logs test run to an absolute path
         totalChunks -- how many chunks to split tests into
@@ -590,10 +581,6 @@ class Mochitest(object):
         self.urlOpts.append("repeat=%d" % options.repeat)
       if os.path.isfile(os.path.join(self.oldcwd, os.path.dirname(__file__), self.TEST_PATH, options.testPath)) and options.repeat > 0:
         self.urlOpts.append("testname=%s" % ("/").join([self.TEST_PATH, options.testPath]))
-      if options.runOnlyTests:
-        self.urlOpts.append("runOnlyTests=%s" % options.runOnlyTests)
-      elif options.excludeTests:
-        self.urlOpts.append("excludeTests=%s" % options.excludeTests)
 
   def cleanup(self, manifest, options):
     """ remove temporary files and profile """
@@ -803,8 +790,16 @@ toolbar#nav-bar {
 overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 """
+    else:
+      #only do the ipc-overlay.xul for mochitest-plain.  
+      #Currently there are focus issues in chrome tests and issues with new windows and dialogs when using ipc
+      chrome += """
+overlay chrome://browser/content/browser.xul chrome://mochikit/content/ipc-overlay.xul
+overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/ipc-overlay.xul
+"""
 
     self.installChromeJar(jarDir, chrome, options)
+
     return manifest
 
   def installChromeJar(self, jarDirName, chrome, options):
@@ -815,7 +810,7 @@ overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/brows
                                      options.profilePath, "mochikit@mozilla.org")
 
     # Write chrome.manifest.
-    with open(os.path.join(options.profilePath, "extensions", "staged", "mochikit@mozilla.org", "chrome.manifest"), "a") as mfile:
+    with open(os.path.join(options.profilePath, "extensions", "mochikit@mozilla.org", "chrome.manifest"), "a") as mfile:
       mfile.write(chrome)
 
   def copyTestsJarToProfile(self, options):
@@ -840,33 +835,17 @@ overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/brows
         self.automation.log.warning("WARNING | runtests.py | Failed to copy %s to profile", abspath)
         continue
 
-  def installExtensionFromPath(self, options, path, extensionID = None):
-    extensionPath = self.getFullPath(path)
-
-    self.automation.log.info("INFO | runtests.py | Installing extension at %s to %s." %
-                            (extensionPath, options.profilePath))
-    self.automation.installExtension(extensionPath, options.profilePath,
-                                     extensionID)
-
   def installExtensionsToProfile(self, options):
-    "Install special testing extensions, application distributed extensions, and specified on the command line ones to testing profile."
-    extensionDirs = [
-      # Extensions distributed with the test harness.
-      os.path.normpath(os.path.join(self.SCRIPT_DIRECTORY, "extensions")),
-      # Extensions distributed with the application.
-      os.path.join(options.app[ : options.app.rfind(os.sep)], "distribution", "extensions")
-    ]
+    "Install application distributed extensions and specified on the command line ones to testing profile."
+    # Install distributed extensions, if application has any.
+    distExtDir = os.path.join(options.app[ : options.app.rfind(os.sep)], "distribution", "extensions")
+    if os.path.isdir(distExtDir):
+      for f in os.listdir(distExtDir):
+        self.automation.installExtension(os.path.join(distExtDir, f), options.profilePath)
 
-    for extensionDir in extensionDirs:
-      if os.path.isdir(extensionDir):
-        for dirEntry in os.listdir(extensionDir):
-          path = os.path.join(extensionDir, dirEntry)
-          if os.path.isdir(path) or (os.path.isfile(path) and path.endswith(".xpi")):
-            self.installExtensionFromPath(options, path)
-
-    # Install custom extensions passed on the command line.
-    for path in options.extensionsToInstall:
-      self.installExtensionFromPath(options, path)
+    # Install custom extensions.
+    for f in options.extensionsToInstall:
+      self.automation.installExtension(self.getFullPath(f), options.profilePath)
 
 def main():
   automation = Automation()

@@ -71,7 +71,7 @@ function test1()
   }, true);
 
   info("loading test page: " + testPageURL);
-  content.location = testPageURL + "?v=1";
+  content.location = testPageURL;
 }
 
 function test2()
@@ -136,5 +136,5 @@ function test2()
   }, true);
 
   info("loading test page: " + testPageURL);
-  content.location = testPageURL + "?v=3";
+  content.location = testPageURL;
 }

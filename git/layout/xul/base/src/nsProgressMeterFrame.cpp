@@ -79,14 +79,14 @@ class nsAsyncProgressMeterInit : public nsIReflowCallback
 public:
   nsAsyncProgressMeterInit(nsIFrame* aFrame) : mWeakFrame(aFrame) {}
 
-  virtual bool ReflowFinished()
+  virtual PRBool ReflowFinished()
   {
-    bool shouldFlush = false;
+    PRBool shouldFlush = PR_FALSE;
     nsIFrame* frame = mWeakFrame.GetFrame();
     if (frame) {
       nsAutoScriptBlocker scriptBlocker;
       frame->AttributeChanged(kNameSpaceID_None, nsGkAtoms::value, 0);
-      shouldFlush = true;
+      shouldFlush = PR_TRUE;
     }
     delete this;
     return shouldFlush;
@@ -108,7 +108,7 @@ nsProgressMeterFrame::DoLayout(nsBoxLayoutState& aState)
     if (cb) {
       PresContext()->PresShell()->PostReflowCallback(cb);
     }
-    mNeedsReflowCallback = false;
+    mNeedsReflowCallback = PR_FALSE;
   }
   return nsBoxFrame::DoLayout(aState);
 }

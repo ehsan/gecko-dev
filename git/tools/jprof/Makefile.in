@@ -56,7 +56,6 @@ CPPSRCS = \
 	$(NULL)
 
 OS_LIBS = \
-	-ldl \
 	-lbfd \
 	-liberty \
 	$(NULL)

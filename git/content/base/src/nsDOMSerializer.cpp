@@ -37,7 +37,7 @@
 
 #include "nsDOMSerializer.h"
 #include "nsIDOMNode.h"
-#include "nsDOMClassInfoID.h"
+#include "nsIDOMClassInfo.h"
 #include "nsIOutputStream.h"
 #include "nsINode.h"
 #include "nsIDocument.h"
@@ -84,10 +84,10 @@ SetUpEncoder(nsIDOMNode *aRoot, const nsACString& aCharset,
   if (NS_FAILED(rv))
     return rv;
 
-  bool entireDocument = true;
+  PRBool entireDocument = PR_TRUE;
   nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(aRoot));
   if (!domDoc) {
-    entireDocument = false;
+    entireDocument = PR_FALSE;
     rv = aRoot->GetOwnerDocument(getter_AddRefs(domDoc));
     if (NS_FAILED(rv))
       return rv;

@@ -49,8 +49,6 @@
 #include "nsImageFrame.h"
 #include "nsRenderingContext.h"
 
-#include "mozilla/Preferences.h"
-
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -59,13 +57,15 @@ using namespace mozilla::layers;
 
 namespace mozilla {
 
+namespace {
+
 /**
  * This is the userdata we associate with a layer manager.
  */
 class LayerManagerData : public LayerUserData {
 public:
   LayerManagerData(LayerManager *aManager) :
-    mInvalidateAllLayers(false),
+    mInvalidateAllLayers(PR_FALSE),
     mLayerManager(aManager)
   {
     MOZ_COUNT_CTOR(LayerManagerData);
@@ -82,13 +82,11 @@ public:
   /**
    * Tracks which frames have layers associated with them.
    */
-  nsTHashtable<FrameLayerBuilder::DisplayItemDataEntry> mFramesWithLayers;
-  bool mInvalidateAllLayers;
+  nsTHashtable<nsPtrHashKey<nsIFrame> > mFramesWithLayers;
+  PRPackedBool mInvalidateAllLayers;
   /** Layer manager we belong to, we hold a reference to this object. */
   nsRefPtr<LayerManager> mLayerManager;
 };
-
-namespace {
 
 static void DestroyRegion(void* aPropertyValue)
 {
@@ -142,7 +140,7 @@ public:
     mContainerFrame(aContainerFrame), mContainerLayer(aContainerLayer),
     mParameters(aParameters),
     mNextFreeRecycledThebesLayer(0), mNextFreeRecycledColorLayer(0),
-    mNextFreeRecycledImageLayer(0), mInvalidateAllThebesContent(false)
+    mNextFreeRecycledImageLayer(0), mInvalidateAllThebesContent(PR_FALSE)
   {
     CollectOldLayers();
   }
@@ -153,7 +151,7 @@ public:
   }
   void SetInvalidateAllThebesContent()
   {
-    mInvalidateAllThebesContent = true;
+    mInvalidateAllThebesContent = PR_TRUE;
   }
   /**
    * This is the method that actually walks a display list and builds
@@ -189,9 +187,9 @@ protected:
   public:
     ThebesLayerData() :
       mActiveScrolledRoot(nsnull), mLayer(nsnull),
-      mIsSolidColorInVisibleRegion(false),
-      mNeedComponentAlpha(false),
-      mForceTransparentSurface(false),
+      mIsSolidColorInVisibleRegion(PR_FALSE),
+      mNeedComponentAlpha(PR_FALSE),
+      mForceTransparentSurface(PR_FALSE),
       mImage(nsnull) {}
     /**
      * Record that an item has been added to the ThebesLayer, so we
@@ -268,19 +266,19 @@ protected:
     /**
      * True if every pixel in mVisibleRegion will have color mSolidColor.
      */
-    bool mIsSolidColorInVisibleRegion;
+    PRPackedBool mIsSolidColorInVisibleRegion;
     /**
      * True if there is any text visible in the layer that's over
      * transparent pixels in the layer.
      */
-    bool mNeedComponentAlpha;
+    PRPackedBool mNeedComponentAlpha;
     /**
      * Set if the layer should be treated as transparent, even if its entire
      * area is covered by opaque display items. For example, this needs to
      * be set if something is going to "punch holes" in the layer by clearing
      * part of its surface.
      */
-    bool mForceTransparentSurface;
+    PRPackedBool mForceTransparentSurface;
 
     /**
      * Stores the pointer to the nsDisplayImage if we want to
@@ -388,7 +386,7 @@ protected:
   PRUint32                         mNextFreeRecycledThebesLayer;
   PRUint32                         mNextFreeRecycledColorLayer;
   PRUint32                         mNextFreeRecycledImageLayer;
-  bool                             mInvalidateAllThebesContent;
+  PRPackedBool                     mInvalidateAllThebesContent;
 };
 
 class ThebesDisplayItemLayerUserData : public LayerUserData
@@ -461,64 +459,50 @@ FrameLayerBuilder::Init(nsDisplayListBuilder* aBuilder)
   }
 }
 
-bool
+PRBool
 FrameLayerBuilder::DisplayItemDataEntry::HasNonEmptyContainerLayer()
 {
   for (PRUint32 i = 0; i < mData.Length(); ++i) {
     if (mData[i].mLayer->GetType() == Layer::TYPE_CONTAINER &&
         mData[i].mLayerState != LAYER_ACTIVE_EMPTY)
-      return true;
+      return PR_TRUE;
   }
-  return false;
-}
-
-void
-FrameLayerBuilder::FlashPaint(gfxContext *aContext)
-{
-  static bool sPaintFlashingEnabled;
-  static bool sPaintFlashingPrefCached = false;
-
-  if (!sPaintFlashingPrefCached) {
-    sPaintFlashingPrefCached = true;
-    mozilla::Preferences::AddBoolVarCache(&sPaintFlashingEnabled, 
-                                          "nglayout.debug.paint_flashing");
-  }
-
-  if (sPaintFlashingEnabled) {
-    float r = float(rand()) / RAND_MAX;
-    float g = float(rand()) / RAND_MAX;
-    float b = float(rand()) / RAND_MAX;
-    aContext->SetColor(gfxRGBA(r, g, b, 0.2));
-    aContext->Paint();
-  }
-}
-
-/* static */ nsTArray<FrameLayerBuilder::DisplayItemData>*
-FrameLayerBuilder::GetDisplayItemDataArrayForFrame(nsIFrame* aFrame)
-{
-  FrameProperties props = aFrame->Properties();
-  LayerManagerData *data =
-    reinterpret_cast<LayerManagerData*>(props.Get(LayerManagerDataProperty()));
-  if (!data)
-    return nsnull;
-
-  DisplayItemDataEntry *entry = data->mFramesWithLayers.GetEntry(aFrame);
-  NS_ASSERTION(entry, "out of sync?");
-  if (!entry)
-    return nsnull;
-
-  return &entry->mData;
+  return PR_FALSE;
 }
 
 /* static */ void
-FrameLayerBuilder::RemoveFrameFromLayerManager(nsIFrame* aFrame,
-                                               void* aPropertyValue)
+FrameLayerBuilder::InternalDestroyDisplayItemData(nsIFrame* aFrame,
+                                                  void* aPropertyValue,
+                                                  PRBool aRemoveFromFramesWithLayers)
 {
-  LayerManagerData *data = reinterpret_cast<LayerManagerData*>(aPropertyValue);
-  data->mFramesWithLayers.RemoveEntry(aFrame);
-  if (data->mFramesWithLayers.Count() == 0) {
-    data->mLayerManager->RemoveUserData(&gLayerManagerUserData);
+  nsRefPtr<LayerManager> managerRef;
+  nsTArray<DisplayItemData>* array =
+    reinterpret_cast<nsTArray<DisplayItemData>*>(&aPropertyValue);
+  NS_ASSERTION(!array->IsEmpty(), "Empty arrays should not be stored");
+
+  if (aRemoveFromFramesWithLayers) {
+    LayerManager* manager = array->ElementAt(0).mLayer->Manager();
+    LayerManagerData* data = static_cast<LayerManagerData*>
+      (manager->GetUserData(&gLayerManagerUserData));
+    NS_ASSERTION(data, "Frame with layer should have been recorded");
+    data->mFramesWithLayers.RemoveEntry(aFrame);
+    if (data->mFramesWithLayers.Count() == 0) {
+      // Destroying our user data will consume a reference from the layer
+      // manager. But don't actually release until we've released all the layers
+      // in the DisplayItemData array below!
+      managerRef = manager;
+      manager->RemoveUserData(&gLayerManagerUserData);
+    }
   }
+
+  array->~nsTArray<DisplayItemData>();
+}
+
+/* static */ void
+FrameLayerBuilder::DestroyDisplayItemData(nsIFrame* aFrame,
+                                          void* aPropertyValue)
+{
+  InternalDestroyDisplayItemData(aFrame, aPropertyValue, PR_TRUE);
 }
 
 void
@@ -586,7 +570,7 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
   // display items before, and record those retained display items.
   // This also empties mNewDisplayItemData.
   mNewDisplayItemData.EnumerateEntries(StoreNewDisplayItemData, data);
-  data->mInvalidateAllLayers = false;
+  data->mInvalidateAllLayers = PR_FALSE;
 
   NS_ASSERTION(data->mFramesWithLayers.Count() > 0,
                "Some frame must have a layer!");
@@ -622,7 +606,7 @@ SetNoContainerLayer(nsIFrame* aFrame)
 }
 
 /* static */ PLDHashOperator
-FrameLayerBuilder::UpdateDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,
+FrameLayerBuilder::UpdateDisplayItemDataForFrame(nsPtrHashKey<nsIFrame>* aEntry,
                                                  void* aUserArg)
 {
   FrameLayerBuilder* builder = static_cast<FrameLayerBuilder*>(aUserArg);
@@ -632,9 +616,17 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,
     builder ? builder->mNewDisplayItemData.GetEntry(f) : nsnull;
   if (!newDisplayItems) {
     // This frame was visible, but isn't anymore.
-    bool found;
-    props.Remove(LayerManagerDataProperty(), &found);
+    PRBool found;
+    void* prop = props.Remove(DisplayItemDataProperty(), &found);
     NS_ASSERTION(found, "How can the frame property be missing?");
+    // Pass PR_FALSE to not remove from mFramesWithLayers, we'll remove it
+    // by returning PL_DHASH_REMOVE below.
+    // Note that DestroyDisplayItemData would delete the user data
+    // for the retained layer manager if it removed the last entry from
+    // mFramesWithLayers, but we won't. That's OK because our caller
+    // is DidEndTransaction, which would recreate the user data
+    // anyway.
+    InternalDestroyDisplayItemData(f, prop, PR_FALSE);
     SetNoContainerLayer(f);
     return PL_DHASH_REMOVE;
   }
@@ -655,8 +647,16 @@ FrameLayerBuilder::UpdateDisplayItemDataForFrame(DisplayItemDataEntry* aEntry,
     SetNoContainerLayer(f);
   }
 
+  // We need to remove and re-add the DisplayItemDataProperty in
+  // case the nsTArray changes the value of its mHdr.
+  void* propValue = props.Remove(DisplayItemDataProperty());
+  NS_ASSERTION(propValue, "mFramesWithLayers out of sync");
+  PR_STATIC_ASSERT(sizeof(nsTArray<DisplayItemData>) == sizeof(void*));
+  nsTArray<DisplayItemData>* array =
+    reinterpret_cast<nsTArray<DisplayItemData>*>(&propValue);
   // Steal the list of display item layers
-  aEntry->mData.SwapElements(newDisplayItems->mData);
+  array->SwapElements(newDisplayItems->mData);
+  props.Set(DisplayItemDataProperty(), propValue);
   // Don't need to process this frame again
   builder->mNewDisplayItemData.RawRemoveEntry(newDisplayItems);
   return PL_DHASH_NEXT;
@@ -672,12 +672,17 @@ FrameLayerBuilder::StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,
   // Remember that this frame has display items in retained layers
   NS_ASSERTION(!data->mFramesWithLayers.GetEntry(f),
                "We shouldn't get here if we're already in mFramesWithLayers");
-  DisplayItemDataEntry *newEntry = data->mFramesWithLayers.PutEntry(f);
-  NS_ASSERTION(!props.Get(LayerManagerDataProperty()),
+  data->mFramesWithLayers.PutEntry(f);
+  NS_ASSERTION(!props.Get(DisplayItemDataProperty()),
                "mFramesWithLayers out of sync");
 
-  newEntry->mData.SwapElements(aEntry->mData);
-  props.Set(LayerManagerDataProperty(), data);
+  void* propValue;
+  nsTArray<DisplayItemData>* array =
+    new (&propValue) nsTArray<DisplayItemData>();
+  // Steal the list of display item layers
+  array->SwapElements(aEntry->mData);
+  // Save it
+  props.Set(DisplayItemDataProperty(), propValue);
 
   if (f->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) {
     props.Set(ThebesLayerInvalidRegionProperty(), new nsRegion());
@@ -685,23 +690,25 @@ FrameLayerBuilder::StoreNewDisplayItemData(DisplayItemDataEntry* aEntry,
   return PL_DHASH_REMOVE;
 }
 
-bool
+PRBool
 FrameLayerBuilder::HasRetainedLayerFor(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
 {
-  nsTArray<DisplayItemData> *array = GetDisplayItemDataArrayForFrame(aFrame);
-  if (!array)
-    return false;
+  void* propValue = aFrame->Properties().Get(DisplayItemDataProperty());
+  if (!propValue)
+    return PR_FALSE;
 
+  nsTArray<DisplayItemData>* array =
+    (reinterpret_cast<nsTArray<DisplayItemData>*>(&propValue));
   for (PRUint32 i = 0; i < array->Length(); ++i) {
     if (array->ElementAt(i).mDisplayItemKey == aDisplayItemKey) {
       Layer* layer = array->ElementAt(i).mLayer;
       if (layer->Manager()->GetUserData(&gLayerManagerUserData)) {
         // All layer managers with our user data are retained layer managers
-        return true;
+        return PR_TRUE;
       }
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 Layer*
@@ -712,10 +719,12 @@ FrameLayerBuilder::GetOldLayerFor(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
   if (!mRetainingManager || mInvalidateAllLayers)
     return nsnull;
 
-  nsTArray<DisplayItemData> *array = GetDisplayItemDataArrayForFrame(aFrame);
-  if (!array)
+  void* propValue = aFrame->Properties().Get(DisplayItemDataProperty());
+  if (!propValue)
     return nsnull;
 
+  nsTArray<DisplayItemData>* array =
+    (reinterpret_cast<nsTArray<DisplayItemData>*>(&propValue));
   for (PRUint32 i = 0; i < array->Length(); ++i) {
     if (array->ElementAt(i).mDisplayItemKey == aDisplayItemKey) {
       Layer* layer = array->ElementAt(i).mLayer;
@@ -993,12 +1002,6 @@ ContainerState::PopThebesLayerData()
       nsRefPtr<ImageLayer> imageLayer = CreateOrRecycleImageLayer();
       imageLayer->SetContainer(imageContainer);
       data->mImage->ConfigureLayer(imageLayer);
-      if (mParameters.mInActiveTransformedSubtree) {
-        // The layer's current transform is applied first, then the result is scaled.
-        gfx3DMatrix transform = imageLayer->GetTransform()*
-          gfx3DMatrix::ScalingMatrix(mParameters.mXScale, mParameters.mYScale, 1.0f);
-        imageLayer->SetTransform(transform);
-      }
       NS_ASSERTION(data->mImageClip.mRoundedClipRects.IsEmpty(),
                    "How did we get rounded clip rects here?");
       if (data->mImageClip.mHaveClipRect) {
@@ -1060,7 +1063,7 @@ ContainerState::PopThebesLayerData()
 
   nsIntRegion transparentRegion;
   transparentRegion.Sub(data->mVisibleRegion, data->mOpaqueRegion);
-  bool isOpaque = transparentRegion.IsEmpty();
+  PRBool isOpaque = transparentRegion.IsEmpty();
   // For translucent ThebesLayers, try to find an opaque background
   // color that covers the entire area beneath it so we can pull that
   // color into this layer to make it opaque.
@@ -1069,7 +1072,7 @@ ContainerState::PopThebesLayerData()
     if (!isOpaque) {
       backgroundColor = FindOpaqueBackgroundColorFor(lastIndex);
       if (NS_GET_A(backgroundColor) == 255) {
-        isOpaque = true;
+        isOpaque = PR_TRUE;
       }
     }
 
@@ -1113,31 +1116,31 @@ ContainerState::PopThebesLayerData()
   mThebesLayerDataStack.RemoveElementAt(lastIndex);
 }
 
-static bool
+static PRBool
 SuppressComponentAlpha(nsDisplayListBuilder* aBuilder,
                        nsDisplayItem* aItem,
                        const nsRect& aComponentAlphaBounds)
 {
   const nsRegion* windowTransparentRegion = aBuilder->GetFinalTransparentRegion();
   if (!windowTransparentRegion || windowTransparentRegion->IsEmpty())
-    return false;
+    return PR_FALSE;
 
   // Suppress component alpha for items in the toplevel window that are over
   // the window translucent area
   nsIFrame* f = aItem->GetUnderlyingFrame();
   nsIFrame* ref = aBuilder->ReferenceFrame();
   if (f->PresContext() != ref->PresContext())
-    return false;
+    return PR_FALSE;
 
   for (nsIFrame* t = f; t; t = t->GetParent()) {
     if (t->IsTransformed())
-      return false;
+      return PR_FALSE;
   }
 
   return windowTransparentRegion->Intersects(aComponentAlphaBounds);
 }
 
-static bool
+static PRBool
 WindowHasTransparency(nsDisplayListBuilder* aBuilder)
 {
   const nsRegion* windowTransparentRegion = aBuilder->GetFinalTransparentRegion();
@@ -1152,18 +1155,7 @@ ContainerState::ThebesLayerData::Accumulate(ContainerState* aState,
                                             const FrameLayerBuilder::Clip& aClip)
 {
   nscolor uniformColor;
-  bool isUniform = aItem->IsUniform(aState->mBuilder, &uniformColor);
-  
-  /* Mark as available for conversion to image layer if this is a nsDisplayImage and
-   * we are the first visible item in the ThebesLayerData object.
-   */
-  if (aItem->GetType() == nsDisplayItem::TYPE_IMAGE && mVisibleRegion.IsEmpty()) {
-    mImage = static_cast<nsDisplayImage*>(aItem);
-    mImageClip = aClip;
-  } else {
-    mImage = nsnull;
-  }
-
+  PRBool isUniform = aItem->IsUniform(aState->mBuilder, &uniformColor);
   // Some display items have to exist (so they can set forceTransparentSurface
   // below) but don't draw anything. They'll return true for isUniform but
   // a color with opacity 0.
@@ -1175,16 +1167,16 @@ ContainerState::ThebesLayerData::Accumulate(ContainerState* aState,
       if (mVisibleRegion.IsEmpty()) {
         // This color is all we have
         mSolidColor = uniformColor;
-        mIsSolidColorInVisibleRegion = true;
+        mIsSolidColorInVisibleRegion = PR_TRUE;
       } else if (mIsSolidColorInVisibleRegion &&
                  mVisibleRegion.IsEqual(nsIntRegion(aVisibleRect))) {
         // we can just blend the colors together
         mSolidColor = NS_ComposeColors(mSolidColor, uniformColor);
       } else {
-        mIsSolidColorInVisibleRegion = false;
+        mIsSolidColorInVisibleRegion = PR_FALSE;
       }
     } else {
-      mIsSolidColorInVisibleRegion = false;
+      mIsSolidColorInVisibleRegion = PR_FALSE;
     }
 
     mVisibleRegion.Or(mVisibleRegion, aVisibleRect);
@@ -1192,8 +1184,18 @@ ContainerState::ThebesLayerData::Accumulate(ContainerState* aState,
     mDrawRegion.Or(mDrawRegion, aDrawRect);
     mDrawRegion.SimplifyOutward(4);
   }
+
+  /* Mark as available for conversion to image layer if this is a nsDisplayImage and
+   * we are the first visible item in the ThebesLayerData object.
+   */
+  if (aItem->GetType() == nsDisplayItem::TYPE_IMAGE && mVisibleRegion.IsEmpty()) {
+    mImage = static_cast<nsDisplayImage*>(aItem);
+    mImageClip = aClip;
+  } else {
+    mImage = nsnull;
+  }
   
-  bool forceTransparentSurface = false;
+  PRBool forceTransparentSurface = PR_FALSE;
   nsRegion opaque = aItem->GetOpaqueRegion(aState->mBuilder, &forceTransparentSurface);
   if (!opaque.IsEmpty()) {
     nsRegionRectIterator iter(opaque);
@@ -1228,7 +1230,7 @@ ContainerState::ThebesLayerData::Accumulate(ContainerState* aState,
       if (SuppressComponentAlpha(aState->mBuilder, aItem, componentAlpha)) {
         aItem->DisableComponentAlpha();
       } else {
-        mNeedComponentAlpha = true;
+        mNeedComponentAlpha = PR_TRUE;
       }
     }
   }
@@ -1518,7 +1520,7 @@ ContainerState::InvalidateForLayerChange(nsDisplayItem* aItem, Layer* aNewLayer)
   }
 }
 
-bool
+PRBool
 FrameLayerBuilder::NeedToInvalidateFixedDisplayItem(nsDisplayListBuilder* aBuilder,
                                                     nsDisplayItem* aItem)
 {
@@ -1575,7 +1577,7 @@ FrameLayerBuilder::SaveLastPaintOffset(ThebesLayer* aLayer)
   ThebesLayerItemsEntry* entry = mThebesLayerItems.PutEntry(aLayer);
   if (entry) {
     entry->mLastPaintOffset = GetTranslationForThebesLayer(aLayer);
-    entry->mHasExplicitLastPaintOffset = true;
+    entry->mHasExplicitLastPaintOffset = PR_TRUE;
   }
 }
 
@@ -1688,7 +1690,7 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
   if (aLayerBuilder->GetRetainingLayerManager() == aLayer->Manager() &&
       transform.Is2D(&transform2d)) {
     //Scale factors are normalized to a power of 2 to reduce the number of resolution changes
-    scale = transform2d.ScaleFactors(true);
+    scale = transform2d.ScaleFactors(PR_TRUE);
     // For frames with a changing transform that's not just a translation,
     // round scale factors up to nearest power-of-2 boundary so that we don't
     // keep having to redraw the content as it scales up and down. Rounding up to nearest
@@ -1887,18 +1889,18 @@ FrameLayerBuilder::InvalidateThebesLayerContents(nsIFrame* aFrame,
 /**
  * Returns true if we find a descendant with a container layer
  */
-static bool
+static PRBool
 InternalInvalidateThebesLayersInSubtree(nsIFrame* aFrame)
 {
   if (!(aFrame->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER_DESCENDANT))
-    return false;
+    return PR_FALSE;
 
-  bool foundContainerLayer = false;
+  PRBool foundContainerLayer = PR_FALSE;
   if (aFrame->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) {
     // Delete the invalid region to indicate that all Thebes contents
     // need to be invalidated
     aFrame->Properties().Delete(ThebesLayerInvalidRegionProperty());
-    foundContainerLayer = true;
+    foundContainerLayer = PR_TRUE;
   }
 
   nsAutoTArray<nsIFrame::ChildList,4> childListArray;
@@ -1921,7 +1923,7 @@ InternalInvalidateThebesLayersInSubtree(nsIFrame* aFrame)
     nsFrameList::Enumerator childFrames(lists.CurrentList());
     for (; !childFrames.AtEnd(); childFrames.Next()) {
       if (InternalInvalidateThebesLayersInSubtree(childFrames.get())) {
-        foundContainerLayer = true;
+        foundContainerLayer = PR_TRUE;
       }
     }
   }
@@ -1944,7 +1946,7 @@ FrameLayerBuilder::InvalidateAllLayers(LayerManager* aManager)
   LayerManagerData* data = static_cast<LayerManagerData*>
     (aManager->GetUserData(&gLayerManagerUserData));
   if (data) {
-    data->mInvalidateAllLayers = true;
+    data->mInvalidateAllLayers = PR_TRUE;
   }
 }
 
@@ -1952,10 +1954,12 @@ FrameLayerBuilder::InvalidateAllLayers(LayerManager* aManager)
 Layer*
 FrameLayerBuilder::GetDedicatedLayer(nsIFrame* aFrame, PRUint32 aDisplayItemKey)
 {
-  nsTArray<DisplayItemData>* array = GetDisplayItemDataArrayForFrame(aFrame);
-  if (!array)
+  void* propValue = aFrame->Properties().Get(DisplayItemDataProperty());
+  if (!propValue)
     return nsnull;
 
+  nsTArray<DisplayItemData>* array =
+    (reinterpret_cast<nsTArray<DisplayItemData>*>(&propValue));
   for (PRUint32 i = 0; i < array->Length(); ++i) {
     if (array->ElementAt(i).mDisplayItemKey == aDisplayItemKey) {
       Layer* layer = array->ElementAt(i).mLayer;
@@ -2110,7 +2114,7 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
   rc->Init(presContext->DeviceContext(), aContext);
 
   Clip currentClip;
-  bool setClipRect = false;
+  PRBool setClipRect = PR_FALSE;
 
   for (i = 0; i < items.Length(); ++i) {
     ClippedDisplayItem* cdi = &items[i];
@@ -2136,10 +2140,6 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
     if (cdi->mInactiveLayer) {
       PaintInactiveLayer(builder, cdi->mItem, aContext);
     } else {
-      nsIFrame* frame = cdi->mItem->GetUnderlyingFrame();
-      if (frame) {
-        frame->AddStateBits(NS_FRAME_PAINTED_THEBES);
-      }
       cdi->mItem->Paint(builder, rc);
     }
 
@@ -2150,29 +2150,27 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
   if (setClipRect) {
     aContext->Restore();
   }
-
-  FlashPaint(aContext);
 }
 
-bool
+PRBool
 FrameLayerBuilder::CheckDOMModified()
 {
   if (!mRootPresContext ||
       mInitialDOMGeneration == mRootPresContext->GetDOMGeneration())
-    return false;
+    return PR_FALSE;
   if (mDetectedDOMModification) {
     // Don't spam the console with extra warnings
-    return true;
+    return PR_TRUE;
   }
-  mDetectedDOMModification = true;
+  mDetectedDOMModification = PR_TRUE;
   // Painting is not going to complete properly. There's not much
   // we can do here though. Invalidating the window to get another repaint
   // is likely to lead to an infinite repaint loop.
   NS_WARNING("Detected DOM modification during paint, bailing out!");
-  return true;
+  return PR_TRUE;
 }
 
-#ifdef MOZ_DUMP_PAINTING
+#ifdef DEBUG
 void
 FrameLayerBuilder::DumpRetainedLayerTree()
 {
@@ -2184,7 +2182,7 @@ FrameLayerBuilder::DumpRetainedLayerTree()
 
 FrameLayerBuilder::Clip::Clip(const Clip& aOther, nsDisplayItem* aClipItem)
   : mRoundedClipRects(aOther.mRoundedClipRects),
-    mHaveClipRect(true)
+    mHaveClipRect(PR_TRUE)
 {
   nsDisplayItem::Type type = aClipItem->GetType();
   NS_ABORT_IF_FALSE(type == nsDisplayItem::TYPE_CLIP ||
@@ -2217,7 +2215,7 @@ FrameLayerBuilder::Clip::ApplyTo(gfxContext* aContext,
   aContext->NewPath();
   PRInt32 A2D = aPresContext->AppUnitsPerDevPixel();
   gfxRect clip = nsLayoutUtils::RectToGfxRect(mClipRect, A2D);
-  aContext->Rectangle(clip, true);
+  aContext->Rectangle(clip, PR_TRUE);
   aContext->Clip();
 
   for (PRUint32 i = 0, iEnd = mRoundedClipRects.Length();

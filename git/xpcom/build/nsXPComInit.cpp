@@ -139,7 +139,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/Services.h"
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Omnijar.h"
-#include "mozilla/HangMonitor.h"
 
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"
@@ -257,7 +256,7 @@ nsXPTIInterfaceInfoManagerGetSingleton(nsISupports* outer,
 }
 
 nsComponentManagerImpl* nsComponentManagerImpl::gComponentManager = NULL;
-bool gXPCOMShuttingDown = false;
+PRBool gXPCOMShuttingDown = PR_FALSE;
 
 static NS_DEFINE_CID(kComponentManagerCID, NS_COMPONENTMANAGER_CID);
 static NS_DEFINE_CID(kINIParserFactoryCID, NS_INIPARSERFACTORY_CID);
@@ -353,7 +352,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     nsresult rv = NS_OK;
 
      // We are not shutting down
-    gXPCOMShuttingDown = false;
+    gXPCOMShuttingDown = PR_FALSE;
 
     NS_TIME_FUNCTION_MARK("Next: log init");
 
@@ -424,7 +423,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     if (NS_FAILED(rv))
         return rv;
 
-    bool value;
+    PRBool value;
 
     if (binDirectory)
     {
@@ -531,8 +530,6 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     mozilla::MapsMemoryReporter::Init();
 
-    mozilla::HangMonitor::Startup();
-
     return NS_OK;
 }
 
@@ -569,9 +566,6 @@ namespace mozilla {
 nsresult
 ShutdownXPCOM(nsIServiceManager* servMgr)
 {
-    // Make sure the hang monitor is enabled for shutdown.
-    HangMonitor::NotifyActivity();
-
     NS_ENSURE_STATE(NS_IsMainThread());
 
     nsresult rv;
@@ -629,8 +623,6 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 
         NS_ProcessPendingEvents(thread);
 
-        HangMonitor::NotifyActivity();
-
         // We save the "xpcom-shutdown-loaders" observers to notify after
         // the observerservice is gone.
         if (observerService) {
@@ -667,7 +659,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     nsCycleCollector_shutdown();
 
     if (moduleLoaders) {
-        bool more;
+        PRBool more;
         nsCOMPtr<nsISupports> el;
         while (NS_SUCCEEDED(moduleLoaders->HasMoreElements(&more)) &&
                more) {
@@ -740,9 +732,7 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
         sExitManager = nsnull;
     }
 
-    Omnijar::CleanUp();
-
-    HangMonitor::Shutdown();
+    mozilla::Omnijar::CleanUp();
 
     NS_LogTerm();
 

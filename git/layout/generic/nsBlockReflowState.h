@@ -72,8 +72,8 @@ public:
                      nsPresContext* aPresContext,
                      nsBlockFrame* aFrame,
                      const nsHTMLReflowMetrics& aMetrics,
-                     bool aTopMarginRoot, bool aBottomMarginRoot,
-                     bool aBlockNeedsFloatManager);
+                     PRBool aTopMarginRoot, PRBool aBottomMarginRoot,
+                     PRBool aBlockNeedsFloatManager);
 
   /**
    * Get the available reflow space (the area not occupied by floats)
@@ -96,20 +96,20 @@ public:
                                     nsFloatManager::SavedState *aState) const;
 
   /*
-   * The following functions all return true if they were able to
-   * place the float, false if the float did not fit in available
+   * The following functions all return PR_TRUE if they were able to
+   * place the float, PR_FALSE if the float did not fit in available
    * space.
    * aLineLayout is null when we are reflowing pushed floats (because
    * they are not associated with a line box).
    */
-  bool AddFloat(nsLineLayout*       aLineLayout,
+  PRBool AddFloat(nsLineLayout*       aLineLayout,
                   nsIFrame*           aFloat,
                   nscoord             aAvailableWidth);
 private:
-  bool CanPlaceFloat(nscoord aFloatWidth,
+  PRBool CanPlaceFloat(nscoord aFloatWidth,
                        const nsFlowAreaRect& aFloatAvailableSpace);
 public:
-  bool FlowAndPlaceFloat(nsIFrame* aFloat);
+  PRBool FlowAndPlaceFloat(nsIFrame* aFloat);
 private:
   void PushFloatPastBreak(nsIFrame* aFloat);
 public:
@@ -123,7 +123,7 @@ public:
                       nsIFrame *aReplacedBlock = nsnull,
                       PRUint32 aFlags = 0);
 
-  bool IsAdjacentWithTop() const {
+  PRBool IsAdjacentWithTop() const {
     return mY ==
       ((mFlags & BRS_ISFIRSTINFLOW) ? mReflowState.mComputedBorderPadding.top : 0);
   }
@@ -152,17 +152,20 @@ public:
   void ReconstructMarginAbove(nsLineList::iterator aLine);
 
   // Caller must have called GetAvailableSpace for the correct position
-  // (which need not be the current mY).
+  // (which need not be the current mY).  Callers need only pass
+  // aReplacedWidth for outer table frames.
   void ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
                                             const nsRect& aFloatAvailableSpace,
                                             nscoord& aLeftResult,
-                                            nscoord& aRightResult);
+                                            nscoord& aRightResult,
+                                       nsBlockFrame::ReplacedElementWidthToClear
+                                                      *aReplacedWidth = nsnull);
 
   // Caller must have called GetAvailableSpace for the current mY
   void ComputeBlockAvailSpace(nsIFrame* aFrame,
                               const nsStyleDisplay* aDisplay,
                               const nsFlowAreaRect& aFloatAvailableSpace,
-                              bool aBlockAvoidsFloats,
+                              PRBool aBlockAvoidsFloats,
                               nsRect& aResult);
 
 protected:
@@ -173,13 +176,13 @@ public:
 
   void AdvanceToNextLine() {
     if (GetFlag(BRS_LINE_LAYOUT_EMPTY)) {
-      SetFlag(BRS_LINE_LAYOUT_EMPTY, false);
+      SetFlag(BRS_LINE_LAYOUT_EMPTY, PR_FALSE);
     } else {
       mLineNumber++;
     }
   }
 
-  nsLineBox* NewLineBox(nsIFrame* aFrame, PRInt32 aCount, bool aIsBlock);
+  nsLineBox* NewLineBox(nsIFrame* aFrame, PRInt32 aCount, PRBool aIsBlock);
 
   void FreeLineBox(nsLineBox* aLine);
 
@@ -303,10 +306,10 @@ public:
  
   PRUint8 mFloatBreakType;
 
-  void SetFlag(PRUint32 aFlag, bool aValue)
+  void SetFlag(PRUint32 aFlag, PRBool aValue)
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
-    NS_ASSERTION(aValue==false || aValue==true, "bad value");
+    NS_ASSERTION(aValue==PR_FALSE || aValue==PR_TRUE, "bad value");
     if (aValue) { // set flag
       mFlags |= aFlag;
     }
@@ -315,7 +318,7 @@ public:
     }
   }
 
-  bool GetFlag(PRUint32 aFlag) const
+  PRBool GetFlag(PRUint32 aFlag) const
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
     return !!(mFlags & aFlag);

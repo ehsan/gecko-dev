@@ -41,24 +41,24 @@ nsSVGPathGeometryElement::nsSVGPathGeometryElement(already_AddRefed<nsINodeInfo>
 {
 }
 
-bool
+PRBool
 nsSVGPathGeometryElement::AttributeDefinesGeometry(const nsIAtom *aName)
 {
   // Check for nsSVGLength2 attribute
   LengthAttributesInfo info = GetLengthInfo();
   for (PRUint32 i = 0; i < info.mLengthCount; i++) {
     if (aName == *info.mLengthInfo[i].mName) {
-      return true;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
-bool
+PRBool
 nsSVGPathGeometryElement::IsMarkable()
 {
-  return false;
+  return PR_FALSE;
 }
 
 void

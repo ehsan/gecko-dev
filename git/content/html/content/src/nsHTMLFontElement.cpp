@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsCOMPtr.h"
 #include "nsIDOMHTMLFontElement.h"
 #include "nsIDOMEventTarget.h"
@@ -47,9 +44,6 @@
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 #include "nsIDocument.h"
-#include "nsAlgorithm.h"
-
-using namespace mozilla;
 
 class nsHTMLFontElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLFontElement
@@ -73,11 +67,11 @@ public:
   // nsIDOMHTMLFontElement
   NS_DECL_NSIDOMHTMLFONTELEMENT
 
-  virtual bool ParseAttribute(PRInt32 aNamespaceID,
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo();
@@ -143,7 +137,7 @@ static const nsAttrValue::EnumTable kRelFontSizeTable[] = {
 };
 
 
-bool
+PRBool
 nsHTMLFontElement::ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
@@ -152,11 +146,11 @@ nsHTMLFontElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::size) {
       nsAutoString tmp(aValue);
-      tmp.CompressWhitespace(true, true);
+      tmp.CompressWhitespace(PR_TRUE, PR_TRUE);
       PRUnichar ch = tmp.IsEmpty() ? 0 : tmp.First();
       if ((ch == '+' || ch == '-')) {
-          if (aResult.ParseEnumValue(aValue, kRelFontSizeTable, false))
-              return true;
+          if (aResult.ParseEnumValue(aValue, kRelFontSizeTable, PR_FALSE))
+              return PR_TRUE;
 
           // truncate after digit, then parse it again.
           PRUint32 i;
@@ -167,7 +161,7 @@ nsHTMLFontElement::ParseAttribute(PRInt32 aNamespaceID,
                   break;
               }
           }
-          return aResult.ParseEnumValue(tmp, kRelFontSizeTable, false);
+          return aResult.ParseEnumValue(tmp, kRelFontSizeTable, PR_FALSE);
       }
 
       return aResult.ParseIntValue(aValue);
@@ -218,7 +212,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
             else
               size = value->GetIntegerValue();
 
-            size = clamped(size, 1, 7);
+            size = ((0 < size) ? ((size < 8) ? size : 7) : 1); 
             fontSize->SetIntValue(size, eCSSUnit_Enumerated);
           }
         }
@@ -265,7 +259,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
   nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLFontElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry attributes[] = {
@@ -282,7 +276,7 @@ nsHTMLFontElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sCommonAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 

@@ -88,7 +88,7 @@ using namespace mozilla;
 #define NS_CONTEXT_MENU_IS_MOUSEUP 1
 #endif
 
-nsXULPopupListener::nsXULPopupListener(nsIDOMElement *aElement, bool aIsContext)
+nsXULPopupListener::nsXULPopupListener(nsIDOMElement *aElement, PRBool aIsContext)
   : mElement(aElement), mPopupContent(nsnull), mIsContext(aIsContext)
 {
 }
@@ -157,13 +157,13 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
     }
   }
 
-  bool preventDefault;
+  PRBool preventDefault;
   domNSEvent->GetPreventDefault(&preventDefault);
   if (preventDefault && targetNode && mIsContext) {
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.
-    bool eventEnabled =
-      Preferences::GetBool("dom.event.contextmenu.enabled", true);
+    PRBool eventEnabled =
+      Preferences::GetBool("dom.event.contextmenu.enabled", PR_TRUE);
     if (!eventEnabled) {
       // If the target node is for plug-in, we should not open XUL context
       // menu on windowless plug-ins.
@@ -185,7 +185,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
         if (node->NodePrincipal() != system) {
           // This isn't chrome.  Cancel the preventDefault() and
           // let the event go forth.
-          preventDefault = false;
+          preventDefault = PR_FALSE;
         }
       }
     }
@@ -257,7 +257,7 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     if (!targetFrame) return NS_ERROR_FAILURE;
 
     const nsStyleUserInterface* ui = targetFrame->GetStyleUserInterface();
-    bool suppressBlur = (ui->mUserFocus == NS_STYLE_USER_FOCUS_IGNORE);
+    PRBool suppressBlur = (ui->mUserFocus == NS_STYLE_USER_FOCUS_IGNORE);
 
     nsCOMPtr<nsIDOMElement> element;
     nsCOMPtr<nsIContent> newFocus = do_QueryInterface(content);
@@ -266,7 +266,7 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     // Look for the nearest enclosing focusable frame.
     while (currFrame) {
         PRInt32 tabIndexUnused;
-        if (currFrame->IsFocusable(&tabIndexUnused, true)) {
+        if (currFrame->IsFocusable(&tabIndexUnused, PR_TRUE)) {
           newFocus = currFrame->GetContent();
           nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(newFocus));
           if (domElement) {
@@ -311,24 +311,26 @@ nsXULPopupListener::ClosePopup()
     // fire events during destruction.  
     nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
     if (pm)
-      pm->HidePopup(mPopupContent, false, true, true);
+      pm->HidePopup(mPopupContent, PR_FALSE, PR_TRUE, PR_TRUE);
     mPopupContent = nsnull;  // release the popup
   }
 } // ClosePopup
 
-static already_AddRefed<nsIContent>
-GetImmediateChild(nsIContent* aContent, nsIAtom *aTag) 
+static void
+GetImmediateChild(nsIContent* aContent, nsIAtom *aTag, nsIContent** aResult) 
 {
-  for (nsIContent* child = aContent->GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
+  *aResult = nsnull;
+  PRInt32 childCount = aContent->GetChildCount();
+  for (PRInt32 i = 0; i < childCount; i++) {
+    nsIContent *child = aContent->GetChildAt(i);
     if (child->Tag() == aTag) {
-      NS_ADDREF(child);
-      return child;
+      *aResult = child;
+      NS_ADDREF(*aResult);
+      return;
     }
   }
 
-  return nsnull;
+  return;
 }
 
 //
@@ -382,7 +384,9 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
   nsCOMPtr<nsIDOMElement> popupElement;
 
   if (identifier.EqualsLiteral("_child")) {
-    nsCOMPtr<nsIContent> popup = GetImmediateChild(content, nsGkAtoms::menupopup);
+    nsCOMPtr<nsIContent> popup;
+
+    GetImmediateChild(content, nsGkAtoms::menupopup, getter_AddRefs(popup));
     if (popup)
       popupElement = do_QueryInterface(popup);
     else {
@@ -442,7 +446,7 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
        (mPopupContent->HasAttr(kNameSpaceID_None, nsGkAtoms::popupanchor) &&
         mPopupContent->HasAttr(kNameSpaceID_None, nsGkAtoms::popupalign)))) {
     pm->ShowPopup(mPopupContent, content, EmptyString(), 0, 0,
-                  false, true, false, aEvent);
+                  PR_FALSE, PR_TRUE, PR_FALSE, aEvent);
   }
   else {
     PRInt32 xPos = 0, yPos = 0;

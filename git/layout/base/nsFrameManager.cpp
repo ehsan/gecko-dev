@@ -92,7 +92,6 @@
 #include "imgIRequest.h"
 #include "nsTransitionManager.h"
 #include "RestyleTracker.h"
-#include "nsAbsoluteContainingBlock.h"
 
 #include "nsFrameManager.h"
 #include "nsRuleProcessorData.h"
@@ -129,7 +128,7 @@ struct PlaceholderMapEntry : public PLDHashEntryHdr {
   nsPlaceholderFrame *placeholderFrame;
 };
 
-static bool
+static PRBool
 PlaceholderMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                          const void *key)
 {
@@ -249,7 +248,7 @@ nsFrameManager::Destroy()
   NS_ASSERTION(mPresShell, "Frame manager already shut down.");
 
   // Destroy the frame hierarchy.
-  mPresShell->SetIgnoreFrameDestruction(true);
+  mPresShell->SetIgnoreFrameDestruction(PR_TRUE);
 
   // Unregister all placeholders before tearing down the frame tree
   nsFrameManager::ClearPlaceholderFrameMap();
@@ -457,7 +456,7 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
   // the content list via GetXBLChildNodesFor and just ignore any nodes we
   // don't care about.
   nsINodeList* list =
-    aParentContent->OwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParentContent);
+    aParentContent->GetOwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParentContent);
   if (list) {
     PRUint32 length;
     list->GetLength(&length);
@@ -471,19 +470,6 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
 }
 
 //----------------------------------------------------------------------
-nsresult
-nsFrameManager::AppendFrames(nsIFrame*       aParentFrame,
-                             ChildListID     aListID,
-                             nsFrameList&    aFrameList)
-{
-  if (aParentFrame->IsAbsoluteContainer() &&
-      aListID == aParentFrame->GetAbsoluteListID()) {
-    return aParentFrame->GetAbsoluteContainingBlock()->
-           AppendFrames(aParentFrame, aListID, aFrameList);
-  } else {
-    return aParentFrame->AppendFrames(aListID, aFrameList);
-  }
-}
 
 nsresult
 nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
@@ -496,21 +482,15 @@ nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
                   && !IS_TRUE_OVERFLOW_CONTAINER(aPrevFrame),
                   "aPrevFrame must be the last continuation in its chain!");
 
-  if (aParentFrame->IsAbsoluteContainer() &&
-      aListID == aParentFrame->GetAbsoluteListID()) {
-    return aParentFrame->GetAbsoluteContainingBlock()->
-           InsertFrames(aParentFrame, aListID, aPrevFrame, aFrameList);
-  } else {
-    return aParentFrame->InsertFrames(aListID, aPrevFrame, aFrameList);
-  }
+  return aParentFrame->InsertFrames(aListID, aPrevFrame, aFrameList);
 }
 
 nsresult
 nsFrameManager::RemoveFrame(ChildListID     aListID,
                             nsIFrame*       aOldFrame)
 {
-  bool wasDestroyingFrames = mIsDestroyingFrames;
-  mIsDestroyingFrames = true;
+  PRBool wasDestroyingFrames = mIsDestroyingFrames;
+  mIsDestroyingFrames = PR_TRUE;
 
   // In case the reflow doesn't invalidate anything since it just leaves
   // a gap where the old frame was, we invalidate it here.  (This is
@@ -527,15 +507,7 @@ nsFrameManager::RemoveFrame(ChildListID     aListID,
   NS_ASSERTION(!(aOldFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW &&
                  GetPlaceholderFrameFor(aOldFrame)),
                "Must call RemoveFrame on placeholder for out-of-flows.");
-  nsresult rv = NS_OK;
-  nsIFrame* parentFrame = aOldFrame->GetParent();
-  if (parentFrame->IsAbsoluteContainer() &&
-      aListID == parentFrame->GetAbsoluteListID()) {
-    parentFrame->GetAbsoluteContainingBlock()->
-      RemoveFrame(parentFrame, aListID, aOldFrame);
-  } else {
-    rv = parentFrame->RemoveFrame(aListID, aOldFrame);
-  }
+  nsresult rv = aOldFrame->GetParent()->RemoveFrame(aListID, aOldFrame);
 
   mIsDestroyingFrames = wasDestroyingFrames;
 
@@ -880,7 +852,7 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
     nsIFrame *prevContinuation =
       GetPrevContinuationWithPossiblySameStyle(aFrame);
     nsStyleContext *prevContinuationContext;
-    bool copyFromContinuation =
+    PRBool copyFromContinuation =
       prevContinuation &&
       (prevContinuationContext = prevContinuation->GetStyleContext())
         ->GetPseudo() == oldContext->GetPseudo() &&
@@ -1096,8 +1068,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     oldContext->AddRef();
 
 #ifdef ACCESSIBILITY
-    bool wasFrameVisible = nsIPresShell::IsAccessibilityActive() ?
-      oldContext->GetStyleVisibility()->IsVisible() : false;
+    PRBool wasFrameVisible = nsIPresShell::IsAccessibilityActive() ?
+      oldContext->GetStyleVisibility()->IsVisible() : PR_FALSE;
 #endif
 
     nsIAtom* const pseudoTag = oldContext->GetPseudo();
@@ -1111,7 +1083,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     nsIContent* content = localContent ? localContent : aParentContent;
 
     if (content && content->IsElement()) {
-      content->OwnerDoc()->FlushPendingLinkUpdates();
       RestyleTracker::RestyleData restyleData;
       if (aRestyleTracker.GetRestyleData(content->AsElement(), &restyleData)) {
         if (NS_UpdateHint(aMinChange, restyleData.mChangeHint)) {
@@ -1216,7 +1187,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     nsIFrame *prevContinuation =
       GetPrevContinuationWithPossiblySameStyle(aFrame);
     nsStyleContext *prevContinuationContext;
-    bool copyFromContinuation =
+    PRBool copyFromContinuation =
       prevContinuation &&
       (prevContinuationContext = prevContinuation->GetStyleContext())
         ->GetPseudo() == oldContext->GetPseudo() &&
@@ -1377,7 +1348,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     // When the root element is display:none, we still construct *some*
     // frames that have the root element as their mContent, down to the
     // DocElementContainingBlock.
-    bool checkUndisplayed;
+    PRBool checkUndisplayed;
     nsIContent *undisplayedParent;
     if (pseudoTag) {
       checkUndisplayed = aFrame == mPresShell->FrameConstructor()->
@@ -1502,7 +1473,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
           !aFrame->GetPrevContinuation() &&
           !nsLayoutUtils::FrameIsNonFirstInIBSplit(aFrame)) {
         if (aDesiredA11yNotifications == eSendAllNotifications) {
-          bool isFrameVisible = newContext->GetStyleVisibility()->IsVisible();
+          PRBool isFrameVisible = newContext->GetStyleVisibility()->IsVisible();
           if (isFrameVisible != wasFrameVisible) {
             if (isFrameVisible) {
               // Notify a11y the element (perhaps with its children) was shown.
@@ -1646,7 +1617,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
                                       nsStyleChangeList *aChangeList,
                                       nsChangeHint       aMinChange,
                                       RestyleTracker&    aRestyleTracker,
-                                      bool               aRestyleDescendants)
+                                      PRBool             aRestyleDescendants)
 {
   if (aMinChange) {
     aChangeList->AppendChange(aFrame, aFrame->GetContent(), aMinChange);
@@ -1665,7 +1636,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
 
   FramePropertyTable *propTable = GetPresContext()->PropertyTable();
 
-  TreeMatchContext treeMatchContext(true,
+  TreeMatchContext treeMatchContext(PR_TRUE,
                                     nsRuleWalker::eRelevantLinkUnvisited,
                                     mPresShell->GetDocument());
   nsTArray<nsIContent*> visibleKidsOfHiddenElement;

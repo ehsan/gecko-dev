@@ -62,7 +62,7 @@ public:
 
     // indicates whether a binding is dependant on the result from a
     // previous binding
-    bool                     mHasDependency;
+    PRBool                   mHasDependency;
 
     RDFBinding*              mNext;
 
@@ -76,7 +76,7 @@ private:
       : mSubjectVariable(aSubjectVariable),
         mPredicate(aPredicate),
         mTargetVariable(aTargetVariable),
-        mHasDependency(false),
+        mHasDependency(PR_FALSE),
         mNext(nsnull)
     {
         MOZ_COUNT_CTOR(RDFBinding);
@@ -139,7 +139,7 @@ public:
      * @param aResult result to synchronize
      * @param aBindingValues the values for the bindings for the result
      */
-    bool
+    PRBool
     SyncAssignments(nsIRDFResource* aSubject,
                     nsIRDFResource* aPredicate,
                     nsIRDFNode* aTarget,

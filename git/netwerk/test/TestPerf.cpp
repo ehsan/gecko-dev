@@ -12,7 +12,7 @@ static nsIIOService *gIOService = nsnull;
 
 //-----------------------------------------------------------------------------
 
-static bool
+static PRBool
 load_sync_1(nsISupports *element, void *data)
 {
     nsCOMPtr<nsIInputStream> stream;
@@ -24,7 +24,7 @@ load_sync_1(nsISupports *element, void *data)
     if (NS_FAILED(rv)) {
         uri->GetAsciiSpec(spec);
         fprintf(stderr, "*** failed opening %s [rv=%x]\n", spec.get(), rv);
-        return true;
+        return PR_TRUE;
     }
 
     char buf[4096];
@@ -41,7 +41,7 @@ load_sync_1(nsISupports *element, void *data)
         }
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 static nsresult
@@ -109,16 +109,16 @@ MyListener::OnStopRequest(nsIRequest *req, nsISupports *ctx, nsresult status)
     return NS_OK;
 }
 
-static bool
+static PRBool
 load_async_1(nsISupports *element, void *data)
 {
     nsCOMPtr<nsIURI> uri( do_QueryInterface(element) );
     if (!uri)
-        return true;
+        return PR_TRUE;
 
     MyListener *listener = new MyListener();
     if (!listener)
-        return true;
+        return PR_TRUE;
     NS_ADDREF(listener);
     nsresult rv = NS_OpenURI(listener, nsnull, uri, gIOService);
     NS_RELEASE(listener);
@@ -126,7 +126,7 @@ load_async_1(nsISupports *element, void *data)
         gRequestCount++;
     else 
         printf(">> NS_OpenURI failed [rv=%x]\n", rv);
-    return true;
+    return PR_TRUE;
 }
 
 static nsresult
@@ -189,7 +189,7 @@ main(int argc, char **argv)
         return -1;
 
     nsresult rv;
-    bool sync;
+    PRBool sync;
 
     if (argc < 3) {
         print_usage();
@@ -197,9 +197,9 @@ main(int argc, char **argv)
     }
 
     if (PL_strcasecmp(argv[1], "-sync") == 0)
-        sync = true;
+        sync = PR_TRUE;
     else if (PL_strcasecmp(argv[1], "-async") == 0)
-        sync = false;
+        sync = PR_FALSE;
     else {
         print_usage();
         return -1;

@@ -75,7 +75,7 @@ MyEventUnregister gEventUnregister = NULL;
 
 nsParentalControlsServiceWin::nsParentalControlsServiceWin() :
   mPC(nsnull)
-, mEnabled(false)
+, mEnabled(PR_FALSE)
 , mProvider(nsnull)
 {
   HRESULT hr;
@@ -104,7 +104,7 @@ nsParentalControlsServiceWin::nsParentalControlsServiceWin() :
       gEventRegister = (MyEventRegister) GetProcAddress(gAdvAPIDLLInst, "EventRegister");
       gEventUnregister = (MyEventUnregister) GetProcAddress(gAdvAPIDLLInst, "EventUnregister");
     }
-    mEnabled = true;
+    mEnabled = PR_TRUE;
   }
 }
 
@@ -123,20 +123,20 @@ nsParentalControlsServiceWin::~nsParentalControlsServiceWin()
 //------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsParentalControlsServiceWin::GetParentalControlsEnabled(bool *aResult)
+nsParentalControlsServiceWin::GetParentalControlsEnabled(PRBool *aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
 
   if (mEnabled)
-    *aResult = true;
+    *aResult = PR_TRUE;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsParentalControlsServiceWin::GetBlockFileDownloadsEnabled(bool *aResult)
+nsParentalControlsServiceWin::GetBlockFileDownloadsEnabled(PRBool *aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
 
   if (!mEnabled)
     return NS_ERROR_NOT_AVAILABLE;
@@ -146,16 +146,16 @@ nsParentalControlsServiceWin::GetBlockFileDownloadsEnabled(bool *aResult)
     DWORD settings = 0;
     wpcws->GetSettings(&settings);
     if (settings == WPCFLAG_WEB_SETTING_DOWNLOADSBLOCKED)
-      *aResult = true;
+      *aResult = PR_TRUE;
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsParentalControlsServiceWin::GetLoggingEnabled(bool *aResult)
+nsParentalControlsServiceWin::GetLoggingEnabled(PRBool *aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
 
   if (!mEnabled)
     return NS_ERROR_NOT_AVAILABLE;
@@ -166,7 +166,7 @@ nsParentalControlsServiceWin::GetLoggingEnabled(bool *aResult)
     BOOL enabled = FALSE;
     wpcs->IsLoggingRequired(&enabled);
     if (enabled)
-      *aResult = true;
+      *aResult = PR_TRUE;
   }
 
   return NS_OK;
@@ -174,7 +174,7 @@ nsParentalControlsServiceWin::GetLoggingEnabled(bool *aResult)
 
 // Post a log event to the system
 NS_IMETHODIMP
-nsParentalControlsServiceWin::Log(PRInt16 aEntryType, bool blocked, nsIURI *aSource, nsIFile *aTarget)
+nsParentalControlsServiceWin::Log(PRInt16 aEntryType, PRBool blocked, nsIURI *aSource, nsIFile *aTarget)
 {
   if (!mEnabled)
     return NS_ERROR_NOT_AVAILABLE;
@@ -182,7 +182,7 @@ nsParentalControlsServiceWin::Log(PRInt16 aEntryType, bool blocked, nsIURI *aSou
   NS_ENSURE_ARG_POINTER(aSource);
 
   // Confirm we should be logging
-  bool enabled;
+  PRBool enabled;
   GetLoggingEnabled(&enabled);
   if (!enabled)
     return NS_ERROR_NOT_AVAILABLE;
@@ -211,9 +211,9 @@ nsParentalControlsServiceWin::Log(PRInt16 aEntryType, bool blocked, nsIURI *aSou
 
 // Override a single URI
 NS_IMETHODIMP
-nsParentalControlsServiceWin::RequestURIOverride(nsIURI *aTarget, nsIInterfaceRequestor *aWindowContext, bool *_retval)
+nsParentalControlsServiceWin::RequestURIOverride(nsIURI *aTarget, nsIInterfaceRequestor *aWindowContext, PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   if (!mEnabled)
     return NS_ERROR_NOT_AVAILABLE;
@@ -247,9 +247,9 @@ nsParentalControlsServiceWin::RequestURIOverride(nsIURI *aTarget, nsIInterfaceRe
 
 // Override a web page
 NS_IMETHODIMP
-nsParentalControlsServiceWin::RequestURIOverrides(nsIArray *aTargets, nsIInterfaceRequestor *aWindowContext, bool *_retval)
+nsParentalControlsServiceWin::RequestURIOverrides(nsIArray *aTargets, nsIInterfaceRequestor *aWindowContext, PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   if (!mEnabled)
     return NS_ERROR_NOT_AVAILABLE;
@@ -332,7 +332,7 @@ nsParentalControlsServiceWin::RequestURIOverrides(nsIArray *aTargets, nsIInterfa
 
 // Sends a file download event to the Vista Event Log 
 void
-nsParentalControlsServiceWin::LogFileDownload(bool blocked, nsIURI *aSource, nsIFile *aTarget)
+nsParentalControlsServiceWin::LogFileDownload(PRBool blocked, nsIURI *aSource, nsIFile *aTarget)
 {
   nsCAutoString curi;
 
