@@ -10,6 +10,7 @@
 #include "ContentParent.h"
 #include "mozIApplication.h"
 #include "mozilla/hal_sandbox/PHalParent.h"
+#include "nsIDOMApplicationRegistry.h"
 #include "TabParent.h"
 
 using namespace mozilla::dom;

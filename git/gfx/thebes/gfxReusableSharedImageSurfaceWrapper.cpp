@@ -4,7 +4,6 @@
 
 #include "gfxReusableSharedImageSurfaceWrapper.h"
 #include "gfxSharedImageSurface.h"
-#include "mozilla/layers/ISurfaceAllocator.h"
 
 using mozilla::ipc::Shmem;
 using mozilla::layers::ISurfaceAllocator;

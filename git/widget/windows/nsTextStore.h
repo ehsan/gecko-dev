@@ -274,7 +274,7 @@ protected:
   class Composition MOZ_FINAL
   {
   public:
-    // nullptr if no composition is active, otherwise the current composition
+    // NULL if no composition is active, otherwise the current composition
     nsRefPtr<ITfCompositionView> mView;
 
     // Current copy of the active composition string. Only mString is

@@ -53,7 +53,6 @@
 #include "nsTextFrame.h"
 #include "SVGContentUtils.h"
 #include "mozilla/unused.h"
-#include "gfx2DGlue.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

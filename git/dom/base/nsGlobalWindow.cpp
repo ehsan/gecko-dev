@@ -1030,7 +1030,8 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 #endif
     mCleanedUp(false),
     mDialogAbuseCount(0),
-    mAreDialogsEnabled(true)
+    mStopAbuseDialogs(false),
+    mDialogsPermanentlyDisabled(false)
 {
   nsLayoutStatics::AddRef();
 
@@ -2882,11 +2883,13 @@ nsGlobalWindow::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 }
 
 bool
-nsGlobalWindow::ShouldPromptToBlockDialogs()
+nsGlobalWindow::DialogsAreBlocked(bool *aBeingAbused)
 {
+  *aBeingAbused = false;
+
   nsGlobalWindow *topWindow = GetScriptableTop();
   if (!topWindow) {
-    NS_ASSERTION(!mDocShell, "ShouldPromptToBlockDialogs() called without a top window?");
+    NS_ASSERTION(!mDocShell, "DialogsAreBlocked() called without a top window?");
     return true;
   }
 
@@ -2895,22 +2898,8 @@ nsGlobalWindow::ShouldPromptToBlockDialogs()
     return true;
   }
 
-  return topWindow->DialogsAreBeingAbused();
-}
-
-bool
-nsGlobalWindow::AreDialogsEnabled()
-{
-  nsGlobalWindow *topWindow = GetScriptableTop();
-  if (!topWindow) {
-    NS_ERROR("AreDialogsEnabled() called without a top window?");
-    return false;
-  }
-
-  // TODO: Warn if no top window?
-  topWindow = topWindow->GetCurrentInnerWindowInternal();
-  if (!topWindow) {
-    return false;
+  if (topWindow->mDialogsPermanentlyDisabled) {
+    return true;
   }
 
   // Dialogs are blocked if the content viewer is hidden
@@ -2921,11 +2910,13 @@ nsGlobalWindow::AreDialogsEnabled()
     bool isHidden;
     cv->GetIsHidden(&isHidden);
     if (isHidden) {
-      return false;
+      return true;
     }
   }
 
-  return topWindow->mAreDialogsEnabled;
+  *aBeingAbused = topWindow->DialogsAreBeingAbused();
+
+  return topWindow->mStopAbuseDialogs && *aBeingAbused;
 }
 
 bool
@@ -2982,7 +2973,7 @@ nsGlobalWindow::ConfirmDialogIfNeeded()
                                      "ScriptDialogPreventTitle", title);
   promptSvc->Confirm(this, title.get(), label.get(), &disableDialog);
   if (disableDialog) {
-    DisableDialogs();
+    PreventFurtherDialogs(false);
     return false;
   }
 
@@ -2990,34 +2981,20 @@ nsGlobalWindow::ConfirmDialogIfNeeded()
 }
 
 void
-nsGlobalWindow::DisableDialogs()
+nsGlobalWindow::PreventFurtherDialogs(bool aPermanent)
 {
   nsGlobalWindow *topWindow = GetScriptableTop();
   if (!topWindow) {
-    NS_ERROR("DisableDialogs() called without a top window?");
+    NS_ERROR("PreventFurtherDialogs() called without a top window?");
     return;
   }
 
   topWindow = topWindow->GetCurrentInnerWindowInternal();
-  // TODO: Warn if no top window?
   if (topWindow) {
-    topWindow->mAreDialogsEnabled = false;
-  }
-}
-
-void
-nsGlobalWindow::EnableDialogs()
-{
-  nsGlobalWindow *topWindow = GetScriptableTop();
-  if (!topWindow) {
-    NS_ERROR("EnableDialogs() called without a top window?");
-    return;
-  }
-
-  // TODO: Warn if no top window?
-  topWindow = topWindow->GetCurrentInnerWindowInternal();
-  if (topWindow) {
-    topWindow->mAreDialogsEnabled = true;
+    topWindow->mStopAbuseDialogs = true;
+    if (aPermanent) {
+      topWindow->mDialogsPermanentlyDisabled = true;
+    }
   }
 }
 
@@ -5440,7 +5417,8 @@ nsGlobalWindow::Alert(const nsAString& aString)
 {
   FORWARD_TO_OUTER(Alert, (aString), NS_ERROR_NOT_INITIALIZED);
 
-  if (!AreDialogsEnabled()) {
+  bool needToPromptForAbuse;
+  if (DialogsAreBlocked(&needToPromptForAbuse)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -5482,7 +5460,7 @@ nsGlobalWindow::Alert(const nsAString& aString)
   nsAutoSyncOperation sync(GetCurrentInnerWindowInternal() ? 
                              GetCurrentInnerWindowInternal()->mDoc :
                              nullptr);
-  if (ShouldPromptToBlockDialogs()) {
+  if (needToPromptForAbuse) {
     bool disallowDialog = false;
     nsXPIDLString label;
     nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
@@ -5491,7 +5469,7 @@ nsGlobalWindow::Alert(const nsAString& aString)
     rv = prompt->AlertCheck(title.get(), final.get(), label.get(),
                             &disallowDialog);
     if (disallowDialog)
-      DisableDialogs();
+      PreventFurtherDialogs(false);
   } else {
     rv = prompt->Alert(title.get(), final.get());
   }
@@ -5504,7 +5482,8 @@ nsGlobalWindow::Confirm(const nsAString& aString, bool* aReturn)
 {
   FORWARD_TO_OUTER(Confirm, (aString, aReturn), NS_ERROR_NOT_INITIALIZED);
 
-  if (!AreDialogsEnabled()) {
+  bool needToPromptForAbuse;
+  if (DialogsAreBlocked(&needToPromptForAbuse)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -5548,7 +5527,7 @@ nsGlobalWindow::Confirm(const nsAString& aString, bool* aReturn)
   nsAutoSyncOperation sync(GetCurrentInnerWindowInternal() ? 
                              GetCurrentInnerWindowInternal()->mDoc :
                              nullptr);
-  if (ShouldPromptToBlockDialogs()) {
+  if (needToPromptForAbuse) {
     bool disallowDialog = false;
     nsXPIDLString label;
     nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
@@ -5557,7 +5536,7 @@ nsGlobalWindow::Confirm(const nsAString& aString, bool* aReturn)
     rv = prompt->ConfirmCheck(title.get(), final.get(), label.get(),
                               &disallowDialog, aReturn);
     if (disallowDialog)
-      DisableDialogs();
+      PreventFurtherDialogs(false);
   } else {
     rv = prompt->Confirm(title.get(), final.get(), aReturn);
   }
@@ -5574,7 +5553,8 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
 
   SetDOMStringToNull(aReturn);
 
-  if (!AreDialogsEnabled()) {
+  bool needToPromptForAbuse;
+  if (DialogsAreBlocked(&needToPromptForAbuse)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -5619,7 +5599,7 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
   bool disallowDialog = false;
 
   nsXPIDLString label;
-  if (ShouldPromptToBlockDialogs()) {
+  if (needToPromptForAbuse) {
     nsContentUtils::GetLocalizedString(nsContentUtils::eCOMMON_DIALOG_PROPERTIES,
                                        "ScriptDialogLabel", label);
   }
@@ -5632,7 +5612,7 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
                       &inoutValue, label.get(), &disallowDialog, &ok);
 
   if (disallowDialog) {
-    DisableDialogs();
+    PreventFurtherDialogs(false);
   }
 
   NS_ENSURE_SUCCESS(rv, rv);
@@ -5882,11 +5862,12 @@ nsGlobalWindow::Print()
   if (Preferences::GetBool("dom.disable_window_print", false))
     return NS_ERROR_NOT_AVAILABLE;
 
-  if (!AreDialogsEnabled()) {
+  bool needToPromptForAbuse;
+  if (DialogsAreBlocked(&needToPromptForAbuse)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  if (ShouldPromptToBlockDialogs() && !ConfirmDialogIfNeeded()) {
+  if (needToPromptForAbuse && !ConfirmDialogIfNeeded()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -7866,11 +7847,12 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs_,
   // pending reflows.
   EnsureReflowFlushAndPaint();
 
-  if (!AreDialogsEnabled()) {
+  bool needToPromptForAbuse;
+  if (DialogsAreBlocked(&needToPromptForAbuse)) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  if (ShouldPromptToBlockDialogs() && !ConfirmDialogIfNeeded()) {
+  if (needToPromptForAbuse && !ConfirmDialogIfNeeded()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 

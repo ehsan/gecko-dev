@@ -3,4 +3,3 @@ google
 twitter
 wikipedia
 yahoo
-bing

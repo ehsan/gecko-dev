@@ -508,17 +508,12 @@ class MachCommandBase(MozbuildObject):
     def __init__(self, context):
         # Attempt to discover topobjdir through environment detection, as it is
         # more reliable than mozconfig when cwd is inside an objdir.
-        topsrcdir = context.topdir
-        topobjdir = None
-        try:
-            dummy = MozbuildObject.from_environment(cwd=context.cwd)
-            topsrcdir = dummy.topsrcdir
-            topobjdir = dummy._topobjdir
-        except BuildEnvironmentNotFoundException:
-            pass
+        dummy = MozbuildObject.from_environment(cwd=context.cwd)
+
+        topsrcdir = dummy.topsrcdir or context.topdir
 
         MozbuildObject.__init__(self, topsrcdir, context.settings,
-            context.log_manager, topobjdir=topobjdir)
+            context.log_manager, topobjdir=dummy._topobjdir)
 
         self._mach_context = context
 

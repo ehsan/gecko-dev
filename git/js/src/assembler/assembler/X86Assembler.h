@@ -653,8 +653,7 @@ public:
 
     void andl_im(int imm, int offset, RegisterID base)
     {
-        spew("andl       $0x%x, %s0x%x(%s)",
-             imm, PRETTY_PRINT_OFFSET(offset), nameIReg(base));
+        FIXME_INSN_PRINTING;
         if (CAN_SIGN_EXTEND_8_32(imm)) {
             m_formatter.oneByteOp(OP_GROUP1_EvIb, GROUP1_OP_AND, base, offset);
             m_formatter.immediate8(imm);
@@ -707,7 +706,7 @@ public:
 #else
     void andl_im(int imm, const void* addr)
     {
-        spew("andl       $0x%x, %p", imm, addr);
+        FIXME_INSN_PRINTING;
         if (CAN_SIGN_EXTEND_8_32(imm)) {
             m_formatter.oneByteOp(OP_GROUP1_EvIb, GROUP1_OP_AND, addr);
             m_formatter.immediate8(imm);
@@ -791,8 +790,7 @@ public:
 
     void orl_im(int imm, int offset, RegisterID base)
     {
-        spew("orl        $0x%x, %s0x%x(%s)",
-             imm, PRETTY_PRINT_OFFSET(offset), nameIReg(base));
+        FIXME_INSN_PRINTING;
         if (CAN_SIGN_EXTEND_8_32(imm)) {
             m_formatter.oneByteOp(OP_GROUP1_EvIb, GROUP1_OP_OR, base, offset);
             m_formatter.immediate8(imm);
@@ -1594,7 +1592,7 @@ public:
 
     void movl_mEAX(const void* addr)
     {
-        spew("movl       %p, %%eax", addr);
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp(OP_MOV_EAXOv);
 #if WTF_CPU_X86_64
         m_formatter.immediate64(reinterpret_cast<int64_t>(addr));
@@ -1621,7 +1619,7 @@ public:
         int32_t disp = addressImmediate(base);
 
         spew("movl       %d(,%s,%d), %s",
-             disp, nameIReg(index), 1<<scale, nameIReg(dst));
+             disp, nameIReg(index), scale, nameIReg(dst));
         m_formatter.oneByteOp_disp32(OP_MOV_GvEv, dst, index, scale, disp);
     }
 
@@ -1634,14 +1632,12 @@ public:
 
     void movl_mr(const void* addr, RegisterID dst)
     {
-        if (dst == X86Registers::eax) {
-            movl_mEAX(addr);
-            return;
-        }
-
         spew("movl       %p, %s",
              addr, nameIReg(4, dst));
-        m_formatter.oneByteOp(OP_MOV_GvEv, dst, addr);
+        if (dst == X86Registers::eax)
+            movl_mEAX(addr);
+        else
+            m_formatter.oneByteOp(OP_MOV_GvEv, dst, addr);
     }
 
     void movl_i32r(int imm, RegisterID dst)
@@ -1704,7 +1700,7 @@ public:
 
     void movl_EAXm(const void* addr)
     {
-        spew("movl       %%eax, %p", addr);
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp(OP_MOV_OvEAX);
 #if WTF_CPU_X86_64
         m_formatter.immediate64(reinterpret_cast<int64_t>(addr));
@@ -1753,14 +1749,14 @@ public:
 
     void movq_mEAX(const void* addr)
     {
-        spew("movq       %p, %%rax", addr);
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp64(OP_MOV_EAXOv);
         m_formatter.immediate64(reinterpret_cast<int64_t>(addr));
     }
 
     void movq_EAXm(const void* addr)
     {
-        spew("movq       %%rax, %p", addr);
+        FIXME_INSN_PRINTING;
         m_formatter.oneByteOp64(OP_MOV_OvEAX);
         m_formatter.immediate64(reinterpret_cast<int64_t>(addr));
     }
@@ -1878,14 +1874,12 @@ public:
 #endif
     void movl_rm(RegisterID src, const void* addr)
     {
-        if (src == X86Registers::eax) {
-            movl_EAXm(addr);
-            return;
-        }
-
         spew("movl       %s, %p",
              nameIReg(4, src), addr);
-        m_formatter.oneByteOp(OP_MOV_EvGv, src, addr);
+        if (src == X86Registers::eax)
+            movl_EAXm(addr);
+        else
+            m_formatter.oneByteOp(OP_MOV_EvGv, src, addr);
     }
 
     void movl_i32m(int imm, const void* addr)
@@ -2114,7 +2108,7 @@ public:
     {
         m_formatter.oneByteOp(OP_CMP_EAXIv);
         JmpSrc r = m_formatter.immediateRel32();
-        spew("cmpl       %%eax, ((%d))", r.m_offset);
+        spew("cmp        eax, ((%d))", r.m_offset);
         return r;
     }
 
@@ -2408,10 +2402,7 @@ public:
 #if WTF_CPU_X86_64
     void cvttsd2sq_rr(XMMRegisterID src, RegisterID dst)
     {
-        // We call this instruction cvttsd2sq to differentiate the 64-bit
-        // version from the 32-bit version, but in assembler it's just
-        // called cvttsd2si and it's disambiguated by the register name.
-        spew("cvttsd2si  %s, %s",
+        spew("cvttsd2sq  %s, %s",
              nameFPReg(src), nameIReg(dst));
         m_formatter.prefix(PRE_SSE_F2);
         m_formatter.twoByteOp64(OP2_CVTTSD2SI_GdWsd, dst, (RegisterID)src);

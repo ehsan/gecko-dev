@@ -19,94 +19,30 @@ from manifestparser import TestManifest
 from mozhttpd import MozHttpd
 
 from marionette import Marionette
-from moztest.results import TestResultCollection
 from marionette_test import MarionetteJSTestCase, MarionetteTestCase
 
 
-class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
+class MarionetteTestResult(unittest._TextTestResult):
 
     def __init__(self, *args, **kwargs):
-        self.marionette = kwargs.pop('marionette')
-        TestResultCollection.__init__(self, 'MarionetteTest')
-        unittest._TextTestResult.__init__(self, *args, **kwargs)
+        self.marionette = kwargs['marionette']
+        del kwargs['marionette']
+        super(MarionetteTestResult, self).__init__(*args, **kwargs)
         self.passed = 0
-        self.testsRun = 0
-
-    @property
-    def skipped(self):
-        return [t for t in self if t.result == 'SKIPPED']
-
-    @skipped.setter
-    def skipped(self, value):
-        pass
-
-    @property
-    def expectedFailures(self):
-        return [t for t in self if t.result == 'KNOWN-FAIL']
-
-    @expectedFailures.setter
-    def expectedFailures(self, value):
-        pass
-
-    @property
-    def unexpectedSuccesses(self):
-        return [t for t in self if t.result == 'UNEXPECTED-PASS']
-
-    @unexpectedSuccesses.setter
-    def unexpectedSuccesses(self, value):
-        pass
-
-    @property
-    def tests_passed(self):
-        return [t for t in self if t.result == 'PASS']
-
-    @property
-    def errors(self):
-        return [t for t in self if t.result == 'ERROR']
-
-    @errors.setter
-    def errors(self, value):
-        pass
-
-    @property
-    def failures(self):
-        return [t for t in self if t.result == 'UNEXPECTED-FAIL']
-
-    @failures.setter
-    def failures(self, value):
-        pass
-
-    def addError(self, test, err):
-        self.add_result(test, output=self._exc_info_to_string(err, test), result_actual='ERROR')
-        self._mirrorOutput = True
-        if self.showAll:
-            self.stream.writeln("ERROR")
-        elif self.dots:
-            self.stream.write('E')
-            self.stream.flush()
-
-    def addFailure(self, test, err):
-        self.add_result(test, output=self._exc_info_to_string(err, test), result_actual='UNEXPECTED-FAIL')
-        self._mirrorOutput = True
-        if self.showAll:
-            self.stream.writeln("FAIL")
-        elif self.dots:
-            self.stream.write('F')
-            self.stream.flush()
+        self.skipped = []
+        self.expectedFailures = []
+        self.unexpectedSuccesses = []
+        self.tests_passed = []
 
     def addSuccess(self, test):
+        super(MarionetteTestResult, self).addSuccess(test)
         self.passed += 1
-        self.add_result(test, result_actual='PASS')
-        if self.showAll:
-            self.stream.writeln("ok")
-        elif self.dots:
-            self.stream.write('.')
-            self.stream.flush()
+        self.tests_passed.append(test)
 
     def addExpectedFailure(self, test, err):
         """Called when an expected failure/error occured."""
-        self.add_result(test, output=self._exc_info_to_string(err, test),
-                        result_actual='KNOWN-FAIL')
+        self.expectedFailures.append(
+            (test, self._exc_info_to_string(err, test)))
         if self.showAll:
             self.stream.writeln("expected failure")
         elif self.dots:
@@ -115,7 +51,7 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
 
     def addUnexpectedSuccess(self, test):
         """Called when a test was expected to fail, but succeed."""
-        self.add_result(test, result_actual='UNEXPECTED-PASS')
+        self.unexpectedSuccesses.append(test)
         if self.showAll:
             self.stream.writeln("unexpected success")
         elif self.dots:
@@ -123,7 +59,7 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
             self.stream.flush()
 
     def addSkip(self, test, reason):
-        self.add_result(test, output=reason, result_actual='SKIPPED')
+        self.skipped.append((test, reason))
         if self.showAll:
             self.stream.writeln("skipped {0!r}".format(reason))
         elif self.dots:
@@ -163,23 +99,24 @@ class MarionetteTestResult(unittest._TextTestResult, TestResultCollection):
 
     def printErrorList(self, flavour, errors):
         for error in errors:
-            err = error.output
+            test, err = error[:2]
             self.stream.writeln(self.separator1)
-            self.stream.writeln("%s: %s" % (flavour, error.description))
+            self.stream.writeln("%s: %s" % (flavour, self.getDescription(test)))
             self.stream.writeln(self.separator2)
+            errlines = err.strip().split('\n')
             lastline = None
             fail_present = None
-            for line in err:
+            for line in errlines:
                 if not line.startswith('\t'):
                     lastline = line
                 if 'TEST-UNEXPECTED-FAIL' in line:
                     fail_present = True
-            for line in err:
+            for line in errlines:
                 if line != lastline or fail_present:
                     self.stream.writeln("%s" % line)
                 else:
                     self.stream.writeln("TEST-UNEXPECTED-FAIL | %s | %s" %
-                                        (self.getInfo(error), line))
+                                        (self.getInfo(test), line))
 
     def stopTest(self, *args, **kwargs):
         unittest._TextTestResult.stopTest(self, *args, **kwargs)
@@ -221,15 +158,14 @@ class MarionetteTextTestRunner(unittest.TextTestRunner):
             if stopTestRun is not None:
                 stopTestRun()
         stopTime = time.time()
-        if hasattr(result, 'time_taken'):
-            result.time_taken = stopTime - startTime
+        timeTaken = stopTime - startTime
         result.printLogs(test)
         result.printErrors()
         if hasattr(result, 'separator2'):
             self.stream.writeln(result.separator2)
         run = result.testsRun
         self.stream.writeln("Ran %d test%s in %.3fs" %
-                            (run, run != 1 and "s" or "", result.time_taken))
+                            (run, run != 1 and "s" or "", timeTaken))
         self.stream.writeln()
 
         expectedFails = unexpectedSuccesses = skipped = 0
@@ -613,7 +549,7 @@ class MarionetteTestRunner(object):
                 self.todo += len(results.skipped)
             self.passed += results.passed
             for failure in results.failures + results.errors:
-                self.failures.append((results.getInfo(failure), failure.output, 'TEST-UNEXPECTED-FAIL'))
+                self.failures.append((results.getInfo(failure[0]), failure[1], 'TEST-UNEXPECTED-FAIL'))
             if hasattr(results, 'unexpectedSuccesses'):
                 self.failed += len(results.unexpectedSuccesses)
                 for failure in results.unexpectedSuccesses:

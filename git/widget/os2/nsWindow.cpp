@@ -295,23 +295,23 @@ void InitIME()
     rc = DosLoadModule(szName, sizeof(szName), "os2im", &sIm32Mod);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 104, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 104, NULL,
                             (PFN *)&spfnImGetInstance);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 106, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 106, NULL,
                             (PFN *)&spfnImReleaseInstance);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 118, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 118, NULL,
                             (PFN *)&spfnImGetConversionString);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 122, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 122, NULL,
                             (PFN *)&spfnImGetResultString);
 
     if (!rc)
-      rc = DosQueryProcAddr(sIm32Mod, 131, nullptr,
+      rc = DosQueryProcAddr(sIm32Mod, 131, NULL,
                             (PFN *)&spfnImRequestIME);
 
     if (rc) {
@@ -1617,7 +1617,7 @@ void nsWindow::RollupOnFocusLost(HWND aFocus)
   if (rollupListener) {
     rollupWidget = rollupListener->GetRollupWidget();
   }
-  HWND hRollup = rollupWidget ? ((nsWindow*)rollupWidget)->mWnd : nullptr;
+  HWND hRollup = rollupWidget ? ((nsWindow*)rollupWidget)->mWnd : NULL;
 
   // Exit if focus was lost to the most recent popup.
   if (hRollup == aFocus) {
@@ -2467,7 +2467,7 @@ bool nsWindow::ImeResultString(HIMI himi)
   ULONG ulBufLen;
   // Get a buffer size
   ulBufLen = 0;
-  if (spfnImGetResultString(himi, IMR_RESULT_RESULTSTRING, nullptr, &ulBufLen))
+  if (spfnImGetResultString(himi, IMR_RESULT_RESULTSTRING, NULL, &ulBufLen))
     return false;
   nsAutoTArray<CHAR, 64> compositionStringA;
   compositionStringA.SetCapacity(ulBufLen / sizeof(CHAR));
@@ -2537,7 +2537,7 @@ bool nsWindow::ImeConversionString(HIMI himi)
   ULONG ulBufLen;
   // Get a buffer size
   ulBufLen = 0;
-  if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONSTRING, nullptr,
+  if (spfnImGetConversionString(himi, IMR_CONV_CONVERSIONSTRING, NULL,
                                 &ulBufLen))
     return false;
   nsAutoTArray<CHAR, 64> compositionStringA;

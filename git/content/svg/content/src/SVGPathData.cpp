@@ -12,7 +12,6 @@
 #include <stdarg.h>
 #include "SVGContentUtils.h"
 #include "SVGPathSegUtils.h"
-#include "gfxContext.h"
 #include <algorithm>
 
 using namespace mozilla;

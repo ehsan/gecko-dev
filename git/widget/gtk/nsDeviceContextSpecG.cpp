@@ -347,10 +347,10 @@ nsTArray<nsString>* GlobalPrinters::mGlobalPrinterList = nullptr;
 //---------------
 
 nsDeviceContextSpecGTK::nsDeviceContextSpecGTK()
-  : mPrintJob(nullptr)
-  , mGtkPrinter(nullptr)
-  , mGtkPrintSettings(nullptr)
-  , mGtkPageSetup(nullptr)
+  : mPrintJob(NULL)
+  , mGtkPrinter(NULL)
+  , mGtkPrintSettings(NULL)
+  , mGtkPageSetup(NULL)
 {
   DO_PR_DEBUG_LOG(("nsDeviceContextSpecGTK::nsDeviceContextSpecGTK()\n"));
 }
