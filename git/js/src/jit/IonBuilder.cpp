@@ -4288,7 +4288,7 @@ IonBuilder::inlineSingleCall(CallInfo &callInfo, JSFunction *target)
 {
     // Expects formals to be popped and wrapped.
     if (target->isNative())
-        return inlineNativeCall(callInfo, target);
+        return inlineNativeCall(callInfo, target->native());
 
     if (!inlineScriptedCall(callInfo, target))
         return InliningStatus_Error;

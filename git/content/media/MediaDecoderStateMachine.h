@@ -241,7 +241,7 @@ public:
   }
 
   // Should be called by main thread.
-  bool HaveNextFrameData();
+  bool HaveNextFrameData() const;
 
   // Must be called with the decode monitor held.
   bool IsBuffering() const {
@@ -397,9 +397,6 @@ protected:
   };
   WakeDecoderRunnable* GetWakeDecoderRunnable();
 
-  MediaQueue<AudioData>& AudioQueue() { return mReader->AudioQueue(); }
-  MediaQueue<VideoData>& VideoQueue() { return mReader->VideoQueue(); }
-
   // True if our buffers of decoded audio are not full, and we should
   // decode more.
   bool NeedToDecodeAudio();
@@ -416,24 +413,24 @@ protected:
 
   // Returns true if we've got less than aAudioUsecs microseconds of decoded
   // and playable data. The decoder monitor must be held.
-  bool HasLowDecodedData(int64_t aAudioUsecs);
+  bool HasLowDecodedData(int64_t aAudioUsecs) const;
 
   // Returns true if we're running low on data which is not yet decoded.
   // The decoder monitor must be held.
-  bool HasLowUndecodedData();
+  bool HasLowUndecodedData() const;
 
   // Returns true if we have less than aUsecs of undecoded data available.
-  bool HasLowUndecodedData(double aUsecs);
+  bool HasLowUndecodedData(double aUsecs) const;
 
   // Returns the number of unplayed usecs of audio we've got decoded and/or
   // pushed to the hardware waiting to play. This is how much audio we can
   // play without having to run the audio decoder. The decoder monitor
   // must be held.
-  int64_t AudioDecodedUsecs();
+  int64_t AudioDecodedUsecs() const;
 
   // Returns true when there's decoded audio waiting to play.
   // The decoder monitor must be held.
-  bool HasFutureAudio();
+  bool HasFutureAudio() const;
 
   // Returns true if we recently exited "quick buffering" mode.
   bool JustExitedQuickBuffering();
