@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "libdisplay/GonkDisplay.h"
+#include "Framebuffer.h"
 #include "HwcUtils.h"
 #include "HwcComposer2D.h"
 #include "LayerScope.h"
@@ -97,10 +98,8 @@ HwcComposer2D::Init(hwc_display_t dpy, hwc_surface_t sur, gl::GLContext* aGLCont
 
     nsIntSize screenSize;
 
-    ANativeWindow *win = GetGonkDisplay()->GetNativeWindow();
-    win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width);
-    win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height);
-    mScreenRect = nsIntRect(nsIntPoint(0, 0), screenSize);
+    mozilla::Framebuffer::GetSize(&screenSize);
+    mScreenRect  = nsIntRect(nsIntPoint(0, 0), screenSize);
 
 #if ANDROID_VERSION >= 17
     int supported = 0;
