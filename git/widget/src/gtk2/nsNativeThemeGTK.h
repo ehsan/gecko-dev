@@ -54,25 +54,25 @@ public:
   NS_DECL_NSIOBSERVER
 
   // The nsITheme interface.
-  NS_IMETHOD DrawWidgetBackground(nsRenderingContext* aContext,
+  NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame, PRUint8 aWidgetType,
                                   const nsRect& aRect,
                                   const nsRect& aDirtyRect);
 
-  NS_IMETHOD GetWidgetBorder(nsDeviceContext* aContext, nsIFrame* aFrame,
+  NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
                              PRUint8 aWidgetType, nsIntMargin* aResult);
 
-  virtual NS_HIDDEN_(PRBool) GetWidgetPadding(nsDeviceContext* aContext,
+  virtual NS_HIDDEN_(PRBool) GetWidgetPadding(nsIDeviceContext* aContext,
                                               nsIFrame* aFrame,
                                               PRUint8 aWidgetType,
                                               nsIntMargin* aResult);
 
-  virtual NS_HIDDEN_(PRBool) GetWidgetOverflow(nsDeviceContext* aContext,
+  virtual NS_HIDDEN_(PRBool) GetWidgetOverflow(nsIDeviceContext* aContext,
                                                nsIFrame* aFrame,
                                                PRUint8 aWidgetType,
                                                nsRect* aOverflowRect);
 
-  NS_IMETHOD GetMinimumWidgetSize(nsRenderingContext* aContext,
+  NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame, PRUint8 aWidgetType,
                                   nsIntSize* aResult, PRBool* aIsOverridable);
 

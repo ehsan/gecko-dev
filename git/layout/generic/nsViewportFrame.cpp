@@ -192,7 +192,7 @@ ViewportFrame::GetChildList(nsIAtom* aListName) const
 }
 
 /* virtual */ nscoord
-ViewportFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+ViewportFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -207,7 +207,7 @@ ViewportFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-ViewportFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+ViewportFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);

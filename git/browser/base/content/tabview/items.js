@@ -661,7 +661,7 @@ Item.prototype = {
           .unbind('mousemove', handleMouseMove)
           .unbind('mouseup', handleMouseUp);
 
-        if (startSent && dropTarget) {
+        if (dropTarget) {
           var dropOptions = dropTarget.dropOptions;
           if (dropOptions && typeof dropOptions.drop == "function")
             dropOptions.drop.apply(dropTarget, [e]);

@@ -56,7 +56,6 @@
 #include "jscntxt.h"
 #include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
@@ -4697,7 +4696,16 @@ xml_finalize(JSContext *cx, JSObject *obj)
 static void
 xml_trace_vector(JSTracer *trc, JSXML **vec, uint32 len)
 {
-    MarkXMLRange(trc, len, vec, "xml_vector");
+    uint32 i;
+    JSXML *xml;
+
+    for (i = 0; i < len; i++) {
+        xml = vec[i];
+        if (xml) {
+            JS_SET_TRACING_INDEX(trc, "xml_vector", i);
+            Mark(trc, xml);
+        }
+    }
 }
 
 /*
@@ -7216,13 +7224,13 @@ js_InitXMLClasses(JSContext *cx, JSObject *obj)
     return js_InitXMLClass(cx, obj);
 }
 
-namespace js {
-
-bool
-GlobalObject::getFunctionNamespace(JSContext *cx, Value *vp)
+JSBool
+js_GetFunctionNamespace(JSContext *cx, Value *vp)
 {
-    Value &v = getSlotRef(FUNCTION_NS);
-    if (v.isUndefined()) {
+    JSObject *global = cx->hasfp() ? cx->fp()->scopeChain().getGlobal() : cx->globalObject;
+
+    *vp = global->getReservedSlot(JSRESERVED_GLOBAL_FUNCTION_NS);
+    if (vp->isUndefined()) {
         JSRuntime *rt = cx->runtime;
         JSLinearString *prefix = rt->atomState.typeAtoms[JSTYPE_FUNCTION];
         JSLinearString *uri = rt->atomState.functionNamespaceURIAtom;
@@ -7239,14 +7247,13 @@ GlobalObject::getFunctionNamespace(JSContext *cx, Value *vp)
          */
         obj->clearProto();
 
-        v.setObject(*obj);
+        vp->setObject(*obj);
+        if (!js_SetReservedSlot(cx, global, JSRESERVED_GLOBAL_FUNCTION_NS, *vp))
+            return false;
     }
 
-    *vp = v;
     return true;
 }
-
-} // namespace js
 
 /*
  * Note the asymmetry between js_GetDefaultXMLNamespace and js_SetDefaultXML-

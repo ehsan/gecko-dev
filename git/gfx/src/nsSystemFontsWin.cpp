@@ -36,8 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsSystemFontsWin.h"
+#include "nsIRenderingContext.h"
+
 #include "gfxWindowsSurface.h"
+
+#include "nsSystemFontsWin.h"
+
 
 nsresult nsSystemFontsWin::CopyLogFontToNSFont(HDC* aHDC, const LOGFONTW* ptrLogFont,
                                                nsString *aFontName,

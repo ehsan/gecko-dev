@@ -48,7 +48,7 @@
 #include "nsCOMPtr.h"
 #include "nsIPresShell.h"
 #include "nsRect.h"
-#include "nsDeviceContext.h"
+#include "nsIDeviceContext.h"
 #include "nsFont.h"
 #include "nsIWeakReference.h"
 #include "nsITheme.h"
@@ -73,7 +73,6 @@
 #include "nsIWidget.h"
 #include "mozilla/TimeStamp.h"
 #include "nsIContent.h"
-#include "prclist.h"
 
 class nsImageLoader;
 #ifdef IBMBIDI
@@ -84,13 +83,13 @@ struct nsRect;
 
 class imgIRequest;
 
-class nsFontMetrics;
+class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
 class nsStyleContext;
 class nsIAtom;
-class nsEventStateManager;
+class nsIEventStateManager;
 class nsIURI;
 class nsILookAndFeel;
 class nsICSSPseudoComparator;
@@ -108,10 +107,9 @@ class nsAnimationManager;
 #endif
 class nsRefreshDriver;
 class imgIContainer;
-class nsIDOMMediaQueryList;
 
 #ifdef MOZ_REFLOW_PERF
-class nsRenderingContext;
+class nsIRenderingContext;
 #endif
 
 enum nsWidgetType {
@@ -198,7 +196,7 @@ public:
   /**
    * Initialize the presentation context from a particular device.
    */
-  NS_HIDDEN_(nsresult) Init(nsDeviceContext* aDeviceContext);
+  NS_HIDDEN_(nsresult) Init(nsIDeviceContext* aDeviceContext);
 
   /**
    * Set the presentation shell that this context is bound to.
@@ -272,12 +270,6 @@ public:
   }
 
   /**
-   * Support for window.matchMedia()
-   */
-  void MatchMedia(const nsAString& aMediaQueryList,
-                  nsIDOMMediaQueryList** aResult);
-
-  /**
    * Access compatibility mode for this context.  This is the same as
    * our document's compatibility mode.
    */
@@ -336,7 +328,7 @@ public:
    * (which is used from media query matching, which is in turn called
    * when building the user font set).
    */
-  NS_HIDDEN_(already_AddRefed<nsFontMetrics>)
+  NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
   GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
 
   /**
@@ -491,7 +483,7 @@ public:
    * nscoord units (as scaled by the device context).
    */
   void SetVisibleArea(const nsRect& r) {
-    if (!r.IsEqualEdges(mVisibleArea)) {
+    if (!r.IsExactEqual(mVisibleArea)) {
       mVisibleArea = r;
       // Visible area does not affect media queries when paginated.
       if (!IsPaginated() && HasCachedStyleData())
@@ -552,8 +544,8 @@ public:
   float GetPrintPreviewScale() { return mPPScale; }
   void SetPrintPreviewScale(float aScale) { mPPScale = aScale; }
 
-  nsDeviceContext* DeviceContext() { return mDeviceContext; }
-  nsEventStateManager* EventStateManager() { return mEventManager; }
+  nsIDeviceContext* DeviceContext() { return mDeviceContext; }
+  nsIEventStateManager* EventStateManager() { return mEventManager; }
   nsIAtom* GetLanguageFromCharset() { return mLanguage; }
 
   float TextZoom() { return mTextZoom; }
@@ -594,25 +586,25 @@ public:
     return DevPixelsToAppUnits(mAutoQualityMinFontSizePixelsPref);
   }
   
-  static PRInt32 AppUnitsPerCSSPixel() { return nsDeviceContext::AppUnitsPerCSSPixel(); }
+  static PRInt32 AppUnitsPerCSSPixel() { return nsIDeviceContext::AppUnitsPerCSSPixel(); }
   PRInt32 AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
-  static PRInt32 AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
+  static PRInt32 AppUnitsPerCSSInch() { return nsIDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(PRInt32 aPixels)
   { return NSIntPixelsToAppUnits(aPixels,
-                                 nsDeviceContext::AppUnitsPerCSSPixel()); }
+                                 nsIDeviceContext::AppUnitsPerCSSPixel()); }
 
   static nscoord CSSPixelsToAppUnits(float aPixels)
   { return NSFloatPixelsToAppUnits(aPixels,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
 
   static PRInt32 AppUnitsToIntCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToIntPixels(aAppUnits,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
 
   static float AppUnitsToFloatCSSPixels(nscoord aAppUnits)
   { return NSAppUnitsToFloatPixels(aAppUnits,
-             float(nsDeviceContext::AppUnitsPerCSSPixel())); }
+             float(nsIDeviceContext::AppUnitsPerCSSPixel())); }
 
   nscoord DevPixelsToAppUnits(PRInt32 aPixels) const
   { return NSIntPixelsToAppUnits(aPixels,
@@ -652,7 +644,7 @@ public:
 
   static nscoord CSSTwipsToAppUnits(float aTwips)
   { return NSToCoordRoundWithClamp(
-      nsDeviceContext::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
+      nsIDeviceContext::AppUnitsPerCSSInch() * NS_TWIPS_TO_INCHES(aTwips)); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
   static nsMargin CSSTwipsToAppUnits(const nsIntMargin &marginInTwips)
@@ -662,7 +654,7 @@ public:
                     CSSTwipsToAppUnits(float(marginInTwips.bottom))); }
 
   static nscoord CSSPointsToAppUnits(float aPoints)
-  { return NSToCoordRound(aPoints * nsDeviceContext::AppUnitsPerCSSInch() /
+  { return NSToCoordRound(aPoints * nsIDeviceContext::AppUnitsPerCSSInch() /
                           POINTS_PER_INCH_FLOAT); }
 
   nscoord RoundAppUnitsToNearestDevPixels(nscoord aAppUnits) const
@@ -1056,12 +1048,12 @@ protected:
   nsPresContextType     mType;
   nsIPresShell*         mShell;         // [WEAK]
   nsCOMPtr<nsIDocument> mDocument;
-  nsDeviceContext*     mDeviceContext; // [STRONG] could be weak, but
+  nsIDeviceContext*     mDeviceContext; // [STRONG] could be weak, but
                                         // better safe than sorry.
                                         // Cannot reintroduce cycles
                                         // since there is no dependency
                                         // from gfx back to layout.
-  nsEventStateManager* mEventManager;   // [STRONG]
+  nsIEventStateManager* mEventManager;  // [STRONG]
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
@@ -1084,8 +1076,6 @@ protected:
                         mImageLoaders[IMAGE_LOAD_TYPE_COUNT];
 
   nsWeakPtr             mContainer;
-
-  PRCList               mDOMMediaQueryLists;
 
   PRInt32               mMinFontSize;   // Min font size, defaults to 0
   float                 mTextZoom;      // Text zoom, defaults to 1.0

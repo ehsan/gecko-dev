@@ -56,7 +56,6 @@
 #include "jsexn.h"
 #include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
 #include "jshashtable.h"
 #include "jsinterp.h"
 #include "jsiter.h"
@@ -88,9 +87,7 @@ static JSObject *iterator_iterator(JSContext *cx, JSObject *obj, JSBool keysonly
 
 Class js_IteratorClass = {
     "Iterator",
-    JSCLASS_HAS_PRIVATE |
-    JSCLASS_CONCURRENT_FINALIZER |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator),
+    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
     PropertyStub,         /* getProperty */
@@ -425,7 +422,7 @@ NewIteratorObject(JSContext *cx, uintN flags)
          */
         JSObject *obj = js_NewGCObject(cx, FINALIZE_OBJECT0);
         if (!obj)
-            return NULL;
+            return false;
 
         EmptyShape *emptyEnumeratorShape = EmptyShape::getEmptyEnumeratorShape(cx);
         if (!emptyEnumeratorShape)
@@ -554,6 +551,8 @@ EnumeratedIdVectorToIterator(JSContext *cx, JSObject *obj, uintN flags, AutoIdVe
 
     return VectorToValueIterator(cx, obj, flags, props, vp);
 }
+
+typedef Vector<uint32, 8> ShapeVector;
 
 static inline void
 UpdateNativeIterator(NativeIterator *ni, JSObject *obj)

@@ -35,22 +35,6 @@
 #include "jsvector.h"
 #include "jslock.h"
 
-#if WTF_CPU_SPARC
-#ifdef linux  // bugzilla 502369
-static void sync_instruction_memory(caddr_t v, u_int len)
-{
-    caddr_t end = v + len;
-    caddr_t p = v;
-    while (p < end) {
-        asm("flush %0" : : "r" (p));
-        p += 32;
-    }
-}
-#else
-extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
-#endif
-#endif
-
 #if WTF_PLATFORM_IPHONE
 #include <libkern/OSCacheControl.h>
 #include <sys/mman.h>
@@ -62,6 +46,12 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
 
 #if WTF_CPU_MIPS && WTF_PLATFORM_LINUX
 #include <sys/cachectl.h>
+#endif
+
+#if WTF_PLATFORM_WINCE
+// From pkfuncs.h (private header file from the Platform Builder)
+#define CACHE_SYNC_ALL 0x07F
+extern "C" __declspec(dllimport) void CacheRangeFlush(LPVOID pAddr, DWORD dwLength, DWORD dwFlags);
 #endif
 
 #if ENABLE_ASSEMBLER_WX_EXCLUSIVE
@@ -399,10 +389,10 @@ public:
             : "r" (code), "r" (reinterpret_cast<char*>(code) + size)
             : "r0", "r1", "r2");
     }
-#elif WTF_CPU_SPARC
+#elif WTF_PLATFORM_WINCE
     static void cacheFlush(void* code, size_t size)
     {
-        sync_instruction_memory((caddr_t)code, size);
+        CacheRangeFlush(code, size, CACHE_SYNC_ALL);
     }
 #else
     #error "The cacheFlush support is missing on this platform."

@@ -455,11 +455,11 @@ function test_date_liveupdate(aResultType) {
   bs.removeItem(itemId);
 }
 
+// main
 function run_test() {
-  // If we're dangerously close to a date change, just bail out.
-  if (nowObj.getHours() == 23 && nowObj.getMinutes() >= 50) {
-    return;
-  }
+  // Cleanup.
+  bh.removeAllPages();
+  remove_all_bookmarks();
 
   fill_history();
   test_RESULTS_AS_DATE_SITE_QUERY();
@@ -468,6 +468,9 @@ function run_test() {
 
   test_date_liveupdate(Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY);
   test_date_liveupdate(Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY);
+
+  // Cleanup.
+  bh.removeAllPages();
 
   // The remaining views are
   //   RESULTS_AS_URI + SORT_BY_VISITCOUNT_DESCENDING 

@@ -53,6 +53,7 @@ EXPORTS		= \
 XPIDLSRCS	= \
 		nsIXSLTException.idl  \
 		nsIXSLTProcessor.idl  \
+		nsIXSLTProcessorObsolete.idl  \
 		nsIXSLTProcessorPrivate.idl  \
 		txIFunctionEvaluationContext.idl  \
 		txINodeSet.idl  \

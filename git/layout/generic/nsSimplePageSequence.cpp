@@ -39,9 +39,11 @@
 #include "nsSimplePageSequence.h"
 #include "nsPresContext.h"
 #include "gfxContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsGkAtoms.h"
+#include "nsIDeviceContext.h"
 #include "nsIPresShell.h"
+#include "nsIFontMetrics.h"
 #include "nsIPrintSettings.h"
 #include "nsPageFrame.h"
 #include "nsStyleConsts.h"
@@ -532,7 +534,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
   mPageData->mPrintSettings->GetPrintOptions(nsIPrintSettings::kPrintOddPages, &printOddPages);
 
   // Begin printing of the document
-  nsDeviceContext *dc = PresContext()->DeviceContext();
+  nsIDeviceContext *dc = PresContext()->DeviceContext();
 
   nsresult rv = NS_OK;
 
@@ -602,7 +604,7 @@ nsSimplePageSequenceFrame::PrintNextPage()
 
       PR_PL(("SeqFr::PrintNextPage -> %p PageNo: %d", pf, mPageNum));
 
-      nsRefPtr<nsRenderingContext> renderingContext;
+      nsCOMPtr<nsIRenderingContext> renderingContext;
       dc->CreateRenderingContext(*getter_AddRefs(renderingContext));
       NS_ENSURE_TRUE(renderingContext, NS_ERROR_OUT_OF_MEMORY);
 
@@ -663,7 +665,7 @@ nsSimplePageSequenceFrame::DoPageEnd()
   return rv;
 }
 
-static void PaintPageSequence(nsIFrame* aFrame, nsRenderingContext* aCtx,
+static void PaintPageSequence(nsIFrame* aFrame, nsIRenderingContext* aCtx,
                              const nsRect& aDirtyRect, nsPoint aPt)
 {
   static_cast<nsSimplePageSequenceFrame*>(aFrame)->PaintPageSequence(*aCtx, aDirtyRect, aPt);
@@ -671,14 +673,14 @@ static void PaintPageSequence(nsIFrame* aFrame, nsRenderingContext* aCtx,
 
 //------------------------------------------------------------------------------
 void
-nsSimplePageSequenceFrame::PaintPageSequence(nsRenderingContext& aRenderingContext,
+nsSimplePageSequenceFrame::PaintPageSequence(nsIRenderingContext& aRenderingContext,
                                              const nsRect&        aDirtyRect,
                                              nsPoint              aPt) {
   nsRect rect = aDirtyRect;
   float scale = PresContext()->GetPrintPreviewScale();
   aRenderingContext.PushState();
   nsPoint framePos = aPt;
-  aRenderingContext.Translate(framePos);
+  aRenderingContext.Translate(framePos.x, framePos.y);
   rect -= framePos;
   aRenderingContext.Scale(scale, scale);
   rect.ScaleRoundOut(1.0f / scale);
@@ -690,7 +692,7 @@ nsSimplePageSequenceFrame::PaintPageSequence(nsRenderingContext& aRenderingConte
     nsPoint pt = child->GetPosition();
     // The rendering context has to be translated before each call to PaintFrame
     aRenderingContext.PushState();
-    aRenderingContext.Translate(pt);
+    aRenderingContext.Translate(pt.x, pt.y);
     nsLayoutUtils::PaintFrame(&aRenderingContext, child,
                               nsRegion(rect - pt), NS_RGBA(0,0,0,0),
                               nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES);

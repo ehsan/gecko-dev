@@ -44,7 +44,7 @@
 #include "nsTextFragment.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsIServiceManager.h"
 #include "nsFrameManager.h"
 #include "nsBidiUtils.h"
@@ -55,6 +55,7 @@
 #include "nsContainerFrame.h"
 #include "nsFirstLetterFrame.h"
 #include "gfxUnicodeProperties.h"
+#include "nsIThebesFontMetrics.h"
 #include "nsTextFrame.h"
 
 #undef NOISY_BIDI
@@ -287,7 +288,7 @@ SplitInlineAncestors(nsIFrame*     aFrame)
     nsFrameList tail = container->StealFramesAfter(frame);
 
     // Reparent views as necessary
-    rv = nsContainerFrame::ReparentFrameViewList(presContext, tail, parent, newParent);
+    rv = nsHTMLContainerFrame::ReparentFrameViewList(presContext, tail, parent, newParent);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -1757,14 +1758,14 @@ nsresult nsBidiPresUtils::ProcessText(const PRUnichar*       aText,
 
 class NS_STACK_CLASS nsIRenderingContextBidiProcessor : public nsBidiPresUtils::BidiProcessor {
 public:
-  nsIRenderingContextBidiProcessor(nsRenderingContext* aCtx,
-                                   nsRenderingContext* aTextRunConstructionContext,
+  nsIRenderingContextBidiProcessor(nsIRenderingContext* aCtx,
+                                   nsIRenderingContext* aTextRunConstructionContext,
                                    const nsPoint&       aPt)
     : mCtx(aCtx), mTextRunConstructionContext(aTextRunConstructionContext), mPt(aPt) { }
 
   ~nsIRenderingContextBidiProcessor()
   {
-    mCtx->SetTextRunRTL(PR_FALSE);
+    mCtx->SetRightToLeftText(PR_FALSE);
   }
 
   virtual void SetText(const PRUnichar* aText,
@@ -1778,19 +1779,24 @@ public:
 
   virtual nscoord GetWidth()
   {
-    return mTextRunConstructionContext->GetWidth(mText, mLength);
+    nscoord width;
+    mTextRunConstructionContext->GetWidth(mText, mLength, width, nsnull);
+    return width;
   }
 
   virtual void DrawText(nscoord aXOffset,
                         nscoord)
   {
-    mCtx->FontMetrics()->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
-                                    mCtx, mTextRunConstructionContext);
+    nsCOMPtr<nsIFontMetrics> metrics;
+    mCtx->GetFontMetrics(*getter_AddRefs(metrics));
+    nsIThebesFontMetrics* fm = static_cast<nsIThebesFontMetrics*>(metrics.get());
+    fm->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
+                   mCtx, mTextRunConstructionContext);
   }
 
 private:
-  nsRenderingContext* mCtx;
-  nsRenderingContext* mTextRunConstructionContext;
+  nsIRenderingContext* mCtx;
+  nsIRenderingContext* mTextRunConstructionContext;
   nsPoint mPt;
   const PRUnichar* mText;
   PRInt32 mLength;
@@ -1801,8 +1807,8 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const PRUnichar*       
                                                          PRInt32                aLength,
                                                          nsBidiDirection        aBaseDirection,
                                                          nsPresContext*         aPresContext,
-                                                         nsRenderingContext&   aRenderingContext,
-                                                         nsRenderingContext&   aTextRunConstructionContext,
+                                                         nsIRenderingContext&   aRenderingContext,
+                                                         nsIRenderingContext&   aTextRunConstructionContext,
                                                          Mode                   aMode,
                                                          nscoord                aX,
                                                          nscoord                aY,

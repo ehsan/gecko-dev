@@ -42,7 +42,7 @@
 
 #include "nsNativeThemeCocoa.h"
 #include "nsObjCExceptions.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsRect.h"
 #include "nsSize.h"
 #include "nsThemeConstants.h"
@@ -52,7 +52,7 @@
 #include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "nsIAtom.h"
-#include "nsEventStates.h"
+#include "nsIEventStateManager.h"
 #include "nsINameSpaceManager.h"
 #include "nsPresContext.h"
 #include "nsILookAndFeel.h"
@@ -1494,19 +1494,18 @@ nsNativeThemeCocoa::DrawResizer(CGContextRef cgContext, const HIRect& aRect,
 }
 
 NS_IMETHODIMP
-nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
-                                         nsIFrame* aFrame,
-                                         PRUint8 aWidgetType,
-                                         const nsRect& aRect,
+nsNativeThemeCocoa::DrawWidgetBackground(nsIRenderingContext* aContext, nsIFrame* aFrame,
+                                         PRUint8 aWidgetType, const nsRect& aRect,
                                          const nsRect& aDirtyRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   // setup to draw into the correct port
-  PRInt32 p2a = aContext->AppUnitsPerDevPixel();
+  nsCOMPtr<nsIDeviceContext> dctx;
+  aContext->GetDeviceContext(*getter_AddRefs(dctx));
+  PRInt32 p2a = dctx->AppUnitsPerDevPixel();
 
-  gfxRect nativeDirtyRect(aDirtyRect.x, aDirtyRect.y,
-                          aDirtyRect.width, aDirtyRect.height);
+  gfxRect nativeDirtyRect(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);
   gfxRect nativeWidgetRect(aRect.x, aRect.y, aRect.width, aRect.height);
   nativeWidgetRect.ScaleInverse(gfxFloat(p2a));
   nativeDirtyRect.ScaleInverse(gfxFloat(p2a));
@@ -1514,7 +1513,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
   if (nativeWidgetRect.IsEmpty())
     return NS_OK; // Don't attempt to draw invisible widgets.
 
-  gfxContext* thebesCtx = aContext->ThebesContext();
+  nsRefPtr<gfxContext> thebesCtx = aContext->ThebesContext();
   if (!thebesCtx)
     return NS_ERROR_FAILURE;
 
@@ -1952,7 +1951,7 @@ static const nsIntMargin kAquaComboboxBorder(4, 3, 20, 3);
 static const nsIntMargin kAquaSearchfieldBorder(19, 3, 5, 2);
 
 NS_IMETHODIMP
-nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext, 
+nsNativeThemeCocoa::GetWidgetBorder(nsIDeviceContext* aContext, 
                                     nsIFrame* aFrame,
                                     PRUint8 aWidgetType,
                                     nsIntMargin* aResult)
@@ -2059,7 +2058,7 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
 // whatever values you want in GetWidgetBorder and only use this to return PR_TRUE
 // if you want to override CSS padding values.
 PRBool
-nsNativeThemeCocoa::GetWidgetPadding(nsDeviceContext* aContext, 
+nsNativeThemeCocoa::GetWidgetPadding(nsIDeviceContext* aContext, 
                                      nsIFrame* aFrame,
                                      PRUint8 aWidgetType,
                                      nsIntMargin* aResult)
@@ -2080,7 +2079,7 @@ nsNativeThemeCocoa::GetWidgetPadding(nsDeviceContext* aContext,
 }
 
 PRBool
-nsNativeThemeCocoa::GetWidgetOverflow(nsDeviceContext* aContext, nsIFrame* aFrame,
+nsNativeThemeCocoa::GetWidgetOverflow(nsIDeviceContext* aContext, nsIFrame* aFrame,
                                       PRUint8 aWidgetType, nsRect* aOverflowRect)
 {
   switch (aWidgetType) {
@@ -2116,7 +2115,7 @@ static const PRInt32 kRegularScrollbarThumbMinSize = 22;
 static const PRInt32 kSmallScrollbarThumbMinSize = 19;
 
 NS_IMETHODIMP
-nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
+nsNativeThemeCocoa::GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                          nsIFrame* aFrame,
                                          PRUint8 aWidgetType,
                                          nsIntSize* aResult,

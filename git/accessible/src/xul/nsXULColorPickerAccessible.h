@@ -68,6 +68,9 @@ class nsXULColorPickerAccessible : public nsXULColorPickerTileAccessible
 public:
   nsXULColorPickerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
+  // nsAccessNode
+  virtual PRBool Init();
+
   // nsAccessible
   virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();

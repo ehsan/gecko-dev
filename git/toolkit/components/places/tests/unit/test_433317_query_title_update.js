@@ -65,6 +65,4 @@ function run_test() {
 
   // confirm the node was updated
   do_check_eq(queryNode.title, "foo");
-
-  root.containerOpen = false;
 }

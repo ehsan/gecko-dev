@@ -51,7 +51,7 @@
 
 namespace js {
 
-static inline GlobalObject *
+static inline JSObject *
 GetGlobalForScopeChain(JSContext *cx)
 {
     /*
@@ -73,7 +73,7 @@ GetGlobalForScopeChain(JSContext *cx)
         return NULL;
     }
     OBJ_TO_INNER_OBJECT(cx, scope);
-    return scope->asGlobal();
+    return scope;
 }
 
 }
@@ -246,7 +246,8 @@ StackSpace::pushInvokeArgs(JSContext *cx, uintN argc, InvokeArgsGuard *ag)
 #endif
 
     ag->cx = cx;
-    ImplicitCast<CallArgs>(*ag) = CallArgsFromVp(argc, vp);
+    ag->argv_ = vp + 2;
+    ag->argc_ = argc;
     return true;
 }
 

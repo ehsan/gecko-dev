@@ -68,7 +68,7 @@
 #include "nsFrameTraversal.h"
 #include "nsObjectFrame.h"
 #include "nsEventDispatcher.h"
-#include "nsEventStateManager.h"
+#include "nsIEventStateManager.h"
 #include "nsIMEStateManager.h"
 #include "nsIWebNavigation.h"
 #include "nsCaret.h"
@@ -196,11 +196,9 @@ nsFocusManager::Init()
     nsContentUtils::GetBoolPref("accessibility.mouse_focuses_formcontrol", PR_FALSE);
 
   nsIPrefBranch2* prefBranch = nsContentUtils::GetPrefBranch();
-  if (prefBranch) {
-    prefBranch->AddObserver("accessibility.browsewithcaret", fm, PR_TRUE);
-    prefBranch->AddObserver("accessibility.tabfocus_applies_to_xul", fm, PR_TRUE);
-    prefBranch->AddObserver("accessibility.mouse_focuses_formcontrol", fm, PR_TRUE);
-  }
+  prefBranch->AddObserver("accessibility.browsewithcaret", fm, PR_TRUE);
+  prefBranch->AddObserver("accessibility.tabfocus_applies_to_xul", fm, PR_TRUE);
+  prefBranch->AddObserver("accessibility.mouse_focuses_formcontrol", fm, PR_TRUE);
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
@@ -335,22 +333,6 @@ nsFocusManager::GetRedirectedFocus(nsIContent* aContent)
 #endif
 
   return nsnull;
-}
-
-// static
-PRUint32
-nsFocusManager::GetFocusMoveReason(PRUint32 aFlags)
-{
-  PRUint32 reason = IMEContext::FOCUS_MOVED_UNKNOWN;
-  if (aFlags & nsIFocusManager::FLAG_BYMOUSE) {
-    reason = IMEContext::FOCUS_MOVED_BY_MOUSE;
-  } else if (aFlags & nsIFocusManager::FLAG_BYKEY) {
-    reason = IMEContext::FOCUS_MOVED_BY_KEY;
-  } else if (aFlags & nsIFocusManager::FLAG_BYMOVEFOCUS) {
-    reason = IMEContext::FOCUS_MOVED_BY_MOVEFOCUS;
-  }
-
-  return reason;
 }
 
 NS_IMETHODIMP
@@ -959,7 +941,7 @@ nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
 
   nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
   if (presShell) {
-    nsIMEStateManager::OnChangeFocus(presShell->GetPresContext(), nsnull, IMEContext::FOCUS_REMOVED);
+    nsIMEStateManager::OnChangeFocus(presShell->GetPresContext(), nsnull);
     SetCaretVisible(presShell, PR_FALSE, nsnull);
   }
 
@@ -1500,7 +1482,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
   // compositionend event won't get fired at the element being blurred.
   nsIMEStateManager::OnTextStateBlur(nsnull, nsnull);
   if (mActiveWindow)
-    nsIMEStateManager::OnChangeFocus(presShell->GetPresContext(), nsnull, IMEContext::FOCUS_REMOVED);
+    nsIMEStateManager::OnChangeFocus(presShell->GetPresContext(), nsnull);
 
   // now adjust the actual focus, by clearing the fields in the focus manager
   // and in the window.
@@ -1743,8 +1725,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
           objectFrameWidget->SetFocus(PR_FALSE);
       }
 
-      PRUint32 reason = GetFocusMoveReason(aFlags);
-      nsIMEStateManager::OnChangeFocus(presContext, aContent, reason);
+      nsIMEStateManager::OnChangeFocus(presContext, aContent);
 
       // as long as this focus wasn't because a window was raised, update the
       // commands
@@ -1760,7 +1741,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
       nsIMEStateManager::OnTextStateFocus(presContext, aContent);
     } else {
       nsIMEStateManager::OnTextStateBlur(presContext, nsnull);
-      nsIMEStateManager::OnChangeFocus(presContext, nsnull, IMEContext::FOCUS_REMOVED);
+      nsIMEStateManager::OnChangeFocus(presContext, nsnull);
       if (!aWindowRaised) {
         aWindow->UpdateCommands(NS_LITERAL_STRING("focus"));
       }
@@ -1783,7 +1764,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
 
     nsPresContext* presContext = presShell->GetPresContext();
     nsIMEStateManager::OnTextStateBlur(presContext, nsnull);
-    nsIMEStateManager::OnChangeFocus(presContext, nsnull, IMEContext::FOCUS_REMOVED);
+    nsIMEStateManager::OnChangeFocus(presContext, nsnull);
 
     if (!aWindowRaised)
       aWindow->UpdateCommands(NS_LITERAL_STRING("focus"));

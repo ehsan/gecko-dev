@@ -226,8 +226,8 @@ public:
                              PRInt32                aLength,
                              nsBidiDirection        aBaseDirection,
                              nsPresContext*         aPresContext,
-                             nsRenderingContext&    aRenderingContext,
-                             nsRenderingContext&    aTextRunConstructionContext,
+                             nsIRenderingContext&   aRenderingContext,
+                             nsIRenderingContext&   aTextRunConstructionContext,
                              nscoord                aX,
                              nscoord                aY,
                              nsBidiPositionResolve* aPosResolve = nsnull,
@@ -241,7 +241,7 @@ public:
                                   PRInt32              aLength,
                                   nsBidiDirection      aBaseDirection,
                                   nsPresContext*       aPresContext,
-                                  nsRenderingContext&  aRenderingContext)
+                                  nsIRenderingContext& aRenderingContext)
   {
     nscoord length;
     nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext,
@@ -351,8 +351,8 @@ private:
                                                  PRInt32                aLength,
                                                  nsBidiDirection        aBaseDirection,
                                                  nsPresContext*         aPresContext,
-                                                 nsRenderingContext&    aRenderingContext,
-                                                 nsRenderingContext&    aTextRunConstructionContext,
+                                                 nsIRenderingContext&   aRenderingContext,
+                                                 nsIRenderingContext&   aTextRunConstructionContext,
                                                  Mode                   aMode,
                                                  nscoord                aX, // DRAW only
                                                  nscoord                aY, // DRAW only

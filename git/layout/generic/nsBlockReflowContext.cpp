@@ -42,6 +42,7 @@
 #include "nsBlockReflowContext.h"
 #include "nsLineLayout.h"
 #include "nsFloatManager.h"
+#include "nsIFontMetrics.h"
 #include "nsPresContext.h"
 #include "nsFrameManager.h"
 #include "nsIContent.h"

@@ -463,11 +463,15 @@
 #endif
 
 <deck flex="1" id="tab-view-deck">
-<vbox flex="1" id="browser-panel">
+<vbox flex="1">
 
   <toolbox id="navigator-toolbox"
            defaultmode="icons" mode="icons"
+#ifdef WINCE
+           defaulticonsize="small" iconsize="small"
+#else
            iconsize="large"
+#endif
            tabsontop="true"
            persist="tabsontop">
     <!-- Menu -->
@@ -495,8 +499,13 @@
     <toolbar id="nav-bar" class="toolbar-primary chromeclass-toolbar"
              toolbarname="&navbarCmd.label;" accesskey="&navbarCmd.accesskey;"
              fullscreentoolbar="true" mode="icons" customizable="true"
+#ifdef WINCE
+             iconsize="small" defaulticonsize="small"
+             defaultset="unified-back-forward-button,urlbar-container,reload-button,stop-button,search-container,home-button,bookmarks-menu-button-container,navigator-throbber,fullscreenflex,window-controls"
+#else
              iconsize="large"
              defaultset="unified-back-forward-button,urlbar-container,reload-button,stop-button,search-container,home-button,bookmarks-menu-button-container,fullscreenflex,window-controls"
+#endif
              context="toolbar-context-menu">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"

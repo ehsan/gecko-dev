@@ -48,6 +48,7 @@
 
 #include "nsTArray.h"
 #include "nsGUIEvent.h"
+#include "nsIRenderingContext.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
 #include "gfxPattern.h"
@@ -467,7 +468,7 @@ ClipToContain(gfxContext* aContext, const nsIntRect& aRect)
   aContext->Clip();
   aContext->SetMatrix(currentMatrix);
 
-  return aContext->DeviceToUser(deviceRect).IsEqualInterior(userRect);
+  return aContext->DeviceToUser(deviceRect) == userRect;
 }
 
 static nsIntRegion
@@ -1059,7 +1060,7 @@ ToOutsideIntRect(const gfxRect &aRect)
 {
   gfxRect r = aRect;
   r.RoundOut();
-  return nsIntRect(r.X(), r.Y(), r.Width(), r.Height());
+  return nsIntRect(r.pos.x, r.pos.y, r.size.width, r.size.height);
 }
 
 static nsIntRect
@@ -1067,7 +1068,7 @@ ToInsideIntRect(const gfxRect& aRect)
 {
   gfxRect r = aRect;
   r.RoundIn();
-  return nsIntRect(r.X(), r.Y(), r.Width(), r.Height());
+  return nsIntRect(r.pos.x, r.pos.y, r.size.width, r.size.height);
 }
 
 /**
@@ -1194,11 +1195,11 @@ BasicLayerManager::PushGroupWithCachedSurface(gfxContext *aTarget,
 
   nsRefPtr<gfxContext> ctx =
     mCachedSurface.Get(aContent,
-                       gfxIntSize(clip.Width(), clip.Height()),
+                       gfxIntSize(clip.size.width, clip.size.height),
                        currentSurf);
   /* Align our buffer for the original surface */
-  ctx->Translate(-clip.TopLeft());
-  *aSavedOffset = clip.TopLeft();
+  ctx->Translate(-clip.pos);
+  *aSavedOffset = clip.pos;
   ctx->Multiply(saveMatrix.Matrix());
   return ctx.forget();
 }

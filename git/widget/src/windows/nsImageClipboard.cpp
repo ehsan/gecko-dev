@@ -47,7 +47,6 @@
 #include "prmem.h"
 #include "imgIEncoder.h"
 #include "nsLiteralString.h"
-#include "nsComponentManagerUtils.h"
 
 /* Things To Do 11/8/00
 

@@ -505,7 +505,7 @@ nsMediaQuery::Clone() const
 
 PRBool
 nsMediaQuery::Matches(nsPresContext* aPresContext,
-                      nsMediaQueryResultCacheKey* aKey) const
+                      nsMediaQueryResultCacheKey& aKey) const
 {
   if (mHadUnknownExpression)
     return PR_FALSE;
@@ -520,9 +520,7 @@ nsMediaQuery::Matches(nsPresContext* aPresContext,
     NS_ENSURE_SUCCESS(rv, PR_FALSE); // any better ideas?
 
     match = expr.Matches(aPresContext, actual);
-    if (aKey) {
-      aKey->AddExpression(&expr, match);
-    }
+    aKey.AddExpression(&expr, match);
   }
 
   return match == !mNegated;
@@ -579,6 +577,7 @@ nsresult
 nsMediaList::SetText(const nsAString& aMediaText)
 {
   nsCSSParser parser;
+  NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
   PRBool htmlMode = PR_FALSE;
   if (mStyleSheet) {
@@ -587,13 +586,13 @@ nsMediaList::SetText(const nsAString& aMediaText)
     htmlMode = !!node;
   }
 
-  return parser.ParseMediaList(aMediaText, nsnull, 0,
+  return parser.ParseMediaList(nsString(aMediaText), nsnull, 0,
                                this, htmlMode);
 }
 
 PRBool
 nsMediaList::Matches(nsPresContext* aPresContext,
-                     nsMediaQueryResultCacheKey* aKey)
+                     nsMediaQueryResultCacheKey& aKey)
 {
   for (PRInt32 i = 0, i_end = mArray.Length(); i < i_end; ++i) {
     if (mArray[i]->Matches(aPresContext, aKey)) {
@@ -1165,7 +1164,7 @@ nsCSSStyleSheet::UseForPresentation(nsPresContext* aPresContext,
                                     nsMediaQueryResultCacheKey& aKey) const
 {
   if (mMedia) {
-    return mMedia->Matches(aPresContext, &aKey);
+    return mMedia->Matches(aPresContext, aKey);
   }
   return PR_TRUE;
 }
@@ -1782,6 +1781,8 @@ nsCSSStyleSheet::InsertRuleInternal(const nsAString& aRule,
   }
 
   nsCSSParser css(loader, this);
+  if (!css)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   mozAutoDocUpdate updateBatch(mDocument, UPDATE_STYLE, PR_TRUE);
 
@@ -1990,6 +1991,9 @@ nsCSSStyleSheet::InsertRuleIntoGroup(const nsAString & aRule,
   }
 
   nsCSSParser css(loader, this);
+  if (!css) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   // parse and grab the rule
   mozAutoDocUpdate updateBatch(mDocument, UPDATE_STYLE, PR_TRUE);

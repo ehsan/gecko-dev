@@ -38,6 +38,7 @@
 
 #include "nscore.h"
 #include "nsCUPSShim.h"
+#include "nsIDeviceContext.h"       // GFX error codes
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"

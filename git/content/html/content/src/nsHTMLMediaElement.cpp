@@ -65,6 +65,7 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 
+#include "nsIRenderingContext.h"
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
@@ -629,6 +630,8 @@ static PRBool HasPotentialResource(nsIContent *aElement)
 
 void nsHTMLMediaElement::SelectResource()
 {
+  NS_ASSERTION(!mDelayingLoadEvent,
+    "Load event should not be delayed at start of resource selection.");
   if (!HasPotentialResource(this)) {
     // The media element has neither a src attribute nor any source
     // element children, abort the load.
@@ -1817,7 +1820,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
 
   double duration = aOriginal->GetDuration();
   if (duration >= 0) {
-    decoder->SetDuration(duration);
+    decoder->SetDuration(PRInt64(NS_round(duration * 1000)));
     decoder->SetSeekable(aOriginal->GetSeekable());
   }
 

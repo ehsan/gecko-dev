@@ -175,26 +175,13 @@ EnsureExpandoObject(JSContext *cx, JSObject *holder)
     return expando;
 }
 
-static inline JSObject *
-FindWrapper(JSObject *wrapper)
-{
-    while (!wrapper->isWrapper() ||
-           !(JSWrapper::wrapperHandler(wrapper)->flags() & WrapperFactory::IS_XRAY_WRAPPER_FLAG)) {
-        wrapper = wrapper->getProto();
-        // NB: we must eventually hit our wrapper.
-    }
-
-    return wrapper;
-}
-
 // Some DOM objects have shared properties that don't have an explicit
 // getter/setter and rely on the class getter/setter. We install a
 // class getter/setter on the holder object to trigger them.
 static JSBool
 holder_get(JSContext *cx, JSObject *wrapper, jsid id, jsval *vp)
 {
-    wrapper = FindWrapper(wrapper);
-
+    NS_ASSERTION(wrapper->isProxy(), "bad this object in get");
     JSObject *holder = GetHolder(wrapper);
 
     JSObject *wnObject = GetWrappedNativeObjectFromHolder(cx, holder);
@@ -217,8 +204,7 @@ holder_get(JSContext *cx, JSObject *wrapper, jsid id, jsval *vp)
 static JSBool
 holder_set(JSContext *cx, JSObject *wrapper, jsid id, JSBool strict, jsval *vp)
 {
-    wrapper = FindWrapper(wrapper);
-
+    NS_ASSERTION(wrapper->isProxy(), "bad this object in set");
     JSObject *holder = GetHolder(wrapper);
     if (IsResolving(holder, id)) {
         return true;

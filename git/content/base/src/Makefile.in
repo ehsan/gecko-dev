@@ -206,7 +206,6 @@ INCLUDES	+= \
 		-I$(topsrcdir)/dom/ipc \
 		-I$(topsrcdir)/js/src/xpconnect/src \
 		-I$(topsrcdir)/caps/include \
-		-I$(topsrcdir)/netwerk/base/src \
 		$(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT

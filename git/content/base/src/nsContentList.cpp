@@ -615,9 +615,19 @@ nsContentList::GetNodeAt(PRUint32 aIndex)
   return Item(aIndex, PR_TRUE);
 }
 
-nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache)
+nsIContent*
+nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
 {
+  *aResult = NS_OK;
+  return Item(aIndex, PR_TRUE);
+}
+
+nsISupports*
+nsContentList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache,
+                            nsresult* aResult)
+{
+  *aResult = NS_OK;
+
   nsIContent *item;
   *aCache = item = NamedItem(aName, PR_TRUE);
   return item;

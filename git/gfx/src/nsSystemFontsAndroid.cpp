@@ -35,7 +35,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsIDeviceContext.h"
+#include "nsIRenderingContext.h"
+
 #include "nsSystemFontsAndroid.h"
+
 #include "gfxPlatform.h"
 
 #define DEFAULT_FONT  "Droid Sans"

@@ -1186,7 +1186,11 @@ nsHTMLParanoidFragmentSink::CloseContainer(const nsHTMLTag aTag)
                 continue;
               NS_ASSERTION(rule, "We should have a rule by now");
               switch (rule->GetType()) {
-                default:
+                case nsICSSRule::UNKNOWN_RULE:
+                case nsICSSRule::CHARSET_RULE:
+                case nsICSSRule::IMPORT_RULE:
+                case nsICSSRule::MEDIA_RULE:
+                case nsICSSRule::PAGE_RULE:
                   didSanitize = PR_TRUE;
                   // Ignore these rule types.
                   break;

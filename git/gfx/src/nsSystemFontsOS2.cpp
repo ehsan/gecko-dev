@@ -39,14 +39,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "nsIDeviceContext.h"
 #include "nsSystemFontsOS2.h"
-
-#define INCL_WINWINDOWMGR
-#define INCL_WINSHELLDATA
-#define INCL_DOSNLS
-#define INCL_DOSERRORS
-#include <os2.h>
-
 #include <stdlib.h>
 
 /************************

@@ -108,9 +108,9 @@ public:
 
   PRBool operator==(const FrameMetrics& aOther) const
   {
-    return (mViewport.IsEqualEdges(aOther.mViewport) &&
+    return (mViewport == aOther.mViewport &&
             mViewportScrollOffset == aOther.mViewportScrollOffset &&
-            mDisplayPort.IsEqualEdges(aOther.mDisplayPort) &&
+            mDisplayPort == aOther.mDisplayPort &&
             mScrollId == aOther.mScrollId);
   }
 

@@ -79,18 +79,12 @@ namespace gc {
 /* The kind of GC thing with a finalizer. */
 enum FinalizeKind {
     FINALIZE_OBJECT0,
-    FINALIZE_OBJECT0_BACKGROUND,
     FINALIZE_OBJECT2,
-    FINALIZE_OBJECT2_BACKGROUND,
     FINALIZE_OBJECT4,
-    FINALIZE_OBJECT4_BACKGROUND,
     FINALIZE_OBJECT8,
-    FINALIZE_OBJECT8_BACKGROUND,
     FINALIZE_OBJECT12,
-    FINALIZE_OBJECT12_BACKGROUND,
     FINALIZE_OBJECT16,
-    FINALIZE_OBJECT16_BACKGROUND,
-    FINALIZE_OBJECT_LAST = FINALIZE_OBJECT16_BACKGROUND,
+    FINALIZE_OBJECT_LAST = FINALIZE_OBJECT16,
     FINALIZE_FUNCTION,
     FINALIZE_SHAPE,
 #if JS_HAS_XML_SUPPORT
@@ -102,7 +96,7 @@ enum FinalizeKind {
     FINALIZE_LIMIT
 };
 
-const uintN JS_FINALIZE_OBJECT_LIMIT = 12;
+const uintN JS_FINALIZE_OBJECT_LIMIT = 6;
 
 /* Every arena has a header. */
 struct ArenaHeader {
@@ -196,10 +190,7 @@ struct Arena {
 #endif
 
     void init(JSCompartment *compartment, unsigned thingKind);
-    bool finalize(JSContext *cx);
 };
-
-void FinalizeArena(Arena<FreeCell> *a);
 
 /*
  * Live objects are marked black. How many other additional colors are available
@@ -359,9 +350,6 @@ struct ChunkInfo {
     EmptyArenaLists emptyArenaLists;
     size_t          age;
     size_t          numFree;
-#ifdef JS_THREADSAFE
-    PRLock          *chunkLock;
-#endif
 };
 
 /* Chunks contain arenas and associated data structures (mark bitmap, delayed marking state). */
@@ -379,14 +367,14 @@ struct Chunk {
     ChunkInfo       info;
 
     void clearMarkBitmap();
-    bool init(JSRuntime *rt);
+    void init(JSRuntime *rt);
 
     bool unused();
     bool hasAvailableArenas();
     bool withinArenasRange(Cell *cell);
 
     template <typename T>
-    Arena<T> *allocateArena(JSContext *cx, unsigned thingKind);
+    Arena<T> *allocateArena(JSCompartment *comp, unsigned thingKind);
 
     template <typename T>
     void releaseArena(Arena<T> *a);
@@ -546,17 +534,11 @@ GetFinalizableTraceKind(size_t thingKind)
 
     static const uint8 map[FINALIZE_LIMIT] = {
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT0 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT0_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT2 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT2_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT4 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT4_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT8 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT8_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT12 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT12_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16 */
-        JSTRACE_OBJECT,     /* FINALIZE_OBJECT16_BACKGROUND */
         JSTRACE_OBJECT,     /* FINALIZE_FUNCTION */
         JSTRACE_SHAPE,      /* FINALIZE_SHAPE */
 #if JS_HAS_XML_SUPPORT      /* FINALIZE_XML */
@@ -589,16 +571,13 @@ checkArenaListsForThing(JSCompartment *comp, jsuword thing);
 struct ArenaList {
     Arena<FreeCell>       *head;          /* list start */
     Arena<FreeCell>       *cursor;        /* arena with free things */
-    volatile bool         hasToBeFinalized;
 
     inline void init() {
         head = NULL;
         cursor = NULL;
-        hasToBeFinalized = false;
     }
 
-    inline Arena<FreeCell> *getNextWithFreeList(JSContext *cx) {
-        JS_ASSERT(!hasToBeFinalized);
+    inline Arena<FreeCell> *getNextWithFreeList() {
         Arena<FreeCell> *a;
         while (cursor != NULL) {
             ArenaHeader *aheader = cursor->header();
@@ -884,9 +863,6 @@ js_WaitForGC(JSRuntime *rt);
 extern void
 js_DestroyScriptsToGC(JSContext *cx, JSCompartment *comp);
 
-extern void
-FinalizeArenaList(JSContext *cx, js::gc::ArenaList *arenaList, js::gc::Arena<js::gc::FreeCell> *head);
-
 namespace js {
 
 #ifdef JS_THREADSAFE
@@ -905,39 +881,23 @@ class GCHelperThread {
     static const size_t FREE_ARRAY_SIZE = size_t(1) << 16;
     static const size_t FREE_ARRAY_LENGTH = FREE_ARRAY_SIZE / sizeof(void *);
 
-    JSContext         *cx;
     PRThread*         thread;
     PRCondVar*        wakeup;
     PRCondVar*        sweepingDone;
     bool              shutdown;
+    bool              sweeping;
 
     Vector<void **, 16, js::SystemAllocPolicy> freeVector;
     void            **freeCursor;
     void            **freeCursorEnd;
-    Vector<void **, 16, js::SystemAllocPolicy> finalizeVector;
-    void            **finalizeCursor;
-    void            **finalizeCursorEnd;
 
     JS_FRIEND_API(void)
     replenishAndFreeLater(void *ptr);
-
-    void replenishAndFinalizeLater(js::gc::ArenaList *list);
 
     static void freeElementsAndArray(void **array, void **end) {
         JS_ASSERT(array <= end);
         for (void **p = array; p != end; ++p)
             js::Foreground::free_(*p);
-        js::Foreground::free_(array);
-    }
-
-    void finalizeElementsAndArray(void **array, void **end) {
-        JS_ASSERT(array <= end);
-        for (void **p = array; p != end; p += 2) {
-            js::gc::ArenaList *list = (js::gc::ArenaList *)*p;
-            js::gc::Arena<js::gc::FreeCell> *head = (js::gc::Arena<js::gc::FreeCell> *)*(p+1);
-            
-            FinalizeArenaList(cx, list, head);
-        }
         js::Foreground::free_(array);
     }
 
@@ -952,13 +912,10 @@ class GCHelperThread {
         wakeup(NULL),
         sweepingDone(NULL),
         shutdown(false),
+        sweeping(false),
         freeCursor(NULL),
-        freeCursorEnd(NULL),
-        finalizeCursor(NULL),
-        finalizeCursorEnd(NULL),
-        sweeping(false) { }
+        freeCursorEnd(NULL) { }
 
-    volatile bool     sweeping;
     bool init(JSRuntime *rt);
     void finish(JSRuntime *rt);
 
@@ -975,23 +932,6 @@ class GCHelperThread {
         else
             replenishAndFreeLater(ptr);
     }
-
-    void finalizeLater(js::gc::ArenaList *list) {
-        JS_ASSERT(!list->hasToBeFinalized);
-        if (!list->head)
-            return;
-
-        list->hasToBeFinalized = true;
-        JS_ASSERT(!sweeping);
-        if (finalizeCursor + 1 < finalizeCursorEnd) {
-            *finalizeCursor++ = list;
-            *finalizeCursor++ = list->head;
-        } else {
-            replenishAndFinalizeLater(list);
-        }
-    }
-
-    void setContext(JSContext *context) { cx = context; }
 };
 
 #endif /* JS_THREADSAFE */
@@ -1068,56 +1008,12 @@ struct ConservativeGCThreadData {
     }
 };
 
-template<class T>
-struct MarkStack {
-    T *stack;
-    uintN tos, limit;
-
-    bool push(T item) {
-        if (tos == limit)
-            return false;
-        stack[tos++] = item;
-        return true;
-    }
-
-    bool isEmpty() { return tos == 0; }
-
-    T pop() {
-        JS_ASSERT(!isEmpty());
-        return stack[--tos];
-    }
-
-    T &peek() {
-        JS_ASSERT(!isEmpty());
-        return stack[tos-1];
-    }
-
-    MarkStack(void **buffer, size_t size)
-    {
-        tos = 0;
-        limit = size / sizeof(T) - 1;
-        stack = (T *)buffer;
-    }
-};
-
-struct LargeMarkItem
-{
-    JSObject *obj;
-    uintN markpos;
-
-    LargeMarkItem(JSObject *obj) : obj(obj), markpos(0) {}
-};
-
-static const size_t OBJECT_MARK_STACK_SIZE = 32768 * sizeof(JSObject *);
-static const size_t XML_MARK_STACK_SIZE = 1024 * sizeof(JSXML *);
-static const size_t LARGE_MARK_STACK_SIZE = 64 * sizeof(LargeMarkItem);
-
 struct GCMarker : public JSTracer {
   private:
     /* The color is only applied to objects, functions and xml. */
     uint32 color;
-
   public:
+    jsuword stackLimit;
     /* See comments before delayMarkingChildren is jsgc.cpp. */
     js::gc::Arena<js::gc::Cell> *unmarkedArenaStackTop;
 #ifdef DEBUG
@@ -1136,10 +1032,6 @@ struct GCMarker : public JSTracer {
     void dumpConservativeRoots();
 #endif
 
-    MarkStack<JSObject *> objStack;
-    MarkStack<JSXML *> xmlStack;
-    MarkStack<LargeMarkItem> largeStack;
-
   public:
     explicit GCMarker(JSContext *cx);
     ~GCMarker();
@@ -1149,30 +1041,17 @@ struct GCMarker : public JSTracer {
     }
 
     void setMarkColor(uint32 newColor) {
-        /* We must process the mark stack here, otherwise we confuse colors. */
-        drainMarkStack();
+        /*
+         * We must process any delayed marking here, otherwise we confuse
+         * colors.
+         */
+        markDelayedChildren();
         color = newColor;
     }
 
     void delayMarkingChildren(const void *thing);
 
-    void markDelayedChildren();
-
-    bool isMarkStackEmpty() {
-        return objStack.isEmpty() && xmlStack.isEmpty() && largeStack.isEmpty();
-    }
-
-    JS_FRIEND_API(void) drainMarkStack();
-
-    void pushObject(JSObject *obj) {
-        if (!objStack.push(obj))
-            delayMarkingChildren(obj);
-    }
-
-    void pushXML(JSXML *xml) {
-        if (!xmlStack.push(xml))
-            delayMarkingChildren(xml);
-    }
+    JS_FRIEND_API(void) markDelayedChildren();
 };
 
 void

@@ -44,7 +44,6 @@
  */
 #include <stdlib.h>
 #include <string.h>
-#include "jsalloc.h"
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsbit.h"

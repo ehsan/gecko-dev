@@ -81,7 +81,6 @@ CPPSRCS = \
   testVersion.cpp \
   testXDR.cpp \
   testCustomIterator.cpp \
-  testExternalStrings.cpp \
   $(NULL)
 
 # Disabled: an entirely unrelated test seems to cause this to fail.  Moreover,

@@ -273,18 +273,18 @@ public:
   virtual PRBool IsSelfEmpty();
 
   virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
   virtual IntrinsicWidthOffsetData
-    IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext);
+    IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext);
   virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
 
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -308,7 +308,7 @@ public:
    * likewise for height, since in such cases the result is guaranteed
    * to be unused.
    */
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);
@@ -317,7 +317,7 @@ public:
    * Utility function for ComputeAutoSize implementations.  Return
    * max(GetMinWidth(), min(aWidthInCB, GetPrefWidth()))
    */
-  nscoord ShrinkWidthToFit(nsRenderingContext *aRenderingContext,
+  nscoord ShrinkWidthToFit(nsIRenderingContext *aRenderingContext,
                            nscoord aWidthInCB);
 
   NS_IMETHOD  WillReflow(nsPresContext* aPresContext);
@@ -618,7 +618,7 @@ private:
   nsresult BoxReflow(nsBoxLayoutState& aState,
                      nsPresContext*    aPresContext,
                      nsHTMLReflowMetrics&     aDesiredSize,
-                     nsRenderingContext* aRenderingContext,
+                     nsIRenderingContext* aRenderingContext,
                      nscoord aX,
                      nscoord aY,
                      nscoord aWidth,

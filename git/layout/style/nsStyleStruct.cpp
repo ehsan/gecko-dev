@@ -51,6 +51,7 @@
 #include "nsThemeConstants.h"
 #include "nsString.h"
 #include "nsPresContext.h"
+#include "nsIDeviceContext.h"
 #include "nsIWidget.h"
 #include "nsIStyleRule.h"
 #include "nsCRT.h"
@@ -280,7 +281,7 @@ void nsStyleMargin::RecalcData()
 {
   if (IsFixedData(mMargin, PR_FALSE)) {
     NS_FOR_CSS_SIDES(side) {
-      mCachedMargin.Side(side) = CalcCoord(mMargin.Get(side), nsnull, 0);
+      mCachedMargin.side(side) = CalcCoord(mMargin.Get(side), nsnull, 0);
     }
     mHasCachedMargin = PR_TRUE;
   }
@@ -344,7 +345,7 @@ void nsStylePadding::RecalcData()
   if (IsFixedData(mPadding, PR_FALSE)) {
     NS_FOR_CSS_SIDES(side) {
       // Clamp negative calc() to 0.
-      mCachedPadding.Side(side) =
+      mCachedPadding.side(side) =
         NS_MAX(CalcCoord(mPadding.Get(side), nsnull, 0), 0);
     }
     mHasCachedPadding = PR_TRUE;
@@ -387,7 +388,7 @@ nsStyleBorder::nsStyleBorder(nsPresContext* aPresContext)
   nscoord medium =
     (aPresContext->GetBorderWidthTable())[NS_STYLE_BORDER_WIDTH_MEDIUM];
   NS_FOR_CSS_SIDES(side) {
-    mBorder.Side(side) = medium;
+    mBorder.side(side) = medium;
     mBorderStyle[side] = NS_STYLE_BORDER_STYLE_NONE | BORDER_COLOR_FOREGROUND;
     mBorderColor[side] = NS_RGB(0, 0, 0);
   }
@@ -698,7 +699,7 @@ nsChangeHint nsStyleList::CalcDifference(const nsStyleList& aOther) const
     return NS_STYLE_HINT_FRAMECHANGE;
   if (EqualImages(mListStyleImage, aOther.mListStyleImage) &&
       mListStyleType == aOther.mListStyleType) {
-    if (mImageRegion.IsEqualInterior(aOther.mImageRegion))
+    if (mImageRegion == aOther.mImageRegion)
       return NS_STYLE_HINT_NONE;
     if (mImageRegion.width == aOther.mImageRegion.width &&
         mImageRegion.height == aOther.mImageRegion.height)
@@ -1598,7 +1599,7 @@ nsStyleImage::ComputeActualCropRect(nsIntRect& aActualCropRect,
   aActualCropRect.IntersectRect(imageRect, cropRect);
 
   if (aIsEntireImage)
-    *aIsEntireImage = aActualCropRect.IsEqualInterior(imageRect);
+    *aIsEntireImage = (aActualCropRect == imageRect);
   return PR_TRUE;
 }
 
@@ -2127,7 +2128,7 @@ nsChangeHint nsStyleDisplay::CalcDifference(const nsStyleDisplay& aOther) const
       || mBreakBefore != aOther.mBreakBefore
       || mBreakAfter != aOther.mBreakAfter
       || mAppearance != aOther.mAppearance
-      || mClipFlags != aOther.mClipFlags || !mClip.IsEqualInterior(aOther.mClip))
+      || mClipFlags != aOther.mClipFlags || mClip != aOther.mClip)
     NS_UpdateHint(hint, NS_CombineHint(nsChangeHint_ReflowFrame, nsChangeHint_RepaintFrame));
 
   if (mOpacity != aOther.mOpacity) {
@@ -2601,8 +2602,7 @@ nsStyleTextReset::nsStyleTextReset(void)
 { 
   MOZ_COUNT_CTOR(nsStyleTextReset);
   mVerticalAlign.SetIntValue(NS_STYLE_VERTICAL_ALIGN_BASELINE, eStyleUnit_Enumerated);
-  mTextBlink = NS_STYLE_TEXT_BLINK_NONE;
-  mTextDecorationLine = NS_STYLE_TEXT_DECORATION_LINE_NONE;
+  mTextDecoration = NS_STYLE_TEXT_DECORATION_NONE;
   mTextDecorationColor = NS_RGB(0,0,0);
   mTextDecorationStyle =
     NS_STYLE_TEXT_DECORATION_STYLE_SOLID | BORDER_COLOR_FOREGROUND;
@@ -2624,15 +2624,15 @@ nsChangeHint nsStyleTextReset::CalcDifference(const nsStyleTextReset& aOther) co
 {
   if (mVerticalAlign == aOther.mVerticalAlign
       && mUnicodeBidi == aOther.mUnicodeBidi) {
-    // Reflow for blink changes
-    if (mTextBlink != aOther.mTextBlink) {
-      return NS_STYLE_HINT_REFLOW;
-    }
-
     PRUint8 lineStyle = GetDecorationStyle();
     PRUint8 otherLineStyle = aOther.GetDecorationStyle();
-    if (mTextDecorationLine != aOther.mTextDecorationLine ||
+    if (mTextDecoration != aOther.mTextDecoration ||
         lineStyle != otherLineStyle) {
+      // Reflow for blink changes
+      if ((mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) !=
+            (aOther.mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK)) {
+        return NS_STYLE_HINT_REFLOW;
+      }
       // Reflow for decoration line style changes only to or from double or
       // wave because that may cause overflow area changes
       if (lineStyle == NS_STYLE_TEXT_DECORATION_STYLE_DOUBLE ||

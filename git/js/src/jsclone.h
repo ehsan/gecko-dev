@@ -179,8 +179,7 @@ struct JSStructuredCloneWriter {
 
     // The "memory" list described in the HTML5 internal structured cloning algorithm.
     // memory has the same elements as objs.
-    typedef js::HashSet<JSObject *> MemorySet;
-    MemorySet memory;
+    js::HashSet<JSObject *> memory;
 
     // The user defined callbacks that will be used for cloning.
     const JSStructuredCloneCallbacks *callbacks;

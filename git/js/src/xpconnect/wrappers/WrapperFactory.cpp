@@ -113,8 +113,7 @@ WrapperFactory::WaiveXray(JSContext *cx, JSObject *obj)
             JSAutoEnterCompartment ac;
             if (!ac.enter(cx, obj))
                 return nsnull;
-            wobj = JSWrapper::New(cx, obj, proto, JS_GetGlobalForObject(cx, obj),
-                                  &WaiveXrayWrapperWrapper);
+            wobj = JSWrapper::New(cx, obj, proto, obj->getGlobal(), &WaiveXrayWrapperWrapper);
             if (!wobj)
                 return nsnull;
 
@@ -254,36 +253,22 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
     JSWrapper *wrapper;
     CompartmentPrivate *targetdata = static_cast<CompartmentPrivate *>(target->data);
     if (AccessCheck::isChrome(target)) {
-        if (AccessCheck::isChrome(origin)) {
+        if (AccessCheck::isChrome(origin) || obj->getGlobal()->isSystem()) {
             wrapper = &JSCrossCompartmentWrapper::singleton;
+        } else if (flags & WAIVE_XRAY_WRAPPER_FLAG) {
+            // If we waived the X-ray wrapper for this object, wrap it into a
+            // special wrapper to transitively maintain the X-ray waiver.
+            wrapper = &CrossOriginWrapper::singleton;
         } else {
-            bool isSystem;
-            {
-                JSAutoEnterCompartment ac;
-                if (!ac.enter(cx, obj))
+            // Native objects must be wrapped into an X-ray wrapper.
+            if (IS_WN_WRAPPER(obj) || obj->getClass()->ext.innerObject) {
+                typedef XrayWrapper<JSCrossCompartmentWrapper> Xray;
+                wrapper = &Xray::singleton;
+                xrayHolder = Xray::createHolder(cx, obj, parent);
+                if (!xrayHolder)
                     return nsnull;
-                JSObject *globalObj = JS_GetGlobalForObject(cx, obj);
-                JS_ASSERT(globalObj);
-                isSystem = JS_IsSystemObject(cx, globalObj);
-            }
-
-            if (isSystem) {
-                wrapper = &JSCrossCompartmentWrapper::singleton;
-            } else if (flags & WAIVE_XRAY_WRAPPER_FLAG) {
-                // If we waived the X-ray wrapper for this object, wrap it into a
-                // special wrapper to transitively maintain the X-ray waiver.
-                wrapper = &CrossOriginWrapper::singleton;
             } else {
-                // Native objects must be wrapped into an X-ray wrapper.
-                if (IS_WN_WRAPPER(obj) || obj->getClass()->ext.innerObject) {
-                    typedef XrayWrapper<JSCrossCompartmentWrapper> Xray;
-                    wrapper = &Xray::singleton;
-                    xrayHolder = Xray::createHolder(cx, obj, parent);
-                    if (!xrayHolder)
-                        return nsnull;
-                } else {
-                    wrapper = &NoWaiverWrapper::singleton;
-                }
+                wrapper = &NoWaiverWrapper::singleton;
             }
         }
     } else if (AccessCheck::isChrome(origin)) {
@@ -396,7 +381,7 @@ JSObject *
 WrapperFactory::WrapSOWObject(JSContext *cx, JSObject *obj)
 {
     JSObject *wrapperObj =
-        JSWrapper::New(cx, obj, obj->getProto(), JS_GetGlobalForObject(cx, obj),
+        JSWrapper::New(cx, obj, obj->getProto(), obj->getGlobal(),
                        &FilteringWrapper<JSWrapper,
                                          OnlyIfSubjectIsSystem>::singleton);
     return wrapperObj;

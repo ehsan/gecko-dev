@@ -98,8 +98,6 @@ protected:
 
     cairo_scaled_font_t *CairoScaledFont();
 
-    gfxFloat MeasureGlyphWidth(PRUint16 aGlyph);
-
     static void DestroyBlobFunc(void* userArg);
 
     nsRefPtr<IDWriteFontFace> mFontFace;

@@ -57,6 +57,8 @@ function getBrowser() {
   return Browser.selectedBrowser;
 }
 
+const kBrowserFormZoomLevelMin = 0.8;
+const kBrowserFormZoomLevelMax = 2.0;
 const kBrowserViewZoomLevelPrecision = 10000;
 
 const kDefaultBrowserWidth = 800;
@@ -291,7 +293,6 @@ var Browser = {
       }
     }
     window.addEventListener("resize", resizeHandler, false);
-    window.addEventListener("AlertActive", this._alertShown.bind(this), false);
 
     function fullscreenHandler() {
       if (!window.fullScreen)
@@ -351,18 +352,11 @@ var Browser = {
     messageManager.addMessageListener("Browser:CanUnload:Return", this);
     messageManager.addMessageListener("scroll", this);
     messageManager.addMessageListener("Browser:CertException", this);
-    messageManager.addMessageListener("Browser:BlockedSite", this);
 
     // broadcast a UIReady message so add-ons know we are finished with startup
     let event = document.createEvent("Events");
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
-  },
-
-  _alertShown: function _alertShown() {
-    // ensure that the full notification still visible, even if the urlbar is floating
-    if (BrowserUI.isToolbarLocked())
-      Browser.pageScrollboxScroller.scrollTo(0, 0);
   },
 
   _waitingToClose: false,
@@ -435,7 +429,6 @@ var Browser = {
     messageManager.removeMessageListener("Browser:ZoomToPoint:Return", this);
     messageManager.removeMessageListener("scroll", this);
     messageManager.removeMessageListener("Browser:CertException", this);
-    messageManager.removeMessageListener("Browser:BlockedSite", this);
 
     var os = Services.obs;
     os.removeObserver(XPInstallObserver, "addon-install-blocked");
@@ -818,7 +811,7 @@ var Browser = {
   },
 
   /**
-   * Handle cert exception message from content.
+   * Handle cert exception event bubbling up from content.
    */
   _handleCertException: function _handleCertException(aMessage) {
     let json = aMessage.json;
@@ -843,43 +836,6 @@ var Browser = {
 
       // Automatically reload after the exception was added
       aMessage.target.reload();
-    }
-  },
-
-  /**
-   * Handle blocked site message from content.
-   */
-  _handleBlockedSite: function _handleBlockedSite(aMessage) {
-    let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
-    let json = aMessage.json;
-    switch (json.action) {
-      case "leave": {
-        // Get the start page from the *default* pref branch, not the user's
-        let url = Browser.getHomePage({ useDefault: true });
-        this.loadURI(url);
-        break;
-      }
-      case "report-malware": {
-        // Get the stop badware "why is this blocked" report url, append the current url, and go there.
-        try {
-          let reportURL = formatter.formatURLPref("browser.safebrowsing.malware.reportURL");
-          reportURL += json.url;
-          this.loadURI(reportURL);
-        } catch (e) {
-          Cu.reportError("Couldn't get malware report URL: " + e);
-        }
-        break;
-      }
-      case "report-phishing": {
-        // It's a phishing site, not malware
-        try {
-          let reportURL = formatter.formatURLPref("browser.safebrowsing.warning.infoURL");
-          this.loadURI(reportURL);
-        } catch (e) {
-          Cu.reportError("Couldn't get phishing info URL: " + e);
-        }
-        break;
-      }
     }
   },
 
@@ -1163,9 +1119,6 @@ var Browser = {
         break;
       case "Browser:CertException":
         this._handleCertException(aMessage);
-        break;
-      case "Browser:BlockedSite":
-        this._handleBlockedSite(aMessage);
         break;
     }
   }
@@ -1486,8 +1439,8 @@ Browser.WebProgress.prototype = {
       }
 
       aTab.scrolledAreaChanged();
-      aTab.updateThumbnail();
-
+      if (browser.currentURI.spec != "about:blank")
+        aTab.updateThumbnail();
       browser.messageManager.addMessageListener("MozScrolledAreaChanged", aTab.scrolledAreaChanged);
     });
   }

@@ -143,8 +143,10 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(XPCCallContext& ccx,
         mGlobalJSObject(nsnull),
         mPrototypeJSObject(nsnull),
         mPrototypeJSFunction(nsnull),
-        mPrototypeNoHelper(nsnull),
-        mScriptObjectPrincipal(nsnull)
+        mPrototypeNoHelper(nsnull)
+#ifndef XPCONNECT_STANDALONE
+        , mScriptObjectPrincipal(nsnull)
+#endif
 {
     // add ourselves to the scopes list
     {   // scoped lock
@@ -234,6 +236,7 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal)
     // nsXPConnect::InitClassesWithNewWrappedGlobal.
 
     mGlobalJSObject = aGlobal;
+#ifndef XPCONNECT_STANDALONE
     mScriptObjectPrincipal = nsnull;
     // Now init our script object principal, if the new global has one
 
@@ -257,6 +260,7 @@ XPCWrappedNativeScope::SetGlobal(XPCCallContext& ccx, JSObject* aGlobal)
         }
         mScriptObjectPrincipal = sop;
     }
+#endif
 
     // Lookup 'globalObject.Object.prototype' for our wrapper's proto
     {
@@ -448,7 +452,9 @@ XPCWrappedNativeScope::FinishedMarkPhaseOfGC(JSContext* cx, XPCJSRuntime* rt)
            JS_IsAboutToBeFinalized(cx, cur->mGlobalJSObject))
         {
             cur->mGlobalJSObject = nsnull;
+#ifndef XPCONNECT_STANDALONE
             cur->mScriptObjectPrincipal = nsnull;
+#endif
             // Move this scope from the live list to the dying list.
             if(prev)
                 prev->mNext = next;

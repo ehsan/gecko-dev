@@ -65,7 +65,13 @@
 #include "gfxD2DSurface.h"
 #endif
 
+#if !defined(WINCE)
 #include "nsWinGesture.h"
+#endif
+
+#if defined(WINCE)
+#include "nsWindowCE.h"
+#endif
 
 #include "WindowHook.h"
 #include "TaskbarWindowPreview.h"
@@ -75,8 +81,9 @@
 #include "nsAccessible.h"
 #endif
 
+#if !defined(WINCE)
 #include "nsUXThemeData.h"
-
+#endif // !defined(WINCE)
 /**
  * Forward class definitions
  */
@@ -111,7 +118,7 @@ public:
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
                                  EVENT_CALLBACK aHandleEventFunction,
-                                 nsDeviceContext *aContext,
+                                 nsIDeviceContext *aContext,
                                  nsIAppShell *aAppShell = nsnull,
                                  nsIToolkit *aToolkit = nsnull,
                                  nsWidgetInitData *aInitData = nsnull);
@@ -126,7 +133,9 @@ public:
   NS_IMETHOD              Resize(PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
   NS_IMETHOD              ResizeClient(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
+#if !defined(WINCE)
   NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
+#endif
   NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement, nsIWidget *aWidget, PRBool aActivate);
   NS_IMETHOD              SetSizeMode(PRInt32 aMode);
   NS_IMETHOD              Enable(PRBool aState);
@@ -292,8 +301,10 @@ protected:
   static BOOL CALLBACK    BroadcastMsgToChildren(HWND aWnd, LPARAM aMsg);
   static BOOL CALLBACK    BroadcastMsg(HWND aTopWindow, LPARAM aMsg);
   static BOOL CALLBACK    DispatchStarvedPaints(HWND aTopWindow, LPARAM aMsg);
+#if !defined(WINCE)
   static BOOL CALLBACK    RegisterTouchForDescendants(HWND aTopWindow, LPARAM aMsg);
   static BOOL CALLBACK    UnregisterTouchForDescendants(HWND aTopWindow, LPARAM aMsg);
+#endif
   static LRESULT CALLBACK MozSpecialMsgFilter(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialWndProc(int code, WPARAM wParam, LPARAM lParam);
   static LRESULT CALLBACK MozSpecialMouseProc(int code, WPARAM wParam, LPARAM lParam);
@@ -319,7 +330,9 @@ protected:
   void                    ResetLayout();
   void                    InvalidateNonClientRegion();
   HRGN                    ExcludeNonClientFromPaintRegion(HRGN aRegion);
+#if !defined(WINCE)
   static void             InitInputWorkaroundPrefDefaults();
+#endif
   static PRBool           GetInputWorkaroundPref(const char* aPrefName, PRBool aValueIfAutomatic);
   static PRBool           UseTrackPointHack();
   static void             PerformElantechSwipeGestureHack(UINT& aVirtualKeyCode, nsModifierKeyState& aModKeyState);
@@ -342,9 +355,7 @@ protected:
   PRBool                  DispatchCommandEvent(PRUint32 aEventCommand);
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
   static void             RemoveNextCharMessage(HWND aWnd);
-  void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
-                            UINT aLastMsg,
-                            nsFakeCharMessage* aFakeCharMessage = nsnull);
+  void                    RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg);
   static MSG              InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam);
   virtual PRBool          ProcessMessage(UINT msg, WPARAM &wParam,
                                          LPARAM &lParam, LRESULT *aRetValue);
@@ -409,12 +420,15 @@ protected:
 #endif
   PRBool                  OnHotKey(WPARAM wParam, LPARAM lParam);
   BOOL                    OnInputLangChange(HKL aHKL);
+  void                    OnSettingsChange(WPARAM wParam, LPARAM lParam);
   PRBool                  OnPaint(HDC aDC, PRUint32 aNestingLevel);
   void                    OnWindowPosChanged(WINDOWPOS *wp, PRBool& aResult);
   PRBool                  OnMouseWheel(UINT msg, WPARAM wParam, LPARAM lParam, 
                                        PRBool& result, PRBool& getWheelInfo,
                                        LRESULT *aRetValue);
+#if !defined(WINCE)
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
+#endif // !defined(WINCE)
 
   /**
    * Function that registers when the user has been active (used for detecting
@@ -474,8 +488,10 @@ protected:
                                               PRBool aIntersectWithExisting);
   nsIntRegion             GetRegionToPaint(PRBool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
+#if !defined(WINCE)
   static void             ActivateOtherWindowHelper(HWND aWnd);
   static PRUint16         GetMouseInputSource();
+#endif
 #ifdef ACCESSIBILITY
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
@@ -596,7 +612,9 @@ protected:
 #endif // MOZ_XUL
 
   // Win7 Gesture processing and management
+#if !defined(WINCE)
   nsWinGesture          mGesture;
+#endif // !defined(WINCE)
 
 #if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   // Weak ref to the nsITaskbarWindowPreview associated with this window
@@ -605,6 +623,10 @@ protected:
   // icon has been created on the taskbar.
   PRBool                mHasTaskbarIconBeenCreated;
 #endif
+
+#if defined(WINCE_HAVE_SOFTKB)
+  static PRBool         sSoftKeyboardState;
+#endif // defined(WINCE_HAVE_SOFTKB)
 
 #ifdef ACCESSIBILITY
   static BOOL           sIsAccessibilityOn;

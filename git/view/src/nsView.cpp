@@ -40,6 +40,7 @@
 #include "nsWidgetsCID.h"
 #include "nsViewManager.h"
 #include "nsGUIEvent.h"
+#include "nsIDeviceContext.h"
 #include "nsIComponentManager.h"
 #include "nsGfxCIID.h"
 #include "nsIRegion.h"
@@ -735,7 +736,7 @@ nsresult nsView::CreateWidget(nsWidgetInitData *aWidgetInitData,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   nsIWidget* parentWidget =
@@ -775,7 +776,7 @@ nsresult nsView::CreateWidgetForParent(nsIWidget* aParentWidget,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   mWindow =
@@ -802,7 +803,7 @@ nsresult nsView::CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
 
   nsIntRect trect = CalcWidgetBounds(aWidgetInitData->mWindowType);
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   // XXX/cjones: having these two separate creation cases seems ... um
@@ -872,7 +873,7 @@ nsresult nsIView::AttachToTopLevelWidget(nsIWidget* aWidget)
     oldView->DetachFromTopLevelWidget();
   }
 
-  nsRefPtr<nsDeviceContext> dx;
+  nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
 
   // Note, the previous device context will be released. Detaching

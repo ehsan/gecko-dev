@@ -45,7 +45,7 @@
 #include "nsIFrame.h"
 
 class nsPresContext;
-class nsRenderingContext;
+class nsIRenderingContext;
 class nsFloatManager;
 class nsLineLayout;
 class nsIPercentHeightObserver;
@@ -147,7 +147,7 @@ public:
   nsIFrame*           frame;
 
   // rendering context to use for measurement
-  nsRenderingContext* rendContext;
+  nsIRenderingContext* rendContext;
 
   // Computed margin values
   nsMargin         mComputedMargin;
@@ -159,13 +159,13 @@ public:
   nsMargin         mComputedPadding;
 
   // Callers using this constructor must call InitOffsets on their own.
-  nsCSSOffsetState(nsIFrame *aFrame, nsRenderingContext *aRenderingContext)
+  nsCSSOffsetState(nsIFrame *aFrame, nsIRenderingContext *aRenderingContext)
     : frame(aFrame)
     , rendContext(aRenderingContext)
   {
   }
 
-  nsCSSOffsetState(nsIFrame *aFrame, nsRenderingContext *aRenderingContext,
+  nsCSSOffsetState(nsIFrame *aFrame, nsIRenderingContext *aRenderingContext,
                    nscoord aContainingBlockWidth)
     : frame(aFrame)
     , rendContext(aRenderingContext)
@@ -377,7 +377,7 @@ public:
   // use for measuring things.
   nsHTMLReflowState(nsPresContext*           aPresContext,
                     nsIFrame*                aFrame,
-                    nsRenderingContext*     aRenderingContext,
+                    nsIRenderingContext*     aRenderingContext,
                     const nsSize&            aAvailableSpace);
 
   // Initialize a reflow state for a child frames reflow. Some state

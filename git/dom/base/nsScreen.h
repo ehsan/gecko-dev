@@ -43,7 +43,7 @@
 #include "nsCOMPtr.h"
 
 class nsIDocShell;
-class nsDeviceContext;
+class nsIDeviceContext;
 struct nsRect;
 
 // Script "screen" object
@@ -59,7 +59,7 @@ public:
   NS_DECL_NSIDOMSCREEN
 
 protected:
-  nsDeviceContext* GetDeviceContext();
+  nsIDeviceContext* GetDeviceContext();
   nsresult GetRect(nsRect& aRect);
   nsresult GetAvailRect(nsRect& aRect);
 

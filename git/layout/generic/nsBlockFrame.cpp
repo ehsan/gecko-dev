@@ -61,6 +61,7 @@
 #include "nsIPresShell.h"
 #include "nsStyleContext.h"
 #include "nsIView.h"
+#include "nsIFontMetrics.h"
 #include "nsHTMLParts.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMEvent.h"
@@ -88,7 +89,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSRendering.h"
 #include "FrameLayerBuilder.h"
-#include "nsRenderingContext.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -569,7 +569,7 @@ nsBlockFrame::GetCaretBaseline() const
       return bp.top + firstLine->mFirstChild->GetCaretBaseline();
     }
   }
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   return nsLayoutUtils::GetCenteredFontBaseline(fm, nsHTMLReflowState::
       CalcLineHeight(GetStyleContext(), contentRect.height)) +
@@ -674,8 +674,8 @@ static void ReparentFrame(nsIFrame* aFrame, nsIFrame* aOldParent,
 
   // When pushing and pulling frames we need to check for whether any
   // views need to be reparented
-  nsContainerFrame::ReparentFrameView(aFrame->PresContext(), aFrame,
-                                      aOldParent, aNewParent);
+  nsHTMLContainerFrame::ReparentFrameView(aFrame->PresContext(), aFrame,
+                                          aOldParent, aNewParent);
 }
  
 //////////////////////////////////////////////////////////////////////
@@ -701,7 +701,7 @@ nsBlockFrame::MarkIntrinsicWidthsDirty()
 }
 
 /* virtual */ nscoord
-nsBlockFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsBlockFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nsIFrame* firstInFlow = GetFirstContinuation();
   if (firstInFlow != this)
@@ -778,7 +778,7 @@ nsBlockFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsBlockFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsBlockFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nsIFrame* firstInFlow = GetFirstContinuation();
   if (firstInFlow != this)
@@ -859,9 +859,8 @@ nsRect
 nsBlockFrame::ComputeTightBounds(gfxContext* aContext) const
 {
   // be conservative
-  if (GetStyleContext()->HasTextDecorationLines()) {
+  if (GetStyleContext()->HasTextDecorations())
     return GetVisualOverflowRect();
-  }
   return ComputeSimpleTightBounds(aContext);
 }
 
@@ -2369,12 +2368,13 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
         metrics.ascent = metrics.height;
       }
 
-      nsRenderingContext *rc = aState.mReflowState.rendContext;
+      nsIRenderingContext *rc = aState.mReflowState.rendContext;
       nsLayoutUtils::SetFontFromStyle(rc, GetStyleContext());
+      nsCOMPtr<nsIFontMetrics> fm;
+      rc->GetFontMetrics(*getter_AddRefs(fm));
 
       nscoord minAscent =
-        nsLayoutUtils::GetCenteredFontBaseline(rc->FontMetrics(),
-                                               aState.mMinLineHeight);
+        nsLayoutUtils::GetCenteredFontBaseline(fm, aState.mMinLineHeight);
       nscoord minDescent = aState.mMinLineHeight - minAscent;
 
       aState.mY += NS_MAX(minAscent, metrics.ascent) +
@@ -5918,7 +5918,7 @@ nsBlockFrame::ReflowPushedFloats(nsBlockReflowState& aState,
 
       // Invalidate if there was a position or size change
       nsRect rect = f->GetRect();
-      if (!rect.IsEqualInterior(oldRect)) {
+      if (rect != oldRect) {
         nsRect dirtyRect = oldOverflow;
         dirtyRect.MoveBy(oldRect.x, oldRect.y);
         Invalidate(dirtyRect);

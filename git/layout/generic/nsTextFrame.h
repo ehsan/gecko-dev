@@ -226,13 +226,13 @@ public:
 #endif
   
   virtual void MarkIntrinsicWidthsDirty();
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -256,7 +256,7 @@ public:
     // an amount to *subtract* from the frame's width (zero if !mChanged)
     nscoord      mDeltaWidth;
   };
-  TrimOutput TrimTrailingWhiteSpace(nsRenderingContext* aRC);
+  TrimOutput TrimTrailingWhiteSpace(nsIRenderingContext* aRC);
   virtual nsresult GetRenderedText(nsAString* aString = nsnull,
                                    gfxSkipChars* aSkipChars = nsnull,
                                    gfxSkipCharsIterator* aSkipIter = nsnull,
@@ -265,16 +265,16 @@ public:
 
   nsOverflowAreas RecomputeOverflow();
 
-  void AddInlineMinWidthForFlow(nsRenderingContext *aRenderingContext,
+  void AddInlineMinWidthForFlow(nsIRenderingContext *aRenderingContext,
                                 nsIFrame::InlineMinWidthData *aData);
-  void AddInlinePrefWidthForFlow(nsRenderingContext *aRenderingContext,
+  void AddInlinePrefWidthForFlow(nsIRenderingContext *aRenderingContext,
                                  InlinePrefWidthData *aData);
 
   gfxFloat GetSnappedBaselineY(gfxContext* aContext, gfxFloat aY);
 
   // primary frame paint method called from nsDisplayText
   // The private DrawText() is what applies the text to a graphics context
-  void PaintText(nsRenderingContext* aRenderingContext, nsPoint aPt,
+  void PaintText(nsIRenderingContext* aRenderingContext, nsPoint aPt,
                  const nsRect& aDirtyRect);
   // helper: paint quirks-mode CSS text decorations
   void PaintTextDecorations(gfxContext* aCtx, const gfxRect& aDirtyRect,
@@ -378,7 +378,7 @@ public:
 
   // Similar to Reflow(), but for use from nsLineLayout
   void ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
-                  nsRenderingContext* aRenderingContext, PRBool aShouldBlink,
+                  nsIRenderingContext* aRenderingContext, PRBool aShouldBlink,
                   nsHTMLReflowMetrics& aMetrics, nsReflowStatus& aStatus);
 
 protected:
@@ -448,19 +448,18 @@ protected:
     { }
 
     PRBool HasDecorationlines() {
-      return HasUnderline() || HasOverline() || HasStrikeout();
+      return !!(mDecorations & (NS_STYLE_TEXT_DECORATION_UNDERLINE |
+                                NS_STYLE_TEXT_DECORATION_OVERLINE |
+                                NS_STYLE_TEXT_DECORATION_LINE_THROUGH));
     }
     PRBool HasUnderline() {
-      return (mDecorations & NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE) &&
-             mUnderStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE;
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_UNDERLINE);
     }
     PRBool HasOverline() {
-      return (mDecorations & NS_STYLE_TEXT_DECORATION_LINE_OVERLINE) &&
-             mOverStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE;
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_OVERLINE);
     }
     PRBool HasStrikeout() {
-      return (mDecorations & NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH) &&
-             mStrikeStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE;
+      return !!(mDecorations & NS_STYLE_TEXT_DECORATION_LINE_THROUGH);
     }
   };
   TextDecorations GetTextDecorations(nsPresContext* aPresContext);

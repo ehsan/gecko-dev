@@ -46,7 +46,9 @@
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
-#include "nsFontMetrics.h"
+#include "nsIDeviceContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #include "nsBlockFrame.h"
 #include "nsLineBox.h"
 #include "nsImageFrame.h"
@@ -85,7 +87,7 @@ static eNormalLineHeightControl sNormalLineHeightControl = eUninitialized;
 // use for measuring things.
 nsHTMLReflowState::nsHTMLReflowState(nsPresContext*       aPresContext,
                                      nsIFrame*            aFrame,
-                                     nsRenderingContext* aRenderingContext,
+                                     nsIRenderingContext* aRenderingContext,
                                      const nsSize&        aAvailableSpace)
   : nsCSSOffsetState(aFrame, aRenderingContext)
   , mBlockDelta(0)
@@ -1878,7 +1880,8 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
   mFlags.mBlinks = (parentReflowState && parentReflowState->mFlags.mBlinks);
   if (!mFlags.mBlinks && BlinkIsAllowed()) {
     const nsStyleTextReset* st = frame->GetStyleTextReset();
-    mFlags.mBlinks = (st->mTextBlink != NS_STYLE_TEXT_BLINK_NONE);
+    mFlags.mBlinks = 
+      ((st->mTextDecoration & NS_STYLE_TEXT_DECORATION_BLINK) != 0);
   }
 }
 
@@ -2104,15 +2107,16 @@ nsHTMLReflowState::CalculateBlockSideMargins(nscoord aAvailWidth,
 // For risk management, we use preference to control the behavior, and 
 // eNoExternalLeading is the old behavior.
 static nscoord
-GetNormalLineHeight(nsFontMetrics* aFontMetrics)
+GetNormalLineHeight(nsIFontMetrics* aFontMetrics)
 {
   NS_PRECONDITION(nsnull != aFontMetrics, "no font metrics");
 
   nscoord normalLineHeight;
 
-  nscoord externalLeading = aFontMetrics->ExternalLeading();
-  nscoord internalLeading = aFontMetrics->InternalLeading();
-  nscoord emHeight = aFontMetrics->EmHeight();
+  nscoord externalLeading, internalLeading, emHeight;
+  aFontMetrics->GetExternalLeading(externalLeading);
+  aFontMetrics->GetInternalLeading(internalLeading);
+  aFontMetrics->GetEmHeight(emHeight);
   switch (GetNormalLineHeightCalcControl()) {
   case eIncludeExternalLeading:
     normalLineHeight = emHeight+ internalLeading + externalLeading;
@@ -2157,7 +2161,7 @@ ComputeLineHeight(nsStyleContext* aStyleContext,
       return aBlockHeight;
   }
 
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fm));
   return GetNormalLineHeight(fm);

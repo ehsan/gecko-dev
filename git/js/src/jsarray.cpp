@@ -92,7 +92,6 @@
 #include "jsversion.h"
 #include "jsfun.h"
 #include "jsgc.h"
-#include "jsgcmark.h"
 #include "jsinterp.h"
 #include "jsiter.h"
 #include "jslock.h"
@@ -401,19 +400,6 @@ GetElement(JSContext *cx, JSObject *obj, jsdouble index, JSBool *hole, Value *vp
 
 namespace js {
 
-struct STATIC_SKIP_INFERENCE CopyNonHoleArgsTo
-{
-    CopyNonHoleArgsTo(JSObject *aobj, Value *dst) : aobj(aobj), dst(dst) {}
-    JSObject *aobj;
-    Value *dst;
-    bool operator()(uintN argi, Value *src) {
-        if (aobj->getArgsElement(argi).isMagic(JS_ARGS_HOLE))
-            return false;
-        *dst++ = *src;
-        return true;
-    }
-};
-
 bool
 GetElements(JSContext *cx, JSObject *aobj, jsuint length, Value *vp)
 {
@@ -427,28 +413,21 @@ GetElements(JSContext *cx, JSObject *aobj, jsuint length, Value *vp)
     } else if (aobj->isArguments() && !aobj->isArgsLengthOverridden() &&
                !js_PrototypeHasIndexedProperties(cx, aobj)) {
         /*
-         * If the argsobj is for an active call, then the elements are the
-         * live args on the stack. Otherwise, the elements are the args that
-         * were copied into the argsobj by PutActivationObjects when the
-         * function returned. In both cases, it is necessary to fall off the
-         * fast path for deleted properties (MagicValue(JS_ARGS_HOLE) since
-         * this requires general-purpose property lookup.
+         * Two cases, two loops: note how in the case of an active stack frame
+         * backing aobj, even though we copy from fp->argv, we still must check
+         * aobj->getArgsElement(i) for a hole, to handle a delete on the
+         * corresponding arguments element. See args_delProperty.
          */
         if (JSStackFrame *fp = (JSStackFrame *) aobj->getPrivate()) {
             JS_ASSERT(fp->numActualArgs() <= JS_ARGS_LENGTH_MAX);
-            if (!fp->forEachCanonicalActualArg(CopyNonHoleArgsTo(aobj, vp)))
-                goto found_deleted_prop;
+            fp->forEachCanonicalActualArg(CopyNonHoleArgsTo(aobj, vp));
         } else {
             Value *srcbeg = aobj->getArgsElements();
             Value *srcend = srcbeg + length;
-            for (Value *dst = vp, *src = srcbeg; src < srcend; ++dst, ++src) {
-                if (src->isMagic(JS_ARGS_HOLE))
-                    goto found_deleted_prop;
-                *dst = *src;
-            }
+            for (Value *dst = vp, *src = srcbeg; src < srcend; ++dst, ++src)
+                *dst = src->isMagic(JS_ARGS_HOLE) ? UndefinedValue() : *src;
         }
     } else {
-      found_deleted_prop:
         for (uintN i = 0; i < length; i++) {
             if (!aobj->getProperty(cx, INT_TO_JSID(jsint(i)), &vp[i]))
                 return JS_FALSE;
@@ -1058,7 +1037,7 @@ JSObject::makeDenseArraySlow(JSContext *cx)
      * Save old map now, before calling InitScopeForObject. We'll have to undo
      * on error. This is gross, but a better way is not obvious.
      */
-    js::Shape *oldMap = lastProp;
+    JSObjectMap *oldMap = map;
 
     /* Create a native scope. */
     JSObject *arrayProto = getProto();
@@ -1414,7 +1393,7 @@ array_toString(JSContext *cx, uintN argc, Value *vp)
     if (!cx->stack().pushInvokeArgs(cx, 0, &args))
         return false;
 
-    args.calleev() = join;
+    args.callee() = join;
     args.thisv().setObject(*obj);
 
     /* Do the call. */
@@ -2581,7 +2560,7 @@ array_concat(JSContext *cx, uintN argc, Value *vp)
         if (v.isObject()) {
             aobj = &v.toObject();
             if (aobj->isArray() ||
-                (aobj->isWrapper() && aobj->unwrap()->isArray())) {
+                (aobj->isWrapper() && JSWrapper::wrappedObject(aobj)->isArray())) {
                 jsid id = ATOM_TO_JSID(cx->runtime->atomState.lengthAtom);
                 if (!aobj->getProperty(cx, id, tvr.addr()))
                     return false;
@@ -3027,7 +3006,7 @@ array_isArray(JSContext *cx, uintN argc, Value *vp)
     vp->setBoolean(argc > 0 &&
                    vp[2].isObject() &&
                    ((obj = &vp[2].toObject())->isArray() ||
-                    (obj->isWrapper() && obj->unwrap()->isArray())));
+                    (obj->isWrapper() && JSWrapper::wrappedObject(obj)->isArray())));
     return true;
 }
 

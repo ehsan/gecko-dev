@@ -42,7 +42,7 @@
 
 #include "xpctest_private.h"
 
-#ifdef WIN32
+#if defined(WIN32) && !defined(XPCONNECT_STANDALONE)
 #define IMPLEMENT_TIMER_STUFF 1
 #endif
 

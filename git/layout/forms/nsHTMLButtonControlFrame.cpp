@@ -43,6 +43,7 @@
 #include "nsHTMLParts.h"
 #include "nsIFormControl.h"
 
+#include "nsIRenderingContext.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleContext.h"
@@ -197,7 +198,7 @@ nsHTMLButtonControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 nscoord
-nsHTMLButtonControlFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
+nsHTMLButtonControlFrame::GetMinWidth(nsIRenderingContext* aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -213,7 +214,7 @@ nsHTMLButtonControlFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
 }
 
 nscoord
-nsHTMLButtonControlFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
+nsHTMLButtonControlFrame::GetPrefWidth(nsIRenderingContext* aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);

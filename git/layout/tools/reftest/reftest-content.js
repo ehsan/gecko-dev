@@ -464,7 +464,6 @@ function WaitForTestEnd(contentRootElement, inPrintMode) {
             state = STATE_COMPLETED;
             gFailureReason = "timed out while taking snapshot (bug in harness?)";
             RemoveListeners();
-            CheckForProcessCrashExpectation();
             setTimeout(RecordResult, 0);
             return;
         }
@@ -528,7 +527,6 @@ function OnDocumentLoad(event)
             // Go into reftest-wait mode belatedly.
             WaitForTestEnd(contentRootElement, inPrintMode);
         } else {
-            CheckForProcessCrashExpectation();
             RecordResult();
         }
     }
@@ -554,17 +552,6 @@ function OnDocumentLoad(event)
         gFailureReason = "timed out waiting for test to complete (waiting for onload scripts to complete)";
         LogInfo("OnDocumentLoad triggering AfterOnLoadScripts");
         setTimeout(function () { setTimeout(AfterOnLoadScripts, 0); }, 0);
-    }
-}
-
-function CheckForProcessCrashExpectation()
-{
-    var contentRootElement = content.document.documentElement;
-    if (contentRootElement &&
-        contentRootElement.hasAttribute('class') &&
-        contentRootElement.getAttribute('class').split(/\s+/)
-                          .indexOf("reftest-expect-process-crash") != -1) {
-        SendExpectProcessCrash();
     }
 }
 
@@ -777,14 +764,9 @@ function SendInitCanvasWithSnapshot()
 }
 
 function SendScriptResults(runtimeMs, error, results)
-{
+ {
     sendAsyncMessage("reftest:ScriptResults",
                      { runtimeMs: runtimeMs, error: error, results: results });
-}
-
-function SendExpectProcessCrash(runtimeMs)
-{
-    sendAsyncMessage("reftest:ExpectProcessCrash");
 }
 
 function SendTestDone(runtimeMs)

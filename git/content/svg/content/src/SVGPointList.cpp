@@ -47,7 +47,7 @@
 #include "nsTextFormatter.h"
 #include "nsCharSeparatedTokenizer.h"
 
-namespace mozilla {
+using namespace mozilla;
 
 nsresult
 SVGPointList::CopyFrom(const SVGPointList& rhs)
@@ -152,5 +152,3 @@ SVGPointList::SetValueFromString(const nsAString& aValue)
   }
   return rv;
 }
-
-} // namespace mozilla

@@ -39,8 +39,9 @@
 #ifndef _NS_SYSTEMFONTSQT_H_
 #define _NS_SYSTEMFONTSQT_H_
 
-#include "gfxFont.h"
-#include "nsDeviceContext.h"
+#include <gfxFont.h>
+
+class QFont;
 
 class nsSystemFontsQt
 {

@@ -138,6 +138,8 @@ protected:
                                         nsNodeInfoManager *,
                                         nsIPrincipal *,
                                         nsIAtom *,
+                                        nsIDOMNamedNodeMap *,
+                                        nsIDOMNamedNodeMap *,
                                         const nsAString& ,
                                         const nsAString& ,
                                         const nsAString& );

@@ -81,7 +81,7 @@ public:
   virtual void MarkIntrinsicWidthsDirty();
 
   virtual nscoord
-  GetIntrinsicWidth(nsRenderingContext *aRenderingContext);
+  GetIntrinsicWidth(nsIRenderingContext *aRenderingContext);
 
   NS_IMETHOD
   AttributeChanged(PRInt32         aNameSpaceID,
@@ -91,7 +91,7 @@ public:
   // This method is called by the parent frame to ask <mo> 
   // to stretch itself.
   NS_IMETHOD
-  Stretch(nsRenderingContext& aRenderingContext,
+  Stretch(nsIRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
           nsHTMLReflowMetrics& aDesiredStretchSize);

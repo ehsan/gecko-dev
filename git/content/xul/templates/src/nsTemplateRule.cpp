@@ -207,8 +207,8 @@ nsTemplateCondition::CheckMatchStrings(const nsAString& aLeftString,
                 if (collation) {
                     PRInt32 sortOrder;
                     collation->CompareString((mIgnoreCase ?
-                                              static_cast<PRInt32>(nsICollation::kCollationCaseInSensitive) :
-                                              static_cast<PRInt32>(nsICollation::kCollationCaseSensitive)),
+                                              nsICollation::kCollationCaseInSensitive :
+                                              nsICollation::kCollationCaseSensitive),
                                               aLeftString,
                                               aRightString,
                                               &sortOrder);
@@ -230,8 +230,8 @@ nsTemplateCondition::CheckMatchStrings(const nsAString& aLeftString,
                 if (collation) {
                     PRInt32 sortOrder;
                     collation->CompareString((mIgnoreCase ?
-                                              static_cast<PRInt32>(nsICollation::kCollationCaseInSensitive) :
-                                              static_cast<PRInt32>(nsICollation::kCollationCaseSensitive)),
+                                              nsICollation::kCollationCaseInSensitive :
+                                              nsICollation::kCollationCaseSensitive),
                                               aLeftString,
                                               aRightString,
                                               &sortOrder);

@@ -41,11 +41,12 @@
 #include "nscore.h"
 #include "nsIView.h"
 #include "nsEvent.h"
+#include "nsIRenderingContext.h"
 
 class nsIWidget;
 struct nsRect;
 class nsRegion;
-class nsDeviceContext;
+class nsIDeviceContext;
 class nsIViewObserver;
 
 #define NS_IVIEWMANAGER_IID \
@@ -63,7 +64,7 @@ public:
    * because it holds a reference to this instance.
    * @result The result of the initialization, NS_OK if no errors
    */
-  NS_IMETHOD  Init(nsDeviceContext* aContext) = 0;
+  NS_IMETHOD  Init(nsIDeviceContext* aContext) = 0;
 
   /**
    * Create an ordinary view
@@ -275,7 +276,7 @@ public:
    * Get the device context associated with this manager
    * @result device context
    */
-  NS_IMETHOD  GetDeviceContext(nsDeviceContext *&aContext) = 0;
+  NS_IMETHOD  GetDeviceContext(nsIDeviceContext *&aContext) = 0;
 
   class UpdateViewBatch {
   public:

@@ -2812,7 +2812,7 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     nsRefPtr<gfxImageSurface> blackImage;
     gfxRect targetRect(rect.x, rect.y, rect.width, rect.height);
     gfxIntSize targetSize(rect.width, rect.height);
-    gfxPoint deviceOffset = -targetRect.TopLeft();
+    gfxPoint deviceOffset = -targetRect.pos;
 
     // We always use a temporary "white image"
     whiteImage = new gfxImageSurface(targetSize, gfxASurface::ImageFormatRGB24);
@@ -2831,7 +2831,7 @@ PluginInstanceChild::PaintRectWithAlphaExtraction(const nsIntRect& aRect,
     // background and copy the result
     PaintRectToSurface(rect, aSurface, gfxRGBA(1.0, 1.0, 1.0));
     {
-        gfxRect copyRect(gfxPoint(0, 0), targetRect.Size());
+        gfxRect copyRect(gfxPoint(0, 0), targetRect.size);
         nsRefPtr<gfxContext> ctx = new gfxContext(whiteImage);
         ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
         ctx->SetSource(aSurface, deviceOffset);
@@ -2930,7 +2930,7 @@ PluginInstanceChild::ShowPluginFrame()
     // Clear accRect here to be able to pass
     // test_invalidate_during_plugin_paint  test
     nsIntRect rect = mAccumulatedInvalidRect;
-    mAccumulatedInvalidRect.SetEmpty();
+    mAccumulatedInvalidRect.Empty();
 
     // Fix up old invalidations that might have been made when our
     // surface was a different size

@@ -357,10 +357,15 @@
 
             let promptBox = {
               appendPrompt : function(args, onCloseCallback) {
+                let count = browser.getAttribute("tabmodalPromptShowing");
+                if (count)
+                    count = parseInt(count) + 1;
+                else
+                    count = 1;
+                browser.setAttribute("tabmodalPromptShowing", count);
+
                 let newPrompt = document.createElementNS(XUL_NS, "tabmodalprompt");
                 stack.appendChild(newPrompt);
-                browser.setAttribute("tabmodalPromptShowing", true);
-
                 newPrompt.clientTop; // style flush to assure binding is attached
 
                 let tab = self._getTabForContentWindow(browser.contentWindow);
@@ -369,22 +374,21 @@
               },
 
               removePrompt : function(aPrompt) {
+                let count = parseInt(browser.getAttribute("tabmodalPromptShowing"));
+                count--;
+                if (count)
+                    browser.setAttribute("tabmodalPromptShowing", count);
+                else
+                    browser.removeAttribute("tabmodalPromptShowing");
                 stack.removeChild(aPrompt);
-
-                let prompts = this.listPrompts();
-                if (prompts.length) {
-                  let prompt = prompts[prompts.length - 1];
-                  prompt.Dialog.setDefaultFocus();
-                } else {
-                  browser.removeAttribute("tabmodalPromptShowing");
-                  browser.focus();
-                }
               },
 
               listPrompts : function(aPrompt) {
+                let prompts = [];
                 let els = stack.getElementsByTagNameNS(XUL_NS, "tabmodalprompt");
                 // NodeList --> real JS array
-                let prompts = Array.slice(els);
+                for (let i = 0; i < els.length; i++)
+                  prompts.push(els[i]);
                 return prompts;
               },
             };
@@ -810,7 +814,7 @@
               }
             } catch (e) {}
 
-            if ("TabView" in window) {
+            if (window.TabView) {
               let groupName = TabView.getActiveGroupName();
               if (groupName)
                 newTitle = groupName + sep + newTitle;
@@ -824,7 +828,7 @@
       <method name="updateTitlebar">
         <body>
           <![CDATA[
-            if ("TabView" in window && TabView.isVisible()) {
+            if (window.TabView && TabView.isVisible()) {
               // ToDo: this will be removed when we gain ability to draw to the menu bar.
               // Bug 586175
               this.ownerDocument.title = TabView.windowTitle;
@@ -948,16 +952,6 @@
 
               // Adjust focus
               do {
-
-                // If there's a tabmodal prompt showing, focus it.
-                if (newBrowser.hasAttribute("tabmodalPromptShowing")) {
-                  let XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-                  let prompts = newBrowser.parentNode.getElementsByTagNameNS(XUL_NS, "tabmodalprompt");
-                  let prompt = prompts[prompts.length - 1];
-                  prompt.Dialog.setDefaultFocus();
-                  break;
-                }
-
                 // Focus the location bar if it was previously focused for that tab.
                 // In full screen mode, only bother making the location bar visible
                 // if the tab is a blank one.
