@@ -159,13 +159,13 @@ public:
    * {
    *   // Restrict this code's scope to ensure all references to dt are gone
    *   // when Unlock is called.
-   *   DrawTarget* dt = texture->BorrowDrawTarget();
+   *   RefPtr<DrawTarget> dt = texture->GetAsDrawTarget();
    *   // use the draw target ...
    * }
    * texture->Unlock();
    *
    */
-  virtual gfx::DrawTarget* BorrowDrawTarget() { return nullptr; }
+  virtual TemporaryRef<gfx::DrawTarget> GetAsDrawTarget() { return nullptr; }
 
   // TextureClients that can expose a DrawTarget should override this method.
   virtual gfx::SurfaceFormat GetFormat() const
@@ -395,7 +395,7 @@ public:
 
   virtual bool CanExposeDrawTarget() const MOZ_OVERRIDE { return true; }
 
-  virtual gfx::DrawTarget* BorrowDrawTarget() MOZ_OVERRIDE;
+  virtual TemporaryRef<gfx::DrawTarget> GetAsDrawTarget() MOZ_OVERRIDE;
 
   virtual bool AllocateForSurface(gfx::IntSize aSize,
                                   TextureAllocationFlags aFlags = ALLOC_DEFAULT) MOZ_OVERRIDE;

@@ -10,7 +10,6 @@
 #include "DataStoreService.h"
 #include "mozilla/dom/DataStoreBinding.h"
 #include "mozilla/dom/indexedDB/IDBObjectStore.h"
-#include "mozilla/dom/ToJSValue.h"
 #include "nsIDOMEvent.h"
 
 namespace mozilla {
@@ -58,7 +57,7 @@ DataStoreRevision::AddRevision(JSContext* aCx,
   }
 
   JS::Rooted<JS::Value> value(aCx);
-  if (!ToJSValue(aCx, data, &value)) {
+  if (!data.ToObject(aCx, &value)) {
     return NS_ERROR_FAILURE;
   }
 

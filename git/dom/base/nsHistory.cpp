@@ -96,46 +96,50 @@ nsHistory::GetLength(ErrorResult& aRv) const
   return len >= 0 ? len : 0;
 }
 
-void
-nsHistory::GetState(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-                    ErrorResult& aRv) const
+JS::Value
+nsHistory::GetState(JSContext* aCx, ErrorResult& aRv) const
 {
   nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
   if (!win) {
     aRv.Throw(NS_ERROR_NOT_AVAILABLE);
-    return;
+
+    return JS::UndefinedValue();
   }
 
   if (!win->HasActiveDocument()) {
     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);
-    return;
+
+    return JS::UndefinedValue();
   }
 
   nsCOMPtr<nsIDocument> doc =
     do_QueryInterface(win->GetExtantDoc());
   if (!doc) {
     aRv.Throw(NS_ERROR_NOT_AVAILABLE);
-    return;
+
+    return JS::UndefinedValue();
   }
 
   nsCOMPtr<nsIVariant> variant;
   doc->GetStateObject(getter_AddRefs(variant));
 
   if (variant) {
-    aRv = variant->GetAsJSVal(aResult);
+    JS::Rooted<JS::Value> jsData(aCx);
+    aRv = variant->GetAsJSVal(&jsData);
 
     if (aRv.Failed()) {
-      return;
+      return JS::UndefinedValue();
     }
 
-    if (!JS_WrapValue(aCx, aResult)) {
+    if (!JS_WrapValue(aCx, &jsData)) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+      return JS::UndefinedValue();
     }
 
-    return;
+    return jsData;
   }
 
-  aResult.setNull();
+  return JS::NullValue();
 }
 
 void

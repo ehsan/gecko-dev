@@ -1267,9 +1267,8 @@ CanvasRenderingContext2D::SetTransform(double m11, double m12,
   mTarget->SetTransform(matrix);
 }
 
-static void
-MatrixToJSObject(JSContext* cx, const Matrix& matrix,
-                 JS::MutableHandle<JSObject*> result, ErrorResult& error)
+JSObject*
+MatrixToJSObject(JSContext* cx, const Matrix& matrix, ErrorResult& error)
 {
   double elts[6] = { matrix._11, matrix._12,
                      matrix._21, matrix._22,
@@ -1279,9 +1278,10 @@ MatrixToJSObject(JSContext* cx, const Matrix& matrix,
   JS::Rooted<JS::Value> val(cx);
   if (!ToJSValue(cx, elts, &val)) {
     error.Throw(NS_ERROR_OUT_OF_MEMORY);
-  } else {
-    result.set(&val.toObject());
+    return nullptr;
   }
+
+  return &val.toObject();
 }
 
 static bool
@@ -1334,13 +1334,11 @@ CanvasRenderingContext2D::SetMozCurrentTransform(JSContext* cx,
   }
 }
 
-void
+JSObject*
 CanvasRenderingContext2D::GetMozCurrentTransform(JSContext* cx,
-                                                 JS::MutableHandle<JSObject*> result,
                                                  ErrorResult& error) const
 {
-  MatrixToJSObject(cx, mTarget ? mTarget->GetTransform() : Matrix(),
-                   result, error);
+  return MatrixToJSObject(cx, mTarget ? mTarget->GetTransform() : Matrix(), error);
 }
 
 void
@@ -1363,14 +1361,12 @@ CanvasRenderingContext2D::SetMozCurrentTransformInverse(JSContext* cx,
   }
 }
 
-void
+JSObject*
 CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
-                                                        JS::MutableHandle<JSObject*> result,
                                                         ErrorResult& error) const
 {
   if (!mTarget) {
-    MatrixToJSObject(cx, Matrix(), result, error);
-    return;
+    return MatrixToJSObject(cx, Matrix(), error);
   }
 
   Matrix ctm = mTarget->GetTransform();
@@ -1380,7 +1376,7 @@ CanvasRenderingContext2D::GetMozCurrentTransformInverse(JSContext* cx,
     ctm = Matrix(NaN, NaN, NaN, NaN, NaN, NaN);
   }
 
-  MatrixToJSObject(cx, ctm, result, error);
+  return MatrixToJSObject(cx, ctm, error);
 }
 
 //
@@ -3115,12 +3111,10 @@ CanvasRenderingContext2D::SetMozDash(JSContext* cx,
   }
 }
 
-void
-CanvasRenderingContext2D::GetMozDash(JSContext* cx,
-                                     JS::MutableHandle<JS::Value> retval,
-                                     ErrorResult& error)
+JS::Value
+CanvasRenderingContext2D::GetMozDash(JSContext* cx, ErrorResult& error)
 {
-  DashArrayToJSVal(CurrentState().dash, cx, retval, error);
+  return DashArrayToJSVal(CurrentState().dash, cx, error);
 }
 
 void

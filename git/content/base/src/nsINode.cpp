@@ -779,33 +779,33 @@ nsINode::SetUserData(const nsAString &aKey, nsIVariant *aData,
   return NS_OK;
 }
 
-void
+JS::Value
 nsINode::SetUserData(JSContext* aCx, const nsAString& aKey,
                      JS::Handle<JS::Value> aData,
-                     nsIDOMUserDataHandler* aHandler,
-                     JS::MutableHandle<JS::Value> aRetval,
-                     ErrorResult& aError)
+                     nsIDOMUserDataHandler* aHandler, ErrorResult& aError)
 {
   nsCOMPtr<nsIVariant> data;
-  aError = nsContentUtils::XPConnect()->JSValToVariant(aCx, aData, getter_AddRefs(data));
+  JS::Rooted<JS::Value> dataVal(aCx, aData);
+  aError = nsContentUtils::XPConnect()->JSValToVariant(aCx, dataVal, getter_AddRefs(data));
   if (aError.Failed()) {
-    return;
+    return JS::UndefinedValue();
   }
 
   nsCOMPtr<nsIVariant> oldData;
   aError = SetUserData(aKey, data, aHandler, getter_AddRefs(oldData));
   if (aError.Failed()) {
-    return;
+    return JS::UndefinedValue();
   }
 
   if (!oldData) {
-    aRetval.setNull();
-    return;
+    return JS::NullValue();
   }
 
+  JS::Rooted<JS::Value> result(aCx);
   JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), oldData,
-                                                    aRetval);
+                                                    &result);
+  return result;
 }
 
 nsIVariant*
@@ -820,19 +820,19 @@ nsINode::GetUserData(const nsAString& aKey)
   return static_cast<nsIVariant*>(GetProperty(DOM_USER_DATA, key));
 }
 
-void
-nsINode::GetUserData(JSContext* aCx, const nsAString& aKey,
-                     JS::MutableHandle<JS::Value> aRetval, ErrorResult& aError)
+JS::Value
+nsINode::GetUserData(JSContext* aCx, const nsAString& aKey, ErrorResult& aError)
 {
   nsIVariant* data = GetUserData(aKey);
   if (!data) {
-    aRetval.setNull();
-    return;
+    return JS::NullValue();
   }
 
+  JS::Rooted<JS::Value> result(aCx);
   JSAutoCompartment ac(aCx, GetWrapper());
   aError = nsContentUtils::XPConnect()->VariantToJS(aCx, GetWrapper(), data,
-                                                    aRetval);
+                                                    &result);
+  return result;
 }
 
 uint16_t

@@ -90,10 +90,8 @@ public:
     return mDiscoverableTimeout;
   }
 
-  void GetDevices(JSContext* aContext, JS::MutableHandle<JS::Value> aDevices,
-                  ErrorResult& aRv);
-  void GetUuids(JSContext* aContext, JS::MutableHandle<JS::Value> aUuids,
-                ErrorResult& aRv);
+  JS::Value GetDevices(JSContext* aContext, ErrorResult& aRv);
+  JS::Value GetUuids(JSContext* aContext, ErrorResult& aRv);
 
   already_AddRefed<mozilla::dom::DOMRequest>
     SetName(const nsAString& aName, ErrorResult& aRv);

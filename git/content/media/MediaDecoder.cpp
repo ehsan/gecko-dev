@@ -222,8 +222,7 @@ MediaDecoder::DecodedStreamGraphListener::DecodedStreamGraphListener(MediaStream
   : mData(aData),
     mMutex("MediaDecoder::DecodedStreamData::mMutex"),
     mStream(aStream),
-    mLastOutputTime(aStream->
-                    StreamTimeToMicroseconds(aStream->GetCurrentTime())),
+    mLastOutputTime(aStream->GetCurrentTime()),
     mStreamFinishedOnMainThread(false)
 {
 }
@@ -234,8 +233,7 @@ MediaDecoder::DecodedStreamGraphListener::NotifyOutput(MediaStreamGraph* aGraph,
 {
   MutexAutoLock lock(mMutex);
   if (mStream) {
-    mLastOutputTime = mStream->
-      StreamTimeToMicroseconds(mStream->GraphTimeToStreamTime(aCurrentTime));
+    mLastOutputTime = mStream->GraphTimeToStreamTime(aCurrentTime);
   }
 }
 

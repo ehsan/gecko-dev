@@ -47,24 +47,23 @@ FileReaderSync::WrapObject(JSContext* aCx)
   return FileReaderSyncBinding_workers::Wrap(aCx, this);
 }
 
-void
+JSObject*
 FileReaderSync::ReadAsArrayBuffer(JSContext* aCx,
                                   JS::Handle<JSObject*> aScopeObj,
                                   JS::Handle<JSObject*> aBlob,
-                                  JS::MutableHandle<JSObject*> aRetval,
                                   ErrorResult& aRv)
 {
   nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
   if (!blob) {
     aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
+    return nullptr;
   }
 
   uint64_t blobSize;
   nsresult rv = blob->GetSize(&blobSize);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
-    return;
+    return nullptr;
   }
 
   JS::Rooted<JSObject*> jsArrayBuffer(aCx, JS_NewArrayBuffer(aCx, blobSize));
@@ -72,32 +71,32 @@ FileReaderSync::ReadAsArrayBuffer(JSContext* aCx,
     // XXXkhuey we need a way to indicate to the bindings that the call failed
     // but there's already a pending exception that we should not clobber.
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
+    return nullptr;
   }
 
   uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
   uint8_t* arrayBuffer = JS_GetStableArrayBufferData(aCx, jsArrayBuffer);
   if (!arrayBuffer) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
+    return nullptr;
   }
 
   nsCOMPtr<nsIInputStream> stream;
   rv = blob->GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
-    return;
+    return nullptr;
   }
 
   uint32_t numRead;
   rv = stream->Read((char*)arrayBuffer, bufferLength, &numRead);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
-    return;
+    return nullptr;
   }
   NS_ASSERTION(numRead == bufferLength, "failed to read data");
 
-  aRetval.set(jsArrayBuffer);
+  return jsArrayBuffer;
 }
 
 void

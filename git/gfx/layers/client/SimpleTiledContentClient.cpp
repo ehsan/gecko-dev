@@ -119,7 +119,7 @@ SimpleTiledLayerBuffer::ValidateTile(SimpleTiledLayerTile aTile,
 
   if (doBufferedDrawing) {
     // try to directly access the pixels of the TextureClient
-    srcDT = textureClient->BorrowDrawTarget();
+    srcDT = textureClient->GetAsDrawTarget();
     if (srcDT->LockBits(&srcData, &srcSize, &srcStride, &srcFormat)) {
       if (!aTile.mCachedBuffer) {
         aTile.mCachedBuffer = SharedBuffer::Create(srcStride * srcSize.height);
@@ -150,7 +150,7 @@ SimpleTiledLayerBuffer::ValidateTile(SimpleTiledLayerTile aTile,
 
   // this might get set above if we couldn't extract out a buffer
   if (!doBufferedDrawing) {
-    drawTarget = textureClient->BorrowDrawTarget();
+    drawTarget = textureClient->GetAsDrawTarget();
 
     fullPaint = true;
     drawBounds = nsIntRect(aTileOrigin.x, aTileOrigin.y, GetScaledTileSize().width, GetScaledTileSize().height);

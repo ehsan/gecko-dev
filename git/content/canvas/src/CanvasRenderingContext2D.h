@@ -388,22 +388,19 @@ public:
   void Arc(double x, double y, double radius, double startAngle,
            double endAngle, bool anticlockwise, mozilla::ErrorResult& error);
 
-  void GetMozCurrentTransform(JSContext* cx,
-			      JS::MutableHandle<JSObject*> result,
-			      mozilla::ErrorResult& error) const;
+  JSObject* GetMozCurrentTransform(JSContext* cx,
+                                   mozilla::ErrorResult& error) const;
   void SetMozCurrentTransform(JSContext* cx,
                               JS::Handle<JSObject*> currentTransform,
                               mozilla::ErrorResult& error);
-  void GetMozCurrentTransformInverse(JSContext* cx,
-				     JS::MutableHandle<JSObject*> result,
-				     mozilla::ErrorResult& error) const;
+  JSObject* GetMozCurrentTransformInverse(JSContext* cx,
+                                          mozilla::ErrorResult& error) const;
   void SetMozCurrentTransformInverse(JSContext* cx,
                                      JS::Handle<JSObject*> currentTransform,
                                      mozilla::ErrorResult& error);
   void GetFillRule(nsAString& fillRule);
   void SetFillRule(const nsAString& fillRule);
-  void GetMozDash(JSContext* cx, JS::MutableHandle<JS::Value> retval,
-		  mozilla::ErrorResult& error);
+  JS::Value GetMozDash(JSContext* cx, mozilla::ErrorResult& error);
   void SetMozDash(JSContext* cx, const JS::Value& mozDash,
                   mozilla::ErrorResult& error);
 

@@ -2961,7 +2961,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                     ret=Type.BOOL))
 
             openmeth.addstmts([
-                StmtExpr(ExprAssn(p.otherProcessVar(), ExprVar('ipc::kInvalidProcessHandle'))),
+                StmtExpr(ExprAssn(p.otherProcessVar(), ExprCall(ExprVar('base::GetCurrentProcessHandle')))),
                 StmtReturn(ExprCall(ExprSelect(p.channelVar(), '.', 'Open'),
                                     [ aChannel, aMessageLoop, sidevar ]))
             ])

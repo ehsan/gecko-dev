@@ -1226,10 +1226,9 @@ public:
   // WebIDL bits
   virtual mozilla::dom::DOMImplementation*
     GetImplementation(mozilla::ErrorResult& rv) MOZ_OVERRIDE;
-  virtual void
+  virtual JSObject*
     RegisterElement(JSContext* aCx, const nsAString& aName,
                     const mozilla::dom::ElementRegistrationOptions& aOptions,
-                    JS::MutableHandle<JSObject*> aRetval,
                     mozilla::ErrorResult& rv) MOZ_OVERRIDE;
   virtual mozilla::dom::StyleSheetList* StyleSheets() MOZ_OVERRIDE;
   virtual void SetSelectedStyleSheetSet(const nsAString& aSheetSet) MOZ_OVERRIDE;

@@ -192,25 +192,21 @@ AudioBuffer::SetRawChannelContents(uint32_t aChannel, float* aContents)
   PodCopy(JS_GetFloat32ArrayData(mJSChannels[aChannel]), aContents, mLength);
 }
 
-void
+JSObject*
 AudioBuffer::GetChannelData(JSContext* aJSContext, uint32_t aChannel,
-                            JS::MutableHandle<JSObject*> aRetval,
                             ErrorResult& aRv)
 {
   if (aChannel >= NumberOfChannels()) {
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
-    return;
+    return nullptr;
   }
 
   if (!RestoreJSChannelData(aJSContext)) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return;
+    return nullptr;
   }
 
-  if (mJSChannels[aChannel]) {
-    JS::ExposeObjectToActiveJS(mJSChannels[aChannel]);
-  }
-  aRetval.set(mJSChannels[aChannel]);
+  return mJSChannels[aChannel];
 }
 
 static already_AddRefed<ThreadSharedFloatArrayBufferList>

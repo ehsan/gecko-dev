@@ -395,8 +395,7 @@ public:
                       int64_t aInitialTime, SourceMediaStream* aStream);
     ~DecodedStreamData();
 
-    // microseconds
-    int64_t GetLastOutputTime() { return mListener->GetLastOutputTime(); }
+    StreamTime GetLastOutputTime() { return mListener->GetLastOutputTime(); }
     bool IsFinished() { return mListener->IsFinishedOnMainThread(); }
 
     // The following group of fields are protected by the decoder's monitor
@@ -445,7 +444,7 @@ public:
 
     void DoNotifyFinished();
 
-    int64_t GetLastOutputTime() // microseconds
+    StreamTime GetLastOutputTime()
     {
       MutexAutoLock lock(mMutex);
       return mLastOutputTime;
@@ -478,7 +477,7 @@ public:
     // Protected by mMutex
     nsRefPtr<MediaStream> mStream;
     // Protected by mMutex
-    int64_t mLastOutputTime; // microseconds
+    StreamTime mLastOutputTime;
     // Protected by mMutex
     bool mStreamFinishedOnMainThread;
   };

@@ -65,9 +65,7 @@ class TableTicker: public Sampler {
     mProfileJS = hasFeature(aFeatures, aFeatureCount, "js");
     mProfileJava = hasFeature(aFeatures, aFeatureCount, "java");
     mProfilePower = hasFeature(aFeatures, aFeatureCount, "power");
-    // Users sometimes ask to filter by a list of threads but forget to request
-    // profiling non main threads. Let's make it implificit if we have a filter
-    mProfileThreads = hasFeature(aFeatures, aFeatureCount, "threads") || aFilterCount > 0;
+    mProfileThreads = hasFeature(aFeatures, aFeatureCount, "threads");
     mUnwinderThread = hasFeature(aFeatures, aFeatureCount, "unwinder") || sps_version2();
     mAddLeafAddresses = hasFeature(aFeatures, aFeatureCount, "leaf");
     mPrivacyMode = hasFeature(aFeatures, aFeatureCount, "privacy");

@@ -1280,7 +1280,7 @@ HTMLMediaElement::CurrentTime() const
   if (mSrcStream) {
     MediaStream* stream = GetSrcMediaStream();
     if (stream) {
-      return stream->StreamTimeToSeconds(stream->GetCurrentTime());
+      return MediaTimeToSeconds(stream->GetCurrentTime());
     }
   }
 
@@ -1673,20 +1673,18 @@ HTMLMediaElement::BuildObjectFromTags(nsCStringHashKey::KeyType aKey,
   return PL_DHASH_NEXT;
 }
 
-void
-HTMLMediaElement::MozGetMetadata(JSContext* cx,
-                                 JS::MutableHandle<JSObject*> aRetval,
-                                 ErrorResult& aRv)
+JSObject*
+HTMLMediaElement::MozGetMetadata(JSContext* cx, ErrorResult& aRv)
 {
   if (mReadyState < nsIDOMHTMLMediaElement::HAVE_METADATA) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return;
+    return nullptr;
   }
 
   JS::Rooted<JSObject*> tags(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));
   if (!tags) {
     aRv.Throw(NS_ERROR_FAILURE);
-    return;
+    return nullptr;
   }
   if (mTags) {
     MetadataIterCx iter = {cx, tags, false};
@@ -1694,19 +1692,19 @@ HTMLMediaElement::MozGetMetadata(JSContext* cx,
     if (iter.error) {
       NS_WARNING("couldn't create metadata object!");
       aRv.Throw(NS_ERROR_FAILURE);
-      return;
+      return nullptr;
     }
   }
 
-  aRetval.set(tags);
+  return tags;
 }
 
 NS_IMETHODIMP
 HTMLMediaElement::MozGetMetadata(JSContext* cx, JS::MutableHandle<JS::Value> aValue)
 {
   ErrorResult rv;
-  JS::Rooted<JSObject*> obj(cx);
-  MozGetMetadata(cx, &obj, rv);
+
+  JSObject* obj = MozGetMetadata(cx, rv);
   if (!rv.Failed()) {
     MOZ_ASSERT(obj);
     aValue.setObject(*obj);

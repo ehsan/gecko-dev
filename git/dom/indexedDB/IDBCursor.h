@@ -184,13 +184,11 @@ public:
   IDBCursorDirection
   GetDirection() const;
 
-  void
-  GetKey(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-         ErrorResult& aRv);
+  JS::Value
+  GetKey(JSContext* aCx, ErrorResult& aRv);
 
-  void
-  GetPrimaryKey(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-                ErrorResult& aRv);
+  JS::Value
+  GetPrimaryKey(JSContext* aCx, ErrorResult& aRv);
 
   already_AddRefed<IDBRequest>
   Update(JSContext* aCx, JS::Handle<JS::Value> aValue, ErrorResult& aRv);
@@ -204,9 +202,8 @@ public:
   already_AddRefed<IDBRequest>
   Delete(JSContext* aCx, ErrorResult& aRv);
 
-  void
-  GetValue(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-           ErrorResult& aRv);
+  JS::Value
+  GetValue(JSContext* aCx, ErrorResult& aRv);
 
 protected:
   IDBCursor();

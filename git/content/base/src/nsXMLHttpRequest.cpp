@@ -936,14 +936,12 @@ NS_IMETHODIMP
 nsXMLHttpRequest::GetResponse(JSContext *aCx, JS::MutableHandle<JS::Value> aResult)
 {
   ErrorResult rv;
-  GetResponse(aCx, aResult, rv);
+  aResult.set(GetResponse(aCx, rv));
   return rv.ErrorCode();
 }
 
-void
-nsXMLHttpRequest::GetResponse(JSContext* aCx,
-                              JS::MutableHandle<JS::Value> aResponse,
-                              ErrorResult& aRv)
+JS::Value
+nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
 {
   switch (mResponseType) {
   case XML_HTTP_RESPONSE_TYPE_DEFAULT:
@@ -953,12 +951,14 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx,
     nsString str;
     aRv = GetResponseText(str);
     if (aRv.Failed()) {
-      return;
+      return JSVAL_NULL;
     }
-    if (!xpc::StringToJsval(aCx, str, aResponse)) {
+    JS::Rooted<JS::Value> result(aCx);
+    if (!xpc::StringToJsval(aCx, str, &result)) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+      return JSVAL_NULL;
     }
-    return;
+    return result;
   }
 
   case XML_HTTP_RESPONSE_TYPE_ARRAYBUFFER:
@@ -968,8 +968,7 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx,
           mState & XML_HTTP_REQUEST_DONE) &&
         !(mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER &&
           mInLoadProgressEvent)) {
-      aResponse.setNull();
-      return;
+      return JSVAL_NULL;
     }
 
     if (!mResultArrayBuffer) {
@@ -978,20 +977,17 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx,
       mResultArrayBuffer = mArrayBufferBuilder.getArrayBuffer(aCx);
       if (!mResultArrayBuffer) {
         aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-        return;
+        return JSVAL_NULL;
       }
     }
-    JS::ExposeObjectToActiveJS(mResultArrayBuffer);
-    aResponse.setObject(*mResultArrayBuffer);
-    return;
+    return OBJECT_TO_JSVAL(mResultArrayBuffer);
   }
   case XML_HTTP_RESPONSE_TYPE_BLOB:
   case XML_HTTP_RESPONSE_TYPE_MOZ_BLOB:
   {
     if (!(mState & XML_HTTP_REQUEST_DONE)) {
       if (mResponseType != XML_HTTP_RESPONSE_TYPE_MOZ_BLOB) {
-        aResponse.setNull();
-        return;
+        return JSVAL_NULL;
       }
 
       if (!mResponseBlob) {
@@ -1000,31 +996,30 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx,
     }
 
     if (!mResponseBlob) {
-      aResponse.setNull();
-      return;
+      return JSVAL_NULL;
     }
 
-    aRv = nsContentUtils::WrapNative(aCx, mResponseBlob, aResponse);
-    return;
+    JS::Rooted<JS::Value> result(aCx);
+    aRv = nsContentUtils::WrapNative(aCx, mResponseBlob, &result);
+    return result;
   }
   case XML_HTTP_RESPONSE_TYPE_DOCUMENT:
   {
     if (!(mState & XML_HTTP_REQUEST_DONE) || !mResponseXML) {
-      aResponse.setNull();
-      return;
+      return JSVAL_NULL;
     }
 
-    aRv = nsContentUtils::WrapNative(aCx, mResponseXML, aResponse);
-    return;
+    JS::Rooted<JS::Value> result(aCx);
+    aRv = nsContentUtils::WrapNative(aCx, mResponseXML, &result);
+    return result;
   }
   case XML_HTTP_RESPONSE_TYPE_JSON:
   {
     if (!(mState & XML_HTTP_REQUEST_DONE)) {
-      aResponse.setNull();
-      return;
+      return JSVAL_NULL;
     }
 
-    if (mResultJSON.isUndefined()) {
+    if (mResultJSON == JSVAL_VOID) {
       aRv = CreateResponseParsedJSON(aCx);
       mResponseText.Truncate();
       if (aRv.Failed()) {
@@ -1033,18 +1028,16 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx,
         // It would be nice to log the error to the console. That's hard to
         // do without calling window.onerror as a side effect, though.
         JS_ClearPendingException(aCx);
-        mResultJSON.setNull();
+        mResultJSON = JSVAL_NULL;
       }
     }
-    JS::ExposeValueToActiveJS(mResultJSON);
-    aResponse.set(mResultJSON);
-    return;
+    return mResultJSON;
   }
   default:
     NS_ERROR("Should not happen");
   }
 
-  aResponse.setNull();
+  return JSVAL_NULL;
 }
 
 bool
@@ -3764,12 +3757,10 @@ nsXMLHttpRequest::GetInterface(const nsIID & aIID, void **aResult)
   return QueryInterface(aIID, aResult);
 }
 
-void
-nsXMLHttpRequest::GetInterface(JSContext* aCx, nsIJSID* aIID,
-                               JS::MutableHandle<JS::Value> aRetval,
-                               ErrorResult& aRv)
+JS::Value
+nsXMLHttpRequest::GetInterface(JSContext* aCx, nsIJSID* aIID, ErrorResult& aRv)
 {
-  dom::GetInterface(aCx, this, aIID, aRetval, aRv);
+  return dom::GetInterface(aCx, this, aIID, aRv);
 }
 
 nsXMLHttpRequestUpload*

@@ -76,36 +76,6 @@ RecompileInfo::shouldSweep(TypeZone &types)
 // Types
 /////////////////////////////////////////////////////////////////////
 
-inline TypeObject *
-TypeObjectKey::asTypeObjectNoBarrier()
-{
-    JS_ASSERT(isTypeObject());
-    return (TypeObject *) this;
-}
-
-inline JSObject *
-TypeObjectKey::asSingleObjectNoBarrier()
-{
-    JS_ASSERT(isSingleObject());
-    return (JSObject *) (uintptr_t(this) & ~1);
-}
-
-inline TypeObject *
-TypeObjectKey::asTypeObject()
-{
-    TypeObject *res = asTypeObjectNoBarrier();
-    TypeObject::readBarrier(res);
-    return res;
-}
-
-inline JSObject *
-TypeObjectKey::asSingleObject()
-{
-    JSObject *res = asSingleObjectNoBarrier();
-    JSObject::readBarrier(res);
-    return res;
-}
-
 /* static */ inline Type
 Type::ObjectType(JSObject *obj)
 {
@@ -1013,31 +983,27 @@ inline TypeObjectKey *
 Type::objectKey() const
 {
     JS_ASSERT(isObject());
+    if (isTypeObject())
+        TypeObject::readBarrier((TypeObject *) data);
+    else
+        JSObject::readBarrier((JSObject *) (data ^ 1));
     return (TypeObjectKey *) data;
 }
 
 inline JSObject *
 Type::singleObject() const
 {
-    return objectKey()->asSingleObject();
+    JS_ASSERT(isSingleObject());
+    JSObject::readBarrier((JSObject *) (data ^ 1));
+    return (JSObject *) (data ^ 1);
 }
 
 inline TypeObject *
 Type::typeObject() const
 {
-    return objectKey()->asTypeObject();
-}
-
-inline JSObject *
-Type::singleObjectNoBarrier() const
-{
-    return objectKey()->asSingleObjectNoBarrier();
-}
-
-inline TypeObject *
-Type::typeObjectNoBarrier() const
-{
-    return objectKey()->asTypeObjectNoBarrier();
+    JS_ASSERT(isTypeObject());
+    TypeObject::readBarrier((TypeObject *) data);
+    return (TypeObject *) data;
 }
 
 inline bool
@@ -1141,20 +1107,6 @@ TypeSet::getTypeObject(unsigned i) const
 {
     TypeObjectKey *key = getObject(i);
     return (key && key->isTypeObject()) ? key->asTypeObject() : nullptr;
-}
-
-inline JSObject *
-TypeSet::getSingleObjectNoBarrier(unsigned i) const
-{
-    TypeObjectKey *key = getObject(i);
-    return (key && key->isSingleObject()) ? key->asSingleObjectNoBarrier() : nullptr;
-}
-
-inline TypeObject *
-TypeSet::getTypeObjectNoBarrier(unsigned i) const
-{
-    TypeObjectKey *key = getObject(i);
-    return (key && key->isTypeObject()) ? key->asTypeObjectNoBarrier() : nullptr;
 }
 
 inline const Class *

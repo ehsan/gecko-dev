@@ -529,8 +529,7 @@ public:
     return mAudioCaptured;
   }
 
-  void MozGetMetadata(JSContext* aCx, JS::MutableHandle<JSObject*> aResult,
-                      ErrorResult& aRv);
+  JSObject* MozGetMetadata(JSContext* aCx, ErrorResult& aRv);
 
   double MozFragmentEnd();
 

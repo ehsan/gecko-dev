@@ -50,9 +50,7 @@ public:
               const MediaKeyMessageEventInit& aEventInitDict,
               ErrorResult& aRv);
 
-  void GetMessage(JSContext* cx,
-                  JS::MutableHandle<JSObject*> aMessage,
-                  ErrorResult& aRv);
+  JSObject* GetMessage(JSContext* cx, ErrorResult& aRv);
 
   void GetDestinationURL(nsString& aRetVal) const;
 

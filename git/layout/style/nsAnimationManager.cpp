@@ -69,7 +69,6 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
       ElementAnimation* anim = mAnimations[animIdx];
 
       if (anim->mProperties.IsEmpty()) {
-        // Empty @keyframes rule.
         continue;
       }
 
@@ -113,6 +112,11 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
     for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
       ElementAnimation* anim = mAnimations[animIdx];
 
+      if (anim->mProperties.IsEmpty()) {
+        // Empty keyframes rule.
+        continue;
+      }
+
       // The ElapsedDurationAt() call here handles pausing.  But:
       // FIXME: avoid recalculating every time when paused.
       TimeDuration elapsedDuration = anim->ElapsedDurationAt(aRefreshTime);
@@ -127,9 +131,8 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
 
       // If the time fraction is null, we don't have fill data for the current
       // time so we shouldn't animate.
-      if (computedTiming.mTimeFraction == ComputedTiming::kNullTimeFraction) {
+      if (computedTiming.mTimeFraction == ComputedTiming::kNullTimeFraction)
         continue;
-      }
 
       NS_ABORT_IF_FALSE(0.0 <= computedTiming.mTimeFraction &&
                         computedTiming.mTimeFraction <= 1.0,
@@ -212,6 +215,12 @@ ElementAnimations::GetEventsAt(TimeStamp aRefreshTime,
 {
   for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
     ElementAnimation* anim = mAnimations[animIdx];
+
+    // We should *not* skip animations with no keyframes (bug 1004377).
+    if (anim->mProperties.IsEmpty()) {
+      // Empty keyframes rule.
+      continue;
+    }
 
     TimeDuration elapsedDuration = anim->ElapsedDurationAt(aRefreshTime);
     ComputedTiming computedTiming =

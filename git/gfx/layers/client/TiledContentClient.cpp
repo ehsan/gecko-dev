@@ -527,7 +527,7 @@ TileClient::GetBackBuffer(const nsIntRegion& aDirtyRegion, TextureClientPool *aP
     }
     mBackBuffer = aPool->GetTextureClient();
     // Create a lock for our newly created back-buffer.
-    if (mManager->AsShadowForwarder()->IsSameProcess()) {
+    if (gfxPlatform::GetPlatform()->PreferMemoryOverShmem()) {
       // If our compositor is in the same process, we can save some cycles by not
       // using shared memory.
       mBackLock = new gfxMemorySharedReadLock();
@@ -772,7 +772,7 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
   // We must not keep a reference to the DrawTarget after it has been unlocked,
   // make sure these are null'd before unlocking as destruction of the context
   // may cause the target to be flushed.
-  RefPtr<DrawTarget> drawTarget = backBuffer->BorrowDrawTarget();
+  RefPtr<DrawTarget> drawTarget = backBuffer->GetAsDrawTarget();
   drawTarget->SetTransform(Matrix());
 
   RefPtr<gfxContext> ctxt = new gfxContext(drawTarget);

@@ -129,8 +129,7 @@ DataStoreDB::UpgradeSchema()
   AutoSafeJSContext cx;
 
   ErrorResult error;
-  JS::Rooted<JS::Value> result(cx);
-  mRequest->GetResult(&result, error);
+  JS::Rooted<JS::Value> result(cx, mRequest->GetResult(error));
   if (NS_WARN_IF(error.Failed())) {
     return error.ErrorCode();
   }
@@ -191,8 +190,7 @@ DataStoreDB::DatabaseOpened()
   AutoSafeJSContext cx;
 
   ErrorResult error;
-  JS::Rooted<JS::Value> result(cx);
-  mRequest->GetResult(&result, error);
+  JS::Rooted<JS::Value> result(cx, mRequest->GetResult(error));
   if (NS_WARN_IF(error.Failed())) {
     return error.ErrorCode();
   }

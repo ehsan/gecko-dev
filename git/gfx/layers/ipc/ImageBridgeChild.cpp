@@ -487,10 +487,7 @@ ImageBridgeChild::EndTransaction()
   if (!mTxn->mOperations.empty()) {
     cset.AppendElements(&mTxn->mOperations.front(), mTxn->mOperations.size());
   }
-
-  if (!IsSameProcess()) {
-    ShadowLayerForwarder::PlatformSyncBeforeUpdate();
-  }
+  ShadowLayerForwarder::PlatformSyncBeforeUpdate();
 
   AutoInfallibleTArray<EditReply, 10> replies;
 

@@ -294,7 +294,7 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
 
     {
       // We must not keep a reference to the DrawTarget after it has been unlocked.
-      DrawTarget* dt = mFrontBuffer->BorrowDrawTarget();
+      RefPtr<DrawTarget> dt = mFrontBuffer->GetAsDrawTarget();
       MOZ_ASSERT(surface.get());
       dt->CopySurface(surface, IntRect(IntPoint(), surface->GetSize()), IntPoint());
     }

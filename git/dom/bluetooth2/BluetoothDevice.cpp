@@ -206,34 +206,30 @@ BluetoothDevice::Notify(const BluetoothSignal& aData)
   }
 }
 
-void
-BluetoothDevice::GetUuids(JSContext* aContext,
-                           JS::MutableHandle<JS::Value> aUuids,
-                           ErrorResult& aRv)
+JS::Value
+BluetoothDevice::GetUuids(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mJsUuids) {
     BT_WARNING("UUIDs not yet set!");
     aRv.Throw(NS_ERROR_FAILURE);
-    return;
+    return JS::NullValue();
   }
 
   JS::ExposeObjectToActiveJS(mJsUuids);
-  aUuids.setObject(*mJsUuids);
+  return JS::ObjectValue(*mJsUuids);
 }
 
-void
-BluetoothDevice::GetServices(JSContext* aCx,
-                             JS::MutableHandle<JS::Value> aServices,
-                             ErrorResult& aRv)
+JS::Value
+BluetoothDevice::GetServices(JSContext* aCx, ErrorResult& aRv)
 {
   if (!mJsServices) {
     BT_WARNING("Services not yet set!");
     aRv.Throw(NS_ERROR_FAILURE);
-    return;
+    return JS::Value(JSVAL_NULL);
   }
 
   JS::ExposeObjectToActiveJS(mJsServices);
-  aServices.setObject(*mJsServices);
+  return JS::ObjectValue(*mJsServices);
 }
 
 JSObject*

@@ -3041,31 +3041,33 @@ nsGenericHTMLFormElementWithState::NodeInfoChanged(nsINodeInfo* aOldNodeInfo)
   mStateKey.SetIsVoid(true);
 }
 
-void
+JS::Value
 nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
-                                   JS::MutableHandle<JS::Value> aRetval,
                                    ErrorResult& aError)
 {
   JS::Rooted<JSObject*> scope(aCx, aScope);
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::itemprop)) {
-    aRetval.setNull();
-    return;
+    return JS::NullValue();
   }
 
   if (ItemScope()) {
     JS::Rooted<JS::Value> v(aCx);
     JSAutoCompartment ac(aCx, scope);
-    if (!mozilla::dom::WrapObject(aCx, this, aRetval)) {
+    if (!mozilla::dom::WrapObject(aCx, this, &v)) {
       aError.Throw(NS_ERROR_FAILURE);
+      return JS::UndefinedValue();
     }
-    return;
+    return v;
   }
 
   nsString string;
   GetItemValueText(string);
-  if (!xpc::NonVoidStringToJsval(aCx, string, aRetval)) {
+  JS::Rooted<JS::Value> v(aCx);
+  if (!xpc::NonVoidStringToJsval(aCx, string, &v)) {
     aError.Throw(NS_ERROR_FAILURE);
+    return JS::UndefinedValue();
   }
+  return v;
 }
 
 NS_IMETHODIMP

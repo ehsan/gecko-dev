@@ -151,20 +151,18 @@ JSValToDashArray(JSContext* cx, const JS::Value& patternArray,
 }
 
 template<typename T>
-void
+JS::Value
 DashArrayToJSVal(FallibleTArray<T>& dashes,
-                 JSContext* cx,
-                 JS::MutableHandle<JS::Value> retval,
-                 mozilla::ErrorResult& rv)
+                 JSContext* cx, mozilla::ErrorResult& rv)
 {
     if (dashes.IsEmpty()) {
-        retval.setNull();
-        return;
+        return JS::NullValue();
     }
     JS::Rooted<JS::Value> val(cx);
-    if (!mozilla::dom::ToJSValue(cx, dashes, retval)) {
+    if (!mozilla::dom::ToJSValue(cx, dashes, &val)) {
         rv.Throw(NS_ERROR_OUT_OF_MEMORY);
     }
+    return val;
 }
 
 }

@@ -884,22 +884,25 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
   return true;
 }
 
-void
+JS::Value
 GetInterfaceImpl(JSContext* aCx, nsIInterfaceRequestor* aRequestor,
-                 nsWrapperCache* aCache, nsIJSID* aIID,
-                 JS::MutableHandle<JS::Value> aRetval, ErrorResult& aError)
+                 nsWrapperCache* aCache, nsIJSID* aIID, ErrorResult& aError)
 {
   const nsID* iid = aIID->GetID();
 
   nsRefPtr<nsISupports> result;
   aError = aRequestor->GetInterface(*iid, getter_AddRefs(result));
   if (aError.Failed()) {
-    return;
+    return JS::NullValue();
   }
 
-  if (!WrapObject(aCx, result, iid, aRetval)) {
+  JS::Rooted<JS::Value> v(aCx, JSVAL_NULL);
+  if (!WrapObject(aCx, result, iid, &v)) {
     aError.Throw(NS_ERROR_FAILURE);
+    return JS::NullValue();
   }
+
+  return v;
 }
 
 bool

@@ -291,7 +291,6 @@ public class Tabs implements GeckoEventListener {
         return selected != null && selected.getId() == tabId;
     }
 
-    @RobocopTarget
     public synchronized Tab getTab(int id) {
         if (id == -1)
             return null;
@@ -306,7 +305,6 @@ public class Tabs implements GeckoEventListener {
     }
 
     /** Close tab and then select the default next tab */
-    @RobocopTarget
     public synchronized void closeTab(Tab tab) {
         closeTab(tab, getNextTab(tab));
     }

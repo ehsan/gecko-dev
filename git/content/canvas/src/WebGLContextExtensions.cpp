@@ -182,15 +182,11 @@ CompareWebGLExtensionName(const nsACString& name, const char *other)
     return name.Equals(other, nsCaseInsensitiveCStringComparator());
 }
 
-void
-WebGLContext::GetExtension(JSContext *cx, const nsAString& aName,
-                           JS::MutableHandle<JSObject*> aRetval,
-                           ErrorResult& rv)
+JSObject*
+WebGLContext::GetExtension(JSContext *cx, const nsAString& aName, ErrorResult& rv)
 {
-    if (IsContextLost()) {
-        aRetval.set(nullptr);
-        return;
-    }
+    if (IsContextLost())
+        return nullptr;
 
     NS_LossyConvertUTF16toASCII name(aName);
 
@@ -239,14 +235,12 @@ WebGLContext::GetExtension(JSContext *cx, const nsAString& aName,
     }
 
     if (ext == WebGLExtensionID::Unknown) {
-        aRetval.set(nullptr);
-        return;
+        return nullptr;
     }
 
     // step 2: check if the extension is supported
     if (!IsExtensionSupported(cx, ext)) {
-        aRetval.set(nullptr);
-        return;
+        return nullptr;
     }
 
     // step 3: if the extension hadn't been previously been created, create it now, thus enabling it
@@ -254,7 +248,7 @@ WebGLContext::GetExtension(JSContext *cx, const nsAString& aName,
         EnableExtension(ext);
     }
 
-    aRetval.set(WebGLObjectAsJSObject(cx, mExtensions[ext].get(), rv));
+    return WebGLObjectAsJSObject(cx, mExtensions[ext].get(), rv);
 }
 
 void

@@ -164,9 +164,8 @@ IDBKeyRange::WrapObject(JSContext* aCx)
   return IDBKeyRangeBinding::Wrap(aCx, this);
 }
 
-void
-IDBKeyRange::GetLower(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-                      ErrorResult& aRv)
+JS::Value
+IDBKeyRange::GetLower(JSContext* aCx, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
 
@@ -178,19 +177,17 @@ IDBKeyRange::GetLower(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
 
     aRv = Lower().ToJSVal(aCx, mCachedLowerVal);
     if (aRv.Failed()) {
-      return;
+      return JS::UndefinedValue();
     }
 
     mHaveCachedLowerVal = true;
   }
 
-  JS::ExposeValueToActiveJS(mCachedLowerVal);
-  aResult.set(mCachedLowerVal);
+  return mCachedLowerVal;
 }
 
-void
-IDBKeyRange::GetUpper(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
-                      ErrorResult& aRv)
+JS::Value
+IDBKeyRange::GetUpper(JSContext* aCx, ErrorResult& aRv)
 {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
 
@@ -202,14 +199,13 @@ IDBKeyRange::GetUpper(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
 
     aRv = Upper().ToJSVal(aCx, mCachedUpperVal);
     if (aRv.Failed()) {
-      return;
+      return JS::UndefinedValue();
     }
 
     mHaveCachedUpperVal = true;
   }
 
-  JS::ExposeValueToActiveJS(mCachedUpperVal);
-  aResult.set(mCachedUpperVal);
+  return mCachedUpperVal;
 }
 
 // static
