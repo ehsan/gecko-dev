@@ -45,7 +45,7 @@ let observer = {
     throw Components.results.NS_NOINTERFACE;
   },
   observe: function (aSubject, aTopic, aData) {
-    gDownloadLastDirFile = null;
+    gDownloadLastDirPath = null;
   }
 };
 
@@ -53,15 +53,15 @@ Components.classes["@mozilla.org/observer-service;1"]
           .getService(Components.interfaces.nsIObserverService)
           .addObserver(observer, "private-browsing", true);
 
-let gDownloadLastDirFile = null;
+let gDownloadLastDirPath = null;
 let gDownloadLastDir = {
-  get file() {
-    if (gDownloadLastDirFile && !gDownloadLastDirFile.exists())
-      gDownloadLastDirFile = null;
+  get path() {
+    if (gDownloadLastDirPath && !gDownloadLastDirPath.exists())
+      gDownloadLastDirPath = null;
 
-    return gDownloadLastDirFile;
+    return gDownloadLastDirPath;
   },
-  set file(val) {
-    gDownloadLastDirFile = val;
+  set path(val) {
+    gDownloadLastDirPath = val;
   }
 };

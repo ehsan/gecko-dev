@@ -46,6 +46,7 @@
 //
 
 #include "txDOM.h"
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 #include "txURIUtils.h"
 #include "txAtoms.h"

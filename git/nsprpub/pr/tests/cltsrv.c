@@ -921,7 +921,7 @@ static Verbosity IncrementVerbosity(void)
     return (Verbosity)verboge;
 }  /* IncrementVerbosity */
 
-int main(int argc, char** argv)
+PRIntn main(PRIntn argc, char** argv)
 {
     PRUintn index;
     PRBool boolean;

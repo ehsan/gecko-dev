@@ -51,7 +51,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
-#include "jsstdint.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jshash.h" /* Added by JSIFY */
 #include "jsprf.h"
@@ -1154,41 +1153,29 @@ str_lastIndexOf(JSContext *cx, uintN argc, jsval *vp)
     text = JSSTRING_CHARS(str);
     textlen = (jsint) JSSTRING_LENGTH(str);
 
-    if (argc != 0 && JSVAL_IS_STRING(vp[2])) {
-        str2 = JSVAL_TO_STRING(vp[2]);
-    } else {
-        str2 = ArgToRootedString(cx, argc, vp, 0);
-        if (!str2)
-            return JS_FALSE;
-    }
+    str2 = ArgToRootedString(cx, argc, vp, 0);
+    if (!str2)
+        return JS_FALSE;
     pat = JSSTRING_CHARS(str2);
     patlen = (jsint) JSSTRING_LENGTH(str2);
 
-    i = textlen - patlen; // Start searching here
-    if (i < 0) {
-        *vp = INT_TO_JSVAL(-1);
-        return JS_TRUE;
-    }
-
     if (argc > 1) {
-        if (JSVAL_IS_INT(vp[3])) {
-            j = JSVAL_TO_INT(vp[3]);
-            if (j <= 0)
-                i = 0;
-            else if (j < i)
-                i = j;
+        d = js_ValueToNumber(cx, &vp[3]);
+        if (JSVAL_IS_NULL(vp[3]))
+            return JS_FALSE;
+        if (JSDOUBLE_IS_NaN(d)) {
+            i = textlen;
         } else {
-            d = js_ValueToNumber(cx, &vp[3]);
-            if (JSVAL_IS_NULL(vp[3]))
-                return JS_FALSE;
-            if (!JSDOUBLE_IS_NaN(d)) {
-                d = js_DoubleToInteger(d);
-                if (d <= 0)
-                    i = 0;
-                else if (d < i)
-                    i = (jsint)d;
-            }
+            d = js_DoubleToInteger(d);
+            if (d < 0)
+                i = 0;
+            else if (d > textlen)
+                i = textlen;
+            else
+                i = (jsint)d;
         }
+    } else {
+        i = textlen;
     }
 
     if (patlen == 0) {
@@ -1198,8 +1185,8 @@ str_lastIndexOf(JSContext *cx, uintN argc, jsval *vp)
 
     j = 0;
     while (i >= 0) {
-        /* This is always safe because i <= textlen - patlen and j < patlen */
-        if (text[i + j] == pat[j]) {
+        /* Don't assume that text is NUL-terminated: it could be dependent. */
+        if (i + j < textlen && text[i + j] == pat[j]) {
             if (++j == patlen)
                 break;
         } else {

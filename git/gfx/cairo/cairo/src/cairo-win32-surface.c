@@ -699,9 +699,9 @@ _cairo_win32_surface_acquire_dest_image (void                    *abstract_surfa
 	x1 = interest_rect->x;
     if (interest_rect->y > y1)
 	y1 = interest_rect->y;
-    if ((int) (interest_rect->x + interest_rect->width) < x2)
+    if (interest_rect->x + interest_rect->width < x2)
 	x2 = interest_rect->x + interest_rect->width;
-    if ((int) (interest_rect->y + interest_rect->height) < y2)
+    if (interest_rect->y + interest_rect->height < y2)
 	y2 = interest_rect->y + interest_rect->height;
 
     if (x1 >= x2 || y1 >= y2) {
@@ -938,8 +938,8 @@ _cairo_win32_surface_composite_inner (cairo_win32_surface_t *src,
 
 static cairo_int_status_t
 _cairo_win32_surface_composite (cairo_operator_t	op,
-				const cairo_pattern_t	*pattern,
-				const cairo_pattern_t	*mask_pattern,
+				cairo_pattern_t       	*pattern,
+				cairo_pattern_t		*mask_pattern,
 				void			*abstract_dst,
 				int			src_x,
 				int			src_y,
@@ -1522,36 +1522,37 @@ _cairo_win32_surface_set_clip_region (void           *abstract_surface,
     /* Then combine any new region with it */
     if (region) {
 	cairo_rectangle_int_t extents;
+	cairo_box_int_t *boxes;
 	int num_boxes;
 	RGNDATA *data;
 	size_t data_size;
 	RECT *rects;
 	int i;
 	HRGN gdi_region;
-	cairo_box_int_t box0;
 
 	/* Create a GDI region for the cairo region */
 
 	_cairo_region_get_extents (region, &extents);
-	num_boxes = _cairo_region_num_boxes (region);
+	status = _cairo_region_get_boxes (region, &num_boxes, &boxes);
+	if (status)
+	    return status;
 
-	if (num_boxes == 1)
-	    _cairo_region_get_box (region, 0, &box0);
-	    
-	if (num_boxes == 1 &&
-	    box0.p1.x == 0 &&
-	    box0.p1.y == 0 &&
-	    box0.p2.x == surface->extents.width &&
-	    box0.p2.y == surface->extents.height)
+	if (num_boxes == 1 && 
+	    boxes[0].p1.x == 0 &&
+	    boxes[0].p1.y == 0 &&
+	    boxes[0].p2.x == surface->extents.width &&
+	    boxes[0].p2.y == surface->extents.height)
 	{
 	    gdi_region = NULL;
-	    
+
 	    SelectClipRgn (surface->dc, NULL);
 	    IntersectClipRect (surface->dc,
-			       box0.p1.x,
-			       box0.p1.y,
-			       box0.p2.x,
-			       box0.p2.y);
+			       boxes[0].p1.x,
+			       boxes[0].p1.y,
+			       boxes[0].p2.x,
+			       boxes[0].p2.y);
+
+	    _cairo_region_boxes_fini (region, boxes);
 	} else {
 	    /* XXX see notes in _cairo_win32_save_initial_clip --
 	     * this code will interact badly with a HDC which had an initial
@@ -1562,8 +1563,10 @@ _cairo_win32_surface_set_clip_region (void           *abstract_surface,
 
 	    data_size = sizeof (RGNDATAHEADER) + num_boxes * sizeof (RECT);
 	    data = malloc (data_size);
-	    if (!data)
+	    if (!data) {
+		_cairo_region_boxes_fini (region, boxes);
 		return _cairo_error(CAIRO_STATUS_NO_MEMORY);
+	    }
 	    rects = (RECT *)data->Buffer;
 
 	    data->rdh.dwSize = sizeof (RGNDATAHEADER);
@@ -1576,15 +1579,13 @@ _cairo_win32_surface_set_clip_region (void           *abstract_surface,
 	    data->rdh.rcBound.bottom = extents.y + extents.height;
 
 	    for (i = 0; i < num_boxes; i++) {
-		cairo_box_int_t box;
-
-		_cairo_region_get_box (region, i, &box);
-		
-		rects[i].left = box.p1.x;
-		rects[i].top = box.p1.y;
-		rects[i].right = box.p2.x;
-		rects[i].bottom = box.p2.y;
+		rects[i].left = boxes[i].p1.x;
+		rects[i].top = boxes[i].p1.y;
+		rects[i].right = boxes[i].p2.x;
+		rects[i].bottom = boxes[i].p2.y;
 	    }
+
+	    _cairo_region_boxes_fini (region, boxes);
 
 	    gdi_region = ExtCreateRegion (NULL, data_size, data);
 	    free (data);
@@ -1642,12 +1643,11 @@ _cairo_win32_surface_flush (void *abstract_surface)
 cairo_int_status_t
 _cairo_win32_surface_show_glyphs (void			*surface,
 				  cairo_operator_t	 op,
-				  const cairo_pattern_t	*source,
+				  cairo_pattern_t	*source,
 				  cairo_glyph_t		*glyphs,
 				  int			 num_glyphs,
 				  cairo_scaled_font_t	*scaled_font,
-				  int			*remaining_glyphs,
-				  cairo_rectangle_int_t *extents)
+				  int			*remaining_glyphs)
 {
 #if defined(CAIRO_HAS_WIN32_FONT) && !defined(WINCE)
     cairo_win32_surface_t *dst = surface;
@@ -2060,8 +2060,6 @@ static const cairo_surface_backend_t cairo_win32_surface_backend = {
     _cairo_win32_surface_composite,
     _cairo_win32_surface_fill_rectangles,
     NULL, /* composite_trapezoids */
-    NULL, /* create_span_renderer */
-    NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
     _cairo_win32_surface_set_clip_region,

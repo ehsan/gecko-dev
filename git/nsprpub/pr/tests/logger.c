@@ -119,7 +119,7 @@ static void UserLogStuff( void )
 
 } /* end UserLogStuff() */
 
-int main(int argc, char **argv)
+int main(PRIntn argc, const char **argv)
 {
     PRThread *thread;
 

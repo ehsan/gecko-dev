@@ -808,12 +808,6 @@ BrowserGlue.prototype = {
   },
 
   ensurePlacesDefaultQueriesInitialized: function() {
-    // This is actual version of the smart bookmarks, must be increased every
-    // time smart bookmarks change.
-    // When adding a new smart bookmark below, its newInVersion property must
-    // be set to the version it has been added in, we will compare its value
-    // to users' smartBookmarksVersion and add new smart bookmarks without
-    // recreating old deleted ones.
     const SMART_BOOKMARKS_VERSION = 2;
     const SMART_BOOKMARKS_ANNO = "Places/SmartBookmark";
     const SMART_BOOKMARKS_PREF = "browser.places.smartBookmarksVersion";
@@ -826,7 +820,7 @@ BrowserGlue.prototype = {
     var smartBookmarksCurrentVersion = 0;
     try {
       smartBookmarksCurrentVersion = this._prefs.getIntPref(SMART_BOOKMARKS_PREF);
-    } catch(ex) { /* no version set, new profile */ }
+    } catch(ex) {}
 
     // bail out if we don't have to create or update Smart Bookmarks
     if (smartBookmarksCurrentVersion == -1 ||
@@ -864,8 +858,7 @@ BrowserGlue.prototype = {
                                     Ci.nsINavHistoryQueryOptions.SORT_BY_VISITCOUNT_DESCENDING +
                                     "&maxResults=" + MAX_RESULTS),
                      parent: bmsvc.toolbarFolder,
-                     position: bookmarksToolbarIndex++,
-                     newInVersion: 1 };
+                     position: bookmarksToolbarIndex++};
         smartBookmarks.push(smart);
 
         // RECENTLY BOOKMARKED
@@ -883,8 +876,7 @@ BrowserGlue.prototype = {
                                 "&maxResults=" + MAX_RESULTS +
                                 "&excludeQueries=1"),
                  parent: bmsvc.bookmarksMenuFolder,
-                 position: bookmarksMenuIndex++,
-                 newInVersion: 1 };
+                 position: bookmarksMenuIndex++};
         smartBookmarks.push(smart);
 
         // RECENT TAGS
@@ -898,19 +890,15 @@ BrowserGlue.prototype = {
                     Ci.nsINavHistoryQueryOptions.SORT_BY_LASTMODIFIED_DESCENDING +
                     "&maxResults=" + MAX_RESULTS),
                  parent: bmsvc.bookmarksMenuFolder,
-                 position: bookmarksMenuIndex++,
-                 newInVersion: 1 };
+                 position: bookmarksMenuIndex++};
         smartBookmarks.push(smart);
 
         var smartBookmarkItemIds = annosvc.getItemsWithAnnotation(SMART_BOOKMARKS_ANNO, {});
-        // Set current itemId, parent and position if Smart Bookmark exists,
-        // we will use these informations to create the new version at the same
-        // position.
+        // set current itemId, parent and position if Smart Bookmark exists
         for each(var itemId in smartBookmarkItemIds) {
           var queryId = annosvc.getItemAnnotation(itemId, SMART_BOOKMARKS_ANNO);
           for (var i = 0; i < smartBookmarks.length; i++){
             if (smartBookmarks[i].queryId == queryId) {
-              smartBookmarks[i].found = true;
               smartBookmarks[i].itemId = itemId;
               smartBookmarks[i].parent = bmsvc.getFolderIdForItem(itemId);
               smartBookmarks[i].position = bmsvc.getItemIndex(itemId);
@@ -928,14 +916,6 @@ BrowserGlue.prototype = {
 
         // create smart bookmarks
         for each(var smartBookmark in smartBookmarks) {
-          // We update or create only changed or new smart bookmarks.
-          // Also we respect user choices, so we won't try to create a smart
-          // bookmark if it has been removed.
-          if (smartBookmarksCurrentVersion > 0 &&
-              smartBookmark.newInVersion <= smartBookmarksCurrentVersion &&
-              !smartBookmark.found)
-            continue;
-
           smartBookmark.itemId = bmsvc.insertBookmark(smartBookmark.parent,
                                                       smartBookmark.uri,
                                                       smartBookmark.position,
@@ -947,8 +927,7 @@ BrowserGlue.prototype = {
         
         // If we are creating all Smart Bookmarks from ground up, add a
         // separator below them in the bookmarks menu.
-        if (smartBookmarksCurrentVersion == 0 &&
-            smartBookmarkItemIds.length == 0)
+        if (smartBookmarkItemIds.length == 0)
           bmsvc.insertSeparator(bmsvc.bookmarksMenuFolder, bookmarksMenuIndex);
       }
     };
@@ -1060,17 +1039,17 @@ GeolocationPrompt.prototype = {
       var browserBundle = bundleService.createBundle("chrome://browser/locale/browser.properties");
 
       var buttons = [{
-        label: browserBundle.GetStringFromName("geolocation.tellThem"),
-        accessKey: browserBundle.GetStringFromName("geolocation.tellThemKey"),
+        label: browserBundle.GetStringFromName("geolocation.exactLocation"),
+        accessKey: browserBundle.GetStringFromName("geolocation.exactLocationKey"),
         callback: function() request.allow() ,
         },
         {
-        label: browserBundle.GetStringFromName("geolocation.dontTellThem"),
-        accessKey: browserBundle.GetStringFromName("geolocation.dontTellThemKey"),
+        label: browserBundle.GetStringFromName("geolocation.nothingLocation"),
+        accessKey: browserBundle.GetStringFromName("geolocation.nothingLocationKey"),
         callback: function() request.cancel() ,
         }];
       
-      var message = browserBundle.formatStringFromName("geolocation.siteWantsToKnow",
+      var message = browserBundle.formatStringFromName("geolocation.requestMessage",
                                                        [request.requestingURI.spec], 1);      
       notificationBox.appendNotification(message,
                                          "geolocation",

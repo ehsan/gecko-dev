@@ -84,10 +84,8 @@ clearPrefEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
     PrefHashEntry *pref = static_cast<PrefHashEntry *>(entry);
     if (pref->flags & PREF_STRING)
     {
-        if (pref->defaultPref.stringVal)
-            PL_strfree(pref->defaultPref.stringVal);
-        if (pref->userPref.stringVal)
-            PL_strfree(pref->userPref.stringVal);
+        PR_FREEIF(pref->defaultPref.stringVal);
+        PR_FREEIF(pref->userPref.stringVal);
     }
     // don't need to free this as it's allocated in memory owned by
     // gPrefNameArena
@@ -215,8 +213,8 @@ void PREF_Cleanup()
     while (node)
     {
         next_node = node->next;
-        PL_strfree(node->domain);
-        free(node);
+        PR_Free(node->domain);
+        PR_Free(node);
         node = next_node;
     }
     gCallbacks = NULL;
@@ -445,7 +443,7 @@ PREF_CopyCharPref(const char *pref_name, char ** return_buffer, PRBool get_defau
             stringVal = pref->userPref.stringVal;
 
         if (stringVal) {
-            *return_buffer = NS_strdup(stringVal);
+            *return_buffer = PL_strdup(stringVal);
             rv = NS_OK;
         }
     }
@@ -661,8 +659,7 @@ static void pref_SetValue(PrefValue* oldValue, PrefValue newValue, PrefType type
     {
         case PREF_STRING:
             PR_ASSERT(newValue.stringVal);
-            if (oldValue->stringVal)
-                PL_strfree(oldValue->stringVal);
+            PR_FREEIF(oldValue->stringVal);
             oldValue->stringVal = newValue.stringVal ? PL_strdup(newValue.stringVal) : NULL;
             break;
 
@@ -837,8 +834,8 @@ pref_RemoveCallbackNode(struct CallbackNode* node,
         prev_node->next = next_node;
     else
         gCallbacks = next_node;
-    PL_strfree(node->domain);
-    free(node);
+    PR_Free(node->domain);
+    PR_Free(node);
     return next_node;
 }
 

@@ -73,7 +73,6 @@ class nsTableCellFrame : public nsHTMLContainerFrame,
 {
 public:
 
-  NS_DECLARE_FRAME_ACCESSOR(nsTableCellFrame)
   NS_DECL_QUERYFRAME
 
   // default constructor supplied by the compiler

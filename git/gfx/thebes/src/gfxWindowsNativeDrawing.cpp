@@ -279,7 +279,7 @@ gfxWindowsNativeDrawing::PaintToContext()
         pat->SetMatrix(m);
 
         if (mNativeDrawFlags & DO_NEAREST_NEIGHBOR_FILTERING)
-            pat->SetFilter(gfxPattern::FILTER_FAST);
+            pat->SetFilter(0);
 
         mContext->SetPattern(pat);
         mContext->Fill();

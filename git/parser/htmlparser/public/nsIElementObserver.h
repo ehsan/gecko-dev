@@ -48,6 +48,7 @@
 #include "nsISupports.h"
 #include "prtypes.h"
 #include "nsHTMLTags.h"
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 
 

@@ -254,7 +254,5 @@ nsImageLoader::RedrawDirtyFrame(const nsRect* aDamageRect)
 
 #endif
 
-  if (mFrame->GetStyleVisibility()->IsVisible()) {
-    mFrame->Invalidate(bounds);
-  }
+  mFrame->Invalidate(bounds);
 }

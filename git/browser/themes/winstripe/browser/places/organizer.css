@@ -137,6 +137,7 @@
 }
 
 .small, .small[disabled="true"] {
+  font-size: x-small;
   min-width: 0px;
   padding: 0px 4px 0px 4px;
   margin: 0px;  

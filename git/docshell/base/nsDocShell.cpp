@@ -1792,7 +1792,7 @@ nsDocShell::GetSessionStorageForURI(nsIURI* aURI,
         nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(newstorage);
         if (!pistorage)
             return NS_ERROR_FAILURE;
-        pistorage->InitAsSessionStorage(aURI);
+        pistorage->Init(NS_ConvertUTF8toUTF16(currentDomain), PR_FALSE);
 
         if (!mStorages.Put(currentDomain, newstorage))
             return NS_ERROR_OUT_OF_MEMORY;

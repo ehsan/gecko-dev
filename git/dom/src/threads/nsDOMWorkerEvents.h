@@ -211,25 +211,21 @@ public:
   NS_DECL_NSICLASSINFO_GETINTERFACES
 
   nsDOMWorkerMessageEvent()
-  : mIsJSON(PR_FALSE), mIsPrimitive(PR_FALSE), mHaveCachedJSVal(PR_FALSE),
-    mHaveAttemptedConversion(PR_FALSE) { }
+  : mIsJSON(PR_FALSE), mIsPrimitive(PR_FALSE) { }
 
   void SetJSONData(PRBool aIsJSON, PRBool aIsPrimitive) {
-    mIsJSON = aIsJSON ? PR_TRUE : PR_FALSE;
-    mIsPrimitive = aIsPrimitive ? PR_TRUE : PR_FALSE;
+    mIsJSON = aIsJSON;
+    mIsPrimitive = aIsPrimitive;
   }
 
 protected:
-  nsString mOrigin;
-  nsCOMPtr<nsISupports> mSource;
-
   nsString mData;
+  PRBool mIsJSON;
+  PRBool mIsPrimitive;
   nsAutoJSValHolder mCachedJSVal;
 
-  PRPackedBool mIsJSON;
-  PRPackedBool mIsPrimitive;
-  PRPackedBool mHaveCachedJSVal;
-  PRPackedBool mHaveAttemptedConversion;
+  nsString mOrigin;
+  nsCOMPtr<nsISupports> mSource;
 };
 
 class nsDOMWorkerProgressEvent : public nsDOMWorkerEvent,

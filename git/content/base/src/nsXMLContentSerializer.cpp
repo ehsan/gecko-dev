@@ -64,6 +64,12 @@
 #include "nsContentUtils.h"
 #include "nsAttrName.h"
 
+typedef struct {
+  nsString mPrefix;
+  nsString mURI;
+  nsIDOMElement* mOwner;
+} NameSpaceDecl;
+
 nsresult NS_NewXMLContentSerializer(nsIContentSerializer** aSerializer)
 {
   nsXMLContentSerializer* it = new nsXMLContentSerializer();
@@ -331,7 +337,7 @@ nsXMLContentSerializer::PushNameSpaceDecl(const nsAString& aPrefix,
                                           const nsAString& aURI,
                                           nsIDOMElement* aOwner)
 {
-  NameSpaceDecl* decl = mNameSpaceStack.AppendElement();
+  NameSpaceDecl* decl = new NameSpaceDecl();
   if (!decl) return NS_ERROR_OUT_OF_MEMORY;
 
   decl->mPrefix.Assign(aPrefix);
@@ -339,6 +345,8 @@ nsXMLContentSerializer::PushNameSpaceDecl(const nsAString& aPrefix,
   // Don't addref - this weak reference will be removed when
   // we pop the stack
   decl->mOwner = aOwner;
+
+  mNameSpaceStack.AppendElement((void*)decl);
   return NS_OK;
 }
 
@@ -347,12 +355,14 @@ nsXMLContentSerializer::PopNameSpaceDeclsFor(nsIDOMElement* aOwner)
 {
   PRInt32 index, count;
 
-  count = mNameSpaceStack.Length();
+  count = mNameSpaceStack.Count();
   for (index = count - 1; index >= 0; index--) {
-    if (mNameSpaceStack[index].mOwner != aOwner) {
+    NameSpaceDecl* decl = (NameSpaceDecl*)mNameSpaceStack.ElementAt(index);
+    if (decl->mOwner != aOwner) {
       break;
     }
     mNameSpaceStack.RemoveElementAt(index);
+    delete decl;
   }
 }
 
@@ -401,16 +411,16 @@ nsXMLContentSerializer::ConfirmPrefix(nsAString& aPrefix,
   // later (so in a more outer scope) see it bound to aURI we can't reuse it.
   PRBool haveSeenOurPrefix = PR_FALSE;
 
-  PRInt32 count = mNameSpaceStack.Length();
+  PRInt32 count = mNameSpaceStack.Count();
   PRInt32 index = count - 1;
   while (index >= 0) {
-    NameSpaceDecl& decl = mNameSpaceStack.ElementAt(index);
+    NameSpaceDecl* decl = (NameSpaceDecl*)mNameSpaceStack.ElementAt(index);
     // Check if we've found a prefix match
-    if (aPrefix.Equals(decl.mPrefix)) {
+    if (aPrefix.Equals(decl->mPrefix)) {
 
       // If the URIs match and aPrefix is not bound to any other URI, we can
       // use aPrefix
-      if (!haveSeenOurPrefix && aURI.Equals(decl.mURI)) {
+      if (!haveSeenOurPrefix && aURI.Equals(decl->mURI)) {
         // Just use our uriMatch stuff.  That will deal with an empty aPrefix
         // the right way.  We can break out of the loop now, though.
         uriMatch = PR_TRUE;
@@ -430,7 +440,7 @@ nsXMLContentSerializer::ConfirmPrefix(nsAString& aPrefix,
       // URIs when |decl| doesn't have aElement as its owner.  In that case we
       // can simply push the new namespace URI as the default namespace for
       // aElement.
-      if (!aPrefix.IsEmpty() || decl.mOwner == aElement) {
+      if (!aPrefix.IsEmpty() || decl->mOwner == aElement) {
         NS_ASSERTION(!aURI.IsEmpty(),
                      "Not allowed to add a xmlns attribute with an empty "
                      "namespace name unless it declares the default "
@@ -448,18 +458,20 @@ nsXMLContentSerializer::ConfirmPrefix(nsAString& aPrefix,
     }
     
     // If we've found a URI match, then record the first one
-    if (!uriMatch && aURI.Equals(decl.mURI)) {
+    if (!uriMatch && aURI.Equals(decl->mURI)) {
       // Need to check that decl->mPrefix is not declared anywhere closer to
       // us.  If it is, we can't use it.
       PRBool prefixOK = PR_TRUE;
       PRInt32 index2;
       for (index2 = count-1; index2 > index && prefixOK; --index2) {
-        prefixOK = (mNameSpaceStack[index2].mPrefix != decl.mPrefix);
+        NameSpaceDecl* decl2 =
+          (NameSpaceDecl*)mNameSpaceStack.ElementAt(index2);
+        prefixOK = (decl2->mPrefix != decl->mPrefix);
       }
       
       if (prefixOK) {
         uriMatch = PR_TRUE;
-        closestURIMatch.Assign(decl.mPrefix);
+        closestURIMatch.Assign(decl->mPrefix);
       }
     }
     

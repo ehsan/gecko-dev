@@ -68,7 +68,7 @@ private:
 
 protected:
     sqlite3_stmt* NativeStatement() {
-        return mStatement->nativeStatement();
+        return mStatement->GetNativeStatementPointer();
     }
 
     // note: pointer to the concrete statement

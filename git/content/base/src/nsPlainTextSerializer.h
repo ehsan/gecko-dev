@@ -54,7 +54,7 @@
 #include "nsIAtom.h"
 #include "nsIHTMLToTextSink.h"
 #include "nsIDocumentEncoder.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 
 class nsPlainTextSerializer : public nsIContentSerializer,
@@ -164,10 +164,10 @@ protected:
   }
 
   // Stack handling functions
-  PRBool GetLastBool(const nsTArray<PRPackedBool>& aStack);
-  void SetLastBool(nsTArray<PRPackedBool>& aStack, PRBool aValue);
-  void PushBool(nsTArray<PRPackedBool>& aStack, PRBool aValue);
-  PRBool PopBool(nsTArray<PRPackedBool>& aStack);
+  PRBool GetLastBool(const nsVoidArray& aStack);
+  void SetLastBool(nsVoidArray& aStack, PRBool aValue);
+  void PushBool(nsVoidArray& aStack, PRBool aValue);
+  PRBool PopBool(nsVoidArray& aStack);
   
 protected:
   nsString         mCurrentLine;
@@ -241,11 +241,11 @@ protected:
   nsCOMPtr<nsIContent> mContent;
 
   // For handling table rows
-  nsAutoTArray<PRPackedBool, 8> mHasWrittenCellsForRow;
+  nsAutoVoidArray mHasWrittenCellsForRow; // really an array of bools
   
   // Values gotten in OpenContainer that is (also) needed in CloseContainer
-  nsAutoTArray<PRPackedBool, 8> mCurrentNodeIsConverted;
-  nsAutoTArray<PRPackedBool, 8> mIsInCiteBlockquote;
+  nsAutoVoidArray     mCurrentNodeIsConverted; // really an array of bools
+  nsAutoVoidArray     mIsInCiteBlockquote; // really an array of bools
 
   // The output data
   nsAString*            mOutputString;

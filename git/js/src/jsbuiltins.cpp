@@ -42,7 +42,6 @@
 #include <math.h>
 
 #include "jsapi.h"
-#include "jsstdint.h"
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jscntxt.h"

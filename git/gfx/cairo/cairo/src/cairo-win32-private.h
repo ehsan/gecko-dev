@@ -118,14 +118,8 @@ enum {
     /* Whether we can use GradientFill rectangles with this surface */
     CAIRO_WIN32_SURFACE_CAN_RECT_GRADIENT = (1<<6),
 
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_JPEG = (1<<7),
-
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_PNG = (1<<8),
-
     /* if this DDB surface can be converted to a DIB if necessary */
-    CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB = (1<<9),
+    CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB = (1<<7),
 };
 
 cairo_status_t
@@ -150,12 +144,11 @@ _cairo_win32_flags_for_dc (HDC dc);
 cairo_int_status_t
 _cairo_win32_surface_show_glyphs (void			*surface,
 				  cairo_operator_t	 op,
-				  const cairo_pattern_t	*source,
+				  cairo_pattern_t	*source,
 				  cairo_glyph_t		*glyphs,
 				  int			 num_glyphs,
 				  cairo_scaled_font_t	*scaled_font,
-				  int			*remaining_glyphs,
-				  cairo_rectangle_int_t *extents);
+				  int			*remaining_glyphs);
 
 cairo_surface_t *
 _cairo_win32_surface_create_similar (void	    *abstract_src,

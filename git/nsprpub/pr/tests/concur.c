@@ -184,7 +184,7 @@ PRIntn PR_CALLBACK Concur(PRIntn argc, char **argv)
     return 0;
 } /* Concur */
 
-int main(int argc, char **argv)
+PRIntn main(PRIntn argc, char **argv)
 {
     PR_STDIO_INIT();
     return PR_Initialize(Concur, argc, argv, 0);

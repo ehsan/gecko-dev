@@ -68,7 +68,7 @@ const checkListener = {
 }
 
 // Get the HTTP server.
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 var testserver;
 
 /**

@@ -199,15 +199,14 @@ IsScriptEventHandler(nsIScriptElement *aScriptElement)
 }
 
 nsresult
-nsScriptLoader::CheckContentPolicy(nsIDocument* aDocument,
+nsScriptLoader::CheckContentPolicy(nsScriptLoadRequest *aRequest,
                                    nsISupports *aContext,
-                                   nsIURI *aURI,
                                    const nsAString &aType)
 {
   PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
   nsresult rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_SCRIPT,
-                                          aURI,
-                                          aDocument->NodePrincipal(),
+                                          aRequest->mURI,
+                                          mDocument->NodePrincipal(),
                                           aContext,
                                           NS_LossyConvertUTF16toASCII(aType),
                                           nsnull,    //extra
@@ -225,34 +224,20 @@ nsScriptLoader::CheckContentPolicy(nsIDocument* aDocument,
 }
 
 nsresult
-nsScriptLoader::ShouldLoadScript(nsIDocument* aDocument,
-                                 nsISupports* aContext,
-                                 nsIURI* aURI,
-                                 const nsAString &aType)
+nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
 {
   // Check that the containing page is allowed to load this URI.
   nsresult rv = nsContentUtils::GetSecurityManager()->
-    CheckLoadURIWithPrincipal(aDocument->NodePrincipal(), aURI,
+    CheckLoadURIWithPrincipal(mDocument->NodePrincipal(), aRequest->mURI,
                               nsIScriptSecurityManager::ALLOW_CHROME);
 
   NS_ENSURE_SUCCESS(rv, rv);
 
   // After the security manager, the content-policy stuff gets a veto
-  rv = CheckContentPolicy(aDocument, aContext, aURI, aType);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  return NS_OK;
-}
-
-nsresult
-nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType)
-{
   nsISupports *context = aRequest->mElement.get()
                          ? static_cast<nsISupports *>(aRequest->mElement.get())
                          : static_cast<nsISupports *>(mDocument);
-  nsresult rv = ShouldLoadScript(mDocument, context, aRequest->mURI, aType);
+  rv = CheckContentPolicy(aRequest, context, aType);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -500,7 +485,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       request->mDefer = mDeferEnabled && aElement->GetScriptDeferred();
       mPreloads.RemoveElementAt(i);
 
-      rv = CheckContentPolicy(mDocument, aElement, request->mURI, type);
+      rv = CheckContentPolicy(request, aElement, type);
       if (NS_FAILED(rv)) {
         // Note, we're dropping our last ref to request here.
         return rv;

@@ -67,9 +67,7 @@
  */
 #ifdef VMS
 #define EXISTING_FILENAME "SYS$LOGIN:LOGIN.COM"
-#elif defined(SYMBIAN)
-#define EXISTING_FILENAME "z:\\system\\install\\Series60v3.0.sis"
-#elif defined (XP_UNIX)
+#elif XP_UNIX
 #define EXISTING_FILENAME "/bin/sh"
 #elif defined(WIN32)
 #define EXISTING_FILENAME "c:/autoexec.bat"

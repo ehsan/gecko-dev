@@ -443,13 +443,8 @@ protected:
     msg.lParam  = lParam;
     return msg;
   }
-
-  // XP and Vista theming support for windows with rounded edges.
-  void ClearThemeRegion();
-  void SetThemeRegion();
-
-  void StopFlashing();
 private:
+
 
 #ifdef DEBUG
   void DebugPrintEvent(nsGUIEvent& aEvent, HWND aWnd);
@@ -533,8 +528,6 @@ protected:
   static PRBool gSwitchKeyboardLayout;
 
   HKL           mLastKeyboardLayout;
-
-  nsPopupType   mPopupType;
 
   // Drag & Drop
   nsNativeDragTarget * mNativeDragTarget;

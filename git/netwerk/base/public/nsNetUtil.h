@@ -177,8 +177,8 @@ NS_NewChannel(nsIChannel           **result,
     nsCOMPtr<nsIIOService> grip;
     rv = net_EnsureIOService(&ioService, grip);
     if (ioService) {
-        nsCOMPtr<nsIChannel> chan;
-        rv = ioService->NewChannelFromURI(uri, getter_AddRefs(chan));
+        nsIChannel *chan;
+        rv = ioService->NewChannelFromURI(uri, &chan);
         if (NS_SUCCEEDED(rv)) {
             if (loadGroup)
                 rv |= chan->SetLoadGroup(loadGroup);
@@ -187,7 +187,9 @@ NS_NewChannel(nsIChannel           **result,
             if (loadFlags != nsIRequest::LOAD_NORMAL)
                 rv |= chan->SetLoadFlags(loadFlags);
             if (NS_SUCCEEDED(rv))
-                chan.forget(result);
+                *result = chan;
+            else
+                NS_RELEASE(chan);
         }
     }
     return rv;

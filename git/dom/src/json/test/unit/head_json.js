@@ -16,4 +16,4 @@ if (!outputDir.exists()) {
   do_throw(outputName + " is not a directory?")
 }
 var crockfordJSON = null;
-load("json2.js");
+do_import_script("dom/src/json/test/json2.js");

@@ -144,7 +144,14 @@ function getManifestProperty(id, property) {
  */
 function do_get_addon(name)
 {
-  return do_get_file("addons/" + name + ".xpi");
+  var lf = gTestRoot.clone();
+  lf.append("unit");
+  lf.append("addons");
+  lf.append(name + ".xpi");
+  if (!lf.exists())
+    do_throw("Addon "+name+" does not exist.");
+
+  return lf;
 }
 
 /**
@@ -252,9 +259,12 @@ function restartEM()
 
 var gDirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
                         .getService(Components.interfaces.nsIProperties);
+// Remove '/unit/*.js'.
+var gTestRoot = __LOCATION__.parent.parent;
+gTestRoot.normalize();
 
 // Need to create and register a profile folder.
-var gProfD = do_get_cwd();
+var gProfD = gTestRoot.clone();
 gProfD.append("profile");
 if (gProfD.exists())
   gProfD.remove(true);

@@ -82,7 +82,6 @@ var observer =
       }
     }
   },
-  onBeforeItemRemoved: function(bookmarkId){},
   onItemRemoved: function(bookmarkId, bookmark, folder, index){},
   onItemChanged: function(bookmarkId, property, isAnnotationProperty, value){},
   onItemVisited: function(bookmarkId, bookmark, aVisitID, time){},

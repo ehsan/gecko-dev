@@ -53,7 +53,7 @@
 #define PATH_SEPARATOR_CHAR '\\'
 #define R_OK 04
 #elif defined(XP_MACOSX)
-#include <CoreFoundation/CoreFoundation.h>
+#include <CFBundle.h>
 #define PATH_SEPARATOR_CHAR '/'
 #elif defined (XP_OS2)
 #define INCL_DOS

@@ -53,6 +53,8 @@
 #include "prmon.h"
 #include "nsStubMutationObserver.h"
 
+class nsVoidArray;
+
 // -------------------------------------------------------------------------------
 
 class nsRangeUtils : public nsIRangeUtils

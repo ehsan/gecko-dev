@@ -60,9 +60,7 @@ fbCompositeSrcAdd_8000x8000arm (pixman_op_t op,
 	srcLine += srcStride;
 	w = width;
 
-        /* ensure both src and dst are properly aligned before doing 32 bit reads
-         * we'll stay in this loop if src and dst have differing alignments */
-	while (w && (((unsigned long)dst & 3) || ((unsigned long)src & 3)))
+	while (w && (unsigned long)dst & 3)
 	{
 	    s = *src;
 	    d = *dst;
@@ -166,7 +164,7 @@ fbCompositeSrc_8888x8888arm (pixman_op_t op,
 			"uxtab16 r7, r7, r7, ror #8\n\t"
 
 			/* recombine the 0xff00ff00 bytes of r6 and r7 */
-			"and r7, r7, %[upper_component_mask]\n\t"
+			"and r7, %[upper_component_mask]\n\t"
 			"uxtab16 r6, r7, r6, ror #8\n\t"
 
 			"uqadd8 r5, r6, r5\n\t"

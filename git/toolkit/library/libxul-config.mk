@@ -42,7 +42,7 @@ CPPSRCS += \
 	$(NULL)
 
 ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
-REQUIRES += widget gfx
+REQUIRES += libreg widget gfx
 CPPSRCS += \
 	nsDllMain.cpp \
 	$(NULL)
@@ -65,12 +65,11 @@ LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
-REQUIRES += libreg
 DEFINES	+= -DZLIB_DLL=1
 endif
 
 ifeq ($(OS_ARCH),OS2)
-REQUIRES += widget gfx
+REQUIRES += libreg widget gfx
 
 CPPSRCS += \
 	dlldeps.cpp \
@@ -99,12 +98,10 @@ STATIC_LIBS += \
 	$(NULL)
 
 #ifndef MOZ_EMBEDDING_LEVEL_DEFAULT
-ifndef WINCE
 ifdef MOZ_XPINSTALL
 STATIC_LIBS += \
 	mozreg_s \
 	$(NULL)
-endif
 endif
 #endif
 
@@ -266,6 +263,7 @@ ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
+	tkhstory \
 	$(NULL)
 endif
 endif

@@ -44,8 +44,10 @@
 #include "nsPresContext.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
-#include "nsIDOMDocument.h"
+#include "nsIDOMHTMLDocument.h"
+#include "nsIDOMXULDocument.h"
 #include "nsIDocument.h"
+#include "nsIFormControlFrame.h"
 #include "nsIPresShell.h"
 #include "nsGUIEvent.h"
 #include "nsIEventStateManager.h"
@@ -207,23 +209,12 @@ EventTargetIn(nsEvent *aEvent, nsIContent *aChild, nsIContent *aStop)
   return PR_FALSE;
 }
 
-static void
-DestroyMouseDownPoint(void *    /*aObject*/,
-                      nsIAtom * /*aPropertyName*/,
-                      void *    aPropertyValue,
-                      void *    /*aData*/)
-{
-  nsIntPoint *pt = (nsIntPoint *)aPropertyValue;
-  delete pt;
-}
-
 nsresult
 nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   if (mHandlingEvent ||
       (!NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent) &&
-       aVisitor.mEvent->message != NS_FOCUS_CONTENT &&
-       aVisitor.mEvent->message != NS_MOUSE_BUTTON_DOWN) ||
+       aVisitor.mEvent->message != NS_FOCUS_CONTENT) ||
       aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
       !aVisitor.mPresContext) {
     return NS_OK;
@@ -233,49 +224,8 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   if (content && !EventTargetIn(aVisitor.mEvent, content, this)) {
     mHandlingEvent = PR_TRUE;
     switch (aVisitor.mEvent->message) {
-      case NS_MOUSE_BUTTON_DOWN:
-        NS_ASSERTION(aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT,
-                     "wrong event struct for event");
-        if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
-            nsMouseEvent::eLeftButton) {
-          // We reset the mouse-down point on every event because there is
-          // no guarantee we will reach the NS_MOUSE_CLICK code below.
-          nsIntPoint *curPoint = new nsIntPoint(aVisitor.mEvent->refPoint);
-          SetProperty(nsGkAtoms::labelMouseDownPtProperty,
-                      static_cast<void *>(curPoint),
-                      DestroyMouseDownPoint);
-        }
-        break;
-
       case NS_MOUSE_CLICK:
         if (NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent)) {
-          const nsMouseEvent* event =
-            static_cast<const nsMouseEvent*>(aVisitor.mEvent);
-          nsIntPoint *mouseDownPoint = static_cast<nsIntPoint *>
-            (GetProperty(nsGkAtoms::labelMouseDownPtProperty));
-
-          PRBool dragSelect = PR_FALSE;
-          if (mouseDownPoint) {
-            nsIntPoint dragDistance = *mouseDownPoint;
-            DeleteProperty(nsGkAtoms::labelMouseDownPtProperty);
-
-            dragDistance -= aVisitor.mEvent->refPoint;
-            const int CLICK_DISTANCE = 2;
-            dragSelect = dragDistance.x > CLICK_DISTANCE ||
-                         dragDistance.x < -CLICK_DISTANCE ||
-                         dragDistance.y > CLICK_DISTANCE ||
-                         dragDistance.y < -CLICK_DISTANCE;
-          }
-
-          // Don't click the for-content if we did drag-select text or if we
-          // have a kbd modifier (which adjusts a selection), or if it's a
-          // double click (we already forwarded the first click event).
-          if (dragSelect || event->clickCount > 1 ||
-              event->isShift || event->isControl || event->isAlt ||
-              event->isMeta) {
-            break;
-          }
-
           if (ShouldFocus(this)) {
             // Focus the for content.
             aVisitor.mPresContext->EventStateManager()->

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 // if these tests fail, we'll want the debug output
 DEBUG = true;

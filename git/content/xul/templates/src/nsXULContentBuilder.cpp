@@ -54,7 +54,7 @@
 #include "nsXULSortService.h"
 #include "nsTemplateRule.h"
 #include "nsTemplateMap.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsXPIDLString.h"
 #include "nsGkAtoms.h"
 #include "nsXULContentUtils.h"
@@ -1323,15 +1323,15 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
 {
     // Keep a queue of "ungenerated" elements that we have to probe
     // for generated content.
-    nsAutoTArray<nsIContent*, 8> ungenerated;
-    if (ungenerated.AppendElement(aElement) == nsnull)
+    nsAutoVoidArray ungenerated;
+    if (!ungenerated.AppendElement(aElement))
         return NS_ERROR_OUT_OF_MEMORY;
 
-    PRUint32 count;
-    while (0 != (count = ungenerated.Length())) {
+    PRInt32 count;
+    while (0 != (count = ungenerated.Count())) {
         // Pull the next "ungenerated" element off the queue.
-        PRUint32 last = count - 1;
-        nsIContent* element = ungenerated[last];
+        PRInt32 last = count - 1;
+        nsIContent* element = static_cast<nsIContent*>(ungenerated[last]);
         ungenerated.RemoveElementAt(last);
 
         PRUint32 i = element->GetChildCount();
@@ -1357,7 +1357,7 @@ nsXULContentBuilder::RemoveGeneratedContent(nsIContent* aElement)
             if (! tmpl) {
                 // No 'template' attribute, so this must not have been
                 // generated. We'll need to examine its kids.
-                if (ungenerated.AppendElement(child) == nsnull)
+                if (!ungenerated.AppendElement(child))
                     return NS_ERROR_OUT_OF_MEMORY;
                 continue;
             }

@@ -346,7 +346,8 @@ TCP_Socket_Client_Server_Test(void)
 
 /************************************************************************/
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
     /*
      * -d           debug mode

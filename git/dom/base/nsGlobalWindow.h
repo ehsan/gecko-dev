@@ -710,8 +710,6 @@ protected:
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
   nsCOMPtr<nsIDOMPkcs11>        mPkcs11;
 
-  nsCOMPtr<nsIDOMStorage2>      mLocalStorage;
-
   nsCOMPtr<nsISupports>         mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
   nsCOMPtr<nsIPrincipal> mOpenerScriptPrincipal; // strong; used to determine
                                                  // whether to clear scope
@@ -882,6 +880,7 @@ protected:
   nsresult GetSourceDocument(JSContext* cx, nsIDocument** aDocument);
 
   nsresult CheckURL(nsIURI *url, nsIDocShellLoadInfo** aLoadInfo);
+  nsresult FindUsableBaseURI(nsIURI * aBaseURI, nsIDocShell * aParent, nsIURI ** aUsableURI);
 
   nsWeakPtr mDocShell;
 };

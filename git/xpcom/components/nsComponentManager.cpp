@@ -1164,9 +1164,9 @@ ClassIDWriter(PLDHashTable *table,
                (location   ? location   : ""));
 
     if (contractID)
-        NS_Free(contractID);
+        PR_Free(contractID);
     if (className)
-        NS_Free(className);
+        PR_Free(className);
 
     return PL_DHASH_NEXT;
 }

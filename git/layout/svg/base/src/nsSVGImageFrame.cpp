@@ -255,22 +255,6 @@ nsSVGImageFrame::PaintSVG(nsSVGRenderState *aContext,
   }
 
   if (thebesPattern) {
-
-    switch (GetStyleSVG()->mImageRendering) {
-    case NS_STYLE_IMAGE_RENDERING_OPTIMIZESPEED:
-      thebesPattern->SetFilter(gfxPattern::FILTER_FAST);
-      break;
-    case NS_STYLE_IMAGE_RENDERING_OPTIMIZEQUALITY:
-      thebesPattern->SetFilter(gfxPattern::FILTER_BEST);
-      break;
-    case NS_STYLE_IMAGE_RENDERING_DISABLE_RESAMPLING:
-      thebesPattern->SetFilter(gfxPattern::FILTER_NEAREST);
-      break;
-    default:
-      thebesPattern->SetFilter(gfxPattern::FILTER_GOOD);
-      break;
-    }
-
     gfxContext *gfx = aContext->GetGfxContext();
 
     if (GetStyleDisplay()->IsScrollableOverflow()) {

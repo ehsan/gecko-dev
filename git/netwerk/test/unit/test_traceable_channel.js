@@ -3,7 +3,7 @@
 // response. Make sure that body received by original channel's listener
 // is correctly modified.
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 var httpserver = null;
 var originalBody = "original http response body";

@@ -100,6 +100,7 @@
 #include "nsISupports.h"
 #include "nsIParser.h"
 #include "nsHTMLTags.h"
+#include "nsVoidArray.h"
 #include "nsDeque.h"
 #include "nsParserCIID.h"
 #include "nsTime.h"

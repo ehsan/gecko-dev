@@ -101,7 +101,14 @@ nsHTMLContentSerializer::nsHTMLContentSerializer()
 
 nsHTMLContentSerializer::~nsHTMLContentSerializer()
 {
-  NS_ASSERTION(mOLStateStack.IsEmpty(), "Expected OL State stack to be empty");
+  NS_ASSERTION(mOLStateStack.Count() == 0, "Expected OL State stack to be empty");
+  if (mOLStateStack.Count() > 0){
+    for (PRInt32 i = 0; i < mOLStateStack.Count(); i++){
+      olState* state = (olState*)mOLStateStack[i];
+      delete state;
+      mOLStateStack.RemoveElementAt(i);
+    }
+  }
 }
 
 NS_IMETHODIMP 
@@ -683,7 +690,9 @@ nsHTMLContentSerializer::AppendElementStart(nsIDOMElement *aElement,
       else
         startAttrVal = 0;
     }
-    mOLStateStack.AppendElement(olState(startAttrVal, PR_TRUE));
+    olState* state = new olState(startAttrVal, PR_TRUE);
+    if (state)
+      mOLStateStack.AppendElement(state);
   }
 
   if (mIsCopying && name == nsGkAtoms::li) {
@@ -779,11 +788,13 @@ nsHTMLContentSerializer::AppendElementEnd(nsIDOMElement *aElement,
   }
 
   if (mIsCopying && (name == nsGkAtoms::ol)){
-    NS_ASSERTION(!mOLStateStack.IsEmpty(), "Cannot have an empty OL Stack");
+    NS_ASSERTION((mOLStateStack.Count() > 0), "Cannot have an empty OL Stack");
     /* Though at this point we must always have an state to be deleted as all 
     the OL opening tags are supposed to push an olState object to the stack*/
-    if (!mOLStateStack.IsEmpty()) {
-      mOLStateStack.RemoveElementAt(mOLStateStack.Length() -1);
+    if (mOLStateStack.Count() > 0) {
+      olState* state = (olState*)mOLStateStack.ElementAt(mOLStateStack.Count() -1);
+      mOLStateStack.RemoveElementAt(mOLStateStack.Count() -1);
+      delete state;
     }
   }
   
@@ -1232,12 +1243,12 @@ nsHTMLContentSerializer::SerializeLIValueAttribute(nsIDOMElement* aElement,
   PRInt32 offset = 0;
   olState defaultOLState(0, PR_FALSE);
   olState* state = nsnull;
-  if (!mOLStateStack.IsEmpty())
-    state = &mOLStateStack.ElementAt(mOLStateStack.Length()-1);
-  /* Though we should never reach to a "state" as null or mOLStateStack.IsEmpty()
+  if (mOLStateStack.Count() > 0) 
+    state = (olState*)mOLStateStack.ElementAt(mOLStateStack.Count()-1);
+  /* Though we should never reach to a "state" as null or mOLStateStack.Count() == 0 
   at this point as all LI are supposed to be inside some OL and OL tag should have 
   pushed a state to the olStateStack.*/
-  if (!state || mOLStateStack.IsEmpty())
+  if (!state || mOLStateStack.Count() == 0)
     state = &defaultOLState;
   PRInt32 startVal = state->startVal;
   state->isFirstListItem = PR_FALSE;
@@ -1304,8 +1315,8 @@ nsHTMLContentSerializer::IsFirstChildOfOL(nsIDOMElement* aElement){
   if (parentName.LowerCaseEqualsLiteral("ol")) {
     olState defaultOLState(0, PR_FALSE);
     olState* state = nsnull;
-    if (!mOLStateStack.IsEmpty())
-      state = &mOLStateStack.ElementAt(mOLStateStack.Length()-1);
+    if (mOLStateStack.Count() > 0) 
+      state = (olState*)mOLStateStack.ElementAt(mOLStateStack.Count()-1);
     /* Though we should never reach to a "state" as null at this point as 
     all LI are supposed to be inside some OL and OL tag should have pushed
     a state to the mOLStateStack.*/

@@ -44,16 +44,17 @@
 #include "nsIHTMLContentSink.h"
 #include "nsHTMLTokenizer.h"
 
-CParserContext::CParserContext(CParserContext* aPrevContext,
-                               nsScanner* aScanner, 
+CParserContext::CParserContext(nsScanner* aScanner, 
                                void *aKey, 
                                eParserCommands aCommand,
                                nsIRequestObserver* aListener, 
+                               nsIDTD *aDTD, 
                                eAutoDetectResult aStatus, 
                                PRBool aCopyUnused)
-  : mListener(aListener),
+  : mDTD(aDTD),
+    mListener(aListener),
     mKey(aKey),
-    mPrevContext(aPrevContext),
+    mPrevContext(nsnull),
     mScanner(aScanner),
     mDTDMode(eDTDMode_unknown),
     mStreamListenerState(eNone),
@@ -95,15 +96,14 @@ CParserContext::SetMimeType(const nsACString& aMimeType)
 }
 
 nsresult
-CParserContext::GetTokenizer(nsIDTD* aDTD,
+CParserContext::GetTokenizer(PRInt32 aType,
                              nsIContentSink* aSink,
                              nsITokenizer*& aTokenizer)
 {
   nsresult result = NS_OK;
-  PRInt32 type = aDTD ? aDTD->GetType() : NS_IPARSER_FLAG_HTML;
-
+  
   if (!mTokenizer) {
-    if (type == NS_IPARSER_FLAG_HTML || mParserCommand == eViewSource) {
+    if (aType == NS_IPARSER_FLAG_HTML || mParserCommand == eViewSource) {
       nsCOMPtr<nsIHTMLContentSink> theSink = do_QueryInterface(aSink);
       PRUint16 theFlags = 0;
 
@@ -134,11 +134,11 @@ CParserContext::GetTokenizer(nsIDTD* aDTD,
         mTokenizer->CopyState(mPrevContext->mTokenizer);
       }
     }
-    else if (type == NS_IPARSER_FLAG_XML) {
-      mTokenizer = do_QueryInterface(aDTD, &result);
+    else if (aType == NS_IPARSER_FLAG_XML) {
+      mTokenizer = do_QueryInterface(mDTD, &result);
     }
   }
-
+  
   aTokenizer = mTokenizer;
 
   return result;

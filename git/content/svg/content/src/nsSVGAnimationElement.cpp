@@ -132,8 +132,7 @@ nsSMILTargetAttrType
 nsSVGAnimationElement::GetTargetAttributeType() const
 {
   nsIContent::AttrValuesArray typeValues[] = { &nsGkAtoms::css,
-                                               &nsGkAtoms::XML,
-                                               nsnull};
+                                               &nsGkAtoms::XML };
   nsSMILTargetAttrType smilTypes[] = { eSMILTargetAttrType_CSS,
                                        eSMILTargetAttrType_XML };
   PRInt32 index = FindAttrValueIn(kNameSpaceID_None,

@@ -39,7 +39,7 @@
 // Use the internal webserver for regular update pings, will just return an error
 gPrefs.setCharPref("extensions.update.url", "http://localhost:4444/");
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 var testserver;
 
 // This allows the EM to attempt to display errors to the user without failing

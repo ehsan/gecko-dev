@@ -83,8 +83,6 @@ check-variable = $(if $(filter-out 0 1,$(words $($(x))z)),$(error Spaces are not
 
 $(foreach x,$(CHECK_VARS),$(check-variable))
 
-core_abspath = $(if $(findstring :,$(1)),$(1),$(if $(filter /%,$(1)),$(1),$(CURDIR)/$(1)))
-
 # FINAL_TARGET specifies the location into which we copy end-user-shipped
 # build products (typelibs, components, chrome).
 #
@@ -159,7 +157,7 @@ MOZ_WIDGET_SUPPORT_LIBS    = $(DIST)/lib/$(LIB_PREFIX)widgetsupport_s.$(LIB_SUFF
 
 ifdef MOZ_MEMORY
 ifneq ($(OS_ARCH),WINNT)
-JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME_PATH,jemalloc,$(DIST)/lib) $(MKSHLIB_UNFORCE_ALL)
+JEMALLOC_LIBS = $(MKSHLIB_FORCE_ALL) $(call EXPAND_LIBNAME,jemalloc) $(MKSHLIB_UNFORCE_ALL)
 endif
 endif
 
@@ -245,7 +243,7 @@ OS_CFLAGS += $(_DEBUG_CFLAGS)
 OS_CXXFLAGS += $(_DEBUG_CFLAGS)
 OS_LDFLAGS += $(_DEBUG_LDFLAGS)
 
-# XXX: What does this? Bug 482434 filed for better explanation.
+# MOZ_PROFILE equivs for win32
 ifeq ($(OS_ARCH)_$(GNU_CC),WINNT_)
 ifdef MOZ_DEBUG
 ifneq (,$(MOZ_BROWSE_INFO)$(MOZ_BSCFILE))
@@ -774,7 +772,7 @@ ifeq ($(OS_ARCH),Darwin)
 ifndef NSDISTMODE
 NSDISTMODE=absolute_symlink
 endif
-PWD := $(CURDIR)
+PWD := $(shell pwd)
 endif
 
 ifdef NSINSTALL_BIN
@@ -863,7 +861,7 @@ RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
 endif
 
 ifeq ($(OS_ARCH),OS2)
-RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
+RUN_TEST_PROGRAM = $(topsrcdir)/testing/xpcshell/test_os2.cmd "$(DIST)"
 endif
 
 #

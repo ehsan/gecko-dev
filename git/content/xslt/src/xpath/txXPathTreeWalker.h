@@ -46,25 +46,22 @@ class nsIAtom;
 
 #ifndef TX_EXE
 #include "nsINodeInfo.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
-class txUint32Array : public nsTArray<PRUint32>
+class txUint32Array : public nsVoidArray
 {
 public:
     PRBool AppendValue(PRUint32 aValue)
     {
-        return AppendElement(aValue) != nsnull;
+        return InsertElementAt(NS_INT32_TO_PTR(aValue), Count());
     }
     PRBool RemoveValueAt(PRUint32 aIndex)
     {
-        if (aIndex < Length()) {
-            RemoveElementAt(aIndex);
-        }
-        return PR_TRUE;
+        return RemoveElementsAt(aIndex, 1);
     }
-    PRUint32 ValueAt(PRUint32 aIndex) const
+    PRInt32 ValueAt(PRUint32 aIndex) const
     {
-        return (aIndex < Length()) ? ElementAt(aIndex) : 0;
+        return NS_PTR_TO_INT32(ElementAt(aIndex));
     }
 };
 

@@ -758,27 +758,16 @@ nsClipboard :: FindURLFromLocalFile ( IDataObject* inDataObject, UINT inIndex, v
     const nsDependentString filepath(static_cast<PRUnichar*>(*outData));
     nsCOMPtr<nsILocalFile> file;
     nsresult rv = NS_NewLocalFile(filepath, PR_TRUE, getter_AddRefs(file));
-    if (NS_FAILED(rv)) {
-      nsMemory::Free(*outData);
+    if (NS_FAILED(rv))
       return dataFound;
-    }
 
     if ( IsInternetShortcut(filepath) ) {
-      nsMemory::Free(*outData);
       nsCAutoString url;
       ResolveShortcut( file, url );
       if ( !url.IsEmpty() ) {
         // convert it to unicode and pass it out
-        nsDependentString urlString(UTF8ToNewUnicode(url));
-        // the internal mozilla URL format, text/x-moz-url, contains
-        // URL\ntitle.  We can guess the title from the file's name.
-        nsAutoString title;
-        file->GetLeafName(title);
-        // We rely on IsInternetShortcut check that file has a .url extension.
-        title.SetLength(title.Length() - 4);
-        if (title.IsEmpty())
-          title = urlString;
-        *outData = ToNewUnicode(urlString + NS_LITERAL_STRING("\n") + title);
+        nsMemory::Free(*outData);
+        *outData = UTF8ToNewUnicode(url);
         *outDataLen = nsCRT::strlen(static_cast<PRUnichar*>(*outData)) * sizeof(PRUnichar);
 
         dataFound = PR_TRUE;

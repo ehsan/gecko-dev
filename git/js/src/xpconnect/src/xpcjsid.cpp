@@ -58,9 +58,9 @@ nsJSID::nsJSID()
 nsJSID::~nsJSID()
 {
     if(mNumber && mNumber != gNoString)
-        NS_Free(mNumber);
+        PR_Free(mNumber);
     if(mName && mName != gNoString)
-        NS_Free(mName);
+        PR_Free(mName);
 }
 
 void nsJSID::Reset()
@@ -68,9 +68,9 @@ void nsJSID::Reset()
     mID = GetInvalidIID();
 
     if(mNumber && mNumber != gNoString)
-        NS_Free(mNumber);
+        PR_Free(mNumber);
     if(mName && mName != gNoString)
-        NS_Free(mName);
+        PR_Free(mName);
 
     mNumber = mName = nsnull;
 }
@@ -80,8 +80,12 @@ nsJSID::SetName(const char* name)
 {
     NS_ASSERTION(!mName || mName == gNoString ,"name already set");
     NS_ASSERTION(name,"null name");
-    mName = NS_strdup(name);
-    return mName ? PR_TRUE : PR_FALSE;
+    int len = strlen(name)+1;
+    mName = (char*)PR_Malloc(len);
+    if(!mName)
+        return PR_FALSE;
+    memcpy(mName, name, len);
+    return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -93,7 +97,7 @@ nsJSID::GetName(char * *aName)
     if(!NameIsSet())
         SetNameToNoString();
     NS_ASSERTION(mName, "name not set");
-    *aName = NS_strdup(mName);
+    *aName = (char*) nsMemory::Clone(mName, strlen(mName)+1);
     return *aName ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -109,7 +113,7 @@ nsJSID::GetNumber(char * *aNumber)
             mNumber = gNoString;
     }
 
-    *aNumber = NS_strdup(mNumber);
+    *aNumber = (char*) nsMemory::Clone(mNumber, strlen(mNumber)+1);
     return *aNumber ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
@@ -182,9 +186,20 @@ nsJSID::InitWithName(const nsID& id, const char *nameString)
 NS_IMETHODIMP
 nsJSID::ToString(char **_retval)
 {
-    if(mName && mName != gNoString)
-        return GetName(_retval);
-
+    if(mName != gNoString)
+    {
+        char* str;
+        if(NS_SUCCEEDED(GetName(&str)))
+        {
+            if(mName != gNoString)
+            {
+                *_retval = str;
+                return NS_OK;
+            }
+            else
+                nsMemory::Free(str);
+        }
+    }
     return GetNumber(_retval);
 }
 

@@ -56,6 +56,7 @@
 #include "nsHTMLEntities.h"
 #include "nsLinebreakConverter.h"
 #include "nsIFormProcessor.h"
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"

@@ -329,7 +329,7 @@ NS_IMETHODIMP imgRequestProxy::GetMimeType(char **aMimeType)
   if (!type)
     return NS_ERROR_FAILURE;
 
-  *aMimeType = NS_strdup(type);
+  *aMimeType = nsCRT::strdup(type);
 
   return NS_OK;
 }

@@ -489,7 +489,6 @@ LivemarkService.prototype = {
   onItemChanged: function() { },
   onItemVisited: function() { },
   onItemMoved: function() { },
-  onBeforeItemRemoved: function() { },
 
   onItemRemoved: function(aItemId, aParentId, aIndex) {
     // we don't need to remove annotations since itemAnnotations

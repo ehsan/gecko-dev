@@ -330,7 +330,7 @@ nsPipe::nsPipe()
 nsPipe::~nsPipe()
 {
     if (mMonitor)
-        nsAutoMonitor::DestroyMonitor(mMonitor);
+        PR_DestroyMonitor(mMonitor);
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsPipe, nsIPipe)
@@ -342,7 +342,7 @@ nsPipe::Init(PRBool nonBlockingIn,
              PRUint32 segmentCount,
              nsIMemory *segmentAlloc)
 {
-    mMonitor = nsAutoMonitor::NewMonitor("pipeMonitor");
+    mMonitor = PR_NewMonitor();
     if (!mMonitor)
         return NS_ERROR_OUT_OF_MEMORY;
 

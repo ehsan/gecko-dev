@@ -1042,6 +1042,11 @@ nsObserverEntry::nsObserverEntry(const nsAString& aTopic) : mTopic(aTopic)
 nsObserverEntry::~nsObserverEntry() {
   for (PRInt32 i = 0; i <= NS_HTML_TAG_MAX; ++i){
     if (mObservers[i]) {
+      PRInt32 count = mObservers[i]->Count();
+      for (PRInt32 j = 0; j < count; ++j) {
+        nsISupports* obs = (nsISupports*)mObservers[i]->ElementAt(j);
+        NS_IF_RELEASE(obs);
+      }
       delete mObservers[i];
     }
   }
@@ -1060,7 +1065,7 @@ nsObserverEntry::Notify(nsIParserNode* aNode,
   eHTMLTags theTag = (eHTMLTags)aNode->GetNodeType();
  
   if (theTag <= NS_HTML_TAG_MAX) {
-    nsCOMArray<nsIElementObserver>* theObservers = mObservers[theTag];
+    nsVoidArray*  theObservers = mObservers[theTag];
     if (theObservers) {
       PRInt32   theCharsetSource;
       nsCAutoString      charset;
@@ -1068,7 +1073,7 @@ nsObserverEntry::Notify(nsIParserNode* aNode,
       NS_ConvertASCIItoUTF16 theCharsetValue(charset);
 
       PRInt32 theAttrCount = aNode->GetAttributeCount(); 
-      PRInt32 theObserversCount = theObservers->Count();
+      PRInt32 theObserversCount = theObservers->Count(); 
       if (0 < theObserversCount){
         nsTArray<nsString> keys(theAttrCount + 4), values(theAttrCount + 4);
 
@@ -1098,7 +1103,7 @@ nsObserverEntry::Notify(nsIParserNode* aNode,
         aParser->GetChannel(getter_AddRefs(channel));
 
         for (index=0;index<theObserversCount;++index) {
-          nsIElementObserver* observer = theObservers->ObjectAt(index);
+          nsIElementObserver* observer = static_cast<nsIElementObserver*>(theObservers->ElementAt(index));
           if (observer) {
             result = observer->Notify(aWebShell, channel,
                                       nsHTMLTags::GetStringValue(theTag),
@@ -1133,12 +1138,13 @@ nsObserverEntry::AddObserver(nsIElementObserver *aObserver,
 {
   if (aObserver) {
     if (!mObservers[aTag]) {
-      mObservers[aTag] = new nsCOMArray<nsIElementObserver>();
+      mObservers[aTag] = new nsAutoVoidArray();
       if (!mObservers[aTag]) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
     }
-    mObservers[aTag]->AppendObject(aObserver);
+    NS_ADDREF(aObserver);
+    mObservers[aTag]->AppendElement(aObserver);
   }
   return NS_OK;
 }
@@ -1148,7 +1154,11 @@ nsObserverEntry::RemoveObserver(nsIElementObserver *aObserver)
 {
   for (PRInt32 i=0; i <= NS_HTML_TAG_MAX; ++i){
     if (mObservers[i]) {
-      mObservers[i]->RemoveObject(aObserver);
+      nsISupports* obs = aObserver;
+      PRBool removed = mObservers[i]->RemoveElement(obs);
+      if (removed) {
+        NS_RELEASE(obs);
+      }
     }
   }
 }

@@ -46,7 +46,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include "jsprf.h"
-#include "jsstdint.h"
 #include "jslong.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jspubtd.h"

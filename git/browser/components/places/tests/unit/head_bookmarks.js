@@ -167,15 +167,12 @@ function check_no_bookmarks() {
   root.containerOpen = false;
 }
 
-let gTestDir = do_get_cwd();
+let gTestDir = do_get_file("browser/components/places/tests/unit/");
 const FILENAME_BOOKMARKS_HTML = "bookmarks.html";
 let backup_date = new Date().toLocaleFormat("%Y-%m-%d");
 const FILENAME_BOOKMARKS_JSON = "bookmarks-" + backup_date + ".json";
-
-// Smart bookmarks constants
-const SMART_BOOKMARKS_VERSION = 2;
+// Number of smart bookmarks we have on the toolbar
 const SMART_BOOKMARKS_ON_TOOLBAR = 1;
-const SMART_BOOKMARKS_ON_MENU = 2;
 
 /**
  * Creates a bookmarks.html file in the profile folder from a given source file.

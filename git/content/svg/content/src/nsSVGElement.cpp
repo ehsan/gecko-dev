@@ -899,21 +899,22 @@ nsSVGElement::GetOwnerSVGElement(nsIDOMSVGSVGElement * *aOwnerSVGElement)
 {
   *aOwnerSVGElement = nsnull;
 
-  nsIContent* ancestor = nsSVGUtils::GetParentElement(this);
-
-  while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG) {
-    nsIAtom* tag = ancestor->Tag();
+  nsIContent* parent = nsSVGUtils::GetParentElement(this);
+  
+  while (parent && parent->GetNameSpaceID() == kNameSpaceID_SVG) {
+    nsIAtom* tag = parent->Tag();
     if (tag == nsGkAtoms::foreignObject) {
       // SVG in a foreignObject must have its own <svg> (nsSVGOuterSVGFrame).
       // Leave *aOwnerSVGElement nulled out, but don't throw.
       return NS_OK;
     }
     if (tag == nsGkAtoms::svg) {
-      *aOwnerSVGElement = static_cast<nsSVGSVGElement*>(ancestor);
+      *aOwnerSVGElement = static_cast<nsSVGSVGElement*>(parent);
       NS_ADDREF(*aOwnerSVGElement);
       return NS_OK;
     }
-    ancestor = nsSVGUtils::GetParentElement(ancestor);
+    nsIContent* next = nsSVGUtils::GetParentElement(parent);
+    parent = next;
   }
 
   // we don't have a parent SVG element...
@@ -932,7 +933,16 @@ nsSVGElement::GetOwnerSVGElement(nsIDOMSVGSVGElement * *aOwnerSVGElement)
 NS_IMETHODIMP
 nsSVGElement::GetViewportElement(nsIDOMSVGElement * *aViewportElement)
 {
-  return nsSVGUtils::GetNearestViewportElement(this, aViewportElement);
+  *aViewportElement = nsnull;
+  nsCOMPtr<nsIDOMSVGSVGElement> SVGSVGElement;
+  nsresult rv = GetOwnerSVGElement(getter_AddRefs(SVGSVGElement));
+  NS_ENSURE_SUCCESS(rv,rv);
+  if (SVGSVGElement) {
+    nsCOMPtr<nsIDOMSVGElement> SVGElement = do_QueryInterface(SVGSVGElement);
+    *aViewportElement = SVGElement;
+    NS_IF_ADDREF(*aViewportElement);
+  }
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------

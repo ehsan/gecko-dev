@@ -1,6 +1,6 @@
 // This file tests bug 250375
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 function check_request_header(chan, name, value) {
   var chanValue;

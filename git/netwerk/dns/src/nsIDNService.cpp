@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -160,11 +160,6 @@ nsIDNService::~nsIDNService()
 /* ACString ConvertUTF8toACE (in AUTF8String input); */
 NS_IMETHODIMP nsIDNService::ConvertUTF8toACE(const nsACString & input, nsACString & ace)
 {
-  return UTF8toACE(input, ace, PR_TRUE);
-}
-
-nsresult nsIDNService::UTF8toACE(const nsACString & input, nsACString & ace, PRBool allowUnassigned)
-{
   nsresult rv;
   NS_ConvertUTF8toUTF16 ustr(input);
 
@@ -186,8 +181,7 @@ nsresult nsIDNService::UTF8toACE(const nsACString & input, nsACString & ace, PRB
   while (start != end) {
     len++;
     if (*start++ == (PRUnichar)'.') {
-      rv = stringPrepAndACE(Substring(ustr, offset, len - 1), encodedBuf,
-                            allowUnassigned);
+      rv = stringPrepAndACE(Substring(ustr, offset, len - 1), encodedBuf);
       NS_ENSURE_SUCCESS(rv, rv);
 
       ace.Append(encodedBuf);
@@ -202,8 +196,7 @@ nsresult nsIDNService::UTF8toACE(const nsACString & input, nsACString & ace, PRB
     ace.AppendLiteral("mltbd.");
   // encode the last node if non ASCII
   if (len) {
-    rv = stringPrepAndACE(Substring(ustr, offset, len), encodedBuf,
-                          allowUnassigned);
+    rv = stringPrepAndACE(Substring(ustr, offset, len), encodedBuf);
     NS_ENSURE_SUCCESS(rv, rv);
 
     ace.Append(encodedBuf);
@@ -214,12 +207,6 @@ nsresult nsIDNService::UTF8toACE(const nsACString & input, nsACString & ace, PRB
 
 /* AUTF8String convertACEtoUTF8(in ACString input); */
 NS_IMETHODIMP nsIDNService::ConvertACEtoUTF8(const nsACString & input, nsACString & _retval)
-{
-  return ACEtoUTF8(input, _retval, PR_TRUE);
-}
-
-nsresult nsIDNService::ACEtoUTF8(const nsACString & input, nsACString & _retval,
-                                 PRBool allowUnassigned)
 {
   // RFC 3490 - 4.2 ToUnicode
   // ToUnicode never fails.  If any step fails, then the original input
@@ -242,8 +229,7 @@ nsresult nsIDNService::ACEtoUTF8(const nsACString & input, nsACString & _retval,
   while (start != end) {
     len++;
     if (*start++ == '.') {
-      if (NS_FAILED(decodeACE(Substring(input, offset, len - 1), decodedBuf,
-                              allowUnassigned))) {
+      if (NS_FAILED(decodeACE(Substring(input, offset, len - 1), decodedBuf))) {
         _retval.Assign(input);
         return NS_OK;
       }
@@ -256,8 +242,7 @@ nsresult nsIDNService::ACEtoUTF8(const nsACString & input, nsACString & _retval,
   }
   // decode the last node
   if (len) {
-    if (NS_FAILED(decodeACE(Substring(input, offset, len), decodedBuf,
-                            allowUnassigned)))
+    if (NS_FAILED(decodeACE(Substring(input, offset, len), decodedBuf)))
       _retval.Assign(input);
     else
       _retval.Append(decodedBuf);
@@ -306,7 +291,7 @@ NS_IMETHODIMP nsIDNService::Normalize(const nsACString & input, nsACString & out
   while (start != end) {
     len++;
     if (*start++ == PRUnichar('.')) {
-      rv = stringPrep(Substring(inUTF16, offset, len - 1), outLabel, PR_TRUE);
+      rv = stringPrep(Substring(inUTF16, offset, len - 1), outLabel);
       NS_ENSURE_SUCCESS(rv, rv);
    
       outUTF16.Append(outLabel);
@@ -316,7 +301,7 @@ NS_IMETHODIMP nsIDNService::Normalize(const nsACString & input, nsACString & out
     }
   }
   if (len) {
-    rv = stringPrep(Substring(inUTF16, offset, len), outLabel, PR_TRUE);
+    rv = stringPrep(Substring(inUTF16, offset, len), outLabel);
     NS_ENSURE_SUCCESS(rv, rv);
 
     outUTF16.Append(outLabel);
@@ -345,9 +330,9 @@ NS_IMETHODIMP nsIDNService::ConvertToDisplayIDN(const nsACString & input, PRBool
     IsACE(_retval, &isACE);
 
     if (isACE && !mShowPunycode && isInWhitelist(_retval)) {
-      // ACEtoUTF8() can't fail, but might return the original ACE string
+      // ConvertACEtoUTF8() can't fail, but might return the original ACE string
       nsCAutoString temp(_retval);
-      ACEtoUTF8(temp, _retval, PR_FALSE);
+      ConvertACEtoUTF8(temp, _retval);
       *_isASCII = IsASCII(_retval);
     } else {
       *_isASCII = PR_TRUE;
@@ -503,12 +488,7 @@ static nsresult encodeToRACE(const char* prefix, const nsAString& in, nsACString
 // for bidirectional strings. If the string does not satisfy the requirements
 // for bidirectional strings, return an error. This is described in section 6.
 //
-// 5) Check unassigned code points -- If allowUnassigned is false, check for
-// any unassigned Unicode points and if any are found return an error.
-// This is described in section 7.
-//
-nsresult nsIDNService::stringPrep(const nsAString& in, nsAString& out,
-                                  PRBool allowUnassigned)
+nsresult nsIDNService::stringPrep(const nsAString& in, nsAString& out)
 {
   if (!mNamePrepHandle || !mNormalizer)
     return NS_ERROR_FAILURE;
@@ -550,14 +530,6 @@ nsresult nsIDNService::stringPrep(const nsAString& in, nsAString& out,
   if (idn_err != idn_success || found)
     return NS_ERROR_FAILURE;
 
-  if (!allowUnassigned) {
-    // check unassigned code points
-    idn_err = idn_nameprep_isunassigned(mNamePrepHandle,
-                                        (const PRUint32 *) ucs4Buf, &found);
-    if (idn_err != idn_success || found)
-      return NS_ERROR_FAILURE;
-  }
-
   // set the result string
   out.Assign(normlizedStr);
 
@@ -574,8 +546,7 @@ nsresult nsIDNService::encodeToACE(const nsAString& in, nsACString& out)
   return punycode(mACEPrefix, in, out);
 }
 
-nsresult nsIDNService::stringPrepAndACE(const nsAString& in, nsACString& out,
-                                        PRBool allowUnassigned)
+nsresult nsIDNService::stringPrepAndACE(const nsAString& in, nsACString& out)
 {
   nsresult rv = NS_OK;
 
@@ -590,7 +561,7 @@ nsresult nsIDNService::stringPrepAndACE(const nsAString& in, nsACString& out,
     LossyCopyUTF16toASCII(in, out);
   else {
     nsAutoString strPrep;
-    rv = stringPrep(in, strPrep, allowUnassigned);
+    rv = stringPrep(in, strPrep);
     if (NS_SUCCEEDED(rv)) {
       if (IsASCII(strPrep))
         LossyCopyUTF16toASCII(strPrep, out);
@@ -635,8 +606,7 @@ void nsIDNService::normalizeFullStops(nsAString& s)
   }
 }
 
-nsresult nsIDNService::decodeACE(const nsACString& in, nsACString& out,
-                                 PRBool allowUnassigned)
+nsresult nsIDNService::decodeACE(const nsACString& in, nsACString& out)
 {
   PRBool isAce;
   IsACE(in, &isAce);
@@ -672,7 +642,7 @@ nsresult nsIDNService::decodeACE(const nsACString& in, nsACString& out,
 
   // Validation: encode back to ACE and compare the strings
   nsCAutoString ace;
-  nsresult rv = UTF8toACE(out, ace, allowUnassigned);
+  nsresult rv = ConvertUTF8toACE(out, ace);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!ace.Equals(in, nsCaseInsensitiveCStringComparator()))
@@ -684,20 +654,19 @@ nsresult nsIDNService::decodeACE(const nsACString& in, nsACString& out,
 PRBool nsIDNService::isInWhitelist(const nsACString &host)
 {
   if (mIDNWhitelistPrefBranch) {
-    nsCAutoString tld(host);
-    // make sure the host is ACE for lookup and check that there are no
-    // unassigned codepoints
-    if (!IsASCII(tld) && NS_FAILED(UTF8toACE(tld, tld, PR_FALSE))) {
-      return PR_FALSE;
-    }
-
     // truncate trailing dots first
+    nsCAutoString tld(host);
     tld.Trim(".");
     PRInt32 pos = tld.RFind(".");
     if (pos == kNotFound)
       return PR_FALSE;
 
     tld.Cut(0, pos + 1);
+
+    // make sure the TLD is ACE for lookup.
+    if (!IsASCII(tld) &&
+        NS_FAILED(ConvertUTF8toACE(tld, tld)))
+      return PR_FALSE;
 
     PRBool safe;
     if (NS_SUCCEEDED(mIDNWhitelistPrefBranch->GetBoolPref(tld.get(), &safe)))

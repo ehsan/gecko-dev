@@ -204,7 +204,7 @@ nsILineBreaker *nsContentUtils::sLineBreaker;
 nsIWordBreaker *nsContentUtils::sWordBreaker;
 nsICaseConversion *nsContentUtils::sCaseConv;
 nsIUGenCategory *nsContentUtils::sGenCat;
-nsTArray<nsISupports**> *nsContentUtils::sPtrsToPtrsToRelease;
+nsVoidArray *nsContentUtils::sPtrsToPtrsToRelease;
 nsIScriptRuntime *nsContentUtils::sScriptRuntimes[NS_STID_ARRAY_UBOUND];
 PRInt32 nsContentUtils::sScriptRootCount[NS_STID_ARRAY_UBOUND];
 PRUint32 nsContentUtils::sJSGCThingRootCount;
@@ -328,7 +328,7 @@ nsContentUtils::Init()
     sImgLoader = nsnull;
   }
 
-  sPtrsToPtrsToRelease = new nsTArray<nsISupports**>();
+  sPtrsToPtrsToRelease = new nsVoidArray();
   if (!sPtrsToPtrsToRelease) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -865,8 +865,8 @@ nsContentUtils::Shutdown()
 
   NS_IF_RELEASE(sContentPolicyService);
   sTriedToGetContentPolicy = PR_FALSE;
-  PRUint32 i;
-  for (i = 0; i < PropertiesFile_COUNT; ++i)
+  PRInt32 i;
+  for (i = 0; i < PRInt32(PropertiesFile_COUNT); ++i)
     NS_IF_RELEASE(sStringBundles[i]);
   NS_IF_RELEASE(sStringBundleService);
   NS_IF_RELEASE(sConsoleService);
@@ -896,8 +896,9 @@ nsContentUtils::Shutdown()
   sEventTable = nsnull;
 
   if (sPtrsToPtrsToRelease) {
-    for (i = 0; i < sPtrsToPtrsToRelease->Length(); ++i) {
-      nsISupports** ptrToPtr = sPtrsToPtrsToRelease->ElementAt(i);
+    for (i = 0; i < sPtrsToPtrsToRelease->Count(); ++i) {
+      nsISupports** ptrToPtr =
+        static_cast<nsISupports**>(sPtrsToPtrsToRelease->ElementAt(i));
       NS_RELEASE(*ptrToPtr);
     }
     delete sPtrsToPtrsToRelease;
@@ -1399,7 +1400,7 @@ nsContentUtils::ContentIsDescendantOf(nsINode* aPossibleDescendant,
 // static
 nsresult
 nsContentUtils::GetAncestors(nsIDOMNode* aNode,
-                             nsTArray<nsIDOMNode*>* aArray)
+                             nsVoidArray* aArray)
 {
   NS_ENSURE_ARG_POINTER(aNode);
 
@@ -1419,8 +1420,8 @@ nsContentUtils::GetAncestors(nsIDOMNode* aNode,
 nsresult
 nsContentUtils::GetAncestorsAndOffsets(nsIDOMNode* aNode,
                                        PRInt32 aOffset,
-                                       nsTArray<nsIContent*>* aAncestorNodes,
-                                       nsTArray<PRInt32>* aAncestorOffsets)
+                                       nsVoidArray* aAncestorNodes,
+                                       nsVoidArray* aAncestorOffsets)
 {
   NS_ENSURE_ARG_POINTER(aNode);
 
@@ -1430,26 +1431,26 @@ nsContentUtils::GetAncestorsAndOffsets(nsIDOMNode* aNode,
     return NS_ERROR_FAILURE;
   }
 
-  if (!aAncestorNodes->IsEmpty()) {
+  if (aAncestorNodes->Count() != 0) {
     NS_WARNING("aAncestorNodes is not empty");
     aAncestorNodes->Clear();
   }
 
-  if (!aAncestorOffsets->IsEmpty()) {
+  if (aAncestorOffsets->Count() != 0) {
     NS_WARNING("aAncestorOffsets is not empty");
     aAncestorOffsets->Clear();
   }
 
   // insert the node itself
   aAncestorNodes->AppendElement(content.get());
-  aAncestorOffsets->AppendElement(aOffset);
+  aAncestorOffsets->AppendElement(NS_INT32_TO_PTR(aOffset));
 
   // insert all the ancestors
   nsIContent* child = content;
   nsIContent* parent = child->GetParent();
   while (parent) {
     aAncestorNodes->AppendElement(parent);
-    aAncestorOffsets->AppendElement(parent->IndexOf(child));
+    aAncestorOffsets->AppendElement(NS_INT32_TO_PTR(parent->IndexOf(child)));
     child = parent;
     parent = parent->GetParent();
   }

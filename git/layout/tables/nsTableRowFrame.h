@@ -67,10 +67,6 @@ struct nsTableCellReflowState;
 class nsTableRowFrame : public nsHTMLContainerFrame
 {
 public:
-
-  NS_DECLARE_FRAME_ACCESSOR(nsTableRowFrame)
-  NS_DECL_QUERYFRAME
-
   virtual ~nsTableRowFrame();
 
   NS_IMETHOD Init(nsIContent*      aContent,

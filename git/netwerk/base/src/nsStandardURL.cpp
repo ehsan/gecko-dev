@@ -785,7 +785,7 @@ nsStandardURL::AppendToSubstring(PRUint32 pos,
     if (tailLen < 0)
         tailLen = strlen(tail);
 
-    char *result = (char *) NS_Alloc(len + tailLen + 1);
+    char *result = (char *) malloc(len + tailLen + 1);
     if (result) {
         memcpy(result, mSpec.get() + pos, len);
         memcpy(result + len, tail, tailLen);
@@ -1669,7 +1669,9 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
     } else
         relpathLen = flat.Length();
     
-    char *result = nsnull;
+    // XXX hack hack hack
+    char *p = nsnull;
+    char **result = &p;
 
     LOG(("nsStandardURL::Resolve [this=%p spec=%s relpath=%s]\n",
         this, mSpec.get(), relpath));
@@ -1723,7 +1725,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
                                "://",3) == 0) {
                 // now this is really absolute
                 // because a :// follows the scheme 
-                result = NS_strdup(relpath);
+                *result = nsCRT::strdup(relpath);
             } else {         
                 // This is a deprecated form of relative urls like
                 // http:file or http:/path/file
@@ -1734,7 +1736,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
         } else {
             // the schemes are not the same, we are also done
             // because we have to assume this is absolute 
-            result = NS_strdup(relpath);
+            *result = nsCRT::strdup(relpath);
         }  
     } else {
         // add some flags to coalesceFlag if it is an ftp-url
@@ -1746,7 +1748,7 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
         }
         if (relpath[0] == '/' && relpath[1] == '/') {
             // this URL //host/path is almost absolute
-            result = AppendToSubstring(mScheme.mPos, mScheme.mLen + 1, relpath);
+            *result = AppendToSubstring(mScheme.mPos, mScheme.mLen + 1, relpath);
         } else {
             // then it must be relative 
             relative = PR_TRUE;
@@ -1794,25 +1796,27 @@ nsStandardURL::Resolve(const nsACString &in, nsACString &out)
                 len = mDirectory.mPos + mDirectory.mLen;
             }
         }
-        result = AppendToSubstring(0, len, realrelpath);
+        *result = AppendToSubstring(0, len, realrelpath);
         // locate result path
-        resultPath = result + mPath.mPos;
+        resultPath = *result + mPath.mPos;
     }
-    if (!result)
+    if (!*result)
         return NS_ERROR_OUT_OF_MEMORY;
 
     if (resultPath)
         net_CoalesceDirs(coalesceFlag, resultPath);
     else {
         // locate result path
-        resultPath = PL_strstr(result, "://");
+        resultPath = PL_strstr(*result, "://");
         if (resultPath) {
             resultPath = PL_strchr(resultPath + 3, '/');
             if (resultPath)
                 net_CoalesceDirs(coalesceFlag,resultPath);
         }
     }
-    out.Adopt(result);
+    // XXX avoid extra copy
+    out = *result;
+    free(*result);
     return NS_OK;
 }
 
