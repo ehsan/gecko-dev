@@ -21,7 +21,6 @@ function test()
   let tempScope = {};
   Cu.import("resource:///modules/source-editor.jsm", tempScope);
   let SourceEditor = tempScope.SourceEditor;
-
   let scriptShown = false;
   let framesAdded = false;
   let resumed = false;
