@@ -39,11 +39,11 @@ NS_IMPL_RELEASE_INHERITED(nsSVGImageElement,nsSVGImageElementBase)
 DOMCI_NODE_DATA(SVGImageElement, nsSVGImageElement)
 
 NS_INTERFACE_TABLE_HEAD(nsSVGImageElement)
-  NS_NODE_INTERFACE_TABLE9(nsSVGImageElement, nsIDOMNode, nsIDOMElement,
+  NS_NODE_INTERFACE_TABLE8(nsSVGImageElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGTests,
                            nsIDOMSVGImageElement,
                            nsIDOMSVGURIReference, imgIDecoderObserver,
-                           nsIImageLoadingContent, imgIOnloadBlocker)
+                           nsIImageLoadingContent)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGImageElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGImageElementBase)
 
@@ -183,9 +183,6 @@ nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                   aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsImageLoadingContent::BindToTree(aDocument, aParent, aBindingParent,
-                                    aCompileEventHandlers);
-
   if (mStringAttributes[HREF].IsExplicitlySet()) {
     // FIXME: Bug 660963 it would be nice if we could just have
     // ClearBrokenState update our state and do it fast...
@@ -196,13 +193,6 @@ nsSVGImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   }
 
   return rv;
-}
-
-void
-nsSVGImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
-{
-  nsImageLoadingContent::UnbindFromTree(aDeep, aNullParent);
-  nsSVGImageElementBase::UnbindFromTree(aDeep, aNullParent);
 }
 
 nsEventStates

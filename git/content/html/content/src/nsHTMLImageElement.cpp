@@ -89,13 +89,12 @@ DOMCI_NODE_DATA(HTMLImageElement, nsHTMLImageElement)
 
 // QueryInterface implementation for nsHTMLImageElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLImageElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE6(nsHTMLImageElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLImageElement,
                                    nsIDOMHTMLImageElement,
                                    nsIJSNativeInitializer,
                                    imgIDecoderObserver,
                                    nsIImageLoadingContent,
-                                   imgIContainerObserver,
-                                   imgIOnloadBlocker)
+                                   imgIContainerObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLImageElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLImageElement)
@@ -408,9 +407,6 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsImageLoadingContent::BindToTree(aDocument, aParent, aBindingParent,
-                                    aCompileEventHandlers);
-
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
     // FIXME: Bug 660963 it would be nice if we could just have
     // ClearBrokenState update our state and do it fast...
@@ -426,13 +422,6 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   }
 
   return rv;
-}
-
-void
-nsHTMLImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
-{
-  nsImageLoadingContent::UnbindFromTree(aDeep, aNullParent);
-  nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 }
 
 void
