@@ -22,7 +22,5 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>10.5</string>
 </dict>
 </plist>

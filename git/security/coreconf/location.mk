@@ -99,8 +99,4 @@ ifndef SOFTOKEN_LIB_DIR
     SOFTOKEN_LIB_DIR = $(DIST)/lib
 endif
 
-ifndef SQLITE_LIB_NAME
-    SQLITE_LIB_NAME = sqlite3
-endif
-
 MK_LOCATION = included

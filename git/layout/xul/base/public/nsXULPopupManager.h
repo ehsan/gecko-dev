@@ -729,7 +729,7 @@ protected:
   nsCOMPtr<nsIDOMNode> mRangeParent;
   PRInt32 mRangeOffset;
   // Device pixels relative to the showing popup's presshell's
-  // root prescontext's root frame.
+  // GetViewManager()->GetRootWidget().
   nsIntPoint mCachedMousePoint;
 
   // set to the currently active menu bar, if any

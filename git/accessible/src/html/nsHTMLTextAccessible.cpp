@@ -272,8 +272,10 @@ NS_IMETHODIMP nsHTMLLIAccessible::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *wid
 void
 nsHTMLLIAccessible::CacheChildren()
 {
-  if (mBulletAccessible)
-    AppendChild(mBulletAccessible);
+  if (mBulletAccessible) {
+    mChildren.AppendElement(mBulletAccessible);
+    mBulletAccessible->SetParent(this);
+  }
 
   // Cache children from subtree.
   nsAccessibleWrap::CacheChildren();
@@ -343,6 +345,12 @@ nsHTMLListBulletAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset
   }
   aText += Substring(mBulletText, aStartOffset, aLength);
   return NS_OK;
+}
+
+nsAccessible*
+nsHTMLListBulletAccessible::GetParent()
+{
+  return mParent;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

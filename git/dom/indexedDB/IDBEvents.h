@@ -50,6 +50,7 @@
 #include "nsIRunnable.h"
 #include "nsIVariant.h"
 
+#include "jsapi.h"
 #include "nsDOMEvent.h"
 
 #include "mozilla/dom/indexedDB/IDBObjectStore.h"
@@ -150,12 +151,11 @@ public:
   ~GetSuccessEvent()
   {
     if (mJSRuntime) {
-      js_RemoveRoot(mJSRuntime, &mCachedValue);
+      JS_RemoveRootRT(mJSRuntime, &mCachedValue);
     }
   }
 
-  NS_IMETHOD GetResult(JSContext* aCx,
-                       jsval* aResult);
+  NS_IMETHOD GetResult(nsIVariant** aResult);
 
   nsresult Init(IDBRequest* aRequest,
                 IDBTransaction* aTransaction);
@@ -179,8 +179,7 @@ public:
     }
   }
 
-  NS_IMETHOD GetResult(JSContext* aCx,
-                       jsval* aResult);
+  NS_IMETHOD GetResult(nsIVariant** aResult);
 
 private:
   nsTArray<nsString> mValues;
@@ -197,8 +196,7 @@ public:
     }
   }
 
-  NS_IMETHOD GetResult(JSContext* aCx,
-                       jsval* aResult);
+  NS_IMETHOD GetResult(nsIVariant** aResult);
 
 private:
   nsTArray<Key> mKeys;

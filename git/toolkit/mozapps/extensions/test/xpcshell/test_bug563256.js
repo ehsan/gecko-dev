@@ -42,8 +42,8 @@ function run_test() {
     }]
   }, dest);
 
-  startupManager();
-                                     
+  startupManager(1);
+
   do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "classic/1.0");
 
   AddonManager.getAddonsByIDs(["default@tests.mozilla.org",
@@ -111,7 +111,7 @@ function run_test_1(d, a) {
 
   do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "classic/1.0");
 
-  restartManager();
+  restartManager(0);
   run_test_2();
 }
 
@@ -193,7 +193,7 @@ function run_test_2() {
 
     do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "classic/1.0");
 
-    restartManager();
+    restartManager(0);
     check_test_2();
   });
 }
@@ -235,7 +235,7 @@ function check_test_2() {
 
     do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "alternate/1.0");
 
-    restartManager();
+    restartManager(0);
 
     do_check_eq(Services.prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN), "classic/1.0");
 

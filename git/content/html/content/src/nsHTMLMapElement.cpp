@@ -49,7 +49,7 @@ class nsHTMLMapElement : public nsGenericHTMLElement,
                          public nsIDOMHTMLMapElement
 {
 public:
-  nsHTMLMapElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLMapElement(nsINodeInfo *aNodeInfo);
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -76,7 +76,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLMapElement,
                                                      nsGenericHTMLElement)
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   nsRefPtr<nsContentList> mAreas;
 };
@@ -85,7 +84,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Map)
 
 
-nsHTMLMapElement::nsHTMLMapElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLMapElement::nsHTMLMapElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -101,7 +100,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLMapElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLMapElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLMapElement, nsHTMLMapElement)
+DOMCI_DATA(HTMLMapElement, nsHTMLMapElement)
 
 // QueryInterface implementation for nsHTMLMapElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLMapElement)

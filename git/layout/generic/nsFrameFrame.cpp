@@ -182,7 +182,6 @@ public:
   NS_IMETHOD GetDocShell(nsIDocShell **aDocShell);
   NS_IMETHOD BeginSwapDocShells(nsIFrame* aOther);
   virtual void EndSwapDocShells(nsIFrame* aOther);
-  virtual nsIFrame* GetFrame() { return this; }
 
   // nsIReflowCallback
   virtual PRBool ReflowFinished();
@@ -385,22 +384,21 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   nsCOMPtr<nsIPresShell> presShell;
 
-  nsIFrame* subdocRootFrame =
-    static_cast<nsIFrame*>(subdocView->GetClientData());
+  nsIFrame* f = static_cast<nsIFrame*>(subdocView->GetClientData());
 
-  if (subdocRootFrame) {
-    presShell = subdocRootFrame->PresContext()->PresShell();
+  if (f) {
+    presShell = f->PresContext()->PresShell();
   } else {
     // During page transition mInnerView will sometimes have two children, the
     // first being the new page that may not have any frame, and the second
     // being the old page that will probably have a frame.
     nsIView* nextView = subdocView->GetNextSibling();
     if (nextView) {
-      subdocRootFrame = static_cast<nsIFrame*>(nextView->GetClientData());
+      f = static_cast<nsIFrame*>(nextView->GetClientData());
     }
-    if (subdocRootFrame) {
+    if (f) {
       subdocView = nextView;
-      presShell = subdocRootFrame->PresContext()->PresShell();
+      presShell = f->PresContext()->PresShell();
     } else {
       // If we don't have a frame we use this roundabout way to get the pres shell.
       if (!mFrameLoader)
@@ -417,73 +415,38 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   nsDisplayList childItems;
 
-  PRInt32 parentAPD = PresContext()->AppUnitsPerDevPixel();
-  PRInt32 subdocAPD = presShell->GetPresContext()->AppUnitsPerDevPixel();
-
   nsRect dirty;
-  if (subdocRootFrame) {
-    // get the dirty rect relative to the root frame of the subdoc
-    dirty = aDirtyRect + GetOffsetToCrossDoc(subdocRootFrame);
-    // and convert into the appunits of the subdoc
-    dirty = dirty.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
-
-    aBuilder->EnterPresShell(subdocRootFrame, dirty);
+  if (f) {
+    dirty = aDirtyRect - f->GetOffsetTo(this);
+    aBuilder->EnterPresShell(f, dirty);
   }
-
-  // The subdocView's bounds are in appunits of the subdocument, so adjust
-  // them.
-  nsRect subdocBoundsInParentUnits =
-    subdocView->GetBounds().ConvertAppUnitsRoundOut(subdocAPD, parentAPD);
 
   // Get the bounds of subdocView relative to the reference frame.
-  subdocBoundsInParentUnits = subdocBoundsInParentUnits +
-                              mInnerView->GetPosition() +
-                              GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
-
-  if (subdocRootFrame && NS_SUCCEEDED(rv)) {
-    rv = subdocRootFrame->
-           BuildDisplayListForStackingContext(aBuilder, dirty, &childItems);
-  }
+  nsRect shellBounds = subdocView->GetBounds() +
+                       mInnerView->GetPosition() +
+                       GetOffsetTo(aBuilder->ReferenceFrame());
 
   if (!aBuilder->IsForEventDelivery()) {
-    // If we are going to use a displayzoom below then any items we put under
-    // it need to have underlying frames from the subdocument. So we need to
-    // calculate the bounds based on which frame will be the underlying frame
-    // for the canvas background color item.
-    nsRect bounds;
-    if (subdocRootFrame) {
-      nsPoint offset = mInnerView->GetPosition() +
-                       GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
-      offset = offset.ConvertAppUnits(parentAPD, subdocAPD);
-      bounds = subdocView->GetBounds() + offset;
-    } else {
-      bounds = subdocBoundsInParentUnits;
-    }
-    // Add the canvas background color to the bottom of the list. This
-    // happens after we've built the list so that AddCanvasBackgroundColorItem
-    // can monkey with the contents if necessary.
+    // Add the canvas background color.
     rv = presShell->AddCanvasBackgroundColorItem(
-           *aBuilder, childItems, subdocRootFrame ? subdocRootFrame : this,
-           bounds, NS_RGBA(0,0,0,0), PR_TRUE);
+           *aBuilder, childItems, f ? f : this, &shellBounds, NS_RGBA(0,0,0,0),
+           PR_TRUE);
+  }
+
+  if (f && NS_SUCCEEDED(rv)) {
+    rv = f->BuildDisplayListForStackingContext(aBuilder, dirty, &childItems);
   }
 
   if (NS_SUCCEEDED(rv)) {
-    if (subdocRootFrame && parentAPD != subdocAPD) {
-      nsDisplayZoom* zoomItem =
-        new (aBuilder) nsDisplayZoom(subdocRootFrame, &childItems,
-                                     subdocAPD, parentAPD);
-      childItems.AppendToTop(zoomItem);
-    }
     // Clip children to the child root frame's rectangle
     rv = aLists.Content()->AppendNewToTop(
-        new (aBuilder) nsDisplayClip(this, this, &childItems,
-                                     subdocBoundsInParentUnits));
+        new (aBuilder) nsDisplayClip(this, this, &childItems, shellBounds));
   }
   // delete childItems in case of OOM
   childItems.DeleteAll();
 
-  if (subdocRootFrame) {
-    aBuilder->LeavePresShell(subdocRootFrame, dirty);
+  if (f) {
+    aBuilder->LeavePresShell(f, dirty);
   }
 
   return rv;
@@ -702,16 +665,52 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
 PRBool
 nsSubDocumentFrame::ReflowFinished()
 {
-  if (mFrameLoader) {
+  nsCOMPtr<nsIDocShell> docShell;
+  GetDocShell(getter_AddRefs(docShell));
+
+  nsCOMPtr<nsIBaseWindow> baseWindow(do_QueryInterface(docShell));
+
+  // resize the sub document
+  if (baseWindow) {
+    PRInt32 x = 0;
+    PRInt32 y = 0;
+
     nsWeakFrame weakFrame(this);
+    
+    nsPresContext* presContext = PresContext();
+    baseWindow->GetPositionAndSize(&x, &y, nsnull, nsnull);
 
-    mFrameLoader->UpdatePositionAndSize(this);
-
-    if (weakFrame.IsAlive()) {
-      // Make sure that we can post a reflow callback in the future.
-      mPostedReflowCallback = PR_FALSE;
+    if (!weakFrame.IsAlive()) {
+      // GetPositionAndSize() killed us
+      return PR_FALSE;
     }
+
+    // GetPositionAndSize might have resized us.  So now is the time to
+    // get our size.
+    mPostedReflowCallback = PR_FALSE;
+  
+    nsSize innerSize(GetSize());
+    if (IsInline()) {
+      nsMargin usedBorderPadding = GetUsedBorderAndPadding();
+
+      // Sadly, XUL smacks the frame size without changing the used
+      // border and padding, so we can't trust those.  Subtracting
+      // them might make things negative.
+      innerSize.width  -= usedBorderPadding.LeftRight();
+      innerSize.width = NS_MAX(innerSize.width, 0);
+      
+      innerSize.height -= usedBorderPadding.TopBottom();
+      innerSize.height = NS_MAX(innerSize.height, 0);
+    }  
+
+    PRInt32 cx = presContext->AppUnitsToDevPixels(innerSize.width);
+    PRInt32 cy = presContext->AppUnitsToDevPixels(innerSize.height);
+    baseWindow->SetPositionAndSize(x, y, cx, cy, PR_FALSE);
+  } else {
+    // Make sure that we can post a reflow callback in the future.
+    mPostedReflowCallback = PR_FALSE;
   }
+
   return PR_FALSE;
 }
 

@@ -57,10 +57,8 @@
 #include "nsIDOMHTMLElement.h"
 #include "nsIJSNativeInitializer.h"
 
-#include "GLContextProvider.h"
+#include "GLContext.h"
 #include "Layers.h"
-
-#include "CheckedInt.h"
 
 #define UNPACK_FLIP_Y_WEBGL            0x9240
 #define UNPACK_PREMULTIPLY_ALPHA_WEBGL 0x9241
@@ -285,14 +283,6 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool b) { return NS_OK; };
-    NS_IMETHOD SetIsIPC(PRBool b) { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Redraw(const gfxRect&) { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Swap(mozilla::ipc::Shmem& aBack,
-                    PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
-                    { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD Swap(PRUint32 nativeID,
-                    PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
-                    { return NS_ERROR_NOT_IMPLEMENTED; }
 
     nsresult SynthesizeGLError(WebGLenum err);
     nsresult SynthesizeGLError(WebGLenum err, const char *fmt, ...);
@@ -300,17 +290,13 @@ public:
     nsresult ErrorInvalidEnum(const char *fmt = 0, ...);
     nsresult ErrorInvalidOperation(const char *fmt = 0, ...);
     nsresult ErrorInvalidValue(const char *fmt = 0, ...);
-    nsresult ErrorInvalidEnumInfo(const char *info, PRUint32 enumvalue) {
-        return ErrorInvalidEnum("%s: invalid enum value 0x%x", info, enumvalue);
-    }
 
-    already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
-                                                 LayerManager *aManager);
+    already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *manager);
     void MarkContextClean() { }
 
     // a number that increments every time we have an event that causes
     // all context resources to be lost.
-    PRUint32 Generation() { return mGeneration.value(); }
+    PRUint32 Generation() { return mGeneration; }
 protected:
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
     nsHTMLCanvasElement *HTMLCanvasElement() {
@@ -320,46 +306,21 @@ protected:
     nsRefPtr<gl::GLContext> gl;
 
     PRInt32 mWidth, mHeight;
-    CheckedUint32 mGeneration;
+    PRUint32 mGeneration;
 
-    PRPackedBool mInvalidated;
-    PRPackedBool mResetLayer;
+    PRBool mInvalidated;
 
     WebGLuint mActiveTexture;
     WebGLenum mSynthesizedGLError;
 
-    // whether shader validation is supported
-    PRBool mShaderValidation;
-
-    // some GL constants
-    PRUint32 mGLMaxVertexAttribs;
-    PRUint32 mGLMaxTextureUnits;
-    PRUint32 mGLMaxTextureSize;
-    PRUint32 mGLMaxCubeMapTextureSize;
-    PRUint32 mGLMaxTextureImageUnits;
-    PRUint32 mGLMaxVertexTextureImageUnits;
-    PRUint32 mGLMaxVaryingVectors;
-    PRUint32 mGLMaxFragmentUniformVectors;
-    PRUint32 mGLMaxVertexUniformVectors;
-
     PRBool SafeToCreateCanvas3DContext(nsHTMLCanvasElement *canvasElement);
     PRBool InitAndValidateGL();
     PRBool ValidateBuffers(PRUint32 count);
-    PRBool ValidateCapabilityEnum(WebGLenum cap, const char *info);
-    PRBool ValidateBlendEquationEnum(WebGLuint cap, const char *info);
-    PRBool ValidateBlendFuncDstEnum(WebGLuint mode, const char *info);
-    PRBool ValidateBlendFuncSrcEnum(WebGLuint mode, const char *info);
-    PRBool ValidateTextureTargetEnum(WebGLenum target, const char *info);
-    PRBool ValidateComparisonEnum(WebGLenum target, const char *info);
-    PRBool ValidateStencilOpEnum(WebGLenum action, const char *info);
-    PRBool ValidateFaceEnum(WebGLenum face, const char *info);
-    PRBool ValidateBufferUsageEnum(WebGLenum target, const char *info);
-    PRBool ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
-                                      PRUint32 *texelSize, const char *info);
-    PRBool ValidateDrawModeEnum(WebGLenum mode, const char *info);
-
+    static PRBool ValidateCapabilityEnum(WebGLenum cap);
+    static PRBool ValidateBlendEquationEnum(WebGLuint cap);
+    static PRBool ValidateBlendFuncDstEnum(WebGLuint mode);
+    static PRBool ValidateBlendFuncSrcEnum(WebGLuint mode);
     void Invalidate();
-    void DestroyResourcesAndContext();
 
     void MakeContextCurrent() { gl->MakeCurrent(); }
 
@@ -382,33 +343,28 @@ protected:
 
     // Conversion from public nsI* interfaces to concrete objects
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool GetConcreteObject(const char *info,
-                             BaseInterfaceType *aInterface,
+    PRBool GetConcreteObject(BaseInterfaceType *aInterface,
                              ConcreteObjectType **aConcreteObject,
                              PRBool *isNull = 0,
-                             PRBool *isDeleted = 0,
-                             PRBool generateErrors = PR_TRUE);
+                             PRBool *isDeleted = 0);
 
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool GetConcreteObjectAndGLName(const char *info,
-                                      BaseInterfaceType *aInterface,
+    PRBool GetConcreteObjectAndGLName(BaseInterfaceType *aInterface,
                                       ConcreteObjectType **aConcreteObject,
                                       WebGLuint *aGLObjectName,
                                       PRBool *isNull = 0,
                                       PRBool *isDeleted = 0);
 
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool GetGLName(const char *info,
-                     BaseInterfaceType *aInterface,
+    PRBool GetGLName(BaseInterfaceType *aInterface,
                      WebGLuint *aGLObjectName,
                      PRBool *isNull = 0,
                      PRBool *isDeleted = 0);
 
     template<class ConcreteObjectType, class BaseInterfaceType>
-    PRBool CanGetConcreteObject(const char *info,
-                                BaseInterfaceType *aInterface,
-                                PRBool *isNull = 0,
-                                PRBool *isDeleted = 0);
+    PRBool CheckConversion(BaseInterfaceType *aInterface,
+                           PRBool *isNull = 0,
+                           PRBool *isDeleted = 0);
 
 
     // the buffers bound to the current program's attribs
@@ -677,8 +633,7 @@ public:
 
     WebGLShader(WebGLContext *context, WebGLuint name, WebGLenum stype) :
         WebGLContextBoundObject(context),
-        mName(name), mDeleted(PR_FALSE), mType(stype),
-        mNeedsTranslation(true)
+        mName(name), mDeleted(PR_FALSE), mType(stype)
     { }
 
     void Delete() {
@@ -692,36 +647,12 @@ public:
     WebGLuint GLName() { return mName; }
     WebGLenum ShaderType() { return mType; }
 
-    void SetSource(const nsCString& src) {
-        // XXX do some quick gzip here maybe -- getting this will be very rare
-        mSource.Assign(src);
-    }
-
-    const nsCString& Source() const { return mSource; }
-
-    void SetNeedsTranslation() { mNeedsTranslation = true; }
-    bool NeedsTranslation() const { return mNeedsTranslation; }
-
-    void SetTranslationSuccess() {
-        mTranslationLog.SetIsVoid(PR_TRUE);
-        mNeedsTranslation = false;
-    }
-
-    void SetTranslationFailure(const nsCString& msg) {
-        mTranslationLog.Assign(msg);
-    }
-
-    const nsCString& TranslationLog() const { return mTranslationLog; }
-
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLSHADER
 protected:
     WebGLuint mName;
     PRBool mDeleted;
     WebGLenum mType;
-    nsCString mSource;
-    nsCString mTranslationLog;
-    bool mNeedsTranslation;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLShader, WEBGLSHADER_PRIVATE_IID)
@@ -756,7 +687,7 @@ public:
     WebGLuint GLName() { return mName; }
     const nsTArray<WebGLShader*>& AttachedShaders() const { return mAttachedShaders; }
     PRBool LinkStatus() { return mLinkStatus; }
-    PRUint32 Generation() const { return mGeneration.value(); }
+    GLuint Generation() const { return mGeneration; }
     void SetLinkStatus(PRBool val) { mLinkStatus = val; }
 
     PRBool ContainsShader(WebGLShader *shader) {
@@ -793,9 +724,10 @@ public:
 
     PRBool NextGeneration()
     {
-        if (!(mGeneration+1).valid())
+        GLuint nextGeneration = mGeneration + 1;
+        if (nextGeneration == 0)
             return PR_FALSE; // must exit without changing mGeneration
-        ++mGeneration;
+        mGeneration = nextGeneration;
         mMapUniformLocations.Clear();
         return PR_TRUE;
     }
@@ -820,7 +752,7 @@ protected:
     PRPackedBool mLinkStatus;
     nsTArray<WebGLShader*> mAttachedShaders;
     nsRefPtrHashtable<nsUint32HashKey, WebGLUniformLocation> mMapUniformLocations;
-    CheckedUint32 mGeneration;
+    GLuint mGeneration;
     GLint mUniformMaxNameLength;
     GLint mAttribMaxNameLength;
     GLint mUniformCount;
@@ -914,7 +846,7 @@ public:
 
     WebGLProgram *Program() const { return mProgram; }
     GLint Location() const { return mLocation; }
-    PRUint32 ProgramGeneration() const { return mProgramGeneration; }
+    GLuint ProgramGeneration() const { return mProgramGeneration; }
 
     // needed for our generic helpers to check nsIxxx parameters, see GetConcreteObject.
     PRBool Deleted() { return PR_FALSE; }
@@ -923,7 +855,7 @@ public:
     NS_DECL_NSIWEBGLUNIFORMLOCATION
 protected:
     WebGLObjectRefPtr<WebGLProgram> mProgram;
-    PRUint32 mProgramGeneration;
+    GLuint mProgramGeneration;
     GLint mLocation;
 };
 
@@ -941,21 +873,16 @@ NS_DEFINE_STATIC_IID_ACCESSOR(WebGLUniformLocation, WEBGLUNIFORMLOCATION_PRIVATE
  * By default, null (respectively: deleted) aInterface pointers are
  * not allowed, but if you pass a non-null isNull (respectively:
  * isDeleted) pointer, then they become allowed and the value at
- * isNull (respecively isDeleted) is overwritten.
- *
- * If generateErrors is true (which is the default) then upon errors,
- * GL errors are synthesized and error messages are printed, prepended by
- * the 'info' string.
+ * isNull (respecively isDeleted) is overwritten. In case of a null
+ * pointer, the resulting
  */
 
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::GetConcreteObject(const char *info,
-                                BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::GetConcreteObject(BaseInterfaceType *aInterface,
                                 ConcreteObjectType **aConcreteObject,
                                 PRBool *isNull,
-                                PRBool *isDeleted,
-                                PRBool generateErrors)
+                                PRBool *isDeleted)
 {
     if (!aInterface) {
         if (NS_LIKELY(isNull)) {
@@ -965,8 +892,7 @@ WebGLContext::GetConcreteObject(const char *info,
             *aConcreteObject = 0;
             return PR_TRUE;
         } else {
-            if (generateErrors)
-                ErrorInvalidValue("%s: null object passed as argument", info);
+            LogMessage("Null object passed to WebGL function");
             return PR_FALSE;
         }
     }
@@ -983,10 +909,7 @@ WebGLContext::GetConcreteObject(const char *info,
 
     if (!(*aConcreteObject)->IsCompatibleWithContext(this)) {
         // the object doesn't belong to this WebGLContext
-        if (generateErrors) {
-            ErrorInvalidOperation("%s: object from different WebGL context (or older generation of this one) "
-                                  "passed as argument", info);
-        }
+        LogMessage("Object from different WebGL context given as argument (or older generation of this one)");
         return PR_FALSE;
     }
 
@@ -996,8 +919,7 @@ WebGLContext::GetConcreteObject(const char *info,
             *isDeleted = PR_TRUE;
             return PR_TRUE;
         } else {
-            if (generateErrors)
-                ErrorInvalidOperation("%s: deleted object passed as argument", info);
+            LogMessage("Deleted object passed to WebGL function");
             return PR_FALSE;
         }
     }
@@ -1012,15 +934,14 @@ WebGLContext::GetConcreteObject(const char *info,
  * Null objects give the name 0.
  */
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::GetConcreteObjectAndGLName(const char *info,
-                                         BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::GetConcreteObjectAndGLName(BaseInterfaceType *aInterface,
                                          ConcreteObjectType **aConcreteObject,
                                          WebGLuint *aGLObjectName,
                                          PRBool *isNull,
                                          PRBool *isDeleted)
 {
-    PRBool result = GetConcreteObject(info, aInterface, aConcreteObject, isNull, isDeleted);
+    PRBool result = GetConcreteObject(aInterface, aConcreteObject, isNull, isDeleted);
     if (result == PR_FALSE) return PR_FALSE;
     *aGLObjectName = *aConcreteObject ? (*aConcreteObject)->GLName() : 0;
     return PR_TRUE;
@@ -1029,28 +950,26 @@ WebGLContext::GetConcreteObjectAndGLName(const char *info,
 /* Same as GetConcreteObjectAndGLName when you don't need the concrete object pointer.
  */
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::GetGLName(const char *info,
-                        BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::GetGLName(BaseInterfaceType *aInterface,
                         WebGLuint *aGLObjectName,
                         PRBool *isNull,
                         PRBool *isDeleted)
 {
     ConcreteObjectType *aConcreteObject;
-    return GetConcreteObjectAndGLName(info, aInterface, &aConcreteObject, aGLObjectName, isNull, isDeleted);
+    return GetConcreteObjectAndGLName(aInterface, &aConcreteObject, aGLObjectName, isNull, isDeleted);
 }
 
 /* Same as GetConcreteObject when you only want to check if the conversion succeeds.
  */
 template<class ConcreteObjectType, class BaseInterfaceType>
-inline PRBool
-WebGLContext::CanGetConcreteObject(const char *info,
-                              BaseInterfaceType *aInterface,
+PRBool
+WebGLContext::CheckConversion(BaseInterfaceType *aInterface,
                               PRBool *isNull,
                               PRBool *isDeleted)
 {
     ConcreteObjectType *aConcreteObject;
-    return GetConcreteObject(info, aInterface, &aConcreteObject, isNull, isDeleted, PR_FALSE);
+    return GetConcreteObject(aInterface, &aConcreteObject, isNull, isDeleted);
 }
 
 }

@@ -31,7 +31,7 @@ function run_test() {
   dest.append("addon1@tests.mozilla.org");
   writeInstallRDFToDir(addon1, dest);
 
-  startupManager();
+  startupManager(1);
 
   run_test_1();
 }

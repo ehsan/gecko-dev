@@ -85,42 +85,14 @@ typedef struct _hb_blob_t hb_blob_t;
 
 #define FONT_MAX_SIZE                  2000.0
 
-#define NO_FONT_LANGUAGE_OVERRIDE      0
-
-// An OpenType feature tag and value pair
-struct THEBES_API gfxFontFeature {
-    PRUint32 mTag; // see http://www.microsoft.com/typography/otspec/featuretags.htm
-    PRUint32 mValue; // 0 = off, 1 = on, larger values may be used as parameters
-                     // to features that select among multiple alternatives
-};
-
-inline PRBool
-operator<(const gfxFontFeature& a, const gfxFontFeature& b)
-{
-    return (a.mTag < b.mTag) || ((a.mTag == b.mTag) && (a.mValue < b.mValue));
-}
-
-inline PRBool
-operator==(const gfxFontFeature& a, const gfxFontFeature& b)
-{
-    return (a.mTag == b.mTag) && (a.mValue == b.mValue);
-}
-
-
 struct THEBES_API gfxFontStyle {
     gfxFontStyle();
     gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, PRInt16 aStretch,
                  gfxFloat aSize, nsIAtom *aLanguage,
                  float aSizeAdjust, PRPackedBool aSystemFont,
                  PRPackedBool aFamilyNameQuirks,
-                 PRPackedBool aPrinterFont,
-                 const nsString& aFeatureSettings,
-                 const nsString& aLanguageOverride);
+                 PRPackedBool aPrinterFont);
     gfxFontStyle(const gfxFontStyle& aStyle);
-
-    ~gfxFontStyle() {
-        delete featureSettings;
-    }
 
     // The style of font (normal, italic, oblique)
     PRUint8 style : 7;
@@ -151,31 +123,14 @@ struct THEBES_API gfxFontStyle {
     // The logical size of the font, in pixels
     gfxFloat size;
 
+    // the language (may be an internal langGroup code rather than an actual lang)
+    nsIAtom *language;
+
     // The aspect-value (ie., the ratio actualsize:actualxheight) that any
     // actual physical font created from this font structure must have when
     // rendering or measuring a string. A value of 0 means no adjustment
     // needs to be done.
     float sizeAdjust;
-
-    // the language (may be an internal langGroup code rather than an actual
-    // language code) specified in the document or element's lang property,
-    // or inferred from the charset
-    nsIAtom *language;
-
-    // Language system tag, to override document language;
-    // an OpenType "language system" tag represented as a 32-bit integer
-    // (see http://www.microsoft.com/typography/otspec/languagetags.htm).
-    // Normally 0, so font rendering will use the document or element language
-    // (see above) to control any language-specific rendering, but the author
-    // can override this for cases where the options implemented in the font
-    // do not directly match the actual language. (E.g. lang may be Macedonian,
-    // but the font in use does not explicitly support this; the author can
-    // use font-language-override to request the Serbian option in the font
-    // in order to get correct glyph shapes.)
-    PRUint32 languageOverride;
-
-    // custom opentype feature settings
-    nsTArray<gfxFontFeature> *featureSettings;
 
     // Return the final adjusted font size for the given aspect ratio.
     // Not meant to be called when sizeAdjust = 0.
@@ -203,17 +158,8 @@ struct THEBES_API gfxFontStyle {
             (weight == other.weight) &&
             (stretch == other.stretch) &&
             (language == other.language) &&
-            (sizeAdjust == other.sizeAdjust) &&
-            ((!featureSettings && !other.featureSettings) ||
-             (featureSettings && other.featureSettings &&
-              (*featureSettings == *other.featureSettings))) &&
-            (languageOverride == other.languageOverride);
+            (sizeAdjust == other.sizeAdjust);
     }
-
-    static void ParseFontFeatureSettings(const nsString& aFeatureString,
-                                         nsTArray<gfxFontFeature>& aFeatures);
-
-    static PRUint32 ParseFontLanguageOverride(const nsString& aLangTag);
 };
 
 class gfxFontEntry {
@@ -232,8 +178,6 @@ public:
         mCmapInitialized(PR_FALSE),
         mUVSOffset(0), mUVSData(nsnull),
         mUserFontData(nsnull),
-        mFeatureSettings(nsnull),
-        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
         mFamily(aFamily)
     { }
 
@@ -279,15 +223,11 @@ public:
         return PR_TRUE;
     }
 
-    virtual nsresult GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer) {
-        return NS_ERROR_FAILURE; // all platform subclasses should reimplement this!
-    }
-
     void SetFamily(gfxFontFamily* aFamily) {
         mFamily = aFamily;
     }
 
-    const nsString& FamilyName() const;
+    const nsString& FamilyName();
 
     already_AddRefed<gfxFont> FindOrMakeFont(const gfxFontStyle *aStyle,
                                              PRBool aNeedsBold);
@@ -321,9 +261,6 @@ public:
     nsAutoArrayPtr<PRUint8> mUVSData;
     gfxUserFontData* mUserFontData;
 
-    nsTArray<gfxFontFeature> *mFeatureSettings;
-    PRUint32         mLanguageOverride;
-
 protected:
     friend class gfxPlatformFontList;
     friend class gfxMacPlatformFontList;
@@ -344,10 +281,12 @@ protected:
         mCmapInitialized(PR_FALSE),
         mUVSOffset(0), mUVSData(nsnull),
         mUserFontData(nsnull),
-        mFeatureSettings(nsnull),
-        mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
         mFamily(nsnull)
     { }
+
+    virtual nsresult GetFontTable(PRUint32 aTableTag, nsTArray<PRUint8>& aBuffer) {
+        return NS_ERROR_FAILURE; // all platform subclasses should reimplement this!
+    }
 
     virtual gfxFont *CreateFontInstance(const gfxFontStyle *aFontStyle, PRBool aNeedsBold) {
         NS_NOTREACHED("oops, somebody didn't override CreateFontInstance");
@@ -565,7 +504,7 @@ struct gfxTextRange {
 /**
  * Font cache design:
  * 
- * The mFonts hashtable contains most fonts, indexed by (gfxFontEntry*, style).
+ * The mFonts hashtable contains most fonts, indexed by (name, style).
  * It does not add a reference to the fonts it contains.
  * When a font's refcount decreases to zero, instead of deleting it we
  * add it to our expiration tracker.
@@ -606,7 +545,7 @@ public:
 
     // Look up a font in the cache. Returns an addrefed pointer, or null
     // if there's nothing matching in the cache
-    already_AddRefed<gfxFont> Lookup(const gfxFontEntry *aFontEntry,
+    already_AddRefed<gfxFont> Lookup(const nsAString &aName,
                                      const gfxFontStyle *aFontGroup);
     // We created a new font (presumably because Lookup returned null);
     // put it in the cache. The font's refcount should be nonzero. It is
@@ -637,10 +576,10 @@ protected:
     static gfxFontCache *gGlobalCache;
 
     struct Key {
-        const gfxFontEntry* mFontEntry;
+        const nsAString&    mString;
         const gfxFontStyle* mStyle;
-        Key(const gfxFontEntry* aFontEntry, const gfxFontStyle* aStyle)
-            : mFontEntry(aFontEntry), mStyle(aStyle) {}
+        Key(const nsAString& aString, const gfxFontStyle* aStyle)
+            : mString(aString), mStyle(aStyle) {}
     };
 
     class HashEntry : public PLDHashEntryHdr {
@@ -657,7 +596,7 @@ protected:
         PRBool KeyEquals(const KeyTypePointer aKey) const;
         static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
         static PLDHashNumber HashKey(const KeyTypePointer aKey) {
-            return NS_PTR_TO_INT32(aKey->mFontEntry) ^ aKey->mStyle->Hash();
+            return HashString(aKey->mString) ^ aKey->mStyle->Hash();
         }
         enum { ALLOW_MEMMOVE = PR_TRUE };
 
@@ -1170,27 +1109,10 @@ protected:
     // been updated.)
     virtual void CreatePlatformShaper() { }
 
-    // Helper for subclasses that want to initialize standard metrics from the
-    // tables of sfnt (TrueType/OpenType) fonts.
-    // This will use mFUnitsConvFactor if it is already set, else compute it
-    // from mAdjustedSize and the unitsPerEm in the font's 'head' table.
-    // Returns TRUE and sets mIsValid=TRUE if successful;
-    // Returns TRUE but leaves mIsValid=FALSE if the font seems to be broken.
-    // Returns FALSE if the font does not appear to be an sfnt at all,
-    // and should be handled (if possible) using other APIs.
-    PRBool InitMetricsFromSfntTables(Metrics& aMetrics);
-
-    // Helper to calculate various derived metrics from the results of
-    // InitMetricsFromSfntTables or equivalent platform code
-    void CalculateDerivedMetrics(Metrics& aMetrics);
-
     // some fonts have bad metrics, this method sanitize them.
     // if this font has bad underline offset, aIsBadUnderlineFont should be true.
     void SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont);
 };
-
-// proportion of ascent used for x-height, if unable to read value from font
-#define DEFAULT_XHEIGHT_FACTOR 0.56f
 
 class THEBES_API gfxTextRunFactory {
     NS_INLINE_DECL_REFCOUNTING(gfxTextRunFactory)

@@ -44,7 +44,7 @@ extern "C" {
 
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
-#include "mozilla/ModuleUtils.h"
+#include "nsIGenericFactory.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
@@ -985,22 +985,14 @@ nsGnomeVFSProtocolHandler::Observe(nsISupports *aSubject,
 }
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGnomeVFSProtocolHandler, Init)
-NS_DEFINE_NAMED_CID(NS_GNOMEVFSPROTOCOLHANDLER_CID);
 
-static const mozilla::Module::CIDEntry kVFSCIDs[] = {
-  { &kNS_GNOMEVFSPROTOCOLHANDLER_CID, false, NULL, nsGnomeVFSProtocolHandlerConstructor },
-  { NULL }
+static const nsModuleComponentInfo components[] =
+{
+  { "nsGnomeVFSProtocolHandler",
+    NS_GNOMEVFSPROTOCOLHANDLER_CID,
+    NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX MOZ_GNOMEVFS_SCHEME,
+    nsGnomeVFSProtocolHandlerConstructor
+  }
 };
 
-static const mozilla::Module::ContractIDEntry kVFSContracts[] = {
-  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX MOZ_GNOMEVFS_SCHEME, &kNS_GNOMEVFSPROTOCOLHANDLER_CID },
-  { NULL }
-};
-
-static const mozilla::Module kVFSModule = {
-  mozilla::Module::kVersion,
-  kVFSCIDs,
-  kVFSContracts
-};
-
-NSMODULE_DEFN(nsGnomeVFSModule) = &kVFSModule;
+NS_IMPL_NSGETMODULE(nsGnomeVFSModule, components)

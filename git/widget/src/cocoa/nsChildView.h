@@ -143,13 +143,7 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   
   // when mouseDown: is called, we store its event here (strong)
   NSEvent* mLastMouseDownEvent;
-
-  // Whether the last mouse down event was blocked from Gecko.
-  BOOL mBlockedLastMouseDown;
-
-  // when acceptsFirstMouse: is called, we store the event here (strong)
-  NSEvent* mClickThroughMouseDownEvent;
-
+  
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
   BOOL mPendingFullDisplay;
@@ -248,8 +242,7 @@ public:
 
   static void MouseMoved(NSEvent* aEvent);
   static void OnDestroyView(ChildView* aView);
-  static BOOL WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
-                                 ChildView* aView, BOOL isClickThrough = NO);
+  static BOOL WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent);
   static void ReEvaluateMouseEnterState(NSEvent* aEvent = nil);
   static ChildView* ViewForEvent(NSEvent* aEvent);
 

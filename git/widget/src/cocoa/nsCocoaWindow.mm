@@ -1995,12 +1995,10 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 //
 // Drawing the unified gradient in the titlebar and the toolbar works like this:
 // 1) In the style sheet we set the toolbar's -moz-appearance to -moz-mac-unified-toolbar.
-// 2) When the toolbar is visible and we paint the application chrome
-//    window in nsChildView::drawRect, Gecko calls
-//    nsNativeThemeCocoa::RegisterWidgetGeometry for the widget type
-//    NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR.
-// 3) This finds the toolbar frame's ToolbarWindow and passes the toolbar
-//    frame's height to setUnifiedToolbarHeight.
+// 2) When the toolbar is drawn, Gecko calls nsNativeThemeCocoa::DrawWidgetBackground
+//    for the widget type NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR.
+// 3) This calls DrawUnifiedToolbar which finds the toolbar frame's ToolbarWindow
+//    and passes the toolbar frame's height to setUnifiedToolbarHeight.
 // 4) If the toolbar height has changed, a titlebar redraw is triggered by
 //    [self display] and the upper part of the unified gradient is drawn in the
 //    titlebar.
@@ -2027,7 +2025,7 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
     mBackgroundColor = [NSColor whiteColor];
 
     mUnifiedToolbarHeight = 0.0f;
-    mInUnifiedToolbarReset = NO;
+    mWaitingForUnifiedToolbarHeight = NO;
 
     // setBottomCornerRounded: is a private API call, so we check to make sure
     // we respond to it just in case.
@@ -2071,18 +2069,21 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   return mBackgroundColor;
 }
 
-// This is called by nsNativeThemeCocoa.mm's RegisterWidgetGeometry.
+// This is called by nsNativeThemeCocoa.mm's DrawUnifiedToolbar.
 // We need to know the toolbar's height in order to draw the correct
 // unified gradient in the titlebar.
-- (void)notifyToolbarAt:(float)aY height:(float)aHeight
+- (void)setUnifiedToolbarHeight:(float)aToolbarHeight
 {
-  // Ignore unexpected notifications about the toolbar height
-  if (!mInUnifiedToolbarReset)
+  mWaitingForUnifiedToolbarHeight = NO;
+  if (mUnifiedToolbarHeight == aToolbarHeight)
     return;
+  mUnifiedToolbarHeight = aToolbarHeight;
 
-  if (aY <= 0.0 && aY + aHeight > mUnifiedToolbarHeight) {
-    mUnifiedToolbarHeight = aY + aHeight;
-  }
+  [self setContentBorderThickness:aToolbarHeight forEdge:NSMaxYEdge];
+
+  // Since this function is only called inside painting, the repaint needs to
+  // be synchronous.
+  [self setTitlebarNeedsDisplayInRect:[self titlebarRect] sync:YES];
 }
 
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect
@@ -2125,26 +2126,16 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   return frameRect.size.height - [self contentRectForFrameRect:frameRect].size.height;
 }
 
-- (float)beginMaybeResetUnifiedToolbar
+- (void)beginMaybeResetUnifiedToolbar
 {
-  mInUnifiedToolbarReset = YES;
-  float old = mUnifiedToolbarHeight;
-  mUnifiedToolbarHeight = 0.0;
-  return old;
+  mWaitingForUnifiedToolbarHeight = YES;
 }
 
-- (void)endMaybeResetUnifiedToolbar:(float)aOldHeight
+- (void)endMaybeResetUnifiedToolbar
 {
-  if (mInUnifiedToolbarReset) {
-    mInUnifiedToolbarReset = NO;
-    if (mUnifiedToolbarHeight == aOldHeight)
-      return;
-
-    [self setContentBorderThickness:mUnifiedToolbarHeight forEdge:NSMaxYEdge];
-
-    // Since this function is only called inside painting, the repaint needs to
-    // be synchronous.
-    [self setTitlebarNeedsDisplayInRect:[self titlebarRect] sync:YES];
+  if (mWaitingForUnifiedToolbarHeight) {
+    // No toolbar was drawn, so set the height to zero.
+    [self setUnifiedToolbarHeight:0.0f];
   }
 }
 
@@ -2401,9 +2392,9 @@ ContentPatternDrawCallback(void* aInfo, CGContextRef aContext)
         windowLocation = nsCocoaUtils::EventLocationForWindow(anEvent, self);
         target = [contentView hitTest:[contentView convertPoint:windowLocation fromView:nil]];
         // If the hit test failed, the event is targeted here but is not over the window.
-        // Send it to our content view.
+        // Target it at the first responder.
         if (!target)
-          target = contentView;
+          target = (NSView*)[self firstResponder];
       }
       break;
     default:

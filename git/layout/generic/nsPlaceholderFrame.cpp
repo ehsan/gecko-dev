@@ -237,8 +237,7 @@ nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return NS_OK;
   
   return aLists.Outlines()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(this, PaintDebugPlaceholder, "DebugPlaceholder",
-                       nsDisplayItem::TYPE_DEBUG_PLACEHOLDER));
+      nsDisplayGeneric(this, PaintDebugPlaceholder, "DebugPlaceholder"));
 #else // DEBUG
   return NS_OK;
 #endif // DEBUG

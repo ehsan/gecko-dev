@@ -51,13 +51,13 @@ class nsCSSStyleSheet;
 class nsIPrincipal;
 class nsIURI;
 class nsIUnicharInputStream;
+class nsCSSDeclaration;
 struct nsCSSSelectorList;
 class nsMediaList;
 
 namespace mozilla {
 namespace css {
-class Declaration;
-class Loader;
+  class Loader;
 }
 }
 
@@ -134,7 +134,7 @@ public:
                                      nsIURI*           aSheetURL,
                                      nsIURI*           aBaseURL,
                                      nsIPrincipal*     aSheetPrincipal,
-                                     mozilla::css::Declaration* aDeclaration,
+                                     nsCSSDeclaration* aDeclaration,
                                      PRBool            aParseOnlyOneDecl,
                                      PRBool*           aChanged,
                                      PRBool            aClearOldDecl);
@@ -150,7 +150,7 @@ public:
                          nsIURI*             aSheetURL,
                          nsIURI*             aBaseURL,
                          nsIPrincipal*       aSheetPrincipal,
-                         mozilla::css::Declaration* aDeclaration,
+                         nsCSSDeclaration*   aDeclaration,
                          PRBool*             aChanged,
                          PRBool              aIsImportant);
 

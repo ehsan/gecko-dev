@@ -41,7 +41,7 @@
 #include "prlog.h"
 #include "nsStyleSheetService.h"
 #include "nsIStyleSheet.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIURI.h"
 #include "nsContentCID.h"

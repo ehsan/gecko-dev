@@ -174,7 +174,7 @@ nsAboutRedirector::GetURIFlags(nsIURI *aURI, PRUint32 *result)
     return NS_ERROR_ILLEGAL_VALUE;
 }
 
-nsresult
+NS_METHOD
 nsAboutRedirector::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsAboutRedirector* about = new nsAboutRedirector();

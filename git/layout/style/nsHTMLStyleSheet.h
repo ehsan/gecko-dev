@@ -78,17 +78,18 @@ public:
 #endif
 
   // nsIStyleRuleProcessor API
-  virtual void RulesMatching(ElementRuleProcessorData* aData);
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(ElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(PseudoElementRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(AnonBoxRuleProcessorData* aData);
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
+  NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
   virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
   virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
   virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
-  virtual PRBool MediumFeaturesChanged(nsPresContext* aPresContext);
+  NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
+                                   PRBool* aRulesChanged);
 
   nsresult Init(nsIURI* aURL, nsIDocument* aDocument);
   void Reset(nsIURI* aURL);

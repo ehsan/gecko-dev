@@ -144,8 +144,7 @@ PubKeyManager.prototype = {
     privkey.iv = Svc.Crypto.generateRandomIV();
 
     let pub = {}, priv = {};
-    Svc.Crypto.generateKeypair(passphrase.passwordUTF8, privkey.salt,
-                               privkey.iv, pub, priv);
+    Svc.Crypto.generateKeypair(passphrase.password, privkey.salt, privkey.iv, pub, priv);
     [pubkey.keyData, privkey.keyData] = [pub.value, priv.value];
 
     if (pubkeyUri) {

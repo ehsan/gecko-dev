@@ -71,7 +71,6 @@
 class nsIFrame;
 class imgIRequest;
 class imgIContainer;
-struct nsCSSValueList;
 
 // Includes nsStyleStructID.
 #include "nsStyleStructFwd.h"
@@ -1289,15 +1288,9 @@ struct nsStyleDisplay {
   PRUint8 mOverflowY;           // [reset] see nsStyleConsts.h
   PRUint8 mResize;              // [reset] see nsStyleConsts.h
   PRUint8   mClipFlags;         // [reset] see nsStyleConsts.h
-
-  // mSpecifiedTransform is the list of transform functions as
-  // specified, or null to indicate there is no transform.  (inherit or
-  // initial are replaced by an actual list of transform functions, or
-  // null, as appropriate.) (owned by the style rule)
-  const nsCSSValueList *mSpecifiedTransform; // [reset]
+  PRPackedBool mTransformPresent;  // [reset] Whether there is a -moz-transform.
   nsStyleTransformMatrix mTransform; // [reset] The stored transform matrix
   nsStyleCoord mTransformOrigin[2]; // [reset] percent, coord.
-
   nsAutoTArray<nsTransition, 1> mTransitions; // [reset]
   // The number of elements in mTransitions that are not from repeating
   // a list due to another property being longer.
@@ -1340,7 +1333,7 @@ struct nsStyleDisplay {
   /* Returns true if we're positioned or there's a transform in effect. */
   PRBool IsPositioned() const {
     return IsAbsolutelyPositioned() ||
-      NS_STYLE_POSITION_RELATIVE == mPosition || HasTransform();
+      NS_STYLE_POSITION_RELATIVE == mPosition || mTransformPresent;
   }
 
   PRBool IsScrollableOverflow() const {
@@ -1360,7 +1353,7 @@ struct nsStyleDisplay {
 
   /* Returns whether the element has the -moz-transform property. */
   PRBool HasTransform() const {
-    return mSpecifiedTransform != nsnull;
+    return mTransformPresent;
   }
 };
 

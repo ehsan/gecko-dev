@@ -893,10 +893,16 @@ Blocklist.prototype = {
     });
   },
 
+  classDescription: "Blocklist Service",
+  contractID: "@mozilla.org/extensions/blocklist;1",
   classID: Components.ID("{66354bc9-7ed1-4692-ae1d-8da97d6b205e}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsIBlocklistService,
                                          Ci.nsITimerCallback]),
+  _xpcom_categories: [{ category: "update-timer",
+                        value: "@mozilla.org/extensions/blocklist;1," +
+                               "getService,blocklist-background-update-timer," +
+                               PREF_BLOCKLIST_INTERVAL + ",86400" }]
 };
 
 /**
@@ -1057,4 +1063,6 @@ BlocklistItemData.prototype = {
   }
 };
 
-var NSGetFactory = XPCOMUtils.generateNSGetFactory([Blocklist]);
+function NSGetModule(aCompMgr, aFileSpec) {
+  return XPCOMUtils.generateModule([Blocklist]);
+}

@@ -45,10 +45,6 @@ interface nsIIDBRequest;
 interface nsIVariant;
 interface nsIDOMDOMStringList;
 
-%{C++
-#include "jsapi.h"
-%}
-
 /**
  * nsIIDBObjectStore interface.  See
  * http://dev.w3.org/2006/webapi/WebSimpleDB/#idl-def-nsIIDBObjectStore
@@ -74,22 +70,19 @@ interface nsIIDBObjectStore : nsISupports
          [optional /* unlimited */] in unsigned long limit);
 
   // Success fires IDBTransactionEvent, result == key
-  [implicit_jscontext, optional_argc]
   nsIIDBRequest
-  add(in jsval value,
-      [optional /* undefined */] in jsval key);
+  add(in nsIVariant value,
+      [optional /* null */] in nsIVariant key);
 
   // Success fires IDBTransactionEvent, result == key
-  [implicit_jscontext, optional_argc]
   nsIIDBRequest
-  modify(in jsval value,
-         [optional /* undefined */] in jsval key);
+  modify(in nsIVariant value,
+         [optional /* null */] in nsIVariant key);
 
   // Success fires IDBTransactionEvent, result == key
-  [implicit_jscontext, optional_argc]
   nsIIDBRequest
-  addOrModify(in jsval value,
-              [optional /* undefined */] in jsval key);
+  addOrModify(in nsIVariant value,
+              [optional /* null */] in nsIVariant key);
 
   // Success fires IDBTransactionEvent, result == null
   nsIIDBRequest

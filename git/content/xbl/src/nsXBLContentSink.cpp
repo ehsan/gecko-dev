@@ -71,7 +71,8 @@ NS_NewXBLContentSink(nsIXMLContentSink** aResult,
 {
   NS_ENSURE_ARG_POINTER(aResult);
 
-  nsXBLContentSink* it = new nsXBLContentSink();
+  nsXBLContentSink* it;
+  NS_NEWXPCOM(it, nsXBLContentSink);
   NS_ENSURE_TRUE(it, NS_ERROR_OUT_OF_MEMORY);
 
   nsCOMPtr<nsIXMLContentSink> kungFuDeathGrip = it;
@@ -421,7 +422,7 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
   if (aTagName == nsGkAtoms::bindings) {
     ENSURE_XBL_STATE(mState == eXBL_InDocument);
       
-    mDocInfo = NS_NewXBLDocumentInfo(mDocument);
+    NS_NewXBLDocumentInfo(mDocument, &mDocInfo);
     if (!mDocInfo) {
       mState = eXBL_Error;
       return PR_TRUE;
@@ -438,7 +439,7 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
     uri->SchemeIs("resource", &isRes);
     mIsChromeOrResource = isChrome || isRes;
       
-    nsXBLDocumentInfo* info = mDocInfo;
+    nsIXBLDocumentInfo* info = mDocInfo;
     NS_RELEASE(info); // We keep a weak ref. We've created a cycle between doc/binding manager/doc info.
     mState = eXBL_InBindings;
   }

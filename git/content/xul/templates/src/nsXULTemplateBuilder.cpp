@@ -1141,8 +1141,7 @@ void
 nsXULTemplateBuilder::ContentRemoved(nsIDocument* aDocument,
                                      nsIContent* aContainer,
                                      nsIContent* aChild,
-                                     PRInt32 aIndexInContainer,
-                                     nsIContent* aPreviousSibling)
+                                     PRInt32 aIndexInContainer)
 {
     if (mRoot && nsContentUtils::ContentIsDescendantOf(mRoot, aChild)) {
         nsRefPtr<nsXULTemplateBuilder> kungFuDeathGrip(this);
@@ -1412,7 +1411,8 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
 
     jsval v;
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot, mRoot, &v,
+    rv = nsContentUtils::WrapNative(jscontext, scope, mRoot,
+                                    &NS_GET_IID(nsIDOMElement), &v,
                                     getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 

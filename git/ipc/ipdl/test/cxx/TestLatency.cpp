@@ -18,7 +18,8 @@ TestLatencyParent::TestLatencyParent() :
     mPP5TimeTotal(),
     mRpcTimeTotal(),
     mPPTrialsToGo(NR_TRIALS),
-    mPP5TrialsToGo(NR_TRIALS)
+    mPP5TrialsToGo(NR_TRIALS),
+    mPongsToGo(0)
 {
     MOZ_COUNT_CTOR(TestLatencyParent);
 }
@@ -59,6 +60,8 @@ void
 TestLatencyParent::Ping5Pong5Trial()
 {
     mStart = TimeStamp::Now();
+    // HACK
+    mPongsToGo = 5;
 
     if (!SendPing5() ||
         !SendPing5() ||
@@ -94,7 +97,8 @@ TestLatencyParent::RecvPong()
 bool
 TestLatencyParent::RecvPong5()
 {
-    if (PTestLatency::PING5 != state())
+    // HACK
+    if (0 < --mPongsToGo)
         return true;
 
     TimeDuration thisTrial = (TimeStamp::Now() - mStart);
@@ -155,16 +159,7 @@ TestLatencyChild::RecvPing()
 bool
 TestLatencyChild::RecvPing5()
 {
-    if (PTestLatency::PONG1 != state())
-        return true;
-
-    if (!SendPong5() ||
-        !SendPong5() ||
-        !SendPong5() ||
-        !SendPong5() ||
-        !SendPong5())
-        fail("sending Pong5()");
-
+    SendPong5();
     return true;
 }
 

@@ -36,11 +36,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/* ===== popup.css ===================================================
+  == Styles used by the XUL popup element.
+  ======================================================================= */
+
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 /* ::::: menupopup ::::: */
 
 menupopup,
+popup,
 panel {
   border: 3px solid transparent;
   -moz-border-top-colors   : ThreeDLightShadow ThreeDHighlight ThreeDFace;
@@ -52,11 +57,15 @@ panel {
   background: Menu;
 }
 
-menupopup {
+menupopup,
+/* auto complete popups don't render well as vista menus */
+popup:not([type="autocomplete"])
+{
   -moz-appearance: menupopup;
 }
 
-menupopup > menu > menupopup {
+menupopup > menu > menupopup,
+popup > menu > menupopup {
  /* align submenus */
   -moz-margin-start: -3px;
   margin-top: -3px;

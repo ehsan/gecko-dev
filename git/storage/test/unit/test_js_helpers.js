@@ -58,8 +58,9 @@ function test_row_prototype()
 
 function test_params_gets_sync()
 {
-  // Added for bug 562866.
-  /*
+  // Added for bug 562886.
+  do_check_false("getOwnPropertyNames" in Object);
+  /* Uncomment this when bug 518663 lands
   let stmt = createStatement(
     "SELECT * FROM test WHERE id IN (:a, :b, :c)"
   );
@@ -79,8 +80,9 @@ function test_params_gets_sync()
 
 function test_params_gets_async()
 {
-  // Added for bug 562866.
-  /*
+  // Added for bug 562886.
+  do_check_false("getOwnPropertyNames" in Object);
+  /* Uncomment this when bug 518663 lands
   let stmt = createAsyncStatement(
     "SELECT * FROM test WHERE id IN (:a, :b, :c)"
   );

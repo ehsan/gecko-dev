@@ -68,7 +68,7 @@ NS_IMPL_ISUPPORTS2(nsHTMLCSSStyleSheet,
                    nsIStyleSheet,
                    nsIStyleRuleProcessor)
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
   Element* element = aData->mElement;
@@ -88,8 +88,7 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
       // Non-animation restyle -- don't process SMIL override style, because we
       // don't want SMIL animation to trigger new CSS transitions. Instead,
       // request an Animation restyle, so we still get noticed.
-      aData->mPresContext->PresShell()->RestyleForAnimation(element,
-                                                            eRestyle_Self);
+      aData->mPresContext->PresShell()->RestyleForAnimation(element);
     } else {
       // Animation restyle (or non-restyle traversal of rules)
       // Now we can walk SMIL overrride style, without triggering transitions.
@@ -98,22 +97,27 @@ nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
     }
   }
 #endif // MOZ_SMIL
+
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(PseudoElementRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(AnonBoxRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 
 #ifdef MOZ_XUL
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 {
+  return NS_OK;
 }
 #endif
 
@@ -158,10 +162,12 @@ nsHTMLCSSStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aDat
   return nsRestyleHint(0);
 }
 
-/* virtual */ PRBool
-nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
+NS_IMETHODIMP
+nsHTMLCSSStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext,
+                                           PRBool* aRulesChanged)
 {
-  return PR_FALSE;
+  *aRulesChanged = PR_FALSE;
+  return NS_OK;
 }
 
 

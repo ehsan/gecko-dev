@@ -302,8 +302,7 @@ public:
     static guint32     sLastButtonPressTime;
     static guint32     sLastButtonReleaseTime;
 
-    NS_IMETHOD         BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
-    NS_IMETHOD         BeginMoveDrag(nsMouseEvent* aEvent);
+    NS_IMETHOD         BeginResizeDrag   (nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
 
     MozContainer*      GetMozContainer() { return mContainer; }
     GdkWindow*         GetGdkWindow() { return mGdkWindow; }
@@ -377,9 +376,6 @@ private:
     PRBool             DispatchCommandEvent(nsIAtom* aCommand);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            PRBool aIntersectWithExisting);
-    PRBool             GetDragInfo(nsMouseEvent* aMouseEvent,
-                                   GdkWindow** aWindow, gint* aButton,
-                                   gint* aRootX, gint* aRootY);
 
     GtkWidget          *mShell;
     MozContainer       *mContainer;

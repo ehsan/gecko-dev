@@ -263,7 +263,6 @@ nsXPCComponents_Interfaces::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     switch(enum_op)
     {
         case JSENUMERATE_INIT:
-        case JSENUMERATE_INIT_ALL:
         {
             if(!mManager ||
                NS_FAILED(mManager->EnumerateInterfaces(&e)) || !e ||
@@ -593,7 +592,6 @@ nsXPCComponents_InterfacesByID::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     switch(enum_op)
     {
         case JSENUMERATE_INIT:
-        case JSENUMERATE_INIT_ALL:
         {
             if(!mManager ||
                NS_FAILED(mManager->EnumerateInterfaces(&e)) || !e ||
@@ -917,7 +915,6 @@ nsXPCComponents_Classes::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     switch(enum_op)
     {
         case JSENUMERATE_INIT:
-        case JSENUMERATE_INIT_ALL:
         {
             nsCOMPtr<nsIComponentRegistrar> compMgr;
             if(NS_FAILED(NS_GetComponentRegistrar(getter_AddRefs(compMgr))) || !compMgr ||
@@ -1171,7 +1168,6 @@ nsXPCComponents_ClassesByID::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     switch(enum_op)
     {
         case JSENUMERATE_INIT:
-        case JSENUMERATE_INIT_ALL:
         {
             nsCOMPtr<nsIComponentRegistrar> compMgr;
             if(NS_FAILED(NS_GetComponentRegistrar(getter_AddRefs(compMgr))) || !compMgr ||
@@ -1445,7 +1441,6 @@ nsXPCComponents_Results::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
     switch(enum_op)
     {
         case JSENUMERATE_INIT:
-        case JSENUMERATE_INIT_ALL:
         {
             if(idp)
                 *idp = INT_TO_JSVAL(nsXPCException::GetNSResultCount());
@@ -3241,6 +3236,11 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop)
     if(NS_FAILED(rv))
         return NS_ERROR_XPC_UNEXPECTED;
 
+    JSObject *sandbox = JS_NewGlobalObject(cx, &SandboxClass);
+    if (!sandbox)
+        return NS_ERROR_XPC_UNEXPECTED;
+    js::AutoValueRooter tvr(cx, sandbox);
+
     nsCOMPtr<nsIScriptObjectPrincipal> sop(do_QueryInterface(prinOrSop));
 
     if (!sop) {
@@ -3265,35 +3265,19 @@ xpc_CreateSandboxObject(JSContext * cx, jsval * vp, nsISupports *prinOrSop)
             return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    JSPrincipals *jsPrincipals;
-    rv = sop->GetPrincipal()->GetJSPrincipals(cx, &jsPrincipals);
-    if (NS_FAILED(rv))
-        return rv;
-    JSObject *sandbox = JS_NewCompartmentAndGlobalObject(cx, &SandboxClass, jsPrincipals);
-    if (jsPrincipals)
-        JSPRINCIPALS_DROP(cx, jsPrincipals);
-    if (!sandbox)
+    // Pass on ownership of sop to |sandbox|.
+
+    if (!JS_SetPrivate(cx, sandbox, sop.forget().get())) {
         return NS_ERROR_XPC_UNEXPECTED;
-    js::AutoValueRooter tvr(cx, sandbox);
-
-    {
-        JSAutoCrossCompartmentCall ac;
-        if (!ac.enter(cx, sandbox))
-            return NS_ERROR_XPC_UNEXPECTED;
-
-        // Pass on ownership of sop to |sandbox|.
-        if (!JS_SetPrivate(cx, sandbox, sop.forget().get())) {
-            return NS_ERROR_XPC_UNEXPECTED;
-        }
-
-        rv = xpc->InitClasses(cx, sandbox);
-        if (NS_SUCCEEDED(rv) &&
-            !JS_DefineFunctions(cx, sandbox, SandboxFunctions)) {
-            rv = NS_ERROR_FAILURE;
-        }
-        if (NS_FAILED(rv))
-            return NS_ERROR_XPC_UNEXPECTED;
     }
+
+    rv = xpc->InitClasses(cx, sandbox);
+    if (NS_SUCCEEDED(rv) &&
+        !JS_DefineFunctions(cx, sandbox, SandboxFunctions)) {
+        rv = NS_ERROR_FAILURE;
+    }
+    if (NS_FAILED(rv))
+        return NS_ERROR_XPC_UNEXPECTED;
 
     if (vp) {
         *vp = OBJECT_TO_JSVAL(sandbox);
@@ -3593,10 +3577,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                 ssm->GetCxSubjectPrincipalAndFrame(cx, &fp);
             PRBool system;
             ssm->IsSystemPrincipal(subjectPrincipal, &system);
-            if (fp && !system) {
-                ssm->IsCapabilityEnabled("UniversalXPConnect", &system);
-                NS_ASSERTION(system, "Bad caller!");
-            }
+            NS_ASSERTION(!fp || system, "Bad caller!");
         }
     }
 #endif
@@ -3680,9 +3661,20 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
 
             jsval exn;
             if (JS_GetPendingException(sandcx->GetJSContext(), &exn)) {
-                // Root the exception temporarily so we can execute code on
+                // Stash the exception in |cx| so we can execute code on
                 // sandcx without a pending exception.
-                js::AutoValueRooter exnroot(sandcx->GetJSContext(), exn);
+                // Note that, even if wrapped, |exn| is rooted.
+                {
+                    JSAutoTransferRequest transfer(sandcx->GetJSContext(), cx);
+
+                    if (!JSVAL_IS_PRIMITIVE(exn) &&
+                        XPCWrapper::RewrapObject(cx, callingScope,
+                                                 JSVAL_TO_OBJECT(exn),
+                                                 XPCWrapper::SJOW, &exn)) {
+                        JS_SetPendingException(cx, exn);
+                    }
+                }
+
                 JS_ClearPendingException(sandcx->GetJSContext());
                 if (returnStringOnly) {
                     // The caller asked for strings only, convert the
@@ -3698,17 +3690,7 @@ xpc_EvalInSandbox(JSContext *cx, JSObject *sandbox, const nsAString& source,
                         JS_ClearPendingException(cx);
                         rv = NS_ERROR_FAILURE;
                     }
-                } else {
-                    JSAutoTransferRequest transfer(sandcx->GetJSContext(), cx);
-
-                    if (!JSVAL_IS_PRIMITIVE(exn) &&
-                        XPCWrapper::RewrapObject(cx, callingScope,
-                                                 JSVAL_TO_OBJECT(exn),
-                                                 XPCWrapper::SJOW, &exn)) {
-                        JS_SetPendingException(cx, exn);
-                    }
                 }
-
 
                 // Clear str so we don't confuse callers.
                 str = nsnull;

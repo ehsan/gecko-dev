@@ -64,12 +64,11 @@ public:
   ~nsDOMCSSAttributeDeclaration();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMCSSAttributeDeclaration,
-                                           nsICSSDeclaration)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMCSSAttributeDeclaration)
 
   // If GetCSSDeclaration returns non-null, then the decl it returns
   // is owned by our current style rule.
-  virtual nsresult GetCSSDeclaration(mozilla::css::Declaration **aDecl,
+  virtual nsresult GetCSSDeclaration(nsCSSDeclaration **aDecl,
                                      PRBool aAllocate);
   virtual nsresult GetCSSParsingEnvironment(nsIURI** aSheetURI,
                                             nsIURI** aBaseURI,

@@ -70,8 +70,7 @@ var RESULTS = [
   screenshots:      [],
   homepageURL:      "https://addons.mozilla.org/addon/5992",
   type:             "extension",
-  sourceURI:        "http://localhost:4444/test.xpi",
-  size:             null
+  sourceURL:        "http://localhost:4444/test.xpi"
 },
 {
   id:               "test6@tests.mozilla.org",
@@ -84,8 +83,7 @@ var RESULTS = [
   screenshots:      ["http://localhost:4444/test_bug404024/thumbnail.png"],
   homepageURL:      null,
   type:             "theme",
-  sourceURI:        "http://localhost:4444/XPCShell.xpi",
-  size:             456,
+  sourceURL:        "http://localhost:4444/XPCShell.xpi"
 }
 ];
 
@@ -111,8 +109,8 @@ function checkResults(addons) {
         continue;
       }
 
-      if (p == "sourceURI") {
-        do_check_eq(addons[i]["install"][p].spec, RESULTS[i][p]);
+      if (p == "sourceURL") {
+        do_check_eq(addons[i]["install"][p], RESULTS[i][p]);
         continue;
       }
 

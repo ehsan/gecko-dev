@@ -1638,7 +1638,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("FramesetBorder", TYPE_FRAMESET_BORDER)
+  NS_DISPLAY_DECL_NAME("FramesetBorder")
 };
 
 void nsDisplayFramesetBorder::Paint(nsDisplayListBuilder* aBuilder,
@@ -1839,7 +1839,7 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("FramesetBlank", TYPE_FRAMESET_BLANK)
+  NS_DISPLAY_DECL_NAME("FramesetBlank")
 };
 void nsDisplayFramesetBlank::Paint(nsDisplayListBuilder* aBuilder,
                                    nsIRenderingContext* aCtx)

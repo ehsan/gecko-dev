@@ -316,10 +316,6 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
 {
   NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
 
-  if (!mEditor->IsAcceptableInputEvent(aKeyEvent)) {
-    return NS_OK;
-  }
-
   // DOM event handling happens in two passes, the client pass and the system
   // pass.  We do all of our processing in the system pass, to allow client
   // handlers the opportunity to cancel events and prevent typing in the editor.
@@ -487,10 +483,6 @@ nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
 {
   NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
 
-  if (!mEditor->IsAcceptableInputEvent(aTextEvent)) {
-    return NS_OK;
-  }
-
   nsCOMPtr<nsIPrivateTextEvent> textEvent = do_QueryInterface(aTextEvent);
   if (!textEvent) {
      //non-ui event passed in.  bad things.
@@ -508,7 +500,7 @@ nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
     return NS_OK;
   }
 
-  return mEditor->UpdateIMEComposition(composedText, textRangeList);
+  return mEditor->SetCompositionString(composedText, textRangeList);
 }
 
 /**
@@ -781,20 +773,14 @@ NS_IMETHODIMP
 nsEditorEventListener::HandleStartComposition(nsIDOMEvent* aCompositionEvent)
 {
   NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
-  if (!mEditor->IsAcceptableInputEvent(aCompositionEvent)) {
-    return NS_OK;
-  }
-  return mEditor->BeginIMEComposition();
+  return mEditor->BeginComposition();
 }
 
 NS_IMETHODIMP
 nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
 {
   NS_ENSURE_TRUE(mEditor, NS_ERROR_NOT_AVAILABLE);
-  if (!mEditor->IsAcceptableInputEvent(aCompositionEvent)) {
-    return NS_OK;
-  }
-  return mEditor->EndIMEComposition();
+  return mEditor->EndComposition();
 }
 
 /**

@@ -302,9 +302,7 @@ nsSVGAngle::NewValueSpecifiedUnits(PRUint16 unitType,
     aSVGElement->AnimationNeedsResample();
   }
 #endif
-  if (aSVGElement) {
-    aSVGElement->DidChangeAngle(mAttrEnum, PR_TRUE);
-  }
+  aSVGElement->DidChangeAngle(mAttrEnum, PR_TRUE);
   return NS_OK;
 }
 
@@ -383,7 +381,7 @@ nsSVGAngle::SetBaseValue(float aValue, nsSVGElement *aSVGElement)
     mAnimVal = mBaseVal;
   }
 #ifdef MOZ_SMIL
-  else {
+  else if (aSVGElement) {
     aSVGElement->AnimationNeedsResample();
   }
 #endif

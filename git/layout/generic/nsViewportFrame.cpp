@@ -357,10 +357,7 @@ ViewportFrame::InvalidateInternal(const nsRect& aDamageRect,
 
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {
-    nsPoint pt = -parent->GetOffsetToCrossDoc(this);
-    PRInt32 ourAPD = PresContext()->AppUnitsPerDevPixel();
-    PRInt32 parentAPD = parent->PresContext()->AppUnitsPerDevPixel();
-    r = r.ConvertAppUnitsRoundOut(ourAPD, parentAPD);
+    nsPoint pt = GetOffsetTo(parent);
     parent->InvalidateInternal(r, pt.x, pt.y, this,
                                aFlags | INVALIDATE_CROSS_DOC);
     return;

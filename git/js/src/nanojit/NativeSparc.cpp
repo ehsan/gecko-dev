@@ -61,7 +61,7 @@ namespace nanojit
 
     const Register Assembler::argRegs[] = { I0, I1, I2, I3, I4, I5 };
     const Register Assembler::retRegs[] = { O0 };
-    const Register Assembler::savedRegs[] = { L1 }; // Dummy element not used, as NumSavedRegs == 0
+    const Register Assembler::savedRegs[] = { L1 };
 
     static const int kLinkageAreaSize = 68;
     static const int kcalleeAreaSize = 80; // The max size.
@@ -118,7 +118,7 @@ namespace nanojit
         }
     }
 
-    void Assembler::nFragExit(LIns* guard)
+    void Assembler::nFragExit(LInsp guard)
     {
         SideExit* exit = guard->record()->exit;
         Fragment *frag = exit->target;
@@ -151,7 +151,7 @@ namespace nanojit
         return  _nIns;
     }
 
-    void Assembler::asm_call(LIns* ins)
+    void Assembler::asm_call(LInsp ins)
     {
         Register retReg = ( ins->isop(LIR_calld) ? F0 : retRegs[0] );
         deprecated_prepResultReg(ins, rmask(retReg));
@@ -245,9 +245,9 @@ namespace nanojit
         *(uint32_t*)&branch[1] |= (intptr_t)location & 0x3FF;
     }
 
-    RegisterMask Assembler::nHint(LIns* ins)
+    RegisterMask Assembler::hint(LIns* ins)
     {
-        NanoAssert(0);
+        return 0;
     }
 
     bool Assembler::canRemat(LIns* ins)
@@ -255,7 +255,7 @@ namespace nanojit
         return ins->isImmI() || ins->isop(LIR_allocp);
     }
 
-    void Assembler::asm_restore(LIns* i, Register r)
+    void Assembler::asm_restore(LInsp i, Register r)
     {
         underrunProtect(24);
         if (i->isop(LIR_allocp)) {
@@ -341,7 +341,7 @@ namespace nanojit
         }
     }
 
-    void Assembler::asm_load64(LIns* ins)
+    void Assembler::asm_load64(LInsp ins)
     {
         switch (ins->opcode()) {
             case LIR_ldd:
@@ -384,7 +384,7 @@ namespace nanojit
             }
     }
 
-    void Assembler::asm_store64(LOpcode op, LIns* value, int dr, LIns* base)
+    void Assembler::asm_store64(LOpcode op, LInsp value, int dr, LInsp base)
     {
         switch (op) {
             case LIR_std:
@@ -466,7 +466,7 @@ namespace nanojit
         LDSW32(rs, ds, t);
     }
 
-    NIns* Assembler::asm_branch(bool branchOnFalse, LIns* cond, NIns* targ)
+    NIns* Assembler::asm_branch(bool branchOnFalse, LInsp cond, NIns* targ)
     {
         NIns* at = 0;
         LOpcode condop = cond->opcode();
@@ -535,15 +535,13 @@ namespace nanojit
         return at;
     }
 
-    NIns* Assembler::asm_branch_ov(LOpcode, NIns* targ)
+    void Assembler::asm_branch_xov(LOpcode, NIns* targ)
     {
-        NIns* at = 0;
         underrunProtect(32);
         intptr_t tt = ((intptr_t)targ - (intptr_t)_nIns + 8) >> 2;
         // !targ means that it needs patch.
         if( !(isIMM22((int32_t)tt)) || !targ ) {
             JMP_long_nocheck((intptr_t)targ);
-            at = _nIns;
             NOP();
             BA(0, 5);
             tt = 4;
@@ -551,15 +549,14 @@ namespace nanojit
         NOP();
 
         BVS(0, tt);
-        return at;
     }
 
     void Assembler::asm_cmp(LIns *cond)
     {
         underrunProtect(12);
 
-        LIns* lhs = cond->oprnd1();
-        LIns* rhs = cond->oprnd2();
+        LInsp lhs = cond->oprnd1();
+        LInsp rhs = cond->oprnd2();
 
         NanoAssert(lhs->isI() && rhs->isI());
 
@@ -584,7 +581,7 @@ namespace nanojit
             }
     }
 
-    void Assembler::asm_condd(LIns* ins)
+    void Assembler::asm_condd(LInsp ins)
     {
         // only want certain regs
         Register r = deprecated_prepResultReg(ins, AllowableFlagRegs);
@@ -605,7 +602,7 @@ namespace nanojit
         asm_cmpd(ins);
     }
 
-    void Assembler::asm_cond(LIns* ins)
+    void Assembler::asm_cond(LInsp ins)
     {
         underrunProtect(8);
         // only want certain regs
@@ -634,12 +631,12 @@ namespace nanojit
         asm_cmp(ins);
     }
 
-    void Assembler::asm_arith(LIns* ins)
+    void Assembler::asm_arith(LInsp ins)
     {
         underrunProtect(28);
         LOpcode op = ins->opcode();
-        LIns* lhs = ins->oprnd1();
-        LIns* rhs = ins->oprnd2();
+        LInsp lhs = ins->oprnd1();
+        LInsp rhs = ins->oprnd2();
 
         Register rb = deprecated_UnknownReg;
         RegisterMask allow = GpRegs;
@@ -721,7 +718,7 @@ namespace nanojit
             ORI(ra, 0, rr);
     }
 
-    void Assembler::asm_neg_not(LIns* ins)
+    void Assembler::asm_neg_not(LInsp ins)
     {
         underrunProtect(8);
         LOpcode op = ins->opcode();
@@ -743,7 +740,7 @@ namespace nanojit
             ORI(ra, 0, rr);
     }
 
-    void Assembler::asm_load32(LIns* ins)
+    void Assembler::asm_load32(LInsp ins)
     {
         underrunProtect(12);
         LOpcode op = ins->opcode();
@@ -771,7 +768,7 @@ namespace nanojit
         }
     }
 
-    void Assembler::asm_cmov(LIns* ins)
+    void Assembler::asm_cmov(LInsp ins)
     {
         underrunProtect(4);
         LOpcode op = ins->opcode();
@@ -806,14 +803,14 @@ namespace nanojit
         asm_cmp(condval);
     }
 
-    void Assembler::asm_param(LIns* ins)
+    void Assembler::asm_param(LInsp ins)
     {
         uint32_t a = ins->paramArg();
         uint32_t kind = ins->paramKind();
         deprecated_prepResultReg(ins, rmask(argRegs[a]));
     }
 
-    void Assembler::asm_immi(LIns* ins)
+    void Assembler::asm_immi(LInsp ins)
     {
         underrunProtect(8);
         Register rr = deprecated_prepResultReg(ins, GpRegs);
@@ -824,7 +821,7 @@ namespace nanojit
             SET32(val, rr);
     }
 
-    void Assembler::asm_immd(LIns* ins)
+    void Assembler::asm_immd(LInsp ins)
     {
         underrunProtect(64);
         Register rr = ins->deprecated_getReg();
@@ -851,7 +848,7 @@ namespace nanojit
             }
     }
 
-    void Assembler::asm_fneg(LIns* ins)
+    void Assembler::asm_fneg(LInsp ins)
     {
         underrunProtect(4);
         Register rr = deprecated_prepResultReg(ins, FpRegs);
@@ -867,7 +864,7 @@ namespace nanojit
         FNEGD(ra, rr);
     }
 
-    void Assembler::asm_fop(LIns* ins)
+    void Assembler::asm_fop(LInsp ins)
     {
         underrunProtect(4);
         LOpcode op = ins->opcode();
@@ -875,8 +872,9 @@ namespace nanojit
         LIns *rhs = ins->oprnd2();
 
         RegisterMask allow = FpRegs;
-        Register ra, rb;
-        findRegFor2(allow, lhs, ra, allow, rhs, rb);
+        Register ra = findRegFor(lhs, FpRegs);
+        Register rb = (rhs == lhs) ? ra : findRegFor(rhs, FpRegs);
+
         Register rr = deprecated_prepResultReg(ins, allow);
 
         if (op == LIR_addd)
@@ -890,7 +888,7 @@ namespace nanojit
 
     }
 
-    void Assembler::asm_i2d(LIns* ins)
+    void Assembler::asm_i2d(LInsp ins)
     {
         underrunProtect(32);
         // where our result goes
@@ -900,7 +898,7 @@ namespace nanojit
         LDDF32(FP, d, rr);
     }
 
-    void Assembler::asm_ui2d(LIns* ins)
+    void Assembler::asm_ui2d(LInsp ins)
     {
         underrunProtect(72);
         // where our result goes
@@ -919,7 +917,7 @@ namespace nanojit
         SETHI(0x43300000, G1);
     }
 
-    void Assembler::asm_d2i(LIns* ins) {
+    void Assembler::asm_d2i(LInsp ins) {
         LIns *lhs = ins->oprnd1();
         Register rr = prepareResultReg(ins, GpRegs);
         Register ra = findRegFor(lhs, FpRegs);
@@ -1000,7 +998,7 @@ namespace nanojit
     {
     }
 
-    Register Assembler::asm_binop_rhs_reg(LIns* ins)
+    Register Assembler::asm_binop_rhs_reg(LInsp ins)
     {
         return deprecated_UnknownReg;
     }
@@ -1032,7 +1030,7 @@ namespace nanojit
         }
     }
 
-    void Assembler::asm_ret(LIns* ins)
+    void Assembler::asm_ret(LInsp ins)
     {
         genEpilogue();
         releaseRegisters();

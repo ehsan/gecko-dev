@@ -19,7 +19,7 @@ function test() {
   registerCleanupFunction(function() {
     if (gPendingInstall) {
       gTests = [];
-      ok(false, "Timed out in the middle of downloading " + gPendingInstall.sourceURI.spec);
+      ok(false, "Timed out in the middle of downloading " + gPendingInstall.sourceURL);
       try {
         gPendingInstall.cancel();
       }

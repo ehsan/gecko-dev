@@ -257,8 +257,7 @@ nsHTMLEditor::DeleteRefToAnonymousNode(nsIDOMElement* aElement,
             docObserver->BeginUpdate(document, UPDATE_CONTENT_MODEL);
 
           docObserver->ContentRemoved(content->GetCurrentDoc(),
-                                      aParentContent, content, -1,
-                                      content->GetPreviousSibling());
+                                      aParentContent, content, -1);
           if (document)
             docObserver->EndUpdate(document, UPDATE_CONTENT_MODEL);
         }

@@ -225,10 +225,6 @@ ValueIsLength(JSContext *cx, jsval* vp)
     length = (jsuint) d;
     if (d != (jsdouble) length)
         goto error;
-    if (!js_NewNumberInRootedValue(cx, d, vp)) {
-        *vp = JSVAL_NULL;
-        return 0;
-    }
     return length;
 
   error:
@@ -341,7 +337,7 @@ JSObject::resizeDenseArrayElements(JSContext *cx, uint32 oldcap, uint32 newcap,
         return JS_TRUE;
     }
 
-    if (newcap > MAX_DSLOTS_LENGTH32) {
+    if (newcap > MAX_DSLOTS_LENGTH) {
         js_ReportAllocationOverflow(cx);
         return JS_FALSE;
     }
@@ -827,6 +823,34 @@ array_typeOf(JSContext *cx, JSObject *obj)
     return JSTYPE_OBJECT;
 }
 
+/* The same as js_ObjectOps except for the .enumerate and .call hooks. */
+static JSObjectOps js_SlowArrayObjectOps = {
+    NULL,
+    js_LookupProperty,
+    js_DefineProperty,
+    js_GetProperty,
+    js_SetProperty,
+    js_GetAttributes,
+    js_SetAttributes,
+    js_DeleteProperty,
+    js_DefaultValue,
+    js_Enumerate,
+    js_CheckAccess,
+    array_typeOf,
+    js_TraceObject,
+    NULL,   /* thisObject */
+    NULL,   /* call */
+    js_Construct,
+    js_HasInstance,
+    js_Clear
+};
+
+static JSObjectOps *
+slowarray_getObjectOps(JSContext *cx, JSClass *clasp)
+{
+    return &js_SlowArrayObjectOps;
+}
+
 static JSBool
 array_setProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
@@ -879,7 +903,7 @@ js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj)
 
 #ifdef JS_TRACER
 
-static JS_ALWAYS_INLINE JSBool FASTCALL
+static inline JSBool FASTCALL
 dense_grow(JSContext* cx, JSObject* obj, jsint i, jsval v)
 {
     /*
@@ -1067,7 +1091,9 @@ JSObjectOps js_ArrayObjectOps = {
     array_getAttributes,
     array_setAttributes,
     array_deleteProperty,
+    js_DefaultValue,
     js_Enumerate,
+    js_CheckAccess,
     array_typeOf,
     array_trace,
     NULL,   /* thisObject */
@@ -1085,7 +1111,7 @@ array_getObjectOps(JSContext *cx, JSClass *clasp)
 
 JSClass js_ArrayClass = {
     "Array",
-    JSCLASS_HAS_RESERVED_SLOTS(JSObject::DENSE_ARRAY_FIXED_RESERVED_SLOTS) |
+    JSCLASS_HAS_RESERVED_SLOTS(2) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     JS_PropertyStub,    JS_PropertyStub,   JS_PropertyStub,   JS_PropertyStub,
     JS_EnumerateStub,   JS_ResolveStub,    js_TryValueOf,     array_finalize,
@@ -1099,7 +1125,8 @@ JSClass js_SlowArrayClass = {
     JSCLASS_HAS_CACHED_PROTO(JSProto_Array),
     slowarray_addProperty, JS_PropertyStub, JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub,      JS_ResolveStub,  js_TryValueOf,    NULL,
-    JSCLASS_NO_OPTIONAL_MEMBERS
+    slowarray_getObjectOps, NULL,           NULL,             NULL,
+    NULL,                  NULL,            NULL,             NULL
 };
 
 /*
@@ -1125,7 +1152,8 @@ JSObject::makeDenseArraySlow(JSContext *cx)
         JS_ASSERT(arrayProto->getClass() == &js_SlowArrayClass);
         emptyShape = arrayProto->scope()->emptyScope->shape;
     }
-    JSScope *scope = JSScope::create(cx, &js_ObjectOps, &js_SlowArrayClass, obj, emptyShape);
+    JSScope *scope = JSScope::create(cx, &js_SlowArrayObjectOps, &js_SlowArrayClass, obj,
+                                     emptyShape);
     if (!scope)
         return JS_FALSE;
 
@@ -3067,12 +3095,6 @@ static JSFunctionSpec array_static_methods[] = {
     JS_FS_END
 };
 
-static inline JSObject *
-NewDenseArrayObject(JSContext *cx)
-{
-    return NewObject(cx, &js_ArrayClass, NULL, NULL);
-}
-
 JSBool
 js_Array(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
@@ -3081,7 +3103,7 @@ js_Array(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 
     /* If called without new, replace obj with a new Array object. */
     if (!JS_IsConstructing(cx)) {
-        obj = NewDenseArrayObject(cx);
+        obj = NewObject(cx, &js_ArrayClass, NULL, NULL);
         if (!obj)
             return JS_FALSE;
         *rval = OBJECT_TO_JSVAL(obj);
@@ -3173,7 +3195,7 @@ js_InitArrayClass(JSContext *cx, JSObject *obj)
 JSObject *
 js_NewArrayObject(JSContext *cx, jsuint length, const jsval *vector, bool holey)
 {
-    JSObject *obj = NewDenseArrayObject(cx);
+    JSObject *obj = NewObject(cx, &js_ArrayClass, NULL, NULL);
     if (!obj)
         return NULL;
 

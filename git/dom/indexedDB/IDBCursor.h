@@ -43,6 +43,8 @@
 #include "mozilla/dom/indexedDB/IDBObjectStore.h"
 #include "nsIIDBCursor.h"
 
+#include "jsapi.h"
+
 class nsIRunnable;
 
 BEGIN_INDEXEDDB_NAMESPACE

@@ -73,15 +73,7 @@ struct NativeIterator {
 
     static NativeIterator *allocate(JSContext *cx, JSObject *obj, uintN flags,
                                     uint32 *sarray, uint32 slength, uint32 key,
-                                    js::AutoValueVector &props);
-
-    inline size_t length() const {
-        return props_end - props_array;
-    }
-
-    inline jsval *begin() const {
-        return props_array;
-    }
+                                    jsval *parray, uint32 plength);
 
     void mark(JSTracer *trc);
 };
@@ -94,16 +86,13 @@ struct NativeIterator {
 static const jsval JSVAL_NATIVE_ENUMERATE_COOKIE = SPECIAL_TO_JSVAL(0x220576);
 
 bool
-VectorToIdArray(JSContext *cx, js::AutoValueVector &props, JSIdArray **idap);
-
-bool
-GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoValueVector &props);
+GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, JSIdArray **idap);
 
 bool
 GetIterator(JSContext *cx, JSObject *obj, uintN flags, jsval *vp);
 
 bool
-IdVectorToIterator(JSContext *cx, JSObject *obj, uintN flags, js::AutoValueVector &props, jsval *vp);
+JSIdArrayToIterator(JSContext *cx, JSObject *obj, uintN flags, JSIdArray *ida, jsval *vp);
 
 /*
  * Convert the value stored in *vp to its iteration object. The flags should

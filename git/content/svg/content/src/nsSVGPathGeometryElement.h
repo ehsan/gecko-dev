@@ -55,7 +55,7 @@ typedef nsSVGGraphicElement nsSVGPathGeometryElementBase;
 class nsSVGPathGeometryElement : public nsSVGPathGeometryElementBase
 {
 public:
-  nsSVGPathGeometryElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsSVGPathGeometryElement(nsINodeInfo *aNodeInfo);
 
   virtual PRBool AttributeDefinesGeometry(const nsIAtom *aName);
   virtual PRBool IsMarkable();

@@ -150,7 +150,7 @@ nsProxyObjectManager::Shutdown()
     NS_ASSERTION(!gInstance, "Destructor didn't null gInstance?");
 }
 
-nsresult
+NS_IMETHODIMP 
 nsProxyObjectManager::Create(nsISupports* outer, const nsIID& aIID,
                              void* *aInstancePtr)
 {

@@ -544,11 +544,7 @@ nsObjectLoadingContent::OnStartRequest(nsIRequest *aRequest,
     // end up trying to dispatch to a nsFrameLoader, which will complain that
     // it couldn't find a way to handle application/octet-stream
 
-    nsCAutoString typeHint, dummy;
-    NS_ParseContentType(mContentType, typeHint, dummy);
-    if (!typeHint.IsEmpty()) {
-      chan->SetContentType(typeHint);
-    }
+    chan->SetContentType(mContentType);
   } else {
     mContentType = channelType;
   }
@@ -1441,11 +1437,7 @@ nsObjectLoadingContent::LoadObject(nsIURI* aURI,
 
   // MIME Type hint
   if (!aTypeHint.IsEmpty()) {
-    nsCAutoString typeHint, dummy;
-    NS_ParseContentType(aTypeHint, typeHint, dummy);
-    if (!typeHint.IsEmpty()) {
-      chan->SetContentType(typeHint);
-    }
+    chan->SetContentType(aTypeHint);
   }
 
   // Set up the channel's principal and such, like nsDocShell::DoURILoad does

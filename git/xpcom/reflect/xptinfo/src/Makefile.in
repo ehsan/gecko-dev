@@ -50,6 +50,7 @@ MOZILLA_INTERNAL_API = 1
 CPPSRCS		= \
 		xptiInterfaceInfo.cpp	\
 		xptiInterfaceInfoManager.cpp	\
+		xptiMisc.cpp	\
 		xptiTypelibGuts.cpp	\
 		xptiWorkingSet.cpp	\
 		$(NULL)

@@ -62,8 +62,8 @@ public:
         return PR_FALSE;
     }
 
-    PRBool AddGCRoot (JSObject **aPtr, const char *aName);
-    void ReleaseGCRoot (JSObject **aPtr);
+    PRBool AddGCRoot (void *aPtr, const char *aName);
+    void ReleaseGCRoot (void *aPtr);
 
     void SetRetVal (PRInt32 val) {
         NS_ASSERTION(NS_SUCCEEDED(error), "class failed to initialize and caller used class without checking!");
@@ -185,6 +185,9 @@ public:
     JSContext *ctx;
     PRUint32 argc;
     jsval *argv;
+
+    static nsIJSRuntimeService* sJSRuntimeService;
+    static JSRuntime* sJSScriptRuntime;
 
 public:
     // static JS helpers

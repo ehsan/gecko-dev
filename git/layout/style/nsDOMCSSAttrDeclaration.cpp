@@ -38,11 +38,11 @@
 /* DOM object for element.style */
 
 #include "nsDOMCSSAttrDeclaration.h"
-#include "mozilla/css/Declaration.h"
+#include "nsCSSDeclaration.h"
 #include "nsIDocument.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsICSSStyleRule.h"
-#include "mozilla/css/Loader.h"
+#include "nsCSSLoader.h"
 #include "nsIURI.h"
 #include "nsINameSpaceManager.h"
 #include "nsStyleConsts.h"
@@ -50,8 +50,6 @@
 #include "nsIContent.h"
 #include "nsIPrincipal.h"
 #include "nsNodeUtils.h"
-
-namespace css = mozilla::css;
 
 nsDOMCSSAttributeDeclaration::nsDOMCSSAttributeDeclaration(nsIContent *aContent
 #ifdef MOZ_SMIL
@@ -129,7 +127,7 @@ nsDOMCSSAttributeDeclaration::DocToUpdate()
 }
 
 nsresult
-nsDOMCSSAttributeDeclaration::GetCSSDeclaration(css::Declaration **aDecl,
+nsDOMCSSAttributeDeclaration::GetCSSDeclaration(nsCSSDeclaration **aDecl,
                                                 PRBool aAllocate)
 {
   nsresult result = NS_OK;
@@ -145,21 +143,21 @@ nsDOMCSSAttributeDeclaration::GetCSSDeclaration(css::Declaration **aDecl,
       *aDecl = cssRule->GetDeclaration();
     }
     else if (aAllocate) {
-      css::Declaration *decl = new css::Declaration();
+      nsCSSDeclaration *decl = new nsCSSDeclaration();
       if (!decl)
         return NS_ERROR_OUT_OF_MEMORY;
       if (!decl->InitializeEmpty()) {
         decl->RuleAbort();
         return NS_ERROR_OUT_OF_MEMORY;
       }
-
+      
       nsCOMPtr<nsICSSStyleRule> newRule;
       result = NS_NewCSSStyleRule(getter_AddRefs(newRule), nsnull, decl);
       if (NS_FAILED(result)) {
         decl->RuleAbort();
         return result;
       }
-
+        
       result =
 #ifdef MOZ_SMIL
         mIsSMILOverride ?

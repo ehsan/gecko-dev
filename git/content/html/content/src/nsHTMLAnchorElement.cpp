@@ -68,7 +68,7 @@ class nsHTMLAnchorElement : public nsGenericHTMLElement,
                             public Link
 {
 public:
-  nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLAnchorElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLAnchorElement();
 
   // nsISupports
@@ -131,14 +131,12 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual PRInt32 IntrinsicState() const;
-
-  virtual nsXPCClassInfo* GetClassInfo();
 };
 
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
-nsHTMLAnchorElement::nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLAnchorElement::nsHTMLAnchorElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
 }
@@ -152,7 +150,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLAnchorElement, nsHTMLAnchorElement)
+DOMCI_DATA(HTMLAnchorElement, nsHTMLAnchorElement)
 
 // QueryInterface implementation for nsHTMLAnchorElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLAnchorElement)

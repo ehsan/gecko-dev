@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package com.mozilla.SUTAgentAndroid.service;
+package com.mozilla.SUTAgentAndroid;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -44,8 +44,6 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-
-// import com.mozilla.SUTAgentAndroid.DoCommand;
 
 public class CmdWorkerThread extends Thread
 {
@@ -103,6 +101,27 @@ public class CmdWorkerThread extends Thread
 						in.reset();
 						}
 					}
+/*			
+				while (nByte != -1)
+					{
+					cChar = ((char)(nByte & 0xFF));
+					if ((cChar == '\r') || (cChar == '\n'))
+						{
+						if (in.available() > 0)
+							{
+							in.mark(1024);
+							nByte = in.read();
+							}
+						else
+							nByte = -1;
+						}
+					else
+						{
+						in.reset();
+						break;
+						}
+					}
+*/
 				}
 			}
 		catch (IOException e)
@@ -120,80 +139,83 @@ public class CmdWorkerThread extends Thread
 	public void run()
 		{
 		try {
-			OutputStream cmdOut = socket.getOutputStream();
-			InputStream cmdIn = socket.getInputStream();
-			PrintWriter out = new PrintWriter(cmdOut, true);
-			BufferedInputStream in = new BufferedInputStream(cmdIn);
-			String inputLine, outputLine;
-			DoCommand dc = new DoCommand(theParent.svc);
-
-			int nAvail = cmdIn.available();
-			cmdIn.skip(nAvail);
-				
-			out.print(prompt);
-			out.flush();
-
-			while (bListening)
+			while(bListening)
 				{
-				if (!(in.available() > 0))
+				OutputStream cmdOut = socket.getOutputStream();
+				InputStream cmdIn = socket.getInputStream();
+				PrintWriter out = new PrintWriter(cmdOut, true);
+				BufferedInputStream in = new BufferedInputStream(cmdIn);
+				String inputLine, outputLine;
+				DoCommand dc = new DoCommand();
+
+				int nAvail = cmdIn.available();
+				cmdIn.skip(nAvail);
+				
+				out.print(prompt);
+				out.flush();
+
+				while (bListening)
 					{
-					socket.setSoTimeout(500);
-					try {
-						int nRead = cmdIn.read();
-						if (nRead == -1)
+					if (!(in.available() > 0))
+						{
+						socket.setSoTimeout(500);
+						try {
+							int nRead = cmdIn.read();
+							if (nRead == -1)
+								{
+								bListening = false;
+								continue;
+								}
+							else
+								{
+								inputLine = ((char)nRead) + "";
+								socket.setSoTimeout(120000);
+								}
+							}
+						catch(SocketTimeoutException toe)
 							{
-							bListening = false;
 							continue;
 							}
-						else
-							{
-							inputLine = ((char)nRead) + "";
-							socket.setSoTimeout(120000);
-							}
-						}
-					catch(SocketTimeoutException toe)
-						{
-						continue;
-						}
-					}
-				else
-					inputLine = "";
-				
-				if ((inputLine += readLine(in)) != null)
-					{
-					outputLine = dc.processCommand(inputLine, out, in, cmdOut);
-					if (outputLine.length() > 0)
-						{
-						out.print(outputLine + "\n" + prompt);
 						}
 					else
-						out.print(prompt);
-					out.flush();
-					if (outputLine.equals("exit"))
+						inputLine = "";
+					
+					if ((inputLine += readLine(in)) != null)
 						{
-						theParent.StopListening();
-						bListening = false;
+						outputLine = dc.processCommand(inputLine, out, in, cmdOut);
+						if (outputLine.length() > 0)
+							{
+							out.print(outputLine + "\n" + prompt);
+							}
+						else
+							out.print(prompt);
+						out.flush();
+						if (outputLine.equals("exit"))
+							{
+							theParent.StopListening();
+							bListening = false;
+							}
+						if (outputLine.equals("quit"))
+							{
+							bListening = false;
+							}
+						outputLine = null;
+						System.gc();
 						}
-					if (outputLine.equals("quit"))
-						{
-						bListening = false;
-						}
-					outputLine = null;
-					System.gc();
+					else
+						break;
 					}
-				else
-					break;
+				out.close();
+				out = null;
+				in.close();
+				in = null;
+				socket.close();
 				}
-			out.close();
-			out = null;
-			in.close();
-			in = null;
-			socket.close();
+			}
+		catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			}
 		}
-	catch (IOException e)
-		{
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-		}
-	}
+
 }

@@ -1577,9 +1577,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
 
   jsval val;
 
-  rv = sSecurityManager->PushContextPrincipal(mContext, nsnull, principal);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsJSContext::TerminationFuncHolder holder(this);
 
   // SecurityManager said "ok", but don't compile if aVersion is unknown.
@@ -1631,8 +1628,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
       *aIsUndefined = PR_TRUE;
     }
   }
-
-  sSecurityManager->PopContextPrincipal(mContext);
 
   // Pop here, after JS_ValueToString and any other possible evaluation.
   if (NS_FAILED(stack->Pop(nsnull)))
@@ -1770,9 +1765,6 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   jsval val = JSVAL_VOID;
   jsval* vp = aRetValue ? &val : NULL;
 
-  rv = sSecurityManager->PushContextPrincipal(mContext, nsnull, principal);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsJSContext::TerminationFuncHolder holder(this);
 
   ++mExecuteDepth;
@@ -1821,8 +1813,6 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   }
 
   --mExecuteDepth;
-
-  sSecurityManager->PopContextPrincipal(mContext);
 
   // Pop here, after JS_ValueToString and any other possible evaluation.
   if (NS_FAILED(stack->Pop(nsnull)))
@@ -1940,21 +1930,13 @@ nsJSContext::ExecuteScript(void *aScriptObject,
   jsval val;
   JSBool ok;
 
-  JSObject *scriptObj = (JSObject*)aScriptObject;
-  nsCOMPtr<nsIPrincipal> principal;
-
-  rv = sSecurityManager->GetObjectPrincipal(mContext, scriptObj, getter_AddRefs(principal));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = sSecurityManager->PushContextPrincipal(mContext, nsnull, principal);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsJSContext::TerminationFuncHolder holder(this);
   JSAutoRequest ar(mContext);
   ++mExecuteDepth;
   ok = ::JS_ExecuteScript(mContext,
                           (JSObject *)aScopeObject,
-                          (JSScript*)::JS_GetPrivate(mContext, scriptObj),
+                          (JSScript*)::JS_GetPrivate(mContext,
+                          (JSObject*)aScriptObject),
                           &val);
 
   if (ok) {
@@ -1971,8 +1953,6 @@ nsJSContext::ExecuteScript(void *aScriptObject,
   }
 
   --mExecuteDepth;
-
-  sSecurityManager->PopContextPrincipal(mContext);
 
   // Pop here, after JS_ValueToString and any other possible evaluation.
   if (NS_FAILED(stack->Pop(nsnull)))
@@ -2651,16 +2631,11 @@ nsJSContext::InitContext(nsIScriptGlobalObject *aGlobalObject)
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Now check whether we need to grab a pointer to the
-    // XPCNativeWrapper and XrayWrapperPropertyHolder getProperty ops.
+    // XPCNativeWrapper class
     if (!nsDOMClassInfo::GetXPCNativeWrapperGetPropertyOp()) {
       JSPropertyOp getProperty;
       xpc->GetNativeWrapperGetPropertyOp(&getProperty);
       nsDOMClassInfo::SetXPCNativeWrapperGetPropertyOp(getProperty);
-    }
-    if (!nsDOMClassInfo::GetXrayWrapperPropertyHolderGetPropertyOp()) {
-      JSPropertyOp getProperty;
-      xpc->GetXrayWrapperPropertyHolderGetPropertyOp(&getProperty);
-      nsDOMClassInfo::SetXrayWrapperPropertyHolderGetPropertyOp(getProperty);
     }
   } else {
     // There's already a global object. We are preparing this outer window

@@ -42,6 +42,8 @@ protected:
 
     void CleanUp();
 
+    // XXX hack around lack of State()
+    int mFramesToGo;
     bool mDetectedHang;
 };
 

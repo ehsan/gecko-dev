@@ -74,7 +74,7 @@
   struct.
 
   7. 'type' gives the |nsCSSType| of the data in the nsRuleData struct
-  and in the css::Declaration backend.
+  and in the nsCSSDeclaration backend.
 
   8. 'kwtable', which is either nsnull or the name of the appropriate
   keyword table member of class nsCSSProps, for use in
@@ -1431,28 +1431,6 @@ CSS_PROP_FONT(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_FONT(
-    -moz-font-feature-settings,
-    font_feature_settings,
-    MozFontFeatureSettings,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
-    Font,
-    mFontFeatureSettings,
-    eCSSType_Value,
-    nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_FONT(
-    -moz-font-language-override,
-    font_language_override,
-    MozFontLanguageOverride,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
-    Font,
-    mFontLanguageOverride,
-    eCSSType_Value,
-    nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_FONT(
     font-size,
     font_size,
     FontSize,
@@ -2208,9 +2186,9 @@ CSS_PROP_QUOTES(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_DISPLAY(
+    -moz-resize,
     resize,
-    resize,
-    Resize,
+    MozResize,
     0,
     Display,
     mResize,
@@ -2378,8 +2356,8 @@ CSS_PROP_DISPLAY(
     mTransform,
     eCSSType_ValueList,
     kDisplayKTable,
-    offsetof(nsStyleDisplay, mSpecifiedTransform),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_DISPLAY(
     -moz-transform-origin,
     _moz_transform_origin,

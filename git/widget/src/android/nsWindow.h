@@ -69,7 +69,6 @@ public:
     void OnAndroidEvent(mozilla::AndroidGeckoEvent *ae);
     void OnDraw(mozilla::AndroidGeckoEvent *ae);
     void OnMotionEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnMultitouchEvent(mozilla::AndroidGeckoEvent *ae);
     void OnKeyEvent(mozilla::AndroidGeckoEvent *ae);
     void OnIMEEvent(mozilla::AndroidGeckoEvent *ae);
 
@@ -174,7 +173,6 @@ protected:
     PRPackedBool mIsVisible;
     nsTArray<nsWindow*> mChildren;
     nsWindow* mParent;
-    double mStartDist;
     nsCOMPtr<nsIdleService> mIdleService;
 
     static void DumpWindows();

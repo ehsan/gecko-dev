@@ -41,6 +41,12 @@
 namespace mozilla {
 namespace layers {
 
+LayerD3D9::LayerType
+ColorLayerD3D9::GetType()
+{
+  return TYPE_COLOR;
+}
+
 Layer*
 ColorLayerD3D9::GetLayer()
 {

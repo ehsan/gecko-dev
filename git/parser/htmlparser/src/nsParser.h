@@ -216,7 +216,7 @@ class nsParser : public nsIParser,
                              nsDTDMode aMode = eDTDMode_autodetect);
 
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsIContent* aTargetNode,
+                             nsISupports* aTargetNode,
                              nsIAtom* aContextLocalName,
                              PRInt32 aContextNamespace,
                              PRBool aQuirks);

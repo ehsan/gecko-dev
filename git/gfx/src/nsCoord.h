@@ -56,7 +56,7 @@
 
 // This controls whether we're using integers or floats for coordinates. We
 // want to eventually use floats. If you change this, you need to manually
-// change the definition of nscoord in gfx/src/gfxidltypes.idl.
+// change the definition of nscoord in gfx/idl/gfxidltypes.idl.
 //#define NS_COORD_IS_FLOAT
 
 inline float NS_IEEEPositiveInfinity() {
@@ -436,11 +436,6 @@ inline float NSAppUnitsToFloatPixels(nscoord aAppUnits, float aAppUnitsPerPixel)
 inline PRInt32 NSAppUnitsToIntPixels(nscoord aAppUnits, float aAppUnitsPerPixel)
 {
   return NSToIntRound(float(aAppUnits) / aAppUnitsPerPixel);
-}
-
-inline float NSCoordScale(nscoord aCoord, PRInt32 aFromAPP, PRInt32 aToAPP)
-{
-  return (NSCoordToFloat(aCoord) * aToAPP) / aFromAPP;
 }
 
 /// handy constants

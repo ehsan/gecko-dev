@@ -602,7 +602,7 @@ public:
     if (cx) {
       JS_SetOptions(cx, options);
       JS_RestoreFrameChain(cx, fp);
-      js_RestoreRegExpStatics(cx, &statics);
+      js_RestoreRegExpStatics(cx, &statics, &tvr);
       nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
       if (ssm) {
         ssm->PopContextPrincipal(cx);

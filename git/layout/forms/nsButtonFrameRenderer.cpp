@@ -106,7 +106,7 @@ public:
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  NS_DISPLAY_DECL_NAME("ButtonBoxShadowOuter", TYPE_BUTTON_BOX_SHADOW_OUTER)
+  NS_DISPLAY_DECL_NAME("ButtonBoxShadowOuter")
 private:
   nsButtonFrameRenderer* mBFR;
 };
@@ -146,7 +146,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("ButtonBorderBackground", TYPE_BUTTON_BORDER_BACKGROUND)
+  NS_DISPLAY_DECL_NAME("ButtonBorderBackground")
 private:
   nsButtonFrameRenderer* mBFR;
 };
@@ -165,7 +165,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("ButtonForeground", TYPE_BUTTON_FOREGROUND)
+  NS_DISPLAY_DECL_NAME("ButtonForeground")
 private:
   nsButtonFrameRenderer* mBFR;
 };

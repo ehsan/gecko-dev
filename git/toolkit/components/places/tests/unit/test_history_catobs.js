@@ -67,7 +67,7 @@ function verify() {
 
 // main
 function run_test() {
-  do_load_manifest("nsDummyObserver.manifest");
+  do_load_module("nsDummyObserver.js");
 
   os.addObserver(observer, "dummy-observer-created", true);
   os.addObserver(observer, "dummy-observer-visited", true);

@@ -38,10 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-#include "mozilla/chrome/RegistryMessageUtils.h"
-#endif
-
 #include "nsResProtocolHandler.h"
 #include "nsAutoLock.h"
 #include "nsIURL.h"
@@ -78,6 +74,7 @@ static nsResProtocolHandler *gResHandler = nsnull;
 //
 static PRLogModuleInfo *gResLog;
 #endif
+#define LOG(args) PR_LOG(gResLog, PR_LOG_DEBUG, args)
 
 #define kGRE           NS_LITERAL_CSTRING("gre")
 #define kGRE_RESOURCES NS_LITERAL_CSTRING("gre-resources")
@@ -132,7 +129,8 @@ nsResURL::EnsureFile()
 /* virtual */ nsStandardURL*
 nsResURL::StartClone()
 {
-    nsResURL *clone = new nsResURL();
+    nsResURL *clone;
+    NS_NEWXPCOM(clone, nsResURL);
     return clone;
 }
 
@@ -262,34 +260,6 @@ nsResProtocolHandler::Init(nsIFile *aOmniJar)
 }
 #endif
 
-#ifdef MOZ_IPC
-static PLDHashOperator
-EnumerateSubstitution(const nsACString& aKey,
-                      nsIURI* aURI,
-                      void* aArg)
-{
-    nsTArray<ResourceMapping>* resources =
-            static_cast<nsTArray<ResourceMapping>*>(aArg);
-    SerializedURI uri;
-    if (aURI) {
-        aURI->GetSpec(uri.spec);
-        aURI->GetOriginCharset(uri.charset);
-    }
-
-    ResourceMapping resource = {
-        nsDependentCString(aKey), uri
-    };
-    resources->AppendElement(resource);
-    return (PLDHashOperator)PL_DHASH_NEXT;
-}
-
-void
-nsResProtocolHandler::CollectSubstitutions(nsTArray<ResourceMapping>& aResources)
-{
-    mSubstitutions.EnumerateRead(&EnumerateSubstitution, &aResources);
-}
-#endif
-
 //----------------------------------------------------------------------------
 // nsResProtocolHandler::nsISupports
 //----------------------------------------------------------------------------
@@ -334,7 +304,8 @@ nsResProtocolHandler::NewURI(const nsACString &aSpec,
 {
     nsresult rv;
 
-    nsResURL *resURL = new nsResURL();
+    nsResURL *resURL;
+    NS_NEWXPCOM(resURL, nsResURL);
     if (!resURL)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(resURL);
@@ -494,8 +465,7 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
     if (PR_LOG_TEST(gResLog, PR_LOG_DEBUG)) {
         nsCAutoString spec;
         uri->GetAsciiSpec(spec);
-        PR_LOG(gResLog, PR_LOG_DEBUG,
-               ("%s\n -> %s\n", spec.get(), PromiseFlatCString(result).get()));
+        LOG(("%s\n -> %s\n", spec.get(), PromiseFlatCString(result).get()));
     }
 #endif
     return rv;

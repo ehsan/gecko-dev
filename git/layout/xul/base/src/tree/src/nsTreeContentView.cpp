@@ -820,9 +820,6 @@ nsTreeContentView::AttributeChanged(nsIDocument *aDocument,
                                     nsIAtom*     aAttribute,
                                     PRInt32      aModType)
 {
-  // Lots of codepaths under here that do all sorts of stuff, so be safe.
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-
   // Make sure this notification concerns us.
   // First check the tag to see if it's one that we care about.
   nsIAtom *tag = aContent->Tag();
@@ -1027,9 +1024,6 @@ nsTreeContentView::ContentInserted(nsIDocument *aDocument,
       return; // this is not for us
   }
 
-  // Lots of codepaths under here that do all sorts of stuff, so be safe.
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-
   if (childTag == nsGkAtoms::treechildren) {
     PRInt32 index = FindContent(aContainer);
     if (index >= 0) {
@@ -1076,10 +1070,9 @@ nsTreeContentView::ContentInserted(nsIDocument *aDocument,
 
 void
 nsTreeContentView::ContentRemoved(nsIDocument *aDocument,
-                                  nsIContent* aContainer,
-                                  nsIContent* aChild,
-                                  PRInt32 aIndexInContainer,
-                                  nsIContent* aPreviousSibling)
+                                     nsIContent* aContainer,
+                                     nsIContent* aChild,
+                                     PRInt32 aIndexInContainer)
 {
   NS_ASSERTION(aChild, "null ptr");
 
@@ -1118,9 +1111,6 @@ nsTreeContentView::ContentRemoved(nsIDocument *aDocument,
         (element->IsHTML() && parentTag == nsGkAtoms::select))
       return; // this is not for us
   }
-
-  // Lots of codepaths under here that do all sorts of stuff, so be safe.
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
 
   if (tag == nsGkAtoms::treechildren) {
     PRInt32 index = FindContent(aContainer);
@@ -1165,8 +1155,6 @@ nsTreeContentView::ContentRemoved(nsIDocument *aDocument,
 void
 nsTreeContentView::NodeWillBeDestroyed(const nsINode* aNode)
 {
-  // XXXbz do we need this strong ref?  Do we drop refs to self in ClearRows?
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
   ClearRows();
 }
 

@@ -384,7 +384,8 @@ inDOMView::GetCellProperties(PRInt32 row, nsITreeColumn* col, nsISupportsArray *
 
     nsCOMPtr<nsIAccessible> accessible;
     nsresult rv =
-      accService->GetAccessibleFor(node->node, getter_AddRefs(accessible));
+      accService->GetAttachedAccessibleFor(node->node,
+                                           getter_AddRefs(accessible));
     if (NS_SUCCEEDED(rv) && accessible)
       properties->AppendElement(kAccessibleNodeAtom);
   }
@@ -694,8 +695,6 @@ inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
     return;
   }
 
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-  
   // get the dom attribute node, if there is any
   nsCOMPtr<nsIDOMNode> content(do_QueryInterface(aContent));
   nsCOMPtr<nsIDOMElement> el(do_QueryInterface(aContent));
@@ -857,8 +856,6 @@ inDOMView::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
   if (NS_FAILED(rv = RowToNode(parentRow, &parentNode)))
     return;
 
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-  
   if (!parentNode->isOpen) {
     // Parent is not open, so don't bother creating tree rows for the
     // kids.  But do indicate that it's now a container, if needed.
@@ -912,9 +909,7 @@ inDOMView::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
 }
 
 void
-inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
-                          nsIContent* aChild, PRInt32 aIndexInContainer,
-                          nsIContent* aPreviousSibling)
+inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer, nsIContent* aChild, PRInt32 aIndexInContainer)
 {
   if (!mTree)
     return;
@@ -930,8 +925,6 @@ inDOMView::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
   if (NS_FAILED(rv = RowToNode(row, &oldNode)))
     return;
 
-  nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);
-  
   // The parent may no longer be a container.  Note that we don't want
   // to access oldNode after calling RemoveNode, so do this now.
   inDOMViewNode* parentNode = oldNode->parent;

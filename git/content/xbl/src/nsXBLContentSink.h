@@ -163,7 +163,7 @@ protected:
   
   XBLPrimaryState mState;
   XBLSecondaryState mSecondaryState;
-  nsXBLDocumentInfo* mDocInfo;
+  nsIXBLDocumentInfo* mDocInfo;
   PRPackedBool mIsChromeOrResource; // For bug #45989
   PRPackedBool mFoundFirstBinding;
 

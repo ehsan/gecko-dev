@@ -49,7 +49,7 @@
 #include "nsXBLService.h"
 #include "nsIServiceManager.h"
 #include "nsGkAtoms.h"
-#include "nsXBLDocumentInfo.h"
+#include "nsIXBLDocumentInfo.h"
 #include "nsIDOMElement.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIController.h"
@@ -76,8 +76,8 @@ static nsINativeKeyBindings *sNativeEditorBindings = nsnull;
 class nsXBLSpecialDocInfo
 {
 public:
-  nsRefPtr<nsXBLDocumentInfo> mHTMLBindings;
-  nsRefPtr<nsXBLDocumentInfo> mUserHTMLBindings;
+  nsCOMPtr<nsIXBLDocumentInfo> mHTMLBindings;
+  nsCOMPtr<nsIXBLDocumentInfo> mUserHTMLBindings;
 
   static const char sHTMLBindingStr[];
   static const char sUserHTMLBindingStr[];
@@ -89,7 +89,7 @@ public:
   void GetAllHandlers(const char* aType,
                       nsXBLPrototypeHandler** handler,
                       nsXBLPrototypeHandler** userHandler);
-  void GetHandlers(nsXBLDocumentInfo* aInfo,
+  void GetHandlers(nsIXBLDocumentInfo* aInfo,
                    const nsACString& aRef,
                    nsXBLPrototypeHandler** aResult);
 
@@ -144,11 +144,12 @@ void nsXBLSpecialDocInfo::LoadDocInfo()
 //
 // 
 void
-nsXBLSpecialDocInfo::GetHandlers(nsXBLDocumentInfo* aInfo,
+nsXBLSpecialDocInfo::GetHandlers(nsIXBLDocumentInfo* aInfo,
                                  const nsACString& aRef,
                                  nsXBLPrototypeHandler** aResult)
 {
-  nsXBLPrototypeBinding* binding = aInfo->GetPrototypeBinding(aRef);
+  nsXBLPrototypeBinding* binding;
+  aInfo->GetPrototypeBinding(aRef, &binding);
   
   NS_ASSERTION(binding, "No binding found for the XBL window key handler.");
   if (!binding)

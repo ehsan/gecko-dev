@@ -83,7 +83,8 @@ function test() {
   let numTests = 4;
   let completedTests = 0;
 
-  let tabMinWidth = parseInt(getComputedStyle(gBrowser.selectedTab, null).minWidth);
+  // access the pref service just once
+  let tabMinWidth = gPrefService.getIntPref("browser.tabs.tabMinWidth");
 
   function runTest(testNum, totalTabs, selectedTab, shownTabs, order) {
     let test = {

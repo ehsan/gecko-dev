@@ -246,8 +246,6 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
   /* Clean this out for sanity */
   mCurrentCallbackInfo.Callback = NULL;
   mCurrentCallbackInfo.CallbackData = NULL;
-  // Clear mTarget, next transaction could have no target
-  mTarget = NULL;
 }
 
 void
@@ -325,7 +323,7 @@ LayerManagerD3D9::Render()
   }
   SetupPipeline();
   nsIntRect rect;
-  mWidget->GetClientBounds(rect);
+  mWidget->GetBounds(rect);
 
   mDevice->Clear(0, NULL, D3DCLEAR_TARGET, 0xffffffff, 0, 0);
 
@@ -372,7 +370,7 @@ void
 LayerManagerD3D9::SetupPipeline()
 {
   nsIntRect rect;
-  mWidget->GetClientBounds(rect);
+  mWidget->GetBounds(rect);
 
   float viewMatrix[4][4];
   /*
@@ -403,7 +401,7 @@ LayerManagerD3D9::SetupBackBuffer()
 
   D3DSURFACE_DESC desc;
   nsIntRect rect;
-  mWidget->GetClientBounds(rect);
+  mWidget->GetBounds(rect);
   backBuffer->GetDesc(&desc);
 
   HRESULT hr = mDevice->TestCooperativeLevel();

@@ -255,6 +255,12 @@ ImageContainerOGL::GetCurrentSize()
   return gfxIntSize(0,0);
 }
 
+LayerOGL::LayerType
+ImageLayerOGL::GetType()
+{
+  return TYPE_IMAGE;
+}
+
 Layer*
 ImageLayerOGL::GetLayer()
 {
@@ -543,7 +549,7 @@ CairoImageOGL::SetData(const CairoImage::Data &aData)
   gl->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
 
   if (!mASurfaceAsGLContext) {
-    mASurfaceAsGLContext = GLContextProvider::CreateForNativePixmapSurface(aData.mSurface);
+    mASurfaceAsGLContext = sGLContextProvider.CreateForNativePixmapSurface(aData.mSurface);
     if (mASurfaceAsGLContext)
       mASurfaceAsGLContext->BindTexImage();
   }

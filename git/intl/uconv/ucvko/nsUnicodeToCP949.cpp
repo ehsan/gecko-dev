@@ -63,7 +63,7 @@ static const uScanClassID g_CP949ScanClassTable[3] =  {
   u2BytesCharset
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToCP949Constructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult)
 {

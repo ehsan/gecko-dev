@@ -58,7 +58,7 @@ class nsHTMLLabelElement : public nsGenericHTMLFormElement,
                            public nsIDOMNSHTMLLabelElement
 {
 public:
-  nsHTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  nsHTMLLabelElement(nsINodeInfo *aNodeInfo);
   virtual ~nsHTMLLabelElement();
 
   // nsISupports
@@ -110,7 +110,6 @@ public:
                                 PRBool aIsTrustedEvent);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsXPCClassInfo* GetClassInfo();
 protected:
   already_AddRefed<nsIContent> GetControlContent();
   already_AddRefed<nsIContent> GetFirstFormControl(nsIContent *current);
@@ -125,7 +124,7 @@ protected:
 NS_IMPL_NS_NEW_HTML_ELEMENT(Label)
 
 
-nsHTMLLabelElement::nsHTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLLabelElement::nsHTMLLabelElement(nsINodeInfo *aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
   , mHandlingEvent(PR_FALSE)
 {
@@ -142,7 +141,7 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLLabelElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLLabelElement, nsGenericElement) 
 
 
-DOMCI_NODE_DATA(HTMLLabelElement, nsHTMLLabelElement)
+DOMCI_DATA(HTMLLabelElement, nsHTMLLabelElement)
 
 // QueryInterface implementation for nsHTMLLabelElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLLabelElement)

@@ -65,7 +65,6 @@ XPIDLSRCS	= \
 		nsIScriptableInterfaces.idl \
 		XPCIDispatch.idl \
 		xpcIJSWeakReference.idl \
-		xpcIJSGetFactory.idl \
 		$(NULL)
 
 ifdef XPC_IDISPATCH_SUPPORT

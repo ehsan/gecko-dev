@@ -213,21 +213,13 @@ public:
   static mozilla::dom::Element *GetParentElement(nsIContent *aContent);
 
   /*
-   * Get the number of CSS px (user units) per em (i.e. the em-height in user
-   * units) for an nsIContent
-   *
-   * XXX document the conditions under which these may fail, and what they
-   * return in those cases.
+   * Get a font-size (em) of an nsIContent
    */
   static float GetFontSize(mozilla::dom::Element *aElement);
   static float GetFontSize(nsIFrame *aFrame);
   static float GetFontSize(nsStyleContext *aStyleContext);
   /*
-   * Get the number of CSS px (user units) per ex (i.e. the x-height in user
-   * units) for an nsIContent
-   *
-   * XXX document the conditions under which these may fail, and what they
-   * return in those cases.
+   * Get an x-height of of an nsIContent
    */
   static float GetFontXHeight(mozilla::dom::Element *aElement);
   static float GetFontXHeight(nsIFrame *aFrame);
@@ -371,7 +363,8 @@ public:
                       float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
-                      const nsSVGPreserveAspectRatio &aPreserveAspectRatio);
+                      const nsSVGPreserveAspectRatio &aPreserveAspectRatio,
+                      PRBool aIgnoreAlign = PR_FALSE);
 
   /* Paint SVG frame with SVG effects - aDirtyRect is the area being
    * redrawn, in device pixel coordinates relative to the outer svg */

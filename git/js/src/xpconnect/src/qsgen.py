@@ -202,7 +202,7 @@ def removeStubMember(memberId, member):
 
 def addStubMember(memberId, member, traceable):
     mayTrace = False
-    if member.kind == 'method' and not member.implicit_jscontext:
+    if member.kind == 'method':
         # This code MUST match writeTraceableQuickStub
         haveCallee = memberNeedsCallee(member)
         # Traceable natives support up to MAX_TRACEABLE_NATIVE_ARGS
@@ -255,8 +255,7 @@ def checkStubMember(member, isCustom):
 
     # Check for unknown properties.
     for attrname, value in vars(member).items():
-        if value is True and attrname not in ('readonly','optional_argc',
-                                              'traceable','implicit_jscontext'):
+        if value is True and attrname not in ('readonly','optional_argc','traceable'):
             raise UserError("%s %s: unrecognized property %r"
                             % (member.kind.capitalize(), memberId,
                                attrname))
@@ -695,13 +694,9 @@ def writeResultConv(f, type, jsvalPtr, jsvalRef):
                     % jsvalPtr)
             return
         else:
-            f.write("    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
-                    "    qsObjectHelper helper(ToSupports(result));\n"
-                    "    helper.SetNode(result);\n"
-                    "    helper.SetCanonical(ToCanonicalSupports(result));\n"
-                    "    // After this point do not use 'result'!\n"
-                    "    return xpc_qsXPCOMObjectToJsval(lccx, "
-                    "&helper, cache, &NS_GET_IID(%s), &interfaces[k_%s], %s);\n"
+            f.write("    return xpc_qsXPCOMObjectToJsval(lccx, "
+                    "ToSupports(result), xpc_qsGetWrapperCache(result), "
+                    "&NS_GET_IID(%s), &interfaces[k_%s], %s);\n"
                     % (type.name, type.name, jsvalPtr))
             return
 
@@ -945,8 +940,6 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         if isMethod:
             comName = header.methodNativeName(member)
             argv = ['arg' + str(i) for i, p in enumerate(member.params)]
-            if member.implicit_jscontext:
-                argv.append('cx')
             if member.optional_argc:
                 argv.append('argc - %d' % requiredArgs)
             if not isVoidType(member.realtype):
@@ -958,8 +951,6 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
                 args = outParamForm(resultname, member.realtype)
             else:
                 args = "arg0"
-            if member.implicit_jscontext:
-                args = "cx, " + args
 
         f.write("    ")
         if canFail or debugGetter:
@@ -1204,14 +1195,9 @@ def writeTraceableResultConv(f, type):
             f.write("    JSBool ok = xpc_qsVariantToJsval(lccx, result, "
                     "&vp.array[0]);\n")
         else:
-            f.write("    nsWrapperCache* cache = xpc_qsGetWrapperCache(result);\n"
-                    "    qsObjectHelper helper(ToSupports(result));\n"
-                    "    helper.SetNode(result);\n"
-                    "    helper.SetCanonical(ToCanonicalSupports(result));\n"
-                    "    // After this point do not use 'result'!\n"
-                    "    JSBool ok = xpc_qsXPCOMObjectToJsval(lccx, "
-                    "&helper, cache, &NS_GET_IID(%s), &interfaces[k_%s], "
-                    "&vp.array[0]);\n"
+            f.write("    JSBool ok = xpc_qsXPCOMObjectToJsval(lccx, "
+                    "ToSupports(result), xpc_qsGetWrapperCache(result), "
+                    "&NS_GET_IID(%s), &interfaces[k_%s], &vp.array[0]);\n"
                     % (type.name, type.name))
         f.write("    if (!ok) {\n");
         writeFailure(f, getTraceInfoDefaultReturn(type), 2)
@@ -1361,7 +1347,7 @@ def writeAttrStubs(f, customMethodCalls, attr):
     if not custom:
         writeQuickStub(f, customMethodCalls, attr, getterName)
     if attr.readonly:
-        setterName = 'xpc_qsGetterOnlyPropertyStub'
+        setterName = 'js_GetterOnlyPropertyStub'
     else:
         setterName = (attr.iface.name + '_'
                       + header.attributeNativeName(attr, False))

@@ -45,7 +45,7 @@ static const PRUint16 g_ufMappingTable[] = {
 #include "iso-ir-111.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToISOIR111Constructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult) 
 {

@@ -59,7 +59,7 @@ class nsAttributeTextNode : public nsTextNode,
 public:
   NS_DECL_ISUPPORTS_INHERITED
   
-  nsAttributeTextNode(already_AddRefed<nsINodeInfo> aNodeInfo,
+  nsAttributeTextNode(nsINodeInfo *aNodeInfo,
                       PRInt32 aNameSpaceID,
                       nsIAtom* aAttrName) :
     nsTextNode(aNodeInfo),
@@ -87,8 +87,7 @@ public:
   virtual nsGenericDOMDataNode *CloneDataNode(nsINodeInfo *aNodeInfo,
                                               PRBool aCloneText) const
   {
-    nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    nsAttributeTextNode *it = new nsAttributeTextNode(ni.forget(),
+    nsAttributeTextNode *it = new nsAttributeTextNode(aNodeInfo,
                                                       mNameSpaceID,
                                                       mAttrName);
     if (it && aCloneText) {
@@ -130,7 +129,7 @@ NS_NewTextNode(nsIContent** aInstancePtrResult,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsTextNode *instance = new nsTextNode(ni.forget());
+  nsIContent *instance = new nsTextNode(ni);
   if (!instance) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -140,7 +139,7 @@ NS_NewTextNode(nsIContent** aInstancePtrResult,
   return NS_OK;
 }
 
-nsTextNode::nsTextNode(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsTextNode::nsTextNode(nsINodeInfo *aNodeInfo)
   : nsGenericTextNode(aNodeInfo)
 {
 }
@@ -152,7 +151,7 @@ nsTextNode::~nsTextNode()
 NS_IMPL_ADDREF_INHERITED(nsTextNode, nsGenericDOMDataNode)
 NS_IMPL_RELEASE_INHERITED(nsTextNode, nsGenericDOMDataNode)
 
-DOMCI_NODE_DATA(Text, nsTextNode)
+DOMCI_DATA(Text, nsTextNode)
 
 // QueryInterface implementation for nsTextNode
 NS_INTERFACE_TABLE_HEAD(nsTextNode)
@@ -198,8 +197,7 @@ nsTextNode::IsNodeOfType(PRUint32 aFlags) const
 nsGenericDOMDataNode*
 nsTextNode::CloneDataNode(nsINodeInfo *aNodeInfo, PRBool aCloneText) const
 {
-  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsTextNode *it = new nsTextNode(ni.forget());
+  nsTextNode *it = new nsTextNode(aNodeInfo);
   if (it && aCloneText) {
     it->mText = mText;
   }
@@ -283,8 +281,7 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  nsAttributeTextNode* textNode = new nsAttributeTextNode(ni.forget(),
-                                                          aNameSpaceID,
+  nsAttributeTextNode* textNode = new nsAttributeTextNode(ni, aNameSpaceID,
                                                           aAttrName);
   if (!textNode) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -344,12 +341,15 @@ nsAttributeTextNode::AttributeChanged(nsIDocument* aDocument,
 {
   if (aNameSpaceID == mNameSpaceID && aAttribute == mAttrName &&
       aContent == mGrandparent) {
-    // Since UpdateText notifies, do it when it's safe to run script.  Note
-    // that if we get unbound while the event is up that's ok -- we'll just
-    // have no grandparent when it fires, and will do nothing.
+    // Since UpdateText notifies, do it asynchronously.  Note that if we get
+    // unbound while the event is up that's ok -- we'll just have no
+    // grandparent when it fires, and will do nothing.    
+    // XXXbz ideally we'd either process this on layout flushes or do it right
+    // after nsIMutationObserver notifications are over or something, instead
+    // of doing it fully async.
     void (nsAttributeTextNode::*update)() = &nsAttributeTextNode::UpdateText;
     nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(this, update);
-    nsContentUtils::AddScriptRunner(ev);
+    NS_DispatchToCurrentThread(ev);
   }
 }
 

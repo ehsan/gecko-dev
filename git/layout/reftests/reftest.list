@@ -26,9 +26,6 @@ include border-image/reftest.list
 # border-radius/
 include border-radius/reftest.list
 
-# box-ordinal/
-include box-ordinal/reftest.list
-
 # box-properties/
 include box-properties/reftest.list
 
@@ -101,9 +98,6 @@ include floats/reftest.list
 
 # font-face
 include font-face/reftest.list
-
-# font features (opentype)
-include font-features/reftest.list
 
 # font matching
 include font-matching/reftest.list
