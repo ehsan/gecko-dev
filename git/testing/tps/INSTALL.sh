@@ -55,27 +55,13 @@ fi
 
 # install TPS
 cd ${CWD}
-python setup.py install
+python setup.py develop
 
 if [ "$?" -gt 0 ]
 then
   exit 1
 fi
 
-CONFIG="`find ${VIRTUAL_ENV} -name config.json.in`"
-NEWCONFIG=${CONFIG:0:${#CONFIG}-3}
-
-cd "../../services/sync/tests/tps"
-TESTDIR="`pwd`"
-
-cd "../../tps"
-EXTDIR="`pwd`"
-
-sed 's|__TESTDIR__|'"${TESTDIR}"'|' "${CONFIG}" | sed 's|__EXTENSIONDIR__|'"${EXTDIR}"'|' > "${NEWCONFIG}"
-rm ${CONFIG}
-
-echo
-echo "***********************************************************************"
 echo
 echo "To run TPS, activate the virtualenv using:"
 echo "  source ${TARGET}/${BIN_NAME}"
@@ -83,8 +69,3 @@ echo "then execute tps using:"
 echo "  runtps --binary=/path/to/firefox"
 echo
 echo "See runtps --help for all options"
-echo
-echo "To change your TPS config, please edit the file: "
-echo "${NEWCONFIG}"
-echo
-echo "***********************************************************************"
