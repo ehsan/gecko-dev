@@ -422,6 +422,8 @@ public:
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
   virtual already_AddRefed<nsIURI> GetBaseURI() const;
   virtual PRBool IsLink(nsIURI** aURI) const;
+  virtual void SetMayHaveFrame(PRBool aMayHaveFrame);
+  virtual PRBool MayHaveFrame() const;
 
   virtual PRUint32 GetScriptTypeID() const;
   NS_IMETHOD SetScriptTypeID(PRUint32 aLang);
@@ -703,15 +705,32 @@ public:
                                 nsEventStatus* aStatus);
 
   /**
-   * Get the primary frame for this content with flushing
+   * Get the primary frame for this content without flushing (see
+   * GetPrimaryFrameFor)
+   *
+   * @return the primary frame
+   */
+  nsIFrame* GetPrimaryFrame();
+
+  /**
+   * Get the primary frame for this content with flushing (see
+   * GetPrimaryFrameFor).
    *
    * @param aType the kind of flush to do, typically Flush_Frames or
    *              Flush_Layout
    * @return the primary frame
    */
   nsIFrame* GetPrimaryFrame(mozFlushType aType);
-  // Work around silly C++ name hiding stuff
-  nsIFrame* GetPrimaryFrame() const { return nsIContent::GetPrimaryFrame(); }
+
+  /**
+   * Get the primary frame for a piece of content without flushing.
+   *
+   * @param aContent the content to get the primary frame for
+   * @param aDocument the document for this content
+   * @return the primary frame
+   */
+  static nsIFrame* GetPrimaryFrameFor(nsIContent* aContent,
+                                      nsIDocument* aDocument);
 
   /**
    * Struct that stores info on an attribute.  The name and value must

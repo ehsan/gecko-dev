@@ -178,33 +178,12 @@ nsDOMAttribute::GetName(nsAString& aName)
   return NS_OK;
 }
 
-already_AddRefed<nsIAtom>
-nsDOMAttribute::GetNameAtom(nsIContent* aContent)
-{
-  nsIAtom* result = nsnull;
-  if (mNodeInfo->NamespaceID() == kNameSpaceID_None &&
-      aContent->IsInHTMLDocument() &&
-      aContent->IsHTML()) {
-    nsAutoString name;
-    mNodeInfo->NameAtom()->ToString(name);
-    nsAutoString lower;
-    ToLowerCase(name, lower);
-    nsCOMPtr<nsIAtom> nameAtom = do_GetAtom(lower);
-    nameAtom.swap(result);
-  } else {
-    nsCOMPtr<nsIAtom> nameAtom = mNodeInfo->NameAtom();
-    nameAtom.swap(result);
-  }
-  return result;
-}
-
 NS_IMETHODIMP
 nsDOMAttribute::GetValue(nsAString& aValue)
 {
   nsIContent* content = GetContentInternal();
   if (content) {
-    nsCOMPtr<nsIAtom> nameAtom = GetNameAtom(content);
-    content->GetAttr(mNodeInfo->NamespaceID(), nameAtom, aValue);
+    content->GetAttr(mNodeInfo->NamespaceID(), mNodeInfo->NameAtom(), aValue);
   }
   else {
     aValue = mValue;
@@ -219,9 +198,8 @@ nsDOMAttribute::SetValue(const nsAString& aValue)
   nsresult rv = NS_OK;
   nsIContent* content = GetContentInternal();
   if (content) {
-    nsCOMPtr<nsIAtom> nameAtom = GetNameAtom(content);
     rv = content->SetAttr(mNodeInfo->NamespaceID(),
-                          nameAtom,
+                          mNodeInfo->NameAtom(),
                           mNodeInfo->GetPrefixAtom(),
                           aValue,
                           PR_TRUE);
@@ -463,14 +441,14 @@ nsDOMAttribute::SetPrefix(const nsAString& aPrefix)
 
   nsIContent* content = GetContentInternal();
   if (content) {
-    nsCOMPtr<nsIAtom> name = GetNameAtom(content);
+    nsIAtom *name = mNodeInfo->NameAtom();
     PRInt32 nameSpaceID = mNodeInfo->NamespaceID();
 
     nsAutoString tmpValue;
     if (content->GetAttr(nameSpaceID, name, tmpValue)) {
       content->UnsetAttr(nameSpaceID, name, PR_TRUE);
 
-      content->SetAttr(newNodeInfo->NamespaceID(), name,
+      content->SetAttr(newNodeInfo->NamespaceID(), newNodeInfo->NameAtom(),
                        newNodeInfo->GetPrefixAtom(), tmpValue, PR_TRUE);
     }
   }

@@ -80,6 +80,12 @@ toolbarseparator {
   min-height: 24px;
 }
 
+.toolbar-primary,
+window > toolbox:nth-of-type(1) > toolbar:nth-of-type(1) {
+  -moz-appearance: -moz-mac-unified-toolbar;
+}
+
+
 /* ::::: toolbarpaletteitem ::::: */
 
 toolbarpaletteitem {

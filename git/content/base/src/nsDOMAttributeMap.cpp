@@ -51,7 +51,6 @@
 #include "nsContentUtils.h"
 #include "nsNodeInfoManager.h"
 #include "nsAttrName.h"
-#include "nsUnicharUtils.h"
 
 //----------------------------------------------------------------------
 
@@ -337,13 +336,6 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
         NS_ENSURE_SUCCESS(rv, rv);
       }
       else {
-        if (mContent->IsInHTMLDocument() &&
-            mContent->IsHTML()) {
-          nsAutoString lower;
-          ToLowerCase(name, lower);
-          name = lower;
-        }
-
         rv = mContent->NodeInfo()->NodeInfoManager()->
           GetNodeInfo(name, nsnull, kNameSpaceID_None, getter_AddRefs(ni));
         NS_ENSURE_SUCCESS(rv, rv);
@@ -361,8 +353,19 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
     NS_ENSURE_SUCCESS(rv, rv);
     iAttribute->SetMap(this);
 
-    rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(),
-                           ni->GetPrefixAtom(), value, PR_TRUE);
+    if (!aWithNS && ni->NamespaceID() == kNameSpaceID_None &&
+        mContent->IsHTML()) {
+      // Set via setAttribute(), which may do normalization on the
+      // attribute name for HTML
+      nsCOMPtr<nsIDOMElement> ourElement(do_QueryInterface(mContent));
+      NS_ASSERTION(ourElement, "HTML content that's not an element?");
+      rv = ourElement->SetAttribute(name, value);
+    }
+    else {
+      // It's OK to just use SetAttr
+      rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(),
+                             ni->GetPrefixAtom(), value, PR_TRUE);
+    }
     if (NS_FAILED(rv)) {
       DropAttribute(ni->NamespaceID(), ni->NameAtom());
     }

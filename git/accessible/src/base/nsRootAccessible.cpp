@@ -508,7 +508,7 @@ nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
     if (!shell)
       return PR_FALSE;
 
-    focusFrame = focusContent->GetPrimaryFrame();
+    focusFrame = shell->GetRealPrimaryFrameFor(focusContent);
   }
 
   NS_IF_RELEASE(gLastFocusedNode);

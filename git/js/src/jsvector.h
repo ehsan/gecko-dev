@@ -421,10 +421,10 @@ js_AppendLiteral(Vector<T,N,AP> &v, const char (&array)[ArrayLength])
 
 /* Vector Implementation */
 
-template <class T, size_t N, class AllocPolicy>
+template <class T, size_t N, class AP>
 inline
-Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
-  : AllocPolicy(ap), mLengthOrCapacity(0)
+Vector<T,N,AP>::Vector(AP ap)
+  : AP(ap), mLengthOrCapacity(0)
 #ifdef DEBUG
     , mEntered(false)
 #endif

@@ -55,20 +55,16 @@ js_IdIsIndex(jsval id, jsuint *indexp);
 
 extern JSClass js_ArrayClass, js_SlowArrayClass;
 
-inline bool
-JSObject::isDenseArray() const
+static JS_INLINE JSBool
+js_IsDenseArray(JSObject *obj)
 {
-    return getClass() == &js_ArrayClass;
+    return STOBJ_GET_CLASS(obj) == &js_ArrayClass;
 }
 
-inline bool
-JSObject::isArray() const
-{
-    return isDenseArray() || getClass() == &js_SlowArrayClass;
-}
+#define OBJ_IS_DENSE_ARRAY(cx, obj) js_IsDenseArray(obj)
 
-#define OBJ_IS_DENSE_ARRAY(cx,obj)  (obj)->isDenseArray()
-#define OBJ_IS_ARRAY(cx,obj)        (obj)->isArray()
+#define OBJ_IS_ARRAY(cx,obj)    (OBJ_IS_DENSE_ARRAY(cx, obj) ||               \
+                                 OBJ_GET_CLASS(cx, obj) == &js_SlowArrayClass)
 
 /*
  * Dense arrays are not native (OBJ_IS_NATIVE(cx, aobj) for a dense array aobj
@@ -126,14 +122,14 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj);
 static JS_INLINE uint32
 js_DenseArrayCapacity(JSObject *obj)
 {
-    JS_ASSERT(obj->isDenseArray());
+    JS_ASSERT(js_IsDenseArray(obj));
     return obj->dslots ? (uint32) obj->dslots[-1] : 0;
 }
 
 static JS_INLINE void
 js_SetDenseArrayCapacity(JSObject *obj, uint32 capacity)
 {
-    JS_ASSERT(obj->isDenseArray());
+    JS_ASSERT(js_IsDenseArray(obj));
     JS_ASSERT(obj->dslots);
     obj->dslots[-1] = (jsval) capacity;
 }

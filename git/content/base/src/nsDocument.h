@@ -99,7 +99,7 @@
 
 // Put these here so all document impls get them automatically
 #include "nsHTMLStyleSheet.h"
-#include "nsHTMLCSSStyleSheet.h"
+#include "nsIHTMLCSSStyleSheet.h"
 
 #include "nsStyleSet.h"
 #include "nsXMLEventsManager.h"
@@ -715,7 +715,7 @@ public:
    * Get this document's inline style sheet.  May return null if there
    * isn't one
    */
-  virtual nsHTMLCSSStyleSheet* GetInlineStyleSheet() const {
+  virtual nsIHTMLCSSStyleSheet* GetInlineStyleSheet() const {
     return mStyleAttrStyleSheet;
   }
   
@@ -1204,7 +1204,7 @@ protected:
   // The channel that got passed to StartDocumentLoad(), if any
   nsCOMPtr<nsIChannel> mChannel;
   nsRefPtr<nsHTMLStyleSheet> mAttrStyleSheet;
-  nsRefPtr<nsHTMLCSSStyleSheet> mStyleAttrStyleSheet;
+  nsCOMPtr<nsIHTMLCSSStyleSheet> mStyleAttrStyleSheet;
   nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
 
   nsCOMPtr<nsIScriptEventManager> mScriptEventManager;

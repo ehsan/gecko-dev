@@ -42,26 +42,12 @@
       if ("testPath" in params && params.testPath) {
         var extraPath = params.testPath;
         var pathToCheck = chromeDir.clone().QueryInterface(Ci.nsILocalFile);
-        var pathIsFile = false;
-        try {
-          var pathParts = extraPath.toString().split("/");
-          for each (var part in pathParts) {
-            pathToCheck.append(part);
-          }          
-          if (pathToCheck.isDirectory()) {
-            for each (var part in pathParts) {
-              chromeDir.append(part);
-            }          
-            url += extraPath + "/";
-          }
-          else {
-            pathIsFile = true;
-          }
+        pathToCheck.appendRelativePath(extraPath);
+        if (pathToCheck.isDirectory()) {
+          chromeDir.appendRelativePath(extraPath);
+          url += extraPath + "/";
         }
-        catch (e) {
-          pathIsFile = true;
-        }
-        if (pathIsFile) {
+        else {
           singleTestPath = url + params.testPath;
         }
       }

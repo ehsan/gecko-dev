@@ -36,7 +36,6 @@
 
 #include <windows.h>
 #include <windowsx.h>
-#include <stdio.h>
 
  using namespace std;
 

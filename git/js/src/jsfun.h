@@ -212,13 +212,7 @@ extern const uint32 CALL_CLASS_FIXED_RESERVED_SLOTS;
 /* JS_FRIEND_DATA so that VALUE_IS_FUNCTION is callable from the shell. */
 extern JS_FRIEND_DATA(JSClass) js_FunctionClass;
 
-inline bool
-JSObject::isFunction() const
-{
-    return getClass() == &js_FunctionClass;
-}
-
-#define HAS_FUNCTION_CLASS(obj) (obj)->isFunction()
+#define HAS_FUNCTION_CLASS(obj) (STOBJ_GET_CLASS(obj) == &js_FunctionClass)
 
 /*
  * NB: jsapi.h and jsobj.h must be included before any call to this macro.

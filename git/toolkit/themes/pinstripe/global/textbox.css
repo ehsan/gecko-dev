@@ -78,10 +78,6 @@ html|*.textbox-textarea {
   font: inherit;
 }
 
-.textbox-contextmenu {
-  cursor: default;
-}
-
 /* ..... focused state ..... */
 
 textbox[focused="true"] {

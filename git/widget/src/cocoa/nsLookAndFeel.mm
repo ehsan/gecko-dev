@@ -262,8 +262,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       aColor = NS_RGB(0xA3,0xA3,0xA3);
       break;          
     case eColor__moz_mac_menutextdisable:
-      aColor = nsToolkit::OnSnowLeopardOrLater() ?
-                 NS_RGB(0x88,0x88,0x88) : NS_RGB(0x98,0x98,0x98);
+      aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
       break;      
     case eColor__moz_mac_menutextselect:
       aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);

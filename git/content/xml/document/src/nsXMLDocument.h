@@ -41,6 +41,8 @@
 #include "nsDocument.h"
 #include "nsIDOMXMLDocument.h"
 #include "nsIScriptContext.h"
+#include "nsHTMLStyleSheet.h"
+#include "nsIHTMLCSSStyleSheet.h"
 
 class nsIParser;
 class nsIDOMNode;

@@ -64,7 +64,7 @@ prefwindow[type="child"] > prefpane {
 .paneSelector {
   font: message-box;
   padding: 1px 4px;
-  -moz-appearance: toolbar;
+  -moz-appearance: -moz-mac-unified-toolbar;
   margin: 0;
 }
 

@@ -77,7 +77,13 @@ GetPrimaryFrameFor(nsIDOMNode *aDOMNode)
     if (nsnull == aContent)
         return nsnull;
 
-    return aContent->GetPrimaryFrame();
+    nsIDocument* doc = aContent->GetCurrentDoc();
+    if (nsnull == doc)
+        return nsnull;
+    nsIPresShell* presShell = doc->GetPrimaryShell();
+    if ( nsnull == presShell) 
+        return nsnull;
+    return presShell->GetPrimaryFrameFor(aContent);
 }
 
 static bool 

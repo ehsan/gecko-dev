@@ -66,6 +66,7 @@
 #include "nsFrameSelection.h"
 #include "nsIFrameUtil.h"
 #include "nsIGenericFactory.h"
+#include "nsIHTMLCSSStyleSheet.h"
 #include "nsIFragmentContentSink.h"
 #include "nsHTMLStyleSheet.h"
 #include "nsIHTMLToTextSink.h"
@@ -477,6 +478,7 @@ MAKE_CTOR(CreateDOMEventGroup,            nsIDOMEventGroup,            NS_NewDOM
 MAKE_CTOR(CreateDocumentViewer,           nsIDocumentViewer,           NS_NewDocumentViewer)
 MAKE_CTOR(CreateCSSStyleSheet,            nsICSSStyleSheet,            NS_NewCSSStyleSheet)
 MAKE_CTOR(CreateHTMLDocument,             nsIDocument,                 NS_NewHTMLDocument)
+MAKE_CTOR(CreateHTMLCSSStyleSheet,        nsIHTMLCSSStyleSheet,        NS_NewHTMLCSSStyleSheet)
 MAKE_CTOR(CreateDOMImplementation,        nsIDOMDOMImplementation,     NS_NewDOMImplementation)
 MAKE_CTOR(CreateXMLDocument,              nsIDocument,                 NS_NewXMLDocument)
 #ifdef MOZ_SVG
@@ -974,6 +976,11 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_HTMLDOCUMENT_CID,
     nsnull,
     CreateHTMLDocument },
+
+  { "HTML-CSS style sheet",
+    NS_HTML_CSS_STYLESHEET_CID,
+    nsnull,
+    CreateHTMLCSSStyleSheet },
 
   { "DOM implementation",
     NS_DOM_IMPLEMENTATION_CID,

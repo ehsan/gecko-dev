@@ -557,12 +557,15 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
   if (currentDoc && element->NodeInfo()->Equals(nsGkAtoms::svg, kNameSpaceID_SVG)) {
     nsIPresShell *presShell = currentDoc->GetPrimaryShell();
     if (presShell) {
-      nsIFrame* frame = element->GetPrimaryFrame();
-      nsIFrame* ancestorFrame = presShell->GetRootFrame();
-      if (frame && ancestorFrame) {
-        nsPoint point = frame->GetOffsetTo(ancestorFrame);
-        x = nsPresContext::AppUnitsToFloatCSSPixels(point.x);
-        y = nsPresContext::AppUnitsToFloatCSSPixels(point.y);
+      nsPresContext *context = presShell->GetPresContext();
+      if (context) {
+        nsIFrame* frame = presShell->GetPrimaryFrameFor(element);
+        nsIFrame* ancestorFrame = presShell->GetRootFrame();
+        if (frame && ancestorFrame) {
+          nsPoint point = frame->GetOffsetTo(ancestorFrame);
+          x = nsPresContext::AppUnitsToFloatCSSPixels(point.x);
+          y = nsPresContext::AppUnitsToFloatCSSPixels(point.y);
+        }
       }
     }
   }

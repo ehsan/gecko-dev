@@ -1,4 +1,4 @@
-/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,8 +15,8 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Sylvain Pasche <sylvain.pasche@gmail.com>
- * Portions created by the Initial Developer are Copyright (C) 2009
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,26 +35,35 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "domstubs.idl"
-
-/**
- * The DOMTokenList interface represents an interface to an underlying string
- * that consists of a set of space-separated tokens.
- *
- * For more information on this interface please see
- * http://www.w3.org/TR/html5/infrastructure.html#domtokenlist
- *
+/*
+ * style sheet and style rule processor representing style attributes
  */
-[scriptable, uuid(c6f1e160-eeeb-404a-98b0-6f1246520b6e)]
-interface nsIDOMDOMTokenList : nsISupports
-{
-  readonly attribute unsigned long length;
 
-  DOMString                        item(in unsigned long index);
-  boolean                          contains(in DOMString token);
-  void                             add(in DOMString token);
-  void                             remove(in DOMString token);
-  boolean                          toggle(in DOMString token);
+#ifndef nsIHTMLCSSStyleSheet_h___
+#define nsIHTMLCSSStyleSheet_h___
 
-  DOMString                        toString();
+#include "nsIStyleSheet.h"
+
+// IID for the nsIHTMLCSSStyleSheet interface {b5cc4ac0-eab6-11d1-8031-006008159b5a}
+#define NS_IHTML_CSS_STYLE_SHEET_IID     \
+{0xb5cc4ac0, 0xeab6, 0x11d1, {0x80, 0x31, 0x00, 0x60, 0x08, 0x15, 0x9b, 0x5a}}
+
+class nsIHTMLCSSStyleSheet : public nsIStyleSheet {
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IHTML_CSS_STYLE_SHEET_IID)
+
+  NS_IMETHOD Init(nsIURI* aURL, nsIDocument* aDocument) = 0;
+  NS_IMETHOD Reset(nsIURI* aURL) = 0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIHTMLCSSStyleSheet, NS_IHTML_CSS_STYLE_SHEET_IID)
+
+// XXX for convenience and backward compatibility
+nsresult
+NS_NewHTMLCSSStyleSheet(nsIHTMLCSSStyleSheet** aInstancePtrResult,
+                        nsIURI* aURL, nsIDocument* aDocument);
+
+nsresult
+NS_NewHTMLCSSStyleSheet(nsIHTMLCSSStyleSheet** aInstancePtrResult);
+
+#endif /* nsIHTMLCSSStyleSheet_h___ */

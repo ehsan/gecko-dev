@@ -1817,7 +1817,8 @@ nsPrintEngine::ReflowDocList(nsPrintObject* aPO, PRBool aSetPixelScale)
 
   // Check to see if the subdocument's element has been hidden by the parent document
   if (aPO->mParent && aPO->mParent->mPresShell) {
-    nsIFrame * frame = aPO->mContent->GetPrimaryFrame();
+    nsIFrame * frame =
+      aPO->mParent->mPresShell->GetPrimaryFrameFor(aPO->mContent);
     if (frame) {
       if (!frame->GetStyleVisibility()->IsVisible()) {
         aPO->mDontPrint = PR_TRUE;
@@ -1871,7 +1872,10 @@ nsPrintEngine::ReflowPrintObject(nsPrintObject * aPO)
     return NS_OK;
 
   if (aPO->mParent && aPO->mParent->IsPrintable()) {
-    frame = aPO->mContent->GetPrimaryFrame();
+    if (aPO->mParent->mPresShell) {
+      frame = aPO->mParent->mPresShell->FrameManager()->
+        GetPrimaryFrameFor(aPO->mContent, -1);
+    }
     // Without a frame, this document can't be displayed; therefore, there is no
     // point to reflowing it
     if (!frame) {

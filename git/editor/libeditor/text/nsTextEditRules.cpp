@@ -104,8 +104,6 @@ nsTextEditRules::nsTextEditRules()
 , mLockRulesSniffing(PR_FALSE)
 , mDidExplicitlySetInterline(PR_FALSE)
 , mTheAction(0)
-, mLastStart(0)
-, mLastLength(0)
 {
 }
 

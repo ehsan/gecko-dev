@@ -1091,18 +1091,26 @@ nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
 void
 nsSVGSVGElement::InvalidateTransformNotifyFrame()
 {
-  nsISVGSVGFrame* svgframe = do_QueryFrame(GetPrimaryFrame());
-  if (svgframe) {
-    svgframe->NotifyViewportChange();
-  }
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) return;
+  nsIPresShell* presShell = doc->GetPrimaryShell();
+  if (!presShell) return;
+
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
+  if (frame) {
+    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+    if (svgframe) {
+      svgframe->NotifyViewportChange();
+    }
 #ifdef DEBUG
-  else {
-    // XXX we get here during nsSVGOuterSVGFrame::Init() since that
-    // function is called before the presshell association between us
-    // and our frame is established.
-    NS_WARNING("wrong frame type");
-  }
+    else {
+      // XXX we get here during nsSVGOuterSVGFrame::Init() since that
+      // function is called before the presshell association between us
+      // and our frame is established.
+      NS_WARNING("wrong frame type");
+    }
 #endif
+  }
 }
 
 //----------------------------------------------------------------------
@@ -1128,8 +1136,8 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     }
   }
 
-  w = NS_MAX(w, 0.0f);
-  h = NS_MAX(h, 0.0f);
+  w = PR_MAX(w, 0.0f);
+  h = PR_MAX(h, 0.0f);
 
   switch (aCtxType) {
   case nsSVGUtils::X:
