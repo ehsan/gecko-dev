@@ -103,7 +103,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 ; Must be inserted before other macros that use logging
 !insertmacro _LoggingCommon
 
-!insertmacro AddDisabledDDEHandlerValues
+!insertmacro AddDDEHandlerValues
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
 !insertmacro CleanUpdatesDir
@@ -352,15 +352,17 @@ Section "-Application" APP_IDX
   ${SetUninstallKeys}
 
   ; On install always add the FirefoxHTML and FirefoxURL keys.
-  ; An empty string is used for the 5th param because FirefoxHTML is not a
-  ; protocol handler.
+  ; An empty string is used for the 5th param because FirefoxHTML and FirefoxURL
+  ; are not protocol handlers.
   ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
-  StrCpy $2 "$\"$8$\" -osint -url $\"%1$\""
+  StrCpy $2 "$\"$8$\" -requestPending -osint -url $\"%1$\""
+  StrCpy $3 "$\"%1$\",,0,0,,,,"
 
-  ${AddDisabledDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" \
-                                 "${AppRegName} Document" ""
-  ${AddDisabledDDEHandlerValues} "FirefoxURL" "$2" "$8,1" "${AppRegName} URL" \
-                                 "true"
+  ${AddDDEHandlerValues} "FirefoxHTML" "$2" "$8,1" "${AppRegName} Document" "" \
+                         "${DDEApplication}" "$3" "WWW_OpenURL"
+
+  ${AddDDEHandlerValues} "FirefoxURL" "$2" "$8,1" "${AppRegName} URL" "true" \
+                         "${DDEApplication}" "$3" "WWW_OpenURL"
 
   ; The following keys should only be set if we can write to HKLM
   ${If} $TmpVal == "HKLM"

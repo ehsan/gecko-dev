@@ -53,6 +53,7 @@
 
 #include "InputDispatcher.h"
 
+#include <cutils/log.h>
 #include <ui/PowerManager.h>
 
 #include <stddef.h>

@@ -44,8 +44,9 @@ let gDrop = {
    * Handles the 'drop' event.
    * @param aCell The drop target cell.
    * @param aEvent The 'dragexit' event.
+   * @param aCallback The callback to call when the drop is finished.
    */
-  drop: function Drop_drop(aCell, aEvent) {
+  drop: function Drop_drop(aCell, aEvent, aCallback) {
     // The cell that is the drop target could contain a pinned site. We need
     // to find out where that site has gone and re-pin it there.
     if (aCell.containsPinnedSite())
@@ -57,7 +58,7 @@ let gDrop = {
     this._cancelDelayedArrange();
 
     // Update the grid and move all sites to their new places.
-    gUpdater.updateGrid();
+    gUpdater.updateGrid(aCallback);
   },
 
   /**

@@ -25,6 +25,9 @@ const Ci = Components.interfaces;
 Cu.import("resource:///modules/PageThumbs.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
+  "resource://gre/modules/NetUtil.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
   "resource://gre/modules/Services.jsm");
 
@@ -101,252 +104,268 @@ function Channel(aURI) {
 }
 
 Channel.prototype = {
-  _uri: null,
-  _referrer: null,
-  _canceled: false,
-  _status: Cr.NS_OK,
-  _isPending: false,
+  /**
+   * Tracks if the channel has been opened, yet.
+   */
   _wasOpened: false,
-  _responseText: "OK",
-  _responseStatus: 200,
-  _responseHeaders: null,
-  _requestMethod: "GET",
-  _requestStarted: false,
-  _allowPipelining: true,
-  _requestSucceeded: true,
 
-  /* :::::::: nsIChannel ::::::::::::::: */
-
-  get URI() this._uri,
-  owner: null,
-  notificationCallbacks: null,
-  get securityInfo() null,
-
-  contentType: PageThumbs.contentType,
-  contentCharset: null,
-  contentLength: -1,
-
-  get contentDisposition() {
-    throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
-  },
-
-  get contentDispositionFilename() {
-    throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
-  },
-
-  get contentDispositionHeader() {
-    throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
-  },
-
-  open: function Channel_open() {
-    throw (Components.returnCode = Cr.NS_ERROR_NOT_IMPLEMENTED);
-  },
-
+  /**
+   * Opens this channel asynchronously.
+   * @param aListener The listener that receives the channel data when available.
+   * @param aContext A custom context passed to the listener's methods.
+   */
   asyncOpen: function Channel_asyncOpen(aListener, aContext) {
-    if (this._isPending)
-      throw (Components.returnCode = Cr.NS_ERROR_IN_PROGRESS);
-
     if (this._wasOpened)
-      throw (Components.returnCode = Cr.NS_ERROR_ALREADY_OPENED);
+      throw Cr.NS_ERROR_ALREADY_OPENED;
 
-    if (this._canceled)
-      return (Components.returnCode = this._status);
-
-    this._isPending = true;
-    this._wasOpened = true;
+    if (this.canceled)
+      return;
 
     this._listener = aListener;
     this._context = aContext;
 
-    if (this.loadGroup)
-      this.loadGroup.addRequest(this, null);
+    this._isPending = true;
+    this._wasOpened = true;
 
-    if (this._canceled)
-      return;
+    // Try to read the data from the thumbnail cache.
+    this._readCache(function (aData) {
+      let telemetryThumbnailFound = true;
 
-    let {url} = parseURI(this._uri);
-    if (!url) {
-      this._serveThumbnailNotFound();
-      return;
-    }
-
-    PageThumbsCache.getReadEntry(url, function (aEntry) {
-      let inputStream = aEntry && aEntry.openInputStream(0);
-      if (!inputStream || !inputStream.available()) {
-        if (aEntry)
-          aEntry.close();
-        this._serveThumbnailNotFound();
-        return;
+      // Update response if there's no data.
+      if (!aData) {
+        this._responseStatus = 404;
+        this._responseText = "Not Found";
+        telemetryThumbnailFound = false;
       }
 
-      this._entry = aEntry;
-      this._pump = Cc["@mozilla.org/network/input-stream-pump;1"].
-                   createInstance(Ci.nsIInputStreamPump);
+      Services.telemetry.getHistogramById("FX_THUMBNAILS_HIT_OR_MISS")
+        .add(telemetryThumbnailFound);
 
-      this._pump.init(inputStream, -1, -1, 0, 0, true);
-      this._pump.asyncRead(this, null);
+      this._startRequest();
 
-      this._trackThumbnailHitOrMiss(true);
+      if (!this.canceled) {
+        this._addToLoadGroup();
+
+        if (aData)
+          this._serveData(aData);
+
+        if (!this.canceled)
+          this._stopRequest();
+      }
     }.bind(this));
   },
 
   /**
-   * Serves a "404 Not Found" if we didn't find the requested thumbnail.
+   * Reads a data stream from the cache entry.
+   * @param aCallback The callback the data is passed to.
    */
-  _serveThumbnailNotFound: function Channel_serveThumbnailNotFound() {
-    this._responseStatus = 404;
-    this._responseText = "Not Found";
-    this._requestSucceeded = false;
+  _readCache: function Channel_readCache(aCallback) {
+    let {url} = parseURI(this._uri);
 
-    this.onStartRequest(this, null);
-    this.onStopRequest(this, null, Cr.NS_OK);
+    // Return early if there's no valid URL given.
+    if (!url) {
+      aCallback(null);
+      return;
+    }
 
-    this._trackThumbnailHitOrMiss(false);
+    // Try to get a cache entry.
+    PageThumbsCache.getReadEntry(url, function (aEntry) {
+      let inputStream = aEntry && aEntry.openInputStream(0);
+
+      function closeEntryAndFinish(aData) {
+        if (aEntry) {
+          aEntry.close();
+        }
+        aCallback(aData);
+      }
+
+      // Check if we have a valid entry and if it has any data.
+      if (!inputStream || !inputStream.available()) {
+        closeEntryAndFinish();
+        return;
+      }
+
+      try {
+        // Read the cache entry's data.
+        NetUtil.asyncFetch(inputStream, function (aData, aStatus) {
+          // We might have been canceled while waiting.
+          if (this.canceled)
+            return;
+
+          // Check if we have a valid data stream.
+          if (!Components.isSuccessCode(aStatus) || !aData.available())
+            aData = null;
+
+          closeEntryAndFinish(aData);
+        }.bind(this));
+      } catch (e) {
+        closeEntryAndFinish();
+      }
+    }.bind(this));
   },
 
   /**
-   * Implements telemetry tracking for thumbnail cache hits and misses.
-   * @param aFound Whether the thumbnail was found.
+   * Calls onStartRequest on the channel listener.
    */
-  _trackThumbnailHitOrMiss: function Channel_trackThumbnailHitOrMiss(aFound) {
-    Services.telemetry.getHistogramById("FX_THUMBNAILS_HIT_OR_MISS")
-      .add(aFound);
+  _startRequest: function Channel_startRequest() {
+    try {
+      this._listener.onStartRequest(this, this._context);
+    } catch (e) {
+      // The listener might throw if the request has been canceled.
+      this.cancel(Cr.NS_BINDING_ABORTED);
+    }
   },
 
-  /* :::::::: nsIStreamListener ::::::::::::::: */
-
-  onStartRequest: function Channel_onStartRequest(aRequest, aContext) {
-    if (!this.canceled && Components.isSuccessCode(this._status))
-      this._status = aRequest.status;
-
-    this._requestStarted = true;
-    this._listener.onStartRequest(this, this._context);
+  /**
+   * Calls onDataAvailable on the channel listener and passes the data stream.
+   * @param aData The data to be delivered.
+   */
+  _serveData: function Channel_serveData(aData) {
+    try {
+      let available = aData.available();
+      this._listener.onDataAvailable(this, this._context, aData, 0, available);
+    } catch (e) {
+      // The listener might throw if the request has been canceled.
+      this.cancel(Cr.NS_BINDING_ABORTED);
+    }
   },
 
-  onDataAvailable: function Channel_onDataAvailable(aRequest, aContext,
-                                                    aInStream, aOffset, aCount) {
-    this._listener.onDataAvailable(this, this._context, aInStream, aOffset, aCount);
+  /**
+   * Calls onStopRequest on the channel listener.
+   */
+  _stopRequest: function Channel_stopRequest() {
+    try {
+      this._listener.onStopRequest(this, this._context, this.status);
+    } catch (e) {
+      // This might throw but is generally ignored.
+    }
+
+    // The request has finished, clean up after ourselves.
+    this._cleanup();
   },
 
-  onStopRequest: function Channel_onStopRequest(aRequest, aContext, aStatus) {
-    this._isPending = false;
-    this._status = aStatus;
-
-    this._listener.onStopRequest(this, this._context, aStatus);
-    this._listener = null;
-    this._context = null;
-
-    if (this._entry)
-      this._entry.close();
-
+  /**
+   * Adds this request to the load group, if any.
+   */
+  _addToLoadGroup: function Channel_addToLoadGroup() {
     if (this.loadGroup)
-      this.loadGroup.removeRequest(this, null, aStatus);
+      this.loadGroup.addRequest(this, this._context);
   },
 
-  /* :::::::: nsIRequest ::::::::::::::: */
-
-  get status() this._status,
-  get name() this._uri.spec,
-  isPending: function Channel_isPending() this._isPending,
-
-  loadFlags: Ci.nsIRequest.LOAD_NORMAL,
-  loadGroup: null,
-
-  cancel: function Channel_cancel(aStatus) {
-    if (this._canceled)
+  /**
+   * Removes this request from its load group, if any.
+   */
+  _removeFromLoadGroup: function Channel_removeFromLoadGroup() {
+    if (!this.loadGroup)
       return;
 
-    this._canceled = true;
-    this._status = aStatus;
-
-    if (this._pump)
-      this._pump.cancel(aStatus);
+    try {
+      this.loadGroup.removeRequest(this, this._context, this.status);
+    } catch (e) {
+      // This might throw but is ignored.
+    }
   },
 
-  suspend: function Channel_suspend() {
-    if (this._pump)
-      this._pump.suspend();
+  /**
+   * Cleans up the channel when the request has finished.
+   */
+  _cleanup: function Channel_cleanup() {
+    this._removeFromLoadGroup();
+    this.loadGroup = null;
+
+    this._isPending = false;
+
+    delete this._listener;
+    delete this._context;
   },
 
-  resume: function Channel_resume() {
-    if (this._pump)
-      this._pump.resume();
+  /* :::::::: nsIChannel ::::::::::::::: */
+
+  contentType: PageThumbs.contentType,
+  contentLength: -1,
+  owner: null,
+  contentCharset: null,
+  notificationCallbacks: null,
+
+  get URI() this._uri,
+  get securityInfo() null,
+
+  /**
+   * Opens this channel synchronously. Not supported.
+   */
+  open: function Channel_open() {
+    // Synchronous data delivery is not implemented.
+    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   /* :::::::: nsIHttpChannel ::::::::::::::: */
 
-  get referrer() this._referrer,
-
-  set referrer(aReferrer) {
-    if (this._wasOpened)
-      throw (Components.returnCode = Cr.NS_ERROR_IN_PROGRESS);
-
-    this._referrer = aReferrer;
-  },
-
-  get requestMethod() this._requestMethod,
-
-  set requestMethod(aMethod) {
-    if (this._wasOpened)
-      throw (Components.returnCode = Cr.NS_ERROR_IN_PROGRESS);
-
-    this._requestMethod = aMethod.toUpperCase();
-  },
-
-  get allowPipelining() this._allowPipelining,
-
-  set allowPipelining(aAllow) {
-    if (this._wasOpened)
-      throw (Components.returnCode = Cr.NS_ERROR_FAILURE);
-
-    this._allowPipelining = aAllow;
-  },
-
   redirectionLimit: 10,
+  requestMethod: "GET",
+  allowPipelining: true,
+  referrer: null,
 
-  get responseStatus() {
-    if (this._requestStarted)
-      throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
+  get requestSucceeded() true,
 
-    return this._responseStatus;
-  },
+  _responseStatus: 200,
+  get responseStatus() this._responseStatus,
 
-  get responseStatusText() {
-    if (this._requestStarted)
-      throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
+  _responseText: "OK",
+  get responseStatusText() this._responseText,
 
-    return this._responseText;
-  },
+  /**
+   * Checks if the server sent the equivalent of a "Cache-control: no-cache"
+   * response header.
+   * @return Always false.
+   */
+  isNoCacheResponse: function () false,
 
-  get requestSucceeded() {
-    if (this._requestStarted)
-      throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
+  /**
+   * Checks if the server sent the equivalent of a "Cache-control: no-cache"
+   * response header.
+   * @return Always false.
+   */
+  isNoStoreResponse: function () false,
 
-    return this._requestSucceeded;
-  },
-
-  isNoCacheResponse: function Channel_isNoCacheResponse() false,
-  isNoStoreResponse: function Channel_isNoStoreResponse() false,
-
+  /**
+   * Returns the value of a particular request header. Not implemented.
+   */
   getRequestHeader: function Channel_getRequestHeader() {
-    throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
+    throw Cr.NS_ERROR_NOT_AVAILABLE;
   },
 
+  /**
+   * This method is called to set the value of a particular request header.
+   * Not implemented.
+   */
   setRequestHeader: function Channel_setRequestHeader() {
     if (this._wasOpened)
-      throw (Components.returnCode = Cr.NS_ERROR_IN_PROGRESS);
+      throw Cr.NS_ERROR_IN_PROGRESS;
   },
 
-  visitRequestHeaders: function Channel_visitRequestHeaders() {},
+  /**
+   * Call this method to visit all request headers. Not implemented.
+   */
+  visitRequestHeaders: function () {},
 
+  /**
+   * Gets the value of a particular response header.
+   * @param aHeader The case-insensitive name of the response header to query.
+   * @return The header value.
+   */
   getResponseHeader: function Channel_getResponseHeader(aHeader) {
     let name = aHeader.toLowerCase();
     if (name in this._responseHeaders)
       return this._responseHeaders[name];
 
-    throw (Components.returnCode = Cr.NS_ERROR_NOT_AVAILABLE);
+    throw Cr.NS_ERROR_NOT_AVAILABLE;
   },
 
+  /**
+   * This method is called to set the value of a particular response header.
+   * @param aHeader The case-insensitive name of the response header to query.
+   * @param aValue The response header value to set.
+   */
   setResponseHeader: function Channel_setResponseHeader(aHeader, aValue, aMerge) {
     let name = aHeader.toLowerCase();
     if (!aValue && !aMerge)
@@ -355,6 +374,10 @@ Channel.prototype = {
       this._responseHeaders[name] = aValue;
   },
 
+  /**
+   * Call this method to visit all response headers.
+   * @param aVisitor The header visitor.
+   */
   visitResponseHeaders: function Channel_visitResponseHeaders(aVisitor) {
     for (let name in this._responseHeaders) {
       let value = this._responseHeaders[name];
@@ -368,17 +391,48 @@ Channel.prototype = {
     }
   },
 
+  /* :::::::: nsIRequest ::::::::::::::: */
+
+  loadFlags: Ci.nsIRequest.LOAD_NORMAL,
+  loadGroup: null,
+
+  get name() this._uri.spec,
+
+  _status: Cr.NS_OK,
+  get status() this._status,
+
+  _isPending: false,
+  isPending: function () this._isPending,
+
+  resume: function () {},
+  suspend: function () {},
+
+  /**
+   * Cancels this request.
+   * @param aStatus The reason for cancelling.
+   */
+  cancel: function Channel_cancel(aStatus) {
+    if (this.canceled)
+      return;
+
+    this._isCanceled = true;
+    this._status = aStatus;
+
+    this._cleanup();
+  },
+
   /* :::::::: nsIHttpChannelInternal ::::::::::::::: */
 
   documentURI: null,
-  get canceled() this._canceled,
-  allowSpdy: false,
+
+  _isCanceled: false,
+  get canceled() this._isCanceled,
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIChannel,
                                          Ci.nsIHttpChannel,
                                          Ci.nsIHttpChannelInternal,
                                          Ci.nsIRequest])
-}
+};
 
 /**
  * Parses a given URI and extracts all parameters relevant to this protocol.

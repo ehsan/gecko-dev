@@ -9,13 +9,12 @@ function runTests() {
   checkGrid("0,1,2,3,4,5,6,7,8");
 
   let receivedError = false;
-  let block = getContentDocument().querySelector(".newtab-control-block");
+  let block = cw.document.querySelector(".newtab-control-block");
 
   function onError() {
     receivedError = true;
   }
 
-  let cw = getContentWindow();
   cw.addEventListener("error", onError);
 
   for (let i = 0; i < 3; i++)

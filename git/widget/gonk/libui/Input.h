@@ -21,13 +21,13 @@
  * Native input event structures.
  */
 
-#include "android_input.h"
+#include <android/input.h>
 #include <utils/Vector.h>
 #include <utils/KeyedVector.h>
-#include "Timers.h"
+#include <utils/Timers.h>
 #include <utils/RefBase.h>
-#include "String8.h"
-#include "BitSet.h"
+#include <utils/String8.h>
+#include <utils/BitSet.h>
 
 #ifdef HAVE_ANDROID_OS
 class SkMatrix;
