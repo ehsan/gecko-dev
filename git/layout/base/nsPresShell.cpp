@@ -193,7 +193,7 @@
 #include "nsCSSFrameConstructor.h"
 #ifdef MOZ_XUL
 #include "nsMenuFrame.h"
-#include "nsTreeBodyFrame.h"
+#include "nsITreeBoxObject.h"
 #endif
 #include "nsIMenuParent.h"
 #include "nsPlaceholderFrame.h"
@@ -3801,9 +3801,11 @@ UnionRectForClosestScrolledView(nsIFrame* aFrame,
         f &&
         frameType == nsGkAtoms::blockFrame) {
       // find the line containing aFrame and increase the top of |offset|.
-      nsAutoLineIterator lines = f->GetLineIterator();
+      nsCOMPtr<nsILineIterator> lines(do_QueryInterface(f));
+
       if (lines) {
-        PRInt32 index = lines->FindLineContaining(prevFrame);
+        PRInt32 index = -1;
+        lines->FindLineContaining(prevFrame, &index);
         if (index >= 0) {
           nsIFrame *trash1;
           PRInt32 trash2;
@@ -6502,10 +6504,9 @@ ReResolveMenusAndTrees(nsIFrame *aFrame, void *aClosure)
 {
   // Trees have a special style cache that needs to be flushed when
   // the theme changes.
-  nsTreeBodyFrame *treeBody = nsnull;
-  CallQueryInterface(aFrame, &treeBody);
-  if (treeBody)
-    treeBody->ClearStyleAndImageCaches();
+  nsCOMPtr<nsITreeBoxObject> treeBox(do_QueryInterface(aFrame));
+  if (treeBox)
+    treeBox->ClearStyleAndImageCaches();
 
   // We deliberately don't re-resolve style on a menu's popup
   // sub-content, since doing so slows menus to a crawl.  That means we
