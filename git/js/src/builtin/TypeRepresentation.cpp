@@ -367,15 +367,13 @@ TypeRepresentation::addToTableOrFree(JSContext *cx,
     Rooted<GlobalObject*> global(cx, cx->global());
     JSCompartment *comp = cx->compartment();
 
-    // First, try to create the typed object to associate with this
+    // First, try to create the TI type object to associate with this
     // type representation. Since nothing is in the table yet, if this
     // fails we can just return and pretend this whole endeavor was
     // just a bad dream.
     RootedObject proto(cx);
     const Class *clasp;
-    if (!global->getTypedObjectModule().getSuitableClaspAndProto(cx, kind(),
-                                                                 &clasp, &proto))
-    {
+    if (!TypedObjectModuleObject::getSuitableClaspAndProto(cx, kind(), &clasp, &proto)) {
         return nullptr;
     }
     RootedTypeObject typeObject(cx, comp->types.newTypeObject(cx, clasp, proto));
@@ -1026,6 +1024,8 @@ StructTypeRepresentation::fieldNamed(jsid id) const
 
     uint32_t unused;
     JSAtom *atom = JSID_TO_ATOM(id);
+    AutoThreadSafeAccess ts(atom);
+
     if (atom->isIndex(&unused))
         return nullptr;
 
