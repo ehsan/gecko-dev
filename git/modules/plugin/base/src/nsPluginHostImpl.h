@@ -58,7 +58,7 @@
 #include "nsIFileUtilities.h"
 #include "nsICookieStorage.h"
 #include "nsPluginsDir.h"
-#include "nsVoidArray.h"
+#include "nsVoidArray.h"  // array for holding "active" streams
 #include "nsPluginDirServiceProvider.h"
 #include "nsAutoPtr.h"
 #include "nsWeakPtr.h"
@@ -69,6 +69,8 @@
 #include "nsWeakReference.h"
 #include "nsThreadUtils.h"
 #include "nsTArray.h"
+
+// XXX this file really doesn't think this is possible, but ...
 #include "nsIFactory.h"
 
 class nsNPAPIPlugin;
@@ -184,7 +186,7 @@ struct nsActivePlugin
   PRPackedBool           mStopped;
   PRPackedBool           mDefaultPlugin;
   PRPackedBool           mXPConnected;
-  // Array holding all opened stream listeners for this entry
+  //Array holding all opened stream listeners for this entry
   nsCOMPtr <nsISupportsArray>  mStreams; 
 
   nsActivePlugin(nsPluginTag* aPluginTag,

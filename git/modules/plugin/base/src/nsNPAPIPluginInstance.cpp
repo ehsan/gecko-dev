@@ -86,6 +86,7 @@ nsNPAPIPluginStreamListener::nsNPAPIPluginStreamListener(nsNPAPIPluginInstance* 
                                           sizeof("javascript:") - 1) == 0),
     mResponseHeaderBuf(nsnull)
 {
+  // Initialize the 4.x interface structure
   memset(&mNPStream, 0, sizeof(mNPStream));
 
   NS_IF_ADDREF(mInst);
@@ -285,6 +286,7 @@ nsNPAPIPluginStreamListener::SuspendRequest()
 
   if (!pluginInfoNPAPI || !(request = pluginInfoNPAPI->GetRequest())) {
     NS_ERROR("Trying to suspend a non-suspendable stream!");
+
     return NS_ERROR_FAILURE;
   }
 
@@ -305,8 +307,9 @@ nsNPAPIPluginStreamListener::ResumeRequest()
   nsIRequest *request = pluginInfoNPAPI->GetRequest();
 
   // request can be null if the network stream is done.
-  if (request)
+  if (request) {
     request->Resume();
+  }
 
   mIsSuspended = PR_FALSE;
 }
@@ -329,6 +332,7 @@ nsNPAPIPluginStreamListener::StopDataPump()
 {
   if (mDataPumpTimer) {
     mDataPumpTimer->Cancel();
+
     mDataPumpTimer = nsnull;
   }
 }
@@ -427,7 +431,8 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
   nsresult rv = NS_OK;
   while (NS_SUCCEEDED(rv) && length > 0) {
     if (input && length) {
-      if (mStreamBufferSize < mStreamBufferByteCount + length && mIsSuspended) {
+      if (mStreamBufferSize < mStreamBufferByteCount + length &&
+          mIsSuspended) {
         // We're in the ::OnDataAvailable() call that we might get
         // after suspending a request, or we suspended the request
         // from within this ::OnDataAvailable() call while there's
@@ -435,7 +440,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
         // store what we got off the network. Reallocate our internal
         // buffer.
         mStreamBufferSize = mStreamBufferByteCount + length;
-        char *buf = (char*)PR_Realloc(mStreamBuffer, mStreamBufferSize);
+        char *buf = (char *)PR_Realloc(mStreamBuffer, mStreamBufferSize);
         if (!buf)
           return NS_ERROR_OUT_OF_MEMORY;
 
@@ -539,6 +544,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
       if (!mStreamStarted) {
         // The plugin called NPN_DestroyStream() from within
         // NPP_Write(), kill the stream.
+
         return NS_BINDING_ABORTED;
       }
 
@@ -701,7 +707,9 @@ nsNPAPIPluginStreamListener::Notify(nsITimer *aTimer)
 
   if (NS_FAILED(rv)) {
     // We ran into an error, no need to keep firing this timer then.
+
     aTimer->Cancel();
+
     return NS_OK;
   }
 
@@ -712,7 +720,9 @@ nsNPAPIPluginStreamListener::Notify(nsITimer *aTimer)
     // our buffer (or its empty and the stream is already
     // done). Resume the request so that we get more data off the
     // network.
+
     ResumeRequest();
+
     // Necko will pump data now that we've resumed the request.
     StopDataPump();
   }
@@ -858,7 +868,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Stop(void)
   OnPluginDestroy(&fNPP);
 
   if (fCallbacks->destroy == NULL)
-    return NS_ERROR_FAILURE;
+    return NS_ERROR_FAILURE; // XXX right error?
 
   NPSavedData *sdata = 0;
 
@@ -894,18 +904,23 @@ already_AddRefed<nsPIDOMWindow>
 nsNPAPIPluginInstance::GetDOMWindow()
 {
   nsCOMPtr<nsPIPluginInstancePeer> pp (do_QueryInterface(mPeer));
-  if (!pp)
+  if (!pp) {
     return nsnull;
+  }
 
   nsCOMPtr<nsIPluginInstanceOwner> owner;
   pp->GetOwner(getter_AddRefs(owner));
-  if (!owner)
+
+  if (!owner) {
     return nsnull;
+  }
 
   nsCOMPtr<nsIDocument> doc;
   owner->GetDocument(getter_AddRefs(doc));
-  if (!doc)
+
+  if (!doc) {
     return nsnull;
+  }
 
   nsPIDOMWindow *window = doc->GetWindow();
   NS_IF_ADDREF(window);
@@ -942,10 +957,9 @@ nsresult nsNPAPIPluginInstance::InitializePlugin(nsIPluginInstancePeer* peer)
       const char* const* pnames = nsnull;
       const char* const* pvalues = nsnull;    
       if (NS_SUCCEEDED(taginfo->GetParameters(pcount, pnames, pvalues))) {
-        NS_ASSERTION(!values[count], "attribute/parameter array not setup correctly for NPAPI plugins");
+        NS_ASSERTION(nsnull == values[count], "attribute/parameter array not setup correctly for 4.x plugins");
         if (pcount)
-          count += ++pcount; // if it's all setup correctly, then all we need is to
-                             // change the count (attrs + PARAM/blank + params)
+          count += ++pcount; //if it's all setup correctly, then all we need is to change the count (attrs + PARAM/blank + params)
       }
     }
   }
@@ -1053,7 +1067,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Destroy(void)
 
 NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(nsPluginWindow* window)
 {
-  // XXX NPAPI plugins don't want a SetWindow(NULL).
+  // XXX 4.x plugins don't want a SetWindow(NULL).
   if (!window || !mStarted)
     return NS_OK;
 
@@ -1091,6 +1105,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::SetWindow(nsPluginWindow* window)
     // XXX In the old code, we'd just ignore any errors coming
     // back from the plugin's SetWindow(). Is this the correct
     // behavior?!?
+
   }
   return NS_OK;
 }
@@ -1118,9 +1133,9 @@ nsresult nsNPAPIPluginInstance::NewNotifyStream(nsIPluginStreamListener** listen
   is->mNext = mStreams;
   is->mPluginStreamListener = stream;
   mStreams = is;
-  stream->SetCallNotify(aCallNotify); // set flag in stream to call URLNotify
+  stream->SetCallNotify(aCallNotify);  // set flag in stream to call URLNotify
 
-  NS_ADDREF(stream); // Stabilize
+  NS_ADDREF(stream);  // Stabilize
     
   nsresult res = stream->QueryInterface(kIPluginStreamListenerIID, (void**)listener);
 
@@ -1139,7 +1154,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::Print(nsPluginPrint* platformPrint)
   NPPrint* thePrint = (NPPrint *)platformPrint;
 
   // to be compatible with the older SDK versions and to match what
-  // NPAPI and other browsers do, overwrite |window.type| field with one
+  // 4.x and other browsers do, overwrite |window.type| field with one
   // more copy of |platformPrint|. See bug 113264
   if (fCallbacks) {
     PRUint16 sdkmajorversion = (fCallbacks->version & 0xff00)>>8;
@@ -1228,14 +1243,17 @@ nsresult nsNPAPIPluginInstance::GetValueInternal(NPPVariable variable, void* val
 
 #ifdef XP_OS2
     /* Query interface for legacy Flash plugin */
-    if (res == NS_OK && variable == NPPVpluginScriptableInstance) {
+    if (res == NS_OK && variable == NPPVpluginScriptableInstance)
+    {
       nsCOMPtr<nsILegacyPluginWrapperOS2> wrapper =
                do_GetService(NS_LEGACY_PLUGIN_WRAPPER_CONTRACTID, &res);
-      if (res == NS_OK) {
+      if (res == NS_OK)
+      {
         nsIID *iid = nsnull; 
         res = (*fCallbacks->getvalue)(&fNPP, NPPVpluginScriptableIID, (void *)&iid);
         if (res == NS_OK)
-          res = wrapper->MaybeWrap(*iid, *(nsISupports**)value, (nsISupports**)value);
+          res = wrapper->MaybeWrap(*iid, *(nsISupports**)value,
+                                   (nsISupports**)value);
       }
     }
 #endif
@@ -1280,7 +1298,7 @@ NS_IMETHODIMP nsNPAPIPluginInstance::GetValue(nsPluginInstanceVariable variable,
 
 nsresult nsNPAPIPluginInstance::GetNPP(NPP* aNPP) 
 {
-  if (aNPP)
+  if (aNPP != nsnull)
     *aNPP = &fNPP;
   else
     return NS_ERROR_NULL_POINTER;
@@ -1290,7 +1308,7 @@ nsresult nsNPAPIPluginInstance::GetNPP(NPP* aNPP)
 
 nsresult nsNPAPIPluginInstance::GetCallbacks(const NPPluginFuncs ** aCallbacks)
 {
-  if (aCallbacks)
+  if (aCallbacks != nsnull)
     *aCallbacks = fCallbacks;
   else
     return NS_ERROR_NULL_POINTER;
@@ -1449,6 +1467,7 @@ nsNPAPIPluginInstance::PushPopupsEnabledState(PRBool aEnabled)
 
   if (!mPopupStates.AppendElement(NS_INT32_TO_PTR(oldState))) {
     // Appending to our state stack failed, push what we just popped.
+
     window->PopPopupControlState(oldState);
   }
 }
