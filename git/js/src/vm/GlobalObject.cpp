@@ -161,10 +161,8 @@ GlobalObject::resolveConstructor(JSContext *cx, Handle<GlobalObject*> global, JS
         return false;
 
     RootedId id(cx, NameToId(ClassName(key, cx)));
-    if (clasp->spec.shouldDefineConstructor()) {
-        if (!global->addDataProperty(cx, id, constructorPropertySlot(key), 0))
-            return false;
-    }
+    if (!global->addDataProperty(cx, id, constructorPropertySlot(key), 0))
+        return false;
 
     global->setConstructor(key, ObjectValue(*ctor));
     global->setConstructorPropertySlot(key, ObjectValue(*ctor));
@@ -194,11 +192,9 @@ GlobalObject::resolveConstructor(JSContext *cx, Handle<GlobalObject*> global, JS
     if (clasp->spec.finishInit && !clasp->spec.finishInit(cx, ctor, proto))
         return false;
 
-    if (clasp->spec.shouldDefineConstructor()) {
-        // Stash type information, so that what we do here is equivalent to
-        // initBuiltinConstructor.
-        types::AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
-    }
+    // Stash type information, so that what we do here is equivalent to
+    // initBuiltinConstructor.
+    types::AddTypePropertyId(cx, global, id, ObjectValue(*ctor));
 
     return true;
 }

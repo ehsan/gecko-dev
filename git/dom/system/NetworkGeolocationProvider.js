@@ -264,13 +264,11 @@ WifiGeoPositionProvider.prototype = {
     }
 
     try {
-      if ("wrappedJSObject" in aSubject) {
-        aSubject = aSubject.wrappedJSObject;
-      }
-      if (aSubject.key == SETTINGS_DEBUG_ENABLED) {
-        gLoggingEnabled = aSubject.value;
-      } else if (aSubject.key == SETTINGS_WIFI_ENABLED) {
-        gWifiScanningEnabled = aSubject.value;
+      let setting = JSON.parse(aData);
+      if (setting.key == SETTINGS_DEBUG_ENABLED) {
+        gLoggingEnabled = setting.value;
+      } else if (setting.key == SETTINGS_WIFI_ENABLED) {
+        gWifiScanningEnabled = setting.value;
       }
     } catch (e) {
     }

@@ -271,13 +271,11 @@ GMPChild::LoadPluginLibrary(const std::string& aPluginPath)
 #endif // XP_MACOSX && MOZ_GMP_SANDBOX
 
   if (!mLib) {
-    NS_WARNING("Failed to link Gecko Media Plugin library.");
     return false;
   }
 
   GMPInitFunc initFunc = reinterpret_cast<GMPInitFunc>(PR_FindFunctionSymbol(mLib, "GMPInit"));
   if (!initFunc) {
-    NS_WARNING("Failed to link Gecko Media Plugin Init function.");
     return false;
   }
 
@@ -285,13 +283,11 @@ GMPChild::LoadPluginLibrary(const std::string& aPluginPath)
   InitPlatformAPI(*platformAPI, this);
 
   if (initFunc(platformAPI) != GMPNoErr) {
-    NS_WARNING("Gecko Media Plugin failed to initialize.");
     return false;
   }
 
   mGetAPIFunc = reinterpret_cast<GMPGetAPIFunc>(PR_FindFunctionSymbol(mLib, "GMPGetAPI"));
   if (!mGetAPIFunc) {
-    NS_WARNING("Failed to link Gecko Media Plugin GetAPI function.");
     return false;
   }
 
@@ -395,15 +391,13 @@ GMPChild::DeallocPGMPVideoDecoderChild(PGMPVideoDecoderChild* aActor)
 PGMPDecryptorChild*
 GMPChild::AllocPGMPDecryptorChild()
 {
-  GMPDecryptorChild* actor = new GMPDecryptorChild(this);
-  actor->AddRef();
-  return actor;
+  return new GMPDecryptorChild(this);
 }
 
 bool
 GMPChild::DeallocPGMPDecryptorChild(PGMPDecryptorChild* aActor)
 {
-  static_cast<GMPDecryptorChild*>(aActor)->Release();
+  delete aActor;
   return true;
 }
 
@@ -444,7 +438,6 @@ GMPChild::RecvPGMPVideoDecoderConstructor(PGMPVideoDecoderChild* aActor)
   void* vd = nullptr;
   GMPErr err = mGetAPIFunc("decode-video", &vdc->Host(), &vd);
   if (err != GMPNoErr || !vd) {
-    NS_WARNING("GMPGetAPI call failed trying to construct decoder.");
     return false;
   }
 
@@ -461,7 +454,6 @@ GMPChild::RecvPGMPVideoEncoderConstructor(PGMPVideoEncoderChild* aActor)
   void* ve = nullptr;
   GMPErr err = mGetAPIFunc("encode-video", &vec->Host(), &ve);
   if (err != GMPNoErr || !ve) {
-    NS_WARNING("GMPGetAPI call failed trying to construct encoder.");
     return false;
   }
 

@@ -7,7 +7,6 @@
 #define mozilla_dom_workers_navigator_h__
 
 #include "Workers.h"
-#include "RuntimeService.h"
 #include "nsString.h"
 #include "nsWrapperCache.h"
 
@@ -25,14 +24,24 @@ BEGIN_WORKERS_NAMESPACE
 
 class WorkerNavigator MOZ_FINAL : public nsWrapperCache
 {
-  typedef struct RuntimeService::NavigatorProperties NavigatorProperties;
-
-  NavigatorProperties mProperties;
+  nsString mAppName;
+  nsString mAppVersion;
+  nsString mPlatform;
+  nsString mUserAgent;
+  nsTArray<nsString> mLanguages;
   bool mOnline;
 
-  WorkerNavigator(const NavigatorProperties& aProperties,
+  WorkerNavigator(const nsAString& aAppName,
+                  const nsAString& aAppVersion,
+                  const nsAString& aPlatform,
+                  const nsAString& aUserAgent,
+                  const nsTArray<nsString>& aLanguages,
                   bool aOnline)
-    : mProperties(aProperties)
+    : mAppName(aAppName)
+    , mAppVersion(aAppVersion)
+    , mPlatform(aPlatform)
+    , mUserAgent(aUserAgent)
+    , mLanguages(aLanguages)
     , mOnline(aOnline)
   {
     MOZ_COUNT_CTOR(WorkerNavigator);
@@ -63,17 +72,24 @@ public:
   {
     aAppCodeName.AssignLiteral("Mozilla");
   }
-  void GetAppName(nsString& aAppName) const;
+  void GetAppName(nsString& aAppName) const
+  {
+    aAppName = mAppName;
+  }
 
-  void GetAppVersion(nsString& aAppVersion) const;
+  void GetAppVersion(nsString& aAppVersion) const
+  {
+    aAppVersion = mAppVersion;
+  }
 
-  void GetPlatform(nsString& aPlatform) const;
-
+  void GetPlatform(nsString& aPlatform) const
+  {
+    aPlatform = mPlatform;
+  }
   void GetProduct(nsString& aProduct) const
   {
     aProduct.AssignLiteral("Gecko");
   }
-
   bool TaintEnabled() const
   {
     return false;
@@ -81,8 +97,8 @@ public:
 
   void GetLanguage(nsString& aLanguage) const
   {
-    if (mProperties.mLanguages.Length() >= 1) {
-      aLanguage.Assign(mProperties.mLanguages[0]);
+    if (mLanguages.Length() >= 1) {
+      aLanguage.Assign(mLanguages[0]);
     } else {
       aLanguage.Truncate();
     }
@@ -90,10 +106,13 @@ public:
 
   void GetLanguages(nsTArray<nsString>& aLanguages) const
   {
-    aLanguages = mProperties.mLanguages;
+    aLanguages = mLanguages;
   }
 
-  void GetUserAgent(nsString& aUserAgent) const;
+  void GetUserAgent(nsString& aUserAgent) const
+  {
+    aUserAgent = mUserAgent;
+  }
 
   bool OnLine() const
   {

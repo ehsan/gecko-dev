@@ -176,7 +176,7 @@ function testOnWindow(aIsPrivate, aCallback) {
 function waitForTabLoad(aWin, aURL, aCallback) {
   let browser = aWin.gBrowser.selectedBrowser;
   whenBrowserLoaded(browser, function () {
-    TabState.flush(browser);
+    SyncHandlers.get(browser).flush();
     executeSoon(aCallback);
   });
   browser.loadURI(aURL);

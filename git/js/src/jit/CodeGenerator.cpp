@@ -8768,7 +8768,7 @@ class OutOfLineIsCallable : public OutOfLineCodeBase<CodeGenerator>
     LIsCallable *ins_;
 
   public:
-    explicit OutOfLineIsCallable(LIsCallable *ins)
+    OutOfLineIsCallable(LIsCallable *ins)
       : ins_(ins)
     { }
 

@@ -68,7 +68,7 @@ public:
             r.front().value()->DebugDump(depth);
     }
 
-    void UpdateWeakPointersAfterGC(XPCJSRuntime *runtime);
+    void FindDyingJSObjects(nsTArray<nsXPCWrappedJS*>* dying);
 
     void ShutdownMarker();
 
@@ -657,14 +657,11 @@ public:
 
     void Sweep() {
         for (Map::Enum e(mTable); !e.empty(); e.popFront()) {
-            JSObject *key = e.front().key();
-            JS::Heap<JSObject *> *valuep = &e.front().value();
-            JS_UpdateWeakPointerAfterGCUnbarriered(&key);
-            JS_UpdateWeakPointerAfterGC(valuep);
-            if (!key || !*valuep)
+            JSObject *updated = e.front().key();
+            if (JS_IsAboutToBeFinalizedUnbarriered(&updated) || JS_IsAboutToBeFinalized(&e.front().value()))
                 e.removeFront();
-            else if (key != e.front().key())
-                e.rekeyFront(key);
+            else if (updated != e.front().key())
+                e.rekeyFront(updated);
         }
     }
 

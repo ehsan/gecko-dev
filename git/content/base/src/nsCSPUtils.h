@@ -71,7 +71,6 @@ enum CSPDirective {
   CSP_REPORT_URI,
   CSP_FRAME_ANCESTORS,
   CSP_REFLECTED_XSS,
-  CSP_BASE_URI,
   // CSP_LAST_DIRECTIVE_VALUE always needs to be the last element in the enum
   // because we use it to calculate the size for the char* array.
   CSP_LAST_DIRECTIVE_VALUE
@@ -89,8 +88,7 @@ static const char* CSPStrDirectives[] = {
   "connect-src",     // CSP_CONNECT_SRC
   "report-uri",      // CSP_REPORT_URI
   "frame-ancestors", // CSP_FRAME_ANCESTORS
-  "reflected-xss",   // CSP_REFLECTED_XSS
-  "base-uri"         // CSP_BASE_URI
+  "reflected-xss"    // CSP_REFLECTED_XSS
 };
 
 inline const char* CSP_EnumToDirective(enum CSPDirective aDir)
@@ -299,7 +297,6 @@ class nsCSPDirective {
     virtual ~nsCSPDirective();
 
     bool permits(nsIURI* aUri, const nsAString& aNonce) const;
-    bool permits(nsIURI* aUri) const;
     bool allows(enum CSPKeyword aKeyword, const nsAString& aHashOrNonce) const;
     void toString(nsAString& outStr) const;
 
@@ -332,7 +329,6 @@ class nsCSPPolicy {
                  nsIURI* aUri,
                  const nsAString& aNonce,
                  nsAString& outViolatedDirective) const;
-    bool permitsBaseURI(nsIURI* aUri) const;
     bool allows(nsContentPolicyType aContentType,
                 enum CSPKeyword aKeyword,
                 const nsAString& aHashOrNonce) const;
@@ -355,8 +351,6 @@ class nsCSPPolicy {
 
     void getDirectiveStringForContentType(nsContentPolicyType aContentType,
                                           nsAString& outDirective) const;
-
-    void getDirectiveStringForBaseURI(nsAString& outDirective) const;
 
     inline uint32_t getNumDirectives() const
       { return mDirectives.Length(); }

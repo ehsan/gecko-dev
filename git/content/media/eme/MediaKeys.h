@@ -59,8 +59,14 @@ public:
   void GetKeySystem(nsString& retval) const;
 
   // JavaScript: MediaKeys.createSession()
-  already_AddRefed<MediaKeySession> CreateSession(SessionType aSessionType,
-                                                  ErrorResult& aRv);
+  already_AddRefed<Promise> CreateSession(const nsAString& aInitDataType,
+                                          const ArrayBufferViewOrArrayBuffer& aInitData,
+                                          SessionType aSessionType,
+                                          ErrorResult& aRv);
+
+  // JavaScript: MediaKeys.loadSession()
+  already_AddRefed<Promise> LoadSession(const nsAString& aSessionId,
+                                        ErrorResult& aRv);
 
   // JavaScript: MediaKeys.SetServerCertificate()
   already_AddRefed<Promise> SetServerCertificate(const ArrayBufferViewOrArrayBuffer& aServerCertificate,
@@ -83,13 +89,8 @@ public:
 
   // Called once a Create() operation succeeds.
   void OnCDMCreated(PromiseId aId);
-  // Called when GenerateRequest or Load have been called on a MediaKeySession
-  // and we are waiting for its initialisation to finish.
-  void OnSessionPending(PromiseId aId, MediaKeySession* aSession);
-  // Called once a CreateSession succeeds.
+  // Called once a CreateSession or LoadSession succeeds.
   void OnSessionCreated(PromiseId aId, const nsAString& aSessionId);
-  // Called once a LoadSession succeeds.
-  void OnSessionLoaded(PromiseId aId, bool aSuccess);
   // Called once a session has closed.
   void OnSessionClosed(MediaKeySession* aSession);
 

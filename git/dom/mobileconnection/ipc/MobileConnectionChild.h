@@ -32,7 +32,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMOBILECONNECTION
 
-  explicit MobileConnectionChild(uint32_t aServiceId);
+  MobileConnectionChild(uint32_t aServiceId);
 
   void
   Init();

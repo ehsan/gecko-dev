@@ -9,7 +9,7 @@ extDotPos = mochiPath.find('.html')
 assert extDotPos != -1, 'mochitest target must be an html doc.'
 
 testPath = mochiPath[:extDotPos] + '.solo.html'
-
+    
 def ReadLocalFile(include):
     incPath = os.path.dirname(mochiPath)
     filePath = os.path.join(incPath, include)
@@ -31,29 +31,22 @@ def ReadLocalFile(include):
 kSimpleTestReplacement = '''\n
 <script>
 // SimpleTest.js replacement
-
-function debug(text) {
-  var elem = document.getElementById('mochi-to-testcase-output');
-  elem.innerHTML += '\\n<br/>\\n' + text;
-}
-
 function ok(val, text) {
+  var elem = document.getElementById('mochi-to-testcase-output');
   var status = val ? 'Test <font color=\\'green\\'>passed</font>: '
                    : 'Test <font color=\\'red\\'  >FAILED</font>: ';
-  debug(status + text);
+  elem.innerHTML += '\\n<br/>\\n' + status + text;
 }
 
 function todo(val, text) {
-  var status = val ? 'Test <font color=\\'orange\\'>UNEXPECTED PASS</font>: '
-                   : 'Test <font color=\\'blue\\'  >todo</font>: ';
-  debug(status + text);
+  ok(!val, 'Todo: ' + text);
 }
 </script>
 <div id='mochi-to-testcase-output'></div>
 \n'''
 
-fin = open(mochiPath, 'rb')
-fout = open(testPath, 'wb')
+fin = open(mochiPath, 'r')
+fout = open(testPath, 'w')
 includePattern = re.compile('<script\\s*src=[\'"](.*)\\.js[\'"]>\\s*</script>')
 cssPattern = re.compile('<link\\s*rel=[\'"]stylesheet[\'"]\\s*href=[\'"]([^=>]*)[\'"]>')
 for line in fin:
@@ -61,7 +54,7 @@ for line in fin:
     for css in cssPattern.findall(line):
         skipLine = True
         print('Ignoring stylesheet: ' + css)
-
+    
     for inc in includePattern.findall(line):
         skipLine = True
         if inc == '/MochiKit/MochiKit':
@@ -71,7 +64,7 @@ for line in fin:
             print('Injecting SimpleTest replacement')
             fout.write(kSimpleTestReplacement);
             continue
-
+            
         incData = ReadLocalFile(inc + '.js')
         if not incData:
             print('Warning: Unknown JS file ignored: ' + inc + '.js')
@@ -85,7 +78,7 @@ for line in fin:
 
     if skipLine:
         continue
-
+    
     fout.write(line)
     continue
 

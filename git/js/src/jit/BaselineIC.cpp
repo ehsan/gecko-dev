@@ -5833,7 +5833,7 @@ DoGetNameFallback(JSContext *cx, BaselineFrame *frame, ICGetName_Fallback *stub_
         if (!GetScopeNameForTypeOf(cx, scopeChain, name, res))
             return false;
     } else {
-        if (!GetScopeName(cx, script, pc, scopeChain, name, res))
+        if (!GetScopeName(cx, scopeChain, name, res))
             return false;
     }
 
@@ -5967,7 +5967,8 @@ DoBindNameFallback(JSContext *cx, BaselineFrame *frame, ICBindName_Fallback *stu
     RootedPropertyName name(cx, frame->script()->getName(pc));
 
     RootedObject scope(cx);
-    if (!LookupNameUnqualified(cx, name, scopeChain, &scope))
+    RootedShape shape(cx);
+    if (!LookupNameUnqualified(cx, name, scopeChain, &scope, &shape))
         return false;
 
     res.setObject(*scope);

@@ -26,7 +26,7 @@ class WebGLSampler MOZ_FINAL
 
 public:
 
-    explicit WebGLSampler(WebGLContext* aContext);
+    WebGLSampler(WebGLContext* context);
 
     void Delete();
     WebGLContext* GetParentObject() const;

@@ -21,7 +21,7 @@ function test() {
 function test2()
 {
   let prefService = Cc["@mozilla.org/preferences-service;1"]
-                    .getService(Components.interfaces.nsIPrefService);
+                    .getService(Components.interfaces.nsIPrefBranch2);
 
   let findBar = gFindBar;
   let textbox = gFindBar.getElement("findbar-textbox");

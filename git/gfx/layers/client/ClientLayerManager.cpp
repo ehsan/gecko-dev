@@ -20,6 +20,7 @@
 #include "mozilla/layers/PLayerChild.h"  // for PLayerChild
 #include "mozilla/layers/LayerTransactionChild.h"
 #include "mozilla/layers/TextureClientPool.h" // for TextureClientPool
+#include "mozilla/layers/SimpleTextureClientPool.h" // for SimpleTextureClientPool
 #include "ClientReadbackLayer.h"        // for ClientReadbackLayer
 #include "nsAString.h"
 #include "nsIWidget.h"                  // for nsIWidget
@@ -28,7 +29,6 @@
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType, etc
 #include "TiledLayerBuffer.h"
 #include "mozilla/dom/WindowBinding.h"  // for Overfill Callback
-#include "FrameLayerBuilder.h"          // for FrameLayerbuilder
 #include "gfxPrefs.h"
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidBridge.h"
@@ -276,10 +276,6 @@ ClientLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 
   NS_ASSERTION(!aCallback || !mTransactionIncomplete,
                "If callback is not null, transaction must be complete");
-
-  if (gfxPlatform::GetPlatform()->DidRenderingDeviceReset()) {
-    FrameLayerBuilder::InvalidateAllLayers(this);
-  }
 
   return !mTransactionIncomplete;
 }
@@ -649,6 +645,23 @@ ClientLayerManager::GetTexturePool(SurfaceFormat aFormat)
                             mForwarder));
 
   return mTexturePools.LastElement();
+}
+
+SimpleTextureClientPool*
+ClientLayerManager::GetSimpleTileTexturePool(SurfaceFormat aFormat)
+{
+  int index = (int) aFormat;
+  mSimpleTilePools.EnsureLengthAtLeast(index+1);
+
+  if (mSimpleTilePools[index].get() == nullptr) {
+    mSimpleTilePools[index] = new SimpleTextureClientPool(aFormat, IntSize(gfxPrefs::LayersTileWidth(),
+                                                                           gfxPrefs::LayersTileHeight()),
+                                                          gfxPrefs::LayersTileMaxPoolSize(),
+                                                          gfxPrefs::LayersTileShrinkPoolTimeout(),
+                                                          mForwarder);
+  }
+
+  return mSimpleTilePools[index];
 }
 
 void

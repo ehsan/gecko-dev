@@ -78,8 +78,7 @@ nsAnimationManager::GetEventsForCurrentTime(AnimationPlayerCollection*
           TimeDuration elapsedTime =
             std::max(iterationStart, anim->InitialAdvance());
           AnimationEventInfo ei(aCollection->mElement, player->Name(), message,
-                                StickyTimeDuration(elapsedTime),
-                                aCollection->PseudoElement());
+                                elapsedTime, aCollection->PseudoElement());
           aEventsToDispatch.AppendElement(ei);
         }
         break;
@@ -92,9 +91,8 @@ nsAnimationManager::GetEventsForCurrentTime(AnimationPlayerCollection*
           // (This is overwritten below but we set it here to maintain
           // internal consistency.)
           anim->SetLastNotification(0);
-          StickyTimeDuration elapsedTime =
-            std::min(StickyTimeDuration(anim->InitialAdvance()),
-                     computedTiming.mActiveDuration);
+          TimeDuration elapsedTime =
+            std::min(anim->InitialAdvance(), computedTiming.mActiveDuration);
           AnimationEventInfo ei(aCollection->mElement,
                                 player->Name(), NS_ANIMATION_START,
                                 elapsedTime, aCollection->PseudoElement());

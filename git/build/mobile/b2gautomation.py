@@ -16,7 +16,6 @@ import time
 import traceback
 
 from automation import Automation
-from mozlog.structured import get_default_logger
 from mozprocess import ProcessHandlerMixin
 
 
@@ -115,11 +114,7 @@ class B2GRemoteAutomation(Automation):
             local_dump_dir = tempfile.mkdtemp()
             self._devicemanager.getDirectory(remote_dump_dir, local_dump_dir)
             try:
-                logger = get_default_logger()
-                if logger is not None:
-                    crashed = mozcrash.log_crashes(logger, local_dump_dir, symbolsPath, test=self.lastTestSeen)
-                else:
-                    crashed = mozcrash.check_for_crashes(local_dump_dir, symbolsPath, test_name=self.lastTestSeen)
+                crashed = mozcrash.check_for_crashes(local_dump_dir, symbolsPath, test_name=self.lastTestSeen)
             except:
                 traceback.print_exc()
             finally:

@@ -11,7 +11,6 @@
 #ifndef mozilla_RestyleManager_h
 #define mozilla_RestyleManager_h
 
-#include "mozilla/RestyleLogging.h"
 #include "nsISupportsImpl.h"
 #include "nsChangeHint.h"
 #include "RestyleTracker.h"
@@ -317,11 +316,6 @@ public:
     mOverflowChangedTracker.Flush();
   }
 
-#ifdef DEBUG
-  static nsCString RestyleHintToString(nsRestyleHint aHint);
-  static nsCString ChangeHintToString(nsChangeHint aHint);
-#endif
-
 private:
   /**
    * Notify the frame constructor that an element needs to have its
@@ -356,39 +350,6 @@ public:
    * need to be reframed.
    */
   void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
-
-#ifdef RESTYLE_LOGGING
-  /**
-   * Returns whether a restyle event currently being processed by this
-   * RestyleManager should be logged.
-   */
-  bool ShouldLogRestyle() {
-    return ShouldLogRestyle(mPresContext);
-  }
-
-  /**
-   * Returns whether a restyle event currently being processed for the
-   * document with the specified nsPresContext should be logged.
-   */
-  static bool ShouldLogRestyle(nsPresContext* aPresContext) {
-    return aPresContext->RestyleLoggingEnabled() &&
-           (!aPresContext->IsProcessingAnimationStyleChange() ||
-            AnimationRestyleLoggingEnabled());
-  }
-
-  static bool RestyleLoggingInitiallyEnabled() {
-    static bool enabled = getenv("MOZ_DEBUG_RESTYLE") != 0;
-    return enabled;
-  }
-
-  static bool AnimationRestyleLoggingEnabled() {
-    static bool animations = getenv("MOZ_DEBUG_RESTYLE_ANIMATIONS") != 0;
-    return animations;
-  }
-
-  static nsCString StructNamesToString(uint32_t aSIDs);
-  int32_t& LoggingDepth() { return mLoggingDepth; }
-#endif
 
 private:
   /* aMinHint is the minimal change that should be made to the element */
@@ -432,10 +393,6 @@ private:
 
   RestyleTracker mPendingRestyles;
   RestyleTracker mPendingAnimationRestyles;
-
-#ifdef RESTYLE_LOGGING
-  int32_t mLoggingDepth;
-#endif
 };
 
 /**
@@ -494,12 +451,6 @@ public:
    */
   nsChangeHint HintsHandledForFrame() { return mHintsHandled; }
 
-#ifdef RESTYLE_LOGGING
-  bool ShouldLogRestyle() {
-    return RestyleManager::ShouldLogRestyle(mPresContext);
-  }
-#endif
-
 private:
   // Enum for the result of RestyleSelf, which indicates whether the
   // restyle procedure should continue to the children, and how.
@@ -523,7 +474,8 @@ private:
    */
   RestyleResult RestyleSelf(nsIFrame* aSelf,
                             nsRestyleHint aRestyleHint,
-                            uint32_t* aSwappedStructs);
+                            uint32_t* aSwappedStructs,
+                            nsIFrame** aProviderFrame);
 
   /**
    * Restyle the children of this frame (and, in turn, their children).
@@ -566,14 +518,6 @@ private:
     eNotifyHidden
   };
 
-#ifdef RESTYLE_LOGGING
-  int32_t& LoggingDepth() { return mLoggingDepth; }
-#endif
-
-#ifdef DEBUG
-  static nsCString RestyleResultToString(RestyleResult aRestyleResult);
-#endif
-
 private:
   nsPresContext* const mPresContext;
   nsIFrame* const mFrame;
@@ -602,10 +546,6 @@ private:
   A11yNotificationType mOurA11yNotification;
   nsTArray<nsIContent*>& mVisibleKidsOfHiddenElement;
   bool mWasFrameVisible;
-#endif
-
-#ifdef RESTYLE_LOGGING
-  int32_t mLoggingDepth;
 #endif
 };
 

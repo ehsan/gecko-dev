@@ -97,7 +97,7 @@ AddonInterpositionService.prototype = {
       }
     }
 
-    if (target instanceof Ci.nsIDOMChromeWindow && target.gMultiProcessBrowser) {
+    if (target instanceof Ci.nsIDOMChromeWindow) {
       return "ChromeWindow";
     }
 

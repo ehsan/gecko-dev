@@ -40,13 +40,25 @@ let PointerRelay = { // jshint ignore:line
 
     switch (Utils.widgetToolkit) {
       case 'gonk':
-      case 'android':
         this._eventsOfInterest = {
           'touchstart' : true,
           'touchmove' : true,
           'touchend' : true,
           'mousedown' : false,
           'mousemove' : false,
+          'mouseup': false,
+          'click': false };
+        break;
+
+      case 'android':
+        this._eventsOfInterest = {
+          'touchstart' : true,
+          'touchmove' : true,
+          'touchend' : true,
+          'mousemove' : true,
+          'mouseenter' : true,
+          'mouseleave' : true,
+          'mousedown' : false,
           'mouseup': false,
           'click': false };
         break;
@@ -73,10 +85,12 @@ let PointerRelay = { // jshint ignore:line
   _eventMap: {
     'touchstart' : 'pointerdown',
     'mousedown' : 'pointerdown',
+    'mouseenter' : 'pointerdown',
     'touchmove' : 'pointermove',
     'mousemove' : 'pointermove',
     'touchend' : 'pointerup',
-    'mouseup': 'pointerup'
+    'mouseup': 'pointerup',
+    'mouseleave': 'pointerup'
   },
 
   start: function PointerRelay_start(aOnPointerEvent) {
@@ -114,16 +128,6 @@ let PointerRelay = { // jshint ignore:line
       screenY: aEvent.screenY,
       target: aEvent.target
     }];
-
-    if (Utils.widgetToolkit === 'android' &&
-      changedTouches.length === 1 && changedTouches[0].identifier === 1) {
-      changedTouches = [{
-        identifier: 0,
-        screenX: changedTouches[0].screenX + 5,
-        screenY: changedTouches[0].screenY + 5,
-        target: changedTouches[0].target
-      }, changedTouches[0]];
-    }
 
     if (changedTouches.length === 1 &&
         changedTouches[0].identifier === SYNTH_ID) {

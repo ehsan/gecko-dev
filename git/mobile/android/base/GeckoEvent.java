@@ -192,7 +192,6 @@ public class GeckoEvent {
     private int mPointerIndex; // index of the point that has changed
     private float[] mOrientations;
     private float[] mPressures;
-    private int[] mToolTypes;
     private Point[] mPointRadii;
     private Rect mRect;
     private double mX;
@@ -450,7 +449,6 @@ public class GeckoEvent {
                 mPointIndicies = new int[mCount];
                 mOrientations = new float[mCount];
                 mPressures = new float[mCount];
-                mToolTypes = new int[mCount];
                 mPointRadii = new Point[mCount];
                 mPointerIndex = m.getActionIndex();
                 for (int i = 0; i < mCount; i++) {
@@ -465,7 +463,6 @@ public class GeckoEvent {
                 mPointIndicies = new int[mCount];
                 mOrientations = new float[mCount];
                 mPressures = new float[mCount];
-                mToolTypes = new int[mCount];
                 mPointRadii = new Point[mCount];
             }
         }
@@ -512,9 +509,6 @@ public class GeckoEvent {
                 mPointRadii[index].y /= zoom;
             }
             mPressures[index] = event.getPressure(eventIndex);
-            if (Versions.feature14Plus) {
-                mToolTypes[index] = event.getToolType(index);
-            }
         } catch (Exception ex) {
             Log.e(LOGTAG, "Error creating motion point " + index, ex);
             mPointRadii[index] = new Point(0, 0);

@@ -181,13 +181,12 @@ def WebIDLTest(parser, harness):
                  "CallbackInterface?", "optional Dict", "optional Dict2",
                  "Date?", "any"]
     dates = [ "Date", "Date?" ]
-    sequences = [ "sequence<long>", "sequence<short>" ]
-    arrays = [ "long[]", "short[]" ]
-    nonUserObjects = nonObjects + interfaces + dates + sequences
+    nonUserObjects = nonObjects + interfaces + dates
     otherObjects = allBut(argTypes, nonUserObjects + ["object"])
     notRelatedInterfaces = (nonObjects + ["UnrelatedInterface"] +
-                            otherObjects + dates + sequences)
+                            otherObjects + dates)
     mozMaps = [ "MozMap<object>", "MozMap<Dict>", "MozMap<long>" ]
+    sequences = [ "sequence<long>", "sequence<short>" ]
 
     # Build a representation of the distinguishability table as a dict
     # of dicts, holding True values where needed, holes elsewhere.
@@ -223,15 +222,13 @@ def WebIDLTest(parser, harness):
     setDistinguishable("Callback2", nonUserObjects)
     setDistinguishable("optional Dict", allBut(nonUserObjects, nullables))
     setDistinguishable("optional Dict2", allBut(nonUserObjects, nullables))
-    setDistinguishable("sequence<long>",
-                       allBut(argTypes, sequences + arrays + ["object"]))
-    setDistinguishable("sequence<short>",
-                       allBut(argTypes, sequences + arrays + ["object"]))
-    setDistinguishable("MozMap<object>", nonUserObjects)
-    setDistinguishable("MozMap<Dict>", nonUserObjects)
-    setDistinguishable("MozMap<long>", nonUserObjects)
-    setDistinguishable("long[]", allBut(nonUserObjects, sequences))
-    setDistinguishable("short[]", allBut(nonUserObjects, sequences))
+    setDistinguishable("sequence<long>", nonUserObjects + mozMaps)
+    setDistinguishable("sequence<short>", nonUserObjects + mozMaps)
+    setDistinguishable("MozMap<object>", nonUserObjects + sequences)
+    setDistinguishable("MozMap<Dict>", nonUserObjects + sequences)
+    setDistinguishable("MozMap<long>", nonUserObjects + sequences)
+    setDistinguishable("long[]", nonUserObjects)
+    setDistinguishable("short[]", nonUserObjects)
     setDistinguishable("Date", allBut(argTypes, dates + ["object"]))
     setDistinguishable("Date?", allBut(argTypes, dates + nullables + ["object"]))
     setDistinguishable("any", [])

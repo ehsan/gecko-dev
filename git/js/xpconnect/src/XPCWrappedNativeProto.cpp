@@ -143,13 +143,6 @@ XPCWrappedNativeProto::JSProtoObjectFinalized(js::FreeOp *fop, JSObject *obj)
 }
 
 void
-XPCWrappedNativeProto::JSProtoObjectMoved(JSObject *obj, const JSObject *old)
-{
-    MOZ_ASSERT(mJSProtoObject == old);
-    mJSProtoObject.init(obj); // Update without triggering barriers.
-}
-
-void
 XPCWrappedNativeProto::SystemIsBeingShutDown()
 {
     // Note that the instance might receive this call multiple times

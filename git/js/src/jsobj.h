@@ -1468,19 +1468,17 @@ LookupNameNoGC(JSContext *cx, PropertyName *name, JSObject *scopeChain,
  */
 extern bool
 LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                            MutableHandleObject objp);
+                            MutableHandleObject objp, MutableHandleShape propp);
 
 /*
- * Like LookupName except returns the unqualified var object if 'name' is not
- * found in any preceding scope. Normally the unqualified var object is the
- * global. If the value for the name in the looked-up scope is an
- * uninitialized lexical, an UninitializedLexicalObject is returned.
+ * Like LookupName except returns the unqualified var object if 'name' is not found in
+ * any preceding scope. Normally the unqualified var object is the global.
  *
  * Additionally, pobjp is not needed by callers so it is not returned.
  */
 extern bool
 LookupNameUnqualified(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                      MutableHandleObject objp);
+                      MutableHandleObject objp, MutableHandleShape propp);
 
 }
 

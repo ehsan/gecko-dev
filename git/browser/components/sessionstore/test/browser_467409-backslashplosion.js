@@ -57,7 +57,7 @@ add_task(function test_nested_about_sessionrestore() {
 
 function checkState(prefix, tab) {
   // Flush and query tab state.
-  TabState.flush(tab.linkedBrowser);
+  SyncHandlers.get(tab.linkedBrowser).flush();
   let {formdata} = JSON.parse(ss.getTabState(tab));
 
   ok(formdata.id["sessionData"], prefix + ": we have form data for about:sessionrestore");

@@ -182,8 +182,7 @@ sdnTextAccessible::get_fontFamily(BSTR __RPC_FAR* aFontFamily)
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(frame, getter_AddRefs(fm));
 
-  const nsString& name =
-    fm->GetThebesFontGroup()->GetFirstValidFont()->GetName();
+  const nsString& name = fm->GetThebesFontGroup()->GetFontAt(0)->GetName();
   if (name.IsEmpty())
     return S_FALSE;
 

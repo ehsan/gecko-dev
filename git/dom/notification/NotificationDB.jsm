@@ -293,10 +293,8 @@ let NotificationDB = {
     var origin = data.origin;
     var notifications = [];
     // Grab only the notifications for specified origin.
-    if (this.notifications[origin]) {
-      for (var i in this.notifications[origin]) {
-        notifications.push(this.notifications[origin][i]);
-      }
+    for (var i in this.notifications[origin]) {
+      notifications.push(this.notifications[origin][i]);
     }
     return Promise.resolve(notifications);
   },
@@ -305,10 +303,6 @@ let NotificationDB = {
     if (DEBUG) { debug("Task, getting all whatever origin"); }
     var notifications = [];
     for (var origin in this.notifications) {
-      if (!this.notifications[origin]) {
-        continue;
-      }
-
       for (var i in this.notifications[origin]) {
         var notification = this.notifications[origin][i];
 

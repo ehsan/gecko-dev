@@ -30,7 +30,6 @@
 #include "nsTArray.h"
 #include "nsIMutableArray.h"
 #include "nsIFormAutofillContentService.h"
-#include "mozilla/BinarySearch.h"
 
 // form submission
 #include "nsIFormSubmitObserver.h"
@@ -1072,21 +1071,6 @@ HTMLFormElement::PostPasswordEvent()
   mFormPasswordEventDispatcher->PostDOMEvent();
 }
 
-namespace {
-
-struct FormComparator
-{
-  Element* const mChild;
-  HTMLFormElement* const mForm;
-  FormComparator(Element* aChild, HTMLFormElement* aForm)
-    : mChild(aChild), mForm(aForm) {}
-  int operator()(Element* aElement) const {
-    return HTMLFormElement::CompareFormControlPosition(mChild, aElement, mForm);
-  }
-};
-
-} // namespace
-
 // This function return true if the element, once appended, is the last one in
 // the array.
 template<typename ElementType>
@@ -1097,7 +1081,7 @@ AddElementToList(nsTArray<ElementType*>& aList, ElementType* aChild,
   NS_ASSERTION(aList.IndexOf(aChild) == aList.NoIndex,
                "aChild already in aList");
 
-  const uint32_t count = aList.Length();
+  uint32_t count = aList.Length();
   ElementType* element;
   bool lastElement = false;
 
@@ -1118,11 +1102,23 @@ AddElementToList(nsTArray<ElementType*>& aList, ElementType* aChild,
     lastElement = true;
   }
   else {
-    size_t idx;
-    BinarySearchIf(aList, 0, count, FormComparator(aChild, aForm), &idx);
+    int32_t low = 0, mid, high;
+    high = count - 1;
+
+    while (low <= high) {
+      mid = (low + high) / 2;
+
+      element = aList[mid];
+      position =
+        HTMLFormElement::CompareFormControlPosition(aChild, element, aForm);
+      if (position >= 0)
+        low = mid + 1;
+      else
+        high = mid - 1;
+    }
 
     // WEAK - don't addref
-    aList.InsertElementAt(idx, aChild);
+    aList.InsertElementAt(low, aChild);
   }
 
   return lastElement;
@@ -2238,35 +2234,6 @@ HTMLFormElement::Clear()
   mPastNameLookupTable.Clear();
 }
 
-namespace {
-
-struct PositionComparator
-{
-  nsIContent* const mElement;
-  PositionComparator(nsIContent* const element) : mElement(element) {}
-
-  int operator()(nsIContent* aElement) const {
-    if (mElement == aElement) {
-      return 0;
-    }
-    if (nsContentUtils::PositionIsBefore(mElement, aElement)) {
-      return -1;
-    }
-    return 1;
-  }
-};
-
-struct NodeListAdaptor
-{
-  nsINodeList* const mList;
-  NodeListAdaptor(nsINodeList* aList) : mList(aList) {}
-  nsIContent* operator[](size_t aIdx) const {
-    return mList->Item(aIdx);
-  }
-};
-
-} // namespace
-
 nsresult
 HTMLFormElement::AddElementToTableInternal(
   nsInterfaceHashtable<nsStringHashKey,nsISupports>& aTable,
@@ -2338,13 +2305,24 @@ HTMLFormElement::AddElementToTableInternal(
       if (list->IndexOf(aChild) != -1) {
         return NS_OK;
       }
+      
+      // first is the first possible insertion index, last is the last possible
+      // insertion index
+      uint32_t first = 0;
+      uint32_t last = list->Length() - 1;
+      uint32_t mid;
+      
+      // Stop when there is only one index in our range
+      while (last != first) {
+        mid = (first + last) / 2;
+          
+        if (nsContentUtils::PositionIsBefore(aChild, list->Item(mid)))
+          last = mid;
+        else
+          first = mid + 1;
+      }
 
-      size_t idx;
-      DebugOnly<bool> found = BinarySearchIf(NodeListAdaptor(list), 0, list->Length(),
-                                             PositionComparator(aChild), &idx);
-      MOZ_ASSERT(!found, "should not have found an element");
-
-      list->InsertElementAt(aChild, idx);
+      list->InsertElementAt(aChild, first);
     }
   }
 

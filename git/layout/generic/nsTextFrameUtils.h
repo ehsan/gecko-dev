@@ -7,8 +7,6 @@
 #define NSTEXTFRAMEUTILS_H_
 
 #include "gfxSkipChars.h"
-#include "nsBidiUtils.h"
-#include "nsUnicodeProperties.h"
 
 class nsIContent;
 struct nsStyleText;
@@ -71,18 +69,13 @@ public:
 
   /**
    * Returns true if aChars/aLength are something that make a space
-   * character not be whitespace when they follow the space character
-   * (combining mark or join control, ignoring intervening direction
-   * controls).
+   * character not be whitespace when they follow the space character.
+   * For now, this is true if and only if aChars starts with a ZWJ. (This
+   * is what Uniscribe assumes.)
    */
   static bool
   IsSpaceCombiningSequenceTail(const char16_t* aChars, int32_t aLength) {
-    return aLength > 0 &&
-      (mozilla::unicode::IsClusterExtender(aChars[0]) ||
-       (IsBidiControl(aChars[0]) &&
-        IsSpaceCombiningSequenceTail(aChars + 1, aLength - 1)
-       )
-      );
+    return aLength > 0 && aChars[0] == 0x200D; // ZWJ
   }
 
   enum CompressionMode {

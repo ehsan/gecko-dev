@@ -324,7 +324,6 @@ struct ColorLayerProperties : public LayerPropertiesBase
   explicit ColorLayerProperties(ColorLayer *aLayer)
     : LayerPropertiesBase(aLayer)
     , mColor(aLayer->GetColor())
-    , mBounds(aLayer->GetBounds())
   { }
 
   virtual nsIntRegion ComputeChangeInternal(NotifySubDocInvalidationFunc aCallback,
@@ -337,17 +336,10 @@ struct ColorLayerProperties : public LayerPropertiesBase
       return NewTransformedBounds();
     }
 
-    nsIntRegion boundsDiff;
-    boundsDiff.Xor(mBounds, color->GetBounds());
-
-    nsIntRegion result;
-    AddTransformedRegion(result, boundsDiff, mTransform);
-
-    return result;
+    return nsIntRegion();
   }
 
   gfxRGBA mColor;
-  nsIntRect mBounds;
 };
 
 struct ImageLayerProperties : public LayerPropertiesBase

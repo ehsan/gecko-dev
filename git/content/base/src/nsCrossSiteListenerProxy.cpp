@@ -48,7 +48,25 @@ LogBlockedRequest(nsIRequest* aRequest)
   nsresult rv = NS_OK;
 
   // Get the innerWindowID associated with the XMLHTTPRequest
-  uint64_t innerWindowID = nsContentUtils::GetInnerWindowID(aRequest);
+  uint64_t innerWindowID = 0;
+
+  nsCOMPtr<nsILoadGroup> loadGroup;
+  aRequest->GetLoadGroup(getter_AddRefs(loadGroup));
+  if (loadGroup) {
+    nsCOMPtr<nsIInterfaceRequestor> callbacks;
+    loadGroup->GetNotificationCallbacks(getter_AddRefs(callbacks));
+    if (callbacks) {
+      nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(callbacks);
+      if(loadContext) {
+        nsCOMPtr<nsIDOMWindow> window;
+        loadContext->GetAssociatedWindow(getter_AddRefs(window));
+        if (window) {
+          nsCOMPtr<nsIDOMWindowUtils> du = do_GetInterface(window);
+          du->GetCurrentInnerWindowID(&innerWindowID);
+        }
+      }
+    }
+  }
 
   if (!innerWindowID) {
     return NS_ERROR_FAILURE;

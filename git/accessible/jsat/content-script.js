@@ -87,6 +87,7 @@ function scroll(aMessage) {
                      { bounds: Utils.getBounds(position, true),
                        page: aMessage.json.page,
                        horizontal: aMessage.json.horizontal });
+    sendScrollCoordinates(position);
   }
 }
 

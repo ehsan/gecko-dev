@@ -146,7 +146,7 @@ class LSimdSplatX4 : public LInstructionHelper<1, 1, 0>
 class LSimdExtractElementBase : public LInstructionHelper<1, 1, 0>
 {
   protected:
-    explicit LSimdExtractElementBase(const LAllocation &base) {
+    LSimdExtractElementBase(const LAllocation &base) {
         setOperand(0, base);
     }
 
@@ -164,7 +164,7 @@ class LSimdExtractElementI : public LSimdExtractElementBase
 {
   public:
     LIR_HEADER(SimdExtractElementI);
-    explicit LSimdExtractElementI(const LAllocation &base)
+    LSimdExtractElementI(const LAllocation &base)
       : LSimdExtractElementBase(base)
     {}
 };
@@ -173,7 +173,7 @@ class LSimdExtractElementF : public LSimdExtractElementBase
 {
   public:
     LIR_HEADER(SimdExtractElementF);
-    explicit LSimdExtractElementF(const LAllocation &base)
+    LSimdExtractElementF(const LAllocation &base)
       : LSimdExtractElementBase(base)
     {}
 };

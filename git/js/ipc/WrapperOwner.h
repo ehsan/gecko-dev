@@ -76,7 +76,6 @@ class WrapperOwner : public virtual JavaScriptShared
     bool active() { return !inactive_; }
 
     void drop(JSObject *obj);
-    void updatePointer(JSObject *obj, const JSObject *old);
 
     virtual void ActorDestroy(ActorDestroyReason why);
 
@@ -89,8 +88,6 @@ class WrapperOwner : public virtual JavaScriptShared
     ObjectId idOf(JSObject *obj);
 
   private:
-    ObjectId idOfUnchecked(JSObject *obj);
-
     bool getPropertyNames(JSContext *cx, JS::HandleObject proxy, uint32_t flags,
                           JS::AutoIdVector &props);
 

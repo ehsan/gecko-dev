@@ -45,11 +45,11 @@ nsPopupBoxObject::GetPopupSetFrame()
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::HidePopup(bool aCancel)
+nsPopupBoxObject::HidePopup()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mContent)
-    pm->HidePopup(mContent, false, true, false, aCancel);
+    pm->HidePopup(mContent, false, true, false, false);
 
   return NS_OK;
 }

@@ -60,7 +60,6 @@
 
 #include "vm/ArrayObject-inl.h"
 #include "vm/BooleanObject-inl.h"
-#include "vm/Interpreter-inl.h"
 #include "vm/NumberObject-inl.h"
 #include "vm/ObjectImpl-inl.h"
 #include "vm/Runtime-inl.h"
@@ -4779,18 +4778,17 @@ js::LookupNameNoGC(JSContext *cx, PropertyName *name, JSObject *scopeChain,
 
 bool
 js::LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                                MutableHandleObject objp)
+                                MutableHandleObject objp, MutableHandleShape propp)
 {
     RootedId id(cx, NameToId(name));
 
     RootedObject pobj(cx);
-    RootedShape shape(cx);
 
     RootedObject scope(cx, scopeChain);
     for (; !scope->is<GlobalObject>(); scope = scope->enclosingScope()) {
-        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, &shape))
+        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, propp))
             return false;
-        if (shape)
+        if (propp)
             break;
     }
 
@@ -4800,27 +4798,28 @@ js::LookupNameWithGlobalDefault(JSContext *cx, HandlePropertyName name, HandleOb
 
 bool
 js::LookupNameUnqualified(JSContext *cx, HandlePropertyName name, HandleObject scopeChain,
-                          MutableHandleObject objp)
+                          MutableHandleObject objp, MutableHandleShape propp)
 {
     RootedId id(cx, NameToId(name));
 
     RootedObject pobj(cx);
-    RootedShape shape(cx);
 
     RootedObject scope(cx, scopeChain);
     for (; !scope->isUnqualifiedVarObj(); scope = scope->enclosingScope()) {
-        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, &shape))
+        if (!JSObject::lookupGeneric(cx, scope, id, &pobj, propp))
             return false;
-        if (shape)
+        if (propp)
             break;
     }
 
-    // See note above UninitializedLexicalObject.
-    if (pobj == scope && IsUninitializedLexicalSlot(scope, shape)) {
-        scope = UninitializedLexicalObject::create(cx, scope);
-        if (!scope)
-            return false;
-    }
+    // If the name was found not on the scope object itself, null out the
+    // shape, which is passed as an out pointer to determine uninitialized
+    // lexical slots. In the case when the name is not found on the scope
+    // object itself, it cannot be an uninitialized lexical slot.
+    //
+    // See the JSOP_BINDNAME case in the Interpreter.
+    if (pobj != scope)
+        propp.set(nullptr);
 
     objp.set(scope);
     return true;
@@ -5076,8 +5075,9 @@ GetPropertyHelperInline(JSContext *cx,
 
             if (op == JSOP_GETXPROP) {
                 /* Undefined property during a name lookup, report an error. */
-                RootedAtom atom(cx, JSID_TO_ATOM(id));
-                js_ReportIsNotDefined(cx, atom);
+                JSAutoByteString printable;
+                if (js_ValueToPrintable(cx, IdToValue(id), &printable))
+                    js_ReportIsNotDefined(cx, printable.ptr());
                 return false;
             }
 

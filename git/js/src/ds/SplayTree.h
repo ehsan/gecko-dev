@@ -35,10 +35,6 @@ class SplayTree
     LifoAlloc *alloc;
     Node *root, *freeList;
 
-#ifdef DEBUG
-    bool enableCheckCoherency;
-#endif
-
     SplayTree(const SplayTree &) MOZ_DELETE;
     SplayTree &operator=(const SplayTree &) MOZ_DELETE;
 
@@ -46,19 +42,10 @@ class SplayTree
 
     explicit SplayTree(LifoAlloc *alloc = nullptr)
       : alloc(alloc), root(nullptr), freeList(nullptr)
-#ifdef DEBUG
-      , enableCheckCoherency(true)
-#endif
     {}
 
     void setAllocator(LifoAlloc *alloc) {
         this->alloc = alloc;
-    }
-
-    void disableCheckCoherency() {
-#ifdef DEBUG
-        enableCheckCoherency = false;
-#endif
     }
 
     bool empty() const {
@@ -266,8 +253,6 @@ class SplayTree
     Node *checkCoherency(Node *node, Node *minimum)
     {
 #ifdef DEBUG
-        if (!enableCheckCoherency)
-            return nullptr;
         if (!node) {
             JS_ASSERT(!root);
             return nullptr;

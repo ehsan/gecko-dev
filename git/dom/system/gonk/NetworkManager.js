@@ -220,10 +220,8 @@ NetworkManager.prototype = {
   observe: function(subject, topic, data) {
     switch (topic) {
       case TOPIC_MOZSETTINGS_CHANGED:
-        if ("wrappedJSObject" in subject) {
-          subject = subject.wrappedJSObject;
-        }
-        this.handle(subject.key, subject.value);
+        let setting = JSON.parse(data);
+        this.handle(setting.key, setting.value);
         break;
       case TOPIC_PREF_CHANGED:
         this._manageOfflineStatus =

@@ -11,10 +11,8 @@
 
 #include "ImageFactory.h"
 #include "RasterImage.h"
-#include "ShutdownTracker.h"
 #include "SurfaceCache.h"
 
-#include "gfxPrefs.h"
 #include "imgLoader.h"
 #include "imgRequest.h"
 #include "imgRequestProxy.h"
@@ -87,11 +85,6 @@ static bool sInitialized = false;
 nsresult
 mozilla::image::InitModule()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  // Make sure the preferences are initialized
-  gfxPrefs::GetSingleton();
-
-  mozilla::image::ShutdownTracker::Initialize();
   mozilla::image::DiscardTracker::Initialize();
   mozilla::image::ImageFactory::Initialize();
   mozilla::image::RasterImage::Initialize();

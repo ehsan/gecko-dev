@@ -25,8 +25,6 @@
 #include "imgIEncoder.h"
 #include "nsLayoutUtils.h"
 #include "mozilla/EnumeratedArray.h"
-#include "FilterSupport.h"
-#include "nsSVGEffects.h"
 
 class nsGlobalWindow;
 class nsXULElement;
@@ -44,7 +42,6 @@ class StringOrCanvasGradientOrCanvasPattern;
 class OwningStringOrCanvasGradientOrCanvasPattern;
 class TextMetrics;
 class SVGMatrix;
-class CanvasFilterChainObserver;
 
 extern const mozilla::gfx::Float SIGMA_MAX;
 
@@ -234,13 +231,7 @@ public:
     StyleColorToString(CurrentState().shadowColor, shadowColor);
   }
 
-  void GetFilter(nsAString& filter)
-  {
-    filter = CurrentState().filterString;
-  }
-
   void SetShadowColor(const nsAString& shadowColor);
-  void SetFilter(const nsAString& filter, mozilla::ErrorResult& error);
   void ClearRect(double x, double y, double w, double h);
   void FillRect(double x, double y, double w, double h);
   void StrokeRect(double x, double y, double w, double h);
@@ -652,11 +643,6 @@ protected:
 
   static void StyleColorToString(const nscolor& aColor, nsAString& aStr);
 
-   // Returns whether a filter was successfully parsed.
-  bool ParseFilter(const nsAString& aString,
-                   nsTArray<nsStyleFilter>& aFilterChain,
-                   ErrorResult& error);
-
   /**
    * Creates the error target, if it doesn't exist
    */
@@ -706,12 +692,6 @@ protected:
     * into account mOpaque, platform requirements, etc.
     */
   mozilla::gfx::SurfaceFormat GetSurfaceFormat() const;
-
-  /**
-   * Update CurrentState().filter with the filter description for
-   * CurrentState().filterChain.
-   */
-  void UpdateFilter();
 
   void DrawImage(const HTMLImageOrCanvasOrVideoElement &imgElt,
                  double sx, double sy, double sw, double sh,
@@ -847,25 +827,10 @@ protected:
       (state.shadowBlur != 0.f || state.shadowOffset.x != 0.f || state.shadowOffset.y != 0.f);
   }
 
-  /**
-    * Returns true if the result of a drawing operation should be
-    * drawn with a filter.
-    */
-  bool NeedToApplyFilter()
-  {
-    const ContextState& state = CurrentState();
-    return state.filter.mPrimitives.Length() > 0;
-  }
-
-  bool NeedToCalculateBounds()
-  {
-    return NeedToDrawShadow() || NeedToApplyFilter();
-  }
-
   mozilla::gfx::CompositionOp UsedOperation()
   {
-    if (NeedToDrawShadow() || NeedToApplyFilter()) {
-      // In this case the shadow or filter rendering will use the operator.
+    if (NeedToDrawShadow()) {
+      // In this case the shadow rendering will use the operator.
       return mozilla::gfx::CompositionOp::OP_OVER;
     }
 
@@ -935,8 +900,6 @@ protected:
 
     ContextState(const ContextState& other)
         : fontGroup(other.fontGroup),
-          fontLanguage(other.fontLanguage),
-          fontFont(other.fontFont),
           gradientStyles(other.gradientStyles),
           patternStyles(other.patternStyles),
           colorStyles(other.colorStyles),
@@ -956,11 +919,6 @@ protected:
           fillRule(other.fillRule),
           lineCap(other.lineCap),
           lineJoin(other.lineJoin),
-          filterString(other.filterString),
-          filterChain(other.filterChain),
-          filterChainObserver(other.filterChainObserver),
-          filter(other.filter),
-          filterAdditionalImages(other.filterAdditionalImages),
           imageSmoothingEnabled(other.imageSmoothingEnabled)
     { }
 
@@ -991,23 +949,10 @@ protected:
       return !(patternStyles[whichStyle] || gradientStyles[whichStyle]);
     }
 
-    int32_t ShadowBlurRadius() const
-    {
-      static const gfxFloat GAUSSIAN_SCALE_FACTOR = (3 * sqrt(2 * M_PI) / 4) * 1.5;
-      return (int32_t)floor(ShadowBlurSigma() * GAUSSIAN_SCALE_FACTOR + 0.5);
-    }
-
-    mozilla::gfx::Float ShadowBlurSigma() const
-    {
-      return std::min(SIGMA_MAX, shadowBlur / 2.0f);
-    }
 
     std::vector<mozilla::RefPtr<mozilla::gfx::Path> > clipsPushed;
 
     nsRefPtr<gfxFontGroup> fontGroup;
-    nsCOMPtr<nsIAtom> fontLanguage;
-    nsFont fontFont;
-
     EnumeratedArray<Style, Style::MAX, nsRefPtr<CanvasGradient>> gradientStyles;
     EnumeratedArray<Style, Style::MAX, nsRefPtr<CanvasPattern>> patternStyles;
     EnumeratedArray<Style, Style::MAX, nscolor> colorStyles;
@@ -1032,12 +977,6 @@ protected:
     mozilla::gfx::CapStyle lineCap;
     mozilla::gfx::JoinStyle lineJoin;
 
-    nsString filterString;
-    nsTArray<nsStyleFilter> filterChain;
-    nsRefPtr<nsSVGFilterChainObserver> filterChainObserver;
-    mozilla::gfx::FilterDescription filter;
-    nsTArray<mozilla::RefPtr<mozilla::gfx::SourceSurface>> filterAdditionalImages;
-
     bool imageSmoothingEnabled;
   };
 
@@ -1052,10 +991,7 @@ protected:
   }
 
   friend class CanvasGeneralPattern;
-  friend class CanvasFilterChainObserver;
   friend class AdjustedTarget;
-  friend class AdjustedTargetForShadow;
-  friend class AdjustedTargetForFilter;
 
   // other helpers
   void GetAppUnitsValues(int32_t *perDevPixel, int32_t *perCSSPixel)

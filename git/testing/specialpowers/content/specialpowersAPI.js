@@ -1803,8 +1803,8 @@ SpecialPowersAPI.prototype = {
     return file.mozFullPath;
   },
 
-  isContentWindowPrivate: function(win) {
-    return PrivateBrowsingUtils.isContentWindowPrivate(win);
+  isWindowPrivate: function(win) {
+    return PrivateBrowsingUtils.isWindowPrivate(win);
   },
 
   notifyObserversInParentProcess: function(subject, topic, data) {
