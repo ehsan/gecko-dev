@@ -116,7 +116,7 @@
     #define NOISY_TRACE_FRAME(_msg,_frame);
   #endif
 
-using namespace mozilla;
+// IID's
 
 //----------------------------------------------------------------------
 
@@ -259,6 +259,31 @@ nsFrameManager::Destroy()
   mUndisplayedMap = nsnull;
 
   mPresShell = nsnull;
+}
+
+nsIFrame*
+nsFrameManager::GetCanvasFrame()
+{
+  if (mRootFrame) {
+    // walk the children of the root frame looking for a frame with type==canvas
+    // start at the root
+    nsIFrame* childFrame = mRootFrame;
+    while (childFrame) {
+      // get each sibling of the child and check them, startig at the child
+      nsIFrame *siblingFrame = childFrame;
+      while (siblingFrame) {
+        if (siblingFrame->GetType() == nsGkAtoms::canvasFrame) {
+          // this is it
+          return siblingFrame;
+        } else {
+          siblingFrame = siblingFrame->GetNextSibling();
+        }
+      }
+      // move on to the child's child
+      childFrame = childFrame->GetFirstChild(nsnull);
+    }
+  }
+  return nsnull;
 }
 
 //----------------------------------------------------------------------
@@ -467,6 +492,19 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
   }
 }
 
+void
+nsFrameManager::ClearUndisplayedContentMap()
+{
+#ifdef DEBUG_UNDISPLAYED_MAP
+  static int i = 0;
+  printf("ClearUndisplayedContentMap(%d)\n", i++);
+#endif
+
+  if (mUndisplayedMap) {
+    mUndisplayedMap->Clear();
+  }
+}
+
 //----------------------------------------------------------------------
 
 nsresult
@@ -496,7 +534,7 @@ nsFrameManager::RemoveFrame(nsIAtom*        aListName,
   // that doesn't change the size of the parent.)
   // This has to sure to invalidate the entire overflow rect; this
   // is important in the presence of absolute positioning
-  aOldFrame->InvalidateOverflowRect();
+  aOldFrame->Invalidate(aOldFrame->GetOverflowRect());
 
   NS_ASSERTION(!aOldFrame->GetPrevContinuation() ||
                // exception for nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames
@@ -709,13 +747,17 @@ TryStartingTransition(nsPresContext *aPresContext, nsIContent *aContent,
   if (coverRule) {
     nsCOMArray<nsIStyleRule> rules;
     rules.AppendObject(coverRule);
-    *aNewStyleContext = aPresContext->StyleSet()->
-                          ResolveStyleByAddingRules(*aNewStyleContext, rules);
+    *aNewStyleContext = aPresContext->StyleSet()->ResolveStyleForRules(
+                     (*aNewStyleContext)->GetParent(),
+                     (*aNewStyleContext)->GetPseudo(),
+                     (*aNewStyleContext)->GetPseudoType(),
+                     (*aNewStyleContext)->GetRuleNode(),
+                     rules);
   }
 }
 
 nsresult
-nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
+nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
 {
   if (nsGkAtoms::placeholderFrame == aFrame->GetType()) {
     // Also reparent the out-of-flow
@@ -723,7 +765,7 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
       nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
     NS_ASSERTION(outOfFlow, "no out-of-flow frame");
 
-    ReparentStyleContext(outOfFlow);
+    ReParentStyleContext(outOfFlow);
   }
 
   // DO NOT verify the style tree before reparenting.  The frame
@@ -731,15 +773,16 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
   nsStyleContext* oldContext = aFrame->GetStyleContext();
   // XXXbz can oldContext really ever be null?
   if (oldContext) {
+    nsPresContext *presContext = GetPresContext();
     nsRefPtr<nsStyleContext> newContext;
     nsIFrame* providerFrame = nsnull;
     PRBool providerIsChild = PR_FALSE;
     nsIFrame* providerChild = nsnull;
-    aFrame->GetParentStyleContextFrame(GetPresContext(), &providerFrame,
+    aFrame->GetParentStyleContextFrame(presContext, &providerFrame,
                                        &providerIsChild);
     nsStyleContext* newParentContext = nsnull;
     if (providerIsChild) {
-      ReparentStyleContext(providerFrame);
+      ReParentStyleContext(providerFrame);
       newParentContext = providerFrame->GetStyleContext();
       providerChild = providerFrame;
     } else if (providerFrame) {
@@ -792,20 +835,20 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
       // continuation).
       newContext = prevContinuationContext;
     } else {
-      newContext = mStyleSet->ReparentStyleContext(oldContext,
+      newContext = mStyleSet->ReParentStyleContext(presContext, oldContext,
                                                    newParentContext);
     }
 
     if (newContext) {
       if (newContext != oldContext) {
         // We probably don't want to initiate transitions from
-        // ReparentStyleContext, since we call it during frame
+        // ReParentStyleContext, since we call it during frame
         // construction rather than in response to dynamic changes.
         // Also see the comment at the start of
         // nsTransitionManager::ConsiderStartingTransition.
 #if 0
         if (!copyFromContinuation) {
-          TryStartingTransition(GetPresContext(), aFrame->GetContent(),
+          TryStartingTransition(presContext, aFrame->GetContent(),
                                 oldContext, &newContext);
         }
 #endif
@@ -844,7 +887,7 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
               }
 #endif
 
-              ReparentStyleContext(child);
+              ReParentStyleContext(child);
             }
 
             child = child->GetNextSibling();
@@ -861,10 +904,9 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
         // oldContext)" check will prevent us from redoing work.
         if ((aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
             !aFrame->GetPrevContinuation()) {
-          nsIFrame* sib = static_cast<nsIFrame*>
-            (aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
+          nsIFrame* sib = static_cast<nsIFrame*>(aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
           if (sib) {
-            ReparentStyleContext(sib);
+            ReParentStyleContext(sib);
           }
         }
 
@@ -875,7 +917,8 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
             aFrame->GetAdditionalStyleContext(++contextIndex);
           if (oldExtraContext) {
             nsRefPtr<nsStyleContext> newExtraContext;
-            newExtraContext = mStyleSet->ReparentStyleContext(oldExtraContext,
+            newExtraContext = mStyleSet->ReParentStyleContext(presContext,
+                                                              oldExtraContext,
                                                               newContext);
             if (newExtraContext) {
               if (newExtraContext != oldExtraContext) {
@@ -1425,7 +1468,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
   // as well as all its special siblings and their next-in-flows,
   // reresolving style on all the frames we encounter in this walk.
 
-  FramePropertyTable *propTable = GetPresContext()->PropertyTable();
+  nsPropertyTable *propTable = GetPresContext()->PropertyTable();
 
   do {
     // Outer loop over special siblings
@@ -1455,19 +1498,19 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
     }
     
     frame2 = static_cast<nsIFrame*>
-      (propTable->Get(frame2, nsIFrame::IBSplitSpecialSibling()));
+                        (propTable->GetProperty(frame2, nsGkAtoms::IBSplitSpecialSibling));
     frame = frame2;
   } while (frame2);
 }
 
 
-nsRestyleHint
+nsReStyleHint
 nsFrameManager::HasAttributeDependentStyle(nsIContent *aContent,
                                            nsIAtom *aAttribute,
                                            PRInt32 aModType,
                                            PRBool aAttrHasChanged)
 {
-  nsRestyleHint hint = mStyleSet->HasAttributeDependentStyle(GetPresContext(),
+  nsReStyleHint hint = mStyleSet->HasAttributeDependentStyle(GetPresContext(),
                                                              aContent,
                                                              aAttribute,
                                                              aModType,
@@ -1477,7 +1520,7 @@ nsFrameManager::HasAttributeDependentStyle(nsIContent *aContent,
     // Perhaps should check that it's XUL, SVG, (or HTML) namespace, but
     // it doesn't really matter.  Or we could even let
     // HTMLCSSStyleSheetImpl::HasAttributeDependentStyle handle it.
-    hint = nsRestyleHint(hint | eRestyle_Self);
+    hint = nsReStyleHint(hint | eReStyle_Self);
   }
 
   return hint;

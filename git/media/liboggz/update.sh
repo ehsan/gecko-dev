@@ -67,4 +67,3 @@ patch -p3 <bug498380.patch
 patch -p3 <bug520493.patch
 patch -p3 <bug523335.patch
 patch -p3 <bug533822.patch
-patch -p3 <bug526097.patch

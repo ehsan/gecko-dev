@@ -63,8 +63,10 @@ function test() {
       prefetchCert: true,
     };
     function testCheckbox() {
-      Services.obs.addObserver(function (aSubject, aTopic, aData) {
-        Services.obs.removeObserver(arguments.callee, "cert-exception-ui-ready", false);
+      let obsSvc = Cc["@mozilla.org/observer-service;1"].
+                   getService(Ci.nsIObserverService);
+      obsSvc.addObserver(function (aSubject, aTopic, aData) {
+        obsSvc.removeObserver(arguments.callee, "cert-exception-ui-ready", false);
         ok(win.gCert, "The certificate information should be available now");
 
         let checkbox = win.document.getElementById("permanent");
@@ -88,8 +90,10 @@ function test() {
       prefetchCert: true,
     };
     function testCheckbox() {
-      Services.obs.addObserver(function (aSubject, aTopic, aData) {
-        Services.obs.removeObserver(arguments.callee, "cert-exception-ui-ready", false);
+      let obsSvc = Cc["@mozilla.org/observer-service;1"].
+                   getService(Ci.nsIObserverService);
+      obsSvc.addObserver(function (aSubject, aTopic, aData) {
+        obsSvc.removeObserver(arguments.callee, "cert-exception-ui-ready", false);
         ok(win.gCert, "The certificate information should be available now");
 
         let checkbox = win.document.getElementById("permanent");

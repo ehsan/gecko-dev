@@ -57,10 +57,6 @@
 #include "WinMobileLocationProvider.h"
 #endif
 
-#ifdef MOZ_MAEMO_LIBLOCATION
-#include "MaemoLocationProvider.h"
-#endif
-
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 
@@ -85,8 +81,6 @@ private:
   ~nsDOMGeoPositionError();
   PRInt16 mCode;
 };
-
-DOMCI_DATA(GeoPositionError, nsDOMGeoPositionError)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMGeoPositionError)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMGeoPositionError)
@@ -275,9 +269,7 @@ nsGeolocationRequest::Allow()
     }
   }
 
-  if (lastPosition && maximumAge > 0 &&
-      ( (PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
-        PRTime(cachedPositionTime) )) {
+  if (lastPosition && maximumAge > 0 && ( (PR_Now() / PR_USEC_PER_MSEC ) - maximumAge <= cachedPositionTime) ) {
     // okay, we can return a cached position
     mAllowed = PR_TRUE;
     
@@ -414,14 +406,9 @@ nsresult nsGeolocationService::Init()
 
   // we should move these providers outside of this file! dft
 
+  // if WINCE, see if we should try the WINCE location provider
 #ifdef WINCE_WINDOWS_MOBILE
   provider = new WinMobileLocationProvider();
-  if (provider)
-    mProviders.AppendObject(provider);
-#endif
-
-#ifdef MOZ_MAEMO_LIBLOCATION
-  provider = new MaemoLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);
 #endif
@@ -690,8 +677,6 @@ nsGeolocationService::RemoveLocator(nsGeolocation* aLocator)
 // nsGeolocation
 ////////////////////////////////////////////////////
 
-DOMCI_DATA(GeoGeolocation, nsGeolocation)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGeolocation)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMGeoGeolocation)
   NS_INTERFACE_MAP_ENTRY(nsIDOMGeoGeolocation)
@@ -928,7 +913,7 @@ NS_IMETHODIMP
 nsGeolocation::ClearWatch(PRInt32 aWatchId)
 {
   PRUint32 count = mWatchingCallbacks.Length();
-  if (aWatchId < 0 || count == 0 || PRUint32(aWatchId) > count)
+  if (aWatchId < 0 || count == 0 || aWatchId > count)
     return NS_OK;
 
   mWatchingCallbacks[aWatchId]->MarkCleared();
@@ -960,8 +945,3 @@ nsGeolocation::WindowOwnerStillExists()
 
   return PR_TRUE;
 }
-
-#ifndef WINCE_WINDOWS_MOBILE
-DOMCI_DATA(GeoPositionCoords, void)
-DOMCI_DATA(GeoPosition, void)
-#endif

@@ -57,14 +57,12 @@ nsSVGDocument::~nsSVGDocument()
 //----------------------------------------------------------------------
 // nsISupports methods:
 
-DOMCI_DATA(SVGDocument, nsSVGDocument)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGDocument)
   NS_INTERFACE_TABLE_INHERITED2(nsSVGDocument,
                                 nsIDOMSVGDocument,
                                 nsIDOMDocumentEvent)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGDocument)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsXMLDocument)
 
 NS_IMPL_ADDREF_INHERITED(nsSVGDocument, nsXMLDocument)

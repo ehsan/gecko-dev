@@ -68,9 +68,6 @@ public:
     return (mType == &nsSMILNullType::sSingleton);
   }
 
-  // Swaps the member data (mU & mPtr) of |this| with |aOther|
-  void     Swap(nsSMILValue& aOther);
-
   nsresult Add(const nsSMILValue& aValueToAdd, PRUint32 aCount = 1);
   nsresult SandwichAdd(const nsSMILValue& aValueToAdd);
   nsresult ComputeDistance(const nsSMILValue& aTo, double& aDistance) const;
@@ -93,9 +90,9 @@ public:
   const nsISMILType* mType;
 
 protected:
-  void InitAndCheckPostcondition(const nsISMILType* aNewType);
-  void DestroyAndCheckPostcondition();
-  void DestroyAndReinit(const nsISMILType* aNewType);
+  nsresult InitAndCheckPostcondition(const nsISMILType* aNewType);
+  void     DestroyAndCheckPostcondition();
+  nsresult DestroyAndReinit(const nsISMILType* aNewType);
 };
 
 #endif  // NS_SMILVALUE_H_

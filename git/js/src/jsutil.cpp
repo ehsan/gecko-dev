@@ -46,15 +46,12 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
-#include "jstl.h"
 
 #ifdef WIN32
 #    include <windows.h>
 #else
 #    include <signal.h>
 #endif
-
-using namespace js;
 
 /*
  * Checks the assumption that JS_FUNC_TO_DATA_PTR and JS_DATA_TO_FUNC_PTR
@@ -143,7 +140,7 @@ JS_BasicStatsAccum(JSBasicStats *bs, uint32 val)
             if (newscale != oldscale) {
                 uint32 newhist[11], newbin;
 
-                PodArrayZero(newhist);
+                memset(newhist, 0, sizeof newhist);
                 for (bin = 0; bin <= 10; bin++) {
                     newbin = ValToBin(newscale, BinToVal(oldscale, bin));
                     newhist[newbin] += bs->hist[bin];

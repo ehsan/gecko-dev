@@ -10,7 +10,8 @@ function test() {
   Harness.installsCompletedCallback = finish_test;
   Harness.setup();
 
-  var pm = Services.perms;
+  var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                     .getService(Components.interfaces.nsIPermissionManager);
   pm.add(makeURI("http://example.com/"), "install", pm.ALLOW_ACTION);
 
   gBrowser.selectedTab = gBrowser.addTab();
@@ -22,7 +23,9 @@ function check_xpi_install(addon, status) {
 }
 
 function finish_test() {
-  Services.perms.remove("example.com", "install");
+  var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                     .getService(Components.interfaces.nsIPermissionManager);
+  pm.remove("example.com", "install");
 
   var em = Components.classes["@mozilla.org/extensions/manager;1"]
                      .getService(Components.interfaces.nsIExtensionManager);
@@ -31,3 +34,4 @@ function finish_test() {
   gBrowser.removeCurrentTab();
   Harness.finish();
 }
+// ----------------------------------------------------------------------------

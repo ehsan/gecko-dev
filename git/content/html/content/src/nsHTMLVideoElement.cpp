@@ -1,7 +1,7 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ * Version: ML 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -39,6 +39,8 @@
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsHTMLVideoElement.h"
 #include "nsGenericHTMLElement.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
 #include "nsIFrame.h"
@@ -70,8 +72,6 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Video)
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLVideoElement, nsHTMLMediaElement)
-
-DOMCI_DATA(HTMLVideoElement, nsHTMLVideoElement)
 
 NS_INTERFACE_TABLE_HEAD(nsHTMLVideoElement)
   NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLVideoElement, nsIDOMHTMLMediaElement, nsIDOMHTMLVideoElement)

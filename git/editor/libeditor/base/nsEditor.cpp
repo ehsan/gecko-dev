@@ -23,7 +23,6 @@
  *   Pierre Phaneuf <pp@ludusdesign.com>
  *   Daniel Glazman <glazman@netscape.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -163,8 +162,6 @@ nsEditor::nsEditor()
 
 nsEditor::~nsEditor()
 {
-  NS_ASSERTION(!mDocWeak || mDidPreDestroy, "Why PreDestroy hasn't been called?");
-
   mTxnMgr = nsnull;
 
   delete mPhonetic;
@@ -226,13 +223,10 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot
   if ((nsnull==aDoc) || (nsnull==aPresShell))
     return NS_ERROR_NULL_POINTER;
 
+  mFlags = aFlags;
   mDocWeak = do_GetWeakReference(aDoc);  // weak reference to doc
   mPresShellWeak = do_GetWeakReference(aPresShell);   // weak reference to pres shell
   mSelConWeak = do_GetWeakReference(aSelCon);   // weak reference to selectioncontroller
-
-  nsresult rv = SetFlags(aFlags);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "SetFlags() failed");
-
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
   
@@ -474,7 +468,11 @@ nsEditor::GetDesiredSpellCheckState()
 
   // Check for password/readonly/disabled, which are not spellchecked
   // regardless of DOM
-  if (IsPasswordEditor() || IsReadonly() || IsDisabled()) {
+  PRUint32 flags;
+  if (NS_SUCCEEDED(GetFlags(&flags)) &&
+      flags & (nsIPlaintextEditor::eEditorPasswordMask |
+               nsIPlaintextEditor::eEditorReadonlyMask |
+               nsIPlaintextEditor::eEditorDisabledMask)) {
     return PR_FALSE;
   }
 
@@ -1202,6 +1200,25 @@ nsEditor::SetDocumentCharacterSet(const nsACString& characterSet)
   }
 
   return rv;
+}
+
+//
+// Get an appropriate wrap width for saving this document.
+// This class just uses a pref; subclasses are expected to
+// override if they know more about the document.
+//
+NS_IMETHODIMP
+nsEditor::GetWrapWidth(PRInt32 *aWrapColumn)
+{
+  NS_ENSURE_ARG_POINTER(aWrapColumn);
+  *aWrapColumn = 72;
+
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  if (NS_SUCCEEDED(rv) && prefBranch)
+    (void) prefBranch->GetIntPref("editor.htmlWrapColumn", aWrapColumn);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1970,17 +1987,90 @@ nsEditor::StopPreservingSelection()
 //
 // The BeingComposition method is called from the Editor Composition event listeners.
 //
+nsresult
+nsEditor::QueryComposition(nsTextEventReply* aReply)
+{
+  nsresult result;
+  nsCOMPtr<nsISelection> selection;
+  nsCOMPtr<nsISelectionController> selcon = do_QueryReferent(mSelConWeak);
+  if (selcon)
+    selcon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
+
+  if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  if (!ps) return NS_ERROR_NOT_INITIALIZED;
+  nsRefPtr<nsCaret> caretP; 
+  result = ps->GetCaret(getter_AddRefs(caretP));
+  
+  if (NS_SUCCEEDED(result) && caretP) {
+    if (aReply) {
+      caretP->SetCaretDOMSelection(selection);
+
+      // XXX_kin: BEGIN HACK! HACK! HACK!
+      // XXX_kin:
+      // XXX_kin: This is lame! The IME stuff needs caret coordinates
+      // XXX_kin: synchronously, but the editor could be using async
+      // XXX_kin: updates (reflows and paints) for performance reasons.
+      // XXX_kin: In order to give IME what it needs, we have to temporarily
+      // XXX_kin: switch to sync updating during this call so that the
+      // XXX_kin: nsAutoUpdateViewBatch can force sync reflows and paints
+      // XXX_kin: so that we get back accurate caret coordinates.
+
+      PRUint32 flags = 0;
+
+      if (NS_SUCCEEDED(GetFlags(&flags)) &&
+          (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))
+      {
+        PRBool restoreFlags = PR_FALSE;
+
+        if (NS_SUCCEEDED(SetFlags(flags & (~nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))))
+        {
+           // Scope the viewBatch within this |if| block so that we
+           // force synchronous reflows and paints before restoring
+           // our editor flags below.
+
+           nsAutoUpdateViewBatch viewBatch(this);
+           restoreFlags = PR_TRUE;
+        }
+
+        // Restore the previous set of flags!
+
+        if (restoreFlags)
+          SetFlags(flags);
+      }
+
+
+      // XXX_kin: END HACK! HACK! HACK!
+
+      nsIView *view = nsnull;
+      nsRect rect;
+      result =
+        caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+                                    selection,
+                                    &rect,
+                                    &(aReply->mCursorIsCollapsed),
+                                    &view);
+      aReply->mCursorPosition =
+        rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
+      if (NS_SUCCEEDED(result) && view)
+        aReply->mReferenceWidget = view->GetWidget();
+    }
+  }
+  return result;
+}
+
 NS_IMETHODIMP
-nsEditor::BeginComposition()
+nsEditor::BeginComposition(nsTextEventReply* aReply)
 {
 #ifdef DEBUG_tague
   printf("nsEditor::StartComposition\n");
 #endif
+  nsresult ret = QueryComposition(aReply);
   mInIMEMode = PR_TRUE;
   if (mPhonetic)
     mPhonetic->Truncate(0);
 
-  return NS_OK;
+  return ret;
 }
 
 NS_IMETHODIMP
@@ -2017,8 +2107,7 @@ nsEditor::EndComposition(void)
 }
 
 NS_IMETHODIMP
-nsEditor::SetCompositionString(const nsAString& aCompositionString,
-                               nsIPrivateTextRangeList* aTextRangeList)
+nsEditor::SetCompositionString(const nsAString& aCompositionString, nsIPrivateTextRangeList* aTextRangeList,nsTextEventReply* aReply)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -2096,9 +2185,8 @@ nsEditor::ForceCompositionEnd()
 #endif
 
 #ifdef XP_UNIX
-  if(IsPasswordEditor()) {
-    return NS_OK;
-  }
+  if(mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+	return NS_OK;
 #endif
 
   nsCOMPtr<nsIWidget> widget;
@@ -2121,7 +2209,12 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
   NS_ENSURE_ARG_POINTER(aState);
   *aState = nsIContent::IME_STATUS_ENABLE;
 
-  if (IsReadonly() || IsDisabled()) {
+  PRUint32 flags;
+  nsresult rv = GetFlags(&flags);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (flags & (nsIPlaintextEditor::eEditorReadonlyMask |
+               nsIPlaintextEditor::eEditorDisabledMask)) {
     *aState = nsIContent::IME_STATUS_DISABLE;
     return NS_OK;
   }
@@ -2134,7 +2227,7 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
 
   switch (frame->GetStyleUIReset()->mIMEMode) {
     case NS_STYLE_IME_MODE_AUTO:
-      if (IsPasswordEditor())
+      if (flags & (nsIPlaintextEditor::eEditorPasswordMask))
         *aState = nsIContent::IME_STATUS_PASSWORD;
       break;
     case NS_STYLE_IME_MODE_DISABLED:
@@ -4291,10 +4384,10 @@ nsresult nsEditor::EndUpdateViewBatch()
     GetPresShell(getter_AddRefs(presShell));
 
     if (presShell)
-      caret = presShell->GetCaret();
+      presShell->GetCaret(getter_AddRefs(caret));
 
     StCaretHider caretHider(caret);
-
+        
     PRUint32 flags = 0;
 
     GetFlags(&flags);

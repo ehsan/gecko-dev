@@ -381,7 +381,7 @@ static PRBool
 URIIsLocalFile(nsIURI *aURI)
 {
   PRBool isFile;
-  nsCOMPtr<nsINetUtil> util = do_GetNetUtil();
+  nsCOMPtr<nsINetUtil> util = do_GetIOService();
 
   return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
                                 nsIProtocolHandler::URI_IS_LOCAL_FILE,
@@ -1061,11 +1061,7 @@ ReadAnnotationEntry(nsIObjectInputStream* aStream, nsHashKey** aKey,
 {
   nsresult rv;
   nsCStringKey* key = new nsCStringKey(aStream, &rv);
-  if (!key)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   if (NS_FAILED(rv)) {
-    delete key;
     return rv;
   }
 

@@ -36,12 +36,14 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsHTMLFormElement.h"
 #include "nsIHTMLDocument.h"
+#include "nsIDOMNSHTMLFormControlList.h"
 #include "nsIDOMEventTarget.h"
 #include "nsEventStateManager.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsIFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsDOMError.h"
@@ -87,7 +89,8 @@ PRBool nsHTMLFormElement::gPasswordManagerInitialized = PR_FALSE;
 
 
 // nsFormControlList
-class nsFormControlList : public nsIHTMLCollection
+class nsFormControlList : public nsIDOMNSHTMLFormControlList,
+                          public nsIHTMLCollection
 {
 public:
   nsFormControlList(nsHTMLFormElement* aForm);
@@ -101,6 +104,9 @@ public:
 
   // nsIDOMHTMLCollection interface
   NS_DECL_NSIDOMHTMLCOLLECTION
+
+  // nsIDOMNSHTMLFormControlList interface
+  NS_DECL_NSIDOMNSHTMLFORMCONTROLLIST
 
   virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
   {
@@ -300,8 +306,6 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFormElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFormElement, nsGenericElement) 
 
 
-DOMCI_DATA(HTMLFormElement, nsHTMLFormElement)
-
 // QueryInterface implementation for nsHTMLFormElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLFormElement)
   NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLFormElement,
@@ -393,7 +397,7 @@ nsHTMLFormElement::Submit()
 {
   // Send the submit event
   nsresult rv = NS_OK;
-  nsRefPtr<nsPresContext> presContext = GetPresContext();
+  nsCOMPtr<nsPresContext> presContext = GetPresContext();
   if (mPendingSubmission) {
     // aha, we have a pending submission that was not flushed
     // (this happens when form.submit() is called twice)
@@ -1876,15 +1880,14 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsFormControlList)
   tmp->mNameLookupTable.EnumerateRead(ControlTraverser, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-DOMCI_DATA(HTMLCollection, nsFormControlList)
-
 // XPConnect interface list for nsFormControlList
 NS_INTERFACE_TABLE_HEAD(nsFormControlList)
-  NS_INTERFACE_TABLE2(nsFormControlList,
+  NS_INTERFACE_TABLE3(nsFormControlList,
                       nsIHTMLCollection,
-                      nsIDOMHTMLCollection)
+                      nsIDOMHTMLCollection,
+                      nsIDOMNSHTMLFormControlList)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsFormControlList)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLCollection)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLFormControlCollection)
 NS_INTERFACE_MAP_END
 
 
@@ -1949,6 +1952,14 @@ nsFormControlList::NamedItem(const nsAString& aName,
   }
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsFormControlList::NamedItem(const nsAString& aName,
+                             nsISupports** aReturn)
+{
+  NS_IF_ADDREF(*aReturn = NamedItemInternal(aName, PR_TRUE));
+  return NS_OK;
 }
 
 nsISupports*

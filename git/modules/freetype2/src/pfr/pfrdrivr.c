@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    FreeType PFR driver interface (body).                                */
 /*                                                                         */
-/*  Copyright 2002, 2003, 2004, 2006, 2008 by                              */
+/*  Copyright 2002, 2003, 2004, 2006 by                                    */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -66,16 +66,10 @@
                    FT_Pos   *anadvance )
   {
     PFR_Face  face  = (PFR_Face)pfrface;
-    FT_Error  error = PFR_Err_Invalid_Argument;
+    FT_Error  error = PFR_Err_Bad_Argument;
 
 
     *anadvance = 0;
-
-    if ( !gindex )
-      goto Exit;
-
-    gindex--;
-
     if ( face )
     {
       PFR_PhyFont  phys = &face->phy_font;
@@ -88,7 +82,6 @@
       }
     }
 
-  Exit:
     return error;
   }
 

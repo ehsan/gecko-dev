@@ -82,7 +82,9 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
 
   nsPresContext* pc = aReferenceFrame->PresContext();
   nsIPresShell *shell = pc->PresShell();
-  mIsBackgroundOnly = shell->IsPaintingSuppressed();
+  PRBool suppressed;
+  shell->IsPaintingSuppressed(&suppressed);
+  mIsBackgroundOnly = suppressed;
   if (pc->IsRenderingOnlySelection()) {
     nsCOMPtr<nsISelectionController> selcon(do_QueryInterface(shell));
     if (selcon) {
@@ -94,6 +96,16 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
   if (mIsBackgroundOnly) {
     mBuildCaret = PR_FALSE;
   }
+}
+
+// Destructor function for the dirty rect property
+static void
+DestroyRectFunc(void*    aFrame,
+                nsIAtom* aPropertyName,
+                void*    aPropertyValue,
+                void*    aDtorData)
+{
+  delete static_cast<nsRect*>(aPropertyValue);
 }
 
 static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
@@ -117,18 +129,17 @@ static void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame
   nsRect overflowRect = aFrame->GetOverflowRect();
   if (!dirty.IntersectRect(dirty, overflowRect))
     return;
-  aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDirtyRectProperty(),
-                           new nsRect(dirty));
+  // if "new nsRect" fails, this won't do anything, but that's okay
+  aFrame->SetProperty(nsGkAtoms::outOfFlowDirtyRectProperty,
+                      new nsRect(dirty), DestroyRectFunc);
 
   MarkFrameForDisplay(aFrame, aDirtyFrame);
 }
 
 static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
-  nsPresContext* presContext = aFrame->PresContext();
-  presContext->PropertyTable()->
-    Delete(aFrame, nsDisplayListBuilder::OutOfFlowDirtyRectProperty());
+  aFrame->DeleteProperty(nsGkAtoms::outOfFlowDirtyRectProperty);
 
-  nsFrameManager* frameManager = presContext->PresShell()->FrameManager();
+  nsFrameManager* frameManager = aFrame->PresContext()->PresShell()->FrameManager();
 
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderFor(frameManager, f)) {
@@ -180,7 +191,8 @@ nsDisplayListBuilder::IsMovingFrame(nsIFrame* aFrame)
 
 nsCaret *
 nsDisplayListBuilder::GetCaret() {
-  nsRefPtr<nsCaret> caret = CurrentPresShellState()->mPresShell->GetCaret();
+  nsRefPtr<nsCaret> caret;
+  CurrentPresShellState()->mPresShell->GetCaret(getter_AddRefs(caret));
   return caret;
 }
 
@@ -199,7 +211,8 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
   if (!mBuildCaret)
     return;
 
-  nsRefPtr<nsCaret> caret = state->mPresShell->GetCaret();
+  nsRefPtr<nsCaret> caret;
+  state->mPresShell->GetCaret(getter_AddRefs(caret));
   state->mCaretFrame = caret->GetCaretFrame();
 
   if (state->mCaretFrame) {
@@ -662,34 +675,14 @@ void nsDisplayList::BuildLayers(nsDisplayListBuilder* aBuilder,
       nscoord appUnitsPerDevPixel =
         item->GetUnderlyingFrame()->PresContext()->AppUnitsPerDevPixel();
       layerItems->mVisibleRect.UnionRect(layerItems->mVisibleRect,
-        item->mVisibleRect.ToNearestPixels(appUnitsPerDevPixel));
+        item->mVisibleRect.ToOutsidePixels(appUnitsPerDevPixel));
+      layerItems->mLayer->SetVisibleRegion(nsIntRegion(layerItems->mVisibleRect));
     }
   }
 
   if (!firstThebesLayerItems->mStartItem) {
     // The first Thebes layer has nothing in it. Delete the layer.
     aLayers->RemoveElementAt(0);
-  }
-
-  for (PRUint32 i = 0; i < aLayers->Length(); ++i) {
-    LayerItems* layerItems = &aLayers->ElementAt(i);
-
-    gfxMatrix transform;
-    nsIntRect visibleRect = layerItems->mVisibleRect;
-    if (layerItems->mLayer->GetTransform().Is2D(&transform)) {
-      // if 'transform' is not invertible, then nothing will be displayed
-      // for the layer, so it doesn't really matter what we do here
-      transform.Invert();
-      gfxRect layerVisible = transform.TransformBounds(
-          gfxRect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height));
-      layerVisible.RoundOut();
-      if (NS_FAILED(nsLayoutUtils::GfxRectToIntRect(layerVisible, &visibleRect))) {
-        NS_ERROR("Visible rect transformed out of bounds");
-      }
-    } else {
-      NS_ERROR("Only 2D transformations currently supported");
-    }
-    layerItems->mLayer->SetVisibleRegion(nsIntRegion(visibleRect));
   }
 }
 
@@ -878,6 +871,13 @@ nsDisplayItem* nsDisplayList::RemoveBottom() {
   return item;
 }
 
+void nsDisplayList::DeleteBottom() {
+  nsDisplayItem* item = RemoveBottom();
+  if (item) {
+    item->~nsDisplayItem();
+  }
+}
+
 void nsDisplayList::DeleteAll() {
   nsDisplayItem* item;
   while ((item = RemoveBottom()) != nsnull) {
@@ -885,9 +885,8 @@ void nsDisplayList::DeleteAll() {
   }
 }
 
-void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                            nsDisplayItem::HitTestState* aState,
-                            nsTArray<nsIFrame*> *aOutFrames) const {
+nsIFrame* nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                                 nsDisplayItem::HitTestState* aState) const {
   PRInt32 itemBufferStart = aState->mItemBuffer.Length();
   nsDisplayItem* item;
   for (item = GetBottom(); item; item = item->GetAbove()) {
@@ -899,23 +898,21 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
     item = aState->mItemBuffer[i];
     aState->mItemBuffer.SetLength(i);
 
-    if (aRect.Intersects(item->GetBounds(aBuilder))) {
-      nsTArray<nsIFrame*> outFrames;
-      item->HitTest(aBuilder, aRect, aState, &outFrames);
-
-      for (PRUint32 j = 0; j < outFrames.Length(); j++) {
-        nsIFrame *f = outFrames.ElementAt(j);
-        // Handle the XUL 'mousethrough' feature and 'pointer-events'.
+    if (item->GetBounds(aBuilder).Contains(aPt)) {
+      nsIFrame* f = item->HitTest(aBuilder, aPt, aState);
+      // Handle the XUL 'mousethrough' feature and 'pointer-events'.
+      if (f) {
         if (!f->GetMouseThrough() &&
             f->GetStyleVisibility()->mPointerEvents != NS_STYLE_POINTER_EVENTS_NONE) {
-          aOutFrames->AppendElement(f);
+          aState->mItemBuffer.SetLength(itemBufferStart);
+          return f;
         }
       }
-
     }
   }
   NS_ASSERTION(aState->mItemBuffer.Length() == PRUint32(itemBufferStart),
                "How did we forget to pop some elements?");
+  return nsnull;
 }
 
 static void Sort(nsDisplayList* aList, PRInt32 aCount, nsDisplayList::SortLEQ aCmp,
@@ -970,13 +967,12 @@ static PRBool IsContentLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
 static PRBool IsZOrderLEQ(nsDisplayItem* aItem1, nsDisplayItem* aItem2,
                           void* aClosure) {
   // These GetUnderlyingFrame calls return non-null because we're only used
-  // in sorting.  Note that we can't just take the difference of the two
-  // z-indices here, because that might overflow a 32-bit int.
-  PRInt32 index1 = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame());
-  PRInt32 index2 = nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
-  if (index1 == index2)
+  // in sorting
+  PRInt32 diff = nsLayoutUtils::GetZIndex(aItem1->GetUnderlyingFrame()) -
+    nsLayoutUtils::GetZIndex(aItem2->GetUnderlyingFrame());
+  if (diff == 0)
     return IsContentLEQ(aItem1, aItem2, aClosure);
-  return index1 < index2;
+  return diff < 0;
 }
 
 void nsDisplayList::ExplodeAnonymousChildLists(nsDisplayListBuilder* aBuilder) {
@@ -1068,10 +1064,10 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
   if (mIsThemed)
     return PR_FALSE;
 
-  nsStyleContext *bgSC;
-  if (!nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bgSC))
+  const nsStyleBackground* bg;
+
+  if (!nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg))
     return PR_FALSE;
-  const nsStyleBackground* bg = bgSC->GetStyleBackground();
 
   const nsStyleBackground::Layer& bottomLayer = bg->BottomLayer();
 
@@ -1094,12 +1090,11 @@ nsDisplayBackground::IsUniform(nsDisplayListBuilder* aBuilder) {
   if (mIsThemed)
     return PR_FALSE;
 
-  nsStyleContext *bgSC;
+  const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bgSC);
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg);
   if (!hasBG)
     return PR_TRUE;
-  const nsStyleBackground* bg = bgSC->GetStyleBackground();
   if (bg->BottomLayer().mImage.IsEmpty() &&
       bg->mImageCount == 1 &&
       !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius) &&
@@ -1115,12 +1110,11 @@ nsDisplayBackground::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuild
               "IsVaryingRelativeToMovingFrame called on non-moving frame!");
 
   nsPresContext* presContext = mFrame->PresContext();
-  nsStyleContext *bgSC;
+  const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bgSC);
+    nsCSSRendering::FindBackground(presContext, mFrame, &bg);
   if (!hasBG)
     return PR_FALSE;
-  const nsStyleBackground* bg = bgSC->GetStyleBackground();
   if (!bg->HasFixedBackground())
     return PR_FALSE;
 
@@ -1171,6 +1165,8 @@ nsDisplayOutline::Paint(nsDisplayListBuilder* aBuilder,
   nsCSSRendering::PaintOutline(mFrame->PresContext(), *aCtx, mFrame,
                                mVisibleRect,
                                nsRect(offset, mFrame->GetSize()),
+                               *mFrame->GetStyleBorder(),
+                               *mFrame->GetStyleOutline(),
                                mFrame->GetStyleContext());
 }
 
@@ -1247,6 +1243,7 @@ nsDisplayBorder::Paint(nsDisplayListBuilder* aBuilder,
   nsCSSRendering::PaintBorder(mFrame->PresContext(), *aCtx, mFrame,
                               mVisibleRect,
                               nsRect(offset, mFrame->GetSize()),
+                              *mFrame->GetStyleBorder(),
                               mFrame->GetStyleContext(),
                               mFrame->GetSkipSides());
 }
@@ -1389,10 +1386,10 @@ nsDisplayWrapList::~nsDisplayWrapList() {
   mList.DeleteAll();
 }
 
-void
-nsDisplayWrapList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                           HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
-  mList.HitTest(aBuilder, aRect, aState, aOutFrames);
+nsIFrame*
+nsDisplayWrapList::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                           HitTestState* aState) {
+  return mList.HitTest(aBuilder, aPt, aState);
 }
 
 nsRect
@@ -1888,24 +1885,23 @@ PRBool nsDisplayTransform::ComputeVisibility(nsDisplayListBuilder *aBuilder,
 #endif
 
 /* HitTest does some fun stuff with matrix transforms to obtain the answer. */
-void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
-                                 const nsRect& aRect,
-                                 HitTestState *aState,
-                                 nsTArray<nsIFrame*> *aOutFrames)
+nsIFrame *nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
+                                      nsPoint aPt,
+                                      HitTestState *aState)
 {
   /* Here's how this works:
    * 1. Get the matrix.  If it's singular, abort (clearly we didn't hit
    *    anything).
    * 2. Invert the matrix.
-   * 3. Use it to transform the rect into the correct space.
-   * 4. Pass that rect down through to the list's version of HitTest.
+   * 3. Use it to transform the point into the correct space.
+   * 4. Pass that point down through to the list's version of HitTest.
    */
   float factor = nsPresContext::AppUnitsPerCSSPixel();
   gfxMatrix matrix =
     GetResultingTransformMatrix(mFrame, aBuilder->ToReferenceFrame(mFrame),
                                 factor, nsnull);
   if (matrix.IsSingular())
-    return;
+    return nsnull;
 
   /* We want to go from transformed-space to regular space.
    * Thus we have to invert the matrix, which normally does
@@ -1914,45 +1910,27 @@ void nsDisplayTransform::HitTest(nsDisplayListBuilder *aBuilder,
   matrix.Invert();
 
   /* Now, apply the transform and pass it down the channel. */
-  nsRect resultingRect;
-  if (aRect.width == 1 && aRect.height == 1) {
-    gfxPoint point = matrix.Transform(gfxPoint(NSAppUnitsToFloatPixels(aRect.x, factor),
-                                               NSAppUnitsToFloatPixels(aRect.y, factor)));
-
-    resultingRect = nsRect(NSFloatPixelsToAppUnits(float(point.x), factor),
-                           NSFloatPixelsToAppUnits(float(point.y), factor),
-                           1, 1);
-
-  } else {
-    gfxRect originalRect(NSAppUnitsToFloatPixels(aRect.x, factor),
-                         NSAppUnitsToFloatPixels(aRect.y, factor),
-                         NSAppUnitsToFloatPixels(aRect.width, factor),
-                         NSAppUnitsToFloatPixels(aRect.height, factor));
-
-    gfxRect rect = matrix.TransformBounds(originalRect);
-
-    resultingRect = nsRect(NSFloatPixelsToAppUnits(float(rect.X()), factor),
-                           NSFloatPixelsToAppUnits(float(rect.Y()), factor),
-                           NSFloatPixelsToAppUnits(float(rect.Width()), factor),
-                           NSFloatPixelsToAppUnits(float(rect.Height()), factor));
-  }
-  
+  gfxPoint result = matrix.Transform(gfxPoint(NSAppUnitsToFloatPixels(aPt.x, factor),
+                                              NSAppUnitsToFloatPixels(aPt.y, factor)));
 
 #ifdef DEBUG_HIT
   printf("Frame: %p\n", dynamic_cast<void *>(mFrame));
-  printf("  Untransformed point: (%f, %f)\n", resultingRect.X(), resultingRect.Y());
-  PRUint32 originalFrameCount = aOutFrames.Length();
+  printf("  Untransformed point: (%f, %f)\n", result.x, result.y);
 #endif
 
-  mStoredList.HitTest(aBuilder, resultingRect, aState, aOutFrames);
-
+  nsIFrame* resultFrame =
+    mStoredList.HitTest(aBuilder,
+                        nsPoint(NSFloatPixelsToAppUnits(float(result.x), factor),
+                                NSFloatPixelsToAppUnits(float(result.y), factor)), aState);
+  
 #ifdef DEBUG_HIT
-  if (originalFrameCount != aOutFrames.Length())
-    printf("  Hit! Time: %f, first frame: %p\n", static_cast<double>(clock()),
-           dynamic_cast<void *>(aOutFrames.ElementAt(0)));
+  if (resultFrame)
+    printf("  Hit!  Time: %f, frame: %p\n", static_cast<double>(clock()),
+           dynamic_cast<void *>(resultFrame));
   printf("=== end of hit test ===\n");
 #endif
 
+  return resultFrame;
 }
 
 /* The bounding rectangle for the object is the overflow rectangle translated
@@ -2107,15 +2085,14 @@ PRBool nsDisplaySVGEffects::IsOpaque(nsDisplayListBuilder* aBuilder)
   return PR_FALSE;
 }
 
-void
-nsDisplaySVGEffects::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                             HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+nsIFrame*
+nsDisplaySVGEffects::HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                             HitTestState* aState)
 {
-  nsPoint rectCenter(aRect.x + aRect.width / 2, aRect.y + aRect.height / 2);
-  if (nsSVGIntegrationUtils::HitTestFrameForEffects(mEffectsFrame,
-      rectCenter - aBuilder->ToReferenceFrame(mEffectsFrame))) {
-    mList.HitTest(aBuilder, aRect, aState, aOutFrames);
-  }
+  if (!nsSVGIntegrationUtils::HitTestFrameForEffects(mEffectsFrame,
+          aPt - aBuilder->ToReferenceFrame(mEffectsFrame)))
+    return nsnull;
+  return mList.HitTest(aBuilder, aPt, aState);
 }
 
 void nsDisplaySVGEffects::Paint(nsDisplayListBuilder* aBuilder,

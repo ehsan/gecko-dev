@@ -6,7 +6,8 @@ Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(Ci.mozIJSSubScriptLoader)
 function test() {
   
   // Add a permission entry
-  var pm = Services.perms;
+  var pm = Cc["@mozilla.org/permissionmanager;1"]
+             .getService(Ci.nsIPermissionManager);
   pm.add(makeURI("http://example.com"), "testing", pm.ALLOW_ACTION);
   
   // Sanity check

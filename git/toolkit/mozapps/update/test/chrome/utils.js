@@ -41,7 +41,7 @@
 const PAGEID_CHECKING         = "checking";              // Done
 const PAGEID_PLUGIN_UPDATES   = "pluginupdatesfound";
 const PAGEID_NO_UPDATES_FOUND = "noupdatesfound";        // Done
-const PAGEID_MANUAL_UPDATE    = "manualUpdate"; // Tested on license load failure
+const PAGEID_MANUAL_UPDATE    = "manualUpdate"; // Can't test? Requires restricted access
 const PAGEID_INCOMPAT_CHECK   = "incompatibleCheck"; // Bug 546595
 const PAGEID_FOUND_BASIC      = "updatesfoundbasic";     // Done
 const PAGEID_FOUND_BILLBOARD  = "updatesfoundbillboard"; // Done
@@ -103,18 +103,6 @@ __defineGetter__("gWW", function() {
                       getService(AUS_Ci.nsIWindowWatcher);
 });
 
-
-__defineGetter__("gApp", function() {
-  delete this.gApp;
-  return this.gApp = AUS_Cc["@mozilla.org/xre/app-info;1"].
-                     getService(AUS_Ci.nsIXULAppInfo).
-                     QueryInterface(AUS_Ci.nsIXULRuntime);
-});
-
-function getVersionParams() {
-  return "&appVersion=" + gApp.version +
-         "&platformVersion=" + gApp.platformVersion;
-}
 
 /**
  * Closes the update window in case a previous test failed to do so.

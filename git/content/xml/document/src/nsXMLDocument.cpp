@@ -41,6 +41,7 @@
 #include "nsParserCIID.h"
 #include "nsIParser.h"
 #include "nsIXMLContentSink.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h" 
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
@@ -232,15 +233,13 @@ nsXMLDocument::~nsXMLDocument()
   mLoopingForSyncLoad = PR_FALSE;
 }
 
-DOMCI_DATA(XMLDocument, nsXMLDocument)
-
 // QueryInterface implementation for nsXMLDocument
 NS_INTERFACE_TABLE_HEAD(nsXMLDocument)
   NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsXMLDocument)
     NS_INTERFACE_TABLE_ENTRY(nsXMLDocument, nsIDOMXMLDocument)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XMLDocument)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XMLDocument)
 NS_INTERFACE_MAP_END_INHERITING(nsDocument)
 
 

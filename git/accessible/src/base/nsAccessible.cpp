@@ -38,12 +38,13 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccessible.h"
-
-#include "nsIXBLAccessible.h"
-
-#include "nsAccTreeWalker.h"
 #include "nsAccessibleRelation.h"
-#include "nsDocAccessible.h"
+#include "nsHyperTextAccessibleWrap.h"
+
+#include "nsIAccessibleDocument.h"
+#include "nsIAccessibleHyperText.h"
+#include "nsIXBLAccessible.h"
+#include "nsAccTreeWalker.h"
 
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
@@ -881,10 +882,15 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY, PRBool aDeepestChild,
   // therefore accessible for containing block may be different from accessible
   // for DOM parent but GetFrameForPoint() should be called for containing block
   // to get an out of flow element.
-  nsDocAccessible *accDocument = GetDocAccessible();
+  nsCOMPtr<nsIAccessibleDocument> accDocument;
+  rv = GetAccessibleDocument(getter_AddRefs(accDocument));
+  NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(accDocument, NS_ERROR_FAILURE);
 
-  nsIFrame *frame = accDocument->GetFrame();
+  nsRefPtr<nsAccessNode> docAccessNode =
+    nsAccUtils::QueryAccessNode(accDocument);
+
+  nsIFrame *frame = docAccessNode->GetFrame();
   NS_ENSURE_STATE(frame);
 
   nsPresContext *presContext = frame->PresContext();
@@ -2894,7 +2900,7 @@ nsAccessible::GetParent()
   if (mParent)
     return mParent;
 
-  nsDocAccessible *docAccessible = GetDocAccessible();
+  nsCOMPtr<nsIAccessibleDocument> docAccessible(GetDocAccessible());
   NS_ASSERTION(docAccessible, "No document accessible for valid accessible!");
 
   if (!docAccessible)
@@ -3012,7 +3018,6 @@ nsAccessible::TestChildCache(nsAccessible *aCachedChild)
 #endif
 }
 
-// nsAccessible public
 PRBool
 nsAccessible::EnsureChildren()
 {

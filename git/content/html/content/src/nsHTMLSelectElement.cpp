@@ -42,6 +42,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsLayoutUtils.h"
 #include "nsMappedAttributes.h"
 #include "nsIForm.h"
@@ -59,6 +60,7 @@
 
 // Notify/query select frame for selectedIndex
 #include "nsIDocument.h"
+#include "nsIPresShell.h"
 #include "nsIFormControlFrame.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIListControlFrame.h"
@@ -170,8 +172,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLSelectElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLSelectElement, nsGenericElement)
 
-
-DOMCI_DATA(HTMLSelectElement, nsHTMLSelectElement)
 
 // QueryInterface implementation for nsHTMLSelectElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLSelectElement)
@@ -746,7 +746,7 @@ nsHTMLSelectElement::SetLength(PRUint32 aLength)
       rv = AppendChild(node, getter_AddRefs(tmpNode));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      if (i + 1 < aLength) {
+      if (i < ((PRInt32)aLength - 1)) {
         nsCOMPtr<nsIDOMNode> newNode;
 
         rv = node->CloneNode(PR_TRUE, getter_AddRefs(newNode));
@@ -1808,8 +1808,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // nsISupports
 
-DOMCI_DATA(HTMLOptionsCollection, nsHTMLOptionCollection)
-
 // QueryInterface implementation for nsHTMLOptionCollection
 NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
   NS_INTERFACE_TABLE4(nsHTMLOptionCollection,
@@ -1818,7 +1816,7 @@ NS_INTERFACE_TABLE_HEAD(nsHTMLOptionCollection)
                       nsIDOMHTMLOptionsCollection,
                       nsIDOMHTMLCollection)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsHTMLOptionCollection)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(HTMLOptionsCollection)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLOptionsCollection)
 NS_INTERFACE_MAP_END
 
 
@@ -2008,7 +2006,7 @@ nsHTMLOptionCollection::Remove(PRInt32 aIndex)
 
   PRUint32 len = 0;
   mSelect->GetLength(&len);
-  if (aIndex < 0 || (PRUint32)aIndex >= len)
+  if (aIndex < 0 || aIndex >= len)
     aIndex = 0;
 
   return mSelect->Remove(aIndex);

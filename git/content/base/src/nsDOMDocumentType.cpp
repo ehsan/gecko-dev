@@ -121,13 +121,12 @@ nsDOMDocumentType::~nsDOMDocumentType()
 {
 }
 
-DOMCI_DATA(DocumentType, nsDOMDocumentType)
 
 // QueryInterface implementation for nsDOMDocumentType
 NS_INTERFACE_TABLE_HEAD(nsDOMDocumentType)
   NS_NODE_INTERFACE_TABLE2(nsDOMDocumentType, nsIDOMNode, nsIDOMDocumentType)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMDocumentType)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DocumentType)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(DocumentType)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 
@@ -253,7 +252,7 @@ nsDOMDocumentType::BindToTree(nsIDocument *aDocument, nsIContent *aParent,
     // case.
     // XXX We may want to move this to nsDOMImplementation::CreateDocument if
     //     we want to rely on the nodeinfo and wrappers being right before
-    //     getting into ReplaceOrInsertBefore or doInsertChildAt. That would
+    //     getting into doReplaceOrInsertBefore or doInsertChildAt. That would
     //     break inserting DOMDocumentType nodes through other DOM methods
     //     though.
     nsNodeInfoManager *nimgr = aParent ?

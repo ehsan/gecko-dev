@@ -42,6 +42,8 @@ function test() {
   // initialization
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
+  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
 
   waitForExplicitFinish();
 
@@ -118,7 +120,7 @@ function test() {
   function observer(aSubject, aTopic, aData) {
     isnot(aTopic, "domwindowopened", "The -private-toggle argument should be silent");
   }
-  Services.ww.registerNotification(observer);
+  ww.registerNotification(observer);
 
   let tab = gBrowser.selectedTab;
   let browser = gBrowser.getBrowserForTab(tab);
@@ -147,7 +149,7 @@ function test() {
 
         let newTab = gBrowser.addTab();
         gBrowser.removeTab(tab);
-        Services.ww.unregisterNotification(observer);
+        ww.unregisterNotification(observer);
         finish();
       }, true);
     }, true);

@@ -65,6 +65,7 @@
 #include "gfxXlibSurface.h"
 #include "gfxContext.h"
 #include "nsImageToPixbuf.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocument.h"
 #include "nsISelection.h"
@@ -226,7 +227,7 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
     memset(&event, 0, sizeof(GdkEvent));
     event.type = GDK_BUTTON_PRESS;
     event.button.window = mHiddenWidget->window;
-    event.button.time = nsWindow::sLastButtonPressTime;
+    event.button.time = nsWindow::mLastButtonPressTime;
 
     // start our drag.
     GdkDragContext *context = gtk_drag_begin(mHiddenWidget,

@@ -40,7 +40,7 @@
 #include "xpcprivate.h"
 #include "nsDOMError.h"
 #include "jsdbgapi.h"
-#include "jscntxt.h"  // For js::AutoValueRooter.
+#include "jscntxt.h"  // For JSAutoTempValueRooter.
 #include "XPCNativeWrapper.h"
 #include "XPCWrapper.h"
 
@@ -94,8 +94,6 @@ ThrowException(nsresult rv, JSContext *cx)
   return DoThrowException(rv, cx);
 }
 
-static const char prefix[] = "chrome://global/";
-
 namespace SystemOnlyWrapper {
 
 JSExtendedClass SOWClass = {
@@ -139,7 +137,7 @@ WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp)
   }
 
   *vp = OBJECT_TO_JSVAL(wrapperObj);
-  js::AutoValueRooter tvr(cx, *vp);
+  JSAutoTempValueRooter tvr(cx, *vp);
 
   if (!JS_SetReservedSlot(cx, wrapperObj, sWrappedObjSlot, v) ||
       !JS_SetReservedSlot(cx, wrapperObj, sFlagsSlot, JSVAL_ZERO)) {
@@ -148,26 +146,6 @@ WrapObject(JSContext *cx, JSObject *parent, jsval v, jsval *vp)
 
   return JS_TRUE;
 }
-
-JSBool
-MakeSOW(JSContext *cx, JSObject *obj)
-{
-#ifdef DEBUG
-  {
-    JSClass *clasp = obj->getClass();
-    NS_ASSERTION(clasp != &SystemOnlyWrapper::SOWClass.base &&
-                 clasp != &XPCCrossOriginWrapper::XOWClass.base &&
-                 strcmp(clasp->name, "XPCNativeWrapper"),
-                 "bad call");
-  }
-#endif
-
-  jsval flags;
-  return JS_GetReservedSlot(cx, obj, sFlagsSlot, &flags) &&
-         JS_SetReservedSlot(cx, obj, sFlagsSlot,
-                            INT_TO_JSVAL(JSVAL_TO_INT(flags) | FLAG_SOW));
-}
-
 
 // If you change this code, change also nsContentUtils::CanAccessNativeAnon()!
 JSBool
@@ -208,6 +186,7 @@ AllowedToAct(JSContext *cx, jsval idval)
 
   // XXX HACK EWW! Allow chrome://global/ access to these things, even
   // if they've been cloned into less privileged contexts.
+  static const char prefix[] = "chrome://global/";
   const char *filename;
   if (fp &&
       (filename = fp->script->filename) &&
@@ -235,30 +214,6 @@ AllowedToAct(JSContext *cx, jsval idval)
   return JS_FALSE;
 }
 
-JSBool
-CheckFilename(JSContext *cx, jsval idval, JSStackFrame *fp)
-{
-  const char *filename;
-  if (fp &&
-      (filename = fp->script->filename) &&
-      !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
-    return JS_TRUE;
-  }
-
-  if (JSVAL_IS_VOID(idval)) {
-    ThrowException(NS_ERROR_XPC_SECURITY_MANAGER_VETO, cx);
-  } else {
-    // TODO Localize me?
-    JSString *str = JS_ValueToString(cx, idval);
-    if (str) {
-      JS_ReportError(cx, "Permission denied to access property '%hs' from a non-chrome context",
-                     JS_GetStringChars(str));
-    }
-  }
-
-  return JS_FALSE;
-}
-
 } // namespace SystemOnlyWrapper
 
 using namespace SystemOnlyWrapper;
@@ -268,7 +223,7 @@ using namespace SystemOnlyWrapper;
 static inline JSObject *
 GetWrappedJSObject(JSContext *cx, JSObject *obj)
 {
-  JSClass *clasp = obj->getClass();
+  JSClass *clasp = STOBJ_GET_CLASS(obj);
   if (!(clasp->flags & JSCLASS_IS_EXTENDED)) {
     return obj;
   }
@@ -286,8 +241,8 @@ static inline
 JSObject *
 GetWrapper(JSObject *obj)
 {
-  while (obj->getClass() != &SOWClass.base) {
-    obj = obj->getProto();
+  while (STOBJ_GET_CLASS(obj) != &SOWClass.base) {
+    obj = STOBJ_GET_PROTO(obj);
     if (!obj) {
       break;
     }
@@ -391,7 +346,7 @@ XPC_SOW_RewrapValue(JSContext *cx, JSObject *wrapperObj, jsval *vp)
     if (native == XPC_SOW_FunctionWrapper) {
       // If this is a system function wrapper, make sure its ours, otherwise,
       // its prototype could come from the wrong scope.
-      if (wrapperObj->getProto() == obj->getParent()) {
+      if (STOBJ_GET_PROTO(wrapperObj) == STOBJ_GET_PARENT(obj)) {
         return JS_TRUE;
       }
 
@@ -405,12 +360,12 @@ XPC_SOW_RewrapValue(JSContext *cx, JSObject *wrapperObj, jsval *vp)
     return XPC_SOW_WrapFunction(cx, wrapperObj, obj, vp);
   }
 
-  if (obj->getClass() == &SOWClass.base) {
+  if (STOBJ_GET_CLASS(obj) == &SOWClass.base) {
     // We are extra careful about content-polluted wrappers here. I don't know
     // if it's possible to reach them through objects that we wrap, but figuring
     // that out is more expensive (and harder) than simply checking and
     // rewrapping here.
-    if (wrapperObj->getParent() == obj->getParent()) {
+    if (STOBJ_GET_PARENT(wrapperObj) == STOBJ_GET_PARENT(obj)) {
       // Already wrapped.
       return JS_TRUE;
     }
@@ -424,13 +379,13 @@ XPC_SOW_RewrapValue(JSContext *cx, JSObject *wrapperObj, jsval *vp)
     v = *vp = OBJECT_TO_JSVAL(obj);
   }
 
-  return WrapObject(cx, wrapperObj->getParent(), v, vp);
+  return WrapObject(cx, STOBJ_GET_PARENT(wrapperObj), v, vp);
 }
 
 static JSBool
 XPC_SOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-  NS_ASSERTION(obj->getClass() == &SOWClass.base, "Wrong object");
+  NS_ASSERTION(STOBJ_GET_CLASS(obj) == &SOWClass.base, "Wrong object");
 
   jsval resolving;
   if (!JS_GetReservedSlot(cx, obj, sFlagsSlot, &resolving)) {
@@ -482,7 +437,7 @@ XPC_SOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
     return JS_FALSE;
   }
 
-  js::AutoArrayRooter tvr(cx, 1, vp);
+  JSAutoTempValueRooter tvr(cx, 1, vp);
 
   JSObject *wrappedObj = GetWrappedObject(cx, obj);
   if (!wrappedObj) {
@@ -555,7 +510,7 @@ XPC_SOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     return JS_FALSE;
   }
 
-  return NewResolve(cx, obj, JS_FALSE, wrappedObj, id, flags, objp);
+  return NewResolve(cx, obj, JS_TRUE, wrappedObj, id, flags, objp);
 }
 
 static JSBool
@@ -578,7 +533,7 @@ XPC_SOW_Convert(JSContext *cx, JSObject *obj, JSType type, jsval *vp)
     return JS_TRUE;
   }
 
-  return wrappedObj->getClass()->convert(cx, wrappedObj, type, vp);
+  return STOBJ_GET_CLASS(wrappedObj)->convert(cx, wrappedObj, type, vp);
 }
 
 static JSBool
@@ -613,7 +568,7 @@ XPC_SOW_HasInstance(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
     return JS_TRUE;
   }
 
-  JSClass *clasp = iface->getClass();
+  JSClass *clasp = STOBJ_GET_CLASS(iface);
 
   *bp = JS_FALSE;
   if (!clasp->hasInstance) {
@@ -659,7 +614,7 @@ XPC_SOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 
   if (lhs) {
     // Delegate to our wrapped object if we can.
-    JSClass *clasp = lhs->getClass();
+    JSClass *clasp = STOBJ_GET_CLASS(lhs);
     if (clasp->flags & JSCLASS_IS_EXTENDED) {
       JSExtendedClass *xclasp = (JSExtendedClass *) clasp;
       // NB: JSExtendedClass.equality is a required field.
@@ -668,7 +623,7 @@ XPC_SOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
   }
 
   // We know rhs is non-null.
-  JSClass *clasp = rhs->getClass();
+  JSClass *clasp = STOBJ_GET_CLASS(rhs);
   if (clasp->flags & JSCLASS_IS_EXTENDED) {
     JSExtendedClass *xclasp = (JSExtendedClass *) clasp;
     // NB: JSExtendedClass.equality is a required field.
@@ -694,7 +649,7 @@ XPC_SOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
     return nsnull;
   }
 
-  js::AutoValueRooter tvr(cx, OBJECT_TO_JSVAL(wrapperIter));
+  JSAutoTempValueRooter tvr(cx, OBJECT_TO_JSVAL(wrapperIter));
 
   // Initialize our SOW.
   jsval v = OBJECT_TO_JSVAL(wrappedObj);

@@ -5,7 +5,9 @@ var win = null;
 function WindowListener(url) {
   this.url = url;
 
-  Services.wm.addListener(this);
+  var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Components.interfaces.nsIWindowMediator);
+  wm.addListener(this);
 }
 
 WindowListener.prototype = {
@@ -36,7 +38,9 @@ WindowListener.prototype = {
   },
 
   onCloseWindow: function(window) {
-    Services.wm.removeListener(this);
+    var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
+                       .getService(Components.interfaces.nsIWindowMediator);
+    wm.removeListener(this);
   },
 
   QueryInterface: function(iid) {

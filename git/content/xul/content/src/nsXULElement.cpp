@@ -366,8 +366,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
 NS_IMPL_RELEASE_INHERITED(nsXULElement, nsStyledElement)
 
-DOMCI_DATA(XULElement, nsXULElement)
-
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULElement)
     NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsXULElement)
         NS_INTERFACE_TABLE_ENTRY(nsXULElement, nsIDOMNode)
@@ -381,7 +379,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsXULElement)
                                    new nsXULElementTearoff(this))
     NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIFrameLoaderOwner,
                                    new nsXULElementTearoff(this))
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULElement)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULElement)
 NS_ELEMENT_INTERFACE_MAP_END
 
 //----------------------------------------------------------------------
@@ -671,9 +669,8 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
               fm->SetFocus(element, nsIFocusManager::FLAG_BYKEY);
           }
         }
-        if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist) {
-            ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
-        }
+        if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist)
+            elm->Click();
     }
     else {
         content->PerformAccesskey(aKeyCausesActivation, aIsTrustedEvent);
@@ -2053,12 +2050,6 @@ nsXULElement::Blur()
 NS_IMETHODIMP
 nsXULElement::Click()
 {
-  return ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN);
-}
-
-nsresult
-nsXULElement::ClickWithInputSource(PRUint16 aInputSource)
-{
     if (BoolAttrIsTrue(nsGkAtoms::disabled))
         return NS_OK;
 
@@ -2067,7 +2058,7 @@ nsXULElement::ClickWithInputSource(PRUint16 aInputSource)
         nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
         if (shell) {
             // strong ref to PresContext so events don't destroy it
-            nsRefPtr<nsPresContext> context = shell->GetPresContext();
+            nsCOMPtr<nsPresContext> context = shell->GetPresContext();
 
             PRBool isCallerChrome = nsContentUtils::IsCallerChrome();
 
@@ -2077,8 +2068,6 @@ nsXULElement::ClickWithInputSource(PRUint16 aInputSource)
                                  nsnull, nsMouseEvent::eReal);
             nsMouseEvent eventClick(isCallerChrome, NS_MOUSE_CLICK, nsnull,
                                     nsMouseEvent::eReal);
-            eventDown.inputSource = eventUp.inputSource = eventClick.inputSource 
-                                  = aInputSource;
 
             // send mouse down
             nsEventStatus status = nsEventStatus_eIgnore;

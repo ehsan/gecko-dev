@@ -246,8 +246,7 @@ typedef enum {
 #ifndef NP_NO_QUICKDRAW
   NPDrawingModelQuickDraw = 0,
 #endif
-  NPDrawingModelCoreGraphics = 1,
-  NPDrawingModelCoreAnimation = 3
+  NPDrawingModelCoreGraphics = 1
 } NPDrawingModel;
 
 typedef enum {
@@ -337,8 +336,6 @@ typedef enum {
   , NPPVpluginDrawingModel = 1000
   /* Used for negotiating event models */
   , NPPVpluginEventModel = 1001
-  /* In the NPDrawingModelCoreAnimation drawing model, the browser asks the plug-in for a Core Animation layer. */
-  , NPPVpluginCoreAnimationLayer = 1003
 #endif
 
 #if (MOZ_PLATFORM_MAEMO == 5)
@@ -381,7 +378,6 @@ typedef enum {
   , NPNVsupportsQuickDrawBool = 2000
 #endif
   , NPNVsupportsCoreGraphicsBool = 2001
-  , NPNVsupportsCoreAnimationBool = 2003
 #ifndef NP_NO_CARBON
   , NPNVsupportsCarbonBool = 3000 /* TRUE if the browser supports the Carbon event model */
 #endif

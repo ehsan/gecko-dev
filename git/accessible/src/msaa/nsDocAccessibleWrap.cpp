@@ -43,6 +43,7 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIPresShell.h"
 #include "nsISelectionController.h"
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
@@ -282,17 +283,20 @@ struct nsSearchAccessibleInCacheArg
 };
 
 static PLDHashOperator
-SearchAccessibleInCache(const void* aKey, nsDocAccessible* aDocAccessible,
+SearchAccessibleInCache(const void* aKey, nsAccessNode* aAccessNode,
                         void* aUserArg)
 {
-  NS_ASSERTION(aDocAccessible,
+  nsCOMPtr<nsIAccessibleDocument> accessibleDoc(do_QueryInterface(aAccessNode));
+  NS_ASSERTION(accessibleDoc,
                "No doc accessible for the object in doc accessible cache!");
 
-  if (aDocAccessible) {
+  nsRefPtr<nsDocAccessible> docAccessible =
+    nsAccUtils::QueryObject<nsDocAccessible>(accessibleDoc);
+  if (docAccessible) {
     nsSearchAccessibleInCacheArg* arg =
       static_cast<nsSearchAccessibleInCacheArg*>(aUserArg);
     nsAccessNode* accessNode =
-      aDocAccessible->GetCachedAccessNode(arg->mUniqueID);
+      docAccessible->GetCachedAccessNode(arg->mUniqueID);
     if (accessNode) {
       arg->mAccessNode = accessNode;
       return PL_DHASH_STOP;

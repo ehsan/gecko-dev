@@ -59,7 +59,6 @@ XPIDLSRCS	= \
 		$(NULL)
 
 EXPORTS		= \
-		FramePropertyTable.h \
 		nsBidi.h \
 		nsBidiPresUtils.h \
 		nsCaret.h \
@@ -88,7 +87,6 @@ EXPORTS		= \
 		$(NULL)
 
 CPPSRCS		= \
-		FramePropertyTable.cpp \
 		nsCSSColorUtils.cpp \
 		nsCSSFrameConstructor.cpp \
 		nsCSSRendering.cpp \

@@ -64,7 +64,6 @@ include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = 	test_bug5141.html \
 		test_bug51034.html \
-		test_bug166235.html \
 		test_bug199959.html \
 		test_bug218236.html \
 		file_bug218236_multipart.txt \
@@ -185,7 +184,6 @@ _TEST_FILES = 	test_bug5141.html \
 		file_htmlserializer_1_sibling_body.html \
 		file_htmlserializer_1_sibling_body_only_body.html \
 		file_htmlserializer_1_no_body.html \
-		file_htmlserializer_1_wrap.html \
 		test_bug424359-2.html \
 		file_htmlserializer_2.html \
 		test_bug431082.html \
@@ -251,7 +249,6 @@ _TEST_FILES = 	test_bug5141.html \
 		test_bug518104.html \
 		bug457746.sjs \
 		test_CrossSiteXHR.html \
-		test_CrossSiteXHR_origin.html \
 		file_CrossSiteXHR_inner.html \
 		file_CrossSiteXHR_inner_data.sjs \
 		file_CrossSiteXHR_inner.jar \
@@ -286,7 +283,6 @@ _TEST_FILES = 	test_bug5141.html \
 		file_xhtmlserializer_1_sibling_body.xhtml \
 		file_xhtmlserializer_1_sibling_body_only_body.xhtml \
 		file_xhtmlserializer_1_no_body.xhtml \
-		file_xhtmlserializer_1_wrap.xhtml \
 		test_bug422403-2.xhtml \
 		file_xhtmlserializer_2.xhtml \
 		file_xhtmlserializer_2_basic.xhtml \
@@ -347,7 +343,6 @@ _TEST_FILES = 	test_bug5141.html \
 		test_CSP.html \
 		file_CSP.sjs \
 		file_CSP_main.html \
-		file_CSP_main.html^headers^ \
 		file_CSP_main.js \
  		test_CSP_frameancestors.html \
  		file_CSP_frameancestors.sjs \
@@ -357,29 +352,12 @@ _TEST_FILES = 	test_bug5141.html \
  		file_CSP_inlinescript_main.html \
  		file_CSP_inlinescript_main.html^headers^ \
  		test_CSP_evalscript.html \
+ 		file_CSP_evalscript.sjs \
  		file_CSP_evalscript_main.html \
- 		file_CSP_evalscript_main.html^headers^ \
  		file_CSP_evalscript_main.js \
 		test_bug540854.html \
 		bug540854.sjs \
-		test_bug548463.html \
-		test_bug545644.html \
-		test_bug545644.xhtml \
-		test_bug553896.xhtml \
-		test_bug541937.html \
-		file_bug541937.html \
-		file_bug541937.xhtml \
-		test_bug558726.html \
-		test_bug557892.html \
-		file_bug557892.html \
-		test_bug559526.html \
 		$(NULL)
-
-# This test fails on the Mac for some reason
-ifneq (,$(filter gtk2 windows,$(MOZ_WIDGET_TOOLKIT)))
-_TEST_FILES += 	test_copyimage.html \
-		$(NULL)
-endif
 
 # Disabled; see bug 492181
 #		test_plugin_freezing.html

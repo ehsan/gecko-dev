@@ -1933,10 +1933,10 @@ void nsDisplayMathMLCharBackground::Paint(nsDisplayListBuilder* aBuilder,
                                           nsIRenderingContext* aCtx)
 {
   const nsStyleBorder* border = mStyleContext->GetStyleBorder();
+  const nsStyleBackground* backg = mStyleContext->GetStyleBackground();
   nsRect rect(mRect + aBuilder->ToReferenceFrame(mFrame));
   nsCSSRendering::PaintBackgroundWithSC(mFrame->PresContext(), *aCtx, mFrame,
-                                        mVisibleRect, rect,
-                                        mStyleContext, *border,
+                                        mVisibleRect, rect, *backg, *border,
                                         aBuilder->GetBackgroundPaintFlags());
 }
 
@@ -2008,9 +2008,11 @@ void nsDisplayMathMLCharDebug::Paint(nsDisplayListBuilder* aBuilder,
   nsStyleContext* styleContext = mFrame->GetStyleContext();
   nsRect rect = mRect + aBuilder->ToReferenceFrame(mFrame);
   nsCSSRendering::PaintBorder(presContext, *aCtx, mFrame,
-                              mVisibleRect, rect, styleContext, skipSides);
+                              mVisibleRect, rect, *border, styleContext,
+                              skipSides);
   nsCSSRendering::PaintOutline(presContext, *aCtx, mFrame,
-                               mVisibleRect, rect, styleContext);
+                               mVisibleRect, rect, *border,
+                               *mFrame->GetStyleOutline(), styleContext);
 }
 #endif
 

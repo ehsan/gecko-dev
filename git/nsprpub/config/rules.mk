@@ -141,7 +141,7 @@ endif
 ifndef TARGETS
 ifeq (,$(filter-out WINNT WINCE OS2,$(OS_ARCH)))
 TARGETS		= $(LIBRARY) $(SHARED_LIBRARY) $(IMPORT_LIBRARY)
-ifdef MOZ_DEBUG_SYMBOLS
+ifndef BUILD_OPT
 ifdef MSC_VER
 ifneq (,$(filter-out 1100 1200,$(MSC_VER)))
 TARGETS		+= $(SHARED_LIB_PDB)

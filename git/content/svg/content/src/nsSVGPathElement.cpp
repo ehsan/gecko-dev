@@ -60,13 +60,11 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Path)
 NS_IMPL_ADDREF_INHERITED(nsSVGPathElement,nsSVGPathElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGPathElement,nsSVGPathElementBase)
 
-DOMCI_DATA(SVGPathElement, nsSVGPathElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGPathElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGPathElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGPathElement,
                            nsIDOMSVGAnimatedPathData)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPathElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPathElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPathElementBase)
 
 //----------------------------------------------------------------------
@@ -458,10 +456,7 @@ nsSVGPathElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
     if (aValue) {
       nsSVGPathDataParserToInternal parser(&mPathData);
-      nsresult rv = parser.Parse(*aValue);
-      if (NS_FAILED(rv)) {
-        ReportAttributeParseFailure(GetOwnerDoc(), aName, *aValue);
-      }
+      parser.Parse(*aValue);
     } else {
       mPathData.Clear();
     }
@@ -469,19 +464,6 @@ nsSVGPathElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
   return nsSVGPathElementBase::BeforeSetAttr(aNamespaceID, aName,
                                              aValue, aNotify);
-}
-
-NS_IMETHODIMP
-nsSVGPathElement::WillModifySVGObservable(nsISVGValue* observable,
-                                          nsISVGValue::modificationType aModType)
-{
-  nsCOMPtr<nsIDOMSVGPathSegList> list = do_QueryInterface(observable);
-
-  if (list && mSegments == list) {
-    return NS_OK;
-  }
-
-  return nsSVGPathElementBase::WillModifySVGObservable(observable, aModType);
 }
 
 NS_IMETHODIMP

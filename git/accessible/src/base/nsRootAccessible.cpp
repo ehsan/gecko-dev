@@ -37,6 +37,7 @@
 
 // NOTE: alphabetically ordered
 #include "nsAccessibilityService.h"
+#include "nsAccEvent.h"
 #include "nsApplicationAccessibleWrap.h"
 
 #include "nsHTMLSelectAccessible.h"
@@ -250,9 +251,8 @@ const char* const docEvents[] = {
   // debugging a11y objects with event viewers
   "mouseover",
 #endif
-  // capture DOM focus and DOM blur events 
+  // capture DOM focus events 
   "focus",
-  "blur",
   // capture Form change events 
   "select",
   // capture ValueChange events (fired whenever value changes, immediately after, whether focus moves or not)
@@ -517,10 +517,26 @@ nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
 
   gLastFocusedFrameType = (focusFrame && focusFrame->GetStyleVisibility()->IsVisible()) ? focusFrame->GetType() : 0;
 
-  // Coalesce focus events from the same document, because DOM focus event might
-  // be fired for the document node and then for the focused DOM element.
+  nsCOMPtr<nsIAccessibleDocument> docAccessible = do_QueryInterface(finalFocusAccessible);
+  if (docAccessible) {
+    // Doc is gaining focus, but actual focus may be on an element within document
+    nsCOMPtr<nsIDOMNode> realFocusedNode = GetCurrentFocus();
+    if ((realFocusedNode != aNode || realFocusedNode == mDOMNode) &&
+        !(nsAccUtils::ExtendedState(finalFocusAccessible) &
+                    nsIAccessibleStates::EXT_STATE_EDITABLE)) {
+      // Suppress document focus, because real DOM focus will be fired next,
+      // except in the case of editable documents because we can't rely on a
+      // followup focus event for an element in an editable document.
+      // Make sure we never fire focus for the nsRootAccessible (mDOMNode)
+
+      // XXX todo dig deeper on editor focus inconsistency in bug 526313
+
+      return PR_FALSE;
+    }
+  }
+
   FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                             finalFocusNode, nsAccEvent::eCoalesceFromSameDocument,
+                             finalFocusNode, nsAccEvent::eRemoveDupes,
                              aIsAsynch, aIsFromUserInput);
 
   return PR_TRUE;
@@ -550,21 +566,7 @@ nsRootAccessible::FireCurrentFocusEvent()
         nsCOMPtr<nsIDOMNode> targetNode;
         accService->GetRelevantContentNodeFor(focusedNode,
                                             getter_AddRefs(targetNode));
-
         if (targetNode) {
-          // If the focused element is document element or HTML body element
-          // then simulate the focus event for the document.
-          nsCOMPtr<nsIContent> targetContent(do_QueryInterface(targetNode));
-          if (targetContent) {
-            nsCOMPtr<nsIDOMNode> document =
-              do_QueryInterface(targetContent->GetOwnerDoc());
-            if (targetContent == nsCoreUtils::GetRoleContent(document)) {
-              HandleEventWithTarget(event, document);
-              return;
-            }
-          }
-
-          // Otherwise simulate the focus event for currently focused node.
           HandleEventWithTarget(event, targetNode);
         }
       }
@@ -807,11 +809,6 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     }
     FireAccessibleFocusEvent(accessible, focusedItem, aEvent);
   }
-  else if (eventType.EqualsLiteral("blur")) {
-    NS_IF_RELEASE(gLastFocusedNode);
-    gLastFocusedFrameType = nsnull;
-    gLastFocusedAccessiblesState = 0;
-  }
   else if (eventType.EqualsLiteral("AlertActive")) { 
     nsEventShell::FireEvent(nsIAccessibleEvent::EVENT_ALERT, accessible);
   }
@@ -940,10 +937,10 @@ void nsRootAccessible::GetTargetNode(nsIDOMEvent *aEvent, nsIDOMNode **aTargetNo
 nsresult
 nsRootAccessible::Init()
 {
-  nsApplicationAccessible *applicationAcc = GetApplicationAccessible();
-  NS_ENSURE_STATE(applicationAcc);
+  nsRefPtr<nsApplicationAccessibleWrap> root = GetApplicationAccessible();
+  NS_ENSURE_STATE(root);
 
-  applicationAcc->AddRootAccessible(this);
+  root->AddRootAccessible(this);
 
   return nsDocAccessibleWrap::Init();
 }
@@ -956,10 +953,10 @@ nsRootAccessible::Shutdown()
     return NS_OK;  // Already shutdown
   }
 
-  nsApplicationAccessible *applicationAcc = GetApplicationAccessible();
-  NS_ENSURE_STATE(applicationAcc);
+  nsRefPtr<nsApplicationAccessibleWrap> root = GetApplicationAccessible();
+  NS_ENSURE_STATE(root);
 
-  applicationAcc->RemoveRootAccessible(this);
+  root->RemoveRootAccessible(this);
 
   mCurrentARIAMenubar = nsnull;
 

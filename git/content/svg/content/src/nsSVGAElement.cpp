@@ -60,8 +60,6 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(A)
 NS_IMPL_ADDREF_INHERITED(nsSVGAElement, nsSVGAElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGAElement, nsSVGAElementBase)
 
-DOMCI_DATA(SVGAElement, nsSVGAElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGAElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGAElement,
                            nsIDOMNode,
@@ -70,7 +68,7 @@ NS_INTERFACE_TABLE_HEAD(nsSVGAElement)
                            nsIDOMSVGAElement,
                            nsILink,
                            Link)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGAElementBase)
 
 

@@ -329,7 +329,8 @@ pref("extensions.spellcheck.inline.max-misspellings", 500);
 // belong in comm-central/editor/ui/composer.js
 
 pref("editor.use_custom_colors", false);
-pref("editor.singleLine.pasteNewlines",      2);
+pref("editor.htmlWrapColumn", 72);
+pref("editor.singleLine.pasteNewlines",     1);
 pref("editor.quotesPreformatted",            false);
 pref("editor.use_css",                       true);
 pref("editor.css.default_length_unit",       "px");
@@ -2414,6 +2415,7 @@ pref("network.hosts.smtp_server", "localhost");
 pref("network.hosts.pop_server", "pop");
 pref("network.protocol-handler.warn-external.file", false);
 pref("browser.drag_out_of_frame_style", 1);
+pref("editor.singleLine.pasteNewlines", 0);
 
 // Middle-mouse handling
 pref("middlemouse.paste", true);
@@ -2812,14 +2814,12 @@ pref("signon.rememberSignons",              true);
 pref("signon.SignonFileName",               "signons.txt"); // obsolete 
 pref("signon.SignonFileName2",              "signons2.txt"); // obsolete
 pref("signon.SignonFileName3",              "signons3.txt"); // obsolete
-pref("signon.autofillForms",                true);
-pref("signon.autologin.proxy",              false);
-pref("signon.debug",                        false);
+pref("signon.autofillForms",                true); 
+pref("signon.debug",                        false); // logs to Error Console
 
 // Satchel (Form Manager) prefs
 pref("browser.formfill.debug",            false);
 pref("browser.formfill.enable",           true);
-pref("browser.formfill.saveHttpsForms",   true);
 pref("browser.formfill.agedWeight",       2);
 pref("browser.formfill.bucketSize",       1);
 pref("browser.formfill.maxTimeGroupings", 25);
@@ -2881,10 +2881,18 @@ pref("html5.flushtimer.startdelay", 200);
 pref("html5.flushtimer.continuedelay", 150);
 // Time in milliseconds between timer firings once the timer has starting 
 // firing.
-pref("html5.flushtimer.interval", 120);
+pref("html5.flushtimer.interval", 100);
 
 // Push/Pop/Replace State prefs
 pref("browser.history.allowPushState", true);
 pref("browser.history.allowReplaceState", true);
 pref("browser.history.allowPopState", true);
 pref("browser.history.maxStateObjectSize", 655360);
+// Initial max length for number of tree ops in on flush.
+pref("html5.opqueue.initiallengthlimit", 200);
+// Maximum time in milliseconds to spend flushing the tree op queue when not forced to completion
+pref("html5.opqueue.maxtime", 100);
+// Minimun number of tree ops to flush regardless of time (takes precedence over the maxtime pref)
+pref("html5.opqueue.minlength", 100);
+// Maximum number of tree ops to flush regardless of time (takes precedence over the maxtime pref)
+pref("html5.opqueue.maxlength", 4500); // most top sites stay under this value

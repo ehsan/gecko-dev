@@ -74,7 +74,6 @@ endif
 
 _HARNESS_FILES = \
   $(srcdir)/runreftest.py \
-  $(srcdir)/remotereftest.py \
   automation.py \
   $(topsrcdir)/build/mobile/devicemanager.py \
   $(topsrcdir)/build/automationutils.py \

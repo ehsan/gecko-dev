@@ -1257,8 +1257,8 @@ CSS_PROP_COLUMN(
     mColumnRuleColor,
     eCSSType_Value,
     nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_Custom)
+    offsetof(nsStyleColumn, mColumnRuleColor),
+    eStyleAnimType_Color)
 CSS_PROP_COLUMN(
     -moz-column-rule-style,
     _moz_column_rule_style,
@@ -2183,17 +2183,6 @@ CSS_PROP_QUOTES(
     mQuotes,
     eCSSType_ValuePairList,
     nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_DISPLAY(
-    -moz-resize,
-    resize,
-    MozResize,
-    0,
-    Display,
-    mResize,
-    eCSSType_Value,
-    kResizeKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKENDONLY(

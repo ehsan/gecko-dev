@@ -105,6 +105,7 @@ var observer = {
     throw Cr.NS_ERROR_NO_INTERFACE;
   },
 };
+bmsvc.addObserver(observer, false);
 
 // get bookmarks menu folder id
 var root = bmsvc.bookmarksMenuFolder;
@@ -114,11 +115,6 @@ var bmStartIndex = 0;
 
 // main
 function run_test() {
-  // TODO: reenable test once bug 557406 is fixed.
-  return;
-
-  bmsvc.addObserver(observer, false);
-
   // test special folders
   do_check_true(bmsvc.placesRoot > 0);
   do_check_true(bmsvc.bookmarksMenuFolder > 0);
@@ -184,8 +180,8 @@ function run_test() {
 
   // Workaround possible VM timers issues moving lastModified and dateAdded
   // to the past.
-  bmsvc.setItemLastModified(newId, (lastModified -= 1000));
-  bmsvc.setItemDateAdded(newId, (dateAdded -= 1000));
+  bmsvc.setItemLastModified(newId, --lastModified);
+  bmsvc.setItemDateAdded(newId, --dateAdded);
 
   // set bookmark title
   bmsvc.setItemTitle(newId, "Google");
@@ -360,8 +356,8 @@ function run_test() {
 
     // Workaround possible VM timers issues moving lastModified and dateAdded
     // to the past.
-    bmsvc.setItemLastModified(kwTestItemId, (lastModified -= 1000));
-    bmsvc.setItemDateAdded(kwTestItemId, (dateAdded -= 1000));
+    bmsvc.setItemLastModified(kwTestItemId, --lastModified);
+    bmsvc.setItemDateAdded(kwTestItemId, --dateAdded);
 
     bmsvc.setKeywordForBookmark(kwTestItemId, "bar");
 
@@ -487,8 +483,8 @@ function run_test() {
 
   // Workaround possible VM timers issues moving lastModified and dateAdded
   // to the past.
-  bmsvc.setItemLastModified(newId10, (lastModified -= 1000));
-  bmsvc.setItemDateAdded(newId10, (dateAdded -= 1000));
+  bmsvc.setItemLastModified(newId10, --lastModified);
+  bmsvc.setItemDateAdded(newId10, --dateAdded);
 
   bmsvc.changeBookmarkURI(newId10, uri("http://foo11.com/"));
 
@@ -651,8 +647,8 @@ function run_test() {
 
 function testSimpleFolderResult() {
   // the time before we create a folder, in microseconds
-  // Workaround possible VM timers issues subtracting 1ms.
-  var beforeCreate = (Date.now() - 1) * 1000;
+  // Workaround possible VM timers issues subtracting 1us.
+  var beforeCreate = Date.now() * 1000 - 1;
   do_check_true(beforeCreate > 0);
 
   // create a folder
@@ -665,8 +661,8 @@ function testSimpleFolderResult() {
   do_check_true(dateCreated > beforeCreate);
 
   // the time before we insert, in microseconds
-  // Workaround possible VM timers issues subtracting 1ms.
-  var beforeInsert = (Date.now() - 1) * 1000;
+  // Workaround possible VM timers issues subtracting 1us.
+  var beforeInsert = Date.now() * 1000 - 1;
   do_check_true(beforeInsert > 0);
 
   // insert a separator 

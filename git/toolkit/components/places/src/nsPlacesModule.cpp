@@ -6,7 +6,6 @@
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
 #include "nsFaviconService.h"
-#include "nsPlacesImportExportService.h"
 #include "History.h"
 #include "nsDocShellCID.h"
 
@@ -30,8 +29,6 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsNavBookmarks,
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsFaviconService,
                                          nsFaviconService::GetSingleton)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(History, History::GetSingleton)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsPlacesImportExportService,
-                                         nsPlacesImportExportService::GetSingleton)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAnnoProtocolHandler)
 
@@ -85,11 +82,6 @@ static const nsModuleComponentInfo components[] =
     NS_HISTORYSERVICE_CID,
     NS_IHISTORY_CONTRACTID,
     HistoryConstructor },
-
-  { "Places Import/Export Service",
-    NS_PLACESIMPORTEXPORTSERVICE_CID,
-    NS_PLACESIMPORTEXPORTSERVICE_CONTRACTID,
-    nsPlacesImportExportServiceConstructor},
 
 };
 

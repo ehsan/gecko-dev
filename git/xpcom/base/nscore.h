@@ -50,10 +50,7 @@
 #  if defined(__cplusplus)
 #    include NEW_H              /* to give mozalloc std::bad_alloc */
 #  endif
-/* include these to avoid the macro wrappers causing these headers to
- * declare system functions with moz_ prefixes */
-#  include <stdlib.h>
-#  include <string.h>
+#  include <stdlib.h>         /* to give mozalloc malloc/free decls */
 #  include "mozilla/mozalloc.h"
 #  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
@@ -369,15 +366,9 @@ typedef PRUint32 nsrefcnt;
 #endif
 
 /**
- * The preferred symbol for null.  Make sure this is the same size as
- * void* on the target.  See bug 547964.
+ * The preferred symbol for null.
  */
-#if defined(_WIN64)
-# define nsnull 0LL
-#else
-# define nsnull 0L
-#endif
-
+#define nsnull 0
 
 #include "nsError.h"
 

@@ -126,18 +126,18 @@ JSScope::methodReadBarrier(JSContext *cx, JSScopeProperty *sprop, jsval *vp)
     JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
     JS_ASSERT(FUN_OBJECT(fun) == funobj && FUN_NULL_CLOSURE(fun));
 
-    funobj = CloneFunctionObject(cx, fun, funobj->getParent());
+    funobj = CloneFunctionObject(cx, fun, OBJ_GET_PARENT(cx, funobj));
     if (!funobj)
         return false;
     *vp = OBJECT_TO_JSVAL(funobj);
-    return !!js_SetPropertyHelper(cx, object, sprop->id, 0, vp);
+    return js_SetPropertyHelper(cx, object, sprop->id, 0, vp);
 }
 
 inline bool
 JSScope::methodWriteBarrier(JSContext *cx, JSScopeProperty *sprop, jsval v)
 {
     if (flags & (BRANDED | METHOD_BARRIER)) {
-        jsval prev = object->lockedGetSlot(sprop->slot);
+        jsval prev = LOCKED_OBJ_GET_SLOT(object, sprop->slot);
 
         if (prev != v && VALUE_IS_FUNCTION(cx, prev))
             return methodShapeChange(cx, sprop, v);
@@ -149,7 +149,7 @@ inline bool
 JSScope::methodWriteBarrier(JSContext *cx, uint32 slot, jsval v)
 {
     if (flags & (BRANDED | METHOD_BARRIER)) {
-        jsval prev = object->lockedGetSlot(slot);
+        jsval prev = LOCKED_OBJ_GET_SLOT(object, slot);
 
         if (prev != v && VALUE_IS_FUNCTION(cx, prev))
             return methodShapeChange(cx, slot, v);
@@ -163,7 +163,6 @@ JSScope::trace(JSTracer *trc)
     JSContext *cx = trc->context;
     JSScopeProperty *sprop = lastProp;
     uint8 regenFlag = cx->runtime->gcRegenShapesScopeFlag;
-
     if (IS_GC_MARKING_TRACER(trc) && cx->runtime->gcRegenShapes && !hasRegenFlag(regenFlag)) {
         /*
          * Either this scope has its own shape, which must be regenerated, or
@@ -185,20 +184,14 @@ JSScope::trace(JSTracer *trc)
         shape = newShape;
         flags ^= JSScope::SHAPE_REGEN;
 
-        /* Also regenerate the shapes of this scope's empty scope, if there is one. */
-        JSScope *empty = emptyScope;
-        if (empty) {
-            JS_ASSERT(!empty->emptyScope);
-            if (!empty->hasRegenFlag(regenFlag)) {
-                uint32 newEmptyShape = js_RegenerateShapeForGC(cx);
-
-                JS_PROPERTY_TREE(cx).emptyShapeChange(empty->shape, newEmptyShape);
-                empty->shape = newEmptyShape;
-                empty->flags ^= JSScope::SHAPE_REGEN;
-            }
+        /* Also regenerate the shapes of empty scopes, in case they are not shared. */
+        for (JSScope *empty = emptyScope;
+             empty && !empty->hasRegenFlag(regenFlag);
+             empty = empty->emptyScope) {
+            empty->shape = js_RegenerateShapeForGC(cx);
+            empty->flags ^= JSScope::SHAPE_REGEN;
         }
     }
-
     if (sprop) {
         JS_ASSERT(hasProperty(sprop));
 
@@ -215,11 +208,11 @@ JSScopeProperty::hash() const
     JSDHashNumber hash = 0;
 
     /* Accumulate from least to most random so the low bits are most random. */
-    JS_ASSERT_IF(isMethod(), !rawSetter || rawSetter == js_watch_set);
-    if (rawGetter)
-        hash = JS_ROTATE_LEFT32(hash, 4) ^ jsuword(rawGetter);
-    if (rawSetter)
-        hash = JS_ROTATE_LEFT32(hash, 4) ^ jsuword(rawSetter);
+    JS_ASSERT_IF(isMethod(), !setter || setter == js_watch_set);
+    if (getter)
+        hash = JS_ROTATE_LEFT32(hash, 4) ^ jsuword(getter);
+    if (setter)
+        hash = JS_ROTATE_LEFT32(hash, 4) ^ jsuword(setter);
     hash = JS_ROTATE_LEFT32(hash, 4) ^ (flags & PUBLIC_FLAGS);
     hash = JS_ROTATE_LEFT32(hash, 4) ^ attrs;
     hash = JS_ROTATE_LEFT32(hash, 4) ^ shortid;
@@ -234,8 +227,7 @@ JSScopeProperty::matches(const JSScopeProperty *p) const
     JS_ASSERT(!JSVAL_IS_NULL(id));
     JS_ASSERT(!JSVAL_IS_NULL(p->id));
     return id == p->id &&
-           matchesParamsAfterId(p->rawGetter, p->rawSetter, p->slot, p->attrs, p->flags,
-                                p->shortid);
+           matchesParamsAfterId(p->getter, p->setter, p->slot, p->attrs, p->flags, p->shortid);
 }
 
 inline bool
@@ -243,8 +235,8 @@ JSScopeProperty::matchesParamsAfterId(JSPropertyOp agetter, JSPropertyOp asetter
                                       uintN aattrs, uintN aflags, intN ashortid) const
 {
     JS_ASSERT(!JSVAL_IS_NULL(id));
-    return rawGetter == agetter &&
-           rawSetter == asetter &&
+    return getter == agetter &&
+           setter == asetter &&
            slot == aslot &&
            attrs == aattrs &&
            ((flags ^ aflags) & PUBLIC_FLAGS) == 0 &&

@@ -385,7 +385,7 @@ PLACES_FACTORY_SINGLETON_IMPLEMENTATION(nsNavHistory, gHistoryService)
 
 nsNavHistory::nsNavHistory()
 : mBatchLevel(0)
-, mBatchDBTransaction(nsnull)
+, mBatchHasTransaction(PR_FALSE)
 , mCachedNow(0)
 , mExpireNowTimer(nsnull)
 , mLastSessionID(0)
@@ -991,13 +991,6 @@ nsNavHistory::InitTempTables()
   rv = mDBConn->ExecuteSimpleSQL(CREATE_MOZ_HISTORYVISITS_SYNC_TRIGGER);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // moz_openpages_temp
-  rv = mDBConn->ExecuteSimpleSQL(CREATE_MOZ_OPENPAGES_TEMP);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mDBConn->ExecuteSimpleSQL(CREATE_REMOVEOPENPAGE_CLEANUP_TRIGGER);
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 
@@ -1224,27 +1217,6 @@ nsNavHistory::InitStatements()
       "WHERE url = ?2"),
     getter_AddRefs(mDBSetPlaceTitle));
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // mDBRegisterOpenPage
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "INSERT OR REPLACE INTO moz_openpages_temp (place_id, open_count) "
-      "VALUES (?1, "
-        "IFNULL("
-          "(SELECT open_count + 1 FROM moz_openpages_temp WHERE place_id = ?1), "
-          "1"
-        ")"
-      ")"),
-    getter_AddRefs(mDBRegisterOpenPage));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // mDBUnregisterOpenPage
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-      "UPDATE moz_openpages_temp "
-      "SET open_count = open_count - 1 "
-      "WHERE place_id = ?1"),
-    getter_AddRefs(mDBUnregisterOpenPage));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   // mDBVisitsForFrecency
   // NOTE: This is not limited to visits with "visit_type NOT IN (0,4,7,8)"
   // because otherwise mDBVisitsForFrecency would return no visits
@@ -2037,7 +2009,7 @@ PRBool nsNavHistory::IsURIStringVisited(const nsACString& aURIString)
 
   // check the main DB
   mozStorageStatementScoper scoper(mDBIsPageVisited);
-  nsresult rv = BindStatementURLCString(mDBIsPageVisited, 0, aURIString);
+  nsresult rv = mDBIsPageVisited->BindUTF8StringParameter(0, aURIString);
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   PRBool hasMore = PR_FALSE;
@@ -2559,7 +2531,7 @@ nsNavHistory::FixInvalidFrecenciesForExcludedPlaces()
     getter_AddRefs(dbUpdateStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = BindStatementURLCString(dbUpdateStatement, 0, NS_LITERAL_CSTRING(LMANNO_FEEDURI));
+  rv = dbUpdateStatement->BindUTF8StringParameter(0, NS_LITERAL_CSTRING(LMANNO_FEEDURI));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = dbUpdateStatement->Execute();
@@ -3554,10 +3526,7 @@ PlacesSQLQueryBuilder::SelectAsDay()
         // February has not 30 days, will return March instead.
         tm.tm_mday = 1;
         tm.tm_month -= MonthIndex;
-        // Notice we use GMTParameters because we just want to get the first
-        // day of each month.  Using LocalTimeParameters would instead force us
-        // to apply a DST correction that we don't really need here.
-        PR_NormalizeTime(&tm, PR_GMTParameters);
+        PR_NormalizeTime(&tm, PR_LocalTimeParameters);
         // tm_month starts from 0 while GetMonthName expects a 1-based index.
         history->GetMonthName(tm.tm_month+1, dateName);
 
@@ -4284,7 +4253,11 @@ nsresult
 nsNavHistory::BeginUpdateBatch()
 {
   if (mBatchLevel++ == 0) {
-    mBatchDBTransaction = new mozStorageTransaction(mDBConn, PR_FALSE);
+    PRBool transactionInProgress = PR_TRUE; // default to no transaction on err
+    mDBConn->GetTransactionInProgress(&transactionInProgress);
+    mBatchHasTransaction = ! transactionInProgress;
+    if (mBatchHasTransaction)
+      mDBConn->BeginTransaction();
 
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavHistoryObserver, OnBeginUpdateBatch());
@@ -4297,13 +4270,9 @@ nsresult
 nsNavHistory::EndUpdateBatch()
 {
   if (--mBatchLevel == 0) {
-    if (mBatchDBTransaction) {
-      nsresult rv = mBatchDBTransaction->Commit();
-      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Batch failed to commit transaction");
-      delete mBatchDBTransaction;
-      mBatchDBTransaction = nsnull;
-    }
-
+    if (mBatchHasTransaction)
+      mDBConn->CommitTransaction();
+    mBatchHasTransaction = PR_FALSE;
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavHistoryObserver, OnEndUpdateBatch());
   }
@@ -5059,72 +5028,6 @@ nsNavHistory::MarkPageAsFollowedLink(nsIURI *aURI)
     ExpireNonrecentEvents(&mRecentLink);
 
   mRecentLink.Put(uriString, GetNow());
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsNavHistory::RegisterOpenPage(nsIURI* aURI)
-{
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-  NS_ENSURE_ARG(aURI);
-
-  // Don't add any pages while in Private Browsing mode, so as to avoid leaking
-  // information about other windows that might otherwise stay hidden
-  // and private.
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
-  PRBool canAdd = PR_FALSE;
-  nsresult rv = CanAddURI(aURI, &canAdd);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt64 placeId;
-  // Note: If the URI has never been added to history (but can be added),
-  // LAZY_ADD will cause this to add an orphan page, until the visit is added.
-  rv = GetUrlIdFor(aURI, &placeId, canAdd);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (placeId == 0)
-    return NS_OK;
-
-  mozStorageStatementScoper scoper(mDBRegisterOpenPage);
-
-  rv = mDBRegisterOpenPage->BindInt64Parameter(0, placeId);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mDBRegisterOpenPage->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsNavHistory::UnregisterOpenPage(nsIURI* aURI)
-{
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-  NS_ENSURE_ARG(aURI);
-
-  // Entering Private Browsing mode will unregister all open pages, therefore
-  // there shouldn't be anything in the moz_openpages_temp table. So we can stop
-  // now without doing any unnecessary work.
-  if (InPrivateBrowsingMode())
-    return NS_OK;
-
-  PRInt64 placeId;
-  nsresult rv = GetUrlIdFor(aURI, &placeId, PR_FALSE);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (placeId == 0)
-    return NS_OK;
-
-  mozStorageStatementScoper scoper(mDBUnregisterOpenPage);
-
-  rv = mDBUnregisterOpenPage->BindInt64Parameter(0, placeId);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mDBUnregisterOpenPage->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 
@@ -5947,7 +5850,7 @@ nsNavHistory::VacuumDatabase()
       getter_AddRefs(journalToDefault));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mozIStorageBaseStatement *stmts[] = {
+    mozIStorageStatement *stmts[] = {
       journalToMemory,
       vacuum,
       journalToDefault
@@ -6001,7 +5904,7 @@ nsNavHistory::DecayFrecency()
     getter_AddRefs(deleteAdaptive));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mozIStorageBaseStatement *stmts[] = {
+  mozIStorageStatement *stmts[] = {
     decayFrecency,
     decayAdaptive,
     deleteAdaptive
@@ -6018,19 +5921,18 @@ nsNavHistory::DecayFrecency()
 
 #ifdef LAZY_ADD
 
+// nsNavHistory::AddLazyLoadFaviconMessage
+
 nsresult
-nsNavHistory::AddLazyLoadFaviconMessage(nsIURI* aPageURI,
-                                        nsIURI* aFaviconURI,
-                                        PRBool aForceReload,
-                                        nsIFaviconDataCallback* aCallback)
+nsNavHistory::AddLazyLoadFaviconMessage(nsIURI* aPage, nsIURI* aFavicon,
+                                        PRBool aForceReload)
 {
   LazyMessage message;
-  nsresult rv = message.Init(LazyMessage::Type_Favicon, aPageURI);
+  nsresult rv = message.Init(LazyMessage::Type_Favicon, aPage);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aFaviconURI->Clone(getter_AddRefs(message.favicon));
+  rv = aFavicon->Clone(getter_AddRefs(message.favicon));
   NS_ENSURE_SUCCESS(rv, rv);
   message.alwaysLoadFavicon = aForceReload;
-  message.callback = aCallback;
   return AddLazyMessage(message);
 }
 
@@ -6119,8 +6021,7 @@ nsNavHistory::CommitLazyMessages(PRBool aIsShutdown)
         if (faviconService) {
           faviconService->DoSetAndLoadFaviconForPage(message.uri,
                                                      message.favicon,
-                                                     message.alwaysLoadFavicon,
-                                                     message.callback);
+                                                     message.alwaysLoadFavicon);
         }
         break;
       }
@@ -6428,7 +6329,8 @@ nsNavHistory::BindQueryClauseParameters(mozIStorageStatement* statement,
       nsCAutoString uriString;
       aQuery->Uri()->GetSpec(uriString);
       uriString.Append(char(0x7F)); // MAX_UTF8
-      rv = BindStatementURLCString(statement, index.For("uri_upper"), uriString);
+      rv = statement->BindUTF8StringParameter(index.For("uri_upper"),
+        StringHead(uriString, URI_LENGTH_MAX));
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -6664,8 +6566,7 @@ nsNavHistory::FilterResultSet(nsNavHistoryQueryResultNode* aQueryNode,
         // Convert title and url for the current node to UTF16 strings.
         NS_ConvertUTF8toUTF16 nodeTitle(aSet[nodeIndex]->mTitle);
         // Unescape the URL for search terms matching.
-        nsCAutoString cNodeURL(aSet[nodeIndex]->mURI);
-        NS_ConvertUTF8toUTF16 nodeURL(NS_UnescapeURL(cNodeURL));
+        NS_ConvertUTF8toUTF16 nodeURL(NS_UnescapeURL(aSet[nodeIndex]->mURI));
 
         // Determine if every search term matches anywhere in the title, url or
         // tag.
@@ -7099,10 +7000,7 @@ nsNavHistory::VisitIdToResultNode(PRInt64 visitId,
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsCOMPtr<mozIStorageValueArray> row = do_QueryInterface(statement, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return RowToResult(row, aOptions, aResult);
+  return RowToResult(statement, aOptions, aResult);
 }
 
 nsresult
@@ -7123,10 +7021,7 @@ nsNavHistory::BookmarkIdToResultNode(PRInt64 aBookmarkId, nsNavHistoryQueryOptio
     return NS_ERROR_INVALID_ARG;
   }
 
-  nsCOMPtr<mozIStorageValueArray> row = do_QueryInterface(stmt, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return RowToResult(row, aOptions, aResult);
+  return RowToResult(stmt, aOptions, aResult);
 }
 
 void
@@ -7431,7 +7326,7 @@ nsNavHistory::RemoveDuplicateURIs()
     // update historyvisits so they are remapped to the retained uri
     rv = updateStatement->BindInt64Parameter(0, id);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = BindStatementURLCString(updateStatement, 1, url);
+    rv = updateStatement->BindUTF8StringParameter(1, url);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = updateStatement->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -7439,7 +7334,7 @@ nsNavHistory::RemoveDuplicateURIs()
     // remap bookmarks to the retained id
     rv = bookmarkStatement->BindInt64Parameter(0, id);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = BindStatementURLCString(bookmarkStatement, 1, url);
+    rv = bookmarkStatement->BindUTF8StringParameter(1, url);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = bookmarkStatement->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -7447,13 +7342,13 @@ nsNavHistory::RemoveDuplicateURIs()
     // remap annotations to the retained id
     rv = annoStatement->BindInt64Parameter(0, id);
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = BindStatementURLCString(annoStatement, 1, url);
+    rv = annoStatement->BindUTF8StringParameter(1, url);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = annoStatement->Execute();
     NS_ENSURE_SUCCESS(rv, rv);
     
     // remove duplicate uris from moz_places
-    rv = BindStatementURLCString(deleteStatement, 0, url);
+    rv = deleteStatement->BindUTF8StringParameter(0, url);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = deleteStatement->BindInt64Parameter(1, id);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -7630,6 +7525,10 @@ void ParseSearchTermsFromQueries(const nsCOMArray<nsNavHistoryQuery>& aQueries,
 } // anonymous namespace
 
 
+/**
+ * Binds the specified URI as the parameter 'index' for the statment.
+ * URIs are always bound as UTF8
+ */
 nsresult
 BindStatementURI(mozIStorageStatement* statement, PRInt32 index, nsIURI* aURI)
 {
@@ -7640,25 +7539,11 @@ BindStatementURI(mozIStorageStatement* statement, PRInt32 index, nsIURI* aURI)
   nsresult rv = aURI->GetSpec(utf8URISpec);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = BindStatementURLCString(statement, index, utf8URISpec);
+  rv = statement->BindUTF8StringParameter(index,
+      StringHead(utf8URISpec, URI_LENGTH_MAX));
   NS_ENSURE_SUCCESS(rv, rv);
   return NS_OK;
 }
-
-
-nsresult
-BindStatementURLCString(mozIStorageStatement* statement,
-                        PRInt32 index,
-                        const nsACString& aURLString)
-{
-  NS_ASSERTION(statement, "Must have non-null statement");
-
-  nsresult rv = statement->BindUTF8StringParameter(
-    index, StringHead(aURLString, URI_LENGTH_MAX));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
-}
-
 
 nsresult
 nsNavHistory::UpdateFrecency(PRInt64 aPlaceId, PRBool aIsBookmarked)
@@ -8256,8 +8141,6 @@ nsNavHistory::FinalizeStatements() {
     mDBUpdateFrecencyAndHidden,
     mDBGetPlaceVisitStats,
     mDBFullVisitCount,
-    mDBRegisterOpenPage,
-    mDBUnregisterOpenPage,
   };
 
   for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(stmts); i++) {

@@ -35,6 +35,12 @@ CPPSRCS	= \
 	gfxUserFontSet.cpp \
 	$(NULL)
 
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+CPPSRCS += \
+	gfxSharedImageSurface.cpp \
+	$(NULL)
+endif
+
 EXTRA_DSO_LDOPTS += \
 	$(MOZ_CAIRO_LIBS) \
 	$(MOZ_UNICHARUTIL_LIBS) \
@@ -65,17 +71,14 @@ OS_LIBS += $(call EXPAND_LIBNAME,ddraw)
 else
 ifdef MOZ_ENABLE_DWRITE_FONT
 CPPSRCS	+= gfxDWriteFonts.cpp \
-	   gfxDWriteShaper.cpp \
 	   gfxDWriteTextAnalysis.cpp \
 	   gfxDWriteCommon.cpp \
 	   gfxD2DSurface.cpp \
 	   gfxDWriteFontList.cpp \
 	   $(NULL)
 endif
-CPPSRCS	+= gfxGDIFont.cpp \
+CPPSRCS	+= gfxWindowsFonts.cpp \
 	   gfxGDIFontList.cpp \
-	   gfxGDIShaper.cpp \
-	   gfxUniscribeShaper.cpp \
 	   $(NULL)
 _OS_LIBS = usp10 msimg32
 endif
@@ -135,7 +138,7 @@ CPPSRCS += gfxDirectFBSurface.cpp
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-CPPSRCS += gfxQtPlatform.cpp gfxQPainterSurface.cpp gfxSharedImageSurface.cpp
+CPPSRCS += gfxQtPlatform.cpp gfxQPainterSurface.cpp
 CPPSRCS += gfxXlibSurface.cpp gfxQtNativeRenderer.cpp
 ifdef MOZ_PANGO
 CPPSRCS += gfxPangoFonts.cpp

@@ -937,14 +937,6 @@ _dwrite_draw_glyphs_to_gdi_surface_gdi(cairo_win32_surface_t *surface,
 					 area.bottom - area.top, 
 					 &rt);
 
-    /**
-     * We set the number of pixels per DIP to 1.0. This is because we always want
-     * to draw in device pixels, and not device independent pixels. On high DPI
-     * systems this value will be higher than 1.0 and automatically upscale
-     * fonts, we don't want this since we do our own upscaling for various reasons.
-     */
-    rt->SetPixelsPerDip(1.0);
-
     if (transform) {
 	rt->SetCurrentTransform(transform);
     }
@@ -1322,11 +1314,11 @@ cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
     bool pushed_clip = false;
 
     while (runs_remaining) {
-	RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(dst,
-								       source,
-								       last_run++,
-								       &runs_remaining,
-								       &pushed_clip);
+	ID2D1Brush *brush = _cairo_d2d_create_brush_for_pattern(dst,
+								source,
+								last_run++,
+								&runs_remaining,
+								&pushed_clip);
 	if (!brush) {
 	    delete [] indices;
 	    delete [] offsets;
@@ -1345,6 +1337,7 @@ cairo_dwrite_show_glyphs_on_d2d_surface(void			*surface,
 	    brush->SetTransform(&mat_brush);
 	}
         dst->rt->DrawGlyphRun(D2D1::Point2F(0, 0), &run, brush);
+	brush->Release();
 	if (pushed_clip) {
 	    dst->rt->PopLayer();
 	}

@@ -74,10 +74,6 @@ class nsHTMLContentSerializer : public nsXHTMLContentSerializer {
                                        const nsAString& aTagNamespaceURI,
                                        nsIAtom* aTagName,
                                        nsAString& aStr);
-
-  virtual void AppendAndTranslateEntities(const nsAString& aStr,
-                                          nsAString& aOutputStr);
-
 };
 
 nsresult

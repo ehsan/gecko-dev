@@ -106,7 +106,7 @@ nsNavBookmarks::nsNavBookmarks() : mItemCount(0)
                                  , mTagRoot(0)
                                  , mToolbarFolder(0)
                                  , mBatchLevel(0)
-                                 , mBatchDBTransaction(nsnull)
+                                 , mBatchHasTransaction(PR_FALSE)
                                  , mCanNotify(false)
                                  , mCacheObservers("bookmark-observers")
                                  , mShuttingDown(false)
@@ -728,7 +728,7 @@ nsNavBookmarks::IsRealBookmark(PRInt64 aPlaceId)
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Binding failed");
   rv = stmt->BindInt32Parameter(1, TYPE_BOOKMARK);
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Binding failed");
-  rv = BindStatementURLCString(stmt, 2, NS_LITERAL_CSTRING(LMANNO_FEEDURI));
+  rv = stmt->BindUTF8StringParameter(2, NS_LITERAL_CSTRING(LMANNO_FEEDURI));
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Binding failed");
 
   // If we get any rows, then there exists at least one bookmark corresponding
@@ -2284,135 +2284,89 @@ nsNavBookmarks::ResultNodeForContainer(PRInt64 aID,
 
 
 nsresult
-nsNavBookmarks::QueryFolderChildren(
-  PRInt64 aFolderId,
-  nsNavHistoryQueryOptions* aOptions,
-  nsCOMArray<nsNavHistoryResultNode>* aChildren)
+nsNavBookmarks::QueryFolderChildren(PRInt64 aFolderId,
+                                    nsNavHistoryQueryOptions* aOptions,
+                                    nsCOMArray<nsNavHistoryResultNode>* aChildren)
 {
-  NS_ENSURE_ARG_POINTER(aOptions);
-  NS_ENSURE_ARG_POINTER(aChildren);
-
   DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetChildren);
   nsresult rv = stmt->BindInt64Parameter(0, aFolderId);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<mozIStorageValueArray> row = do_QueryInterface(stmt, &rv);
+  nsCOMPtr<nsNavHistoryQueryOptions> options = do_QueryInterface(aOptions, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt32 index = -1;
   PRBool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
-    rv = ProcessFolderNodeRow(row, aOptions, aChildren, index);
+
+    // The results will be in order of index. Even if we don't add a node
+    // because it was excluded, we need to count its index, so do that
+    // before doing anything else. Index was initialized to -1 above, so
+    // it will start counting at 0 the first time through the loop.
+    index ++;
+
+    PRInt32 itemType;
+    rv = stmt->GetInt32(kGetChildrenIndex_Type, &itemType);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-}
-
-
-nsresult
-nsNavBookmarks::ProcessFolderNodeRow(
-  mozIStorageValueArray* aRow,
-  nsNavHistoryQueryOptions* aOptions,
-  nsCOMArray<nsNavHistoryResultNode>* aChildren,
-  PRInt32& aCurrentIndex)
-{
-  NS_ENSURE_ARG_POINTER(aRow);
-  NS_ENSURE_ARG_POINTER(aOptions);
-  NS_ENSURE_ARG_POINTER(aChildren);
-
-  // The results will be in order of aCurrentIndex. Even if we don't add a node
-  // because it was excluded, we need to count its index, so do that before
-  // doing anything else.
-  aCurrentIndex++;
-
-  PRInt32 itemType;
-  nsresult rv = aRow->GetInt32(kGetChildrenIndex_Type, &itemType);
-  NS_ENSURE_SUCCESS(rv, rv);
-  PRInt64 id;
-  rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemId, &id);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsRefPtr<nsNavHistoryResultNode> node;
-  if (itemType == TYPE_BOOKMARK) {
-    nsNavHistory* history = nsNavHistory::GetHistoryService();
-    NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-    rv = history->RowToResult(aRow, aOptions, getter_AddRefs(node));
+    PRInt64 id;
+    rv = stmt->GetInt64(nsNavHistory::kGetInfoIndex_ItemId, &id);
     NS_ENSURE_SUCCESS(rv, rv);
+    nsRefPtr<nsNavHistoryResultNode> node;
+    if (itemType == TYPE_BOOKMARK) {
+      nsNavHistory* history = nsNavHistory::GetHistoryService();
+      NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
+      rv = history->RowToResult(stmt, options, getter_AddRefs(node));
+      NS_ENSURE_SUCCESS(rv, rv);
 
-    PRUint32 nodeType;
-    node->GetType(&nodeType);
-    if ((nodeType == nsINavHistoryResultNode::RESULT_TYPE_QUERY &&
-         aOptions->ExcludeQueries()) ||
-        (nodeType != nsINavHistoryResultNode::RESULT_TYPE_QUERY &&
-         nodeType != nsINavHistoryResultNode::RESULT_TYPE_FOLDER_SHORTCUT &&
-         aOptions->ExcludeItems())) {
-      return NS_OK;
-    }
-  }
-  else if (itemType == TYPE_FOLDER || itemType == TYPE_DYNAMIC_CONTAINER) {
-    if (aOptions->ExcludeReadOnlyFolders()) {
-      // If the folder is read-only, skip it.
-      PRBool readOnly;
-      if (itemType == TYPE_DYNAMIC_CONTAINER) {
-        readOnly = PR_TRUE;
+      PRUint32 nodeType;
+      node->GetType(&nodeType);
+      if ((nodeType == nsINavHistoryResultNode::RESULT_TYPE_QUERY &&
+           aOptions->ExcludeQueries()) ||
+          (nodeType != nsINavHistoryResultNode::RESULT_TYPE_QUERY &&
+           nodeType != nsINavHistoryResultNode::RESULT_TYPE_FOLDER_SHORTCUT &&
+           aOptions->ExcludeItems())) {
+        continue;
       }
-      else {
-        readOnly = PR_FALSE;
+    } else if (itemType == TYPE_FOLDER || itemType == TYPE_DYNAMIC_CONTAINER) {
+      if (options->ExcludeReadOnlyFolders()) {
+        // see if it's read only and skip it
+        PRBool readOnly = PR_FALSE;
         GetFolderReadonly(id, &readOnly);
+        if (readOnly)
+          continue; // skip
       }
-      if (readOnly)
-        return NS_OK;
+
+      rv = ResultNodeForContainer(id, aOptions, getter_AddRefs(node));
+      if (NS_FAILED(rv))
+        continue;
+    } else {
+      // separator
+      if (aOptions->ExcludeItems()) {
+        continue;
+      }
+      node = new nsNavHistorySeparatorResultNode();
+      NS_ENSURE_TRUE(node, NS_ERROR_OUT_OF_MEMORY);
+
+      // add the item identifier (RowToResult does so for bookmark items in
+      // the next else block);
+      rv = stmt->GetInt64(nsNavHistory::kGetInfoIndex_ItemId,
+                                    &node->mItemId);
+      NS_ENSURE_SUCCESS(rv, rv);
+      // date-added and last-modified
+      rv = stmt->GetInt64(nsNavHistory::kGetInfoIndex_ItemDateAdded,
+                          &node->mDateAdded);
+      NS_ENSURE_SUCCESS(rv, rv);
+      rv = stmt->GetInt64(nsNavHistory::kGetInfoIndex_ItemLastModified,
+                          &node->mLastModified);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
-    rv = ResultNodeForContainer(id, aOptions, getter_AddRefs(node));
-    NS_ENSURE_SUCCESS(rv, rv);
+
+    // this method fills all bookmark queries, so we store the index of the
+    // item in its parent
+    node->mBookmarkIndex = index;
+
+    NS_ENSURE_TRUE(aChildren->AppendObject(node), NS_ERROR_OUT_OF_MEMORY);
   }
-  else {
-    // This is a separator.
-    if (aOptions->ExcludeItems()) {
-      return NS_OK;
-    }
-    node = new nsNavHistorySeparatorResultNode();
-    NS_ENSURE_TRUE(node, NS_ERROR_OUT_OF_MEMORY);
-
-    rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemId, &node->mItemId);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemDateAdded,
-                        &node->mDateAdded);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemLastModified,
-                        &node->mLastModified);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  // Store the index of the node within this container.  Note that this is not
-  // moz_bookmarks.position.
-  node->mBookmarkIndex = aCurrentIndex;
-
-  NS_ENSURE_TRUE(aChildren->AppendObject(node), NS_ERROR_OUT_OF_MEMORY);
-
-  return NS_OK;
-}
-
-
-nsresult
-nsNavBookmarks::QueryFolderChildrenAsync(
-  nsNavHistoryFolderResultNode* aNode,
-  PRInt64 aFolderId,
-  mozIStoragePendingStatement** _pendingStmt)
-{
-  NS_ENSURE_ARG_POINTER(aNode);
-  NS_ENSURE_ARG_POINTER(_pendingStmt);
-
-  mozStorageStatementScoper scope(mDBGetChildren);
-
-  nsresult rv = mDBGetChildren->BindInt64Parameter(0, aFolderId);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<mozIStoragePendingStatement> pendingStmt;
-  rv = mDBGetChildren->ExecuteAsync(aNode, getter_AddRefs(pendingStmt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_IF_ADDREF(*_pendingStmt = pendingStmt);
   return NS_OK;
 }
 
@@ -2907,7 +2861,12 @@ nsresult
 nsNavBookmarks::BeginUpdateBatch()
 {
   if (mBatchLevel++ == 0) {
-    mBatchDBTransaction = new mozStorageTransaction(mDBConn, PR_FALSE);
+    mozIStorageConnection* conn = mDBConn;
+    PRBool transactionInProgress = PR_TRUE; // default to no transaction on err
+    conn->GetTransactionInProgress(&transactionInProgress);
+    mBatchHasTransaction = ! transactionInProgress;
+    if (mBatchHasTransaction)
+      conn->BeginTransaction();
 
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavBookmarkObserver, OnBeginUpdateBatch());
@@ -2920,13 +2879,9 @@ nsresult
 nsNavBookmarks::EndUpdateBatch()
 {
   if (--mBatchLevel == 0) {
-    if (mBatchDBTransaction) {
-      nsresult rv = mBatchDBTransaction->Commit();
-      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Batch failed to commit transaction");
-      delete mBatchDBTransaction;
-      mBatchDBTransaction = nsnull;
-    }
-
+    if (mBatchHasTransaction)
+      mDBConn->CommitTransaction();
+    mBatchHasTransaction = PR_FALSE;
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavBookmarkObserver, OnEndUpdateBatch());
   }

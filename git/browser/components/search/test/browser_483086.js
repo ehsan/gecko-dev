@@ -33,7 +33,10 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-let gSS = Services.search;
+let gSS = Cc["@mozilla.org/browser/search-service;1"].
+           getService(Ci.nsIBrowserSearchService);
+let gObs = Cc["@mozilla.org/observer-service;1"].
+           getService(Ci.nsIObserverService);
 
 function test() {
   waitForExplicitFinish();
@@ -48,14 +51,14 @@ function test() {
         gSS.removeEngine(engine);
         break;
       case "engine-removed":
-        Services.obs.removeObserver(observer, "browser-search-engine-modified");
+        gObs.removeObserver(observer, "browser-search-engine-modified");
         test2();
         break;
     }
   }
 
-  Services.obs.addObserver(observer, "browser-search-engine-modified", false);
-  gSS.addEngine("http://mochi.test:8888/browser/browser/components/search/test/483086-1.xml",
+  gObs.addObserver(observer, "browser-search-engine-modified", false);
+  gSS.addEngine("http://localhost:8888/browser/browser/components/search/test/483086-1.xml",
                 Ci.nsISearchEngine.DATA_XML, "data:image/x-icon;%00",
                 false);
 }
@@ -70,14 +73,14 @@ function test2() {
         gSS.removeEngine(engine);
         break;
       case "engine-removed":  
-        Services.obs.removeObserver(observer, "browser-search-engine-modified");
+        gObs.removeObserver(observer, "browser-search-engine-modified");
         finish();
         break;
     }
   }
 
-  Services.obs.addObserver(observer, "browser-search-engine-modified", false);
-  gSS.addEngine("http://mochi.test:8888/browser/browser/components/search/test/483086-2.xml",
+  gObs.addObserver(observer, "browser-search-engine-modified", false);
+  gSS.addEngine("http://localhost:8888/browser/browser/components/search/test/483086-2.xml",
                 Ci.nsISearchEngine.DATA_XML, "data:image/x-icon;%00",
                 false);
 }

@@ -2219,26 +2219,6 @@ nsGenericHTMLElement::SetContentEditable(const nsAString& aContentEditable)
   return NS_OK;
 }
 
-nsresult
-nsGenericHTMLElement::GetIsContentEditable(PRBool* aContentEditable)
-{
-  NS_ENSURE_ARG_POINTER(aContentEditable);
-
-  for (nsIContent* node = this; node; node = node->GetParent()) {
-    nsGenericHTMLElement* element = FromContent(node);
-    if (element) {
-      ContentEditableTristate value = element->GetContentEditableValue();
-      if (value != eInherit) {
-        *aContentEditable = value == eTrue;
-        return NS_OK;
-      }
-    }
-  }
-
-  *aContentEditable = PR_FALSE;
-  return NS_OK;
-}
-
 //----------------------------------------------------------------------
 
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsGenericHTMLFrameElement, TabIndex, tabindex, 0)
@@ -3005,7 +2985,6 @@ nsGenericHTMLElement::PerformAccesskey(PRBool aKeyCausesActivation,
     // Click on it if the users prefs indicate to do so.
     nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
                        nsnull, nsMouseEvent::eReal);
-    event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?
                                             openAllowed : openAbused);

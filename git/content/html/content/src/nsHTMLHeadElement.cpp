@@ -39,6 +39,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 
 
 class nsHTMLHeadElement : public nsGenericHTMLElement,
@@ -83,8 +84,6 @@ nsHTMLHeadElement::~nsHTMLHeadElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLHeadElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLHeadElement, nsGenericElement)
 
-
-DOMCI_DATA(HTMLHeadElement, nsHTMLHeadElement)
 
 // QueryInterface implementation for nsHTMLHeadElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLHeadElement)

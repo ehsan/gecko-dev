@@ -39,6 +39,7 @@
 #ifndef nsJSON_h__
 #define nsJSON_h__
 
+#include "jsprvtd.h"
 #include "jsapi.h"
 #include "nsIJSON.h"
 #include "nsString.h"

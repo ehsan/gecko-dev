@@ -424,14 +424,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
           newContent->AppendChildTo(optionElt, PR_FALSE);
           newContent->DoneAddingChildren(PR_FALSE);
         }
-      } else if (name == nsHtml5Atoms::frameset && ns == kNameSpaceID_XHTML) {
-        nsIDocument* doc = aBuilder->GetDocument();
-        nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(doc);
-        if (htmlDocument) {
-          // It seems harmless to call this multiple times, since this 
-          // is a simple field setter
-          htmlDocument->SetIsFrameset(PR_TRUE);
-        }
       }
 
       if (!attributes) {
@@ -587,9 +579,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpSetDocumentCharset: {
       char* str = mOne.charPtr;
-      PRInt32 charsetSource = mInt;
       nsDependentCString dependentString(str);
-      aBuilder->SetDocumentCharsetAndSource(dependentString, charsetSource);
+      aBuilder->SetDocumentCharset(dependentString);
       return rv;
     }
     case eTreeOpNeedsCharsetSwitchTo: {
@@ -637,7 +628,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpDocumentMode: {
-      aBuilder->SetDocumentMode(mOne.mode);
+      aBuilder->DocumentMode(mOne.mode);
       return rv;
     }
     case eTreeOpSetStyleLineNumber: {

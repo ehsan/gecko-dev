@@ -50,6 +50,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
+#include "nsIPresShell.h"
 #include "nsPIDOMWindow.h"
 #include "nsRootAccessible.h"
 #include "nsIServiceManager.h"
@@ -144,11 +145,9 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 
   // Can get to IAccessibleApplication from any node via QS
   if (iid == IID_IAccessibleApplication) {
-    nsApplicationAccessible *applicationAcc = GetApplicationAccessible();
-    if (!applicationAcc)
-      return E_NOINTERFACE;
-
-    nsresult rv = applicationAcc->QueryNativeInterface(iid, ppv);
+    nsRefPtr<nsApplicationAccessibleWrap> app =
+      GetApplicationAccessible();
+    nsresult rv = app->QueryNativeInterface(iid, ppv);
     return NS_SUCCEEDED(rv) ? S_OK : E_NOINTERFACE;
   }
 

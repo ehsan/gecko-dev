@@ -156,8 +156,6 @@ static bool checkGCRace(NPObject* npobj, const NPVariant* args, uint32_t argCoun
 static bool hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool callOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool reinitWidget(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -199,8 +197,6 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "hang",
   "getClipboardText",
   "callOnDestroy",
-  "reinitWidget",
-  "propertyAndMethod"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMethodIdentifierNames)] = {
@@ -243,14 +239,7 @@ static const ScriptableFunction sPluginMethodFunctions[ARRAY_LENGTH(sPluginMetho
   hangPlugin,
   getClipboardText,
   callOnDestroy,
-  reinitWidget,
-  propertyAndMethod
 };
-static const NPUTF8* sPluginPropertyIdentifierNames[] = {
-  "propertyAndMethod"
-};
-static NPIdentifier sPluginPropertyIdentifiers[ARRAY_LENGTH(sPluginPropertyIdentifierNames)];
-static NPVariant sPluginPropertyValues[ARRAY_LENGTH(sPluginPropertyIdentifierNames)];
 
 struct URLNotifyData
 {
@@ -315,9 +304,6 @@ static void initializeIdentifiers()
   if (!sIdentifiersInitialized) {
     NPN_GetStringIdentifiers(sPluginMethodIdentifierNames,
         ARRAY_LENGTH(sPluginMethodIdentifierNames), sPluginMethodIdentifiers);
-    NPN_GetStringIdentifiers(sPluginPropertyIdentifierNames,
-        ARRAY_LENGTH(sPluginPropertyIdentifierNames), sPluginPropertyIdentifiers);
-
     sIdentifiersInitialized = true;    
 
     // Check whether NULL is handled in NPN_GetStringIdentifiers
@@ -331,9 +317,6 @@ static void clearIdentifiers()
 {
   memset(sPluginMethodIdentifiers, 0,
       ARRAY_LENGTH(sPluginMethodIdentifiers) * sizeof(NPIdentifier));
-  memset(sPluginPropertyIdentifiers, 0,
-      ARRAY_LENGTH(sPluginPropertyIdentifiers) * sizeof(NPIdentifier));
-
   sIdentifiersInitialized = false;
 }
 
@@ -460,25 +443,6 @@ getFuncFromString(const char* funcname)
   return FUNCTION_NONE;
 }
 
-static void
-DuplicateNPVariant(NPVariant& aDest, const NPVariant& aSrc)
-{
-  if (NPVARIANT_IS_STRING(aSrc)) {
-    NPString src = NPVARIANT_TO_STRING(aSrc);
-    char* buf = new char[src.UTF8Length];
-    strncpy(buf, src.UTF8Characters, src.UTF8Length);
-    STRINGN_TO_NPVARIANT(buf, src.UTF8Length, aDest);
-  }
-  else if (NPVARIANT_IS_OBJECT(aSrc)) {
-    NPObject* obj =
-      NPN_RetainObject(NPVARIANT_TO_OBJECT(aSrc));
-    OBJECT_TO_NPVARIANT(obj, aDest);
-  }
-  else {
-    aDest = aSrc;
-  }
-}
-
 //
 // function signatures
 //
@@ -566,10 +530,6 @@ NP_EXPORT(NPError) NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs)
 
   initializeIdentifiers();
 
-  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
-    VOID_TO_NPVARIANT(sPluginPropertyValues[i]);
-  }
-
   memset(&sNPClass, 0, sizeof(NPClass));
   sNPClass.structVersion =  NP_CLASS_STRUCT_VERSION;
   sNPClass.allocate =       (NPAllocateFunctionPtr)scriptableAllocate;
@@ -612,23 +572,12 @@ NPError OSCALL NP_Shutdown()
 {
   clearIdentifiers();
 
-  for (int i = 0; i < ARRAY_LENGTH(sPluginPropertyValues); i++) {
-    NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
-  }
-
   return NPERR_NO_ERROR;
 }
 
 NPError
 NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* argn[], char* argv[], NPSavedData* saved)
 {
-  // Make sure our pdata field is NULL at this point. If it isn't, that
-  // probably means the browser gave us uninitialized memory.
-  if (instance->pdata) {
-    printf("NPP_New called with non-NULL NPP->pdata pointer!\n");
-    return NPERR_GENERIC_ERROR;
-  }
-
   // Make sure we can render this plugin
   NPBool browserSupportsWindowless = false;
   NPN_GetValue(instance, NPNVSupportsWindowless, &browserSupportsWindowless);
@@ -674,13 +623,7 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->scriptableObject = scriptableObject;
 
   instanceData->instanceCountWatchGeneration = sCurrentInstanceCountWatchGeneration;
-
-  if (NP_FULL == mode) {
-    instanceData->streamMode = NP_SEEK;
-    instanceData->frame = "testframe";
-    addRange(instanceData, "100,100");
-  }
-
+  
   bool requestWindow = false;
   // handle extra params
   for (int i = 0; i < argc; i++) {
@@ -1591,47 +1534,24 @@ scriptableInvokeDefault(NPObject* npobj, const NPVariant* args, uint32_t argCoun
 bool
 scriptableHasProperty(NPObject* npobj, NPIdentifier name)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i])
-      return true;
-  }
   return false;
 }
 
 bool
 scriptableGetProperty(NPObject* npobj, NPIdentifier name, NPVariant* result)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i]) {
-      DuplicateNPVariant(*result, sPluginPropertyValues[i]);
-      return true;
-    }
-  }
   return false;
 }
 
 bool
 scriptableSetProperty(NPObject* npobj, NPIdentifier name, const NPVariant* value)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i]) {
-      NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
-      DuplicateNPVariant(sPluginPropertyValues[i], *value);
-      return true;
-    }
-  }
   return false;
 }
 
 bool
 scriptableRemoveProperty(NPObject* npobj, NPIdentifier name)
 {
-  for (int i = 0; i < int(ARRAY_LENGTH(sPluginPropertyIdentifiers)); i++) {
-    if (name == sPluginPropertyIdentifiers[i]) {
-      NPN_ReleaseVariantValue(&sPluginPropertyValues[i]);
-      return true;
-    }
-  }
   return false;
 }
 
@@ -2739,29 +2659,5 @@ callOnDestroy(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVaria
   return true;
 }
 
-// On Linux at least, a windowed plugin resize causes Flash Player to
-// reconnect to the browser window.  This method simulates that.
-bool
-reinitWidget(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-             NPVariant* result)
-{
-  if (argCount != 0)
-    return false;
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-
-  if (!id->hasWidget)
-    return false;
-
-  pluginWidgetInit(id, id->window.window);
-  return true;
-}
-
-bool
-propertyAndMethod(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                  NPVariant* result)
-{
-  INT32_TO_NPVARIANT(5, *result);
-  return true;
-}
+  
+  

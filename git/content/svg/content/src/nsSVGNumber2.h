@@ -84,7 +84,6 @@ private:
   PRUint8 mAttrEnum; // element specified tracking for attribute
   PRPackedBool mIsAnimated;
 
-public:
   struct DOMAnimatedNumber : public nsIDOMSVGAnimatedNumber
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS

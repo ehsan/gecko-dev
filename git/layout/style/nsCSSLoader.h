@@ -59,6 +59,7 @@ class nsIDocument;
 class nsIUnicharInputStream;
 class nsCSSParser;
 class nsMediaList;
+class nsPresContext;
 
 namespace mozilla {
 
@@ -153,6 +154,7 @@ public:
   { mCompatMode = aCompatMode; }
   nsCompatibility GetCompatibilityMode() { return mCompatMode; }
   nsresult SetPreferredSheet(const nsAString& aTitle);
+  nsresult GetPreferredSheet(nsAString& aTitle);
 
   // XXXbz sort out what the deal is with events!  When should they fire?
 
@@ -313,10 +315,10 @@ public:
   nsresult Stop(void);
 
   /**
-   * nsresult Loader::StopLoadingSheet(nsIURI* aURL), which notifies the
-   * nsICSSLoaderObserver with NS_BINDING_ABORTED, was removed in Bug 556446. 
-   * It can be found in revision 2c44a32052ad.
+   * Stop loading one sheet.  The nsICSSLoaderObserver involved will be
+   * notified with NS_BINDING_ABORTED as the status, possibly synchronously.
    */
+  nsresult StopLoadingSheet(nsIURI* aURL);
 
   /**
    * Whether the loader is enabled or not.

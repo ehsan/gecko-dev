@@ -52,10 +52,12 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMNSUIEvent.h"
 #include "nsIPrivateTextEvent.h"
+#include "nsIPrivateCompositionEvent.h"
 #include "nsIEditorMailSupport.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsILookAndFeel.h"
+#include "nsPresContext.h"
 #include "nsFocusManager.h"
 
 // Drag & Drop, Clipboard
@@ -178,20 +180,30 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
     return NS_OK;
   }
 
+  // we should check a flag here to see if we should be using built-in key bindings
+  // mEditor->GetFlags(&flags);
+  // if (flags & ...)
+
   PRUint32 keyCode;
   keyEvent->GetKeyCode(&keyCode);
 
   // if we are readonly or disabled, then do nothing.
-  nsEditor* editor = static_cast<nsEditor*>(mEditor);
-  if (editor->IsReadonly() || editor->IsDisabled())
+  PRUint32 flags;
+  if (NS_SUCCEEDED(mEditor->GetFlags(&flags)))
   {
-    // consume backspace for disabled and readonly textfields, to prevent
-    // back in history, which could be confusing to users
-    if (keyCode == nsIDOMKeyEvent::DOM_VK_BACK_SPACE)
-      aKeyEvent->PreventDefault();
+    if (flags & nsIPlaintextEditor::eEditorReadonlyMask || 
+        flags & nsIPlaintextEditor::eEditorDisabledMask) 
+    {
+      // consume backspace for disabled and readonly textfields, to prevent
+      // back in history, which could be confusing to users
+      if (keyCode == nsIDOMKeyEvent::DOM_VK_BACK_SPACE)
+        aKeyEvent->PreventDefault();
 
-    return NS_OK;
+      return NS_OK;
+    }
   }
+  else
+    return NS_ERROR_FAILURE;  // Editor unable to handle this.
 
   nsCOMPtr<nsIPlaintextEditor> textEditor (do_QueryInterface(mEditor));
   if (!textEditor) return NS_ERROR_NO_INTERFACE;
@@ -252,10 +264,11 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
         break;
  
       case nsIDOMKeyEvent::DOM_VK_TAB:
-        if (editor->IsSingleLineEditor() || editor->IsPasswordEditor() ||
-            editor->IsFormWidget() || editor->IsInteractionAllowed()) {
+        if ((flags & nsIPlaintextEditor::eEditorSingleLineMask) ||
+            (flags & nsIPlaintextEditor::eEditorPasswordMask)   ||
+            (flags & nsIPlaintextEditor::eEditorWidgetMask)     ||
+            (flags & nsIPlaintextEditor::eEditorAllowInteraction))
           return NS_OK; // let it be used for focus switching
-        }
 
         if (isAnyModifierKeyButShift)
           return NS_OK;
@@ -270,7 +283,7 @@ nsEditorEventListener::KeyPress(nsIDOMEvent* aKeyEvent)
         if (isAnyModifierKeyButShift)
           return NS_OK;
 
-        if (!editor->IsSingleLineEditor())
+        if (!(flags & nsIPlaintextEditor::eEditorSingleLineMask))
         {
           textEditor->HandleKeyPress(keyEvent);
           aKeyEvent->PreventDefault(); // consumed
@@ -422,25 +435,33 @@ nsEditorEventListener::MouseOut(nsIDOMEvent* aMouseEvent)
 NS_IMETHODIMP
 nsEditorEventListener::HandleText(nsIDOMEvent* aTextEvent)
 {
-  nsCOMPtr<nsIPrivateTextEvent> textEvent = do_QueryInterface(aTextEvent);
-  if (!textEvent) {
-     //non-ui event passed in.  bad things.
-     return NS_OK;
-  }
+   nsCOMPtr<nsIPrivateTextEvent> textEvent = do_QueryInterface(aTextEvent);
+   if (!textEvent) {
+      //non-ui event passed in.  bad things.
+      return NS_OK;
+   }
 
-  nsAutoString                      composedText;
-  nsCOMPtr<nsIPrivateTextRangeList> textRangeList;
+   nsAutoString                      composedText;
+   nsresult                          result;
+   nsCOMPtr<nsIPrivateTextRangeList> textRangeList;
+   nsTextEventReply*                 textEventReply;
 
-  textEvent->GetText(composedText);
-  textRangeList = textEvent->GetInputRange();
-
-  nsEditor* editor = static_cast<nsEditor*>(mEditor);
-  // if we are readonly or disabled, then do nothing.
-  if (editor->IsReadonly() || editor->IsDisabled()) {
-    return NS_OK;
-  }
-
-  return editor->SetCompositionString(composedText, textRangeList);
+   textEvent->GetText(composedText);
+   textRangeList = textEvent->GetInputRange();
+   textEventReply = textEvent->GetEventReply();
+   nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor, &result);
+   if (imeEditor) {
+     PRUint32 flags;
+     // if we are readonly or disabled, then do nothing.
+     if (NS_SUCCEEDED(mEditor->GetFlags(&flags))) {
+       if (flags & nsIPlaintextEditor::eEditorReadonlyMask || 
+           flags & nsIPlaintextEditor::eEditorDisabledMask) {
+         return NS_OK;
+       }
+     }
+     result = imeEditor->SetCompositionString(composedText,textRangeList,textEventReply);
+   }
+   return result;
 }
 
 /**
@@ -600,8 +621,11 @@ nsEditorEventListener::Drop(nsIDOMDragEvent* aMouseEvent)
   if (!canDrop)
   {
     // was it because we're read-only?
-    nsEditor* editor = static_cast<nsEditor*>(mEditor);
-    if (editor->IsReadonly() || editor->IsDisabled())
+
+    PRUint32 flags;
+    if (NS_SUCCEEDED(mEditor->GetFlags(&flags))
+        && ((flags & nsIPlaintextEditor::eEditorDisabledMask) ||
+            (flags & nsIPlaintextEditor::eEditorReadonlyMask)) )
     {
       // it was decided to "eat" the event as this is the "least surprise"
       // since someone else handling it might be unintentional and the 
@@ -623,8 +647,12 @@ PRBool
 nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
 {
   // if the target doc is read-only, we can't drop
-  nsEditor* editor = static_cast<nsEditor*>(mEditor);
-  if (editor->IsReadonly() || editor->IsDisabled()) {
+  PRUint32 flags;
+  if (NS_FAILED(mEditor->GetFlags(&flags)))
+    return PR_FALSE;
+
+  if ((flags & nsIPlaintextEditor::eEditorDisabledMask) || 
+      (flags & nsIPlaintextEditor::eEditorReadonlyMask)) {
     return PR_FALSE;
   }
 
@@ -645,7 +673,8 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
     dragSession->IsDataFlavorSupported(kMozTextInternal, &flavorSupported);
 
   // if we aren't plaintext editing, we can accept more flavors
-  if (!flavorSupported && !editor->IsPlaintextEditor())
+  if (!flavorSupported 
+     && (flags & nsIPlaintextEditor::eEditorPlaintextMask) == 0)
   {
     dragSession->IsDataFlavorSupported(kHTMLMime, &flavorSupported);
     if (!flavorSupported)
@@ -721,13 +750,24 @@ nsEditorEventListener::CanDrop(nsIDOMDragEvent* aEvent)
 NS_IMETHODIMP
 nsEditorEventListener::HandleStartComposition(nsIDOMEvent* aCompositionEvent)
 {
-  return static_cast<nsEditor*>(mEditor)->BeginComposition();
+  nsCOMPtr<nsIPrivateCompositionEvent> pCompositionEvent = do_QueryInterface(aCompositionEvent);
+  if (!pCompositionEvent) return NS_ERROR_FAILURE;
+
+  nsTextEventReply* eventReply;
+  nsresult rv = pCompositionEvent->GetCompositionReply(&eventReply);
+  if (NS_FAILED(rv)) return rv;
+
+  nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
+  NS_ASSERTION(imeEditor, "The editor doesn't support IME?");
+  return imeEditor->BeginComposition(eventReply);
 }
 
 NS_IMETHODIMP
 nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
 {
-  return static_cast<nsEditor*>(mEditor)->EndComposition();
+  nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
+  NS_ASSERTION(imeEditor, "The editor doesn't support IME?");
+  return imeEditor->EndComposition();
 }
 
 /**
@@ -735,8 +775,11 @@ nsEditorEventListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
  */
 
 static already_AddRefed<nsIContent>
-FindSelectionRoot(nsEditor *aEditor, nsIContent *aContent)
+FindSelectionRoot(nsIEditor *aEditor, nsIContent *aContent)
 {
+  PRUint32 flags;
+  aEditor->GetFlags(&flags);
+
   nsIDocument *document = aContent->GetCurrentDoc();
   if (!document) {
     return nsnull;
@@ -749,7 +792,7 @@ FindSelectionRoot(nsEditor *aEditor, nsIContent *aContent)
     return root;
   }
 
-  if (aEditor->IsReadonly()) {
+  if (flags & nsIPlaintextEditor::eEditorReadonlyMask) {
     // We still want to allow selection in a readonly editor.
     nsCOMPtr<nsIDOMElement> rootElement;
     aEditor->GetRootElement(getter_AddRefs(rootElement));
@@ -789,15 +832,16 @@ nsEditorEventListener::Focus(nsIDOMEvent* aEvent)
   // turn on selection and caret
   if (mEditor)
   {
-    nsEditor* editor = static_cast<nsEditor*>(mEditor);
-    if (!editor->IsDisabled())
+    PRUint32 flags;
+    mEditor->GetFlags(&flags);
+    if (! (flags & nsIPlaintextEditor::eEditorDisabledMask))
     { // only enable caret and selection if the editor is not disabled
       nsCOMPtr<nsIContent> content = do_QueryInterface(target);
 
       PRBool targetIsEditableDoc = PR_FALSE;
       nsCOMPtr<nsIContent> editableRoot;
       if (content) {
-        editableRoot = FindSelectionRoot(editor, content);
+        editableRoot = FindSelectionRoot(mEditor, content);
 
         // make sure that the element is really focused in case an earlier
         // listener in the chain changed the focus.
@@ -826,7 +870,8 @@ nsEditorEventListener::Focus(nsIDOMEvent* aEvent)
 
         nsCOMPtr<nsIPresShell> presShell = GetPresShell();
         if (presShell) {
-          nsRefPtr<nsCaret> caret = presShell->GetCaret();
+          nsRefPtr<nsCaret> caret;
+          presShell->GetCaret(getter_AddRefs(caret));
           if (caret) {
             caret->SetIgnoreUserModify(PR_FALSE);
             if (selection) {
@@ -835,7 +880,8 @@ nsEditorEventListener::Focus(nsIDOMEvent* aEvent)
           }
         }
 
-        selCon->SetCaretReadOnly(editor->IsReadonly());
+        const PRBool kIsReadonly = (flags & nsIPlaintextEditor::eEditorReadonlyMask) != 0;
+        selCon->SetCaretReadOnly(kIsReadonly);
         selCon->SetCaretEnabled(PR_TRUE);
         selCon->SetDisplaySelection(nsISelectionController::SELECTION_ON);
         selCon->RepaintSelection(nsISelectionController::SELECTION_NORMAL);
@@ -896,7 +942,8 @@ nsEditorEventListener::Blur(nsIDOMEvent* aEvent)
 
         nsCOMPtr<nsIPresShell> presShell = GetPresShell();
         if (presShell) {
-          nsRefPtr<nsCaret> caret = presShell->GetCaret();
+          nsRefPtr<nsCaret> caret;
+          presShell->GetCaret(getter_AddRefs(caret));
           if (caret) {
             caret->SetIgnoreUserModify(PR_TRUE);
           }
@@ -904,10 +951,13 @@ nsEditorEventListener::Blur(nsIDOMEvent* aEvent)
 
         selCon->SetCaretEnabled(PR_FALSE);
 
-        nsEditor* editor = static_cast<nsEditor*>(mEditor);
-        if(editor->IsFormWidget() || editor->IsPasswordEditor() ||
-           editor->IsReadonly() || editor->IsDisabled() ||
-           editor->IsInputFiltered())
+        PRUint32 flags;
+        mEditor->GetFlags(&flags);
+        if((flags & nsIPlaintextEditor::eEditorWidgetMask)  ||
+          (flags & nsIPlaintextEditor::eEditorPasswordMask) ||
+          (flags & nsIPlaintextEditor::eEditorReadonlyMask) ||
+          (flags & nsIPlaintextEditor::eEditorDisabledMask) ||
+          (flags & nsIPlaintextEditor::eEditorFilterInputMask))
         {
           selCon->SetDisplaySelection(nsISelectionController::SELECTION_HIDDEN);//hide but do NOT turn off
         }

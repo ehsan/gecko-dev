@@ -38,7 +38,6 @@
 
 #include "nsSVGPointList.h"
 #include "nsSVGPoint.h"
-#include "nsSVGUtils.h"
 #include "nsDOMError.h"
 #include "prdtoa.h"
 #include "nsReadableUtils.h"
@@ -145,14 +144,12 @@ nsSVGPointList::InsertElementAt(nsIDOMSVGPoint* aElement, PRInt32 index)
 NS_IMPL_ADDREF(nsSVGPointList)
 NS_IMPL_RELEASE(nsSVGPointList)
 
-DOMCI_DATA(SVGPointList, nsSVGPointList)
-
 NS_INTERFACE_MAP_BEGIN(nsSVGPointList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPointList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPointList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPointList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -170,10 +167,11 @@ nsSVGPointList::SetValueString(const nsAString& aValue)
   char* rest = str;
   char* token1;
   char* token2;
+  const char* delimiters = ",\x20\x9\xD\xA";
   nsCOMArray<nsIDOMSVGPoint> points;
   
-  while ( (token1 = nsCRT::strtok(rest, SVG_COMMA_WSP_DELIM, &rest)) &&
-          (token2 = nsCRT::strtok(rest, SVG_COMMA_WSP_DELIM, &rest)) ) {
+  while ( (token1 = nsCRT::strtok(rest, delimiters, &rest)) &&
+          (token2 = nsCRT::strtok(rest, delimiters, &rest)) ) {
 
     char *end;
     

@@ -44,10 +44,6 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-# Don't use the STL wrappers in the crashreporter clients; they don't
-# link with -lmozalloc, and it really doesn't matter here anyway.
-STL_FLAGS =
-
 PROGRAM = crashreporter$(BIN_SUFFIX)
 DIST_PROGRAM = crashreporter$(BIN_SUFFIX)
 
@@ -69,7 +65,7 @@ MOZ_WINCONSOLE = 0
 endif
 
 ifeq ($(OS_ARCH),Darwin)
-CPPSRCS += crashreporter_unix_common.cpp
+CPPSRCS += crashreporter_unix.cpp
 CMMSRCS += crashreporter_osx.mm
 OS_LIBS += -framework Cocoa
 LIBS += \
@@ -81,13 +77,7 @@ LOCAL_INCLUDES += -I$(srcdir) -I$(srcdir)/../google-breakpad/src/common/mac/
 endif
 
 ifeq ($(OS_ARCH),Linux)
-CPPSRCS += crashreporter_gtk_common.cpp crashreporter_unix_common.cpp
-ifdef MOZ_PLATFORM_MAEMO
-CPPSRCS += crashreporter_maemo_gtk.cpp
-else
-CPPSRCS += crashreporter_linux.cpp
-endif
-
+CPPSRCS += crashreporter_linux.cpp crashreporter_unix.cpp
 LIBS += \
   $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/linux/$(LIB_PREFIX)breakpad_linux_common_s.$(LIB_SUFFIX) \
   $(NULL)

@@ -41,8 +41,8 @@
 #include "jsapi.h"
 #include "jsprvtd.h"    // we are using private JS typedefs...
 #include "jscntxt.h"
-#include "jsobj.h"
 #include "jsdbgapi.h"
+#include "jsnum.h"
 
 #include "nscore.h"
 #include "nsDOMClassInfo.h"
@@ -132,6 +132,7 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMNSHTMLFormControlList.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIHTMLCollection.h"
 #include "nsHTMLDocument.h"
@@ -353,7 +354,6 @@
 #ifdef MOZ_SVG
 #include "nsIDOMGetSVGDocument.h"
 #include "nsIDOMSVGAElement.h"
-#include "nsIDOMSVGAltGlyphElement.h"
 #include "nsIDOMSVGAngle.h"
 #include "nsIDOMSVGAnimatedAngle.h"
 #include "nsIDOMSVGAnimatedBoolean.h"
@@ -541,16 +541,6 @@ static const char kDOMStringBundleURL[] =
   // nothing
 #endif
 
-DOMCI_DATA(Crypto, void)
-DOMCI_DATA(CRMFObject, void)
-DOMCI_DATA(SmartCardEvent, void)
-
-DOMCI_DATA(DOMPrototype, void)
-DOMCI_DATA(DOMConstructor, void)
-
-DOMCI_DATA(Worker, void)
-
-DOMCI_DATA(Notation, void)
 
 #define NS_DEFINE_CLASSINFO_DATA_WITH_NAME(_class, _name, _helper,            \
                                            _flags)                            \
@@ -562,7 +552,6 @@ DOMCI_DATA(Notation, void)
     nsnull,                                                                   \
     _flags,                                                                   \
     PR_TRUE,                                                                  \
-    0,                                                                        \
     NS_DEFINE_CLASSINFO_DATA_DEBUG(_class)                                    \
   },
 
@@ -684,9 +673,12 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            nsHTMLOptionsCollectionSH,
                            ARRAY_SCRIPTABLE_FLAGS |
                            nsIXPCScriptable::WANT_SETPROPERTY)
-  NS_DEFINE_CLASSINFO_DATA(HTMLCollection,
-                           nsHTMLCollectionSH,
-                           ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(HTMLFormControlCollection, HTMLCollection,
+                                     nsHTMLCollectionSH,
+                                     ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(HTMLGenericCollection, HTMLCollection,
+                                     nsHTMLCollectionSH,
+                                     ARRAY_SCRIPTABLE_FLAGS)
 
   // HTML element classes
   NS_DEFINE_CLASSINFO_DATA(HTMLAnchorElement, nsElementSH,
@@ -937,8 +929,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   // SVG element classes
   NS_DEFINE_CLASSINFO_DATA(SVGAElement, nsElementSH,
-                           ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(SVGAltGlyphElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
 #ifdef MOZ_SMIL
   NS_DEFINE_CLASSINFO_DATA(SVGAnimateElement, nsElementSH,
@@ -1484,7 +1474,7 @@ jsval nsDOMClassInfo::sJava_id            = JSVAL_VOID;
 jsval nsDOMClassInfo::sPackages_id        = JSVAL_VOID;
 
 static const JSClass *sObjectClass = nsnull;
-JSPropertyOp nsDOMClassInfo::sXPCNativeWrapperGetPropertyOp = nsnull;
+const JSClass *nsDOMClassInfo::sXPCNativeWrapperClass = nsnull;
 
 /**
  * Set our JSClass pointer for the Object class
@@ -1497,10 +1487,10 @@ FindObjectClass(JSObject* aGlobalObject)
   JSObject *obj, *proto = aGlobalObject;
   do {
     obj = proto;
-    proto = obj->getProto();
+    proto = STOBJ_GET_PROTO(obj);
   } while (proto);
 
-  sObjectClass = obj->getClass();
+  sObjectClass = STOBJ_GET_CLASS(obj);
 }
 
 static void
@@ -1581,13 +1571,6 @@ GetInternedJSVal(JSContext *cx, const char *str)
 }
 
 // static
-
-nsISupports *
-nsDOMClassInfo::GetNative(nsIXPConnectWrappedNative *wrapper, JSObject *obj)
-{
-  return wrapper ? wrapper->Native() : static_cast<nsISupports*>(obj->getPrivate());
-}
-
 nsresult
 nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
 {
@@ -1757,17 +1740,20 @@ nsDOMClassInfo::~nsDOMClassInfo()
   }
 }
 
+NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMClassInfo, NS_DOMCLASSINFO_IID)
+
 NS_IMPL_ADDREF(nsDOMClassInfo)
 NS_IMPL_RELEASE(nsDOMClassInfo)
 
 NS_INTERFACE_MAP_BEGIN(nsDOMClassInfo)
-  if (aIID.Equals(NS_GET_IID(nsXPCClassInfo)))
-    foundInterface = static_cast<nsIClassInfo*>(
-                                    static_cast<nsXPCClassInfo*>(this));
-  else
   NS_INTERFACE_MAP_ENTRY(nsIXPCScriptable)
   NS_INTERFACE_MAP_ENTRY(nsIClassInfo)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIClassInfo)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIXPCScriptable)
+  if (aIID.Equals(NS_GET_IID(nsDOMClassInfo))) {
+    *aInstancePtr = static_cast<nsIXPCScriptable*>(this);
+    return NS_OK;
+  }
+  else
 NS_INTERFACE_MAP_END
 
 
@@ -1951,7 +1937,6 @@ nsDOMClassInfo::WrapNativeParent(JSContext *cx, JSObject *scope,
     nsDOMClassInfoData &d = sClassInfoData[eDOMClassInfo_##_class##_id];      \
     d.mProtoChainInterface = _ifptr;                                          \
     d.mHasClassInterface = _has_class_if;                                     \
-    d.mInterfacesBitmap = kDOMClassInfo_##_class##_interfaces;                \
     static const nsIID *interface_list[] = {
 
 #define DOM_CLASSINFO_MAP_BEGIN(_class, _interface)                           \
@@ -2277,7 +2262,14 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(HTMLCollection, nsIDOMHTMLCollection)
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLFormControlCollection,
+                                      nsIDOMHTMLCollection)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSHTMLFormControlList)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(HTMLGenericCollection,
+                                      nsIDOMHTMLCollection)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLCollection)
   DOM_CLASSINFO_MAP_END
 
@@ -2850,16 +2842,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(SVGAElement, nsIDOMSVGAElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAElement)
     DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(SVGAltGlyphElement, nsIDOMSVGAltGlyphElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextPositioningElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextContentElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGURIReference)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGStylable)
-    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_SMIL
@@ -3853,7 +3835,7 @@ nsDOMClassInfo::GetArrayIndexFromId(JSContext *cx, jsval id, PRBool *aIsNumber)
 
   jsint i = -1;
 
-  if (!::JS_DoubleIsInt32(array_index, &i)) {
+  if (!JSDOUBLE_IS_INT(array_index, i)) {
     return -1;
   }
 
@@ -4360,17 +4342,13 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
   }
 
   nsGlobalWindow *win = nsGlobalWindow::FromSupports(globalNative);
-  if (win->IsClosedOrClosing()) {
-    return NS_OK;
-  }
   if (win->IsOuterWindow()) {
     // XXXjst: Do security checks here when we remove the security
     // checks on the inner window.
 
     win = win->GetCurrentInnerWindowInternal();
 
-    if (!win || !(global = win->GetGlobalJSObject()) ||
-        win->IsClosedOrClosing()) {
+    if (!win || !(global = win->GetGlobalJSObject())) {
       return NS_OK;
     }
   }
@@ -4445,6 +4423,20 @@ nsDOMClassInfo::GetClassInfoInstance(nsDOMClassInfoData* aData)
   }
 
   return GET_CLEAN_CI_PTR(aData->mCachedClassInfo);
+}
+
+// static
+void
+nsDOMClassInfo::PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper)
+{
+  nsCOMPtr<nsIClassInfo> ci = do_QueryInterface(aWrapper->Native());
+  if (ci) {
+    nsDOMClassInfo* domci = nsnull;
+    CallQueryInterface(ci, &domci);
+    if (domci) {
+      domci->PreserveWrapper(aWrapper->Native());
+    }
+  }
 }
 
 
@@ -5200,9 +5192,6 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
       nsDOMConstructorFunc func = FindConstructorFunc(ci_data);
       if (func) {
         rv = func(getter_AddRefs(native));
-      }
-      else {
-        rv = NS_ERROR_NOT_AVAILABLE;
       }
     }
   } else if (name_struct->mType == nsGlobalNameStruct::eTypeExternalConstructor) {
@@ -6427,7 +6416,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 #ifdef DEBUG
         if (!win->IsChromeWindow()) {
           NS_ASSERTION(JSVAL_IS_OBJECT(v) &&
-                       !strcmp(JSVAL_TO_OBJECT(v)->getClass()->name,
+                       !strcmp(STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v))->name,
                                "XPCCrossOriginWrapper"),
                        "Didn't wrap a window!");
         }
@@ -6540,7 +6529,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 #ifdef DEBUG
     if (!win->IsChromeWindow()) {
           NS_ASSERTION(JSVAL_IS_OBJECT(v) &&
-                       !strcmp(JSVAL_TO_OBJECT(v)->getClass()->name,
+                       !strcmp(STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v))->name,
                                "XPCCrossOriginWrapper"),
                        "Didn't wrap a location object!");
     }
@@ -6637,17 +6626,6 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       // The PostCreate hook for the document will handle defining the
       // property
       *objp = obj;
-
-      if (ObjectIsNativeWrapper(cx, obj)) {
-        // Unless our object is a native wrapper, in which case we have to
-        // define it ourselves.
-
-        *_retval = JS_DefineProperty(cx, obj, "document", v, NULL, NULL,
-                                     JSPROP_READONLY | JSPROP_ENUMERATE);
-        if (!*_retval) {
-          return NS_ERROR_UNEXPECTED;
-        }
-      }
 
       return NS_OK;
     }
@@ -6759,7 +6737,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     wrapper->GetJSObject(&realObj);
 
     if (obj == realObj) {
-      JSObject *proto = obj->getProto();
+      JSObject *proto = STOBJ_GET_PROTO(obj);
       if (proto) {
         jsid interned_id;
         JSObject *pobj = NULL;
@@ -7906,7 +7884,8 @@ nsNodeListSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   nsWrapperCache* cache = nsnull;
   CallQueryInterface(nativeObj, &cache);
   if (!cache) {
-    return nsDOMClassInfo::PreCreate(nativeObj, cx, globalObj, parentObj);
+    *parentObj = globalObj;
+    return NS_OK;
   }
 
   // nsChildContentList is the only class that uses nsNodeListSH and has a
@@ -8502,8 +8481,8 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSObject *obj,
     return JS_TRUE;
   }
 
-  while (obj->getClass() != &sHTMLDocumentAllClass) {
-    obj = obj->getProto();
+  while (STOBJ_GET_CLASS(obj) != &sHTMLDocumentAllClass) {
+    obj = STOBJ_GET_PROTO(obj);
 
     if (!obj) {
       NS_ERROR("The JS engine lies!");
@@ -10391,7 +10370,8 @@ nsEventListenerThisTranslator::TranslateThis(nsISupports *aInitialThis,
   nsCOMPtr<nsIDOMEventTarget> target;
   event->GetCurrentTarget(getter_AddRefs(target));
 
-  *_retval = target.forget().get();
+  *_retval = target;
+  NS_IF_ADDREF(*_retval);
 
   return NS_OK;
 }

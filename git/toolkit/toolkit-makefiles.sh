@@ -52,7 +52,6 @@ MAKEFILES_dom="
   ipc/chromium/Makefile
   ipc/glue/Makefile
   ipc/ipdl/Makefile
-  ipc/app/fake/Makefile
   dom/Makefile
   dom/public/coreEvents/Makefile
   dom/interfaces/base/Makefile
@@ -213,6 +212,10 @@ MAKEFILES_jsdebugger="
   js/jsd/idl/Makefile
 "
 
+MAKEFILES_jsctypes="
+  js/ctypes/Makefile
+"
+
 MAKEFILES_content="
   content/Makefile
   content/base/Makefile
@@ -274,6 +277,7 @@ MAKEFILES_layout="
   layout/build/Makefile
   layout/forms/Makefile
   layout/generic/Makefile
+  layout/html/tests/Makefile
   layout/inspector/public/Makefile
   layout/inspector/src/Makefile
   layout/printing/Makefile
@@ -587,6 +591,7 @@ MAKEFILES_xpinstall="
 MAKEFILES_xpfe="
   widget/src/xremoteclient/Makefile
   toolkit/components/remote/Makefile
+  xpfe/Makefile
   xpfe/components/Makefile
   xpfe/components/directory/Makefile
   xpfe/components/find/Makefile
@@ -624,6 +629,9 @@ MAKEFILES_embedding="
   embedding/browser/gtk/Makefile
   embedding/browser/gtk/src/Makefile
   embedding/browser/gtk/tests/Makefile
+  embedding/browser/photon/Makefile
+  embedding/browser/photon/src/Makefile
+  embedding/browser/photon/tests/Makefile
   embedding/components/Makefile
   embedding/components/appstartup/Makefile
   embedding/components/appstartup/src/Makefile
@@ -645,6 +653,9 @@ MAKEFILES_embedding="
   embedding/components/windowwatcher/Makefile
   embedding/components/windowwatcher/public/Makefile
   embedding/components/windowwatcher/src/Makefile
+  embedding/components/ui/Makefile
+  embedding/components/ui/helperAppDlg/Makefile
+  embedding/components/ui/progressDlg/Makefile
   embedding/tests/Makefile
   embedding/tests/winEmbed/Makefile
 "
@@ -768,11 +779,6 @@ MAKEFILES_xulapp="
   toolkit/themes/winstripe/help/Makefile
   toolkit/themes/winstripe/mozapps/Makefile
   toolkit/xre/Makefile
-"
-
-MAKEFILES_ctypes="
-  toolkit/components/ctypes/Makefile
-  toolkit/components/ctypes/tests/Makefile
 "
 
 MAKEFILES_libpr0n="
@@ -958,6 +964,7 @@ if [ "$ENABLE_TESTS" ]; then
     extensions/pref/Makefile
     intl/locale/tests_multilocale/Makefile
     js/src/xpconnect/tests/mochitest/Makefile
+    js/ctypes/tests/Makefile
     layout/forms/test/Makefile
     layout/generic/test/Makefile
     layout/inspector/tests/Makefile
@@ -987,10 +994,6 @@ if [ "$ENABLE_TESTS" ]; then
     testing/mochitest/ssltunnel/Makefile
     testing/mochitest/static/Makefile
     testing/mochitest/tests/Makefile
-    testing/mochitest/tests/MochiKit-1.4.2/Makefile
-    testing/mochitest/tests/MochiKit-1.4.2/MochiKit/Makefile
-    testing/mochitest/tests/MochiKit-1.4.2/tests/Makefile
-    testing/mochitest/tests/MochiKit-1.4.2/tests/SimpleTest/Makefile
     testing/mochitest/tests/SimpleTest/Makefile
     testing/mochitest/tests/browser/Makefile
     testing/xpcshell/Makefile

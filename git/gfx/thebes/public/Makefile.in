@@ -9,8 +9,7 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= thebes
 
 
-EXPORTS		= 	gfx3DMatrix.h \
-			gfxASurface.h \
+EXPORTS		= 	gfxASurface.h \
 			gfxAlphaRecovery.h \
 			gfxBlur.h \
 			gfxColor.h \
@@ -52,6 +51,7 @@ EXPORTS +=	gfxFT2Fonts.h \
 		gfxDDrawSurface.h \
 		$(NULL)
 else
+EXPORTS +=  gfxWindowsFonts.h
 EXPORTS +=  gfxDWriteFonts.h
 EXPORTS +=  gfxD2DSurface.h
 endif

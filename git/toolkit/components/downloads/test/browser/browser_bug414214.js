@@ -46,17 +46,23 @@ function test()
   db.executeSimpleSQL("DELETE FROM moz_downloads");
 
   // See if the DM is already open, and if it is, close it!
-  var win = Services.wm.getMostRecentWindow("Download:Manager");
+  var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
+           getService(Ci.nsIWindowMediator);
+  var win = wm.getMostRecentWindow("Download:Manager");
   if (win)
     win.close();
 
   // We need to set browser.download.manager.closeWhenDone to true to test this
-  Services.prefs.setBoolPref(PREF_BDM_CLOSEWHENDONE, true);
+  Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch).
+  setBoolPref(PREF_BDM_CLOSEWHENDONE, true);
+
+  var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+           getService(Ci.nsIWindowWatcher);
 
   // register a callback to add a load listener to know when the download
   // manager opens
-  Services.ww.registerNotification(function (aSubject, aTopic, aData) {
-    Services.ww.unregisterNotification(arguments.callee);
+  ww.registerNotification(function (aSubject, aTopic, aData) {
+    ww.unregisterNotification(arguments.callee);
 
     var win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
     win.addEventListener("DOMContentLoaded", finishUp, false);
@@ -70,7 +76,8 @@ function test()
 
     // Reset the pref to its default value
     try {
-      Services.prefs.clearUserPref(PREF_BDM_CLOSEWHENDONE);
+      Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch).    
+      clearUserPref(PREF_BDM_CLOSEWHENDONE);
     }
     catch (err) { }
 

@@ -444,17 +444,10 @@ AsyncChannel::OnChannelError()
 
     MutexAutoLock lock(mMutex);
 
+    // NB: this can race with the `Goodbye' event being processed by
+    // the worker thread
     if (ChannelClosing != mChannelState)
         mChannelState = ChannelError;
-
-    PostErrorNotifyTask();
-}
-
-void
-AsyncChannel::PostErrorNotifyTask()
-{
-    AssertIOThread();
-    mMutex.AssertCurrentThreadOwns();
 
     NS_ASSERTION(!mChannelErrorTask, "OnChannelError called twice?");
 

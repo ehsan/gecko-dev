@@ -115,18 +115,11 @@ class Link;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID      \
-{ 0x17e1c0ce, 0x3883, 0x4efc, \
-  { 0xbf, 0xdf, 0x40, 0xa6, 0x26, 0x9f, 0xbd, 0x2c } }
+{ 0x36f0a42c, 0x089b, 0x4909, \
+  { 0xb3, 0xee, 0xc5, 0xa4, 0x00, 0x90, 0x30, 0x02 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
-
-// Document states
-
-// RTL locale: specific to the XUL localedir attribute
-#define NS_DOCUMENT_STATE_RTL_LOCALE              (1 << 0)
-// Window activation status
-#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         (1 << 1)
 
 //----------------------------------------------------------------------
 
@@ -641,10 +634,7 @@ public:
    * this document. If you're not absolutely sure you need this, use
    * GetWindow().
    */
-  nsPIDOMWindow* GetInnerWindow()
-  {
-    return mRemovedFromDocShell ? GetInnerWindowInternal() : mWindow;
-  }
+  virtual nsPIDOMWindow *GetInnerWindow() = 0;
 
   /**
    * Get the script loader for this document
@@ -687,11 +677,6 @@ public:
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask) = 0;
 
-  // Notify that a document state has changed.
-  // This should only be called by callers whose state is also reflected in the
-  // implementation of nsDocument::GetDocumentState.
-  virtual void DocumentStatesChanged(PRInt32 aStateMask) = 0;
-
   // Observation hooks for style data to propagate notifications
   // to document observers
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
@@ -707,14 +692,6 @@ public:
    * (since those may affect the layout of this one).
    */
   virtual void FlushPendingNotifications(mozFlushType aType) = 0;
-
-  /**
-   * Calls FlushPendingNotifications on any external resources this document
-   * has. If this document has no external resources or is an external resource
-   * itself this does nothing. This should only be called with
-   * aType >= Flush_Style.
-   */
-  virtual void FlushExternalResources(mozFlushType aType) = 0;
 
   nsBindingManager* BindingManager() const
   {
@@ -996,17 +973,10 @@ public:
    *
    * @see nsIDOMWindowUtils::elementFromPoint
    */
-  virtual nsresult ElementFromPointHelper(float aX, float aY,
+  virtual nsresult ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
                                           PRBool aIgnoreRootScrollFrame,
                                           PRBool aFlushLayout,
                                           nsIDOMElement** aReturn) = 0;
-
-  virtual nsresult NodesFromRectHelper(float aX, float aY,
-                                       float aTopSize, float aRightSize,
-                                       float aBottomSize, float aLeftSize,
-                                       PRBool aIgnoreRootScrollFrame,
-                                       PRBool aFlushLayout,
-                                       nsIDOMNodeList** aReturn) = 0;
 
   /**
    * See FlushSkinBindings on nsBindingManager
@@ -1313,13 +1283,6 @@ public:
   virtual int GetDocumentLWTheme() { return Doc_Theme_None; }
 
   /**
-   * Returns the document state.
-   * Document state bits have the form NS_DOCUMENT_STATE_* and are declared in
-   * nsIDocument.h.
-   */
-  virtual PRInt32 GetDocumentState() = 0;
-
-  /**
    * Gets the document's cached pointer to the first <base> element in this
    * document which has an href attribute.  If the document doesn't contain any
    * <base> elements with an href, returns null.
@@ -1355,9 +1318,6 @@ protected:
     //     do it here but nsNodeInfoManager is a concrete class that we don't
     //     want to expose to users of the nsIDocument API outside of Gecko.
   }
-
-  // Never ever call this. Only call GetInnerWindow!
-  virtual nsPIDOMWindow *GetInnerWindowInternal() = 0;
 
   /**
    * These methods should be called before and after dispatching
@@ -1492,10 +1452,6 @@ protected:
   PRUint32 mEventsSuppressed;
 
   nsString mPendingStateObject;
-
-  // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
-  // updated on every set of mSecriptGlobalObject.
-  nsPIDOMWindow *mWindow;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

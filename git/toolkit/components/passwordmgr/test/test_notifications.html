@@ -112,7 +112,7 @@ function checkTest() {
         is(gotPass, "notifyp1", "Checking submitted password");
         bar = getNotificationBar(notifyBox, "password-save");
         ok(bar, "got notification bar");
-        is(true, pwmgr.getLoginSavingEnabled("http://mochi.test:8888"),
+        is(true, pwmgr.getLoginSavingEnabled("http://localhost:8888"),
            "Checking for login saving enabled");
         clickNotificationButton(bar, kNeverButton);
         break;
@@ -123,10 +123,10 @@ function checkTest() {
         is(gotPass, "notifyp1", "Checking submitted password");
         bar = getNotificationBar(notifyBox, "password-save");
         ok(!bar, "checking for no notification bar");
-        is(false, pwmgr.getLoginSavingEnabled("http://mochi.test:8888"),
+        is(false, pwmgr.getLoginSavingEnabled("http://localhost:8888"),
            "Checking for login saving disabled");
         // reenable login saving.
-        pwmgr.setLoginSavingEnabled("http://mochi.test:8888", true);
+        pwmgr.setLoginSavingEnabled("http://localhost:8888", true);
         break;
 
       case 4:
@@ -135,11 +135,6 @@ function checkTest() {
         is(gotPass, "notifyp1", "Checking submitted password");
         bar = getNotificationBar(notifyBox, "password-save");
         ok(bar, "got notification bar");
-
-        // Sanity check, no logins should exist yet.
-        var logins = pwmgr.getAllLogins();
-        is(logins.length, 0, "Should not have any logins yet");
-
         clickNotificationButton(bar, kRememberButton);
         break;
 
@@ -149,16 +144,6 @@ function checkTest() {
         is(gotPass, "notifyp1", "Checking submitted password");
         bar = getNotificationBar(notifyBox, "password-save");
         ok(!bar, "checking for no notification bar");
-
-        // Check to make sure we updated the timestamps and use count on the
-        // existing loging that was submitted for this form.
-        var logins = pwmgr.getAllLogins();
-        is(logins.length, 1, "Should only have 1 login");
-        ok(logins[0] instanceof Ci.nsILoginMetaInfo, "metainfo QI");
-        is(logins[0].timesUsed, 2, "check .timesUsed for existing login submission");
-        ok(logins[0].timeLastUsed > logins[0].timeCreated, "timeLastUsed bumped");
-        ok(logins[0].timeCreated == logins[0].timePasswordChanged, "timeChanged not updated");
-
         // remove that login
         pwmgr.removeLogin(login1);
         break;
@@ -301,15 +286,6 @@ function checkTest() {
         ok(bar, "got notification bar");
         clickNotificationButton(bar, kChangeButton);
 
-        // Check to make sure we updated the timestamps and use count for
-        // the login being changed with this form.
-        var logins = pwmgr.getAllLogins();
-        is(logins.length, 1, "Should only have 1 login");
-        ok(logins[0] instanceof Ci.nsILoginMetaInfo, "metainfo QI");
-        is(logins[0].timesUsed, 2, "check .timesUsed incremented on change");
-        ok(logins[0].timeCreated < logins[0].timeLastUsed, "timeLastUsed bumped");
-        ok(logins[0].timeLastUsed == logins[0].timePasswordChanged, "timeUsed == timeChanged");
-
         // cleanup
         login1.password = "pass2";
         pwmgr.removeLogin(login1);
@@ -403,8 +379,6 @@ var pwmgr = Cc["@mozilla.org/login-manager;1"].
             getService(Ci.nsILoginManager);
 ok(pwmgr != null, "Access pwmgr");
 
-pwmgr.removeAllLogins();
-
 var prefs = Cc["@mozilla.org/preferences-service;1"].
             getService(Ci.nsIPrefService);
 ok(prefs != null, "Access prefs");
@@ -413,13 +387,13 @@ ok(prefs != null, "Access pref branch");
 
 var nsLoginInfo = new Components.Constructor("@mozilla.org/login-manager/loginInfo;1",
                                              Ci.nsILoginInfo, "init");
-var login1 = new nsLoginInfo("http://mochi.test:8888", "http://mochi.test:8888", null,
+var login1 = new nsLoginInfo("http://localhost:8888", "http://localhost:8888", null,
                              "notifyu1", "notifyp1", "user", "pass");
-var login2 = new nsLoginInfo("http://mochi.test:8888", "http://mochi.test:8888", null,
+var login2 = new nsLoginInfo("http://localhost:8888", "http://localhost:8888", null,
                              "", "notifyp1", "", "pass");
-var login1B = new nsLoginInfo("http://mochi.test:8888", "http://mochi.test:8888", null,
+var login1B = new nsLoginInfo("http://localhost:8888", "http://localhost:8888", null,
                               "notifyu1B", "notifyp1B", "user", "pass");
-var login2B = new nsLoginInfo("http://mochi.test:8888", "http://mochi.test:8888", null,
+var login2B = new nsLoginInfo("http://localhost:8888", "http://localhost:8888", null,
                               "", "notifyp1B", "", "pass");
 
 var iframe = document.getElementById("iframe");

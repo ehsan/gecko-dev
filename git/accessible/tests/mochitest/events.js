@@ -583,7 +583,6 @@ function sequence()
  * which will be called when proper event is handled. Invokers listen default
  * event type registered in event queue object until it is passed explicetly.
  *
- * Note, checker object is optional.
  * Note, you don't need to initialize 'target' and 'type' members of checker
  * object. The 'target' member will be initialized by invoker object and you are
  * free to use it in 'check' method.
@@ -599,8 +598,7 @@ function synthClick(aNodeOrID, aChecker, aEventType)
   this.invoke = function synthClick_invoke()
   {
     // Scroll the node into view, otherwise synth click may fail.
-    if (this.DOMNode instanceof nsIDOMNSHTMLElement)
-      this.DOMNode.scrollIntoView(true);
+    this.DOMNode.scrollIntoView(true);
 
     synthesizeMouse(this.DOMNode, 1, 1, {});
   }
@@ -608,25 +606,6 @@ function synthClick(aNodeOrID, aChecker, aEventType)
   this.getID = function synthClick_getID()
   {
     return prettyName(aNodeOrID) + " click"; 
-  }
-}
-
-/**
- * Mouse move invoker.
- */
-function synthMouseMove(aNodeOrID, aChecker, aEventType)
-{
-  this.__proto__ = new synthAction(aNodeOrID, aChecker, aEventType);
-
-  this.invoke = function synthMouseMove_invoke()
-  {
-    synthesizeMouse(this.DOMNode, 1, 1, { type: "mousemove" });
-    synthesizeMouse(this.DOMNode, 2, 2, { type: "mousemove" });
-  }
-
-  this.getID = function synthMouseMove_getID()
-  {
-    return prettyName(aNodeOrID) + " mouse move"; 
   }
 }
 
@@ -736,25 +715,6 @@ function synthFocus(aNodeOrID, aChecker, aEventType)
   this.getID = function synthFocus_getID() 
   { 
     return prettyName(aNodeOrID) + " focus";
-  }
-}
-
-/**
- * Focus invoker. Focus the HTML body of content document of iframe.
- */
-function synthFocusOnFrame(aNodeOrID, aChecker, aEventType)
-{
-  this.__proto__ = new synthAction(getNode(aNodeOrID).contentDocument,
-                                   aChecker, aEventType);
-  
-  this.invoke = function synthFocus_invoke()
-  {
-    this.DOMNode.body.focus();
-  }
-  
-  this.getID = function synthFocus_getID() 
-  { 
-    return prettyName(aNodeOrID) + " frame document focus";
   }
 }
 
@@ -976,16 +936,14 @@ function sequenceItem(aProcessor, aEventType, aTarget, aItemID)
 function synthAction(aNodeOrID, aChecker, aEventType)
 {
   this.DOMNode = getNode(aNodeOrID);
-  if (aChecker)
-    aChecker.target = this.DOMNode;
+  aChecker.target = this.DOMNode;
 
   if (aEventType)
     this.eventSeq = [ new invokerChecker(aEventType, this.DOMNode) ];
 
   this.check = function synthAction_check(aEvent)
   {
-    if (aChecker)
-      aChecker.check(aEvent);
+    aChecker.check(aEvent);
   }
 
   this.getID = function synthAction_getID() { return aNodeOrID + " action"; }

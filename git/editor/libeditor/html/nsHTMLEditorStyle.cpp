@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
- *   Mats Palmgren <matspal@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -611,9 +610,7 @@ nsresult nsHTMLEditor::SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
          isSet)                                         // or the style is specified in the style attribute
     {
       // found a style node we need to split
-      nsresult rv = SplitNodeDeep(tmp, *aNode, *aOffset, &offset, PR_FALSE,
-                                  outLeftNode, outRightNode);
-      NS_ENSURE_SUCCESS(rv, rv);
+      SplitNodeDeep(tmp, *aNode, *aOffset, &offset, PR_FALSE, outLeftNode, outRightNode);
       // reset startNode/startOffset
       tmp->GetParentNode(getter_AddRefs(*aNode));
       *aOffset = offset;

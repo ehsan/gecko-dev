@@ -53,7 +53,7 @@
    // Test subdomain included with isRedirect=true, different transtype
    {isInQuery: true, isVisit: true, isDetails: true, title: "amozzie",
     isRedirect: true, uri: "http://mail.foo.com/redirect", lastVisit: old,
-    referrer: "http://myreferrer.com", transType: PlacesUtils.history.TRANSITION_LINK},
+    referrer: "http://myreferrer.com", transType: histsvc.TRANSITION_LINK},
 
    // Test subdomain inclued, search term at end
    {isInQuery: true, isVisit: true, isDetails: true,
@@ -89,18 +89,18 @@
  */
 function run_test() {
   populateDB(testData);
-  var query = PlacesUtils.history.getNewQuery();
+  var query = histsvc.getNewQuery();
   query.searchTerms = "moz";
   query.domain = "foo.com";
   query.domainIsHost = false;
 
   // Options
-  var options = PlacesUtils.history.getNewQueryOptions();
+  var options = histsvc.getNewQueryOptions();
   options.sortingMode = options.SORT_BY_DATE_ASCENDING;
   options.resultType = options.RESULTS_AS_URI;
 
   // Results
-  var result = PlacesUtils.history.executeQuery(query, options);
+  var result = histsvc.executeQuery(query, options);
   var root = result.root;
   root.containerOpen = true;
 
@@ -116,7 +116,7 @@ function run_test() {
   // Add to the query set
   LOG("Adding item to query")
   var change1 = [{isVisit: true, isDetails: true, uri: "http://foo.com/added.htm",
-                  title: "moz", transType: PlacesUtils.history.TRANSITION_LINK}];
+                  title: "moz", transType: histsvc.TRANSITION_LINK}];
   populateDB(change1);
   do_check_true(isInResult(change1, root));
 
@@ -140,7 +140,7 @@ function run_test() {
       populateDB(batchchange);
     }
   };
-  PlacesUtils.history.runInBatchMode(updateBatch, null);
+  histsvc.runInBatchMode(updateBatch, null);
   do_check_true(isInResult({uri: "http://foo.com/changeme2.htm"}, root));
   do_check_true(isInResult({uri: "http://mail.foo.com/yiihah"}, root));
   do_check_false(isInResult({uri: "ftp://foo.com/ftp"}, root));

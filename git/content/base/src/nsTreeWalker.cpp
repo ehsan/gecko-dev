@@ -77,13 +77,11 @@ nsTreeWalker::~nsTreeWalker()
 
 NS_IMPL_CYCLE_COLLECTION_3(nsTreeWalker, mFilter, mCurrentNode, mRoot)
 
-DOMCI_DATA(TreeWalker, nsTreeWalker)
-
 // QueryInterface implementation for nsTreeWalker
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeWalker)
     NS_INTERFACE_MAP_ENTRY(nsIDOMTreeWalker)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMTreeWalker)
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeWalker)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(TreeWalker)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeWalker)

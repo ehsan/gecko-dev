@@ -21,7 +21,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Justin Dolske <dolske@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -222,23 +221,14 @@ nsPluginErrorEvent::Run()
 class nsPluginCrashedEvent : public nsRunnable {
 public:
   nsCOMPtr<nsIContent> mContent;
-  nsString mPluginDumpID;
-  nsString mBrowserDumpID;
   nsString mPluginName;
-  nsString mPluginFilename;
   PRBool mSubmittedCrashReport;
 
   nsPluginCrashedEvent(nsIContent* aContent,
-                       const nsAString& aPluginDumpID,
-                       const nsAString& aBrowserDumpID,
                        const nsAString& aPluginName,
-                       const nsAString& aPluginFilename,
                        PRBool submittedCrashReport)
     : mContent(aContent),
-      mPluginDumpID(aPluginDumpID),
-      mBrowserDumpID(aBrowserDumpID),
       mPluginName(aPluginName),
-      mPluginFilename(aPluginFilename),
       mSubmittedCrashReport(submittedCrashReport)
   {}
 
@@ -276,24 +266,6 @@ nsPluginCrashedEvent::Run()
   
   nsCOMPtr<nsIWritableVariant> variant;
 
-  // add a "pluginDumpID" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginDumpID variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginDumpID);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginDumpID"), variant);
-
-  // add a "browserDumpID" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create browserDumpID variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mBrowserDumpID);
-  containerEvent->SetData(NS_LITERAL_STRING("browserDumpID"), variant);
-
   // add a "pluginName" property to this event
   variant = do_CreateInstance("@mozilla.org/variant;1");
   if (!variant) {
@@ -302,15 +274,6 @@ nsPluginCrashedEvent::Run()
   }
   variant->SetAsAString(mPluginName);
   containerEvent->SetData(NS_LITERAL_STRING("pluginName"), variant);
-
-  // add a "pluginFilename" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create pluginFilename variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsAString(mPluginFilename);
-  containerEvent->SetData(NS_LITERAL_STRING("pluginFilename"), variant);
 
   // add a "submittedCrashReport" property to this event
   variant = do_CreateInstance("@mozilla.org/variant;1");
@@ -2045,28 +2008,15 @@ nsObjectLoadingContent::SetAbsoluteScreenPosition(nsIDOMElement* element,
 }
 
 NS_IMETHODIMP
-nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
-                                      const nsAString& pluginDumpID,
-                                      const nsAString& browserDumpID,
+nsObjectLoadingContent::PluginCrashed(const nsAString& pluginName,
                                       PRBool submittedCrashReport)
 {
   AutoNotifier notifier(this, PR_TRUE);
   UnloadContent();
   mFallbackReason = ePluginCrashed;
   nsCOMPtr<nsIContent> thisContent = do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
-
-  // Note that aPluginTag in invalidated after we're called, so copy 
-  // out any data we need now.
-  nsCAutoString pluginName;
-  aPluginTag->GetName(pluginName);
-  nsCAutoString pluginFilename;
-  aPluginTag->GetFilename(pluginFilename);
-
   nsCOMPtr<nsIRunnable> ev = new nsPluginCrashedEvent(thisContent,
-                                                      pluginDumpID,
-                                                      browserDumpID,
-                                                      NS_ConvertUTF8toUTF16(pluginName),
-                                                      NS_ConvertUTF8toUTF16(pluginFilename),
+                                                      pluginName,
                                                       submittedCrashReport);
   nsresult rv = NS_DispatchToCurrentThread(ev);
   if (NS_FAILED(rv)) {

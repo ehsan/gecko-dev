@@ -56,6 +56,11 @@ endif
 ifndef INCLUDED_AUTOCONF_MK
 include $(DEPTH)/config/autoconf.mk
 endif
+ifndef INCLUDED_INSURE_MK
+ifdef MOZ_INSURIFYING
+include $(topsrcdir)/config/insure.mk
+endif
+endif
 
 COMMA = ,
 
@@ -526,7 +531,7 @@ OS_COMPILE_CMMFLAGS += -fobjc-exceptions
 endif
 
 COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CFLAGS)
-COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(STL_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
+COMPILE_CXXFLAGS = $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(CXXFLAGS) $(RTL_FLAGS) $(OS_COMPILE_CXXFLAGS)
 COMPILE_CMFLAGS = $(OS_COMPILE_CMFLAGS)
 COMPILE_CMMFLAGS = $(OS_COMPILE_CMMFLAGS)
 
@@ -763,14 +768,14 @@ endif
 ifdef WINCE
 RUN_TEST_PROGRAM = $(PYTHON) $(topsrcdir)/build/mobile/devicemanager-run-test.py
 else
-ifeq (OS2,$(OS_ARCH))
-RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
-else
-ifneq (WINNT,$(OS_ARCH))
+ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
 RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
-endif # ! WINNT
-endif # ! OS2
-endif # ! WINCE
+endif
+
+ifeq ($(OS_ARCH),OS2)
+RUN_TEST_PROGRAM = $(topsrcdir)/build/os2/test_os2.cmd "$(DIST)"
+endif
+endif
 
 #
 # Java macros

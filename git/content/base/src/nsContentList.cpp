@@ -83,7 +83,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
     NS_INTERFACE_TABLE_ENTRY(_class, nsINodeList)                             \
     NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNodeList)
 
-DOMCI_DATA(NodeList, nsBaseContentList)
 
 // QueryInterface implementation for nsBaseContentList
 NS_INTERFACE_TABLE_HEAD(nsBaseContentList)
@@ -92,7 +91,7 @@ NS_INTERFACE_TABLE_HEAD(nsBaseContentList)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsBaseContentList)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NodeList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
 NS_INTERFACE_MAP_END
 
 
@@ -441,7 +440,6 @@ nsContentList::~nsContentList()
   }
 }
 
-DOMCI_DATA(ContentList, nsContentList)
 
 // QueryInterface implementation for nsContentList
 NS_INTERFACE_TABLE_HEAD(nsContentList)
@@ -453,7 +451,7 @@ NS_INTERFACE_TABLE_HEAD(nsContentList)
     NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIMutationObserver)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ContentList)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ContentList)
 NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
 
 

@@ -532,13 +532,8 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
     if (NS_FAILED(rv))
         return JS_FALSE; // Not just absence of principal, but failure.
 
-    if (!subjectPrincipal) {
-        // See bug 553448 for discussion of this case.
-        NS_ASSERTION(!JS_GetSecurityCallbacks(cx)->findObjectPrincipals,
-                     "CSP: Should have been able to find subject principal. "
-                     "Reluctantly granting access.");
-        return JS_TRUE;
-    }
+    if (!subjectPrincipal)
+        return JS_FALSE;
 
     nsCOMPtr<nsIContentSecurityPolicy> csp;
     rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
@@ -589,7 +584,7 @@ nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
     // Do the same-origin check -- this sets a JS exception if the check fails.
     // Pass the parent object's class name, as we have no class-info for it.
     nsresult rv =
-        ssm->CheckPropertyAccess(cx, target, obj->getClass()->name, id,
+        ssm->CheckPropertyAccess(cx, target, STOBJ_GET_CLASS(obj)->name, id,
                                  (mode & JSACC_WRITE) ?
                                  (PRInt32)nsIXPCSecurityManager::ACCESS_SET_PROPERTY :
                                  (PRInt32)nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
@@ -813,13 +808,13 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
     {
         nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
         nsCOMPtr<nsIInterfaceInfo> interfaceInfo;
-        const nsIID* objIID = nsnull;
+        const nsIID* objIID;
         rv = aCallContext->GetCalleeWrapper(getter_AddRefs(wrapper));
-        if (NS_SUCCEEDED(rv) && wrapper)
+        if (NS_SUCCEEDED(rv))
             rv = wrapper->FindInterfaceWithMember(aProperty, getter_AddRefs(interfaceInfo));
-        if (NS_SUCCEEDED(rv) && interfaceInfo)
+        if (NS_SUCCEEDED(rv))
             rv = interfaceInfo->GetIIDShared(&objIID);
-        if (NS_SUCCEEDED(rv) && objIID)
+        if (NS_SUCCEEDED(rv))
         {
             switch (aAction)
             {
@@ -2388,7 +2383,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     JSObject* origObj = aObj;
 #endif
     
-    const JSClass *jsClass = aObj->getClass();
+    const JSClass *jsClass = STOBJ_GET_CLASS(aObj);
 
     // A common case seen in this code is that we enter this function
     // with aObj being a Function object, whose parent is a Call
@@ -2465,12 +2460,12 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
             }
         }
 
-        aObj = aObj->getParent();
+        aObj = STOBJ_GET_PARENT(aObj);
 
         if (!aObj)
             break;
 
-        jsClass = aObj->getClass();
+        jsClass = STOBJ_GET_CLASS(aObj);
     } while (1);
 
     NS_ASSERTION(!aAllowShortCircuit ||

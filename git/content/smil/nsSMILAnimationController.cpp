@@ -70,7 +70,6 @@ GetRefreshDriverForDoc(nsIDocument* aDoc)
 
 nsSMILAnimationController::nsSMILAnimationController()
   : mResampleNeeded(PR_FALSE),
-    mDeferredStartSampling(PR_FALSE),
     mDocument(nsnull)
 {
   mAnimationElementTable.Init();
@@ -135,11 +134,7 @@ nsSMILAnimationController::Resume(PRUint32 aType)
 
   if (wasPaused && !mPauseState && mChildContainerTable.Count()) {
     Sample(); // Run the first sample manually
-    if (mAnimationElementTable.Count()) {
-      StartSampling(GetRefreshDriverForDoc(mDocument));
-    } else {
-      mDeferredStartSampling = PR_TRUE;
-    }
+    StartSampling(GetRefreshDriverForDoc(mDocument));
   }
 }
 
@@ -155,7 +150,6 @@ nsSMILAnimationController::GetParentTime() const
 NS_IMPL_ADDREF(nsSMILAnimationController)
 NS_IMPL_RELEASE(nsSMILAnimationController)
 
-// nsRefreshDriver Callback function
 void
 nsSMILAnimationController::WillRefresh(mozilla::TimeStamp aTime)
 {
@@ -173,14 +167,6 @@ nsSMILAnimationController::RegisterAnimationElement(
                                   nsISMILAnimationElement* aAnimationElement)
 {
   mAnimationElementTable.PutEntry(aAnimationElement);
-  if (mDeferredStartSampling) {
-    // mAnimationElementTable was empty until we just inserted its first element
-    NS_ABORT_IF_FALSE(mAnimationElementTable.Count() == 1,
-                      "we shouldn't have deferred sampling if we already had "
-                      "animations registered");
-    mDeferredStartSampling = PR_FALSE;
-    StartSampling(GetRefreshDriverForDoc(mDocument));
-  }
 }
 
 void
@@ -244,8 +230,7 @@ nsSMILAnimationController::StartSampling(nsRefreshDriver* aRefreshDriver)
 {
   NS_ASSERTION(mPauseState == 0, "Starting sampling but controller is paused");
   if (aRefreshDriver) {
-    NS_ABORT_IF_FALSE(!GetRefreshDriverForDoc(mDocument) ||
-                      aRefreshDriver == GetRefreshDriverForDoc(mDocument),
+    NS_ABORT_IF_FALSE(aRefreshDriver == GetRefreshDriverForDoc(mDocument),
                       "Starting sampling with wrong refresh driver");
     aRefreshDriver->AddRefreshObserver(this, Flush_Style);
   }
@@ -681,11 +666,7 @@ nsSMILAnimationController::AddChild(nsSMILTimeContainer& aChild)
 
   if (!mPauseState && mChildContainerTable.Count() == 1) {
     Sample(); // Run the first sample manually
-    if (mAnimationElementTable.Count()) {
-      StartSampling(GetRefreshDriverForDoc(mDocument));
-    } else {
-      mDeferredStartSampling = PR_TRUE;
-    }
+    StartSampling(GetRefreshDriverForDoc(mDocument));
   }
 
   return NS_OK;

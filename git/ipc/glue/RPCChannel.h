@@ -39,12 +39,9 @@
 #ifndef ipc_glue_RPCChannel_h
 #define ipc_glue_RPCChannel_h 1
 
-#include <stdio.h>
-
 // FIXME/cjones probably shouldn't depend on STL
 #include <queue>
 #include <stack>
-#include <vector>
 
 #include "base/basictypes.h"
 
@@ -143,7 +140,7 @@ public:
 
     // Return true iff this has code on the C++ stack.
     bool IsOnCxxStack() const {
-        return !mCxxStackFrames.empty();
+        return 0 < mCxxStackFrames;
     }
 
     NS_OVERRIDE
@@ -158,34 +155,23 @@ public:
 
 #ifdef OS_WIN
     static bool IsSpinLoopActive() {
-        return (sModalEventCount > 0);
+        return (sInnerEventLoopDepth > 0);
     }
+
 protected:
     bool WaitForNotify();
-    void SpinInternalEventLoop();
-    static bool WaitNeedsSpinLoop() {
-        return (IsSpinLoopActive() && 
-                (sModalEventCount > sInnerEventLoopDepth));
-    }
-    static void EnterSpinLoop() {
+    bool IsMessagePending();
+    bool SpinInternalEventLoop();
+    static void EnterModalLoop() {
         sInnerEventLoopDepth++;
     }
-    static void ExitSpinLoop() {
+    static void ExitModalLoop() {
         sInnerEventLoopDepth--;
         NS_ASSERTION(sInnerEventLoopDepth >= 0,
             "sInnerEventLoopDepth dropped below zero!");
     }
-    static void IncModalLoopCnt() {
-        sModalEventCount++;
-    }
-    static void DecModalLoopCnt() {
-        sModalEventCount--;
-        NS_ASSERTION(sModalEventCount >= 0,
-            "sModalEventCount dropped below zero!");
-    }
 
     static int sInnerEventLoopDepth;
-    static int sModalEventCount;
 #endif
 
   private:
@@ -197,7 +183,7 @@ protected:
 
     NS_OVERRIDE
     virtual bool ShouldDeferNotifyMaybeError() {
-        return IsOnCxxStack();
+        return 0 < mCxxStackFrames;
     }
 
     bool EventOccurred();
@@ -221,47 +207,25 @@ protected:
         Listener()->OnEnteredCxxStack();
     }
 
-    void ExitedCxxStack();
-
-    enum Direction { IN_MESSAGE, OUT_MESSAGE };
-    struct RPCFrame {
-        RPCFrame(Direction direction, const Message* msg) :
-            mDirection(direction), mMsg(msg)
-        { }
-
-        void Describe(int32* id, const char** dir, const char** sems,
-                      const char** name)
-            const
-        {
-            *id = mMsg->routing_id();
-            *dir = (IN_MESSAGE == mDirection) ? "in" : "out";
-            *sems = mMsg->is_rpc() ? "rpc" : mMsg->is_sync() ? "sync" : "async";
-            *name = mMsg->name();
-        }
-
-        Direction mDirection;
-        const Message* mMsg;
-    };
+    void ExitedCxxStack()
+    {
+        Listener()->OnExitedCxxStack();
+    }
 
     class NS_STACK_CLASS CxxStackFrame
     {
     public:
-
-        CxxStackFrame(RPCChannel& that, Direction direction,
-                      const Message* msg) : mThat(that) {
+        CxxStackFrame(RPCChannel& that) : mThat(that) {
+            NS_ABORT_IF_FALSE(0 <= mThat.mCxxStackFrames,
+                              "mismatched CxxStackFrame ctor/dtor");
             mThat.AssertWorkerThread();
 
-            if (mThat.mCxxStackFrames.empty())
+            if (0 == mThat.mCxxStackFrames++)
                 mThat.EnteredCxxStack();
-
-            mThat.mCxxStackFrames.push_back(RPCFrame(direction, msg));
-            mThat.mSawRPCOutMsg |= (direction == OUT_MESSAGE) &&
-                                   (msg->is_rpc());
         }
 
         ~CxxStackFrame() {
-            mThat.mCxxStackFrames.pop_back();
-            bool exitingStack = mThat.mCxxStackFrames.empty();
+            bool exitingStack = (0 == --mThat.mCxxStackFrames);
 
             // mListener could have gone away if Close() was called while
             // RPCChannel code was still on the stack
@@ -290,10 +254,6 @@ protected:
     void DebugAbort(const char* file, int line, const char* cond,
                     const char* why,
                     const char* type="rpc", bool reply=false);
-
-    // This method is only safe to call on the worker thread, or in a
-    // debugger with all threads paused.  |outfile| defaults to stdout.
-    void DumpRPCStack(FILE* outfile=NULL, const char* const pfx="");
 
     // 
     // Queue of all incoming messages, except for replies to sync
@@ -390,21 +350,16 @@ protected:
     // True iff the parent has put us in a |BlockChild()| state.
     bool mBlockedOnParent;
 
-    // Approximation of Sync/RPCChannel-code frames on the C++ stack.
-    // It can only be interpreted as the implication
+    // Approximation of number of Sync/RPCChannel-code frames on the
+    // C++ stack.  It can only be interpreted as the implication
     //
-    //  !mCxxStackFrames.empty() => RPCChannel code on C++ stack
+    //  mCxxStackDepth > 0 => RPCChannel code on C++ stack
     //
     // This member is only accessed on the worker thread, and so is
     // not protected by mMutex.  It is managed exclusively by the
     // helper |class CxxStackFrame|.
-    std::vector<RPCFrame> mCxxStackFrames;
-
-    // Did we process an RPC out-call during this stack?  Only
-    // meaningful in ExitedCxxStack(), from which this variable is
-    // reset.
-    bool mSawRPCOutMsg;
-
+    int mCxxStackFrames;
+    
 private:
 
     //

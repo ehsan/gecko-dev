@@ -151,7 +151,6 @@ nsTextNode::~nsTextNode()
 NS_IMPL_ADDREF_INHERITED(nsTextNode, nsGenericDOMDataNode)
 NS_IMPL_RELEASE_INHERITED(nsTextNode, nsGenericDOMDataNode)
 
-DOMCI_DATA(Text, nsTextNode)
 
 // QueryInterface implementation for nsTextNode
 NS_INTERFACE_TABLE_HEAD(nsTextNode)
@@ -159,7 +158,7 @@ NS_INTERFACE_TABLE_HEAD(nsTextNode)
                            nsIDOMCharacterData)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Text, new nsText3Tearoff(this))
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsTextNode)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Text)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(Text)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericDOMDataNode)
 
 NS_IMETHODIMP

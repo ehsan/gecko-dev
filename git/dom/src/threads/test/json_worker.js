@@ -1,265 +1,177 @@
-var cyclicalObject = {};
-cyclicalObject.foo = cyclicalObject;
-
-var cyclicalArray = [];
-cyclicalArray.push(cyclicalArray);
-
-function makeCrazyNested(obj, count) {
-  var innermostobj;
-  for (var i = 0; i < count; i++) {
-    obj.foo = { bar: 5 }
-    innermostobj = obj.foo;
-    obj = innermostobj;
-  }
-  return innermostobj;
-}
-
-var crazyNestedObject = {};
-makeCrazyNested(crazyNestedObject, 100);
-
-var crazyCyclicalObject = {};
-var innermost = makeCrazyNested(crazyCyclicalObject, 1000);
-innermost.baz = crazyCyclicalObject;
-
-var objectWithSaneGetter = { };
-objectWithSaneGetter.__defineGetter__("foo", function() { return 5; });
-
-// We don't walk prototype chains for cloning so this won't actually do much...
-function objectWithSaneGetter2() { }
-objectWithSaneGetter2.prototype = {
-  get foo() {
-    return 5;
-  }
-};
-
-var objectWithThrowingGetter = { };
-objectWithThrowingGetter.__defineGetter__("foo", function() { throw "bad"; });
-
-var typedArrayWithValues = new Int8Array(5);
-for (var index in typedArrayWithValues) {
-  typedArrayWithValues[index] = index;
-}
-
-var typedArrayWithFunBuffer = new Int8Array(4);
-for (var index in typedArrayWithFunBuffer) {
-  typedArrayWithFunBuffer[index] = 255;
-}
-
-var typedArrayWithFunBuffer2 = new Int32Array(typedArrayWithFunBuffer.buffer);
-
 var messages = [
   {
     type: "object",
-    value: { },
-    jsonValue: '{}'
-  },
-  {
-    type: "object",
-    value: {foo: "bar"},
-    jsonValue: '{"foo":"bar"}'
-  },
-  {
-    type: "object",
-    value: {foo: "bar", foo2: {bee: "bop"}},
-    jsonValue: '{"foo":"bar","foo2":{"bee":"bop"}}'
-  },
-  {
-    type: "object",
-    value: {foo: "bar", foo2: {bee: "bop"}, foo3: "baz"},
-    jsonValue: '{"foo":"bar","foo2":{"bee":"bop"},"foo3":"baz"}'
-  },
-  {
-    type: "object",
-    value: {foo: "bar", foo2: [1,2,3]},
-    jsonValue: '{"foo":"bar","foo2":[1,2,3]}'
-  },
-  {
-    type: "object",
-    value: cyclicalObject,
-    exception: true
-  },
-  {
-    type: "object",
-    value: [null, 2, false, cyclicalObject],
-    exception: true
-  },
-  {
-    type: "object",
-    value: cyclicalArray,
-    exception: true
-  },
-  {
-    type: "object",
-    value: {foo: 1, bar: cyclicalArray},
-    exception: true
-  },
-  {
-    type: "object",
-    value: crazyNestedObject,
-    jsonValue: JSON.stringify(crazyNestedObject)
-  },
-  {
-    type: "object",
-    value: crazyCyclicalObject,
-    exception: true
-  },
-  {
-    type: "object",
-    value: objectWithSaneGetter,
-    jsonValue: '{"foo":5}'
-  },
-  {
-    type: "object",
-    value: new objectWithSaneGetter2(),
-    jsonValue: '{}'
-  },
-  {
-    type: "object",
-    value: objectWithThrowingGetter,
-    exception: true
+    array: false,
+    exception: false,
+    shouldCompare: false,
+    shouldEqual: false,
+    value: { foo: "bar" }
   },
   {
     type: "object",
     array: true,
-    value: [9, 8, 7],
-    jsonValue: '[9,8,7]'
+    exception: false,
+    shouldCompare: false,
+    shouldEqual: false,
+    value: [9, 8, 7]
   },
   {
     type: "object",
-    array: true,
-    value: [9, false, 10.5, {foo: "bar"}],
-    jsonValue: '[9,false,10.5,{"foo":"bar"}]'
-  },
-  {
-    type: "object",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: null
   },
   {
     type: "undefined",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
-    value: undefined
+    value: undefined,
+    compareValue: undefined
   },
   {
     type: "string",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: "Hello"
   },
   {
     type: "string",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
-    value: JSON.stringify({ foo: "bar" }),
-    compareValue: '{"foo":"bar"}'
+    value: JSON.stringify({ foo: "bar" })
   },
   {
     type: "number",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: 1
   },
   {
     type: "number",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: 0
   },
   {
     type: "number",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: -1
   },
   {
     type: "number",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: 238573459843702923492399923049
   },
   {
     type: "number",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: -238573459843702923492399923049
   },
   {
     type: "number",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: 0.25
   },
   {
     type: "number",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: -0.25
   },
   {
     type: "boolean",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: true
   },
   {
     type: "boolean",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: false
   },
+
+  /*
+  // Uncomment these once bug 465371 is fixed!
+  {
+    type: "function",
+    array: false,
+    exception: true,
+    shouldCompare: false,
+    shouldEqual: false,
+    value: function (foo) { return "Bad!"; }
+  },
+  {
+    type: "xml",
+    array: false,
+    exception: true,
+    shouldCompare: true,
+    shouldEqual: true,
+    value: <funtimes></funtimes>
+  },
+  */
   {
     type: "object",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
-    value: function (foo) { return "Bad!"; },
+    value: NaN,
     compareValue: null
   },
   {
-    type: "number",
-    isNaN: true,
-    value: NaN
-  },
-  {
-    type: "number",
-    isInfinity: true,
-    value: Infinity
-  },
-  {
-    type: "number",
-    isNegativeInfinity: true,
-    value: -Infinity
+    type: "object",
+    array: false,
+    exception: false,
+    shouldCompare: true,
+    shouldEqual: true,
+    value: Infinity,
+    compareValue: null
   },
   {
     type: "object",
-    value: new Int32Array(10),
-    jsonValue: '{"0":0,"1":0,"2":0,"3":0,"4":0,"5":0,"6":0,"7":0,"8":0,"9":0}'
-  },
-  {
-    type: "object",
-    value: new Float32Array(5),
-    jsonValue: '{"0":0,"1":0,"2":0,"3":0,"4":0}'
-  },
-  {
-    type: "object",
-    value: typedArrayWithValues,
-    jsonValue: '{"0":0,"1":1,"2":2,"3":3,"4":4}'
-  },
-  {
-    type: "number",
-    value: typedArrayWithValues[2],
-    compareValue: 2,
-    shouldEqual: true
-  },
-  {
-    type: "object",
-    value: typedArrayWithValues.buffer,
-    jsonValue: '{}'
-  },
-  {
-    type: "object",
-    value: typedArrayWithFunBuffer2,
-    jsonValue: '{"0":-1}',
-  },
-  {
-    type: "object",
-    value: { foo: typedArrayWithFunBuffer2 },
-    jsonValue: '{"foo":{"0":-1}}',
-  },
-  {
-    type: "object",
-    value: [ typedArrayWithFunBuffer2 ],
-    jsonValue: '[{"0":-1}]',
+    array: false,
+    exception: false,
+    shouldCompare: true,
+    shouldEqual: true,
+    value: -Infinity,
+    compareValue: null
   },
   {
     type: "string",
+    array: false,
+    exception: false,
+    shouldCompare: true,
     shouldEqual: true,
     value: "testFinished"
   }
@@ -270,26 +182,22 @@ for (var index = 0; index < messages.length; index++) {
   if (message.hasOwnProperty("compareValue")) {
     continue;
   }
-  if (message.hasOwnProperty("shouldEqual") ||
-      message.hasOwnProperty("shouldCompare")) {
-    message.compareValue = message.value;
-  }
+  message.compareValue = message.value;
 }
 
-function onmessage(event) {
+var onmessage = function(event) {
   for (var index = 0; index < messages.length; index++) {
-    var exception = undefined;
+    var exception = false;
 
     try {
       postMessage(messages[index].value);
     }
     catch (e) {
-      exception = e;
+      exception = true;
     }
 
-    if ((exception !== undefined && !messages[index].exception) ||
-        (exception === undefined && messages[index].exception)) {
-      throw "Exception inconsistency [" + index + "]: " + exception;
+    if (messages[index].exception != exception) {
+      throw "Exception inconsistency!";
     }
   }
 }

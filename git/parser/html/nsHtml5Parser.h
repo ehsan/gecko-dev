@@ -62,11 +62,9 @@
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsWeakReference.h"
-#include "nsAHtml5EncodingDeclarationHandler.h"
 
 class nsHtml5Parser : public nsIParser,
-                      public nsSupportsWeakReference,
-                      public nsAHtml5EncodingDeclarationHandler
+                      public nsSupportsWeakReference
 {
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -143,9 +141,10 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /**
-     * Don't call. For interface compat only.
+     * If scripts are not executing, maybe flushes tree builder and parses
+     * until suspension.
      */
-    NS_IMETHOD ContinueInterruptedParsing();
+    NS_IMETHOD        ContinueInterruptedParsing();
 
     /**
      * Blocks the parser.
@@ -158,7 +157,7 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD_(void) UnblockParser();
 
     /**
-     * Query whether the parser is enabled (i.e. not blocked) or not.
+     * Query whether the parser is enabled or not.
      */
     NS_IMETHOD_(PRBool) IsParserEnabled();
 
@@ -278,12 +277,6 @@ class nsHtml5Parser : public nsIParser,
 
     /* End nsIParser  */
 
-    // nsAHtml5EncodingDeclarationHandler
-    /**
-     * Tree builder uses this to report a late <meta charset>
-     */
-    virtual void internalEncodingDeclaration(nsString* aEncoding);
-
     // Not from an external interface
     // Non-inherited methods
 
@@ -311,25 +304,20 @@ class nsHtml5Parser : public nsIParser,
     
     void ContinueAfterFailedCharsetSwitch();
 
-    nsHtml5StreamParser* GetStreamParser() {
-      return mStreamParser;
+#ifdef DEBUG
+    PRBool HasStreamParser() {
+      return !!mStreamParser;
     }
+#endif
+
+  private:
 
     /**
      * Parse until pending data is exhausted or a script blocks the parser
      */
     void ParseUntilBlocked();
 
-  private:
-
     // State variables
-
-    /**
-     * The charset source. This variable is used for script-created parsers
-     * only. When parsing from the stream, this variable can have a bogus 
-     * value.
-     */
-    PRInt32                       mCharsetSource;
 
     /**
      * Whether the last character tokenized was a carriage return (for CRLF)

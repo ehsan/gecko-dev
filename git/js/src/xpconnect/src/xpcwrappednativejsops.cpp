@@ -853,7 +853,7 @@ XPC_WN_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
             return Throw(rv, cx);
 
         if(!*bp && !JSVAL_IS_PRIMITIVE(v) &&
-           JSVAL_TO_OBJECT(v)->getClass() == &XPCSafeJSObjectWrapper::SJOWClass.base)
+           STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v)) == &XPCSafeJSObjectWrapper::SJOWClass.base)
         {
             v = OBJECT_TO_JSVAL(XPCSafeJSObjectWrapper::GetUnsafeObject(cx, JSVAL_TO_OBJECT(v)));
 
@@ -1327,7 +1327,7 @@ static JSBool
 XPC_WN_JSOp_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
                       jsval *statep, jsid *idp)
 {
-    JSClass *clazz = obj->getClass();
+    JSClass *clazz = STOBJ_GET_CLASS(obj);
     if(!IS_WRAPPER_CLASS(clazz) || clazz == &XPC_WN_NoHelper_JSClass.base)
     {
         // obj must be a prototype object or a wrapper w/o a
@@ -1517,7 +1517,8 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
     JSStackFrame *fp;
     nsIPrincipal *principal = secMan->GetCxSubjectPrincipalAndFrame(cx, &fp);
 
-    js::AutoValueRooter retval(cx, obj);
+    jsval retval = OBJECT_TO_JSVAL(obj);
+    JSAutoTempValueRooter atvr(cx, 1, &retval);
 
     if(principal && fp)
     {
@@ -1534,7 +1535,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
         }
 
         nsresult rv = xpc->GetWrapperForObject(cx, obj, scope, principal, flags,
-                                               retval.addr());
+                                               &retval);
         if(NS_FAILED(rv))
         {
             XPCThrower::Throw(rv, cx);
@@ -1542,7 +1543,7 @@ XPC_WN_JSOp_ThisObject(JSContext *cx, JSObject *obj)
         }
     }
 
-    return JSVAL_TO_OBJECT(retval.value());
+    return JSVAL_TO_OBJECT(retval);
 }
 
 JSObjectOps *
@@ -1607,8 +1608,7 @@ XPCNativeScriptableInfo::Construct(XPCCallContext& ccx,
     XPCNativeScriptableSharedMap* map = rt->GetNativeScriptableSharedMap();
     {   // scoped lock
         XPCAutoLock lock(rt->GetMapLock());
-        success = map->GetNewOrUsed(sci->GetFlags(), name, isGlobal,
-                                    sci->GetInterfacesBitmap(), newObj);
+        success = map->GetNewOrUsed(sci->GetFlags(), name, isGlobal, newObj);
     }
 
     if(!success)

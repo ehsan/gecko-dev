@@ -46,6 +46,8 @@ function test() {
            getService(Ci.nsIDownloadManager);
   if (!gDownloadMgr)
     gDownloadMgr = dm;
+  let iosvc = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
   let panel = document.getElementById("download-monitor");
   waitForExplicitFinish();
 
@@ -127,7 +129,7 @@ function addDownload(dm, aParams)
     aParams.targetFile.append(aParams.resultFileName);
   }
   if (!("sourceURI" in aParams))
-    aParams.sourceURI = "http://mochi.test:8888/browser/browser/components/privatebrowsing/test/browser/staller.sjs";
+    aParams.sourceURI = "http://localhost:8888/browser/browser/components/privatebrowsing/test/browser/staller.sjs";
   if (!("downloadName" in aParams))
     aParams.downloadName = null;
   if (!("runBeforeStart" in aParams))
@@ -157,8 +159,10 @@ function addDownload(dm, aParams)
   return dl;
 }
 
-function createURI(aObj) {
-  let ios = Services.io;
+function createURI(aObj)
+{
+  let ios = Cc["@mozilla.org/network/io-service;1"].
+            getService(Ci.nsIIOService);
   return (aObj instanceof Ci.nsIFile) ? ios.newFileURI(aObj) :
                                         ios.newURI(aObj, null, null);
 }

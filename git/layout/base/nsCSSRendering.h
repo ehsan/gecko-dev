@@ -95,22 +95,9 @@ struct nsCSSRendering {
                           nsIFrame* aForFrame,
                           const nsRect& aDirtyRect,
                           const nsRect& aBorderArea,
+                          const nsStyleBorder& aBorderStyle,
                           nsStyleContext* aStyleContext,
                           PRIntn aSkipSides = 0);
-
-  /**
-   * Like PaintBorder, but taking an nsStyleBorder argument instead of
-   * getting it from aStyleContext.
-   */
-  static void PaintBorderWithStyleBorder(nsPresContext* aPresContext,
-                                         nsIRenderingContext& aRenderingContext,
-                                         nsIFrame* aForFrame,
-                                         const nsRect& aDirtyRect,
-                                         const nsRect& aBorderArea,
-                                         const nsStyleBorder& aBorderStyle,
-                                         nsStyleContext* aStyleContext,
-                                         PRIntn aSkipSides = 0);
-
 
   /**
    * Render the outline for an element using css rendering rules
@@ -125,6 +112,8 @@ struct nsCSSRendering {
                           nsIFrame* aForFrame,
                           const nsRect& aDirtyRect,
                           const nsRect& aBorderArea,
+                          const nsStyleBorder& aBorderStyle,
+                          const nsStyleOutline& aOutlineStyle,
                           nsStyleContext* aStyleContext);
 
   /**
@@ -163,21 +152,21 @@ struct nsCSSRendering {
   static PRBool IsCanvasFrame(nsIFrame* aFrame);
 
   /**
-   * Fill in an aBackgroundSC to be used to paint the background
+   * Fill in an nsStyleBackground to be used to paint the background
    * for an element.  This applies the rules for propagating
    * backgrounds between BODY, the root element, and the canvas.
    * @return PR_TRUE if there is some meaningful background.
    */
   static PRBool FindBackground(nsPresContext* aPresContext,
                                nsIFrame* aForFrame,
-                               nsStyleContext** aBackgroundSC);
+                               const nsStyleBackground** aBackground);
 
   /**
    * As FindBackground, but the passed-in frame is known to be a root frame
    * (returned from nsCSSFrameConstructor::GetRootElementStyleFrame())
    * and there is always some meaningful background returned.
    */
-  static nsStyleContext* FindRootFrameBackground(nsIFrame* aForFrame);
+  static const nsStyleBackground* FindRootFrameBackground(nsIFrame* aForFrame);
 
   /**
    * Returns background style information for the canvas.
@@ -190,7 +179,7 @@ struct nsCSSRendering {
    * @param aBackground
    *   contains background style information for the canvas on return
    */
-  static nsStyleContext*
+  static const nsStyleBackground*
   FindCanvasBackground(nsIFrame* aForFrame, nsIFrame* aRootElementFrame)
   {
     NS_ABORT_IF_FALSE(IsCanvasFrame(aForFrame), "not a canvas frame");
@@ -200,28 +189,28 @@ struct nsCSSRendering {
     // This should always give transparent, so we'll fill it in with the
     // default color if needed.  This seems to happen a bit while a page is
     // being loaded.
-    return aForFrame->GetStyleContext();
+    return aForFrame->GetStyleBackground();
   }
 
   /**
-   * Find a frame which draws a non-transparent background,
+   * Find a style context containing a non-transparent background,
    * for various table-related and HR-related backwards-compatibility hacks.
-   * This function will also stop if it finds themed frame which might draw
-   * background.
+   * This function will also stop if it finds a -moz-appearance value, as
+   * the theme may draw a widget as a background.
    *
    * Be very hesitant if you're considering calling this function -- it's
    * usually not what you want.
    */
-  static nsIFrame*
-  FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
-                                    PRBool aStartAtParent = PR_FALSE);
+  static nsStyleContext*
+  FindNonTransparentBackground(nsStyleContext* aContext,
+                               PRBool aStartAtParent = PR_FALSE);
 
   /**
    * Determine the background color to draw taking into account print settings.
    */
   static nscolor
   DetermineBackgroundColor(nsPresContext* aPresContext,
-                           nsStyleContext* aStyleContext,
+                           const nsStyleBackground& aBackground,
                            nsIFrame* aFrame);
 
   /**
@@ -259,7 +248,7 @@ struct nsCSSRendering {
                                     nsIFrame* aForFrame,
                                     const nsRect& aDirtyRect,
                                     const nsRect& aBorderArea,
-                                    nsStyleContext *aStyleContext,
+                                    const nsStyleBackground& aBackground,
                                     const nsStyleBorder& aBorder,
                                     PRUint32 aFlags,
                                     nsRect* aBGClipRect = nsnull);

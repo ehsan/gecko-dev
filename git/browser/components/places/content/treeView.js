@@ -63,11 +63,11 @@ PlacesTreeView.prototype = {
 
   QueryInterface: function PTV_QueryInterface(aIID) {
     if (aIID.equals(Ci.nsITreeView) ||
-        aIID.equals(Ci.nsINavHistoryResultObserver) ||
+        aIID.equals(Ci.nsINavHistoryResultViewer) ||
         aIID.equals(Ci.nsINavHistoryResultTreeViewer) ||
-        aIID.equals(Ci.nsISupportsWeakReference) ||
         aIID.equals(Ci.nsISupports))
       return this;
+
     throw Cr.NS_ERROR_NO_INTERFACE;
   },
 
@@ -147,7 +147,7 @@ PlacesTreeView.prototype = {
    *        node which isn't supposed to be in the tree (e.g. separators in
    *        sorted trees).
    * @param [optional] aForceBuild
-   *        @see _isPlainContainer.
+   *        @see isPlainContainer.
    *        If true, the row will be computed even if the node still isn't set
    *        in our rows array.
    * @param [optional] aParentRow
@@ -255,6 +255,8 @@ PlacesTreeView.prototype = {
     return this._rows[aRow] = parent.getChild(aRow - parentRow - 1);
   },
 
+  _rootNode: null,
+
   /**
    * This takes a container and recursively appends our rows array per its
    * contents.  Assumes that the rows arrays has no rows for the given
@@ -282,8 +284,9 @@ PlacesTreeView.prototype = {
     // iteration.
     let cc = aContainer.childCount;
     let newElements = new Array(cc);
-    this._rows = this._rows.splice(0, aFirstChildRow)
-                     .concat(newElements, this._rows);
+    this._rows =
+      this._rows.slice(0, aFirstChildRow).concat(newElements)
+          .concat(this._rows.slice(aFirstChildRow, this._rows.length));
 
     if (this._isPlainContainer(aContainer))
       return cc;
@@ -292,12 +295,12 @@ PlacesTreeView.prototype = {
     const trueLiteral = PlacesUIUtils.RDF.GetLiteral("true");
     let sortingMode = this._result.sortingMode;
 
-    let rowsInserted = 0;
+    let rowsInsertedCounter = 0;
     for (let i = 0; i < cc; i++) {
       let curChild = aContainer.getChild(i);
       let curChildType = curChild.type;
 
-      let row = aFirstChildRow + rowsInserted;
+      let row = aFirstChildRow + rowsInsertedCounter;
 
       // Don't display separators when sorted.
       if (curChildType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR) {
@@ -311,7 +314,7 @@ PlacesTreeView.prototype = {
       }
 
       this._rows[row] = curChild;
-      rowsInserted++;
+      rowsInsertedCounter++;
 
       // Recursively do containers.
       if (!this._flatList &&
@@ -324,12 +327,12 @@ PlacesTreeView.prototype = {
         if (isopen != curChild.containerOpen)
           aToOpen.push(curChild);
         else if (curChild.containerOpen && curChild.childCount > 0)
-          rowsInserted += this._buildVisibleSection(curChild, aToOpen,
-                                                    row + 1);
+          rowsAddedCounter += this._buildVisibleSection(curChild, aToOpen,
+                                                        row + 1);
       }
     }
 
-    return rowsInserted;
+    return rowsInsertedCounter;
   },
 
   /**
@@ -340,9 +343,9 @@ PlacesTreeView.prototype = {
   function PTV__countVisibleRowsForNodeAtRow(aNodeRow) {
     let node = this._rows[aNodeRow];
 
-    // If it's not listed yet, we know that it's a leaf node (instanceof also
-    // null-checks).
-    if (!(node instanceof Ci.nsINavHistoryContainerResultNode))
+    // If it's not listed yet, we know that it's a leaf node.
+    if (node === undefined ||
+        !(node instanceof Ci.nsINavHistoryContainerResultNode))
       return 1;
 
     let outerLevel = node.indentLevel;
@@ -412,16 +415,12 @@ PlacesTreeView.prototype = {
     let parent = aOldNode.parent;
     if (parent) {
       // If the node's parent is still set, the node is not obsolete
-      // and we should just find out its new position.
-      // However, if any of the node's ancestor is closed, the node is
-      // invisible.
-      let ancestors = PlacesUtils.nodeAncestors(aOldNode);
-      for (let ancestor in ancestors) {
-        if (!ancestor.containerOpen)
-          return -1;
-      }
+      // and we should just find out its new position.  However, if the node's
+      // parent is closed, the node is invisible.
+      if (parent.containerOpen)
+        return this._getRowForNode(aOldNode, true);
 
-      return this._getRowForNode(aOldNode, true);
+      return -1;
     }
 
     // There's a broken edge case here.
@@ -473,7 +472,7 @@ PlacesTreeView.prototype = {
 
     // If only one node was previously selected and there's no selection now,
     // select the node at its old row, if any.
-    if (aNodesInfo.length == 1 && selection.count == 0) {
+    if (aNodesInfo.length == 1 && selection.getRangeCount() == 0) {
       let row = Math.min(aNodesInfo[0].oldRow, this._rows.length - 1);
       selection.rangedSelect(row, row, true);
       if (aNodesInfo[0].wasVisible && scrollToRow == -1)
@@ -592,7 +591,7 @@ PlacesTreeView.prototype = {
     return [this.COLUMN_TYPE_UNKNOWN, false];
   },
 
-  // nsINavHistoryResultObserver
+  // nsINavHistoryResultViewer
   nodeInserted: function PTV_nodeInserted(aParentNode, aNode, aNewIndex) {
     NS_ASSERT(this._result, "Got a notification but have no result!");
     if (!this._tree || !this._result)
@@ -653,7 +652,7 @@ PlacesTreeView.prototype = {
     this._rows.splice(row, 0, aNode);
     this._tree.rowCountChanged(row, 1);
 
-    if (PlacesUtils.nodeIsContainer(aNode) && PlacesUtils.asContainer(aNode).containerOpen)
+    if (PlacesUtils.nodeIsContainer(aNode) && asContainer(aNode).containerOpen)
       this.invalidateContainer(aNode);
   },
 
@@ -848,9 +847,6 @@ PlacesTreeView.prototype = {
     this.invalidateContainer(aNode);
   },
 
-  containerStateChanged:
-  function PTV_containerStateChanged(aNode, aOldState, aNewState) {},
-
   invalidateContainer: function PTV_invalidateContainer(aContainer) {
     NS_ASSERT(this._result, "Need to have a result to update");
     if (!this._tree)
@@ -999,18 +995,22 @@ PlacesTreeView.prototype = {
 
   get result() this._result,
   set result(val) {
-    if (this._result) {
-      this._result.removeObserver(this);
-      this._rootNode.containerOpen = false;
+    // Some methods (e.g. getURLsFromContainer) temporarily null out the
+    // viewer when they do temporary changes to the view, this does _not_
+    // call setResult(null), but then, we're called again with the result
+    // object which is already set for this viewer. At that point,
+    // we should do nothing.
+    if (this._result != val) {
+      if (this._result)
+        this._rootNode.containerOpen = false;
+
+      this._result = val;
+      this._rootNode = val ? val.root : null;
+
+      // If the tree is not set yet, setTree will call finishInit.
+      if (this._tree && val)
+        this._finishInit();
     }
-
-    this._result = val;
-    this._rootNode = val ? val.root : null;
-
-    // If the tree is not set yet, setTree will call finishInit.
-    if (this._tree && val)
-      this._finishInit();
-
     return val;
   },
 
@@ -1109,7 +1109,7 @@ PlacesTreeView.prototype = {
   isContainer: function PTV_isContainer(aRow) {
     // Only leaf nodes aren't listed in the rows array.
     let node = this._rows[aRow];
-    if (node === undefined)
+    if (!node)
       return false;
 
     if (PlacesUtils.nodeIsContainer(node)) {
@@ -1124,7 +1124,7 @@ PlacesTreeView.prototype = {
         if ((PlacesUtils.nodeIsQuery(parent) ||
              PlacesUtils.nodeIsFolder(parent)) &&
             !node.hasChildren)
-          return PlacesUtils.asQuery(parent).queryOptions.expandQueries;
+          return asQuery(parent).queryOptions.expandQueries;
       }
       return true;
     }
@@ -1210,7 +1210,7 @@ PlacesTreeView.prototype = {
         if (PlacesControllerDragHelper.disallowInsertion(container))
           return null;
 
-        let queryOptions = PlacesUtils.asQuery(this._result.root).queryOptions;
+        let queryOptions = asQuery(this._result.root).queryOptions;
         if (queryOptions.sortingMode !=
               Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
           // If we are within a sorted view, insert at the end.
@@ -1363,10 +1363,8 @@ PlacesTreeView.prototype = {
       if (hasOldTree) {
         // detach from result when we are detaching from the tree.
         // This breaks the reference cycle between us and the result.
-        if (!aTree) {
-          this._result.removeObserver(this);
-          this._rootNode.containerOpen = false;
-        }
+        if (!aTree)
+          this._result.viewer = null;
       }
       if (aTree)
         this._finishInit();
@@ -1572,7 +1570,6 @@ function PlacesTreeView(aFlatList, aOnOpenFlatContainer) {
   this._tree = null;
   this._result = null;
   this._selection = null;
-  this._rootNode = null;
   this._rows = [];
   this._flatList = aFlatList;
   this._openContainerCallback = aOnOpenFlatContainer;

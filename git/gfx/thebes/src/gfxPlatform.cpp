@@ -596,20 +596,18 @@ gfxPlatform::AppendCJKPrefLangs(eFontPrefLang aPrefLangs[], PRUint32 &aLen, eFon
         
         // Add the CJK pref fonts from accept languages, the order should be same order
         nsCAutoString list;
+        nsresult rv;
         if (prefs) {
             nsCOMPtr<nsIPrefLocalizedString> prefString;
-            nsresult rv =
-                prefs->GetComplexValue("intl.accept_languages",
-                                       NS_GET_IID(nsIPrefLocalizedString),
-                                       getter_AddRefs(prefString));
-            if (NS_SUCCEEDED(rv) && prefString) {
+            rv = prefs->GetComplexValue("intl.accept_languages", NS_GET_IID(nsIPrefLocalizedString), getter_AddRefs(prefString));
+            if (prefString) {
                 nsAutoString temp;
                 prefString->ToString(getter_Copies(temp));
                 LossyCopyUTF16toASCII(temp, list);
             }
         }
         
-        if (!list.IsEmpty()) {
+        if (NS_SUCCEEDED(rv) && !list.IsEmpty()) {
             const char kComma = ',';
             const char *p, *p_end;
             list.BeginReading(p);

@@ -197,14 +197,12 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(LinearGradient)
 NS_IMPL_ADDREF_INHERITED(nsSVGLinearGradientElement,nsSVGLinearGradientElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGLinearGradientElement,nsSVGLinearGradientElementBase)
 
-DOMCI_DATA(SVGLinearGradientElement, nsSVGLinearGradientElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGLinearGradientElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGLinearGradientElement, nsIDOMNode,
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGGradientElement,
                            nsIDOMSVGLinearGradientElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLinearGradientElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGLinearGradientElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGLinearGradientElementBase)
 
 //----------------------------------------------------------------------
@@ -277,14 +275,12 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(RadialGradient)
 NS_IMPL_ADDREF_INHERITED(nsSVGRadialGradientElement,nsSVGRadialGradientElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGRadialGradientElement,nsSVGRadialGradientElementBase)
 
-DOMCI_DATA(SVGRadialGradientElement, nsSVGRadialGradientElement)
-
 NS_INTERFACE_TABLE_HEAD(nsSVGRadialGradientElement)
   NS_NODE_INTERFACE_TABLE5(nsSVGRadialGradientElement, nsIDOMNode,
                            nsIDOMElement, nsIDOMSVGElement,
                            nsIDOMSVGGradientElement,
                            nsIDOMSVGRadialGradientElement)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGRadialGradientElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGRadialGradientElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGRadialGradientElementBase)
 
 //----------------------------------------------------------------------

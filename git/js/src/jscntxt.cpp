@@ -100,7 +100,7 @@ CallStack::contains(JSStackFrame *fp)
 }
 #endif
 
-bool
+void
 JSThreadData::init()
 {
 #ifdef DEBUG
@@ -111,12 +111,7 @@ JSThreadData::init()
 #ifdef JS_TRACER
     InitJIT(&traceMonitor);
 #endif
-    dtoaState = js_NewDtoaState();
-    if (!dtoaState) {
-        finish();
-        return false;
-    }
-    return true;
+    js_InitRandom(this);
 }
 
 void
@@ -132,11 +127,8 @@ JSThreadData::finish()
     JS_ASSERT(!localRootStack);
 #endif
 
-    if (dtoaState)
-        js_DestroyDtoaState(dtoaState);
-
     js_FinishGSNCache(&gsnCache);
-    propertyCache.~PropertyCache();
+    js_FinishPropertyCache(&propertyCache);
 #if defined JS_TRACER
     FinishJIT(&traceMonitor);
 #endif
@@ -155,14 +147,12 @@ JSThreadData::mark(JSTracer *trc)
 void
 JSThreadData::purge(JSContext *cx)
 {
-    cachedIteratorObject = NULL;
-
     purgeGCFreeLists();
 
     js_PurgeGSNCache(&gsnCache);
 
     /* FIXME: bug 506341. */
-    propertyCache.purge(cx);
+    js_PurgePropertyCache(cx, &propertyCache);
 
 #ifdef JS_TRACER
     /*
@@ -201,10 +191,7 @@ NewThread(jsword id)
         return NULL;
     JS_INIT_CLIST(&thread->contextList);
     thread->id = id;
-    if (!thread->data.init()) {
-        js_free(thread);
-        return NULL;
-    }
+    thread->data.init();
     return thread;
 }
 
@@ -535,8 +522,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
     JS_APPEND_LINK(&cx->link, &rt->contextList);
     JS_UNLOCK_GC(rt);
 
-    js_InitRandom(cx);
-
     /*
      * If cx is the first context on this runtime, initialize well-known atoms,
      * keywords, numbers, and strings.  If one of these steps should fail, the
@@ -561,6 +546,8 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
         if (ok)
             ok = js_InitRuntimeNumberState(cx);
         if (ok)
+            ok = js_InitRuntimeStringState(cx);
+        if (ok)
             ok = JSScope::initRuntimeState(cx);
 
 #ifdef JS_THREADSAFE
@@ -571,9 +558,10 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
             return NULL;
         }
 
-        AutoLockGC lock(rt);
+        JS_LOCK_GC(rt);
         rt->state = JSRTS_UP;
         JS_NOTIFY_ALL_CONDVAR(rt->stateChange);
+        JS_UNLOCK_GC(rt);
     }
 
     cxCallback = rt->cxCallback;
@@ -790,6 +778,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
 
             JSScope::finishRuntimeState(cx);
             js_FinishRuntimeNumberState(cx);
+            js_FinishRuntimeStringState(cx);
 
             /* Unpin all common atoms before final GC. */
             js_FinishCommonAtoms(cx);
@@ -893,11 +882,14 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp)
 {
     JSContext *cx = *iterp;
 
-    Conditionally<AutoLockGC> lockIf(unlocked, rt);
+    if (unlocked)
+        JS_LOCK_GC(rt);
     cx = js_ContextFromLinkField(cx ? cx->link.next : rt->contextList.next);
     if (&cx->link == &rt->contextList)
         cx = NULL;
     *iterp = cx;
+    if (unlocked)
+        JS_UNLOCK_GC(rt);
     return cx;
 }
 
@@ -964,7 +956,7 @@ resolving_HashKey(JSDHashTable *table, const void *ptr)
 {
     const JSResolvingKey *key = (const JSResolvingKey *)ptr;
 
-    return (JSDHashNumber(uintptr_t(key->obj)) >> JSVAL_TAGBITS) ^ key->id;
+    return ((JSDHashNumber)JS_PTR_TO_UINT32(key->obj) >> JSVAL_TAGBITS) ^ key->id;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -1372,7 +1364,7 @@ js_ReportOutOfMemory(JSContext *cx)
     const char *msg = efs ? efs->format : "Out of memory";
 
     /* Fill out the report, but don't do anything that requires allocation. */
-    PodZero(&report);
+    memset(&report, 0, sizeof (struct JSErrorReport));
     report.flags = JSREPORT_ERROR;
     report.errorNumber = JSMSG_OUT_OF_MEMORY;
     PopulateReportBlame(cx, &report);
@@ -1425,13 +1417,9 @@ static bool
 checkReportFlags(JSContext *cx, uintN *flags)
 {
     if (JSREPORT_IS_STRICT_MODE_ERROR(*flags)) {
-        /*
-         * Error in strict code; warning with strict option; okay otherwise.
-         * We assume that if the top frame is a native, then it is strict if
-         * the nearest scripted frame is strict, see bug 536306.
-         */
-        JSStackFrame *fp = js_GetScriptedCaller(cx, NULL);
-        if (fp && fp->script->strictModeCode)
+        /* Error in strict code; warning with strict option; okay otherwise. */
+        JS_ASSERT(JS_IsRunning(cx));
+        if (js_GetTopStackFrame(cx)->script->strictModeCode)
             *flags &= ~JSREPORT_WARNING;
         else if (JS_HAS_STRICT_OPTION(cx))
             *flags |= JSREPORT_WARNING;
@@ -1467,7 +1455,7 @@ js_ReportErrorVA(JSContext *cx, uintN flags, const char *format, va_list ap)
         return JS_FALSE;
     messagelen = strlen(message);
 
-    PodZero(&report);
+    memset(&report, 0, sizeof (struct JSErrorReport));
     report.flags = flags;
     report.errorNumber = JSMSG_USER_DEFINED_ERROR;
     report.ucmessage = ucmessage = js_InflateString(cx, message, &messagelen);
@@ -1659,13 +1647,13 @@ js_ReportErrorNumberVA(JSContext *cx, uintN flags, JSErrorCallback callback,
         return JS_TRUE;
     warning = JSREPORT_IS_WARNING(flags);
 
-    PodZero(&report);
+    memset(&report, 0, sizeof (struct JSErrorReport));
     report.flags = flags;
     report.errorNumber = errorNumber;
     PopulateReportBlame(cx, &report);
 
     if (!js_ExpandErrorArguments(cx, callback, userRef, errorNumber,
-                                 &message, &report, !!charArgs, ap)) {
+                                 &message, &report, charArgs, ap)) {
         return JS_FALSE;
     }
 
@@ -1865,12 +1853,18 @@ js_InvokeOperationCallback(JSContext *cx)
 void
 js_TriggerAllOperationCallbacks(JSRuntime *rt, JSBool gcLocked)
 {
+    JSContext *acx, *iter;
 #ifdef JS_THREADSAFE
-    Conditionally<AutoLockGC> lockIf(!gcLocked, rt);
+    if (!gcLocked)
+        JS_LOCK_GC(rt);
 #endif
-    JSContext *iter = NULL;
-    while (JSContext *acx = js_ContextIterator(rt, JS_FALSE, &iter))
+    iter = NULL;
+    while ((acx = js_ContextIterator(rt, JS_FALSE, &iter)))
         JS_TriggerOperationCallback(acx);
+#ifdef JS_THREADSAFE
+    if (!gcLocked)
+        JS_UNLOCK_GC(rt);
+#endif
 }
 
 JSStackFrame *
@@ -1927,39 +1921,6 @@ js_CurrentPCIsInImacro(JSContext *cx)
 #endif
 }
 
-CallStack *
-JSContext::containingCallStack(JSStackFrame *target)
-{
-    /* The context may have nothing running. */
-    CallStack *cs = currentCallStack;
-    if (!cs)
-        return NULL;
-
-    /* The active callstack's top frame is cx->fp. */
-    if (fp) {
-        JS_ASSERT(activeCallStack() == cs);
-        JSStackFrame *f = fp;
-        JSStackFrame *stop = cs->getInitialFrame()->down;
-        for (; f != stop; f = f->down) {
-            if (f == target)
-                return cs;
-        }
-        cs = cs->getPrevious();
-    }
-
-    /* A suspended callstack's top frame is its suspended frame. */
-    for (; cs; cs = cs->getPrevious()) {
-        JSStackFrame *f = cs->getSuspendedFrame();
-        JSStackFrame *stop = cs->getInitialFrame()->down;
-        for (; f != stop; f = f->down) {
-            if (f == target)
-                return cs;
-        }
-    }
-
-    return NULL;
-}
-
 void
 JSContext::checkMallocGCPressure(void *p)
 {
@@ -1973,7 +1934,7 @@ JSContext::checkMallocGCPressure(void *p)
     ptrdiff_t n = JS_GC_THREAD_MALLOC_LIMIT - thread->gcThreadMallocBytes;
     thread->gcThreadMallocBytes = JS_GC_THREAD_MALLOC_LIMIT;
 
-    AutoLockGC lock(runtime);
+    JS_LOCK_GC(runtime);
     runtime->gcMallocBytes -= n;
     if (runtime->isGCMallocLimitReached())
 #endif
@@ -1991,6 +1952,7 @@ JSContext::checkMallocGCPressure(void *p)
         JS_THREAD_DATA(this)->purgeGCFreeLists();
         js_TriggerGC(this, true);
     }
+    JS_UNLOCK_GC(runtime);
 }
 
 

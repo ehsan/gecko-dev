@@ -82,13 +82,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGUseElement,nsSVGUseElementBase)
 
-DOMCI_DATA(SVGUseElement, nsSVGUseElement)
-
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsSVGUseElement)
   NS_NODE_INTERFACE_TABLE6(nsSVGUseElement, nsIDOMNode, nsIDOMElement,
                            nsIDOMSVGElement, nsIDOMSVGURIReference,
                            nsIDOMSVGUseElement, nsIMutationObserver)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGUseElement)
+  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGUseElement)
   if (aIID.Equals(NS_GET_IID(nsSVGUseElement)))
     foundInterface = reinterpret_cast<nsISupports*>(this);
   else

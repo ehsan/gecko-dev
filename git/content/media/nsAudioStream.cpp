@@ -45,9 +45,6 @@
 extern "C" {
 #include "sydneyaudio/sydney_audio.h"
 }
-#include "mozilla/TimeStamp.h"
-
-using mozilla::TimeStamp;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gAudioStreamLog = nsnull;
@@ -71,8 +68,7 @@ nsAudioStream::nsAudioStream() :
   mAudioHandle(0),
   mRate(0),
   mChannels(0),
-  mFormat(FORMAT_S16_LE),
-  mPaused(PR_FALSE)
+  mFormat(FORMAT_S16_LE)
 {
 }
 
@@ -114,14 +110,13 @@ void nsAudioStream::Shutdown()
   mAudioHandle = nsnull;
 }
 
-void nsAudioStream::Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking)
+void nsAudioStream::Write(const void* aBuf, PRUint32 aCount)
 {
   NS_ABORT_IF_FALSE(aCount % mChannels == 0,
                     "Buffer size must be divisible by channel count");
-  NS_ASSERTION(!mPaused, "Don't write audio when paused, you'll block");
 
   PRUint32 offset = mBufferOverflow.Length();
-  PRUint32 count = aCount + offset;
+  PRInt32 count = aCount + offset;
 
   if (!mAudioHandle)
     return;
@@ -173,28 +168,21 @@ void nsAudioStream::Write(const void* aBuf, PRUint32 aCount, PRBool aBlocking)
       }
     }
 
-    if (!aBlocking) {
-      // We're running in non-blocking mode, crop the data to the amount 
-      // which is available in the audio buffer, and save the rest for
-      // subsequent calls.
-      PRUint32 available = Available();
-      if (available < count) {
-        mBufferOverflow.AppendElements(s_data.get() + available, (count - available));
-        count = available;
-      }
+    PRInt32 available = Available();
+    if (available < count) {
+      mBufferOverflow.AppendElements(s_data.get() + available, (count - available));
+      count = available;
     }
 
     if (sa_stream_write(static_cast<sa_stream_t*>(mAudioHandle),
-                        s_data.get(),
-                        count * sizeof(short)) != SA_SUCCESS)
-    {
+       s_data.get(), count * sizeof(short)) != SA_SUCCESS) {
       PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsAudioStream: sa_stream_write error"));
       Shutdown();
     }
   }
 }
 
-PRUint32 nsAudioStream::Available()
+PRInt32 nsAudioStream::Available()
 {
   // If the audio backend failed to open, lie and say we'll accept some
   // data.
@@ -227,10 +215,9 @@ void nsAudioStream::Drain()
       return;
   }
 
-  int r = sa_stream_drain(static_cast<sa_stream_t*>(mAudioHandle));
-  if (r != SA_SUCCESS && r != SA_ERROR_INVALID) {
-    PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsAudioStream: sa_stream_drain error"));
-    Shutdown();
+  if (sa_stream_drain(static_cast<sa_stream_t*>(mAudioHandle)) != SA_SUCCESS) {
+        PR_LOG(gAudioStreamLog, PR_LOG_ERROR, ("nsAudioStream: sa_stream_drain error"));
+        Shutdown();
   }
 }
 
@@ -238,7 +225,7 @@ void nsAudioStream::Pause()
 {
   if (!mAudioHandle)
     return;
-  mPaused = PR_TRUE;
+
   sa_stream_pause(static_cast<sa_stream_t*>(mAudioHandle));
 }
 
@@ -246,14 +233,14 @@ void nsAudioStream::Resume()
 {
   if (!mAudioHandle)
     return;
-  mPaused = PR_FALSE;
+
   sa_stream_resume(static_cast<sa_stream_t*>(mAudioHandle));
 }
 
-PRInt64 nsAudioStream::GetPosition()
+float nsAudioStream::GetPosition()
 {
   if (!mAudioHandle)
-    return -1;
+    return -1.0;
 
   sa_position_t positionType = SA_POSITION_WRITE_SOFTWARE;
 #if defined(XP_WIN)
@@ -262,9 +249,9 @@ PRInt64 nsAudioStream::GetPosition()
   PRInt64 position = 0;
   if (sa_stream_get_position(static_cast<sa_stream_t*>(mAudioHandle),
                              positionType, &position) == SA_SUCCESS) {
-    return ((1000 * position) / mRate / mChannels / sizeof(short));
+    return (position / float(mRate) / mChannels / sizeof(short));
   }
 
-  return -1;
+  return -1.0;
 }
 

@@ -95,14 +95,11 @@ nsXULCommandDispatcher::~nsXULCommandDispatcher()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULCommandDispatcher)
 
 // QueryInterface implementation for nsXULCommandDispatcher
-
-DOMCI_DATA(XULCommandDispatcher, nsXULCommandDispatcher)
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULCommandDispatcher)
     NS_INTERFACE_MAP_ENTRY(nsIDOMXULCommandDispatcher)
     NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
     NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMXULCommandDispatcher)
-    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(XULCommandDispatcher)
+    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(XULCommandDispatcher)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULCommandDispatcher)
@@ -440,7 +437,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     if (shell) {
 
       // Retrieve the context in which our DOM event will fire.
-      nsRefPtr<nsPresContext> context = shell->GetPresContext();
+      nsCOMPtr<nsPresContext> context = shell->GetPresContext();
 
       // Handle the DOM event
       nsEventStatus status = nsEventStatus_eIgnore;

@@ -391,15 +391,12 @@ nsSVGPathGeometryFrame::GetMarkerProperties(nsSVGPathGeometryFrame *aFrame)
 
   MarkerProperties result;
   const nsStyleSVG *style = aFrame->GetStyleSVG();
-  result.mMarkerStart =
-    nsSVGEffects::GetMarkerProperty(style->mMarkerStart, aFrame,
-                                    nsSVGEffects::MarkerBeginProperty());
-  result.mMarkerMid =
-    nsSVGEffects::GetMarkerProperty(style->mMarkerMid, aFrame,
-                                    nsSVGEffects::MarkerMiddleProperty());
-  result.mMarkerEnd =
-    nsSVGEffects::GetMarkerProperty(style->mMarkerEnd, aFrame,
-                                    nsSVGEffects::MarkerEndProperty());
+  result.mMarkerStart = nsSVGEffects::GetMarkerProperty(
+                          style->mMarkerStart, aFrame, nsGkAtoms::marker_start);
+  result.mMarkerMid = nsSVGEffects::GetMarkerProperty(
+                        style->mMarkerMid, aFrame, nsGkAtoms::marker_mid);
+  result.mMarkerEnd = nsSVGEffects::GetMarkerProperty(
+                        style->mMarkerEnd, aFrame, nsGkAtoms::marker_end);
   return result;
 }
 

@@ -71,6 +71,7 @@
 #include "nsINodeInfo.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
+#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIPrivateDOMImplementation.h"
 #include "nsIRangeUtils.h"
@@ -105,7 +106,6 @@
 #include "nsDOMParser.h"
 #include "nsDOMSerializer.h"
 #include "nsXMLHttpRequest.h"
-#include "nsChannelPolicy.h"
 
 // view stuff
 #include "nsViewsCID.h"
@@ -296,7 +296,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileDataProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsChannelPolicy)
 
 //-----------------------------------------------------------------------------
 
@@ -1519,12 +1518,7 @@ static const nsModuleComponentInfo gComponents[] = {
     { "Event Listener Service",
       NS_EVENTLISTENERSERVICE_CID,
       NS_EVENTLISTENERSERVICE_CONTRACTID,
-      CreateEventListenerService },
-
-    { "Channel Policy",
-      NSCHANNELPOLICY_CID,
-      NSCHANNELPOLICY_CONTRACTID,
-      nsChannelPolicyConstructor }
+      CreateEventListenerService }
 };
 
 NS_IMPL_NSGETMODULE_WITH_CTOR(nsLayoutModule, gComponents, Initialize)

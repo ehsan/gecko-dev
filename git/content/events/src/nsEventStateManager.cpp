@@ -184,15 +184,6 @@ static PRUint32 gPixelScrollDeltaTimeout = 0;
 static nscoord
 GetScrollableLineHeight(nsIFrame* aTargetFrame);
 
-static inline PRBool
-IsMouseEventReal(nsEvent* aEvent)
-{
-  NS_ABORT_IF_FALSE(aEvent->eventStructType == NS_MOUSE_EVENT,
-                    "Not a mouse event");
-  // Return true if not synthesized.
-  return static_cast<nsMouseEvent*>(aEvent)->reason == nsMouseEvent::eReal;
-}
-
 #ifdef DEBUG_DOCSHELL_FOCUS
 static void
 PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
@@ -206,7 +197,7 @@ PrintDocTree(nsIDocShellTreeItem* aParentItem, int aLevel)
   aParentItem->GetItemType(&type);
   nsCOMPtr<nsIPresShell> presShell;
   parentAsDocShell->GetPresShell(getter_AddRefs(presShell));
-  nsRefPtr<nsPresContext> presContext;
+  nsCOMPtr<nsPresContext> presContext;
   parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
   nsCOMPtr<nsIContentViewer> cv;
   parentAsDocShell->GetContentViewer(getter_AddRefs(cv));
@@ -518,7 +509,7 @@ nsMouseWheelTransaction::OnEvent(nsEvent* aEvent)
       return;
     case NS_MOUSE_MOVE:
     case NS_DRAGDROP_OVER:
-      if (IsMouseEventReal(aEvent)) {
+      if (((nsMouseEvent*)aEvent)->reason == nsMouseEvent::eReal) {
         // If the cursor is moving to be outside the frame,
         // terminate the scrollwheel transaction.
         nsIntPoint pt = GetScreenPoint((nsGUIEvent*)aEvent);
@@ -1040,7 +1031,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
   // when user is not active doesn't change the state to active.
   if (NS_IS_TRUSTED_EVENT(aEvent) &&
       ((aEvent->eventStructType == NS_MOUSE_EVENT  &&
-        IsMouseEventReal(aEvent) &&
+        static_cast<nsMouseEvent*>(aEvent)->reason == nsMouseEvent::eReal &&
         aEvent->message != NS_MOUSE_ENTER &&
         aEvent->message != NS_MOUSE_EXIT) ||
        aEvent->eventStructType == NS_MOUSE_SCROLL_EVENT ||
@@ -1963,7 +1954,6 @@ nsEventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
       FillInEventFromGestureDown(&gestureEvent);
 
       startEvent.dataTransfer = gestureEvent.dataTransfer = dataTransfer;
-      startEvent.inputSource = gestureEvent.inputSource = aEvent->inputSource;
 
       // Dispatch to the DOM. By setting mCurrentTarget we are faking
       // out the ESM and telling it that the current target frame is
@@ -2438,7 +2428,6 @@ nsEventStateManager::SendLineScrollEvent(nsIFrame* aTargetFrame,
   event.isMeta = aEvent->isMeta;
   event.scrollFlags = aEvent->scrollFlags;
   event.delta = aNumLines;
-  event.inputSource = static_cast<nsMouseEvent_base*>(aEvent)->inputSource;
 
   nsEventDispatcher::Dispatch(targetContent, aPresContext, &event, nsnull, aStatus);
 }
@@ -2472,7 +2461,6 @@ nsEventStateManager::SendPixelScrollEvent(nsIFrame* aTargetFrame,
   event.isAlt = aEvent->isAlt;
   event.isMeta = aEvent->isMeta;
   event.scrollFlags = aEvent->scrollFlags;
-  event.inputSource = static_cast<nsMouseEvent_base*>(aEvent)->inputSource;
   event.delta = aPresContext->AppUnitsToIntCSSPixels(aEvent->delta * lineHeight);
 
   nsEventDispatcher::Dispatch(targetContent, aPresContext, &event, nsnull, aStatus);
@@ -2831,15 +2819,13 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
   case NS_MOUSE_BUTTON_UP:
     {
       SetContentState(nsnull, NS_EVENT_STATE_ACTIVE);
-      if (IsMouseEventReal(aEvent)) {
-        if (!mCurrentTarget) {
-          nsIFrame* targ;
-          GetEventTarget(&targ);
-        }
-        if (mCurrentTarget) {
-          ret = CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent,
-                                         aStatus);
-        }
+      if (!mCurrentTarget) {
+        nsIFrame* targ;
+        GetEventTarget(&targ);
+      }
+      if (mCurrentTarget) {
+        ret =
+          CheckForAndDispatchClick(presContext, (nsMouseEvent*)aEvent, aStatus);
       }
 
       nsIPresShell *shell = presContext->GetPresShell();
@@ -3076,7 +3062,6 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         event.isControl = mouseEvent->isControl;
         event.isAlt = mouseEvent->isAlt;
         event.isMeta = mouseEvent->isMeta;
-        event.inputSource = mouseEvent->inputSource;
 
         nsEventStatus status = nsEventStatus_eIgnore;
         nsCOMPtr<nsIPresShell> presShell = mPresContext->GetPresShell();
@@ -3434,7 +3419,6 @@ nsEventStateManager::DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
   event.isMeta = ((nsMouseEvent*)aEvent)->isMeta;
   event.pluginEvent = ((nsMouseEvent*)aEvent)->pluginEvent;
   event.relatedTarget = aRelatedContent;
-  event.inputSource = static_cast<nsMouseEvent*>(aEvent)->inputSource;
 
   mCurrentTargetContent = aTargetContent;
 
@@ -3474,9 +3458,9 @@ nsEventStateManager::NotifyMouseOut(nsGUIEvent* aEvent, nsIContent* aMovingInto)
       nsCOMPtr<nsIDocShell> docshell;
       subdocFrame->GetDocShell(getter_AddRefs(docshell));
       if (docshell) {
-        nsRefPtr<nsPresContext> presContext;
+        nsCOMPtr<nsPresContext> presContext;
         docshell->GetPresContext(getter_AddRefs(presContext));
-
+        
         if (presContext) {
           nsEventStateManager* kidESM =
             static_cast<nsEventStateManager*>(presContext->EventStateManager());
@@ -3694,7 +3678,6 @@ nsEventStateManager::FireDragEnterOrExit(nsPresContext* aPresContext,
   event.isAlt = ((nsMouseEvent*)aEvent)->isAlt;
   event.isMeta = ((nsMouseEvent*)aEvent)->isMeta;
   event.relatedTarget = aRelatedTarget;
-  event.inputSource = static_cast<nsMouseEvent*>(aEvent)->inputSource;
 
   mCurrentTargetContent = aTargetContent;
 
@@ -3862,7 +3845,6 @@ nsEventStateManager::CheckForAndDispatchClick(nsPresContext* aPresContext,
     event.time = aEvent->time;
     event.flags |= flags;
     event.button = aEvent->button;
-    event.inputSource = aEvent->inputSource;
 
     nsCOMPtr<nsIPresShell> presShell = mPresContext->GetPresShell();
     if (presShell) {
@@ -3883,7 +3865,6 @@ nsEventStateManager::CheckForAndDispatchClick(nsPresContext* aPresContext,
         event2.isMeta = aEvent->isMeta;
         event2.flags |= flags;
         event2.button = aEvent->button;
-        event2.inputSource = aEvent->inputSource;
 
         ret = presShell->HandleEventWithTarget(&event2, mCurrentTarget,
                                                mouseContent, aStatus);
@@ -3912,7 +3893,8 @@ nsEventStateManager::GetEventTarget(nsIFrame **aFrame)
     }
   }
 
-  nsIFrame* frame = shell->GetEventTargetFrame();
+  nsIFrame* frame = nsnull;
+  shell->GetEventTargetFrame(&frame);
   *aFrame = mCurrentTarget = frame;
   return NS_OK;
 }
@@ -3938,7 +3920,7 @@ nsEventStateManager::GetEventTargetContent(nsEvent* aEvent,
 
   nsIPresShell *presShell = mPresContext->GetPresShell();
   if (presShell) {
-    *aContent = presShell->GetEventTargetContent(aEvent).get();
+    presShell->GetEventTargetContent(aEvent, aContent);
   }
 
   // Some events here may set mCurrentTarget but not set the corresponding

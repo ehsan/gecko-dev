@@ -314,7 +314,6 @@ public:
   void Paint(const RECT& aDirty, HDC aDC);
 #elif defined(XP_MACOSX)
   void Paint(const gfxRect& aDirtyRect, CGContextRef cgContext);  
-  void RenderCoreAnimation(CGContextRef aCGContext, int aWidth, int aHeight);
 #elif defined(MOZ_X11) || defined(MOZ_DFB)
   void Paint(gfxContext* aContext,
              const gfxRect& aFrameRect,
@@ -348,10 +347,6 @@ public:
 #ifdef XP_MACOSX
   NPDrawingModel GetDrawingModel();
   NPEventModel GetEventModel();
-  static void CARefresh(nsITimer *aTimer, void *aClosure);
-  static void AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
-  static void RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
-  void SetupCARenderer(int aWidth, int aHeight);
   void* FixUpPluginWindow(PRInt32 inPaintState);
   // Set a flag that (if true) indicates the plugin port info has changed and
   // SetWindow() needs to be called.
@@ -438,12 +433,9 @@ private:
   nsCOMPtr<nsIPluginHost>     mPluginHost;
 
 #ifdef XP_MACOSX
-  NP_CGContext                              mCGPluginPortCopy;
-  NP_Port                                   mQDPluginPortCopy;
-  PRInt32                                   mInCGPaintLevel;
-  nsCARenderer                              mCARenderer;
-  static nsCOMPtr<nsITimer>                *sCATimer;
-  static nsTArray<nsPluginInstanceOwner*>  *sCARefreshListeners;
+  NP_CGContext                mCGPluginPortCopy;
+  NP_Port                     mQDPluginPortCopy;
+  PRInt32                     mInCGPaintLevel;
 #endif
 
   // Initially, the event loop nesting level we were created on, it's updated
@@ -753,10 +745,9 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
     // Sometimes, a frame doesn't have a background color or is transparent. In this
     // case, walk up the frame tree until we do find a frame with a background color
     for (nsIFrame* frame = this; frame; frame = frame->GetParent()) {
-      nscolor bgcolor =
-        frame->GetVisitedDependentColor(eCSSProperty_background_color);
-      if (NS_GET_A(bgcolor) > 0) {  // make sure we got an actual color
-        mWidget->SetBackgroundColor(bgcolor);
+      const nsStyleBackground* background = frame->GetStyleBackground();
+      if (!background->IsTransparent()) {  // make sure we got an actual color
+        mWidget->SetBackgroundColor(background->mBackgroundColor);
         break;
       }
     }
@@ -768,13 +759,6 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
     if (!pluginWidget)
       return NS_ERROR_FAILURE;
     pluginWidget->SetPluginEventModel(mInstanceOwner->GetEventModel());
-
-    if (mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreAnimation) {
-      NPWindow* window;
-      mInstanceOwner->GetWindow(window);
-
-      mInstanceOwner->SetupCARenderer(window->width, window->height);
-    }
 #endif
   }
 
@@ -1221,11 +1205,6 @@ nsObjectFrame::ComputeWidgetGeometry(const nsRegion& aRegion,
   nsRect bounds = GetContentRect() + GetParent()->GetOffsetTo(rootFrame);
   configuration->mBounds = bounds.ToNearestPixels(appUnitsPerDevPixel);
 
-  // This should produce basically the same rectangle (but not relative
-  // to the root frame). We only call this here for the side-effect of
-  // setting mViewToWidgetOffset on the view.
-  mInnerView->CalcWidgetBounds(eWindowType_plugin);
-
   nsRegionRectIterator iter(aRegion);
   nsIntPoint pluginOrigin = aPluginOrigin.ToNearestPixels(appUnitsPerDevPixel);
   for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
@@ -1558,8 +1537,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
 #if defined(XP_MACOSX)
   // delegate all painting to the plugin instance.
   if (mInstanceOwner) {
-    if (mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreGraphics ||
-        mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreAnimation) {
+    if (mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreGraphics) {
       PRInt32 appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
       // Clip to the content area where the plugin should be drawn. If
       // we don't do this, the plugin can draw outside its bounds.
@@ -1633,12 +1611,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
 #endif
 
       mInstanceOwner->BeginCGPaint();
-      if (mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreAnimation) {
-        // CoreAnimation is updated, render the layer and perform a readback.
-        mInstanceOwner->RenderCoreAnimation(cgContext, window->width, window->height);
-      } else {
-        mInstanceOwner->Paint(nativeClipRect - offset, cgContext);
-      }
+      mInstanceOwner->Paint(nativeClipRect - offset, cgContext);
       mInstanceOwner->EndCGPaint();
 
       nativeDrawing.EndNativeDrawing();
@@ -3517,97 +3490,13 @@ NPEventModel nsPluginInstanceOwner::GetEventModel()
   return mEventModel;
 }
 
-#define DEFAULT_REFRESH_RATE 20 // 50 FPS
-
-nsCOMPtr<nsITimer>                *nsPluginInstanceOwner::sCATimer = NULL;
-nsTArray<nsPluginInstanceOwner*>  *nsPluginInstanceOwner::sCARefreshListeners = NULL;
-
-void nsPluginInstanceOwner::CARefresh(nsITimer *aTimer, void *aClosure) {
-  if (!sCARefreshListeners) {
-    return;
-  }
-  for (size_t i = 0; i < sCARefreshListeners->Length(); i++) {
-    nsPluginInstanceOwner* instanceOwner = (*sCARefreshListeners)[i];
-    NPWindow *window;
-    instanceOwner->GetWindow(window);
-    if (!window) {
-      continue;
-    }
-    NPRect r;
-    r.left = 0;
-    r.top = 0;
-    r.right = window->width;
-    r.bottom = window->height; 
-    instanceOwner->InvalidateRect(&r);
-  }
-}
-
-void nsPluginInstanceOwner::AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance) {
-  if (!sCARefreshListeners) {
-    sCARefreshListeners = new nsTArray<nsPluginInstanceOwner*>();
-    if (!sCARefreshListeners) {
-      return;
-    }
-  }
-
-  NS_ASSERTION(!sCARefreshListeners->Contains(aPluginInstance), 
-      "pluginInstanceOwner already registered as a listener");
-  sCARefreshListeners->AppendElement(aPluginInstance);
-
-  if (!sCATimer) {
-    sCATimer = new nsCOMPtr<nsITimer>();
-    if (!sCATimer) {
-      return;
-    }
-  }
-
-  if (sCARefreshListeners->Length() == 1) {
-    *sCATimer = do_CreateInstance("@mozilla.org/timer;1");
-    (*sCATimer)->InitWithFuncCallback(CARefresh, NULL, 
-                   DEFAULT_REFRESH_RATE, nsITimer::TYPE_REPEATING_SLACK);
-  }
-}
-
-void nsPluginInstanceOwner::RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPluginInstance) {
-  if (!sCARefreshListeners || sCARefreshListeners->Contains(aPluginInstance) == false) {
-    return;
-  }
-  sCARefreshListeners->RemoveElement(aPluginInstance);
-  if (sCARefreshListeners->Length() == 0) {
-    if (sCATimer) {
-      (*sCATimer)->Cancel();
-      delete sCATimer;
-      sCATimer = NULL;
-    }
-    delete sCARefreshListeners;
-    sCARefreshListeners = NULL;
-  }
-}
-
-void nsPluginInstanceOwner::SetupCARenderer(int aWidth, int aHeight)
-{
-  void *caLayer = NULL;
-  mInstance->GetValueFromPlugin(NPPVpluginCoreAnimationLayer, &caLayer);
-  if (!caLayer) {
-    return;
-  }
-  mCARenderer.SetupRenderer(caLayer, aWidth, aHeight);
-  AddToCARefreshTimer(this);
-}
-
-void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext, int aWidth, int aHeight)
-{
-  mCARenderer.Render(aCGContext, aWidth, aHeight);
-}
-
 void* nsPluginInstanceOwner::GetPluginPortCopy()
 {
 #ifndef NP_NO_QUICKDRAW
   if (GetDrawingModel() == NPDrawingModelQuickDraw)
     return &mQDPluginPortCopy;
 #endif
-  if (GetDrawingModel() == NPDrawingModelCoreGraphics || 
-      GetDrawingModel() == NPDrawingModelCoreAnimation)
+  if (GetDrawingModel() == NPDrawingModelCoreGraphics)
     return &mCGPluginPortCopy;
   return nsnull;
 }
@@ -3641,8 +3530,7 @@ void* nsPluginInstanceOwner::SetPluginPortAndDetectChange()
       mQDPluginPortCopy.port = windowQDPort->port;
       mPluginPortChanged = PR_TRUE;
     }
-  } else if (drawingModel == NPDrawingModelCoreGraphics || 
-             drawingModel == NPDrawingModelCoreAnimation)
+  } else if (drawingModel == NPDrawingModelCoreGraphics)
 #endif
   {
 #ifndef NP_NO_CARBON
@@ -3750,7 +3638,7 @@ void nsPluginInstanceOwner::ScrollPositionDidChange(nscoord aX, nscoord aY)
 #endif
 }
 
-/*=============== nsIDOMFocusListener ======================*/
+/*=============== nsIFocusListener ======================*/
 nsresult nsPluginInstanceOwner::Focus(nsIDOMEvent * aFocusEvent)
 {
   mContentFocused = PR_TRUE;
@@ -3806,42 +3694,41 @@ nsresult nsPluginInstanceOwner::KeyUp(nsIDOMEvent* aKeyEvent)
 
 nsresult nsPluginInstanceOwner::KeyPress(nsIDOMEvent* aKeyEvent)
 {
-#ifdef XP_MACOSX
-#ifndef NP_NO_CARBON
-  if (GetEventModel() == NPEventModelCarbon) {
-    // KeyPress events are really synthesized keyDown events.
-    // Here we check the native message of the event so that
-    // we won't send the plugin two keyDown events.
-    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aKeyEvent));
-    if (privateEvent) {
-      nsEvent *theEvent = privateEvent->GetInternalNSEvent();
-      const nsGUIEvent *guiEvent = (nsGUIEvent*)theEvent;
-      const EventRecord *ev = (EventRecord*)(guiEvent->pluginEvent); 
-      if (guiEvent &&
-          guiEvent->message == NS_KEY_PRESS &&
-          ev &&
-          ev->what == keyDown)
-        return aKeyEvent->PreventDefault(); // consume event
-    }
+#ifdef MAC_CARBON_PLUGINS
+  // send KeyPress events only for Mac OS X Carbon event model
+  if (GetEventModel() != NPEventModelCarbon)
+    return aKeyEvent->PreventDefault();
 
-    // Nasty hack to avoid recursive event dispatching with Java. Java can
-    // dispatch key events to a TSM handler, which comes back and calls 
-    // [ChildView insertText:] on the cocoa widget, which sends a key
-    // event back down.
-    static PRBool sInKeyDispatch = PR_FALSE;
-
-    if (sInKeyDispatch)
+  // KeyPress events are really synthesized keyDown events.
+  // Here we check the native message of the event so that
+  // we won't send the plugin two keyDown events.
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aKeyEvent));
+  if (privateEvent) {
+    nsEvent *theEvent = privateEvent->GetInternalNSEvent();
+    const nsGUIEvent *guiEvent = (nsGUIEvent*)theEvent;
+    const EventRecord *ev = (EventRecord*)(guiEvent->pluginEvent); 
+    if (guiEvent &&
+        guiEvent->message == NS_KEY_PRESS &&
+        ev &&
+        ev->what == keyDown)
       return aKeyEvent->PreventDefault(); // consume event
-
-    sInKeyDispatch = PR_TRUE;
-    nsresult rv =  DispatchKeyToPlugin(aKeyEvent);
-    sInKeyDispatch = PR_FALSE;
-    return rv;
   }
-#endif
 
-  return DispatchKeyToPlugin(aKeyEvent);
+  // Nasty hack to avoid recursive event dispatching with Java. Java can
+  // dispatch key events to a TSM handler, which comes back and calls 
+  // [ChildView insertText:] on the cocoa widget, which sends a key
+  // event back down.
+  static PRBool sInKeyDispatch = PR_FALSE;
+  
+  if (sInKeyDispatch)
+    return aKeyEvent->PreventDefault(); // consume event
+
+  sInKeyDispatch = PR_TRUE;
+  nsresult rv =  DispatchKeyToPlugin(aKeyEvent);
+  sInKeyDispatch = PR_FALSE;
+  return rv;
 #else
+
   if (SendNativeEvents())
     DispatchKeyToPlugin(aKeyEvent);
 
@@ -4817,9 +4704,6 @@ nsPluginInstanceOwner::Destroy()
   // stop the timer explicitly to reduce reference count.
   CancelTimer();
 #endif
-#ifdef XP_MACOSX
-  RemoveFromCARefreshTimer(this);
-#endif
 
   // unregister context menu listener
   if (mCXMenuListener) {
@@ -4987,7 +4871,6 @@ void nsPluginInstanceOwner::Paint(const nsRect& aDirtyRect, HPS aHPS)
   pluginEvent.lParam = (uint32)&rectl;
   PRBool eventHandled = PR_FALSE;
   mInstance->HandleEvent(&pluginEvent, &eventHandled);
-
 }
 #endif
 
@@ -5166,7 +5049,7 @@ nsPluginInstanceOwner::SetupXShm()
   NS_ASSERTION(mSharedXImage->height, "do not call shmget with zero");
   mSharedSegmentInfo.shmid = shmget(IPC_PRIVATE,
                                     mSharedXImage->bytes_per_line * mSharedXImage->height,
-                                    IPC_CREAT | 0600);
+                                    IPC_CREAT | 0777);
   if (mSharedSegmentInfo.shmid == -1) {
     XDestroyImage(mSharedXImage);
     mSharedXImage = nsnull;
@@ -5679,8 +5562,7 @@ void* nsPluginInstanceOwner::GetPluginPortFromWidget()
     else
 #endif
 #ifdef XP_MACOSX
-    if (GetDrawingModel() == NPDrawingModelCoreGraphics || 
-        GetDrawingModel() == NPDrawingModelCoreAnimation)
+    if (GetDrawingModel() == NPDrawingModelCoreGraphics)
       result = mWidget->GetNativeData(NS_NATIVE_PLUGIN_PORT_CG);
     else
 #endif
@@ -5843,8 +5725,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(PRInt32 inPaintState)
     mPluginWindow->x = -static_cast<NP_Port*>(pluginPort)->portx;
     mPluginWindow->y = -static_cast<NP_Port*>(pluginPort)->porty;
   }
-  else if (drawingModel == NPDrawingModelCoreGraphics || 
-           drawingModel == NPDrawingModelCoreAnimation)
+  else if (drawingModel == NPDrawingModelCoreGraphics)
 #endif
   {
     // This would be a lot easier if we could use obj-c here,

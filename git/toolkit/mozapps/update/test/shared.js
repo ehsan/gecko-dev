@@ -190,13 +190,12 @@ function getRemoteUpdateString(aPatches, aType, aName, aDisplayVersion,
                                aAppVersion, aPlatformVersion, aBuildID,
                                aDetailsURL, aBillboardURL, aLicenseURL,
                                aShowPrompt, aShowNeverForVersion, aShowSurvey,
-                               aVersion, aExtensionVersion, aCustom1,
-                               aCustom2) {
+                               aExtra1, aVersion, aExtensionVersion) {
   return  getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                           aPlatformVersion, aBuildID, aDetailsURL,
                           aBillboardURL, aLicenseURL, aShowPrompt,
-                          aShowNeverForVersion, aShowSurvey, aVersion,
-                          aExtensionVersion, aCustom1, aCustom2) + ">\n" +
+                          aShowNeverForVersion, aShowSurvey, aExtra1, aVersion,
+                          aExtensionVersion) + ">\n" +
               aPatches + 
          "  </update>\n";
 }
@@ -256,8 +255,8 @@ function getLocalUpdateString(aPatches, aType, aName, aDisplayVersion,
                               aServiceURL, aInstallDate, aStatusText,
                               aIsCompleteUpdate, aChannel, aForegroundDownload,
                               aShowPrompt, aShowNeverForVersion, aShowSurvey,
-                              aVersion, aExtensionVersion, aPreviousAppVersion,
-                              aCustom1, aCustom2) {
+                              aExtra1, aVersion, aExtensionVersion,
+                              aPreviousAppVersion) {
   var serviceURL = aServiceURL ? aServiceURL : "http://test_service/";
   var installDate = aInstallDate ? aInstallDate : "1238441400314";
   var statusText = aStatusText ? aStatusText : "Install Pending";
@@ -269,8 +268,7 @@ function getLocalUpdateString(aPatches, aType, aName, aDisplayVersion,
   return getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                          aPlatformVersion, aBuildID, aDetailsURL, aBillboardURL,
                          aLicenseURL, aShowPrompt, aShowNeverForVersion,
-                         aShowSurvey, aVersion, aExtensionVersion, aCustom1,
-                         aCustom2) +
+                         aShowSurvey, aExtra1, aVersion, aExtensionVersion) +
                    " " +
                    previousAppVersion +
                    "serviceURL=\"" + serviceURL + "\" " +
@@ -345,27 +343,22 @@ function getLocalPatchString(aType, aURL, aHashFunction, aHashValue, aSize,
  * @param   aShowSurvey
  *          Whether to show the 'No Thanks' button in the update prompt.
  *          If null will not be added and the backend will default to false.
+ * @param   aExtra1
+ *          A custom string provided by the update xml for use by the
+ *          application.
+ *          If null will not be added.
  * @param   aVersion
  *          The update's application version from 1.9.2.
  *          If null will not be present.
  * @param   aExtensionVersion
  *          The update's application version from 1.9.2.
  *          If null will not be present.
- * @param   aCustom1
- *          A custom attribute name AND attribute value to add to the xml.
- *          Example: custom1_attribute="custom1 value"
- *          If null will not be present.
- * @param   aCustom2
- *          A custom attribute name AND attribute value to add to the xml.
- *          Example: custom2_attribute="custom2 value"
- *          If null will not be present.
  * @returns The string representing an update element for an update xml file.
  */
 function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                          aPlatformVersion, aBuildID, aDetailsURL, aBillboardURL,
                          aLicenseURL, aShowPrompt, aShowNeverForVersion,
-                         aShowSurvey, aVersion, aExtensionVersion, aCustom1,
-                         aCustom2) {
+                         aShowSurvey, aExtra1, aVersion, aExtensionVersion) {
   var type = aType ? aType : "major";
   var name = aName ? aName : "App Update Test";
   var displayVersion = "";
@@ -397,8 +390,7 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
   var showPrompt = aShowPrompt ? "showPrompt=\"" + aShowPrompt + "\" " : "";
   var showNeverForVersion = aShowNeverForVersion ? "showNeverForVersion=\"" + aShowNeverForVersion + "\" " : "";
   var showSurvey = aShowSurvey ? "showSurvey=\"" + aShowSurvey + "\" " : "";
-  var custom1 = aCustom1 ? aCustom1 + " " : "";
-  var custom2 = aCustom2 ? aCustom2 + " " : "";
+  var extra1 = aExtra1 ? "extra1=\"" + aExtra1 + "\" " : "";
   return "  <update type=\"" + type + "\" " +
                    "name=\"" + name + "\" " +
                    displayVersion +
@@ -406,15 +398,14 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
                    appVersion +
                    extensionVersion +
                    platformVersion +
+                   "buildID=\"" + buildID + "\" " +
                    detailsURL +
                    billboardURL +
                    licenseURL +
                    showPrompt +
                    showNeverForVersion +
                    showSurvey +
-                   custom1 +
-                   custom2 +
-                   "buildID=\"" + buildID + "\"";
+                   extra1;
 }
 
 /**

@@ -109,15 +109,14 @@ nsFilePicker::AppendFilter(const nsAString & aTitle, const nsAString & aFilter)
 NS_IMETHODIMP
 nsFilePicker::GetDefaultString(nsAString & aDefaultString)
 {
-    return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsFilePicker::SetDefaultString(const nsAString & aDefaultString)
-{
     mDefault = aDefaultString;
 
     return NS_OK;
+}
+NS_IMETHODIMP
+nsFilePicker::SetDefaultString(const nsAString & aDefaultString)
+{
+    return NS_ERROR_FAILURE;
 }
 
 /* attribute AString defaultExtension; */
@@ -218,7 +217,6 @@ nsFilePicker::Show(PRInt16 *aReturn)
         break;
     case nsIFilePicker::modeSave:
         mDialog->setFileMode(QFileDialog::AnyFile);
-        mDialog->setAcceptMode(QFileDialog::AcceptSave);
         break;
     case nsIFilePicker::modeGetFolder:
         mDialog->setFileMode(QFileDialog::DirectoryOnly);

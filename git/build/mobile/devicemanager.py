@@ -45,14 +45,6 @@ from threading import Thread
 import traceback
 import sys
 
-class FileError(Exception):
-  " Signifies an error which occurs while doing a file operation."
-
-  def __init__(self, msg = ''):
-    self.msg = msg
-
-  def __str__(self):
-    return self.msg
 
 class myProc(Thread):
   def __init__(self, hostip, hostport, cmd, new_line = True, sleeptime = 0):
@@ -236,10 +228,7 @@ class DeviceManager:
         print "files are validated"
       return ''
 
-    if self.mkDirs(destname) == None:
-      print "unable to make dirs: " + destname
-      return None
-
+    self.mkDirs(destname)
     if (self.debug >= 2):
       print "sending: push " + destname
     
@@ -264,7 +253,7 @@ class DeviceManager:
     return retVal
   
   def mkDir(self, name):
-    return self.sendCMD(['mkdr ' + name])
+    return self.sendCMD(['mkdr ' + name, 'quit'])
   
   
   # make directory structure on the device
@@ -276,9 +265,8 @@ class DeviceManager:
       if (part != ""):
         name += '/' + part
         if (self.mkDir(name) == None):
-          print "failed making directory: " + str(name)
           return None
-    return ''
+
 
   # push localDir from host to remoteDir on the device
   def pushDir(self, localDir, remoteDir):
@@ -585,38 +573,9 @@ class DeviceManager:
     return 0
 
   def unpackFile(self, filename):
-    dir = ''
-    parts = filename.split('/')
-    if (len(parts) > 1):
-      if self.fileExists(filename):
-        dir = '/'.join(parts[:-1])
-    elif self.fileExists('/' + filename):
-      dir = '/' + filename
-    elif self.fileExists('/tests/' + filename):
-      dir = '/tests/' + filename
-    else:
-      return None
-
-    return self.sendCMD(['cd ' + dir, 'unzp ' + filename])
-
-
-  def reboot(self, wait = False):
-    self.sendCMD(['rebt'])
-
-    if wait == True:
-      time.sleep(30)
-      timeout = 270
-      done = False
-      while (not done):
-        if self.listFiles('/') != None:
-          return ''
-        print "sleeping another 10 seconds"
-        time.sleep(10)
-        timeout = timeout - 10
-        if (timeout <= 0):
-          return None
-    return ''
-
+    self.sendCMD(['cd /tests', 'unzp ' + filename])
+    
+    
   # validate localDir from host to remoteDir on the device
   def validateDir(self, localDir, remoteDir):
     if (self.debug >= 2): print "validating directory: " + localDir + " to " + remoteDir

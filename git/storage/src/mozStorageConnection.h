@@ -92,23 +92,15 @@ public:
    *
    * @returns an event target suitable for asynchronous statement execution.
    */
-  nsIEventTarget *getAsyncExecutionTarget();
+  already_AddRefed<nsIEventTarget> getAsyncExecutionTarget();
 
   /**
    * Mutex used by asynchronous statements to protect state.  The mutex is
    * declared on the connection object because there is no contention between
-   * asynchronous statements (they are serialized on mAsyncExecutionThread).  It
-   * also protects mPendingStatements.
+   * asynchronous statements (they are serialized on mAsyncExecutionThread).  It also
+   * protects mPendingStatements.
    */
   Mutex sharedAsyncExecutionMutex;
-
-  /**
-   * Wraps the mutex that SQLite gives us from sqlite3_db_mutex.  This is public
-   * because we already expose the sqlite3* native connection and proper
-   * operation of the deadlock detector requires everyone to use the same single
-   * SQLiteMutex instance for correctness.
-   */
-  SQLiteMutex sharedDBMutex;
 
   /**
    * References the thread this database was opened on.  This MUST be thread it is
@@ -181,6 +173,11 @@ private:
    * should be accessed while holding the mAsyncExecutionMutex.
    */
   bool mAsyncExecutionThreadShuttingDown;
+
+  /**
+   * Wraps the mutex that SQLite gives us from sqlite3_db_mutex.
+   */
+  SQLiteMutex mDBMutex;
 
   /**
    * Tracks if we have a transaction in progress or not.  Access protected by

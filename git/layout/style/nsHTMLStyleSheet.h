@@ -84,15 +84,17 @@ public:
 #ifdef MOZ_XUL
   NS_IMETHOD RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
-  virtual PRBool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
-  virtual nsRestyleHint
+  virtual nsReStyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
+  virtual nsReStyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
   NS_IMETHOD MediumFeaturesChanged(nsPresContext* aPresContext,
                                    PRBool* aRulesChanged);
 
   nsresult Init(nsIURI* aURL, nsIDocument* aDocument);
   nsresult Reset(nsIURI* aURL);
+  nsresult GetLinkColor(nscolor& aColor);
+  nsresult GetActiveLinkColor(nscolor& aColor);
+  nsresult GetVisitedLinkColor(nscolor& aColor);
   nsresult SetLinkColor(nscolor aColor);
   nsresult SetActiveLinkColor(nscolor aColor);
   nsresult SetVisitedLinkColor(nscolor aColor);

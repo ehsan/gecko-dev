@@ -45,7 +45,6 @@
 #include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "nsHtml5TreeOperation.h"
-#include "nsHtml5SpeculativeLoad.h"
 #include "nsHtml5PendingNotification.h"
 #include "nsTArray.h"
 #include "nsContentSink.h"
@@ -56,8 +55,6 @@
 #include "nsCOMArray.h"
 #include "nsAHtml5TreeOpSink.h"
 #include "nsHtml5TreeOpStage.h"
-#include "nsHashSets.h"
-#include "nsIURI.h"
 
 class nsHtml5TreeBuilder;
 class nsHtml5Tokenizer;
@@ -76,21 +73,24 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
                               public nsIContentSink,
                               public nsAHtml5TreeOpSink
 {
-  friend class nsHtml5FlushLoopGuard;
-
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
 
+    static void InitializeStatics();
+
   private:
 #ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
+    static PRUint32    sOpQueueMaxLength;
     static PRUint32    sAppendBatchMaxSize;
     static PRUint32    sAppendBatchSlotsExamined;
     static PRUint32    sAppendBatchExaminations;
-    static PRUint32    sLongestTimeOffTheEventLoop;
-    static PRUint32    sTimesFlushLoopInterrupted;
 #endif
+    static PRInt32                      sTreeOpQueueLengthLimit;
+    static PRInt32                      sTreeOpQueueMaxTime;
+    static PRInt32                      sTreeOpQueueMinLength;
+    static PRInt32                      sTreeOpQueueMaxLength;
 
     /**
      * Whether EOF needs to be suppressed
@@ -106,11 +106,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     nsCOMArray<nsIContent>               mOwnedElements;
     
     /**
-     * URLs already preloaded/preloading.
-     */
-    nsCStringHashSet mPreloadedURLs;
-
-    /**
      * Whether the parser has started
      */
     PRBool                        mStarted;
@@ -118,10 +113,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     nsHtml5TreeOpStage            mStage;
 
     eHtml5FlushState              mFlushState;
-
-    PRBool                        mRunFlushLoopOnStack;
-
-    PRBool                        mCallContinueInterruptedParsingIfEnabled;
 
     PRBool                        mFragmentMode;
 
@@ -175,12 +166,9 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     virtual void FlushPendingNotifications(mozFlushType aType);
 
     /**
-     * Don't call. For interface compat only.
+     * Sets mCharset
      */
-    NS_IMETHOD SetDocumentCharset(nsACString& aCharset) {
-    	NS_NOTREACHED("No one should call this.");
-    	return NS_ERROR_NOT_IMPLEMENTED;
-    }
+    NS_IMETHOD SetDocumentCharset(nsACString& aCharset);
 
     /**
      * Returns the document.
@@ -192,8 +180,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     virtual void UpdateChildCounts();
     virtual nsresult FlushTags();
     virtual void PostEvaluateScript(nsIScriptElement *aElement);
-    virtual void ContinueInterruptedParsingAsync();
- 
     /**
      * Sets up style sheet load / parse
      */
@@ -223,10 +209,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       mNodeInfoManager = aManager;
     }
     
-    // Not from interface
-
-    void SetDocumentCharsetAndSource(nsACString& aCharset, PRInt32 aCharsetSource);
-
     void SetStreamParser(nsHtml5StreamParser* aStreamParser) {
       mStreamParser = aStreamParser;
     }
@@ -237,8 +219,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void EnableFragmentMode() {
       mFragmentMode = PR_TRUE;
-      mCanInterruptParser = PR_FALSE; // prevent DropParserAndPerfHint
-                                      // from unblocking onload
     }
     
     PRBool IsFragmentMode() {
@@ -323,18 +303,20 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       }
     }
 
-    void StartLayout();
+    void StartLayout() {
+      nsIDocument* doc = GetDocument();
+      if (doc) {
+        FlushPendingAppendNotifications();
+        nsContentSink::StartLayout(PR_FALSE);
+      }
+    }
     
-    void SetDocumentMode(nsHtml5DocumentMode m);
+    void DocumentMode(nsHtml5DocumentMode m);
 
     nsresult Init(nsIDocument* aDoc, nsIURI* aURI,
                   nsISupports* aContainer, nsIChannel* aChannel);
-
-    void FlushSpeculativeLoads();
                   
-    void RunFlushLoop();
-
-    void FlushDocumentWrite();
+    void Flush(PRBool aForceWholeQueue);
 
     void MaybeSuspend();
 
@@ -353,12 +335,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     PRBool IsFlushing() {
       return mFlushState >= eInFlush;
     }
-
-#ifdef DEBUG
-    PRBool IsInFlushLoop() {
-      return mRunFlushLoopOnStack;
-    }
-#endif
     
     void RunScript(nsIContent* aScriptElement);
     
@@ -368,13 +344,15 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
       mOwnedElements.AppendObject(aContent);
     }
 
+    // The following two methods are for the main-thread case
+
     /**
      * Flush the operations from the tree operations from the argument
-     * queue unconditionally. (This is for the main thread case.)
+     * queue unconditionally.
      */
     virtual void MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue);
     
-    nsHtml5TreeOpStage* GetStage() {
+    nsAHtml5TreeOpSink* GetStage() {
       return &mStage;
     }
     
@@ -390,23 +368,10 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     }
 #endif
 
-    void PreloadScript(const nsAString& aURL,
-                       const nsAString& aCharset,
-                       const nsAString& aType);
-
-    void PreloadStyle(const nsAString& aURL, const nsAString& aCharset);
-
-    void PreloadImage(const nsAString& aURL);
-
   private:
 
     nsHtml5Tokenizer* GetTokenizer();
-
-    /**
-     * Get a nsIURI for an nsString if the URL hasn't been preloaded yet.
-     */
-    already_AddRefed<nsIURI> ConvertIfNotPreloadedYet(const nsAString& aURL);
-
+        
 };
 
 #endif // nsHtml5TreeOpExecutor_h__
