@@ -6316,6 +6316,11 @@ var gPluginHandler = {
       link.href = gPluginHandler.crashReportHelpURL;
       let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
       description.appendChild(link);
+
+      // Remove the notfication when the page is reloaded.
+      doc.defaultView.top.addEventListener("unload", function() {
+        notificationBox.removeNotification(notification);
+      }, false);
     }
 
   }
@@ -7151,7 +7156,7 @@ let gPrivateBrowsingUI = {
     Services.obs.removeObserver(this, "private-browsing-transition-complete");
   },
 
-  get _disableUIOnToggle PBUI__disableUIOnTogle() {
+  get _disableUIOnToggle() {
     if (this._privateBrowsingService.autoStarted)
       return false;
 
@@ -7353,7 +7358,7 @@ let gPrivateBrowsingUI = {
       !this.privateBrowsingEnabled;
   },
 
-  get privateBrowsingEnabled PBUI_get_privateBrowsingEnabled() {
+  get privateBrowsingEnabled() {
     return this._privateBrowsingService.privateBrowsingEnabled;
   }
 };

@@ -842,7 +842,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(CSSGroupRuleRuleList, nsCSSRuleListSH,
                            ARRAY_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MediaList, nsMediaListSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+                           ARRAY_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(StyleSheetList, nsStyleSheetListSH,
                            ARRAY_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CSSStyleSheet, nsDOMGenericSH,
@@ -7762,8 +7762,8 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       binding->ExecuteAttachedHandler();
     }
     else {
-      nsContentUtils::AddScriptRunner(new nsRunnableMethod<nsXBLBinding>(
-        binding, &nsXBLBinding::ExecuteAttachedHandler));
+      nsContentUtils::AddScriptRunner(
+        NS_NewRunnableMethod(binding, &nsXBLBinding::ExecuteAttachedHandler));
     }
   }
 
