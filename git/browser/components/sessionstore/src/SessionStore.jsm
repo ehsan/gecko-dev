@@ -78,11 +78,6 @@ const TAB_EVENTS = [
   "TabUnpinned"
 ];
 
-// Browser events observed.
-const BROWSER_EVENTS = [
-  "load", "SwapDocShells", "UserTypedValueChanged"
-];
-
 // The number of milliseconds in a day
 const MS_PER_DAY = 1000.0 * 60.0 * 60.0 * 24.0;
 
@@ -1248,7 +1243,9 @@ let SessionStoreInternal = {
    */
   onTabAdd: function ssi_onTabAdd(aWindow, aTab, aNoNotification) {
     let browser = aTab.linkedBrowser;
-    BROWSER_EVENTS.forEach(msg => browser.addEventListener(msg, this, true));
+    browser.addEventListener("load", this, true);
+    browser.addEventListener("SwapDocShells", this, true);
+    browser.addEventListener("UserTypedValueChanged", this, true);
 
     let mm = browser.messageManager;
     MESSAGES.forEach(msg => mm.addMessageListener(msg, this));
@@ -1274,7 +1271,9 @@ let SessionStoreInternal = {
    */
   onTabRemove: function ssi_onTabRemove(aWindow, aTab, aNoNotification) {
     let browser = aTab.linkedBrowser;
-    BROWSER_EVENTS.forEach(msg => browser.removeEventListener(msg, this, true));
+    browser.removeEventListener("load", this, true);
+    browser.removeEventListener("SwapDocShells", this, true);
+    browser.removeEventListener("UserTypedValueChanged", this, true);
 
     let mm = browser.messageManager;
     MESSAGES.forEach(msg => mm.removeMessageListener(msg, this));

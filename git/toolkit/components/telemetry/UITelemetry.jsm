@@ -7,78 +7,80 @@
 const Cu = Components.utils;
 
 this.EXPORTED_SYMBOLS = [
-  "UITelemetry",
+  "UITelemetry"
 ];
 
 Cu.import("resource://gre/modules/Services.jsm");
 
 /**
  * UITelemetry is a helper JSM used to record UI specific telemetry events.
- *
- * It implements nsIUITelemetryObserver, defined in nsIAndroidBridge.idl.
  */
-this.UITelemetry = Object.freeze({
-  _activeSessions: {},
-  _measurements: [],
+this.UITelemetry =  {
 
-  /**
-   * This exists exclusively for testing -- our events are not intended to
-   * be retrieved via an XPCOM interface.
-   */
-  get wrappedJSObject() {
-    return this;
+  measurements: [],
+
+  init: function init() {
+    Services.obs.addObserver(this, "UITelemetry:Event", false);
+    Services.obs.addObserver(this, "UITelemetry:Session", false);
+  },
+
+  observe: function observe(aMessage, aTopic, aData) {
+    switch(aTopic) {
+      case "UITelemetry:Event":
+        let args = JSON.parse(aData);
+        this.addEvent(args.action, args.method, args.extras, args.timestamp);
+        break;
+      case "UITelemetry:Session":
+        args = JSON.parse(aData);
+        let sessionName = args.name;
+        let timestamp = args.timestamp;
+        if (args.state == "start") {
+          this.startSession(sessionName, timestamp);
+        } else if (args.state == "stop") {
+          this.stopSession(sessionName, timestamp);
+        }
+        break;
+    }
   },
 
   /**
-   * Holds the functions that provide UITelemetry's simple
-   * measurements. Those functions are mapped to unique names,
-   * and should be registered with addSimpleMeasureFunction.
+   * Adds a single event described by an action, and the calling method. Optional
+   * paramaters are extras and timestamp. The timestamp will be set here if it is
+   * not passed in by the caller.
    */
-  _simpleMeasureFunctions: {},
-
-  /**
-   * Adds a single event described by a timestamp, an action, and the calling
-   * method.
-   *
-   * Optionally provide a string 'extras', which will be recorded as part of
-   * the event.
-   *
-   * All extant sessions will be recorded by name for each event.
-   */
-  addEvent: function(aAction, aMethod, aTimestamp, aExtras) {
-    let sessions = Object.keys(this._activeSessions);
+  addEvent: function addEvent(aAction, aMethod, aExtras, aTimestamp) {
+    let timestamp = aTimestamp || Date.now();
     let aEvent = {
       type: "event",
       action: aAction,
       method: aMethod,
-      sessions: sessions,
-      timestamp: aTimestamp,
+      timestamp: timestamp
     };
 
-    if (aExtras) {
-      aEvent.extras = aExtras;
-    }
-
-    this._recordEvent(aEvent);
+    if (aExtras) aEvent.extras = aExtras;
+    this._logEvent(aEvent);
   },
+
+  activeSessions: {},
 
   /**
    * Begins tracking a session by storing a timestamp for session start.
    */
-  startSession: function(aName, aTimestamp) {
-    if (this._activeSessions[aName]) {
-      // Do not overwrite a previous event start if it already exists.
-      return;
-    }
-    this._activeSessions[aName] = aTimestamp;
+  startSession: function startSession(aName, aTimestamp) {
+   let timestamp = aTimestamp || Date.now();
+   if (this.activeSessions[aName]) {
+    // Do not overwrite a previous event start if it already exsts.
+    return;
+   }
+   this.activeSessions[aName] = timestamp;
   },
 
   /**
    * Tracks the end of a session with a timestamp.
    */
-  stopSession: function(aName, aReason, aTimestamp) {
-    let sessionStart = this._activeSessions[aName];
-    delete this._activeSessions[aName];
+  stopSession: function stopSession(aName, aTimestamp) {
+    let timestamp = aTimestamp || Date.now();
+    let sessionStart = this.activeSessions[aName];
 
     if (!sessionStart) {
       Services.console.logStringMessage("UITelemetry error: no session [" + aName + "] to stop!");
@@ -88,17 +90,23 @@ this.UITelemetry = Object.freeze({
     let aEvent = {
       type: "session",
       name: aName,
-      reason: aReason,
       start: sessionStart,
-      end: aTimestamp,
+      end: timestamp
     };
 
-    this._recordEvent(aEvent);
+    this._logEvent(aEvent);
   },
 
-  _recordEvent: function(aEvent) {
-    this._measurements.push(aEvent);
+  _logEvent: function sendEvent(aEvent) {
+    this.measurements.push(aEvent);
   },
+
+  /**
+   * Holds the functions that provide UITelemety's simple
+   * measurements. Those functions are mapped to unique names,
+   * and should be registered with addSimpleMeasureFunction.
+   */
+  _simpleMeasureFuncs: {},
 
   /**
    * Called by TelemetryPing to populate the simple measurement
@@ -108,8 +116,8 @@ this.UITelemetry = Object.freeze({
    */
   getSimpleMeasures: function() {
     let result = {};
-    for (let name in this._simpleMeasureFunctions) {
-      result[name] = this._simpleMeasureFunctions[name]();
+    for (let name in this._simpleMeasureFuncs) {
+      result[name] = this._simpleMeasureFuncs[name]();
     }
     return result;
   },
@@ -124,22 +132,22 @@ this.UITelemetry = Object.freeze({
    * registered for it.
    */
   addSimpleMeasureFunction: function(aName, aFunction) {
-    if (aName in this._simpleMeasureFunctions) {
-      throw new Error("A simple measurement function is already registered for " + aName);
+    if (aName in this._simpleMeasureFuncs) {
+      throw new Error("A simple measurement function is already registered for "
+                      + aName);
     }
-
     if (!aFunction || typeof aFunction !== 'function') {
-      throw new Error("addSimpleMeasureFunction called with non-function argument.");
+      throw new Error("A function must be passed as the second argument.");
     }
 
-    this._simpleMeasureFunctions[aName] = aFunction;
+    this._simpleMeasureFuncs[aName] = aFunction;
   },
 
   removeSimpleMeasureFunction: function(aName) {
-    delete this._simpleMeasureFunctions[aName];
+    delete this._simpleMeasureFuncs[aName];
   },
 
   getUIMeasurements: function getUIMeasurements() {
-    return this._measurements.slice();
+    return this.measurements.slice();
   }
-});
+};
