@@ -166,11 +166,11 @@
 #include <mmsystem.h> // needed for WIN32_LEAN_AND_MEAN
 #include <zmouse.h>
 #include <pbt.h>
-#include <richedit.h>
+#include <Richedit.h>
 #endif // !defined(WINCE)
 
 #if defined(ACCESSIBILITY)
-#include "oleidl.h"
+#include "OLEIDL.H"
 #include <winuser.h>
 #if !defined(WINABLEAPI)
 #include <winable.h>

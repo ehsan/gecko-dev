@@ -303,8 +303,7 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
     }
   }
   char* dataSlot = resetOrInherit + info.mInheritResetOffset;
-  NS_ASSERTION(!*reinterpret_cast<void**>(dataSlot) ||
-               (mBits & nsCachedStyleData::GetBitForSID(aSID)),
+  NS_ASSERTION(!*reinterpret_cast<void**>(dataSlot),
                "Going to leak style data");
   *reinterpret_cast<void**>(dataSlot) = aStruct;
 }

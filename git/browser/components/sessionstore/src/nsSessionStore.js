@@ -525,13 +525,8 @@ SessionStoreService.prototype = {
         break;
       case "TabOpen":
       case "TabClose":
-        let target = aEvent.originalTarget;
-        let panelID = target.linkedPanel;
-        let ownerDoc = target.ownerDocument;
-        let bindingParent = ownerDoc.getBindingParent(target);
-        let tabpanel =
-          ownerDoc.getAnonymousElementByAttribute(bindingParent, "id",
-                                                  panelID);
+        var panelID = aEvent.originalTarget.linkedPanel;
+        var tabpanel = aEvent.originalTarget.ownerDocument.getElementById(panelID);
         if (aEvent.type == "TabOpen") {
           this.onTabAdd(aEvent.currentTarget.ownerDocument.defaultView, tabpanel);
         }

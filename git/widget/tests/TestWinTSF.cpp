@@ -49,7 +49,7 @@
 
 #include <msctf.h>
 #include <textstor.h>
-#include <richedit.h>
+#include <Richedit.h>
 
 #include "TestHarness.h"
 
