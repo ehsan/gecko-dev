@@ -1082,6 +1082,14 @@ obj_valueOf(JSContext *cx, uintN argc, jsval *vp)
     return !JSVAL_IS_NULL(*vp);
 }
 
+#ifdef JS_TRACER
+static jsval FASTCALL
+Object_p_valueOf(JSContext* cx, JSObject* obj, JSString *hint)
+{
+    return OBJECT_TO_JSVAL(obj);
+}
+#endif
+
 /*
  * Check whether principals subsumes scopeobj's principals, and return true
  * if so (or if scopeobj has no principals, for backward compatibility with
@@ -1233,12 +1241,11 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     if (caller && !caller->varobj && !js_GetCallObject(cx, caller, NULL))
         return JS_FALSE;
 
-    /* eval no longer takes an optional trailing argument. */
-    if (argc >= 2 &&
-        !JS_ReportErrorFlagsAndNumber(cx, JSREPORT_WARNING | JSREPORT_STRICT,
-                                      js_GetErrorMessage, NULL,
-                                      JSMSG_EVAL_ARITY)) {
-        return JS_FALSE;
+    /* Accept an optional trailing argument that overrides the scope object. */
+    if (argc >= 2) {
+        if (!js_ValueToObject(cx, argv[1], &scopeobj))
+            return JS_FALSE;
+        argv[1] = OBJECT_TO_JSVAL(scopeobj);
     }
 
     /* From here on, control must exit through label out with ok set. */
@@ -1299,6 +1306,20 @@ obj_eval(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                 goto out;
             }
         }
+    } else {
+        ok = js_CheckPrincipalsAccess(cx, scopeobj,
+                                      JS_StackFramePrincipals(cx, caller),
+                                      cx->runtime->atomState.evalAtom);
+        if (!ok)
+            goto out;
+
+        scopeobj = js_NewWithObject(cx, scopeobj,
+                                    JS_GetGlobalForObject(cx, scopeobj), -1);
+        if (!scopeobj) {
+            ok = JS_FALSE;
+            goto out;
+        }
+        argv[1] = OBJECT_TO_JSVAL(scopeobj);
     }
 
     /* Ensure we compile this eval with the right object in the scope chain. */
@@ -1810,6 +1831,8 @@ const char js_lookupGetter_str[] = "__lookupGetter__";
 const char js_lookupSetter_str[] = "__lookupSetter__";
 #endif
 
+JS_DEFINE_TRCINFO_1(obj_valueOf,
+    (3, (static, JSVAL, Object_p_valueOf, CONTEXT, THIS, STRING,                  0, 0)))
 JS_DEFINE_TRCINFO_1(obj_hasOwnProperty,
     (3, (static, BOOL_FAIL, Object_p_hasOwnProperty, CONTEXT, THIS, STRING,       0, 0)))
 JS_DEFINE_TRCINFO_1(obj_propertyIsEnumerable,
@@ -1821,7 +1844,8 @@ static JSFunctionSpec object_methods[] = {
 #endif
     JS_FN(js_toString_str,             obj_toString,                0,0),
     JS_FN(js_toLocaleString_str,       obj_toLocaleString,          0,0),
-    JS_FN(js_valueOf_str,              obj_valueOf,                 0,0),
+    JS_TN(js_valueOf_str,              obj_valueOf,                 0,0,
+          obj_valueOf_trcinfo),
 #if JS_HAS_OBJ_WATCHPOINT
     JS_FN(js_watch_str,                obj_watch,                   2,0),
     JS_FN(js_unwatch_str,              obj_unwatch,                 1,0),

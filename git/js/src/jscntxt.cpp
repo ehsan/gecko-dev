@@ -277,7 +277,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
         }
         JS_WAIT_CONDVAR(rt->stateChange, JS_NO_TIMEOUT);
     }
-    JS_APPEND_LINK(&cx->links, &rt->contextList);
+    JS_APPEND_LINK(&cx->link, &rt->contextList);
     JS_UNLOCK_GC(rt);
 
     /*
@@ -295,21 +295,7 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
                        1024,  /* FIXME: bug 421435 */
                        sizeof(jsdouble), &cx->scriptStackQuota);
 
-    /*
-     * To avoid multiple allocations in InitMatch() (in jsregexp.c), the arena
-     * size parameter should be at least as big as:
-     *   INITIAL_BACKTRACK
-     *   + (sizeof(REProgState) * INITIAL_STATESTACK)
-     *   + (offsetof(REMatchState, parens) + avgParanSize * sizeof(RECapture))
-     */
-    JS_INIT_ARENA_POOL(&cx->regexpPool, "regexp",
-                       12 * 1024 - 40,  /* FIXME: bug 421435 */
-                       sizeof(void *), &cx->scriptStackQuota);
-
-    if (!js_InitRegExpStatics(cx, &cx->regExpStatics)) {
-        js_DestroyContext(cx, JSDCM_NEW_FAILED);
-        return NULL;
-    }
+    js_InitRegExpStatics(cx);
 
     cx->resolveFlags = 0;
 
@@ -391,7 +377,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     /* Remove cx from context list first. */
     JS_LOCK_GC(rt);
     JS_ASSERT(rt->state == JSRTS_UP || rt->state == JSRTS_LAUNCHING);
-    JS_REMOVE_LINK(&cx->links);
+    JS_REMOVE_LINK(&cx->link);
     last = (rt->contextList.next == &rt->contextList);
     if (last)
         rt->state = JSRTS_LANDING;
@@ -428,13 +414,8 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
         JS_ClearAllWatchPoints(cx);
     }
 
-    /*
-     * Remove more GC roots in regExpStatics, then collect garbage.
-     * XXX anti-modularity alert: we rely on the call to js_RemoveRoot within
-     * XXX this function call to wait for any racing GC to complete, in the
-     * XXX case where JS_DestroyContext is called outside of a request on cx
-     */
-    js_FreeRegExpStatics(cx, &cx->regExpStatics);
+    /* Remove more GC roots in regExpStatics, then collect garbage. */
+    JS_ClearRegExpRoots(cx);
 
 #ifdef JS_THREADSAFE
     /*
@@ -475,9 +456,9 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
     }
 
     /* Free the stuff hanging off of cx. */
+    js_FreeRegExpStatics(cx);
     JS_FinishArenaPool(&cx->stackPool);
     JS_FinishArenaPool(&cx->tempPool);
-    JS_FinishArenaPool(&cx->regexpPool);
 
     if (cx->lastMessage)
         free(cx->lastMessage);
@@ -519,7 +500,7 @@ js_ValidContextPointer(JSRuntime *rt, JSContext *cx)
     JSCList *cl;
 
     for (cl = rt->contextList.next; cl != &rt->contextList; cl = cl->next) {
-        if (cl == &cx->links)
+        if (cl == &cx->link)
             return JS_TRUE;
     }
     JS_RUNTIME_METER(rt, deadContexts);
@@ -533,8 +514,8 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp)
 
     if (unlocked)
         JS_LOCK_GC(rt);
-    cx = (JSContext *) (cx ? cx->links.next : rt->contextList.next);
-    if (&cx->links == &rt->contextList)
+    cx = js_ContextFromLinkField(cx ? cx->link.next : rt->contextList.next);
+    if (&cx->link == &rt->contextList)
         cx = NULL;
     *iterp = cx;
     if (unlocked)
