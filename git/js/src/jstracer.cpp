@@ -140,16 +140,20 @@ Tracker::clear()
 bool
 Tracker::has(const void *v) const
 {
-    return get(v) != NULL;
+    struct Tracker::Page* p = findPage(v);
+    if (!p)
+        return false;
+    return p->map[(jsuword(v) & 0xfff) >> 2] != NULL;
 }
 
 LIns*
 Tracker::get(const void* v) const
 {
     struct Tracker::Page* p = findPage(v);
-    if (!p)
-        return NULL;
-    return p->map[(jsuword(v) & 0xfff) >> 2];
+    JS_ASSERT(p); /* we must have a page for the slot we are looking for */
+    LIns* i = p->map[(jsuword(v) & 0xfff) >> 2];
+    JS_ASSERT(i);
+    return i;
 }
 
 void
@@ -422,11 +426,11 @@ public:
                 vp = &f->argv[0]; vpstop = &f->argv[f->fun->nargs];           \
                 while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
                 SET_VPNAME("vars");                                           \
-                vp = &f->vars[0]; vpstop = &f->vars[f->nvars];                \
+                vp = f->slots; vpstop = &f->slots[f->script->nfixed];         \
                 while (vp < vpstop) { code; ++vp; INC_VPNUM(); }              \
             }                                                                 \
             SET_VPNAME("stack");                                              \
-            vp = f->spbase; vpstop = f->regs->sp;                             \
+            vp = StackBase(f); vpstop = f->regs->sp;                          \
             while (vp < vpstop) { code; ++vp; INC_VPNUM(); }                  \
         }                                                                     \
     JS_END_MACRO
@@ -571,9 +575,9 @@ static unsigned nativeFrameSlots(unsigned ngslots, unsigned callDepth,
 {
     unsigned slots = ngslots;
     for (;;) {
-        slots += 1/*rval*/ + (regs.sp - fp->spbase);
+        slots += 1/*rval*/ + (regs.sp - StackBase(fp));
         if (fp->callee)
-            slots += 1/*this*/ + fp->fun->nargs + fp->nvars;
+            slots += 1/*this*/ + fp->fun->nargs + fp->script->nfixed;
         if (callDepth-- == 0)
             return slots;
         fp = fp->down;
@@ -583,7 +587,7 @@ static unsigned nativeFrameSlots(unsigned ngslots, unsigned callDepth,
 
 /* Determine the offset in the native frame (marshal) for an address
    that is part of a currently active frame. */
-ptrdiff_t
+size_t
 TraceRecorder::nativeFrameOffset(jsval* p) const
 {
     JSStackFrame* currentFrame = cx->fp;
@@ -594,7 +598,7 @@ TraceRecorder::nativeFrameOffset(jsval* p) const
     );
     /* if its not in a pending frame, it must be on the stack of the current frame above
        sp but below script->depth */
-    JS_ASSERT(size_t(p - currentFrame->regs->sp) < currentFrame->script->depth);
+    JS_ASSERT(size_t(p - StackBase(currentFrame)) < currentFrame->script->nslots);
     offset += size_t(p - currentFrame->regs->sp) * sizeof(double);
     return offset;
 }
@@ -713,7 +717,10 @@ box_jsval(JSContext* cx, jsval& v, uint8 t, double* slot)
       default:
         JS_ASSERT(t == JSVAL_OBJECT);
         v = OBJECT_TO_JSVAL(*(JSObject**)slot);
-        debug_only(printf("object<%p> ", *(JSObject**)slot);)
+        debug_only(printf("object<%p:%s> ", JSVAL_TO_OBJECT(v),
+                            JSVAL_IS_NULL(v)
+                            ? "null"
+                            : STOBJ_GET_CLASS(JSVAL_TO_OBJECT(v))->name);)
         break;
     }
     return true;
@@ -830,27 +837,18 @@ TraceRecorder::set(jsval* p, LIns* i, bool initializing)
     /* If we are writing to this location for the first time, calculate the offset into the
        native frame manually, otherwise just look up the last load or store associated with
        the same source address (p) and use the same offset/base. */
-    LIns* x;
-    if ((x = stackTracker.get(p)) == NULL) {
+    if (initializing) { 
         stackTracker.set(p, lir->insStorei(i, lirbuf->sp, 
                 -treeInfo->nativeStackBase + nativeFrameOffset(p) + 8));
     } else {
-        if (x->isop(LIR_ld) || x->isop(LIR_ldq)) {
-            JS_ASSERT(x->oprnd1() == lirbuf->sp);
-            JS_ASSERT(x->oprnd2()->constval() == -treeInfo->nativeStackBase +
-                    nativeFrameOffset(p) + 8);
-            lir->insStorei(i, x->oprnd1(), x->oprnd2()->constval());
-        } else if (x->isop(LIR_st) || x->isop(LIR_stq)) {
-            JS_ASSERT(x->oprnd2() == lirbuf->sp);
-            JS_ASSERT(x->oprnd3()->constval() == -treeInfo->nativeStackBase +
-                    nativeFrameOffset(p) + 8);
-            lir->insStorei(i, x->oprnd2(), x->oprnd3()->constval());
+        LIns* q = stackTracker.get(p);
+        if (q->isop(LIR_ld) || q->isop(LIR_ldq)) {
+            JS_ASSERT(q->oprnd1() == lirbuf->sp);
+            lir->insStorei(i, q->oprnd1(), q->oprnd2()->constval());
         } else {
-            JS_ASSERT(x->isop(LIR_sti) || x->isop(LIR_stqi));
-            JS_ASSERT(x->oprnd2() == lirbuf->sp);
-            JS_ASSERT(x->immdisp() == -treeInfo->nativeStackBase +
-                    nativeFrameOffset(p) + 8);
-            lir->insStorei(i, x->oprnd2(), x->immdisp());
+            JS_ASSERT(q->isop(LIR_sti) || q->isop(LIR_stqi));
+            JS_ASSERT(q->oprnd2() == lirbuf->sp);
+            lir->insStorei(i, q->oprnd2(), q->immdisp());
         }
     }
 }
@@ -919,7 +917,7 @@ TraceRecorder::checkType(jsval& v, uint8& t)
                         (i->isop(LIR_fadd) && i->oprnd2()->isconstq() &&
                                 fabs(i->oprnd2()->constvalf()) == 1.0)) {
 #ifdef DEBUG
-                    printf("demoting type of an entry slot #%d, triggering re-compilation\n",
+                    printf("demoting type of an entry slot #%ld, triggering re-compilation\n",
                             nativeFrameOffset(&v));
 #endif
                     JS_ASSERT(!TYPEMAP_GET_FLAG(t, TYPEMAP_FLAG_DEMOTE) ||
@@ -944,7 +942,7 @@ TraceRecorder::checkType(jsval& v, uint8& t)
         if (!i->isop(LIR_i2f)) {
             AUDIT(slotPromoted);
 #ifdef DEBUG
-            printf("demoting type of a slot #%d failed, locking it and re-compiling\n",
+            printf("demoting type of a slot #%ld failed, locking it and re-compiling\n",
                     nativeFrameOffset(&v));
 #endif
             TYPEMAP_SET_FLAG(t, TYPEMAP_FLAG_DONT_DEMOTE);
@@ -1180,7 +1178,7 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc)
                 ti->entryRegs = *cx->fp->regs;
                 ti->entryNativeFrameSlots = entryNativeFrameSlots;
                 ti->nativeStackBase = (entryNativeFrameSlots -
-                        (cx->fp->regs->sp - cx->fp->spbase)) * sizeof(double);
+                    (cx->fp->regs->sp - StackBase(cx->fp))) * sizeof(double);
                 ti->maxNativeFrameSlots = entryNativeFrameSlots;
                 ti->maxCallDepth = 0;
             }
@@ -1222,7 +1220,7 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc)
         return false;
     }
     double* entry_sp = &native[ti->nativeStackBase/sizeof(double) +
-                               (cx->fp->regs->sp - cx->fp->spbase - 1)];
+                               (cx->fp->regs->sp - StackBase(cx->fp) - 1)];
     JSObject** callstack = (JSObject**)alloca(ti->maxCallDepth * sizeof(JSObject*));
     InterpState state;
     state.ip = cx->fp->regs->pc;
@@ -1339,15 +1337,16 @@ TraceRecorder::argval(unsigned n) const
 jsval&
 TraceRecorder::varval(unsigned n) const
 {
-    JS_ASSERT(n < cx->fp->nvars);
-    return cx->fp->vars[n];
+    JS_ASSERT(n < cx->fp->script->nfixed);
+    return cx->fp->slots[n];
 }
 
 jsval&
 TraceRecorder::stackval(int n) const
 {
     jsval* sp = cx->fp->regs->sp;
-    JS_ASSERT(size_t((sp + n) - cx->fp->spbase) < cx->fp->script->depth);
+    JS_ASSERT(size_t((sp + n) - StackBase(cx->fp)) < 
+              cx->fp->script->nslots - cx->fp->script->nfixed);
     return sp[n];
 }
 
@@ -1847,25 +1846,7 @@ bool TraceRecorder::guardDenseArrayIndexWithinBounds(JSObject* obj, jsint idx,
 
 bool TraceRecorder::leaveFrame()
 {
-    if (callDepth > 0) {
-        /* Clear out all slots of this frame in the stackTracker. Different locations on the
-           VM stack might map to different locations on the native stack depending on the
-           number of arguments (i.e.) of the next call, so we have to make sure we map
-           those in to the cache with the right offsets. */
-        JSStackFrame* fp = cx->fp;
-        stackTracker.set(&fp->rval, (LIns*)0);
-        jsval* vp;
-        jsval* vpstop;
-        for (vp = &fp->argv[-1], vpstop = &fp->argv[fp->fun->nargs]; vp < vpstop; ++vp)
-            stackTracker.set(vp, (LIns*)0);
-        for (vp = &fp->vars[0], vpstop = &fp->vars[fp->nvars]; vp < vpstop; ++vp)
-            stackTracker.set(vp, (LIns*)0);
-        for (vp = fp->spbase, vpstop = vp + fp->script->depth; vp < vpstop; ++vp)
-            stackTracker.set(vp, (LIns*)0);
-        --callDepth;
-        return true;
-    }
-    return false;
+    return (callDepth--) > 0;
 }
 
 bool TraceRecorder::record_JSOP_INTERRUPT()
@@ -2349,8 +2330,8 @@ TraceRecorder::record_EnterFrame()
     LIns* void_ins = lir->insImm(JSVAL_TO_BOOLEAN(JSVAL_VOID));
     set(&fp->rval, void_ins, true);
     unsigned n;
-    for (n = 0; n < fp->nvars; ++n)
-        set(&fp->vars[n], void_ins, true);
+    for (n = 0; n < fp->script->nfixed; ++n)
+        set(&fp->slots[n], void_ins, true);
     return true;
 }
 
@@ -2584,12 +2565,12 @@ bool TraceRecorder::record_JSOP_SETARG()
 }
 bool TraceRecorder::record_JSOP_GETVAR()
 {
-    stack(0, var(GET_VARNO(cx->fp->regs->pc)));
+    stack(0, var(GET_SLOTNO(cx->fp->regs->pc)));
     return true;
 }
 bool TraceRecorder::record_JSOP_SETVAR()
 {
-    var(GET_VARNO(cx->fp->regs->pc), stack(-1));
+    var(GET_SLOTNO(cx->fp->regs->pc), stack(-1));
     return true;
 }
 bool TraceRecorder::record_JSOP_UINT16()
@@ -2629,7 +2610,7 @@ bool TraceRecorder::record_JSOP_INCARG()
 }
 bool TraceRecorder::record_JSOP_INCVAR()
 {
-    return inc(varval(GET_VARNO(cx->fp->regs->pc)), 1);
+    return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), 1);
 }
 bool TraceRecorder::record_JSOP_DECARG()
 {
@@ -2637,7 +2618,7 @@ bool TraceRecorder::record_JSOP_DECARG()
 }
 bool TraceRecorder::record_JSOP_DECVAR()
 {
-    return inc(varval(GET_VARNO(cx->fp->regs->pc)), -1);
+    return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), -1);
 }
 bool TraceRecorder::record_JSOP_ARGINC()
 {
@@ -2645,7 +2626,7 @@ bool TraceRecorder::record_JSOP_ARGINC()
 }
 bool TraceRecorder::record_JSOP_VARINC()
 {
-    return inc(varval(GET_VARNO(cx->fp->regs->pc)), 1, false);
+    return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), 1, false);
 }
 bool TraceRecorder::record_JSOP_ARGDEC()
 {
@@ -2653,7 +2634,7 @@ bool TraceRecorder::record_JSOP_ARGDEC()
 }
 bool TraceRecorder::record_JSOP_VARDEC()
 {
-    return inc(varval(GET_VARNO(cx->fp->regs->pc)), -1, false);
+    return inc(varval(GET_SLOTNO(cx->fp->regs->pc)), -1, false);
 }
 bool TraceRecorder::record_JSOP_ITER()
 {
@@ -2849,13 +2830,13 @@ bool TraceRecorder::record_JSOP_DEFLOCALFUN()
     JSFunction* fun;
     JSFrameRegs& regs = *cx->fp->regs;
     JSScript* script = cx->fp->script;
-    LOAD_FUNCTION(VARNO_LEN);
+    LOAD_FUNCTION(SLOTNO_LEN);
 
     JSObject* obj = FUN_OBJECT(fun);
     if (OBJ_GET_PARENT(cx, obj) != cx->fp->scopeChain)
         ABORT_TRACE("can't trace with activation object on scopeChain");
 
-    var(GET_VARNO(regs.pc), lir->insImmPtr(obj));
+    var(GET_SLOTNO(regs.pc), lir->insImmPtr(obj));
     return true;
 }
 
@@ -2922,7 +2903,7 @@ bool TraceRecorder::record_JSOP_RETRVAL()
 
 bool TraceRecorder::record_JSOP_GETGVAR()
 {
-    jsval slotval = cx->fp->vars[GET_VARNO(cx->fp->regs->pc)];
+    jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
         return true; // We will see JSOP_NAME from the interpreter's jump, so no-op here.
 
@@ -2933,7 +2914,7 @@ bool TraceRecorder::record_JSOP_GETGVAR()
 
 bool TraceRecorder::record_JSOP_SETGVAR()
 {
-    jsval slotval = cx->fp->vars[GET_VARNO(cx->fp->regs->pc)];
+    jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
         return true; // We will see JSOP_NAME from the interpreter's jump, so no-op here.
 
@@ -2944,7 +2925,7 @@ bool TraceRecorder::record_JSOP_SETGVAR()
 
 bool TraceRecorder::record_JSOP_INCGVAR()
 {
-    jsval slotval = cx->fp->vars[GET_VARNO(cx->fp->regs->pc)];
+    jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
@@ -2954,7 +2935,7 @@ bool TraceRecorder::record_JSOP_INCGVAR()
 
 bool TraceRecorder::record_JSOP_DECGVAR()
 {
-    jsval slotval = cx->fp->vars[GET_VARNO(cx->fp->regs->pc)];
+    jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
@@ -2964,7 +2945,7 @@ bool TraceRecorder::record_JSOP_DECGVAR()
 
 bool TraceRecorder::record_JSOP_GVARINC()
 {
-    jsval slotval = cx->fp->vars[GET_VARNO(cx->fp->regs->pc)];
+    jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
@@ -2974,7 +2955,7 @@ bool TraceRecorder::record_JSOP_GVARINC()
 
 bool TraceRecorder::record_JSOP_GVARDEC()
 {
-    jsval slotval = cx->fp->vars[GET_VARNO(cx->fp->regs->pc)];
+    jsval slotval = cx->fp->slots[GET_SLOTNO(cx->fp->regs->pc)];
     if (JSVAL_IS_NULL(slotval))
         return true; // We will see JSOP_INCNAME from the interpreter's jump, so no-op here.
 
@@ -3287,7 +3268,7 @@ bool TraceRecorder::record_JSOP_GETARGPROP()
 
 bool TraceRecorder::record_JSOP_GETVARPROP()
 {
-    return getProp(varval(GET_VARNO(cx->fp->regs->pc)));
+    return getProp(varval(GET_SLOTNO(cx->fp->regs->pc)));
 }
 
 bool TraceRecorder::record_JSOP_GETLOCALPROP()
