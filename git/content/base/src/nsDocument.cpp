@@ -2045,14 +2045,16 @@ nsIDocument::GetExtraPropertyTable(PRUint16 aCategory)
   return mExtraPropertyTables[aCategory - 1];
 }
 
-void
+nsresult
 nsDocument::AddXMLEventsContent(nsIContent *aXMLEventsElement)
 {
   if (!mXMLEventsManager) {
     mXMLEventsManager = new nsXMLEventsManager();
+    NS_ENSURE_TRUE(mXMLEventsManager, NS_ERROR_OUT_OF_MEMORY);
     AddObserver(mXMLEventsManager);
   }
   mXMLEventsManager->AddXMLEventsContent(aXMLEventsElement);
+  return NS_OK;
 }
 
 void
