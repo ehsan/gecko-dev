@@ -109,7 +109,6 @@ nsEventListenerManager::nsEventListenerManager(nsISupports* aTarget) :
   mMayHaveAudioAvailableEventListener(false),
   mMayHaveTouchEventListener(false),
   mMayHaveMouseEnterLeaveEventListener(false),
-  mClearingListeners(false),
   mNoListenerForEvent(0),
   mTarget(aTarget)
 {
@@ -137,12 +136,7 @@ nsEventListenerManager::~nsEventListenerManager()
 void
 nsEventListenerManager::RemoveAllListeners()
 {
-  if (mClearingListeners) {
-    return;
-  }
-  mClearingListeners = true;
   mListeners.Clear();
-  mClearingListeners = false;
 }
 
 void
@@ -210,7 +204,7 @@ nsEventListenerManager::AddEventListener(nsIDOMEventListener *aListener,
 {
   NS_ABORT_IF_FALSE((aType && aTypeAtom) || aAllEvents, "Missing type");
 
-  if (!aListener || mClearingListeners) {
+  if (!aListener) {
     return;
   }
 
@@ -425,7 +419,7 @@ nsEventListenerManager::RemoveEventListener(nsIDOMEventListener *aListener,
                                             int32_t aFlags,
                                             bool aAllEvents)
 {
-  if (!aListener || !aType || mClearingListeners) {
+  if (!aListener || !aType) {
     return;
   }
 
@@ -716,10 +710,6 @@ nsEventListenerManager::SetEventHandler(nsIAtom *aName,
 void
 nsEventListenerManager::RemoveEventHandler(nsIAtom* aName)
 {
-  if (mClearingListeners) {
-    return;
-  }
-
   uint32_t eventType = nsContentUtils::GetEventId(aName);
   nsListenerStruct* ls = FindEventHandler(eventType, aName);
 
