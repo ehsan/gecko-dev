@@ -126,13 +126,15 @@ nsIFrame*
 NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
-} // NS_NewBoxFrame
+}
 
 nsIFrame*
 NS_NewBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsBoxFrame(aPresShell, aContext);
 }
+
+NS_IMPL_FRAMEARENA_HELPERS(nsBoxFrame)
 
 nsBoxFrame::nsBoxFrame(nsIPresShell* aPresShell,
                        nsStyleContext* aContext,
@@ -634,7 +636,7 @@ nsBoxFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = minSize.width - bp.LeftRight();
-  result = PR_MAX(result, 0);
+  result = NS_MAX(result, 0);
 
   return result;
 }
@@ -656,7 +658,7 @@ nsBoxFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = prefSize.width - bp.LeftRight();
-  result = PR_MAX(result, 0);
+  result = NS_MAX(result, 0);
 
   return result;
 }
@@ -1120,6 +1122,8 @@ nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
       aAttribute == nsGkAtoms::valign      ||
       aAttribute == nsGkAtoms::left        ||
       aAttribute == nsGkAtoms::top         ||
+      aAttribute == nsGkAtoms::right        ||
+      aAttribute == nsGkAtoms::bottom       ||
       aAttribute == nsGkAtoms::minwidth     ||
       aAttribute == nsGkAtoms::maxwidth     ||
       aAttribute == nsGkAtoms::minheight    ||
@@ -1190,7 +1194,9 @@ nsBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
         mState &= ~NS_STATE_AUTO_STRETCH;
     }
     else if (aAttribute == nsGkAtoms::left ||
-             aAttribute == nsGkAtoms::top) {
+             aAttribute == nsGkAtoms::top ||
+             aAttribute == nsGkAtoms::right ||
+             aAttribute == nsGkAtoms::bottom) {
       mState &= ~NS_STATE_STACK_NOT_POSITIONED;
     }
     else if (aAttribute == nsGkAtoms::mousethrough) {

@@ -1063,17 +1063,30 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     if(!nsXPCComponents::AttachNewComponentsObject(ccx, scope, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-#ifdef XPC_IDISPATCH_SUPPORT
-    // Initialize any properties IDispatch needs on the global object
-    XPCIDispatchExtension::Initialize(ccx, aGlobalJSObj);
-#endif
-
     if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     if (!XPC_SJOW_AttachNewConstructorObject(ccx, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
+    return NS_OK;
+}
+
+/* void initClassesForOuterObject (in JSContextPtr aJSContext, in JSObjectPtr aGlobalJSObj); */
+NS_IMETHODIMP nsXPConnect::InitClassesForOuterObject(JSContext * aJSContext, JSObject * aGlobalJSObj)
+{
+    SaveFrame sf(aJSContext);
+    XPCCallContext ccx(NATIVE_CALLER, aJSContext);
+    if(!ccx.IsValid())
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::GetNewOrUsed(ccx, aGlobalJSObj);
+
+    if(!scope)
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    scope->RemoveWrappedNativeProtos();
     return NS_OK;
 }
 

@@ -1176,6 +1176,14 @@ SessionStoreService.prototype = {
       tabData.entries[0] = { url: browser.currentURI.spec };
       tabData.index = 1;
     }
+    else if (browser.currentURI.spec == "about:blank" &&
+             browser.userTypedValue) {
+      // This can happen if the user opens a lot of tabs simultaneously and we
+      // try to save state before all of them are properly loaded. If we crash
+      // then we get a bunch of about:blank tabs which isn't what we want.
+      tabData.entries[0] = { url: browser.userTypedValue };
+      tabData.index = 1;
+    }
     
     var disallow = [];
     for (var i = 0; i < CAPABILITIES.length; i++)
@@ -2043,6 +2051,9 @@ SessionStoreService.prototype = {
       delete tab.__SS_extdata;
     
     for (var i = 0; i < tabData.entries.length; i++) {
+      //XXXzpao Wallpaper patch for bug 514751
+      if (!tabData.entries[i].url)
+        continue;
       history.addEntry(this._deserializeHistoryEntry(tabData.entries[i], aIdMap), true);
     }
     
@@ -2183,6 +2194,9 @@ SessionStoreService.prototype = {
     
     if (aEntry.children && shEntry instanceof Ci.nsISHContainer) {
       for (var i = 0; i < aEntry.children.length; i++) {
+        //XXXzpao Wallpaper patch for bug 514751
+        if (!aEntry.children[i].url)
+          continue;
         shEntry.AddChild(this._deserializeHistoryEntry(aEntry.children[i], aIdMap), i);
       }
     }
@@ -2421,7 +2435,7 @@ SessionStoreService.prototype = {
     }
     // since resizing/moving a window brings it to the foreground,
     // we might want to re-focus the last focused window
-    if (this.windowToFocus) {
+    if (this.windowToFocus && this.windowToFocus.content) {
       this.windowToFocus.content.focus();
     }
   },

@@ -2020,7 +2020,11 @@ LookupNativeRegExp(JSContext* cx, uint16 re_flags,
     Fragment *frag = table.get(k);
 
     if (!frag) {
-        frag = new (alloc) Fragment(0);
+        verbose_only(
+        uint32_t profFragID = (js_LogController.lcbits & LC_FragProfile)
+                              ? (++(tm->lastFragID)) : 0;
+        )
+        frag = new (alloc) Fragment(0 verbose_only(, profFragID));
         frag->lirbuf = tm->reLirBuf;
         frag->root = frag;
         /*
@@ -3087,6 +3091,12 @@ class RegExpNativeCompiler {
         guard->exit = exit;
         guard->exit->target = fragment;
         fragment->lastIns = lir->insGuard(LIR_x, NULL, skip);
+        // guard->profCount is memset'd to zero
+        verbose_only(
+            guard->profGuardID = fragment->guardNumberer++;
+            guard->nextInFrag = fragment->guardsForFrag;
+            fragment->guardsForFrag = guard;
+        )
         return guard;
     }
 
@@ -3156,6 +3166,13 @@ class RegExpNativeCompiler {
         lirbuf->param1 = cpend = addName(lirbuf, lir->insParam(1, 0), "cpend");
 
         loopLabel = lir->ins0(LIR_label);
+        // If profiling, record where the loop label is, so that the
+        // assembler can insert a frag-entry-counter increment at that
+        // point
+        verbose_only( if (js_LogController.lcbits & LC_FragProfile) {
+            NanoAssert(!fragment->loopLabel);
+            fragment->loopLabel = loopLabel;
+        })
 
         pos = addName(lirbuf,
                       lir->insLoad(LIR_ldp, state,
@@ -3190,6 +3207,14 @@ class RegExpNativeCompiler {
     fail:
         if (alloc.outOfMemory() || js_OverfullJITCache(tm)) {
             delete lirBufWriter;
+            // recover profiling data from expiring Fragments
+            verbose_only(
+                REHashMap::Iter iter(*(tm->reFragments));
+                while (iter.next()) {
+                    nanojit::Fragment* frag = iter.value();
+                    js_FragProfiling_FragFinalizer(frag, tm);
+                }
+            )
             js_ResetJIT(cx);
         } else {
             if (!guard) insertGuard(loopLabel, re_chars, re_length);
@@ -3241,7 +3266,8 @@ GetNativeRegExp(JSContext* cx, JSRegExp* re)
     re->source->getCharsAndLength(re_chars, re_length);
     Fragment *fragment = LookupNativeRegExp(cx, re->flags, re_chars, re_length);
     JS_ASSERT(fragment);
-    if (!fragment->code()) {
+    if (!fragment->code() && fragment->recordAttempts == 0) {
+        fragment->recordAttempts++;
         if (!CompileRegExpToNative(cx, re, fragment))
             return NULL;
     }
@@ -5158,19 +5184,27 @@ js_InitRegExpStatics(JSContext *cx)
 }
 
 JS_FRIEND_API(void)
-js_SaveRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
-                     JSTempValueRooter *tvr)
+js_SaveAndClearRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
+                             JSTempValueRooter *tvr)
 {
-  *statics = cx->regExpStatics;
-  JS_PUSH_TEMP_ROOT_STRING(cx, statics->input, tvr);
+    *statics = cx->regExpStatics;
+    JS_PUSH_TEMP_ROOT_STRING(cx, statics->input, tvr);
+    /*
+     * Prevent JS_ClearRegExpStatics from freeing moreParens, since we've only
+     * moved it elsewhere (into statics->moreParens).
+     */
+    cx->regExpStatics.moreParens = NULL;
+    JS_ClearRegExpStatics(cx);
 }
 
 JS_FRIEND_API(void)
 js_RestoreRegExpStatics(JSContext *cx, JSRegExpStatics *statics,
                         JSTempValueRooter *tvr)
 {
-  cx->regExpStatics = *statics;
-  JS_POP_TEMP_ROOT(cx, tvr);
+    /* Clear/free any new JSRegExpStatics data before clobbering. */
+    JS_ClearRegExpStatics(cx);
+    cx->regExpStatics = *statics;
+    JS_POP_TEMP_ROOT(cx, tvr);
 }
 
 void
@@ -5185,12 +5219,7 @@ js_TraceRegExpStatics(JSTracer *trc, JSContext *acx)
 void
 js_FreeRegExpStatics(JSContext *cx)
 {
-    JSRegExpStatics *res = &cx->regExpStatics;
-
-    if (res->moreParens) {
-        cx->free(res->moreParens);
-        res->moreParens = NULL;
-    }
+    JS_ClearRegExpStatics(cx);
     JS_FinishArenaPool(&cx->regexpPool);
 }
 

@@ -74,15 +74,11 @@ var gPrevCharset = null;
 var gProxyFavIcon = null;
 var gLastValidURLStr = "";
 var gProgressCollapseTimer = null;
-var appCore = null;
-var gSidebarCommand = "";
 var gInPrintPreviewMode = false;
 let gDownloadMgr = null;
 
 // Global variable that holds the nsContextMenu instance.
 var gContextMenu = null;
-
-var gChromeState = null; // chrome state before we went into print preview
 
 var gAutoHideTabbarPrefListener = null;
 var gBookmarkAllTabsHandler = null;
@@ -119,8 +115,9 @@ var gEditUIVisible = true;
 
 __defineGetter__("gPrefService", function() {
   delete this.gPrefService;
-  return this.gPrefService = Cc["@mozilla.org/preferences-service;1"].
-                             getService(Ci.nsIPrefBranch2);
+  return this.gPrefService = Cc["@mozilla.org/preferences-service;1"]
+                               .getService(Ci.nsIPrefBranch2)
+                               .QueryInterface(Ci.nsIPrefService);
 });
 
 __defineGetter__("PluralForm", function() {
@@ -137,6 +134,10 @@ let gInitialPages = [
   "about:privatebrowsing",
   "about:sessionrestore"
 ];
+
+#include browser-fullZoom.js
+#include browser-places.js
+#include browser-tabPreviews.js
 
 /**
 * We can avoid adding multiple load event listeners and save some time by adding
@@ -921,10 +922,6 @@ function BrowserStartup() {
 
   prepareForStartup();
 
-#ifdef ENABLE_PAGE_CYCLER
-  appCore.startPageCycler();
-#else
-# only load url passed in when we're not page cycling
   if (uriToLoad && !isLoadingBlank) { 
     if (uriToLoad instanceof Ci.nsISupportsArray) {
       let count = uriToLoad.Count();
@@ -961,7 +958,6 @@ function BrowserStartup() {
     else
       loadOneOrMoreURIs(uriToLoad);
   }
-#endif
 
   if (window.opener && !window.opener.closed) {
     let openerFindBar = window.opener.gFindBar;
@@ -1106,12 +1102,6 @@ function prepareForStartup() {
 
   var webNavigation;
   try {
-    // Create the browser instance component.
-    appCore = Components.classes["@mozilla.org/appshell/component/browser/instance;1"]
-                        .createInstance(Components.interfaces.nsIBrowserInstance);
-    if (!appCore)
-      throw "couldn't create a browser instance";
-
     webNavigation = getWebNavigation();
     if (!webNavigation)
       throw "no XBL binding for browser";
@@ -1143,9 +1133,6 @@ function prepareForStartup() {
       }
     }
   }
-
-  // Initialize browser instance..
-  appCore.setWebShellWindow(window);
 
   // Manually hook up session and global history for the first browser
   // so that we don't have to load global history before bringing up a
@@ -1374,6 +1361,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 
 function BrowserShutdown()
 {
+  gPrefService.removeObserver(ctrlTab.prefName, ctrlTab);
+  gPrefService.removeObserver(allTabs.prefName, allTabs);
   tabPreviews.uninit();
   ctrlTab.uninit();
   allTabs.uninit();
@@ -1434,10 +1423,6 @@ function BrowserShutdown()
         .getInterface(Components.interfaces.nsIXULWindow)
         .XULBrowserWindow = null;
   window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow = null;
-
-  // Close the app core.
-  if (appCore)
-    appCore.close();
 }
 
 #ifdef XP_MACOSX
@@ -1544,7 +1529,7 @@ function initializeSanitizer()
     gPrefService.clearUserPref(kDidSanitizeDomain);
     // We need to persist this preference change, since we want to
     // check it at next app start even if the browser exits abruptly
-    gPrefService.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
+    gPrefService.savePrefFile(null);
   }
 
   /**
@@ -1814,7 +1799,7 @@ function BrowserOpenTab()
                       "chrome,all,dialog=no", "about:blank");
     return;
   }
-  gBrowser.loadOneTab("about:blank", null, null, null, false, false);
+  gBrowser.loadOneTab("about:blank", {inBackground: false});
   if (gURLBar)
     gURLBar.focus();
 }
@@ -1837,7 +1822,12 @@ function delayedOpenWindow(chrome, flags, href, postData)
    the URI kicked off before becoming the active content area. */
 function delayedOpenTab(aUrl, aReferrer, aCharset, aPostData, aAllowThirdPartyFixup)
 {
-  gBrowser.loadOneTab(aUrl, aReferrer, aCharset, aPostData, false, aAllowThirdPartyFixup);
+  gBrowser.loadOneTab(aUrl, {
+                      referrerURI: aReferrer,
+                      charset: aCharset,
+                      postData: aPostData,
+                      inBackground: false,
+                      allowThirdPartyFixup: aAllowThirdPartyFixup});
 }
 
 var gLastOpenDirectory = {
@@ -2531,74 +2521,71 @@ function BrowserReloadWithFlags(reloadFlags) {
   }
 }
 
-function toggleAffectedChrome(aHide)
-{
-  // chrome to toggle includes:
-  //   (*) menubar
-  //   (*) navigation bar
-  //   (*) bookmarks toolbar
-  //   (*) tabstrip
-  //   (*) browser messages
-  //   (*) sidebar
-  //   (*) find bar
-  //   (*) statusbar
+var PrintPreviewListener = {
+  onEnter: function () {
+    gInPrintPreviewMode = true;
+    this._toggleAffectedChrome();
+  },
+  onExit: function () {
+    gInPrintPreviewMode = false;
+    this._toggleAffectedChrome();
+  },
+  _toggleAffectedChrome: function () {
+    // chrome to toggle includes:
+    //   (*) menubar
+    //   (*) navigation bar
+    //   (*) bookmarks toolbar
+    //   (*) tabstrip
+    //   (*) browser messages
+    //   (*) sidebar
+    //   (*) find bar
+    //   (*) statusbar
 
-  gNavToolbox.hidden = aHide;
-  if (aHide)
-  {
-    gChromeState = {};
+    gNavToolbox.hidden = gInPrintPreviewMode;
+
+    if (gInPrintPreviewMode)
+      this._hideChrome();
+    else
+      this._showChrome();
+
+    if (this._chromeState.sidebarOpen)
+      toggleSidebar(this._sidebarCommand);
+  },
+  _hideChrome: function () {
+    this._chromeState = {};
+
     var sidebar = document.getElementById("sidebar-box");
-    gChromeState.sidebarOpen = !sidebar.hidden;
-    gSidebarCommand = sidebar.getAttribute("sidebarcommand");
+    this._chromeState.sidebarOpen = !sidebar.hidden;
+    this._sidebarCommand = sidebar.getAttribute("sidebarcommand");
 
-    gChromeState.hadTabStrip = gBrowser.getStripVisibility();
+    this._chromeState.hadTabStrip = gBrowser.getStripVisibility();
     gBrowser.setStripVisibilityTo(false);
 
     var notificationBox = gBrowser.getNotificationBox();
-    gChromeState.notificationsOpen = !notificationBox.notificationsHidden;
-    notificationBox.notificationsHidden = aHide;
+    this._chromeState.notificationsOpen = !notificationBox.notificationsHidden;
+    notificationBox.notificationsHidden = true;
 
     document.getElementById("sidebar").setAttribute("src", "about:blank");
     var statusbar = document.getElementById("status-bar");
-    gChromeState.statusbarOpen = !statusbar.hidden;
-    statusbar.hidden = aHide;
+    this._chromeState.statusbarOpen = !statusbar.hidden;
+    statusbar.hidden = true;
 
-    gChromeState.findOpen = !gFindBar.hidden;
+    this._chromeState.findOpen = !gFindBar.hidden;
     gFindBar.close();
-  }
-  else {
-    if (gChromeState.hadTabStrip) {
+  },
+  _showChrome: function () {
+    if (this._chromeState.hadTabStrip)
       gBrowser.setStripVisibilityTo(true);
-    }
 
-    if (gChromeState.notificationsOpen) {
-      gBrowser.getNotificationBox().notificationsHidden = aHide;
-    }
+    if (this._chromeState.notificationsOpen)
+      gBrowser.getNotificationBox().notificationsHidden = false;
 
-    if (gChromeState.statusbarOpen) {
-      var statusbar = document.getElementById("status-bar");
-      statusbar.hidden = aHide;
-    }
+    if (this._chromeState.statusbarOpen)
+      document.getElementById("status-bar").hidden = false;
 
-    if (gChromeState.findOpen)
+    if (this._chromeState.findOpen)
       gFindBar.open();
   }
-
-  if (gChromeState.sidebarOpen)
-    toggleSidebar(gSidebarCommand);
-}
-
-function onEnterPrintPreview()
-{
-  gInPrintPreviewMode = true;
-  toggleAffectedChrome(true);
-}
-
-function onExitPrintPreview()
-{
-  // restore chrome to original state
-  gInPrintPreviewMode = false;
-  toggleAffectedChrome(false);
 }
 
 function getPPBrowser()
@@ -3141,8 +3128,9 @@ const BrowserSearch = {
       return;
   
     if (useNewTab) {
-      gBrowser.loadOneTab(submission.uri.spec, null, null,
-                          submission.postData, null, false);
+      gBrowser.loadOneTab(submission.uri.spec, {
+                          postData: submission.postData,
+                          relatedToCurrent: true});
     } else
       loadURI(submission.uri.spec, null, submission.postData, false);
   },
@@ -3793,11 +3781,9 @@ var FullScreen =
     else
       gNavToolbox.setAttribute("inFullscreen", true);
 
-#ifndef XP_MACOSX
     var controls = document.getElementsByAttribute("fullscreencontrol", "true");
     for (var i = 0; i < controls.length; ++i)
       controls[i].hidden = aShow;
-#endif
   }
 };
 
@@ -3937,11 +3923,13 @@ var XULBrowserWindow = {
   onProgressChange: function (aWebProgress, aRequest,
                               aCurSelfProgress, aMaxSelfProgress,
                               aCurTotalProgress, aMaxTotalProgress) {
-    if (aMaxTotalProgress > 0) {
+    // Check this._busyUI to be safe, because we don't want to update
+    // the progress meter when restoring a page from bfcache.
+    if (aMaxTotalProgress > 0 && this._busyUI) {
       // This is highly optimized.  Don't touch this code unless
       // you are intimately familiar with the cost of setting
       // attrs on XUL elements. -- hyatt
-      var percentage = (aCurTotalProgress * 100) / aMaxTotalProgress;
+      let percentage = (aCurTotalProgress * 100) / aMaxTotalProgress;
       this.statusMeter.value = percentage;
     }
   },
@@ -3955,8 +3943,8 @@ var XULBrowserWindow = {
   },
 
   onStateChange: function (aWebProgress, aRequest, aStateFlags, aStatus) {
-    const nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
-    const nsIChannel = Components.interfaces.nsIChannel;
+    const nsIWebProgressListener = Ci.nsIWebProgressListener;
+    const nsIChannel = Ci.nsIChannel;
     if (aStateFlags & nsIWebProgressListener.STATE_START) {
       // This (thanks to the filter) is a network start or the first
       // stray request (the first request outside of the document load),
@@ -3969,22 +3957,25 @@ var XULBrowserWindow = {
 
       this.isBusy = true;
 
-      if (this.throbberElement) {
+      if (!(aStateFlags & nsIWebProgressListener.STATE_RESTORING)) {
+        this._busyUI = true;
+
         // Turn the throbber on.
-        this.throbberElement.setAttribute("busy", "true");
-      }
+        if (this.throbberElement)
+          this.throbberElement.setAttribute("busy", "true");
 
-      // Turn the status meter on.
-      this.statusMeter.value = 0;  // be sure to clear the progress bar
-      if (gProgressCollapseTimer) {
-        window.clearTimeout(gProgressCollapseTimer);
-        gProgressCollapseTimer = null;
-      }
-      else
-        this.statusMeter.parentNode.collapsed = false;
+        // Turn the status meter on.
+        this.statusMeter.value = 0;  // be sure to clear the progress bar
+        if (gProgressCollapseTimer) {
+          window.clearTimeout(gProgressCollapseTimer);
+          gProgressCollapseTimer = null;
+        }
+        else
+          this.statusMeter.parentNode.collapsed = false;
 
-      // XXX: This needs to be based on window activity...
-      this.stopCommand.removeAttribute("disabled");
+        // XXX: This needs to be based on window activity...
+        this.stopCommand.removeAttribute("disabled");
+      }
     }
     else if (aStateFlags & nsIWebProgressListener.STATE_STOP) {
       if (aStateFlags & nsIWebProgressListener.STATE_IS_NETWORK) {
@@ -4038,16 +4029,20 @@ var XULBrowserWindow = {
 
       this.isBusy = false;
 
-      // Turn the progress meter and throbber off.
-      gProgressCollapseTimer = window.setTimeout(function () {
-        gProgressMeterPanel.collapsed = true;
-        gProgressCollapseTimer = null;
-      }, 100);
+      if (this._busyUI) {
+        this._busyUI = false;
 
-      if (this.throbberElement)
-        this.throbberElement.removeAttribute("busy");
+        // Turn the progress meter and throbber off.
+        gProgressCollapseTimer = window.setTimeout(function () {
+          gProgressMeterPanel.collapsed = true;
+          gProgressCollapseTimer = null;
+        }, 100);
 
-      this.stopCommand.setAttribute("disabled", "true");
+        if (this.throbberElement)
+          this.throbberElement.removeAttribute("busy");
+
+        this.stopCommand.setAttribute("disabled", "true");
+      }
     }
   },
 
@@ -4410,7 +4405,6 @@ nsBrowserAccess.prototype =
   openURI : function(aURI, aOpener, aWhere, aContext)
   {
     var newWindow = null;
-    var referrer = null;
     var isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
 
     if (isExternal && aURI && aURI.schemeIs("chrome")) {
@@ -4421,7 +4415,6 @@ nsBrowserAccess.prototype =
     var loadflags = isExternal ?
                        Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL :
                        Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-    var location;
     if (aWhere == Ci.nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW)
       aWhere = gPrefService.getIntPref("browser.link.open_newwindow");
     switch (aWhere) {
@@ -4450,51 +4443,33 @@ nsBrowserAccess.prototype =
           // we couldn't find a suitable window, a new one needs to be opened.
           return null;
         }
-        var loadInBackground = gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground");
-        var newTab = win.gBrowser.loadOneTab("about:blank", null, null, null, loadInBackground, false);
-        newWindow = win.gBrowser.getBrowserForTab(newTab).docShell
-                                .QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindow);
-        try {
-          if (aURI) {
-            if (aOpener) {
-              location = aOpener.location;
-              referrer = makeURI(location);
-            }
-            newWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                     .getInterface(Ci.nsIWebNavigation)
-                     .loadURI(aURI.spec, loadflags, referrer, null, null);
-          }
-          if (needToFocusWin || (!loadInBackground && isExternal))
-            newWindow.focus();
-        } catch(e) {
-        }
+
+        let loadInBackground = gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground");
+        let referrer = aOpener ? makeURI(aOpener.location.href) : null;
+
+        // If this is an external load, we need to load a blank tab first,
+        // because loadflags can't be passed to loadOneTab.
+        let loadBlankFirst = !aURI || isExternal;
+        let tab = win.gBrowser.loadOneTab(loadBlankFirst ? "about:blank" : aURI.spec, {
+                                          referrerURI: referrer,
+                                          inBackground: loadInBackground});
+        let browser = win.gBrowser.getBrowserForTab(tab);
+
+        if (loadBlankFirst && aURI)
+          browser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
+
+        newWindow = browser.contentWindow;
+        if (needToFocusWin || (!loadInBackground && isExternal))
+          newWindow.focus();
         break;
       default : // OPEN_CURRENTWINDOW or an illegal value
-        try {
-          if (aOpener) {
-            newWindow = aOpener.top;
-            if (aURI) {
-              location = aOpener.location;
-              referrer = makeURI(location);
-
-              newWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                       .getInterface(nsIWebNavigation)
-                       .loadURI(aURI.spec, loadflags, referrer, null, null);
-            }
-          } else {
-            newWindow = gBrowser.selectedBrowser.docShell
-                                .QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIDOMWindow);
-            if (aURI) {
-              gBrowser.loadURIWithFlags(aURI.spec, loadflags, null, 
-                                        null, null);
-            }
-          }
-          if(!gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground"))
-            content.focus();
-        } catch(e) {
+        newWindow = content;
+        if (aURI) {
+          let referrer = aOpener ? makeURI(aOpener.location.href) : null;
+          gBrowser.loadURIWithFlag(aURI.spec, loadflags, referrer, null, null);
         }
+        if (!gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground"))
+          content.focus();
     }
     return newWindow;
   },
@@ -6037,7 +6012,7 @@ function blocklistInfo()
   var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                             .getService(Components.interfaces.nsIURLFormatter);
   var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
-  gBrowser.loadOneTab(url, null, null, null, false, false);
+  gBrowser.loadOneTab(url, {inBackground: false});
   return true;
 }
 
@@ -6239,12 +6214,6 @@ var FeedHandler = {
   }
 };
 
-#include browser-places.js
-
-#include browser-textZoom.js
-
-#include browser-tabPreviews.js
-
 /**
  * Re-open a closed tab.
  * @param aIndex
@@ -6355,25 +6324,25 @@ var gIdentityHandler = {
   IDENTITY_MODE_IDENTIFIED       : "verifiedIdentity", // High-quality identity information
   IDENTITY_MODE_DOMAIN_VERIFIED  : "verifiedDomain",   // Minimal SSL CA-signed domain verification
   IDENTITY_MODE_UNKNOWN          : "unknownIdentity",  // No trusted identity information
+  IDENTITY_MODE_MIXED_CONTENT    : "unknownIdentity mixedContent",  // SSL with unauthenticated content
 
   // Cache the most recent SSLStatus and Location seen in checkIdentity
   _lastStatus : null,
   _lastLocation : null,
 
   // smart getters
-  get _staticStrings () {
-    delete this._staticStrings;
-    this._staticStrings = {};
-    this._staticStrings[this.IDENTITY_MODE_DOMAIN_VERIFIED] = {
-      encryption_label: gNavigatorBundle.getString("identity.encrypted")
-    };
-    this._staticStrings[this.IDENTITY_MODE_IDENTIFIED] = {
-      encryption_label: gNavigatorBundle.getString("identity.encrypted")
-    };
-    this._staticStrings[this.IDENTITY_MODE_UNKNOWN] = {
-      encryption_label: gNavigatorBundle.getString("identity.unencrypted")
-    };
-    return this._staticStrings;
+  get _encryptionLabel () {
+    delete this._encryptionLabel;
+    this._encryptionLabel = {};
+    this._encryptionLabel[this.IDENTITY_MODE_DOMAIN_VERIFIED] =
+      gNavigatorBundle.getString("identity.encrypted");
+    this._encryptionLabel[this.IDENTITY_MODE_IDENTIFIED] =
+      gNavigatorBundle.getString("identity.encrypted");
+    this._encryptionLabel[this.IDENTITY_MODE_UNKNOWN] =
+      gNavigatorBundle.getString("identity.unencrypted");
+    this._encryptionLabel[this.IDENTITY_MODE_MIXED_CONTENT] =
+      gNavigatorBundle.getString("identity.mixed_content");
+    return this._encryptionLabel;
   },
   get _identityPopup () {
     delete this._identityPopup;
@@ -6491,11 +6460,14 @@ var gIdentityHandler = {
                                 .SSLStatus;
     this._lastStatus = currentStatus;
     this._lastLocation = location;
-    
-    if (state & Components.interfaces.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
+
+    let nsIWebProgressListener = Ci.nsIWebProgressListener;
+    if (state & nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL)
       this.setMode(this.IDENTITY_MODE_IDENTIFIED);
-    else if (state & Components.interfaces.nsIWebProgressListener.STATE_SECURE_HIGH)
+    else if (state & nsIWebProgressListener.STATE_SECURE_HIGH)
       this.setMode(this.IDENTITY_MODE_DOMAIN_VERIFIED);
+    else if (state & nsIWebProgressListener.STATE_IS_BROKEN)
+      this.setMode(this.IDENTITY_MODE_MIXED_CONTENT);
     else
       this.setMode(this.IDENTITY_MODE_UNKNOWN);
   },
@@ -6615,7 +6587,7 @@ var gIdentityHandler = {
     this._identityPopupContentBox.className = newMode;
     
     // Set the static strings up front
-    this._identityPopupEncLabel.textContent = this._staticStrings[newMode].encryption_label;
+    this._identityPopupEncLabel.textContent = this._encryptionLabel[newMode];
     
     // Initialize the optional strings to empty values
     var supplemental = "";
