@@ -548,13 +548,6 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
-        &nsGkAtoms::_moz_windows_glass,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::windows_glass },
-        GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_touch_enabled,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,

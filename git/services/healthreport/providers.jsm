@@ -394,7 +394,7 @@ CurrentSessionMeasurement.prototype = Object.freeze({
   },
 
   _serializeJSONSingular: function (data) {
-    let result = {"_v": this.version};
+    let result = {};
 
     for (let [field, value] of data) {
       result[field] = value[1];
@@ -535,9 +535,7 @@ ActiveAddonsMeasurement.prototype = Object.freeze({
     }
 
     // Exceptions are caught in the caller.
-    let result = JSON.parse(data.get("addons")[1]);
-    result._v = this.version;
-    return result;
+    return JSON.parse(data.get("addons")[1]);
   },
 });
 
