@@ -226,12 +226,10 @@ class nsHtml5Highlighter
      * @param aName the name of the element
      * @param aAttributes the attribute holder (ownership will be taken) or
      *        nullptr for no attributes
-     * @param aIntendedParent the intended parent node for the created element
      * @return the handle for the element that will be created
      */
     nsIContent** CreateElement(nsIAtom* aName,
-                               nsHtml5HtmlAttributes* aAttributes,
-                               nsIContent** aIntendedParent);
+                               nsHtml5HtmlAttributes* aAttributes);
 
     /**
      * Gets the handle for the current node. May be called only after the

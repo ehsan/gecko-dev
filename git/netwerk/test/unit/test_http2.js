@@ -502,12 +502,6 @@ function test_http2_h11required_session() {
   chan.asyncOpen(listener, null);
 }
 
-function test_http2_retry_rst() {
-  var chan = makeChan("https://localhost:6944/rstonce");
-  var listener = new Http2CheckListener();
-  chan.asyncOpen(listener, null);
-}
-
 // hack - the header test resets the multiplex object on the server,
 // so make sure header is always run before the multiplex test.
 //
@@ -532,7 +526,6 @@ var tests = [ test_http2_post_big
             // These next two must always come in this order
             , test_http2_h11required_stream
             , test_http2_h11required_session
-            , test_http2_retry_rst
             ];
 var current_test = 0;
 

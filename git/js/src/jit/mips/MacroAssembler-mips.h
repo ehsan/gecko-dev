@@ -216,7 +216,6 @@ class MacroAssemblerMIPS : public Assembler
 
     void ma_sw(Register data, Address address);
     void ma_sw(Imm32 imm, Address address);
-    void ma_sw(Register data, BaseIndex &address);
 
     void ma_pop(Register r);
     void ma_push(Register r);
@@ -550,8 +549,6 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
                          Label *label);
 
     // unboxing code
-    void unboxNonDouble(const ValueOperand &operand, Register dest);
-    void unboxNonDouble(const Address &src, Register dest);
     void unboxInt32(const ValueOperand &operand, Register dest);
     void unboxInt32(const Address &src, Register dest);
     void unboxBoolean(const ValueOperand &operand, Register dest);

@@ -72,19 +72,6 @@ MozNFCTagImpl.prototype = {
       throw new this._window.DOMError("InvalidStateError", "NFCTag object is invalid");
     }
 
-    if (this.isReadOnly) {
-      throw new this._window.DOMError("InvalidAccessError", "NFCTag object is read-only");
-    }
-
-    let ndefLen = 0;
-    for (let record of records) {
-      ndefLen += record.size;
-    }
-
-    if (ndefLen > this.maxNDEFSize) {
-      throw new this._window.DOMError("NotSupportedError", "Exceed max NDEF size");
-    }
-
     return this._nfcContentHelper.writeNDEF(records, this.session);
   },
 
@@ -92,12 +79,6 @@ MozNFCTagImpl.prototype = {
     if (this.isLost) {
       throw new this._window.DOMError("InvalidStateError", "NFCTag object is invalid");
     }
-
-    if (!this.canBeMadeReadOnly) {
-      throw new this._window.DOMError("InvalidAccessError",
-                                      "NFCTag object cannot be made read-only");
-    }
-
     return this._nfcContentHelper.makeReadOnly(this.session);
   },
 

@@ -12,7 +12,6 @@
 #include "jscntxt.h"
 
 #include "frontend/BytecodeCompiler.h"
-#include "vm/Debugger.h"
 #include "vm/GlobalObject.h"
 #include "vm/JSONParser.h"
 
@@ -481,9 +480,6 @@ js::ExecuteInGlobalAndReturnScope(JSContext *cx, HandleObject global, HandleScri
         script = CloneScript(cx, NullPtr(), NullPtr(), script);
         if (!script)
             return false;
-
-        Rooted<GlobalObject *> global(cx, script->compileAndGo() ? &script->global() : nullptr);
-        Debugger::onNewScript(cx, script, global);
     }
 
     RootedObject scope(cx, JS_NewObject(cx, nullptr, JS::NullPtr(), JS::NullPtr()));

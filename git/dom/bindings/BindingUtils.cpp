@@ -2292,9 +2292,15 @@ FinalizeGlobal(JSFreeOp* aFreeOp, JSObject* aObj)
 
 bool
 ResolveGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj,
-              JS::Handle<jsid> aId, bool* aResolvedp)
+              JS::Handle<jsid> aId, JS::MutableHandle<JSObject*> aObjp)
 {
-  return JS_ResolveStandardClass(aCx, aObj, aId, aResolvedp);
+  bool resolved;
+  if (!JS_ResolveStandardClass(aCx, aObj, aId, &resolved)) {
+    return false;
+  }
+
+  aObjp.set(resolved ? aObj.get() : nullptr);
+  return true;
 }
 
 bool

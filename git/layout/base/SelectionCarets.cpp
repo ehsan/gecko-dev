@@ -120,7 +120,6 @@ SelectionCarets::Init()
   }
 
   docShell->AddWeakReflowObserver(this);
-  docShell->AddWeakScrollObserver(this);
 }
 
 SelectionCarets::~SelectionCarets()
@@ -150,7 +149,6 @@ SelectionCarets::Terminate()
   nsIDocShell* docShell = presContext->GetDocShell();
   if (docShell) {
     docShell->RemoveWeakReflowObserver(this);
-    docShell->RemoveWeakScrollObserver(this);
   }
 
   mPresShell = nullptr;

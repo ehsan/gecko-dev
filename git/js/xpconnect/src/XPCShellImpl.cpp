@@ -743,7 +743,8 @@ env_enumerate(JSContext *cx, HandleObject obj)
 }
 
 static bool
-env_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
+env_resolve(JSContext *cx, HandleObject obj, HandleId id,
+            JS::MutableHandleObject objp)
 {
     JSString *idstr;
 
@@ -765,16 +766,16 @@ env_resolve(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
         if (!JS_DefinePropertyById(cx, obj, id, valstr, JSPROP_ENUMERATE)) {
             return false;
         }
-        *resolvedp = true;
+        objp.set(obj);
     }
     return true;
 }
 
 static const JSClass env_class = {
-    "environment", JSCLASS_HAS_PRIVATE,
+    "environment", JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE,
     JS_PropertyStub,  JS_DeletePropertyStub,
     JS_PropertyStub,  env_setProperty,
-    env_enumerate, env_resolve,
+    env_enumerate, (JSResolveOp) env_resolve,
     JS_ConvertStub,   nullptr
 };
 

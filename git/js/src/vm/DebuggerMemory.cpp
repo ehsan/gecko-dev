@@ -16,7 +16,6 @@
 
 #include "gc/Marking.h"
 #include "js/Debug.h"
-#include "js/TracingAPI.h"
 #include "js/UbiNode.h"
 #include "js/UbiNodeTraverse.h"
 #include "vm/Debugger.h"
@@ -305,7 +304,7 @@ namespace dbg {
 // Common data for census traversals.
 struct Census {
     JSContext * const cx;
-    JS::ZoneSet debuggeeZones;
+    Zone::ZoneSet debuggeeZones;
     Zone *atomsZone;
 
     explicit Census(JSContext *cx) : cx(cx), atomsZone(nullptr) { }

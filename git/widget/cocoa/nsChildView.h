@@ -583,6 +583,7 @@ public:
     return mTextInputHandler;
   }
 
+  void              NotifyDirtyRegion(const nsIntRegion& aDirtyRegion);
   void              ClearVibrantAreas();
   NSColor*          VibrancyFillColorForWidgetType(uint8_t aWidgetType);
   NSColor*          VibrancyFontSmoothingBackgroundColorForWidgetType(uint8_t aWidgetType);

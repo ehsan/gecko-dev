@@ -104,6 +104,7 @@ Run(void* arg)
 
 } // anonymous namespace
 
+
 static char const *const sObserverTopics[] = {
   "quit-application",
   "profile-change-teardown",
@@ -155,7 +156,7 @@ nsTerminator::Start() {
 
   // Allocate and start the thread.
   // By design, it will never finish, nor be deallocated.
-  DebugOnly<PRThread*> thread = PR_CreateThread(
+  PRThread* thread = PR_CreateThread(
     PR_SYSTEM_THREAD, /* This thread will not prevent the process from terminating */
     Run,
     options.release(),
@@ -168,6 +169,7 @@ nsTerminator::Start() {
   MOZ_ASSERT(thread);
   mInitialized = true;
 }
+
 
 NS_IMETHODIMP
 nsTerminator::Observe(nsISupports *, const char *aTopic, const char16_t *)

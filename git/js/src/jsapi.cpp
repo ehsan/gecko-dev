@@ -2181,9 +2181,8 @@ JS_EnumerateStub(JSContext *cx, HandleObject obj)
 }
 
 JS_PUBLIC_API(bool)
-JS_ResolveStub(JSContext *cx, HandleObject obj, HandleId id, bool *resolvedp)
+JS_ResolveStub(JSContext *cx, HandleObject obj, HandleId id)
 {
-    MOZ_ASSERT(*resolvedp == false);
     return true;
 }
 
@@ -4754,9 +4753,6 @@ JS::CloneAndExecuteScript(JSContext *cx, HandleObject obj, HandleScript scriptAr
         script = CloneScript(cx, NullPtr(), NullPtr(), script);
         if (!script)
             return false;
-
-        Rooted<GlobalObject *> global(cx, script->compileAndGo() ? &script->global() : nullptr);
-        js::Debugger::onNewScript(cx, script, global);
     }
     return ExecuteScript(cx, obj, script, nullptr);
 }
