@@ -48,7 +48,7 @@
 
 /**
  * Load flag for error pages. This uses one of the reserved flag
- * values from nsIWebNavigation.
+ * values from nsIWebNabvigation.
  */
 #define LOAD_FLAGS_ERROR_PAGE 0x0001U
 

@@ -195,8 +195,8 @@ nsDOMWindowUtils::Redraw(PRUint32 aCount, PRUint32 *aDurationOut)
 
 NS_IMETHODIMP
 nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
-                                 float aX,
-                                 float aY,
+                                 PRInt32 aX,
+                                 PRInt32 aY,
                                  PRInt32 aButton,
                                  PRInt32 aClickCount,
                                  PRInt32 aModifiers,
@@ -208,8 +208,7 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
     return NS_ERROR_DOM_SECURITY_ERR;
 
   // get the widget to send the event to
-  nsPoint offset;
-  nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
+  nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget)
     return NS_ERROR_FAILURE;
 
@@ -243,14 +242,8 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
 
   event.clickCount = aClickCount;
   event.time = PR_IntervalNow();
-
-  float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
-  event.refPoint.x =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
-                          appPerDev);
-  event.refPoint.y =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aY) + offset.y,
-                          appPerDev);
+  event.refPoint.x = aX;
+  event.refPoint.y = aY;
   event.ignoreScrollFrame = aIgnoreScrollFrame;
 
   nsEventStatus status;
@@ -259,8 +252,8 @@ nsDOMWindowUtils::SendMouseEvent(const nsAString& aType,
 
 NS_IMETHODIMP
 nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
-                                       float aX,
-                                       float aY,
+                                       PRInt32 aX,
+                                       PRInt32 aY,
                                        PRInt32 aButton,
                                        PRInt32 aScrollFlags,
                                        PRInt32 aDelta,
@@ -272,8 +265,7 @@ nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
     return NS_ERROR_DOM_SECURITY_ERR;
 
   // get the widget to send the event to
-  nsPoint offset;
-  nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
+  nsCOMPtr<nsIWidget> widget = GetWidget();
   if (!widget)
     return NS_ERROR_NULL_POINTER;
 
@@ -296,14 +288,8 @@ nsDOMWindowUtils::SendMouseScrollEvent(const nsAString& aType,
   event.scrollFlags = aScrollFlags;
 
   event.time = PR_IntervalNow();
-
-  float appPerDev = float(widget->GetDeviceContext()->AppUnitsPerDevPixel());
-  event.refPoint.x =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aX) + offset.x,
-                          appPerDev);
-  event.refPoint.y =
-    NSAppUnitsToIntPixels(nsPresContext::CSSPixelsToAppUnits(aY) + offset.y,
-                          appPerDev);
+  event.refPoint.x = aX;
+  event.refPoint.y = aY;
 
   nsEventStatus status;
   return widget->DispatchEvent(&event, status);
@@ -415,7 +401,7 @@ nsDOMWindowUtils::ForceUpdateNativeMenuAt(const nsAString& indexString)
 }
 
 nsIWidget*
-nsDOMWindowUtils::GetWidget(nsPoint* aOffset)
+nsDOMWindowUtils::GetWidget()
 {
   if (mWindow) {
     nsIDocShell *docShell = mWindow->GetDocShell();
@@ -425,7 +411,7 @@ nsDOMWindowUtils::GetWidget(nsPoint* aOffset)
       if (presShell) {
         nsIFrame* frame = presShell->GetRootFrame();
         if (frame)
-          return frame->GetView()->GetNearestWidget(aOffset);
+          return frame->GetWindow();
       }
     }
   }
