@@ -2615,6 +2615,13 @@ OldBindingConstructorEnabled(const nsGlobalNameStruct *aStruct,
     }
   }
 
+  // Don't expose CSSSupportsRule unless @supports processing is enabled.
+  if (aStruct->mDOMClassInfoID == eDOMClassInfo_CSSSupportsRule_id) {
+    if (!CSSSupportsRule::PrefEnabled()) {
+      return false;
+    }
+  }
+
   // Don't expose CSSFontFeatureValuesRule unless the pref is enabled
   if (aStruct->mDOMClassInfoID == eDOMClassInfo_CSSFontFeatureValuesRule_id) {
     return nsCSSFontFeatureValuesRule::PrefEnabled();

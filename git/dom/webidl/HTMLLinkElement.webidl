@@ -44,7 +44,6 @@ partial interface HTMLLinkElement {
 
 // http://w3c.github.io/webcomponents/spec/imports/#interface-import
 partial interface HTMLLinkElement {
-    [Pref="dom.webcomponents.enabled"]
     readonly attribute Document? import;
 };
 

@@ -188,18 +188,13 @@ public class Tabs implements GeckoEventListener {
         }
     }
 
-    private Tab addTab(int id, String url, boolean external, int parentId, String title, boolean isPrivate, int tabIndex) {
+    private Tab addTab(int id, String url, boolean external, int parentId, String title, boolean isPrivate) {
         final Tab tab = isPrivate ? new PrivateTab(mAppContext, id, url, external, parentId, title) :
                                     new Tab(mAppContext, id, url, external, parentId, title);
         synchronized (this) {
             lazyRegisterBookmarkObserver();
             mTabs.put(id, tab);
-
-            if (tabIndex > -1) {
-                mOrder.add(tabIndex, tab);
-            } else {
-                mOrder.add(tab);
-            }
+            mOrder.add(tab);
         }
 
         // Suppress the ADDED event to prevent animation of tabs created via session restore.
@@ -432,8 +427,7 @@ public class Tabs implements GeckoEventListener {
                     tab = addTab(id, url, message.getBoolean("external"),
                                           message.getInt("parentId"),
                                           message.getString("title"),
-                                          message.getBoolean("isPrivate"),
-                                          message.getInt("tabIndex"));
+                                          message.getBoolean("isPrivate"));
 
                     // If we added the tab as a stub, we should have already
                     // selected it, so ignore this flag for stubbed tabs.
@@ -805,10 +799,7 @@ public class Tabs implements GeckoEventListener {
                 // long as it's a valid URI.
                 String tabUrl = (url != null && Uri.parse(url).getScheme() != null) ? url : null;
 
-                // Add the new tab to the end of the tab order.
-                final int tabIndex = -1;
-
-                added = addTab(tabId, tabUrl, external, parentId, url, isPrivate, tabIndex);
+                added = addTab(tabId, tabUrl, external, parentId, url, isPrivate);
                 added.setDesktopMode(desktopMode);
             }
         } catch (Exception e) {

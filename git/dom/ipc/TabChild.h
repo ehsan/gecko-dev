@@ -561,7 +561,6 @@ private:
     ScreenOrientation mOrientation;
     bool mUpdateHitRegion;
     bool mContextMenuHandled;
-    bool mLongTapEventHandled;
     bool mWaitingTouchListeners;
     void FireSingleTapEvent(LayoutDevicePoint aPoint);
 

@@ -477,8 +477,7 @@ def run_tests_parallel(tests, prefix, options):
     try:
         testcnt = 0
         # Initially start as many jobs as allowed to run parallel
-        # Always enqueue at least one to avoid a curious deadlock
-        for i in range(max(1, min(options.max_jobs, total_tests))):
+        for i in range(min(options.max_jobs,total_tests)):
             notify_queue.put(True)
 
         # For every item in the notify queue, start one new worker.
@@ -591,16 +590,6 @@ def print_test_summary(num_tests, failures, complete, doing, options):
 
 def process_test_results(results, num_tests, options):
     pb = NullProgressBar()
-    failures = []
-    timeouts = 0
-    complete = False
-    doing = 'before starting'
-
-    if num_tests == 0:
-        pb.finish(True)
-        complete = True
-        return print_test_summary(num_tests, failures, complete, doing, options)
-
     if not options.hide_progress and not options.show_cmd and ProgressBar.conservative_isatty():
         fmt = [
             {'value': 'PASS',    'color': 'green'},
@@ -610,6 +599,10 @@ def process_test_results(results, num_tests, options):
         ]
         pb = ProgressBar(num_tests, fmt)
 
+    failures = []
+    timeouts = 0
+    complete = False
+    doing = 'before starting'
     try:
         for i, res in enumerate(results):
             if options.show_output:
