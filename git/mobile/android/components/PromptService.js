@@ -805,6 +805,11 @@ let PromptUtils = {
     return hostname;
   },
 
+  sendMessageToJava: function(aMsg) {
+    let data = Services.androidBridge.handleGeckoMessage(JSON.stringify(aMsg));
+    return JSON.parse(data);
+  },
+
   fireDialogEvent: function(aDomWin, aEventName) {
     // accessing the document object can throw if this window no longer exists. See bug 789888.
     try {

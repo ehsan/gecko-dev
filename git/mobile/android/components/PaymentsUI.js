@@ -65,6 +65,11 @@ PaymentUI.prototype = {
     return this.bundle = Services.strings.createBundle("chrome://browser/locale/payments.properties");
   },
 
+  sendMessageToJava: function(aMsg) {
+    let data = Services.androidBridge.handleGeckoMessage(JSON.stringify(aMsg));
+    return JSON.parse(data);
+  },
+
   confirmPaymentRequest: function confirmPaymentRequest(aRequestId,
                                                         aRequests,
                                                         aSuccessCb,

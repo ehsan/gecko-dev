@@ -72,7 +72,7 @@ function triggerSecondaryCommand(popup, index)
       EventUtils.synthesizeKey("VK_DOWN", {});
 
     // Activate
-    EventUtils.synthesizeKey("VK_RETURN", {});
+    EventUtils.synthesizeKey("VK_ENTER", {});
   }, false);
 
   // One down event to open the popup

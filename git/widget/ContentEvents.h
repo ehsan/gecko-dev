@@ -244,7 +244,7 @@ public:
   virtual InternalFocusEvent* AsFocusEvent() MOZ_OVERRIDE { return this; }
 
   InternalFocusEvent(bool aIsTrusted, uint32_t aMessage) :
-    InternalUIEvent(aIsTrusted, aMessage, NS_FOCUS_EVENT),
+    InternalUIEvent(aIsTrusted, aMessage, NS_FOCUS_EVENT, 0),
     fromRaise(false), isRefocus(false)
   {
   }

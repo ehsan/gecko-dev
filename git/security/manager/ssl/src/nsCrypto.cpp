@@ -70,7 +70,6 @@
 #include "certdb.h"
 #include "secmod.h"
 #include "ScopedNSSTypes.h"
-#include "insanity/pkixtypes.h"
 
 #include "ssl.h" // For SSL_ClearSessionCache
 
@@ -2385,10 +2384,9 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
 
   //Import the root chain into the cert db.
  {
-  insanity::pkix::ScopedCERTCertList
-    caPubs(CMMF_CertRepContentGetCAPubs(certRepContent));
+  ScopedCERTCertList caPubs(CMMF_CertRepContentGetCAPubs(certRepContent));
   if (caPubs) {
-    int32_t numCAs = nsCertListCount(caPubs.get());
+    int32_t numCAs = nsCertListCount(caPubs);
     
     NS_ASSERTION(numCAs > 0, "Invalid number of CA's");
     if (numCAs > 0) {

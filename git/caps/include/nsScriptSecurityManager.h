@@ -75,6 +75,9 @@ public:
     ReportError(JSContext* cx, const nsAString& messageTag,
                 nsIURI* aSource, nsIURI* aTarget);
 
+    static nsresult
+    CheckSameOriginPrincipal(nsIPrincipal* aSubject,
+                             nsIPrincipal* aObject);
     static uint32_t
     HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
 
@@ -125,6 +128,19 @@ private:
     // when this happens -- this means that there was no JS running.
     nsIPrincipal*
     doGetSubjectPrincipal(nsresult* rv);
+    
+    nsresult
+    CheckPropertyAccessImpl(uint32_t aAction,
+                            nsAXPCNativeCallContext* aCallContext,
+                            JSContext* cx, JSObject* aJSObject,
+                            nsISupports* aObj,
+                            nsIClassInfo* aClassInfo,
+                            const char* aClassName, jsid aProperty);
+
+    nsresult
+    CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
+                           nsIPrincipal* aObject,
+                           uint32_t aAction);
 
     nsresult
     GetCodebasePrincipalInternal(nsIURI* aURI, uint32_t aAppId,

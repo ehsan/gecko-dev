@@ -83,6 +83,9 @@ js::UncheckedUnwrap(JSObject *wrapped, bool stopAtOuter, unsigned *flagsp)
 {
     unsigned flags = 0;
     while (true) {
+        AutoThreadSafeAccess ts0(wrapped);
+        AutoThreadSafeAccess ts1(wrapped->typeRaw());
+        AutoThreadSafeAccess ts2(wrapped->lastProperty());
         if (!wrapped->is<WrapperObject>() ||
             MOZ_UNLIKELY(stopAtOuter && wrapped->getClass()->ext.innerObject))
         {

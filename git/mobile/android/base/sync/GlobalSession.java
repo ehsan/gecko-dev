@@ -316,7 +316,7 @@ public class GlobalSession implements PrefsSource, HttpResponseObserver {
    */
   protected void restart() throws AlreadySyncingException {
     this.currentState = GlobalSyncStage.Stage.idle;
-    if (callback.shouldBackOffStorage()) {
+    if (callback.shouldBackOff()) {
       this.callback.handleAborted(this, "Told to back off.");
       return;
     }

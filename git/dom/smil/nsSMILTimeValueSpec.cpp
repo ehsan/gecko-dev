@@ -466,6 +466,7 @@ nsSMILTimeValueSpec::CheckAccessKeyEventDetail(nsIDOMEvent *aEvent)
     return mParams.mRepeatIterationOrAccessKey == 0x08;
 
   case nsIDOMKeyEvent::DOM_VK_RETURN:
+  case nsIDOMKeyEvent::DOM_VK_ENTER:
     return mParams.mRepeatIterationOrAccessKey == 0x0A ||
            mParams.mRepeatIterationOrAccessKey == 0x0D;
 

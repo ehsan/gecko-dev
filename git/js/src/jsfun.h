@@ -105,10 +105,12 @@ class JSFunction : public JSObject
     }
 
     size_t nargs() const {
+        js::AutoThreadSafeAccess ts(this);
         return nargs_;
     }
 
     uint16_t flags() const {
+        js::AutoThreadSafeAccess ts(this);
         return flags_;
     }
 
@@ -132,10 +134,14 @@ class JSFunction : public JSObject
         return flags() & SH_WRAPPABLE;
     }
 
+    // Functions can change between being lazily interpreted and having scripts
+    // when under the compilation lock.
     bool isInterpretedLazy()        const {
+        JS_ASSERT(js::CurrentThreadCanReadCompilationData());
         return flags() & INTERPRETED_LAZY;
     }
     bool hasScript()                const {
+        JS_ASSERT(js::CurrentThreadCanReadCompilationData());
         return flags() & INTERPRETED;
     }
 
@@ -232,6 +238,7 @@ class JSFunction : public JSObject
     void initAtom(JSAtom *atom) { atom_.init(atom); }
 
     JSAtom *displayAtom() const {
+        js::AutoThreadSafeAccess ts(this);
         return atom_;
     }
 
@@ -251,6 +258,7 @@ class JSFunction : public JSObject
      * activations (stack frames) of the function.
      */
     JSObject *environment() const {
+        js::AutoThreadSafeAccess ts(this);
         JS_ASSERT(isInterpreted());
         return u.i.env_;
     }
@@ -324,6 +332,8 @@ class JSFunction : public JSObject
     }
 
     JSScript *nonLazyScript() const {
+        js::AutoThreadSafeAccess ts(this);
+        JS_ASSERT(js::CurrentThreadCanReadCompilationData());
         JS_ASSERT(hasScript());
         JS_ASSERT(u.i.s.script_);
         return u.i.s.script_;
@@ -345,12 +355,16 @@ class JSFunction : public JSObject
     }
 
     js::LazyScript *lazyScript() const {
+        js::AutoThreadSafeAccess ts(this);
         JS_ASSERT(isInterpretedLazy() && u.i.s.lazy_);
+        JS_ASSERT(js::CurrentThreadCanReadCompilationData());
         return u.i.s.lazy_;
     }
 
     js::LazyScript *lazyScriptOrNull() const {
+        js::AutoThreadSafeAccess ts(this);
         JS_ASSERT(isInterpretedLazy());
+        JS_ASSERT(js::CurrentThreadCanReadCompilationData());
         return u.i.s.lazy_;
     }
 
@@ -384,6 +398,7 @@ class JSFunction : public JSObject
     void setUnlazifiedScript(JSScript *script) {
         // Note: createScriptForLazilyInterpretedFunction triggers a barrier on
         // lazy script before it is overwritten here.
+        JS_ASSERT(js::CurrentThreadCanWriteCompilationData());
         JS_ASSERT(isInterpretedLazy());
         if (!lazyScript()->maybeScript())
             lazyScript()->initScript(script);
@@ -400,6 +415,7 @@ class JSFunction : public JSObject
     }
 
     JSNative native() const {
+        js::AutoThreadSafeAccess ts(this);
         JS_ASSERT(isNative());
         return u.n.native;
     }
@@ -424,6 +440,7 @@ class JSFunction : public JSObject
     }
 
     const JSJitInfo *jitInfo() const {
+        js::AutoThreadSafeAccess ts(this);
         JS_ASSERT(isNative());
         return u.n.jitinfo;
     }

@@ -8,7 +8,6 @@ const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Prompt.jsm");
-Cu.import("resource://gre/modules/Messaging.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "ContentAreaUtils", function() {
   let ContentAreaUtils = {};
@@ -36,19 +35,7 @@ App.prototype = {
 var HelperApps =  {
   get defaultHttpHandlers() {
     delete this.defaultHttpHandlers;
-    this.defaultHttpHandlers = this.getAppsForProtocol("http");
-    return this.defaultHttpHandlers;
-  },
-
-  get defaultHtmlHandlers() {
-    delete this.defaultHtmlHandlers;
-    let handlers = this.getAppsForUri(Services.io.newURI("http://www.example.com/index.html", null, null));
-
-    this.defaultHtmlHandlers = {};
-    handlers.forEach(function(app) {
-      this.defaultHtmlHandlers[app.name] = app;
-    }, this);
-    return this.defaultHtmlHandlers;
+    return this.defaultHttpHandlers = this.getAppsForProtocol("http");
   },
 
   get protoSvc() {
@@ -83,54 +70,29 @@ var HelperApps =  {
     return results;
   },
 
-  getAppsForUri: function getAppsForUri(uri, flags = { filterHttp: true, filterHtml: true }, callback) {
+  getAppsForUri: function getAppsForUri(uri, flags = { filterHttp: true }) {
     flags.filterHttp = "filterHttp" in flags ? flags.filterHttp : true;
-    flags.filterHtml = "filterHtml" in flags ? flags.filterHtml : true;
 
     // Query for apps that can/can't handle the mimetype
     let msg = this._getMessage("Intent:GetHandlers", uri, flags);
-    let parseData = (d) => {
-      let apps = []
+    let data = this._sendMessage(msg);
+    if (!data)
+      return [];
 
-      if (!d)
-        return apps;
+    let apps = this._parseApps(data.apps);
 
-      apps = this._parseApps(d.apps);
-
-      if (flags.filterHttp) {
-        apps = apps.filter(function(app) {
-          return app.name && !this.defaultHttpHandlers[app.name];
-        }, this);
-      }
-
-      if (flags.filterHtml) {
-        // Matches from the first '.' to the end of the string, '?', or '#'
-        let ext = /\.([^\?#]*)/.exec(uri.path);
-        if (ext && (ext[1] === "html" || ext[1] === "htm")) {
-          apps = apps.filter(function(app) {
-            return app.name && !this.defaultHtmlHandlers[app.name];
-          }, this);
-        }
-      }
-
-      return apps;
-    };
-
-    if (!callback) {
-      let data = this._sendMessageSync(msg);
-      if (!data)
-        return [];
-      return parseData(JSON.parse(data));
-    } else {
-      sendMessageToJava(msg, function(data) {
-        callback(parseData(JSON.parse(data)));
-      });
+    if (flags.filterHttp) {
+      apps = apps.filter(function(app) {
+        return app.name && !this.defaultHttpHandlers[app.name];
+      }, this);
     }
+
+    return apps;
   },
 
   launchUri: function launchUri(uri) {
     let msg = this._getMessage("Intent:Open", uri);
-    sendMessageToJava(msg);
+    this._sendMessage(msg);
   },
 
   _parseApps: function _parseApps(appInfo) {
@@ -170,19 +132,11 @@ var HelperApps =  {
       className: app.activityName
     });
 
-    sendMessageToJava(msg);
+    this._sendMessage(msg);
   },
 
-  _sendMessageSync: function(msg) {
-    let res = null;
-    sendMessageToJava(msg, function(data) {
-      res = data;
-    });
-
-    let thread = Services.tm.currentThread;
-    while (res == null)
-      thread.processNextEvent(true);
-
-    return res;
+  _sendMessage: function(msg) {
+    let res = Services.androidBridge.handleGeckoMessage(JSON.stringify(msg));
+    return JSON.parse(res);
   },
 };

@@ -19,7 +19,6 @@ from mach.mixin.process import ProcessExecutionMixin
 from mozfile.mozfile import rmtree
 
 from .backend.configenvironment import ConfigEnvironment
-from .controller.clobber import Clobberer
 from .mozconfig import (
     MozconfigFindException,
     MozconfigLoadException,
@@ -281,11 +280,6 @@ class MozbuildObject(ProcessExecutionMixin):
     @property
     def statedir(self):
         return os.path.join(self.topobjdir, '.mozbuild')
-
-    def is_clobber_needed(self):
-        if not os.path.exists(self.topobjdir):
-            return False
-        return Clobberer(self.topsrcdir, self.topobjdir).clobber_needed()
 
     def remove_objdir(self):
         """Remove the entire object directory."""

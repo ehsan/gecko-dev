@@ -99,11 +99,10 @@ this.BookmarkJSONUtils = Object.freeze({
         Components.utils.reportError("Unable to report telemetry.");
       }
 
-      // Do not write to the tmp folder, otherwise if it has a different
-      // filesystem writeAtomic will fail.  Eventual dangling .tmp files should
-      // be cleaned up by the caller.
-      yield OS.File.writeAtomic(aFilePath, jsonString,
-                                { tmpPath: OS.Path.join(aFilePath + ".tmp") });
+      // Write to the temp folder first, to avoid leaving back partial files.
+      let tmpPath = OS.Path.join(OS.Constants.Path.tmpDir,
+                                 OS.Path.basename(aFilePath) + ".tmp");
+      yield OS.File.writeAtomic(aFilePath, jsonString, { tmpPath: tmpPath });
       return count;
     });
   },

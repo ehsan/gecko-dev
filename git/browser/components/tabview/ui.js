@@ -1099,6 +1099,7 @@ let UI = {
               self.exit();
             break;
           case KeyEvent.DOM_VK_RETURN:
+          case KeyEvent.DOM_VK_ENTER:
             activeGroupItem = GroupItems.getActiveGroupItem();
             if (activeGroupItem) {
               activeTab = self.getActiveTab();

@@ -30,6 +30,8 @@ var APZCObserver = {
     let os = Services.obs;
     os.addObserver(this, "apzc-transform-begin", false);
 
+    // Fired by ContentAreaObserver
+    window.addEventListener("SizeChanged", this, true);
     Elements.tabList.addEventListener("TabSelect", this, true);
     Elements.browsers.addEventListener("pageshow", this, true);
     messageManager.addMessageListener("Content:ZoomToRect", this);
@@ -43,6 +45,7 @@ var APZCObserver = {
     let os = Services.obs;
     os.removeObserver(this, "apzc-transform-begin");
 
+    window.removeEventListener("SizeChanged", this, true);
     Elements.tabList.removeEventListener("TabSelect", this, true);
     Elements.browsers.removeEventListener("pageshow", this, true);
     messageManager.removeMessageListener("Content:ZoomToRect", this);
@@ -50,6 +53,7 @@ var APZCObserver = {
 
   handleEvent: function APZC_handleEvent(aEvent) {
     switch (aEvent.type) {
+      case "SizeChanged":
       case 'TabSelect':
         this._resetDisplayPort();
         break;

@@ -8,7 +8,10 @@ const Cc = Components.classes;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Messaging.jsm");
+
+function sendMessageToJava(aMessage) {
+  return Services.androidBridge.handleGeckoMessage(JSON.stringify(aMessage));
+}
 
 function ContentDispatchChooser() {}
 

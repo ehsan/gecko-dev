@@ -228,13 +228,13 @@ nsSVGIntegrationUtils::GetSVGBBoxForNonSVGFrame(nsIFrame* aNonSVGFrame)
 // The reason that we need to pass an override bbox to
 // GetPreEffectsVisualOverflowUnion rather than just letting it call into our
 // GetSVGBBoxForNonSVGFrame method is because we get called by
-// ComputeEffectsRect when it has been called with
+// ComputeOutlineAndEffectsRect when it has been called with
 // aStoreRectProperties set to false. In this case the pre-effects visual
 // overflow rect that it has been passed may be different to that stored on
 // aFrame, resulting in a different bbox.
 //
 // XXXjwatt The pre-effects visual overflow rect passed to
-// ComputeEffectsRect won't include continuation overflows, so
+// ComputeOutlineAndEffectsRect won't include continuation overflows, so
 // for frames with continuation the following filter analysis will likely end
 // up being carried out with a bbox created as if the frame didn't have
 // continuations.

@@ -957,7 +957,8 @@ const DownloadsView = {
       return;
     }
 
-    if (aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
+    if (aEvent.keyCode == KeyEvent.DOM_VK_ENTER ||
+        aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
       goDoCommand("downloadsCmd_doDefault");
     }
   },
@@ -1647,6 +1648,7 @@ const DownloadsSummary = {
   onKeyDown: function DS_onKeyDown(aEvent)
   {
     if (aEvent.charCode == " ".charCodeAt(0) ||
+        aEvent.keyCode == KeyEvent.DOM_VK_ENTER ||
         aEvent.keyCode == KeyEvent.DOM_VK_RETURN) {
       DownloadsPanel.showDownloadsHistory();
     }
