@@ -9,7 +9,6 @@
 #include "AsyncPanZoomController.h"
 #include "gfxPrefs.h"
 #include "InputBlockState.h"
-#include "LayersLogging.h"
 #include "OverscrollHandoffState.h"
 
 #define INPQ_LOG(...)

@@ -371,7 +371,7 @@ class AsmJSModule
         unsigned ffiIndex_;
         unsigned globalDataOffset_;
         unsigned interpCodeOffset_;
-        unsigned jitCodeOffset_;
+        unsigned ionCodeOffset_;
 
         friend class AsmJSModule;
 
@@ -379,7 +379,7 @@ class AsmJSModule
         Exit() {}
         Exit(unsigned ffiIndex, unsigned globalDataOffset)
           : ffiIndex_(ffiIndex), globalDataOffset_(globalDataOffset),
-            interpCodeOffset_(0), jitCodeOffset_(0)
+            interpCodeOffset_(0), ionCodeOffset_(0)
         {}
         unsigned ffiIndex() const {
             return ffiIndex_;
@@ -391,13 +391,13 @@ class AsmJSModule
             MOZ_ASSERT(!interpCodeOffset_);
             interpCodeOffset_ = off;
         }
-        void initJitOffset(unsigned off) {
-            MOZ_ASSERT(!jitCodeOffset_);
-            jitCodeOffset_ = off;
+        void initIonOffset(unsigned off) {
+            MOZ_ASSERT(!ionCodeOffset_);
+            ionCodeOffset_ = off;
         }
         void updateOffsets(jit::MacroAssembler &masm) {
             interpCodeOffset_ = masm.actualOffset(interpCodeOffset_);
-            jitCodeOffset_ = masm.actualOffset(jitCodeOffset_);
+            ionCodeOffset_ = masm.actualOffset(ionCodeOffset_);
         }
 
         size_t serializedSize() const;
@@ -419,7 +419,7 @@ class AsmJSModule
     struct ExitDatum
     {
         uint8_t *exit;
-        jit::BaselineScript *baselineScript;
+        jit::IonScript *ionScript;
         HeapPtrFunction fun;
     };
 
@@ -558,7 +558,7 @@ class AsmJSModule
         void setDeltas(uint32_t entry, uint32_t profilingJump, uint32_t profilingEpilogue);
 
       public:
-        enum Kind { Function, Entry, JitFFI, SlowFFI, Interrupt, Thunk, Inline };
+        enum Kind { Function, Entry, IonFFI, SlowFFI, Interrupt, Thunk, Inline };
 
         CodeRange() {}
         CodeRange(uint32_t nameIndex, uint32_t lineNumber, const AsmJSFunctionLabels &l);
@@ -570,7 +570,7 @@ class AsmJSModule
         Kind kind() const { return Kind(u.kind_); }
         bool isFunction() const { return kind() == Function; }
         bool isEntry() const { return kind() == Entry; }
-        bool isFFI() const { return kind() == JitFFI || kind() == SlowFFI; }
+        bool isFFI() const { return kind() == IonFFI || kind() == SlowFFI; }
         bool isInterrupt() const { return kind() == Interrupt; }
         bool isThunk() const { return kind() == Thunk; }
 
@@ -1325,10 +1325,10 @@ class AsmJSModule
         MOZ_ASSERT(exit.interpCodeOffset_);
         return code_ + exit.interpCodeOffset_;
     }
-    uint8_t *jitExitTrampoline(const Exit &exit) const {
+    uint8_t *ionExitTrampoline(const Exit &exit) const {
         MOZ_ASSERT(isFinished());
-        MOZ_ASSERT(exit.jitCodeOffset_);
-        return code_ + exit.jitCodeOffset_;
+        MOZ_ASSERT(exit.ionCodeOffset_);
+        return code_ + exit.ionCodeOffset_;
     }
   public:
 
@@ -1463,17 +1463,17 @@ class AsmJSModule
         ExitDatum &exitDatum = exitIndexToGlobalDatum(exitIndex);
         return exitDatum.exit != interpExitTrampoline(exit(exitIndex));
     }
-    void optimizeExit(unsigned exitIndex, jit::BaselineScript *baselineScript) const {
+    void optimizeExit(unsigned exitIndex, jit::IonScript *ionScript) const {
         MOZ_ASSERT(!exitIsOptimized(exitIndex));
         ExitDatum &exitDatum = exitIndexToGlobalDatum(exitIndex);
-        exitDatum.exit = jitExitTrampoline(exit(exitIndex));
-        exitDatum.baselineScript = baselineScript;
+        exitDatum.exit = ionExitTrampoline(exit(exitIndex));
+        exitDatum.ionScript = ionScript;
     }
-    void detachJitCompilation(size_t exitIndex) const {
+    void detachIonCompilation(size_t exitIndex) const {
         MOZ_ASSERT(isFinished());
         ExitDatum &exitDatum = exitIndexToGlobalDatum(exitIndex);
         exitDatum.exit = interpExitTrampoline(exit(exitIndex));
-        exitDatum.baselineScript = nullptr;
+        exitDatum.ionScript = nullptr;
     }
 
     /*************************************************************************/

@@ -108,23 +108,6 @@ AppendToString(std::stringstream& aStream, const nsIntRect& r,
 }
 
 void
-AppendToString(std::stringstream& aStream, const nsRegion& r,
-               const char* pfx, const char* sfx)
-{
-  aStream << pfx;
-
-  nsRegionRectIterator it(r);
-  aStream << "< ";
-  while (const nsRect* sr = it.Next()) {
-    AppendToString(aStream, *sr);
-    aStream << "; ";
-  }
-  aStream << ">";
-
-  aStream << sfx;
-}
-
-void
 AppendToString(std::stringstream& aStream, const nsIntRegion& r,
                const char* pfx, const char* sfx)
 {

@@ -1861,11 +1861,11 @@ MacroAssemblerARMCompat::callIon(Register callee)
 }
 
 void
-MacroAssemblerARMCompat::callJitFromAsmJS(Register callee)
+MacroAssemblerARMCompat::callIonFromAsmJS(Register callee)
 {
     ma_callIonNoPush(callee);
 
-    // The JIT ABI has the callee pop the return address off the stack.
+    // The Ion ABI has the callee pop the return address off the stack.
     // The asm.js caller assumes that the call leaves sp unchanged, so bump
     // the stack.
     subPtr(Imm32(sizeof(void*)), sp);

@@ -32,8 +32,9 @@ const gImg = document.getElementsByTagName("img")[0];
 
 var gMyDecoderObserver; // value will be set in main()
 var gReferenceSnapshot; // value will be set in takeReferenceSnapshot()
-var gOnFrameUpdateCounter = 0;
+var gOnStopFrameCounter = 0;
 var gIsTestFinished = false;
+var gTimer = null;
 
 
 function takeReferenceSnapshot() {
@@ -54,33 +55,30 @@ function takeReferenceSnapshot() {
      "reference div should disappear when it becomes display:none");
 }
 
-function myOnFrameUpdate(aRequest) {
-  if (gIsTestFinished) {
-    return;
-  }
-  gOnFrameUpdateCounter++;
-  ok(true, "myOnFrameUpdate called");
+function myOnStopFrame(aRequest) {
+  gOnStopFrameCounter++;
+  ok(true, "myOnStopFrame called");
   let currentSnapshot = snapshotWindow(window, false);
   if (compareSnapshots(currentSnapshot, gReferenceSnapshot, true)[0]) {
     // SUCCESS!
     ok(true, "Animated image looks correct, " +
-             "at call #" + gOnFrameUpdateCounter + " to myOnFrameUpdate");
+             "at call #" + gOnStopFrameCounter + " to onStopFrame");
     cleanUpAndFinish();
   }
+  if (!gTimer)
+    gTimer = setTimeout(function() { gTimer = null; myOnStopFrame(0, 0); }, 1000);
 }
 
 function failTest() {
-  if (gIsTestFinished) {
-    return;
-  }
   ok(false, "timing out after " + FAILURE_TIMEOUT + "ms.  " +
             "Animated image still doesn't look correct, " +
-            "after call #" + gOnFrameUpdateCounter + " to myOnFrameUpdate");
+            "after call #" + gOnStopFrameCounter + " to onStopFrame");
   cleanUpAndFinish();
 }
 
 function cleanUpAndFinish() {
-  // On the off chance that failTest and myOnFrameUpdate are triggered
+  clearTimeout(gTimer);
+  // On the off chance that failTest and myOnStopFrame are triggered
   // back-to-back, use a flag to prevent multiple calls to SimpleTest.finish.
   if (gIsTestFinished) {
     return;
@@ -96,7 +94,7 @@ function main() {
 
   // Create, customize & attach decoder observer
   observer = new ImageDecoderObserverStub();
-  observer.frameUpdate = myOnFrameUpdate;
+  observer.frameComplete = myOnStopFrame;
   gMyDecoderObserver =
     Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools)
       .createScriptedObserver(observer);
@@ -105,9 +103,9 @@ function main() {
 
   // We want to test the cold loading behavior, so clear cache in case an
   // earlier test got our image in there already.
-  clearAllImageCaches();
+  clearImageCache();
 
-  // kick off image-loading! myOnFrameUpdate handles the rest.
+  // kick off image-loading! myOnStopFrame handles the rest.
   gImg.setAttribute("src", "lime-anim-100x100-2.svg");
 
   // In case something goes wrong, fail earlier than mochitest timeout,

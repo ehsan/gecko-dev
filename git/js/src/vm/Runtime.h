@@ -364,24 +364,19 @@ class NewObjectCache
 class FreeOp : public JSFreeOp
 {
     Vector<void *, 0, SystemAllocPolicy> freeLaterList;
-    ThreadType threadType;
 
   public:
     static FreeOp *get(JSFreeOp *fop) {
         return static_cast<FreeOp *>(fop);
     }
 
-    explicit FreeOp(JSRuntime *rt, ThreadType thread = MainThread)
-      : JSFreeOp(rt), threadType(thread)
+    explicit FreeOp(JSRuntime *rt)
+      : JSFreeOp(rt)
     {}
 
     ~FreeOp() {
         for (size_t i = 0; i < freeLaterList.length(); i++)
             free_(freeLaterList[i]);
-    }
-
-    bool onBackgroundThread() {
-        return threadType == BackgroundThread;
     }
 
     inline void free_(void *p);

@@ -207,11 +207,13 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       MOZ_ASSERT(tex.get());
       compositable->UseTextureHost(tex);
 
-      if (IsAsync() && compositable->GetLayer()) {
+      if (IsAsync()) {
         ScheduleComposition(op);
         // Async layer updates don't trigger invalidation, manually tell the layer
         // that its content have changed.
-        compositable->GetLayer()->SetInvalidRectToVisibleRegion();
+        if (compositable->GetLayer()) {
+          compositable->GetLayer()->SetInvalidRectToVisibleRegion();
+        }
       }
       break;
     }

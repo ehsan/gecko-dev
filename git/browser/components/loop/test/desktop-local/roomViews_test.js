@@ -199,10 +199,7 @@ describe("loop.roomViews", function () {
       return TestUtils.renderIntoDocument(
         new loop.roomViews.DesktopRoomConversationView({
           dispatcher: dispatcher,
-          roomStore: roomStore,
-          feedbackStore: new loop.store.FeedbackStore(dispatcher, {
-            feedbackClient: {}
-          })
+          roomStore: roomStore
         }));
     }
 
@@ -318,16 +315,6 @@ describe("loop.roomViews", function () {
 
           TestUtils.findRenderedComponentWithType(view,
             loop.roomViews.DesktopRoomConversationView);
-        });
-
-      it("should render the FeedbackView if roomState is `ENDED`",
-        function() {
-          activeRoomStore.setStoreState({roomState: ROOM_STATES.ENDED});
-
-          view = mountTestComponent();
-
-          TestUtils.findRenderedComponentWithType(view,
-            loop.shared.views.FeedbackView);
         });
     });
   });

@@ -88,19 +88,18 @@ public class GeckoThread extends Thread implements GeckoEventListener {
     }
 
     private String initGeckoEnvironment() {
-        final Locale locale = Locale.getDefault();
+        // At some point while loading the gecko libs our default locale gets set
+        // so just save it to locale here and reset it as default after the join
+        Locale locale = Locale.getDefault();
 
-        final Context context = GeckoAppShell.getContext();
-        final Resources res = context.getResources();
         if (locale.toString().equalsIgnoreCase("zh_hk")) {
-            final Locale mappedLocale = Locale.TRADITIONAL_CHINESE;
-            Locale.setDefault(mappedLocale);
-            Configuration config = res.getConfiguration();
-            config.locale = mappedLocale;
-            res.updateConfiguration(config, null);
+            locale = Locale.TRADITIONAL_CHINESE;
+            Locale.setDefault(locale);
         }
 
+        Context context = GeckoAppShell.getContext();
         String resourcePath = "";
+        Resources res  = null;
         String[] pluginDirs = null;
         try {
             pluginDirs = GeckoAppShell.getPluginDirectories();
@@ -109,12 +108,19 @@ public class GeckoThread extends Thread implements GeckoEventListener {
         }
 
         resourcePath = context.getPackageResourcePath();
+        res = context.getResources();
         GeckoLoader.setupGeckoEnvironment(context, pluginDirs, context.getFilesDir().getPath());
 
         GeckoLoader.loadSQLiteLibs(context, resourcePath);
         GeckoLoader.loadNSSLibs(context, resourcePath);
         GeckoLoader.loadGeckoLibs(context, resourcePath);
         GeckoJavaSampler.setLibsLoaded();
+
+        Locale.setDefault(locale);
+
+        Configuration config = res.getConfiguration();
+        config.locale = locale;
+        res.updateConfiguration(config, null);
 
         return resourcePath;
     }

@@ -52,15 +52,13 @@ loop.standaloneRoomViews = (function(mozL10n) {
           return mozL10n.get("rooms_unavailable_notification_message");
         default:
           return mozL10n.get("status_error");
-      }
+      };
     },
 
     _renderContent: function() {
       switch(this.props.roomState) {
         case ROOM_STATES.INIT:
-        case ROOM_STATES.READY:
-        case ROOM_STATES.ENDED: {
-          // XXX: In ENDED state, we should rather display the feedback form.
+        case ROOM_STATES.READY: {
           return (
             <button className="btn btn-join btn-info"
                     onClick={this.props.joinRoom}>
@@ -221,14 +219,13 @@ loop.standaloneRoomViews = (function(mozL10n) {
     },
 
     /**
-     * Watches for when we transition to JOINED room state, so we can request
-     * user media access.
-     *
+     * Watches for when we transition from READY to JOINED room state, so we can
+     * request user media access.
      * @param  {Object} nextProps (Unused)
      * @param  {Object} nextState Next state object.
      */
     componentWillUpdate: function(nextProps, nextState) {
-      if (this.state.roomState !== ROOM_STATES.JOINED &&
+      if (this.state.roomState === ROOM_STATES.READY &&
           nextState.roomState === ROOM_STATES.JOINED) {
         this.props.dispatcher.dispatch(new sharedActions.SetupStreamElements({
           publisherConfig: this._getPublisherConfig(),

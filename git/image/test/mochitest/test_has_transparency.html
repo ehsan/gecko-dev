@@ -27,8 +27,6 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const gContent = document.getElementById("content");
 
-var gCanvas;
-var gCanvasCtx;
 var gImg;
 var gMyDecoderObserver;
 var gIsTestFinished = false;
@@ -101,11 +99,6 @@ function onLoad() {
     return;
   }
   ok(true, "Should successfully load " + gImg.src);
-
-  // Force decoding of the image.
-  SimpleTest.executeSoon(function() {
-    gCanvasCtx.drawImage(gImg, 0, 0);
-  });
 }
 
 function failTest() {
@@ -126,8 +119,6 @@ function cleanUpAndFinish() {
 
 function main() {
   gFiles = testFiles();
-  gCanvas = document.createElement('canvas');
-  gCanvasCtx = gCanvas.getContext('2d');
   gImg = new Image();
   gImg.onload = onLoad;
   gImg.onerror = onError;
@@ -144,7 +135,7 @@ function main() {
 
   // We want to test the cold loading behavior, so clear cache in case an
   // earlier test got our image in there already.
-  clearAllImageCaches();
+  clearImageCache();
 
   // Load the first image.
   loadNext();

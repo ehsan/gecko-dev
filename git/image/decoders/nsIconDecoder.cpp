@@ -59,9 +59,6 @@ nsIconDecoder::WriteInternal(const char* aBuffer, uint32_t aCount,
 
         // Post our size to the superclass
         PostSize(mWidth, mHeight);
-
-        PostHasTransparency();
-
         if (HasError()) {
           // Setting the size led to an error.
           mState = iconStateFinished;

@@ -228,7 +228,7 @@ DynamicImage::GetFrame(uint32_t aWhichFrame,
 }
 
 NS_IMETHODIMP_(bool)
-DynamicImage::IsOpaque()
+DynamicImage::FrameIsOpaque(uint32_t aWhichFrame)
 {
   // XXX(seth): For performance reasons it'd be better to return true here, but
   // I'm not sure how we can guarantee it for an arbitrary gfxDrawable.

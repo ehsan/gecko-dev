@@ -125,7 +125,7 @@ class Wait(object):
             except self.exceptions as e:
                 last_exc = sys.exc_info()
 
-            if not rv:
+            if isinstance(rv, bool) and not rv:
                 self.clock.sleep(self.interval)
                 continue
 

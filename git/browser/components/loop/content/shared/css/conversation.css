@@ -744,8 +744,11 @@ html, .fx-embedded, #main,
   color: #555;
 }
 
-.fx-embedded .room-conversation .conversation-toolbar .btn-hangup {
-  background-image: url("../img/icons-16x16.svg#leave");
+/**
+ * Hides the hangup button for room conversations.
+ */
+.room-conversation .conversation-toolbar .btn-hangup-entry {
+  display: none;
 }
 
 .room-invitation-overlay {

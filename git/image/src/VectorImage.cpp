@@ -687,9 +687,15 @@ VectorImage::GetFirstFrameDelay()
   return 0;
 }
 
+
+//******************************************************************************
+/* [notxpcom] boolean frameIsOpaque(in uint32_t aWhichFrame); */
 NS_IMETHODIMP_(bool)
-VectorImage::IsOpaque()
+VectorImage::FrameIsOpaque(uint32_t aWhichFrame)
 {
+  if (aWhichFrame > FRAME_MAX_VALUE)
+    NS_WARNING("aWhichFrame outside valid range!");
+
   return false; // In general, SVG content is not opaque.
 }
 

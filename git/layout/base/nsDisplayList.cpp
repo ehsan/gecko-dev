@@ -1949,13 +1949,11 @@ nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplaySolidColor::WriteDebugInfo(std::stringstream& aStream)
+nsDisplaySolidColor::WriteDebugInfo(nsACString& aTo)
 {
-  aStream << " (rgba "
-          << (int)NS_GET_R(mColor) << ","
-          << (int)NS_GET_G(mColor) << ","
-          << (int)NS_GET_B(mColor) << ","
-          << (int)NS_GET_A(mColor) << ")";
+  aTo += nsPrintfCString(" (rgba %d,%d,%d,%d)",
+                 NS_GET_R(mColor), NS_GET_G(mColor),
+                 NS_GET_B(mColor), NS_GET_A(mColor));
 }
 #endif
 
@@ -2665,9 +2663,9 @@ nsDisplayThemedBackground::~nsDisplayThemedBackground()
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplayThemedBackground::WriteDebugInfo(std::stringstream& aStream)
+nsDisplayThemedBackground::WriteDebugInfo(nsACString& aTo)
 {
-  aStream << " (themed, appearance:" << (int)mAppearance << ")";
+  aTo += nsPrintfCString(" (themed, appearance:%d)", mAppearance);
 }
 #endif
 
@@ -2870,10 +2868,11 @@ nsDisplayBackgroundColor::HitTest(nsDisplayListBuilder* aBuilder,
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplayBackgroundColor::WriteDebugInfo(std::stringstream& aStream)
+nsDisplayBackgroundColor::WriteDebugInfo(nsACString& aTo)
 {
-  aStream << " (rgba " << mColor.r << "," << mColor.g << ","
-          << mColor.b << "," << mColor.a << ")";
+  aTo += nsPrintfCString(" (rgba %f,%f,%f,%f)",
+          mColor.r, mColor.g,
+          mColor.b, mColor.a);
 }
 #endif
 
@@ -2987,22 +2986,6 @@ nsDisplayLayerEventRegions::AddInactiveScrollPort(const nsRect& aRect)
 {
   mDispatchToContentHitRegion.Or(mDispatchToContentHitRegion, aRect);
 }
-
-#ifdef MOZ_DUMP_PAINTING
-void
-nsDisplayLayerEventRegions::WriteDebugInfo(std::stringstream& aStream)
-{
-  if (!mHitRegion.IsEmpty()) {
-    AppendToString(aStream, mHitRegion, " (hitRegion ", ")");
-  }
-  if (!mMaybeHitRegion.IsEmpty()) {
-    AppendToString(aStream, mMaybeHitRegion, " (maybeHitRegion ", ")");
-  }
-  if (!mDispatchToContentHitRegion.IsEmpty()) {
-    AppendToString(aStream, mDispatchToContentHitRegion, " (dispatchToContentRegion ", ")");
-  }
-}
-#endif
 
 nsDisplayCaret::nsDisplayCaret(nsDisplayListBuilder* aBuilder,
                                nsIFrame* aCaretFrame)
@@ -3695,9 +3678,9 @@ bool nsDisplayOpacity::TryMerge(nsDisplayListBuilder* aBuilder, nsDisplayItem* a
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplayOpacity::WriteDebugInfo(std::stringstream& aStream)
+nsDisplayOpacity::WriteDebugInfo(nsACString& aTo)
 {
-  aStream << " (opacity " << mOpacity << ")";
+  aTo += nsPrintfCString(" (opacity %f)", mOpacity);
 }
 #endif
 
@@ -4460,10 +4443,10 @@ nsDisplayScrollLayer::GetScrollLayerCount()
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplayScrollLayer::WriteDebugInfo(std::stringstream& aStream)
+nsDisplayScrollLayer::WriteDebugInfo(nsACString& aTo)
 {
-  aStream << " (scrollframe " << mScrollFrame
-          << " scrolledFrame " << mScrolledFrame << ")";
+  aTo += nsPrintfCString(" (scrollframe %p scrolledframe %p)",
+                         mScrollFrame, mScrolledFrame);
 }
 #endif
 
@@ -5648,9 +5631,11 @@ bool nsDisplayTransform::UntransformVisibleRect(nsDisplayListBuilder* aBuilder,
 
 #ifdef MOZ_DUMP_PAINTING
 void
-nsDisplayTransform::WriteDebugInfo(std::stringstream& aStream)
+nsDisplayTransform::WriteDebugInfo(nsACString& aTo)
 {
-  AppendToString(aStream, GetTransform());
+  std::stringstream ss;
+  AppendToString(ss, GetTransform());
+  aTo += ss.str().c_str();
 }
 #endif
 

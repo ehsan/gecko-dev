@@ -112,7 +112,7 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
 
   // Determine an appropriate format for the surface.
   gfx::SurfaceFormat surfaceFormat;
-  if (InnerImage()->IsOpaque()) {
+  if (InnerImage()->FrameIsOpaque(aWhichFrame)) {
     surfaceFormat = gfx::SurfaceFormat::B8G8R8X8;
   } else {
     surfaceFormat = gfx::SurfaceFormat::B8G8R8A8;

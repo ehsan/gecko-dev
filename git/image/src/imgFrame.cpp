@@ -584,6 +584,12 @@ SurfaceFormat imgFrame::GetFormat() const
   return mFormat;
 }
 
+bool imgFrame::GetNeedsBackground() const
+{
+  // We need a background painted if we have alpha or we're incomplete.
+  return (mFormat == SurfaceFormat::B8G8R8A8 || !ImageComplete());
+}
+
 uint32_t imgFrame::GetImageBytesPerRow() const
 {
   if (mVBuf)

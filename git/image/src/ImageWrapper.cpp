@@ -209,9 +209,9 @@ ImageWrapper::GetFrame(uint32_t aWhichFrame,
 }
 
 NS_IMETHODIMP_(bool)
-ImageWrapper::IsOpaque()
+ImageWrapper::FrameIsOpaque(uint32_t aWhichFrame)
 {
-  return mInnerImage->IsOpaque();
+  return mInnerImage->FrameIsOpaque(aWhichFrame);
 }
 
 NS_IMETHODIMP

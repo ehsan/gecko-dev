@@ -55,12 +55,6 @@ LIRGeneratorARM::useByteOpRegisterOrNonDoubleConstant(MDefinition *mir)
     return useRegisterOrNonDoubleConstant(mir);
 }
 
-LDefinition
-LIRGeneratorARM::tempByteOpRegister()
-{
-    return temp();
-}
-
 bool
 LIRGeneratorARM::lowerConstantDouble(double d, MInstruction *mir)
 {
@@ -679,16 +673,4 @@ LIRGeneratorARM::visitAsmJSAtomicBinopHeap(MAsmJSAtomicBinopHeap *ins)
                                            LDefinition::BogusTemp());
 
     return define(lir, ins);
-}
-
-bool
-LIRGeneratorARM::visitSubstr(MSubstr *ins)
-{
-    LSubstr *lir = new (alloc()) LSubstr(useRegister(ins->string()),
-                                         useRegister(ins->begin()),
-                                         useRegister(ins->length()),
-                                         temp(),
-                                         temp(),
-                                         tempByteOpRegister());
-    return define(lir, ins) && assignSafepoint(lir, ins);
 }

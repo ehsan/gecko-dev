@@ -191,7 +191,9 @@ PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
   }
 
   // Display item specific debug info
-  aItem->WriteDebugInfo(aStream);
+  nsCString itemStr;
+  aItem->WriteDebugInfo(itemStr);
+  aStream << itemStr.get();
 
   if (aDumpHtml && aItem->Painted()) {
     aStream << "</a>";
