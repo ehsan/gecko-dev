@@ -842,44 +842,27 @@ JSScript::initScriptCounts(JSContext *cx)
     return true;
 }
 
-static inline ScriptCountsMap::Ptr GetScriptCountsMapEntry(JSScript *script)
-{
-    JS_ASSERT(script->hasScriptCounts);
-    ScriptCountsMap *map = script->compartment()->scriptCountsMap;
-    ScriptCountsMap::Ptr p = map->lookup(script);
-    JS_ASSERT(p);
-    return p;
-}
-
 js::PCCounts
 JSScript::getPCCounts(jsbytecode *pc) {
+    JS_ASSERT(hasScriptCounts);
     JS_ASSERT(size_t(pc - code) < length);
-    ScriptCountsMap::Ptr p = GetScriptCountsMapEntry(this);
+    ScriptCountsMap *map = compartment()->scriptCountsMap;
+    JS_ASSERT(map);
+    ScriptCountsMap::Ptr p = map->lookup(this);
+    JS_ASSERT(p);
     return p->value.pcCountsVector[pc - code];
-}
-
-void
-JSScript::addIonCounts(ion::IonScriptCounts *ionCounts)
-{
-    ScriptCountsMap::Ptr p = GetScriptCountsMapEntry(this);
-    if (p->value.ionCounts)
-        ionCounts->setPrevious(p->value.ionCounts);
-    p->value.ionCounts = ionCounts;
-}
-
-ion::IonScriptCounts *
-JSScript::getIonCounts()
-{
-    ScriptCountsMap::Ptr p = GetScriptCountsMapEntry(this);
-    return p->value.ionCounts;
 }
 
 ScriptCounts
 JSScript::releaseScriptCounts()
 {
-    ScriptCountsMap::Ptr p = GetScriptCountsMapEntry(this);
+    JS_ASSERT(hasScriptCounts);
+    ScriptCountsMap *map = compartment()->scriptCountsMap;
+    JS_ASSERT(map);
+    ScriptCountsMap::Ptr p = map->lookup(this);
+    JS_ASSERT(p);
     ScriptCounts counts = p->value;
-    compartment()->scriptCountsMap->remove(p);
+    map->remove(p);
     hasScriptCounts = false;
     return counts;
 }
@@ -889,7 +872,7 @@ JSScript::destroyScriptCounts(FreeOp *fop)
 {
     if (hasScriptCounts) {
         ScriptCounts scriptCounts = releaseScriptCounts();
-        scriptCounts.destroy(fop);
+        fop->free_(scriptCounts.pcCountsVector);
     }
 }
 
@@ -1923,7 +1906,8 @@ JSScript::finalize(FreeOp *fop)
 #ifdef JS_METHODJIT
     mjit::ReleaseScriptCode(fop, this);
 # ifdef JS_ION
-    ion::DestroyIonScripts(fop, this);
+    if (hasIonScript())
+        ion::IonScript::Destroy(fop, ion);
 # endif
 #endif
 
@@ -2615,7 +2599,8 @@ JSScript::markChildren(JSTracer *trc)
     }
 
 #ifdef JS_ION
-    ion::TraceIonScripts(trc, this);
+    if (hasIonScript())
+        ion::IonScript::Trace(trc, ion);
 #endif
 }
 

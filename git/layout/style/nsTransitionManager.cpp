@@ -631,7 +631,7 @@ nsTransitionManager::GetElementTransitions(dom::Element *aElement,
  */
 
 void
-nsTransitionManager::WalkTransitionRule(ElementDependentRuleProcessorData* aData,
+nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
                                         nsCSSPseudoElements::Type aPseudoType)
 {
   ElementTransitions *et =
@@ -759,7 +759,7 @@ nsTransitionManager::WillRefresh(mozilla::TimeStamp aTime)
 
       NS_ABORT_IF_FALSE(et->mElement->GetCurrentDoc() ==
                           mPresContext->Document(),
-                        "Element::UnbindFromTree should have "
+                        "nsGenericElement::UnbindFromTree should have "
                         "destroyed the element transitions object");
 
       uint32_t i = et->mPropertyTransitions.Length();

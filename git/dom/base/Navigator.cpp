@@ -605,7 +605,7 @@ public:
     mDocument = do_GetWeakReference(aDocument);
 
     nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aDocument);
-    NS_NAMED_LITERAL_STRING(visibilitychange, "visibilitychange");
+    NS_NAMED_LITERAL_STRING(visibilitychange, "mozvisibilitychange");
     target->AddSystemEventListener(visibilitychange,
                                    this, /* listener */
                                    true, /* use capture */
@@ -639,7 +639,7 @@ VibrateWindowListener::HandleEvent(nsIDOMEvent* aEvent)
 
   bool hidden = true;
   if (doc) {
-    doc->GetHidden(&hidden);
+    doc->GetMozHidden(&hidden);
   }
 
   if (hidden) {
@@ -664,7 +664,7 @@ VibrateWindowListener::RemoveListener()
   if (!target) {
     return;
   }
-  NS_NAMED_LITERAL_STRING(visibilitychange, "visibilitychange");
+  NS_NAMED_LITERAL_STRING(visibilitychange, "mozvisibilitychange");
   target->RemoveSystemEventListener(visibilitychange, this,
                                     true /* use capture */);
 }
@@ -737,7 +737,7 @@ Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
 
   bool hidden = true;
-  domDoc->GetHidden(&hidden);
+  domDoc->GetMozHidden(&hidden);
   if (hidden) {
     // Hidden documents cannot start or stop a vibration.
     return NS_OK;
@@ -787,7 +787,7 @@ Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
   }
 
   // Add a listener to cancel the vibration if the document becomes hidden,
-  // and remove the old visibility listener, if there was one.
+  // and remove the old mozvisibility listener, if there was one.
 
   if (!gVibrateWindowListener) {
     // If gVibrateWindowListener is null, this is the first time we've vibrated,

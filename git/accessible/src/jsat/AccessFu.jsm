@@ -116,7 +116,6 @@ this.AccessFu = {
       mm.sendAsyncMessage('AccessFu:Stop');
 
     Input.detach();
-    this.touchAdapter.detach(this.chromeWin);
 
     this.chromeWin.removeEventListener('TabOpen', this);
     this.chromeWin.removeEventListener('TabSelect', this);

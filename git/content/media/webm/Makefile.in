@@ -16,13 +16,13 @@ LIBXUL_LIBRARY 	= 1
 
 
 EXPORTS		+= \
-		WebMDecoder.h \
+		nsWebMDecoder.h \
 		$(NULL)
 
 CPPSRCS		= \
-		WebMBufferedParser.cpp \
-		WebMDecoder.cpp \
-		WebMReader.cpp \
+		nsWebMBufferedParser.cpp \
+		nsWebMDecoder.cpp \
+		nsWebMReader.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

@@ -40,7 +40,6 @@ using namespace mozilla::net;
 
 nsHttpConnection::nsHttpConnection()
     : mTransaction(nullptr)
-    , mCallbacksLock("nsHttpConnection::mCallbacksLock")
     , mIdleTimeout(0)
     , mConsiderReusedAfterInterval(0)
     , mConsiderReusedAfterEpoch(0)
@@ -78,6 +77,12 @@ nsHttpConnection::~nsHttpConnection()
 {
     LOG(("Destroying nsHttpConnection @%x\n", this));
 
+    if (mCallbacks) {
+        nsIInterfaceRequestor *cbs = nullptr;
+        mCallbacks.swap(cbs);
+        NS_ProxyRelease(mCallbackTarget, cbs);
+    }
+
     // release our reference to the handler
     nsHttpHandler *handler = gHttpHandler;
     NS_RELEASE(handler);
@@ -107,6 +112,7 @@ nsHttpConnection::Init(nsHttpConnectionInfo *info,
                        nsIAsyncInputStream *instream,
                        nsIAsyncOutputStream *outstream,
                        nsIInterfaceRequestor *callbacks,
+                       nsIEventTarget *callbackTarget,
                        PRIntervalTime rtt)
 {
     NS_ABORT_IF_FALSE(transport && instream && outstream,
@@ -133,6 +139,7 @@ nsHttpConnection::Init(nsHttpConnectionInfo *info,
     NS_ENSURE_SUCCESS(rv, rv);
 
     mCallbacks = callbacks;
+    mCallbackTarget = callbackTarget;
     rv = mSocketTransport->SetSecurityCallbacks(this);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -317,8 +324,15 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, uint8_t caps, int32_t pri)
 
     // Update security callbacks
     nsCOMPtr<nsIInterfaceRequestor> callbacks;
-    trans->GetSecurityCallbacks(getter_AddRefs(callbacks));
-    SetSecurityCallbacks(callbacks);
+    nsCOMPtr<nsIEventTarget>        callbackTarget;
+    trans->GetSecurityCallbacks(getter_AddRefs(callbacks),
+                                getter_AddRefs(callbackTarget));
+    if (callbacks != mCallbacks) {
+        mCallbacks.swap(callbacks);
+        if (callbacks)
+            NS_ProxyRelease(mCallbackTarget, callbacks);
+        mCallbackTarget = callbackTarget;
+    }
 
     SetupNPN(caps); // only for spdy
 
@@ -1027,13 +1041,6 @@ nsHttpConnection::GetSecurityInfo(nsISupports **secinfo)
     }
 }
 
-void
-nsHttpConnection::SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks)
-{
-    MutexAutoLock lock(mCallbacksLock);
-    mCallbacks = aCallbacks;
-}
-
 nsresult
 nsHttpConnection::PushBack(const char *data, uint32_t length)
 {
@@ -1147,9 +1154,10 @@ nsHttpConnection::CloseTransaction(nsAHttpTransaction *trans, nsresult reason)
         mTransaction = nullptr;
     }
 
-    {
-        MutexAutoLock lock(mCallbacksLock);
-        mCallbacks = nullptr;
+    if (mCallbacks) {
+        nsIInterfaceRequestor *cbs = nullptr;
+        mCallbacks.swap(cbs);
+        NS_ProxyRelease(mCallbackTarget, cbs);
     }
 
     if (NS_FAILED(reason))
@@ -1578,12 +1586,8 @@ nsHttpConnection::GetInterface(const nsIID &iid, void **result)
 
     NS_ASSERTION(PR_GetCurrentThread() != gSocketThread, "wrong thread");
 
-    nsCOMPtr<nsIInterfaceRequestor> callbacks;
-    {
-        MutexAutoLock lock(mCallbacksLock);
-        callbacks = mCallbacks;
-    }
-    if (callbacks)
-        return callbacks->GetInterface(iid, result);
+    if (mCallbacks)
+        return mCallbacks->GetInterface(iid, result);
     return NS_ERROR_NO_INTERFACE;
 }
+

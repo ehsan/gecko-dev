@@ -31,7 +31,6 @@ namespace dom {
 
 class HTMLPropertiesCollection;
 class PropertyNodeList;
-class Element;
 
 class PropertyStringList : public nsDOMStringList
 {
@@ -62,7 +61,7 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap);
 
-  virtual Element* GetElementAt(uint32_t aIndex);
+  virtual nsGenericElement* GetElementAt(uint32_t aIndex);
 
   NS_IMETHOD NamedItem(const nsAString& aName, nsIDOMNode** aResult);
   void SetDocument(nsIDocument* aDocument);

@@ -630,9 +630,6 @@ AboutReader.prototype = {
 
         aEvent.stopPropagation();
 
-        if (!this._getToolbarVisibility())
-          return;
-
         let dropdownClasses = dropdown.classList;
 
         if (dropdownClasses.contains("open")) {

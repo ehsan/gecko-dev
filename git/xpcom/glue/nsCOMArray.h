@@ -8,7 +8,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "nsCycleCollectionNoteChild.h"
 #include "nsVoidArray.h"
 #include "nsISupports.h"
 
@@ -106,30 +105,7 @@ private:
 
     // don't implement these, defaults will muck with refcounts!
     nsCOMArray_base& operator=(const nsCOMArray_base& other) MOZ_DELETE;
-
-    // needs to call Clear() which is protected
-    friend void ImplCycleCollectionUnlink(nsCOMArray_base& aField);
 };
-
-inline void
-ImplCycleCollectionUnlink(nsCOMArray_base& aField)
-{
-    aField.Clear();
-}
-
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            nsCOMArray_base& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-    aFlags |= CycleCollectionEdgeNameArrayFlag;
-    size_t length = aField.Count();
-    for (size_t i = 0; i < length; ++i) {
-        CycleCollectionNoteChild(aCallback, aField[i], aName, aFlags);
-    }
-}
-
 
 // a non-XPCOM, refcounting array of XPCOM objects
 // used as a member variable or stack variable - this object is NOT
@@ -297,25 +273,5 @@ private:
     nsCOMArray<T>& operator=(const nsCOMArray<T>& other) MOZ_DELETE;
 };
 
-template <typename T>
-inline void
-ImplCycleCollectionUnlink(nsCOMArray<T>& aField)
-{
-    aField.Clear();
-}
-
-template <typename E>
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            nsCOMArray<E>& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-    aFlags |= CycleCollectionEdgeNameArrayFlag;
-    size_t length = aField.Count();
-    for (size_t i = 0; i < length; ++i) {
-        CycleCollectionNoteChild(aCallback, aField[i], aName, aFlags);
-    }
-}
 
 #endif

@@ -229,6 +229,7 @@ public:
   GetUserMediaStreamRunnable(
     already_AddRefed<nsIDOMGetUserMediaSuccessCallback> aSuccess,
     already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError,
+    StreamListeners* aListeners,
     uint64_t aWindowID,
     MediaEngineSource* aAudioSource,
     MediaEngineSource* aVideoSource)
@@ -236,6 +237,7 @@ public:
     , mError(aError)
     , mAudioSource(aAudioSource)
     , mVideoSource(aVideoSource)
+    , mListeners(aListeners)
     , mWindowID(aWindowID) {}
 
   ~GetUserMediaStreamRunnable() {}
@@ -245,29 +247,29 @@ public:
   {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
 
-    // We're on main-thread, and the windowlist can only
-    // be invalidated from the main-thread (see OnNavigation)
-    StreamListeners* listeners = MediaManager::Get()->GetWindowListeners(mWindowID);
-    if (!listeners) {
-      // This window is no longer live.
-      return NS_OK;
-    }
-
     // Create a media stream.
     nsRefPtr<nsDOMLocalMediaStream> stream;
     uint32_t hints = (mAudioSource ? nsDOMMediaStream::HINT_CONTENTS_AUDIO : 0);
     hints |= (mVideoSource ? nsDOMMediaStream::HINT_CONTENTS_VIDEO : 0);
 
     stream = nsDOMLocalMediaStream::CreateSourceStream(hints);
-    if (!stream) {
-      nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
-      LOG(("Returning error for getUserMedia() - no stream"));
-      error->OnError(NS_LITERAL_STRING("NO_STREAM"));
-      return NS_OK;
-    }
 
     nsPIDOMWindow *window = static_cast<nsPIDOMWindow*>
       (nsGlobalWindow::GetInnerWindowWithId(mWindowID));
+    {
+      if (!stream) {
+        if (!(MediaManager::Get()->IsWindowStillActive(mWindowID))) {
+          return NS_OK;
+        }
+        // This is safe since we're on main-thread, and the windowlist can only
+        // be invalidated from the main-thread (see OnNavigation)
+        nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
+        LOG(("Returning error for getUserMedia() - no stream"));
+        error->OnError(NS_LITERAL_STRING("NO_STREAM"));
+        return NS_OK;
+      }
+    }
+
     if (window && window->GetExtantDoc()) {
       stream->CombineWithPrincipal(window->GetExtantDoc()->NodePrincipal());
     }
@@ -285,7 +287,7 @@ public:
     stream->GetStream()->AddListener(listener);
 
     // No need for locking because we always do this in the main thread.
-    listeners->AppendElement(listener);
+    mListeners->AppendElement(listener);
 
     // Dispatch to the media thread to ask it to start the sources,
     // because that can take a while
@@ -314,6 +316,7 @@ private:
   already_AddRefed<nsIDOMGetUserMediaErrorCallback> mError;
   nsRefPtr<MediaEngineSource> mAudioSource;
   nsRefPtr<MediaEngineSource> mVideoSource;
+  StreamListeners* mListeners;
   uint64_t mWindowID;
 };
 
@@ -336,12 +339,14 @@ public:
   GetUserMediaRunnable(bool aAudio, bool aVideo, bool aPicture,
     already_AddRefed<nsIDOMGetUserMediaSuccessCallback> aSuccess,
     already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError,
-    uint64_t aWindowID, MediaDevice* aAudioDevice, MediaDevice* aVideoDevice)
+    StreamListeners* aListeners, uint64_t aWindowID,
+    MediaDevice* aAudioDevice, MediaDevice* aVideoDevice)
     : mAudio(aAudio)
     , mVideo(aVideo)
     , mPicture(aPicture)
     , mSuccess(aSuccess)
     , mError(aError)
+    , mListeners(aListeners)
     , mWindowID(aWindowID)
     , mDeviceChosen(true)
     , mBackendChosen(false)
@@ -357,12 +362,13 @@ public:
   GetUserMediaRunnable(bool aAudio, bool aVideo, bool aPicture,
     already_AddRefed<nsIDOMGetUserMediaSuccessCallback> aSuccess,
     already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError,
-    uint64_t aWindowID)
+    StreamListeners* aListeners, uint64_t aWindowID)
     : mAudio(aAudio)
     , mVideo(aVideo)
     , mPicture(aPicture)
     , mSuccess(aSuccess)
     , mError(aError)
+    , mListeners(aListeners)
     , mWindowID(aWindowID)
     , mDeviceChosen(false)
     , mBackendChosen(false) {}
@@ -374,12 +380,13 @@ public:
   GetUserMediaRunnable(bool aAudio, bool aVideo,
     already_AddRefed<nsIDOMGetUserMediaSuccessCallback> aSuccess,
     already_AddRefed<nsIDOMGetUserMediaErrorCallback> aError,
-    uint64_t aWindowID, MediaEngine* aBackend)
+    StreamListeners* aListeners, uint64_t aWindowID, MediaEngine* aBackend)
     : mAudio(aAudio)
     , mVideo(aVideo)
     , mPicture(false)
     , mSuccess(aSuccess)
     , mError(aError)
+    , mListeners(aListeners)
     , mWindowID(aWindowID)
     , mDeviceChosen(false)
     , mBackendChosen(true)
@@ -564,7 +571,7 @@ public:
     }
 
     NS_DispatchToMainThread(new GetUserMediaStreamRunnable(
-      mSuccess, mError, mWindowID, aAudioSource, aVideoSource
+      mSuccess, mError, mListeners, mWindowID, aAudioSource, aVideoSource
     ));
     return;
   }
@@ -604,6 +611,7 @@ private:
 
   already_AddRefed<nsIDOMGetUserMediaSuccessCallback> mSuccess;
   already_AddRefed<nsIDOMGetUserMediaErrorCallback> mError;
+  StreamListeners* mListeners;
   uint64_t mWindowID;
   nsRefPtr<MediaDevice> mAudioDevice;
   nsRefPtr<MediaDevice> mVideoDevice;
@@ -816,20 +824,22 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
   if (fake) {
     // Fake stream from default backend.
     gUMRunnable = new GetUserMediaRunnable(
-      audio, video, onSuccess.forget(), onError.forget(), windowID,
-      new MediaEngineDefault()
+      audio, video, onSuccess.forget(), onError.forget(), listeners,
+      windowID, new MediaEngineDefault()
                                            );
   } else if (audiodevice || videodevice) {
     // Stream from provided device.
     gUMRunnable = new GetUserMediaRunnable(
-      audio, video, picture, onSuccess.forget(), onError.forget(), windowID,
+      audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
+      windowID,
       static_cast<MediaDevice*>(audiodevice.get()),
       static_cast<MediaDevice*>(videodevice.get())
                                            );
   } else {
     // Stream from default device from WebRTC backend.
     gUMRunnable = new GetUserMediaRunnable(
-      audio, video, picture, onSuccess.forget(), onError.forget(), windowID
+      audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
+      windowID
                                            );
   }
 
@@ -938,7 +948,7 @@ MediaManager::OnNavigation(uint64_t aWindowID)
 
   // This is safe since we're on main-thread, and the windowlist can only
   // be added to from the main-thread (see OnNavigation)
-  StreamListeners* listeners = GetWindowListeners(aWindowID);
+  StreamListeners* listeners = GetActiveWindows()->Get(aWindowID);
   if (!listeners) {
     return;
   }

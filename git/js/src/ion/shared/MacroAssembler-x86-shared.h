@@ -64,6 +64,9 @@ class MacroAssemblerX86Shared : public Assembler
         j(ConditionFromDoubleCondition(cond), label);
     }
 
+    void move32(const Address &address, const Register &dest) {
+        movl(Operand(address), dest);
+    }
     void move32(const Imm32 &imm, const Register &dest) {
         if (imm.value == 0)
             xorl(dest, dest);

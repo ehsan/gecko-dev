@@ -25,13 +25,7 @@ var RIL = {};
 Cu.import("resource://gre/modules/ril_consts.js", RIL);
 
 // set to true to in ril_consts.js to see debug messages
-var DEBUG = RIL.DEBUG_CONTENT_HELPER;
-
-// Read debug setting from pref
-try {
-  let debugPref = Services.prefs.getBoolPref("ril.debugging.enabled");
-  DEBUG = RIL.DEBUG_CONTENT_HELPER || debugPref;
-} catch (e) {};
+const DEBUG = RIL.DEBUG_CONTENT_HELPER;
 
 const RILCONTENTHELPER_CID =
   Components.ID("{472816e1-1fd6-4405-996c-806f9ea68174}");

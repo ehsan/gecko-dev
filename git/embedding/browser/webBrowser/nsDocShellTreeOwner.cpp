@@ -32,7 +32,6 @@
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMElement.h"
 #include "Link.h"
-#include "mozilla/dom/Element.h"
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGTitleElement.h"
 #include "nsIDOMEvent.h"

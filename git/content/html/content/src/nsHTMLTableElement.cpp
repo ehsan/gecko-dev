@@ -28,7 +28,6 @@
 #include "mozilla/dom/HTMLCollectionBinding.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 /* ------------------------------ TableRowsCollection -------------------------------- */
 /**
@@ -45,7 +44,7 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual Element* GetElementAt(uint32_t aIndex);
+  virtual nsGenericElement* GetElementAt(uint32_t aIndex);
   virtual nsINode* GetParentObject()
   {
     return mParent;
@@ -96,10 +95,11 @@ TableRowsCollection::~TableRowsCollection()
 NS_IMPL_CYCLE_COLLECTION_CLASS(TableRowsCollection)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(TableRowsCollection)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mOrphanRows)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOrphanRows)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(TableRowsCollection)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOrphanRows)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mOrphanRows,
+                                                       nsIDOMNodeList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(TableRowsCollection)
@@ -197,7 +197,7 @@ TableRowsCollection::GetLength(uint32_t* aLength)
 // Returns the item at index aIndex if available. If null is returned,
 // then aCount will be set to the number of rows in this row collection.
 // Otherwise, the value of aCount is undefined.
-static Element*
+static nsGenericElement*
 GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
                          uint32_t aIndex, uint32_t* aCount)
 {
@@ -214,12 +214,12 @@ GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
   return nullptr;
 }
 
-Element*
+nsGenericElement*
 TableRowsCollection::GetElementAt(uint32_t aIndex)
 {
   DO_FOR_EACH_ROWGROUP(
     uint32_t count;
-    Element* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
+    nsGenericElement* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
     if (node) {
       return node; 
     }
@@ -343,20 +343,21 @@ nsHTMLTableElement::~nsHTMLTableElement()
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTableElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLTableElement, nsGenericHTMLElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTBodies)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTBodies)
   if (tmp->mRows) {
     tmp->mRows->ParentDestroyed();
   }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRows)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRows)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTableElement,
                                                   nsGenericHTMLElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTBodies)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRows)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTBodies,
+                                                       nsIDOMNodeList)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRows)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLTableElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLTableElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLTableElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLTableElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLTableElement, nsHTMLTableElement)

@@ -15,7 +15,6 @@
 #include "nsRuleData.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 class nsHTMLLIElement : public nsGenericHTMLElement,
                         public nsIDOMHTMLLIElement
@@ -34,7 +33,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLLIElement
   NS_DECL_NSIDOMHTMLLIELEMENT
@@ -64,8 +63,8 @@ nsHTMLLIElement::~nsHTMLLIElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLLIElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLLIElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLLIElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLLIElement, nsGenericElement)
 
 
 DOMCI_NODE_DATA(HTMLLIElement, nsHTMLLIElement)

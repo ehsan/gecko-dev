@@ -22,10 +22,11 @@
 #include "nsIURI.h"
 #include "nsILoadGroup.h"
 #include "imgIContainer.h"
-#include "imgLoader.h"
+#include "imgILoader.h"
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
 #include "nsAsyncDOMEvent.h"
+#include "nsGenericElement.h"
 #include "nsImageFrame.h"
 
 #include "nsIPresShell.h"

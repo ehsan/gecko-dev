@@ -62,7 +62,6 @@ inline void
 ScriptCounts::destroy(FreeOp *fop)
 {
     fop->free_(pcCountsVector);
-    fop->delete_(ionCounts);
 }
 
 inline void

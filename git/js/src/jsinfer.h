@@ -1213,27 +1213,17 @@ typedef HashMap<AllocationSiteKey,ReadBarriered<TypeObject>,AllocationSiteKey,Sy
  */
 struct CompilerOutput
 {
-    enum Kind {
-        MethodJIT,
-        Ion,
-        ParallelIon
-    };
-
     JSScript *script;
-
-    // This integer will always be a member of CompilerOutput::Kind,
-    // but, for portability, bitfields are limited to bool, int, and
-    // unsigned int.  You should really use the accessor below.
-    unsigned kindInt : 2;
+    bool isIonFlag : 1;
     bool constructing : 1;
     bool barriers : 1;
     bool pendingRecompilation : 1;
-    uint32_t chunkIndex:27;
+    uint32_t chunkIndex:28;
 
     CompilerOutput();
 
-    Kind kind() const { return static_cast<Kind>(kindInt); }
-    void setKind(Kind k) { kindInt = k; }
+    bool isJM() const { return !isIonFlag; }
+    bool isIon() const { return isIonFlag; }
 
     mjit::JITScript *mjit() const;
     ion::IonScript *ion() const;

@@ -35,8 +35,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   // nsIDOMHTMLAreaElement
@@ -96,8 +95,8 @@ nsHTMLAreaElement::~nsHTMLAreaElement()
 {
 }
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLAreaElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLAreaElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLAreaElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLAreaElement, nsGenericElement) 
 
 DOMCI_NODE_DATA(HTMLAreaElement, nsHTMLAreaElement)
 

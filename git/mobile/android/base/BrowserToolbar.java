@@ -662,19 +662,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     }
 
     public void setShadowVisibility(boolean visible) {
-        Tab tab = Tabs.getInstance().getSelectedTab();
-        if (tab == null) {
-            return;
-        }
-
-        String url = tab.getURL();
-
-        // Only set shadow to visible when not on about screens.
-        visible &= !(url == null || url.startsWith("about:"));
-
-        if ((mShadow.getVisibility() == View.VISIBLE) != visible) {
-            mShadow.setVisibility(visible ? View.VISIBLE : View.GONE);
-        }
+        mShadow.setVisibility(visible ? View.VISIBLE : View.GONE);
     }
 
     public void setTitle(CharSequence title) {
@@ -697,7 +685,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         if (Tabs.getInstance().getSelectedTab().getState() == Tab.STATE_LOADING)
             return;
 
-        if (image != null && image.getWidth() > 0 && image.getHeight() > 0) {
+        if (image != null) {
             image = Bitmap.createScaledBitmap(image, mFaviconSize, mFaviconSize, false);
             mFavicon.setImageBitmap(image);
         } else {
@@ -779,7 +767,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
             setSecurityMode(tab.getSecurityMode());
             setReaderMode(tab.getReaderEnabled());
-            setShadowVisibility(true);
+            setShadowVisibility((url == null) || !url.startsWith("about:"));
             updateTabCount(Tabs.getInstance().getCount());
             updateBackButton(tab.canDoBack());
             updateForwardButton(tab.canDoForward());

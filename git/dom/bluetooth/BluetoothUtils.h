@@ -9,8 +9,8 @@
 
 #include "BluetoothCommon.h"
 
-struct JSContext;
-struct JSObject;
+class JSContext;
+class JSObject;
 
 BEGIN_BLUETOOTH_NAMESPACE
 

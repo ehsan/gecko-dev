@@ -595,7 +595,6 @@ namespace mjit {
 
 struct InlineFrame;
 struct CallSite;
-struct CompileTrigger;
 
 struct NativeMapEntry {
     size_t          bcOff;  /* bytecode offset in script */
@@ -656,7 +655,6 @@ struct JITChunk
                                            .ncode values may not be NULL. */
     uint32_t        nInlineFrames;
     uint32_t        nCallSites;
-    uint32_t        nCompileTriggers;
     uint32_t        nRootedTemplates;
     uint32_t        nRootedRegExps;
     uint32_t        nMonitoredBytecodes;
@@ -687,7 +685,6 @@ struct JITChunk
     NativeMapEntry *nmap() const;
     js::mjit::InlineFrame *inlineFrames() const;
     js::mjit::CallSite *callSites() const;
-    js::mjit::CompileTrigger *compileTriggers() const;
     JSObject **rootedTemplates() const;
     RegExpShared **rootedRegExps() const;
 
@@ -934,11 +931,9 @@ ReleaseScriptCode(FreeOp *fop, JSScript *script)
     script->destroyMJITInfo(fop);
 }
 
-// Cripple any JIT code for the specified script, such that the next time
-// execution reaches the script's entry or the OSR PC the script's code will
-// be destroyed.
+/* Can be called at any time. */
 void
-DisableScriptCodeForIon(JSScript *script, jsbytecode *osrPC);
+ReleaseScriptCodeFromVM(JSContext *cx, JSScript *script);
 
 // Expand all stack frames inlined by the JIT within a compartment.
 void
@@ -978,25 +973,6 @@ struct CallSite
 
     bool isTrap() const {
         return rejoin == REJOIN_TRAP;
-    }
-};
-
-// Information about a check inserted into the script for triggering Ion
-// compilation at a function or loop entry point.
-struct CompileTrigger
-{
-    uint32_t pcOffset;
-
-    // Offsets into the generated code of the conditional jump in the inline
-    // path and the start of the sync code for the trigger call in the out of
-    // line path.
-    JSC::CodeLocationJump inlineJump;
-    JSC::CodeLocationLabel stubLabel;
-
-    void initialize(uint32_t pcOffset, JSC::CodeLocationJump inlineJump, JSC::CodeLocationLabel stubLabel) {
-        this->pcOffset = pcOffset;
-        this->inlineJump = inlineJump;
-        this->stubLabel = stubLabel;
     }
 };
 

@@ -41,7 +41,7 @@
 #include "nsFocusManager.h"
 #include "nsFrameManager.h"
 #include "nsFrameSelection.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsIAnonymousContentCreator.h"
@@ -1172,7 +1172,7 @@ nsINode::Traverse(nsINode *tmp, nsCycleCollectionTraversalCallback &cb)
     }
   }
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNodeInfo)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(GetParent())
 
   nsSlots *slots = tmp->GetExistingSlots();
@@ -1577,7 +1577,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
     // If we're inserting a fragment, fire for all the children of the
     // fragment
     if (nodeType == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
-      static_cast<FragmentOrElement*>(aNewChild)->FireNodeRemovedForChildren();
+      static_cast<nsGenericElement*>(aNewChild)->FireNodeRemovedForChildren();
     }
     // Verify that our aRefChild is still sensible
     if (aRefChild && aRefChild->GetParentNode() != this) {
@@ -1893,7 +1893,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
       // Optimize for the case when there are no listeners
       if (nsContentUtils::
             HasMutationListeners(doc, NS_EVENT_BITS_MUTATION_NODEINSERTED)) {
-        Element::FireNodeInserted(doc, this, fragChildren.ref());
+        nsGenericElement::FireNodeInserted(doc, this, fragChildren.ref());
       }
     }
   }
@@ -2272,12 +2272,12 @@ struct ElementHolder {
   ElementHolder() : mElement(nullptr) {}
   void AppendElement(Element* aElement) {
     NS_ABORT_IF_FALSE(!mElement, "Should only get one element");
-    mElement = aElement;
+    mElement = static_cast<nsGenericElement*>(aElement);
   }
-  Element* mElement;
+  nsGenericElement* mElement;
 };
 
-Element*
+nsGenericElement*
 nsINode::QuerySelector(const nsAString& aSelector, ErrorResult& aResult)
 {
   ElementHolder holder;
@@ -2332,10 +2332,10 @@ nsINode::IsSupported(const nsAString& aFeature, const nsAString& aVersion)
   return nsContentUtils::InternalIsSupported(this, aFeature, aVersion);
 }
 
-Element*
+nsGenericElement*
 nsINode::GetParentElement() const
 {
-  return GetElementParent();
+  return static_cast<nsGenericElement*>(GetElementParent());
 }
 
 already_AddRefed<nsINode>
@@ -2356,7 +2356,7 @@ nsINode::GetAttributes()
   if (!IsElement()) {
     return nullptr;
   }
-  return AsElement()->GetAttributes();
+  return static_cast<nsGenericElement*>(nsINode::AsElement())->GetAttributes();
 }
 
 nsresult

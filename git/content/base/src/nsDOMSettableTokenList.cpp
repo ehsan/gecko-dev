@@ -8,10 +8,10 @@
 
 #include "nsDOMSettableTokenList.h"
 #include "mozilla/dom/DOMSettableTokenListBinding.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 
 
-nsDOMSettableTokenList::nsDOMSettableTokenList(Element *aElement, nsIAtom* aAttrAtom)
+nsDOMSettableTokenList::nsDOMSettableTokenList(nsGenericElement *aElement, nsIAtom* aAttrAtom)
   : nsDOMTokenList(aElement, aAttrAtom)
 {
 }

@@ -16,36 +16,29 @@
 
 namespace mozilla {
 class ErrorResult;
-
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
-
+}
 class nsAttrValue;
+class nsGenericElement;
 class nsIAtom;
 
 // nsISupports must be on the primary inheritance chain 
-// because nsDOMSettableTokenList is traversed by Element.
+// because nsDOMSettableTokenList is traversed by nsGenericElement.
 class nsDOMTokenList : public nsIDOMDOMTokenList,
                        public nsWrapperCache
 {
-protected:
-  typedef mozilla::dom::Element Element;
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMTokenList)
   NS_DECL_NSIDOMDOMTOKENLIST
 
-  nsDOMTokenList(Element* aElement, nsIAtom* aAttrAtom);
+  nsDOMTokenList(nsGenericElement* aElement, nsIAtom* aAttrAtom);
 
   void DropReference();
 
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap);
 
-  Element* GetParentObject()
+  nsGenericElement* GetParentObject()
   {
     return mElement;
   }
@@ -74,7 +67,7 @@ protected:
   void RemoveInternal(const nsAttrValue* aAttr, const nsAString& aToken);
   inline const nsAttrValue* GetParsedAttr();
 
-  Element* mElement;
+  nsGenericElement* mElement;
   nsCOMPtr<nsIAtom> mAttrAtom;
 };
 

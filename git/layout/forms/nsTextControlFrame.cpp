@@ -22,7 +22,6 @@
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
 #include "nsTextFragment.h"
-#include "nsIEditorObserver.h"
 #include "nsEditProperty.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsINameSpaceManager.h"
@@ -1405,7 +1404,7 @@ nsTextControlFrame::GetOwnedFrameSelection()
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::SaveState(nsPresState** aState)
+nsTextControlFrame::SaveState(nsIStatefulFrame::SpecialStateID aStateID, nsPresState** aState)
 {
   NS_ENSURE_ARG_POINTER(aState);
 
@@ -1419,7 +1418,7 @@ nsTextControlFrame::SaveState(nsPresState** aState)
     // Query the nsIStatefulFrame from the HTMLScrollFrame
     nsIStatefulFrame* scrollStateFrame = do_QueryFrame(rootNode->GetPrimaryFrame());
     if (scrollStateFrame) {
-      return scrollStateFrame->SaveState(aState);
+      return scrollStateFrame->SaveState(aStateID, aState);
     }
   }
 

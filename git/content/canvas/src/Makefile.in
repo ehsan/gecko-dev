@@ -19,7 +19,6 @@ LIBXUL_LIBRARY  = 1
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
-	CanvasUtils.h \
 	CanvasRenderingContext2D.h \
   ImageData.h \
   $(NULL)

@@ -17,7 +17,7 @@
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/Util.h"
 
-struct JSContext;
+class JSContext;
 class nsIDOMWindow;
 
 namespace mozilla {

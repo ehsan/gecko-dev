@@ -51,8 +51,6 @@ let sandbox;
 let asyncTestRunning = false;
 let asyncTestCommandId;
 let asyncTestTimeoutId;
-//timer for doc changes
-let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
 
 /**
  * Called when listener is first started up. 
@@ -187,9 +185,6 @@ function deleteSession(msg) {
   removeMessageListenerId("Marionette:getAppCacheStatus", getAppCacheStatus);
   removeMessageListenerId("Marionette:setTestName", setTestName);
   this.elementManager.reset();
-  // reset frame to the top-most frame
-  curWindow = content;
-  curWindow.focus();
   try {
     importedScripts.remove(false);
   }
@@ -246,7 +241,7 @@ function sendError(message, status, trace, command_id) {
 function resetValues() {
   sandbox = null;
   marionetteTimeout = null;
-  curWindow = content;
+  curWin = content;
 }
 
 /**
@@ -802,18 +797,6 @@ function clearElement(msg) {
  * its index in window.frames, or the iframe's name or id.
  */
 function switchToFrame(msg) {
-  function checkLoad() { 
-    let errorRegex = /about:.+(error)|(blocked)\?/;
-    if (curWindow.document.readyState == "complete") {
-      sendOk();
-      return;
-    } 
-    else if (curWindow.document.readyState == "interactive" && errorRegex.exec(curWindow.document.baseURI)) {
-      sendError("Error loading page", 13, null);
-      return;
-    }
-    checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
-  }
   let foundFrame = null;
   let frames = curWindow.document.getElementsByTagName("iframe");
   //Until Bug 761935 lands, we won't have multiple nested OOP iframes. We will only have one.
@@ -823,7 +806,7 @@ function switchToFrame(msg) {
   if ((msg.json.value == null) && (msg.json.element == null)) {
     curWindow = content;
     curWindow.focus();
-    checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
+    sendOk();
     return;
   }
   if (msg.json.element != undefined) {
@@ -882,7 +865,7 @@ function switchToFrame(msg) {
   else {
     curWindow = curWindow.contentWindow;
     curWindow.focus();
-    checkTimer.initWithCallback(checkLoad, 100, Ci.nsITimer.TYPE_ONE_SHOT);
+    sendOk();
   }
 }
 

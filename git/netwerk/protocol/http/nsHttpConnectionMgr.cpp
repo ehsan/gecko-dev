@@ -313,19 +313,15 @@ nsHttpConnectionMgr::ClosePersistentConnections()
 
 nsresult
 nsHttpConnectionMgr::SpeculativeConnect(nsHttpConnectionInfo *ci,
-                                        nsIInterfaceRequestor *callbacks)
+                                        nsIInterfaceRequestor *callbacks,
+                                        nsIEventTarget *target)
 {
     LOG(("nsHttpConnectionMgr::SpeculativeConnect [ci=%s]\n",
          ci->HashKey().get()));
 
-    // Wrap up the callbacks and the target to ensure they're released on the target
-    // thread properly.
-    nsCOMPtr<nsIInterfaceRequestor> wrappedCallbacks;
-    NS_NewInterfaceRequestorAggregation(callbacks, nullptr, getter_AddRefs(wrappedCallbacks));
-
     uint8_t caps = ci->GetAnonymous() ? NS_HTTP_LOAD_ANONYMOUS : 0;
     nsRefPtr<NullHttpTransaction> trans =
-        new NullHttpTransaction(ci, wrappedCallbacks, caps);
+        new NullHttpTransaction(ci, callbacks, target, caps);
 
     nsresult rv =
         PostEvent(&nsHttpConnectionMgr::OnMsgSpeculativeConnect, 0, trans);
@@ -2457,9 +2453,6 @@ nsHalfOpenSocket::SetupStreams(nsISocketTransport **transport,
     if (mCaps & NS_HTTP_LOAD_ANONYMOUS)
         tmpFlags |= nsISocketTransport::ANONYMOUS_CONNECT;
 
-    if (mEnt->mConnInfo->GetPrivate())
-        tmpFlags |= nsISocketTransport::NO_PERMANENT_STORAGE;
-
     // For backup connections, we disable IPv6. That's because some users have
     // broken IPv6 connectivity (leading to very long timeouts), and disabling
     // IPv6 on the backup connection gives them a much better user experience
@@ -2659,13 +2652,15 @@ nsHalfOpenSocket::OnOutputStreamReady(nsIAsyncOutputStream *out)
          "Created new nshttpconnection %p\n", conn.get()));
 
     nsCOMPtr<nsIInterfaceRequestor> callbacks;
-    mTransaction->GetSecurityCallbacks(getter_AddRefs(callbacks));
+    nsCOMPtr<nsIEventTarget>        callbackTarget;
+    mTransaction->GetSecurityCallbacks(getter_AddRefs(callbacks),
+                                       getter_AddRefs(callbackTarget));
     if (out == mStreamOut) {
         TimeDuration rtt = TimeStamp::Now() - mPrimarySynStarted;
         rv = conn->Init(mEnt->mConnInfo,
                         gHttpHandler->ConnMgr()->mMaxRequestDelay,
                         mSocketTransport, mStreamIn, mStreamOut,
-                        callbacks,
+                        callbacks, callbackTarget,
                         PR_MillisecondsToInterval(rtt.ToMilliseconds()));
 
         // The nsHttpConnection object now owns these streams and sockets
@@ -2678,7 +2673,7 @@ nsHalfOpenSocket::OnOutputStreamReady(nsIAsyncOutputStream *out)
         rv = conn->Init(mEnt->mConnInfo,
                         gHttpHandler->ConnMgr()->mMaxRequestDelay,
                         mBackupTransport, mBackupStreamIn, mBackupStreamOut,
-                        callbacks,
+                        callbacks, callbackTarget,
                         PR_MillisecondsToInterval(rtt.ToMilliseconds()));
 
         // The nsHttpConnection object now owns these streams and sockets
@@ -2735,7 +2730,7 @@ nsHalfOpenSocket::OnOutputStreamReady(nsIAsyncOutputStream *out)
                  "be used to finish SSL handshake on conn %p\n", conn.get()));
             nsRefPtr<NullHttpTransaction>  trans =
                 new NullHttpTransaction(mEnt->mConnInfo,
-                                        callbacks,
+                                        callbacks, callbackTarget,
                                         mCaps & ~NS_HTTP_ALLOW_PIPELINING);
 
             gHttpHandler->ConnMgr()->AddActiveConn(conn, mEnt);
@@ -2841,7 +2836,7 @@ nsHttpConnectionMgr::nsHalfOpenSocket::GetInterface(const nsIID &iid,
 {
     if (mTransaction) {
         nsCOMPtr<nsIInterfaceRequestor> callbacks;
-        mTransaction->GetSecurityCallbacks(getter_AddRefs(callbacks));
+        mTransaction->GetSecurityCallbacks(getter_AddRefs(callbacks), nullptr);
         if (callbacks)
             return callbacks->GetInterface(iid, result);
     }

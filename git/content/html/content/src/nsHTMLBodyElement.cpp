@@ -27,7 +27,6 @@
 //----------------------------------------------------------------------
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 class nsHTMLBodyElement;
 
@@ -53,8 +52,8 @@ class nsHTMLBodyElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLBodyElement
 {
 public:
-  using Element::GetText;
-  using Element::SetText;
+  using nsGenericElement::GetText;
+  using nsGenericElement::SetText;
 
   nsHTMLBodyElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLBodyElement();
@@ -69,7 +68,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLBodyElement
   NS_DECL_NSIDOMHTMLBODYELEMENT
@@ -280,8 +279,8 @@ nsHTMLBodyElement::~nsHTMLBodyElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLBodyElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLBodyElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLBodyElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLBodyElement, nsGenericElement) 
 
 DOMCI_NODE_DATA(HTMLBodyElement, nsHTMLBodyElement)
 

@@ -4480,9 +4480,9 @@ nsMemoryImpl::Alloc(unsigned int)
 nsMemory::Alloc(unsigned int)
 nsConsoleService::nsConsoleService(void)
 
-<mozilla::dom::Element>
+<nsGenericElement>
 __builtin_new
-mozilla::dom::Element::GetDOMSlots(void)
+nsGenericElement::GetDOMSlots(void)
 
 <HTMLAttribute>
 __builtin_new

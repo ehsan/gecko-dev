@@ -16,7 +16,7 @@
 using namespace js;
 using namespace js::ion;
 
-CodeGeneratorX64::CodeGeneratorX64(MIRGenerator *gen, LIRGraph *graph)
+CodeGeneratorX64::CodeGeneratorX64(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorX86Shared(gen, graph)
 {
 }
@@ -51,12 +51,6 @@ FrameSizeClass
 FrameSizeClass::FromDepth(uint32 frameDepth)
 {
     return FrameSizeClass::None();
-}
-
-FrameSizeClass
-FrameSizeClass::ClassLimit()
-{
-    return FrameSizeClass(0);
 }
 
 uint32
@@ -299,13 +293,13 @@ CodeGeneratorX64::visitRecompileCheck(LRecompileCheck *lir)
     return true;
 }
 
-typedef bool (*InterruptCheckFn)(JSContext *);
-static const VMFunction InterruptCheckInfo = FunctionInfo<InterruptCheckFn>(InterruptCheck);
-
 bool
 CodeGeneratorX64::visitInterruptCheck(LInterruptCheck *lir)
 {
-    OutOfLineCode *ool = oolCallVM(InterruptCheckInfo, lir, (ArgList()), StoreNothing());
+    typedef bool (*pf)(JSContext *);
+    static const VMFunction interruptCheckInfo = FunctionInfo<pf>(InterruptCheck);
+
+    OutOfLineCode *ool = oolCallVM(interruptCheckInfo, lir, (ArgList()), StoreNothing());
     if (!ool)
         return false;
 

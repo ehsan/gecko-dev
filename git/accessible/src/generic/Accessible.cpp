@@ -98,8 +98,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(Accessible, nsAccessNode)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Accessible, nsAccessNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mParent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChildren)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mChildren)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(Accessible, nsAccessNode)
@@ -621,17 +621,11 @@ Accessible::VisibilityState()
     if (view && view->GetVisibility() == nsViewVisibility_kHide)
       return states::INVISIBLE;
 
-    // Offscreen state for background tab content and invisible for not selected
-    // deck panel.
+    // Offscreen state for background tab content.
     nsIFrame* parentFrame = curFrame->GetParent();
     nsDeckFrame* deckFrame = do_QueryFrame(parentFrame);
-    if (deckFrame && deckFrame->GetSelectedBox() != curFrame) {
-      if (deckFrame->GetContent()->IsXUL() &&
-          deckFrame->GetContent()->Tag() == nsGkAtoms::tabpanels)
-        return states::OFFSCREEN;
-
-      return states::INVISIBLE;
-    }
+    if (deckFrame && deckFrame->GetSelectedBox() != curFrame)
+      return states::OFFSCREEN;
 
     // If contained by scrollable frame then check that at least 12 pixels
     // around the object is visible, otherwise the object is offscreen.

@@ -290,7 +290,7 @@ var PlacesCommandHook = {
                                                     title, null, [descAnno]);
       PlacesUtils.transactionManager.doTransaction(txn);
       // Set the character-set
-      if (charset && !PrivateBrowsingUtils.isWindowPrivate(aBrowser.contentWindow))
+      if (charset)
         PlacesUtils.history.setCharsetForURI(uri, charset);
       itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
     }
@@ -685,8 +685,7 @@ HistoryMenu.prototype = {
   _onCommand: function HM__onCommand(aEvent) {
     let placesNode = aEvent.target._placesNode;
     if (placesNode) {
-      if (!PrivateBrowsingUtils.isWindowPrivate(window))
-        PlacesUIUtils.markPageAsTyped(placesNode.uri);
+      PlacesUIUtils.markPageAsTyped(placesNode.uri);
       openUILink(placesNode.uri, aEvent, { ignoreAlt: true });
     }
   }

@@ -391,7 +391,7 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState& aReflowState,
     nscoord yMost = y - backupContainingBlockAdvance + mMetrics.height;
     if (yMost > mSpace.YMost()) {
       // didn't fit, we must acquit.
-      mFrame->DidReflow(mPresContext, &aReflowState, nsDidReflowStatus::FINISHED);
+      mFrame->DidReflow(mPresContext, &aReflowState, NS_FRAME_REFLOW_FINISHED);
       return false;
     }
   }

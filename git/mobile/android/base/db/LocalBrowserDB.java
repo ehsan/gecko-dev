@@ -458,23 +458,18 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     }
 
     public boolean isReadingListItem(ContentResolver cr, String uri) {
-        int count = 0;
-        try {
-            Cursor c = cr.query(mBookmarksUriWithProfile,
-                                new String[] { Bookmarks._ID },
-                                Bookmarks.URL + " = ? AND " +
-                                Bookmarks.PARENT + " == ?",
-                                new String[] { uri,
-                                               String.valueOf(Bookmarks.FIXED_READING_LIST_ID) },
-                                Bookmarks.URL);
+        Cursor cursor = cr.query(mBookmarksUriWithProfile,
+                                 new String[] { Bookmarks._ID },
+                                 Bookmarks.URL + " = ? AND " +
+                                 Bookmarks.PARENT + " == ?",
+                                 new String[] { uri,
+                                                String.valueOf(Bookmarks.FIXED_READING_LIST_ID) },
+                                 Bookmarks.URL);
 
-            count = c.getCount();
-            c.close();
-        } catch (NullPointerException e) {
-            Log.e(LOGTAG, "NullPointerException in isReadingListItem");
-        }
+        int count = cursor.getCount();
+        cursor.close();
 
-        return (count > 0);
+        return (count == 1);
     }
 
     public String getUrlForKeyword(ContentResolver cr, String keyword) {

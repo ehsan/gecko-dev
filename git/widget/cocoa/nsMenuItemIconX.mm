@@ -7,19 +7,8 @@
  * Retrieves and displays icons in native menu items on Mac OS X.
  */
 
-/* exception_defines.h defines 'try' to 'if (true)' which breaks objective-c
-   exceptions and produces errors like: error: unexpected '@' in program'.
-   If we define __EXCEPTIONS exception_defines.h will avoid doing this.
-
-   See bug 666609 for more information.
-
-   We use <limits> to get the libstdc++ version. */
-#include <limits>
-#if __GLIBCXX__ <= 20070719
-#define __EXCEPTIONS
-#endif
-
 #include "nsMenuItemIconX.h"
+
 #include "nsObjCExceptions.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -33,7 +22,7 @@
 #include "nsThreadUtils.h"
 #include "nsToolkit.h"
 #include "nsNetUtil.h"
-#include "imgLoader.h"
+#include "imgILoader.h"
 #include "imgIRequest.h"
 #include "nsMenuItemX.h"
 #include "gfxImageSurface.h"
@@ -289,7 +278,7 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
   nsCOMPtr<nsILoadGroup> loadGroup = document->GetDocumentLoadGroup();
   if (!loadGroup) return NS_ERROR_FAILURE;
 
-  nsRefPtr<imgLoader> loader = nsContentUtils::GetImgLoaderForDocument(document);
+  nsCOMPtr<imgILoader> loader = nsContentUtils::GetImgLoaderForDocument(document);
   if (!loader) return NS_ERROR_FAILURE;
 
   if (!mSetIcon) {

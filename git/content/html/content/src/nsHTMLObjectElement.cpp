@@ -49,8 +49,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   // nsIDOMHTMLObjectElement
@@ -101,7 +100,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(Element* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest);
 
   void StartObjectLoad() { StartObjectLoad(true); }
 
@@ -178,8 +177,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLObjectElement,
   nsObjectLoadingContent::Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLObjectElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLObjectElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLObjectElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLObjectElement, nsGenericElement) 
 
 DOMCI_NODE_DATA(HTMLObjectElement, nsHTMLObjectElement)
 
@@ -309,9 +308,8 @@ nsHTMLObjectElement::IsFocusableForTabIndex()
     return false;
   }
 
-  return IsEditableRoot() ||
-         (Type() == eType_Document &&
-          nsContentUtils::IsSubDocumentTabbable(this));
+  return IsEditableRoot() || (Type() == eType_Document &&
+                              nsContentUtils::IsSubDocumentTabbable(this));
 }
 
 bool
@@ -538,7 +536,7 @@ nsHTMLObjectElement::DestroyContent()
 }
 
 nsresult
-nsHTMLObjectElement::CopyInnerTo(Element* aDest)
+nsHTMLObjectElement::CopyInnerTo(nsGenericElement* aDest)
 {
   nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);

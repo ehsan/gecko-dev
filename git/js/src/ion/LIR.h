@@ -1144,9 +1144,6 @@ class LIRGraph
     uint32 argumentSlotCount() const {
         return argumentSlotCount_;
     }
-    uint32 totalSlotCount() const {
-        return localSlotCount() + (argumentSlotCount() * sizeof(Value) / STACK_SLOT_SIZE);
-    }
     bool addConstantToPool(const Value &v, uint32 *index);
     size_t numConstants() const {
         return constantPool_.length();

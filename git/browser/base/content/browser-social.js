@@ -12,7 +12,6 @@ let SocialUI = {
     Services.obs.addObserver(this, "social:pref-changed", false);
     Services.obs.addObserver(this, "social:ambient-notification-changed", false);
     Services.obs.addObserver(this, "social:profile-changed", false);
-    Services.obs.addObserver(this, "social:recommend-info-changed", false);
     Services.obs.addObserver(this, "social:frameworker-error", false);
 
     Services.prefs.addObserver("social.sidebar.open", this, false);
@@ -34,7 +33,6 @@ let SocialUI = {
     Services.obs.removeObserver(this, "social:pref-changed");
     Services.obs.removeObserver(this, "social:ambient-notification-changed");
     Services.obs.removeObserver(this, "social:profile-changed");
-    Services.obs.removeObserver(this, "social:recommend-info-changed");
     Services.obs.removeObserver(this, "social:frameworker-error");
 
     Services.prefs.removeObserver("social.sidebar.open", this);
@@ -76,9 +74,6 @@ let SocialUI = {
         SocialShareButton.updateProfileInfo();
         SocialChatBar.update();
         break;
-      case "social:recommend-info-changed":
-        SocialShareButton.updateShareState();
-        break;
       case "social:frameworker-error":
         if (Social.provider) {
           Social.errorState = "frameworker-error";
@@ -105,9 +100,22 @@ let SocialUI = {
 
     this.updateToggleCommand();
 
-    // The View->Sidebar and Menubar->Tools menu.
-    for (let id of ["menu_socialSidebar", "menu_socialAmbientMenu"])
-      document.getElementById(id).setAttribute("label", Social.provider.name);
+    let toggleCommand = this.toggleCommand;
+    let brandShortName = document.getElementById("bundle_brand").getString("brandShortName");
+    let label = gNavigatorBundle.getFormattedString("social.toggle.label",
+                                                    [Social.provider.name,
+                                                     brandShortName]);
+    let accesskey = gNavigatorBundle.getString("social.toggle.accesskey");
+    toggleCommand.setAttribute("label", label);
+    toggleCommand.setAttribute("accesskey", accesskey);
+
+    let kbMenuitem = document.getElementById("menu_socialAmbientMenu");
+    kbMenuitem.hidden = !Social.enabled;
+    kbMenuitem.setAttribute("label", label);
+    kbMenuitem.setAttribute("accesskey", accesskey);
+
+    // The View->Sidebar menu.
+    document.getElementById("menu_socialSidebar").setAttribute("label", Social.provider.name);
 
     SocialToolbar.init();
     SocialShareButton.init();
@@ -116,17 +124,9 @@ let SocialUI = {
   },
 
   updateToggleCommand: function SocialUI_updateToggleCommand() {
-    if (!Social.provider)
-      return;
-
     let toggleCommand = this.toggleCommand;
     // We only need to update the command itself - all our menu items use it.
-    let enabled = Services.prefs.getBoolPref("social.enabled");
-    let label = gNavigatorBundle.getFormattedString(enabled ? "social.turnOff.label" : "social.turnOn.label",
-                                                    [Social.provider.name]);
-    let accesskey = gNavigatorBundle.getString(enabled ? "social.turnOff.accesskey" : "social.turnOn.accesskey");
-    toggleCommand.setAttribute("label", label);
-    toggleCommand.setAttribute("accesskey", accesskey);
+    toggleCommand.setAttribute("checked", Services.prefs.getBoolPref("social.enabled"));
     toggleCommand.setAttribute("hidden", Social.active ? "false" : "true");
   },
 
@@ -254,10 +254,8 @@ let SocialChatBar = {
     }
   },
   focus: function SocialChatBar_focus() {
-    if (!this.chatbar.selectedChat)
-      return;
     let commandDispatcher = gBrowser.ownerDocument.commandDispatcher;
-    commandDispatcher.advanceFocusIntoSubtree(this.chatbar.selectedChat);
+    commandDispatcher.advanceFocusIntoSubtree(this.chatbar);
   }
 }
 
@@ -455,6 +453,12 @@ let SocialFlyout = {
 }
 
 let SocialShareButton = {
+  // promptImages and promptMessages being null means we are yet to get the
+  // message back from the provider with the images and icons (or that we got
+  // the response but determined it was invalid.)
+  promptImages: null,
+  promptMessages: null,
+
   // Called once, after window load, when the Social.provider object is initialized
   init: function SSB_init() {
     this.updateButtonHiddenState();
@@ -464,6 +468,8 @@ let SocialShareButton = {
   updateProfileInfo: function SSB_updateProfileInfo() {
     let profileRow = document.getElementById("unsharePopupHeader");
     let profile = Social.provider.profile;
+    this.promptImages = null;
+    this.promptMessages = null;
     if (profile && profile.displayName) {
       profileRow.hidden = false;
       let portrait = document.getElementById("socialUserPortrait");
@@ -475,7 +481,63 @@ let SocialShareButton = {
       this.updateButtonHiddenState();
       return;
     }
-    this.updateShareState();
+    // XXX - this shouldn't be done as part of updateProfileInfo, but instead
+    // whenever we notice the provider has changed - but the concept of
+    // "provider changed" will only exist once bug 774520 lands. 
+    // get the recommend-prompt info.
+    let port = Social.provider.getWorkerPort();
+    if (port) {
+      port.onmessage = function(evt) {
+        if (evt.data.topic == "social.user-recommend-prompt-response") {
+          port.close();
+          this.acceptRecommendInfo(evt.data.data);
+          this.updateButtonHiddenState();
+          this.updateShareState();
+        }
+      }.bind(this);
+      port.postMessage({topic: "social.user-recommend-prompt"});
+    }
+  },
+
+  acceptRecommendInfo: function SSB_acceptRecommendInfo(data) {
+    // Accept *and validate* the user-recommend-prompt-response message.
+    let promptImages = {};
+    let promptMessages = {};
+    function reportError(reason) {
+      Cu.reportError("Invalid recommend data from provider: " + reason + ": sharing is disabled for this provider");
+      return false;
+    }
+    if (!data ||
+        !data.images || typeof data.images != "object" ||
+        !data.messages || typeof data.messages != "object") {
+      return reportError("data is missing valid 'images' or 'messages' elements");
+    }
+    for (let sub of ["share", "unshare"]) {
+      let url = data.images[sub];
+      if (!url || typeof url != "string" || url.length == 0) {
+        return reportError('images["' + sub + '"] is missing or not a non-empty string');
+      }
+      // resolve potentially relative URLs then check the scheme is acceptable.
+      url = Services.io.newURI(Social.provider.origin, null, null).resolve(url);
+      let uri = Services.io.newURI(url, null, null);
+      if (!uri.schemeIs("http") && !uri.schemeIs("https") && !uri.schemeIs("data")) {
+        return reportError('images["' + sub + '"] does not have a valid scheme');
+      }
+      promptImages[sub] = url;
+    }
+    for (let sub of ["shareTooltip", "unshareTooltip",
+                     "sharedLabel", "unsharedLabel", "unshareLabel",
+                     "portraitLabel", 
+                     "unshareConfirmLabel", "unshareConfirmAccessKey",
+                     "unshareCancelLabel", "unshareCancelAccessKey"]) {
+      if (typeof data.messages[sub] != "string" || data.messages[sub].length == 0) {
+        return reportError('messages["' + sub + '"] is not a valid string');
+      }
+      promptMessages[sub] = data.messages[sub];
+    }
+    this.promptImages = promptImages;
+    this.promptMessages = promptMessages;
+    return true;
   },
 
   get shareButton() {
@@ -497,7 +559,7 @@ let SocialShareButton = {
   updateButtonHiddenState: function SSB_updateButtonHiddenState() {
     let shareButton = this.shareButton;
     if (shareButton)
-      shareButton.hidden = !Social.uiVisible || Social.provider.recommendInfo == null ||
+      shareButton.hidden = !Social.uiVisible || this.promptImages == null ||
                            !SocialUI.haveLoggedInUser() ||
                            !this.canSharePage(gBrowser.currentURI);
   },
@@ -521,17 +583,16 @@ let SocialShareButton = {
     }
     let continueSharingButton = document.getElementById("unsharePopupContinueSharingButton");
     continueSharingButton.focus();
-    let recommendInfo = Social.provider.recommendInfo;
     updateElement("unsharePopupContinueSharingButton",
-                  {label: recommendInfo.messages.unshareCancelLabel,
-                   accesskey: recommendInfo.messages.unshareCancelAccessKey});
+                  {label: this.promptMessages.unshareCancelLabel,
+                   accesskey: this.promptMessages.unshareCancelAccessKey});
     updateElement("unsharePopupStopSharingButton",
-                  {label: recommendInfo.messages.unshareConfirmLabel,
-                  accesskey: recommendInfo.messages.unshareConfirmAccessKey});
+                  {label: this.promptMessages.unshareConfirmLabel,
+                  accesskey: this.promptMessages.unshareConfirmAccessKey});
     updateElement("socialUserPortrait",
-                  {"aria-label": recommendInfo.messages.portraitLabel});
+                  {"aria-label": this.promptMessages.portraitLabel});
     updateElement("socialUserRecommendedText",
-                  {value: recommendInfo.messages.unshareLabel});
+                  {value: this.promptMessages.unshareLabel});
   },
 
   sharePage: function SSB_sharePage() {
@@ -560,7 +621,6 @@ let SocialShareButton = {
     let shareButton = this.shareButton;
     let currentPageShared = shareButton && !shareButton.hidden && Social.isPageShared(gBrowser.currentURI);
 
-    let recommendInfo = Social.provider ? Social.provider.recommendInfo : null;
     // Provide a11y-friendly notification of share.
     let status = document.getElementById("share-button-status");
     if (status) {
@@ -568,10 +628,10 @@ let SocialShareButton = {
       // unshared (ie, it needs to manage three-states: (1) nothing done, (2)
       // shared, (3) shared then unshared)
       // Note that we *do* have an appropriate string from the provider for
-      // this (recommendInfo.messages.unsharedLabel) but currently lack a way of
+      // this (promptMessages['unsharedLabel'] but currently lack a way of
       // tracking this state)
-      let statusString = currentPageShared && recommendInfo ?
-                           recommendInfo.messages.sharedLabel : "";
+      let statusString = currentPageShared ?
+                           this.promptMessages['sharedLabel'] : "";
       status.setAttribute("value", statusString);
     }
 
@@ -582,12 +642,12 @@ let SocialShareButton = {
     let imageURL;
     if (currentPageShared) {
       shareButton.setAttribute("shared", "true");
-      shareButton.setAttribute("tooltiptext", recommendInfo.messages.unshareTooltip);
-      imageURL = recommendInfo.images.unshare;
+      shareButton.setAttribute("tooltiptext", this.promptMessages['unshareTooltip']);
+      imageURL = this.promptImages["unshare"]
     } else {
       shareButton.removeAttribute("shared");
-      shareButton.setAttribute("tooltiptext", recommendInfo.messages.shareTooltip);
-      imageURL = recommendInfo.images.share;
+      shareButton.setAttribute("tooltiptext", this.promptMessages['shareTooltip']);
+      imageURL = this.promptImages["share"]
     }
     shareButton.src = imageURL;
   }
@@ -596,7 +656,7 @@ let SocialShareButton = {
 var SocialMenu = {
   populate: function SocialMenu_populate() {
     // This menu is only accessible through keyboard navigation.
-    let submenu = document.getElementById("menu_social-statusarea-popup");
+    let submenu = document.getElementById("menu_socialAmbientMenuPopup");
     let ambientMenuItems = submenu.getElementsByClassName("ambient-menuitem");
     while (ambientMenuItems.length)
       submenu.removeChild(ambientMenuItems.item(0));
@@ -628,14 +688,13 @@ var SocialToolbar = {
   init: function SocialToolbar_init() {
     this.button.setAttribute("image", Social.provider.iconURL);
 
+    let removeItem = document.getElementById("social-remove-menuitem");
     let brandShortName = document.getElementById("bundle_brand").getString("brandShortName");
     let label = gNavigatorBundle.getFormattedString("social.remove.label",
                                                     [brandShortName]);
     let accesskey = gNavigatorBundle.getString("social.remove.accesskey");
-
-    let removeCommand = document.getElementById("Social:Remove");
-    removeCommand.setAttribute("label", label);
-    removeCommand.setAttribute("accesskey", accesskey);
+    removeItem.setAttribute("label", label);
+    removeItem.setAttribute("accesskey", accesskey);
 
     this.updateButton();
     this.updateProfile();
@@ -648,16 +707,8 @@ var SocialToolbar = {
 
   updateButtonHiddenState: function SocialToolbar_updateButtonHiddenState() {
     let tbi = document.getElementById("social-toolbar-item");
-    tbi.hidden = !Social.active;
-    let socialEnabled = Social.enabled;
-    for (let className of ["social-statusarea-separator", "social-statusarea-user"]) {
-      for (let element of document.getElementsByClassName(className))
-        element.hidden = !socialEnabled;
-    }
-    let toggleNotificationsCommand = document.getElementById("Social:ToggleNotifications");
-    toggleNotificationsCommand.setAttribute("hidden", !socialEnabled);
-
-    if (!SocialUI.haveLoggedInUser() || !socialEnabled) {
+    tbi.hidden = !Social.uiVisible;
+    if (!SocialUI.haveLoggedInUser()) {
       let parent = document.getElementById("social-notification-panel");
       while (parent.hasChildNodes())
         parent.removeChild(parent.firstChild);
@@ -673,12 +724,18 @@ var SocialToolbar = {
     // social:profile-changed
     let profile = Social.provider.profile || {};
     let userPortrait = profile.portrait || "chrome://global/skin/icons/information-32.png";
-    document.getElementById("socialBroadcaster_userPortrait").setAttribute("src", userPortrait);
+    document.getElementById("social-statusarea-user-portrait").setAttribute("src", userPortrait);
 
-    let loggedInStatusBroadcaster = document.getElementById("socialBroadcaster_loggedInStatus");
-    let notLoggedInString = loggedInStatusBroadcaster.getAttribute("notLoggedInLabel");
-    let loggedInStatusValue = profile.userName ? profile.userName : notLoggedInString;
-    loggedInStatusBroadcaster.setAttribute("value", loggedInStatusValue);
+    let notLoggedInLabel = document.getElementById("social-statusarea-notloggedin");
+    let userNameBtn = document.getElementById("social-statusarea-username");
+    if (profile.userName) {
+      notLoggedInLabel.hidden = true;
+      userNameBtn.hidden = false;
+      userNameBtn.value = profile.userName;
+    } else {
+      notLoggedInLabel.hidden = false;
+      userNameBtn.hidden = true;
+    }
   },
 
   updateButton: function SocialToolbar_updateButton() {
@@ -925,11 +982,7 @@ var SocialSidebar = {
 
   setSidebarVisibilityState: function(aEnabled) {
     let sbrowser = document.getElementById("social-sidebar-browser");
-    // it's possible we'll be called twice with aEnabled=false so let's
-    // just assume we may often be called with the same state.
-    if (aEnabled == sbrowser.docShellIsActive)
-      return;
-    sbrowser.docShellIsActive = aEnabled;
+    sbrowser.docShell.isActive = aEnabled;
     let evt = sbrowser.contentDocument.createEvent("CustomEvent");
     evt.initCustomEvent(aEnabled ? "socialFrameShow" : "socialFrameHide", true, true, {});
     sbrowser.contentDocument.documentElement.dispatchEvent(evt);
@@ -991,8 +1044,27 @@ var SocialSidebar = {
     if (!sbrowser.hasAttribute("origin"))
       return;
 
+    // Bug 803255 - If we don't remove the sidebar browser from the DOM,
+    // the previous document leaks because it's only released when the
+    // sidebar is made visible again.
+    let container = sbrowser.parentNode;
+    container.removeChild(sbrowser);
     sbrowser.removeAttribute("origin");
-    sbrowser.setAttribute("src", "about:blank");
+    sbrowser.removeAttribute("src");
+
+    function resetDocShell(docshellSupports) {
+      let docshell = docshellSupports.QueryInterface(Ci.nsIDocShell);
+      if (docshell.chromeEventHandler != sbrowser)
+        return;
+
+      SocialSidebar.configureSidebarDocShell(docshell);
+
+      Services.obs.removeObserver(resetDocShell, "webnavigation-create");
+    }
+    Services.obs.addObserver(resetDocShell, "webnavigation-create", false);
+
+    container.appendChild(sbrowser);
+
     SocialFlyout.unload();
   },
 

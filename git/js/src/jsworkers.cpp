@@ -8,7 +8,6 @@
 
 #if JS_ION
 # include "ion/IonBuilder.h"
-# include "ion/ExecutionModeInlines.h"
 #endif
 
 using namespace js;
@@ -20,7 +19,8 @@ using mozilla::DebugOnly;
 bool
 js::OffThreadCompilationAvailable(JSContext *cx)
 {
-    return cx->runtime->useHelperThreads();
+    WorkerThreadState &state = *cx->runtime->workerThreadState;
+    return state.numThreads > 0;
 }
 
 bool
@@ -76,8 +76,6 @@ CompiledScriptMatches(JSCompartment *compartment, JSScript *script, JSScript *ta
 void
 js::CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script)
 {
-    AutoAssertNoGC nogc;
-
     if (!compartment->rt->workerThreadState)
         return;
 
@@ -283,9 +281,6 @@ WorkerThread::threadLoop()
     WorkerThreadState &state = *runtime->workerThreadState;
     state.lock();
 
-    threadData.construct(runtime);
-    js::TlsPerThreadData.set(threadData.addr());
-
     while (true) {
         JS_ASSERT(!ionBuilder);
 
@@ -299,14 +294,13 @@ WorkerThread::threadLoop()
 
         ionBuilder = state.ionWorklist.popCopy();
 
-        ion::ExecutionMode executionMode = ionBuilder->info().executionMode();
-        JS_ASSERT(GetIonScript(ionBuilder->script().unsafeGet(), executionMode) == ION_COMPILING_SCRIPT);
+        JS_ASSERT(ionBuilder->script()->ion == ION_COMPILING_SCRIPT);
 
         state.unlock();
 
         {
             ion::IonContext ictx(NULL, ionBuilder->script()->compartment(), &ionBuilder->temp());
-            ionBuilder->setBackgroundCodegen(ion::CompileBackEnd(ionBuilder));
+            ionBuilder->backgroundCompiledLir = ion::CompileBackEnd(ionBuilder);
         }
 
         state.lock();

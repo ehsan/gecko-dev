@@ -18,10 +18,12 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/IdentityUtils.jsm");
 
-// This is the child process corresponding to nsIDOMIdentity
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
+
+// This is the child process corresponding to nsIDOMIdentity.
+
 
 function nsDOMIdentity(aIdentityInternal) {
   this._identityInternal = aIdentityInternal;
@@ -75,7 +77,7 @@ nsDOMIdentity.prototype = {
       throw new Error("onready must be a function");
     }
 
-    let message = this.DOMIdentityMessage(aOptions);
+    let message = this.DOMIdentityMessage();
 
     // loggedInUser vs loggedInEmail
     // https://developer.mozilla.org/en-US/docs/DOM/navigator.id.watch
@@ -123,7 +125,7 @@ nsDOMIdentity.prototype = {
       throw new Error("navigator.id.request called too many times");
     }
 
-    let message = this.DOMIdentityMessage(aOptions);
+    let message = this.DOMIdentityMessage();
 
     if (aOptions) {
       // Optional string properties
@@ -312,6 +314,7 @@ nsDOMIdentity.prototype = {
 
   _receiveMessage: function nsDOMIdentity_receiveMessage(aMessage) {
     let msg = aMessage.json;
+    this._log("receiveMessage: " + aMessage.name);
 
     switch (aMessage.name) {
       case "Identity:ResetState":
@@ -416,24 +419,13 @@ nsDOMIdentity.prototype = {
   },
 
   /**
-   * Helper to create messages to send using a message manager.
-   * Pass through user options if they are not functions.  Always
-   * overwrite id and origin.  Caller does not get to set those.
+   * Helper to create messages to send using a message manager
    */
-  DOMIdentityMessage: function DOMIdentityMessage(aOptions) {
-    aOptions = aOptions || {};
-    let message = {};
-
-    objectCopy(aOptions, message);
-
-    // outer window id
-    message.id = this._id;
-
-    // window origin
-    message.origin = this._origin;
-
-    dump("nsDOM message: " + JSON.stringify(message) + "\n");
-    return message;
+  DOMIdentityMessage: function DOMIdentityMessage() {
+    return {
+      id: this._id,
+      origin: this._origin,
+    };
   },
 
 };

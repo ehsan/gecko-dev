@@ -86,7 +86,6 @@ TabParent::TabParent(const TabContext& aContext)
   , mDimensions(0, 0)
   , mDPI(0)
   , mShown(false)
-  , mIsDestroyed(false)
 {
 }
 
@@ -104,10 +103,6 @@ TabParent::SetOwnerElement(nsIDOMElement* aElement)
 void
 TabParent::Destroy()
 {
-  if (mIsDestroyed) {
-    return;
-  }
-
   // If this fails, it's most likely due to a content-process crash,
   // and auto-cleanup will kick in.  Otherwise, the child side will
   // destroy itself and send back __delete__().
@@ -122,7 +117,6 @@ TabParent::Destroy()
   if (RenderFrameParent* frame = GetRenderFrame()) {
     frame->Destroy();
   }
-  mIsDestroyed = true;
 }
 
 bool
@@ -220,9 +214,6 @@ TabParent::AnswerCreateWindow(PBrowserParent** retval)
 void
 TabParent::LoadURL(nsIURI* aURI)
 {
-    if (mIsDestroyed) {
-      return;
-    }
     if (!mShown) {
       nsAutoCString spec;
       if (aURI) {
@@ -245,17 +236,12 @@ TabParent::Show(const nsIntSize& size)
     // sigh
     mShown = true;
     mDimensions = size;
-    if (!mIsDestroyed) {
-      unused << SendShow(size);
-    }
+    unused << SendShow(size);
 }
 
 void
 TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
 {
-  if (mIsDestroyed) {
-    return;
-  }
   unused << SendUpdateDimensions(rect, size);
   if (RenderFrameParent* rfp = GetRenderFrame()) {
     rfp->NotifyDimensionsChanged(size.width, size.height);
@@ -266,46 +252,34 @@ TabParent::UpdateDimensions(const nsRect& rect, const nsIntSize& size)
 void
 TabParent::UpdateFrame(const FrameMetrics& aFrameMetrics)
 {
-  if (!mIsDestroyed) {
-    unused << SendUpdateFrame(aFrameMetrics);
-  }
+  unused << SendUpdateFrame(aFrameMetrics);
 }
 
 void TabParent::HandleDoubleTap(const nsIntPoint& aPoint)
 {
-  if (!mIsDestroyed) {
-    unused << SendHandleDoubleTap(aPoint);
-  }
+  unused << SendHandleDoubleTap(aPoint);
 }
 
 void TabParent::HandleSingleTap(const nsIntPoint& aPoint)
 {
-  if (!mIsDestroyed) {
-    unused << SendHandleSingleTap(aPoint);
-  }
+  unused << SendHandleSingleTap(aPoint);
 }
 
 void TabParent::HandleLongTap(const nsIntPoint& aPoint)
 {
-  if (!mIsDestroyed) {
-    unused << SendHandleLongTap(aPoint);
-  }
+  unused << SendHandleLongTap(aPoint);
 }
 
 void
 TabParent::Activate()
 {
-  if (!mIsDestroyed) {
     unused << SendActivate();
-  }
 }
 
 void
 TabParent::Deactivate()
 {
-  if (!mIsDestroyed) {
-    unused << SendDeactivate();
-  }
+  unused << SendDeactivate();
 }
 
 NS_IMETHODIMP
@@ -349,9 +323,9 @@ TabParent::DeallocPDocumentRenderer(PDocumentRendererParent* actor)
 }
 
 PContentPermissionRequestParent*
-TabParent::AllocPContentPermissionRequest(const nsCString& type, const nsCString& access, const IPC::Principal& principal)
+TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::Principal& principal)
 {
-  return new ContentPermissionRequestParent(type, access, mFrameElement, principal);
+  return new ContentPermissionRequestParent(type, mFrameElement, principal);
 }
 
 bool
@@ -366,11 +340,9 @@ TabParent::SendMouseEvent(const nsAString& aType, float aX, float aY,
                           int32_t aButton, int32_t aClickCount,
                           int32_t aModifiers, bool aIgnoreRootScrollFrame)
 {
-  if (!mIsDestroyed) {
-    unused << PBrowserParent::SendMouseEvent(nsString(aType), aX, aY,
-                                             aButton, aClickCount,
-                                             aModifiers, aIgnoreRootScrollFrame);
-  }
+  unused << PBrowserParent::SendMouseEvent(nsString(aType), aX, aY,
+                                           aButton, aClickCount,
+                                           aModifiers, aIgnoreRootScrollFrame);
 }
 
 void
@@ -380,17 +352,12 @@ TabParent::SendKeyEvent(const nsAString& aType,
                         int32_t aModifiers,
                         bool aPreventDefault)
 {
-  if (!mIsDestroyed) {
-    unused << PBrowserParent::SendKeyEvent(nsString(aType), aKeyCode, aCharCode,
-                                           aModifiers, aPreventDefault);
-  }
+  unused << PBrowserParent::SendKeyEvent(nsString(aType), aKeyCode, aCharCode,
+                                         aModifiers, aPreventDefault);
 }
 
 bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   nsMouseEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   return PBrowserParent::SendRealMouseEvent(e);
@@ -398,9 +365,6 @@ bool TabParent::SendRealMouseEvent(nsMouseEvent& event)
 
 bool TabParent::SendMouseWheelEvent(WheelEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   WheelEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   return PBrowserParent::SendMouseWheelEvent(event);
@@ -408,9 +372,6 @@ bool TabParent::SendMouseWheelEvent(WheelEvent& event)
 
 bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   nsKeyEvent e(event);
   MaybeForwardEventToRenderFrame(event, &e);
   return PBrowserParent::SendRealKeyEvent(e);
@@ -418,9 +379,6 @@ bool TabParent::SendRealKeyEvent(nsKeyEvent& event)
 
 bool TabParent::SendRealTouchEvent(nsTouchEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   if (event.message == NS_TOUCH_START) {
     MOZ_ASSERT((!sEventCapturer && mEventCaptureDepth == 0) ||
                (sEventCapturer == this && mEventCaptureDepth > 0));
@@ -689,9 +647,6 @@ TabParent::HandleQueryContentEvent(nsQueryContentEvent& aEvent)
 bool
 TabParent::SendCompositionEvent(nsCompositionEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   mIMEComposing = event.message != NS_COMPOSITION_END;
   mIMECompositionStart = NS_MIN(mIMESelectionAnchor, mIMESelectionFocus);
   if (mIMECompositionEnding)
@@ -710,9 +665,6 @@ TabParent::SendCompositionEvent(nsCompositionEvent& event)
 bool
 TabParent::SendTextEvent(nsTextEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   if (mIMECompositionEnding) {
     mIMECompositionText = event.theText;
     return true;
@@ -733,9 +685,6 @@ TabParent::SendTextEvent(nsTextEvent& event)
 bool
 TabParent::SendSelectionEvent(nsSelectionEvent& event)
 {
-  if (mIsDestroyed) {
-    return false;
-  }
   mIMESelectionAnchor = event.mOffset + (event.mReversed ? event.mLength : 0);
   mIMESelectionFocus = event.mOffset + (!event.mReversed ? event.mLength : 0);
   event.seqno = ++mIMESeqno;

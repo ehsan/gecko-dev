@@ -294,13 +294,10 @@ public:
   NS_DECL_NSIOBSERVER
 
   MediaEngine* GetBackend();
-  StreamListeners *GetWindowListeners(uint64_t aWindowId) {
+  bool IsWindowStillActive(uint64_t aWindowId) {
     NS_ASSERTION(NS_IsMainThread(), "Only access windowlist on main thread");
 
-    return mActiveWindows.Get(aWindowId);
-  }
-  bool IsWindowStillActive(uint64_t aWindowId) {
-    return !!GetWindowListeners(aWindowId);
+    return !!mActiveWindows.Get(aWindowId);
   }
 
   nsresult GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,

@@ -211,7 +211,7 @@ public:
 
   /**
    * Return the scale factor needed to fit the viewport in |aMetrics|
-   * into its composition bounds.
+   * into its compositiong bounds.
    */
   static gfxSize CalculateIntrinsicScale(const FrameMetrics& aMetrics);
 

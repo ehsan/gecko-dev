@@ -14,7 +14,7 @@
 #include "EnableWebAudioCheck.h"
 #include "nsAutoPtr.h"
 
-struct JSContext;
+class JSContext;
 class nsIDOMWindow;
 
 namespace mozilla {

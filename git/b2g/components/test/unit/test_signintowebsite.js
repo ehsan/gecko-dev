@@ -24,69 +24,9 @@ function test_overall() {
   run_next_test();
 }
 
-function objectContains(object, subset) {
-  let objectKeys = Object.keys(object);
-  let subsetKeys = Object.keys(subset);
-
-  // can't have fewer keys than the subset
-  if (objectKeys.length < subsetKeys.length) {
-    return false;
-  }
-
-  let key;
-  let success = true;
-  if (subsetKeys.length > 0) {
-    for (let i=0; i<subsetKeys.length; i++) {
-      key = subsetKeys[i];
-
-      // key exists in the source object
-      if (typeof object[key] === 'undefined') {
-        success = false;
-        break;
-      }
-
-      // recursively check object values
-      else if (typeof subset[key] === 'object') {
-        if (typeof object[key] !== 'object') {
-          success = false;
-          break;
-        }
-        if (! objectContains(object[key], subset[key])) {
-          success = false;
-          break;
-        }
-      }
-
-      else if (object[key] !== subset[key]) {
-        success = false;
-        break;
-      }
-    }
-  }
-
-  return success;
-}
-
-function test_object_contains() {
-  do_test_pending();
-
-  let someObj = {
-    pies: 42,
-    green: "spam",
-    flan: {yes: "please"}
-  };
-  let otherObj = {
-    pies: 42,
-    flan: {yes: "please"}
-  };
-  do_check_true(objectContains(someObj, otherObj));
-  do_test_finished();
-  run_next_test();
-}
-
 function test_mock_doc() {
   do_test_pending();
-  let mockedDoc = mockDoc({loggedInUser: null}, function(action, params) {
+  let mockedDoc = mockDoc(null, TEST_URL, function(action, params) {
     do_check_eq(action, 'coffee');
     do_test_finished();
     run_next_test();
@@ -103,14 +43,15 @@ function test_watch() {
   setup_test_identity("pie@food.gov", TEST_CERT, function() {
     let controller = SignInToWebsiteController;
 
-    let mockedDoc = mockDoc({loggedInUser: null}, function(action, params) {
+    let mockedDoc = mockDoc(null, TEST_URL, function(action, params) {
       do_check_eq(action, 'ready');
       controller.uninit();
       do_test_finished();
       run_next_test();
     });
 
-    controller.init({pipe: mockReceivingPipe()});
+    controller.init({pipe: mockPipe()});
+
     MinimalIDService.RP.watch(mockedDoc, {});
   });
 }
@@ -121,7 +62,7 @@ function test_request_login() {
   setup_test_identity("flan@food.gov", TEST_CERT, function() {
     let controller = SignInToWebsiteController;
 
-    let mockedDoc = mockDoc({loggedInUser: null}, call_sequentially(
+    let mockedDoc = mockDoc(null, TEST_URL, call_sequentially(
       function(action, params) {
         do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
@@ -135,7 +76,7 @@ function test_request_login() {
       }
     ));
 
-    controller.init({pipe: mockReceivingPipe()});
+    controller.init({pipe: mockPipe()});
     MinimalIDService.RP.watch(mockedDoc, {});
     MinimalIDService.RP.request(mockedDoc.id, {});
   });
@@ -147,7 +88,7 @@ function test_request_logout() {
   setup_test_identity("flan@food.gov", TEST_CERT, function() {
     let controller = SignInToWebsiteController;
 
-    let mockedDoc = mockDoc({loggedInUser: null}, call_sequentially(
+    let mockedDoc = mockDoc(null, TEST_URL, call_sequentially(
       function(action, params) {
         do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
@@ -161,7 +102,7 @@ function test_request_logout() {
       }
     ));
 
-    controller.init({pipe: mockReceivingPipe()});
+    controller.init({pipe: mockPipe()});
     MinimalIDService.RP.watch(mockedDoc, {});
     MinimalIDService.RP.logout(mockedDoc.id, {});
   });
@@ -173,7 +114,7 @@ function test_request_login_logout() {
   setup_test_identity("unagi@food.gov", TEST_CERT, function() {
     let controller = SignInToWebsiteController;
 
-    let mockedDoc = mockDoc({loggedInUser: null}, call_sequentially(
+    let mockedDoc = mockDoc(null, TEST_URL, call_sequentially(
       function(action, params) {
         do_check_eq(action, 'ready');
         do_check_eq(params, undefined);
@@ -189,68 +130,29 @@ function test_request_login_logout() {
         do_test_finished();
         run_next_test();
       }
+      /*
+      ,function(action, params) {
+        do_check_eq(action, 'ready');
+        do_test_finished();
+        run_next_test();
+      }
+       */
     ));
 
-    controller.init({pipe: mockReceivingPipe()});
+    controller.init({pipe: mockPipe()});
     MinimalIDService.RP.watch(mockedDoc, {});
     MinimalIDService.RP.request(mockedDoc.id, {});
     MinimalIDService.RP.logout(mockedDoc.id, {});
   });
 }
 
-function test_options_pass_through() {
-  do_test_pending();
-
-  // An meaningless structure for testing that RP messages preserve
-  // objects and their parameters as they are passed back and forth.
-  let randomMixedParams = {
-    loggedInUser: "juanita@mozilla.com",
-    pie: 42,
-    someThing: {
-      name: "Pertelote",
-      legs: 4,
-      nested: {bee: "Eric", remaining: "1/2"}
-      }
-    };
-
-  let mockedDoc = mockDoc(randomMixedParams, function(action, params) {});
-
-  function pipeOtherEnd(rpOptions, gaiaOptions) {
-    // Ensure that every time we receive a message, our mixed
-    // random params are contained in that message
-    do_check_true(objectContains(rpOptions, randomMixedParams));
-
-    switch (gaiaOptions.message) {
-      case "identity-delegate-watch":
-        MinimalIDService.RP.request(mockedDoc.id, {});
-        break;
-      case "identity-delegate-request":
-        MinimalIDService.RP.logout(mockedDoc.id, {});
-        break;
-      case "identity-delegate-logout":
-        do_test_finished();
-        run_next_test();
-        break;
-    }
-  }
-
-  let controller = SignInToWebsiteController;
-  controller.init({pipe: mockSendingPipe(pipeOtherEnd)});
-
-  MinimalIDService.RP.watch(mockedDoc, {});
-}
-
 let TESTS = [
   test_overall,
   test_mock_doc,
-  test_object_contains,
-
   test_watch,
   test_request_login,
   test_request_logout,
-  test_request_login_logout,
-
-  test_options_pass_through
+  test_request_login_logout
 ];
 
 TESTS.forEach(add_test);

@@ -796,11 +796,10 @@ var PlacesSearchBox = {
           // Make sure we're getting uri results.
           options.resultType = currentOptions.RESULT_TYPE_URI;
           options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-          options.includeHidden = true;
           content.load([query], options);
         }
         else {
-          content.applyFilter(filterString, null, true);
+          content.applyFilter(filterString);
         }
         break;
       case "downloads": {
@@ -811,7 +810,6 @@ var PlacesSearchBox = {
           // Make sure we're getting uri results.
           options.resultType = currentOptions.RESULT_TYPE_URI;
           options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-          options.includeHidden = true;
           content.load([query], options);
         break;
     }

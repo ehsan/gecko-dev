@@ -82,8 +82,6 @@ class WorkerThreadState
 struct WorkerThread
 {
     JSRuntime *runtime;
-
-    mozilla::Maybe<PerThreadData> threadData;
     PRThread *thread;
 
     /* Indicate to an idle thread that it should finish executing. */

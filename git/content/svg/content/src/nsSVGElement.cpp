@@ -59,7 +59,6 @@
 #include "nsSMILAnimationController.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 // This is needed to ensure correct handling of calls to the
 // vararg-list methods in this file:
@@ -181,7 +180,7 @@ NS_IMPL_ADDREF_INHERITED(nsSVGElement, nsSVGElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGElement, nsSVGElementBase)
 
 NS_INTERFACE_MAP_BEGIN(nsSVGElement)
-// provided by Element:
+// provided by nsGenericElement:
 //  NS_INTERFACE_MAP_ENTRY(nsIContent)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGElementBase)
 
@@ -888,7 +887,7 @@ nsSVGElement::IsAttributeMapped(const nsIAtom* name) const
 }
 
 // PresentationAttributes-FillStroke
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sFillStrokeMap[] = {
   { &nsGkAtoms::fill },
   { &nsGkAtoms::fill_opacity },
@@ -906,7 +905,7 @@ nsSVGElement::sFillStrokeMap[] = {
 };
 
 // PresentationAttributes-Graphics
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sGraphicsMap[] = {
   { &nsGkAtoms::clip_path },
   { &nsGkAtoms::clip_rule },
@@ -925,7 +924,7 @@ nsSVGElement::sGraphicsMap[] = {
 };
 
 // PresentationAttributes-TextContentElements
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sTextContentElementsMap[] = {
   // Properties that we don't support are commented out.
   // { &nsGkAtoms::alignment_baseline },
@@ -944,7 +943,7 @@ nsSVGElement::sTextContentElementsMap[] = {
 };
 
 // PresentationAttributes-FontSpecification
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sFontSpecificationMap[] = {
   { &nsGkAtoms::font_family },
   { &nsGkAtoms::font_size },
@@ -957,7 +956,7 @@ nsSVGElement::sFontSpecificationMap[] = {
 };
 
 // PresentationAttributes-GradientStop
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sGradientStopMap[] = {
   { &nsGkAtoms::stop_color },
   { &nsGkAtoms::stop_opacity },
@@ -965,7 +964,7 @@ nsSVGElement::sGradientStopMap[] = {
 };
 
 // PresentationAttributes-Viewports
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sViewportsMap[] = {
   { &nsGkAtoms::overflow },
   { &nsGkAtoms::clip },
@@ -973,7 +972,7 @@ nsSVGElement::sViewportsMap[] = {
 };
 
 // PresentationAttributes-Makers
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sMarkersMap[] = {
   { &nsGkAtoms::marker_end },
   { &nsGkAtoms::marker_mid },
@@ -982,21 +981,21 @@ nsSVGElement::sMarkersMap[] = {
 };
 
 // PresentationAttributes-Color
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sColorMap[] = {
   { &nsGkAtoms::color },
   { nullptr }
 };
 
 // PresentationAttributes-Filters
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sFiltersMap[] = {
   { &nsGkAtoms::colorInterpolationFilters },
   { nullptr }
 };
 
 // PresentationAttributes-feFlood
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sFEFloodMap[] = {
   { &nsGkAtoms::flood_color },
   { &nsGkAtoms::flood_opacity },
@@ -1004,7 +1003,7 @@ nsSVGElement::sFEFloodMap[] = {
 };
 
 // PresentationAttributes-LightingEffects
-/* static */ const Element::MappedAttributeEntry
+/* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sLightingEffectsMap[] = {
   { &nsGkAtoms::lighting_color },
   { nullptr }
@@ -1016,14 +1015,14 @@ nsSVGElement::sLightingEffectsMap[] = {
 NS_IMETHODIMP
 nsSVGElement::IsSupported(const nsAString& aFeature, const nsAString& aVersion, bool* aReturn)
 {
-  *aReturn = Element::IsSupported(aFeature, aVersion);
+  *aReturn = nsGenericElement::IsSupported(aFeature, aVersion);
   return NS_OK;
 }
 
 //----------------------------------------------------------------------
 // nsIDOMElement methods
 
-// forwarded to Element implementations
+// forwarded to nsGenericElement implementations
 
 
 //----------------------------------------------------------------------
@@ -1107,6 +1106,15 @@ MappedAttrParser::MappedAttrParser(css::Loader* aLoader,
   : mParser(aLoader), mDocURI(aDocURI), mBaseURI(aBaseURI),
     mNodePrincipal(aNodePrincipal), mDecl(nullptr)
 {
+  // SVG and CSS differ slightly in their interpretation of some of
+  // the attributes.  SVG allows attributes of the form: font-size="5"
+  // (style="font-size: 5" if using a style attribute)
+  // where CSS requires units: font-size="5pt" (style="font-size: 5pt")
+  // Set a flag to pass information to the parser so that we can use
+  // the CSS parser to parse the font-size attribute.  Note that this
+  // does *not* affect the use of CSS stylesheets, which will still
+  // require units.
+  mParser.SetSVGMode(true);
 }
 
 MappedAttrParser::~MappedAttrParser()
@@ -1132,7 +1140,7 @@ MappedAttrParser::ParseMappedAttrValue(nsIAtom* aMappedAttrName,
   if (propertyID != eCSSProperty_UNKNOWN) {
     bool changed; // outparam for ParseProperty. (ignored)
     mParser.ParseProperty(propertyID, aMappedAttrValue, mDocURI, mBaseURI,
-                          mNodePrincipal, mDecl, &changed, false, true);
+                          mNodePrincipal, mDecl, &changed, false);
     return;
   }
   NS_ABORT_IF_FALSE(aMappedAttrName == nsGkAtoms::lang,

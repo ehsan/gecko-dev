@@ -29,7 +29,6 @@ PRLogModuleInfo *gOmxDecoderLog;
 #endif
 
 using namespace MPAPI;
-using namespace mozilla;
 
 namespace mozilla {
 namespace layers {
@@ -64,7 +63,7 @@ VideoGraphicBuffer::Unlock()
 namespace android {
 
 MediaStreamSource::MediaStreamSource(MediaResource *aResource,
-                                     MediaDecoder *aDecoder) :
+                                     nsBuiltinDecoder *aDecoder) :
   mDecoder(aDecoder), mResource(aResource)
 {
 }
@@ -112,7 +111,7 @@ status_t MediaStreamSource::getSize(off64_t *size)
 using namespace android;
 
 OmxDecoder::OmxDecoder(MediaResource *aResource,
-                       MediaDecoder *aDecoder) :
+                       nsBuiltinDecoder *aDecoder) :
   mResource(aResource),
   mDecoder(aDecoder),
   mVideoWidth(0),
@@ -179,7 +178,7 @@ bool OmxDecoder::Init() {
     return false;
   }
 
-  mResource->SetReadMode(MediaCacheStream::MODE_METADATA);
+  mResource->SetReadMode(nsMediaCacheStream::MODE_METADATA);
 
   sp<MediaExtractor> extractor = MediaExtractor::Create(dataSource);
   if (extractor == nullptr) {
@@ -216,7 +215,7 @@ bool OmxDecoder::Init() {
     return false;
   }
 
-  mResource->SetReadMode(MediaCacheStream::MODE_PLAYBACK);
+  mResource->SetReadMode(nsMediaCacheStream::MODE_PLAYBACK);
 
   int64_t totalDurationUs = 0;
 

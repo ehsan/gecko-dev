@@ -6,7 +6,6 @@
 
 #include "Link.h"
 
-#include "mozilla/dom/Element.h"
 #include "nsEventStates.h"
 #include "nsIURL.h"
 #include "nsISizeOf.h"

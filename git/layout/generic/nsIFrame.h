@@ -31,7 +31,6 @@
 #include "nsAlgorithm.h"
 #include "mozilla/layout/FrameChildList.h"
 #include "FramePropertyTable.h"
-#include "mozilla/Attributes.h"
 
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/AccTypes.h"
@@ -512,10 +511,10 @@ void NS_MergeReflowStatusInto(nsReflowStatus* aPrimary,
 /**
  * DidReflow status values.
  */
-MOZ_BEGIN_ENUM_CLASS(nsDidReflowStatus, uint32_t)
-  NOT_FINISHED,
-  FINISHED
-MOZ_END_ENUM_CLASS(nsDidReflowStatus)
+enum nsDidReflowStatus {
+  NS_FRAME_REFLOW_NOT_FINISHED,
+  NS_FRAME_REFLOW_FINISHED
+};
 
 /**
  * When there is no scrollable overflow rect, the visual overflow rect
@@ -2236,6 +2235,7 @@ public:
   /**
    * Called when a frame is about to be removed and needs to be invalidated.
    * Normally does nothing since DLBI handles removed frames.
+   * 
    */
   virtual void InvalidateFrameForRemoval() {}
 

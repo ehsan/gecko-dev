@@ -52,7 +52,7 @@ public:
   }
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
-    *aSnap = true;
+    *aSnap = false;
     nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
     return f->GetInnerArea() + ToReferenceFrame();
   }

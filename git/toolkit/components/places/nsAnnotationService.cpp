@@ -20,8 +20,6 @@
 
 #include "sampler.h"
 
-#include "nsNetCID.h"
-
 using namespace mozilla;
 
 #define ENSURE_ANNO_TYPE(_type, _statement)                                    \
@@ -286,7 +284,8 @@ nsAnnotationService::SetPageAnnotationString(nsIURI* aURI,
 {
   NS_ENSURE_ARG(aURI);
 
-  ENSURE_NOT_PRIVATE_BROWSING;
+  if (InPrivateBrowsingMode())
+    return NS_OK;
 
   nsresult rv = SetAnnotationStringInternal(aURI, 0, aName, aValue,
                                             aFlags, aExpiration);
@@ -360,7 +359,8 @@ nsAnnotationService::SetPageAnnotationInt32(nsIURI* aURI,
 {
   NS_ENSURE_ARG(aURI);
 
-  ENSURE_NOT_PRIVATE_BROWSING;
+  if (InPrivateBrowsingMode())
+    return NS_OK;
 
   nsresult rv = SetAnnotationInt32Internal(aURI, 0, aName, aValue,
                                            aFlags, aExpiration);
@@ -434,7 +434,8 @@ nsAnnotationService::SetPageAnnotationInt64(nsIURI* aURI,
 {
   NS_ENSURE_ARG(aURI);
 
-  ENSURE_NOT_PRIVATE_BROWSING;
+  if (InPrivateBrowsingMode())
+    return NS_OK;
 
   nsresult rv = SetAnnotationInt64Internal(aURI, 0, aName, aValue,
                                            aFlags, aExpiration);
@@ -508,7 +509,8 @@ nsAnnotationService::SetPageAnnotationDouble(nsIURI* aURI,
 {
   NS_ENSURE_ARG(aURI);
 
-  ENSURE_NOT_PRIVATE_BROWSING;
+  if (InPrivateBrowsingMode())
+    return NS_OK;
 
   nsresult rv = SetAnnotationDoubleInternal(aURI, 0, aName, aValue,
                                             aFlags, aExpiration);
@@ -589,7 +591,8 @@ nsAnnotationService::SetPageAnnotationBinary(nsIURI* aURI,
 {
   NS_ENSURE_ARG(aURI);
 
-  ENSURE_NOT_PRIVATE_BROWSING;
+  if (InPrivateBrowsingMode())
+    return NS_OK;
 
   nsresult rv = SetAnnotationBinaryInternal(aURI, 0, aName, aData, aDataLen,
                                             aMimeType, aFlags, aExpiration);
@@ -1495,7 +1498,8 @@ nsAnnotationService::CopyPageAnnotations(nsIURI* aSourceURI,
   NS_ENSURE_ARG(aSourceURI);
   NS_ENSURE_ARG(aDestURI);
 
-  ENSURE_NOT_PRIVATE_BROWSING;
+  if (InPrivateBrowsingMode())
+    return NS_OK;
 
   mozStorageTransaction transaction(mDB->MainConn(), false);
 
@@ -1821,6 +1825,14 @@ nsAnnotationService::StartGetAnnotation(nsIURI* aURI,
   getAnnoScoper.Abandon();
 
   return NS_OK;
+}
+
+
+bool
+nsAnnotationService::InPrivateBrowsingMode() const
+{
+  nsNavHistory* history = nsNavHistory::GetHistoryService();
+  return history && history->InPrivateBrowsingMode();
 }
 
 

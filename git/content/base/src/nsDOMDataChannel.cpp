@@ -88,7 +88,8 @@ private:
   // Get msg info out of JS variable being sent (string, arraybuffer, blob)
   nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                          nsCOMPtr<nsIInputStream> &aStreamOut,
-                         bool &aIsBinary, uint32_t &aOutgoingLength);
+                         bool &aIsBinary, uint32_t &aOutgoingLength,
+                         JSContext *aCx);
 
   // Owning reference
   nsRefPtr<mozilla::DataChannel> mDataChannel;
@@ -250,7 +251,7 @@ nsDOMDataChannel::Close()
 
 // Almost a clone of nsWebSocketChannel::Send()
 NS_IMETHODIMP
-nsDOMDataChannel::Send(nsIVariant* aData)
+nsDOMDataChannel::Send(nsIVariant* aData, JSContext* aCx)
 {
   MOZ_ASSERT(NS_IsMainThread());
   uint16_t state = mDataChannel->GetReadyState();
@@ -265,7 +266,7 @@ nsDOMDataChannel::Send(nsIVariant* aData)
   nsCOMPtr<nsIInputStream> msgStream;
   bool isBinary;
   uint32_t msgLen;
-  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen);
+  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen, aCx);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (state == mozilla::DataChannel::CLOSING ||
@@ -293,7 +294,8 @@ nsDOMDataChannel::Send(nsIVariant* aData)
 nsresult
 nsDOMDataChannel::GetSendParams(nsIVariant* aData, nsCString& aStringOut,
                                 nsCOMPtr<nsIInputStream>& aStreamOut,
-                                bool& aIsBinary, uint32_t& aOutgoingLength)
+                                bool& aIsBinary, uint32_t& aOutgoingLength,
+                                JSContext* aCx)
 {
   // Get type of data (arraybuffer, blob, or string)
   uint16_t dataType;
@@ -315,9 +317,9 @@ nsDOMDataChannel::GetSendParams(nsIVariant* aData, nsCString& aStringOut,
     nsresult rv = aData->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
         (obj = JSVAL_TO_OBJECT(realVal)) &&
-        (JS_IsArrayBufferObject(obj))) {
-      int32_t len = JS_GetArrayBufferByteLength(obj);
-      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj));
+        (JS_IsArrayBufferObject(obj, aCx))) {
+      int32_t len = JS_GetArrayBufferByteLength(obj, aCx);
+      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj, aCx));
 
       aStringOut.Assign(data, len);
       aIsBinary = true;

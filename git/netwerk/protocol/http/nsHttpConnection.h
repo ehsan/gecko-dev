@@ -21,6 +21,7 @@
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIEventTarget.h"
 
 class nsHttpRequestHead;
 class nsHttpResponseHead;
@@ -59,7 +60,7 @@ public:
     nsresult Init(nsHttpConnectionInfo *info, uint16_t maxHangTime,
                   nsISocketTransport *, nsIAsyncInputStream *,
                   nsIAsyncOutputStream *, nsIInterfaceRequestor *,
-                  PRIntervalTime);
+                  nsIEventTarget *, PRIntervalTime);
 
     // Activate causes the given transaction to be processed on this
     // connection.  It fails if there is already an existing transaction unless
@@ -150,7 +151,6 @@ public:
 
     int64_t BytesWritten() { return mTotalBytesWritten; }
 
-    void    SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks);
     void    PrintDiagnostics(nsCString &log);
 
 private:
@@ -197,8 +197,8 @@ private:
     // transaction is open, otherwise it is null.
     nsRefPtr<nsAHttpTransaction>    mTransaction;
 
-    mozilla::Mutex                  mCallbacksLock;
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
+    nsCOMPtr<nsIEventTarget>        mCallbackTarget;
 
     nsRefPtr<nsHttpConnectionInfo> mConnInfo;
 

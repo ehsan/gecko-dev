@@ -13,8 +13,6 @@
 #include "nsContentUtils.h"
 #include "nsError.h"
 
-using namespace mozilla::dom;
-
 enum MenuType
 {
   MENU_TYPE_CONTEXT = 1,
@@ -52,8 +50,8 @@ nsHTMLMenuElement::~nsHTMLMenuElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLMenuElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLMenuElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLMenuElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLMenuElement, nsGenericElement)
 
 
 DOMCI_NODE_DATA(HTMLMenuElement, nsHTMLMenuElement)

@@ -27,7 +27,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.SystemClock;
 import android.text.TextUtils;
-import android.util.Base64;
 import android.util.Log;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.AlphaAnimation;
@@ -96,8 +95,6 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
         registerEventListener("SearchEngines:Data");
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:Get", null));
-
-        mHandler = new AllPagesHandler();
     }
 
     public boolean onBackPressed() {
@@ -136,6 +133,8 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             AwesomeBarCursorAdapter adapter = getCursorAdapter();
             list.setAdapter(adapter);
             list.setOnTouchListener(mListListener);
+
+            mHandler = new AllPagesHandler();
         }
 
         return mView;
@@ -461,7 +460,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
             // set the search engine icon (e.g., Google) for the row
             FlowLayout suggestionView = viewHolder.suggestionView;
-            updateFavicon(viewHolder.iconView, engine.icon);
+            viewHolder.iconView.setImageDrawable(engine.icon);
 
             // user-entered search term is first suggestion
             viewHolder.userEnteredTextView.setText(mSearchTerm);
@@ -511,14 +510,14 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
     private class SearchEngine {
         public String name;
-        public Bitmap icon;
+        public Drawable icon;
         public ArrayList<String> suggestions;
 
         public SearchEngine(String name) {
             this(name, null);
         }
 
-        public SearchEngine(String name, Bitmap icon) {
+        public SearchEngine(String name, Drawable icon) {
             this.name = name;
             this.icon = icon;
             this.suggestions = new ArrayList<String>();
@@ -553,7 +552,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
                 JSONObject engineJSON = engines.getJSONObject(i);
                 String name = engineJSON.getString("name");
                 String iconURI = engineJSON.getString("iconURI");
-                Bitmap icon = getBitmapFromDataURI(iconURI);
+                Drawable icon = getDrawableFromDataURI(iconURI);
                 if (name.equals(suggestEngine) && suggestTemplate != null) {
                     // suggest engine should be at the front of the list
                     mSearchEngines.add(0, new SearchEngine(name, icon));
@@ -575,14 +574,18 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         filterSuggestions(mSearchTerm);
     }
 
-    private Bitmap getBitmapFromDataURI(String dataURI) {
+    private Drawable getDrawableFromDataURI(String dataURI) {
+        String base64 = dataURI.substring(dataURI.indexOf(',') + 1);
+        Drawable drawable = null;
         try {
-            byte[] raw = Base64.decode(dataURI.substring(22), Base64.DEFAULT);
-            return BitmapFactory.decodeByteArray(raw, 0, raw.length);
-        } catch(Exception ex) {
-            Log.i(LOGTAG, "exception while decoding bitmap: " + dataURI, ex);
-        }
-        return null;
+            byte[] bytes = GeckoAppShell.decodeBase64(base64, GeckoAppShell.BASE64_DEFAULT);
+            ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
+            drawable = Drawable.createFromStream(stream, "src");
+            stream.close();
+        } catch (IllegalArgumentException e) {
+            Log.i(LOGTAG, "exception while decoding drawable: " + base64, e);
+        } catch (IOException e) { }
+        return drawable;
     }
 
     private void showSuggestionsOptIn() {

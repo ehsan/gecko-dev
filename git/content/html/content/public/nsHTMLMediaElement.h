@@ -16,14 +16,12 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsILoadGroup.h"
 #include "nsIObserver.h"
-#include "AudioStream.h"
+#include "nsAudioStream.h"
 #include "VideoFrameContainer.h"
 #include "mozilla/CORSMode.h"
 #include "nsDOMMediaStream.h"
 #include "mozilla/Mutex.h"
 #include "nsTimeRanges.h"
-#include "nsIDOMWakeLock.h"
-#include "AudioChannelCommon.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -33,11 +31,10 @@ typedef uint16_t nsMediaReadyState;
 
 namespace mozilla {
 class MediaResource;
-class MediaDecoder;
-#ifdef MOZ_DASH
-class DASHDecoder;
-#endif
 }
+#ifdef MOZ_DASH
+class nsDASHDecoder;
+#endif
 
 class nsHTMLMediaElement : public nsGenericHTMLElement,
                            public nsIObserver,
@@ -49,13 +46,9 @@ public:
   typedef mozilla::VideoFrameContainer VideoFrameContainer;
   typedef mozilla::MediaStream MediaStream;
   typedef mozilla::MediaResource MediaResource;
-  typedef mozilla::MediaDecoderOwner MediaDecoderOwner;
-  typedef mozilla::MetadataTags MetadataTags;
-  typedef mozilla::AudioStream AudioStream;
-  typedef mozilla::MediaDecoder MediaDecoder;
 
 #ifdef MOZ_DASH
-  friend class DASHDecoder;
+  friend class nsDASHDecoder;
 #endif
 
   enum CanPlayStatus {
@@ -127,7 +120,7 @@ public:
   virtual void MetadataLoaded(uint32_t aChannels,
                               uint32_t aRate,
                               bool aHasAudio,
-                              const mozilla::MetadataTags* aTags) MOZ_FINAL MOZ_OVERRIDE;
+                              const MetadataTags* aTags) MOZ_FINAL MOZ_OVERRIDE;
 
   // Called by the video decoder object, on the main thread,
   // when it has read the first frame of the video
@@ -195,7 +188,11 @@ public:
   // Called by the media decoder and the video frame to get the
   // ImageContainer containing the video data.
   virtual VideoFrameContainer* GetVideoFrameContainer() MOZ_FINAL MOZ_OVERRIDE;
-  ImageContainer* GetImageContainer();
+  ImageContainer* GetImageContainer()
+  {
+    VideoFrameContainer* container = GetVideoFrameContainer();
+    return container ? container->GetImageContainer() : nullptr;
+  }
 
   // Called by the video frame to get the print surface, if this is
   // a static document and we're not actually playing video
@@ -217,7 +214,7 @@ public:
   // the data for the next frame is available. This method will
   // decide whether to set the ready state to HAVE_CURRENT_DATA,
   // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA.
-  virtual void UpdateReadyStateForData(MediaDecoderOwner::NextFrameStatus aNextFrame) MOZ_FINAL MOZ_OVERRIDE;
+  virtual void UpdateReadyStateForData(nsMediaDecoder::NextFrameStatus aNextFrame) MOZ_FINAL MOZ_OVERRIDE;
 
   // Use this method to change the mReadyState member, so required
   // events can be fired.
@@ -359,7 +356,7 @@ public:
    */
   bool GetPlayedOrSeeked() const { return mHasPlayedOrSeeked; }
 
-  nsresult CopyInnerTo(mozilla::dom::Element* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest);
 
   /**
    * Sets the Accept header on the HTTP channel to the required
@@ -390,22 +387,6 @@ public:
 protected:
   class MediaLoadListener;
   class StreamListener;
-
-  virtual void GetItemValueText(nsAString& text);
-  virtual void SetItemValueText(const nsAString& text);
-
-  class WakeLockBoolWrapper {
-  public:
-    WakeLockBoolWrapper(bool val = false) : mValue(val), mOuter(NULL), mWakeLock(NULL) {}
-    void SetOuter(nsHTMLMediaElement* outer) { mOuter = outer; }
-    operator bool() { return mValue; }
-    WakeLockBoolWrapper& operator=(bool val);
-    bool operator !() const { return !mValue; }
-  private:
-    bool mValue;
-    nsHTMLMediaElement* mOuter;
-    nsCOMPtr<nsIDOMMozWakeLock> mWakeLock;
-  };
 
   /**
    * Logs a warning message to the web console to report various failures.
@@ -446,14 +427,14 @@ protected:
    * Create a decoder for the given aMIMEType. Returns null if we
    * were unable to create the decoder.
    */
-  already_AddRefed<MediaDecoder> CreateDecoder(const nsACString& aMIMEType);
+  already_AddRefed<nsMediaDecoder> CreateDecoder(const nsACString& aMIMEType);
 
   /**
    * Initialize a decoder as a clone of an existing decoder in another
    * element.
    * mLoadingSrc must already be set.
    */
-  nsresult InitializeDecoderAsClone(MediaDecoder* aOriginal);
+  nsresult InitializeDecoderAsClone(nsMediaDecoder* aOriginal);
 
   /**
    * Initialize a decoder to load the given channel. The decoder's stream
@@ -467,10 +448,10 @@ protected:
    * Finish setting up the decoder after Load() has been called on it.
    * Called by InitializeDecoderForChannel/InitializeDecoderAsClone.
    */
-  nsresult FinishDecoderSetup(MediaDecoder* aDecoder,
+  nsresult FinishDecoderSetup(nsMediaDecoder* aDecoder,
                               MediaResource* aStream,
                               nsIStreamListener **aListener,
-                              MediaDecoder* aCloneDonor);
+                              nsMediaDecoder* aCloneDonor);
 
   /**
    * Call this after setting up mLoadingSrc and mDecoder.
@@ -579,7 +560,7 @@ protected:
    * Called asynchronously to release a self-reference to this element.
    */
   void DoRemoveSelfReference();
-
+  
   /**
    * Possible values of the 'preload' attribute.
    */
@@ -591,7 +572,7 @@ protected:
   };
 
   /**
-   * The preloading action to perform. These dictate how we react to the
+   * The preloading action to perform. These dictate how we react to the 
    * preload attribute. See mPreloadAction.
    */
   enum PreloadAction {
@@ -618,7 +599,7 @@ protected:
 
   /**
    * Handle a change to the preload attribute. Should be called whenever the
-   * value (or presence) of the preload attribute changes. The change in
+   * value (or presence) of the preload attribute changes. The change in 
    * attribute value may cause a change in the mPreloadAction of this
    * element. If there is a change then this method will initiate any
    * behaviour that is necessary to implement the action.
@@ -663,7 +644,7 @@ protected:
 
   // The current decoder. Load() has been called on this decoder.
   // At most one of mDecoder and mSrcStream can be non-null.
-  nsRefPtr<MediaDecoder> mDecoder;
+  nsRefPtr<nsMediaDecoder> mDecoder;
 
   // A reference to the VideoFrameContainer which contains the current frame
   // of video to display.
@@ -724,7 +705,7 @@ protected:
     // No load algorithm instance is waiting for a source to be added to the
     // media in order to continue loading.
     NOT_WAITING,
-    // We've run the load algorithm, and we tried all source children of the
+    // We've run the load algorithm, and we tried all source children of the 
     // media element, and failed to load any successfully. We're waiting for
     // another source element to be added to the media element, and will try
     // to load any such element when its added.
@@ -750,7 +731,7 @@ protected:
   static PLDHashOperator BuildObjectFromTags(nsCStringHashKey::KeyType aKey,
                                              nsCString aValue,
                                              void* aUserArg);
-  nsAutoPtr<const mozilla::MetadataTags> mTags;
+  nsAutoPtr<const MetadataTags> mTags;
 
   // URI of the resource we're attempting to load. This stores the value we
   // return in the currentSrc attribute. Use GetCurrentSrc() to access the
@@ -758,7 +739,7 @@ protected:
   // This is always the original URL we're trying to load --- before
   // redirects etc.
   nsCOMPtr<nsIURI> mLoadingSrc;
-
+  
   // Stores the current preload action for this element. Initially set to
   // PRELOAD_UNDEFINED, its value is changed by calling
   // UpdatePreloadAction().
@@ -796,7 +777,7 @@ protected:
   nsCOMPtr<nsIContent> mSourceLoadCandidate;
 
   // An audio stream for writing audio directly from JS.
-  nsRefPtr<AudioStream> mAudioStream;
+  nsRefPtr<nsAudioStream> mAudioStream;
 
   // Range of time played.
   nsTimeRanges mPlayed;
@@ -833,7 +814,7 @@ protected:
 
   // Playback of the video is paused either due to calling the
   // 'Pause' method, or playback not yet having started.
-  WakeLockBoolWrapper mPaused;
+  bool mPaused;
 
   // True if the sound is muted.
   bool mMuted;
@@ -918,9 +899,6 @@ protected:
   // sniffing phase, that would fail because sniffing only works when applied to
   // the first bytes of the stream.
   nsCString mMimeType;
-
-  // Audio Channel Type.
-  mozilla::dom::AudioChannelType mAudioChannelType;
 };
 
 #endif

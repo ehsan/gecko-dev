@@ -12,7 +12,7 @@ class nsHTMLMenuItemElement : public nsGenericHTMLElement,
                               public nsIDOMHTMLMenuItemElement
 {
 public:
-  using mozilla::dom::Element::GetText;
+  using nsGenericElement::GetText;
 
   nsHTMLMenuItemElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                         mozilla::dom::FromParser aFromParser);
@@ -30,7 +30,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLCommandElement
   NS_DECL_NSIDOMHTMLCOMMANDELEMENT

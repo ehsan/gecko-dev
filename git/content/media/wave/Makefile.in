@@ -16,12 +16,12 @@ LIBXUL_LIBRARY 	= 1
 
 
 EXPORTS		+= \
-		WaveDecoder.h \
+		nsWaveDecoder.h \
 		$(NULL)
 
 CPPSRCS		= \
-		WaveDecoder.cpp \
-		WaveReader.cpp \
+		nsWaveDecoder.cpp \
+		nsWaveReader.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

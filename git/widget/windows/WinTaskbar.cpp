@@ -163,13 +163,13 @@ DefaultController::GetThumbnailAspectRatio(float *aThumbnailAspectRatio) {
 }
 
 NS_IMETHODIMP
-DefaultController::DrawPreview(nsISupports *ctx, bool *rDrawFrame) {
+DefaultController::DrawPreview(nsIDOMCanvasRenderingContext2D *ctx, bool *rDrawFrame) {
   *rDrawFrame = true;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DefaultController::DrawThumbnail(nsISupports *ctx, uint32_t width, uint32_t height, bool *rDrawFrame) {
+DefaultController::DrawThumbnail(nsIDOMCanvasRenderingContext2D *ctx, uint32_t width, uint32_t height, bool *rDrawFrame) {
   *rDrawFrame = false;
   return NS_OK;
 }

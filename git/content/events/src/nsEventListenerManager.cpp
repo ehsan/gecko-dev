@@ -836,7 +836,10 @@ nsEventListenerManager::CompileEventHandlerInternal(nsListenerStruct *aListenerS
         return NS_ERROR_OUT_OF_MEMORY;
       }
       listener->SetHandler(handlerCallback);
-    } else if (listener->EventName() == nsGkAtoms::onbeforeunload && win) {
+    } else if (listener->EventName() == nsGkAtoms::onbeforeunload) {
+      // XXXbz Should we really do the special beforeunload handler on
+      // non-Window objects?  Per spec, we shouldn't even be compiling the
+      // beforeunload content attribute on random elements!  See bug 807226.
       bool ok;
       JSAutoRequest ar(context->GetNativeContext());
       nsRefPtr<BeforeUnloadEventHandlerNonNull> handlerCallback =

@@ -194,7 +194,7 @@ ProcessPriorityManager::OnContentDocumentGlobalCreated(
     return;
   }
 
-  target->AddSystemEventListener(NS_LITERAL_STRING("visibilitychange"),
+  target->AddSystemEventListener(NS_LITERAL_STRING("mozvisibilitychange"),
                                  this,
                                  /* useCapture = */ false,
                                  /* wantsUntrusted = */ false);
@@ -235,7 +235,7 @@ ProcessPriorityManager::RecomputeNumVisibleWindows()
     }
 
     bool hidden = false;
-    doc->GetHidden(&hidden);
+    doc->GetMozHidden(&hidden);
 #ifdef DEBUG
     nsAutoString spec;
     doc->GetDocumentURI(spec);

@@ -2217,6 +2217,10 @@ BuildStyleRule(nsCSSProperty aProperty,
   nsCOMPtr<nsIURI> baseURI = aTargetElement->GetBaseURI();
   nsCSSParser parser(doc->CSSLoader());
 
+  if (aUseSVGMode) {
+    parser.SetSVGMode(true);
+  }
+
   nsCSSProperty propertyToCheck = nsCSSProps::IsShorthand(aProperty) ?
     nsCSSProps::SubpropertyEntryFor(aProperty)[0] : aProperty;
 
@@ -2225,8 +2229,7 @@ BuildStyleRule(nsCSSProperty aProperty,
   if (NS_FAILED(parser.ParseProperty(aProperty, aSpecifiedValue,
                                      doc->GetDocumentURI(), baseURI,
                                      aTargetElement->NodePrincipal(),
-                                     declaration, &changed, false,
-                                     aUseSVGMode)) ||
+                                     declaration, &changed, false)) ||
       // check whether property parsed without CSS parsing errors
       !declaration->HasNonImportantValueFor(propertyToCheck)) {
     NS_WARNING("failure in BuildStyleRule");

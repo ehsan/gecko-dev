@@ -626,18 +626,18 @@ nsHTMLInputElement::GetEditorState() const
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLInputElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLInputElement,
                                                   nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mControllers)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mControllers)
   if (tmp->IsSingleLineTextControl(false)) {
     tmp->mInputData.mState->Traverse(cb);
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFiles)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFileList)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mFiles)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFileList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLInputElement,
                                                   nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mControllers)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mFiles)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mControllers)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mFiles)
   if (tmp->mFileList) {
     tmp->mFileList->Disconnect();
     tmp->mFileList = nullptr;
@@ -648,8 +648,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLInputElement,
   //XXX should unlink more?
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
                                                               
-NS_IMPL_ADDREF_INHERITED(nsHTMLInputElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLInputElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLInputElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLInputElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLInputElement, nsHTMLInputElement)
@@ -2404,7 +2404,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                 nsCOMPtr<nsIContent> radioContent =
                   do_QueryInterface(selectedRadioButton);
                 if (radioContent) {
-                  rv = selectedRadioButton->Focus();
+                  rv = selectedRadioButton->DOMFocus();
                   if (NS_SUCCEEDED(rv)) {
                     nsEventStatus status = nsEventStatus_eIgnore;
                     nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),

@@ -27,7 +27,7 @@
 #include "nsAttrValueInlines.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMEventListener.h"
-#include "nsIEditorObserver.h"
+#include "EditActionListener.h"
 #include "nsINativeKeyBindings.h"
 #include "nsIDocumentEncoder.h"
 #include "nsISelectionPrivate.h"
@@ -617,7 +617,7 @@ nsTextInputSelectionImpl::CheckVisibilityContent(nsIContent* aNode,
 
 class nsTextInputListener : public nsISelectionListener,
                             public nsIDOMEventListener,
-                            public nsIEditorObserver,
+                            public EditActionListener,
                             public nsSupportsWeakReference
 {
 public:
@@ -642,7 +642,7 @@ public:
 
   NS_DECL_NSIDOMEVENTLISTENER
 
-  NS_DECL_NSIEDITOROBSERVER
+  virtual void EditAction();
 
 protected:
 
@@ -699,9 +699,8 @@ nsTextInputListener::~nsTextInputListener()
 {
 }
 
-NS_IMPL_ISUPPORTS4(nsTextInputListener,
+NS_IMPL_ISUPPORTS3(nsTextInputListener,
                    nsISelectionListener,
-                   nsIEditorObserver,
                    nsISupportsWeakReference,
                    nsIDOMEventListener)
 
@@ -832,9 +831,7 @@ nsTextInputListener::HandleEvent(nsIDOMEvent* aEvent)
   return NS_OK;
 }
 
-// BEGIN nsIEditorObserver
-
-NS_IMETHODIMP
+void
 nsTextInputListener::EditAction()
 {
   nsWeakFrame weakFrame = mFrame;
@@ -863,7 +860,7 @@ nsTextInputListener::EditAction()
   }
 
   if (!weakFrame.IsAlive()) {
-    return NS_OK;
+    return;
   }
 
   // Make sure we know we were changed (do NOT set this to false if there are
@@ -875,12 +872,7 @@ nsTextInputListener::EditAction()
   if (!mSettingValue) {
     mTxtCtrlElement->OnValueChanged(true);
   }
-
-  return NS_OK;
 }
-
-// END nsIEditorObserver
-
 
 nsresult
 nsTextInputListener::UpdateTextInputCommands(const nsAString& commandsToUpdate)
@@ -976,19 +968,19 @@ void nsTextEditorState::Unlink()
 {
   nsTextEditorState* tmp = this;
   tmp->Clear();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSelCon)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mEditor)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRootNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlaceholderDiv)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSelCon)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEditor)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRootNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPlaceholderDiv)
 }
 
 void nsTextEditorState::Traverse(nsCycleCollectionTraversalCallback& cb)
 {
   nsTextEditorState* tmp = this;
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSelCon)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEditor)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRootNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlaceholderDiv)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mSelCon, nsISelectionController)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEditor)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRootNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPlaceholderDiv)
 }
 
 nsFrameSelection*
@@ -1388,7 +1380,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   }
 
   if (mTextListener)
-    newEditor->AddEditorObserver(mTextListener);
+    newEditor->SetEditorObserver(mTextListener);
 
   // Restore our selection after being bound to a new frame
   if (mSelectionCached) {
@@ -1412,7 +1404,7 @@ nsTextEditorState::DestroyEditor()
   // notify the editor that we are going away
   if (mEditorInitialized) {
     if (mTextListener)
-      mEditor->RemoveEditorObserver(mTextListener);
+      mEditor->RemoveEditorObserver();
 
     mEditor->PreDestroy(true);
     mEditorInitialized = false;

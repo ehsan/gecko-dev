@@ -42,8 +42,6 @@
 #include "CameraCommon.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
-using namespace mozilla::layers;
 using namespace android;
 
 static const char* getKeyText(uint32_t aKey)

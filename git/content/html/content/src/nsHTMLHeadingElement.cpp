@@ -15,7 +15,6 @@
 #include "mozAutoDocUpdate.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 class nsHTMLHeadingElement : public nsGenericHTMLElement,
                              public nsIDOMHTMLHeadingElement
@@ -34,7 +33,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLHeadingElement
   NS_DECL_NSIDOMHTMLHEADINGELEMENT
@@ -64,8 +63,8 @@ nsHTMLHeadingElement::~nsHTMLHeadingElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLHeadingElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLHeadingElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLHeadingElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLHeadingElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLHeadingElement, nsHTMLHeadingElement)

@@ -53,14 +53,11 @@ MediaEngineWebRTCAudioSource::Allocate()
     return NS_ERROR_FAILURE;
   }
 
-  webrtc::VoEHardware* ptrVoEHw = webrtc::VoEHardware::GetInterface(mVoiceEngine);
-  int res = ptrVoEHw->SetRecordingDevice(mCapIndex);
-  ptrVoEHw->Release();
-  if (res) {
-    return NS_ERROR_FAILURE;
-  }
+  // Audio doesn't play through unless we set a receiver and destination, so
+  // we setup a dummy local destination, and do a loopback.
+  mVoEBase->SetLocalReceiver(mChannel, DEFAULT_PORT);
+  mVoEBase->SetSendDestination(mChannel, DEFAULT_PORT, "127.0.0.1");
 
-  LOG(("Audio device %d allocated", mCapIndex));
   mState = kAllocated;
   return NS_OK;
 }
@@ -168,30 +165,20 @@ MediaEngineWebRTCAudioSource::Init()
   if (!mVoERender) {
     return;
   }
-  mVoENetwork = webrtc::VoENetwork::GetInterface(mVoiceEngine);
-  if (!mVoENetwork) {
-    return;
-  }
 
   mChannel = mVoEBase->CreateChannel();
   if (mChannel < 0) {
-    return;
-  }
-  mNullTransport = new NullTransport();
-  if (mVoENetwork->RegisterExternalTransport(mChannel, *mNullTransport)) {
     return;
   }
 
   // Check for availability.
   webrtc::VoEHardware* ptrVoEHw = webrtc::VoEHardware::GetInterface(mVoiceEngine);
   if (ptrVoEHw->SetRecordingDevice(mCapIndex)) {
-    ptrVoEHw->Release();
     return;
   }
 
   bool avail = false;
   ptrVoEHw->GetRecordingDeviceStatus(avail);
-  ptrVoEHw->Release();
   if (!avail) {
     return;
   }
@@ -222,15 +209,6 @@ void
 MediaEngineWebRTCAudioSource::Shutdown()
 {
   if (!mInitDone) {
-    // duplicate these here in case we failed during Init()
-    if (mChannel != -1) {
-      mVoENetwork->DeRegisterExternalTransport(mChannel);
-    }
-
-    if (mNullTransport) {
-      delete mNullTransport;
-    }
-
     return;
   }
 
@@ -243,14 +221,6 @@ MediaEngineWebRTCAudioSource::Shutdown()
   }
 
   mVoEBase->Terminate();
-  if (mChannel != -1) {
-    mVoENetwork->DeRegisterExternalTransport(mChannel);
-  }
-
-  if (mNullTransport) {
-    delete mNullTransport;
-  }
-
   mVoERender->Release();
   mVoEBase->Release();
 

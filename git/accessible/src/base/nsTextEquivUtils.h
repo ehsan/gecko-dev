@@ -20,19 +20,19 @@
 enum ETextEquivRule
 {
   // No rule.
-  eNoNameRule = 0x00,
+  eNoRule = 0x00,
 
   // Walk into subtree only if the currently navigated accessible is not root
   // accessible (i.e. if the accessible is part of text equivalent computation).
-  eNameFromSubtreeIfReqRule = 0x01,
+  eFromSubtreeIfRec = 0x01,
 
   // Text equivalent computation from subtree is allowed.
-  eNameFromSubtreeRule = 0x03,
+  eFromSubtree = 0x03,
 
   // The accessible allows to append its value to text equivalent.
   // XXX: This is temporary solution. Once we move accessible value of links
   // and linkable accessibles to MSAA part we can remove this.
-  eNameFromValueRule = 0x04
+  eFromValue = 0x04
 };
 
 /**

@@ -29,10 +29,10 @@ nsresult FileBlockCache::Open(PRFileDesc* aFD)
 }
 
 FileBlockCache::FileBlockCache()
-  : mFileMonitor("MediaCache.Writer.IO.Monitor"),
+  : mFileMonitor("nsMediaCache.Writer.IO.Monitor"),
     mFD(nullptr),
     mFDCurrentPos(0),
-    mDataMonitor("MediaCache.Writer.Data.Monitor"),
+    mDataMonitor("nsMediaCache.Writer.Data.Monitor"),
     mIsWriteScheduled(false),
     mIsOpen(false)
 {

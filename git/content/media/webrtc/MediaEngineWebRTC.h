@@ -32,7 +32,6 @@
 #include "voice_engine/include/voe_base.h"
 #include "voice_engine/include/voe_codec.h"
 #include "voice_engine/include/voe_hardware.h"
-#include "voice_engine/include/voe_network.h"
 #include "voice_engine/include/voe_audio_processing.h"
 #include "voice_engine/include/voe_volume_control.h"
 #include "voice_engine/include/voe_external_media.h"
@@ -44,7 +43,6 @@
 #include "video_engine/include/vie_capture.h"
 #include "video_engine/include/vie_file.h"
 
-#include "NullTransport.h"
 
 namespace mozilla {
 
@@ -168,8 +166,7 @@ public:
     , mMonitor("WebRTCMic.Monitor")
     , mCapIndex(aIndex)
     , mChannel(-1)
-    , mInitDone(false)
-    , mNullTransport(nullptr) {
+    , mInitDone(false) {
     mState = kReleased;
     mDeviceName.Assign(NS_ConvertUTF8toUTF16(name));
     mDeviceUUID.Assign(NS_ConvertUTF8toUTF16(uuid));
@@ -204,7 +201,6 @@ private:
   webrtc::VoiceEngine* mVoiceEngine;
   webrtc::VoEBase* mVoEBase;
   webrtc::VoEExternalMedia* mVoERender;
-  webrtc::VoENetwork*  mVoENetwork;
 
   mozilla::ReentrantMonitor mMonitor;
 
@@ -217,7 +213,6 @@ private:
   nsString mDeviceUUID;
 
   SourceMediaStream* mSource;
-  NullTransport *mNullTransport;
 };
 
 class MediaEngineWebRTC : public MediaEngine

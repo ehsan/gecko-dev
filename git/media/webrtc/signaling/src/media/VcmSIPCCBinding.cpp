@@ -556,8 +556,7 @@ void vcmRxAllocICE(cc_mcapid_t mcap_id,
   }
 
   CSFLogDebug( logTag, "%s: Getting stream %d", __FUNCTION__, level);
-  mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->media()->
-    ice_media_stream(level-1);
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->ice_media_stream(level-1);
   MOZ_ASSERT(stream);
   if (!stream) {
     return;
@@ -622,8 +621,7 @@ void vcmGetIceParams(const char *peerconnection, char **ufragp, char **pwdp)
     return;
   }
 
-  std::vector<std::string> attrs = pc->impl()->media()->
-    ice_ctx()->GetGlobalAttributes();
+  std::vector<std::string> attrs = pc->impl()->ice_ctx()->GetGlobalAttributes();
 
   // Now fish through these looking for a ufrag and passwd
   char *ufrag = NULL;
@@ -692,8 +690,7 @@ short vcmSetIceSessionParams(const char *peerconnection, char *ufrag, char *pwd)
   if (pwd)
     attributes.push_back(pwd);
 
-  nsresult res = pc->impl()->media()->ice_ctx()->
-    ParseGlobalAttributes(attributes);
+  nsresult res = pc->impl()->ice_ctx()->ParseGlobalAttributes(attributes);
 
   if (!NS_SUCCEEDED(res)) {
     CSFLogError( logTag, "%s: couldn't parse global parameters", __FUNCTION__ );
@@ -724,13 +721,12 @@ short vcmSetIceCandidate(const char *peerconnection, const char *icecandidate, u
   }
 
   CSFLogDebug( logTag, "%s(): Getting stream %d", __FUNCTION__, level);
-  mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->media()->
-    ice_media_stream(level-1);
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->ice_media_stream(level-1);
   if (!stream)
     return VCM_ERROR;
 
   nsresult res;
-  nsresult rv = pc->impl()->media()->ice_ctx()->thread()->Dispatch(
+  nsresult rv = pc->impl()->ice_ctx()->thread()->Dispatch(
     WrapRunnableRet(stream, &NrIceMediaStream::ParseTrickleCandidate, icecandidate, &res),
     NS_DISPATCH_SYNC);
 
@@ -764,8 +760,8 @@ short vcmStartIceChecks(const char *peerconnection)
   }
 
   nsresult res;
-  nsresult rv = pc->impl()->media()->ice_ctx()->thread()->Dispatch(
-    WrapRunnableRet(pc->impl()->media()->ice_ctx(), &NrIceCtx::StartChecks, &res),
+  nsresult rv = pc->impl()->ice_ctx()->thread()->Dispatch(
+      WrapRunnableRet(pc->impl()->ice_ctx(), &NrIceCtx::StartChecks, &res),
       NS_DISPATCH_SYNC);
 
   if (!NS_SUCCEEDED(rv)) {
@@ -806,8 +802,7 @@ short vcmSetIceMediaParams(const char *peerconnection, int level, char *ufrag, c
   }
 
   CSFLogDebug( logTag, "%s(): Getting stream %d", __FUNCTION__, level);
-  mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->media()->
-    ice_media_stream(level-1);
+  mozilla::RefPtr<NrIceMediaStream> stream = pc->impl()->ice_media_stream(level-1);
   if (!stream)
     return VCM_ERROR;
 
@@ -874,7 +869,7 @@ short vcmCreateRemoteStream(
     return VCM_ERROR;
   }
 
-  res = pc->impl()->media()->AddRemoteStream(info, pc_stream_id);
+  res = pc->impl()->AddRemoteStream(info, pc_stream_id);
   if (NS_FAILED(res)) {
     return VCM_ERROR;
   }
@@ -1197,7 +1192,7 @@ int vcmRxStartICE(cc_mcapid_t mcap_id,
 
   // Find the stream we need
   nsRefPtr<sipcc::RemoteSourceStreamInfo> stream =
-    pc->impl()->media()->GetRemoteStream(pc_stream_id);
+    pc->impl()->GetRemoteStream(pc_stream_id);
   if (!stream) {
     // This should never happen
     PR_ASSERT(PR_FALSE);
@@ -1753,8 +1748,7 @@ int vcmTxStartICE(cc_mcapid_t mcap_id,
   if (!pc) {
     return VCM_ERROR;
   }
-  nsRefPtr<sipcc::LocalSourceStreamInfo> stream = pc->impl()->media()->
-    GetLocalStream(pc_stream_id);
+  nsRefPtr<sipcc::LocalSourceStreamInfo> stream = pc->impl()->GetLocalStream(pc_stream_id);
 
   // Create the transport flows
   mozilla::RefPtr<TransportFlow> rtp_flow =
@@ -2438,7 +2432,7 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
   //
   // Not clear that either of these cases matters.
   mozilla::RefPtr<TransportFlow> flow;
-  flow = pc->media()->GetTransportFlow(level, rtcp);
+  flow = pc->GetTransportFlow(level, rtcp);
 
   if (!flow) {
     CSFLogDebug(logTag, "Making new transport flow for level=%d rtcp=%s", level, rtcp ? "true" : "false");
@@ -2449,10 +2443,10 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
     flow = new TransportFlow(id);
 
 
-    ScopedDeletePtr<TransportLayerIce> ice(
-        new TransportLayerIce("flow", pc->media()->ice_ctx(),
-                              pc->media()->ice_media_stream(level-1),
-                              rtcp ? 2 : 1));
+    ScopedDeletePtr<TransportLayerIce> ice(new
+        TransportLayerIce("flow", pc->ice_ctx(),
+                          pc->ice_media_stream(level-1),
+                          rtcp ? 2 : 1));
 
     ScopedDeletePtr<TransportLayerDtls> dtls(new TransportLayerDtls());
     dtls->SetRole(pc->GetRole() == sipcc::PeerConnectionImpl::kRoleOfferer ?
@@ -2492,7 +2486,7 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
 
 
     // Layers are now owned by the flow.
-    nsresult rv = pc->media()->ice_ctx()->thread()->Dispatch(
+    nsresult rv = pc->ice_ctx()->thread()->Dispatch(
         WrapRunnableRet(flow, &TransportFlow::PushLayers, layers, &res),
         NS_DISPATCH_SYNC);
 
@@ -2500,7 +2494,7 @@ vcmCreateTransportFlow(sipcc::PeerConnectionImpl *pc, int level, bool rtcp,
       return NULL;
     }
 
-    pc->media()->AddTransportFlow(level, rtcp, flow);
+    pc->AddTransportFlow(level, rtcp, flow);
   }
 
   return flow;

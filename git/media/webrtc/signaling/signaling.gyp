@@ -79,7 +79,6 @@
         './src/common/csf_common.h',
         './src/common/NullDeleter.h',
         './src/common/Wrapper.h',
-        './src/common/NullTransport.h',
         # Browser Logging
         './src/common/browser_logging/CSFLog.cpp',
         './src/common/browser_logging/CSFLog.h',
@@ -134,9 +133,6 @@
         './src/peerconnection/PeerConnectionCtx.h',
         './src/peerconnection/PeerConnectionImpl.cpp',
         './src/peerconnection/PeerConnectionImpl.h',
-        './src/peerconnection/PeerConnectionMedia.cpp',
-        './src/peerconnection/PeerConnectionMedia.h',
-
         # Media pipeline
         './src/mediapipeline/MediaPipeline.h',
         './src/mediapipeline/MediaPipeline.cpp',

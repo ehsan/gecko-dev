@@ -13,7 +13,6 @@
 #include "mozAutoDocUpdate.h"
 #include "nsHTMLFormElement.h"
 
-using namespace mozilla::dom;
 
 class nsHTMLOutputElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLOutputElement,
@@ -36,7 +35,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLOutputElement
   NS_DECL_NSIDOMHTMLOUTPUTELEMENT
@@ -112,16 +111,17 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLOutputElement,
                                                 nsGenericHTMLFormElement)
   if (tmp->mTokenList) {
     tmp->mTokenList->DropReference();
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mTokenList)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTokenList)
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLOutputElement,
                                                   nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTokenList)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTokenList,
+                                                       nsDOMTokenList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLOutputElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLOutputElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLOutputElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLOutputElement, nsGenericElement)
 
 DOMCI_NODE_DATA(HTMLOutputElement, nsHTMLOutputElement)
 

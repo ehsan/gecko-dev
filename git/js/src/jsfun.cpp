@@ -132,7 +132,7 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
         // fully recovered, so we try to mitigate observing this behavior by
         // detecting its use early.
         RawScript script = iter.script().get(nogc);
-        if (!script->hasAnyIonScript())
+        if (!script->hasIonScript())
             ion::ForbidCompilation(cx, script);
 #endif
 
@@ -174,10 +174,16 @@ fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValu
             return false;
 
         /*
-         * Censor the caller if we don't have full access to it.
+         * Censor the caller if we can't PUNCTURE it.
+         *
+         * NB - This will get much much nicer with bug 800915
          */
         JSObject &caller = vp.toObject();
-        if (caller.isWrapper() && !Wrapper::wrapperHandler(&caller)->isSafeToUnwrap()) {
+        JSErrorReporter reporter = JS_SetErrorReporter(cx, NULL);
+        bool punctureThrew = !UnwrapObjectChecked(cx, &caller);
+        JS_SetErrorReporter(cx, reporter);
+        if (punctureThrew) {
+            JS_ClearPendingException(cx);
             vp.setNull();
         } else if (caller.isFunction()) {
             JSFunction *callerFun = caller.toFunction();
@@ -397,8 +403,13 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
         atom = fun->atom();
         script = fun->script();
     } else {
-        fun = js_NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, NullPtr(), NullPtr());
+        RootedObject parent(cx, NULL);
+        fun = js_NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, parent, NullPtr());
         if (!fun)
+            return false;
+        if (!JSObject::clearParent(cx, fun))
+            return false;
+        if (!JSObject::clearType(cx, fun))
             return false;
         atom = NULL;
         script = NULL;
@@ -444,9 +455,14 @@ js::CloneInterpretedFunction(JSContext *cx, HandleObject enclosingScope, HandleF
 
     /* NB: Keep this in sync with XDRInterpretedFunction. */
 
-    RootedFunction clone(cx, js_NewFunction(cx, NullPtr(), NULL, 0,
-                                            JSFunction::INTERPRETED, NullPtr(), NullPtr()));
+    RootedObject parent(cx, NULL);
+    RootedFunction
+        clone(cx, js_NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED, parent, NullPtr()));
     if (!clone)
+        return NULL;
+    if (!JSObject::clearParent(cx, clone))
+        return NULL;
+    if (!JSObject::clearType(cx, clone))
         return NULL;
 
     RootedScript srcScript(cx, srcFun->script());

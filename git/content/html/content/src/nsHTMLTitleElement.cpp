@@ -10,15 +10,13 @@
 #include "nsContentUtils.h"
 #include "nsStubMutationObserver.h"
 
-using namespace mozilla::dom;
-
 class nsHTMLTitleElement : public nsGenericHTMLElement,
                            public nsIDOMHTMLTitleElement,
                            public nsStubMutationObserver
 {
 public:
-  using Element::GetText;
-  using Element::SetText;
+  using nsGenericElement::GetText;
+  using nsGenericElement::SetText;
 
   nsHTMLTitleElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLTitleElement();
@@ -33,7 +31,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLTitleElement
   NS_DECL_NSIDOMHTMLTITLEELEMENT
@@ -77,8 +75,8 @@ nsHTMLTitleElement::~nsHTMLTitleElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLTitleElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLTitleElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLTitleElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLTitleElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLTitleElement, nsHTMLTitleElement)

@@ -1942,14 +1942,12 @@ nsresult nsExternalAppHandler::InitializeDownload(nsITransfer* aTransfer)
   nsCOMPtr<nsIDownloadHistory> dh(do_GetService(NS_DOWNLOADHISTORY_CONTRACTID));
   if (dh) {
     nsCOMPtr<nsIURI> referrer;
-    nsCOMPtr<nsIChannel> channel = do_QueryInterface(mRequest);
-    if (channel) {
+    if (mRequest) {
+      nsCOMPtr<nsIChannel> channel = do_QueryInterface(mRequest);
       NS_GetReferrerFromChannel(channel, getter_AddRefs(referrer));
     }
 
-    if (channel && !NS_UsePrivateBrowsing(channel)) {
-      dh->AddDownload(mSourceUrl, referrer, mTimeDownloadStarted, target);
-    }
+    dh->AddDownload(mSourceUrl, referrer, mTimeDownloadStarted, target);
   }
 
   return rv;

@@ -25,8 +25,8 @@ class nsHTMLAnchorElement : public nsGenericHTMLElement,
                             public Link
 {
 public:
-  using Element::GetText;
-  using Element::SetText;
+  using nsGenericElement::GetText;
+  using nsGenericElement::SetText;
 
   nsHTMLAnchorElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLAnchorElement();
@@ -41,8 +41,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
   virtual bool Draggable() const MOZ_OVERRIDE;
 
@@ -131,8 +130,8 @@ nsHTMLAnchorElement::~nsHTMLAnchorElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
+NS_IMPL_RELEASE_INHERITED(nsHTMLAnchorElement, nsGenericElement) 
 
 
 DOMCI_NODE_DATA(HTMLAnchorElement, nsHTMLAnchorElement)

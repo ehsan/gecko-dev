@@ -53,7 +53,7 @@ nsSVGEnum::SetBaseValueAtom(const nsIAtom* aValue, nsSVGElement *aSVGElement)
           aSVGElement->AnimationNeedsResample();
         }
         // We don't need to call DidChange* here - we're only called by
-        // nsSVGElement::ParseAttribute under Element::SetAttr,
+        // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
         // which takes care of notifying.
       }
       return NS_OK;

@@ -1023,27 +1023,13 @@ MarionetteDriverActor.prototype = {
    *                of the frame to switch to
    */
   switchToFrame: function MDA_switchToFrame(aRequest) {
-    let checkTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    let checkLoad = function() { 
-      let errorRegex = /about:.+(error)|(blocked)\?/;
-      if (curWindow.document.readyState == "complete") { 
-        this.sendOk();
-        return;
-      } 
-      else if (curWindow.document.readyState == "interactive" && errorRegex.exec(curWindow.document.baseURI)) {
-        this.sendError("Error loading page", 13, null);
-        return;
-      }
-      
-      checkTimer.initWithCallback(checkLoad.bind(this), 100, Ci.nsITimer.TYPE_ONE_SHOT);
-    }
     let curWindow = this.getCurrentWindow();
     if (this.context == "chrome") {
       let foundFrame = null;
       if ((aRequest.value == null) && (aRequest.element == null)) {
         this.curFrame = null;
         this.mainFrame.focus();
-        checkTimer.initWithCallback(checkLoad.bind(this), 100, Ci.nsITimer.TYPE_ONE_SHOT);
+        this.sendOk();
         return;
       }
       if (aRequest.element != undefined) {
@@ -1055,7 +1041,7 @@ MarionetteDriverActor.prototype = {
               curWindow = curWindow.frames[i]; 
               this.curFrame = curWindow;
               this.curFrame.focus();
-              checkTimer.initWithCallback(checkLoad.bind(this), 100, Ci.nsITimer.TYPE_ONE_SHOT);
+              this.sendOk();
               return;
           }
         }
@@ -1090,7 +1076,7 @@ MarionetteDriverActor.prototype = {
         curWindow = curWindow.frames[foundFrame];
         this.curFrame = curWindow;
         this.curFrame.focus();
-        checkTimer.initWithCallback(checkLoad.bind(this), 100, Ci.nsITimer.TYPE_ONE_SHOT);
+        this.sendOk();
       } else {
         this.sendError("Unable to locate frame: " + aRequest.value, 8, null);
       }
@@ -1512,11 +1498,6 @@ MarionetteDriverActor.prototype = {
     this.sendOk();
     this.removeMessageManagerListeners(this.globalMessageManager);
     this.switchToGlobalMessageManager();
-    // reset frame to the top-most frame
-    this.curFrame = null;
-    if (this.mainFrame) {
-      this.mainFrame.focus();
-    }
     this.curBrowser = null;
     try {
       this.importedScripts.remove(false);

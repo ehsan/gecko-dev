@@ -16,7 +16,6 @@
 #include "nsContentUtils.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsSVGElement::StringInfo nsSVGAElement::sStringInfo[2] =
 {
@@ -75,7 +74,7 @@ nsSVGAElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 nsresult
 nsSVGAElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  nsresult rv = Element::PreHandleEvent(aVisitor);
+  nsresult rv = nsGenericElement::PreHandleEvent(aVisitor);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return PreHandleEventForLinks(aVisitor);

@@ -14,6 +14,7 @@
 #include "nsIDOMUserDataHandler.h"
 #include "nsEventListenerManager.h"
 #include "nsIXPConnect.h"
+#include "nsGenericElement.h"
 #include "pldhash.h"
 #include "nsIDOMAttr.h"
 #include "nsCOMArray.h"
@@ -435,7 +436,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     nodeInfo = newNodeInfo;
   }
 
-  Element *elem = aNode->IsElement() ? aNode->AsElement() : nullptr;
+  nsGenericElement *elem = aNode->IsElement() ?
+                           static_cast<nsGenericElement*>(aNode) :
+                           nullptr;
 
   nsCOMPtr<nsINode> clone;
   if (aClone) {

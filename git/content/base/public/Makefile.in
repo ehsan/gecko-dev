@@ -41,6 +41,7 @@ nsLineBreaker.h \
 nsReferencedElement.h \
 nsTreeSanitizer.h \
 nsXMLNameSpaceMap.h \
+nsIXFormsUtilityService.h \
 nsHostObjectProtocolHandler.h \
 $(NULL)
 

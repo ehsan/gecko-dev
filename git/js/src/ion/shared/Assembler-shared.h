@@ -107,10 +107,6 @@ struct AbsoluteAddress {
     explicit AbsoluteAddress(void *addr)
       : addr(addr)
     { }
-
-    AbsoluteAddress offset(ptrdiff_t delta) {
-        return AbsoluteAddress(((uint8 *) addr) + delta);
-    }
 };
 
 // Specifies an address computed in the form of a register base and a constant,

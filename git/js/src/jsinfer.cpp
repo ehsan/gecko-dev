@@ -1997,7 +1997,7 @@ JITCodeHasCheck(HandleScript script, jsbytecode *pc, RecompileKind kind)
     }
 #endif
 
-    if (script->hasAnyIonScript())
+    if (script->hasIonScript())
         return false;
 
     return true;
@@ -2026,14 +2026,8 @@ AddPendingRecompile(JSContext *cx, HandleScript script, jsbytecode *pc,
     RecompileInfo& info = cx->compartment->types.compiledInfo;
     if (info.outputIndex != RecompileInfo::NoCompilerRunning) {
         CompilerOutput *co = info.compilerOutput(cx);
-        switch (co->kind()) {
-          case CompilerOutput::MethodJIT:
-            break;
-          case CompilerOutput::Ion:
-          case CompilerOutput::ParallelIon:
-            if (co->script == script)
-                co->invalidate();
-            break;
+        if (co->isIon() && co->script == script) {
+            co->invalidate();
         }
     }
 
@@ -2423,16 +2417,11 @@ TypeCompartment::processPendingRecompiles(FreeOp *fop)
 
     for (unsigned i = 0; i < pending->length(); i++) {
         CompilerOutput &co = *(*pending)[i].compilerOutput(*this);
-        switch (co.kind()) {
-          case CompilerOutput::MethodJIT:
+        if (co.isJM()) {
             JS_ASSERT(co.isValid());
             mjit::Recompiler::clearStackReferences(fop, co.script);
             co.mjit()->destroyChunk(fop, co.chunkIndex);
             JS_ASSERT(co.script == NULL);
-            break;
-          case CompilerOutput::Ion:
-          case CompilerOutput::ParallelIon:
-            break;
         }
     }
 
@@ -2529,7 +2518,7 @@ TypeCompartment::addPendingRecompile(JSContext *cx, const RecompileInfo &info)
     bool hasJITCode = jit && jit->chunkDescriptor(co->chunkIndex).chunk;
 
 # if defined(JS_ION)
-    hasJITCode |= !!co->script->hasAnyIonScript();
+    hasJITCode |= !!co->script->hasIonScript();
 # endif
 
     if (!hasJITCode) {
@@ -2596,9 +2585,6 @@ TypeCompartment::addPendingRecompile(JSContext *cx, HandleScript script, jsbytec
 
     if (script->hasIonScript())
         addPendingRecompile(cx, script->ionScript()->recompileInfo());
-
-    if (script->hasParallelIonScript())
-        addPendingRecompile(cx, script->parallelIonScript()->recompileInfo());
 # endif
 #endif
 }

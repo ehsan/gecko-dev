@@ -211,8 +211,6 @@ ccInit ()
 
     platInit();
 
-    strlib_init();
-
     /*
      * below should move to cprPreInit. keep it here until then
      */

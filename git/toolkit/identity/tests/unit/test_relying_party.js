@@ -197,15 +197,12 @@ function test_logout() {
   });
 }
 
-let TESTS = [
-  test_watch_loggedin_ready,
-  test_watch_loggedin_login,
-  test_watch_loggedin_logout,
-  test_watch_notloggedin_ready,
-  test_watch_notloggedin_logout,
-  test_request,
-  test_logout
-];
+let TESTS = [];
+
+TESTS = TESTS.concat([test_watch_loggedin_ready, test_watch_loggedin_login, test_watch_loggedin_logout]);
+TESTS = TESTS.concat([test_watch_notloggedin_ready, test_watch_notloggedin_logout]);
+TESTS.push(test_request);
+TESTS.push(test_logout);
 
 TESTS.forEach(add_test);
 

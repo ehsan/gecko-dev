@@ -66,19 +66,17 @@ nsIDOMMediaStream*
 MediaStreamList::IndexedGetter(uint32_t index, bool& found)
 {
   if (mType == Local) {
-    return GetStreamFromInfo(mPeerConnection->media()->
-      GetLocalStream(index), found);
+    return GetStreamFromInfo(mPeerConnection->GetLocalStream(index), found);
   }
 
-  return GetStreamFromInfo(mPeerConnection->media()->
-    GetRemoteStream(index), found);
+  return GetStreamFromInfo(mPeerConnection->GetRemoteStream(index), found);
 }
 
 uint32_t
 MediaStreamList::Length()
 {
-  return mType == Local ? mPeerConnection->media()->LocalStreamsLength() :
-      mPeerConnection->media()->RemoteStreamsLength();
+  return mType == Local ? mPeerConnection->LocalStreamsLength() :
+                          mPeerConnection->RemoteStreamsLength();
 }
 
 } // namespace dom

@@ -43,7 +43,6 @@ CPPSRCS		= \
 		nsGZFileWriter.cpp \
 		nsMemoryInfoDumper.cpp \
 		nsMessageLoop.cpp \
-		AvailableMemoryTracker.cpp \
 		$(NULL)
 
 ifeq ($(OS_ARCH),Linux)
@@ -68,6 +67,7 @@ EXPORTS		= \
 		nsWeakPtr.h \
 		nsInterfaceRequestorAgg.h \
 		nsGZFileWriter.h \
+		NSPRFormatTime.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla
@@ -92,6 +92,8 @@ ifdef MOZ_DEBUG
 CSRCS		+= pure_api.c
 EXPORTS		+= pure.h
 endif
+
+CPPSRCS += AvailableMemoryTracker.cpp
 
 endif #if OS_ARCH == WINNT
 

@@ -114,7 +114,6 @@
 #include "nsIObserver.h"
 #include "nsINestedURI.h"
 #include "nsITransportSecurityInfo.h"
-#include "nsISSLSocketControl.h"
 #include "nsINSSErrorsService.h"
 #include "nsIApplicationCache.h"
 #include "nsIApplicationCacheChannel.h"
@@ -731,6 +730,7 @@ nsDocShell::nsDocShell():
     mCharsetReloadState(eCharsetReloadInit),
     mChildOffset(0),
     mBusyFlags(BUSY_FLAGS_NONE),
+    mFrameType(eFrameTypeRegular),
     mAppType(nsIDocShell::APP_TYPE_UNKNOWN),
     mLoadType(0),
     mMarginWidth(-1),
@@ -768,7 +768,6 @@ nsDocShell::nsDocShell():
 #ifdef DEBUG
     mInEnsureScriptEnv(false),
 #endif
-    mFrameType(eFrameTypeRegular),
     mOwnOrContainingAppId(nsIScriptSecurityManager::UNKNOWN_APP_ID),
     mParentCharsetSource(0)
 {
@@ -4175,14 +4174,9 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
                 nsCOMPtr<nsIStrictTransportSecurityService> stss =
                           do_GetService(NS_STSSERVICE_CONTRACTID, &rv);
                 NS_ENSURE_SUCCESS(rv, rv);
-                uint32_t flags = 0;
-                nsCOMPtr<nsISSLSocketControl> socketControl = do_QueryInterface(tsi);
-                if (socketControl) {
-                    socketControl->GetProviderFlags(&flags);
-                }
-                
+
                 bool isStsHost = false;
-                rv = stss->IsStsURI(aURI, flags, &isStsHost);
+                rv = stss->IsStsURI(aURI, &isStsHost);
                 NS_ENSURE_SUCCESS(rv, rv);
 
                 uint32_t bucketId;
@@ -5340,8 +5334,7 @@ nsDocShell::SetTitle(const PRUnichar * aTitle)
             treeOwnerAsWin->SetTitle(aTitle);
     }
 
-    if (mCurrentURI && mLoadType != LOAD_ERROR_PAGE && mUseGlobalHistory &&
-        !mInPrivateBrowsing) {
+    if (mCurrentURI && mLoadType != LOAD_ERROR_PAGE && mUseGlobalHistory) {
         nsCOMPtr<IHistory> history = services::GetHistoryService();
         if (history) {
             history->SetURITitle(mCurrentURI, mTitle);
@@ -8925,7 +8918,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             /* Set the title for the Global History entry for this anchor url.
              */
-            if (mUseGlobalHistory && !mInPrivateBrowsing) {
+            if (mUseGlobalHistory) {
                 nsCOMPtr<IHistory> history = services::GetHistoryService();
                 if (history) {
                     history->SetURITitle(aURI, mTitle);
@@ -10270,7 +10263,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
         // AddURIVisit doesn't set the title for the new URI in global history,
         // so do that here.
-        if (mUseGlobalHistory && !mInPrivateBrowsing) {
+        if (mUseGlobalHistory) {
             nsCOMPtr<IHistory> history = services::GetHistoryService();
             if (history) {
                 history->SetURITitle(newURI, mTitle);
@@ -10621,7 +10614,8 @@ NS_IMETHODIMP nsDocShell::PersistLayoutHistoryState()
         rv = GetPresShell(getter_AddRefs(shell));
         if (NS_SUCCEEDED(rv) && shell) {
             nsCOMPtr<nsILayoutHistoryState> layoutState;
-            rv = shell->CaptureHistoryState(getter_AddRefs(layoutState));
+            rv = shell->CaptureHistoryState(getter_AddRefs(layoutState),
+                                            true);
         }
     }
 
@@ -11088,7 +11082,7 @@ nsDocShell::AddURIVisit(nsIURI* aURI,
 
     // Only content-type docshells save URI visits.  Also don't do
     // anything here if we're not supposed to use global history.
-    if (mItemType != typeContent || !mUseGlobalHistory || mInPrivateBrowsing) {
+    if (mItemType != typeContent || !mUseGlobalHistory) {
         return;
     }
 

@@ -16,7 +16,6 @@ class nsStyleContext;
 class nsPresContext;
 class nsCSSPropertySet;
 struct nsTransition;
-struct ElementDependentRuleProcessorData;
 
 /*****************************************************************************
  * Per-Element data                                                          *
@@ -163,7 +162,7 @@ private:
   ElementTransitions* GetElementTransitions(mozilla::dom::Element *aElement,
                                             nsCSSPseudoElements::Type aPseudoType,
                                             bool aCreateIfNeeded);
-  void WalkTransitionRule(ElementDependentRuleProcessorData* aData,
+  void WalkTransitionRule(RuleProcessorData* aData,
                           nsCSSPseudoElements::Type aPseudoType);
 };
 

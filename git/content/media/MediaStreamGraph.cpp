@@ -20,10 +20,8 @@
 #include "mozilla/Attributes.h"
 #include "TrackUnionStream.h"
 #include "ImageContainer.h"
-#include "AudioChannelCommon.h"
 
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 namespace mozilla {
 
@@ -1152,7 +1150,7 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
           continue;
         }
 
-        // XXX allocating a AudioStream could be slow so we're going to have to do
+        // XXX allocating a nsAudioStream could be slow so we're going to have to do
         // something here ... preallocation, async allocation, multiplexing onto a single
         // stream ...
         AudioSegment* audio = tracks->Get<AudioSegment>();
@@ -1160,9 +1158,9 @@ MediaStreamGraphImpl::CreateOrDestroyAudioStreams(GraphTime aAudioOutputStartTim
           aStream->mAudioOutputStreams.AppendElement();
         audioOutputStream->mAudioPlaybackStartTime = aAudioOutputStartTime;
         audioOutputStream->mBlockedAudioTime = 0;
-        audioOutputStream->mStream = AudioStream::AllocateStream();
+        audioOutputStream->mStream = nsAudioStream::AllocateStream();
         audioOutputStream->mStream->Init(audio->GetChannels(),
-                                         tracks->GetRate(), AUDIO_CHANNEL_NORMAL);
+                                         tracks->GetRate());
         audioOutputStream->mTrackID = tracks->GetID();
       }
     }

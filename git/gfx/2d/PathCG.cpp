@@ -222,10 +222,8 @@ PathCG::StrokeContainsPoint(const StrokeOptions &aStrokeOptions,
   CGContextRestoreGState(cg);
 
   CGPathRef sPath = CGContextCopyPath(cg);
-  bool inStroke = CGPathContainsPoint(sPath, nullptr, point, false);
-  CGPathRelease(sPath);
 
-  return inStroke;
+  return CGPathContainsPoint(sPath, nullptr, point, false);
 }
 
 //XXX: what should these functions return for an empty path?

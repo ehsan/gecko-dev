@@ -32,8 +32,8 @@ class nsHTMLScriptElement : public nsGenericHTMLElement,
                             public nsScriptElement
 {
 public:
-  using Element::GetText;
-  using Element::SetText;
+  using nsGenericElement::GetText;
+  using nsGenericElement::SetText;
 
   nsHTMLScriptElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                       FromParser aFromParser);
@@ -49,8 +49,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
   virtual void GetInnerHTML(nsAString& aInnerHTML,
                             mozilla::ErrorResult& aError) MOZ_OVERRIDE;
   virtual void SetInnerHTML(const nsAString& aInnerHTML,
@@ -77,7 +76,7 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  // Element
+  // nsGenericElement
   virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify);
 
@@ -106,8 +105,8 @@ nsHTMLScriptElement::~nsHTMLScriptElement()
 }
 
 
-NS_IMPL_ADDREF_INHERITED(nsHTMLScriptElement, Element)
-NS_IMPL_RELEASE_INHERITED(nsHTMLScriptElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLScriptElement, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsHTMLScriptElement, nsGenericElement)
 
 DOMCI_NODE_DATA(HTMLScriptElement, nsHTMLScriptElement)
 

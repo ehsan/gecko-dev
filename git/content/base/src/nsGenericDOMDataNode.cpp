@@ -9,7 +9,7 @@
  */
 
 #include "nsGenericDOMDataNode.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMDocument.h"
@@ -36,7 +36,6 @@
 #include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
@@ -66,15 +65,15 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkip(tmp, aRemovingAllowed);
+  return nsGenericElement::CanSkip(tmp, aRemovingAllowed);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipInCC(tmp);
+  return nsGenericElement::CanSkipInCC(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipThis(tmp);
+  return nsGenericElement::CanSkipThis(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
@@ -470,7 +469,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // if we do this any later).
     ClearSubtreeRootPointer();
 
-    // XXX See the comment in Element::BindToTree
+    // XXX See the comment in nsGenericElement::BindToTree
     SetInDocument();
     if (mText.IsBidi()) {
       aDocument->SetBidiEnabled();

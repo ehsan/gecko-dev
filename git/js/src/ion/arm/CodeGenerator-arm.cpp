@@ -51,7 +51,7 @@ class DeferredJumpTable : public DeferredData
 
 
 // shared
-CodeGeneratorARM::CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph)
+CodeGeneratorARM::CodeGeneratorARM(MIRGenerator *gen, LIRGraph &graph)
   : CodeGeneratorShared(gen, graph),
     deoptLabel_(NULL)
 {
@@ -176,9 +176,11 @@ CodeGeneratorARM::generateOutOfLineCode()
         // Push the frame size, so the handler can recover the IonScript.
         masm.ma_mov(Imm32(frameSize()), lr);
 
-        IonCompartment *ion = GetIonContext()->compartment->ionCompartment();
-        IonCode *handler = ion->getGenericBailoutHandler();
-
+        JSContext *cx = GetIonContext()->cx;
+        IonCompartment *ion = cx->compartment->ionCompartment();
+        IonCode *handler = ion->getGenericBailoutHandler(cx);
+        if (!handler)
+            return false;
         masm.branch(handler);
     }
 
@@ -323,7 +325,7 @@ CodeGeneratorARM::visitNegD(LNegD *ins)
 {
     FloatRegister input = ToFloatRegister(ins->input());
     JS_ASSERT(input == ToFloatRegister(ins->output()));
-    masm.ma_vneg(input, input);
+    masm.as_vneg(input, input);
     return true;
 }
 
@@ -332,7 +334,7 @@ CodeGeneratorARM::visitAbsD(LAbsD *ins)
 {
     FloatRegister input = ToFloatRegister(ins->input());
     JS_ASSERT(input == ToFloatRegister(ins->output()));
-    masm.ma_vabs(input, input);
+    masm.as_vabs(input, input);
     return true;
 }
 
@@ -341,7 +343,7 @@ CodeGeneratorARM::visitSqrtD(LSqrtD *ins)
 {
     FloatRegister input = ToFloatRegister(ins->input());
     JS_ASSERT(input == ToFloatRegister(ins->output()));
-    masm.ma_vsqrt(input, input);
+    masm.as_vsqrt(input, input);
     return true;
 }
 
@@ -778,13 +780,13 @@ CodeGeneratorARM::visitPowHalfD(LPowHalfD *ins)
     // Masm.pow(-Infinity, 0.5) == Infinity.
     masm.ma_vimm(js_NegativeInfinity, ScratchFloatReg);
     masm.compareDouble(input, ScratchFloatReg);
-    masm.ma_vneg(ScratchFloatReg, output, Assembler::Equal);
+    masm.as_vneg(ScratchFloatReg, output, Assembler::Equal);
     masm.ma_b(&done, Assembler::Equal);
 
     // Math.pow(-0, 0.5) == 0 == Math.pow(0, 0.5). Adding 0 converts any -0 to 0.
     masm.ma_vimm(0.0, ScratchFloatReg);
     masm.ma_vadd(ScratchFloatReg, input, output);
-    masm.ma_vsqrt(output, output);
+    masm.as_vsqrt(output, output);
 
     masm.bind(&done);
     return true;
@@ -980,7 +982,11 @@ CodeGeneratorARM::visitTruncateDToInt32(LTruncateDToInt32 *ins)
     return emitTruncateDouble(ToFloatRegister(ins->input()), ToRegister(ins->output()));
 }
 
-static const uint32 FrameSizes[] = { 128, 256, 512, 1024 };
+// The first two size classes are 128 and 256 bytes respectively. After that we
+// increment by 512.
+static const uint32 LAST_FRAME_SIZE = 512;
+static const uint32 LAST_FRAME_INCREMENT = 512;
+static const uint32 FrameSizes[] = { 128, 256, LAST_FRAME_SIZE };
 
 FrameSizeClass
 FrameSizeClass::FromDepth(uint32 frameDepth)
@@ -990,22 +996,21 @@ FrameSizeClass::FromDepth(uint32 frameDepth)
             return FrameSizeClass(i);
     }
 
-    return FrameSizeClass::None();
-}
+    uint32 newFrameSize = frameDepth - LAST_FRAME_SIZE;
+    uint32 sizeClass = (newFrameSize / LAST_FRAME_INCREMENT) + 1;
 
-FrameSizeClass
-FrameSizeClass::ClassLimit()
-{
-    return FrameSizeClass(JS_ARRAY_LENGTH(FrameSizes));
+    return FrameSizeClass(JS_ARRAY_LENGTH(FrameSizes) + sizeClass);
 }
-
 uint32
 FrameSizeClass::frameSize() const
 {
     JS_ASSERT(class_ != NO_FRAME_SIZE_CLASS_ID);
-    JS_ASSERT(class_ < JS_ARRAY_LENGTH(FrameSizes));
 
-    return FrameSizes[class_];
+    if (class_ < JS_ARRAY_LENGTH(FrameSizes))
+        return FrameSizes[class_];
+
+    uint32 step = class_ - JS_ARRAY_LENGTH(FrameSizes);
+    return LAST_FRAME_SIZE + step * LAST_FRAME_INCREMENT;
 }
 
 ValueOperand
@@ -1074,9 +1079,8 @@ CodeGeneratorARM::visitBoxDouble(LBoxDouble *box)
     const LDefinition *type = box->getDef(TYPE_INDEX);
     const LAllocation *in = box->getOperand(0);
 
-    //masm.as_vxfer(ToRegister(payload), ToRegister(type),
-    //              VFPRegister(ToFloatRegister(in)), Assembler::FloatToCore);
-    masm.ma_vxfer(VFPRegister(ToFloatRegister(in)), ToRegister(payload), ToRegister(type));
+    masm.as_vxfer(ToRegister(payload), ToRegister(type),
+                  VFPRegister(ToFloatRegister(in)), Assembler::FloatToCore);
     return true;
 }
 
@@ -1146,7 +1150,7 @@ bool
 CodeGeneratorARM::visitTestDAndBranch(LTestDAndBranch *test)
 {
     const LAllocation *opd = test->input();
-    masm.ma_vcmpz(ToFloatRegister(opd));
+    masm.as_vcmpz(VFPRegister(ToFloatRegister(opd)));
     masm.as_vmrs(pc);
 
     LBlock *ifTrue = test->ifTrue()->lir();
@@ -1467,13 +1471,13 @@ CodeGeneratorARM::visitRecompileCheck(LRecompileCheck *lir)
     return true;
 }
 
-typedef bool (*InterruptCheckFn)(JSContext *);
-static const VMFunction InterruptCheckInfo = FunctionInfo<InterruptCheckFn>(InterruptCheck);
-
 bool
 CodeGeneratorARM::visitInterruptCheck(LInterruptCheck *lir)
 {
-    OutOfLineCode *ool = oolCallVM(InterruptCheckInfo, lir, (ArgList()), StoreNothing());
+    typedef bool (*pf)(JSContext *);
+    static const VMFunction interruptCheckInfo = FunctionInfo<pf>(InterruptCheck);
+
+    OutOfLineCode *ool = oolCallVM(interruptCheckInfo, lir, (ArgList()), StoreNothing());
     if (!ool)
         return false;
 
@@ -1499,9 +1503,13 @@ CodeGeneratorARM::generateInvalidateEpilogue()
     // Push the return address of the point that we bailed out at onto the stack
     masm.Push(lr);
 
+    JSContext *cx = GetIonContext()->cx;
+
     // Push the Ion script onto the stack (when we determine what that pointer is).
     invalidateEpilogueData_ = masm.pushWithPatch(ImmWord(uintptr_t(-1)));
-    IonCode *thunk = GetIonContext()->compartment->ionCompartment()->getInvalidationThunk();
+    IonCode *thunk = cx->compartment->ionCompartment()->getOrCreateInvalidationThunk(cx);
+    if (!thunk)
+        return false;
 
     masm.branch(thunk);
 
