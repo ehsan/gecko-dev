@@ -41,28 +41,25 @@ import org.mozilla.gecko.mozglue.WebRTCJNITarget;
 public class VideoCaptureAndroid implements PreviewCallback, Callback, AppStateListener {
   private final static String TAG = "WEBRTC-JC";
 
-  // Only non-null while capturing, accessed exclusively from synchronized methods.
-  /* inner-access */ Camera camera;
+  private Camera camera;  // Only non-null while capturing.
   private Camera.CameraInfo info;
   private final int id;
   private final long native_capturer;  // |VideoCaptureAndroid*| in C++.
   private SurfaceHolder localPreview;
   private SurfaceTexture dummySurfaceTexture;
-
   // Arbitrary queue depth.  Higher number means more memory allocated & held,
   // lower number means more sensitivity to processing time in the client (and
   // potentially stalling the capturer if it runs out of buffers to write to).
   private final int numCaptureBuffers = 3;
-
   // Needed to start/stop/rotate camera.
-  /* inner-access */ volatile int mCaptureRotation;
-  /* inner-access */ int mCaptureWidth;
-  /* inner-access */ int mCaptureHeight;
-  /* inner-access */ int mCaptureMinFPS;
-  /* inner-access */ int mCaptureMaxFPS;
+  private volatile int mCaptureRotation;
+  private int mCaptureWidth;
+  private int mCaptureHeight;
+  private int mCaptureMinFPS;
+  private int mCaptureMaxFPS;
   // Are we being told to start/stop the camera, or just suspending/resuming
   // due to the application being backgrounded.
-  /* inner-access */ boolean mResumeCapture;
+  private boolean mResumeCapture;
 
   @WebRTCJNITarget
   public VideoCaptureAndroid(int id, long native_capturer) {

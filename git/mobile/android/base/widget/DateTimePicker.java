@@ -47,16 +47,14 @@ public class DateTimePicker extends FrameLayout {
     private static final int DEFAULT_END_YEAR = 9999;
     // Minimal screen width (in inches) for which we can show the calendar;
     private static final int SCREEN_SIZE_THRESHOLD = 5;
-
-    /* inner-access */ boolean mYearEnabled = true;
-    /* inner-access */ boolean mMonthEnabled = true;
-    /* inner-access */ boolean mWeekEnabled;
-    /* inner-access */ boolean mDayEnabled = true;
-    /* inner-access */ boolean mHourEnabled = true;
-    /* inner-access */ boolean mMinuteEnabled = true;
-    /* inner-access */ boolean mIs12HourMode;
+    private boolean mYearEnabled = true;
+    private boolean mMonthEnabled = true;
+    private boolean mWeekEnabled;
+    private boolean mDayEnabled = true;
+    private boolean mHourEnabled = true;
+    private boolean mMinuteEnabled = true;
     private boolean mCalendarEnabled;
-
+    private boolean mIs12HourMode;
     // Size of the screen in inches;
     private int mScreenWidth;
     private int mScreenHeight;
@@ -64,14 +62,13 @@ public class DateTimePicker extends FrameLayout {
     private final LinearLayout mPickers;
     private final LinearLayout mDateSpinners;
     private final LinearLayout mTimeSpinners;
-
-    /* inner-access */ final NumberPicker mDaySpinner;
-    /* inner-access */ final NumberPicker mMonthSpinner;
-    /* inner-access */ final NumberPicker mWeekSpinner;
-    /* inner-access */ final NumberPicker mYearSpinner;
-    /* inner-access */ final NumberPicker mHourSpinner;
-    /* inner-access */ final NumberPicker mMinuteSpinner;
-    /* inner-access */ final NumberPicker mAMPMSpinner;
+    private final NumberPicker mDaySpinner;
+    private final NumberPicker mMonthSpinner;
+    private final NumberPicker mWeekSpinner;
+    private final NumberPicker mYearSpinner;
+    private final NumberPicker mHourSpinner;
+    private final NumberPicker mMinuteSpinner;
+    private final NumberPicker mAMPMSpinner;
     private final CalendarView mCalendar;
     private final EditText mDaySpinnerInput;
     private final EditText mMonthSpinnerInput;
@@ -84,11 +81,10 @@ public class DateTimePicker extends FrameLayout {
     private String[] mShortMonths;
     private String[] mShortAMPMs;
     private int mNumberOfMonths;
-
-    /* inner-access */ Calendar mTempDate;
-    /* inner-access */ Calendar mCurrentDate;
+    private Calendar mTempDate;
     private Calendar mMinDate;
     private Calendar mMaxDate;
+    private Calendar mCurrentDate;
     private PickersState mState;
 
     public static enum PickersState { DATE, MONTH, WEEK, TIME, DATETIME };
@@ -410,7 +406,7 @@ public class DateTimePicker extends FrameLayout {
         mDateSpinners.addView(mWeekSpinner);
     }
 
-    /* inner-access */ void setDate(Calendar calendar){
+    private void setDate(Calendar calendar){
         mCurrentDate = mTempDate;
         if (mCurrentDate.before(mMinDate)) {
             mCurrentDate.setTimeInMillis(mMinDate.getTimeInMillis());
@@ -419,7 +415,7 @@ public class DateTimePicker extends FrameLayout {
         }
     }
 
-    /* inner-access */ void updateInputState() {
+    private void updateInputState() {
         InputMethodManager inputMethodManager = (InputMethodManager)
           getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
         if (mYearEnabled && inputMethodManager.isActive(mYearSpinnerInput)) {
@@ -440,7 +436,7 @@ public class DateTimePicker extends FrameLayout {
         }
     }
 
-    /* inner-access */ void updateSpinners() {
+    private void updateSpinners() {
         if (mDayEnabled) {
             if (mCurrentDate.equals(mMinDate)) {
                 mDaySpinner.setMinValue(mCurrentDate.get(Calendar.DAY_OF_MONTH));
@@ -500,13 +496,13 @@ public class DateTimePicker extends FrameLayout {
         }
     }
 
-    /* inner-access */ void updateCalendar() {
+    private void updateCalendar() {
         if (mCalendarEnabled){
             mCalendar.setDate(mCurrentDate.getTimeInMillis(), false, false);
         }
     }
 
-    /* inner-access */ void notifyDateChanged() {
+    private void notifyDateChanged() {
         sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SELECTED);
     }
 

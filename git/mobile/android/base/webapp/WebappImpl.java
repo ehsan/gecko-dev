@@ -43,8 +43,7 @@ public class WebappImpl extends GeckoApp implements InstallCallback {
     private TextView mTitlebarText;
     private View mTitlebar;
 
-    // Must only be accessed from the UI thread.
-    /* inner-access */ View mSplashscreen;
+    private View mSplashscreen;
 
     private boolean mIsApk = true;
     private ApkResources mApkResources;

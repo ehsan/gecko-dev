@@ -14,7 +14,7 @@ function testUrlTagDiscover(re) {
   let type = "U";
   let payload = url;
 
-  sysMsgHelper.waitForTechDiscovered(function(msg) {
+  window.navigator.mozSetMessageHandler("nfc-manager-tech-discovered", function(msg) {
     log("Received \'nfc-manager-tech-ndiscovered\'");
     is(msg.type, "techDiscovered", "check for correct message type");
     let index = msg.techList.indexOf("NDEF");
@@ -38,7 +38,7 @@ function testUrlTagDiscover(re) {
 function testEmptyTagDiscover(re) {
   log("Running \'testEmptyTagDiscover\'");
 
-  sysMsgHelper.waitForTechDiscovered(function(msg) {
+  window.navigator.mozSetMessageHandler("nfc-manager-tech-discovered", function(msg) {
     log("Received \'nfc-manager-tech-ndiscovered\'");
     is(msg.type, "techDiscovered", "check for correct message type");
     let index = msg.techList.indexOf("NDEF");
