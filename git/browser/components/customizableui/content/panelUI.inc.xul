@@ -6,7 +6,6 @@
        role="group"
        type="arrow"
        hidden="true"
-       flip="slide"
        noautofocus="true">
   <panelmultiview id="PanelUI-multiView" mainViewId="PanelUI-mainView">
     <panelview id="PanelUI-mainView" context="customizationPanelContextMenu">

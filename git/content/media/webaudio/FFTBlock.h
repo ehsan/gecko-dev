@@ -47,18 +47,13 @@ public:
   }
   // Inverse-transform internal data and store the resulting FFTSize()
   // points in aData.
-  void GetInverse(float* aDataOut)
-  {
-    GetInverseWithoutScaling(aDataOut);
-    AudioBufferInPlaceScale(aDataOut, 1.0f / mFFTSize, mFFTSize);
-  }
-  // Inverse-transform internal frequency data and store the resulting
-  // FFTSize() points in |aDataOut|.  If frequency data has not already been
-  // scaled, then the output will need scaling by 1/FFTSize().
-  void GetInverseWithoutScaling(float* aDataOut)
+  void PerformInverseFFT(float* aData)
   {
     EnsureIFFT();
-    kiss_fftri(mIFFT, mOutputBuffer.Elements(), aDataOut);
+    kiss_fftri(mIFFT, mOutputBuffer.Elements(), aData);
+    for (uint32_t i = 0; i < mFFTSize; ++i) {
+      aData[i] /= mFFTSize;
+    }
   }
   // Inverse-transform the FFTSize()/2+1 points of data in each
   // of aRealDataIn and aImagDataIn and store the resulting
@@ -89,17 +84,12 @@ public:
                           mFFTSize / 2 + 1);
   }
 
-  // Perform a forward FFT on |aData|, assuming zeros after dataSize samples,
-  // and pre-scale the generated internal frequency domain coefficients so
-  // that GetInverseWithoutScaling() can be used to transform to the time
-  // domain.  This is useful for convolution kernels.
-  void PadAndMakeScaledDFT(const float* aData, size_t dataSize)
+  void PerformPaddedFFT(const float* aData, size_t dataSize)
   {
     MOZ_ASSERT(dataSize <= FFTSize());
     nsTArray<float> paddedData;
     paddedData.SetLength(FFTSize());
-    AudioBufferCopyWithScale(aData, 1.0f / FFTSize(),
-                             paddedData.Elements(), dataSize);
+    PodCopy(paddedData.Elements(), aData, dataSize);
     PodZero(paddedData.Elements() + dataSize, mFFTSize - dataSize);
     PerformFFT(paddedData.Elements());
   }

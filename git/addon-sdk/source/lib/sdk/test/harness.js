@@ -479,8 +479,7 @@ function stringifyArgs(args) {
   return Array.map(args, stringify).join(" ");
 }
 
-function TestRunnerTinderboxConsole(base, options) {
-  this.base = base;
+function TestRunnerTinderboxConsole(options) {
   this.print = options.print;
   this.verbose = options.verbose;
   this.errorsLogged = 0;
@@ -534,7 +533,6 @@ TestRunnerTinderboxConsole.prototype = {
   error: function error() {
     this.errorsLogged++;
     this.print("TEST-UNEXPECTED-FAIL | " + stringifyArgs(arguments) + "\n");
-    this.base.error.apply(this.base, arguments);
   },
 
   debug: function debug() {
@@ -570,7 +568,7 @@ var runTests = exports.runTests = function runTests(options) {
           system.platform + "/" + system.architecture + ".\n");
 
     if (options.parseable)
-      testConsole = new TestRunnerTinderboxConsole(new PlainTextConsole(), options);
+      testConsole = new TestRunnerTinderboxConsole(options);
     else
       testConsole = new TestRunnerConsole(new PlainTextConsole(), options);
 

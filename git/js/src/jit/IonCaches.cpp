@@ -1749,8 +1749,7 @@ GetPropertyIC::update(JSContext *cx, size_t cacheIndex,
 #endif
 
         // Monitor changes to cache entry.
-        if (!cache.monitoredResult())
-            types::TypeScript::Monitor(cx, script, pc, vp);
+        types::TypeScript::Monitor(cx, script, pc, vp);
     }
 
     return true;
@@ -3417,8 +3416,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     if (cache.isDisabled()) {
         if (!GetObjectElementOperation(cx, JSOp(*pc), obj, /* wasObject = */true, idval, res))
             return false;
-        if (!cache.monitoredResult())
-            types::TypeScript::Monitor(cx, script, pc, res);
+        types::TypeScript::Monitor(cx, script, pc, res);
         return true;
     }
 
@@ -3474,8 +3472,7 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
         cache.resetFailedUpdates();
     }
 
-    if (!cache.monitoredResult())
-        types::TypeScript::Monitor(cx, script, pc, res);
+    types::TypeScript::Monitor(cx, script, pc, res);
     return true;
 }
 

@@ -6,11 +6,8 @@
 #include "CompositingRenderTargetOGL.h"
 #include "GLContext.h"
 #include "GLReadTexImageHelper.h"
-#include "mozilla/gfx/2D.h"
 
 using namespace mozilla;
-using namespace mozilla::gfx;
-using namespace mozilla::gl;
 using namespace mozilla::layers;
 
 CompositingRenderTargetOGL::~CompositingRenderTargetOGL()
@@ -60,12 +57,12 @@ CompositingRenderTargetOGL::BindRenderTarget()
 }
 
 #ifdef MOZ_DUMP_PAINTING
-TemporaryRef<DataSourceSurface>
+already_AddRefed<gfxImageSurface>
 CompositingRenderTargetOGL::Dump(Compositor* aCompositor)
 {
   MOZ_ASSERT(mInitParams.mStatus == InitParams::INITIALIZED);
   CompositorOGL* compositorOGL = static_cast<CompositorOGL*>(aCompositor);
-  return ReadBackSurface(mGL, mTextureHandle, true, compositorOGL->GetFBOFormat());
+  return GetTexImage(mGL, mTextureHandle, true, compositorOGL->GetFBOFormat());
 }
 #endif
 

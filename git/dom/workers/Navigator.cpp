@@ -17,18 +17,17 @@ NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(WorkerNavigator, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(WorkerNavigator, Release)
 
 /* static */ already_AddRefed<WorkerNavigator>
-WorkerNavigator::Create(bool aOnLine)
+WorkerNavigator::Create()
 {
   RuntimeService* rts = RuntimeService::GetService();
   MOZ_ASSERT(rts);
 
-  const RuntimeService::NavigatorProperties& properties =
-    rts->GetNavigatorProperties();
+  const RuntimeService::NavigatorStrings& strings =
+    rts->GetNavigatorStrings();
 
   nsRefPtr<WorkerNavigator> navigator =
-    new WorkerNavigator(properties.mAppName, properties.mAppVersion,
-                        properties.mPlatform, properties.mUserAgent,
-                        aOnLine);
+    new WorkerNavigator(strings.mAppName, strings.mAppVersion,
+                        strings.mPlatform, strings.mUserAgent);
 
   return navigator.forget();
 }

@@ -42,7 +42,6 @@ DEFINES += \
 
 GARBAGE += \
   AndroidManifest.xml  \
-  WebAppManifestFragment.xml.frag \
   classes.dex  \
   gecko.ap_  \
   res/values/strings.xml \
@@ -93,7 +92,7 @@ else
 endif
 
 proguard-jars: $(ALL_JARS)
-	java -jar $(ANDROID_SDK_ROOT)/tools/proguard/lib/proguard.jar @$(topsrcdir)/mobile/android/config/proguard.cfg -optimizationpasses $(PROGUARD_PASSES) -injars $(subst ::,:,$(subst $(NULL) ,:,$(strip $(ALL_JARS)))) -outjars jars-proguarded -libraryjars $(ANDROID_SDK)/android.jar:$(ANDROID_COMPAT_LIB)
+	java -jar $(ANDROID_SDK_ROOT)/tools/proguard/lib/proguard.jar @$(topsrcdir)/mobile/android/config/proguard.cfg -optimizationpasses $(PROGUARD_PASSES) -injars $(subst ::,:,$(subst $(NULL) ,:,$(ALL_JARS))) -outjars jars-proguarded -libraryjars $(ANDROID_SDK)/android.jar:$(ANDROID_COMPAT_LIB)
 
 CLASSES_WITH_JNI= \
     org.mozilla.gecko.GeckoAppShell \
@@ -132,7 +131,6 @@ PP_JAVAFILES := $(filter-out $(gecko_package_dir)/R.java,$(gecko-mozglue_PP_JAVA
 
 manifest := \
   AndroidManifest.xml.in \
-  WebAppManifestFragment.xml.frag.in \
   $(NULL)
 
 PP_TARGETS += manifest
@@ -184,7 +182,6 @@ res/values/strings.xml: FORCE
 
 all_resources = \
   $(CURDIR)/AndroidManifest.xml \
-  $(CURDIR)/WebAppManifestFragment.xml.frag \
   $(android_res_files) \
   $(ANDROID_GENERATED_RESFILES) \
   $(NULL)

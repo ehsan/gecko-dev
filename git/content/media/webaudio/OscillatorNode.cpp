@@ -23,8 +23,7 @@ NS_INTERFACE_MAP_END_INHERITING(AudioNode)
 NS_IMPL_ADDREF_INHERITED(OscillatorNode, AudioNode)
 NS_IMPL_RELEASE_INHERITED(OscillatorNode, AudioNode)
 
-static const float sLeakTriangle = 0.995f;
-static const float sLeak = 0.999f;
+static const float sLeak = 0.995f;
 
 class DCBlocker
 {
@@ -321,7 +320,7 @@ public:
       UpdateParametersIfNeeded(ticks, i);
       // Integration to get us a square. It turns out we can have a
       // pure integrator here.
-      mSquare = mSquare * sLeak + BipolarBLIT();
+      mSquare += BipolarBLIT();
       aOutput[i] = mSquare;
       // maybe we want to apply a gain, the wg has not decided yet
       aOutput[i] *= 1.5;
@@ -338,7 +337,7 @@ public:
       dcoffset = mFinalFrequency / mSource->SampleRate();
       // Integrate and offset so we get mAmplitudeAtZero sawtooth. We have a
       // very low frequency component somewhere here, but I'm not sure where.
-      mSaw = mSaw * sLeak + (UnipolarBLIT() - dcoffset);
+      mSaw += UnipolarBLIT() - dcoffset;
       // reverse the saw so we are spec compliant
       aOutput[i] = -mSaw * 1.5;
 
@@ -357,7 +356,7 @@ public:
       // C6 = k0 / period
       // (period is samplingrate / frequency, k0 = (PI/2)/(2*PI)) = 0.25
       float C6 = 0.25 / (mSource->SampleRate() / mFinalFrequency);
-      mTriangle = mTriangle * sLeakTriangle + mSquare + C6;
+      mTriangle = mTriangle * sLeak + mSquare + C6;
       // DC Block, and scale back to [-1.0; 1.0]
       aOutput[i] = mDCBlocker.Process(mTriangle) / (mSignalPeriod/2) * 1.5;
 

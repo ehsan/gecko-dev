@@ -4,6 +4,7 @@
 function test()
 {
   waitForExplicitFinish();
+  //ignoreAllUncaughtExceptions();
 
   let node, iframe, inspector;
 
@@ -27,24 +28,20 @@ function test()
     inspector = aInspector;
     inspector.selection.setNode(node);
 
-    inspector.once("inspector-updated", () => {
-      iframe.parentNode.removeChild(iframe);
-      iframe = null;
+    iframe.parentNode.removeChild(iframe);
+    iframe = null;
 
-      let tmp = {};
-      Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm", tmp);
-      let lh = new tmp.LayoutHelpers(window.content);
-      ok(!lh.isNodeConnected(node), "Node considered as disconnected.");
-      ok(!inspector.selection.isConnected(), "Selection considered as disconnected");
+    let tmp = {};
+    Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm", tmp);
+    let lh = new tmp.LayoutHelpers(window.content);
+    ok(!lh.isNodeConnected(node), "Node considered as disconnected.");
+    ok(!inspector.selection.isConnected(), "Selection considered as disconnected");
 
-      inspector.once("inspector-updated", () => {
-        finishUp();
-      });
-    });
+    finishUp();
   }
 
   function finishUp() {
-    node = inspector = null;
+    node = null;
     gBrowser.removeCurrentTab();
     finish();
   }

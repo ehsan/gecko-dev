@@ -1115,40 +1115,34 @@ void WriteSnapshotLinkToDumpFile(T* aObj, FILE* aFile)
 }
 
 template <typename T>
-void WriteSnapshotToDumpFile_internal(T* aObj, DataSourceSurface* aSurf)
+void WriteSnapshotToDumpFile_internal(T* aObj, gfxASurface* aSurf)
 {
-  nsRefPtr<gfxImageSurface> deprecatedSurf =
-    new gfxImageSurface(aSurf->GetData(),
-                        ThebesIntSize(aSurf->GetSize()),
-                        aSurf->Stride(),
-                        SurfaceFormatToImageFormat(aSurf->GetFormat()));
   nsCString string(aObj->Name());
   string.Append("-");
   string.AppendInt((uint64_t)aObj);
   if (gfxUtils::sDumpPaintFile) {
     fprintf_stderr(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
   }
-  deprecatedSurf->DumpAsDataURL(gfxUtils::sDumpPaintFile);
+  aSurf->DumpAsDataURL(gfxUtils::sDumpPaintFile);
   if (gfxUtils::sDumpPaintFile) {
     fprintf_stderr(gfxUtils::sDumpPaintFile, "\";");
   }
 }
 
-void WriteSnapshotToDumpFile(Layer* aLayer, DataSourceSurface* aSurf)
+void WriteSnapshotToDumpFile(Layer* aLayer, gfxASurface* aSurf)
 {
   WriteSnapshotToDumpFile_internal(aLayer, aSurf);
 }
 
-void WriteSnapshotToDumpFile(LayerManager* aManager, DataSourceSurface* aSurf)
+void WriteSnapshotToDumpFile(LayerManager* aManager, gfxASurface* aSurf)
 {
   WriteSnapshotToDumpFile_internal(aManager, aSurf);
 }
 
 void WriteSnapshotToDumpFile(Compositor* aCompositor, DrawTarget* aTarget)
 {
-  RefPtr<SourceSurface> surf = aTarget->Snapshot();
-  RefPtr<DataSourceSurface> dSurf = surf->GetDataSurface();
-  WriteSnapshotToDumpFile_internal(aCompositor, dSurf);
+  nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(aTarget);
+  WriteSnapshotToDumpFile_internal(aCompositor, surf);
 }
 #endif
 

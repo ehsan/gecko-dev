@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 test_dirs := \
-  mach/mach/test \
   mozbuild/mozbuild/test \
   mozbuild/mozbuild/test/action \
   mozbuild/mozbuild/test/backend \

@@ -15,7 +15,6 @@ const COLLAPSE_DATA_URL_REGEX = /^data.+base64/;
 const COLLAPSE_DATA_URL_LENGTH = 60;
 const CONTAINER_FLASHING_DURATION = 500;
 const IMAGE_PREVIEW_MAX_DIM = 400;
-const NEW_SELECTION_HIGHLIGHTER_TIMER = 1000;
 
 const {UndoStack} = require("devtools/shared/undo");
 const {editableField, InplaceEditor} = require("devtools/shared/inplace-editor");
@@ -24,7 +23,6 @@ const {HTMLEditor} = require("devtools/markupview/html-editor");
 const {OutputParser} = require("devtools/output-parser");
 const promise = require("sdk/core/promise");
 const {Tooltip} = require("devtools/shared/widgets/Tooltip");
-const EventEmitter = require("devtools/shared/event-emitter");
 
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/devtools/Templater.jsm");
@@ -54,10 +52,6 @@ loader.lazyGetter(this, "AutocompletePopup", () => {
  *        The inspector we're watching.
  * @param iframe aFrame
  *        An iframe in which the caller has kindly loaded markup-view.xhtml.
- *
- * Fires the following events:
- * - node-highlight: When a node in the markup-view is hovered and the
- *   corresponding node in the content gets highlighted
  */
 function MarkupView(aInspector, aFrame, aControllerWindow) {
   this._inspector = aInspector;
@@ -106,131 +100,16 @@ function MarkupView(aInspector, aFrame, aControllerWindow) {
   gDevTools.on("pref-changed", this._handlePrefChange);
 
   this._initPreview();
-  this._initTooltips();
-  this._initHighlighter();
 
-  EventEmitter.decorate(this);
+  this.tooltip = new Tooltip(this._inspector.panelDoc);
+  this.tooltip.startTogglingOnHover(this._elt,
+    this._buildTooltipContent.bind(this));
 }
 
 exports.MarkupView = MarkupView;
 
 MarkupView.prototype = {
   _selectedContainer: null,
-
-  _initTooltips: function() {
-    this.tooltip = new Tooltip(this._inspector.panelDoc);
-    this.tooltip.startTogglingOnHover(this._elt,
-      this._buildTooltipContent.bind(this));
-  },
-
-  _initHighlighter: function() {
-    // Show the box model on markup-view mousemove
-    this._onMouseMove = this._onMouseMove.bind(this);
-    this._elt.addEventListener("mousemove", this._onMouseMove, false);
-    this._onMouseLeave = this._onMouseLeave.bind(this);
-    this._elt.addEventListener("mouseleave", this._onMouseLeave, false);
-
-    // Show markup-containers as hovered on toolbox "picker-node-hovered" event
-    // which happens when the "pick" button is pressed
-    this._onToolboxPickerHover = (event, nodeFront) => {
-      this.showNode(nodeFront, true).then(() => {
-        this._showContainerAsHovered(nodeFront);
-      });
-    }
-    this._inspector.toolbox.on("picker-node-hovered", this._onToolboxPickerHover);
-  },
-
-  _onMouseMove: function(event) {
-    let target = event.target;
-
-    // Search target for a markupContainer reference, if not found, walk up
-    while (!target.container) {
-      if (target.tagName.toLowerCase() === "body") {
-        return;
-      }
-      target = target.parentNode;
-    }
-
-    let container = target.container;
-    if (this._hoveredNode !== container.node) {
-      if (container.node.nodeType !== Ci.nsIDOMNode.TEXT_NODE) {
-        this._showBoxModel(container.node);
-      } else {
-        this._hideBoxModel();
-      }
-    }
-    this._showContainerAsHovered(container.node);
-  },
-
-  _hoveredNode: null,
-  _showContainerAsHovered: function(nodeFront) {
-    if (this._hoveredNode !== nodeFront) {
-      if (this._hoveredNode) {
-        this._containers.get(this._hoveredNode).hovered = false;
-      }
-      this._containers.get(nodeFront).hovered = true;
-
-      this._hoveredNode = nodeFront;
-    }
-  },
-
-  _onMouseLeave: function() {
-    this._hideBoxModel();
-  },
-
-  _showBoxModel: function(nodeFront, options={}) {
-    let toolbox = this._inspector.toolbox;
-
-    // If the remote highlighter exists on the target, use it
-    if (toolbox.isRemoteHighlightable) {
-      toolbox.initInspector().then(() => {
-        toolbox.highlighter.showBoxModel(nodeFront, options).then(() => {
-          this.emit("node-highlight", nodeFront);
-        });
-      });
-    }
-    // Else, revert to the "older" version of the highlighter in the walker
-    // actor
-    else {
-      this.walker.highlight(nodeFront).then(() => {
-        this.emit("node-highlight", nodeFront);
-      });
-    }
-  },
-
-  _hideBoxModel: function() {
-    let deferred = promise.defer();
-    let toolbox = this._inspector.toolbox;
-
-    // If the remote highlighter exists on the target, use it
-    if (toolbox.isRemoteHighlightable) {
-      toolbox.initInspector().then(() => {
-        toolbox.highlighter.hideBoxModel().then(deferred.resolve);
-      });
-    } else {
-      deferred.resolve();
-    }
-    // If not, no need to unhighlight as the older highlight method uses a
-    // setTimeout to hide itself
-
-    return deferred.promise;
-  },
-
-  _briefBoxModelTimer: null,
-  _brieflyShowBoxModel: function(nodeFront, options) {
-    let win = this._frame.contentWindow;
-
-    if (this._briefBoxModelTimer) {
-      win.clearTimeout(this._briefBoxModelTimer);
-      this._briefBoxModelTimer = null;
-    }
-
-    this._showBoxModel(nodeFront, options);
-
-    this._briefBoxModelTimer = this._frame.contentWindow.setTimeout(() => {
-      this._hideBoxModel();
-    }, NEW_SELECTION_HIGHLIGHTER_TIMER);
-  },
 
   template: function(aName, aDest, aOptions={stack: "markup-view.xhtml"}) {
     let node = this.doc.getElementById("template-" + aName).cloneNode(true);
@@ -297,22 +176,11 @@ MarkupView.prototype = {
    * Highlight the inspector selected node.
    */
   _onNewSelection: function() {
-    let selection = this._inspector.selection;
-
     this.htmlEditor.hide();
     let done = this._inspector.updating("markup-view");
-    if (selection.isNode()) {
-      let reason = selection.reason;
-      if (reason && reason !== "inspector-open" && reason !== "navigateaway") {
-        this._brieflyShowBoxModel(selection.nodeFront, {
-          scrollIntoView: true
-        });
-      }
-
-      this.showNode(selection.nodeFront, true).then(() => {
-        if (selection.reason !== "treepanel") {
-          this.markNodeAsSelected(selection.nodeFront);
-        }
+    if (this._inspector.selection.isNode()) {
+      this.showNode(this._inspector.selection.nodeFront, true).then(() => {
+        this.markNodeAsSelected(this._inspector.selection.nodeFront);
         done();
       });
     } else {
@@ -501,6 +369,11 @@ MarkupView.prototype = {
 
     let node = aContainer.node;
     this.markNodeAsSelected(node, "treepanel");
+
+    // This event won't be fired if the node is the same. But the highlighter
+    // need to lock the node if it wasn't.
+    this._inspector.selection.emit("new-node");
+    this._inspector.selection.emit("new-node-front");
 
     if (!aIgnoreFocus) {
       aContainer.focus();
@@ -1067,31 +940,24 @@ MarkupView.prototype = {
   destroy: function() {
     gDevTools.off("pref-changed", this._handlePrefChange);
 
-    // Note that if the toolbox is closed, this will work fine, but will fail
-    // in case the browser is closed and will trigger a noSuchActor message.
-    this._hideBoxModel();
-
-    this._hoveredNode = null;
-    this._inspector.toolbox.off("picker-node-hovered", this._onToolboxPickerHover);
-
-    this._outputParser = null;
+    delete this._outputParser;
 
     this.htmlEditor.destroy();
-    this.htmlEditor = null;
+    delete this.htmlEditor;
 
     this.undo.destroy();
-    this.undo = null;
+    delete this.undo;
 
     this.popup.destroy();
-    this.popup = null;
+    delete this.popup;
 
     this._frame.removeEventListener("focus", this._boundFocus, false);
-    this._boundFocus = null;
+    delete this._boundFocus;
 
     if (this._boundUpdatePreview) {
       this._frame.contentWindow.removeEventListener("scroll",
         this._boundUpdatePreview, true);
-      this._boundUpdatePreview = null;
+      delete this._boundUpdatePreview;
     }
 
     if (this._boundResizePreview) {
@@ -1101,30 +967,28 @@ MarkupView.prototype = {
         this._boundResizePreview, true);
       this._frame.contentWindow.removeEventListener("underflow",
         this._boundResizePreview, true);
-      this._boundResizePreview = null;
+      delete this._boundResizePreview;
     }
 
     this._frame.contentWindow.removeEventListener("keydown",
       this._boundKeyDown, false);
-    this._boundKeyDown = null;
+    delete this._boundKeyDown;
 
     this._inspector.selection.off("new-node-front", this._boundOnNewSelection);
-    this._boundOnNewSelection = null;
+    delete this._boundOnNewSelection;
 
     this.walker.off("mutations", this._boundMutationObserver)
-    this._boundMutationObserver = null;
+    delete this._boundMutationObserver;
 
-    this._elt.removeEventListener("mousemove", this._onMouseMove, false);
-    this._elt.removeEventListener("mouseleave", this._onMouseLeave, false);
-    this._elt = null;
+    delete this._elt;
 
     for (let [key, container] of this._containers) {
       container.destroy();
     }
-    this._containers = null;
+    delete this._containers;
 
     this.tooltip.destroy();
-    this.tooltip = null;
+    delete this.tooltip;
   },
 
   /**
@@ -1250,7 +1114,7 @@ function MarkupContainer(aMarkupView, aNode, aInspector) {
   // The template will fill the following properties
   this.elt = null;
   this.expander = null;
-  this.tagState = null;
+  this.highlighter = null;
   this.tagLine = null;
   this.children = null;
   this.markup.template("container", this);
@@ -1261,6 +1125,15 @@ function MarkupContainer(aMarkupView, aNode, aInspector) {
   this._onToggle = this._onToggle.bind(this);
   this.elt.addEventListener("dblclick", this._onToggle, false);
   this.expander.addEventListener("click", this._onToggle, false);
+
+  // Dealing with the highlighting of the row via javascript rather than :hover
+  // This is to allow highlighting the closing tag-line as well as reusing the
+  // theme css classes (which wouldn't have been possible with a :hover pseudo)
+  this._onMouseOver = this._onMouseOver.bind(this);
+  this.elt.addEventListener("mouseover", this._onMouseOver, false);
+
+  this._onMouseOut = this._onMouseOut.bind(this);
+  this.elt.addEventListener("mouseout", this._onMouseOut, false);
 
   // Appending the editor element and attaching event listeners
   this.tagLine.appendChild(this.editor.elt);
@@ -1362,11 +1235,13 @@ MarkupContainer.prototype = {
             let line = this.markup.doc.createElement("div");
             line.classList.add("tag-line");
 
-            let tagState = this.markup.doc.createElement("div");
-            tagState.classList.add("tag-state");
-            line.appendChild(tagState);
+            let highlighter = this.markup.doc.createElement("div");
+            highlighter.classList.add("highlighter");
+            line.appendChild(highlighter);
 
             line.appendChild(closingTag.cloneNode(true));
+            line.addEventListener("mouseover", this._onMouseOver, false);
+            line.addEventListener("mouseout", this._onMouseOut, false);
 
             this.closeTagLine = line;
           }
@@ -1375,7 +1250,7 @@ MarkupContainer.prototype = {
       }
       this.elt.classList.remove("collapsed");
       this.expander.setAttribute("open", "");
-      this.hovered = false;
+      this.highlighted = false;
     } else if (!aValue) {
       if (this.editor instanceof ElementEditor && this.closeTagLine) {
         this.elt.removeChild(this.closeTagLine);
@@ -1393,9 +1268,19 @@ MarkupContainer.prototype = {
     event.stopPropagation();
   },
 
+  _onMouseOver: function(event) {
+    this.highlighted = true;
+    event.stopPropagation();
+  },
+
+  _onMouseOut: function(event) {
+    this.highlighted = false;
+    event.stopPropagation();
+  },
+
   _onMouseDown: function(event) {
     if (event.target.nodeName !== "a") {
-      this.hovered = false;
+      this.highlighted = false;
       this.markup.navigate(this);
       event.stopPropagation();
     }
@@ -1434,10 +1319,10 @@ MarkupContainer.prototype = {
   set flashed(aValue) {
     if (aValue) {
       // Make sure the animation class is not here
-      this.tagState.classList.remove("flash-out");
+      this.highlighter.classList.remove("flash-out");
 
       // Change the background
-      this.tagState.classList.add("theme-bg-contrast");
+      this.highlighter.classList.add("theme-bg-contrast");
 
       // Change the text color
       this.editor.elt.classList.add("theme-fg-contrast");
@@ -1447,10 +1332,10 @@ MarkupContainer.prototype = {
       );
     } else {
       // Add the animation class to smoothly remove the background
-      this.tagState.classList.add("flash-out");
+      this.highlighter.classList.add("flash-out");
 
       // Remove the background
-      this.tagState.classList.remove("theme-bg-contrast");
+      this.highlighter.classList.remove("theme-bg-contrast");
 
       // Remove the text color
       this.editor.elt.classList.remove("theme-fg-contrast");
@@ -1461,27 +1346,27 @@ MarkupContainer.prototype = {
     }
   },
 
-  _hovered: false,
+  _highlighted: false,
 
   /**
    * Highlight the currently hovered tag + its closing tag if necessary
    * (that is if the tag is expanded)
    */
-  set hovered(aValue) {
-    this.tagState.classList.remove("flash-out");
-    this._hovered = aValue;
+  set highlighted(aValue) {
+    this.highlighter.classList.remove("flash-out");
+    this._highlighted = aValue;
     if (aValue) {
       if (!this.selected) {
-        this.tagState.classList.add("theme-bg-darker");
+        this.highlighter.classList.add("theme-bg-darker");
       }
       if (this.closeTagLine) {
-        this.closeTagLine.querySelector(".tag-state").classList.add(
+        this.closeTagLine.querySelector(".highlighter").classList.add(
           "theme-bg-darker");
       }
     } else {
-      this.tagState.classList.remove("theme-bg-darker");
+      this.highlighter.classList.remove("theme-bg-darker");
       if (this.closeTagLine) {
-        this.closeTagLine.querySelector(".tag-state").classList.remove(
+        this.closeTagLine.querySelector(".highlighter").classList.remove(
           "theme-bg-darker");
       }
     }
@@ -1504,15 +1389,15 @@ MarkupContainer.prototype = {
   },
 
   set selected(aValue) {
-    this.tagState.classList.remove("flash-out");
+    this.highlighter.classList.remove("flash-out");
     this._selected = aValue;
     this.editor.selected = aValue;
     if (this._selected) {
       this.tagLine.setAttribute("selected", "");
-      this.tagState.classList.add("theme-selected");
+      this.highlighter.classList.add("theme-selected");
     } else {
       this.tagLine.removeAttribute("selected");
-      this.tagState.classList.remove("theme-selected");
+      this.highlighter.classList.remove("theme-selected");
     }
   },
 

@@ -127,7 +127,6 @@ struct JSCompartment
   public:
     JSPrincipals                 *principals;
     bool                         isSystem;
-    bool                         isSelfHosting;
     bool                         marked;
 
 #ifdef DEBUG
@@ -503,7 +502,7 @@ class js::AutoDebugModeInvalidation
         // must all agree on the toggle. This is so we can decide if we need
         // to invalidate on-stack scripts.
         MOZ_ASSERT_IF(needInvalidation_ != NoNeed,
-                      needInvalidation_ == (debugMode ? ToggledOn : ToggledOff));
+                      needInvalidation_ == debugMode ? ToggledOn : ToggledOff);
         needInvalidation_ = debugMode ? ToggledOn : ToggledOff;
     }
 };

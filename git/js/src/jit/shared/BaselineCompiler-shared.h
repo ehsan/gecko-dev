@@ -96,9 +96,7 @@ class BaselineCompilerShared
     }
 
     JSFunction *function() const {
-        // Not delazifying here is ok as the function is guaranteed to have
-        // been delazified before compilation started.
-        return script->functionNonDelazifying();
+        return script->function();
     }
 
     PCMappingSlotInfo getStackTopSlotInfo() {

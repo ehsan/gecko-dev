@@ -62,12 +62,6 @@ MetaData::findInt32(uint32_t key, int32_t *value)
 }
 
 MOZ_EXPORT bool
-MetaData::setInt32(uint32_t, int32_t)
-{
-  return false;
-}
-
-MOZ_EXPORT bool
 MetaData::findInt64(uint32_t key, int64_t *value)
 {
   return false;
@@ -182,12 +176,4 @@ ColorConverter::convert(const void *srcBits,
 {
   return 0;
 }
-
-MOZ_EXPORT status_t QueryCodecs(const sp<IOMX> &omx,
-                                const char *mimeType, bool queryDecoders,
-                                Vector<CodecCapabilities> *results)
-{
-  return 0;
-}
-
 }

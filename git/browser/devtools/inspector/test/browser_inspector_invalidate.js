@@ -2,42 +2,39 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 function test() {
+
   let doc;
   let div;
   let inspector;
 
-  function createDocument() {
+  function createDocument()
+  {
     div = doc.createElement("div");
     div.setAttribute("style", "width: 100px; height: 100px; background:yellow;");
     doc.body.appendChild(div);
 
-    openInspector(aInspector => {
-      inspector = aInspector;
-      inspector.toolbox.highlighter.showBoxModel(getNodeFront(div)).then(runTest);
-    });
+    openInspector(runTest);
   }
 
-  function runTest() {
-    let outline = getHighlighterOutline();
-    is(outline.style.width, "100px", "outline has the right width");
+  function runTest(inspector)
+  {
+    inspector.selection.setNode(div);
 
-    div.style.width = "200px";
-    function pollTest() {
-      if (outline.style.width == "100px") {
-        setTimeout(pollTest, 10);
-        return;
+    executeSoon(function() {
+      let outline = inspector.highlighter.outline;
+      is(outline.style.width, "100px", "selection has the right width");
+
+      div.style.width = "200px";
+      function pollTest() {
+        if (outline.style.width == "100px") {
+          setTimeout(pollTest, 10);
+          return;
+        }
+        is(outline.style.width, "200px", "selection updated");
+        gBrowser.removeCurrentTab();
+        finish();
       }
-      is(outline.style.width, "200px", "outline updated");
-      finishUp();
-    }
-    setTimeout(pollTest, 10);
-  }
-
-  function finishUp() {
-    inspector.toolbox.highlighter.hideBoxModel().then(() => {
-      doc = div = inspector = null;
-      gBrowser.removeCurrentTab();
-      finish();
+      setTimeout(pollTest, 10);
     });
   }
 

@@ -522,8 +522,8 @@ TemporaryRef<gfx::DrawTarget>
 BufferTextureClient::GetAsDrawTarget()
 {
   MOZ_ASSERT(IsValid());
-  // XXX - Turn this into a fatal assertion as soon as Bug 952507 is fixed
-  NS_WARN_IF_FALSE(mLocked, "GetAsDrawTarget should be called on locked textures only");
+  // XXX - uncomment when ContentClient's locking is fixed
+  // MOZ_ASSERT(mLocked);
 
   if (mDrawTarget) {
     return mDrawTarget;
@@ -560,8 +560,7 @@ BufferTextureClient::GetAsDrawTarget()
 bool
 BufferTextureClient::Lock(OpenMode aMode)
 {
-  // XXX - Turn this into a fatal assertion as soon as Bug 952507 is fixed
-  NS_WARN_IF_FALSE(!mLocked, "The TextureClient is already Locked!");
+  MOZ_ASSERT(!mLocked);
   mOpenMode = aMode;
   mLocked = true;
   return true;
@@ -570,8 +569,7 @@ BufferTextureClient::Lock(OpenMode aMode)
 void
 BufferTextureClient::Unlock()
 {
-  // XXX - Turn this into a fatal assertion as soon as Bug 952507 is fixed
-  NS_WARN_IF_FALSE(mLocked, "The TextureClient is already Unlocked!");
+  MOZ_ASSERT(mLocked);
   mLocked = false;
   if (!mDrawTarget) {
     mUsingFallbackDrawTarget = false;

@@ -6708,7 +6708,10 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
       // Remove from ownerElement.
       nsRefPtr<Attr> adoptedAttr = static_cast<Attr*>(adoptedNode);
 
-      nsCOMPtr<Element> ownerElement = adoptedAttr->GetElement();
+      nsCOMPtr<Element> ownerElement = adoptedAttr->GetOwnerElement(rv);
+      if (rv.Failed()) {
+        return nullptr;
+      }
 
       if (ownerElement) {
         nsRefPtr<Attr> newAttr =
@@ -8818,10 +8821,6 @@ void
 nsDocument::ScrollToRef()
 {
   if (mScrolledToRefAlready) {
-    nsCOMPtr<nsIPresShell> shell = GetShell();
-    if (shell) {
-      shell->ScrollToAnchor();
-    }
     return;
   }
 

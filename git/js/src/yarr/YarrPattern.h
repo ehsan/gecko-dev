@@ -49,7 +49,6 @@ enum ErrorCode {
     CharacterClassOutOfOrder,
     CharacterClassInvalidRange,
     EscapeUnterminated,
-    RuntimeError,
     NumberOfErrorCodes
 };
 

@@ -70,16 +70,12 @@ XPCOMUtils.defineLazyModuleGetter(this, "ShumwayUtils",
                                   "resource://shumway/ShumwayUtils.jsm");
 #endif
 
-#ifdef MOZ_ANDROID_SYNTHAPKS
-XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
-                                  "resource://gre/modules/WebappManager.jsm");
-#endif
-
 // Lazily-loaded browser scripts:
 [
   ["SelectHelper", "chrome://browser/content/SelectHelper.js"],
   ["InputWidgetHelper", "chrome://browser/content/InputWidgetHelper.js"],
   ["AboutReader", "chrome://browser/content/aboutReader.js"],
+  ["WebAppRT", "chrome://browser/content/WebAppRT.js"],
   ["MasterPassword", "chrome://browser/content/MasterPassword.js"],
   ["PluginHelper", "chrome://browser/content/PluginHelper.js"],
   ["OfflineApps", "chrome://browser/content/OfflineApps.js"],
@@ -315,15 +311,7 @@ var BrowserApp = {
     Services.obs.addObserver(this, "FormHistory:Init", false);
     Services.obs.addObserver(this, "gather-telemetry", false);
     Services.obs.addObserver(this, "keyword-search", false);
-#ifdef MOZ_ANDROID_SYNTHAPKS
-    Services.obs.addObserver(this, "webapps-download-apk", false);
-    Services.obs.addObserver(this, "webapps-ask-install", false);
-    Services.obs.addObserver(this, "webapps-launch", false);
-    Services.obs.addObserver(this, "webapps-uninstall", false);
-    Services.obs.addObserver(this, "Webapps:AutoInstall", false);
-    Services.obs.addObserver(this, "Webapps:Load", false);
-    Services.obs.addObserver(this, "Webapps:AutoUninstall", false);
-#endif
+
     Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
 
     function showFullScreenWarning() {
@@ -358,16 +346,7 @@ var BrowserApp = {
     XPInstallObserver.init();
     CharacterEncoding.init();
     ActivityObserver.init();
-#ifdef MOZ_ANDROID_SYNTHAPKS
-    // TODO: replace with Android implementation of WebappOSUtils.isLaunchable.
-    Cu.import("resource://gre/modules/Webapps.jsm");
-    DOMApplicationRegistry.allAppsLaunchable = true;
-
-    // TODO: figure out why this is needed here.
-    Cu.import("resource://gre/modules/AppsUtils.jsm");
-#else
     WebappsUI.init();
-#endif
     RemoteDebugger.init();
     Reader.init();
     UserAgentOverrides.init();
@@ -401,7 +380,9 @@ var BrowserApp = {
 
     let status = this.startupStatus();
     if (pinned) {
-      this._initRuntime(status, url, aUrl => this.addTab(aUrl));
+      WebAppRT.init(status, url, function(aUrl) {
+        BrowserApp.addTab(aUrl);
+      });
     } else {
       SearchEngines.init();
       this.initContextMenu();
@@ -453,13 +434,6 @@ var BrowserApp = {
   setLocale: function (locale) {
     console.log("browser.js: requesting locale set: " + locale);
     sendMessageToJava({ type: "Locale:Set", locale: locale });
-  },
-
-  _initRuntime: function(status, url, callback) {
-    let sandbox = {};
-    Services.scriptloader.loadSubScript("chrome://browser/content/WebAppRT.js", sandbox);
-    window.WebAppRT = sandbox.WebAppRT;
-    WebAppRT.init(status, url, callback);
   },
 
   initContextMenu: function ba_initContextMenu() {
@@ -705,9 +679,7 @@ var BrowserApp = {
     HealthReportStatusListener.uninit();
     CharacterEncoding.uninit();
     SearchEngines.uninit();
-#ifndef MOZ_ANDROID_SYNTHAPKS
     WebappsUI.uninit();
-#endif
     RemoteDebugger.uninit();
     Reader.uninit();
     UserAgentOverrides.uninit();
@@ -893,16 +865,6 @@ var BrowserApp = {
     };
     sendMessageToJava(message);
   },
-
-#ifdef MOZ_ANDROID_SYNTHAPKS
-  _loadWebapp: function(aMessage) {
-    // TODO: figure out when (if ever) to pass "new" to the status parameter.
-    this._initRuntime("", aMessage.url, aUrl => {
-      this.manifestUrl = aMessage.url;
-      this.addTab(aUrl, { title: aMessage.name });
-    });
-  },
-#endif
 
   // Calling this will update the state in BrowserApp after a tab has been
   // closed in the Java UI.
@@ -1557,38 +1519,6 @@ var BrowserApp = {
       case "nsPref:changed":
         this.notifyPrefObservers(aData);
         break;
-
-#ifdef MOZ_ANDROID_SYNTHAPKS
-      case "webapps-download-apk":
-        WebappManager.downloadApk(JSON.parse(aData));
-        break;
-
-      case "webapps-ask-install":
-        WebappManager.askInstall(JSON.parse(aData));
-        break;
-
-      case "webapps-launch": {
-        WebappManager.launch(JSON.parse(aData));
-        break;
-      }
-
-      case "webapps-uninstall": {
-        WebappManager.uninstall(JSON.parse(aData));
-        break;
-      }
-
-      case "Webapps:AutoInstall":
-        WebappManager.autoInstall(JSON.parse(aData));
-        break;
-
-      case "Webapps:Load":
-        this._loadWebapp(JSON.parse(aData));
-        break;
-
-      case "Webapps:AutoUninstall":
-        WebappManager.autoUninstall(JSON.parse(aData));
-        break;
-#endif
 
       case "Locale:Changed":
         // The value provided to Locale:Changed should be a BCP47 language tag
@@ -3842,7 +3772,7 @@ Tab.prototype = {
       }
 
       // true if the page loaded successfully (i.e., no 404s or other errors)
-      let success = false;
+      let success = false; 
       let uri = "";
       try {
         // Remember original URI for UA changes on redirected pages
@@ -3853,11 +3783,7 @@ Tab.prototype = {
       } catch (e) { }
       try {
         success = aRequest.QueryInterface(Components.interfaces.nsIHttpChannel).requestSucceeded;
-      } catch (e) {
-        // If the request does not handle the nsIHttpChannel interface, use nsIRequest's success
-        // status. Used for local files. See bug 948849.
-        success = aRequest.status == 0;
-      }
+      } catch (e) { }
 
       // Check to see if we restoring the content from a previous presentation (session)
       // since there should be no real network activity
@@ -7050,7 +6976,6 @@ var ActivityObserver = {
   }
 };
 
-#ifndef MOZ_ANDROID_SYNTHAPKS
 var WebappsUI = {
   init: function init() {
     Cu.import("resource://gre/modules/Webapps.jsm");
@@ -7319,7 +7244,6 @@ var WebappsUI = {
     });
   }
 }
-#endif
 
 var RemoteDebugger = {
   init: function rd_init() {

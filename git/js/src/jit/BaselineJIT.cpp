@@ -220,8 +220,6 @@ jit::BaselineCompile(JSContext *cx, HandleScript script)
 
     LifoAlloc alloc(BASELINE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
 
-    script->ensureNonLazyCanonicalFunction(cx);
-
     TempAllocator *temp = alloc.new_<TempAllocator>(&alloc);
     if (!temp)
         return Method_Error;

@@ -33,8 +33,9 @@ function inspectNode(aInspector)
 {
   inspector = aInspector;
 
-  inspector.once("inspector-updated", performScrollingTest);
+  inspector.highlighter.once("locked", performScrollingTest);
   executeSoon(function() {
+    inspector.highlighter.unlock();
     inspector.selection.setNode(div, "");
   });
 }

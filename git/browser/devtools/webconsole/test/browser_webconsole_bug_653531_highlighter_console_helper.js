@@ -5,13 +5,11 @@
 
 // Tests that the $0 console helper works as intended.
 
-let inspector, h1;
-
 function createDocument()
 {
   let doc = content.document;
   let div = doc.createElement("div");
-  h1 = doc.createElement("h1");
+  let h1 = doc.createElement("h1");
   let p1 = doc.createElement("p");
   let p2 = doc.createElement("p");
   let div2 = doc.createElement("div");
@@ -44,37 +42,39 @@ function createDocument()
 
 function setupHighlighterTests()
 {
+  let h1 = content.document.querySelector("h1");
   ok(h1, "we have the header node");
+
   openInspector(runSelectionTests);
 }
 
 function runSelectionTests(aInspector)
 {
-  inspector = aInspector;
-  inspector.toolbox.startPicker();
-  inspector.toolbox.once("picker-started", () => {
-    EventUtils.synthesizeMouse(h1, 2, 2, {type: "mousemove"}, content);
-    inspector.toolbox.once("picker-node-hovered", () => {
-      executeSoon(performTestComparisons);
-    });
-  });
-}
+  aInspector.highlighter.unlockAndFocus();
+  aInspector.highlighter.outline.setAttribute("disable-transitions", "true");
 
-function getHighlighterOutline()
-{
-  return gBrowser.selectedBrowser.parentNode
-    .querySelector(".highlighter-container .highlighter-outline");
+  executeSoon(function() {
+    aInspector.selection.once("new-node", performTestComparisons);
+    let h1 = content.document.querySelector("h1");
+    EventUtils.synthesizeMouse(h1, 2, 2, {type: "mousemove"}, content);
+  });
 }
 
 function performTestComparisons()
 {
-  let outline = getHighlighterOutline();
-  ok(outline && !outline.hasAttribute("hidden"), "inspector is highlighting");
+  let target = TargetFactory.forTab(gBrowser.selectedTab);
+  let inspector = gDevTools.getToolbox(target).getPanel("inspector");
+  inspector.highlighter.lock();
 
-  EventUtils.synthesizeMouseAtCenter(h1, {}, content);
-  inspector.toolbox.once("picker-stopped", () => {
-    openConsole(gBrowser.selectedTab, performWebConsoleTests);
-  });
+  let isHighlighting =
+    !(inspector.highlighter.outline.getAttribute("hidden") == "true");
+
+  ok(isHighlighting, "inspector is highlighting");
+
+  let h1 = content.document.querySelector("h1");
+  is(inspector.selection.node, h1, "selection matches node");
+
+  openConsole(gBrowser.selectedTab, performWebConsoleTests);
 }
 
 function performWebConsoleTests(hud)
@@ -98,10 +98,10 @@ function performWebConsoleTests(hud)
   {
     isnot(node.textContent.indexOf("bug653531"), -1,
           "correct output for $0.textContent");
+    let inspector = gDevTools.getToolbox(target).getPanel("inspector");
     is(inspector.selection.node.textContent, "bug653531",
        "node successfully updated");
 
-    inspector = h1 = null;
     gBrowser.removeCurrentTab();
     finishTest();
   }
@@ -110,7 +110,6 @@ function performWebConsoleTests(hud)
 function test()
 {
   waitForExplicitFinish();
-
   gBrowser.selectedTab = gBrowser.addTab();
   gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
     gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
@@ -119,3 +118,4 @@ function test()
 
   content.location = "data:text/html;charset=utf-8,test for highlighter helper in web console";
 }
+

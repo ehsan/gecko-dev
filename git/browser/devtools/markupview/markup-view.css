@@ -70,7 +70,7 @@
 /* This extra element placed in each tag is positioned absolutely to cover the
  * whole tag line and is used for background styling (when a selection is made
  * or when the tag is flashing) */
-.tag-line .tag-state {
+.tag-line .highlighter {
   position: absolute;
   left: -1000em;
   right: 0;
@@ -120,7 +120,7 @@
   margin-right: 0;
 }
 
-.tag-state.flash-out {
+.highlighter.flash-out {
   transition: background .5s;
 }
 

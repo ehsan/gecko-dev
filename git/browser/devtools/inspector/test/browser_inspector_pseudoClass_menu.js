@@ -37,7 +37,7 @@ function test() {
   {
     inspector = aInspector;
     inspector.selection.setNode(div);
-    inspector.once("inspector-updated", performTests);
+    performTests();
   }
 
   function performTests()

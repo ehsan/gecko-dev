@@ -8,9 +8,7 @@ import logging
 import time
 import unittest
 
-from mach.logging import StructuredHumanFormatter
-
-from mozunit import main
+from mach.logger import StructuredHumanFormatter
 
 
 class DummyLogger(logging.Logger):
@@ -31,7 +29,7 @@ class TestStructuredHumanFormatter(unittest.TestCase):
 
         def on_record(record):
             result = formatter.format(record)
-            relevant = result[9:]
+            relevant = result[5:]
 
             self.assertEqual(relevant, 'Test: s\xe9curit\xe9')
 
@@ -43,5 +41,4 @@ class TestStructuredHumanFormatter(unittest.TestCase):
             extra={'action': 'action', 'params': {'utf': value}})
 
 
-if __name__ == '__main__':
-    main()
+

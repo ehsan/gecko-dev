@@ -13,8 +13,6 @@
 #include "mozilla/gfx/2D.h"
 #include "gfx2DGlue.h"
 
-using namespace mozilla::gfx;
-
 namespace mozilla {
 namespace gl {
 
@@ -206,14 +204,14 @@ GetActualReadFormats(GLContext* gl, GLenum destFormat, GLenum destType,
     }
 }
 
-static void SwapRAndBComponents(DataSourceSurface* surf)
+static void SwapRAndBComponents(gfxImageSurface* surf)
 {
-  uint8_t *row = surf->GetData();
+  uint8_t *row = surf->Data();
 
-  size_t rowBytes = surf->GetSize().width*4;
+  size_t rowBytes = surf->Width()*4;
   size_t rowHole = surf->Stride() - rowBytes;
 
-  size_t rows = surf->GetSize().height;
+  size_t rows = surf->Height();
 
   while (rows) {
 
@@ -284,19 +282,19 @@ ReadPixelsIntoImageSurface(GLContext* gl, gfxImageSurface* dest) {
         if (gl->DebugMode()) {
             NS_WARNING("Needing intermediary surface for ReadPixels. This will be slow!");
         }
-        SurfaceFormat readFormatGFX;
+        gfx::SurfaceFormat readFormatGFX;
 
         switch (readFormat) {
             case LOCAL_GL_RGBA:
             case LOCAL_GL_BGRA: {
-                readFormatGFX = hasAlpha ? FORMAT_B8G8R8A8
-                                         : FORMAT_B8G8R8X8;
+                readFormatGFX = hasAlpha ? gfx::FORMAT_B8G8R8A8
+                                         : gfx::FORMAT_B8G8R8X8;
                 break;
             }
             case LOCAL_GL_RGB: {
                 MOZ_ASSERT(readPixelSize == 2);
                 MOZ_ASSERT(readType == LOCAL_GL_UNSIGNED_SHORT_5_6_5_REV);
-                readFormatGFX = FORMAT_R5G6B5;
+                readFormatGFX = gfx::FORMAT_R5G6B5;
                 break;
             }
             default: {
@@ -360,12 +358,7 @@ ReadPixelsIntoImageSurface(GLContext* gl, gfxImageSurface* dest) {
         // So we just copied in RGBA in big endian, or le: 0xAABBGGRR.
         // We want 0xAARRGGBB, so swap R and B:
         dest->Flush();
-        RefPtr<DataSourceSurface> readDSurf =
-            Factory::CreateWrappingDataSourceSurface(readSurf->Data(),
-                                                     readSurf->Stride(),
-                                                     ToIntSize(readSurf->GetSize()),
-                                                     ImageFormatToSurfaceFormat(readSurf->Format()));
-        SwapRAndBComponents(readDSurf);
+        SwapRAndBComponents(readSurf);
         dest->MarkDirty();
 
         gfxContext ctx(dest);
@@ -404,50 +397,33 @@ ReadPixelsIntoImageSurface(GLContext* gl, gfxImageSurface* dest) {
 #endif
 }
 
-static TemporaryRef<DataSourceSurface> YInvertImageSurface(DataSourceSurface* aSurf)
+static already_AddRefed<gfxImageSurface> YInvertImageSurface(gfxImageSurface* aSurf)
 {
-  RefPtr<DataSourceSurface> temp =
-    Factory::CreateDataSourceSurfaceWithStride(aSurf->GetSize(),
-                                               aSurf->GetFormat(),
-                                               aSurf->Stride());
-  RefPtr<DrawTarget> dt =
-    Factory::CreateDrawTargetForData(BACKEND_CAIRO,
-                                     temp->GetData(),
-                                     temp->GetSize(),
-                                     temp->Stride(),
-                                     temp->GetFormat());
-  nsRefPtr<gfxContext> ctx = new gfxContext(dt);
+  gfxIntSize size = aSurf->GetSize();
+  nsRefPtr<gfxImageSurface> temp = new gfxImageSurface(size, aSurf->Format());
+  nsRefPtr<gfxContext> ctx = new gfxContext(temp);
   ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
   ctx->Scale(1.0, -1.0);
-  ctx->Translate(-gfxPoint(0.0, aSurf->GetSize().height));
-
-  nsRefPtr<gfxImageSurface> thebesSurf =
-    new gfxImageSurface(aSurf->GetData(),
-                        ThebesIntSize(aSurf->GetSize()),
-                        aSurf->Stride(),
-                        SurfaceFormatToImageFormat(aSurf->GetFormat()));
-  ctx->SetSource(thebesSurf);
+  ctx->Translate(-gfxPoint(0.0, size.height));
+  ctx->SetSource(aSurf);
   ctx->Paint();
   return temp.forget();
 }
 
-TemporaryRef<DataSourceSurface>
-ReadBackSurface(GLContext* gl, GLuint aTexture, bool aYInvert, SurfaceFormat aFormat)
+already_AddRefed<gfxImageSurface>
+GetTexImage(GLContext* gl, GLuint aTexture, bool aYInvert, gfx::SurfaceFormat aFormat)
 {
     gl->MakeCurrent();
     gl->GuaranteeResolve();
     gl->fActiveTexture(LOCAL_GL_TEXTURE0);
     gl->fBindTexture(LOCAL_GL_TEXTURE_2D, aTexture);
 
-    IntSize size;
+    gfxIntSize size;
     gl->fGetTexLevelParameteriv(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_TEXTURE_WIDTH, &size.width);
     gl->fGetTexLevelParameteriv(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_TEXTURE_HEIGHT, &size.height);
 
-    RefPtr<DataSourceSurface> surf =
-      Factory::CreateDataSourceSurfaceWithStride(size, FORMAT_B8G8R8A8,
-                                                 GetAlignedStride<4>(size.width * BytesPerPixel(FORMAT_B8G8R8A8)));
-
-    if (!surf) {
+    nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(size, gfxImageFormatARGB32);
+    if (!surf || surf->CairoStatus()) {
         return nullptr;
     }
 
@@ -456,17 +432,30 @@ ReadBackSurface(GLContext* gl, GLuint aTexture, bool aYInvert, SurfaceFormat aFo
     if (currentPackAlignment != 4) {
         gl->fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, 4);
     }
-    gl->fGetTexImage(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, surf->GetData());
+    gl->fGetTexImage(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, surf->Data());
     if (currentPackAlignment != 4) {
         gl->fPixelStorei(LOCAL_GL_PACK_ALIGNMENT, currentPackAlignment);
     }
 
-    if (aFormat == FORMAT_R8G8B8A8 || aFormat == FORMAT_R8G8B8X8) {
+    if (aFormat == gfx::FORMAT_R8G8B8A8 || aFormat == gfx::FORMAT_R8G8B8X8) {
       SwapRAndBComponents(surf);
     }
 
     if (aYInvert) {
       surf = YInvertImageSurface(surf);
+    }
+    return surf.forget();
+}
+
+TemporaryRef<gfx::DataSourceSurface>
+ReadBackSurface(GLContext* gl, GLuint aTexture, bool aYInvert, gfx::SurfaceFormat aFormat)
+{
+    nsRefPtr<gfxImageSurface> image = GetTexImage(gl, aTexture, aYInvert, aFormat);
+    RefPtr<gfx::DataSourceSurface> surf =
+        gfx::Factory::CreateDataSourceSurface(gfx::ToIntSize(image->GetSize()), aFormat);
+
+    if (!image->CopyTo(surf)) {
+        return nullptr;
     }
 
     return surf.forget();

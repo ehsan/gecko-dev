@@ -506,11 +506,9 @@ function initChromeDebugger(aOnClose) {
 
 function prepareDebugger(aDebugger) {
   if ("target" in aDebugger) {
-    let view = aDebugger.panelWin.DebuggerView;
-    view.Variables.lazyEmpty = false;
-    view.Variables.lazySearch = false;
-    view.FilteredSources._autoSelectFirstItem = true;
-    view.FilteredFunctions._autoSelectFirstItem = true;
+    let variables = aDebugger.panelWin.DebuggerView.Variables;
+    variables.lazyEmpty = false;
+    variables.lazySearch = false;
   } else {
     // Nothing to do here yet.
   }

@@ -8,37 +8,21 @@ function test() {
   let inspector;
 
   function startTest() {
-    openInspector(aInspector => {
-      inspector = aInspector;
-      runInspectorTests();
-    });
+    openInspector(runInspectorTests);
   }
 
-  function showHighlighter(cb) {
-    inspector.toolbox.startPicker().then(() => {
-      EventUtils.synthesizeMouse(content.document.body, 1, 1,
-        {type: "mousemove"}, content);
-      inspector.toolbox.once("picker-node-hovered", () => {
-        executeSoon(() => {
-          getHighlighterOutline().setAttribute("disable-transitions", "true");
-          cb();
-        });
-      });
-    });
-  }
+  function runInspectorTests(aInspector) {
+    inspector = aInspector;
 
-  function runInspectorTests() {
     iframe = content.document.querySelector("iframe");
     ok(iframe, "found the iframe element");
 
-    showHighlighter(() => {
-      ok(isHighlighting(), "Inspector is highlighting");
+    ok(inspector.highlighter._highlighting, "Inspector is highlighting");
 
-      iframe.addEventListener("load", onIframeLoad, false);
+    iframe.addEventListener("load", onIframeLoad, false);
 
-      executeSoon(function() {
-        iframe.contentWindow.location = "javascript:location.reload()";
-      });
+    executeSoon(function() {
+      iframe.contentWindow.location = "javascript:location.reload()";
     });
   }
 
@@ -52,7 +36,7 @@ function test() {
 
     iframe.removeEventListener("load", onIframeLoad, false);
 
-    ok(isHighlighting(), "Inspector is highlighting after iframe nav");
+    ok(inspector.highlighter._highlighting, "Inspector is highlighting after iframe nav");
 
     checksAfterLoads = true;
 
@@ -63,11 +47,9 @@ function test() {
     is(iframeLoads, 2, "iframe loads");
     ok(checksAfterLoads, "the Inspector tests got the chance to run after iframe reloads");
 
-    inspector.toolbox.stopPicker().then(() => {
-      iframe = null;
-      gBrowser.removeCurrentTab();
-      executeSoon(finish);
-    });
+    iframe = null;
+    gBrowser.removeCurrentTab();
+    executeSoon(finish);
   }
 
   waitForExplicitFinish();

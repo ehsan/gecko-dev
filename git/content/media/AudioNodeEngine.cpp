@@ -155,15 +155,16 @@ AudioBlockCopyChannelWithScale(const float aInput[WEBAUDIO_BLOCK_SIZE],
 }
 
 void
-AudioBlockInPlaceScale(float aBlock[WEBAUDIO_BLOCK_SIZE],
-                       uint32_t aChannelCount,
-                       float aScale)
+AudioBufferInPlaceScale(float aBlock[WEBAUDIO_BLOCK_SIZE],
+                        uint32_t aChannelCount,
+                        float aScale)
 {
-  AudioBufferInPlaceScale(aBlock, aScale, aChannelCount * WEBAUDIO_BLOCK_SIZE);
+  AudioBufferInPlaceScale(aBlock, aChannelCount, aScale, WEBAUDIO_BLOCK_SIZE);
 }
 
 void
 AudioBufferInPlaceScale(float* aBlock,
+                        uint32_t aChannelCount,
                         float aScale,
                         uint32_t aSize)
 {
@@ -172,11 +173,11 @@ AudioBufferInPlaceScale(float* aBlock,
   }
 #ifdef BUILD_ARM_NEON
   if (mozilla::supports_neon()) {
-    AudioBufferInPlaceScale_NEON(aBlock, aScale, aSize);
+    AudioBufferInPlaceScale_NEON(aBlock, aChannelCount, aScale, aSize);
     return;
   }
 #endif
-  for (uint32_t i = 0; i < aSize; ++i) {
+  for (uint32_t i = 0; i < aSize * aChannelCount; ++i) {
     *aBlock++ *= aScale;
   }
 }

@@ -261,7 +261,7 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
     {
         MResumePoint *mir = *it;
         MBasicBlock *block = mir->block();
-        JSFunction *fun = block->info().funMaybeLazy();
+        JSFunction *fun = block->info().fun();
         JSScript *script = block->info().script();
         jsbytecode *pc = mir->pc();
         uint32_t exprStack = mir->stackDepth() - block->info().ninvoke();

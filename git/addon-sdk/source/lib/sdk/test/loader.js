@@ -4,28 +4,21 @@
 
 "use strict";
 
-const { resolveURI, Require,
-        unload, override, descriptor } = require('../../toolkit/loader');
+const { Loader, resolveURI, Require,
+        unload, override, descriptor  } = require('../loader/cuddlefish');
 const { ensure } = require('../system/unload');
 const addonWindow = require('../addon/window');
 const { PlainTextConsole } = require("sdk/console/plain-text");
 
-let defaultGlobals = override(require('../system/globals'), {
-  console: console
-});
-
-function CustomLoader(module, globals, packaging, overrides={}) {
+function CustomLoader(module, globals, packaging) {
   let options = packaging || require("@loader/options");
   options = override(options, {
-    id: overrides.id || options.id,
-    globals: override(defaultGlobals, globals || {}),
+    globals: override(require('../system/globals'), globals || {}),
     modules: override(options.modules || {}, {
       'sdk/addon/window': addonWindow
-    })
+     })
   });
 
-  let loaderModule = options.isNative ? '../../toolkit/loader' : '../loader/cuddlefish';
-  let { Loader } = require(loaderModule);
   let loader = Loader(options);
   let wrapper = Object.create(loader, descriptor({
     require: Require(loader, module),
@@ -86,29 +79,4 @@ exports.LoaderWithHookedConsole2 = function (module, callback) {
     }),
     messages: messages
   };
-}
-
-// Creates a custom loader with a filtered console. The callback is passed every
-// console message type and message and if it returns false the message will
-// not be logged normally
-exports.LoaderWithFilteredConsole = function (module, callback) {
-  function hook(msg) {
-    if (callback && callback(this, msg) == false)
-      return;
-    console[this](msg);
-  }
-  return CustomLoader(module, {
-    console: {
-      log: hook.bind("log"),
-      info: hook.bind("info"),
-      warn: hook.bind("warn"),
-      error: hook.bind("error"),
-      debug: hook.bind("debug"),
-      exception: hook.bind("exception"),
-      __exposedProps__: {
-        log: "rw", info: "rw", warn: "rw", error: "rw", debug: "rw",
-        exception: "rw"
-      }
-    }
-  });
 }

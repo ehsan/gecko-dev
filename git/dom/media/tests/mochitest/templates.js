@@ -211,24 +211,6 @@ var commandsPeerConnection = [
         test.next();
       });
     }
-  ],
-  [
-    'PC_LOCAL_CHECK_STATS',
-    function (test) {
-      test.pcLocal.getStats(null, function(stats) {
-        test.pcLocal.checkStats(stats);
-        test.next();
-      });
-    }
-  ],
-  [
-    'PC_REMOTE_CHECK_STATS',
-    function (test) {
-      test.pcRemote.getStats(null, function(stats) {
-        test.pcRemote.checkStats(stats);
-        test.next();
-      });
-    }
   ]
 ];
 

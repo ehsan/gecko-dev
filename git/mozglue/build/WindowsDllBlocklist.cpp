@@ -107,8 +107,7 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
   // Topcrash with Babylon Toolbar on FF16+ (bug 721264)
   {"babyfox.dll", ALL_VERSIONS},
 
-  // sprotector.dll crashes, bug 957258
-  {"sprotector.dll", ALL_VERSIONS},
+  {"sprotector.dll", ALL_VERSIONS, DllBlockInfo::BLOCK_WIN8PLUS_ONLY },
 
   // Topcrash with Websense Endpoint, bug 828184
   {"qipcap.dll", MAKE_VERSION(7, 6, 815, 1)},

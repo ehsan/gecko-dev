@@ -181,7 +181,7 @@ CollectWindowReports(nsGlobalWindow *aWindow,
                      nsIMemoryReporterCallback *aCb,
                      nsISupports *aClosure)
 {
-  nsAutoCString windowPath("explicit/");
+  nsAutoCString windowPath;
 
   // Avoid calling aWindow->GetTop() if there's no outer window.  It will work
   // just fine, but will spew a lot of warnings.
@@ -233,17 +233,20 @@ CollectWindowReports(nsGlobalWindow *aWindow,
   AppendWindowURI(aWindow, windowPath);
   windowPath += NS_LITERAL_CSTRING(")");
 
-  // Use |windowPath|, but replace "explicit/" with "event-counts/".
-  nsCString censusWindowPath(windowPath);
-  censusWindowPath.Replace(0, strlen("explicit"), "event-counts");
+  nsCString explicitWindowPath("explicit/");
+  explicitWindowPath += windowPath;
+
+  // XXXkhuey 
+  nsCString censusWindowPath("event-counts/");
+  censusWindowPath += windowPath;
 
   // Remember the path for later.
-  aWindowPaths->Put(aWindow->WindowID(), windowPath);
+  aWindowPaths->Put(aWindow->WindowID(), explicitWindowPath);
 
 #define REPORT_SIZE(_pathTail, _amount, _desc)                                \
   do {                                                                        \
     if (_amount > 0) {                                                        \
-      nsAutoCString path(windowPath);                                         \
+      nsAutoCString path(explicitWindowPath);                                 \
       path += _pathTail;                                                      \
       nsresult rv;                                                            \
       rv = aCb->Callback(EmptyCString(), path, nsIMemoryReporter::KIND_HEAP,  \

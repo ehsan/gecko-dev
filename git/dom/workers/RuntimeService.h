@@ -100,7 +100,7 @@ private:
   static bool sDefaultPreferences[WORKERPREF_COUNT];
 
 public:
-  struct NavigatorProperties
+  struct NavigatorStrings
   {
     nsString mAppName;
     nsString mAppVersion;
@@ -109,12 +109,12 @@ public:
   };
 
 private:
-  NavigatorProperties mNavigatorProperties;
+  NavigatorStrings mNavigatorStrings;
 
   // True when the observer service holds a reference to this object.
   bool mObserved;
   bool mShuttingDown;
-  bool mNavigatorPropertiesLoaded;
+  bool mNavigatorStringsLoaded;
 
 public:
   NS_DECL_ISUPPORTS
@@ -150,10 +150,10 @@ public:
   void
   ForgetSharedWorker(WorkerPrivate* aWorkerPrivate);
 
-  const NavigatorProperties&
-  GetNavigatorProperties() const
+  const NavigatorStrings&
+  GetNavigatorStrings() const
   {
-    return mNavigatorProperties;
+    return mNavigatorStrings;
   }
 
   void
@@ -238,9 +238,6 @@ public:
 
   void
   CycleCollectAllWorkers();
-
-  void
-  SendOfflineStatusChangeEventToAllWorkers(bool aIsOffline);
 
 private:
   RuntimeService();

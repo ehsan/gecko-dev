@@ -41,7 +41,7 @@ InnermostStaticScope(JSScript *script, jsbytecode *pc)
     StaticBlockObject *block = script->getBlockScope(pc);
     if (block)
         return block;
-    return script->functionNonDelazifying();
+    return script->function();
 }
 
 Shape *
@@ -2300,14 +2300,14 @@ AnalyzeEntrainedVariablesInScript(JSContext *cx, HandleScript script, HandleScri
 
         buf.printf("Script ");
 
-        if (JSAtom *name = script->functionNonDelazifying()->displayAtom()) {
+        if (JSAtom *name = script->function()->displayAtom()) {
             buf.putString(name);
             buf.printf(" ");
         }
 
         buf.printf("(%s:%d) has variables entrained by ", script->filename(), script->lineno());
 
-        if (JSAtom *name = innerScript->functionNonDelazifying()->displayAtom()) {
+        if (JSAtom *name = innerScript->function()->displayAtom()) {
             buf.putString(name);
             buf.printf(" ");
         }
@@ -2328,12 +2328,9 @@ AnalyzeEntrainedVariablesInScript(JSContext *cx, HandleScript script, HandleScri
             JSObject *obj = objects->vector[i];
             if (obj->is<JSFunction>() && obj->as<JSFunction>().isInterpreted()) {
                 JSFunction *fun = &obj->as<JSFunction>();
-                RootedScript innerInnerScript(cx, fun->getOrCreateScript(cx));
-                if (!innerInnerScript ||
-                    !AnalyzeEntrainedVariablesInScript(cx, script, innerInnerScript))
-                {
+                RootedScript innerInnerScript(cx, fun->nonLazyScript());
+                if (!AnalyzeEntrainedVariablesInScript(cx, script, innerInnerScript))
                     return false;
-                }
             }
         }
     }
@@ -2367,7 +2364,7 @@ js::AnalyzeEntrainedVariables(JSContext *cx, HandleScript script)
             if (!innerScript)
                 return false;
 
-            if (script->functionDelazifying() && script->functionDelazifying()->isHeavyweight()) {
+            if (script->function() && script->function()->isHeavyweight()) {
                 if (!AnalyzeEntrainedVariablesInScript(cx, script, innerScript))
                     return false;
             }

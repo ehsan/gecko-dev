@@ -6,166 +6,166 @@
 /*=================================================================================
 
 =================================================================================*/
-typedef  int (*uSubGeneratorFunc) (uint16_t in, unsigned char* out);
+typedef  PRBool (*uSubGeneratorFunc) (uint16_t in, unsigned char* out);
 /*=================================================================================
 
 =================================================================================*/
 
-typedef int (*uGeneratorFunc) (
-                               int32_t*    state,
-                               uint16_t    in,
-                               unsigned char*  out,
-                               uint32_t     outbuflen,
-                               uint32_t*    outlen
-                               );
+typedef PRBool (*uGeneratorFunc) (
+                                  int32_t*    state,
+                                  uint16_t    in,
+                                  unsigned char*  out,
+                                  uint32_t     outbuflen,
+                                  uint32_t*    outlen
+                                  );
 
-int uGenerate(
-              uScanClassID scanClass,
-              int32_t*    state,
-              uint16_t    in,
-              unsigned char*  out,
-              uint32_t     outbuflen,
-              uint32_t*    outlen
-              );
+MODULE_PRIVATE PRBool uGenerate(  
+                                uScanClassID scanClass,
+                                int32_t*    state,
+                                uint16_t    in,
+                                unsigned char*  out,
+                                uint32_t     outbuflen,
+                                uint32_t*    outlen
+                                );
 
 #define uSubGenerator(sub,in,out) (* m_subgenerator[sub])((in),(out))
 
-int uCheckAndGenAlways1Byte(
-                               int32_t*   state,
-                               uint16_t   in,
-                               unsigned char* out,
-                               uint32_t    outbuflen,
-                               uint32_t*   outlen
-                               );
-int uCheckAndGenAlways2Byte(
-                            int32_t*   state,
-                            uint16_t   in,
-                            unsigned char* out,
-                            uint32_t    outbuflen,
-                            uint32_t*   outlen
-                            );
-int uCheckAndGenAlways2ByteShiftGR(
-                                   int32_t*    state,
-                                   uint16_t    in,
-                                   unsigned char*  out,
-                                   uint32_t     outbuflen,
-                                   uint32_t*    outlen
-                                   );
-int uGenerateShift(
-                   uShiftOutTable   *shift,
-                   int32_t*   state,
-                   uint16_t   in,
-                   unsigned char* out,
-                   uint32_t    outbuflen,
-                   uint32_t*   outlen
-                   );
-int uCheckAndGen2ByteGRPrefix8F(
-                                int32_t*   state,
-                                uint16_t   in,
-                                unsigned char* out,
-                                uint32_t    outbuflen,
-                                uint32_t*   outlen
-                                );
-int uCheckAndGen2ByteGRPrefix8EA2(
-                                  int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  );
-
-int uCheckAndGen2ByteGRPrefix8EA3(
-                                  int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  );
-
-int uCheckAndGen2ByteGRPrefix8EA4(
-                                  int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  );
-
-int uCheckAndGen2ByteGRPrefix8EA5(
-                                  int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  );
-
-int uCheckAndGen2ByteGRPrefix8EA6(
-                                  int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  );
-
-int uCheckAndGen2ByteGRPrefix8EA7(
-                                  int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  );
-int uCnGAlways8BytesDecomposedHangul(
-                                     int32_t*    state,
-                                     uint16_t    in,
-                                     unsigned char*  out,
-                                     uint32_t     outbuflen,
-                                     uint32_t*    outlen
+PRIVATE PRBool uCheckAndGenAlways1Byte(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       );
+PRIVATE PRBool uCheckAndGenAlways2Byte(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       );
+PRIVATE PRBool uCheckAndGenAlways2ByteShiftGR(
+                                              int32_t*    state,
+                                              uint16_t    in,
+                                              unsigned char*  out,
+                                              uint32_t     outbuflen,
+                                              uint32_t*    outlen
+                                              );
+MODULE_PRIVATE PRBool uGenerateShift(
+                                     uShiftOutTable   *shift,
+                                     int32_t*   state,
+                                     uint16_t   in,
+                                     unsigned char* out,
+                                     uint32_t    outbuflen,
+                                     uint32_t*   outlen
                                      );
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8F(
+                                           int32_t*   state,
+                                           uint16_t   in,
+                                           unsigned char* out,
+                                           uint32_t    outbuflen,
+                                           uint32_t*   outlen
+                                           );
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA2(
+                                             int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             );
 
-int uCheckAndGenJohabHangul(
-                            int32_t*   state,
-                            uint16_t   in,
-                            unsigned char* out,
-                            uint32_t    outbuflen,
-                            uint32_t*   outlen
-                            );
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA3(
+                                             int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             );
 
-int uCheckAndGenJohabSymbol(
-                            int32_t*   state,
-                            uint16_t   in,
-                            unsigned char* out,
-                            uint32_t    outbuflen,
-                            uint32_t*   outlen
-                            );
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA4(
+                                             int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             );
+
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA5(
+                                             int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             );
+
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA6(
+                                             int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             );
+
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA7(
+                                             int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             );
+PRIVATE PRBool uCnGAlways8BytesDecomposedHangul(
+                                              int32_t*    state,
+                                              uint16_t    in,
+                                              unsigned char*  out,
+                                              uint32_t     outbuflen,
+                                              uint32_t*    outlen
+                                              );
+
+PRIVATE PRBool uCheckAndGenJohabHangul(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       );
+
+PRIVATE PRBool uCheckAndGenJohabSymbol(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       );
 
 
-int uCheckAndGen4BytesGB18030(
-                              int32_t*   state,
-                              uint16_t   in,
-                              unsigned char* out,
-                              uint32_t    outbuflen,
-                              uint32_t*   outlen
-                              );
+PRIVATE PRBool uCheckAndGen4BytesGB18030(
+                                         int32_t*   state,
+                                         uint16_t   in,
+                                         unsigned char* out,
+                                         uint32_t    outbuflen,
+                                         uint32_t*   outlen
+                                         );
 
-int uGenAlways2Byte(
-                    uint16_t    in,
-                    unsigned char* out
-                    );
-int uGenAlways2ByteShiftGR(
-                           uint16_t     in,
-                           unsigned char*  out
-                           );
-int uGenAlways1Byte(
-                    uint16_t    in,
-                    unsigned char* out
-                    );
-int uGenAlways1BytePrefix8E(
-                            uint16_t    in,
-                            unsigned char* out
-                            );
-/*=================================================================================
-
+PRIVATE PRBool uGenAlways2Byte(
+                               uint16_t    in,
+                               unsigned char* out
+                               );
+PRIVATE PRBool uGenAlways2ByteShiftGR(
+                                      uint16_t     in,
+                                      unsigned char*  out
+                                      );
+PRIVATE PRBool uGenAlways1Byte(
+                               uint16_t    in,
+                               unsigned char* out
+                               );
+PRIVATE PRBool uGenAlways1BytePrefix8E(
+                                       uint16_t    in,
+                                       unsigned char* out
+                                       );
+                                   /*=================================================================================
+                                   
 =================================================================================*/
-const uGeneratorFunc m_generator[uNumOfCharsetType] =
+PRIVATE const uGeneratorFunc m_generator[uNumOfCharsetType] =
 {
     uCheckAndGenAlways1Byte,
     uCheckAndGenAlways2Byte,
@@ -188,151 +188,152 @@ const uGeneratorFunc m_generator[uNumOfCharsetType] =
 
 =================================================================================*/
 
-const uSubGeneratorFunc m_subgenerator[uNumOfCharType] =
+PRIVATE const uSubGeneratorFunc m_subgenerator[uNumOfCharType] =
 {
     uGenAlways1Byte,
     uGenAlways2Byte,
     uGenAlways2ByteShiftGR,
     uGenAlways1BytePrefix8E
+        
 };
 /*=================================================================================
 
 =================================================================================*/
-int uGenerate(
-              uScanClassID scanClass,
-              int32_t*    state,
-              uint16_t    in,
-              unsigned char*  out,
-              uint32_t     outbuflen,
-              uint32_t*    outlen
-              )
+MODULE_PRIVATE PRBool uGenerate(  
+                                uScanClassID scanClass,
+                                int32_t*    state,
+                                uint16_t    in,
+                                unsigned char*  out,
+                                uint32_t     outbuflen,
+                                uint32_t*    outlen
+                                )
 {
     return (* m_generator[scanClass]) (state,in,out,outbuflen,outlen);
 }
 /*=================================================================================
 
 =================================================================================*/
-int uGenAlways1Byte(
-                    uint16_t    in,
-                    unsigned char* out
-                    )
+PRIVATE PRBool uGenAlways1Byte(
+                               uint16_t    in,
+                               unsigned char* out
+                               )
 {
     out[0] = (unsigned char)in;
-    return 1;
+    return PR_TRUE;
 }
 
 /*=================================================================================
 
 =================================================================================*/
-int uGenAlways2Byte(
-                    uint16_t    in,
-                    unsigned char* out
-                    )
+PRIVATE PRBool uGenAlways2Byte(
+                               uint16_t    in,
+                               unsigned char* out
+                               )
 {
     out[0] = (unsigned char)((in >> 8) & 0xff);
     out[1] = (unsigned char)(in & 0xff);
-    return 1;
+    return PR_TRUE;
 }
 /*=================================================================================
 
 =================================================================================*/
-int uGenAlways2ByteShiftGR(
-                           uint16_t     in,
-                           unsigned char*  out
-                           )
+PRIVATE PRBool uGenAlways2ByteShiftGR(
+                                      uint16_t     in,
+                                      unsigned char*  out
+                                      )
 {
     out[0] = (unsigned char)(((in >> 8) & 0xff) | 0x80);
     out[1] = (unsigned char)((in & 0xff) | 0x80);
-    return 1;
+    return PR_TRUE;
 }
 /*=================================================================================
 
 =================================================================================*/
-int uGenAlways1BytePrefix8E(
-                            uint16_t    in,
-                            unsigned char* out
-                            )
+PRIVATE PRBool uGenAlways1BytePrefix8E(
+                                       uint16_t    in,
+                                       unsigned char* out
+                                       )
 {
     out[0] = 0x8E;
     out[1] = (unsigned char)(in  & 0xff);
-    return 1;
+    return PR_TRUE;
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGenAlways1Byte(
-                            int32_t*   state,
-                            uint16_t   in,
-                            unsigned char* out,
-                            uint32_t    outbuflen,
-                            uint32_t*   outlen
-                            )
+PRIVATE PRBool uCheckAndGenAlways1Byte(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       )
 {
     /* Don't check inlen. The caller should ensure it is larger than 0 */
     /*  Oops, I don't agree. Code changed to check every time. [CATA] */
     if(outbuflen < 1)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 1;
         out[0] = in & 0xff;
-        return 1;
+        return PR_TRUE;
     }
 }
 
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGenAlways2Byte(
-                            int32_t*   state,
-                            uint16_t   in,
-                            unsigned char* out,
-                            uint32_t    outbuflen,
-                            uint32_t*   outlen
-                            )
+PRIVATE PRBool uCheckAndGenAlways2Byte(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       )
 {
     if(outbuflen < 2)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 2;
         out[0] = ((in >> 8 ) & 0xff);
         out[1] = in  & 0xff;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGenAlways2ByteShiftGR(
-                                   int32_t*    state,
-                                   uint16_t    in,
-                                   unsigned char*  out,
-                                   uint32_t     outbuflen,
-                                   uint32_t*    outlen
-                                   )
+PRIVATE PRBool uCheckAndGenAlways2ByteShiftGR(
+                                              int32_t*    state,
+                                              uint16_t    in,
+                                              unsigned char*  out,
+                                              uint32_t     outbuflen,
+                                              uint32_t*    outlen
+                                              )
 {
     if(outbuflen < 2)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 2;
         out[0] = ((in >> 8 ) & 0xff) | 0x80;
         out[1] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uGenerateShift(
-                   uShiftOutTable   *shift,
-                   int32_t*   state,
-                   uint16_t   in,
-                   unsigned char* out,
-                   uint32_t    outbuflen,
-                   uint32_t*   outlen
-                   )
+MODULE_PRIVATE PRBool uGenerateShift(
+                                   uShiftOutTable   *shift,
+                                   int32_t*   state,
+                                   uint16_t   in,
+                                   unsigned char* out,
+                                   uint32_t    outbuflen,
+                                   uint32_t*   outlen
+                                   )
 {
     int16_t i;
     const uShiftOutCell* cell = &(shift->shiftcell[0]);
@@ -349,7 +350,7 @@ int uGenerateShift(
         {
             if(outbuflen < cell[i].reserveLen)
               {
-                return 0;
+                return PR_FALSE;
               }
             else
             {
@@ -358,41 +359,41 @@ int uGenerateShift(
             }
         }
     }
-    return 0;
+    return PR_FALSE;
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGen2ByteGRPrefix8F(int32_t*   state,
-                                uint16_t   in,
-                                unsigned char* out,
-                                uint32_t    outbuflen,
-                                uint32_t*   outlen
-                                )
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8F( int32_t*   state,
+                                           uint16_t   in,
+                                           unsigned char* out,
+                                           uint32_t    outbuflen,
+                                           uint32_t*   outlen
+                                           )
 {
     if(outbuflen < 3)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 3;
         out[0] = 0x8F;
         out[1] = ((in >> 8 ) & 0xff) | 0x80;
         out[2] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGen2ByteGRPrefix8EA2(int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  )
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA2( int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             )
 {
     if(outbuflen < 4)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 4;
@@ -400,7 +401,7 @@ int uCheckAndGen2ByteGRPrefix8EA2(int32_t*   state,
         out[1] = 0xA2;
         out[2] = ((in >> 8 ) & 0xff) | 0x80;
         out[3] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 
@@ -408,15 +409,15 @@ int uCheckAndGen2ByteGRPrefix8EA2(int32_t*   state,
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGen2ByteGRPrefix8EA3(int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  )
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA3( int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             )
 {
     if(outbuflen < 4)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 4;
@@ -424,21 +425,21 @@ int uCheckAndGen2ByteGRPrefix8EA3(int32_t*   state,
         out[1] = 0xA3;
         out[2] = ((in >> 8 ) & 0xff) | 0x80;
         out[3] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGen2ByteGRPrefix8EA4(int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  )
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA4( int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             )
 {
     if(outbuflen < 4)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 4;
@@ -446,21 +447,21 @@ int uCheckAndGen2ByteGRPrefix8EA4(int32_t*   state,
         out[1] = 0xA4;
         out[2] = ((in >> 8 ) & 0xff) | 0x80;
         out[3] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGen2ByteGRPrefix8EA5(int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  )
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA5( int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             )
 {
     if(outbuflen < 4)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 4;
@@ -468,21 +469,21 @@ int uCheckAndGen2ByteGRPrefix8EA5(int32_t*   state,
         out[1] = 0xA5;
         out[2] = ((in >> 8 ) & 0xff) | 0x80;
         out[3] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGen2ByteGRPrefix8EA6(int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  )
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA6( int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             )
 {
     if(outbuflen < 4)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 4;
@@ -490,21 +491,21 @@ int uCheckAndGen2ByteGRPrefix8EA6(int32_t*   state,
         out[1] = 0xA6;
         out[2] = ((in >> 8 ) & 0xff) | 0x80;
         out[3] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
 
 =================================================================================*/
-int uCheckAndGen2ByteGRPrefix8EA7(int32_t*   state,
-                                  uint16_t   in,
-                                  unsigned char* out,
-                                  uint32_t    outbuflen,
-                                  uint32_t*   outlen
-                                  )
+PRIVATE PRBool uCheckAndGen2ByteGRPrefix8EA7( int32_t*   state,
+                                             uint16_t   in,
+                                             unsigned char* out,
+                                             uint32_t    outbuflen,
+                                             uint32_t*   outlen
+                                             )
 {
     if(outbuflen < 4)
-        return 0;
+        return PR_FALSE;
     else
     {
         *outlen = 4;
@@ -512,7 +513,7 @@ int uCheckAndGen2ByteGRPrefix8EA7(int32_t*   state,
         out[1] = 0xA7;
         out[2] = ((in >> 8 ) & 0xff) | 0x80;
         out[3] = (in  & 0xff)  | 0x80;
-        return 1;
+        return PR_TRUE;
     }
 }
 /*=================================================================================
@@ -526,13 +527,13 @@ int uCheckAndGen2ByteGRPrefix8EA7(int32_t*   state,
 /*=================================================================================
 
 =================================================================================*/
-int uCnGAlways8BytesDecomposedHangul(
-                                     int32_t*    state,
-                                     uint16_t    in,
-                                     unsigned char*  out,
-                                     uint32_t     outbuflen,
-                                     uint32_t*    outlen
-                                     )
+PRIVATE PRBool uCnGAlways8BytesDecomposedHangul(
+                                              int32_t*    state,
+                                              uint16_t    in,
+                                              unsigned char*  out,
+                                              uint32_t     outbuflen,
+                                              uint32_t*    outlen
+                                              )
 {
     static const uint8_t lMap[LCount] = {
         0xa1, 0xa2, 0xa4, 0xa7, 0xa8, 0xa9, 0xb1, 0xb2, 0xb3, 0xb5,
@@ -548,7 +549,7 @@ int uCnGAlways8BytesDecomposedHangul(
     uint16_t SIndex, LIndex, VIndex, TIndex;
 
     if(outbuflen < 8)
-        return 0;
+        return PR_FALSE;
 
     /* the following line are copy from Unicode 2.0 page 3-13 */
     /* item 1 of Hangul Syllabel Decomposition */
@@ -574,19 +575,19 @@ int uCnGAlways8BytesDecomposedHangul(
     out[5] = (VIndex + 0xbf);
     out[7] = tMap[TIndex];
 
-    return 1;
+    return PR_TRUE;
 }
 
-int uCheckAndGenJohabHangul(
-                            int32_t*   state,
-                            uint16_t   in,
-                            unsigned char* out,
-                            uint32_t    outbuflen,
-                            uint32_t*   outlen
-                            )
+PRIVATE PRBool uCheckAndGenJohabHangul(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       )
 {
     if(outbuflen < 2)
-        return 0;
+        return PR_FALSE;
     else
     {
     /*
@@ -632,19 +633,19 @@ int uCheckAndGenJohabHangul(
 #if 0
         printf("Johab Hangul %x %x in=%x L=%d V=%d T=%d\n", out[0], out[1], in, LIndex, VIndex, TIndex); 
 #endif 
-        return 1;
+        return PR_TRUE;
     }
 }
-int uCheckAndGenJohabSymbol(
-                            int32_t*   state,
-                            uint16_t   in,
-                            unsigned char* out,
-                            uint32_t    outbuflen,
-                            uint32_t*   outlen
-                            )
+PRIVATE PRBool uCheckAndGenJohabSymbol(
+                                       int32_t*   state,
+                                       uint16_t   in,
+                                       unsigned char* out,
+                                       uint32_t    outbuflen,
+                                       uint32_t*   outlen
+                                       )
 {
     if(outbuflen < 2)
-        return 0;
+        return PR_FALSE;
     else
     {
     /* The following code are based on the Perl code listed under
@@ -688,19 +689,19 @@ int uCheckAndGenJohabSymbol(
 #if 0
         printf("Johab Symbol %x %x in=%x\n", out[0], out[1], in); 
 #endif
-        return 1;
+        return PR_TRUE;
     }
 }
-int uCheckAndGen4BytesGB18030(
-                              int32_t*   state,
-                              uint16_t   in,
-                              unsigned char* out,
-                              uint32_t    outbuflen,
-                              uint32_t*   outlen
-                              )
+PRIVATE PRBool uCheckAndGen4BytesGB18030(
+                                         int32_t*   state,
+                                         uint16_t   in,
+                                         unsigned char* out,
+                                         uint32_t    outbuflen,
+                                         uint32_t*   outlen
+                                         )
 {
     if(outbuflen < 4)
-        return 0;
+        return PR_FALSE;
     out[0] = (in / (10*126*10)) + 0x81;
     in %= (10*126*10);
     out[1] = (in / (10*126)) + 0x30;
@@ -708,5 +709,5 @@ int uCheckAndGen4BytesGB18030(
     out[2] = (in / (10)) + 0x81;
     out[3] = (in % 10) + 0x30;
     *outlen = 4;
-    return 1;
+    return PR_TRUE;
 }

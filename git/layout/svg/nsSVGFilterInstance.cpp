@@ -136,21 +136,6 @@ nsSVGFilterInstance::ComputeFilterPrimitiveSubregion(nsSVGFE* aFilterElement,
   return RoundedToInt(region);
 }
 
-void
-nsSVGFilterInstance::GetInputsAreTainted(const nsTArray<int32_t>& aInputIndices,
-                                         nsTArray<bool>& aOutInputsAreTainted)
-{
-  for (uint32_t i = 0; i < aInputIndices.Length(); i++) {
-    int32_t inputIndex = aInputIndices[i];
-    if (inputIndex < 0) {
-      // SourceGraphic, SourceAlpha, FillPaint and StrokePaint are tainted.
-      aOutInputsAreTainted.AppendElement(true);
-    } else {
-      aOutInputsAreTainted.AppendElement(mPrimitiveDescriptions[inputIndex].IsTainted());
-    }
-  }
-}
-
 static nsresult
 GetSourceIndices(nsSVGFE* aFilterElement,
                  int32_t aCurrentIndex,
@@ -209,9 +194,6 @@ nsSVGFilterInstance::BuildPrimitives()
   // Maps source image name to source index.
   nsDataHashtable<nsStringHashKey, int32_t> imageTable(10);
 
-  // The principal that we check principals of any loaded images against.
-  nsCOMPtr<nsIPrincipal> principal = mTargetFrame->GetContent()->NodePrincipal();
-
   for (uint32_t i = 0; i < primitives.Length(); ++i) {
     nsSVGFE* filter = primitives[i];
 
@@ -224,13 +206,9 @@ nsSVGFilterInstance::BuildPrimitives()
     IntRect primitiveSubregion =
       ComputeFilterPrimitiveSubregion(filter, sourceIndices);
 
-    nsTArray<bool> sourcesAreTainted;
-    GetInputsAreTainted(sourceIndices, sourcesAreTainted);
-
     FilterPrimitiveDescription descr =
-      filter->GetPrimitiveDescription(this, primitiveSubregion, sourcesAreTainted, mInputImages);
+      filter->GetPrimitiveDescription(this, primitiveSubregion, mInputImages);
 
-    descr.SetIsTainted(filter->OutputIsTainted(sourcesAreTainted, principal));
     descr.SetPrimitiveSubregion(primitiveSubregion);
 
     for (uint32_t j = 0; j < sourceIndices.Length(); j++) {
@@ -459,15 +437,13 @@ nsSVGFilterInstance::Render(gfxContext* aContext)
   }
 
   nsIntRect filterRect = mPostFilterDirtyRect.Intersect(mFilterSpaceBounds);
-  gfxMatrix ctm = GetFilterSpaceToDeviceSpaceTransform();
 
-  if (filterRect.IsEmpty() || ctm.IsSingular()) {
+  if (filterRect.IsEmpty()) {
     return NS_OK;
   }
 
-  Matrix oldDTMatrix;
   nsRefPtr<gfxASurface> resultImage;
-  RefPtr<DrawTarget> dt;
+  RefPtr<DrawTarget> resultImageDT;
   if (aContext->IsCairo()) {
     resultImage =
       gfxPlatform::GetPlatform()->CreateOffscreenSurface(filterRect.Size(),
@@ -476,24 +452,20 @@ nsSVGFilterInstance::Render(gfxContext* aContext)
       return NS_ERROR_OUT_OF_MEMORY;
 
     // Create a Cairo DrawTarget around resultImage.
-    dt = gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(
-           resultImage, ToIntSize(filterRect.Size()));
+    resultImageDT =
+      gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(
+        resultImage, ToIntSize(filterRect.Size()));
   } else {
-    // When we have a DrawTarget-backed context, we can call DrawFilter
-    // directly on the target DrawTarget and don't need a temporary DT.
-    dt = aContext->GetDrawTarget();
-    oldDTMatrix = dt->GetTransform();
-    Matrix matrix = ToMatrix(ctm);
-    matrix.Translate(filterRect.x, filterRect.y);
-    dt->SetTransform(matrix * oldDTMatrix);
+    resultImageDT = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(
+      ToIntSize(filterRect.Size()), FORMAT_B8G8R8A8);
   }
 
   ComputeNeededBoxes();
 
-  rv = BuildSourceImage(resultImage, dt);
+  rv = BuildSourceImage(resultImage, resultImageDT);
   if (NS_FAILED(rv))
     return rv;
-  rv = BuildSourcePaints(resultImage, dt);
+  rv = BuildSourcePaints(resultImage, resultImageDT);
   if (NS_FAILED(rv))
     return rv;
 
@@ -501,22 +473,20 @@ nsSVGFilterInstance::Render(gfxContext* aContext)
   FilterDescription filter(mPrimitiveDescriptions, filterSpaceBounds);
 
   FilterSupport::RenderFilterDescription(
-    dt, filter, ToRect(filterRect),
+    resultImageDT, filter, ToRect(filterRect),
     mSourceGraphic.mSourceSurface, mSourceGraphic.mSurfaceRect,
     mFillPaint.mSourceSurface, mFillPaint.mSurfaceRect,
     mStrokePaint.mSourceSurface, mStrokePaint.mSurfaceRect,
     mInputImages);
 
-  if (resultImage) {
-    aContext->Save();
-    aContext->Multiply(ctm);
-    aContext->Translate(filterRect.TopLeft());
-    aContext->SetSource(resultImage);
-    aContext->Paint();
-    aContext->Restore();
-  } else {
-    dt->SetTransform(oldDTMatrix);
+  RefPtr<SourceSurface> resultImageSource;
+  if (!resultImage) {
+    resultImageSource = resultImageDT->Snapshot();
   }
+
+  gfxMatrix ctm = GetFilterSpaceToDeviceSpaceTransform();
+  nsSVGUtils::CompositeSurfaceMatrix(aContext, resultImage, resultImageSource,
+                                     filterRect.TopLeft(), ctm);
 
   return NS_OK;
 }

@@ -27,8 +27,9 @@ const SEARCH_TOKEN_FLAG = "#";
 const SEARCH_LINE_FLAG = ":";
 const SEARCH_VARIABLE_FLAG = "*";
 const EDITOR_VARIABLE_HOVER_DELAY = 350; // ms
-const EDITOR_VARIABLE_POPUP_POSITION = "topcenter bottomleft";
-const TOOLBAR_ORDER_POPUP_POSITION = "topcenter bottomleft";
+const EDITOR_VARIABLE_POPUP_OFFSET_X = 5; // px
+const EDITOR_VARIABLE_POPUP_OFFSET_Y = 0; // px
+const EDITOR_VARIABLE_POPUP_POSITION = "before_start";
 
 /**
  * Object defining the debugger view components.
@@ -681,7 +682,7 @@ ResultsPanelContainer.prototype = Heritage.extend(WidgetMethods, {
     if (aNode) {
       if (!this._panel) {
         this._panel = document.createElement("panel");
-        this._panel.id = "results-panel";
+        this._panel.className = "results-panel";
         this._panel.setAttribute("level", "top");
         this._panel.setAttribute("noautofocus", "true");
         this._panel.setAttribute("consumeoutsideclicks", "false");
@@ -689,8 +690,6 @@ ResultsPanelContainer.prototype = Heritage.extend(WidgetMethods, {
       }
       if (!this.widget) {
         this.widget = new SimpleListWidget(this._panel);
-        this.autoFocusOnFirstItem = false;
-        this.autoFocusOnSelection = false;
         this.maintainSelectionVisible = false;
       }
     }

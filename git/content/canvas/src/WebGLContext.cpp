@@ -156,11 +156,6 @@ WebGLContext::WebGLContext()
     mStencilWriteMaskFront = 0xffffffff;
     mStencilWriteMaskBack  = 0xffffffff;
 
-    mViewportX = 0;
-    mViewportY = 0;
-    mViewportWidth = 0;
-    mViewportHeight = 0;
-
     mScissorTestEnabled = 0;
     mDitherEnabled = 1;
     mRasterizerDiscardEnabled = 0; // OpenGL ES 3.0 spec p244
@@ -198,7 +193,6 @@ WebGLContext::WebGLContext()
 
     mAlreadyGeneratedWarnings = 0;
     mAlreadyWarnedAboutFakeVertexAttrib0 = false;
-    mAlreadyWarnedAboutViewportLargerThanDest = false;
     mMaxWarnings = Preferences::GetInt("webgl.max-warnings-per-context", 32);
     if (mMaxWarnings < -1)
     {
@@ -579,8 +573,6 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
 
     mWidth = width;
     mHeight = height;
-    mViewportWidth = width;
-    mViewportHeight = height;
     mResetLayer = true;
     mOptionsFrozen = true;
 

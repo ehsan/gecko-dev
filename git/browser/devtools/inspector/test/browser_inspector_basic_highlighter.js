@@ -2,12 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+
 function test() {
-  let inspector, doc, toolbox;
+  let inspector, doc;
   let {devtools} = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
   let {require} = devtools;
   let promise = require("sdk/core/promise");
-  let {Task} = Cu.import("resource://gre/modules/Task.jsm", {});
+  let { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
 
   waitForExplicitFinish();
 
@@ -18,67 +19,75 @@ function test() {
     waitForFocus(setupTest, content);
   }, true);
 
-  content.location = "data:text/html,<h1>foo</h1><h2>bar</h2>";
+  content.location = "data:text/html,<h1>foo<h1><h2>bar</h2>";
 
   function setupTest() {
-    openInspector((aInspector, aToolbox) => {
-      toolbox = aToolbox;
-      inspector = aInspector;
-      inspector.selection.setNode(doc.querySelector("h2"), null);
-      inspector.once("inspector-updated", runTests);
-    });
+    let h = require("devtools/inspector/highlighter");
+    h._forceBasic.value = true;
+    openInspector(runTests);
   }
 
   function runTests(aInspector) {
-    getHighlighterOutline().setAttribute("disable-transitions", "true");
+    inspector = aInspector;
+
     Task.spawn(function() {
-      yield hoverH1InMarkupView();
-      yield assertH1Highlighted();
-      yield mouseLeaveMarkupView();
-      yield assertNoNodeHighlighted();
+      yield selectH1();
+      yield verifyH1Selected();
+      yield deselect();
+      yield verifyNoNodeSelected();
+
+      yield selectH1();
+      yield verifyH1Selected();
+      yield destroyInspector();
+      yield verifyNoNodeSelected();
 
       finishUp();
     }).then(null, Cu.reportError);
   }
 
-  function hoverH1InMarkupView() {
+  function selectH1() {
     let deferred = promise.defer();
-
-    let container = getContainerForRawNode(inspector.markup, doc.querySelector("h1"));
-    EventUtils.synthesizeMouse(container.tagLine, 2, 2, {type: "mousemove"},
-      inspector.markup.doc.defaultView);
-    inspector.markup.once("node-highlight", deferred.resolve);
-
+    let h1 = doc.querySelector("h1");
+    inspector.selection.once("new-node-front", () => {
+      executeSoon(deferred.resolve);
+    });
+    inspector.selection.setNode(h1);
     return deferred.promise;
   }
 
-  function assertH1Highlighted() {
-    ok(isHighlighting(), "The highlighter is shown on a markup container hover");
-    is(getHighlitNode(), doc.querySelector("h1"), "The highlighter highlights the right node");
+  function verifyH1Selected() {
+    let h1 = doc.querySelector("h1");
+    let nodes = doc.querySelectorAll(":-moz-devtools-highlighted");
+    is(nodes.length, 1, "only one node selected");
+    is(nodes[0], h1, "h1 selected");
     return promise.resolve();
   }
 
-  function mouseLeaveMarkupView() {
+  function deselect() {
     let deferred = promise.defer();
-
-    // Find another element to mouseover over in order to leave the markup-view
-    let btn = toolbox.doc.querySelector(".toolbox-dock-button");
-
-    EventUtils.synthesizeMouse(btn, 2, 2, {type: "mousemove"},
-      toolbox.doc.defaultView);
-    executeSoon(deferred.resolve);
-
+    inspector.selection.once("new-node-front", () => {
+      executeSoon(deferred.resolve);
+    });
+    inspector.selection.setNode(null);
     return deferred.promise;
   }
 
-  function assertNoNodeHighlighted() {
-    ok(!isHighlighting(), "After the mouse left the markup view, the highlighter is hidden");
+  function destroyInspector() {
+    return inspector.destroy();
+  }
+
+  function verifyNoNodeSelected() {
+    is(doc.querySelectorAll(":-moz-devtools-highlighted").length, 0, "no node selected");
     return promise.resolve();
   }
 
   function finishUp() {
-    inspector = doc = toolbox = null;
+    let h = require("devtools/inspector/highlighter");
+    h._forceBasic.value = false;
+    inspector = doc = null;
     gBrowser.removeCurrentTab();
     finish();
   }
 }
+
+

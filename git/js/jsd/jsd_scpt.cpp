@@ -360,7 +360,7 @@ jsd_GetJSScript (JSDContext *jsdc, JSDScript *script)
 JSFunction *
 jsd_GetJSFunction (JSDContext *jsdc, JSDScript *script)
 {
-    AutoSafeJSContext cx;
+    AutoSafeJSContext cx; // NB: Actually unused.
     return JS_GetScriptFunction(cx, script->script);
 }
 

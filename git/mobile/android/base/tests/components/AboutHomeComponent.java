@@ -22,10 +22,8 @@ import android.view.View;
  * A class representing any interactions that take place on the Awesomescreen.
  */
 public class AboutHomeComponent extends BaseComponent {
-    private static final String LOGTAG = AboutHomeComponent.class.getSimpleName();
-
-    // The different types of panels that can be present on about:home
-    public enum PanelType {
+    // The different types of pages that can be present on about:home
+    public enum PageType {
         HISTORY,
         TOP_SITES,
         BOOKMARKS,
@@ -62,7 +60,7 @@ public class AboutHomeComponent extends BaseComponent {
         return (ViewPager) mSolo.getView(R.id.home_pager);
     }
 
-    public AboutHomeComponent assertCurrentPage(final PanelType expectedPage) {
+    public AboutHomeComponent assertCurrentPage(final PageType expectedPage) {
         assertVisible();
 
         final int expectedPageIndex = getPageIndexForDevice(expectedPage.ordinal());
@@ -84,13 +82,13 @@ public class AboutHomeComponent extends BaseComponent {
     }
 
     public AboutHomeComponent swipeToPageOnRight() {
-        mTestContext.dumpLog(LOGTAG, "Swiping to the page on the right.");
+        mTestContext.dumpLog("Swiping to the page on the right.");
         swipeToPage(Solo.RIGHT);
         return this;
     }
 
     public AboutHomeComponent swipeToPageOnLeft() {
-        mTestContext.dumpLog(LOGTAG, "Swiping to the page on the left.");
+        mTestContext.dumpLog("Swiping to the page on the left.");
         swipeToPage(Solo.LEFT);
         return this;
     }
@@ -132,10 +130,10 @@ public class AboutHomeComponent extends BaseComponent {
 
     /**
      * Gets the page index in the device specific Page enum for the given index in the
-     * PanelType enum.
+     * PageType enum.
      */
     private int getPageIndexForDevice(final int pageIndex) {
-        final String pageName = PanelType.values()[pageIndex].name();
+        final String pageName = PageType.values()[pageIndex].name();
         final Class devicePageEnum =
                 DeviceHelper.isTablet() ? TabletPage.class : PhonePage.class;
         return Enum.valueOf(devicePageEnum, pageName).ordinal();

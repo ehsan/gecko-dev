@@ -3219,7 +3219,7 @@ VariablesView.stringifiers.byType = {
     if (noStringQuotes) {
       return aGrip;
     }
-    return '"' + aGrip + '"';
+    return uneval(aGrip);
   },
 
   longString: function({initial}, {noStringQuotes, noEllipsis}) {
@@ -3227,7 +3227,7 @@ VariablesView.stringifiers.byType = {
     if (noStringQuotes) {
       return initial + ellipsis;
     }
-    let result = '"' + initial + '"';
+    let result = uneval(initial);
     if (!ellipsis) {
       return result;
     }

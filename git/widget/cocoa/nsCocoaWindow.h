@@ -70,9 +70,6 @@ typedef struct _nsCocoaWindowList {
   // Shadow
   BOOL mScheduledShadowInvalidation;
 
-  // Invalidation disabling
-  BOOL mDisabledNeedsDisplay;
-
   // DPI cache. Getting the physical screen size (CGDisplayScreenSize)
   // is ridiculously slow, so we cache it in the toplevel window for all
   // descendants to use.
@@ -110,9 +107,6 @@ typedef struct _nsCocoaWindowList {
 
 - (void)setWantsTitleDrawn:(BOOL)aDrawTitle;
 - (BOOL)wantsTitleDrawn;
-
-- (void)disableSetNeedsDisplay;
-- (void)enableSetNeedsDisplay;
 
 @end
 

@@ -6,10 +6,11 @@ const Cu = Components.utils;
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 
-// Services.prefs.setBoolPref("devtools.debugger.log", true);
-// SimpleTest.registerCleanupFunction(() => {
-//   Services.prefs.clearUserPref("devtools.debugger.log");
-// });
+Services.prefs.setBoolPref("devtools.debugger.log", true);
+SimpleTest.registerCleanupFunction(() => {
+  Services.prefs.clearUserPref("devtools.debugger.log");
+});
+
 
 let tempScope = {};
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm", tempScope);
@@ -51,63 +52,40 @@ function getNodeFront(node)
   return inspector.walker.frontForRawNode(node);
 }
 
-function getHighlighter()
-{
-  return gBrowser.selectedBrowser.parentNode.querySelector(".highlighter-container");
-}
-
-function getHighlighterOutline()
-{
-  let h = getHighlighter();
-  if (h) {
-    return h.querySelector(".highlighter-outline");
-  }
-}
-
-function getHighlighterOutlineRect() {
-  let helper = new LayoutHelpers(window.content);
-  let outline = getHighlighterOutline();
-
-  if (outline) {
-    let browserOffsetRect = helper.getDirtyRect(gBrowser.selectedBrowser);
-    let outlineRect = helper.getDirtyRect(outline);
-    outlineRect.top -= browserOffsetRect.top;
-    outlineRect.left -= browserOffsetRect.left;
-
-    return outlineRect;
-  }
-}
-
 function isHighlighting()
 {
-  let outline = getHighlighterOutline();
-  return outline && !outline.hasAttribute("hidden");
+  let outline = getActiveInspector().highlighter.outline;
+  return !(outline.getAttribute("hidden") == "true");
 }
 
 function getHighlitNode()
 {
-  if (isHighlighting()) {
-    let helper = new LayoutHelpers(window.content);
-    let outlineRect = getHighlighterOutlineRect();
+  let h = getActiveInspector().highlighter;
+  if (!isHighlighting() || !h._contentRect)
+    return null;
 
-    let a = {
-      x: outlineRect.left,
-      y: outlineRect.top
-    };
+  let a = {
+    x: h._contentRect.left,
+    y: h._contentRect.top
+  };
 
-    let b = {
-      x: a.x + outlineRect.width,
-      y: a.y + outlineRect.height
-    };
+  let b = {
+    x: a.x + h._contentRect.width,
+    y: a.y + h._contentRect.height
+  };
 
-    let {x, y} = getMidPoint(a, b);
-    return helper.getElementFromPoint(window.content.document, x, y);
-  }
+  // Get midpoint of diagonal line.
+  let midpoint = midPoint(a, b);
+
+  let lh = new LayoutHelpers(window.content);
+  return lh.getElementFromPoint(h.win.document, midpoint.x,
+    midpoint.y);
 }
 
-function getMidPoint(aPointA, aPointB)
+
+function midPoint(aPointA, aPointB)
 {
-  let pointC = {};
+  let pointC = { };
   pointC.x = (aPointB.x - aPointA.x) / 2 + aPointA.x;
   pointC.y = (aPointB.y - aPointA.y) / 2 + aPointA.y;
   return pointC;
@@ -209,13 +187,6 @@ function getComputedPropertyValue(aName)
       return value.textContent;
     }
   }
-}
-
-function getContainerForRawNode(markupView, rawNode)
-{
-  let front = markupView.walker.frontForRawNode(rawNode);
-  let container = markupView.getContainer(front);
-  return container;
 }
 
 SimpleTest.registerCleanupFunction(function () {

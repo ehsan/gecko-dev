@@ -49,15 +49,6 @@ XPCStringConvert::ClearZoneCache(JS::Zone *zone)
 
 // static
 void
-XPCStringConvert::FinalizeLiteral(const JSStringFinalizer *fin, jschar *chars)
-{
-}
-
-const JSStringFinalizer XPCStringConvert::sLiteralFinalizer =
-    { XPCStringConvert::FinalizeLiteral };
-
-// static
-void
 XPCStringConvert::FinalizeDOMString(const JSStringFinalizer *fin, jschar *chars)
 {
     nsStringBuffer* buf = nsStringBuffer::FromData(chars);
@@ -80,16 +71,6 @@ XPCStringConvert::ReadableToJSVal(JSContext *cx,
     uint32_t length = readable.Length();
     if (length == 0) {
         vp.set(JS_GetEmptyStringValue(cx));
-        return true;
-    }
-
-    if (readable.IsLiteral()) {
-        JSString *str = JS_NewExternalString(cx,
-                                             static_cast<const jschar*>(readable.BeginReading()),
-                                             length, &sLiteralFinalizer);
-        if (!str)
-            return false;
-        vp.setString(str);
         return true;
     }
 

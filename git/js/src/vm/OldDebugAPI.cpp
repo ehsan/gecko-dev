@@ -544,8 +544,7 @@ JS_GetScriptOriginPrincipals(JSScript *script)
 JS_PUBLIC_API(JSFunction *)
 JS_GetScriptFunction(JSContext *cx, JSScript *script)
 {
-    script->ensureNonLazyCanonicalFunction(cx);
-    return script->functionNonDelazifying();
+    return script->function();
 }
 
 JS_PUBLIC_API(JSObject *)

@@ -4,13 +4,18 @@
 
 from __future__ import unicode_literals
 
+import imp
+import os
+import sys
+import unittest
+
+from StringIO import StringIO
+
 from mach.main import (
     COMMAND_ERROR,
     MODULE_ERROR
 )
 from mach.test.common import TestBase
-
-from mozunit import main
 
 
 class TestErrorOutput(TestBase):
@@ -24,7 +29,7 @@ class TestErrorOutput(TestBase):
 
         self.assertEqual(result, 1)
 
-        self.assertIn(COMMAND_ERROR, stdout)
+        self.assertIn(mach.main.COMMAND_ERROR, stdout)
 
     def test_invoked_error(self):
         result, stdout, stderr = self._run_mach(['throw_deep', '--message',
@@ -32,8 +37,4 @@ class TestErrorOutput(TestBase):
 
         self.assertEqual(result, 1)
 
-        self.assertIn(MODULE_ERROR, stdout)
-
-
-if __name__ == '__main__':
-    main()
+        self.assertIn(mach.main.MODULE_ERROR, stdout)

@@ -786,11 +786,11 @@ abstract public class BrowserApp extends GeckoApp
             }
 
             final OnFaviconLoadedListener listener = new GeckoAppShell.CreateShortcutFaviconLoadedListener(url, title);
-            Favicons.getSizedFavicon(url,
-                                     tab.getFaviconURL(),
-                                     Integer.MAX_VALUE,
-                                     LoadFaviconTask.FLAG_PERSIST,
-                                     listener);
+            Favicons.getFaviconForSize(url,
+                                       tab.getFaviconURL(),
+                                       Integer.MAX_VALUE,
+                                       LoadFaviconTask.FLAG_PERSIST,
+                                       listener);
             return true;
         }
 
@@ -1382,6 +1382,8 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private void openUrlAndStopEditing(String url, String searchEngine, boolean newTab) {
+        mBrowserToolbar.setProgressVisibility(true);
+
         int flags = Tabs.LOADURL_NONE;
         if (newTab) {
             flags |= Tabs.LOADURL_NEW_TAB;
@@ -1413,16 +1415,15 @@ abstract public class BrowserApp extends GeckoApp
         final int tabFaviconSize = getResources().getDimensionPixelSize(R.dimen.browser_toolbar_favicon_size);
 
         int flags = (tab.isPrivate() || tab.getErrorType() != Tab.ErrorType.NONE) ? 0 : LoadFaviconTask.FLAG_PERSIST;
-        int id = Favicons.getSizedFavicon(tab.getURL(), tab.getFaviconURL(), tabFaviconSize, flags, sFaviconLoadedListener);
+        int id = Favicons.getFaviconForSize(tab.getURL(), tab.getFaviconURL(), tabFaviconSize, flags, sFaviconLoadedListener);
 
         tab.setFaviconLoadId(id);
-
-        final Tabs tabs = Tabs.getInstance();
-        if (id != Favicons.LOADED && tabs.isSelectedTab(tab)) {
+        if (id != Favicons.LOADED &&
+            Tabs.getInstance().isSelectedTab(tab)) {
             // We're loading the current tab's favicon from somewhere
-            // other than the cache. Display the globe favicon until then.
-            tab.updateFavicon(Favicons.sDefaultFavicon);
-            tabs.notifyListeners(tab, Tabs.TabEvents.FAVICON);
+            // other than the cache.
+            // Display the globe favicon until then.
+            mBrowserToolbar.showDefaultFavicon();
         }
     }
 
@@ -1630,9 +1631,9 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public void onLocaleReady(final String locale) {
         super.onLocaleReady(locale);
-
-        if (mHomePager != null) {
-            mHomePager.invalidate(getSupportLoaderManager(), getSupportFragmentManager());
+        if (isHomePagerVisible()) {
+            // Blow it away and rebuild it with the right strings.
+            mHomePager.redisplay(getSupportLoaderManager(), getSupportFragmentManager());
         }
 
         if (mMenu != null) {
@@ -1851,7 +1852,7 @@ abstract public class BrowserApp extends GeckoApp
      */
     private void addAddonMenuItemToMenu(final Menu menu, final MenuItemInfo info) {
         info.added = true;
-
+        
         final Menu destination;
         if (info.parent == 0) {
             destination = menu;
@@ -2015,11 +2016,8 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void openOptionsMenu() {
-        // Disable menu access in edge cases only accessible to hardware menu buttons.
-        if ((!hasTabsSideBar() && areTabsShown()) ||
-                mBrowserToolbar.isEditing()) {
+        if (!hasTabsSideBar() && areTabsShown())
             return;
-        }
 
         // Scroll custom menu to the top
         if (mMenuPanel != null)
@@ -2478,7 +2476,7 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public void onNewTabs(String[] urls) {
         final EnumSet<OnUrlOpenListener.Flags> flags = EnumSet.of(OnUrlOpenListener.Flags.ALLOW_SWITCH_TO_TAB);
-
+ 
         for (String url : urls) {
             if (!maybeSwitchToTab(url, flags)) {
                 openUrlAndStopEditing(url, true);

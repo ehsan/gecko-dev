@@ -103,10 +103,8 @@ bool
 js::Nursery::isEmpty() const
 {
     JS_ASSERT(runtime_);
-    if (!isEnabled())
-        return true;
     JS_ASSERT_IF(runtime_->gcZeal_ != ZealGenerationalGCValue, currentStart_ == start());
-    return position() == currentStart_;
+    return !isEnabled() || position() == currentStart_;
 }
 
 void *

@@ -150,13 +150,6 @@ JSObject::setShouldConvertDoubleElements()
     getElementsHeader()->setShouldConvertDoubleElements();
 }
 
-inline void
-JSObject::clearShouldConvertDoubleElements()
-{
-    JS_ASSERT(is<js::ArrayObject>() && !hasEmptyElements());
-    getElementsHeader()->clearShouldConvertDoubleElements();
-}
-
 inline bool
 JSObject::setDenseElementIfHasType(uint32_t index, const js::Value &val)
 {

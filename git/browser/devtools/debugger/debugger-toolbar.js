@@ -31,12 +31,11 @@ ToolbarView.prototype = {
     dumpn("Initializing the ToolbarView");
 
     this._instrumentsPaneToggleButton = document.getElementById("instruments-pane-toggle");
+    this._resumeOrderPanel = document.getElementById("resumption-order-panel");
     this._resumeButton = document.getElementById("resume");
     this._stepOverButton = document.getElementById("step-over");
     this._stepInButton = document.getElementById("step-in");
     this._stepOutButton = document.getElementById("step-out");
-    this._resumeOrderTooltip = new Tooltip(document);
-    this._resumeOrderTooltip.defaultPosition = TOOLBAR_ORDER_POPUP_POSITION;
 
     let resumeKey = ShortcutUtils.prettifyShortcut(document.getElementById("resumeKey"));
     let stepOverKey = ShortcutUtils.prettifyShortcut(document.getElementById("stepOverKey"));
@@ -81,8 +80,10 @@ ToolbarView.prototype = {
    */
   showResumeWarning: function(aPausedUrl) {
     let label = L10N.getFormatStr("resumptionOrderPanelTitle", aPausedUrl);
-    this._resumeOrderTooltip.setTextContent([label]);
-    this._resumeOrderTooltip.show(this._resumeButton);
+    let descriptionNode = document.getElementById("resumption-panel-desc");
+    descriptionNode.setAttribute("value", label);
+
+    this._resumeOrderPanel.openPopup(this._resumeButton);
   },
 
   /**
@@ -162,11 +163,11 @@ ToolbarView.prototype = {
   },
 
   _instrumentsPaneToggleButton: null,
+  _resumeOrderPanel: null,
   _resumeButton: null,
   _stepOverButton: null,
   _stepInButton: null,
   _stepOutButton: null,
-  _resumeOrderTooltip: null,
   _resumeTooltip: "",
   _pauseTooltip: "",
   _stepOverTooltip: "",
@@ -568,7 +569,9 @@ StackFramesClassicListView.prototype = Heritage.extend(WidgetMethods, {
   initialize: function() {
     dumpn("Initializing the StackFramesClassicListView");
 
-    this.widget = new SideMenuWidget(document.getElementById("callstack-list"));
+    this.widget = new SideMenuWidget(document.getElementById("callstack-list"), {
+      theme: "light"
+    });
     this.widget.addEventListener("select", this._onSelect, false);
 
     this.emptyText = L10N.getStr("noStackFramesText");
@@ -865,6 +868,7 @@ FilterView.prototype = {
     if (!aToken) {
       return;
     }
+
     DebuggerView.editor.find(aToken);
   },
 
@@ -996,9 +1000,6 @@ FilterView.prototype = {
       } else if (targetView.hidden) {
         targetView.scheduleSearch(args[0], 0);
       } else {
-        if (!targetView.selectedItem) {
-          targetView.selectedIndex = 0;
-        }
         this.clearSearch();
       }
       return;
@@ -1022,9 +1023,6 @@ FilterView.prototype = {
       } else if (targetView.hidden) {
         targetView.scheduleSearch(args[0], 0);
       } else {
-        if (!targetView.selectedItem) {
-          targetView.selectedIndex = 0;
-        }
         this.clearSearch();
       }
       return;
@@ -1260,11 +1258,8 @@ FilteredSourcesView.prototype = Heritage.extend(ResultsPanelContainer.prototype,
       });
     }
 
-    // There's at least one item displayed in this container. Don't select it
-    // automatically if not forced (by tests) or in tandem with an operator.
-    if (this._autoSelectFirstItem || DebuggerView.Filtering.searchOperator) {
-      this.selectedIndex = 0;
-    }
+    // Select the first entry in this container.
+    this.selectedIndex = 0;
     this.hidden = false;
 
     // Signal that file search matches were found and displayed.
@@ -1464,11 +1459,8 @@ FilteredFunctionsView.prototype = Heritage.extend(ResultsPanelContainer.prototyp
       });
     }
 
-    // There's at least one item displayed in this container. Don't select it
-    // automatically if not forced (by tests).
-    if (this._autoSelectFirstItem) {
-      this.selectedIndex = 0;
-    }
+    // Select the first entry in this container.
+    this.selectedIndex = 0;
     this.hidden = false;
 
     // Signal that function search matches were found and displayed.

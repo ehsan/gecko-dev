@@ -42,7 +42,7 @@ static float extractAverageGroupDelay(float* impulseP, size_t length)
     estimationFrame.PerformFFT(impulseP);
 
     float frameDelay = static_cast<float>(estimationFrame.ExtractAverageGroupDelay());
-    estimationFrame.GetInverse(impulseP);
+    estimationFrame.PerformInverseFFT(impulseP);
 
     return frameDelay;
 }
@@ -70,7 +70,7 @@ HRTFKernel::HRTFKernel(float* impulseResponse, size_t length, float sampleRate)
     }
 
     m_fftFrame = new FFTBlock(fftSize);
-    m_fftFrame->PadAndMakeScaledDFT(impulseResponse, length);
+    m_fftFrame->PerformPaddedFFT(impulseResponse, length);
 }
 
 // Interpolates two kernels with x: 0 -> 1 and returns the result.

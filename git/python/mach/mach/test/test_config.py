@@ -20,8 +20,6 @@ from mach.config import (
     StringType,
 )
 
-from mozunit import main
-
 
 if sys.version_info[0] == 3:
     str_type = str
@@ -258,7 +256,3 @@ class TestConfigSettings(unittest.TestCase):
         temp = NamedTemporaryFile('wt')
         s.write_pot(temp)
         temp.flush()
-
-
-if __name__ == '__main__':
-    main()
