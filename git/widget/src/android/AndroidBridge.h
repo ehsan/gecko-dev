@@ -295,8 +295,6 @@ public:
     void DisableBatteryNotifications();
     void GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo);
 
-    bool IsTablet();
-
 protected:
     static AndroidBridge *sBridge;
 
@@ -368,7 +366,6 @@ protected:
     jmethodID jPostToJavaThread;
     jmethodID jInitCamera;
     jmethodID jCloseCamera;
-    jmethodID jIsTablet;
     jmethodID jEnableBatteryNotifications;
     jmethodID jDisableBatteryNotifications;
     jmethodID jGetCurrentBatteryInformation;

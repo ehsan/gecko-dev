@@ -87,7 +87,6 @@ StyleInspector.prototype = {
         context: this,
         get isOpen() isOpen(),
         onSelect: this.selectNode,
-        onChanged: this.updateNode,
         show: this.open,
         hide: this.close,
         dim: this.dimTool,
@@ -245,17 +244,6 @@ StyleInspector.prototype = {
     if (this.isOpen() && !this.dimmed) {
       this.cssLogic.highlight(aNode);
       this.cssHtmlTree.highlight(aNode);
-    }
-  },
-
-  /**
-   * Update the display for the currently-selected node.
-   */
-  updateNode: function SI_updateNode()
-  {
-    if (this.isOpen() && !this.dimmed) {
-      this.cssLogic.highlight(this.selectedNode);
-      this.cssHtmlTree.refreshPanel();
     }
   },
 
