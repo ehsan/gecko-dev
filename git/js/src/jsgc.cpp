@@ -3202,9 +3202,7 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
 
     /* Clear property and JIT caches (only for cx->thread if JS_THREADSAFE). */
     js_FlushPropertyCache(cx);
-#ifdef JS_TRACER
     js_FlushJITCache(cx);
-#endif
 
 #ifdef JS_THREADSAFE
     /*
