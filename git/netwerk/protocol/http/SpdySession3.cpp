@@ -207,7 +207,7 @@ SpdySession3::IdleTime()
   return PR_IntervalNow() - mLastDataReadEpoch;
 }
 
-uint32_t
+void
 SpdySession3::ReadTimeoutTick(PRIntervalTime now)
 {
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
@@ -217,15 +217,13 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
          this, PR_IntervalToSeconds(now - mLastReadEpoch)));
 
     if (!mPingThreshold)
-      return UINT32_MAX;
+      return;
 
     if ((now - mLastReadEpoch) < mPingThreshold) {
       // recent activity means ping is not an issue
       if (mPingSentEpoch)
         mPingSentEpoch = 0;
-
-      return PR_IntervalToSeconds(mPingThreshold) -
-        PR_IntervalToSeconds(now - mLastReadEpoch);
+      return;
     }
 
     if (mPingSentEpoch) {
@@ -235,9 +233,8 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
              this));
         mPingSentEpoch = 0;
         Close(NS_ERROR_NET_TIMEOUT);
-        return UINT32_MAX;
       }
-      return 1; // run the tick aggressively while ping is outstanding
+      return;
     }
 
     LOG(("SpdySession3::ReadTimeoutTick %p generating ping 0x%X\n",
@@ -246,7 +243,7 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
     if (mNextPingID == 0xffffffff) {
       LOG(("SpdySession3::ReadTimeoutTick %p cannot form ping - ids exhausted\n",
            this));
-      return UINT32_MAX;
+      return;
     }
 
     mPingSentEpoch = PR_IntervalNow();
@@ -290,7 +287,6 @@ SpdySession3::ReadTimeoutTick(PRIntervalTime now)
            "ping ids exhausted marking goaway\n", this));
       mShouldGoAway = true;
     }
-    return 1; // run the tick aggressively while ping is outstanding
 }
 
 uint32_t

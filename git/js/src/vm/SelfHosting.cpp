@@ -469,7 +469,7 @@ intrinsic_GetIteratorPrototype(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args.length() == 0);
 
-    JSObject *obj = GlobalObject::getOrCreateIteratorPrototype(cx, cx->global());
+    JSObject *obj = cx->global()->getOrCreateIteratorPrototype(cx);
     if (!obj)
         return false;
 
@@ -483,7 +483,7 @@ intrinsic_NewArrayIterator(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args.length() == 0);
 
-    RootedObject proto(cx, GlobalObject::getOrCreateArrayIteratorPrototype(cx, cx->global()));
+    RootedObject proto(cx, cx->global()->getOrCreateArrayIteratorPrototype(cx));
     if (!proto)
         return false;
 
@@ -512,7 +512,7 @@ intrinsic_NewStringIterator(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     JS_ASSERT(args.length() == 0);
 
-    RootedObject proto(cx, GlobalObject::getOrCreateStringIteratorPrototype(cx, cx->global()));
+    RootedObject proto(cx, cx->global()->getOrCreateStringIteratorPrototype(cx));
     if (!proto)
         return false;
 

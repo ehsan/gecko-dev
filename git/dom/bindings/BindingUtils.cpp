@@ -1498,9 +1498,9 @@ GetXrayExpandoChain(JSObject* obj)
 {
   const js::Class* clasp = js::GetObjectClass(obj);
   JS::Value v;
-  if (IsNonProxyDOMClass(clasp) || IsDOMIfaceAndProtoClass(clasp)) {
+  if (IsDOMClass(clasp) || IsDOMIfaceAndProtoClass(clasp)) {
     v = js::GetReservedSlot(obj, DOM_XRAY_EXPANDO_SLOT);
-  } else if (clasp->isProxy()) {
+  } else if (js::IsProxyClass(clasp)) {
     MOZ_ASSERT(js::GetProxyHandler(obj)->family() == ProxyFamily());
     v = js::GetProxyExtra(obj, JSPROXYSLOT_XRAY_EXPANDO);
   } else {
@@ -1515,9 +1515,9 @@ SetXrayExpandoChain(JSObject* obj, JSObject* chain)
 {
   JS::Value v = chain ? JS::ObjectValue(*chain) : JSVAL_VOID;
   const js::Class* clasp = js::GetObjectClass(obj);
-  if (IsNonProxyDOMClass(clasp) || IsDOMIfaceAndProtoClass(clasp)) {
+  if (IsDOMClass(clasp) || IsDOMIfaceAndProtoClass(clasp)) {
     js::SetReservedSlot(obj, DOM_XRAY_EXPANDO_SLOT, v);
-  } else if (clasp->isProxy()) {
+  } else if (js::IsProxyClass(clasp)) {
     MOZ_ASSERT(js::GetProxyHandler(obj)->family() == ProxyFamily());
     js::SetProxyExtra(obj, JSPROXYSLOT_XRAY_EXPANDO, v);
   } else {
@@ -1596,18 +1596,22 @@ NativeToString(JSContext* cx, JS::Handle<JSObject*> wrapper,
         str = nullptr;
       }
     } else {
-      const js::Class* clasp = js::GetObjectClass(obj);
-      if (IsDOMClass(clasp)) {
-        str = JS_NewStringCopyZ(cx, clasp->name);
-        str = ConcatJSString(cx, "[object ", str, "]");
-      } else if (IsDOMIfaceAndProtoClass(clasp)) {
-        const DOMIfaceAndProtoJSClass* ifaceAndProtoJSClass =
-          DOMIfaceAndProtoJSClass::FromJSClass(clasp);
-        str = JS_NewStringCopyZ(cx, ifaceAndProtoJSClass->mToString);
+      if (IsDOMProxy(obj)) {
+        str = JS_BasicObjectToString(cx, obj);
       } else {
-        MOZ_ASSERT(JS_IsNativeFunction(obj, Constructor));
-        JS::Rooted<JSFunction*> fun(cx, JS_GetObjectFunction(obj));
-        str = JS_DecompileFunction(cx, fun, 0);
+        const js::Class* clasp = js::GetObjectClass(obj);
+        if (IsDOMClass(clasp)) {
+          str = JS_NewStringCopyZ(cx, clasp->name);
+          str = ConcatJSString(cx, "[object ", str, "]");
+        } else if (IsDOMIfaceAndProtoClass(clasp)) {
+          const DOMIfaceAndProtoJSClass* ifaceAndProtoJSClass =
+            DOMIfaceAndProtoJSClass::FromJSClass(clasp);
+          str = JS_NewStringCopyZ(cx, ifaceAndProtoJSClass->mToString);
+        } else {
+          MOZ_ASSERT(JS_IsNativeFunction(obj, Constructor));
+          JS::Rooted<JSFunction*> fun(cx, JS_GetObjectFunction(obj));
+          str = JS_DecompileFunction(cx, fun, 0);
+        }
       }
       str = ConcatJSString(cx, pre, str, post);
     }

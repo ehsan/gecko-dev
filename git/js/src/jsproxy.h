@@ -334,9 +334,14 @@ class Proxy
 extern JS_FRIEND_DATA(const js::Class* const) CallableProxyClassPtr;
 extern JS_FRIEND_DATA(const js::Class* const) UncallableProxyClassPtr;
 
+inline bool IsProxyClass(const Class *clasp)
+{
+    return clasp->isProxy();
+}
+
 inline bool IsProxy(JSObject *obj)
 {
-    return GetObjectClass(obj)->isProxy();
+    return IsProxyClass(GetObjectClass(obj));
 }
 
 BaseProxyHandler *

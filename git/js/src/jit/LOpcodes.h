@@ -212,7 +212,7 @@
     _(StoreFixedSlotV)              \
     _(StoreFixedSlotT)              \
     _(FunctionEnvironment)          \
-    _(ForkJoinContext)              \
+    _(ForkJoinSlice)                \
     _(GetPropertyCacheV)            \
     _(GetPropertyCacheT)            \
     _(GetPropertyPolymorphicV)      \

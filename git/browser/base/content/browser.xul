@@ -999,7 +999,7 @@
       <toolbarbutton id="tabview-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                      label="&tabGroupsButton.label;"
                      command="Browser:ToggleTabView"
-                     tooltip="dynamic-shortcut-tooltip"
+                     tooltiptext="&tabGroupsButton.tooltip;"
                      observes="tabviewGroupsNumber"/>
     </toolbarpalette>
   </toolbox>

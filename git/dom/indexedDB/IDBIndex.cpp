@@ -36,7 +36,6 @@ USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::dom;
 using namespace mozilla::dom::indexedDB::ipc;
 using mozilla::ErrorResult;
-using mozilla::Move;
 
 namespace {
 
@@ -779,7 +778,7 @@ IDBIndex::OpenCursorFromChildProcess(
   nsRefPtr<IDBCursor> cursor =
     IDBCursor::Create(aRequest, mObjectStore->Transaction(), this, direction,
                       Key(), EmptyCString(), EmptyCString(), aKey, aObjectKey,
-                      Move(cloneInfo));
+                      cloneInfo);
   IDB_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   NS_ASSERTION(!cloneInfo.mCloneBuffer.data(), "Should have swapped!");
@@ -2305,7 +2304,7 @@ OpenCursorHelper::EnsureCursor()
   nsRefPtr<IDBCursor> cursor =
     IDBCursor::Create(mRequest, mTransaction, mIndex, mDirection, mRangeKey,
                       mContinueQuery, mContinueToQuery, mKey, mObjectKey,
-                      Move(mCloneReadInfo));
+                      mCloneReadInfo);
   IDB_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   NS_ASSERTION(!mCloneReadInfo.mCloneBuffer.data(), "Should have swapped!");

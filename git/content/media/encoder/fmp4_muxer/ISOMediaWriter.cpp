@@ -9,7 +9,6 @@
 #include "ISOTrackMetadata.h"
 #include "nsThreadUtils.h"
 #include "MediaEncoder.h"
-#include "VideoUtils.h"
 
 #undef LOG
 #ifdef MOZ_WIDGET_GONK
@@ -21,7 +20,7 @@
 
 namespace mozilla {
 
-const static uint32_t FRAG_DURATION = 2 * USECS_PER_S;    // microsecond per unit
+const static uint32_t FRAG_DURATION = 2000000;    // microsecond per unit
 
 ISOMediaWriter::ISOMediaWriter(uint32_t aType)
   : ContainerWriter()

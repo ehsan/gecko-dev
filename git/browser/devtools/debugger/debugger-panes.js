@@ -1730,6 +1730,7 @@ function VariableBubbleView() {
 
   this._onMouseMove = this._onMouseMove.bind(this);
   this._onMouseLeave = this._onMouseLeave.bind(this);
+  this._onMouseScroll = this._onMouseScroll.bind(this);
   this._onPopupHiding = this._onPopupHiding.bind(this);
 }
 
@@ -1740,23 +1741,16 @@ VariableBubbleView.prototype = {
   initialize: function() {
     dumpn("Initializing the VariableBubbleView");
 
+    this._tooltip = new Tooltip(document);
     this._editorContainer = document.getElementById("editor");
-    this._editorContainer.addEventListener("mousemove", this._onMouseMove, false);
-    this._editorContainer.addEventListener("mouseleave", this._onMouseLeave, false);
 
-    this._tooltip = new Tooltip(document, {
-      closeOnEvents: [{
-        emitter: DebuggerController._toolbox,
-        event: "select"
-      }, {
-        emitter: this._editorContainer,
-        event: "scroll",
-        useCapture: true
-      }]
-    });
     this._tooltip.defaultPosition = EDITOR_VARIABLE_POPUP_POSITION;
     this._tooltip.defaultShowDelay = EDITOR_VARIABLE_HOVER_DELAY;
+
     this._tooltip.panel.addEventListener("popuphiding", this._onPopupHiding);
+    this._editorContainer.addEventListener("mousemove", this._onMouseMove, false);
+    this._editorContainer.addEventListener("mouseleave", this._onMouseLeave, false);
+    this._editorContainer.addEventListener("scroll", this._onMouseScroll, true);
   },
 
   /**
@@ -1768,6 +1762,7 @@ VariableBubbleView.prototype = {
     this._tooltip.panel.removeEventListener("popuphiding", this._onPopupHiding);
     this._editorContainer.removeEventListener("mousemove", this._onMouseMove, false);
     this._editorContainer.removeEventListener("mouseleave", this._onMouseLeave, false);
+    this._editorContainer.removeEventListener("scroll", this._onMouseScroll, true);
   },
 
   /**
@@ -1913,7 +1908,7 @@ VariableBubbleView.prototype = {
           DebuggerView.VariableBubble.hideContents();
           DebuggerView.WatchExpressions.addExpression(evalPrefix, true);
         }
-      }], DebuggerController._toolbox);
+      }]);
     }
 
     this._tooltip.show(this._markedText.anchor);
@@ -1977,6 +1972,13 @@ VariableBubbleView.prototype = {
    */
   _onMouseLeave: function() {
     clearNamedTimeout("editor-mouse-move");
+  },
+
+  /**
+   * The mousescroll listener for the source editor container node.
+   */
+  _onMouseScroll: function() {
+    this.hideContents();
   },
 
   /**

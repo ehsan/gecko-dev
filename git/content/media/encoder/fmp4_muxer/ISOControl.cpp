@@ -21,7 +21,6 @@ FragmentBuffer::FragmentBuffer(uint32_t aTrackType, uint32_t aFragDuration,
   , mFragDuration(aFragDuration)
   , mMediaStartTime(0)
   , mFragmentNumber(0)
-  , mLastFrameTimeOfLastFragment(0)
   , mEOS(false)
 {
   mFragArray.AppendElement();
