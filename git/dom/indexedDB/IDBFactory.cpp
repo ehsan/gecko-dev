@@ -184,15 +184,9 @@ IDBFactory::GetConnection(const nsAString& aDatabaseFilePath)
                                getter_AddRefs(connection));
   NS_ENSURE_SUCCESS(rv, nsnull);
 
-  // Turn on foreign key constraints and recursive triggers.
-  // The "INSERT OR REPLACE" statement doesn't fire the update trigger,
-  // instead it fires only the insert trigger. This confuses the update
-  // refcount function. This behavior changes with enabled recursive triggers,
-  // so the statement fires the delete trigger first and then the insert
-  // trigger.
+  // Turn on foreign key constraints!
   rv = connection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-    "PRAGMA foreign_keys = ON; "
-    "PRAGMA recursive_triggers = ON;"
+    "PRAGMA foreign_keys = ON;"
   ));
   NS_ENSURE_SUCCESS(rv, nsnull);
 

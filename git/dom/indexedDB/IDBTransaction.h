@@ -45,10 +45,7 @@ public:
   NS_IMETHOD_(nsrefcnt) AddRef() = 0;
   NS_IMETHOD_(nsrefcnt) Release() = 0;
 
-  // Called just before dispatching the final events on the transaction.
-  virtual nsresult NotifyTransactionPreComplete(IDBTransaction* aTransaction) = 0;
-  // Called just after dispatching the final events on the transaction.
-  virtual nsresult NotifyTransactionPostComplete(IDBTransaction* aTransaction) = 0;
+  virtual nsresult NotifyTransactionComplete(IDBTransaction* aTransaction) = 0;
 };
 
 class IDBTransaction : public IDBWrapperCache,
@@ -124,11 +121,6 @@ public:
   }
 
   bool IsOpen() const;
-
-  bool IsFinished() const
-  {
-    return mReadyState > LOADING;
-  }
 
   bool IsWriteAllowed() const
   {

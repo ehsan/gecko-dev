@@ -1,7 +1,3 @@
-// Root logger
-pref("services.aitc.log.dump", false);
-pref("services.aitc.log.level", "All");
-
 pref("services.aitc.browserid.url", "https://browserid.org/sign_in");
 pref("services.aitc.browserid.log.level", "Debug");
 
@@ -21,7 +17,7 @@ pref("services.aitc.marketplace.url", "https://marketplace.mozilla.org");
 
 pref("services.aitc.service.log.level", "Debug");
 
-// TODO: Temporary value. Change to the production server (bug 760903)
+// Temporary value. Change to the production server when we get the OK from server ops
 pref("services.aitc.tokenServer.url", "https://stage-token.services.mozilla.com");
 
 pref("services.aitc.storage.log.level", "Debug");
