@@ -2290,10 +2290,10 @@ JS_GC(JSContext *cx)
     LeaveTrace(cx);
 
     /* Don't nuke active arenas if executing or compiling. */
-    if (cx->stackPool.currentIsFirst())
-        cx->stackPool.finish();
-    if (cx->tempPool.currentIsFirst())
-        cx->tempPool.finish();
+    if (cx->stackPool.current == &cx->stackPool.first)
+        JS_FinishArenaPool(&cx->stackPool);
+    if (cx->tempPool.current == &cx->tempPool.first)
+        JS_FinishArenaPool(&cx->tempPool);
     js_GC(cx, GC_NORMAL);
 }
 
@@ -4111,7 +4111,7 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent)
         JSUpvarArray *uva = fun->u.i.script->upvars();
         JS_ASSERT(uva->length <= size_t(clone->dslots[-1]));
 
-        void *mark = cx->tempPool.getMark();
+        void *mark = JS_ARENA_MARK(&cx->tempPool);
         jsuword *names = js_GetLocalNameArray(cx, fun, &cx->tempPool);
         if (!names)
             return NULL;
@@ -4135,7 +4135,7 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent)
         }
 
       break2:
-        cx->tempPool.release(mark);
+        JS_ARENA_RELEASE(&cx->tempPool, mark);
         if (i < n)
             return NULL;
     }
@@ -5612,7 +5612,7 @@ JS_PUBLIC_API(jsword)
 JS_GetContextThread(JSContext *cx)
 {
 #ifdef JS_THREADSAFE
-    return reinterpret_cast<jsword>(JS_THREAD_ID(cx));
+    return JS_THREAD_ID(cx);
 #else
     return 0;
 #endif
@@ -5629,7 +5629,7 @@ JS_SetContextThread(JSContext *cx)
     JS_ASSERT(cx->requestDepth == 0);
     if (cx->thread) {
         JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
-        return reinterpret_cast<jsword>(cx->thread->id);
+        return cx->thread->id;
     }
 
     if (!js_InitContextThread(cx)) {
@@ -5656,7 +5656,7 @@ JS_ClearContextThread(JSContext *cx)
     if (!cx->thread)
         return 0;
     JS_ASSERT(CURRENT_THREAD_IS_ME(cx->thread));
-    void *old = cx->thread->id;
+    jsword old = cx->thread->id;
 
     /*
      * We must not race with a GC that accesses cx->thread for all threads,
@@ -5666,7 +5666,7 @@ JS_ClearContextThread(JSContext *cx)
     AutoLockGC lock(rt);
     js_WaitForGC(rt);
     js_ClearContextThread(cx);
-    return reinterpret_cast<jsword>(old);
+    return old;
 #else
     return 0;
 #endif

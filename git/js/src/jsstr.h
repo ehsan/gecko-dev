@@ -739,7 +739,7 @@ class DeflatedStringCache {
     {
         typedef JSString *Lookup;
 
-        static HashNumber hash(JSString *str) {
+        static uint32 hash(JSString *str) {
             /*
              * We hash only GC-allocated Strings. They are aligned on
              * sizeof(JSString) boundary so we can improve hashing by stripping
@@ -751,7 +751,7 @@ class DeflatedStringCache {
             jsuword ptr = reinterpret_cast<jsuword>(str);
             jsuword key = ptr >> ALIGN_LOG;
             JS_ASSERT((key << ALIGN_LOG) == ptr);
-            return HashNumber(key);
+            return uint32(key);
         }
 
         static bool match(JSString *s1, JSString *s2) {
