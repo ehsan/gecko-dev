@@ -76,7 +76,7 @@
 #include "nsCOMPtr.h"
 #include "nsIServiceManager.h"
 #include "nsIAppStartup.h"
-#include "nsToolkitCompsCID.h"
+#include "nsXPFEComponentsCID.h"
 #endif
 
 #ifdef MOZ_WIDGET_PHOTON

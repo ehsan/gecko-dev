@@ -59,6 +59,8 @@
 #include "nsIWidget.h"
 #include "nsIWindowMediator.h"
 
+#include "nsXPFEComponentsCID.h"
+
 const OSType kNSCreator = 'MOSS';
 const OSType kMozCreator = 'MOZZ';
 const SInt16 kNSCanRunStrArrayID = 1000;

@@ -45,6 +45,7 @@
 #include "nsRDFCID.h"
 #endif
 #include "nsCURILoader.h"
+#include "nsXPFEComponentsCID.h"
 
 #ifdef MOZ_RDF
 // Factory constructors

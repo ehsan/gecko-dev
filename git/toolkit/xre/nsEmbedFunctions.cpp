@@ -72,6 +72,7 @@
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsWidgetsCID.h"
+#include "nsXPFEComponentsCID.h"
 #include "nsXREDirProvider.h"
 
 #ifdef MOZ_IPC
