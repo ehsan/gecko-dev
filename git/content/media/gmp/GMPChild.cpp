@@ -37,8 +37,7 @@ namespace mozilla {
 namespace gmp {
 
 GMPChild::GMPChild()
-  : mAsyncShutdown(nullptr)
-  , mLib(nullptr)
+  : mLib(nullptr)
   , mGetAPIFunc(nullptr)
   , mGMPMessageLoop(MessageLoop::current())
 {
@@ -182,14 +181,6 @@ GMPChild::LoadPluginLibrary(const std::string& aPluginPath)
   mGetAPIFunc = reinterpret_cast<GMPGetAPIFunc>(PR_FindFunctionSymbol(mLib, "GMPGetAPI"));
   if (!mGetAPIFunc) {
     return false;
-  }
-
-  void* sh = nullptr;
-  GMPAsyncShutdownHost* host = static_cast<GMPAsyncShutdownHost*>(this);
-  GMPErr err = mGetAPIFunc("async-shutdown", host, &sh);
-  if (err == GMPNoErr && sh) {
-    mAsyncShutdown = reinterpret_cast<GMPAsyncShutdown*>(sh);
-    SendAsyncShutdownRequired();
   }
 
   return true;
@@ -404,25 +395,6 @@ GMPChild::RecvCrashPluginNow()
 {
   MOZ_CRASH();
   return true;
-}
-
-bool
-GMPChild::RecvBeginAsyncShutdown()
-{
-  MOZ_ASSERT(mGMPMessageLoop == MessageLoop::current());
-  if (mAsyncShutdown) {
-    mAsyncShutdown->BeginShutdown();
-  } else {
-    ShutdownComplete();
-  }
-  return true;
-}
-
-void
-GMPChild::ShutdownComplete()
-{
-  MOZ_ASSERT(mGMPMessageLoop == MessageLoop::current());
-  SendAsyncShutdownComplete();
 }
 
 } // namespace gmp

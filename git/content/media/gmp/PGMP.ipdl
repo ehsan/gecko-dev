@@ -28,16 +28,12 @@ parent:
   async PCrashReporter(NativeThreadId tid);
   async PGMPTimer();
 
-  async AsyncShutdownComplete();
-  async AsyncShutdownRequired();
-
 child:
   async PGMPAudioDecoder();
   async PGMPDecryptor();
   async PGMPVideoDecoder();
   async PGMPVideoEncoder();
 
-  async BeginAsyncShutdown();
   async CrashPluginNow();
 };
 
