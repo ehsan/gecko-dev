@@ -406,7 +406,7 @@ private:
     ActiveFrame *a;
     ActiveFrame *outer;
 
-    JSScript *script_;
+    JSScript *script;
     analyze::ScriptAnalysis *analysis;
     jsbytecode *PC;
 

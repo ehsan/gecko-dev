@@ -1061,8 +1061,7 @@ class CallCompiler : public BaseCompiler
         if (!CallJSNative(cx, fun->native(), args))
             THROWV(true);
 
-        RootedScript fscript(cx, f.script());
-        types::TypeScript::Monitor(f.cx, fscript, f.pc(), args.rval());
+        types::TypeScript::Monitor(f.cx, f.script(), f.pc(), args.rval());
 
         /*
          * Native stubs are not generated for inline frames. The overhead of

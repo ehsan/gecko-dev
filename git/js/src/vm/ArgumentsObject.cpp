@@ -169,7 +169,7 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHa
     attrs &= (JSPROP_ENUMERATE | JSPROP_PERMANENT); /* only valid attributes */
 
     NormalArgumentsObject &argsobj = obj->asNormalArguments();
-    RootedScript script(cx, argsobj.containingScript());
+    JSScript *script = argsobj.containingScript();
 
     if (JSID_IS_INT(id)) {
         unsigned arg = unsigned(JSID_TO_INT(id));

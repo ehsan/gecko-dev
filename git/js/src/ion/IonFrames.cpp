@@ -657,7 +657,7 @@ ion::AutoTempAllocatorRooter::trace(JSTracer *trc)
 }
 
 void
-ion::GetPcScript(JSContext *cx, MutableHandleScript scriptRes, jsbytecode **pcRes)
+ion::GetPcScript(JSContext *cx, JSScript **scriptRes, jsbytecode **pcRes)
 {
     JS_ASSERT(cx->fp()->beginsIonActivation());
     IonSpew(IonSpew_Snapshots, "Recover PC & Script from the last frame.");
@@ -668,7 +668,7 @@ ion::GetPcScript(JSContext *cx, MutableHandleScript scriptRes, jsbytecode **pcRe
     InlineFrameIterator ifi(&it);
 
     // Set the result.
-    scriptRes.set(ifi.script());
+    *scriptRes = ifi.script();
     if (pcRes)
         *pcRes = ifi.pc();
 }

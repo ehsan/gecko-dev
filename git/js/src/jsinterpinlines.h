@@ -706,7 +706,7 @@ GetObjectElementOperation(JSContext *cx, JSOp op, HandleObject obj, const Value 
         if (!cx->fp()->beginsIonActivation()) {
             // Don't update getStringElement if called from Ion code, since
             // ion::GetPcScript is expensive.
-            RootedScript script(cx);
+            JSScript *script;
             jsbytecode *pc;
             types::TypeScript::GetPcScript(cx, &script, &pc);
 
@@ -809,7 +809,7 @@ SetObjectElementOperation(JSContext *cx, Handle<JSObject*> obj, HandleId id, con
                 return true;
             } else {
                 if (!cx->fp()->beginsIonActivation()) {
-                    RootedScript script(cx);
+                    JSScript *script;
                     jsbytecode *pc;
                     types::TypeScript::GetPcScript(cx, &script, &pc);
 

@@ -14,8 +14,6 @@
 #include "ion/VMFunctions.h"
 #include "ion/IonSpewer.h"
 
-#include "jsscriptinlines.h"
-
 using namespace js;
 using namespace js::ion;
 
