@@ -3184,7 +3184,8 @@ nsIFrame::InlineMinWidthData::ForceBreak(nsIRenderingContext *aRenderingContext)
 }
 
 void
-nsIFrame::InlineMinWidthData::OptionallyBreak(nsIRenderingContext *aRenderingContext)
+nsIFrame::InlineMinWidthData::OptionallyBreak(nsIRenderingContext *aRenderingContext,
+                                              nscoord aHyphenWidth)
 {
   trailingTextFrame = nsnull;
 
@@ -3193,8 +3194,9 @@ nsIFrame::InlineMinWidthData::OptionallyBreak(nsIRenderingContext *aRenderingCon
   // text-indent or negative margin), don't break.  Otherwise, do the
   // same as ForceBreak.  it doesn't really matter when we accumulate
   // floats.
-  if (currentLine < 0 || atStartOfLine)
+  if (currentLine + aHyphenWidth < 0 || atStartOfLine)
     return;
+  currentLine += aHyphenWidth;
   ForceBreak(aRenderingContext);
 }
 
@@ -5498,6 +5500,17 @@ nsIFrame::PeekOffset(nsPeekOffsetStruct* aPos)
       
       break;
     }
+    case eSelectWordNoSpace:
+      // eSelectWordNoSpace means that we should not be eating any whitespace when
+      // moving to the adjacent word.  This means that we should set aPos->
+      // mWordMovementType to eEndWord if we're moving forwards, and to eStartWord
+      // if we're moving backwards.
+      if (aPos->mDirection == eDirPrevious) {
+        aPos->mWordMovementType = eStartWord;
+      } else {
+        aPos->mWordMovementType = eEndWord;
+      }
+      // Intentionally fall through the eSelectWord case.
     case eSelectWord:
     {
       // wordSelectEatSpace means "are we looking for a boundary between whitespace

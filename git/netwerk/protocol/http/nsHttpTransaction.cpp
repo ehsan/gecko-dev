@@ -686,7 +686,7 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
     NS_ASSERTION(!aAllowPartialMatch || mLineBuf.IsEmpty(), "ouch");
 
     static const char HTTPHeader[] = "HTTP/1.";
-    static const PRInt32 HTTPHeaderLen = sizeof(HTTPHeader) - 1;
+    static const PRUint32 HTTPHeaderLen = sizeof(HTTPHeader) - 1;
     static const char HTTP2Header[] = "HTTP/2.0";
     static const PRUint32 HTTP2HeaderLen = sizeof(HTTP2Header) - 1;
     
@@ -705,10 +705,8 @@ nsHttpTransaction::LocateHttpStart(char *buf, PRUint32 len,
                 // end of matched sequence since it is stored in mLineBuf.
                 return (buf + checkChars);
             }
-            else {
-                // Response matches pattern but is still incomplete.
-                return 0;
-            }
+            // Response matches pattern but is still incomplete.
+            return 0;
         }
         // Previous partial match together with new data doesn't match the
         // pattern. Start the search again.
@@ -797,6 +795,7 @@ nsHttpTransaction::ParseLineSegment(char *segment, PRUint32 len)
             LOG(("ignoring 1xx response\n"));
             mHaveStatusLine = PR_FALSE;
             mHttpResponseMatched = PR_FALSE;
+            mConnection->SetLastTransactionExpectedNoContent(PR_TRUE);
             mResponseHead->Reset();
             return NS_OK;
         }
@@ -885,6 +884,7 @@ nsHttpTransaction::ParseHead(char *buf,
     }
     // otherwise we can assume that we don't have a HTTP/0.9 response.
 
+    NS_ABORT_IF_FALSE (mHttpResponseMatched, "inconsistent");
     while ((eol = static_cast<char *>(memchr(buf, '\n', count - *countRead))) != nsnull) {
         // found line in range [buf:eol]
         len = eol - buf + 1;
@@ -905,6 +905,12 @@ nsHttpTransaction::ParseHead(char *buf,
 
         // skip over line
         buf = eol + 1;
+
+        if (!mHttpResponseMatched) {
+            // a 100 class response has caused us to throw away that set of
+            // response headers and look for the next response
+            return NS_ERROR_NET_INTERRUPT;
+        }
     }
 
     // do something about a partial header line
@@ -1100,9 +1106,17 @@ nsHttpTransaction::ProcessData(char *buf, PRUint32 count, PRUint32 *countRead)
     if (!mHaveAllHeaders) {
         PRUint32 bytesConsumed = 0;
 
-        rv = ParseHead(buf, count, &bytesConsumed);
-        if (NS_FAILED(rv)) return rv;
-
+        do {
+            PRUint32 localBytesConsumed = 0;
+            char *localBuf = buf + bytesConsumed;
+            PRUint32 localCount = count - bytesConsumed;
+            
+            rv = ParseHead(localBuf, localCount, &localBytesConsumed);
+            if (NS_FAILED(rv) && rv != NS_ERROR_NET_INTERRUPT)
+                return rv;
+            bytesConsumed += localBytesConsumed;
+        } while (rv == NS_ERROR_NET_INTERRUPT);
+        
         count -= bytesConsumed;
 
         // if buf has some content in it, shift bytes to top of buf.

@@ -1611,7 +1611,6 @@ GK_ATOM(columnSetFrame, "ColumnSetFrame")
 GK_ATOM(comboboxControlFrame, "ComboboxControlFrame")
 GK_ATOM(comboboxDisplayFrame, "ComboboxDisplayFrame")
 GK_ATOM(deckFrame, "DeckFrame")
-GK_ATOM(directionalFrame, "DirectionalFrame")
 GK_ATOM(fieldSetFrame, "FieldSetFrame")
 GK_ATOM(frameSetFrame, "FrameSetFrame")
 GK_ATOM(gfxButtonControlFrame, "gfxButtonControlFrame")
@@ -1749,6 +1748,7 @@ GK_ATOM(DeleteTxnName, "Deleting")
 // IPC stuff
 GK_ATOM(Remote, "remote")
 GK_ATOM(RemoteId, "_remote_id")
+GK_ATOM(DisplayPort, "_displayport")
 
 // Names for system metrics
 GK_ATOM(scrollbar_start_backward, "scrollbar-start-backward")
