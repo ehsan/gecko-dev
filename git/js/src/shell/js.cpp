@@ -4500,8 +4500,7 @@ Help(JSContext *cx, unsigned argc, jsval *vp)
 
         for (size_t i = 0; i < ida.length(); i++) {
             RootedValue v(cx);
-            RootedId id(cx, ida[i]);
-            if (!JS_LookupPropertyById(cx, global, id, &v))
+            if (!JS_LookupPropertyById(cx, global, ida[i], &v))
                 return false;
             if (JSVAL_IS_PRIMITIVE(v)) {
                 JS_ReportError(cx, "primitive arg");
@@ -4918,7 +4917,7 @@ static const JSPropertySpec dom_props[] = {
      { (JSPropertyOp)dom_genericGetter, &dom_x_getterinfo },
      { (JSStrictPropertyOp)dom_genericSetter, &dom_x_setterinfo }
     },
-    JS_PS_END
+    {nullptr,0,0,JSOP_NULLWRAPPER, JSOP_NULLWRAPPER}
 };
 
 static const JSFunctionSpec dom_methods[] = {

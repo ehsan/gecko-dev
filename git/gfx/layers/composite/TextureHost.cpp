@@ -111,7 +111,7 @@ DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptorType aDescri
                                            CompositableHost* aCompositableHost)
 {
   switch (Compositor::GetBackend()) {
-    case LayersBackend::LAYERS_OPENGL:
+    case LAYERS_OPENGL:
       {
       RefPtr<DeprecatedTextureHost> result;
       result = CreateDeprecatedTextureHostOGL(aDescriptorType,
@@ -123,16 +123,16 @@ DeprecatedTextureHost::CreateDeprecatedTextureHost(SurfaceDescriptorType aDescri
       return result;
       }
 #ifdef XP_WIN
-    case LayersBackend::LAYERS_D3D9:
+    case LAYERS_D3D9:
       return CreateDeprecatedTextureHostD3D9(aDescriptorType,
                                          aDeprecatedTextureHostFlags,
                                          aTextureFlags);
-    case LayersBackend::LAYERS_D3D11:
+    case LAYERS_D3D11:
       return CreateDeprecatedTextureHostD3D11(aDescriptorType,
                                           aDeprecatedTextureHostFlags,
                                           aTextureFlags);
 #endif
-    case LayersBackend::LAYERS_BASIC:
+    case LAYERS_BASIC:
       return CreateBasicDeprecatedTextureHost(aDescriptorType,
                                           aDeprecatedTextureHostFlags,
                                           aTextureFlags);
@@ -168,21 +168,21 @@ TextureHost::Create(const SurfaceDescriptor& aDesc,
                     TextureFlags aFlags)
 {
   switch (Compositor::GetBackend()) {
-    case LayersBackend::LAYERS_OPENGL:
+    case LAYERS_OPENGL:
       return CreateTextureHostOGL(aDesc, aDeallocator, aFlags);
-    case LayersBackend::LAYERS_BASIC:
+    case LAYERS_BASIC:
       return CreateTextureHostBasic(aDesc, aDeallocator, aFlags);
 #ifdef MOZ_WIDGET_GONK
-    case LayersBackend::LAYERS_NONE:
+    case LAYERS_NONE:
       // Power on video reqests to allocate TextureHost,
       // when Compositor is still not present. This is a very hacky workaround.
       // See Bug 944420.
       return CreateTextureHostOGL(aDesc, aDeallocator, aFlags);
 #endif
 #ifdef XP_WIN
-    case LayersBackend::LAYERS_D3D11:
+    case LAYERS_D3D11:
       return CreateTextureHostD3D11(aDesc, aDeallocator, aFlags);
-    case LayersBackend::LAYERS_D3D9:
+    case LAYERS_D3D9:
       return CreateTextureHostD3D9(aDesc, aDeallocator, aFlags);
 #endif
     default:

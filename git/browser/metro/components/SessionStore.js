@@ -9,7 +9,6 @@ const Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/WindowsPrefSync.jsm");
 
 #ifdef MOZ_CRASHREPORTER
 XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
@@ -200,10 +199,6 @@ SessionStore.prototype = {
         break;
       case "final-ui-startup":
         observerService.removeObserver(this, "final-ui-startup");
-        if (WindowsPrefSync) {
-          // Pulls in Desktop controlled prefs and pushes out Metro controlled prefs
-          WindowsPrefSync.init();
-        }
         this.init();
         break;
       case "domwindowopened":
@@ -272,7 +267,7 @@ SessionStore.prototype = {
           this.saveState();
         }
         break;
-      case "browser:purge-session-history": // catch sanitization
+      case "browser:purge-session-history": // catch sanitization 
         this._clearDisk();
 
         // If the browser is shutting down, simply return after clearing the
@@ -345,12 +340,9 @@ SessionStore.prototype = {
       this._lastSaveTime = Date.now();
 
       // Nothing to restore, notify observers things are complete
-      if (!this.shouldRestore()) {
+      if (!this._shouldRestore) {
         this._clearCache();
         Services.obs.notifyObservers(null, "sessionstore-windows-restored", "");
-
-        // If nothing is being restored, we only have our single Metro window.
-        this._orderedWindows.push(aWindow.__SSID);
       }
     }
 
@@ -514,14 +506,9 @@ SessionStore.prototype = {
 
   saveState: function ss_saveState() {
     let data = this._getCurrentState();
-    // sanity check before we overwrite the session file
-    if (data.windows && data.windows.length && data.selectedWindow) {
-      this._writeFile(this._sessionFile, JSON.stringify(data));
+    this._writeFile(this._sessionFile, JSON.stringify(data));
 
-      this._lastSaveTime = Date.now();
-    } else {
-      dump("SessionStore: Not saving state with invalid data: " + JSON.stringify(data) + "\n");
-    }
+    this._lastSaveTime = Date.now();
   },
 
   _getCurrentState: function ss_getCurrentState() {
@@ -739,7 +726,7 @@ SessionStore.prototype = {
   },
 
   shouldRestore: function ss_shouldRestore() {
-    return this._shouldRestore || (3 == Services.prefs.getIntPref("browser.startup.page"));
+    return this._shouldRestore;
   },
 
   restoreLastSession: function ss_restoreLastSession(aBringToFront) {
@@ -852,7 +839,7 @@ SessionStore.prototype = {
 
           tab.browser.__SS_extdata = tabData.extData;
         }
-
+    
         notifyObservers();
       }.bind(this));
     } catch (ex) {

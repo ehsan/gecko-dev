@@ -1143,12 +1143,10 @@ Navigator::RequestWakeLock(const nsAString &aTopic, ErrorResult& aRv)
     power::PowerManagerService::GetInstance();
   // Maybe it went away for some reason... Or maybe we're just called
   // from our XPCOM method.
-  if (!pmService) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return nullptr;
-  }
+  NS_ENSURE_TRUE(pmService, nullptr);
 
-  return pmService->NewWakeLock(aTopic, mWindow, aRv);
+  ErrorResult rv;
+  return pmService->NewWakeLock(aTopic, mWindow, rv);
 }
 
 nsIDOMMozMobileMessageManager*

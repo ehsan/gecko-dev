@@ -343,14 +343,13 @@ function scroll(aMessage) {
 
 function adjustRange(aMessage) {
   function sendUpDownKey(aAccessible) {
-    let acc = Utils.getEmbeddedControl(aAccessible) || aAccessible;
-    if (acc.DOMNode) {
-      let evt = content.document.createEvent('KeyboardEvent');
-      let keycode = aMessage.json.direction == 'forward' ?
-        content.KeyEvent.DOM_VK_DOWN : content.KeyEvent.DOM_VK_UP;
-      evt.initKeyEvent(
-        "keypress", false, true, null, false, false, false, false, keycode, 0);
-      acc.DOMNode.dispatchEvent(evt);
+    let evt = content.document.createEvent('KeyboardEvent');
+    let keycode = aMessage.json.direction == 'forward' ?
+      content.KeyEvent.DOM_VK_DOWN : content.KeyEvent.DOM_VK_UP;
+    evt.initKeyEvent(
+      "keypress", false, true, null, false, false, false, false, keycode, 0);
+    if (aAccessible.DOMNode) {
+      aAccessible.DOMNode.dispatchEvent(evt);
     }
   }
 

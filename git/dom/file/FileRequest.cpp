@@ -84,7 +84,7 @@ FileRequest::NotifyHelperCompleted(FileHelper* aFileHelper)
 
   JSAutoCompartment ac(cx, global);
 
-  rv = aFileHelper->GetSuccessResult(cx, &result);
+  rv = aFileHelper->GetSuccessResult(cx, result.address());
   if (NS_FAILED(rv)) {
     NS_WARNING("GetSuccessResult failed!");
   }

@@ -161,6 +161,11 @@ var BrowserUI = {
         Util.dumpLn("Exception in delay load module:", ex.message);
       }
 
+      if (WindowsPrefSync) {
+        // Pulls in Desktop controlled prefs and pushes out Metro controlled prefs
+        WindowsPrefSync.init();
+      }
+
       // check for left over crash reports and submit them if found.
       BrowserUI.startupCrashCheck();
 

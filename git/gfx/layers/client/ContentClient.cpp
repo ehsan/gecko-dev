@@ -41,10 +41,10 @@ namespace layers {
 ContentClient::CreateContentClient(CompositableForwarder* aForwarder)
 {
   LayersBackend backend = aForwarder->GetCompositorBackendType();
-  if (backend != LayersBackend::LAYERS_OPENGL &&
-      backend != LayersBackend::LAYERS_D3D9 &&
-      backend != LayersBackend::LAYERS_D3D11 &&
-      backend != LayersBackend::LAYERS_BASIC) {
+  if (backend != LAYERS_OPENGL &&
+      backend != LAYERS_D3D9 &&
+      backend != LAYERS_D3D11 &&
+      backend != LAYERS_BASIC) {
     return nullptr;
   }
 
@@ -58,13 +58,13 @@ ContentClient::CreateContentClient(CompositableForwarder* aForwarder)
 #endif
 
 #ifdef XP_WIN
-  if (backend == LayersBackend::LAYERS_D3D11) {
+  if (backend == LAYERS_D3D11) {
     useDoubleBuffering = !!gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
   } else
 #endif
   {
     useDoubleBuffering = LayerManagerComposite::SupportsDirectTexturing() ||
-                         backend == LayersBackend::LAYERS_BASIC;
+                         backend == LAYERS_BASIC;
   }
 
   if (useDoubleBuffering || PR_GetEnv("MOZ_FORCE_DOUBLE_BUFFERING")) {
@@ -75,7 +75,7 @@ ContentClient::CreateContentClient(CompositableForwarder* aForwarder)
     }
   }
 #ifdef XP_MACOSX
-  if (backend == LayersBackend::LAYERS_OPENGL) {
+  if (backend == LAYERS_OPENGL) {
     return new ContentClientIncremental(aForwarder);
   }
 #endif
@@ -148,9 +148,7 @@ ContentClientRemoteBuffer::EndPaint()
   SetBufferProvider(nullptr);
   SetBufferProviderOnWhite(nullptr);
   for (unsigned i = 0; i< mOldTextures.Length(); ++i) {
-    if (mOldTextures[i]->IsLocked()) {
-      mOldTextures[i]->Unlock();
-    }
+    mOldTextures[i]->Unlock();
   }
   mOldTextures.Clear();
 
@@ -559,15 +557,6 @@ ContentClientDoubleBuffered::PrepareFrame()
 {
   mIsNewBuffer = false;
 
-  if (mTextureClient) {
-    DebugOnly<bool> locked = mTextureClient->Lock(OPEN_READ_WRITE);
-    MOZ_ASSERT(locked);
-  }
-  if (mTextureClientOnWhite) {
-    DebugOnly<bool> locked = mTextureClientOnWhite->Lock(OPEN_READ_WRITE);
-    MOZ_ASSERT(locked);
-  }
-
   if (!mFrontAndBackBufferDiffer) {
     return;
   }
@@ -667,7 +656,7 @@ ContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer& aSource,
   if (isClippingCheap) {
     destDT->PopClip();
   }
-  ReturnDrawTargetToBuffer(destDT);
+  ReturnDrawTarget(destDT);
 
   if (aSource.HaveBufferOnWhite()) {
     MOZ_ASSERT(HaveBufferOnWhite());
@@ -686,7 +675,7 @@ ContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer& aSource,
     if (isClippingCheap) {
       destDT->PopClip();
     }
-    ReturnDrawTargetToBuffer(destDT);
+    ReturnDrawTarget(destDT);
   }
 }
 
@@ -906,7 +895,7 @@ DeprecatedContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer
   if (isClippingCheap) {
     destDT->PopClip();
   }
-  ReturnDrawTargetToBuffer(destDT);
+  ReturnDrawTarget(destDT);
 
   if (aSource.HaveBufferOnWhite()) {
     MOZ_ASSERT(HaveBufferOnWhite());
@@ -925,7 +914,7 @@ DeprecatedContentClientDoubleBuffered::UpdateDestinationFrom(const RotatedBuffer
     if (isClippingCheap) {
       destDT->PopClip();
     }
-    ReturnDrawTargetToBuffer(destDT);
+    ReturnDrawTarget(destDT);
   }
 }
 
@@ -1059,8 +1048,8 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
 
   bool canUseOpaqueSurface = aLayer->CanUseOpaqueSurface();
   ContentType contentType =
-    canUseOpaqueSurface ? gfxContentType::COLOR :
-                          gfxContentType::COLOR_ALPHA;
+    canUseOpaqueSurface ? GFX_CONTENT_COLOR :
+                          GFX_CONTENT_COLOR_ALPHA;
 
   SurfaceMode mode;
   nsIntRegion neededRegion;
@@ -1089,13 +1078,13 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
       destBufferRect = neededRegion.GetBounds();
     }
 
-    if (mode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
+    if (mode == SURFACE_COMPONENT_ALPHA) {
       if (!gfxPlatform::ComponentAlphaEnabled() ||
           !aLayer->GetParent() ||
           !aLayer->GetParent()->SupportsComponentAlphaChildren()) {
-        mode = SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA;
+        mode = SURFACE_SINGLE_CHANNEL_ALPHA;
       } else {
-        contentType = gfxContentType::COLOR;
+        contentType = GFX_CONTENT_COLOR;
       }
     }
 
@@ -1103,11 +1092,11 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
         (!neededRegion.GetBounds().IsEqualInterior(destBufferRect) ||
          neededRegion.GetNumRects() > 1)) {
       // The area we add to neededRegion might not be painted opaquely
-      if (mode == SurfaceMode::SURFACE_OPAQUE) {
-        contentType = gfxContentType::COLOR_ALPHA;
-        mode = SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA;
+      if (mode == SURFACE_OPAQUE) {
+        contentType = GFX_CONTENT_COLOR_ALPHA;
+        mode = SURFACE_SINGLE_CHANNEL_ALPHA;
       }
-      // For component alpha layers, we leave contentType as gfxContentType::COLOR.
+      // For component alpha layers, we leave contentType as GFX_CONTENT_COLOR.
 
       // We need to validate the entire buffer, to make sure that only valid
       // pixels are sampled
@@ -1116,7 +1105,7 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
 
     if (mHasBuffer &&
         (mContentType != contentType ||
-         (mode == SurfaceMode::SURFACE_COMPONENT_ALPHA) != mHasBufferOnWhite)) {
+         (mode == SURFACE_COMPONENT_ALPHA) != mHasBufferOnWhite)) {
       // We're effectively clearing the valid region, so we need to draw
       // the entire needed region now.
       result.mRegionToInvalidate = aLayer->GetValidRegion();
@@ -1159,7 +1148,7 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
   bool createdBuffer = false;
 
   uint32_t bufferFlags = canHaveRotation ? TEXTURE_ALLOW_REPEAT : 0;
-  if (mode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
+  if (mode == SURFACE_COMPONENT_ALPHA) {
     bufferFlags |= TEXTURE_COMPONENT_ALPHA;
   }
   if (canReuseBuffer) {
@@ -1212,12 +1201,12 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
 
   if (createdBuffer) {
     if (mHasBuffer &&
-        (mode != SurfaceMode::SURFACE_COMPONENT_ALPHA || mHasBufferOnWhite)) {
+        (mode != SURFACE_COMPONENT_ALPHA || mHasBufferOnWhite)) {
       mTextureInfo.mDeprecatedTextureHostFlags = TEXTURE_HOST_COPY_PREVIOUS;
     }
 
     mHasBuffer = true;
-    if (mode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
+    if (mode == SURFACE_COMPONENT_ALPHA) {
       mHasBufferOnWhite = true;
     }
     mBufferRect = destBufferRect;
@@ -1239,7 +1228,7 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
   // although they never cover it. This leads to two draw rects, the narow strip and the actually
   // newly exposed area. It would be wise to fix this glitch in any way to have simpler
   // clip and draw regions.
-  result.mClip = DrawRegionClip::DRAW;
+  result.mClip = CLIP_DRAW;
   result.mMode = mode;
 
   return result;
@@ -1249,7 +1238,7 @@ DrawTarget*
 ContentClientIncremental::BorrowDrawTargetForPainting(ThebesLayer* aLayer,
                                                       const PaintState& aPaintState)
 {
-  if (aPaintState.mMode == SurfaceMode::SURFACE_NONE) {
+  if (!aPaintState.mMode) {
     return nullptr;
   }
 
@@ -1260,7 +1249,7 @@ ContentClientIncremental::BorrowDrawTargetForPainting(ThebesLayer* aLayer,
 
   // BeginUpdate is allowed to modify the given region,
   // if it wants more to be repainted than we request.
-  if (aPaintState.mMode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
+  if (aPaintState.mMode == SURFACE_COMPONENT_ALPHA) {
     nsIntRegion drawRegionCopy = aPaintState.mRegionToDraw;
     nsRefPtr<gfxASurface> onBlack = GetUpdateSurface(BUFFER_BLACK, drawRegionCopy);
     nsRefPtr<gfxASurface> onWhite = GetUpdateSurface(BUFFER_WHITE, aPaintState.mRegionToDraw);
@@ -1292,7 +1281,7 @@ ContentClientIncremental::BorrowDrawTargetForPainting(ThebesLayer* aLayer,
   result->SetTransform(mLoanedTransform);
   mLoanedTransform.Translate(drawBounds.x, drawBounds.y);
 
-  if (mContentType == gfxContentType::COLOR_ALPHA) {
+  if (mContentType == GFX_CONTENT_COLOR_ALPHA) {
     gfxUtils::ClipToRegion(result, aPaintState.mRegionToDraw);
     nsIntRect bounds = aPaintState.mRegionToDraw.GetBounds();
     result->ClearRect(Rect(bounds.x, bounds.y, bounds.width, bounds.height));

@@ -185,7 +185,8 @@ var Browser = {
       // Should we restore the previous session (crash or some other event)
       let ss = Cc["@mozilla.org/browser/sessionstore;1"]
                .getService(Ci.nsISessionStore);
-      let shouldRestore = ss.shouldRestore();
+      let shouldRestore = ss.shouldRestore()
+                       || (3 == Services.prefs.getIntPref("browser.startup.page"));
       if (shouldRestore) {
         let bringFront = false;
         // First open any commandline URLs, except the homepage

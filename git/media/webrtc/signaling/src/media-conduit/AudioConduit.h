@@ -38,11 +38,6 @@
 
 namespace mozilla {
 
-// Helper function
-
-DOMHighResTimeStamp
-NTPtoDOMHighResTimeStamp(uint32_t ntpHigh, uint32_t ntpLow);
-
 /**
  * Concrete class for Audio session. Hooks up
  *  - media-source and target to external transport
@@ -177,14 +172,7 @@ public:
   webrtc::VoiceEngine* GetVoiceEngine() { return mVoiceEngine; }
   bool GetLocalSSRC(unsigned int* ssrc);
   bool GetRemoteSSRC(unsigned int* ssrc);
-  bool GetRTPJitter(unsigned int* jitterMs);
-  bool GetRTCPReceiverReport(DOMHighResTimeStamp* timestamp,
-                             unsigned int* jitterMs,
-                             unsigned int* packetsReceived,
-                             uint64_t* bytesReceived);
-  bool GetRTCPSenderReport(DOMHighResTimeStamp* timestamp,
-                           unsigned int* packetsSent,
-                           uint64_t* bytesSent);
+  bool GetReceivedJitter(unsigned int* jitterMs);
 
 private:
   WebrtcAudioConduit(const WebrtcAudioConduit& other) MOZ_DELETE;

@@ -685,10 +685,6 @@ Function un.onInit
 
   ${un.UninstallUnOnInitCommon}
 
-  ${If} ${AtLeastWinVista}
-    System::Call 'user32::SetProcessDPIAware()'
-  ${EndIf}
-
   !insertmacro InitInstallOptionsFile "unconfirm.ini"
 FunctionEnd
 

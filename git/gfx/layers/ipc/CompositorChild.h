@@ -100,6 +100,7 @@ private:
   };
 
   nsRefPtr<ClientLayerManager> mLayerManager;
+  nsCOMPtr<nsIObserver> mMemoryPressureObserver;
 
   // The ViewID of the FrameMetrics is used as the key for this hash table.
   // While this should be safe to use since the ViewID is unique

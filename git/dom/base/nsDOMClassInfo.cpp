@@ -2781,8 +2781,7 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
       }
 
       if (val.isObject()) {
-        JS::Rooted<JSObject*> obj(cx, &val.toObject());
-        if (!JS_LookupProperty(cx, obj, "prototype", &val)) {
+        if (!JS_LookupProperty(cx, &val.toObject(), "prototype", &val)) {
           return NS_ERROR_UNEXPECTED;
         }
 

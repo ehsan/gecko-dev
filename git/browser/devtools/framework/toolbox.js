@@ -73,7 +73,6 @@ function Toolbox(target, selectedTool, hostType, hostOptions) {
   this._refreshHostTitle = this._refreshHostTitle.bind(this);
   this._splitConsoleOnKeypress = this._splitConsoleOnKeypress.bind(this)
   this.destroy = this.destroy.bind(this);
-  this.stopPicker = this.stopPicker.bind(this);
 
   this._target.on("close", this.destroy);
 
@@ -1113,7 +1112,6 @@ Toolbox.prototype = {
 
     let done = () => {
       this.emit("picker-started");
-      this.on("select", this.stopPicker);
       deferred.resolve();
     };
 
@@ -1158,7 +1156,6 @@ Toolbox.prototype = {
 
     let done = () => {
       this.emit("picker-stopped");
-      this.off("select", this.stopPicker);
       deferred.resolve();
     };
 

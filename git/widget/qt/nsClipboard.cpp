@@ -56,11 +56,11 @@ static inline QImage::Format
 _gfximage_to_qformat(gfxImageFormat aFormat)
 {
     switch (aFormat) {
-    case gfxImageFormat::ARGB32:
+    case gfxImageFormatARGB32:
         return QImage::Format_ARGB32_Premultiplied;
-    case gfxImageFormat::RGB24:
+    case gfxImageFormatRGB24:
         return QImage::Format_ARGB32;
-    case gfxImageFormat::RGB16_565:
+    case gfxImageFormatRGB16_565:
         return QImage::Format_RGB16;
     default:
         return QImage::Format_Invalid;

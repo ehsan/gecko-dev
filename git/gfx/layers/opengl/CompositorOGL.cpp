@@ -253,7 +253,7 @@ CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
   , mHeight(0)
 {
   MOZ_COUNT_CTOR(CompositorOGL);
-  sBackend = LayersBackend::LAYERS_OPENGL;
+  sBackend = LAYERS_OPENGL;
 }
 
 CompositorOGL::~CompositorOGL()
@@ -1507,7 +1507,7 @@ CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
     new gfxImageSurface(map.mData,
                         gfxIntSize(width, height),
                         map.mStride,
-                        gfxImageFormat::ARGB32);
+                        gfxImageFormatARGB32);
   ReadPixelsIntoImageSurface(mGLContext, surf);
   source->Unmap();
 

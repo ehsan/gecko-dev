@@ -236,7 +236,7 @@ nsDisplayCanvasBackgroundImage::Paint(nsDisplayListBuilder* aBuilder,
         return;
       }
       surf = destSurf->CreateSimilarSurface(
-          gfxContentType::COLOR_ALPHA,
+          GFX_CONTENT_COLOR_ALPHA,
           gfxIntSize(ceil(destRect.width), ceil(destRect.height)));
     } else {
       dt = static_cast<DrawTarget*>(Frame()->Properties().Get(nsIFrame::CachedBackgroundImageDT()));

@@ -101,7 +101,7 @@ const int MaxArrayCollapse = 3;
 const int MaxRecursionDepth = 256;
 
 nsresult
-Key::EncodeJSValInternal(JSContext* aCx, JS::Handle<JS::Value> aVal,
+Key::EncodeJSValInternal(JSContext* aCx, const jsval aVal,
                          uint8_t aTypeOffset, uint16_t aRecursionDepth)
 {
   NS_ENSURE_TRUE(aRecursionDepth < MaxRecursionDepth, NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
@@ -109,7 +109,7 @@ Key::EncodeJSValInternal(JSContext* aCx, JS::Handle<JS::Value> aVal,
   static_assert(eMaxType * MaxArrayCollapse < 256,
                 "Unable to encode jsvals.");
 
-  if (aVal.isString()) {
+  if (JSVAL_IS_STRING(aVal)) {
     nsDependentJSString str;
     if (!str.init(aCx, aVal)) {
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -118,8 +118,13 @@ Key::EncodeJSValInternal(JSContext* aCx, JS::Handle<JS::Value> aVal,
     return NS_OK;
   }
 
-  if (aVal.isNumber()) {
-    double d = aVal.toNumber();
+  if (JSVAL_IS_INT(aVal)) {
+    EncodeNumber((double)JSVAL_TO_INT(aVal), eFloat + aTypeOffset);
+    return NS_OK;
+  }
+
+  if (JSVAL_IS_DOUBLE(aVal)) {
+    double d = JSVAL_TO_DOUBLE(aVal);
     if (mozilla::IsNaN(d)) {
       return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
     }
@@ -127,8 +132,8 @@ Key::EncodeJSValInternal(JSContext* aCx, JS::Handle<JS::Value> aVal,
     return NS_OK;
   }
 
-  if (aVal.isObject()) {
-    JS::Rooted<JSObject*> obj(aCx, &aVal.toObject());
+  if (!JSVAL_IS_PRIMITIVE(aVal)) {
+    JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(aVal));
     if (JS_IsArrayObject(aCx, obj)) {
       aTypeOffset += eMaxType;
 

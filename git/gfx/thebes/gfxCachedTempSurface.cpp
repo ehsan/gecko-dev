@@ -94,7 +94,7 @@ gfxCachedTempSurface::Get(gfxContentType aContentType,
   nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
   ctx->Rectangle(aRect);
   ctx->Clip();
-  if (!cleared && aContentType != gfxContentType::COLOR) {
+  if (!cleared && aContentType != GFX_CONTENT_COLOR) {
     ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
     ctx->Paint();
     ctx->SetOperator(gfxContext::OPERATOR_OVER);

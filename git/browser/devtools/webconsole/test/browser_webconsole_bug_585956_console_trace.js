@@ -6,30 +6,30 @@
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-bug-585956-console-trace.html";
 
 function test() {
-  Task.spawn(runner).then(finishTest);
+  addTab("data:text/html;charset=utf8,<p>hello");
+  browser.addEventListener("load", tabLoaded, true);
 
-  function* runner() {
-    let {tab} = yield loadTab("data:text/html;charset=utf8,<p>hello");
-    let hud = yield openConsole(tab);
+  function tabLoaded() {
+    browser.removeEventListener("load", tabLoaded, true);
 
-    content.location = TEST_URI;
+    openConsole(null, function(hud) {
+      content.location = TEST_URI;
 
-    let [result] = yield waitForMessages({
-      webconsole: hud,
-      messages: [{
-        name: "console.trace output",
-        consoleTrace: {
-          file: "test-bug-585956-console-trace.html",
-          fn: "window.foobar585956c",
-        },
-      }],
+      waitForMessages({
+        webconsole: hud,
+        messages: [{
+          name: "console.trace output",
+          consoleTrace: {
+            file: "test-bug-585956-console-trace.html",
+            fn: "window.foobar585956c",
+          },
+        }],
+      }).then(performChecks);
     });
+  }
 
-    let node = [...result.matched][0];
-    ok(node, "found trace log node");
-
-    let obj = node._messageObject;
-    ok(obj, "console.trace message object");
+  function performChecks(results) {
+    let node = [...results[0].matched][0];
 
     // The expected stack trace object.
     let stacktrace = [
@@ -39,8 +39,11 @@ function test() {
       { filename: TEST_URI, lineNumber: 21, functionName: null, language: 2 }
     ];
 
-    ok(obj._stacktrace, "found stacktrace object");
-    is(obj._stacktrace.toSource(), stacktrace.toSource(), "stacktrace is correct");
+    ok(node, "found trace log node");
+    ok(node._stacktrace, "found stacktrace object");
+    is(node._stacktrace.toSource(), stacktrace.toSource(), "stacktrace is correct");
     isnot(node.textContent.indexOf("bug-585956"), -1, "found file name");
+
+    finishTest();
   }
 }

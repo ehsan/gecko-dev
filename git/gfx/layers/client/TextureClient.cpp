@@ -564,7 +564,7 @@ BufferTextureClient::Lock(OpenMode aMode)
   NS_WARN_IF_FALSE(!mLocked, "The TextureClient is already Locked!");
   mOpenMode = aMode;
   mLocked = true;
-  return IsValid() && IsAllocated();
+  return true;
 }
 
 void
@@ -723,7 +723,7 @@ DeprecatedTextureClientShmem::EnsureAllocated(gfx::IntSize aSize,
                                             &mDescriptor)) {
       NS_WARNING("creating SurfaceDescriptor failed!");
     }
-    if (mContentType == gfxContentType::COLOR_ALPHA) {
+    if (mContentType == GFX_CONTENT_COLOR_ALPHA) {
       gfxASurface* surface = GetSurface();
       if (!surface) {
         return false;
@@ -886,7 +886,7 @@ DeprecatedTextureClientTile::EnsureAllocated(gfx::IntSize aSize, gfxContentType 
     // performance regression.
     gfxImageSurface* tmpTile = new gfxImageSurface(gfxIntSize(aSize.width, aSize.height),
                                                    gfxPlatform::GetPlatform()->OptimalFormatForContent(aType),
-                                                   aType != gfxContentType::COLOR);
+                                                   aType != GFX_CONTENT_COLOR);
     mSurface = new gfxReusableImageSurfaceWrapper(tmpTile);
 #else
     nsRefPtr<gfxSharedImageSurface> sharedImage =
@@ -927,9 +927,9 @@ bool AutoLockShmemClient::Update(Image* aImage,
 
   gfxContentType contentType = aSurface->GetContentType();
   bool isOpaque = (aContentFlags & Layer::CONTENT_OPAQUE);
-  if (contentType != gfxContentType::ALPHA &&
+  if (contentType != GFX_CONTENT_ALPHA &&
       isOpaque) {
-    contentType = gfxContentType::COLOR;
+    contentType = GFX_CONTENT_COLOR;
   }
   mDeprecatedTextureClient->EnsureAllocated(size, contentType);
 

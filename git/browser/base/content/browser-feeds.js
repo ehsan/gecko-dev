@@ -34,12 +34,8 @@ var FeedHandler = {
       return false;
     }
 
-    for (let i = container.childNodes.length - 1; i >= 0; --i) {
-      let node = container.childNodes[i];
-      if (isSubview && node.localName == "label")
-        continue;
-      container.removeChild(node);
-    }
+    while (container.firstChild)
+      container.removeChild(container.firstChild);
 
     if (!feeds || feeds.length <= 1)
       return false;
@@ -56,6 +52,7 @@ var FeedHandler = {
       item.setAttribute("crop", "center");
       let className = "feed-" + itemNodeType;
       if (isSubview) {
+        item.setAttribute("tabindex", "0");
         className += " subviewbutton";
       }
       item.setAttribute("class", className);

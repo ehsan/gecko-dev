@@ -154,9 +154,6 @@ TextureClientD3D11::~TextureClientD3D11()
 bool
 TextureClientD3D11::Lock(OpenMode aMode)
 {
-  if (!IsValid() || !IsAllocated()) {
-    return false;
-  }
   MOZ_ASSERT(!mIsLocked, "The Texture is already locked!");
   LockD3DTexture(mTexture.get());
   mIsLocked = true;
@@ -597,13 +594,13 @@ DeprecatedTextureClientD3D11::EnsureDrawTarget()
 
   SurfaceFormat format;
   switch (mContentType) {
-  case gfxContentType::ALPHA:
+  case GFX_CONTENT_ALPHA:
     format = SurfaceFormat::A8;
     break;
-  case gfxContentType::COLOR:
+  case GFX_CONTENT_COLOR:
     format = SurfaceFormat::B8G8R8X8;
     break;
-  case gfxContentType::COLOR_ALPHA:
+  case GFX_CONTENT_COLOR_ALPHA:
     format = SurfaceFormat::B8G8R8A8;
     break;
   default:
@@ -701,17 +698,17 @@ DeprecatedTextureHostShmemD3D11::UpdateImpl(const SurfaceDescriptor& aImage,
 
   DXGI_FORMAT dxgiFormat;
   switch (surf->Format()) {
-  case gfxImageFormat::RGB24:
+  case gfxImageFormatRGB24:
     mFormat = SurfaceFormat::B8G8R8X8;
     dxgiFormat = DXGI_FORMAT_B8G8R8X8_UNORM;
     bpp = 4;
     break;
-  case gfxImageFormat::ARGB32:
+  case gfxImageFormatARGB32:
     mFormat = SurfaceFormat::B8G8R8A8;
     dxgiFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
     bpp = 4;
     break;
-  case gfxImageFormat::A8:
+  case gfxImageFormatA8:
     mFormat = SurfaceFormat::A8;
     dxgiFormat = DXGI_FORMAT_A8_UNORM;
     bpp = 1;

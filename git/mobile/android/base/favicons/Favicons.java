@@ -23,14 +23,15 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.SparseArray;
 
 import java.io.File;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 public class Favicons {
@@ -61,7 +62,7 @@ public class Favicons {
     // The density-adjusted maximum Favicon dimensions.
     public static int sLargestFaviconSize;
 
-    private static final SparseArray<LoadFaviconTask> sLoadTasks = new SparseArray<LoadFaviconTask>();
+    private static final Map<Integer, LoadFaviconTask> sLoadTasks = Collections.synchronizedMap(new HashMap<Integer, LoadFaviconTask>());
 
     // Cache to hold mappings between page URLs and Favicon URLs. Used to avoid going to the DB when
     // doing so is not necessary.
@@ -216,9 +217,7 @@ public class Favicons {
         // No joy using in-memory resources. Go to background thread and ask the database.
         LoadFaviconTask task = new LoadFaviconTask(ThreadUtils.getBackgroundHandler(), pageURL, targetURL, 0, callback, targetSize, true);
         int taskId = task.getId();
-        synchronized(sLoadTasks) {
-            sLoadTasks.put(taskId, task);
-        }
+        sLoadTasks.put(taskId, task);
         task.execute();
         return taskId;
     }
@@ -283,9 +282,7 @@ public class Favicons {
         LoadFaviconTask task = new LoadFaviconTask(ThreadUtils.getBackgroundHandler(), pageUrl, faviconUrl, flags, listener, targetSize, false);
 
         int taskId = task.getId();
-        synchronized(sLoadTasks) {
-            sLoadTasks.put(taskId, task);
-        }
+        sLoadTasks.put(taskId, task);
 
         task.execute();
 
@@ -328,7 +325,7 @@ public class Favicons {
 
         boolean cancelled;
         synchronized (sLoadTasks) {
-            if (sLoadTasks.indexOfKey(taskId) < 0)
+            if (!sLoadTasks.containsKey(taskId))
                 return false;
 
             Log.d(LOGTAG, "Cancelling favicon load (" + taskId + ")");
@@ -344,9 +341,11 @@ public class Favicons {
 
         // Cancel any pending tasks
         synchronized (sLoadTasks) {
-            final int count = sLoadTasks.size();
-            for (int i = 0; i < count; i++) {
-                cancelFaviconLoad(sLoadTasks.keyAt(i));
+            Set<Integer> taskIds = sLoadTasks.keySet();
+            Iterator<Integer> iter = taskIds.iterator();
+            while (iter.hasNext()) {
+                int taskId = iter.next();
+                cancelFaviconLoad(taskId);
             }
             sLoadTasks.clear();
         }
@@ -450,9 +449,7 @@ public class Favicons {
     }
 
     public static void removeLoadTask(int taskId) {
-        synchronized(sLoadTasks) {
-            sLoadTasks.delete(taskId);
-        }
+        sLoadTasks.remove(taskId);
     }
 
     /**

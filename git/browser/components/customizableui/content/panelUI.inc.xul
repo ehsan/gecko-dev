@@ -18,14 +18,14 @@
         <!-- The parentNode is used so that the footer is presented as the anchor
              instead of just the button being the anchor. -->
         <toolbarbutton id="PanelUI-customize" label="&appMenuCustomize.label;"
-                       exitLabel="&appMenuCustomizeExit.label;"
+                       exitLabel="&appMenuCustomizeExit.label;" tabindex="0"
                        oncommand="gCustomizeMode.toggle();"/>
         <toolbarseparator/>
-        <toolbarbutton id="PanelUI-help" label="&helpMenu.label;"
+        <toolbarbutton id="PanelUI-help" label="&helpMenu.label;" tabindex="0"
                        tooltiptext="&helpMenu.label;"
                        oncommand="PanelUI.showHelpView(this.parentNode);"/>
         <toolbarseparator/>
-        <toolbarbutton id="PanelUI-quit"
+        <toolbarbutton id="PanelUI-quit" tabindex="0"
 #ifdef XP_WIN
                        label="&quitApplicationCmdWin.label;"
                        tooltiptext="&quitApplicationCmdWin.label;"
@@ -39,14 +39,14 @@
 
     <panelview id="PanelUI-history" flex="1">
       <label value="&appMenuHistory.label;" class="panel-subview-header"/>
-      <toolbarbutton id="appMenuViewHistorySidebar"
+      <toolbarbutton id="appMenuViewHistorySidebar" tabindex="0"
                      label="&appMenuHistory.viewSidebar.label;"
                      type="checkbox"
                      class="subviewbutton"
                      oncommand="toggleSidebar('viewHistorySidebar'); PanelUI.hide();">
         <observes element="viewHistorySidebar" attribute="checked"/>
       </toolbarbutton>
-      <toolbarbutton id="appMenuClearRecentHistory"
+      <toolbarbutton id="appMenuClearRecentHistory" tabindex="0"
                      label="&appMenuHistory.clearRecent.label;"
                      class="subviewbutton"
                      command="Tools:Sanitize"/>
@@ -57,7 +57,7 @@
                      oncommand="BrowserOpenSyncTabs();"
                      disabled="true"/>
 #endif
-      <toolbarbutton id="appMenuRestoreLastSession"
+      <toolbarbutton id="appMenuRestoreLastSession" tabindex="0"
                      label="&appMenuHistory.restoreSession.label;"
                      class="subviewbutton"
                      command="Browser:RestoreLastSession"/>
@@ -67,7 +67,7 @@
       <vbox id="PanelUI-recentlyClosedWindows" tooltip="bhTooltip"/>
       <menuseparator id="PanelUI-historyItems-separator"/>
       <vbox id="PanelUI-historyItems" tooltip="bhTooltip"/>
-      <toolbarbutton id="PanelUI-historyMore"
+      <toolbarbutton id="PanelUI-historyMore" tabindex="0"
                      class="panel-subview-footer subviewbutton"
                      label="&appMenuHistory.showAll.label;"
                      oncommand="PlacesCommandHook.showPlacesOrganizer('History'); CustomizableUI.hidePanelForNode(this);"/>
@@ -123,9 +123,7 @@
 
     <panelview id="PanelUI-socialapi" flex="1"/>
 
-    <panelview id="PanelUI-feeds" flex="1" oncommand="FeedHandler.subscribeToFeed(null, event);">
-      <label value="&feedsMenu.label;" class="panel-subview-header"/>
-    </panelview>
+    <panelview id="PanelUI-feeds" flex="1" oncommand="FeedHandler.subscribeToFeed(null, event);"></panelview>
 
     <panelview id="PanelUI-helpView" flex="1">
       <label value="&helpMenu.label;" class="panel-subview-header"/>

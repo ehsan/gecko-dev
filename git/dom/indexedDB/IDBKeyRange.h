@@ -36,7 +36,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBKeyRange)
 
   static nsresult FromJSVal(JSContext* aCx,
-                            JS::Handle<JS::Value> aVal,
+                            const jsval& aVal,
                             IDBKeyRange** aKeyRange);
 
   template <class T>

@@ -58,13 +58,13 @@ gfxOS2Platform::CreateOffscreenSurface(const gfxIntSize& aSize,
 #endif
     gfxASurface *newSurface = nullptr;
 
-    // we only ever seem to get aImageFormat=0 or gfxImageFormat::ARGB32 but
+    // we only ever seem to get aImageFormat=0 or gfxImageFormatARGB32 but
     // I don't really know if we need to differ between ARGB32 and RGB24 here
-    if (contentType == gfxContentType::COLOR_ALPHA ||
-        contentType == gfxContentType::COLOR)
+    if (contentType == GFX_CONTENT_COLOR_ALPHA ||
+        contentType == GFX_CONTENT_COLOR)
     {
         newSurface = new gfxOS2Surface(aSize, OptimalFormatForContent(contentType));
-    } else if (contentType == gfxContentType::ALPHA) {
+    } else if (contentType == GFX_CONTENT_ALPHA) {
         newSurface = new gfxImageSurface(aSize, OptimalFormatForContent(contentType));
     } else {
         return nullptr;

@@ -80,7 +80,7 @@ bool InitializeIon();
 IonContext *GetIonContext();
 IonContext *MaybeGetIonContext();
 
-void SetIonContext(IonContext *ctx);
+bool SetIonContext(IonContext *ctx);
 
 bool CanIonCompileScript(JSContext *cx, HandleScript script, bool osr);
 

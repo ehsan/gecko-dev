@@ -123,8 +123,6 @@ class Nursery
     /* Forward a slots/elements pointer stored in an Ion frame. */
     void forwardBufferPointer(HeapSlot **pSlotsElems);
 
-    size_t sizeOfHeap() { return start() ? NurserySize : 0; }
-
 #ifdef JS_GC_ZEAL
     /*
      * In debug and zeal builds, these bytes indicate the state of an unused

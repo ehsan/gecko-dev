@@ -69,18 +69,19 @@ nsEventListenerInfo::GetListenerObject(JSContext* aCx,
                                        JS::MutableHandle<JS::Value> aObject)
 {
   mozilla::Maybe<JSAutoCompartment> ac;
-  GetJSVal(aCx, ac, aObject);
+  GetJSVal(aCx, ac, aObject.address());
   return NS_OK;
 }
 
 NS_IMPL_ISUPPORTS1(nsEventListenerService, nsIEventListenerService)
 
+// Caller must root *aJSVal!
 bool
 nsEventListenerInfo::GetJSVal(JSContext* aCx,
                               mozilla::Maybe<JSAutoCompartment>& aAc,
-                              JS::MutableHandle<JS::Value> aJSVal)
+                              JS::Value* aJSVal)
 {
-  aJSVal.setNull();
+  *aJSVal = JSVAL_NULL;
   nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(mListener);
   if (wrappedJS) {
     JS::Rooted<JSObject*> object(aCx, wrappedJS->GetJSObject());
@@ -88,7 +89,7 @@ nsEventListenerInfo::GetJSVal(JSContext* aCx,
       return false;
     }
     aAc.construct(aCx, object);
-    aJSVal.setObject(*object);
+    *aJSVal = OBJECT_TO_JSVAL(object);
     return true;
   }
 
@@ -97,7 +98,7 @@ nsEventListenerInfo::GetJSVal(JSContext* aCx,
     JS::Handle<JSObject*> handler(jsl->GetHandler().Ptr()->Callable());
     if (handler) {
       aAc.construct(aCx, handler);
-      aJSVal.setObject(*handler);
+      *aJSVal = OBJECT_TO_JSVAL(handler);
       return true;
     }
   }
@@ -111,8 +112,8 @@ nsEventListenerInfo::ToSource(nsAString& aResult)
 
   AutoSafeJSContext cx;
   mozilla::Maybe<JSAutoCompartment> ac;
-  JS::Rooted<JS::Value> v(cx);
-  if (GetJSVal(cx, ac, &v)) {
+  JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
+  if (GetJSVal(cx, ac, v.address())) {
     JSString* str = JS_ValueToSource(cx, v);
     if (str) {
       nsDependentJSString depStr;
@@ -141,8 +142,8 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
 
   AutoSafeJSContext cx;
   mozilla::Maybe<JSAutoCompartment> ac;
-  JS::Rooted<JS::Value> v(cx);
-  if (GetJSVal(cx, ac, &v)) {
+  JS::Rooted<JS::Value> v(cx, JSVAL_NULL);
+  if (GetJSVal(cx, ac, v.address())) {
     nsCOMPtr<jsdIValue> jsdValue;
     rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));
     NS_ENSURE_SUCCESS(rv, rv);
