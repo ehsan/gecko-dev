@@ -507,7 +507,7 @@ Class JSFunction::class_ = {
     fun_trace
 };
 
-Class* const js::FunctionClassPtr = &JSFunction::class_;
+JS_FRIEND_DATA(Class* const) js::FunctionClassPtr = &JSFunction::class_;
 
 /* Find the body of a function (not including braces). */
 static bool
@@ -824,7 +824,7 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
     /* Allocate stack space for fval, obj, and the args. */
     InvokeArgs args(cx);
     if (!args.init(argc))
-        return false;
+        return JS_FALSE;
 
     /* Push fval, thisv, and the args. */
     args.setCallee(fval);

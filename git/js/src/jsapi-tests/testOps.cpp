@@ -14,9 +14,9 @@ my_convert(JSContext* context, JS::HandleObject obj, JSType type, JS::MutableHan
 {
     if (type == JSTYPE_VOID || type == JSTYPE_STRING || type == JSTYPE_NUMBER || type == JSTYPE_BOOLEAN) {
         rval.set(JS_NumberValue(123));
-        return true;
+        return JS_TRUE;
     }
-    return false;
+    return JS_FALSE;
 }
 
 static JSClass myClass = {
@@ -38,7 +38,7 @@ createMyObject(JSContext* context, unsigned argc, jsval *vp)
 
     JS_EndRequest(context);
 
-    return true;
+    return JS_TRUE;
 }
 
 static const JSFunctionSpec s_functions[] =

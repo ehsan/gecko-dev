@@ -10,6 +10,7 @@
 #include "mozilla/dom/Link.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLLinkElement.h"
+#include "nsILink.h"
 #include "nsStyleLinkElement.h"
 
 namespace mozilla {
@@ -17,6 +18,7 @@ namespace dom {
 
 class HTMLLinkElement MOZ_FINAL : public nsGenericHTMLElement,
                                   public nsIDOMHTMLLinkElement,
+                                  public nsILink,
                                   public nsStyleLinkElement,
                                   public Link
 {
@@ -31,14 +33,24 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLLinkElement,
                                            nsGenericHTMLElement)
 
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
   // nsIDOMHTMLLinkElement
   NS_DECL_NSIDOMHTMLLINKELEMENT
 
   // DOM memory reporter participant
   NS_DECL_SIZEOF_EXCLUDING_THIS
 
-  void LinkAdded();
-  void LinkRemoved();
+  // nsILink
+  NS_IMETHOD    LinkAdded() MOZ_OVERRIDE;
+  NS_IMETHOD    LinkRemoved() MOZ_OVERRIDE;
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
@@ -46,6 +58,7 @@ public:
 
   // nsINode
   virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
   virtual JSObject* WrapNode(JSContext* aCx,
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 

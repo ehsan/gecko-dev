@@ -124,15 +124,6 @@ struct IonOptions
     // Default: 10
     uint32_t frequentBailoutThreshold;
 
-    // Number of exception bailouts (resuming into catch/finally block) before
-    // we invalidate and forbid Ion compilation.
-    //
-    // Default: 10
-    uint32_t exceptionBailoutThreshold;
-
-    // Whether Ion should compile try-catch statements.
-    bool compileTryCatch;
-
     // How many actual arguments are accepted on the C stack.
     //
     // Default: 4,096
@@ -214,8 +205,6 @@ struct IonOptions
         usesBeforeInliningFactor(.125),
         osrPcMismatchesBeforeRecompile(6000),
         frequentBailoutThreshold(10),
-        exceptionBailoutThreshold(10),
-        compileTryCatch(false),
         maxStackArgs(4096),
         maxInlineDepth(3),
         smallFunctionMaxInlineDepth(10),

@@ -97,7 +97,7 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JS::Handle<JSObject*> obj,
   nsIScriptSecurityManager *ssm = nsContentUtils::GetSecurityManager();
   if (!ssm) {
     ::JS_ReportError(cx, "Unable to verify access to a global object property.");
-    return false;
+    return JS_FALSE;
   }
 
   // Make sure to actually operate on our object, and not some object further
@@ -105,11 +105,11 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JS::Handle<JSObject*> obj,
   JS::Rooted<JSObject*> base(cx, obj);
   while (JS_GetClass(base) != &nsXBLDocGlobalObject::gSharedGlobalClass) {
     if (!::JS_GetPrototype(cx, base, &base)) {
-      return false;
+      return JS_FALSE;
     }
     if (!base) {
       ::JS_ReportError(cx, "Invalid access to a global object property.");
-      return false;
+      return JS_FALSE;
     }
   }
 
@@ -166,7 +166,7 @@ nsXBLDocGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 static JSBool
 nsXBLDocGlobalObject_resolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id)
 {
-  JSBool did_resolve = false;
+  JSBool did_resolve = JS_FALSE;
   return JS_ResolveStandardClass(cx, obj, id, &did_resolve);
 }
 

@@ -210,11 +210,11 @@ AppendToString(nsACString& s, TextureFlags flags,
   } \
 }
     bool previous = false;
-    AppendFlag(TEXTURE_USE_NEAREST_FILTER);
-    AppendFlag(TEXTURE_NEEDS_Y_FLIP);
+    AppendFlag(UseNearestFilter);
+    AppendFlag(NeedsYFlip);
     AppendFlag(TEXTURE_DISALLOW_BIGIMAGE);
-    AppendFlag(TEXTURE_ALLOW_REPEAT);
-    AppendFlag(TEXTURE_NEW_TILE);
+    AppendFlag(AllowRepeat);
+    AppendFlag(NewTile);
     AppendFlag(TEXTURE_DEALLOCATE_HOST);
 
 #undef AppendFlag

@@ -183,6 +183,7 @@ abstract public class GeckoApp
     private static GeckoApp sAppContext;
     protected MenuPanel mMenuPanel;
     protected Menu mMenu;
+    private static GeckoThread sGeckoThread;
     protected GeckoProfile mProfile;
     public static int mOrientation;
     protected boolean mIsRestoringActivity;
@@ -721,21 +722,6 @@ abstract public class GeckoApp
                     // something went wrong.
                     Log.e(LOGTAG, "Received Contact:Add message with no email nor phone number");
                 }                
-            } else if (event.equals("Intent:GetHandlers")) {
-                Intent intent = GeckoAppShell.getOpenURIIntent(sAppContext, message.optString("url"),
-                    message.optString("mime"), message.optString("action"), message.optString("title"));
-                String[] handlers = GeckoAppShell.getHandlersForIntent(intent);
-                ArrayList<String> appList = new ArrayList<String>(handlers.length);
-                for (int i = 0; i < handlers.length; i++) {
-                    appList.add(handlers[i]);
-                }
-                JSONObject handlersJSON = new JSONObject();
-                handlersJSON.put("apps", new JSONArray(appList));
-                mCurrentResponse = handlersJSON.toString();
-            } else if (event.equals("Intent:Open")) {
-                GeckoAppShell.openUriExternal(message.optString("url"),
-                    message.optString("mime"), message.optString("packageName"),
-                    message.optString("className"), message.optString("action"), message.optString("title"));
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
@@ -1227,7 +1213,7 @@ abstract public class GeckoApp
             return;
         }
 
-        if (GeckoThread.isCreated()) {
+        if (sGeckoThread != null) {
             // This happens when the GeckoApp activity is destroyed by Android
             // without killing the entire application (see Bug 769269).
             mIsRestoringActivity = true;
@@ -1452,20 +1438,18 @@ abstract public class GeckoApp
         Telemetry.HistogramAdd("FENNEC_STARTUP_GECKOAPP_ACTION", startupAction.ordinal());
 
         if (!mIsRestoringActivity) {
-            GeckoThread.setArgs(intent.getStringExtra("args"));
-            GeckoThread.setAction(intent.getAction());
-            GeckoThread.setUri(passedUri);
+            sGeckoThread = new GeckoThread(intent, passedUri);
         }
         if (!ACTION_DEBUG.equals(action) &&
             GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.Launched)) {
-            GeckoThread.createAndStart();
+            sGeckoThread.start();
         } else if (ACTION_DEBUG.equals(action) &&
             GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.WaitForDebugger)) {
             ThreadUtils.getUiHandler().postDelayed(new Runnable() {
                 @Override
                 public void run() {
                     GeckoThread.setLaunchState(GeckoThread.LaunchState.Launching);
-                    GeckoThread.createAndStart();
+                    sGeckoThread.start();
                 }
             }, 1000 * 5 /* 5 seconds */);
         }
@@ -1522,8 +1506,6 @@ abstract public class GeckoApp
         registerEventListener("Update:Install");
         registerEventListener("PrivateBrowsing:Data");
         registerEventListener("Contact:Add");
-        registerEventListener("Intent:Open");
-        registerEventListener("Intent:GetHandlers");
 
         if (SmsManager.getInstance() != null) {
           SmsManager.getInstance().start();
@@ -2078,8 +2060,6 @@ abstract public class GeckoApp
         unregisterEventListener("Update:Install");
         unregisterEventListener("PrivateBrowsing:Data");
         unregisterEventListener("Contact:Add");
-        unregisterEventListener("Intent:Open");
-        unregisterEventListener("Intent:GetHandlers");
 
         deleteTempFiles();
 

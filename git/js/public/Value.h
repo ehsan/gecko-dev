@@ -437,7 +437,7 @@ static inline jsval_layout
 BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
-    MOZ_ASSERT(b == JS_TRUE_DEPRECATED || b == JS_FALSE_DEPRECATED);
+    MOZ_ASSERT(b == JS_TRUE || b == JS_FALSE);
     l.s.tag = JSVAL_TAG_BOOLEAN;
     l.s.payload.boo = b;
     return l;
@@ -664,7 +664,7 @@ static inline jsval_layout
 BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
-    MOZ_ASSERT(b == JS_TRUE_DEPRECATED || b == JS_FALSE_DEPRECATED);
+    MOZ_ASSERT(b == JS_TRUE || b == JS_FALSE);
     l.asBits = ((uint64_t)(uint32_t)b) | JSVAL_SHIFTED_TAG_BOOLEAN;
     return l;
 }

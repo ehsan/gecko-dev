@@ -1155,13 +1155,12 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
 ViewTransform AsyncPanZoomController::GetCurrentAsyncTransform() {
   ReentrantMonitorAutoEnter lock(mMonitor);
 
-  CSSPoint lastPaintScrollOffset;
+  LayerPoint metricsScrollOffset;
   if (mLastContentPaintMetrics.IsScrollable()) {
-    lastPaintScrollOffset = mLastContentPaintMetrics.mScrollOffset;
+    metricsScrollOffset = mLastContentPaintMetrics.GetScrollOffsetInLayerPixels();
   }
   CSSToScreenScale localScale = mFrameMetrics.CalculateResolution();
-  LayerPoint translation = (mFrameMetrics.mScrollOffset - lastPaintScrollOffset)
-                         * mLastContentPaintMetrics.LayersPixelsPerCSSPixel();
+  LayerPoint translation = mFrameMetrics.GetScrollOffsetInLayerPixels() - metricsScrollOffset;
   return ViewTransform(-translation, localScale / mLastContentPaintMetrics.mDevPixelsPerCSSPixel);
 }
 

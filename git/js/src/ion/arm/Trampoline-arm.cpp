@@ -320,7 +320,7 @@ IonRuntime::generateEnterJIT(JSContext *cx, EnterJitType type)
     //                   JSReturnReg_Data, EDtrAddr(r5, EDtrOffImm(0)));
 
     // Restore non-volatile registers and return.
-    GenerateReturn(masm, true);
+    GenerateReturn(masm, JS_TRUE);
 
     Linker linker(masm);
     return linker.newCode(cx, JSC::OTHER_CODE);

@@ -464,16 +464,9 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
                 HandleFunction fun, HandleScript script, IonScript *ionScript,
                 SnapshotIterator &iter, bool invalidate, BaselineStackBuilder &builder,
                 AutoValueVector &startFrameFormals, MutableHandleFunction nextCallee,
-                jsbytecode **callPC, const ExceptionBailoutInfo *excInfo)
+                jsbytecode **callPC)
 {
-    // If excInfo is non-NULL, we are bailing out to a catch or finally block
-    // and this is the frame where we will resume. Usually the expression stack
-    // should be empty in this case but there can be iterators on the stack.
-    uint32_t exprStackSlots;
-    if (excInfo)
-        exprStackSlots = excInfo->numExprSlots;
-    else
-        exprStackSlots = iter.slots() - (script->nfixed + CountArgSlots(script, fun));
+    uint32_t exprStackSlots = iter.slots() - (script->nfixed + CountArgSlots(script, fun));
 
     builder.resetFramePushed();
 
@@ -648,13 +641,10 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             return false;
     }
 
-    // Get the pc. If we are handling an exception, resume at the pc of the
-    // catch or finally block.
-    jsbytecode *pc = excInfo ? excInfo->resumePC : script->code + iter.pcOffset();
-    bool resumeAfter = excInfo ? false : iter.resumeAfter();
-
+    // Get the PC
+    jsbytecode *pc = script->code + iter.pcOffset();
     JSOp op = JSOp(*pc);
-    JS_ASSERT_IF(excInfo, op == JSOP_ENTERBLOCK);
+    bool resumeAfter = iter.resumeAfter();
 
     // Fixup inlined JSOP_FUNCALL, JSOP_FUNAPPLY, and accessors on the caller side.
     // On the caller side this must represent like the function wasn't inlined.
@@ -818,9 +808,8 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             BailoutKindString(bailoutKind));
 #endif
 
-    // If this was the last inline frame, or we are bailing out to a catch or
-    // finally block in this frame, then unpacking is almost done.
-    if (!iter.moreFrames() || excInfo) {
+    // If this was the last inline frame, then unpacking is almost done.
+    if (!iter.moreFrames()) {
         // Last frame, so PC for call to next frame is set to NULL.
         *callPC = NULL;
 
@@ -1178,8 +1167,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
 
 uint32_t
 ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIterator &iter,
-                          bool invalidate, BaselineBailoutInfo **bailoutInfo,
-                          const ExceptionBailoutInfo *excInfo)
+                          bool invalidate, BaselineBailoutInfo **bailoutInfo)
 {
     JS_ASSERT(bailoutInfo != NULL);
     JS_ASSERT(*bailoutInfo == NULL);
@@ -1226,17 +1214,10 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     IonSpew(IonSpew_BaselineBailouts, "Bailing to baseline %s:%u (IonScript=%p) (FrameType=%d)",
             iter.script()->filename(), iter.script()->lineno, (void *) iter.ionScript(),
             (int) prevFrameType);
-
-    if (excInfo)
-        IonSpew(IonSpew_BaselineBailouts, "Resuming in catch or finally block");
-
     IonSpew(IonSpew_BaselineBailouts, "  Reading from snapshot offset %u size %u",
             iter.snapshotOffset(), iter.ionScript()->snapshotsSize());
 
-    if (excInfo)
-        iter.ionScript()->incNumExceptionBailouts();
-    else
-        iter.ionScript()->incNumBailouts();
+    iter.ionScript()->incNumBailouts();
     iter.script()->updateBaselineOrIonRaw();
 
     // Allocate buffer to hold stack replacement data.
@@ -1261,7 +1242,7 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
         IonSpew(IonSpew_BaselineBailouts, "  Not constructing!");
 
     IonSpew(IonSpew_BaselineBailouts, "  Restoring frames:");
-    size_t frameNo = 0;
+    int frameNo = 0;
 
     // Reconstruct baseline frames using the builder.
     RootedScript caller(cx);
@@ -1269,7 +1250,6 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
     RootedFunction fun(cx, callee);
     RootedScript scr(cx, iter.script());
     AutoValueVector startFrameFormals(cx);
-
     while (true) {
 #if JS_TRACE_LOGGING
         if (frameNo > 0) {
@@ -1278,16 +1258,11 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
         }
 #endif
         IonSpew(IonSpew_BaselineBailouts, "    FrameNo %d", frameNo);
-
-        // If we are bailing out to a catch or finally block in this frame,
-        // pass excInfo to InitFromBailout and don't unpack any other frames.
-        bool handleException = (excInfo && excInfo->frameNo == frameNo);
-
         jsbytecode *callPC = NULL;
         RootedFunction nextCallee(cx, NULL);
         if (!InitFromBailout(cx, caller, callerPC, fun, scr, iter.ionScript(),
                              snapIter, invalidate, builder, startFrameFormals,
-                             &nextCallee, &callPC, handleException ? excInfo : NULL))
+                             &nextCallee, &callPC))
         {
             return BAILOUT_RETURN_FATAL_ERROR;
         }
@@ -1296,9 +1271,6 @@ ion::BailoutIonToBaseline(JSContext *cx, JitActivation *activation, IonBailoutIt
             JS_ASSERT(!callPC);
             break;
         }
-
-        if (handleException)
-            break;
 
         JS_ASSERT(nextCallee);
         JS_ASSERT(callPC);

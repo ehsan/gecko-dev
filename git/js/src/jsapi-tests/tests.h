@@ -244,10 +244,10 @@ class JSAPITest
         for (unsigned i = 0; i < argc; i++) {
             JSString *str = JS_ValueToString(cx, argv[i]);
             if (!str)
-                return false;
+                return JS_FALSE;
             char *bytes = JS_EncodeString(cx, str);
             if (!bytes)
-                return false;
+                return JS_FALSE;
             printf("%s%s", i ? " " : "", bytes);
             JS_free(cx, bytes);
         }
@@ -255,7 +255,7 @@ class JSAPITest
         putchar('\n');
         fflush(stdout);
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
-        return true;
+        return JS_TRUE;
     }
 
     bool definePrint();

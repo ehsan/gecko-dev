@@ -28,6 +28,7 @@ import android.os.Handler;
 
 public class GeckoView extends LayerView
     implements GeckoEventListener, ContextGetter {
+    static GeckoThread sGeckoThread;
 
     public GeckoView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -36,9 +37,11 @@ public class GeckoView extends LayerView
         String url = a.getString(R.styleable.GeckoView_url);
         a.recycle();
 
-        if (url != null) {
-            GeckoThread.setUri(url);
-            GeckoThread.setAction(Intent.ACTION_VIEW);
+        Intent intent;
+        if (url == null) {
+            intent = new Intent(Intent.ACTION_MAIN);
+        } else {
+            intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
             GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(url));
         }
         GeckoAppShell.setContextGetter(this);
@@ -50,11 +53,12 @@ public class GeckoView extends LayerView
         BrowserDB.initialize(profile.getName());
         GeckoAppShell.registerEventListener("Gecko:Ready", this);
 
+        sGeckoThread = new GeckoThread(intent, url);
         ThreadUtils.setUiThread(Thread.currentThread(), new Handler());
         initializeView(GeckoAppShell.getEventDispatcher());
         if (GeckoThread.checkAndSetLaunchState(GeckoThread.LaunchState.Launching, GeckoThread.LaunchState.Launched)) {
             GeckoAppShell.setLayerView(this);
-            GeckoThread.createAndStart();
+            sGeckoThread.start();
         }
     }
 

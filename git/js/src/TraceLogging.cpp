@@ -13,8 +13,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "jsapi.h"
-
 using namespace js;
 
 #ifndef TRACE_LOG_DIR
@@ -75,12 +73,6 @@ const char* const TraceLogging::type_name[] = {
     "stop,gc",
     "start,minor_gc",
     "stop,minor_gc",
-    "start,parser,script",
-    "stop,parser,script",
-    "start,parser,lazy",
-    "stop,parser,lazy",
-    "start,parser,function",
-    "stop,parser,function",
     "info,engine,interpreter",
     "info,engine,baseline",
     "info,engine,ionmonkey"
@@ -154,12 +146,6 @@ TraceLogging::log(Type type, const char* file, unsigned int lineno)
     // Save the time spend logging the information in order to discard this time from the logged time.
     // Especially needed when increasing the array or flushing the information.
     loggingTime += rdtsc()-now;
-}
-
-void
-TraceLogging::log(Type type, const CompileOptions &options)
-{
-    this->log(type, options.filename, options.lineno);
 }
 
 void

@@ -1100,10 +1100,10 @@ nsresult nsPluginInstanceOwner::EnsureCachedAttrParamArrays()
           }
           if (domapplet || domobject) {
             if (domapplet) {
-              parent = do_QueryInterface(domapplet);
+              parent = domapplet;
             }
             else {
-              parent = do_QueryInterface(domobject);
+              parent = domobject;
             }
             nsCOMPtr<nsIDOMNode> mydomNode = do_QueryInterface(mydomElement);
             if (parent == mydomNode) {

@@ -211,8 +211,7 @@ BasicTextureImage::Resize(const nsIntSize& aSize)
 TiledTextureImage::TiledTextureImage(GLContext* aGL,
                                      nsIntSize aSize,
                                      TextureImage::ContentType aContentType,
-                                     TextureImage::Flags aFlags,
-                                     TextureImage::ImageFormat aImageFormat)
+                                     TextureImage::Flags aFlags)
     : TextureImage(aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, aFlags)
     , mCurrentImage(0)
     , mIterationCallback(nullptr)
@@ -221,7 +220,6 @@ TiledTextureImage::TiledTextureImage(GLContext* aGL,
     , mColumns(0)
     , mGL(aGL)
     , mTextureState(Created)
-    , mImageFormat(aImageFormat)
 {
     if (!(aFlags & TextureImage::DisallowBigImage) && mGL->WantsSmallTiles()) {
       mTileSize = 256;
@@ -564,7 +562,7 @@ void TiledTextureImage::Resize(const nsIntSize& aSize)
 
             // Create a new tile.
             nsRefPtr<TextureImage> teximg =
-                    mGL->TileGenFunc(size, mContentType, mFlags, mImageFormat);
+                    mGL->TileGenFunc(size, mContentType, mFlags);
             if (replace)
                 mImages.ReplaceElementAt(i, teximg.forget());
             else
@@ -613,8 +611,7 @@ CreateBasicTextureImage(GLContext* aGL,
                         const nsIntSize& aSize,
                         TextureImage::ContentType aContentType,
                         GLenum aWrapMode,
-                        TextureImage::Flags aFlags,
-                        TextureImage::ImageFormat aImageFormat)
+                        TextureImage::Flags aFlags)
 {
     bool useNearestFilter = aFlags & TextureImage::UseNearestFilter;
     aGL->MakeCurrent();
@@ -631,8 +628,7 @@ CreateBasicTextureImage(GLContext* aGL,
     aGL->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
 
     nsRefPtr<BasicTextureImage> texImage =
-        new BasicTextureImage(texture, aSize, aWrapMode, aContentType,
-                              aGL, aFlags, aImageFormat);
+        new BasicTextureImage(texture, aSize, aWrapMode, aContentType, aGL, aFlags);
     return texImage.forget();
 }
 

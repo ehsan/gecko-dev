@@ -350,8 +350,7 @@ CloseLiveIterator(JSContext *cx, const InlineFrameIterator &frame, uint32_t loca
 }
 
 static void
-HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromException *rfe,
-                   bool *overrecursed)
+CloseLiveIterators(JSContext *cx, const InlineFrameIterator &frame)
 {
     RootedScript script(cx, frame.script());
     jsbytecode *pc = frame.pc();
@@ -369,63 +368,20 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
         if (pcOffset >= tn->start + tn->length)
             continue;
 
-        switch (tn->kind) {
-          case JSTRY_ITER: {
-            JS_ASSERT(JSOp(*(script->main() + tn->start + tn->length)) == JSOP_ENDITER);
-            JS_ASSERT(tn->stackDepth > 0);
+        if (tn->kind != JSTRY_ITER)
+            continue;
 
-            uint32_t localSlot = tn->stackDepth;
-            CloseLiveIterator(cx, frame, localSlot);
-            break;
-          }
+        JS_ASSERT(JSOp(*(script->main() + tn->start + tn->length)) == JSOP_ENDITER);
+        JS_ASSERT(tn->stackDepth > 0);
 
-          case JSTRY_LOOP:
-            break;
-
-          case JSTRY_CATCH:
-            if (cx->isExceptionPending()) {
-                // Bailout at the start of the catch block.
-                jsbytecode *catchPC = script->main() + tn->start + tn->length;
-
-                ExceptionBailoutInfo excInfo;
-                excInfo.frameNo = frame.frameNo();
-                excInfo.resumePC = catchPC;
-                excInfo.numExprSlots = tn->stackDepth;
-
-                BaselineBailoutInfo *info = NULL;
-                uint32_t retval = ExceptionHandlerBailout(cx, frame, excInfo, &info);
-
-                if (retval == BAILOUT_RETURN_OK) {
-                    JS_ASSERT(info);
-                    rfe->kind = ResumeFromException::RESUME_BAILOUT;
-                    rfe->target = cx->runtime()->ionRuntime()->getBailoutTail()->raw();
-                    rfe->bailoutInfo = info;
-                    return;
-                }
-
-                // Bailout failed. If there was a fatal error, clear the
-                // exception to turn this into an uncatchable error. If the
-                // overrecursion check failed, continue popping all inline
-                // frames and have the caller report an overrecursion error.
-                JS_ASSERT(!info);
-                cx->clearPendingException();
-
-                if (retval == BAILOUT_RETURN_OVERRECURSED)
-                    *overrecursed = true;
-                else
-                    JS_ASSERT(retval == BAILOUT_RETURN_FATAL_ERROR);
-            }
-            break;
-
-          default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected try note");
-        }
+        uint32_t localSlot = tn->stackDepth;
+        CloseLiveIterator(cx, frame, localSlot);
     }
 }
 
 static void
-HandleExceptionBaseline(JSContext *cx, const IonFrameIterator &frame, ResumeFromException *rfe,
-                        bool *calledDebugEpilogue)
+HandleException(JSContext *cx, const IonFrameIterator &frame, ResumeFromException *rfe,
+                bool *calledDebugEpilogue)
 {
     JS_ASSERT(frame.isBaselineJS());
     JS_ASSERT(!*calledDebugEpilogue);
@@ -555,15 +511,12 @@ HandleException(ResumeFromException *rfe)
 
     IonFrameIterator iter(cx->mainThread().ionTop);
     while (!iter.isEntry()) {
-        bool overrecursed = false;
         if (iter.isOptimizedJS()) {
             // Search each inlined frame for live iterator objects, and close
             // them.
             InlineFrameIterator frames(cx, &iter);
             for (;;) {
-                HandleExceptionIon(cx, frames, rfe, &overrecursed);
-                if (rfe->kind != ResumeFromException::RESUME_ENTRY_FRAME)
-                    return;
+                CloseLiveIterators(cx, frames);
 
                 // When profiling, each frame popped needs a notification that
                 // the function has exited, so invoke the probe that a function
@@ -583,7 +536,7 @@ HandleException(ResumeFromException *rfe)
             // It's invalid to call DebugEpilogue twice for the same frame.
             bool calledDebugEpilogue = false;
 
-            HandleExceptionBaseline(cx, iter, rfe, &calledDebugEpilogue);
+            HandleException(cx, iter, rfe, &calledDebugEpilogue);
             if (rfe->kind != ResumeFromException::RESUME_ENTRY_FRAME)
                 return;
 
@@ -621,11 +574,6 @@ HandleException(ResumeFromException *rfe)
             // ionScript->decref call.
             EnsureExitFrame(current);
             cx->mainThread().ionTop = (uint8_t *)current;
-        }
-
-        if (overrecursed) {
-            // We hit an overrecursion error during bailout. Report it now.
-            js_ReportOverRecursed(cx);
         }
     }
 

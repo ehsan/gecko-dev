@@ -30,8 +30,18 @@ HTMLLabelElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 
 // nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED1(HTMLLabelElement, nsGenericHTMLFormElement,
-                             nsIDOMHTMLLabelElement)
+
+NS_IMPL_ADDREF_INHERITED(HTMLLabelElement, Element)
+NS_IMPL_RELEASE_INHERITED(HTMLLabelElement, Element)
+
+// QueryInterface implementation for HTMLLabelElement
+NS_INTERFACE_TABLE_HEAD(HTMLLabelElement)
+  NS_HTML_CONTENT_INTERFACES(nsGenericHTMLFormElement)
+  NS_INTERFACE_TABLE_INHERITED1(HTMLLabelElement,
+                                nsIDOMHTMLLabelElement)
+  NS_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_ELEMENT_INTERFACE_MAP_END
+
 
 // nsIDOMHTMLLabelElement
 
@@ -46,7 +56,7 @@ HTMLLabelElement::GetForm(nsIDOMHTMLFormElement** aForm)
 NS_IMETHODIMP
 HTMLLabelElement::GetControl(nsIDOMHTMLElement** aElement)
 {
-  nsCOMPtr<nsIDOMHTMLElement> element = do_QueryObject(GetLabeledElement());
+  nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(GetLabeledElement());
   element.forget(aElement);
   return NS_OK;
 }
@@ -74,7 +84,7 @@ HTMLLabelElement::Focus(ErrorResult& aError)
   // retarget the focus method at the for content
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm) {
-    nsCOMPtr<nsIDOMElement> elem = do_QueryObject(GetLabeledElement());
+    nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(GetLabeledElement());
     if (elem)
       fm->SetFocus(elem, 0);
   }

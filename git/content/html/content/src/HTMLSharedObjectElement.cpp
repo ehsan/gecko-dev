@@ -91,6 +91,8 @@ NS_IMPL_ADDREF_INHERITED(HTMLSharedObjectElement, Element)
 NS_IMPL_RELEASE_INHERITED(HTMLSharedObjectElement, Element)
 
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLSharedObjectElement)
+  NS_HTML_CONTENT_INTERFACES_AMBIGUOUS(nsGenericHTMLElement,
+                                       nsIDOMHTMLAppletElement)
   NS_INTERFACE_TABLE_INHERITED8(HTMLSharedObjectElement,
                                 nsIRequestObserver,
                                 nsIStreamListener,
@@ -103,7 +105,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLSharedObjectElement)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLAppletElement, applet)
   NS_INTERFACE_MAP_ENTRY_IF_TAG(nsIDOMHTMLEmbedElement, embed)
-NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
+NS_ELEMENT_INTERFACE_MAP_END
 
 NS_IMPL_ELEMENT_CLONE(HTMLSharedObjectElement)
 

@@ -326,7 +326,7 @@ XDRScriptConst(XDRState<mode> *xdr, HeapValue *vp)
         if (mode == XDR_ENCODE)
             i = uint32_t(vp->toInt32());
         if (!xdr->codeUint32(&i))
-            return false;
+            return JS_FALSE;
         if (mode == XDR_DECODE)
             vp->init(Int32Value(int32_t(i)));
         break;
@@ -445,7 +445,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
     if (mode == XDR_ENCODE)
         length = script->length;
     if (!xdr->codeUint32(&length))
-        return false;
+        return JS_FALSE;
 
     if (mode == XDR_ENCODE) {
         prologLength = script->mainOffset;
@@ -506,32 +506,32 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
     }
 
     if (!xdr->codeUint32(&prologLength))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&version))
-        return false;
+        return JS_FALSE;
 
     /*
      * To fuse allocations, we need srcnote, atom, objects, regexp, and trynote
      * counts early.
      */
     if (!xdr->codeUint32(&natoms))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&nsrcnotes))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&ntrynotes))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&nobjects))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&nregexps))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&nconsts))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&nTypeSets))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&ndefaults))
-        return false;
+        return JS_FALSE;
     if (!xdr->codeUint32(&scriptBits))
-        return false;
+        return JS_FALSE;
 
     if (mode == XDR_DECODE) {
         /* Note: version is packed into the 32b space with another 16b value. */
@@ -2007,12 +2007,6 @@ JSScript::isShortRunning()
     return length < 100 &&
            hasAnalysis() &&
            !analysis()->hasFunctionCalls();
-}
-
-js::GlobalObject&
-JSScript::uninlinedGlobal() const
-{
-    return global();
 }
 
 bool

@@ -24,6 +24,7 @@ namespace dom {
 class WebVTTLoadListener;
 
 class HTMLTrackElement MOZ_FINAL : public nsGenericHTMLElement
+                                 , public nsIDOMHTMLElement
 {
 public:
   HTMLTrackElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -33,6 +34,15 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLTrackElement,
                                            nsGenericHTMLElement)
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   // HTMLTrackElement WebIDL
   TextTrackKind Kind() const;
@@ -97,6 +107,7 @@ public:
   TextTrack* Track();
 
   virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const MOZ_OVERRIDE;
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   // For Track, ItemValue reflects the src attribute
   virtual void GetItemValueText(nsAString& aText) MOZ_OVERRIDE

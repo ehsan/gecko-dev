@@ -17,11 +17,24 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLMeterElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLMeterElement MOZ_FINAL : public nsGenericHTMLElement,
+                                   public nsIDOMHTMLElement
 {
 public:
   HTMLMeterElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~HTMLMeterElement();
+
+  /* nsISupports */
+  NS_DECL_ISUPPORTS_INHERITED
+
+  /* nsIDOMNode */
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  /* nsIDOMElement */
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  /* nsIDOMHTMLElement */
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   virtual nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
@@ -29,6 +42,8 @@ public:
 
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
                       const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
+
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
   // WebIDL
 

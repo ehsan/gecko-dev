@@ -299,25 +299,25 @@ num_parseFloat(JSContext *cx, unsigned argc, Value *vp)
 
     if (args.length() == 0) {
         args.rval().setDouble(js_NaN);
-        return true;
+        return JS_TRUE;
     }
     JSString *str = ToString<CanGC>(cx, args[0]);
     if (!str)
-        return false;
+        return JS_FALSE;
     const jschar *bp = str->getChars(cx);
     if (!bp)
-        return false;
+        return JS_FALSE;
     const jschar *end = bp + str->length();
     const jschar *ep;
     double d;
     if (!js_strtod(cx, bp, end, &ep, &d))
-        return false;
+        return JS_FALSE;
     if (ep == bp) {
         args.rval().setDouble(js_NaN);
-        return true;
+        return JS_TRUE;
     }
     args.rval().setDouble(d);
-    return true;
+    return JS_TRUE;
 }
 
 /* ES5 15.1.2.2. */
@@ -1377,7 +1377,7 @@ js::NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb)
         cstr = NumberToCString(cx, &cbuf, v.toDouble());
         if (!cstr) {
             JS_ReportOutOfMemory(cx);
-            return false;
+            return JS_FALSE;
         }
     }
 
@@ -1685,7 +1685,7 @@ js_strtod(ThreadSafeContext *cx, const jschar *s, const jschar *send,
     if (length >= sizeof cbuf) {
         cstr = (char *) cx->malloc_(length + 1);
         if (!cstr)
-           return false;
+           return JS_FALSE;
     } else {
         cstr = cbuf;
     }
@@ -1717,5 +1717,5 @@ js_strtod(ThreadSafeContext *cx, const jschar *s, const jschar *send,
         js_free(cstr);
     *ep = i ? s1 + i : s;
     *dp = d;
-    return true;
+    return JS_TRUE;
 }

@@ -149,6 +149,7 @@ class MochitestRunner(MozbuildObject):
                 return 1
 
             options.testPath = test_path
+            env = {'TEST_PATH': test_path}
 
         if rerun_failures:
             options.testManifest = failure_file_path

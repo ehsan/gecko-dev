@@ -17,7 +17,8 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLSpanElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLSpanElement MOZ_FINAL : public nsGenericHTMLElement,
+                                  public nsIDOMHTMLElement
 {
 public:
   HTMLSpanElement(already_AddRefed<nsINodeInfo> aNodeInfo)
@@ -26,7 +27,21 @@ public:
   }
   virtual ~HTMLSpanElement();
 
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
+
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 
 protected:
   virtual JSObject* WrapNode(JSContext *aCx,

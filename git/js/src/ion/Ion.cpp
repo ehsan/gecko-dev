@@ -568,7 +568,6 @@ IonScript::IonScript()
     invalidateEpilogueOffset_(0),
     invalidateEpilogueDataOffset_(0),
     numBailouts_(0),
-    numExceptionBailouts_(0),
     hasUncompiledCallTarget_(false),
     hasSPSInstrumentation_(false),
     runtimeData_(0),
@@ -996,14 +995,8 @@ OptimizeMIR(MIRGenerator *mir)
     if (mir->shouldCancel("Dominator Tree"))
         return false;
 
-    // Aggressive phi elimination must occur before any code elimination. If the
-    // script contains a try-statement, we only compiled the try block and not
-    // the catch or finally blocks, so in this case it's also invalid to use
-    // aggressive phi elimination.
-    Observability observability = graph.hasTryBlock()
-                                  ? ConservativeObservability
-                                  : AggressiveObservability;
-    if (!EliminatePhis(mir, graph, observability))
+    // This must occur before any code elimination.
+    if (!EliminatePhis(mir, graph, AggressiveObservability))
         return false;
     IonSpewPass("Eliminate phis");
     AssertGraphCoherency(graph);
@@ -1386,10 +1379,6 @@ IonCompile(JSContext *cx, JSScript *script,
 
     if (!script->ensureRanAnalysis(cx))
         return AbortReason_Alloc;
-
-    // Try-finally is not yet supported.
-    if (script->analysis()->hasTryFinally())
-        return AbortReason_Disable;
 
     LifoAlloc *alloc = cx->new_<LifoAlloc>(BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
     if (!alloc)

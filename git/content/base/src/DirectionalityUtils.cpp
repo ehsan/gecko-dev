@@ -502,7 +502,7 @@ private:
     nsINode* oldTextNode = static_cast<Element*>(aData);
     Element* rootNode = aEntry->GetKey();
     nsINode* newTextNode = nullptr;
-    if (oldTextNode && rootNode->HasDirAuto()) {
+    if (rootNode->HasDirAuto()) {
       newTextNode = WalkDescendantsSetDirectionFromText(rootNode, true,
                                                         oldTextNode);
     }
@@ -527,11 +527,6 @@ public:
   void UpdateAutoDirection(Directionality aDir)
   {
     mElements.EnumerateEntries(SetNodeDirection, &aDir);
-  }
-
-  void ClearAutoDirection()
-  {
-    mElements.EnumerateEntries(ResetNodeDirection, nullptr);
   }
 
   void ResetAutoDirection(nsINode* aTextNode)
@@ -568,13 +563,6 @@ public:
     MOZ_ASSERT(aTextNode->HasTextNodeDirectionalityMap(),
                "Map missing in UpdateTextNodeDirection");
     GetDirectionalityMap(aTextNode)->UpdateAutoDirection(aDir);
-  }
-
-  static void ClearTextNodeDirection(nsINode* aTextNode)
-  {
-    MOZ_ASSERT(aTextNode->HasTextNodeDirectionalityMap(),
-               "Map missing in ResetTextNodeDirection");
-    GetDirectionalityMap(aTextNode)->ClearAutoDirection();
   }
 
   static void ResetTextNodeDirection(nsINode* aTextNode)
@@ -883,7 +871,7 @@ SetDirectionFromNewTextNode(nsIContent* aTextNode)
 }
 
 void
-ResetDirectionSetByTextNode(nsTextNode* aTextNode, bool aNullParent)
+ResetDirectionSetByTextNode(nsTextNode* aTextNode)
 {
   if (!NodeAffectsDirAutoAncestor(aTextNode)) {
     nsTextNodeDirectionalityMap::EnsureMapIsClearFor(aTextNode);
@@ -892,11 +880,7 @@ ResetDirectionSetByTextNode(nsTextNode* aTextNode, bool aNullParent)
 
   Directionality dir = GetDirectionFromText(aTextNode->GetText());
   if (dir != eDir_NotSet && aTextNode->HasTextNodeDirectionalityMap()) {
-    if (aNullParent) {
-      nsTextNodeDirectionalityMap::ClearTextNodeDirection(aTextNode);
-    } else {
-      nsTextNodeDirectionalityMap::ResetTextNodeDirection(aTextNode);
-    }
+    nsTextNodeDirectionalityMap::ResetTextNodeDirection(aTextNode);
   }
 }
 

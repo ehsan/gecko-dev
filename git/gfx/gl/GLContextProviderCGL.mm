@@ -184,14 +184,12 @@ public:
     CreateTextureImage(const nsIntSize& aSize,
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
-                       TextureImage::Flags aFlags = TextureImage::NoFlags,
-                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+                       TextureImage::Flags aFlags = TextureImage::NoFlags) MOZ_OVERRIDE;
 
     virtual already_AddRefed<TextureImage>
     TileGenFunc(const nsIntSize& aSize,
                 TextureImage::ContentType aContentType,
-                TextureImage::Flags aFlags = TextureImage::NoFlags,
-                TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+                TextureImage::Flags aFlags = TextureImage::NoFlags) MOZ_OVERRIDE;
 
     virtual SharedTextureHandle CreateSharedHandle(SharedTextureShareType shareType,
                                                    void* buffer,
@@ -233,8 +231,7 @@ public:
     CreateTextureImageInternal(const nsIntSize& aSize,
                                TextureImage::ContentType aContentType,
                                GLenum aWrapMode,
-                               TextureImage::Flags aFlags,
-                               TextureImage::ImageFormat aImageFormat);
+                               TextureImage::Flags aFlags);
 
 };
 
@@ -250,8 +247,7 @@ class TextureImageCGL : public BasicTextureImage
     GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
                                              TextureImage::ContentType aContentType,
                                              GLenum aWrapMode,
-                                             TextureImage::Flags aFlags,
-                                             TextureImage::ImageFormat aImageFormat);
+                                             TextureImage::Flags aFlags);
 public:
     ~TextureImageCGL()
     {
@@ -338,10 +334,8 @@ private:
                     GLenum aWrapMode,
                     ContentType aContentType,
                     GLContext* aContext,
-                    TextureImage::Flags aFlags = TextureImage::NoFlags,
-                    TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
-        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType,
-                            aContext, aFlags, aImageFormat)
+                    TextureImage::Flags aFlags = TextureImage::NoFlags)
+        : BasicTextureImage(aTexture, aSize, aWrapMode, aContentType, aContext, aFlags)
         , mPixelBuffer(0)
         , mPixelBufferSize(0)
         , mBoundPixelBuffer(false)
@@ -356,8 +350,7 @@ already_AddRefed<TextureImage>
 GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
                                          TextureImage::ContentType aContentType,
                                          GLenum aWrapMode,
-                                         TextureImage::Flags aFlags,
-                                         TextureImage::ImageFormat aImageFormat)
+                                         TextureImage::Flags aFlags)
 {
     bool useNearestFilter = aFlags & TextureImage::UseNearestFilter;
     MakeCurrent();
@@ -375,8 +368,7 @@ GLContextCGL::CreateTextureImageInternal(const nsIntSize& aSize,
     fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, aWrapMode);
 
     nsRefPtr<TextureImageCGL> teximage
-        (new TextureImageCGL(texture, aSize, aWrapMode, aContentType,
-                             this, aFlags, aImageFormat));
+        (new TextureImageCGL(texture, aSize, aWrapMode, aContentType, this, aFlags));
     return teximage.forget();
 }
 
@@ -384,30 +376,25 @@ already_AddRefed<TextureImage>
 GLContextCGL::CreateTextureImage(const nsIntSize& aSize,
                                  TextureImage::ContentType aContentType,
                                  GLenum aWrapMode,
-                                 TextureImage::Flags aFlags,
-                                 TextureImage::ImageFormat aImageFormat)
+                                 TextureImage::Flags aFlags)
 {
     if (!IsOffscreenSizeAllowed(gfxIntSize(aSize.width, aSize.height)) &&
         gfxPlatform::OffMainThreadCompositingEnabled()) {
       NS_ASSERTION(aWrapMode == LOCAL_GL_CLAMP_TO_EDGE, "Can't support wrapping with tiles!");
-      nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType,
-                                                           aFlags, aImageFormat);
+      nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType, aFlags);
       return t.forget();
     }
 
-    return CreateBasicTextureImage(this, aSize, aContentType, aWrapMode,
-                                   aFlags, aImageFormat);
+    return CreateBasicTextureImage(this, aSize, aContentType, aWrapMode, aFlags);
 }
 
 already_AddRefed<TextureImage>
 GLContextCGL::TileGenFunc(const nsIntSize& aSize,
                           TextureImage::ContentType aContentType,
-                          TextureImage::Flags aFlags,
-                          TextureImage::ImageFormat aImageFormat)
+                          TextureImage::Flags aFlags)
 {
     return CreateTextureImageInternal(aSize, aContentType,
-                                      LOCAL_GL_CLAMP_TO_EDGE, aFlags,
-                                      aImageFormat);
+                                      LOCAL_GL_CLAMP_TO_EDGE, aFlags);
 }
 
 static GLContextCGL *

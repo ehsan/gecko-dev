@@ -7,6 +7,7 @@
 #define mozilla_dom_SVGAElement_h
 
 #include "Link.h"
+#include "nsILink.h"
 #include "nsSVGString.h"
 #include "mozilla/dom/SVGGraphicsElement.h"
 
@@ -19,6 +20,7 @@ namespace dom {
 typedef SVGGraphicsElement SVGAElementBase;
 
 class SVGAElement MOZ_FINAL : public SVGAElementBase,
+                              public nsILink,
                               public Link
 {
 protected:
@@ -35,6 +37,10 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+
+  // nsILink
+  NS_IMETHOD LinkAdded() MOZ_OVERRIDE { return NS_OK; }
+  NS_IMETHOD LinkRemoved() MOZ_OVERRIDE { return NS_OK; }
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
