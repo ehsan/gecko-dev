@@ -36,9 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-%include shared.inc
-@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
-
 .hud-box {
     border-bottom: 1px solid #aaa;
 }
@@ -109,14 +106,12 @@
     width: 100%;
 }
 
-.hud-group:first-child .hud-divider {
-    display: none;
+.hud-filter-cat:-moz-system-metric(windows-default-theme) {
+    color: GrayText;
 }
 
-.hud-filter-cat {
-    color: #6b6b6b;
-    font-weight: bold;
-    margin: 0px 12px 0px 0px;
+.hud-group:first-child .hud-divider {
+    display: none;
 }
 
 /* JSTerm Styles */
@@ -154,7 +149,7 @@
     width: 98%;
     font-family: monospace;
     font-size: 9pt;
-    background: url("chrome://global/skin/icons/commandline.png") 4px 2px
+    background: url("chrome://global/skin/icons/commandline.png") 4px 3px
         no-repeat !important;
     border: none !important;
     padding: 0px 0px 0px 16px !important;
@@ -169,12 +164,7 @@
     font-size: 1.2em;
 }
 
-/* these need to be revised ... */
 .hud-console-filter-toolbar {
-    background: @scopeBarBackground@ !important;
-    border-bottom: @scopeBarSeparatorBorder@;
-    padding: 0px 1px;
-    -moz-appearance: none !important;
+    padding: 1px 0px;
     -moz-box-align: center;
 }
-
