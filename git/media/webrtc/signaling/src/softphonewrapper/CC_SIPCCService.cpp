@@ -6,7 +6,7 @@
 #include <windows.h> //plat_api.h seems to need some of the types defined in Windows.h (e.g. boolean)
 #endif
 
-#include "CSFLog.h"
+#include "CSFLogStream.h"
 
 #include "CC_CallTypes.h"
 #include "CC_SIPCCService.h"
@@ -540,7 +540,7 @@ void CC_SIPCCService::applyLoggingMask (int newMask)
                     "Ignoring unsupported bits.", newMask);
     }
 
-    CSFLogDebug( logTag, "Applying a sipcc log mask = %d", newMask);
+    CSFLogDebugS( logTag, "Applying a sipcc log mask = " << newMask);
 
     loggingMask = newMask & (HAS_21_BITS);
 
@@ -568,18 +568,16 @@ void CC_SIPCCService::endAllActiveCalls()
 			CC_CallInfoPtr callInfo = call->getCallInfo();
 			if(callInfo->hasCapability(CC_CallCapabilityEnum::canEndCall))
 			{
-				CSFLogDebug( logTag, "endAllActiveCalls(): ending call %s -> %s [%s]",
-					callInfo->getCallingPartyNumber().c_str(),
-                    callInfo->getCalledPartyNumber().c_str(),
-					call_state_getname(callInfo->getCallState()));
+				CSFLogDebugS( logTag, "endAllActiveCalls(): ending call " <<
+						callInfo->getCallingPartyNumber() << " -> " << callInfo->getCalledPartyNumber() <<
+						" [" << call_state_getname(callInfo->getCallState()) << "]");
 				call->endCall();
 			}
 			else if(callInfo->hasCapability(CC_CallCapabilityEnum::canResume) && callInfo->getCallState() != REMHOLD)
 			{
-				CSFLogDebug( logTag, "endAllActiveCalls(): resume then ending call %s -> %s, [%s]",
-					callInfo->getCallingPartyNumber().c_str(),
-                    callInfo->getCalledPartyNumber().c_str(),
-					call_state_getname(callInfo->getCallState()));
+				CSFLogDebugS( logTag, "endAllActiveCalls(): resume then ending call " <<
+						callInfo->getCallingPartyNumber() << " -> " << callInfo->getCalledPartyNumber() <<
+						" [" << call_state_getname(callInfo->getCallState()) << "]");
 				call->muteAudio();
 				call->resume(callInfo->getVideoDirection());
 				call->endCall();
@@ -622,10 +620,8 @@ void CC_SIPCCService::onDeviceEvent(ccapi_device_event_e type, cc_device_handle_
         return;
     }
 
-    CSFLogInfo( logTag, "onDeviceEvent( %s, %s, [%s] )",
-      device_event_getname(type),
-      devicePtr->toString().c_str(),
-      infoPtr->getDeviceName().c_str());
+    CSFLogInfoS( logTag, "onDeviceEvent(" << device_event_getname(type) << ", " << devicePtr->toString() <<
+    		", [" << infoPtr->getDeviceName() << "] )");
     _self->notifyDeviceEventObservers(type, devicePtr, infoPtr);
 }
 
@@ -655,10 +651,8 @@ void CC_SIPCCService::onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_re
          return;
      }
 
-     CSFLogInfo( logTag, "onFeatureEvent( %s, %s, [%s] )",
-         device_event_getname(type),
-         devicePtr->toString().c_str(),
-         infoPtr->getDisplayName().c_str());
+     CSFLogInfoS( logTag, "onFeatureEvent(" << device_event_getname(type) << ", " << devicePtr->toString() <<
+    		 ", [" << infoPtr->getDisplayName() << "] )");
      _self->notifyFeatureEventObservers(type, devicePtr, infoPtr);
 }
 
@@ -686,9 +680,8 @@ void CC_SIPCCService::onLineEvent(ccapi_line_event_e eventType, cc_lineid_t line
         return;
     }
 
-    CSFLogInfo( logTag, "onLineEvent(%s, %s, [%d|%s]",
-        line_event_getname(eventType), linePtr->toString().c_str(),
-    	infoPtr->getNumber().c_str(), (infoPtr->getRegState() ? "INS" : "OOS"));
+    CSFLogInfoS( logTag, "onLineEvent(" << line_event_getname(eventType) << ", " << linePtr->toString() <<
+    		", [" << infoPtr->getNumber() << "|" << (infoPtr->getRegState() ? "INS" : "OOS") << "] )");
     _self->notifyLineEventObservers(eventType, linePtr, infoPtr);
 }
 
@@ -719,9 +712,8 @@ void CC_SIPCCService::onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t
     infoPtr->setMediaData(callPtr->getMediaData());
 
 	set<CSF::CC_CallCapabilityEnum::CC_CallCapability> capSet = infoPtr->getCapabilitySet();
-    CSFLogInfo( logTag, "onCallEvent(%s, %s, [%s|%s]",
-        call_event_getname(eventType), callPtr->toString().c_str(),
-    	call_state_getname(infoPtr->getCallState()), CC_CallCapabilityEnum::toString(capSet).c_str());
+    CSFLogInfoS( logTag, "onCallEvent(" << call_event_getname(eventType) << ", " << callPtr->toString() <<
+    		", [" << call_state_getname(infoPtr->getCallState()) << "|" << CC_CallCapabilityEnum::toString(capSet) << "] )");
     _self->notifyCallEventObservers(eventType, callPtr, infoPtr);
 }
 
@@ -792,8 +784,7 @@ void CC_SIPCCService::notifyCallEventObservers (ccapi_call_event_e eventType, CC
 // method are not safe except from ccapp_thread.
 void CC_SIPCCService::registerStream(cc_call_handle_t call, int streamId, bool isVideo)
 {
-    CSFLogDebug( logTag, "registerStream for call: %d strId=%s video=%s",
-        call, streamId, isVideo ? "TRUE" : "FALSE");
+    CSFLogDebugS( logTag, "registerStream for call: " << call << " strId=" << streamId << " video=" << isVideo);
 	// get the object corresponding to the handle
     CC_SIPCCCallPtr callPtr = CC_SIPCCCall::wrap(call);
     if (callPtr != NULL)
@@ -802,8 +793,7 @@ void CC_SIPCCService::registerStream(cc_call_handle_t call, int streamId, bool i
     }
     else
     {
-        CSFLogError( logTag, "registerStream(), No call found for allocated Stream: %d, %s",
-            streamId, isVideo ? "TRUE" : "FALSE");
+        CSFLogErrorS( logTag, "registerStream(), No call found for allocated Stream:" << streamId << ", " << isVideo);
     }
 }
 
@@ -820,7 +810,7 @@ void CC_SIPCCService::deregisterStream(cc_call_handle_t call, int streamId)
     }
     else
     {
-        CSFLogError( logTag, "deregisterStream(), No call found for deallocated Stream: %d", streamId);
+        CSFLogErrorS( logTag, "deregisterStream(), No call found for deallocated Stream:" << streamId);
     }
 }
 
@@ -972,7 +962,7 @@ void CC_SIPCCService::onKeyFrameRequested( int stream )
 	    {
 			if ((entry->first==stream) && (entry->second.isVideo == true))
 			{
-                CSFLogDebug(logTag, "Send SIP message to originator for stream id %d", stream);
+                CSFLogDebugS(logTag, "Send SIP message to originator for stream id" << stream);
 				if ((*it)->sendInfo ( "","application/media_control+xml", "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n"
 						"<media_control>\n"
 						"\n"

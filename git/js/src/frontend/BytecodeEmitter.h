@@ -18,7 +18,6 @@
 #include "jsprvtd.h"
 #include "jspubtd.h"
 
-#include "frontend/BytecodeCompiler.h"
 #include "frontend/Parser.h"
 #include "frontend/ParseMaps.h"
 #include "frontend/SharedContext.h"
@@ -84,7 +83,7 @@ struct BytecodeEmitter
 
     Parser          *const parser;  /* the parser */
 
-    HandleScript    evalCaller;     /* scripted caller info for eval and dbgapi */
+    AbstractFramePtr callerFrame;   /* scripted caller frame for eval and dbgapi */
 
     StmtInfoBCE     *topStmt;       /* top of statement info stack */
     StmtInfoBCE     *topScopeStmt;  /* top lexical scope statement */
@@ -127,7 +126,7 @@ struct BytecodeEmitter
                                            the field |selfHostingMode| in Parser.h for details. */
 
     BytecodeEmitter(BytecodeEmitter *parent, Parser *parser, SharedContext *sc,
-                    HandleScript script, HandleScript evalCaller, bool hasGlobalScope,
+                    HandleScript script, AbstractFramePtr callerFrame, bool hasGlobalScope,
                     unsigned lineno, bool selfHostingMode = false);
     bool init();
 

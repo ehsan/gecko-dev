@@ -47,8 +47,7 @@ SetSourceMap(JSContext *cx, TokenStream &tokenStream, ScriptSource *ss, Unrooted
 }
 
 UnrootedScript
-frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
-                        HandleScript evalCaller,
+frontend::CompileScript(JSContext *cx, HandleObject scopeChain, AbstractFramePtr callerFrame,
                         const CompileOptions &options,
                         const jschar *chars, size_t length,
                         JSString *source_ /* = NULL */,
@@ -74,8 +73,8 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
      * The scripted callerFrame can only be given for compile-and-go scripts
      * and non-zero static level requires callerFrame.
      */
-    JS_ASSERT_IF(evalCaller, options.compileAndGo);
-    JS_ASSERT_IF(staticLevel != 0, evalCaller);
+    JS_ASSERT_IF(callerFrame, options.compileAndGo);
+    JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
     if (!CheckLength(cx, length))
         return UnrootedScript(NULL);
@@ -109,10 +108,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
     if (!pc.init())
         return UnrootedScript(NULL);
 
-    bool savedCallerFun =
-        options.compileAndGo &&
-        evalCaller &&
-        (evalCaller->function() || evalCaller->savedCallerFun);
+    bool savedCallerFun = options.compileAndGo && callerFrame && callerFrame.isFunctionFrame();
     Rooted<JSScript*> script(cx, JSScript::Create(cx, NullPtr(), savedCallerFun,
                                                   options, staticLevel, ss, 0, length));
     if (!script)
@@ -129,13 +125,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
     JS_ASSERT_IF(globalScope, globalScope->isNative());
     JS_ASSERT_IF(globalScope, JSCLASS_HAS_GLOBAL_FLAG_AND_SLOTS(globalScope->getClass()));
 
-    BytecodeEmitter bce(/* parent = */ NULL, &parser, &globalsc, script, evalCaller, !!globalScope,
+    BytecodeEmitter bce(/* parent = */ NULL, &parser, &globalsc, script, callerFrame, !!globalScope,
                         options.lineno, options.selfHostingMode);
     if (!bce.init())
         return UnrootedScript(NULL);
 
     /* If this is a direct call to eval, inherit the caller's strictness.  */
-    if (evalCaller && evalCaller->strict)
+    if (callerFrame && callerFrame.script()->strict)
         globalsc.strict = true;
 
     if (options.compileAndGo) {
@@ -150,13 +146,13 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
                 return UnrootedScript(NULL);
         }
 
-        if (evalCaller && evalCaller->functionOrCallerFunction()) {
+        if (callerFrame && callerFrame.isFunctionFrame()) {
             /*
              * An eval script in a caller frame needs to have its enclosing
              * function captured in case it refers to an upvar, and someone
              * wishes to decompile it while it's running.
              */
-            JSFunction *fun = evalCaller->functionOrCallerFunction();
+            JSFunction *fun = callerFrame.fun();
             ObjectBox *funbox = parser.newFunctionBox(fun, &pc, fun->strict());
             if (!funbox)
                 return UnrootedScript(NULL);
@@ -198,12 +194,11 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
     if (!SetSourceMap(cx, tokenStream, ss, script))
         return UnrootedScript(NULL);
 
-    if (evalCaller && evalCaller->functionOrCallerFunction()) {
-        JSFunction *fun = evalCaller->functionOrCallerFunction();
+    if (callerFrame && callerFrame.isFunctionFrame()) {
         HandlePropertyName arguments = cx->names().arguments;
         for (AtomDefnRange r = pc.lexdeps->all(); !r.empty(); r.popFront()) {
             if (r.front().key() == arguments) {
-                if (fun->hasRest()) {
+                if (callerFrame.fun()->hasRest()) {
                     // It's an error to use |arguments| in a function that has
                     // a rest parameter.
                     parser.reportError(NULL, JSMSG_ARGUMENTS_AND_REST);
@@ -211,7 +206,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
                 }
                 // Force construction of arguments objects for functions that
                 // use 'arguments' within an eval.
-                RootedScript script(cx, fun->nonLazyScript());
+                RootedScript script(cx, callerFrame.fun()->nonLazyScript());
                 if (script->argumentsHasVarBinding()) {
                     if (!JSScript::argumentsOptimizationFailed(cx, script))
                         return UnrootedScript(NULL);
@@ -223,7 +218,7 @@ frontend::CompileScript(JSContext *cx, HandleObject scopeChain,
         // of arguments objects for the caller script and any other scripts it is
         // transitively nested inside.
         if (pc.sc->hasDebuggerStatement()) {
-            RootedObject scope(cx, scopeChain);
+            RootedObject scope(cx, callerFrame.scopeChain());
             while (scope->isScope() || scope->isDebugScope()) {
                 if (scope->isCall() && !scope->asCall().isForEval()) {
                     RootedScript script(cx, scope->asCall().callee().nonLazyScript());
@@ -329,7 +324,7 @@ frontend::CompileFunctionBody(JSContext *cx, HandleFunction fun, CompileOptions 
     }
 
     BytecodeEmitter funbce(/* parent = */ NULL, &parser, funbox, script,
-                           /* evalCaller = */ NullPtr(),
+                           /* callerFrame = */ NullFramePtr(),
                            /* hasGlobalScope = */ false, options.lineno);
     if (!funbce.init())
         return false;

@@ -69,15 +69,11 @@ function message(print, level) {
 }
 
 function errorMessage(print, e) {
-  // Some platform exception doesn't have name nor message but
-  // can be stringified to a meaningfull message
   var fullString = ("An exception occurred.\n" +
-                   (e.name ? e.name + ": " : "") +
-                   (e.message ? e.message : e.toString()) + "\n" +
-                   (e.fileName ? traceback.sourceURI(e.fileName) + " " +
-                                 e.lineNumber + "\n"
-                               : "") +
-                   traceback.format(e));
+                  e.name + ": " + e.message + "\n" +
+                  traceback.sourceURI(e.fileName) + " " +
+                  e.lineNumber + "\n" +
+                  traceback.format(e));
 
   message(print, "error", fullString);
 }

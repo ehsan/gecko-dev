@@ -183,9 +183,9 @@ private:
   nsRefPtr<nsIdleServiceDaily> mDailyIdle;
 
   /**
-   * Number of observers currently in idle mode.
+   * Boolean indicating if any observers are in idle mode
    */
-  uint32_t mIdleObserverCount;
+  bool mAnyObserverIdle;
 
   /**
    * Delta time from last non idle time to when the next observer should switch
