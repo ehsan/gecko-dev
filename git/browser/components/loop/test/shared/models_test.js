@@ -56,13 +56,21 @@ describe("loop.shared.models", function() {
     });
 
     describe("constructed", function() {
-      var conversation;
+      var conversation, fakeClient, fakeBaseServerUrl,
+          requestCallInfoStub, requestCallsInfoStub;
 
       beforeEach(function() {
         conversation = new sharedModels.ConversationModel({}, {
           sdk: fakeSDK
         });
         conversation.set("loopToken", "fakeToken");
+        fakeBaseServerUrl = "http://fakeBaseServerUrl";
+        fakeClient = {
+          requestCallInfo: sandbox.stub(),
+          requestCallsInfo: sandbox.stub()
+        };
+        requestCallInfoStub = fakeClient.requestCallInfo;
+        requestCallsInfoStub = fakeClient.requestCallsInfo;
       });
 
       describe("#incoming", function() {
