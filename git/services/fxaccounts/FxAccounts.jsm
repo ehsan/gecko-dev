@@ -385,6 +385,15 @@ InternalMethods.prototype = {
     Services.obs.notifyObservers(null, topic, null);
   },
 
+  /**
+   * Give xpcshell tests an override point for duration testing. This is
+   * necessary because the tests need to manipulate the date in order to
+   * simulate certificate expiration.
+   */
+  now: function() {
+    return Date.now();
+  },
+
   pollEmailStatus: function pollEmailStatus(sessionToken, why) {
     let myGenerationCount = this.generationCount;
     log.debug("entering pollEmailStatus: " + why + " " + myGenerationCount);
@@ -479,20 +488,6 @@ this.FxAccounts = function(mockInternal) {
 }
 this.FxAccounts.prototype = Object.freeze({
   version: DATA_FORMAT_VERSION,
-
-  now: function() {
-    if (this.internal) {
-      return this.internal.now();
-    }
-    return internal.now();
-  },
-
-  get localtimeOffsetMsec() {
-    if (this.internal) {
-      return this.internal.localtimeOffsetMsec;
-    }
-    return internal.localtimeOffsetMsec;
-  },
 
   // set() makes sure that polling is happening, if necessary.
   // get() does not wait for verification, and returns an object even if
@@ -625,6 +620,7 @@ this.FxAccounts.prototype = Object.freeze({
     return internal.whenVerified(userData);
   },
 
+
   /**
    * Sign the current user out.
    *
@@ -642,26 +638,7 @@ this.FxAccounts.prototype = Object.freeze({
       throw new Error("Firefox Accounts server must use HTTPS");
     }
     return url;
-  },
-
-  // Returns a promise that resolves with the URL to use to force a re-signin
-  // of the current account.
-  promiseAccountsForceSigninURI: function() {
-    let url = Services.urlFormatter.formatURLPref("identity.fxaccounts.remote.force_auth.uri");
-    if (!/^https:/.test(url)) { // Comment to un-break emacs js-mode highlighting
-      throw new Error("Firefox Accounts server must use HTTPS");
-    }
-    // but we need to append the email address onto a query string.
-    return this.getSignedInUser().then(accountData => {
-      if (!accountData) {
-        return null;
-      }
-      let newQueryPortion = url.indexOf("?") == -1 ? "?" : "&";
-      newQueryPortion += "email=" + encodeURIComponent(accountData.email);
-      return url + newQueryPortion;
-    });
   }
-
 });
 
 /**

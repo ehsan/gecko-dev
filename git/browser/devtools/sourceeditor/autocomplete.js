@@ -45,22 +45,6 @@ function setupAutoCompletion(ctx, walker) {
 
       return win.CodeMirror.Pass;
     },
-    "Up": cm => {
-      if (popup && popup.isOpen) {
-        cycleSuggestions(ed, true);
-        return;
-      }
-
-      return win.CodeMirror.Pass;
-    },
-    "Down": cm => {
-      if (popup && popup.isOpen) {
-        cycleSuggestions(ed);
-        return;
-      }
-
-      return win.CodeMirror.Pass;
-    },
   };
   keyMap[Editor.accel("Space")] = cm => autoComplete(ctx);
   cm.addKeyMap(keyMap);
@@ -163,9 +147,8 @@ function cycleSuggestions(ed, reverse) {
 function onEditorKeypress(ed, event) {
   let private = privates.get(ed);
   switch (event.keyCode) {
-    case event.DOM_VK_ESCAPE:
-      if (private.popup.isOpen)
-        event.preventDefault();
+    case event.DOM_VK_UP:
+    case event.DOM_VK_DOWN:
     case event.DOM_VK_LEFT:
     case event.DOM_VK_RIGHT:
     case event.DOM_VK_HOME:
@@ -174,6 +157,7 @@ function onEditorKeypress(ed, event) {
     case event.DOM_VK_DELETE:
     case event.DOM_VK_ENTER:
     case event.DOM_VK_RETURN:
+    case event.DOM_VK_ESCAPE:
       private.doNotAutocomplete = true;
       private.popup.hidePopup();
       break;

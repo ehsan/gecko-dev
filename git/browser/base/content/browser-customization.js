@@ -100,6 +100,7 @@ let CustomizationHandler = {
     if (gURLBar) {
       URLBarSetURI();
       XULBrowserWindow.asyncUpdateUI();
+      BookmarkingUI.updateStarState();
     }
 
     // Re-enable parts of the UI we disabled during the dialog

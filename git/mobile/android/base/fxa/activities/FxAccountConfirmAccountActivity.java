@@ -17,7 +17,6 @@ import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
 import org.mozilla.gecko.fxa.login.Engaged;
 import org.mozilla.gecko.fxa.login.State;
 import org.mozilla.gecko.fxa.login.State.StateLabel;
-import org.mozilla.gecko.sync.setup.activities.ActivityUtils;
 
 import android.content.Context;
 import android.os.Bundle;
@@ -57,14 +56,6 @@ public class FxAccountConfirmAccountActivity extends FxAccountAbstractActivity i
     verificationLinkTextView = (TextView) ensureFindViewById(null, R.id.verification_link_text, "verification link text");
     resendLink = ensureFindViewById(null, R.id.resend_confirmation_email_link, "resend confirmation email link");
     resendLink.setOnClickListener(this);
-
-    View backToBrowsingButton = ensureFindViewById(null, R.id.button, "back to browsing button");
-    backToBrowsingButton.setOnClickListener(new OnClickListener() {
-      @Override
-      public void onClick(View v) {
-        ActivityUtils.openURLInFennec(v.getContext(), null);
-      }
-    });
   }
 
   @Override

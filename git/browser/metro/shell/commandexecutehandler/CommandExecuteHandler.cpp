@@ -103,7 +103,6 @@ public:
   }
 
   bool RequestMet() { return mRequestMet; }
-  void SetRequestMet();
   long RefCount() { return mRef; }
   void HeartBeat();
 
@@ -387,6 +386,8 @@ public:
 private:
   ~CExecuteCommandVerb()
   {
+    SafeRelease(&mShellItemArray);
+    SafeRelease(&mUnkSite);
   }
 
   void LaunchDesktopBrowser();
@@ -664,12 +665,12 @@ CExecuteCommandVerb::HeartBeat()
       !IsMetroProcessRunning()) {
     mDelayedLaunchType = NONE;
     LaunchDesktopBrowser();
-    SetRequestMet();
+    mRequestMet = true;
   }
   if (mDelayedLaunchType == METRO && !TestForUpdateLock()) {
     mDelayedLaunchType = NONE;
     LaunchMetroBrowser();
-    SetRequestMet();
+    mRequestMet = true;
   }
 }
 
@@ -747,13 +748,15 @@ CExecuteCommandVerb::LaunchMetroBrowser()
   return true;
 }
 
-void CExecuteCommandVerb::SetRequestMet()
+class AutoSetRequestMet
 {
-  SafeRelease(&mShellItemArray);
-  SafeRelease(&mUnkSite);
-  mRequestMet = true;
-  Log(L"Request met, exiting.");
-}
+public:
+  explicit AutoSetRequestMet(bool* aFlag) :
+    mFlag(aFlag) {}
+  ~AutoSetRequestMet() { if (mFlag) *mFlag = true; }
+private:
+  bool* mFlag;
+};
 
 IFACEMETHODIMP CExecuteCommandVerb::Execute()
 {
@@ -761,7 +764,7 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
 
   if (!mTarget.GetLength()) {
     // We shut down when this flips to true
-    SetRequestMet();
+    mRequestMet = true;
     return E_FAIL;
   }
 
@@ -781,7 +784,7 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
   if (mRequestType == DESKTOP_RESTART ||
       (mRequestType == DEFAULT_LAUNCH && DefaultLaunchIsDesktop())) {
     LaunchDesktopBrowser();
-    SetRequestMet();
+    mRequestMet = true;
     return S_OK;
   }
 
@@ -793,7 +796,7 @@ IFACEMETHODIMP CExecuteCommandVerb::Execute()
   }
 
   LaunchMetroBrowser();
-  SetRequestMet();
+  mRequestMet = true;
   return S_OK;
 }
 

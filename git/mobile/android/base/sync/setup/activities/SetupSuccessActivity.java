@@ -5,9 +5,11 @@
 package org.mozilla.gecko.sync.setup.activities;
 
 import org.mozilla.gecko.R;
+import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
@@ -40,6 +42,8 @@ public class SetupSuccessActivity extends SyncActivity {
   }
 
   public void launchBrowser(View target) {
-    ActivityUtils.openURLInFennec(this, null);
+    Intent intent = new Intent(Intent.ACTION_MAIN);
+    intent.setClassName(GlobalConstants.BROWSER_INTENT_PACKAGE, GlobalConstants.BROWSER_INTENT_CLASS);
+    startActivity(intent);
   }
 }
