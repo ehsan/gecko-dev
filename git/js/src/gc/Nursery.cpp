@@ -8,7 +8,6 @@
 #include "gc/Nursery-inl.h"
 
 #include "mozilla/IntegerPrintfMacros.h"
-#include "mozilla/Move.h"
 
 #include "jscompartment.h"
 #include "jsgc.h"
@@ -26,7 +25,7 @@
 #include "vm/TypedArrayObject.h"
 #include "vm/TypeInference.h"
 
-#include "jsobjinlines.h"
+#include "jsgcinlines.h"
 
 #include "vm/NativeObject-inl.h"
 
@@ -36,19 +35,6 @@ using namespace gc;
 using mozilla::ArrayLength;
 using mozilla::PodCopy;
 using mozilla::PodZero;
-
-struct js::Nursery::FreeHugeSlotsTask : public GCParallelTask
-{
-    explicit FreeHugeSlotsTask(FreeOp *fop) : fop_(fop) {}
-    bool init() { return slots_.init(); }
-    void transferSlotsToFree(HugeSlotsSet &slotsToFree);
-
-  private:
-    FreeOp *fop_;
-    HugeSlotsSet slots_;
-
-    virtual void run() MOZ_OVERRIDE;
-};
 
 bool
 js::Nursery::init(uint32_t maxNurseryBytes)
@@ -65,10 +51,6 @@ js::Nursery::init(uint32_t maxNurseryBytes)
 
     void *heap = MapAlignedPages(nurserySize(), Alignment);
     if (!heap)
-        return false;
-
-    freeHugeSlotsTask = js_new<FreeHugeSlotsTask>(runtime()->defaultFreeOp());
-    if (!freeHugeSlotsTask || !freeHugeSlotsTask->init())
         return false;
 
     heapStart_ = uintptr_t(heap);
@@ -98,8 +80,6 @@ js::Nursery::~Nursery()
 {
     if (start())
         UnmapPages((void *)start(), nurserySize());
-
-    js_delete(freeHugeSlotsTask);
 }
 
 void
@@ -442,7 +422,7 @@ GetObjectAllocKindForCopy(const Nursery &nursery, JSObject *obj)
 
     // Unboxed plain objects are sized according to the data they store.
     if (obj->is<UnboxedPlainObject>()) {
-        size_t nbytes = obj->as<UnboxedPlainObject>().layoutDontCheckGeneration().size();
+        size_t nbytes = obj->as<UnboxedPlainObject>().layout().size();
         return GetGCObjectKindForBytes(UnboxedPlainObject::offsetOfData() + nbytes);
     }
 
@@ -691,15 +671,14 @@ js::Nursery::moveObjectToTenured(MinorCollectionTracer *trc,
         NativeObject *ndst = &dst->as<NativeObject>(), *nsrc = &src->as<NativeObject>();
         tenuredSize += moveSlotsToTenured(ndst, nsrc, dstKind);
         tenuredSize += moveElementsToTenured(ndst, nsrc, dstKind);
-
-        // The shape's list head may point into the old object. This can only
-        // happen for dictionaries, which are native objects.
-        if (&nsrc->shape_ == ndst->shape_->listp)
-            ndst->shape_->listp = &ndst->shape_;
     }
 
     if (src->is<InlineTypedObject>())
         InlineTypedObject::objectMovedDuringMinorGC(trc, dst, src);
+
+    /* The shape's list head may point into the old object. */
+    if (&src->shape_ == dst->shape_->listp)
+        dst->shape_->listp = &dst->shape_;
 
     return tenuredSize;
 }
@@ -985,47 +964,12 @@ js::Nursery::collect(JSRuntime *rt, JS::gcreason::Reason reason, ObjectGroupList
 #undef TIME_TOTAL
 
 void
-js::Nursery::FreeHugeSlotsTask::transferSlotsToFree(HugeSlotsSet &slotsToFree)
-{
-    // Transfer the contents of the source set to the task's slots_ member by
-    // swapping the sets, which also clears the source.
-    MOZ_ASSERT(!isRunning());
-    MOZ_ASSERT(slots_.empty());
-    mozilla::Swap(slots_, slotsToFree);
-}
-
-void
-js::Nursery::FreeHugeSlotsTask::run()
-{
-    for (HugeSlotsSet::Range r = slots_.all(); !r.empty(); r.popFront())
-        fop_->free_(r.front());
-    slots_.clear();
-}
-
-void
 js::Nursery::freeHugeSlots()
 {
-    if (hugeSlots.empty())
-        return;
-
-    bool started;
-    {
-        AutoLockHelperThreadState lock;
-        freeHugeSlotsTask->joinWithLockHeld();
-        freeHugeSlotsTask->transferSlotsToFree(hugeSlots);
-        started = freeHugeSlotsTask->startWithLockHeld();
-    }
-
-    if (!started)
-        freeHugeSlotsTask->runFromMainThread(runtime());
-
-    MOZ_ASSERT(hugeSlots.empty());
-}
-
-void
-js::Nursery::waitBackgroundFreeEnd()
-{
-    freeHugeSlotsTask->join();
+    FreeOp *fop = runtime()->defaultFreeOp();
+    for (HugeSlotsSet::Range r = hugeSlots.all(); !r.empty(); r.popFront())
+        fop->free_(r.front());
+    hugeSlots.clear();
 }
 
 void

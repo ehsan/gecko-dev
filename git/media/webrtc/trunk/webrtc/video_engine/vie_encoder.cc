@@ -636,7 +636,6 @@ void ViEEncoder::DeliverFrame(int id,
     return;
   }
 #endif
-  // XXX fix VP9 (bug 1138629)
 
 #ifdef MOZ_WEBRTC_OMX
   // XXX effectively disable resolution changes until Bug 1067437 is resolved with new DSP code

@@ -15,9 +15,10 @@
 namespace js {
 /* 2^32-2, inclusive */
 const uint32_t MAX_ARRAY_INDEX = 4294967294u;
+}
 
 inline bool
-IdIsIndex(jsid id, uint32_t *indexp)
+js_IdIsIndex(jsid id, uint32_t *indexp)
 {
     if (JSID_IS_INT(id)) {
         int32_t i = JSID_TO_INT(id);
@@ -33,7 +34,12 @@ IdIsIndex(jsid id, uint32_t *indexp)
 }
 
 extern JSObject *
-InitArrayClass(JSContext *cx, js::HandleObject obj);
+js_InitArrayClass(JSContext *cx, js::HandleObject obj);
+
+extern bool
+js_InitContextBusyArrayTable(JSContext *cx);
+
+namespace js {
 
 class ArrayObject;
 
@@ -101,7 +107,9 @@ NewDenseCopyOnWriteArray(JSContext *cx, HandleArrayObject templateObject, gc::In
  * increase the length of the array.
  */
 extern bool
-WouldDefinePastNonwritableLength(HandleNativeObject obj, uint32_t index);
+WouldDefinePastNonwritableLength(ExclusiveContext *cx,
+                                 HandleObject obj, uint32_t index, bool strict,
+                                 bool *definesPast);
 
 /*
  * Canonicalize |vp| to a uint32_t value potentially suitable for use as an
@@ -123,7 +131,7 @@ ObjectMayHaveExtraIndexedProperties(JSObject *obj);
  * Copy 'length' elements from aobj to vp.
  *
  * This function assumes 'length' is effectively the result of calling
- * GetLengthProperty on aobj. vp must point to rooted memory.
+ * js_GetLengthProperty on aobj. vp must point to rooted memory.
  */
 extern bool
 GetElements(JSContext *cx, HandleObject aobj, uint32_t length, js::Value *vp);
@@ -187,15 +195,15 @@ NewbornArrayPush(JSContext *cx, HandleObject obj, const Value &v);
 extern ArrayObject *
 ArrayConstructorOneArg(JSContext *cx, HandleObjectGroup group, int32_t lengthInt);
 
+} /* namespace js */
+
 #ifdef DEBUG
 extern bool
-ArrayInfo(JSContext *cx, unsigned argc, Value *vp);
+js_ArrayInfo(JSContext *cx, unsigned argc, js::Value *vp);
 #endif
 
 /* Array constructor native. Exposed only so the JIT can know its address. */
-extern bool
-ArrayConstructor(JSContext *cx, unsigned argc, Value *vp);
-
-} /* namespace js */
+bool
+js_Array(JSContext *cx, unsigned argc, js::Value *vp);
 
 #endif /* jsarray_h */

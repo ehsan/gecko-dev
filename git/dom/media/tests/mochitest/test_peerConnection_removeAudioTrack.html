@@ -18,6 +18,7 @@
       [
         function PC_LOCAL_REMOVE_AUDIO_TRACK(test) {
           test.setOfferOptions({ offerToReceiveAudio: true });
+          test.setMediaConstraints([], [{audio: true}]);
           return test.pcLocal.removeSender(0);
         },
       ]

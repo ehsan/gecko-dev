@@ -297,9 +297,6 @@ public:
 
   static bool ShuttingDown() { return sShuttingDown; }
 
-protected:
-  ~VibratorRunnable() {}
-
 private:
   Monitor mMonitor;
 
@@ -474,7 +471,7 @@ public:
 
 } // anonymous namespace
 
-class BatteryObserver MOZ_FINAL : public IUeventObserver
+class BatteryObserver : public IUeventObserver
 {
 public:
   NS_INLINE_DECL_REFCOUNTING(BatteryObserver)
@@ -497,9 +494,6 @@ public:
       NS_DispatchToMainThread(mUpdater);
     }
   }
-
-protected:
-  ~BatteryObserver() {}
 
 private:
   nsRefPtr<BatteryUpdater> mUpdater;
@@ -1178,10 +1172,6 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
-
-protected:
-  ~OomVictimLogger() {}
-
 private:
   double mLastLineChecked;
   ScopedFreePtr<regex_t> mRegexes;
@@ -1748,10 +1738,11 @@ EnsureKernelLowMemKillerParamsSet()
 void
 SetProcessPriority(int aPid,
                    ProcessPriority aPriority,
+                   ProcessCPUPriority aCPUPriority,
                    uint32_t aBackgroundLRU)
 {
-  HAL_LOG("SetProcessPriority(pid=%d, priority=%d, LRU=%u)",
-          aPid, aPriority, aBackgroundLRU);
+  HAL_LOG("SetProcessPriority(pid=%d, priority=%d, cpuPriority=%d, LRU=%u)",
+          aPid, aPriority, aCPUPriority, aBackgroundLRU);
 
   // If this is the first time SetProcessPriority was called, set the kernel's
   // OOM parameters according to our prefs.

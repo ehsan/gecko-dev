@@ -671,7 +671,10 @@ NS_METHOD nsWindow::Destroy()
    * On windows the LayerManagerOGL destructor wants the widget to be around for
    * cleanup. It also would like to have the HWND intact, so we nullptr it here.
    */
-  DestroyLayerManager();
+  if (mLayerManager) {
+    mLayerManager->Destroy();
+  }
+  mLayerManager = nullptr;
 
   /* We should clear our cached resources now and not wait for the GC to
    * delete the nsWindow. */
@@ -1698,6 +1701,8 @@ NS_METHOD nsWindow::ConstrainPosition(bool aAllowSlop,
   int32_t logWidth = std::max<int32_t>(NSToIntRound(mBounds.width / dpiScale), 1);
   int32_t logHeight = std::max<int32_t>(NSToIntRound(mBounds.height / dpiScale), 1);
 
+  bool doConstrain = false; // whether we have enough info to do anything
+
   /* get our playing field. use the current screen, or failing that
     for any reason, use device caps for the default screen. */
   RECT screenRect;
@@ -1721,6 +1726,7 @@ NS_METHOD nsWindow::ConstrainPosition(bool aAllowSlop,
       screenRect.right = left + width;
       screenRect.top = top;
       screenRect.bottom = top + height;
+      doConstrain = true;
     }
   } else {
     if (mWnd) {
@@ -1734,6 +1740,7 @@ NS_METHOD nsWindow::ConstrainPosition(bool aAllowSlop,
             screenRect.right = GetSystemMetrics(SM_CXFULLSCREEN);
             screenRect.bottom = GetSystemMetrics(SM_CYFULLSCREEN);
           }
+          doConstrain = true;
         }
         ::ReleaseDC(mWnd, dc);
       }
@@ -2694,8 +2701,6 @@ void nsWindow::UpdateGlass()
   case eTransparencyGlass:
     policy = DWMNCRP_ENABLED;
     break;
-  default:
-    break;
   }
 
   PR_LOG(gWindowsLog, PR_LOG_ALWAYS,
@@ -3321,7 +3326,6 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
   }
 
   if (!mLayerManager) {
-    MOZ_ASSERT(!mCompositorParent && !mCompositorChild);
     mLayerManager = CreateBasicLayerManager();
   }
 
@@ -3664,13 +3668,20 @@ bool nsWindow::DispatchKeyboardEvent(WidgetGUIEvent* event)
 
 bool nsWindow::DispatchScrollEvent(WidgetGUIEvent* aEvent)
 {
-  if (aEvent->mClass != eWheelEventClass) {
-    nsEventStatus status;
-    DispatchEvent(aEvent, status);
-    return ConvertStatus(status);
-  }
+  nsEventStatus status;
 
-  nsEventStatus status = DispatchAPZAwareEvent(aEvent->AsInputEvent());
+  if (mAPZC && aEvent->mClass == eWheelEventClass) {
+    uint64_t inputBlockId = 0;
+    ScrollableLayerGuid guid;
+
+    nsEventStatus result = mAPZC->ReceiveInputEvent(*aEvent->AsWheelEvent(), &guid, &inputBlockId);
+    if (result == nsEventStatus_eConsumeNoDefault) {
+      return true;
+    }
+    status = DispatchEventForAPZ(aEvent, guid, inputBlockId);
+  } else {
+    DispatchEvent(aEvent, status);
+  }
   return ConvertStatus(status);
 }
 
@@ -5168,7 +5179,7 @@ nsWindow::ProcessMessage(UINT msg, WPARAM& wParam, LPARAM& lParam,
       *aRetValue = 0;
       // Do explicit casting to make it working on 64bit systems (see bug 649236
       // for details).
-      int32_t objId = static_cast<DWORD>(lParam);
+      DWORD objId = static_cast<DWORD>(lParam);
       if (objId == OBJID_CLIENT) { // oleacc.dll will be loaded dynamically
         a11y::Accessible* rootAccessible = GetAccessible(); // Held by a11y cache
         if (rootAccessible) {
@@ -6529,12 +6540,6 @@ bool nsWindow::AutoErase(HDC dc)
   return false;
 }
 
-void
-nsWindow::ClearCompositor(nsWindow* aWindow)
-{
-  aWindow->DestroyLayerManager();
-}
-
 bool
 nsWindow::ShouldUseOffMainThreadCompositing()
 {
@@ -6562,6 +6567,8 @@ nsWindow::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
     if (prefs.mPreferOpenGL) {
       aHints.AppendElement(LayersBackend::LAYERS_OPENGL);
     }
+
+    ID3D11Device* device = gfxWindowsPlatform::GetPlatform()->GetD3D11Device();
 
     if (!prefs.mPreferD3D9) {
       aHints.AppendElement(LayersBackend::LAYERS_D3D11);

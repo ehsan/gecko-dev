@@ -7,7 +7,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=938023
   <title>Test for Bug 938023 Downloads API</title>
   <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
-  <script type="text/javascript" src="clear_all_done_helper.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
@@ -47,7 +46,7 @@ function error() {
 
 function getDownloads(downloads) {
   ok(downloads.length == 1, "One downloads after getDownloads");
-  clearAllDoneHelper(true).then(clearAllDone, error);
+  navigator.mozDownloadManager.clearAllDone().then(clearAllDone, error);
 }
 
 function clearAllDone(downloads) {
@@ -77,7 +76,7 @@ var steps = [
     SpecialPowers.pushPermissions([
       {type: "downloads", allow: true, context: document}
     ], function() {
-      clearAllDoneHelper(true).then(next, error);
+      navigator.mozDownloadManager.clearAllDone().then(next, error);
     });
   },
 

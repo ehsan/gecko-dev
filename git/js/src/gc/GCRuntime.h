@@ -908,10 +908,10 @@ class GCRuntime
     void sweepBackgroundThings(ZoneList &zones, LifoAlloc &freeBlocks, ThreadType threadType);
     void assertBackgroundSweepingFinished();
     bool shouldCompact();
-    IncrementalProgress compactPhase(JS::gcreason::Reason reason);
+    IncrementalProgress compactPhase(bool lastGC);
     void sweepTypesAfterCompacting(Zone *zone);
     void sweepZoneAfterCompacting(Zone *zone);
-    ArenaHeader *relocateArenas(JS::gcreason::Reason reason);
+    ArenaHeader *relocateArenas();
     void updateAllCellPointersParallel(MovingTracer *trc);
     void updateAllCellPointersSerial(MovingTracer *trc);
     void updatePointersToRelocatedCells();
@@ -921,7 +921,7 @@ class GCRuntime
     void protectRelocatedArenas(ArenaHeader *relocatedList);
     void unprotectRelocatedArenas(ArenaHeader *relocatedList);
 #endif
-    void finishCollection(JS::gcreason::Reason reason);
+    void finishCollection();
 
     void computeNonIncrementalMarkingForValidation();
     void validateIncrementalMarking();

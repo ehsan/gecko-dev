@@ -34,11 +34,10 @@
 #include "prsystem.h"
 #include "GeckoProfiler.h"
 #include "nsPluginTags.h"
-#include "nsUnicharUtils.h"
 
 #ifdef XP_WIN
-#include "mozilla/plugins/PluginSurfaceParent.h"
 #include "mozilla/widget/AudioSession.h"
+#include "nsWindowsHelpers.h"
 #include "PluginHangUIParent.h"
 #endif
 
@@ -114,71 +113,6 @@ mozilla::plugins::SetupBridge(uint32_t aPluginId,
     }
     return PPluginModule::Bridge(aContentParent, chromeParent);
 }
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-
-/**
- * Use for executing CreateToolhelp32Snapshot off main thread
- */
-class mozilla::plugins::FinishInjectorInitTask : public CancelableTask
-{
-public:
-    FinishInjectorInitTask()
-        : mMutex("FlashInjectorInitTask::mMutex")
-        , mParent(nullptr)
-        , mMainThreadMsgLoop(MessageLoop::current())
-    {
-        MOZ_ASSERT(NS_IsMainThread());
-    }
-
-    void Init(PluginModuleChromeParent* aParent)
-    {
-        MOZ_ASSERT(aParent);
-        mParent = aParent;
-    }
-
-    void PostToMainThread()
-    {
-        mSnapshot.own(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
-        bool deleteThis = false;
-        {   // Scope for lock
-            mozilla::MutexAutoLock lock(mMutex);
-            if (mMainThreadMsgLoop) {
-                mMainThreadMsgLoop->PostTask(FROM_HERE, this);
-            } else {
-                deleteThis = true;
-            }
-        }
-        if (deleteThis) {
-            delete this;
-        }
-    }
-
-    void Run() MOZ_OVERRIDE
-    {
-        mParent->DoInjection(mSnapshot);
-        // We don't need to hold this lock during DoInjection, but we do need
-        // to obtain it before returning from Run() to ensure that
-        // PostToMainThread has completed before we return.
-        mozilla::MutexAutoLock lock(mMutex);
-    }
-
-    void Cancel() MOZ_OVERRIDE
-    {
-        mozilla::MutexAutoLock lock(mMutex);
-        mMainThreadMsgLoop = nullptr;
-    }
-
-private:
-    mozilla::Mutex            mMutex;
-    nsAutoHandle              mSnapshot;
-    PluginModuleChromeParent* mParent;
-    MessageLoop*              mMainThreadMsgLoop;
-};
-
-#endif // MOZ_CRASHREPORTER_INJECTOR
-
-namespace {
 
 /**
  * Objects of this class remain linked until either an error occurs in the
@@ -329,8 +263,6 @@ PRCList PluginModuleMapping::sModuleListHead =
     PR_INIT_STATIC_CLIST(&PluginModuleMapping::sModuleListHead);
 
 bool PluginModuleMapping::sIsLoadModuleOnStack = false;
-
-} // anonymous namespace
 
 void
 mozilla::plugins::TerminatePlugin(uint32_t aPluginId)
@@ -485,9 +417,7 @@ PluginModuleChromeParent::LoadModule(const char* aFilePath, uint32_t aPluginId,
         return nullptr;
     }
     parent->mIsFlashPlugin = aPluginTag->mIsFlashPlugin;
-    uint32_t blocklistState;
-    nsresult rv = aPluginTag->GetBlocklistState(&blocklistState);
-    parent->mIsBlocklisted = NS_FAILED(rv) || blocklistState != 0;
+    parent->mIsBlocklisted = aPluginTag->GetBlocklistState() != 0;
     if (!parent->mIsStartingAsync) {
         int32_t launchTimeoutSecs = Preferences::GetInt(kLaunchTimeoutPref, 0);
         if (!parent->mSubprocess->WaitUntilConnected(launchTimeoutSecs * 1000)) {
@@ -600,7 +530,6 @@ PluginModuleParent::PluginModuleParent(bool aIsChrome)
     , mNPPIface(nullptr)
     , mPlugin(nullptr)
     , mTaskFactory(this)
-    , mIsFlashPlugin(false)
     , mIsStartingAsync(false)
     , mNPInitialized(false)
     , mAsyncNewRv(NS_ERROR_NOT_INITIALIZED)
@@ -642,26 +571,25 @@ PluginModuleChromeParent::PluginModuleChromeParent(const char* aFilePath, uint32
     , mPluginId(aPluginId)
     , mChromeTaskFactory(this)
     , mHangAnnotationFlags(0)
-    , mHangAnnotatorMutex("PluginModuleChromeParent::mHangAnnotatorMutex")
 #ifdef XP_WIN
     , mPluginCpuUsageOnHang()
     , mHangUIParent(nullptr)
     , mHangUIEnabled(true)
     , mIsTimerReset(true)
 #ifdef MOZ_CRASHREPORTER
-    , mCrashReporterMutex("PluginModuleChromeParent::mCrashReporterMutex")
+    , mCrashReporterMutex("PluginModuleParent::mCrashReporterMutex")
     , mCrashReporter(nullptr)
 #endif
 #endif
 #ifdef MOZ_CRASHREPORTER_INJECTOR
     , mFlashProcess1(0)
     , mFlashProcess2(0)
-    , mFinishInitTask(nullptr)
 #endif
     , mInitOnAsyncConnect(false)
     , mAsyncInitRv(NS_ERROR_NOT_INITIALIZED)
     , mAsyncInitError(NPERR_NO_ERROR)
     , mContentParent(nullptr)
+    , mIsFlashPlugin(false)
 {
     NS_ASSERTION(mSubprocess, "Out of memory!");
     sInstantiated = true;
@@ -703,10 +631,6 @@ PluginModuleChromeParent::~PluginModuleChromeParent()
         UnregisterInjectorCallback(mFlashProcess1);
     if (mFlashProcess2)
         UnregisterInjectorCallback(mFlashProcess2);
-    if (mFinishInitTask) {
-        // mFinishInitTask will be deleted by the main thread message_loop
-        mFinishInitTask->Cancel();
-    }
 #endif
 
     UnregisterSettingsCallbacks();
@@ -910,119 +834,6 @@ GetProcessCpuUsage(const InfallibleTArray<base::ProcessHandle>& processHandles, 
 #endif // #ifdef XP_WIN
 
 void
-PluginModuleChromeParent::OnEnteredCall()
-{
-    mozilla::ipc::IProtocol* protocol = GetInvokingProtocol();
-    MOZ_ASSERT(protocol);
-    mozilla::MutexAutoLock lock(mHangAnnotatorMutex);
-    mProtocolCallStack.AppendElement(protocol);
-}
-
-void
-PluginModuleChromeParent::OnExitedCall()
-{
-    mozilla::MutexAutoLock lock(mHangAnnotatorMutex);
-    MOZ_ASSERT(!mProtocolCallStack.IsEmpty());
-    mProtocolCallStack.RemoveElementAt(mProtocolCallStack.Length() - 1);
-}
-
-void
-PluginModuleChromeParent::OnEnteredSyncSend()
-{
-    mozilla::ipc::IProtocol* protocol = GetInvokingProtocol();
-    MOZ_ASSERT(protocol);
-    mozilla::MutexAutoLock lock(mHangAnnotatorMutex);
-    mProtocolCallStack.AppendElement(protocol);
-}
-
-void
-PluginModuleChromeParent::OnExitedSyncSend()
-{
-    mozilla::MutexAutoLock lock(mHangAnnotatorMutex);
-    MOZ_ASSERT(!mProtocolCallStack.IsEmpty());
-    mProtocolCallStack.RemoveElementAt(mProtocolCallStack.Length() - 1);
-}
-
-/**
- * This function converts the topmost routing id on the call stack (as recorded
- * by the MessageChannel) into a pointer to a IProtocol object.
- */
-mozilla::ipc::IProtocol*
-PluginModuleChromeParent::GetInvokingProtocol()
-{
-    int32_t routingId = GetIPCChannel()->GetTopmostMessageRoutingId();
-    // Nothing being routed. No protocol. Just return nullptr.
-    if (routingId == MSG_ROUTING_NONE) {
-        return nullptr;
-    }
-    // If routingId is MSG_ROUTING_CONTROL then we're dealing with control
-    // messages that were initiated by the topmost managing protocol, ie. this.
-    if (routingId == MSG_ROUTING_CONTROL) {
-        return this;
-    }
-    // Otherwise we can look up the protocol object by the routing id.
-    mozilla::ipc::IProtocol* protocol = Lookup(routingId);
-    return protocol;
-}
-
-/**
- * This function examines the IProtocol object parameter and converts it into
- * the PluginInstanceParent object that is associated with that protocol, if
- * any. Since PluginInstanceParent manages subprotocols, this function needs
- * to determine whether |aProtocol| is a subprotocol, and if so it needs to
- * obtain the protocol's manager.
- *
- * This function needs to be updated if the subprotocols are modified in
- * PPluginInstance.ipdl.
- */
-PluginInstanceParent*
-PluginModuleChromeParent::GetManagingInstance(mozilla::ipc::IProtocol* aProtocol)
-{
-    MOZ_ASSERT(aProtocol);
-    mozilla::ipc::MessageListener* listener =
-        static_cast<mozilla::ipc::MessageListener*>(aProtocol);
-    switch (listener->GetProtocolTypeId()) {
-        case PPluginInstanceMsgStart:
-            // In this case, aProtocol is the instance itself. Just cast it.
-            return static_cast<PluginInstanceParent*>(aProtocol);
-        case PPluginBackgroundDestroyerMsgStart: {
-            PPluginBackgroundDestroyerParent* actor =
-                static_cast<PPluginBackgroundDestroyerParent*>(aProtocol);
-            return static_cast<PluginInstanceParent*>(actor->Manager());
-        }
-        case PPluginScriptableObjectMsgStart: {
-            PPluginScriptableObjectParent* actor =
-                static_cast<PPluginScriptableObjectParent*>(aProtocol);
-            return static_cast<PluginInstanceParent*>(actor->Manager());
-        }
-        case PBrowserStreamMsgStart: {
-            PBrowserStreamParent* actor =
-                static_cast<PBrowserStreamParent*>(aProtocol);
-            return static_cast<PluginInstanceParent*>(actor->Manager());
-        }
-        case PPluginStreamMsgStart: {
-            PPluginStreamParent* actor =
-                static_cast<PPluginStreamParent*>(aProtocol);
-            return static_cast<PluginInstanceParent*>(actor->Manager());
-        }
-        case PStreamNotifyMsgStart: {
-            PStreamNotifyParent* actor =
-                static_cast<PStreamNotifyParent*>(aProtocol);
-            return static_cast<PluginInstanceParent*>(actor->Manager());
-        }
-#ifdef XP_WIN
-        case PPluginSurfaceMsgStart: {
-            PPluginSurfaceParent* actor =
-                static_cast<PPluginSurfaceParent*>(aProtocol);
-            return static_cast<PluginInstanceParent*>(actor->Manager());
-        }
-#endif
-        default:
-            return nullptr;
-    }
-}
-
-void
 PluginModuleChromeParent::EnteredCxxStack()
 {
     mHangAnnotationFlags |= kInPluginCall;
@@ -1064,24 +875,6 @@ PluginModuleChromeParent::AnnotateHang(mozilla::HangMonitor::HangAnnotations& aA
         aAnnotations.AddAnnotation(NS_LITERAL_STRING("pluginName"), mPluginName);
         aAnnotations.AddAnnotation(NS_LITERAL_STRING("pluginVersion"),
                                    mPluginVersion);
-        if (mIsFlashPlugin) {
-            bool isWhitelistedForShumway = false;
-            { // Scope for lock
-                mozilla::MutexAutoLock lock(mHangAnnotatorMutex);
-                if (!mProtocolCallStack.IsEmpty()) {
-                    mozilla::ipc::IProtocol* topProtocol =
-                        mProtocolCallStack.LastElement();
-                    PluginInstanceParent* instance =
-                        GetManagingInstance(topProtocol);
-                    if (instance) {
-                        isWhitelistedForShumway =
-                            instance->IsWhitelistedForShumway();
-                    }
-                }
-            }
-            aAnnotations.AddAnnotation(NS_LITERAL_STRING("pluginIsWhitelistedForShumway"),
-                                       isWhitelistedForShumway);
-        }
     }
 }
 
@@ -1245,7 +1038,8 @@ PluginModuleChromeParent::TerminateChildProcess(MessageLoop* aMsgLoop)
 }
 
 bool
-PluginModuleParent::GetPluginDetails()
+PluginModuleParent::GetPluginDetails(nsACString& aPluginName,
+                                     nsACString& aPluginVersion)
 {
     nsRefPtr<nsPluginHost> host = nsPluginHost::GetInst();
     if (!host) {
@@ -1255,9 +1049,8 @@ PluginModuleParent::GetPluginDetails()
     if (!pluginTag) {
         return false;
     }
-    mPluginName = pluginTag->mName;
-    mPluginVersion = pluginTag->mVersion;
-    mIsFlashPlugin = pluginTag->mIsFlashPlugin;
+    aPluginName = pluginTag->mName;
+    aPluginVersion = pluginTag->mVersion;
     return true;
 }
 
@@ -1641,7 +1434,11 @@ PluginModuleParent::NPP_DestroyStream(NPP instance,
                                       NPStream* stream,
                                       NPReason reason)
 {
-    RESOLVE_AND_CALL(instance, NPP_DestroyStream(stream, reason));
+    PluginInstanceParent* i = PluginInstanceParent::Cast(instance);
+    if (!i)
+        return NPERR_GENERIC_ERROR;
+
+    return i->NPP_DestroyStream(stream, reason);
 }
 
 int32_t
@@ -2379,7 +2176,7 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
     }
 
     if (mPluginName.IsEmpty()) {
-        GetPluginDetails();
+        GetPluginDetails(mPluginName, mPluginVersion);
         /** mTimeBlocked measures the time that the main thread has been blocked
          *  on plugin module initialization. As implemented, this is the sum of
          *  plugin-container launch + toolhelp32 snapshot + NP_Initialize.
@@ -2409,15 +2206,6 @@ PluginModuleParent::NPP_New(NPMIMEType pluginType, NPP instance,
     return NS_PLUGIN_INIT_PENDING;
 }
 
-class nsCaseInsensitiveUTF8StringArrayComparator
-{
-public:
-  template<class A, class B>
-  bool Equals(const A& a, const B& b) const {
-    return a.Equals(b.get(), nsCaseInsensitiveUTF8StringComparator());
-  }
-};
-
 nsresult
 PluginModuleParent::NPP_NewInternal(NPMIMEType pluginType, NPP instance,
                                     uint16_t mode,
@@ -2425,20 +2213,13 @@ PluginModuleParent::NPP_NewInternal(NPMIMEType pluginType, NPP instance,
                                     InfallibleTArray<nsCString>& values,
                                     NPSavedData* saved, NPError* error)
 {
-    nsCaseInsensitiveUTF8StringArrayComparator comparator;
-    NS_NAMED_LITERAL_CSTRING(srcAttributeName, "src");
-    auto srcAttributeIndex = names.IndexOf(srcAttributeName, 0, comparator);
-    nsAutoCString srcAttribute;
-    if (srcAttributeIndex != names.NoIndex) {
-        srcAttribute = values[srcAttributeIndex];
-    }
-
-    nsDependentCString strPluginType(pluginType);
     PluginInstanceParent* parentInstance =
-        new PluginInstanceParent(this, instance, strPluginType, mNPNIface);
+        new PluginInstanceParent(this, instance,
+                                 nsDependentCString(pluginType), mNPNIface);
 
-    if (mIsFlashPlugin) {
-        parentInstance->InitMetadata(strPluginType, srcAttribute);
+    if (!parentInstance->Init()) {
+        delete parentInstance;
+        return NS_ERROR_FAILURE;
     }
 
     // Release the surrogate reference that was in pdata
@@ -2827,41 +2608,22 @@ PluginModuleChromeParent::InitializeInjector()
         return;
 
     TimeStamp th32Start = TimeStamp::Now();
-    mFinishInitTask = mChromeTaskFactory.NewTask<FinishInjectorInitTask>();
-    mFinishInitTask->Init(this);
-    if (!::QueueUserWorkItem(&PluginModuleChromeParent::GetToolhelpSnapshot,
-                             mFinishInitTask, WT_EXECUTEDEFAULT)) {
-        delete mFinishInitTask;
-        mFinishInitTask = nullptr;
+    nsAutoHandle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    if (INVALID_HANDLE_VALUE == snapshot)
         return;
-    }
     TimeStamp th32End = TimeStamp::Now();
     mTimeBlocked += (th32End - th32Start);
-}
 
-void
-PluginModuleChromeParent::DoInjection(const nsAutoHandle& aSnapshot)
-{
     DWORD pluginProcessPID = GetProcessId(Process()->GetChildProcessHandle());
-    mFlashProcess1 = GetFlashChildOfPID(pluginProcessPID, aSnapshot);
+    mFlashProcess1 = GetFlashChildOfPID(pluginProcessPID, snapshot);
     if (mFlashProcess1) {
         InjectCrashReporterIntoProcess(mFlashProcess1, this);
 
-        mFlashProcess2 = GetFlashChildOfPID(mFlashProcess1, aSnapshot);
+        mFlashProcess2 = GetFlashChildOfPID(mFlashProcess1, snapshot);
         if (mFlashProcess2) {
             InjectCrashReporterIntoProcess(mFlashProcess2, this);
         }
     }
-    mFinishInitTask = nullptr;
-}
-
-DWORD WINAPI
-PluginModuleChromeParent::GetToolhelpSnapshot(LPVOID aContext)
-{
-    FinishInjectorInitTask* task = static_cast<FinishInjectorInitTask*>(aContext);
-    MOZ_ASSERT(task);
-    task->PostToMainThread();
-    return 0;
 }
 
 void

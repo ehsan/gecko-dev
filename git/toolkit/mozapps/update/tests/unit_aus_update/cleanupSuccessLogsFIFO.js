@@ -6,17 +6,17 @@
 function run_test() {
   setupTestCommon();
 
-  debugDump("testing update logs are first in first out deleted");
+  logTestInfo("testing update logs are first in first out deleted");
 
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
-  let patches = getLocalPatchString(null, null, null, null, null, null,
+  var patches = getLocalPatchString(null, null, null, null, null, null,
                                     STATE_PENDING);
-  let updates = getLocalUpdateString(patches);
+  var updates = getLocalUpdateString(patches);
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(updates), true);
   writeStatusFile(STATE_SUCCEEDED);
 
-  let dir = getUpdatesDir();
-  let log = dir.clone();
+  var dir = getUpdatesDir();
+  var log = dir.clone();
   log.append(FILE_LAST_LOG);
   writeFile(log, "Backup Update Log");
 
@@ -31,27 +31,27 @@ function run_test() {
 
   standardInit();
 
-  debugDump("testing " + log.path + " shouldn't exist");
+  logTestInfo("testing " + log.path + " shouldn't exist");
   do_check_false(log.exists());
 
   log = dir.clone();
   log.append(FILE_LAST_LOG);
-  debugDump("testing " + log.path + " should exist");
+  logTestInfo("testing " + log.path + " should exist");
   do_check_true(log.exists());
 
-  debugDump("testing " + log.path + " contents");
+  logTestInfo("testing " + log.path + " contents");
   do_check_eq(readFile(log), "Last Update Log");
 
   log = dir.clone();
   log.append(FILE_BACKUP_LOG);
-  debugDump("testing " + log.path + " should exist");
+  logTestInfo("testing " + log.path + " should exist");
   do_check_true(log.exists());
 
-  debugDump("testing " + log.path + " contents (bug 470979)");
+  logTestInfo("testing " + log.path + " contents (bug 470979)");
   do_check_eq(readFile(log), "Backup Update Log");
 
   dir.append("0");
-  debugDump("testing " + dir.path + " should exist (bug 512994)");
+  logTestInfo("testing " + dir.path + " should exist (bug 512994)");
   do_check_true(dir.exists());
 
   doTestFinish();

@@ -21,8 +21,8 @@
 #include "nsFrameMessageManager.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Attributes.h"
+#include "FrameMetrics.h"
 #include "nsStubMutationObserver.h"
-#include "Units.h"
 
 class nsIURI;
 class nsSubDocumentFrame;
@@ -296,7 +296,7 @@ private:
   bool TryRemoteBrowser();
 
   // Tell the remote browser that it's now "virtually visible"
-  bool ShowRemoteFrame(const mozilla::ScreenIntSize& size,
+  bool ShowRemoteFrame(const nsIntSize& size,
                        nsSubDocumentFrame *aFrame = nullptr);
 
   bool AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem,
@@ -305,8 +305,7 @@ private:
                               nsIDocShell* aParentNode);
 
   nsIAtom* TypeAttrName() const {
-    return mOwnerContent->IsXULElement()
-             ? nsGkAtoms::type : nsGkAtoms::mozframetype;
+    return mOwnerContent->IsXUL() ? nsGkAtoms::type : nsGkAtoms::mozframetype;
   }
 
   // Update the permission manager's app-id refcount based on mOwnerContent's

@@ -124,7 +124,7 @@ let FormVisibility = {
       let visible = this.yAxisVisible(
         adjustedTop,
         pos.height,
-        offset.height
+        pos.width
       );
 
       if (!visible)

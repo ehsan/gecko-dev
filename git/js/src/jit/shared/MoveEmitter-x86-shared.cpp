@@ -426,9 +426,6 @@ MoveEmitterX86::emitGeneralMove(const MoveOperand &from, const MoveOperand &to)
 void
 MoveEmitterX86::emitFloat32Move(const MoveOperand &from, const MoveOperand &to)
 {
-    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg().isSingle());
-    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg().isSingle());
-
     if (from.isFloatReg()) {
         if (to.isFloatReg())
             masm.moveFloat32(from.floatReg(), to.floatReg());
@@ -447,9 +444,6 @@ MoveEmitterX86::emitFloat32Move(const MoveOperand &from, const MoveOperand &to)
 void
 MoveEmitterX86::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
 {
-    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg().isDouble());
-    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg().isDouble());
-
     if (from.isFloatReg()) {
         if (to.isFloatReg())
             masm.moveDouble(from.floatReg(), to.floatReg());
@@ -468,9 +462,6 @@ MoveEmitterX86::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
 void
 MoveEmitterX86::emitInt32X4Move(const MoveOperand &from, const MoveOperand &to)
 {
-    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg().isInt32x4());
-    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg().isInt32x4());
-
     if (from.isFloatReg()) {
         if (to.isFloatReg())
             masm.moveInt32x4(from.floatReg(), to.floatReg());
@@ -489,9 +480,6 @@ MoveEmitterX86::emitInt32X4Move(const MoveOperand &from, const MoveOperand &to)
 void
 MoveEmitterX86::emitFloat32X4Move(const MoveOperand &from, const MoveOperand &to)
 {
-    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg().isFloat32x4());
-    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg().isFloat32x4());
-
     if (from.isFloatReg()) {
         if (to.isFloatReg())
             masm.moveFloat32x4(from.floatReg(), to.floatReg());

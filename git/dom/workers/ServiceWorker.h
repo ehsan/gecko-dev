@@ -19,8 +19,6 @@ class Promise;
 
 namespace workers {
 
-class ServiceWorkerInfo;
-class ServiceWorkerManager;
 class SharedWorker;
 
 bool
@@ -28,7 +26,7 @@ ServiceWorkerVisible(JSContext* aCx, JSObject* aObj);
 
 class ServiceWorker MOZ_FINAL : public DOMEventTargetHelper
 {
-  friend class ServiceWorkerManager;
+  friend class RuntimeService;
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(ServiceWorker, DOMEventTargetHelper)
@@ -52,17 +50,16 @@ public:
   }
 
   void
-  GetScriptURL(nsString& aURL) const;
-
-  void
-  DispatchStateChange(ServiceWorkerState aState)
+  GetScriptURL(nsString& aURL) const
   {
-    SetState(aState);
-    DOMEventTargetHelper::DispatchTrustedEvent(NS_LITERAL_STRING("statechange"));
+    aURL = mURL;
   }
 
   void
-  QueueStateChangeEvent(ServiceWorkerState aState);
+  DispatchStateChange()
+  {
+    DOMEventTargetHelper::DispatchTrustedEvent(NS_LITERAL_STRING("statechange"));
+  }
 
 #ifdef XP_WIN
 #undef PostMessage
@@ -77,15 +74,14 @@ public:
   GetWorkerPrivate() const;
 
 private:
-  // This class can only be created from the ServiceWorkerManager.
-  ServiceWorker(nsPIDOMWindow* aWindow, ServiceWorkerInfo* aInfo,
-                SharedWorker* aSharedWorker);
+  // This class can only be created from the RuntimeService.
+  ServiceWorker(nsPIDOMWindow* aWindow, SharedWorker* aSharedWorker);
 
   // This class is reference-counted and will be destroyed from Release().
   ~ServiceWorker();
 
   ServiceWorkerState mState;
-  const nsRefPtr<ServiceWorkerInfo> mInfo;
+  nsString mURL;
 
   // To allow ServiceWorkers to potentially drop the backing DOMEventTargetHelper and
   // re-instantiate it later, they simply own a SharedWorker member that

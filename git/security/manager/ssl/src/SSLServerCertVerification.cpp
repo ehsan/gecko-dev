@@ -295,7 +295,7 @@ private:
 
 // A probe value of 1 means "no error".
 uint32_t
-MapOverridableErrorToProbeValue(PRErrorCode errorCode)
+MapCertErrorToProbeValue(PRErrorCode errorCode)
 {
   switch (errorCode)
   {
@@ -315,37 +315,9 @@ MapOverridableErrorToProbeValue(PRErrorCode errorCode)
       return 15;
     case SEC_ERROR_INVALID_TIME: return 16;
   }
-  NS_WARNING("Unknown certificate error code. Does MapOverridableErrorToProbeValue "
+  NS_WARNING("Unknown certificate error code. Does MapCertErrorToProbeValue "
              "handle everything in DetermineCertOverrideErrors?");
   return 0;
-}
-
-static uint32_t
-MapCertErrorToProbeValue(PRErrorCode errorCode)
-{
-  uint32_t probeValue;
-  switch (errorCode)
-  {
-    // see security/pkix/include/pkix/Result.h
-#define MOZILLA_PKIX_MAP(name, value, nss_name) case nss_name: probeValue = value; break;
-    MOZILLA_PKIX_MAP_LIST
-#undef MOZILLA_PKIX_MAP
-    default: return 0;
-  }
-
-  // Since FATAL_ERROR_FLAG is 0x800, fatal error values are much larger than
-  // non-fatal error values. To conserve space, we remap these so they start at
-  // (decimal) 90 instead of 0x800. Currently there are ~50 non-fatal errors
-  // mozilla::pkix might return, so saving space for 90 should be sufficient
-  // (similarly, there are 4 fatal errors, so saving space for 10 should also
-  // be sufficient).
-  static_assert(FATAL_ERROR_FLAG == 0x800,
-                "mozilla::pkix::FATAL_ERROR_FLAG is not what we were expecting");
-  if (probeValue & FATAL_ERROR_FLAG) {
-    probeValue ^= FATAL_ERROR_FLAG;
-    probeValue += 90;
-  }
-  return probeValue;
 }
 
 SECStatus
@@ -527,15 +499,15 @@ CertErrorRunnable::CheckCertOverrides()
       // different types of errors. Since this is telemetry and we just
       // want a ballpark answer, we don't care.
       if (mErrorCodeTrust != 0) {
-        uint32_t probeValue = MapOverridableErrorToProbeValue(mErrorCodeTrust);
+        uint32_t probeValue = MapCertErrorToProbeValue(mErrorCodeTrust);
         Telemetry::Accumulate(Telemetry::SSL_CERT_ERROR_OVERRIDES, probeValue);
       }
       if (mErrorCodeMismatch != 0) {
-        uint32_t probeValue = MapOverridableErrorToProbeValue(mErrorCodeMismatch);
+        uint32_t probeValue = MapCertErrorToProbeValue(mErrorCodeMismatch);
         Telemetry::Accumulate(Telemetry::SSL_CERT_ERROR_OVERRIDES, probeValue);
       }
       if (mErrorCodeTime != 0) {
-        uint32_t probeValue = MapOverridableErrorToProbeValue(mErrorCodeTime);
+        uint32_t probeValue = MapCertErrorToProbeValue(mErrorCodeTime);
         Telemetry::Accumulate(Telemetry::SSL_CERT_ERROR_OVERRIDES, probeValue);
       }
 
@@ -618,9 +590,6 @@ CreateCertErrorRunnable(CertVerifier& certVerifier,
   MOZ_ASSERT(infoObject);
   MOZ_ASSERT(cert);
 
-  uint32_t probeValue = MapCertErrorToProbeValue(defaultErrorCodeToReport);
-  Telemetry::Accumulate(Telemetry::SSL_CERT_VERIFICATION_ERRORS, probeValue);
-
   uint32_t collected_errors = 0;
   PRErrorCode errorCodeTrust = 0;
   PRErrorCode errorCodeMismatch = 0;
@@ -655,7 +624,7 @@ CreateCertErrorRunnable(CertVerifier& certVerifier,
     return nullptr;
   }
 
-  infoObject->SetStatusErrorBits(nssCert, collected_errors);
+  infoObject->SetStatusErrorBits(*nssCert, collected_errors);
 
   return new CertErrorRunnable(fdForLogging,
                                static_cast<nsIX509Cert*>(nssCert.get()),
@@ -1139,14 +1108,12 @@ AuthCertificate(CertVerifier& certVerifier,
   ScopedCERTCertList certList;
   CertVerifier::OCSPStaplingStatus ocspStaplingStatus =
     CertVerifier::OCSP_STAPLING_NEVER_CHECKED;
-  KeySizeStatus keySizeStatus = KeySizeStatus::NeverChecked;
 
   rv = certVerifier.VerifySSLServerCert(cert, stapledOCSPResponse,
                                         time, infoObject,
                                         infoObject->GetHostNameRaw(),
                                         saveIntermediates, 0, &certList,
-                                        &evOidPolicy, &ocspStaplingStatus,
-                                        &keySizeStatus);
+                                        &evOidPolicy, &ocspStaplingStatus);
   PRErrorCode savedErrorCode;
   if (rv != SECSuccess) {
     savedErrorCode = PR_GetError();
@@ -1154,10 +1121,6 @@ AuthCertificate(CertVerifier& certVerifier,
 
   if (ocspStaplingStatus != CertVerifier::OCSP_STAPLING_NEVER_CHECKED) {
     Telemetry::Accumulate(Telemetry::SSL_OCSP_STAPLING, ocspStaplingStatus);
-  }
-  if (keySizeStatus != KeySizeStatus::NeverChecked) {
-    Telemetry::Accumulate(Telemetry::CERT_CHAIN_KEY_SIZE_STATUS,
-                          static_cast<uint32_t>(keySizeStatus));
   }
 
   // We want to remember the CA certs in the temp db, so that the application can find the

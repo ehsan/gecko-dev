@@ -4,7 +4,6 @@
 
 import os, re, sys
 from copy import deepcopy
-from collections import OrderedDict
 
 import ipdl.ast
 import ipdl.builtin
@@ -2781,7 +2780,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
 
         bridgeActorsCreated = ProcessGraph.bridgeEndpointsOf(ptype, self.side)
         opensActorsCreated = ProcessGraph.opensEndpointsOf(ptype, self.side)
-        channelOpenedActors = OrderedDict.fromkeys(bridgeActorsCreated + opensActorsCreated, None)
+        channelOpenedActors = bridgeActorsCreated + opensActorsCreated
 
         friends = _FindFriends().findFriends(ptype)
         if ptype.isManaged():

@@ -1088,16 +1088,15 @@ RememberCertErrorsTable::LookupCertErrorBits(TransportSecurityInfo* infoObject,
 }
 
 void
-TransportSecurityInfo::SetStatusErrorBits(nsNSSCertificate* cert,
+TransportSecurityInfo::SetStatusErrorBits(nsIX509Cert & cert,
                                           uint32_t collected_errors)
 {
   MutexAutoLock lock(mMutex);
 
-  if (!mSSLStatus) {
+  if (!mSSLStatus)
     mSSLStatus = new nsSSLStatus();
-  }
 
-  mSSLStatus->SetServerCert(cert, nsNSSCertificate::ev_status_invalid);
+  mSSLStatus->SetServerCert(&cert, nsNSSCertificate::ev_status_invalid);
 
   mSSLStatus->mHaveCertErrorBits = true;
   mSSLStatus->mIsDomainMismatch = 

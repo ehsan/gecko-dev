@@ -355,9 +355,7 @@ endif
 $(OBJDIR)/.mozconfig.json: $(call mkdir_deps,$(OBJDIR)) ;
 
 save-mozconfig: $(FOUND_MOZCONFIG)
-ifdef FOUND_MOZCONFIG
 	-cp $(FOUND_MOZCONFIG) $(OBJDIR)/.mozconfig
-endif
 
 configure:: $(configure-preqs)
 	@echo cd $(OBJDIR);

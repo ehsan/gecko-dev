@@ -2038,18 +2038,14 @@ gfxFont::RenderSVGGlyph(gfxContext *aContext, gfxPoint aPoint, DrawMode aDrawMod
         GetAdjustedSize() / GetFontEntry()->UnitsPerEm();
     gfxContextMatrixAutoSaveRestore matrixRestore(aContext);
 
-    aContext->Save();
     aContext->SetMatrix(
       aContext->CurrentMatrix().Translate(aPoint.x, aPoint.y).
                                 Scale(devUnitsPerSVGUnit, devUnitsPerSVGUnit));
 
     aContextPaint->InitStrokeGeometry(aContext, devUnitsPerSVGUnit);
 
-    bool rv = GetFontEntry()->RenderSVGGlyph(aContext, aGlyphId,
-                                             int(aDrawMode), aContextPaint);
-    aContext->Restore();
-    aContext->NewPath();
-    return rv;
+    return GetFontEntry()->RenderSVGGlyph(aContext, aGlyphId, int(aDrawMode),
+                                          aContextPaint);
 }
 
 bool
@@ -2058,11 +2054,19 @@ gfxFont::RenderSVGGlyph(gfxContext *aContext, gfxPoint aPoint, DrawMode aDrawMod
                         gfxTextRunDrawCallbacks *aCallbacks,
                         bool& aEmittedGlyphs) const
 {
-    if (aCallbacks && aEmittedGlyphs) {
-        aCallbacks->NotifyGlyphPathEmitted();
-        aEmittedGlyphs = false;
+    if (aCallbacks) {
+        if (aEmittedGlyphs) {
+            aCallbacks->NotifyGlyphPathEmitted();
+            aEmittedGlyphs = false;
+        }
+        aCallbacks->NotifyBeforeSVGGlyphPainted();
     }
-    return RenderSVGGlyph(aContext, aPoint, aDrawMode, aGlyphId, aContextPaint);
+    bool rendered = RenderSVGGlyph(aContext, aPoint, aDrawMode, aGlyphId,
+                                   aContextPaint);
+    if (aCallbacks) {
+        aCallbacks->NotifyAfterSVGGlyphPainted();
+    }
+    return rendered;
 }
 
 bool
@@ -3743,9 +3747,9 @@ gfxFontStyle::AdjustForSubSuperscript(int32_t aAppUnitsPerDevPixel)
     // calculate reduced size, roughly mimicing behavior of font-size: smaller
     float cssSize = size * aAppUnitsPerDevPixel / AppUnitsPerCSSPixel();
     if (cssSize < NS_FONT_SUB_SUPER_SMALL_SIZE) {
-        size *= NS_FONT_SUB_SUPER_SIZE_RATIO_SMALL;
-    } else if (cssSize >= NS_FONT_SUB_SUPER_LARGE_SIZE) {
-        size *= NS_FONT_SUB_SUPER_SIZE_RATIO_LARGE;
+        cssSize *= NS_FONT_SUB_SUPER_SIZE_RATIO_SMALL;
+    } else if (cssSize >= NS_FONT_SUB_SUPER_SMALL_SIZE) {
+        cssSize *= NS_FONT_SUB_SUPER_SIZE_RATIO_LARGE;
     } else {
         gfxFloat t = (cssSize - NS_FONT_SUB_SUPER_SMALL_SIZE) /
                          (NS_FONT_SUB_SUPER_LARGE_SIZE -

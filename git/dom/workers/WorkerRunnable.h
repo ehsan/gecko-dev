@@ -99,14 +99,6 @@ protected:
   virtual ~WorkerRunnable()
   { }
 
-  // Returns true if this runnable should be dispatched to the debugger queue,
-  // and false otherwise.
-  virtual bool
-  IsDebuggerRunnable() const;
-
-  nsIGlobalObject*
-  DefaultGlobalObject() const;
-
   // By default asserts that Dispatch() is being called on the right thread
   // (ParentThread if |mTarget| is WorkerThread, or WorkerThread otherwise).
   // Also increments the busy count of |mWorkerPrivate| if targeting the
@@ -139,38 +131,6 @@ protected:
   // Calling Run() directly is not supported. Just call Dispatch() and
   // WorkerRun() will be called on the correct thread automatically.
   NS_DECL_NSIRUNNABLE
-};
-
-// This runnable is used to send a message to a worker debugger.
-class WorkerDebuggerRunnable : public WorkerRunnable
-{
-protected:
-  explicit WorkerDebuggerRunnable(WorkerPrivate* aWorkerPrivate)
-  : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
-  {
-  }
-
-  virtual ~WorkerDebuggerRunnable()
-  { }
-
-private:
-  virtual bool
-  IsDebuggerRunnable() const MOZ_OVERRIDE
-  {
-    return true;
-  }
-
-  virtual bool
-  PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
-  {
-    AssertIsOnMainThread();
-
-    return true;
-  }
-
-  virtual void
-  PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-               bool aDispatchResult) MOZ_OVERRIDE;
 };
 
 // This runnable is used to send a message directly to a worker's sync loop.

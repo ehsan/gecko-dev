@@ -194,8 +194,6 @@ Accessibility.prototype = {
 this.ElementManager = function ElementManager(notSupported) {
   this.seenItems = {};
   this.timer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
-  this.elementKey = 'ELEMENT';
-  this.w3cElementKey = 'element-6066-11e4-a52e-4f735466cecf';
   this.elementStrategies = [CLASS_NAME, SELECTOR, ID, NAME, LINK_TEXT, PARTIAL_LINK_TEXT, TAG, XPATH, ANON, ANON_ATTRIBUTE];
   for (let i = 0; i < notSupported.length; i++) {
     this.elementStrategies.splice(this.elementStrategies.indexOf(notSupported[i]), 1);
@@ -319,8 +317,7 @@ ElementManager.prototype = {
           result = null;
         }
         else if (val.nodeType == 1) {
-          let elementId = this.addToKnownElements(val);
-          result = {'ELEMENT': elementId, 'element-6066-11e4-a52e-4f735466cecf': elementId};
+          result = {'ELEMENT': this.addToKnownElements(val)};
         }
         else {
           result = {};
@@ -364,13 +361,11 @@ ElementManager.prototype = {
             converted.push(this.convertWrappedArguments(args[i], win));
           }
         }
-        else if (((typeof(args[this.elementKey]) === 'string') && args.hasOwnProperty(this.elementKey)) ||
-                 ((typeof(args[this.w3cElementKey]) === 'string') &&
-                     args.hasOwnProperty(this.w3cElementKey))) {
-          let elementUniqueIdentifier = args[this.w3cElementKey] ? args[this.w3cElementKey] : args[this.elementKey];
-          converted = this.getKnownElement(elementUniqueIdentifier,  win);
+        else if (typeof(args['ELEMENT'] === 'string') &&
+                 args.hasOwnProperty('ELEMENT')) {
+          converted = this.getKnownElement(args['ELEMENT'],  win);
           if (converted == null)
-            throw new ElementException("Unknown element: " + elementUniqueIdentifier, 500, null);
+            throw new ElementException("Unknown element: " + args['ELEMENT'], 500, null);
         }
         else {
           converted = {};

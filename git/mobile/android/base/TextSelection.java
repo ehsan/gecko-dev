@@ -43,7 +43,6 @@ class TextSelection extends Layer implements GeckoEventListener {
     private final DrawListener mDrawListener;
     private boolean mDraggingHandles;
 
-    private int selectionID; // Unique ID provided for each selection action.
     private float mViewLeft;
     private float mViewTop;
     private float mViewZoom;
@@ -132,7 +131,6 @@ class TextSelection extends Layer implements GeckoEventListener {
             public void run() {
                 try {
                     if (event.equals("TextSelection:ShowHandles")) {
-                        selectionID = message.getInt("selectionID");
                         final JSONArray handles = message.getJSONArray("handles");
                         for (int i=0; i < handles.length(); i++) {
                             String handle = handles.getString(i);
@@ -317,17 +315,7 @@ class TextSelection extends Layer implements GeckoEventListener {
         public void onDestroyActionMode(ActionModeCompat mode) {
             mActionMode = null;
             mCallback = null;
-            final JSONObject args = new JSONObject();
-            try {
-                args.put("selectionID", selectionID);
-            } catch (JSONException e) {
-                Log.e(LOGTAG, "Error building JSON arguments for TextSelection:End", e);
-                return;
-            }
-
-            final GeckoEvent event =
-                GeckoEvent.createBroadcastEvent("TextSelection:End", args.toString());
-            GeckoAppShell.sendEventToGecko(event);
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:End", null));
         }
     }
 }

@@ -4,41 +4,19 @@
 "use strict";
 
 /**
- * Details view containing call trees, flamegraphs and markers waterfall.
- * Manages subviews and toggles visibility between them.
+ * Details view containing profiler call tree and markers waterfall. Manages
+ * subviews and toggles visibility between them.
  */
 let DetailsView = {
   /**
-   * Name to (node id, view object, actor requirements, pref killswitch)
-   * mapping of subviews.
+   * Name to node+object mapping of subviews.
    */
   components: {
-    "waterfall": {
-      id: "waterfall-view",
-      view: WaterfallView,
-      requires: ["timeline"]
-    },
-    "js-calltree": {
-      id: "js-calltree-view",
-      view: JsCallTreeView
-    },
-    "js-flamegraph": {
-      id: "js-flamegraph-view",
-      view: JsFlameGraphView,
-      requires: ["timeline"]
-    },
-    "memory-calltree": {
-      id: "memory-calltree-view",
-      view: MemoryCallTreeView,
-      requires: ["memory"],
-      pref: "enable-memory"
-    },
-    "memory-flamegraph": {
-      id: "memory-flamegraph-view",
-      view: MemoryFlameGraphView,
-      requires: ["memory", "timeline"],
-      pref: "enable-memory"
-    }
+    "waterfall": { id: "waterfall-view", view: WaterfallView, requires: ["timeline"] },
+    "js-calltree": { id: "js-calltree-view", view: JsCallTreeView },
+    "js-flamegraph": { id: "js-flamegraph-view", view: JsFlameGraphView, requires: ["timeline"] },
+    "memory-calltree": { id: "memory-calltree-view", view: MemoryCallTreeView, requires: ["memory"], pref: "enable-memory" },
+    "memory-flamegraph": { id: "memory-flamegraph-view", view: MemoryFlameGraphView, requires: ["memory", "timeline"], pref: "enable-memory" }
   },
 
   /**
@@ -88,13 +66,12 @@ let DetailsView = {
    */
   setAvailableViews: Task.async(function* () {
     let mocks = gFront.getMocksInUse();
-
     for (let [name, { view, pref, requires }] of Iterator(this.components)) {
       let recording = PerformanceController.getCurrentRecording();
 
       let isRecorded = recording && !recording.isRecording();
-      // View is enabled by its corresponding pref
-      let isEnabled = !pref || PerformanceController.getOption(pref);
+      // View is enabled view prefs
+      let isEnabled = !pref || PerformanceController.getPref(pref);
       // View is supported by the server actor, and the requried actor is not being mocked
       let isSupported = !requires || requires.every(r => !mocks[r]);
 

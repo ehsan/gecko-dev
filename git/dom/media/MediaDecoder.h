@@ -189,7 +189,6 @@ destroying the MediaDecoder object.
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
 #include "nsITimer.h"
-#include "MediaPromise.h"
 #include "MediaResource.h"
 #include "mozilla/dom/AudioChannelBinding.h"
 #include "mozilla/gfx/Rect.h"
@@ -236,22 +235,16 @@ struct SeekTarget {
   SeekTarget()
     : mTime(-1.0)
     , mType(SeekTarget::Invalid)
-    , mEventVisibility(MediaDecoderEventVisibility::Observable)
   {
   }
-  SeekTarget(int64_t aTimeUsecs,
-             Type aType,
-             MediaDecoderEventVisibility aEventVisibility =
-               MediaDecoderEventVisibility::Observable)
+  SeekTarget(int64_t aTimeUsecs, Type aType)
     : mTime(aTimeUsecs)
     , mType(aType)
-    , mEventVisibility(aEventVisibility)
   {
   }
   SeekTarget(const SeekTarget& aOther)
     : mTime(aOther.mTime)
     , mType(aOther.mType)
-    , mEventVisibility(aOther.mEventVisibility)
   {
   }
   bool IsValid() const {
@@ -267,21 +260,12 @@ struct SeekTarget {
   // "Fast" seeks to the seek point preceeding mTime, whereas
   // "Accurate" seeks as close as possible to mTime.
   Type mType;
-  MediaDecoderEventVisibility mEventVisibility;
 };
 
 class MediaDecoder : public nsIObserver,
                      public AbstractMediaDecoder
 {
 public:
-  struct SeekResolveValue {
-    SeekResolveValue(bool aAtEnd, MediaDecoderEventVisibility aEventVisibility)
-      : mAtEnd(aAtEnd), mEventVisibility(aEventVisibility) {}
-    bool mAtEnd;
-    MediaDecoderEventVisibility mEventVisibility;
-  };
-
-  typedef MediaPromise<SeekResolveValue, bool /* aIgnored */, /* IsExclusive = */ true> SeekPromise;
   class DecodedStreamGraphListener;
 
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -408,13 +392,8 @@ public:
     ~DecodedStreamData();
 
     // microseconds
-    bool IsFinished() const {
-      return mListener->IsFinishedOnMainThread();
-    }
-
-    int64_t GetClock() const {
-      return mInitialTime + mListener->GetLastOutputTime();
-    }
+    int64_t GetLastOutputTime() { return mListener->GetLastOutputTime(); }
+    bool IsFinished() { return mListener->IsFinishedOnMainThread(); }
 
     // The following group of fields are protected by the decoder's monitor
     // and can be read or written on any thread.
@@ -422,7 +401,7 @@ public:
     int64_t mAudioFramesWritten;
     // Saved value of aInitialTime. Timestamp of the first audio and/or
     // video packet written.
-    const int64_t mInitialTime; // microseconds
+    int64_t mInitialTime; // microseconds
     // mNextVideoTime is the end timestamp for the last packet sent to the stream.
     // Therefore video packets starting at or after this time need to be copied
     // to the output stream.
@@ -474,6 +453,13 @@ public:
 
       MutexAutoLock lock(mMutex);
       mStream = nullptr;
+    }
+    bool SetFinishedOnMainThread(bool aFinished)
+    {
+      MutexAutoLock lock(mMutex);
+      bool result = !mStreamFinishedOnMainThread;
+      mStreamFinishedOnMainThread = aFinished;
+      return result;
     }
     bool IsFinishedOnMainThread()
     {
@@ -592,10 +578,9 @@ public:
   // Call on the main thread only.
   virtual bool IsSeeking() const;
 
-  // Return true if the decoder has reached the end of playback or the decoder
-  // has shutdown.
+  // Return true if the decoder has reached the end of playback.
   // Call on the main thread only.
-  virtual bool IsEndedOrShutdown() const;
+  virtual bool IsEnded() const;
 
   // Set the duration of the media resource in units of seconds.
   // This is called via a channel listener if it can pick up the duration
@@ -742,6 +727,12 @@ public:
   // to buffer, given the current download and playback rates.
   bool CanPlayThrough();
 
+  // Make the decoder state machine update the playback position. Called by
+  // the reader on the decoder thread (Assertions for this checked by
+  // mDecoderStateMachine). This must be called with the decode monitor
+  // held.
+  void UpdatePlaybackPosition(int64_t aTime) MOZ_FINAL MOZ_OVERRIDE;
+
   void SetAudioChannel(dom::AudioChannel aChannel) { mAudioChannel = aChannel; }
   dom::AudioChannel GetAudioChannel() { return mAudioChannel; }
 
@@ -777,12 +768,12 @@ public:
   // state machine. Call on the main thread only.
   virtual void MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
                               nsAutoPtr<MetadataTags> aTags,
-                              MediaDecoderEventVisibility aEventVisibility) MOZ_OVERRIDE;
+                              bool aRestoredFromDormant) MOZ_OVERRIDE;
 
   // Called when the first audio and/or video from the media file has been loaded
   // by the state machine. Call on the main thread only.
   virtual void FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                MediaDecoderEventVisibility aEventVisibility) MOZ_OVERRIDE;
+                                bool aRestoredFromDormant) MOZ_OVERRIDE;
 
   // Called from MetadataLoaded(). Creates audio tracks and adds them to its
   // owner's audio track list, and implies to video tracks respectively.
@@ -804,31 +795,22 @@ public:
   // Call on the main thread only.
   void PlaybackEnded();
 
-  void OnSeekRejected() { mSeekRequest.Complete(); }
-  void OnSeekResolvedInternal(bool aAtEnd, MediaDecoderEventVisibility aEventVisibility);
+  // Seeking has stopped. Inform the element on the main
+  // thread.
+  void SeekingStopped();
 
-  void OnSeekResolved(SeekResolveValue aVal)
-  {
-    mSeekRequest.Complete();
-    OnSeekResolvedInternal(aVal.mAtEnd, aVal.mEventVisibility);
-  }
-
-#ifdef MOZ_AUDIO_OFFLOAD
-  // Temporary hack - see bug 1139206.
-  void SimulateSeekResolvedForAudioOffload(MediaDecoderEventVisibility aEventVisibility)
-  {
-    OnSeekResolvedInternal(false, aEventVisibility);
-  }
-#endif
+  // Seeking has stopped at the end of the resource. Inform the element on the main
+  // thread.
+  void SeekingStoppedAtEnd();
 
   // Seeking has started. Inform the element on the main
   // thread.
-  void SeekingStarted(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
+  void SeekingStarted();
 
   // Called when the backend has changed the current playback
   // position. It dispatches a timeupdate event and invalidates the frame.
   // This must be called on the main thread only.
-  virtual void PlaybackPositionChanged(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
+  virtual void PlaybackPositionChanged();
 
   // Calls mElement->UpdateReadyStateForData, telling it whether we have
   // data for the next frame and if we're buffering. Main thread only.
@@ -1048,9 +1030,6 @@ protected:
   // Cancel a timer for heuristic dormant.
   void CancelDormantTimer();
 
-  // Return true if the decoder has reached the end of playback
-  bool IsEnded() const;
-
   /******
    * The following members should be accessed with the decoder lock held.
    ******/
@@ -1152,8 +1131,6 @@ protected:
   // been requested. When a seek is started this is reset to invalid.
   SeekTarget mRequestedSeekTarget;
 
-  MediaPromiseConsumerHolder<SeekPromise> mSeekRequest;
-
   // True when seeking or otherwise moving the play position around in
   // such a manner that progress event data is inaccurate. This is set
   // during seek and duration operations to prevent the progress indicator
@@ -1169,8 +1146,6 @@ protected:
 
   // Ensures our media stream has been unpinned.
   void UnpinForSeek();
-
-  const char* PlayStateStr();
 
   // This should only ever be accessed from the main thread.
   // It is set in Init and cleared in Shutdown when the element goes away.
@@ -1220,12 +1195,6 @@ protected:
 
   // True if MediaDecoder is in dormant state.
   bool mIsDormant;
-
-  // True if MediaDecoder was PLAY_STATE_ENDED state, when entering to dormant.
-  // When MediaCodec is in dormant during PLAY_STATE_ENDED state, PlayState
-  // becomes different from PLAY_STATE_ENDED. But the MediaDecoder need to act
-  // as in PLAY_STATE_ENDED state to MediaDecoderOwner.
-  bool mWasEndedWhenEnteredDormant;
 
   // True if heuristic dormant is supported.
   const bool mIsHeuristicDormantSupported;

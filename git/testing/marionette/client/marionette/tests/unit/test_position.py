@@ -1,4 +1,4 @@
-from marionette import MarionetteTestCase
+from marionette_test import MarionetteTestCase
 
 
 class TestPosition(MarionetteTestCase):

@@ -849,13 +849,9 @@ CreateVsyncRefreshTimer()
   // ready.
   gfxPrefs::GetSingleton();
 
-  if (!gfxPrefs::VsyncAlignedRefreshDriver()
-        || !gfxPrefs::HardwareVsyncEnabled()
-        || gfxPlatform::IsInLayoutAsapMode()) {
+  if (!gfxPrefs::VsyncAlignedRefreshDriver()) {
     return;
   }
-
-  NS_WARNING("Enabling vsync refresh driver\n");
 
   if (XRE_IsParentProcess()) {
     // Make sure all vsync systems are ready.
@@ -1700,6 +1696,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       profilingDocShells[i]->AddProfileTimelineMarker("Paint",
                                                       TRACING_INTERVAL_START);
     }
+    profiler_tracing("Paint", "DisplayList", TRACING_INTERVAL_START);
 #ifdef MOZ_DUMP_PAINTING
     if (nsLayoutUtils::InvalidationDebuggingIsEnabled()) {
       printf_stderr("Starting ProcessPendingUpdates\n");
@@ -1718,6 +1715,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       profilingDocShells[i]->AddProfileTimelineMarker("Paint",
                                                       TRACING_INTERVAL_END);
     }
+    profiler_tracing("Paint", "DisplayList", TRACING_INTERVAL_END);
 
     if (nsContentUtils::XPConnect()) {
       nsContentUtils::XPConnect()->NotifyDidPaint();

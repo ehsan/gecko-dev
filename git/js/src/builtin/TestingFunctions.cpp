@@ -183,18 +183,6 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS_SetProperty(cx, info, "intl-api", value))
         return false;
 
-#if defined(XP_WIN)
-    value = BooleanValue(false);
-#elif defined(SOLARIS)
-    value = BooleanValue(false);
-#elif defined(XP_UNIX)
-    value = BooleanValue(true);
-#else
-    value = BooleanValue(false);
-#endif
-    if (!JS_SetProperty(cx, info, "mapped-array-buffer", value))
-        return false;
-
     args.rval().setObject(*info);
     return true;
 }
@@ -747,7 +735,7 @@ NondeterministicGetWeakMapKeys(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
     if (!args[0].isObject()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
                              "nondeterministicGetWeakMapKeys", "WeakMap",
                              InformalValueTypeName(args[0]));
         return false;
@@ -757,7 +745,7 @@ NondeterministicGetWeakMapKeys(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS_NondeterministicGetWeakMapKeys(cx, mapObj, &arr))
         return false;
     if (!arr) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
                              "nondeterministicGetWeakMapKeys", "WeakMap",
                              args[0].toObject().getClass()->name);
         return false;
@@ -971,9 +959,9 @@ SaveStack(JSContext *cx, unsigned argc, jsval *vp)
         if (!ToNumber(cx, args[0], &d))
             return false;
         if (d < 0) {
-            ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                  JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
-                                  "not a valid maximum frame count", NULL);
+            js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
+                                     JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                                     "not a valid maximum frame count", NULL);
             return false;
         }
         maxFrameCount = d;
@@ -982,9 +970,9 @@ SaveStack(JSContext *cx, unsigned argc, jsval *vp)
     JSCompartment *targetCompartment = cx->compartment();
     if (args.length() >= 2) {
         if (!args[1].isObject()) {
-            ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                                  JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
-                                  "not an object", NULL);
+            js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
+                                     JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                                     "not an object", NULL);
             return false;
         }
         RootedObject obj(cx, UncheckedUnwrap(&args[1].toObject()));
@@ -1005,37 +993,6 @@ SaveStack(JSContext *cx, unsigned argc, jsval *vp)
 
     args.rval().setObjectOrNull(stack);
     return true;
-}
-
-static bool
-CallFunctionWithAsyncStack(JSContext *cx, unsigned argc, jsval *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (args.length() != 3) {
-        JS_ReportError(cx, "The function takes exactly three arguments.");
-        return false;
-    }
-    if (!args[0].isObject() || !IsCallable(args[0])) {
-        JS_ReportError(cx, "The first argument should be a function.");
-        return false;
-    }
-    if (!args[1].isObject() || !args[1].toObject().is<SavedFrame>()) {
-        JS_ReportError(cx, "The second argument should be a SavedFrame.");
-        return false;
-    }
-    if (!args[2].isString() || args[2].toString()->empty()) {
-        JS_ReportError(cx, "The third argument should be a non-empty string.");
-        return false;
-    }
-
-    RootedObject function(cx, &args[0].toObject());
-    RootedObject stack(cx, &args[1].toObject());
-    RootedString asyncCause(cx, args[2].toString());
-
-    JS::AutoSetAsyncStackForNewCalls sas(cx, stack, asyncCause);
-    return Call(cx, UndefinedHandleValue, function,
-                JS::HandleValueArray::empty(), args.rval());
 }
 
 static bool
@@ -1132,8 +1089,11 @@ static bool
 MakeFinalizeObserver(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
+    RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
+    if (!scope)
+        return false;
 
-    JSObject *obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, JS::NullPtr());
+    JSObject *obj = JS_NewObjectWithGivenProto(cx, &FinalizeCounterClass, JS::NullPtr(), scope);
     if (!obj)
         return false;
 
@@ -1285,11 +1245,8 @@ ReadSPSProfilingStack(JSContext *cx, unsigned argc, jsval *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
     args.rval().setUndefined();
 
-    // Return boolean 'false' if profiler is not enabled.
-    if (!cx->runtime()->spsProfiler.enabled()) {
+    if (!cx->runtime()->spsProfiler.enabled())
         args.rval().setBoolean(false);
-        return true;
-    }
 
     // Array holding physical jit stack frames.
     RootedObject stack(cx, NewDenseEmptyArray(cx));
@@ -1881,16 +1838,13 @@ TimesAccessed(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-#ifdef JS_TRACE_LOGGING
 static bool
 EnableTraceLogger(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     TraceLoggerThread *logger = TraceLoggerForMainThread(cx->runtime());
-    if (!TraceLoggerEnable(logger, cx))
-        return false;
+    args.rval().setBoolean(TraceLoggerEnable(logger, cx));
 
-    args.rval().setUndefined();
     return true;
 }
 
@@ -1903,7 +1857,6 @@ DisableTraceLogger(JSContext *cx, unsigned argc, jsval *vp)
 
     return true;
 }
-#endif
 
 #ifdef DEBUG
 static bool
@@ -1914,7 +1867,7 @@ DumpObject(JSContext *cx, unsigned argc, jsval *vp)
     if (!obj)
         return false;
 
-    DumpObject(obj);
+    js_DumpObject(obj);
 
     args.rval().setUndefined();
     return true;
@@ -1959,7 +1912,7 @@ static bool
 DumpBacktrace(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    DumpBacktrace(cx);
+    js_DumpBacktrace(cx);
     args.rval().setUndefined();
     return true;
 }
@@ -2146,7 +2099,7 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     if (argc < 2) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
                              "findPath", "1", "");
         return false;
     }
@@ -2155,16 +2108,16 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
     // test is all about object identity, and ToString doesn't preserve that.
     // Non-GCThing endpoints don't make much sense.
     if (!args[0].isObject() && !args[0].isString() && !args[0].isSymbol()) {
-        ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                              JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
-                              "not an object, string, or symbol", NULL);
+        js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
+                                 JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                                 "not an object, string, or symbol", NULL);
         return false;
     }
 
     if (!args[1].isObject() && !args[1].isString() && !args[1].isSymbol()) {
-        ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
-                              JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
-                              "not an object, string, or symbol", NULL);
+        js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_UNEXPECTED_TYPE,
+                                 JSDVG_SEARCH_STACK, args[0], JS::NullPtr(),
+                                 "not an object, string, or symbol", NULL);
         return false;
     }
 
@@ -2469,13 +2422,6 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "  of frames. If 'compartment' is given, allocate the js::SavedFrame instances\n"
 "  with the given object's compartment."),
 
-    JS_FN_HELP("callFunctionWithAsyncStack", CallFunctionWithAsyncStack, 0, 0,
-"callFunctionWithAsyncStack(function, stack, asyncCause)",
-"  Call 'function', using the provided stack as the async stack responsible\n"
-"  for the call, and propagate its return value or the exception it throws.\n"
-"  The function is called with no arguments, and 'this' is 'undefined'. The\n"
-"  specified |asyncCause| is attached to the provided stack frame."),
-
     JS_FN_HELP("enableTrackAllocations", EnableTrackAllocations, 0, 0,
 "enableTrackAllocations()",
 "  Start capturing the JS stack at every allocation. Note that this sets an\n"
@@ -2710,7 +2656,6 @@ gc::ZealModeHelpText),
 "helperThreadCount()",
 "  Returns the number of helper threads available for off-main-thread tasks."),
 
-#ifdef JS_TRACE_LOGGING
     JS_FN_HELP("startTraceLogger", EnableTraceLogger, 0, 0,
 "startTraceLogger()",
 "  Start logging the mainThread.\n"
@@ -2720,7 +2665,6 @@ gc::ZealModeHelpText),
     JS_FN_HELP("stopTraceLogger", DisableTraceLogger, 0, 0,
 "stopTraceLogger()",
 "  Stop logging the mainThread."),
-#endif
 
     JS_FN_HELP("reportOutOfMemory", ReportOutOfMemory, 0, 0,
 "reportOutOfMemory()",

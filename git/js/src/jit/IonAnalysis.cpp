@@ -94,49 +94,36 @@ BlockComputesConstant(MBasicBlock *block, MDefinition *value)
     return true;
 }
 
-// Determine whether phiBlock/testBlock simply compute a phi and perform a
-// test on it.
+// Determine whether a block simply computes a phi and performs a test on it.
 static bool
-BlockIsSingleTest(MBasicBlock *phiBlock, MBasicBlock *testBlock, MPhi **pphi, MTest **ptest)
+BlockIsSingleTest(MBasicBlock *block, MPhi **pphi, MTest **ptest)
 {
     *pphi = nullptr;
     *ptest = nullptr;
 
-    if (phiBlock != testBlock) {
-        MOZ_ASSERT(phiBlock->numSuccessors() == 1 && phiBlock->getSuccessor(0) == testBlock);
-        if (!phiBlock->begin()->isGoto())
-            return false;
-    }
-
-    MInstruction *ins = *testBlock->begin();
+    MInstruction *ins = *block->begin();
     if (!ins->isTest())
         return false;
     MTest *test = ins->toTest();
     if (!test->input()->isPhi())
         return false;
     MPhi *phi = test->input()->toPhi();
-    if (phi->block() != phiBlock)
+    if (phi->block() != block)
         return false;
 
     for (MUseIterator iter = phi->usesBegin(); iter != phi->usesEnd(); ++iter) {
         MUse *use = *iter;
         if (use->consumer() == test)
             continue;
-        if (use->consumer()->isResumePoint()) {
-            MBasicBlock *useBlock = use->consumer()->block();
-            if (useBlock == phiBlock || useBlock == testBlock)
-                continue;
-        }
+        if (use->consumer()->isResumePoint() && use->consumer()->block() == block)
+            continue;
         return false;
     }
 
-    for (MPhiIterator iter = phiBlock->phisBegin(); iter != phiBlock->phisEnd(); ++iter) {
+    for (MPhiIterator iter = block->phisBegin(); iter != block->phisEnd(); ++iter) {
         if (*iter != phi)
             return false;
     }
-
-    if (phiBlock != testBlock && !testBlock->phisEmpty())
-        return false;
 
     *pphi = phi;
     *ptest = test;
@@ -204,14 +191,10 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
      *          /     \
      *  trueBranch  falseBranch
      *          \     /
-     *          phiBlock
-     *             |
      *         testBlock
      *
-     * Where phiBlock contains a single phi combining values pushed onto the
-     * stack by trueBranch and falseBranch, and testBlock contains a test on
-     * that phi. phiBlock and testBlock may be the same block; generated code
-     * will use different blocks if the (?:) op is in an inlined function.
+     * Where testBlock contains only a test on a phi combining two values
+     * pushed onto the stack by trueBranch and falseBranch.
      */
 
     MInstruction *ins = initialBlock->lastIns();
@@ -225,23 +208,14 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
     MBasicBlock *falseBranch = initialTest->ifFalse();
     if (falseBranch->numPredecessors() != 1 || falseBranch->numSuccessors() != 1)
         return;
-    MBasicBlock *phiBlock = trueBranch->getSuccessor(0);
-    if (phiBlock != falseBranch->getSuccessor(0))
+    MBasicBlock *testBlock = trueBranch->getSuccessor(0);
+    if (testBlock != falseBranch->getSuccessor(0))
         return;
-    if (phiBlock->numPredecessors() != 2)
+    if (testBlock->numPredecessors() != 2)
         return;
 
     if (initialBlock->isLoopBackedge() || trueBranch->isLoopBackedge() || falseBranch->isLoopBackedge())
         return;
-
-    MBasicBlock *testBlock = phiBlock;
-    if (testBlock->numSuccessors() == 1) {
-        if (testBlock->isLoopBackedge())
-            return;
-        testBlock = testBlock->getSuccessor(0);
-        if (testBlock->numPredecessors() != 1)
-            return;
-    }
 
     // Make sure the test block does not have any outgoing loop backedges.
     if (!SplitCriticalEdgesForBlock(graph, testBlock))
@@ -249,16 +223,34 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     MPhi *phi;
     MTest *finalTest;
-    if (!BlockIsSingleTest(phiBlock, testBlock, &phi, &finalTest))
+    if (!BlockIsSingleTest(testBlock, &phi, &finalTest))
         return;
 
-    MDefinition *trueResult = phi->getOperand(phiBlock->indexForPredecessor(trueBranch));
-    MDefinition *falseResult = phi->getOperand(phiBlock->indexForPredecessor(falseBranch));
+    if (&testBlock->info() != &initialBlock->info() ||
+        &trueBranch->info() != &initialBlock->info() ||
+        &falseBranch->info() != &initialBlock->info())
+    {
+        return;
+    }
+
+    MDefinition *trueResult = phi->getOperand(testBlock->indexForPredecessor(trueBranch));
+    MDefinition *falseResult = phi->getOperand(testBlock->indexForPredecessor(falseBranch));
+
+    if (trueBranch->stackDepth() != falseBranch->stackDepth())
+        return;
+
+    if (trueBranch->stackDepth() != testBlock->stackDepth() + 1)
+        return;
+
+    if (trueResult != trueBranch->peek(-1) || falseResult != falseBranch->peek(-1))
+        return;
 
     // OK, we found the desired pattern, now transform the graph.
 
-    // Remove the phi from phiBlock.
-    phiBlock->discardPhi(*phiBlock->phisBegin());
+    // Remove the phi and its inputs from testBlock.
+    testBlock->discardPhi(*testBlock->phisBegin());
+    trueBranch->pop();
+    falseBranch->pop();
 
     // If either trueBranch or falseBranch just computes a constant for the
     // test, determine the block that branch will end up jumping to and eliminate
@@ -270,7 +262,7 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
         trueTarget = trueResult->constantToBoolean()
                      ? finalTest->ifTrue()
                      : finalTest->ifFalse();
-        phiBlock->removePredecessor(trueBranch);
+        testBlock->removePredecessor(trueBranch);
         graph.removeBlock(trueBranch);
     } else {
         UpdateTestSuccessors(graph.alloc(), trueBranch, trueResult,
@@ -282,7 +274,7 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
         falseTarget = falseResult->constantToBoolean()
                       ? finalTest->ifTrue()
                       : finalTest->ifFalse();
-        phiBlock->removePredecessor(falseBranch);
+        testBlock->removePredecessor(falseBranch);
         graph.removeBlock(falseBranch);
     } else {
         UpdateTestSuccessors(graph.alloc(), falseBranch, falseResult,
@@ -292,12 +284,6 @@ MaybeFoldConditionBlock(MIRGraph &graph, MBasicBlock *initialBlock)
     // Short circuit the initial test to skip any constant branch eliminated above.
     UpdateTestSuccessors(graph.alloc(), initialBlock, initialTest->input(),
                          trueTarget, falseTarget, testBlock);
-
-    // Remove phiBlock, if different from testBlock.
-    if (phiBlock != testBlock) {
-        testBlock->removePredecessor(phiBlock);
-        graph.removeBlock(phiBlock);
-    }
 
     // Remove testBlock itself.
     finalTest->ifTrue()->removePredecessor(testBlock);
@@ -321,14 +307,10 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
     //         /     |
     // branchBlock   |
     //         \     |
-    //         phiBlock
-    //            |
     //        testBlock
     //
-    // Where phiBlock contains a single phi combining values pushed onto the
-    // stack by initialBlock and testBlock, and testBlock contains a test on
-    // that phi. phiBlock and testBlock may be the same block; generated code
-    // will use different blocks if the &&/|| is in an inlined function.
+    // Where testBlock contains only a test on a phi combining two values
+    // pushed onto the stack by initialBlock and branchBlock.
 
     MInstruction *ins = initialBlock->lastIns();
     if (!ins->isTest())
@@ -337,29 +319,20 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     bool branchIsTrue = true;
     MBasicBlock *branchBlock = initialTest->ifTrue();
-    MBasicBlock *phiBlock = initialTest->ifFalse();
-    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != phiBlock) {
+    MBasicBlock *testBlock = initialTest->ifFalse();
+    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != testBlock) {
         branchIsTrue = false;
         branchBlock = initialTest->ifFalse();
-        phiBlock = initialTest->ifTrue();
+        testBlock = initialTest->ifTrue();
     }
 
-    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != phiBlock)
+    if (branchBlock->numSuccessors() != 1 || branchBlock->getSuccessor(0) != testBlock)
         return;
-    if (branchBlock->numPredecessors() != 1 || phiBlock->numPredecessors() != 2)
+    if (branchBlock->numPredecessors() != 1 || testBlock->numPredecessors() != 2)
         return;
 
     if (initialBlock->isLoopBackedge() || branchBlock->isLoopBackedge())
         return;
-
-    MBasicBlock *testBlock = phiBlock;
-    if (testBlock->numSuccessors() == 1) {
-        if (testBlock->isLoopBackedge())
-            return;
-        testBlock = testBlock->getSuccessor(0);
-        if (testBlock->numPredecessors() != 1)
-            return;
-    }
 
     // Make sure the test block does not have any outgoing loop backedges.
     if (!SplitCriticalEdgesForBlock(graph, testBlock))
@@ -367,19 +340,30 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     MPhi *phi;
     MTest *finalTest;
-    if (!BlockIsSingleTest(phiBlock, testBlock, &phi, &finalTest))
+    if (!BlockIsSingleTest(testBlock, &phi, &finalTest))
         return;
 
-    MDefinition *branchResult = phi->getOperand(phiBlock->indexForPredecessor(branchBlock));
-    MDefinition *initialResult = phi->getOperand(phiBlock->indexForPredecessor(initialBlock));
+    if (&testBlock->info() != &initialBlock->info() || &branchBlock->info() != &initialBlock->info())
+        return;
 
-    if (initialResult != initialTest->input())
+    MDefinition *branchResult = phi->getOperand(testBlock->indexForPredecessor(branchBlock));
+    MDefinition *initialResult = phi->getOperand(testBlock->indexForPredecessor(initialBlock));
+
+    if (branchBlock->stackDepth() != initialBlock->stackDepth())
+        return;
+
+    if (branchBlock->stackDepth() != testBlock->stackDepth() + 1)
+        return;
+
+    if (branchResult != branchBlock->peek(-1) || initialResult != initialBlock->peek(-1))
         return;
 
     // OK, we found the desired pattern, now transform the graph.
 
-    // Remove the phi from phiBlock.
-    phiBlock->discardPhi(*phiBlock->phisBegin());
+    // Remove the phi and its inputs from testBlock.
+    testBlock->discardPhi(*testBlock->phisBegin());
+    branchBlock->pop();
+    initialBlock->pop();
 
     // Change the end of the initial and branch blocks to a test that jumps
     // directly to successors of testBlock, rather than to testBlock itself.
@@ -391,12 +375,6 @@ MaybeFoldAndOrBlock(MIRGraph &graph, MBasicBlock *initialBlock)
 
     UpdateTestSuccessors(graph.alloc(), branchBlock, branchResult,
                          finalTest->ifTrue(), finalTest->ifFalse(), testBlock);
-
-    // Remove phiBlock, if different from testBlock.
-    if (phiBlock != testBlock) {
-        testBlock->removePredecessor(phiBlock);
-        graph.removeBlock(phiBlock);
-    }
 
     // Remove testBlock itself.
     finalTest->ifTrue()->removePredecessor(testBlock);
@@ -560,8 +538,7 @@ jit::EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph)
 bool
 js::jit::DeadIfUnused(const MDefinition *def)
 {
-    return !def->isEffectful() && !def->isGuard() && !def->isGuardRangeBailouts() &&
-           !def->isControlInstruction() &&
+    return !def->isEffectful() && !def->isGuard() && !def->isControlInstruction() &&
            (!def->isInstruction() || !def->toInstruction()->resumePoint());
 }
 
@@ -1838,7 +1815,7 @@ CheckOperand(const MNode *consumer, const MUse *use, int32_t *usesBalance)
 #ifdef _DEBUG_CHECK_OPERANDS_USES_BALANCE
     fprintf(stderr, "==Check Operand\n");
     use->producer()->dump(stderr);
-    fprintf(stderr, "  index: %" PRIuSIZE "\n", use->consumer()->indexOf(use));
+    fprintf(stderr, "  index: %zu\n", use->consumer()->indexOf(use));
     use->consumer()->dump(stderr);
     fprintf(stderr, "==End\n");
 #endif
@@ -1856,7 +1833,7 @@ CheckUse(const MDefinition *producer, const MUse *use, int32_t *usesBalance)
 #ifdef _DEBUG_CHECK_OPERANDS_USES_BALANCE
     fprintf(stderr, "==Check Use\n");
     use->producer()->dump(stderr);
-    fprintf(stderr, "  index: %" PRIuSIZE "\n", use->consumer()->indexOf(use));
+    fprintf(stderr, "  index: %zu\n", use->consumer()->indexOf(use));
     use->consumer()->dump(stderr);
     fprintf(stderr, "==End\n");
 #endif
@@ -2076,8 +2053,6 @@ IsResumableMIRType(MIRType type)
       case MIRType_MagicOptimizedOut:
       case MIRType_MagicUninitializedLexical:
       case MIRType_Value:
-      case MIRType_Float32x4:
-      case MIRType_Int32x4:
         return true;
 
       case MIRType_MagicHole:
@@ -2089,7 +2064,9 @@ IsResumableMIRType(MIRType type)
       case MIRType_Pointer:
       case MIRType_Shape:
       case MIRType_ObjectGroup:
-      case MIRType_Doublex2: // NYI, see also RSimdBox::recover
+      case MIRType_Float32x4:
+      case MIRType_Int32x4:
+      case MIRType_Doublex2:
         return false;
     }
     MOZ_CRASH("Unknown MIRType.");
@@ -3041,6 +3018,11 @@ AnalyzePoppedThis(JSContext *cx, ObjectGroup *group,
                 return true;
         }
 
+        // Don't add definite properties to an object which won't fit in its
+        // fixed slots.
+        if (GetGCKindSlots(gc::GetGCObjectKind(baseobj->slotSpan() + 1)) <= baseobj->slotSpan())
+            return true;
+
         // Assignments to new properties must always execute.
         if (!definitelyExecuted)
             return true;
@@ -3187,7 +3169,7 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
 
     CompilerConstraintList *constraints = NewCompilerConstraintList(temp);
     if (!constraints) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 

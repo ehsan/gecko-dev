@@ -3,7 +3,7 @@ $inherits:
 task:
   workerType: emulator-kk
   scopes:
-    - 'docker-worker:cache:workspace-emulator-kk-opt'
+    - 'docker-worker:cache:build-emulator-kk-opt'
   metadata:
     name: '[TC] B2G KK Emulator Opt'
 
@@ -14,7 +14,7 @@ task:
 
   payload:
     cache:
-      workspace-emulator-kk-opt: /home/worker/workspace
+      build-emulator-kk-opt: /home/worker/object-folder
     env:
       TARGET: 'emulator-kk'
 

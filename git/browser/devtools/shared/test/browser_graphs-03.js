@@ -21,7 +21,7 @@ function* performTest() {
   yield testSelection(graph);
   yield testCursor(graph);
 
-  yield graph.destroy();
+  graph.destroy();
   host.destroy();
 }
 

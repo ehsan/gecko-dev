@@ -44,7 +44,8 @@ interface PeerConnectionImpl  {
   [Throws]
   void removeTrack(MediaStreamTrack track);
   [Throws]
-  void replaceTrack(MediaStreamTrack thisTrack, MediaStreamTrack withTrack);
+  void replaceTrack(MediaStreamTrack thisTrack, MediaStreamTrack withTrack,
+                    MediaStream stream);
   [Throws]
   void closeStreams();
 

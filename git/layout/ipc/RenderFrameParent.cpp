@@ -13,7 +13,6 @@
 # include "LayerManagerD3D9.h"
 #endif //MOZ_ENABLE_D3D9_LAYER
 #include "mozilla/BrowserElementParent.h"
-#include "mozilla/EventForwards.h"  // for Modifiers
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/layers/APZCTreeManager.h"
@@ -101,24 +100,6 @@ public:
     }
   }
 
-  virtual void RequestFlingSnap(const FrameMetrics::ViewID& aScrollId,
-                                const mozilla::CSSPoint& aDestination) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      // We have to send this message from the "UI thread" (main
-      // thread).
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::RequestFlingSnap,
-                          aScrollId, aDestination));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = TabParent::GetFrom(mRenderFrame->Manager());
-      browser->RequestFlingSnap(aScrollId, aDestination);
-    }
-  }
-
   virtual void AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
                                        const uint32_t& aScrollGeneration) MOZ_OVERRIDE
   {
@@ -138,7 +119,7 @@ public:
   }
 
   virtual void HandleDoubleTap(const CSSPoint& aPoint,
-                               Modifiers aModifiers,
+                               int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
@@ -157,7 +138,7 @@ public:
   }
 
   virtual void HandleSingleTap(const CSSPoint& aPoint,
-                               Modifiers aModifiers,
+                               int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
@@ -177,7 +158,7 @@ public:
   }
 
   virtual void HandleLongTap(const CSSPoint& aPoint,
-                             Modifiers aModifiers,
+                             int32_t aModifiers,
                              const ScrollableLayerGuid& aGuid,
                              uint64_t aInputBlockId) MOZ_OVERRIDE
   {
@@ -197,7 +178,7 @@ public:
   }
 
   virtual void HandleLongTapUp(const CSSPoint& aPoint,
-                               Modifiers aModifiers,
+                               int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE
   {
     if (MessageLoop::current() != mUILoop) {
@@ -297,6 +278,7 @@ private:
 };
 
 RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
+                                     ScrollingBehavior aScrollingBehavior,
                                      TextureFactoryIdentifier* aTextureFactoryIdentifier,
                                      uint64_t* aId,
                                      bool* aSuccess)
@@ -330,7 +312,7 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
         static_cast<ClientLayerManager*>(lm.get());
       clientManager->GetRemoteRenderer()->SendNotifyChildCreated(mLayersId);
     }
-    if (gfxPrefs::AsyncPanZoomEnabled()) {
+    if (aScrollingBehavior == ASYNC_PAN_ZOOM) {
       mContentController = new RemoteContentController(this);
       CompositorParent::SetControllerForLayerTree(mLayersId, mContentController);
     }
@@ -635,16 +617,15 @@ RenderFrameParent::TakeFocusForClick()
 }  // namespace mozilla
 
 nsDisplayRemote::nsDisplayRemote(nsDisplayListBuilder* aBuilder,
-                                 nsSubDocumentFrame* aFrame,
+                                 nsIFrame* aFrame,
                                  RenderFrameParent* aRemoteFrame)
   : nsDisplayItem(aBuilder, aFrame)
   , mRemoteFrame(aRemoteFrame)
   , mEventRegionsOverride(EventRegionsOverride::NoOverride)
 {
   if (aBuilder->IsBuildingLayerEventRegions()) {
-    bool frameIsPointerEventsNone = !aFrame->PassPointerEventsToChildren()
-        && (aFrame->StyleVisibility()->GetEffectivePointerEvents(aFrame) == NS_STYLE_POINTER_EVENTS_NONE);
-    if (aBuilder->IsInsidePointerEventsNoneDoc() || frameIsPointerEventsNone) {
+    if (aBuilder->IsInsidePointerEventsNoneDoc() ||
+        aFrame->StyleVisibility()->GetEffectivePointerEvents(aFrame) == NS_STYLE_POINTER_EVENTS_NONE) {
       mEventRegionsOverride |= EventRegionsOverride::ForceEmptyHitRegion;
     }
     if (nsLayoutUtils::HasDocumentLevelListenersForApzAwareEvents(aFrame->PresContext()->PresShell())) {

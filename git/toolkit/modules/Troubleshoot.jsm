@@ -28,7 +28,6 @@ catch (e) {
 // under the "accessibility.*" branch.
 const PREFS_WHITELIST = [
   "accessibility.",
-  "apz.",
   "browser.cache.",
   "browser.display.",
   "browser.download.folderList",
@@ -504,9 +503,7 @@ let dataProviders = {
 
 #if defined(XP_LINUX) && defined (MOZ_SANDBOX)
   sandbox: function sandbox(done) {
-    const keys = ["hasSeccompBPF", "hasSeccompTSync",
-                  "hasPrivilegedUserNamespaces", "hasUserNamespaces",
-                  "canSandboxContent", "canSandboxMedia"];
+    const keys = ["hasSeccompBPF", "canSandboxContent", "canSandboxMedia"];
 
     let sysInfo = Cc["@mozilla.org/system-info;1"].
                   getService(Ci.nsIPropertyBag2);

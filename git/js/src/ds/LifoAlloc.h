@@ -194,14 +194,14 @@ class LifoAlloc
 
     // Append used chunks to the end of this LifoAlloc. We act as if all the
     // chunks in |this| are used, even if they're not, so memory may be wasted.
-    void appendUsed(BumpChunk *otherFirst, BumpChunk *otherLatest, BumpChunk *otherLast) {
-        MOZ_ASSERT(otherFirst && otherLatest && otherLast);
+    void appendUsed(BumpChunk *start, BumpChunk *latest, BumpChunk *end) {
+        MOZ_ASSERT(start && latest &&  end);
         if (last)
-            last->setNext(otherFirst);
+            last->setNext(start);
         else
-            first = otherFirst;
-        latest = otherLatest;
-        last = otherLast;
+            first = latest = start;
+        last = end;
+        this->latest = latest;
     }
 
     void incrementCurSize(size_t size) {

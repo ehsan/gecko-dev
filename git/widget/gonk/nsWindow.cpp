@@ -45,7 +45,6 @@
 #include "pixelflinger/format.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/gfx/Logging.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/layers/APZThreadUtils.h"
 #include "mozilla/layers/CompositorParent.h"
@@ -327,7 +326,7 @@ nsWindow::DispatchTouchEventForAPZ(const MultiTouchInput& aInput,
     // for "normal" flow. The event might get sent to the child process still,
     // but if it doesn't we need to notify the APZ of various things. All of
     // that happens in DispatchEventForAPZ
-    ProcessUntransformedAPZEvent(&event, aGuid, aInputBlockId);
+    DispatchEventForAPZ(&event, aGuid, aInputBlockId);
 }
 
 class DispatchTouchInputOnControllerThread : public Task
@@ -705,9 +704,6 @@ nsWindow::StartRemoteDrawing()
     mFramebufferTarget = Factory::CreateDrawTargetForData(
          BackendType::CAIRO, (uint8_t*)vaddr,
          IntSize(width, height), mFramebuffer->stride * bytepp, format);
-    if (!mFramebufferTarget) {
-        MOZ_CRASH("nsWindow::StartRemoteDrawing failed in CreateDrawTargetForData");
-    }
     if (!mBackBuffer ||
         mBackBuffer->GetSize() != mFramebufferTarget->GetSize() ||
         mBackBuffer->GetFormat() != mFramebufferTarget->GetFormat()) {

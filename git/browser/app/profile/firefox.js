@@ -967,7 +967,7 @@ pref("browser.safebrowsing.enabled", true);
 pref("browser.safebrowsing.malware.enabled", true);
 pref("browser.safebrowsing.downloads.enabled", true);
 // Remote lookups are only enabled for Windows in Nightly and Aurora
-#if defined(XP_WIN)
+#if defined(XP_WIN) && !defined(RELEASE_BUILD)
 pref("browser.safebrowsing.downloads.remote.enabled", true);
 #else
 pref("browser.safebrowsing.downloads.remote.enabled", false);
@@ -1028,7 +1028,7 @@ pref("browser.rights.3.shown", false);
 pref("browser.rights.override", true);
 #endif
 
-pref("browser.selfsupport.url", "https://self-repair.mozilla.org/%LOCALE%/repair");
+pref("browser.selfsupport.url", "http://self-repair.mozilla.org/%LOCALE%/repair");
 
 pref("browser.sessionstore.resume_from_crash", true);
 pref("browser.sessionstore.resume_session_once", false);
@@ -1202,14 +1202,9 @@ pref("security.sandbox.windows.log", false);
 pref("dom.ipc.plugins.sandbox-level.default", 0);
 
 #if defined(MOZ_CONTENT_SANDBOX)
-// This controls the strength of the Windows content process sandbox for testing
-// purposes. This will require a restart.
-// On windows these levels are:
-// 0 - sandbox with USER_NON_ADMIN access token level
-// 1 - a more strict sandbox, which causes problems in specific areas
-// 2 - a policy that we can reasonably call an effective sandbox
-// 3 - an equivalent basic policy to the Chromium renderer processes
-pref("security.sandbox.content.level", 0);
+// This controls whether the Windows content process sandbox is using a more
+// strict sandboxing policy.  This will require a restart.
+pref("security.sandbox.windows.content.moreStrict", false);
 
 #if defined(MOZ_STACKWALKING)
 // This controls the depth of stack trace that is logged when Windows sandbox
@@ -1229,8 +1224,8 @@ pref("security.sandbox.windows.log.stackTraceDepth", 0);
 // 2 -> "an ideal sandbox which may break many things"
 // This setting is read when the content process is started. On Mac the content
 // process is killed when all windows are closed, so a change will take effect
-// when the 1st window is opened.
-pref("security.sandbox.content.level", 0);
+// when the 1st window is opened. It was decided to default this setting to 1.
+pref("security.sandbox.macos.content.level", 1);
 #endif
 
 // This pref governs whether we attempt to work around problems caused by
@@ -1441,9 +1436,6 @@ pref("devtools.timeline.enabled", true);
 #else
 pref("devtools.timeline.enabled", false);
 #endif
-
-// TODO remove `devtools.timeline.hiddenMarkers.` branches when performance
-// tool lands (bug 1075567)
 pref("devtools.timeline.hiddenMarkers", "[]");
 
 // Enable perftools via build command
@@ -1461,9 +1453,6 @@ pref("devtools.profiler.ui.show-platform-data", false);
 pref("devtools.profiler.ui.show-idle-blocks", true);
 
 // The default Performance UI settings
-pref("devtools.performance.memory.sample-probability", "0.05");
-pref("devtools.performance.memory.max-log-length", 2147483647); // Math.pow(2,31) - 1
-pref("devtools.performance.timeline.hidden-markers", "[]");
 pref("devtools.performance.ui.invert-call-tree", true);
 pref("devtools.performance.ui.invert-flame-graph", false);
 pref("devtools.performance.ui.flatten-tree-recursion", true);
@@ -1582,9 +1571,6 @@ pref("devtools.browserconsole.filter.secwarn", true);
 // Text size in the Web Console. Use 0 for the system default size.
 pref("devtools.webconsole.fontSize", 0);
 
-// Max number of inputs to store in web console history.
-pref("devtools.webconsole.inputHistoryCount", 50);
-
 // Persistent logging: |true| if you want the Web Console to keep all of the
 // logged messages after reloading the page, |false| if you want the output to
 // be cleared each time page navigation happens.
@@ -1691,7 +1677,7 @@ pref("pdfjs.previousHandler.alwaysAskBeforeHandling", false);
 pref("shumway.disabled", true);
 #else
 pref("shumway.disabled", false);
-pref("shumway.swf.whitelist", "http://g-ecx.images-amazon.com/*/AiryBasicRenderer*.swf,http://z-ecx.images-amazon.com/*/AiryFlashlsRenderer._TTW_.swf,http://ia.media-imdb.com/*/AiryFlashlsRenderer._TTW_.swf");
+pref("shumway.swf.whitelist", "http://g-ecx.images-amazon.com/*/AiryBasicRenderer*.swf");
 #endif
 #endif
 
@@ -1779,14 +1765,6 @@ pref("geo.provider.use_corelocation", true);
 #endif
 #endif
 
-#ifdef XP_WIN
-#ifdef RELEASE_BUILD
-pref("geo.provider.ms-windows-location", false);
-#else
-pref("geo.provider.ms-windows-location", true);
-#endif
-#endif
-
 // Necko IPC security checks only needed for app isolation for cookies/cache/etc:
 // currently irrelevant for desktop e10s
 pref("network.disable.ipc.security", true);
@@ -1832,12 +1810,12 @@ pref("ui.key.menuAccessKeyFocuses", true);
 #endif
 
 // Encrypted media extensions.
+#ifdef RELEASE_BUILD
+pref("media.eme.enabled", false);
+pref("media.eme.apiVisible", false);
+#else
 pref("media.eme.enabled", true);
 pref("media.eme.apiVisible", true);
-
-#ifdef XP_WIN
-pref("media.gmp-eme-adobe.enabled", true);
-pref("browser.eme.ui.enabled", true);
 #endif
 
 // Play with different values of the decay time and get telemetry,
@@ -1869,6 +1847,13 @@ pref("privacy.trackingprotection.ui.enabled", false);
 
 #ifdef NIGHTLY_BUILD
 pref("browser.tabs.remote.autostart.1", true);
+#endif
+
+// Temporary pref to allow printing in e10s windows on some platforms.
+#ifdef UNIX_BUT_NOT_MAC
+pref("print.enable_e10s_testing", false);
+#else
+pref("print.enable_e10s_testing", true);
 #endif
 
 #ifdef NIGHTLY_BUILD

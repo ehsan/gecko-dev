@@ -24,7 +24,6 @@ static bool gInitialized = false;
 static nsIURLParser *gNoAuthURLParser = nullptr;
 static nsIURLParser *gAuthURLParser = nullptr;
 static nsIURLParser *gStdURLParser = nullptr;
-static int32_t gMaxLength = 1048576; // Default: 1MB
 
 static void
 InitGlobals()
@@ -53,8 +52,6 @@ InitGlobals()
     }
 
     gInitialized = true;
-    Preferences::AddIntVarCache(&gMaxLength,
-                                "network.standard-url.max-length", 1048576);
 }
 
 void
@@ -66,11 +63,6 @@ net_ShutdownURLHelper()
         NS_IF_RELEASE(gStdURLParser);
         gInitialized = false;
     }
-}
-
-int32_t net_GetURLMaxLength()
-{
-    return gMaxLength;
 }
 
 //----------------------------------------------------------------------------
@@ -155,10 +147,6 @@ net_ParseFileURL(const nsACString &inURL,
                  nsACString &outFileExtension)
 {
     nsresult rv;
-
-    if (inURL.Length() > (uint32_t) gMaxLength) {
-        return NS_ERROR_MALFORMED_URI;
-    }
 
     outDirectory.Truncate();
     outFileBaseName.Truncate();

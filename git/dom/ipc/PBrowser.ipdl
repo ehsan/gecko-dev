@@ -27,11 +27,11 @@ using class mozilla::gfx::Matrix from "mozilla/gfx/Matrix.h";
 using struct gfxSize from "gfxPoint.h";
 using CSSRect from "Units.h";
 using LayoutDeviceIntRect from "Units.h";
-using ScreenIntSize from "Units.h";
 using struct mozilla::layers::FrameMetrics from "FrameMetrics.h";
 using struct mozilla::layers::ScrollableLayerGuid from "FrameMetrics.h";
 using struct mozilla::layers::ZoomConstraints from "FrameMetrics.h";
 using FrameMetrics::ViewID from "FrameMetrics.h";
+using mozilla::layout::ScrollingBehavior from "mozilla/layout/RenderFrameUtils.h";
 using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
 using mozilla::WindowsHandle from "ipc/IPCMessageUtils.h";
 using nscolor from "nsColor.h";
@@ -53,7 +53,6 @@ using struct mozilla::layers::TextureFactoryIdentifier from "mozilla/layers/Comp
 using mozilla::CSSPoint from "Units.h";
 using mozilla::CSSToScreenScale from "Units.h";
 using mozilla::CommandInt from "mozilla/EventForwards.h";
-using mozilla::Modifiers from "mozilla/EventForwards.h";
 using mozilla::layers::GeckoContentController::APZStateChange from "mozilla/layers/GeckoContentController.h";
 using mozilla::WritingMode from "WritingModes.h";
 
@@ -475,7 +474,8 @@ parent:
     async RemotePaintIsReady();
 
     sync GetRenderFrameInfo(PRenderFrame aRenderFrame)
-        returns (TextureFactoryIdentifier textureFactoryIdentifier,
+        returns (ScrollingBehavior scrolling,
+                 TextureFactoryIdentifier textureFactoryIdentifier,
                  uint64_t layersId);
 
     /**
@@ -483,8 +483,6 @@ parent:
      * dimensions has been requested, likely through win.moveTo or resizeTo
      */
     async SetDimensions(uint32_t aFlags, int32_t aX, int32_t aY, int32_t aCx, int32_t aCy);
-
-    prio(high) sync SynthesizedMouseWheelEvent(WidgetWheelEvent event);
 
 child:
     /**
@@ -496,8 +494,9 @@ child:
      * content processes always render to a virtual <0, 0> top-left
      * point.
      */
-    Show(ScreenIntSize size,
+    Show(nsIntSize size,
          ShowInfo info,
+         ScrollingBehavior scrolling,
          TextureFactoryIdentifier textureFactoryIdentifier,
          uint64_t layersId,
          nullable PRenderFrame renderFrame,
@@ -507,7 +506,7 @@ child:
 
     CacheFileDescriptor(nsString path, FileDescriptor fd);
 
-    UpdateDimensions(nsIntRect rect, ScreenIntSize size, ScreenOrientation orientation,
+    UpdateDimensions(nsIntRect rect, nsIntSize size, ScreenOrientation orientation,
                      nsIntPoint chromeDisp) compress;
 
     UpdateFrame(FrameMetrics frame);
@@ -515,12 +514,11 @@ child:
     // The following methods correspond to functions on the GeckoContentController
     // interface in gfx/layers/apz/public/GeckoContentController.h. Refer to documentation
     // in that file for these functions.
-    RequestFlingSnap(ViewID aScrollID, CSSPoint aDestination);
     AcknowledgeScrollUpdate(ViewID aScrollId, uint32_t aScrollGeneration);
-    HandleDoubleTap(CSSPoint aPoint, Modifiers aModifiers, ScrollableLayerGuid aGuid);
-    HandleSingleTap(CSSPoint aPoint, Modifiers aModifiers, ScrollableLayerGuid aGuid);
-    HandleLongTap(CSSPoint point, Modifiers aModifiers, ScrollableLayerGuid aGuid, uint64_t aInputBlockId);
-    HandleLongTapUp(CSSPoint point, Modifiers aModifiers, ScrollableLayerGuid aGuid);
+    HandleDoubleTap(CSSPoint point, ScrollableLayerGuid aGuid);
+    HandleSingleTap(CSSPoint point, ScrollableLayerGuid aGuid);
+    HandleLongTap(CSSPoint point, ScrollableLayerGuid aGuid, uint64_t aInputBlockId);
+    HandleLongTapUp(CSSPoint point, ScrollableLayerGuid aGuid);
     NotifyAPZStateChange(ViewID aViewId, APZStateChange aChange, int aArg);
 
 

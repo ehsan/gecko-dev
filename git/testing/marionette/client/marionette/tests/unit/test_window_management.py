@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import time
-from marionette import MarionetteTestCase
+from marionette_test import MarionetteTestCase
 
 class TestSwitchWindow(MarionetteTestCase):
     def open_new_window(self):

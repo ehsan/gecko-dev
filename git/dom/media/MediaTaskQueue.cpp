@@ -195,8 +195,12 @@ MediaTaskQueue::IsEmpty()
 bool
 MediaTaskQueue::IsCurrentThreadIn()
 {
+#ifdef DEBUG
   MonitorAutoLock mon(mQueueMonitor);
   return NS_GetCurrentThread() == mRunningThread;
+#else
+  return false;
+#endif
 }
 
 nsresult

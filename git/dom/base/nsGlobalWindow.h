@@ -115,9 +115,6 @@ class RequestOrUSVString;
 class Selection;
 class SpeechSynthesis;
 class WakeLock;
-namespace cache {
-class CacheStorage;
-} // namespace cache
 namespace indexedDB {
 class IDBFactory;
 } // namespace indexedDB
@@ -670,26 +667,6 @@ public:
             mCleanedUp);
   }
 
-  bool
-  HadOriginalOpener() const
-  {
-    MOZ_ASSERT(IsOuterWindow());
-    return mHadOriginalOpener;
-  }
-
-  bool
-  IsTopLevelWindow()
-  {
-    MOZ_ASSERT(IsOuterWindow());
-    nsCOMPtr<nsIDOMWindow> parentWindow;
-    nsresult rv = GetScriptableTop(getter_AddRefs(parentWindow));
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return false;
-    }
-
-    return parentWindow == static_cast<nsIDOMWindow*>(this);
-  }
-
   virtual void
   FirePopupBlockedEvent(nsIDocument* aDoc,
                         nsIURI* aPopupURI,
@@ -901,7 +878,6 @@ protected:
 public:
   void Alert(mozilla::ErrorResult& aError);
   void Alert(const nsAString& aMessage, mozilla::ErrorResult& aError);
-  already_AddRefed<mozilla::dom::cache::CacheStorage> GetCaches(mozilla::ErrorResult& aRv);
   bool Confirm(const nsAString& aMessage, mozilla::ErrorResult& aError);
   already_AddRefed<mozilla::dom::Promise> Fetch(const mozilla::dom::RequestOrUSVString& aInput,
                                                 const mozilla::dom::RequestInit& aInit,
@@ -966,7 +942,6 @@ public:
                      const mozilla::dom::ScrollOptions& aOptions);
   void ScrollByPages(int32_t numPages,
                      const mozilla::dom::ScrollOptions& aOptions);
-  void MozScrollSnap();
   int32_t GetInnerWidth(mozilla::ErrorResult& aError);
   void SetInnerWidth(int32_t aInnerWidth, mozilla::ErrorResult& aError);
   int32_t GetInnerHeight(mozilla::ErrorResult& aError);
@@ -1293,8 +1268,6 @@ public:
                            const nsAString &aPopupWindowFeatures);
   void FireOfflineStatusEventIfChanged();
 
-  bool GetIsPrerendered();
-
   // Inner windows only.
   nsresult ScheduleNextIdleObserverCallback();
   uint32_t GetFuzzTimeMS();
@@ -1579,7 +1552,6 @@ protected:
   nsString                      mDefaultStatus;
   nsGlobalWindowObserver*       mObserver; // Inner windows only.
   nsRefPtr<mozilla::dom::Crypto>  mCrypto;
-  nsRefPtr<mozilla::dom::cache::CacheStorage> mCacheStorage;
   nsRefPtr<mozilla::dom::Console> mConsole;
   // We need to store an nsISupports pointer to this object because the
   // mozilla::dom::External class doesn't exist on b2g and using the type

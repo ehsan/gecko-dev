@@ -14,8 +14,9 @@
 
 #include "jscntxt.h"
 
-#include "gc/Allocator.h"
 #include "gc/Marking.h"
+
+#include "jsgcinlines.h"
 
 namespace js {
 
@@ -96,7 +97,7 @@ MOZ_ALWAYS_INLINE bool
 JSString::validateLength(js::ExclusiveContext *maybecx, size_t length)
 {
     if (MOZ_UNLIKELY(length > JSString::MAX_LENGTH)) {
-        js::ReportAllocationOverflow(maybecx);
+        js_ReportAllocationOverflow(maybecx);
         return false;
     }
 
@@ -125,11 +126,18 @@ JSRope::new_(js::ExclusiveContext *cx,
 {
     if (!validateLength(cx, length))
         return nullptr;
-    JSRope *str = static_cast<JSRope *>(js::Allocate<JSString, allowGC>(cx));
+    JSRope *str = (JSRope *)js::NewGCString<allowGC>(cx);
     if (!str)
         return nullptr;
     str->init(cx, left, right, length);
     return str;
+}
+
+inline void
+JSRope::markChildren(JSTracer *trc)
+{
+    js::gc::MarkStringUnbarriered(trc, &d.s.u2.left, "left child");
+    js::gc::MarkStringUnbarriered(trc, &d.s.u3.right, "right child");
 }
 
 MOZ_ALWAYS_INLINE void
@@ -181,7 +189,7 @@ JSDependentString::new_(js::ExclusiveContext *cx, JSLinearString *baseArg, size_
                : js::NewInlineString<char16_t>(cx, base, start, length);
     }
 
-    JSDependentString *str = static_cast<JSDependentString *>(js::Allocate<JSString, js::NoGC>(cx));
+    JSDependentString *str = (JSDependentString *)js::NewGCString<js::NoGC>(cx);
     if (str) {
         str->init(cx, baseArg, start, length);
         return str;
@@ -189,11 +197,18 @@ JSDependentString::new_(js::ExclusiveContext *cx, JSLinearString *baseArg, size_
 
     js::RootedLinearString base(cx, baseArg);
 
-    str = static_cast<JSDependentString *>(js::Allocate<JSString>(cx));
+    str = (JSDependentString *)js::NewGCString<js::CanGC>(cx);
     if (!str)
         return nullptr;
     str->init(cx, base, start, length);
     return str;
+}
+
+inline void
+JSString::markBase(JSTracer *trc)
+{
+    MOZ_ASSERT(hasBase());
+    js::gc::MarkStringUnbarriered(trc, &d.s.u3.base, "base");
 }
 
 MOZ_ALWAYS_INLINE void
@@ -221,7 +236,7 @@ JSFlatString::new_(js::ExclusiveContext *cx, const CharT *chars, size_t length)
     if (!validateLength(cx, length))
         return nullptr;
 
-    JSFlatString *str = static_cast<JSFlatString *>(js::Allocate<JSString, allowGC>(cx));
+    JSFlatString *str = (JSFlatString *)js::NewGCString<allowGC>(cx);
     if (!str)
         return nullptr;
 
@@ -248,14 +263,14 @@ template <js::AllowGC allowGC>
 MOZ_ALWAYS_INLINE JSThinInlineString *
 JSThinInlineString::new_(js::ExclusiveContext *cx)
 {
-    return static_cast<JSThinInlineString *>(js::Allocate<JSString, allowGC>(cx));
+    return (JSThinInlineString *)js::NewGCString<allowGC>(cx);
 }
 
 template <js::AllowGC allowGC>
 MOZ_ALWAYS_INLINE JSFatInlineString *
 JSFatInlineString::new_(js::ExclusiveContext *cx)
 {
-    return js::Allocate<JSFatInlineString, allowGC>(cx);
+    return js::NewGCFatInlineString<allowGC>(cx);
 }
 
 template<>
@@ -317,7 +332,7 @@ JSExternalString::new_(JSContext *cx, const char16_t *chars, size_t length,
 
     if (!validateLength(cx, length))
         return nullptr;
-    JSExternalString *str = js::Allocate<JSExternalString>(cx);
+    JSExternalString *str = js::NewGCExternalString(cx);
     if (!str)
         return nullptr;
     str->init(chars, length, fin);

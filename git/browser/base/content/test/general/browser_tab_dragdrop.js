@@ -15,26 +15,14 @@ function test()
   ];
 
   function setLocation(i, url) {
-    tabs[i].linkedBrowser.contentWindow.location = url;
+    gBrowser.getBrowserForTab(tabs[i]).contentWindow.location = url;
   }
   function moveTabTo(a, b) {
     gBrowser.swapBrowsersAndCloseOther(gBrowser.tabs[b], gBrowser.tabs[a]);
   }
-  function clickTest(tab, doc, win) {
+  function clickTest(doc, win) {
     var clicks = doc.defaultView.clicks;
-
-    yield ContentTask.spawn(tab.linkedBrowser, {}, function() {
-      let target = content.document.body;
-      let rect = target.getBoundingClientRect();
-      let left = (rect.left + rect.right) / 2;
-      let top = (rect.top + rect.bottom) / 2;
-
-      let utils = content.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                         .getInterface(Components.interfaces.nsIDOMWindowUtils);
-      utils.sendMouseEvent("mousedown", left, top, 0, 1, 0, false, 0, 0);
-      utils.sendMouseEvent("mouseup", left, top, 0, 1, 0, false, 0, 0);
-    });
-
+    EventUtils.synthesizeMouseAtCenter(doc.body, {}, win);
     is(doc.defaultView.clicks, clicks+1, "adding 1 more click on BODY");
   }
   function test1() {
@@ -42,32 +30,32 @@ function test()
     is(gBrowser.tabs[1], tabs[1], "tab1");
     is(gBrowser.tabs[2], tabs[3], "tab3");
 
-    var plugin = tabs[4].linkedBrowser.contentDocument.wrappedJSObject.body.firstChild;
+    var plugin = gBrowser.getBrowserForTab(tabs[4]).docShell.contentViewer.DOMDocument.wrappedJSObject.body.firstChild;
     var tab4_plugin_object = plugin.getObjectValue();
 
     gBrowser.selectedTab = gBrowser.tabs[2];
     moveTabTo(3, 2); // now: 0 1 4
     gBrowser.selectedTab = tabs[4];
-    var doc = gBrowser.tabs[2].linkedBrowser.contentDocument.wrappedJSObject;
+    var doc = gBrowser.getBrowserForTab(gBrowser.tabs[2]).docShell.contentViewer.DOMDocument.wrappedJSObject;
     plugin = doc.body.firstChild;
     ok(plugin && plugin.checkObjectValue(tab4_plugin_object), "same plugin instance");
     is(gBrowser.tabs[1], tabs[1], "tab1");
     is(gBrowser.tabs[2], tabs[3], "tab4");
     is(doc.defaultView.clicks, 0, "no click on BODY so far");
-    clickTest(gBrowser.tabs[2], doc, window);
+    clickTest(doc, window);
 
     moveTabTo(2, 1); // now: 0 4
     is(gBrowser.tabs[1], tabs[1], "tab1");
-    doc = gBrowser.tabs[1].linkedBrowser.contentDocument.wrappedJSObject;
+    doc = gBrowser.getBrowserForTab(gBrowser.tabs[1]).docShell.contentViewer.DOMDocument.wrappedJSObject;
     plugin = doc.body.firstChild;
     ok(plugin && plugin.checkObjectValue(tab4_plugin_object), "same plugin instance");
-    clickTest(gBrowser.tabs[1], doc, window);
+    clickTest(doc, window);
 
     // Load a new document (about:blank) in tab4, then detach that tab into a new window.
     // In the new window, navigate back to the original document and click on its <body>,
     // verify that its onclick was called.
     var t = tabs[1];
-    var b = t.linkedBrowser;
+    var b = gBrowser.getBrowserForTab(t);
     gBrowser.selectedTab = t;
     b.addEventListener("load", function() {
       b.removeEventListener("load", arguments.callee, true);
@@ -77,16 +65,16 @@ function test()
         whenDelayedStartupFinished(win, function () {
           // Verify that the original window now only has the initial tab left in it.
           is(gBrowser.tabs[0], tabs[0], "tab0");
-          is(gBrowser.tabs[0].linkedBrowser.contentWindow.location, "about:blank", "tab0 uri");
+          is(gBrowser.getBrowserForTab(gBrowser.tabs[0]).contentWindow.location, "about:blank", "tab0 uri");
 
           executeSoon(function () {
             win.gBrowser.addEventListener("pageshow", function () {
               win.gBrowser.removeEventListener("pageshow", arguments.callee, false);
               executeSoon(function () {
                 t = win.gBrowser.tabs[0];
-                b = t.linkedBrowser;
-                var doc = b.contentDocument.wrappedJSObject;
-                clickTest(t, doc, win);
+                b = win.gBrowser.getBrowserForTab(t);
+                var doc = b.docShell.contentViewer.DOMDocument.wrappedJSObject;
+                clickTest(doc, win);
                 win.close();
                 finish();
               });
@@ -102,11 +90,11 @@ function test()
 
   var loads = 0;
   function waitForLoad(event, tab, listenerContainer) {
-    var b = tabs[tab].linkedBrowser;
+    var b = gBrowser.getBrowserForTab(gBrowser.tabs[tab]);
     if (b.contentDocument != event.target) {
       return;
     }
-    gBrowser.tabs[tab].linkedBrowser.removeEventListener("load", listenerContainer.listener, true);
+    gBrowser.getBrowserForTab(gBrowser.tabs[tab]).removeEventListener("load", listenerContainer.listener, true);
     ++loads;
     if (loads == tabs.length - 1) {
       executeSoon(test1);
@@ -119,7 +107,7 @@ function test()
     return listenerContainer.listener;
   }
   for (var i = 1; i < tabs.length; ++i) {
-    tabs[i].linkedBrowser.addEventListener("load", fn(waitForLoad,i), true);
+    gBrowser.getBrowserForTab(tabs[i]).addEventListener("load", fn(waitForLoad,i), true);
   }
 
   setLocation(1, "data:text/html;charset=utf-8,<title>tab1</title><body>tab1<iframe>");

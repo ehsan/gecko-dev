@@ -199,6 +199,8 @@ private:
 class TouchBlockState : public CancelableBlockState
 {
 public:
+  typedef uint32_t TouchBehaviorFlags;
+
   explicit TouchBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
                            bool aTargetConfirmed);
 

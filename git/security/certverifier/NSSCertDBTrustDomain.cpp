@@ -35,6 +35,9 @@ extern PRLogModuleInfo* gCertVerifierLog;
 
 static const uint64_t ServerFailureDelaySeconds = 5 * 60;
 
+static const unsigned int MINIMUM_NON_ECC_BITS_DV = 1024;
+static const unsigned int MINIMUM_NON_ECC_BITS_EV = 2048;
+
 namespace mozilla { namespace psm {
 
 const char BUILTIN_ROOTS_MODULE_DEFAULT_NAME[] = "Builtin Roots Module";
@@ -53,7 +56,7 @@ NSSCertDBTrustDomain::NSSCertDBTrustDomain(SECTrustType certDBTrustType,
              /*optional but shouldn't be*/ void* pinArg,
                                            CertVerifier::OcspGetConfig ocspGETConfig,
                                            CertVerifier::PinningMode pinningMode,
-                                           unsigned int minRSABits,
+                                           bool forEV,
                               /*optional*/ const char* hostname,
                               /*optional*/ ScopedCERTCertList* builtChain)
   : mCertDBTrustType(certDBTrustType)
@@ -62,7 +65,7 @@ NSSCertDBTrustDomain::NSSCertDBTrustDomain(SECTrustType certDBTrustType,
   , mPinArg(pinArg)
   , mOCSPGetConfig(ocspGETConfig)
   , mPinningMode(pinningMode)
-  , mMinRSABits(minRSABits)
+  , mMinimumNonECCBits(forEV ? MINIMUM_NON_ECC_BITS_EV : MINIMUM_NON_ECC_BITS_DV)
   , mHostname(hostname)
   , mBuiltChain(builtChain)
   , mCertBlocklist(do_GetService(NS_CERTBLOCKLIST_CONTRACTID))
@@ -207,28 +210,6 @@ NSSCertDBTrustDomain::GetCertTrust(EndEntityOrCA endEntityOrCA,
                             nullptr, false, true));
   if (!candidateCert) {
     return MapPRErrorCodeToResult(PR_GetError());
-  }
-
-  // Check the certificate against the OneCRL cert blocklist
-  if (!mCertBlocklist) {
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  bool isCertRevoked;
-  nsresult nsrv = mCertBlocklist->IsCertRevoked(
-                    candidateCert->derIssuer.data,
-                    candidateCert->derIssuer.len,
-                    candidateCert->serialNumber.data,
-                    candidateCert->serialNumber.len,
-                    &isCertRevoked);
-  if (NS_FAILED(nsrv)) {
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  if (isCertRevoked) {
-    PR_LOG(gCertVerifierLog, PR_LOG_DEBUG,
-           ("NSSCertDBTrustDomain: certificate is in blocklist"));
-    return Result::ERROR_REVOKED_CERTIFICATE;
   }
 
   // XXX: CERT_GetCertTrust seems to be abusing SECStatus as a boolean, where
@@ -377,6 +358,27 @@ NSSCertDBTrustDomain::CheckRevocation(EndEntityOrCA endEntityOrCA,
   uint16_t maxOCSPLifetimeInDays = 10;
   if (endEntityOrCA == EndEntityOrCA::MustBeCA) {
     maxOCSPLifetimeInDays = 365;
+  }
+
+  if (!mCertBlocklist) {
+    return Result::FATAL_ERROR_LIBRARY_FAILURE;
+  }
+
+  bool isCertRevoked;
+  nsresult nsrv = mCertBlocklist->IsCertRevoked(
+                    certID.issuer.UnsafeGetData(),
+                    certID.issuer.GetLength(),
+                    certID.serialNumber.UnsafeGetData(),
+                    certID.serialNumber.GetLength(),
+                    &isCertRevoked);
+  if (NS_FAILED(nsrv)) {
+    return Result::FATAL_ERROR_LIBRARY_FAILURE;
+  }
+
+  if (isCertRevoked) {
+    PR_LOG(gCertVerifierLog, PR_LOG_DEBUG,
+           ("NSSCertDBTrustDomain: certificate is in blocklist"));
+    return Result::ERROR_REVOKED_CERTIFICATE;
   }
 
   // If we have a stapled OCSP response then the verification of that response
@@ -711,16 +713,10 @@ NSSCertDBTrustDomain::IsChainValid(const DERArray& certArray, Time time)
 }
 
 Result
-NSSCertDBTrustDomain::CheckSignatureDigestAlgorithm(DigestAlgorithm)
-{
-  return Success;
-}
-
-Result
 NSSCertDBTrustDomain::CheckRSAPublicKeyModulusSizeInBits(
   EndEntityOrCA /*endEntityOrCA*/, unsigned int modulusSizeInBits)
 {
-  if (modulusSizeInBits < mMinRSABits) {
+  if (modulusSizeInBits < mMinimumNonECCBits) {
     return Result::ERROR_INADEQUATE_KEY_SIZE;
   }
   return Success;

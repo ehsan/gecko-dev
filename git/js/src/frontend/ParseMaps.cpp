@@ -62,7 +62,7 @@ DefinitionList::allocNode(ExclusiveContext *cx, LifoAlloc &alloc, uintptr_t head
 {
     Node *result = alloc.new_<Node>(head, tail);
     if (!result)
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
     return result;
 }
 
@@ -73,7 +73,7 @@ AtomDecls<ParseHandler>::dump()
 {
     for (AtomDefnListRange r = map->all(); !r.empty(); r.popFront()) {
         fprintf(stderr, "atom: ");
-        DumpAtom(r.front().key());
+        js_DumpAtom(r.front().key());
         const DefinitionList &dlist = r.front().value();
         for (DefinitionList::Range dr = dlist.all(); !dr.empty(); dr.popFront()) {
             fprintf(stderr, "    defn: %p\n", (void *) dr.front<ParseHandler>());
@@ -91,7 +91,7 @@ DumpAtomDefnMap(const AtomDefnMapPtr &map)
 
     for (AtomDefnRange r = map->all(); !r.empty(); r.popFront()) {
         fprintf(stderr, "atom: ");
-        DumpAtom(r.front().key());
+        js_DumpAtom(r.front().key());
         fprintf(stderr, "defn: %p\n", (void *) r.front().value().get<FullParseHandler>());
     }
 }

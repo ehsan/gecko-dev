@@ -39,12 +39,6 @@ extern PRLogModuleInfo* GetMediaSourceLog();
 // default value used in Blink, kDefaultBufferDurationInMs.
 #define EOS_FUZZ_US 125000
 
-// Audio and video source buffers often have a slight duration
-// discrepency. We want to handle the case where a source buffer is smaller than
-// another by more than EOS_FUZZ_US so we can properly detect EOS in IsNearEnd().
-// This value was chosen at random, to cater for most streams seen in the wild.
-#define DURATION_DIFFERENCE_FUZZ 300000
-
 using mozilla::dom::TimeRanges;
 
 namespace mozilla {
@@ -116,9 +110,6 @@ MediaSourceReader::SizeOfAudioQueueInFrames()
 nsRefPtr<MediaDecoderReader::AudioDataPromise>
 MediaSourceReader::RequestAudioData()
 {
-  MOZ_ASSERT(OnDecodeThread());
-  MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty(), "No sample requests allowed while seeking");
-  MOZ_DIAGNOSTIC_ASSERT(mAudioPromise.IsEmpty(), "No duplicate sample requests");
   nsRefPtr<AudioDataPromise> p = mAudioPromise.Ensure(__func__);
   MSE_DEBUGV("");
   if (!mAudioTrack) {
@@ -264,9 +255,6 @@ MediaSourceReader::OnAudioNotDecoded(NotDecodedReason aReason)
 nsRefPtr<MediaDecoderReader::VideoDataPromise>
 MediaSourceReader::RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold)
 {
-  MOZ_ASSERT(OnDecodeThread());
-  MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty(), "No sample requests allowed while seeking");
-  MOZ_DIAGNOSTIC_ASSERT(mVideoPromise.IsEmpty(), "No duplicate sample requests");
   nsRefPtr<VideoDataPromise> p = mVideoPromise.Ensure(__func__);
   MSE_DEBUGV("RequestVideoData(%d, %lld)",
              aSkipToNextKeyframe, aTimeThreshold);
@@ -396,7 +384,7 @@ void
 MediaSourceReader::CheckForWaitOrEndOfStream(MediaData::Type aType, int64_t aTime)
 {
   // If the entire MediaSource is done, generate an EndOfStream.
-  if (IsNearEnd(aType, aTime)) {
+  if (IsNearEnd(aTime)) {
     if (aType == MediaData::AUDIO_DATA) {
       mAudioPromise.Reject(END_OF_STREAM, __func__);
     } else {
@@ -418,14 +406,6 @@ nsRefPtr<ShutdownPromise>
 MediaSourceReader::Shutdown()
 {
   mSeekPromise.RejectIfExists(NS_ERROR_FAILURE, __func__);
-  // Any previous requests we've been waiting on are now unwanted.
-  mAudioRequest.DisconnectIfExists();
-  mVideoRequest.DisconnectIfExists();
-
-  // Additionally, reject any outstanding promises _we_ made that we might have
-  // been waiting on the above to fulfill.
-  mAudioPromise.RejectIfExists(CANCELED, __func__);
-  mVideoPromise.RejectIfExists(CANCELED, __func__);
 
   MOZ_ASSERT(mMediaSourceShutdownPromise.IsEmpty());
   nsRefPtr<ShutdownPromise> p = mMediaSourceShutdownPromise.Ensure(__func__);
@@ -748,15 +728,31 @@ MediaSourceReader::Seek(int64_t aTime, int64_t aIgnored /* Used only for ogg whi
   MSE_DEBUG("Seek(aTime=%lld, aEnd=%lld, aCurrent=%lld)",
             aTime);
 
-  MOZ_DIAGNOSTIC_ASSERT(mSeekPromise.IsEmpty());
-  MOZ_DIAGNOSTIC_ASSERT(mAudioPromise.IsEmpty());
-  MOZ_DIAGNOSTIC_ASSERT(mVideoPromise.IsEmpty());
+  MOZ_ASSERT(mSeekPromise.IsEmpty());
   nsRefPtr<SeekPromise> p = mSeekPromise.Ensure(__func__);
 
   if (IsShutdown()) {
     mSeekPromise.Reject(NS_ERROR_FAILURE, __func__);
     return p;
   }
+
+  // Any previous requests we've been waiting on are now unwanted.
+  mAudioRequest.DisconnectIfExists();
+  mVideoRequest.DisconnectIfExists();
+
+  // Additionally, reject any outstanding promises _we_ made that we might have
+  // been waiting on the above to fulfill.
+  mAudioPromise.RejectIfExists(CANCELED, __func__);
+  mVideoPromise.RejectIfExists(CANCELED, __func__);
+
+  // Do the same for any data wait promises.
+  mAudioWaitPromise.RejectIfExists(WaitForDataRejectValue(MediaData::AUDIO_DATA, WaitForDataRejectValue::CANCELED), __func__);
+  mVideoWaitPromise.RejectIfExists(WaitForDataRejectValue(MediaData::VIDEO_DATA, WaitForDataRejectValue::CANCELED), __func__);
+
+  // Finally, if we were midway seeking a new reader to find a sample, abandon
+  // that too.
+  mAudioSeekRequest.DisconnectIfExists();
+  mVideoSeekRequest.DisconnectIfExists();
 
   // Store pending seek target in case the track buffers don't contain
   // the desired time and we delay doing the seek.
@@ -774,42 +770,22 @@ MediaSourceReader::Seek(int64_t aTime, int64_t aIgnored /* Used only for ogg whi
   return p;
 }
 
-nsresult
-MediaSourceReader::ResetDecode()
+void
+MediaSourceReader::CancelSeek()
 {
   MOZ_ASSERT(OnDecodeThread());
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  MSE_DEBUG("");
-
-  // Any previous requests we've been waiting on are now unwanted.
-  mAudioRequest.DisconnectIfExists();
-  mVideoRequest.DisconnectIfExists();
-  mAudioSeekRequest.DisconnectIfExists();
-  mVideoSeekRequest.DisconnectIfExists();
-
-  // Additionally, reject any outstanding promises _we_ made that we might have
-  // been waiting on the above to fulfill.
-  mAudioPromise.RejectIfExists(CANCELED, __func__);
-  mVideoPromise.RejectIfExists(CANCELED, __func__);
-  mSeekPromise.RejectIfExists(NS_OK, __func__);
-
-  // Do the same for any data wait promises.
-  mAudioWaitPromise.RejectIfExists(WaitForDataRejectValue(MediaData::AUDIO_DATA, WaitForDataRejectValue::CANCELED), __func__);
-  mVideoWaitPromise.RejectIfExists(WaitForDataRejectValue(MediaData::VIDEO_DATA, WaitForDataRejectValue::CANCELED), __func__);
-
-  // Reset miscellaneous seeking state.
   mWaitingForSeekData = false;
   mPendingSeekTime = -1;
-
-  // Reset all the readers.
   if (GetAudioReader()) {
-    GetAudioReader()->ResetDecode();
+    mAudioSeekRequest.DisconnectIfExists();
+    GetAudioReader()->CancelSeek();
   }
   if (GetVideoReader()) {
-    GetVideoReader()->ResetDecode();
+    mVideoSeekRequest.DisconnectIfExists();
+    GetVideoReader()->CancelSeek();
   }
-
-  return MediaDecoderReader::ResetDecode();
+  mSeekPromise.RejectIfExists(NS_OK, __func__);
 }
 
 void
@@ -963,7 +939,6 @@ MediaSourceReader::GetBuffered(dom::TimeRanges* aBuffered)
 nsRefPtr<MediaDecoderReader::WaitForDataPromise>
 MediaSourceReader::WaitForData(MediaData::Type aType)
 {
-  MOZ_ASSERT(OnDecodeThread());
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   nsRefPtr<WaitForDataPromise> p = WaitPromise(aType).Ensure(__func__);
   MaybeNotifyHaveData();
@@ -1073,27 +1048,10 @@ MediaSourceReader::IsEnded()
 }
 
 bool
-MediaSourceReader::IsNearEnd(MediaData::Type aType, int64_t aTime)
+MediaSourceReader::IsNearEnd(int64_t aTime)
 {
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-  if (!mEnded) {
-    return false;
-  }
-  if (aTime >= (mMediaSourceDuration * USECS_PER_S - EOS_FUZZ_US)) {
-    return true;
-  }
-  // We may have discrepencies between the mediasource duration and the
-  // sourcebuffer end time (mMediaSourceDuration == max(audio.EndTime, video.EndTime)
-  // If the sourcebuffer duration is close enough to the mediasource duration,
-  // then use it instead to determine if we're near the end.
-  TrackBuffer* trackBuffer =
-    aType == MediaData::AUDIO_DATA ? mAudioTrack : mVideoTrack;
-  nsRefPtr<dom::TimeRanges> buffered = new dom::TimeRanges();
-  trackBuffer->Buffered(buffered);
-  if ((mMediaSourceDuration - buffered->GetEndTime()) * USECS_PER_S <= DURATION_DIFFERENCE_FUZZ) {
-    return aTime >= std::floor(buffered->GetEndTime() * USECS_PER_S);
-  }
-  return false;
+  return mEnded && aTime >= (mMediaSourceDuration * USECS_PER_S - EOS_FUZZ_US);
 }
 
 void

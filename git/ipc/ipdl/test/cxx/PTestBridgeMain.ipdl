@@ -7,7 +7,6 @@ namespace _ipdltest {
 
 protocol PTestBridgeMain {
     child spawns PTestBridgeSub;
-    child opens PTestBridgeMainSub;
 
 child:
     Start();

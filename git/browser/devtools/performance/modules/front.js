@@ -121,9 +121,14 @@ PerformanceActorsConnection.prototype = {
    * Initializes a connection to the profiler actor.
    */
   _connectProfilerActor: Task.async(function*() {
-    // Chrome and content process targets already have obtained a reference
-    // to the profiler tab actor. Use it immediately.
-    if (this._target.form && this._target.form.profilerActor) {
+    // Chrome debugging targets have already obtained a reference
+    // to the profiler actor.
+    if (this._target.chrome) {
+      this._profiler = this._target.form.profilerActor;
+    }
+    // When we are debugging content processes, we already have the tab
+    // specific one. Use it immediately.
+    else if (this._target.form && this._target.form.profilerActor) {
       this._profiler = this._target.form.profilerActor;
     }
     // Check if we already have a grip to the `listTabs` response object
@@ -329,7 +334,7 @@ PerformanceFront.prototype = {
       return 0;
     }
     yield this._request("memory", "attach");
-    let memoryStartTime = yield this._request("memory", "startRecordingAllocations", options);
+    let memoryStartTime = yield this._request("memory", "startRecordingAllocations");
     yield this._pullAllocationSites();
     return memoryStartTime;
   }),
@@ -353,7 +358,6 @@ PerformanceFront.prototype = {
    */
   _pullAllocationSites: Task.async(function *() {
     let memoryData = yield this._request("memory", "getAllocations");
-    let isStillAttached = yield this._request("memory", "getState") == "attached";
 
     this.emit("allocations", {
       sites: memoryData.allocations,
@@ -362,10 +366,8 @@ PerformanceFront.prototype = {
       counts: memoryData.counts
     });
 
-    if (isStillAttached) {
-      let delay = DEFAULT_ALLOCATION_SITES_PULL_TIMEOUT;
-      this._sitesPullTimeout = setTimeout(this._pullAllocationSites, delay);
-    }
+    let delay = DEFAULT_ALLOCATION_SITES_PULL_TIMEOUT;
+    this._sitesPullTimeout = setTimeout(this._pullAllocationSites, delay);
   }),
 
   /**

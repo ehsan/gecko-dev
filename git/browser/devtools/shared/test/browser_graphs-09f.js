@@ -48,5 +48,5 @@ function* testGraph (parent, options) {
   is(graph._avgGutterLine.hidden, options.avg === false,
     `The avg gutter should ${options.avg === false ? "not " : ""}be shown`);
 
-  yield graph.destroy();
+  graph.destroy();
 }

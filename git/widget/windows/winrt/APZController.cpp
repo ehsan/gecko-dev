@@ -188,17 +188,6 @@ APZController::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
 }
 
 void
-APZController::RequestFlingSnap(const FrameMetrics::ViewID& aScrollId,
-                                const mozilla::CSSPoint& aDestination)
-{
-#ifdef DEBUG_CONTROLLER
-  WinUtils::Log("APZController::RequestFlingSnap scrollid=%I64d destination: %lu %lu",
-    aScrollId, aDestination.x, aDestination.y);
-#endif
-  mozilla::layers::APZCCallbackHelper::RequestFlingSnap(aScrollId, aDestination);
-}
-
-void
 APZController::AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
                                        const uint32_t& aScrollGeneration)
 {
@@ -211,21 +200,21 @@ APZController::AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
 
 void
 APZController::HandleDoubleTap(const CSSPoint& aPoint,
-                               Modifiers aModifiers,
+                               int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid)
 {
 }
 
 void
 APZController::HandleSingleTap(const CSSPoint& aPoint,
-                               Modifiers aModifiers,
+                               int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid)
 {
 }
 
 void
 APZController::HandleLongTap(const CSSPoint& aPoint,
-                             Modifiers aModifiers,
+                             int32_t aModifiers,
                              const mozilla::layers::ScrollableLayerGuid& aGuid,
                              uint64_t aInputBlockId)
 {
@@ -237,7 +226,7 @@ APZController::HandleLongTap(const CSSPoint& aPoint,
 
 void
 APZController::HandleLongTapUp(const CSSPoint& aPoint,
-                               Modifiers aModifiers,
+                               int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid)
 {
 }

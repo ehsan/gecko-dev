@@ -7,6 +7,9 @@
     <script type="application/javascript" src="SelectionUtils.js"></script>
     <script type="application/javascript;version=1.8">
 
+// Name of this test.
+const TYPE_NAME = "Robocop:testTextareaSelections";
+
 // Used to create handle movement events for SelectionHandler.
 const ANCHOR = "ANCHOR";
 const FOCUS = "FOCUS";
@@ -77,8 +80,7 @@ function testLTR_selectionPoints() {
     let midpointSelText = sh._getSelectedText();
 
     // Close selection and complete test.
-    Services.obs.notifyObservers(null, "TextSelection:End",
-      JSON.stringify({selectionID: sh._selectionID}));
+    Services.obs.notifyObservers(null, "TextSelection:End", {});
 
     return Promise.all([
       selectionExists(selection, "LTR Selection existed at points"),
@@ -122,8 +124,7 @@ function testRTL_selectionPoints() {
     let midpointSelText = sh._getSelectedText();
 
     // Close selection and complete test.
-    Services.obs.notifyObservers(null, "TextSelection:End",
-      JSON.stringify({selectionID: sh._selectionID}));
+    Services.obs.notifyObservers(null, "TextSelection:End", {});
 
     return Promise.all([
       selectionExists(selection, "RTL Selection existed at points"),
@@ -188,8 +189,7 @@ function test_selectionLineHeight() {
 
   ]).then(function() {
     // Complete test, and report.
-    Services.obs.notifyObservers(null, "TextSelection:End",
-      JSON.stringify({selectionID: sh._selectionID}));
+    Services.obs.notifyObservers(null, "TextSelection:End", {});
 
     return Promise.all([
       greaterThan(selectionLineHeight, 0, "Distance from one line to another " +
@@ -240,8 +240,7 @@ function testLTR_moveFocusHandleDown() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testLTR_moveFocusHandleDown - Test Starts."),
@@ -306,8 +305,7 @@ function testLTR_moveFocusHandleUp() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testLTR_moveFocusHandleUp - Test Starts."),
@@ -375,8 +373,7 @@ function testLTR_moveAnchorHandleUp() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testLTR_moveAnchorHandleUp - Test Starts."),
@@ -440,8 +437,7 @@ function testLTR_moveAnchorHandleDown() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testLTR_moveAnchorHandleDown - Test Starts."),
@@ -509,8 +505,7 @@ function testRTL_moveFocusHandleDown() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testRTL_moveFocusHandleDown - Test Starts."),
@@ -574,8 +569,7 @@ function testRTL_moveFocusHandleUp() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testRTL_moveFocusHandleUp - Test Starts."),
@@ -643,8 +637,7 @@ function testRTL_moveAnchorHandleUp() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testRTL_moveAnchorHandleUp - Test Starts."),
@@ -708,8 +701,7 @@ function testRTL_moveAnchorHandleDown() {
                        focusPt : new Point(sh._cache.focusPt.x, sh._cache.focusPt.y) };
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testRTL_moveAnchorHandleDown - Test Starts."),

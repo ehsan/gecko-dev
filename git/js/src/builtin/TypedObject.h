@@ -39,7 +39,7 @@
  * Currently, all "globals" related to typed objects are packaged
  * within a single "module" object `TypedObject`. This module has its
  * own js::Class and when that class is initialized, we also create
- * and define all other values (in `js::InitTypedObjectModuleClass()`).
+ * and define all other values (in `js_InitTypedObjectModuleClass()`).
  *
  * - Type objects, meta type objects, and type representations:
  *
@@ -369,7 +369,7 @@ class ArrayTypeDescr;
  * is no `class_` field because `ArrayType` is just a native
  * constructor function.
  */
-class ArrayMetaTypeDescr : public NativeObject
+class ArrayMetaTypeDescr : public JSObject
 {
   private:
     // Helper for creating a new ArrayType object.
@@ -433,7 +433,7 @@ class ArrayTypeDescr : public ComplexTypeDescr
  * is no `class_` field because `StructType` is just a native
  * constructor function.
  */
-class StructMetaTypeDescr : public NativeObject
+class StructMetaTypeDescr : public JSObject
 {
   private:
     static JSObject *create(JSContext *cx, HandleObject structTypeGlobal,
@@ -510,6 +510,7 @@ class TypedObjectModuleObject : public NativeObject {
 /* Base type for transparent and opaque typed objects. */
 class TypedObject : public JSObject
 {
+  private:
     static const bool IsTypedObjectClass = true;
 
     static bool obj_getArrayElement(JSContext *cx,
@@ -519,8 +520,6 @@ class TypedObject : public JSObject
                                     MutableHandleValue vp);
 
   protected:
-    HeapPtrShape shape_;
-
     static bool obj_lookupProperty(JSContext *cx, HandleObject obj,
                                    HandleId id, MutableHandleObject objp,
                                    MutableHandleShape propp);
@@ -529,8 +528,7 @@ class TypedObject : public JSObject
                                   MutableHandleObject objp, MutableHandleShape propp);
 
     static bool obj_defineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue v,
-                                   GetterOp getter, SetterOp setter, unsigned attrs,
-                                   ObjectOpResult &result);
+                                   PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
 
     static bool obj_hasProperty(JSContext *cx, HandleObject obj, HandleId id, bool *foundp);
 
@@ -541,13 +539,12 @@ class TypedObject : public JSObject
                                uint32_t index, MutableHandleValue vp);
 
     static bool obj_setProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
-                                HandleId id, MutableHandleValue vp, ObjectOpResult &result);
+                                HandleId id, MutableHandleValue vp, bool strict);
 
     static bool obj_getOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
                                              MutableHandle<JSPropertyDescriptor> desc);
 
-    static bool obj_deleteProperty(JSContext *cx, HandleObject obj, HandleId id,
-                                   ObjectOpResult &result);
+    static bool obj_deleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded);
 
     static bool obj_enumerate(JSContext *cx, HandleObject obj, AutoIdVector &properties);
 
@@ -604,8 +601,6 @@ class TypedObject : public JSObject
     /* Accessors for self hosted code. */
     static bool GetBuffer(JSContext *cx, unsigned argc, Value *vp);
     static bool GetByteOffset(JSContext *cx, unsigned argc, Value *vp);
-
-    Shape *shapeFromGC() { return shape_; }
 };
 
 typedef Handle<TypedObject*> HandleTypedObject;
@@ -716,6 +711,8 @@ class InlineTypedObject : public TypedObject
     }
 
     uint8_t *inlineTypedMem() const {
+        static_assert(offsetof(InlineTypedObject, data_) == sizeof(JSObject),
+                      "The data for an inline typed object must follow the shape and type.");
         return (uint8_t *) &data_;
     }
 
@@ -1045,10 +1042,10 @@ class LazyArrayBufferTable
     size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 };
 
-JSObject *
-InitTypedObjectModuleObject(JSContext *cx, JS::HandleObject obj);
-
 } // namespace js
+
+JSObject *
+js_InitTypedObjectModuleObject(JSContext *cx, JS::HandleObject obj);
 
 template <>
 inline bool

@@ -53,10 +53,6 @@ public:
     for (it = SharedBufferManagerParent::sManagers.begin(); it != SharedBufferManagerParent::sManagers.end(); it++) {
       base::ProcessId pid = it->first;
       SharedBufferManagerParent *mgr = it->second;
-      if (!mgr) {
-        printf_stderr("GrallocReporter::CollectReports() mgr is nullptr");
-        continue;
-      }
 
       nsAutoCString pidName;
       LinuxUtils::GetThreadName(pid, pidName);
@@ -99,8 +95,6 @@ public:
     return NS_OK;
   }
 
-protected:
-  ~GrallocReporter() {}
 };
 
 NS_IMPL_ISUPPORTS(GrallocReporter, nsIMemoryReporter)
@@ -338,11 +332,7 @@ MessageLoop* SharedBufferManagerParent::GetMessageLoop()
 SharedBufferManagerParent* SharedBufferManagerParent::GetInstance(ProcessId id)
 {
   NS_ASSERTION(sManagers.count(id) == 1, "No BufferManager for the process");
-  if (sManagers.count(id) == 1) {
-    return sManagers[id];
-  } else {
-    return nullptr;
-  }
+  return sManagers[id];
 }
 
 #ifdef MOZ_HAVE_SURFACEDESCRIPTORGRALLOC

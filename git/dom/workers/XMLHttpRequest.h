@@ -179,6 +179,9 @@ public:
   Send(const ArrayBufferView& aBody, ErrorResult& aRv);
 
   void
+  SendAsBinary(const nsAString& aBody, ErrorResult& aRv);
+
+  void
   Abort(ErrorResult& aRv);
 
   void

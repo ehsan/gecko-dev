@@ -6,7 +6,6 @@
 #include "nsCOMPtr.h"
 #include "nsIGeolocationProvider.h"
 
-
 /*
  * The CoreLocationObjects class contains the CoreLocation objects
  * we'll need.
@@ -22,7 +21,6 @@
  * for nsGeolocation.cpp, which is C++-only, to include this header.
  */
 class CoreLocationObjects;
-class MLSFallback;
 
 class CoreLocationLocationProvider
   : public nsIGeolocationProvider
@@ -38,11 +36,11 @@ public:
   void CancelMLSFallbackProvider();
 
 private:
-  virtual ~CoreLocationLocationProvider();
+  virtual ~CoreLocationLocationProvider() {};
 
   CoreLocationObjects* mCLObjects;
   nsCOMPtr<nsIGeolocationUpdate> mCallback;
-  nsRefPtr<MLSFallback> mMLSFallbackProvider;
+  nsCOMPtr<nsIGeolocationProvider> mMLSFallbackProvider;
 
   class MLSUpdate : public nsIGeolocationUpdate
   {
@@ -54,6 +52,6 @@ private:
 
   private:
     CoreLocationLocationProvider& mParentLocationProvider;
-    virtual ~MLSUpdate();
+    virtual ~MLSUpdate() {}
   };
 };

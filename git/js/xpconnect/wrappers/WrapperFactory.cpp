@@ -78,7 +78,9 @@ WrapperFactory::CreateXrayWaiver(JSContext *cx, HandleObject obj)
     XPCWrappedNativeScope *scope = ObjectScope(obj);
 
     JSAutoCompartment ac(cx, obj);
-    JSObject *waiver = Wrapper::New(cx, obj, &XrayWaiver);
+    JSObject *waiver = Wrapper::New(cx, obj,
+                                    JS_GetGlobalForObject(cx, obj),
+                                    &XrayWaiver);
     if (!waiver)
         return nullptr;
 
@@ -167,7 +169,7 @@ WrapperFactory::PrepareForWrapping(JSContext *cx, HandleObject scope,
     // those objects in a security wrapper, then we need to hand back the
     // wrapper for the new scope instead. Also, global objects don't move
     // between scopes so for those we also want to return the wrapper. So...
-    if (!IS_WN_REFLECTOR(obj) || JS_IsGlobalObject(obj))
+    if (!IS_WN_REFLECTOR(obj) || !js::GetObjectParent(obj))
         return waive ? WaiveXray(cx, obj) : obj;
 
     XPCWrappedNative *wn = XPCWrappedNative::Get(obj);
@@ -380,7 +382,8 @@ SelectAddonWrapper(JSContext *cx, HandleObject obj, const Wrapper *wrapper)
 }
 
 JSObject *
-WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj)
+WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj,
+                       HandleObject parent)
 {
     MOZ_ASSERT(!IsWrapper(obj) ||
                GetProxyHandler(obj) == &XrayWaiver ||
@@ -501,7 +504,7 @@ WrapperFactory::Rewrap(JSContext *cx, HandleObject existing, HandleObject obj)
     if (existing)
         return Wrapper::Renew(cx, existing, obj, wrapper);
 
-    return Wrapper::New(cx, obj, wrapper);
+    return Wrapper::New(cx, obj, parent, wrapper);
 }
 
 // Call WaiveXrayAndWrap when you have a JS object that you don't want to be

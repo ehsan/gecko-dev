@@ -8,8 +8,23 @@ const normalNumber = "0912345678";
 const emergencyNumber = "112";
 let outCall;
 
+function setRadioEnabledAll(enabled) {
+  let promises = [];
+  let numOfSim = navigator.mozMobileConnections.length;
+
+  for (let i = 0; i < numOfSim; i++) {
+    let connection = navigator.mozMobileConnections[i];
+    ok(connection instanceof MozMobileConnection,
+       "connection[" + i + "] is instanceof " + connection.constructor);
+
+    promises.push(gSetRadioEnabled(connection, enabled));
+  }
+
+  return Promise.all(promises);
+}
+
 function testDial_NormalNumber() {
-  return gSetRadioEnabledAll(false)
+  return setRadioEnabledAll(false)
     .then(() => gDial(normalNumber))
     .catch(cause => {
       is(cause, "RadioNotAvailable");
@@ -18,7 +33,7 @@ function testDial_NormalNumber() {
 }
 
 function testDial_EmergencyNumber() {
-  return gSetRadioEnabledAll(false)
+  return setRadioEnabledAll(false)
     .then(() => gDial(emergencyNumber))
     .then(call => { outCall = call; })
     .then(() => gRemoteAnswer(outCall))
@@ -27,7 +42,7 @@ function testDial_EmergencyNumber() {
 }
 
 function testDialEmergency_NormalNumber() {
-  return gSetRadioEnabledAll(false)
+  return setRadioEnabledAll(false)
     .then(() => gDialEmergency(normalNumber))
     .catch(cause => {
       is(cause, "RadioNotAvailable");
@@ -36,7 +51,7 @@ function testDialEmergency_NormalNumber() {
 }
 
 function testDialEmergency_EmergencyNumber() {
-  return gSetRadioEnabledAll(false)
+  return setRadioEnabledAll(false)
     .then(() => gDialEmergency(emergencyNumber))
     .then(call => { outCall = call; })
     .then(() => gRemoteAnswer(outCall))
@@ -50,8 +65,7 @@ startTestWithPermissions(['mobileconnection'], function() {
     .then(() => testDial_EmergencyNumber())
     .then(() => testDialEmergency_NormalNumber())
     .then(() => testDialEmergency_EmergencyNumber())
-    .catch(error => ok(false, "Promise reject: " + error))
-    .then(() => gSetRadioEnabledAll(true))
+    .then(() => setRadioEnabledAll(true))
     .catch(error => ok(false, "Promise reject: " + error))
     .then(finish);
 });

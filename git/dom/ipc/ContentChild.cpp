@@ -615,14 +615,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
     // urgent messages.
     GetIPCChannel()->BlockScripts();
 
-    // If communications with the parent have broken down, take the process
-    // down so it's not hanging around.
-    bool abortOnError = true;
-#ifdef MOZ_NUWA_PROCESS
-    abortOnError &= !IsNuwaProcess();
-#endif
-    GetIPCChannel()->SetAbortOnError(abortOnError);
-
 #ifdef MOZ_X11
     // Send the parent our X socket to act as a proxy reference for our X
     // resources.
@@ -1065,10 +1057,8 @@ SetUpSandboxEnvironment()
 void
 ContentChild::CleanUpSandboxEnvironment()
 {
-    // Sandbox environment is only currently a low integrity temp, which only
-    // makes sense for sandbox pref level 1 (and will eventually not be needed
-    // at all, once all file access is via chrome/broker process).
-    if (Preferences::GetInt("security.sandbox.content.level") != 1) {
+    // Sandbox environment is only currently set up with the more strict sandbox.
+    if (!Preferences::GetBool("security.sandbox.windows.content.moreStrict")) {
         return;
     }
 
@@ -1209,10 +1199,7 @@ ContentChild::RecvSetProcessSandbox()
     SetContentProcessSandbox();
 #elif defined(XP_WIN)
     mozilla::SandboxTarget::Instance()->StartSandbox();
-    // Sandbox environment is only currently a low integrity temp, which only
-    // makes sense for sandbox pref level 1 (and will eventually not be needed
-    // at all, once all file access is via chrome/broker process).
-    if (Preferences::GetInt("security.sandbox.content.level") == 1) {
+    if (Preferences::GetBool("security.sandbox.windows.content.moreStrict")) {
         SetUpSandboxEnvironment();
     }
 #elif defined(XP_MACOSX)
@@ -1549,10 +1536,11 @@ ContentChild::DeallocPNeckoChild(PNeckoChild* necko)
 PPrintingChild*
 ContentChild::AllocPPrintingChild()
 {
-    // The ContentParent should never attempt to allocate the nsPrintingProxy,
-    // which implements PPrintingChild. Instead, the nsPrintingProxy service is
-    // requested and instantiated via XPCOM, and the constructor of
-    // nsPrintingProxy sets up the IPC connection.
+    // The ContentParent should never attempt to allocate the
+    // nsPrintingPromptServiceProxy, which implements PPrintingChild. Instead,
+    // the nsPrintingPromptServiceProxy service is requested and instantiated
+    // via XPCOM, and the constructor of nsPrintingPromptServiceProxy sets up
+    // the IPC connection.
     NS_NOTREACHED("Should never get here!");
     return nullptr;
 }
@@ -2582,8 +2570,6 @@ ContentChild::RecvShutdown()
     if (os) {
         os->NotifyObservers(this, "content-child-shutdown", nullptr);
     }
-
-    GetIPCChannel()->SetAbortOnError(false);
 
     // Ignore errors here. If this fails, the parent will kill us after a
     // timeout.

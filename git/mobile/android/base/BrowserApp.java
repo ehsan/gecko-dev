@@ -1027,9 +1027,7 @@ public class BrowserApp extends GeckoApp
                 }
 
                 // Temporarily disable doorhanger notifications.
-                if (mDoorHangerPopup != null) {
-                    mDoorHangerPopup.disable();
-                }
+                mDoorHangerPopup.disable();
             }
         });
 
@@ -1052,9 +1050,7 @@ public class BrowserApp extends GeckoApp
                 hideHomePager();
 
                 // Re-enable doorhanger notifications. They may trigger on the selected tab above.
-                if (mDoorHangerPopup != null) {
-                    mDoorHangerPopup.enable();
-                }
+                mDoorHangerPopup.enable();
             }
         });
 
@@ -2251,11 +2247,7 @@ public class BrowserApp extends GeckoApp
                 recordSearch(null, "barkeyword");
 
                 // Otherwise, construct a search query from the bookmark keyword.
-                // Replace lower case bookmark keywords with URLencoded search query or
-                // replace upper case bookmark keywords with un-encoded search query.
-                // This makes it match the same behaviour as on Firefox for the desktop.
-                final String searchUrl = keywordUrl.replace("%s", URLEncoder.encode(keywordSearch)).replace("%S", keywordSearch);
-
+                final String searchUrl = keywordUrl.replace("%s", URLEncoder.encode(keywordSearch));
                 Tabs.getInstance().loadUrl(searchUrl, Tabs.LOADURL_USER_ENTERED);
                 Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
                                       TelemetryContract.Method.ACTIONBAR,
@@ -2947,7 +2939,6 @@ public class BrowserApp extends GeckoApp
                                                         ClearOnShutdownPref.PREF,
                                                         new HashSet<String>()).isEmpty();
         aMenu.findItem(R.id.quit).setVisible(visible);
-        aMenu.findItem(R.id.logins).setVisible(AppConstants.NIGHTLY_BUILD);
 
         if (tab == null || tab.getURL() == null) {
             bookmark.setEnabled(false);
@@ -3173,11 +3164,6 @@ public class BrowserApp extends GeckoApp
 
         if (itemId == R.id.addons) {
             Tabs.getInstance().loadUrlInTab(AboutPages.ADDONS);
-            return true;
-        }
-
-        if (itemId == R.id.logins) {
-            Tabs.getInstance().loadUrlInTab(AboutPages.PASSWORDS);
             return true;
         }
 

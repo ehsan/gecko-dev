@@ -31,12 +31,6 @@ public:
   already_AddRefed<Promise>
   MatchAll(const ClientQueryOptions& aOptions, ErrorResult& aRv);
 
-  already_AddRefed<Promise>
-  OpenWindow(const nsAString& aUrl);
-
-  already_AddRefed<Promise>
-  Claim();
-
   JSObject*
   WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 

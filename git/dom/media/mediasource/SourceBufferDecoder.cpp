@@ -99,14 +99,14 @@ SourceBufferDecoder::IsMediaSeekable()
 void
 SourceBufferDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
                                     nsAutoPtr<MetadataTags> aTags,
-                                    MediaDecoderEventVisibility aEventVisibility)
+                                    bool aRestoredFromDormant)
 {
   MSE_DEBUG("UNIMPLEMENTED");
 }
 
 void
 SourceBufferDecoder::FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo,
-                                      MediaDecoderEventVisibility aEventVisibility)
+                                      bool aRestoredFromDormant)
 {
   MSE_DEBUG("UNIMPLEMENTED");
 }
@@ -127,6 +127,12 @@ SourceBufferDecoder::RemoveMediaTracks()
 
 void
 SourceBufferDecoder::SetMediaEndTime(int64_t aTime)
+{
+  MSE_DEBUG("UNIMPLEMENTED");
+}
+
+void
+SourceBufferDecoder::UpdatePlaybackPosition(int64_t aTime)
 {
   MSE_DEBUG("UNIMPLEMENTED");
 }

@@ -221,21 +221,6 @@ class LSimdSplatX4 : public LInstructionHelper<1, 1, 0>
     }
 };
 
-// Reinterpret the bits of a SIMD value with a different type.
-class LSimdReinterpretCast : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(SimdReinterpretCast)
-    explicit LSimdReinterpretCast(const LAllocation &v)
-    {
-        setOperand(0, v);
-    }
-
-    MSimdReinterpretCast *mir() const {
-        return mir_->toSimdReinterpretCast();
-    }
-};
-
 class LSimdExtractElementBase : public LInstructionHelper<1, 1, 0>
 {
   protected:
@@ -300,7 +285,13 @@ class LSimdInsertElementBase : public LInstructionHelper<1, 2, 0>
         return mir_->toSimdInsertElement()->lane();
     }
     const char *extraName() const {
-        return MSimdInsertElement::LaneName(lane());
+        switch (lane()) {
+          case LaneX: return "lane x";
+          case LaneY: return "lane y";
+          case LaneZ: return "lane z";
+          case LaneW: return "lane w";
+        }
+        return "unknown lane";
     }
 };
 
@@ -374,49 +365,6 @@ class LSimdSwizzleF : public LSimdSwizzleBase
     {}
 };
 
-class LSimdGeneralSwizzleBase : public LInstructionHelper<1, 5, 1>
-{
-  public:
-    LSimdGeneralSwizzleBase(const LAllocation &base, const LAllocation lanes[4],
-                            const LDefinition &temp)
-    {
-        setOperand(0, base);
-        for (size_t i = 0; i < 4; i++)
-            setOperand(1 + i, lanes[i]);
-        setTemp(0, temp);
-    }
-
-    const LAllocation *base() {
-        return getOperand(0);
-    }
-    const LAllocation *lane(size_t i) {
-        return getOperand(1 + i);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-};
-
-class LSimdGeneralSwizzleI : public LSimdGeneralSwizzleBase
-{
-  public:
-    LIR_HEADER(SimdGeneralSwizzleI);
-    LSimdGeneralSwizzleI(const LAllocation &base, const LAllocation lanes[4],
-                         const LDefinition &temp)
-      : LSimdGeneralSwizzleBase(base, lanes, temp)
-    {}
-};
-
-class LSimdGeneralSwizzleF : public LSimdGeneralSwizzleBase
-{
-  public:
-    LIR_HEADER(SimdGeneralSwizzleF);
-    LSimdGeneralSwizzleF(const LAllocation &base, const LAllocation lanes[4],
-                         const LDefinition &temp)
-      : LSimdGeneralSwizzleBase(base, lanes, temp)
-    {}
-};
-
 // Base class for both int32x4 and float32x4 shuffle instructions.
 class LSimdShuffle : public LInstructionHelper<1, 2, 1>
 {
@@ -462,7 +410,15 @@ public:
         return mir_->toSimdBinaryComp()->operation();
     }
     const char *extraName() const {
-        return MSimdBinaryComp::OperationName(operation());
+        switch (operation()) {
+          case MSimdBinaryComp::greaterThan: return "greaterThan";
+          case MSimdBinaryComp::greaterThanOrEqual: return "greaterThanOrEqual";
+          case MSimdBinaryComp::lessThan: return "lessThan";
+          case MSimdBinaryComp::lessThanOrEqual: return "lessThanOrEqual";
+          case MSimdBinaryComp::equal: return "equal";
+          case MSimdBinaryComp::notEqual: return "notEqual";
+        }
+        MOZ_CRASH("unexpected operation");
     }
 };
 
@@ -563,9 +519,6 @@ class LSimdBinaryBitwiseX4 : public LInstructionHelper<1, 2, 0>
     }
     MSimdBinaryBitwise::Operation operation() const {
         return mir_->toSimdBinaryBitwise()->operation();
-    }
-    const char *extraName() const {
-        return MSimdBinaryBitwise::OperationName(operation());
     }
     MIRType type() const {
         return mir_->type();
@@ -2154,7 +2107,7 @@ class LFunctionDispatch : public LInstructionHelper<0, 1, 0>
         setOperand(0, in);
     }
 
-    MFunctionDispatch *mir() const {
+    MFunctionDispatch *mir() {
         return mir_->toFunctionDispatch();
     }
 };
@@ -2167,10 +2120,6 @@ class LObjectGroupDispatch : public LInstructionHelper<0, 1, 1>
   public:
     LIR_HEADER(ObjectGroupDispatch);
 
-    const char *extraName() const {
-        return mir()->hasFallback() ? "HasFallback" : "NoFallback";
-    }
-
     LObjectGroupDispatch(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
@@ -2180,7 +2129,7 @@ class LObjectGroupDispatch : public LInstructionHelper<0, 1, 1>
         return getTemp(0);
     }
 
-    MObjectGroupDispatch *mir() const {
+    MObjectGroupDispatch *mir() {
         return mir_->toObjectGroupDispatch();
     }
 };
@@ -6083,12 +6032,12 @@ class LRest : public LCallInstructionHelper<1, 1, 3>
     }
 };
 
-class LGuardReceiverPolymorphic : public LInstructionHelper<0, 1, 1>
+class LGuardShapePolymorphic : public LInstructionHelper<0, 1, 1>
 {
   public:
-    LIR_HEADER(GuardReceiverPolymorphic)
+    LIR_HEADER(GuardShapePolymorphic)
 
-    LGuardReceiverPolymorphic(const LAllocation &in, const LDefinition &temp) {
+    LGuardShapePolymorphic(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
     }
@@ -6098,8 +6047,8 @@ class LGuardReceiverPolymorphic : public LInstructionHelper<0, 1, 1>
     const LDefinition *temp() {
         return getTemp(0);
     }
-    const MGuardReceiverPolymorphic *mir() const {
-        return mir_->toGuardReceiverPolymorphic();
+    const MGuardShapePolymorphic *mir() const {
+        return mir_->toGuardShapePolymorphic();
     }
 };
 
@@ -6426,7 +6375,7 @@ class LAsmJSStoreHeap : public LInstructionHelper<0, 2, 0>
     }
 };
 
-class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 1>
+class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 0>
 {
   public:
     LIR_HEADER(AsmJSCompareExchangeHeap);
@@ -6437,7 +6386,6 @@ class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 1>
         setOperand(0, ptr);
         setOperand(1, oldValue);
         setOperand(2, newValue);
-        setTemp(0, LDefinition::BogusTemp());
     }
 
     const LAllocation *ptr() {
@@ -6449,20 +6397,13 @@ class LAsmJSCompareExchangeHeap : public LInstructionHelper<1, 3, 1>
     const LAllocation *newValue() {
         return getOperand(2);
     }
-    const LDefinition *addrTemp() {
-        return getTemp(0);
-    }
-
-    void setAddrTemp(const LDefinition &addrTemp) {
-        setTemp(0, addrTemp);
-    }
 
     MAsmJSCompareExchangeHeap *mir() const {
         return mir_->toAsmJSCompareExchangeHeap();
     }
 };
 
-class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
+class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 1>
 {
   public:
     LIR_HEADER(AsmJSAtomicBinopHeap);
@@ -6472,7 +6413,6 @@ class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
         setOperand(0, ptr);
         setOperand(1, value);
         setTemp(0, temp);
-        setTemp(1, LDefinition::BogusTemp());
     }
     const LAllocation *ptr() {
         return getOperand(0);
@@ -6482,13 +6422,6 @@ class LAsmJSAtomicBinopHeap : public LInstructionHelper<1, 2, 2>
     }
     const LDefinition *temp() {
         return getTemp(0);
-    }
-    const LDefinition *addrTemp() {
-        return getTemp(1);
-    }
-
-    void setAddrTemp(const LDefinition &addrTemp) {
-        setTemp(1, addrTemp);
     }
 
     MAsmJSAtomicBinopHeap *mir() const {

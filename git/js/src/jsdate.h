@@ -16,8 +16,6 @@
 #include "js/RootingAPI.h"
 #include "js/TypeDecls.h"
 
-namespace js {
-
 /*
  * These functions provide a C interface to the date/time object
  */
@@ -27,7 +25,7 @@ namespace js {
  * since the epoch.
  */
 extern JS_FRIEND_API(JSObject *)
-NewDateObjectMsec(JSContext *cx, double msec_time);
+js_NewDateObjectMsec(JSContext* cx, double msec_time);
 
 /*
  * Construct a new Date Object from an exploded local time value.
@@ -37,12 +35,14 @@ NewDateObjectMsec(JSContext *cx, double msec_time);
  * in 1995).
  */
 extern JS_FRIEND_API(JSObject *)
-NewDateObject(JSContext *cx, int year, int mon, int mday,
-              int hour, int min, int sec);
+js_NewDateObject(JSContext* cx, int year, int mon, int mday,
+                 int hour, int min, int sec);
 
 /* Date constructor native. Exposed only so the JIT can know its address. */
 bool
-DateConstructor(JSContext *cx, unsigned argc, JS::Value *vp);
+js_Date(JSContext *cx, unsigned argc, JS::Value *vp);
+
+namespace js {
 
 /* Date methods exposed so they can be installed in the self-hosting global. */
 bool

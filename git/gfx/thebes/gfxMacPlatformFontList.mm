@@ -323,35 +323,10 @@ MacOSFontEntry::GetFontRef()
     return mFontRef;
 }
 
-// For a logging build, we wrap the CFDataRef in a FontTableRec so that we can
-// use the MOZ_COUNT_[CD]TOR macros in it. A release build without logging
-// does not get this overhead.
-class FontTableRec {
-public:
-    explicit FontTableRec(CFDataRef aDataRef)
-        : mDataRef(aDataRef)
-    {
-        MOZ_COUNT_CTOR(FontTableRec);
-    }
-
-    ~FontTableRec() {
-        MOZ_COUNT_DTOR(FontTableRec);
-        ::CFRelease(mDataRef);
-    }
-
-private:
-    CFDataRef mDataRef;
-};
-
 /*static*/ void
 MacOSFontEntry::DestroyBlobFunc(void* aUserData)
 {
-#ifdef NS_BUILD_REFCNT_LOGGING
-    FontTableRec *ftr = static_cast<FontTableRec*>(aUserData);
-    delete ftr;
-#else
     ::CFRelease((CFDataRef)aUserData);
-#endif
 }
 
 hb_blob_t *
@@ -367,12 +342,7 @@ MacOSFontEntry::GetFontTable(uint32_t aTag)
         return hb_blob_create((const char*)::CFDataGetBytePtr(dataRef),
                               ::CFDataGetLength(dataRef),
                               HB_MEMORY_MODE_READONLY,
-#ifdef NS_BUILD_REFCNT_LOGGING
-                              new FontTableRec(dataRef),
-#else
-                              (void*)dataRef,
-#endif
-                              DestroyBlobFunc);
+                              (void*)dataRef, DestroyBlobFunc);
     }
 
     return nullptr;

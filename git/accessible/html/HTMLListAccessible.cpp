@@ -26,8 +26,10 @@ NS_IMPL_ISUPPORTS_INHERITED0(HTMLListAccessible, HyperTextAccessible)
 role
 HTMLListAccessible::NativeRole()
 {
-  a11y::role r = GetAccService()->MarkupRole(mContent);
-  return r != roles::NOTHING ? r : roles::LIST;
+  if (mContent->Tag() == nsGkAtoms::dl)
+    return roles::DEFINITION_LIST;
+
+  return roles::LIST;
 }
 
 uint64_t
@@ -67,8 +69,10 @@ HTMLLIAccessible::Shutdown()
 role
 HTMLLIAccessible::NativeRole()
 {
-  a11y::role r = GetAccService()->MarkupRole(mContent);
-  return r != roles::NOTHING ? r : roles::LISTITEM;
+  if (mContent->Tag() == nsGkAtoms::dt)
+    return roles::TERM;
+
+  return roles::LISTITEM;
 }
 
 uint64_t

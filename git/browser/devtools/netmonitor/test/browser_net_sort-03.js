@@ -16,26 +16,6 @@ function test() {
     let { $, $all, L10N, NetMonitorView } = aMonitor.panelWin;
     let { RequestsMenu } = NetMonitorView;
 
-    // Loading the frame script and preparing the xhr request URLs so we can
-    // generate some requests later.
-    loadCommonFrameScript();
-    let requests = [{
-      url: "sjs_sorting-test-server.sjs?index=1&" + Math.random(),
-      method: "GET1"
-    }, {
-      url: "sjs_sorting-test-server.sjs?index=5&" + Math.random(),
-      method: "GET5"
-    }, {
-      url: "sjs_sorting-test-server.sjs?index=2&" + Math.random(),
-      method: "GET2"
-    }, {
-      url: "sjs_sorting-test-server.sjs?index=4&" + Math.random(),
-      method: "GET4"
-    }, {
-      url: "sjs_sorting-test-server.sjs?index=3&" + Math.random(),
-      method: "GET3"
-    }];
-
     RequestsMenu.lazyUpdate = false;
 
     waitForNetworkEvents(aMonitor, 5).then(() => {
@@ -58,7 +38,7 @@ function test() {
         })
         .then(() => {
           info("Performing more requests.");
-          performRequestsInContent(requests);
+          aDebuggee.performRequests();
           return waitForNetworkEvents(aMonitor, 5);
         })
         .then(() => {
@@ -74,7 +54,7 @@ function test() {
         })
         .then(() => {
           info("Performing more requests.");
-          performRequestsInContent(requests);
+          aDebuggee.performRequests();
           return waitForNetworkEvents(aMonitor, 5);
         })
         .then(() => {
@@ -97,11 +77,7 @@ function test() {
         .then(() => {
           return teardown(aMonitor);
         })
-        .then(finish, e => {
-          ok(false, e);
-        });
-    }, e => {
-      ok(false, e);
+        .then(finish);
     });
 
     function testHeaders(aSortType, aDirection) {
@@ -167,8 +143,8 @@ function test() {
             statusText: "Meh",
             type: "2",
             fullMimeType: "text/2",
-            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
-            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.01),
+            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.01),
             time: true
           });
       }
@@ -180,8 +156,8 @@ function test() {
             statusText: "Meh",
             type: "3",
             fullMimeType: "text/3",
-            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.03),
-            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.03),
+            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
+            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.02),
             time: true
           });
       }
@@ -193,8 +169,8 @@ function test() {
             statusText: "Meh",
             type: "4",
             fullMimeType: "text/4",
-            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.04),
-            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.04),
+            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.03),
+            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.03),
             time: true
           });
       }
@@ -206,8 +182,8 @@ function test() {
             statusText: "Meh",
             type: "5",
             fullMimeType: "text/5",
-            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.05),
-            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.05),
+            transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.04),
+            size: L10N.getFormatStrWithNumbers("networkMenu.sizeKB", 0.04),
             time: true
           });
       }
@@ -215,6 +191,6 @@ function test() {
       return promise.resolve(null);
     }
 
-    performRequestsInContent(requests).then(null, Cu.reportError);
+    aDebuggee.performRequests();
   });
 }

@@ -412,21 +412,13 @@ class RemoteReftest(RefTest):
             if printLogcat:
                 logcat = self._devicemanager.getLogcat(filterOutRegexps=fennecLogcatFilters)
                 print ''.join(logcat)
-            print "Device info:"
-            devinfo = self._devicemanager.getInfo()
-            for category in devinfo:
-                if type(devinfo[category]) is list:
-                    print "  %s:" % category
-                    for item in devinfo[category]:
-                        print "     %s" % item
-                else:
-                    print "  %s: %s" % (category, devinfo[category])
+            print "Device info: %s" % self._devicemanager.getInfo()
             print "Test root: %s" % self._devicemanager.deviceRoot
         except devicemanager.DMError:
             print "WARNING: Error getting device information"
 
     def environment(self, **kwargs):
-        return self.automation.environment(**kwargs)
+     return self.automation.environment(**kwargs)
 
     def runApp(self, profile, binary, cmdargs, env,
                timeout=None, debuggerInfo=None,

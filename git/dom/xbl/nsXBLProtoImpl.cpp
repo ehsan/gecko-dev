@@ -87,7 +87,6 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
     GetGlobalForObjectCrossCompartment(targetClassObject));
   JS::Rooted<JSObject*> scopeObject(cx, xpc::GetScopeForXBLExecution(cx, globalObject, addonId));
   NS_ENSURE_TRUE(scopeObject, NS_ERROR_OUT_OF_MEMORY);
-  MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(scopeObject) == scopeObject);
   JSAutoCompartment ac(cx, scopeObject);
 
   // Determine the appropriate property holder.
@@ -113,7 +112,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aPrototypeBinding,
   } else if (scopeObject != globalObject) {
 
     // This is just a property holder, so it doesn't need any special JSClass.
-    propertyHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
+    propertyHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), scopeObject);
     NS_ENSURE_TRUE(propertyHolder, NS_ERROR_OUT_OF_MEMORY);
 
     // Define it as a property on the scopeObject, using the same name used on
@@ -246,8 +245,9 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
     return NS_ERROR_FAILURE;
   jsapi.TakeOwnershipOfErrorReporting();
   JSContext* cx = jsapi.cx();
+  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::CompilationScope());
 
-  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
+  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), compilationGlobal);
   if (!mPrecompiledMemberHolder)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -342,8 +342,8 @@ nsXBLProtoImpl::UndefineFields(JSContext *cx, JS::Handle<JSObject*> obj) const
     bool hasProp;
     if (::JS_AlreadyHasOwnUCProperty(cx, obj, s, name.Length(), &hasProp) &&
         hasProp) {
-      JS::ObjectOpResult ignored;
-      ::JS_DeleteUCProperty(cx, obj, s, name.Length(), ignored);
+      bool dummy;
+      ::JS_DeleteUCProperty2(cx, obj, s, name.Length(), &dummy);
     }
   }
 }
@@ -366,7 +366,8 @@ nsXBLProtoImpl::Read(nsIObjectInputStream* aStream,
   AssertInCompilationScope();
   AutoJSContext cx;
   // Set up a class object first so that deserialization is possible
-  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr());
+  JS::Rooted<JSObject*> global(cx, JS::CurrentGlobalOrNull(cx));
+  mPrecompiledMemberHolder = JS_NewObjectWithGivenProto(cx, nullptr, JS::NullPtr(), global);
   if (!mPrecompiledMemberHolder)
     return NS_ERROR_OUT_OF_MEMORY;
 

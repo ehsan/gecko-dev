@@ -142,6 +142,10 @@ var checkAllTrackStats = pc =>
 var commandsPeerConnectionInitial = [
   function PC_SETUP_SIGNALING_CLIENT(test) {
     if (test.steeplechase) {
+      setTimeout(() => {
+        ok(false, "PeerConnectionTest timed out");
+        test.teardown();
+      }, 30000);
       test.setupSignalingClient();
       test.registerSignalingCallback("ice_candidate", function (message) {
         var pc = test.pcRemote ? test.pcRemote : test.pcLocal;
@@ -275,7 +279,7 @@ var commandsPeerConnectionOfferAnswer = [
     });
   },
 
-  function PC_REMOTE_GET_EXPECTED_REMOTE_TRACKS(test) {
+  function PC_LOCAL_GET_EXPECTED_REMOTE_TRACKS(test) {
     if (test.steeplechase) {
       return test.getSignalingMessage("local_expected_tracks").then(
           message => {

@@ -98,15 +98,7 @@ public:
       event.prop.Value() = mEvent.prop;              \
     }
 
-    COPY_OPT_FIELD(mRspType, NfcResponseType::EndGuard_)
-    COPY_OPT_FIELD(mNtfType, NfcNotificationType::EndGuard_)
-
-    // Only one of rspType and ntfType should be used.
-    MOZ_ASSERT(((mEvent.mRspType != NfcResponseType::EndGuard_) ||
-                (mEvent.mNtfType != NfcNotificationType::EndGuard_)) &&
-               ((mEvent.mRspType == NfcResponseType::EndGuard_) ||
-                (mEvent.mNtfType == NfcNotificationType::EndGuard_)));
-
+    COPY_FIELD(mType)
     COPY_OPT_FIELD(mRequestId, EmptyString())
     COPY_OPT_FIELD(mStatus, -1)
     COPY_OPT_FIELD(mSessionId, -1)
@@ -161,17 +153,17 @@ public:
 
         if (recordStruct.mType.Length() > 0) {
           record.mType.Construct();
-          record.mType.Value().SetValue().Init(Uint8Array::Create(cx, recordStruct.mType.Length(), recordStruct.mType.Elements()));
+          record.mType.Value().Init(Uint8Array::Create(cx, recordStruct.mType.Length(), recordStruct.mType.Elements()));
         }
 
         if (recordStruct.mId.Length() > 0) {
           record.mId.Construct();
-          record.mId.Value().SetValue().Init(Uint8Array::Create(cx, recordStruct.mId.Length(), recordStruct.mId.Elements()));
+          record.mId.Value().Init(Uint8Array::Create(cx, recordStruct.mId.Length(), recordStruct.mId.Elements()));
         }
 
         if (recordStruct.mPayload.Length() > 0) {
           record.mPayload.Construct();
-          record.mPayload.Value().SetValue().Init(Uint8Array::Create(cx, recordStruct.mPayload.Length(), recordStruct.mPayload.Elements()));
+          record.mPayload.Value().Init(Uint8Array::Create(cx, recordStruct.mPayload.Length(), recordStruct.mPayload.Elements()));
         }
       }
     }

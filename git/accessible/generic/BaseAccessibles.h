@@ -91,23 +91,23 @@ protected:
 };
 
 /**
- * A simple accessible that gets its enumerated role.
+ * A simple accessible that gets its enumerated role passed into constructor.
  */
-template<a11y::role R>
 class EnumRoleAccessible : public AccessibleWrap
 {
 public:
-  EnumRoleAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    AccessibleWrap(aContent, aDoc) { }
+  EnumRoleAccessible(nsIContent* aContent, DocAccessible* aDoc, 
+                     a11y::role aRole);
 
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aPtr) MOZ_OVERRIDE
-    { return Accessible::QueryInterface(aIID, aPtr); }
+  NS_DECL_ISUPPORTS_INHERITED
 
   // Accessible
-  virtual a11y::role NativeRole() MOZ_OVERRIDE { return R; }
+  virtual a11y::role NativeRole() MOZ_OVERRIDE;
 
 protected:
   virtual ~EnumRoleAccessible() { }
+
+  a11y::role mRole;
 };
 
 

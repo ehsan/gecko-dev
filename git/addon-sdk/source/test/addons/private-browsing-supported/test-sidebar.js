@@ -129,7 +129,8 @@ exports.testDestroyEdgeCaseBugWithPrivateWindow = function(assert, done) {
           assert.pass('onShow works for Sidebar');
           loader.unload();
 
-          for (let mi of getSidebarMenuitems()) {
+          let sidebarMI = getSidebarMenuitems();
+          for (let mi of sidebarMI) {
             assert.ok(BUILTIN_SIDEBAR_MENUITEMS.indexOf(mi.getAttribute('id')) >= 0, 'the menuitem is for a built-in sidebar')
             assert.ok(!isChecked(mi), 'no sidebar menuitem is checked');
           }

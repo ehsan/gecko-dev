@@ -9,7 +9,6 @@
 #include "nsDebug.h"
 #include "nsISupportsImpl.h"
 #include "nsString.h"
-#include "nsUnicharUtils.h"
 #include "nsTArray.h"
 #include "mozilla/MemoryReporting.h"
 
@@ -279,26 +278,6 @@ public:
                 aFamilyList.AppendLiteral("sans-serif");
             }
         }
-    }
-
-    // searches for a specific non-generic name, lowercase comparison
-    bool Contains(const nsAString& aFamilyName) const {
-        uint32_t len = mFontlist.Length();
-        nsAutoString fam(aFamilyName);
-        ToLowerCase(fam);
-        for (uint32_t i = 0; i < len; i++) {
-            const FontFamilyName& name = mFontlist[i];
-            if (name.mType != eFamily_named &&
-                name.mType != eFamily_named_quoted) {
-                continue;
-            }
-            nsAutoString listname(name.mName);
-            ToLowerCase(listname);
-            if (listname.Equals(fam)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     FontFamilyType GetDefaultFontType() const { return mDefaultFontType; }

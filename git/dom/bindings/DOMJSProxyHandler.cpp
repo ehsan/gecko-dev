@@ -33,22 +33,17 @@ const char DOMProxyHandler::family = 0;
 js::DOMProxyShadowsResult
 DOMProxyShadows(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id)
 {
-  JS::Rooted<JSObject*> expando(cx, DOMProxyHandler::GetExpandoObject(proxy));
   JS::Value v = js::GetProxyExtra(proxy, JSPROXYSLOT_EXPANDO);
-  bool isOverrideBuiltins = !v.isObject() && !v.isUndefined();
-  if (expando) {
+  if (v.isObject()) {
     bool hasOwn;
-    if (!JS_AlreadyHasOwnPropertyById(cx, expando, id, &hasOwn))
+    Rooted<JSObject*> object(cx, &v.toObject());
+    if (!JS_AlreadyHasOwnPropertyById(cx, object, id, &hasOwn))
       return js::ShadowCheckFailed;
 
-    if (hasOwn) {
-      return isOverrideBuiltins ?
-        js::ShadowsViaIndirectExpando : js::ShadowsViaDirectExpando;
-    }
+    return hasOwn ? js::Shadows : js::DoesntShadow;
   }
 
-  if (!isOverrideBuiltins) {
-    // Our expando, if any, didn't shadow, so we're not shadowing at all.
+  if (v.isUndefined()) {
     return js::DoesntShadow;
   }
 
@@ -144,11 +139,12 @@ DOMProxyHandler::EnsureExpandoObject(JSContext* cx, JS::Handle<JSObject*> obj)
 }
 
 bool
-DOMProxyHandler::preventExtensions(JSContext* cx, JS::Handle<JSObject*> proxy,
-                                   JS::ObjectOpResult& result) const
+DOMProxyHandler::preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy,
+                                   bool *succeeded) const
 {
   // always extensible per WebIDL
-  return result.failCantPreventExtensions();
+  *succeeded = false;
+  return true;
 }
 
 bool
@@ -195,15 +191,18 @@ BaseDOMProxyHandler::getOwnPropertyDescriptor(JSContext* cx,
 
 bool
 DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                                MutableHandle<JSPropertyDescriptor> desc,
-                                JS::ObjectOpResult &result, bool *defined) const
+                                MutableHandle<JSPropertyDescriptor> desc, bool* defined) const
 {
   if (desc.hasGetterObject() && desc.setter() == JS_StrictPropertyStub) {
-    return result.failGetterOnly();
+    return JS_ReportErrorFlagsAndNumber(cx,
+                                        JSREPORT_WARNING | JSREPORT_STRICT |
+                                        JSREPORT_STRICT_MODE_ERROR,
+                                        js_GetErrorMessage, nullptr,
+                                        JSMSG_GETTER_ONLY);
   }
 
   if (xpc::WrapperFactory::IsXrayWrapper(proxy)) {
-    return result.succeed();
+    return true;
   }
 
   JSObject* expando = EnsureExpandoObject(cx, proxy);
@@ -211,16 +210,13 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
     return false;
   }
 
-  if (!js::DefineOwnProperty(cx, expando, id, desc, result)) {
-    return false;
-  }
-  *defined = true;
-  return true;
+  bool dummy;
+  return js_DefineOwnProperty(cx, expando, id, desc, &dummy);
 }
 
 bool
 DOMProxyHandler::set(JSContext *cx, Handle<JSObject*> proxy, Handle<JSObject*> receiver,
-                     Handle<jsid> id, MutableHandle<JS::Value> vp, ObjectOpResult &result) const
+                     Handle<jsid> id, bool strict, MutableHandle<JS::Value> vp) const
 {
   MOZ_ASSERT(!xpc::WrapperFactory::IsXrayWrapper(proxy),
              "Should not have a XrayWrapper here");
@@ -229,7 +225,7 @@ DOMProxyHandler::set(JSContext *cx, Handle<JSObject*> proxy, Handle<JSObject*> r
     return false;
   }
   if (done) {
-    return result.succeed();
+    return true;
   }
 
   // Make sure to ignore our named properties when checking for own
@@ -254,19 +250,20 @@ DOMProxyHandler::set(JSContext *cx, Handle<JSObject*> proxy, Handle<JSObject*> r
   }
 
   return js::SetPropertyIgnoringNamedGetter(cx, this, proxy, receiver, id,
-                                            &desc, descIsOwn, vp, result);
+                                            &desc, descIsOwn, strict, vp);
 }
 
 bool
 DOMProxyHandler::delete_(JSContext* cx, JS::Handle<JSObject*> proxy,
-                         JS::Handle<jsid> id, JS::ObjectOpResult &result) const
+                         JS::Handle<jsid> id, bool* bp) const
 {
   JS::Rooted<JSObject*> expando(cx);
   if (!xpc::WrapperFactory::IsXrayWrapper(proxy) && (expando = GetExpandoObject(proxy))) {
-    return JS_DeletePropertyById(cx, expando, id, result);
+    return JS_DeletePropertyById2(cx, expando, id, bp);
   }
 
-  return result.succeed();
+  *bp = true;
+  return true;
 }
 
 bool

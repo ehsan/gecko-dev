@@ -44,14 +44,12 @@
     _(PhiAnalysis)                                    \
     _(MakeLoopsContiguous)                            \
     _(ApplyTypes)                                     \
-    _(EagerSimdUnbox)                                 \
     _(AliasAnalysis)                                  \
     _(GVN)                                            \
     _(LICM)                                           \
     _(RangeAnalysis)                                  \
     _(LoopUnrolling)                                  \
     _(EffectiveAddressAnalysis)                       \
-    _(AlignmentMaskAnalysis)                          \
     _(EliminateDeadCode)                              \
     _(EdgeCaseAnalysis)                               \
     _(EliminateRedundantChecks)                       \

@@ -116,9 +116,6 @@
       <field name="mIsBusy">
         false
       </field>
-      <field name="_outerWindowIDBrowserMap">
-        new Map();
-      </field>
       <field name="arrowKeysShouldWrap" readonly="true">
 #ifdef XP_MACOSX
         true
@@ -380,15 +377,6 @@
           <![CDATA[
             var tab = this._getTabForContentWindow(aWindow);
             return tab ? tab.linkedBrowser : null;
-          ]]>
-        </body>
-      </method>
-
-      <method name="getBrowserForOuterWindowID">
-        <parameter name="aID"/>
-        <body>
-          <![CDATA[
-            return this._outerWindowIDBrowserMap.get(aID);
           ]]>
         </body>
       </method>
@@ -981,7 +969,7 @@
             // Strip out any null bytes in the content title, since the
             // underlying widget implementations of nsWindow::SetTitle pass
             // null-terminated strings to system APIs.
-            var docTitle = aBrowser.contentTitle.replace(/\0/g, "");
+            var docTitle = aBrowser.contentTitle.replace("\0", "", "g");
 
             if (!docTitle)
               docTitle = docElement.getAttribute("titledefault");
@@ -1770,13 +1758,6 @@
               b = this._createBrowser({remote, uriIsAboutBlank});
             }
 
-            // A remote browser doesn't initially have the outerWindowID
-            // set. Once a remote browser initializes, it sends the Browser:Init
-            // message, and we map the browser at that point.
-            if (!remote) {
-              this._outerWindowIDBrowserMap.set(b.outerWindowID, b);
-            }
-
             let notificationbox = this.getNotificationBox(b);
             var position = this.tabs.length - 1;
             var uniqueId = this._generateUniquePanelID();
@@ -2244,7 +2225,6 @@
             this.mTabListeners.splice(aTab._tPos, 1);
 
             var browser = this.getBrowserForTab(aTab);
-            this._outerWindowIDBrowserMap.delete(browser.outerWindowID);
 
             // Because of the way XBL works (fields just set JS
             // properties on the element) and the code we have in place
@@ -3218,9 +3198,6 @@
               let spellInfo = aMessage.data.spellInfo;
               if (spellInfo)
                 spellInfo.target = aMessage.target.messageManager;
-              let documentURIObject = makeURI(aMessage.data.docLocation,
-                                              aMessage.data.charSet,
-                                              makeURI(aMessage.data.baseURI));
               gContextMenuContentData = { isRemote: true,
                                           event: aMessage.objects.event,
                                           popupNode: aMessage.objects.popupNode,
@@ -3229,11 +3206,7 @@
                                           spellInfo: spellInfo,
                                           principal: aMessage.data.principal,
                                           customMenuItems: aMessage.data.customMenuItems,
-                                          addonInfo: aMessage.data.addonInfo,
-                                          documentURIObject: documentURIObject,
-                                          docLocation: aMessage.data.docLocation,
-                                          charSet: aMessage.data.charSet,
-                                          referrer: aMessage.data.referrer };
+                                          addonInfo: aMessage.data.addonInfo };
               let popup = browser.ownerDocument.getElementById("contentAreaContextMenu");
               let event = gContextMenuContentData.event;
               let pos = browser.mapScreenCoordinatesFromContent(event.screenX, event.screenY);
@@ -3252,8 +3225,6 @@
               let tab = this.getTabForBrowser(browser);
               if (!tab)
                 return;
-
-              this._outerWindowIDBrowserMap.set(browser.outerWindowID, browser);
               browser.messageManager.sendAsyncMessage("Browser:AppTab", { isAppTab: tab.pinned })
               break;
             }
@@ -3320,9 +3291,6 @@
             // If this window has remote tabs, switch to our tabpanels fork
             // which does asynchronous tab switching.
             this.mPanelContainer.classList.add("tabbrowser-tabpanels");
-          } else {
-            this._outerWindowIDBrowserMap.set(this.mCurrentBrowser.outerWindowID,
-                                              this.mCurrentBrowser);
           }
           messageManager.addMessageListener("DOMWebNotificationClicked", this);
         ]]>

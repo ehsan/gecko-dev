@@ -207,7 +207,6 @@
 #include "mozilla/dom/AudioContext.h"
 #include "mozilla/dom/BlobBinding.h"
 #include "mozilla/dom/BrowserElementDictionariesBinding.h"
-#include "mozilla/dom/cache/CacheStorage.h"
 #include "mozilla/dom/Console.h"
 #include "mozilla/dom/Fetch.h"
 #include "mozilla/dom/FunctionBinding.h"
@@ -261,7 +260,6 @@ using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
-using mozilla::dom::cache::CacheStorage;
 using mozilla::dom::indexedDB::IDBFactory;
 
 nsGlobalWindow::WindowByIdTable *nsGlobalWindow::sWindowsById = nullptr;
@@ -575,6 +573,8 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mRunningTimeout(nullptr), mMutationBits(0), mIsDocumentLoaded(false),
   mIsHandlingResizeEvent(false), mIsInnerWindow(aOuterWindow != nullptr),
   mMayHavePaintEventListener(false), mMayHaveTouchEventListener(false),
+  mMayHaveTouchCaret(false),
+  mMayHaveScrollWheelEventListener(false),
   mMayHaveMouseEnterLeaveEventListener(false),
   mMayHavePointerEnterLeaveEventListener(false),
   mIsModalContentWindow(false),
@@ -583,7 +583,7 @@ nsPIDOMWindow::nsPIDOMWindow(nsPIDOMWindow *aOuterWindow)
   mInnerWindow(nullptr), mOuterWindow(aOuterWindow),
   // Make sure no actual window ends up with mWindowID == 0
   mWindowID(NextWindowID()), mHasNotifiedGlobalCreated(false),
-  mMarkedCCGeneration(0)
+  mMarkedCCGeneration(0), mSendAfterRemotePaint(false)
  {}
 
 nsPIDOMWindow::~nsPIDOMWindow() {}
@@ -620,19 +620,19 @@ public:
   virtual bool defineProperty(JSContext* cx,
                               JS::Handle<JSObject*> proxy,
                               JS::Handle<jsid> id,
-                              JS::MutableHandle<JSPropertyDescriptor> desc,
-                              JS::ObjectOpResult &result) const MOZ_OVERRIDE;
+                              JS::MutableHandle<JSPropertyDescriptor> desc)
+                              const MOZ_OVERRIDE;
   virtual bool ownPropertyKeys(JSContext *cx,
                                JS::Handle<JSObject*> proxy,
                                JS::AutoIdVector &props) const MOZ_OVERRIDE;
   virtual bool delete_(JSContext *cx, JS::Handle<JSObject*> proxy,
                        JS::Handle<jsid> id,
-                       JS::ObjectOpResult &result) const MOZ_OVERRIDE;
+                       bool *bp) const MOZ_OVERRIDE;
   virtual bool enumerate(JSContext *cx, JS::Handle<JSObject*> proxy,
                          JS::MutableHandle<JSObject*> vp) const MOZ_OVERRIDE;
-  virtual bool preventExtensions(JSContext* cx,
+  virtual bool preventExtensions(JSContext *cx,
                                  JS::Handle<JSObject*> proxy,
-                                 JS::ObjectOpResult& result) const MOZ_OVERRIDE;
+                                 bool *succeeded) const MOZ_OVERRIDE;
   virtual bool isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy, bool *extensible)
                             const MOZ_OVERRIDE;
   virtual bool has(JSContext *cx, JS::Handle<JSObject*> proxy,
@@ -644,8 +644,8 @@ public:
   virtual bool set(JSContext *cx, JS::Handle<JSObject*> proxy,
                    JS::Handle<JSObject*> receiver,
                    JS::Handle<jsid> id,
-                   JS::MutableHandle<JS::Value> vp,
-                   JS::ObjectOpResult &result) const MOZ_OVERRIDE;
+                   bool strict,
+                   JS::MutableHandle<JS::Value> vp) const MOZ_OVERRIDE;
 
   // SpiderMonkey extensions
   virtual bool getPropertyDescriptor(JSContext* cx,
@@ -781,15 +781,16 @@ bool
 nsOuterWindowProxy::defineProperty(JSContext* cx,
                                    JS::Handle<JSObject*> proxy,
                                    JS::Handle<jsid> id,
-                                   JS::MutableHandle<JSPropertyDescriptor> desc,
-                                   JS::ObjectOpResult &result) const
+                                   JS::MutableHandle<JSPropertyDescriptor> desc)
+                                   const
 {
   int32_t index = GetArrayIndexFromId(cx, id);
   if (IsArrayIndex(index)) {
     // Spec says to Reject whether this is a supported index or not,
-    // since we have no indexed setter or indexed creator.  It is up
-    // to the caller to decide whether to throw a TypeError.
-    return result.failCantDefineWindowElement();
+    // since we have no indexed setter or indexed creator.  That means
+    // throwing in strict mode (FIXME: Bug 828137), doing nothing in
+    // non-strict mode.
+    return true;
   }
 
   // For now, allow chrome code to define non-configurable properties
@@ -800,7 +801,7 @@ nsOuterWindowProxy::defineProperty(JSContext* cx,
     return ThrowErrorMessage(cx, MSG_DEFINE_NON_CONFIGURABLE_PROP_ON_WINDOW);
   }
 
-  return js::Wrapper::defineProperty(cx, proxy, id, desc, result);
+  return js::Wrapper::defineProperty(cx, proxy, id, desc);
 }
 
 bool
@@ -822,31 +823,35 @@ nsOuterWindowProxy::ownPropertyKeys(JSContext *cx,
 
 bool
 nsOuterWindowProxy::delete_(JSContext *cx, JS::Handle<JSObject*> proxy,
-                            JS::Handle<jsid> id, JS::ObjectOpResult &result) const
+                            JS::Handle<jsid> id, bool *bp) const
 {
   if (nsCOMPtr<nsIDOMWindow> frame = GetSubframeWindow(cx, proxy, id)) {
-    // Fail (which means throw if strict, else return false).
-    return result.failCantDeleteWindowElement();
+    // Reject (which means throw if strict, else return false) the delete.
+    // Except we don't even know whether we're strict.  See bug 803157.
+    *bp = false;
+    return true;
   }
 
   int32_t index = GetArrayIndexFromId(cx, id);
   if (IsArrayIndex(index)) {
     // Indexed, but not supported.  Spec says return true.
-    return result.succeed();
+    *bp = true;
+    return true;
   }
 
-  return js::Wrapper::delete_(cx, proxy, id, result);
+  return js::Wrapper::delete_(cx, proxy, id, bp);
 }
 
 bool
-nsOuterWindowProxy::preventExtensions(JSContext* cx,
+nsOuterWindowProxy::preventExtensions(JSContext *cx,
                                       JS::Handle<JSObject*> proxy,
-                                      JS::ObjectOpResult& result) const
+                                      bool *succeeded) const
 {
   // If [[Extensible]] could be false, then navigating a window could navigate
   // to a window that's [[Extensible]] after being at one that wasn't: an
   // invariant violation.  So never change a window's extensibility.
-  return result.failCantPreventExtensions();
+  *succeeded = false;
+  return true;
 }
 
 bool
@@ -910,17 +915,19 @@ bool
 nsOuterWindowProxy::set(JSContext *cx, JS::Handle<JSObject*> proxy,
                         JS::Handle<JSObject*> receiver,
                         JS::Handle<jsid> id,
-                        JS::MutableHandle<JS::Value> vp,
-                        JS::ObjectOpResult &result) const
+                        bool strict,
+                        JS::MutableHandle<JS::Value> vp) const
 {
   int32_t index = GetArrayIndexFromId(cx, id);
   if (IsArrayIndex(index)) {
-    // Reject the set.  It's up to the caller to decide whether to throw a
-    // TypeError.  If the caller is strict mode JS code, it'll throw.
-    return result.failReadOnly();
+    // Reject (which means throw if and only if strict) the set.
+    if (strict) {
+      // XXXbz This needs to throw, but see bug 828137.
+    }
+    return true;
   }
 
-  return js::Wrapper::set(cx, proxy, receiver, id, vp, result);
+  return js::Wrapper::set(cx, proxy, receiver, id, strict, vp);
 }
 
 bool
@@ -1050,15 +1057,13 @@ const nsChromeOuterWindowProxy
 nsChromeOuterWindowProxy::singleton;
 
 static JSObject*
-NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> global, bool isChrome)
+NewOuterWindowProxy(JSContext *cx, JS::Handle<JSObject*> parent, bool isChrome)
 {
-  JSAutoCompartment ac(cx, global);
-  MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(global) == global);
-
+  JSAutoCompartment ac(cx, parent);
   js::WrapperOptions options;
   options.setClass(&OuterWindowProxyClass);
   options.setSingleton(true);
-  JSObject *obj = js::Wrapper::New(cx, global,
+  JSObject *obj = js::Wrapper::New(cx, parent, parent,
                                    isChrome ? &nsChromeOuterWindowProxy::singleton
                                             : &nsOuterWindowProxy::singleton,
                                    options);
@@ -1779,7 +1784,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGamepads)
 #endif
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCacheStorage)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVRDevices)
 
   // Traverse stuff from nsPIDOMWindow
@@ -1843,7 +1847,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGamepads)
 #endif
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCacheStorage)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mVRDevices)
 
   // Unlink stuff from nsPIDOMWindow
@@ -2594,10 +2597,21 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
 
       SetWrapper(outerObject);
 
-      MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(outerObject) == newInnerGlobal);
+      {
+        JSAutoCompartment ac(cx, outerObject);
 
-      // Inform the nsJSContext, which is the canonical holder of the outer.
-      mContext->SetWindowProxy(outerObject);
+        JS_SetParent(cx, outerObject, newInnerGlobal);
+
+        // Inform the nsJSContext, which is the canonical holder of the outer.
+        mContext->SetWindowProxy(outerObject);
+
+        NS_ASSERTION(!JS_IsExceptionPending(cx),
+                     "We might overwrite a pending exception!");
+        XPCWrappedNativeScope* scope = xpc::ObjectScope(outerObject);
+        if (scope->mWaiverWrapperMap) {
+          scope->mWaiverWrapperMap->Reparent(cx, newInnerGlobal);
+        }
+      }
     }
 
     // Enter the new global's compartment.
@@ -3762,6 +3776,21 @@ nsPIDOMWindow::RefreshMediaElements()
   nsRefPtr<AudioChannelService> service =
     AudioChannelService::GetOrCreateAudioChannelService();
   service->RefreshAgentsVolume(this);
+}
+
+void
+nsPIDOMWindow::SendAfterRemotePaintIfRequested()
+{
+  if (!mSendAfterRemotePaint) {
+    return;
+  }
+
+  mSendAfterRemotePaint = false;
+
+  nsContentUtils::DispatchChromeEvent(GetExtantDoc(),
+                                      GetParentTarget(),
+                                      NS_LITERAL_STRING("MozAfterRemotePaint"),
+                                      false, false);
 }
 
 // nsISpeechSynthesisGetter
@@ -7332,16 +7361,6 @@ nsGlobalWindow::ScrollByPages(int32_t numPages,
 }
 
 void
-nsGlobalWindow::MozScrollSnap()
-{
-  FlushPendingNotifications(Flush_Layout);
-  nsIScrollableFrame *sf = GetScrollFrame();
-  if (sf) {
-    sf->ScrollSnap();
-  }
-}
-
-void
 nsGlobalWindow::MozRequestOverfill(OverfillCallback& aCallback,
                                    mozilla::ErrorResult& aError)
 {
@@ -8845,7 +8864,7 @@ public:
   NS_IMETHOD Run()
   {
     nsCOMPtr<nsIObserverService> observerService =
-      services::GetObserverService();
+      do_GetService("@mozilla.org/observer-service;1");
     if (observerService) {
       nsCOMPtr<nsISupportsPRUint64> wrapper =
         do_CreateInstance(NS_SUPPORTS_PRUINT64_CONTRACTID);
@@ -9169,7 +9188,7 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aUrl, nsIVariant* aArgument,
                             (aUrl, aArgument, aOptions, aError), aError,
                             nullptr);
 
-  if (!IsShowModalDialogEnabled() || XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (!IsShowModalDialogEnabled()) {
     aError.Throw(NS_ERROR_NOT_AVAILABLE);
     return nullptr;
   }
@@ -9932,7 +9951,7 @@ nsGlobalWindow::SetChromeEventHandler(EventTarget* aChromeEventHandler)
 
 static bool IsLink(nsIContent* aContent)
 {
-  return aContent && (aContent->IsHTMLElement(nsGkAtoms::a) ||
+  return aContent && (aContent->IsHTML(nsGkAtoms::a) ||
                       aContent->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
                                             nsGkAtoms::simple, eCaseMatters));
 }
@@ -10707,18 +10726,6 @@ nsGlobalWindow::GetInterface(JSContext* aCx, nsIJSID* aIID,
                              ErrorResult& aError)
 {
   dom::GetInterface(aCx, this, aIID, aRetval, aError);
-}
-
-already_AddRefed<CacheStorage>
-nsGlobalWindow::GetCaches(ErrorResult& aRv)
-{
-  if (!mCacheStorage) {
-    mCacheStorage = CacheStorage::CreateOnMainThread(cache::DEFAULT_NAMESPACE,
-                                                     this, GetPrincipal(), aRv);
-  }
-
-  nsRefPtr<CacheStorage> ref = mCacheStorage;
-  return ref.forget();
 }
 
 void
@@ -14091,13 +14098,6 @@ nsGlobalWindow::CreateNamedPropertiesObject(JSContext *aCx,
                                             JS::Handle<JSObject*> aProto)
 {
   return WindowNamedPropertiesHandler::Create(aCx, aProto);
-}
-
-bool
-nsGlobalWindow::GetIsPrerendered()
-{
-  nsIDocShell* docShell = GetDocShell();
-  return docShell && docShell->GetIsPrerendered();
 }
 
 #ifdef MOZ_B2G

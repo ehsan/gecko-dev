@@ -796,7 +796,7 @@ TabParent::LoadURL(nsIURI* aURI)
 }
 
 void
-TabParent::Show(const ScreenIntSize& size, bool aParentIsActive)
+TabParent::Show(const nsIntSize& size, bool aParentIsActive)
 {
     // sigh
     mShown = true;
@@ -805,6 +805,7 @@ TabParent::Show(const ScreenIntSize& size, bool aParentIsActive)
         return;
     }
 
+    ScrollingBehavior scrolling = UseAsyncPanZoom() ? ASYNC_PAN_ZOOM : DEFAULT_SCROLLING;
     TextureFactoryIdentifier textureFactoryIdentifier;
     uint64_t layersId = 0;
     bool success = false;
@@ -818,6 +819,7 @@ TabParent::Show(const ScreenIntSize& size, bool aParentIsActive)
         if (frameLoader) {
           renderFrame =
               new RenderFrameParent(frameLoader,
+                                    scrolling,
                                     &textureFactoryIdentifier,
                                     &layersId,
                                     &success);
@@ -840,7 +842,7 @@ TabParent::Show(const ScreenIntSize& size, bool aParentIsActive)
       info = ShowInfo(name, allowFullscreen, isPrivate, mDPI, mDefaultScale.scale);
     }
 
-    unused << SendShow(size, info, textureFactoryIdentifier,
+    unused << SendShow(size, info, scrolling, textureFactoryIdentifier,
                        layersId, renderFrame, aParentIsActive);
 }
 
@@ -882,7 +884,7 @@ TabParent::RecvSetDimensions(const uint32_t& aFlags,
 }
 
 void
-TabParent::UpdateDimensions(const nsIntRect& rect, const ScreenIntSize& size,
+TabParent::UpdateDimensions(const nsIntRect& rect, const nsIntSize& size,
                             const nsIntPoint& aChromeDisp)
 {
   if (mIsDestroyed) {
@@ -923,15 +925,6 @@ TabParent::UIResolutionChanged()
 }
 
 void
-TabParent::RequestFlingSnap(const FrameMetrics::ViewID& aScrollId,
-                            const mozilla::CSSPoint& aDestination)
-{
-  if (!mIsDestroyed) {
-    unused << SendRequestFlingSnap(aScrollId, aDestination);
-  }
-}
-
-void
 TabParent::AcknowledgeScrollUpdate(const ViewID& aScrollId, const uint32_t& aScrollGeneration)
 {
   if (!mIsDestroyed) {
@@ -940,39 +933,40 @@ TabParent::AcknowledgeScrollUpdate(const ViewID& aScrollId, const uint32_t& aScr
 }
 
 void TabParent::HandleDoubleTap(const CSSPoint& aPoint,
-                                Modifiers aModifiers,
+                                int32_t aModifiers,
                                 const ScrollableLayerGuid &aGuid)
 {
   if (!mIsDestroyed) {
-    unused << SendHandleDoubleTap(aPoint, aModifiers, aGuid);
+    unused << SendHandleDoubleTap(aPoint, aGuid);
   }
 }
 
 void TabParent::HandleSingleTap(const CSSPoint& aPoint,
-                                Modifiers aModifiers,
+                                int32_t aModifiers,
                                 const ScrollableLayerGuid &aGuid)
 {
+  // TODO Send the modifier data to TabChild for use in mouse events.
   if (!mIsDestroyed) {
-    unused << SendHandleSingleTap(aPoint, aModifiers, aGuid);
+    unused << SendHandleSingleTap(aPoint, aGuid);
   }
 }
 
 void TabParent::HandleLongTap(const CSSPoint& aPoint,
-                              Modifiers aModifiers,
+                              int32_t aModifiers,
                               const ScrollableLayerGuid &aGuid,
                               uint64_t aInputBlockId)
 {
   if (!mIsDestroyed) {
-    unused << SendHandleLongTap(aPoint, aModifiers, aGuid, aInputBlockId);
+    unused << SendHandleLongTap(aPoint, aGuid, aInputBlockId);
   }
 }
 
 void TabParent::HandleLongTapUp(const CSSPoint& aPoint,
-                                Modifiers aModifiers,
+                                int32_t aModifiers,
                                 const ScrollableLayerGuid &aGuid)
 {
   if (!mIsDestroyed) {
-    unused << SendHandleLongTapUp(aPoint, aModifiers, aGuid);
+    unused << SendHandleLongTapUp(aPoint, aGuid);
   }
 }
 
@@ -1183,40 +1177,40 @@ CSSPoint TabParent::AdjustTapToChildWidget(const CSSPoint& aPoint)
   return aPoint + (LayoutDevicePoint(mChildProcessOffsetAtTouchStart) * GetLayoutDeviceToCSSScale());
 }
 
-bool TabParent::SendHandleSingleTap(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid)
+bool TabParent::SendHandleSingleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (mIsDestroyed) {
     return false;
   }
 
-  return PBrowserParent::SendHandleSingleTap(AdjustTapToChildWidget(aPoint), aModifiers, aGuid);
+  return PBrowserParent::SendHandleSingleTap(AdjustTapToChildWidget(aPoint), aGuid);
 }
 
-bool TabParent::SendHandleLongTap(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid, const uint64_t& aInputBlockId)
+bool TabParent::SendHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid, const uint64_t& aInputBlockId)
 {
   if (mIsDestroyed) {
     return false;
   }
 
-  return PBrowserParent::SendHandleLongTap(AdjustTapToChildWidget(aPoint), aModifiers, aGuid, aInputBlockId);
+  return PBrowserParent::SendHandleLongTap(AdjustTapToChildWidget(aPoint), aGuid, aInputBlockId);
 }
 
-bool TabParent::SendHandleLongTapUp(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid)
+bool TabParent::SendHandleLongTapUp(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (mIsDestroyed) {
     return false;
   }
 
-  return PBrowserParent::SendHandleLongTapUp(AdjustTapToChildWidget(aPoint), aModifiers, aGuid);
+  return PBrowserParent::SendHandleLongTapUp(AdjustTapToChildWidget(aPoint), aGuid);
 }
 
-bool TabParent::SendHandleDoubleTap(const CSSPoint& aPoint, const Modifiers& aModifiers, const ScrollableLayerGuid& aGuid)
+bool TabParent::SendHandleDoubleTap(const CSSPoint& aPoint, const ScrollableLayerGuid& aGuid)
 {
   if (mIsDestroyed) {
     return false;
   }
 
-  return PBrowserParent::SendHandleDoubleTap(AdjustTapToChildWidget(aPoint), aModifiers, aGuid);
+  return PBrowserParent::SendHandleDoubleTap(AdjustTapToChildWidget(aPoint), aGuid);
 }
 
 bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
@@ -1230,21 +1224,6 @@ bool TabParent::SendMouseWheelEvent(WidgetWheelEvent& event)
   ApzAwareEventRoutingToChild(&guid, &blockId);
   event.refPoint += GetChildProcessOffset();
   return PBrowserParent::SendMouseWheelEvent(event, guid, blockId);
-}
-
-bool TabParent::RecvSynthesizedMouseWheelEvent(const mozilla::WidgetWheelEvent& aEvent)
-{
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    return true;
-  }
-
-  WidgetWheelEvent localEvent(aEvent);
-  localEvent.widget = widget;
-  localEvent.refPoint -= GetChildProcessOffset();
-
-  widget->DispatchAPZAwareEvent(&localEvent);
-  return true;
 }
 
 static void
@@ -1856,6 +1835,7 @@ TabParent::RecvDispatchAfterKeyboardEvent(const WidgetKeyboardEvent& aEvent)
   if (mFrameElement &&
       PresShell::BeforeAfterKeyboardEventEnabled() &&
       localEvent.message != NS_KEY_PRESS) {
+    nsCOMPtr<nsINode> node(do_QueryInterface(mFrameElement));
     presShell->DispatchAfterKeyboardEvent(mFrameElement, localEvent,
                                           aEvent.mFlags.mDefaultPrevented);
   }
@@ -2354,12 +2334,14 @@ TabParent::AllocPRenderFrameParent()
 {
   MOZ_ASSERT(ManagedPRenderFrameParent().IsEmpty());
   nsRefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
+  ScrollingBehavior scrolling = UseAsyncPanZoom() ? ASYNC_PAN_ZOOM : DEFAULT_SCROLLING;
   TextureFactoryIdentifier textureFactoryIdentifier;
   uint64_t layersId = 0;
   bool success = false;
   if(frameLoader) {
     PRenderFrameParent* renderFrame = 
       new RenderFrameParent(frameLoader,
+                            scrolling,
                             &textureFactoryIdentifier,
                             &layersId,
                             &success);
@@ -2380,10 +2362,12 @@ TabParent::DeallocPRenderFrameParent(PRenderFrameParent* aFrame)
 
 bool
 TabParent::RecvGetRenderFrameInfo(PRenderFrameParent* aRenderFrame,
+                                  ScrollingBehavior* aScrolling,
                                   TextureFactoryIdentifier* aTextureFactoryIdentifier,
                                   uint64_t* aLayersId)
 {
   RenderFrameParent* renderFrame = static_cast<RenderFrameParent*>(aRenderFrame);
+  *aScrolling = renderFrame->UseAsyncPanZoom() ? ASYNC_PAN_ZOOM : DEFAULT_SCROLLING;
   renderFrame->GetTextureFactoryIdentifier(aTextureFactoryIdentifier);
   *aLayersId = renderFrame->GetLayersId();
   return true;
@@ -2443,6 +2427,14 @@ TabParent::GetWidget() const
 
   nsCOMPtr<nsIWidget> widget = frame->GetNearestWidget();
   return widget.forget();
+}
+
+bool
+TabParent::UseAsyncPanZoom()
+{
+  bool usingOffMainThreadCompositing = !!CompositorParent::CompositorLoop();
+  return (usingOffMainThreadCompositing && gfxPrefs::AsyncPanZoomEnabled() &&
+          GetScrollingBehavior() == ASYNC_PAN_ZOOM);
 }
 
 void
@@ -2626,7 +2618,7 @@ TabParent::InjectTouchEvent(const nsAString& aType,
 NS_IMETHODIMP
 TabParent::GetUseAsyncPanZoom(bool* useAsyncPanZoom)
 {
-  *useAsyncPanZoom = gfxPrefs::AsyncPanZoomEnabled();
+  *useAsyncPanZoom = UseAsyncPanZoom();
   return NS_OK;
 }
 
@@ -2642,86 +2634,6 @@ TabParent::GetTabId(uint64_t* aId)
 {
   *aId = GetTabId();
   return NS_OK;
-}
-
-class LayerTreeUpdateRunnable MOZ_FINAL
-  : public nsRunnable
-{
-  uint64_t mLayersId;
-  bool mActive;
-
-public:
-  explicit LayerTreeUpdateRunnable(uint64_t aLayersId, bool aActive)
-    : mLayersId(aLayersId), mActive(aActive) {}
-
-private:
-  NS_IMETHOD Run() {
-    MOZ_ASSERT(NS_IsMainThread());
-    TabParent* tabParent = TabParent::GetTabParentFromLayersId(mLayersId);
-    if (tabParent) {
-      tabParent->LayerTreeUpdate(mActive);
-    }
-    return NS_OK;
-  }
-};
-
-// This observer runs on the compositor thread, so we dispatch a runnable to the
-// main thread to actually dispatch the event.
-class LayerTreeUpdateObserver : public CompositorUpdateObserver
-{
-  virtual void ObserveUpdate(uint64_t aLayersId, bool aActive) {
-    nsRefPtr<LayerTreeUpdateRunnable> runnable = new LayerTreeUpdateRunnable(aLayersId, aActive);
-    NS_DispatchToMainThread(runnable);
-  }
-};
-
-bool
-TabParent::RequestNotifyLayerTreeReady()
-{
-  RenderFrameParent* frame = GetRenderFrame();
-  if (!frame) {
-    return false;
-  }
-
-  CompositorParent::RequestNotifyLayerTreeReady(frame->GetLayersId(),
-                                                new LayerTreeUpdateObserver());
-  return true;
-}
-
-bool
-TabParent::RequestNotifyLayerTreeCleared()
-{
-  RenderFrameParent* frame = GetRenderFrame();
-  if (!frame) {
-    return false;
-  }
-
-  CompositorParent::RequestNotifyLayerTreeCleared(frame->GetLayersId(),
-                                                  new LayerTreeUpdateObserver());
-  return true;
-}
-
-bool
-TabParent::LayerTreeUpdate(bool aActive)
-{
-  nsCOMPtr<mozilla::dom::EventTarget> target = do_QueryInterface(mFrameElement);
-  if (!target) {
-    NS_WARNING("Could not locate target for layer tree message.");
-    return true;
-  }
-
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMEvent(getter_AddRefs(event), mFrameElement, nullptr, nullptr);
-  if (aActive) {
-    event->InitEvent(NS_LITERAL_STRING("MozLayerTreeReady"), true, false);
-  } else {
-    event->InitEvent(NS_LITERAL_STRING("MozLayerTreeCleared"), true, false);
-  }
-  event->SetTrusted(true);
-  event->GetInternalNSEvent()->mFlags.mOnlyChromeDispatch = true;
-  bool dummy;
-  mFrameElement->DispatchEvent(event, &dummy);
-  return true;
 }
 
 bool

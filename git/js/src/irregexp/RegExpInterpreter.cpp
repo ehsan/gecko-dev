@@ -49,7 +49,7 @@ class MOZ_STACK_CLASS RegExpStackCursor
 
     bool init() {
         if (!stack.init()) {
-            ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
             return false;
         }
         cursor = base();
@@ -61,7 +61,7 @@ class MOZ_STACK_CLASS RegExpStackCursor
         if (cursor >= stack.limit()) {
             int32_t pos = position();
             if (!stack.grow()) {
-                ReportOverRecursed(cx);
+                js_ReportOverRecursed(cx);
                 return false;
             }
             setPosition(pos);

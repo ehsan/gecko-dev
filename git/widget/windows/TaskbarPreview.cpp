@@ -184,7 +184,7 @@ TaskbarPreview::GetActive(bool *active) {
 NS_IMETHODIMP
 TaskbarPreview::Invalidate() {
   if (!mVisible)
-    return NS_OK;
+    return NS_ERROR_FAILURE;
 
   // DWM Composition is required for previews
   if (!nsUXThemeData::CheckForCompositor())

@@ -16,7 +16,7 @@ bool
 SecurityWrapper<Base>::enter(JSContext *cx, HandleObject wrapper, HandleId id,
                              Wrapper::Action act, bool *bp) const
 {
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     *bp = false;
     return false;
 }
@@ -26,16 +26,16 @@ bool
 SecurityWrapper<Base>::nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                                   CallArgs args) const
 {
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     return false;
 }
 
 template <class Base>
 bool
-SecurityWrapper<Base>::setPrototype(JSContext *cx, HandleObject wrapper, HandleObject proto,
-                                    ObjectOpResult &result) const
+SecurityWrapper<Base>::setPrototypeOf(JSContext *cx, HandleObject wrapper,
+                                      HandleObject proto, bool *bp) const
 {
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     return false;
 }
 
@@ -44,19 +44,20 @@ bool
 SecurityWrapper<Base>::setImmutablePrototype(JSContext *cx, HandleObject wrapper,
                                              bool *succeeded) const
 {
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     return false;
 }
 
 template <class Base>
 bool
 SecurityWrapper<Base>::preventExtensions(JSContext *cx, HandleObject wrapper,
-                                         ObjectOpResult &result) const
+                                         bool *succeeded) const
 {
     // Just like BaseProxyHandler, SecurityWrappers claim by default to always
     // be extensible, so as not to leak information about the state of the
     // underlying wrapped thing.
-    return result.fail(JSMSG_CANT_CHANGE_EXTENSIBILITY);
+    *succeeded = false;
+    return true;
 }
 
 template <class Base>
@@ -104,8 +105,7 @@ SecurityWrapper<Base>::boxedValue_unbox(JSContext *cx, HandleObject obj, Mutable
 template <class Base>
 bool
 SecurityWrapper<Base>::defineProperty(JSContext *cx, HandleObject wrapper,
-                                      HandleId id, MutableHandle<PropertyDescriptor> desc,
-                                      ObjectOpResult &result) const
+                                      HandleId id, MutableHandle<PropertyDescriptor> desc) const
 {
     if (desc.getter() || desc.setter()) {
         RootedValue idVal(cx, IdToValue(id));
@@ -116,12 +116,12 @@ SecurityWrapper<Base>::defineProperty(JSContext *cx, HandleObject wrapper,
         const char16_t *prop = nullptr;
         if (str->ensureFlat(cx) && chars.initTwoByte(cx, str))
             prop = chars.twoByteChars();
-        JS_ReportErrorNumberUC(cx, GetErrorMessage, nullptr,
+        JS_ReportErrorNumberUC(cx, js_GetErrorMessage, nullptr,
                                JSMSG_ACCESSOR_DEF_DENIED, prop);
         return false;
     }
 
-    return Base::defineProperty(cx, wrapper, id, desc, result);
+    return Base::defineProperty(cx, wrapper, id, desc);
 }
 
 template <class Base>
@@ -129,7 +129,7 @@ bool
 SecurityWrapper<Base>::watch(JSContext *cx, HandleObject proxy,
                              HandleId id, HandleObject callable) const
 {
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     return false;
 }
 
@@ -138,7 +138,7 @@ bool
 SecurityWrapper<Base>::unwatch(JSContext *cx, HandleObject proxy,
                                HandleId id) const
 {
-    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNWRAP_DENIED);
     return false;
 }
 

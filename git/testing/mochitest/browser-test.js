@@ -88,12 +88,6 @@ function testInit() {
   }
   if (gConfig.e10s) {
     e10s_init();
-    let globalMM = Cc["@mozilla.org/globalmessagemanager;1"]
-                     .getService(Ci.nsIMessageListenerManager);
-    globalMM.loadFrameScript("chrome://mochikit/content/shutdown-leaks-collector.js", true);
-  } else {
-    // In non-e10s, only run the ShutdownLeaksCollector in the parent process.
-    Components.utils.import("chrome://mochikit/content/ShutdownLeaksCollector.jsm");
   }
 }
 
@@ -120,8 +114,6 @@ function Tester(aTests, aDumper, aCallback) {
   this.MemoryStats = simpleTestScope.MemoryStats;
   this.Task = Task;
   this.ContentTask = Components.utils.import("resource://testing-common/ContentTask.jsm", null).ContentTask;
-  this.BrowserTestUtils = Components.utils.import("resource://testing-common/BrowserTestUtils.jsm", null).BrowserTestUtils;
-  this.TestUtils = Components.utils.import("resource://testing-common/TestUtils.jsm", null).TestUtils;
   this.Task.Debugging.maintainStack = true;
   this.Promise = Components.utils.import("resource://gre/modules/Promise.jsm", null).Promise;
   this.Assert = Components.utils.import("resource://testing-common/Assert.jsm", null).Assert;
@@ -291,11 +283,6 @@ Tester.prototype = {
       Services.obs.removeObserver(this, "content-document-global-created");
       this.Promise.Debugging.clearUncaughtErrorObservers();
       this._treatUncaughtRejectionsAsFailures = false;
-
-      // In the main process, we print the ShutdownLeaksCollector message here.
-      let pid = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).processID;
-      dump("Completed ShutdownLeaks collections in process " + pid + "\n");
-
       this.dumper.structuredLogger.info("TEST-START | Shutdown");
 
       if (this.tests.length) {
@@ -588,10 +575,6 @@ Tester.prototype = {
           // and thus get rid of more false leaks like already terminated workers.
           Services.obs.notifyObservers(null, "memory-pressure", "heap-minimize");
 
-          let ppmm = Cc["@mozilla.org/parentprocessmessagemanager;1"]
-                       .getService(Ci.nsIMessageBroadcaster);
-          ppmm.broadcastAsyncMessage("browser-test:collect-request");
-
           checkForLeakedGlobalWindows(aResults => {
             if (aResults.length == 0) {
               this.finish();
@@ -632,8 +615,6 @@ Tester.prototype = {
     this.currentTest.scope.gTestPath = this.currentTest.path;
     this.currentTest.scope.Task = this.Task;
     this.currentTest.scope.ContentTask = this.ContentTask;
-    this.currentTest.scope.BrowserTestUtils = this.BrowserTestUtils;
-    this.currentTest.scope.TestUtils = this.TestUtils;
     // Pass a custom report function for mochitest style reporting.
     this.currentTest.scope.Assert = new this.Assert(function(err, message, stack) {
       let res;
@@ -1030,8 +1011,6 @@ testScope.prototype = {
   SimpleTest: {},
   Task: null,
   ContentTask: null,
-  BrowserTestUtils: null,
-  TestUtils: null,
   Assert: null,
 
   /**

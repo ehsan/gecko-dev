@@ -3,7 +3,7 @@ $inherits:
 task:
   workerType: emulator-jb
   scopes:
-    - 'docker-worker:cache:workspace-emulator-jb-opt'
+    - 'docker-worker:cache:build-emulator-jb-opt'
   metadata:
     name: '[TC] B2G JB Emulator Opt'
 
@@ -14,6 +14,6 @@ task:
 
   payload:
     cache:
-      workspace-emulator-jb-opt: /home/worker/workspace
+      build-emulator-jb-opt: /home/worker/object-folder
     env:
       TARGET: 'emulator-jb'

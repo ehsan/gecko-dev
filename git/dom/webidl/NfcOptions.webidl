@@ -8,46 +8,12 @@ enum RFState {
   "discovery"
 };
 
-/**
- * Type of the Request used in NfcCommandOptions.
- */
-enum NfcRequestType {
-  "changeRFState",
-  "readNDEF",
-  "writeNDEF",
-  "makeReadOnly",
-  "format",
-  "transceive"
-};
-
-/**
- * Type of the Response used in NfcEventOptions.
- */
-enum NfcResponseType {
-  "changeRFStateRsp",
-  "readNDEFRsp",
-  "writeNDEFRsp",
-  "makeReadOnlyRsp",
-  "formatRsp",
-  "transceiveRsp",
-};
-
-/**
- * Type of the Notification used in NfcEventOptions.
- */
-enum NfcNotificationType {
-  "initialized",
-  "techDiscovered",
-  "techLost",
-  "hciEventTransaction"
-};
-
 dictionary NfcCommandOptions
 {
-  required NfcRequestType type;
+  DOMString type = "";
 
   long sessionId;
-  required DOMString requestId;
+  DOMString requestId = "";
 
   RFState rfState;
 
@@ -62,8 +28,7 @@ dictionary NfcCommandOptions
 
 dictionary NfcEventOptions
 {
-  NfcResponseType rspType;
-  NfcNotificationType ntfType;
+  DOMString type = "";
 
   long status;
   NfcErrorMessage errorMsg;

@@ -20,6 +20,10 @@ Object.defineProperty(this, "NetworkHelper", {
 const Ci = Components.interfaces;
 const TEST_CASES = [
   {
+    description: "SSL_VERSION_3",
+    input: 0,
+    expected: "SSLv3"
+  }, {
     description: "TLS_VERSION_1",
     input: 1,
     expected: "TLSv1"

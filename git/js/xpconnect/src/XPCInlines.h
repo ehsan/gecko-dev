@@ -252,18 +252,6 @@ XPCCallContext::SetMethodIndex(uint16_t index)
 }
 
 /***************************************************************************/
-inline XPCNativeInterface*
-XPCNativeMember::GetInterface() const
-{
-    XPCNativeMember* arrayStart =
-        const_cast<XPCNativeMember*>(this - mIndexInInterface);
-    size_t arrayStartOffset = XPCNativeInterface::OffsetOfMembers();
-    char* xpcNativeInterfaceStart =
-        reinterpret_cast<char*>(arrayStart) - arrayStartOffset;
-    return reinterpret_cast<XPCNativeInterface*>(xpcNativeInterfaceStart);
-}
-
-/***************************************************************************/
 
 inline const nsIID*
 XPCNativeInterface::GetIID() const
@@ -295,13 +283,6 @@ XPCNativeInterface::HasAncestor(const nsIID* iid) const
     bool found = false;
     mInfo->HasAncestor(iid, &found);
     return found;
-}
-
-/* static */
-inline size_t
-XPCNativeInterface::OffsetOfMembers()
-{
-    return offsetof(XPCNativeInterface, mMembers);
 }
 
 /***************************************************************************/

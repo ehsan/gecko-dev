@@ -10,6 +10,8 @@ let testGenerator = testSteps();
 if (!window.runTest) {
   window.runTest = function()
   {
+    Cu.importGlobalProperties(["indexedDB"]);
+
     SimpleTest.waitForExplicitFinish();
 
     testGenerator.next();

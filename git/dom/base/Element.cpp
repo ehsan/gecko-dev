@@ -158,7 +158,7 @@ nsIContent::DoGetClasses() const
   MOZ_ASSERT(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
   MOZ_ASSERT(IsElement(), "Only elements can have classes");
 
-  if (IsSVGElement()) {
+  if (IsSVG()) {
     const nsAttrValue* animClass =
       static_cast<const nsSVGElement*>(this)->GetAnimatedClassName();
     if (animClass) {
@@ -381,10 +381,10 @@ Element::GetBindingURL(nsIDocument *aDocument, css::URLValue **aResult)
   // otherwise, don't do anything else here unless we're dealing with
   // XUL or an HTML element that may have a plugin-related overlay
   // (i.e. object, embed, or applet).
-  bool isXULorPluginElement = (IsXULElement() ||
-                               IsHTMLElement(nsGkAtoms::object) ||
-                               IsHTMLElement(nsGkAtoms::embed) ||
-                               IsHTMLElement(nsGkAtoms::applet));
+  bool isXULorPluginElement = (IsXUL() ||
+                               IsHTML(nsGkAtoms::object) ||
+                               IsHTML(nsGkAtoms::embed) ||
+                               IsHTML(nsGkAtoms::applet));
   nsIPresShell *shell = aDocument->GetShell();
   if (!shell || GetPrimaryFrame() || !isXULorPluginElement) {
     *aResult = nullptr;
@@ -551,7 +551,7 @@ nsIScrollableFrame*
 Element::GetScrollFrame(nsIFrame **aStyledFrame, bool aFlushLayout)
 {
   // it isn't clear what to return for SVG nodes, so just return nothing
-  if (IsSVGElement()) {
+  if (IsSVG()) {
     if (aStyledFrame) {
       *aStyledFrame = nullptr;
     }
@@ -797,15 +797,6 @@ Element::ScrollByNoFlush(int32_t aDx, int32_t aDy)
   return (before != after);
 }
 
-void
-Element::MozScrollSnap()
-{
-  nsIScrollableFrame* sf = GetScrollFrame(nullptr, false);
-  if (sf) {
-    sf->ScrollSnap();
-  }
-}
-
 static nsSize GetScrollRectSizeForOverflowVisibleFrame(nsIFrame* aFrame)
 {
   if (!aFrame) {
@@ -831,7 +822,7 @@ static nsSize GetScrollRectSizeForOverflowVisibleFrame(nsIFrame* aFrame)
 int32_t
 Element::ScrollHeight()
 {
-  if (IsSVGElement())
+  if (IsSVG())
     return 0;
 
   nsIScrollableFrame* sf = GetScrollFrame();
@@ -848,7 +839,7 @@ Element::ScrollHeight()
 int32_t
 Element::ScrollWidth()
 {
-  if (IsSVGElement())
+  if (IsSVG())
     return 0;
 
   nsIScrollableFrame* sf = GetScrollFrame();
@@ -932,7 +923,7 @@ Element::AddToIdTable(nsIAtom* aId)
     containingShadow->AddToIdTable(this, aId);
   } else {
     nsIDocument* doc = GetUncomposedDoc();
-    if (doc && (!IsInAnonymousSubtree() || doc->IsXULDocument())) {
+    if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
       doc->AddToIdTable(this, aId);
     }
   }
@@ -955,7 +946,7 @@ Element::RemoveFromIdTable()
     }
   } else {
     nsIDocument* doc = GetUncomposedDoc();
-    if (doc && (!IsInAnonymousSubtree() || doc->IsXULDocument())) {
+    if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
       doc->RemoveFromIdTable(this, id);
     }
   }
@@ -1122,12 +1113,12 @@ Element::GetAttribute(const nsAString& aName, DOMString& aReturn)
 {
   const nsAttrValue* val =
     mAttrsAndChildren.GetAttr(aName,
-                              IsHTMLElement() && IsInHTMLDocument() ?
+                              IsHTML() && IsInHTMLDocument() ?
                                 eIgnoreCase : eCaseMatters);
   if (val) {
     val->ToString(aReturn);
   } else {
-    if (IsXULElement()) {
+    if (IsXUL()) {
       // XXX should be SetDOMStringToNull(aReturn);
       // See bug 232598
       // aReturn is already empty
@@ -1151,7 +1142,7 @@ Element::SetAttribute(const nsAString& aName,
     }
 
     nsCOMPtr<nsIAtom> nameAtom;
-    if (IsHTMLElement() && IsInHTMLDocument()) {
+    if (IsHTML() && IsInHTMLDocument()) {
       nsAutoString lower;
       nsContentUtils::ASCIIToLower(aName, lower);
       nameAtom = do_GetAtom(lower);
@@ -1533,7 +1524,7 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   // This has to be here, rather than in nsGenericHTMLElement::BindToTree,
   //  because it has to happen after updating the parent pointer, but before
   //  recursively binding the kids.
-  if (IsHTMLElement()) {
+  if (IsHTML()) {
     SetDirOnBind(this, aParent);
   }
 
@@ -1573,7 +1564,7 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     AddToIdTable(DoGetID());
   }
 
-  if (MayHaveStyle() && !IsXULElement()) {
+  if (MayHaveStyle() && !IsXUL()) {
     // XXXbz if we already have a style attr parsed, this won't do
     // anything... need to fix that.
     // If MayHaveStyle() is true, we must be an nsStyledElement
@@ -1745,7 +1736,7 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
   // This has to be here, rather than in nsGenericHTMLElement::UnbindFromTree, 
   //  because it has to happen after unsetting the parent pointer, but before
   //  recursively unbinding the kids.
-  if (IsHTMLElement()) {
+  if (IsHTML()) {
     ResetDir(this);
   }
 
@@ -2250,7 +2241,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
 
   if (aNamespaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::dir) {
-      hadValidDir = HasValidDir() || IsHTMLElement(nsGkAtoms::bdi);
+      hadValidDir = HasValidDir() || IsHTML(nsGkAtoms::bdi);
       hadDirAuto = HasDirAuto(); // already takes bdi into account
     }
 
@@ -2487,7 +2478,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   bool hadDirAuto = false;
 
   if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::dir) {
-    hadValidDir = HasValidDir() || IsHTMLElement(nsGkAtoms::bdi);
+    hadValidDir = HasValidDir() || IsHTML(nsGkAtoms::bdi);
     hadDirAuto = HasDirAuto(); // already takes bdi into account
   }
 
@@ -3227,12 +3218,12 @@ Element::SetOuterHTML(const nsAString& aOuterHTML, ErrorResult& aError)
     return;
   }
 
-  if (OwnerDoc()->IsHTMLDocument()) {
+  if (OwnerDoc()->IsHTML()) {
     nsIAtom* localName;
     int32_t namespaceID;
     if (parent->IsElement()) {
-      localName = parent->NodeInfo()->NameAtom();
-      namespaceID = parent->NodeInfo()->NamespaceID();
+      localName = static_cast<nsIContent*>(parent.get())->Tag();
+      namespaceID = static_cast<nsIContent*>(parent.get())->GetNameSpaceID();
     } else {
       NS_ASSERTION(parent->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE,
         "How come the parent isn't a document, a fragment or an element?");
@@ -3324,13 +3315,13 @@ Element::InsertAdjacentHTML(const nsAString& aPosition, const nsAString& aText,
   mozAutoSubtreeModified subtree(doc, nullptr);
 
   // Parse directly into destination if possible
-  if (doc->IsHTMLDocument() && !OwnerDoc()->MayHaveDOMMutationObservers() &&
+  if (doc->IsHTML() && !OwnerDoc()->MayHaveDOMMutationObservers() &&
       (position == eBeforeEnd ||
        (position == eAfterEnd && !GetNextSibling()) ||
        (position == eAfterBegin && !GetFirstChild()))) {
     int32_t oldChildCount = destination->GetChildCount();
     int32_t contextNs = destination->GetNameSpaceID();
-    nsIAtom* contextLocal = destination->NodeInfo()->NameAtom();
+    nsIAtom* contextLocal = destination->Tag();
     if (contextLocal == nsGkAtoms::html && contextNs == kNameSpaceID_XHTML) {
       // For compat with IE6 through IE9. Willful violation of HTML5 as of
       // 2011-04-06. CreateContextualFragment does the same already.

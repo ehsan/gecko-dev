@@ -8,7 +8,6 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/BasicEvents.h"
-#include "mozilla/EventDispatcher.h"
 #include "mozilla/gfx/PathHelpers.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Maybe.h"
@@ -96,7 +95,6 @@
 #include "FrameLayerBuilder.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/EventDispatcher.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -106,7 +104,7 @@
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
 #include "RestyleManager.h"
-#include "mozilla/EventDispatcher.h"
+
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1191,7 +1189,7 @@ nsLayoutUtils::GetBeforeFrameForContent(nsIFrame* aFrame,
     const nsTArray<nsIContent*>& pseudos(*prop);
     for (uint32_t i = 0; i < pseudos.Length(); ++i) {
       if (pseudos[i]->GetParent() == aContent &&
-          pseudos[i]->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore) {
+          pseudos[i]->Tag() == nsGkAtoms::mozgeneratedcontentbefore) {
         return pseudos[i]->GetPrimaryFrame();
       }
     }
@@ -1230,7 +1228,7 @@ nsLayoutUtils::GetAfterFrameForContent(nsIFrame* aFrame,
     const nsTArray<nsIContent*>& pseudos(*prop);
     for (uint32_t i = 0; i < pseudos.Length(); ++i) {
       if (pseudos[i]->GetParent() == aContent &&
-          pseudos[i]->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentafter) {
+          pseudos[i]->Tag() == nsGkAtoms::mozgeneratedcontentafter) {
         return pseudos[i]->GetPrimaryFrame();
       }
     }
@@ -1335,7 +1333,7 @@ nsLayoutUtils::IsGeneratedContentFor(nsIContent* aContent,
     return false;
   }
 
-  return (aFrame->GetContent()->NodeInfo()->NameAtom() == nsGkAtoms::mozgeneratedcontentbefore) ==
+  return (aFrame->GetContent()->Tag() == nsGkAtoms::mozgeneratedcontentbefore) ==
     (aPseudoElement == nsCSSPseudoElements::before);
 }
 
@@ -2993,17 +2991,15 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   if (aFlags & PAINT_IGNORE_SUPPRESSION) {
     builder.IgnorePaintSuppression();
   }
-
-  // If the root has embedded plugins, flag the builder so we know we'll need
-  // to update plugin geometry after painting.
+  // Windowed plugins aren't allowed in popups
   if ((aFlags & PAINT_WIDGET_LAYERS) &&
       !willFlushRetainedLayers &&
       !(aFlags & PAINT_DOCUMENT_RELATIVE) &&
       rootPresContext->NeedToComputePluginGeometryUpdates()) {
     builder.SetWillComputePluginGeometry(true);
   }
-
   nsRect canvasArea(nsPoint(0, 0), aFrame->GetSize());
+
   bool ignoreViewportScrolling =
     aFrame->GetParent() ? false : presShell->IgnoringViewportScrolling();
   if (ignoreViewportScrolling && rootScrollFrame) {
@@ -3242,7 +3238,7 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   if (gfxPrefs::DumpClientLayers()) {
     std::stringstream ss;
     FrameLayerBuilder::DumpRetainedLayerTree(layerManager, ss, false);
-    print_stderr(ss);
+    printf_stderr("%s", ss.str().c_str());
   }
 #endif
 
@@ -3265,25 +3261,28 @@ nsLayoutUtils::PaintFrame(nsRenderingContext* aRenderingContext, nsIFrame* aFram
   }
 
   if (builder.WillComputePluginGeometry()) {
-    // For single process compute and apply plugin geometry updates to plugin
-    // windows, then request composition. For content processes skip eveything
-    // except requesting composition. Geometry updates were calculated and
-    // shipped to the chrome process in nsDisplayList when the layer
-    // transaction completed.
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
-      rootPresContext->ComputePluginGeometryUpdates(aFrame, &builder, &list);
-      // We're not going to get a WillPaintWindow event here if we didn't do
-      // widget invalidation, so just apply the plugin geometry update here
-      // instead. We could instead have the compositor send back an equivalent
-      // to WillPaintWindow, but it should be close enough to now not to matter.
-      if (layerManager && !layerManager->NeedsWidgetInvalidation()) {
+    rootPresContext->ComputePluginGeometryUpdates(aFrame, &builder, &list);
+
+    // We're not going to get a WillPaintWindow event here if we didn't do
+    // widget invalidation, so just apply the plugin geometry update here instead.
+    // We could instead have the compositor send back an equivalent to WillPaintWindow,
+    // but it should be close enough to now not to matter.
+    if (layerManager && !layerManager->NeedsWidgetInvalidation()) {
+#if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
+      if (XRE_GetProcessType() == GeckoProcessType_Content) {
+        // If this is a remotely managed widget (PluginWidgetProxy in content)
+        // store this information in the compositor, which ships this
+        // over to chrome for application when we paint.
+        rootPresContext->CollectPluginGeometryUpdates(layerManager);
+      } else
+#endif
+      {
         rootPresContext->ApplyPluginGeometryUpdates();
       }
     }
 
-    // We told the compositor thread not to composite when it received the
-    // transaction because we wanted to update plugins first. Schedule the
-    // composite now.
+    // We told the compositor thread not to composite when it received the transaction because
+    // we wanted to update plugins first. Schedule the composite now.
     if (layerManager) {
       layerManager->Composite();
     }
@@ -5865,20 +5864,6 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 
     gfxRect anchoredDestRect(anchorPoint, scaledDest);
     gfxRect anchoredImageRect(imageSpaceAnchorPoint, imageSize);
-
-    // Calculate anchoredDestRect with snapped fill rect when the devPixelFill rect
-    // corresponds to just a single tile in that direction
-    if (fill.Width() != devPixelFill.Width() &&
-        devPixelDest.x == devPixelFill.x &&
-        devPixelDest.XMost() == devPixelFill.XMost()) {
-      anchoredDestRect.width = fill.width;
-    }
-    if (fill.Height() != devPixelFill.Height() &&
-        devPixelDest.y == devPixelFill.y &&
-        devPixelDest.YMost() == devPixelFill.YMost()) {
-      anchoredDestRect.height = fill.height;
-    }
-
     transform = TransformBetweenRects(anchoredImageRect, anchoredDestRect);
     invTransform = TransformBetweenRects(anchoredDestRect, anchoredImageRect);
   }
@@ -7171,8 +7156,7 @@ nsUnsetAttrRunnable::Run()
  * width of the device**, the fonts satisfy our minima.
  */
 static nscoord
-MinimumFontSizeFor(nsPresContext* aPresContext, WritingMode aWritingMode,
-                   nscoord aContainerISize)
+MinimumFontSizeFor(nsPresContext* aPresContext, nscoord aContainerWidth)
 {
   nsIPresShell* presShell = aPresContext->PresShell();
 
@@ -7183,23 +7167,20 @@ MinimumFontSizeFor(nsPresContext* aPresContext, WritingMode aWritingMode,
   }
 
   // Clamp the container width to the device dimensions
-  nscoord iFrameISize = aWritingMode.IsVertical()
-    ? aPresContext->GetVisibleArea().height
-    : aPresContext->GetVisibleArea().width;
-  nscoord effectiveContainerISize = std::min(iFrameISize, aContainerISize);
+  nscoord iFrameWidth = aPresContext->GetVisibleArea().width;
+  nscoord effectiveContainerWidth = std::min(iFrameWidth, aContainerWidth);
 
   nscoord byLine = 0, byInch = 0;
   if (emPerLine != 0) {
-    byLine = effectiveContainerISize / emPerLine;
+    byLine = effectiveContainerWidth / emPerLine;
   }
   if (minTwips != 0) {
     // REVIEW: Is this giving us app units and sizes *not* counting
     // viewport scaling?
-    gfxSize screenSize = aPresContext->ScreenSizeInchesForFontInflation();
-    float deviceISizeInches = aWritingMode.IsVertical()
-      ? screenSize.height : screenSize.width;
-    byInch = NSToCoordRound(effectiveContainerISize /
-                            (deviceISizeInches * 1440 /
+    float deviceWidthInches =
+      aPresContext->ScreenWidthInchesForFontInflation();
+    byInch = NSToCoordRound(effectiveContainerWidth /
+                            (deviceWidthInches * 1440 /
                              minTwips ));
   }
   return std::max(byLine, byInch);
@@ -7231,25 +7212,14 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
        f = f->GetParent()) {
     nsIContent* content = f->GetContent();
     nsIAtom* fType = f->GetType();
-    nsIFrame* parent = f->GetParent();
     // Also, if there is more than one frame corresponding to a single
     // content node, we want the outermost one.
-    if (!(parent && parent->GetContent() == content) &&
+    if (!(f->GetParent() && f->GetParent()->GetContent() == content) &&
         // ignore width/height on inlines since they don't apply
         fType != nsGkAtoms::inlineFrame &&
         // ignore width on radios and checkboxes since we enlarge them and
         // they have width/height in ua.css
         fType != nsGkAtoms::formControlFrame) {
-      // ruby annotations should have the same inflation as its
-      // grandparent, which is the ruby frame contains the annotation.
-      if (fType == nsGkAtoms::rubyTextFrame) {
-        MOZ_ASSERT(parent &&
-                   parent->GetType() == nsGkAtoms::rubyTextContainerFrame);
-        nsIFrame* grandparent = parent->GetParent();
-        MOZ_ASSERT(grandparent &&
-                   grandparent->GetType() == nsGkAtoms::rubyFrame);
-        return FontSizeInflationFor(grandparent);
-      }
       nsStyleCoord stylePosWidth = f->StylePosition()->mWidth;
       nsStyleCoord stylePosHeight = f->StylePosition()->mHeight;
       if (stylePosWidth.GetUnit() != eStyleUnit_Auto ||
@@ -7308,14 +7278,14 @@ ShouldInflateFontsForContainer(const nsIFrame *aFrame)
   // We only want to inflate fonts for text that is in a place
   // with room to expand.  The question is what the best heuristic for
   // that is...
-  // For now, we're going to use NS_FRAME_IN_CONSTRAINED_BSIZE, which
+  // For now, we're going to use NS_FRAME_IN_CONSTRAINED_HEIGHT, which
   // indicates whether the frame is inside something with a constrained
-  // block-size (propagating down the tree), but the propagation stops when
-  // we hit overflow-y [or -x, for vertical mode]: scroll or auto.
+  // height (propagating down the tree), but the propagation stops when
+  // we hit overflow-y: scroll or auto.
   const nsStyleText* styleText = aFrame->StyleText();
 
   return styleText->mTextSizeAdjust != NS_STYLE_TEXT_SIZE_ADJUST_NONE &&
-         !(aFrame->GetStateBits() & NS_FRAME_IN_CONSTRAINED_BSIZE) &&
+         !(aFrame->GetStateBits() & NS_FRAME_IN_CONSTRAINED_HEIGHT) &&
          // We also want to disable font inflation for containers that have
          // preformatted text.
          // MathML cells need special treatment. See bug 1002526 comment 56.
@@ -7347,8 +7317,7 @@ nsLayoutUtils::InflationMinFontSizeFor(const nsIFrame *aFrame)
       }
 
       return MinimumFontSizeFor(aFrame->PresContext(),
-                                aFrame->GetWritingMode(),
-                                data->EffectiveISize());
+                                data->EffectiveWidth());
     }
   }
 
@@ -7512,11 +7481,7 @@ nsLayoutUtils::GetContentViewerSize(nsPresContext* aPresContext,
 /* static */ nsSize
 nsLayoutUtils::CalculateCompositionSizeForFrame(nsIFrame* aFrame)
 {
-  // If we have a scrollable frame, restrict the composition bounds to its
-  // scroll port. The scroll port excludes the frame borders and the scroll
-  // bars, which we don't want to be part of the composition bounds.
-  nsIScrollableFrame* scrollableFrame = aFrame->GetScrollTargetFrame();
-  nsSize size = scrollableFrame ? scrollableFrame->GetScrollPortRect().Size() : aFrame->GetSize();
+  nsSize size(aFrame->GetSize());
 
   nsPresContext* presContext = aFrame->PresContext();
   nsIPresShell* presShell = presContext->PresShell();
@@ -7565,13 +7530,15 @@ nsLayoutUtils::CalculateCompositionSizeForFrame(nsIFrame* aFrame)
           size = LayoutDevicePixel::ToAppUnits(contentSize, auPerDevPixel);
         }
       }
-
-      if (scrollableFrame && !LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars)) {
-        nsMargin margins = scrollableFrame->GetActualScrollbarSizes();
-        size.width -= margins.LeftRight();
-        size.height -= margins.TopBottom();
-      }
     }
+  }
+
+  // Adjust composition bounds for the size of scroll bars.
+  nsIScrollableFrame* scrollableFrame = aFrame->GetScrollTargetFrame();
+  if (scrollableFrame && !LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars)) {
+    nsMargin margins = scrollableFrame->GetActualScrollbarSizes();
+    size.width -= margins.LeftRight();
+    size.height -= margins.TopBottom();
   }
 
   return size;

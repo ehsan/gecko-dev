@@ -27,11 +27,10 @@ function MockFront (blueprint) {
 
 function MockMemoryFront () {
   MockFront.call(this, [
-    ["initialize"],
-    ["destroy"],
     ["attach"],
     ["detach"],
-    ["getState", "detached"],
+    ["initialize"],
+    ["destroy"],
     ["startRecordingAllocations", 0],
     ["stopRecordingAllocations", 0],
     ["getAllocations", createMockAllocations],
@@ -41,10 +40,10 @@ exports.MockMemoryFront = MockMemoryFront;
 
 function MockTimelineFront () {
   MockFront.call(this, [
-    ["initialize"],
-    ["destroy"],
     ["start", 0],
     ["stop", 0],
+    ["initialize"],
+    ["destroy"],
   ]);
 }
 exports.MockTimelineFront = MockTimelineFront;

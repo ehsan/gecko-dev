@@ -431,12 +431,6 @@ public:
    */
   static Mappable *GetMappableFromPath(const char *path);
 
-  void ExpectShutdown(bool val) { expect_shutdown = val; }
-  bool IsShutdownExpected() { return expect_shutdown; }
-
-private:
-  bool expect_shutdown;
-
 protected:
   /**
    * Registers the given handle. This method is meant to be called by
@@ -460,7 +454,6 @@ protected:
   const char *lastError;
 
 private:
-  ElfLoader() : expect_shutdown(true) {}
   ~ElfLoader();
 
   /* Initialization code that can't run during static initialization. */

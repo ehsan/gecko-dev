@@ -131,18 +131,14 @@ class Fake_SourceMediaStream : public Fake_MediaStream {
                              mStop(false),
                              mPeriodic(new Fake_MediaPeriodic(this)) {}
 
-  enum {
-    ADDTRACK_QUEUED    = 0x01 // Queue track add until FinishAddTracks()
-  };
   void AddTrack(mozilla::TrackID aID, mozilla::StreamTime aStart,
-                mozilla::MediaSegment* aSegment, uint32_t aFlags = 0) {
+                mozilla::MediaSegment* aSegment) {
     delete aSegment;
   }
   void AddAudioTrack(mozilla::TrackID aID, mozilla::TrackRate aRate, mozilla::StreamTime aStart,
-                     mozilla::AudioSegment* aSegment, uint32_t aFlags = 0) {
+                     mozilla::AudioSegment* aSegment) {
     delete aSegment;
   }
-  void FinishAddTracks() {}
   void EndTrack(mozilla::TrackID aID) {}
 
   bool AppendToTrack(mozilla::TrackID aID, mozilla::MediaSegment* aSegment,
@@ -269,18 +265,12 @@ public:
   explicit Fake_DOMMediaStream(Fake_MediaStream *stream = nullptr)
     : mMediaStream(stream ? stream : new Fake_MediaStream())
     , mVideoTrack(new Fake_MediaStreamTrack(true, this))
-    , mAudioTrack(new Fake_MediaStreamTrack(false, this))
-    {
-      static size_t counter = 0;
-      std::ostringstream os;
-      os << counter++;
-      mID = os.str();
-    }
+    , mAudioTrack(new Fake_MediaStreamTrack(false, this)) {}
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
   static already_AddRefed<Fake_DOMMediaStream>
-  CreateSourceStream(nsIDOMWindow* aWindow, uint32_t aHintContents = 0) {
+  CreateSourceStream(nsIDOMWindow* aWindow, uint32_t aHintContents) {
     Fake_SourceMediaStream *source = new Fake_SourceMediaStream();
 
     nsRefPtr<Fake_DOMMediaStream> ds = new Fake_DOMMediaStream(source);

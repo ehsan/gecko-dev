@@ -43,6 +43,7 @@ public:
   nsresult CreateXULDocument(const char* aCommand,
                              nsIChannel* aChannel,
                              nsILoadGroup* aLoadGroup,
+                             const char* aContentType,
                              nsIDocShell* aContainer,
                              nsISupports* aExtraInfo,
                              nsIStreamListener** aDocListener,

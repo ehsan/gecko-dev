@@ -459,10 +459,7 @@ class JSString : public js::gc::TenuredCell
 
     inline JSLinearString *base() const;
 
-    void markBase(JSTracer *trc) {
-        MOZ_ASSERT(hasBase());
-        js::gc::MarkStringUnbarriered(trc, &d.s.u3.base, "base");
-    }
+    inline void markBase(JSTracer *trc);
 
     /* Only called by the GC for strings with the FINALIZE_STRING kind. */
 
@@ -499,8 +496,6 @@ class JSString : public js::gc::TenuredCell
 
     bool equals(const char *s);
 #endif
-
-    inline void markChildren(JSTracer *trc);
 
     static MOZ_ALWAYS_INLINE void readBarrier(JSString *thing) {
         if (thing->isPermanentAtom())
@@ -559,25 +554,22 @@ class JSRope : public JSString
     template <typename CharT>
     bool copyChars(js::ExclusiveContext *cx, js::ScopedJSFreePtr<CharT> &out) const;
 
-    JSString *leftChild() const {
+    inline JSString *leftChild() const {
         MOZ_ASSERT(isRope());
         return d.s.u2.left;
     }
 
-    JSString *rightChild() const {
+    inline JSString *rightChild() const {
         MOZ_ASSERT(isRope());
         return d.s.u3.right;
     }
 
-    void markChildren(JSTracer *trc) {
-        js::gc::MarkStringUnbarriered(trc, &d.s.u2.left, "left child");
-        js::gc::MarkStringUnbarriered(trc, &d.s.u3.right, "right child");
-    }
+    inline void markChildren(JSTracer *trc);
 
-    static size_t offsetOfLeft() {
+    inline static size_t offsetOfLeft() {
         return offsetof(JSRope, d.s.u2.left);
     }
-    static size_t offsetOfRight() {
+    inline static size_t offsetOfRight() {
         return offsetof(JSRope, d.s.u3.right);
     }
 };
@@ -1233,15 +1225,6 @@ JSString::base() const
     MOZ_ASSERT(hasBase());
     MOZ_ASSERT(!d.s.u3.base->isInline());
     return d.s.u3.base;
-}
-
-inline void
-JSString::markChildren(JSTracer *trc)
-{
-    if (hasBase())
-        markBase(trc);
-    else if (isRope())
-        asRope().markChildren(trc);
 }
 
 template<>

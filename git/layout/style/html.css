@@ -813,12 +813,6 @@ marquee[direction="up"], marquee[direction="down"] {
     font-size: 50%;
     line-height: 1;
   }
-  rtc:lang(zh), rt:lang(zh) {
-    ruby-align: center;
-  }
-  rtc:lang(zh-TW), rt:lang(zh-TW) {
-    font-size: 30%; /* bopomofo */
-  }
   rtc > rt {
     font-size: inherit;
   }

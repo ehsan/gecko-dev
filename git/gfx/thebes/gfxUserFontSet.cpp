@@ -920,21 +920,6 @@ gfxUserFontSet::LookupFamily(const nsAString& aFamilyName) const
     return mFontFamilies.GetWeak(key);
 }
 
-bool
-gfxUserFontSet::ContainsUserFontSetFonts(const FontFamilyList& aFontList) const
-{
-    for (const FontFamilyName& name : aFontList.GetFontlist()) {
-        if (name.mType != eFamily_named &&
-            name.mType != eFamily_named_quoted) {
-            continue;
-        }
-        if (LookupFamily(name.mName)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 gfxUserFontFamily*
 gfxUserFontSet::GetFamily(const nsAString& aFamilyName)
 {
@@ -1082,11 +1067,6 @@ gfxUserFontSet::UserFontCache::CacheFont(gfxFontEntry* aFontEntry,
     NS_ASSERTION(aFontEntry->mFamilyName.Length() != 0,
                  "caching a font associated with no family yet");
 
-    // if caching is disabled, simply return
-    if (Preferences::GetBool("gfx.downloadable_fonts.disable_cache")) {
-        return;
-    }
-
     gfxUserFontData* data = aFontEntry->mUserFontData;
     if (data->mIsBuffer) {
 #ifdef DEBUG_USERFONT_CACHE
@@ -1163,8 +1143,7 @@ gfxUserFontSet::UserFontCache::GetFont(nsIURI* aSrcURI,
                                        gfxUserFontEntry* aUserFontEntry,
                                        bool aPrivate)
 {
-    if (!sUserFonts ||
-        Preferences::GetBool("gfx.downloadable_fonts.disable_cache")) {
+    if (!sUserFonts) {
         return nullptr;
     }
 

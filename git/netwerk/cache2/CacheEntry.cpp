@@ -82,7 +82,6 @@ CacheEntry::Callback::Callback(CacheEntry* aEntry,
 , mCallback(aCallback)
 , mTargetThread(do_GetCurrentThread())
 , mReadOnly(aReadOnly)
-, mRevalidating(false)
 , mCheckOnAnyThread(aCheckOnAnyThread)
 , mRecheckAfterWrite(false)
 , mNotWanted(false)
@@ -101,7 +100,6 @@ CacheEntry::Callback::Callback(CacheEntry::Callback const &aThat)
 , mCallback(aThat.mCallback)
 , mTargetThread(aThat.mTargetThread)
 , mReadOnly(aThat.mReadOnly)
-, mRevalidating(aThat.mRevalidating)
 , mCheckOnAnyThread(aThat.mCheckOnAnyThread)
 , mRecheckAfterWrite(aThat.mRecheckAfterWrite)
 , mNotWanted(aThat.mNotWanted)
@@ -251,7 +249,7 @@ nsresult CacheEntry::HashingKey(nsCSubstring const& aStorageID,
    * Changing it will cause we will not be able to find files on disk.
    */
 
-  aResult.Assign(aStorageID);
+  aResult.Append(aStorageID);
 
   if (!aEnhanceID.IsEmpty()) {
     CacheFileUtils::AppendTagWithValue(aResult, '~', aEnhanceID);
@@ -414,11 +412,14 @@ NS_IMETHODIMP CacheEntry::OnFileReady(nsresult aResult, bool aIsNew)
 
   if (NS_SUCCEEDED(aResult)) {
     if (aIsNew) {
-      CacheFileUtils::DetailedCacheHitTelemetry::AddRecord(
-        CacheFileUtils::DetailedCacheHitTelemetry::MISS, mLoadStart);
-    } else {
-      CacheFileUtils::DetailedCacheHitTelemetry::AddRecord(
-        CacheFileUtils::DetailedCacheHitTelemetry::HIT, mLoadStart);
+      mozilla::Telemetry::AccumulateTimeDelta(
+        mozilla::Telemetry::NETWORK_CACHE_V2_MISS_TIME_MS,
+        mLoadStart);
+    }
+    else {
+      mozilla::Telemetry::AccumulateTimeDelta(
+        mozilla::Telemetry::NETWORK_CACHE_V2_HIT_TIME_MS,
+        mLoadStart);
     }
   }
 
@@ -676,8 +677,6 @@ bool CacheEntry::InvokeCallback(Callback & aCallback)
             checkResult = ENTRY_NOT_WANTED;
         }
 
-        aCallback.mRevalidating = checkResult == ENTRY_NEEDS_REVALIDATION;
-
         switch (checkResult) {
         case ENTRY_WANTED:
           // Nothing more to do here, the consumer is responsible to handle
@@ -792,8 +791,7 @@ void CacheEntry::InvokeAvailableCallback(Callback const & aCallback)
     return;
   }
 
-  // R/O callbacks may do revalidation, let them fall through
-  if (aCallback.mReadOnly && !aCallback.mRevalidating) {
+  if (aCallback.mReadOnly) {
     LOG(("  r/o and not ready, notifying OCEA with NS_ERROR_CACHE_KEY_NOT_FOUND"));
     aCallback.mCallback->OnCacheEntryAvailable(
       nullptr, false, nullptr, NS_ERROR_CACHE_KEY_NOT_FOUND);

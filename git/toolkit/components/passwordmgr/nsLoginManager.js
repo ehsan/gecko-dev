@@ -3,7 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-const { classes: Cc, interfaces: Ci, results: Cr, utils: Cu } = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -72,7 +74,7 @@ LoginManager.prototype = {
       return this;
     }
 
-    throw new Components.Exception("Interface not available", Cr.NS_ERROR_NO_INTERFACE);
+    throw Cr.NS_ERROR_NO_INTERFACE;
   },
 
 
@@ -236,9 +238,6 @@ LoginManager.prototype = {
     clearAndGetHistogram("PWMGR_NUM_SAVED_PASSWORDS").add(
       this.countLogins("", "", "")
     );
-    clearAndGetHistogram("PWMGR_NUM_HTTPAUTH_PASSWORDS").add(
-      this.countLogins("", null, "")
-    );
 
     // This is a boolean histogram, and not a flag, because we don't want to
     // record any value if _gatherTelemetry is not called.
@@ -302,26 +301,26 @@ LoginManager.prototype = {
   addLogin : function (login) {
     // Sanity check the login
     if (login.hostname == null || login.hostname.length == 0)
-      throw new Error("Can't add a login with a null or empty hostname.");
+      throw "Can't add a login with a null or empty hostname.";
 
     // For logins w/o a username, set to "", not null.
     if (login.username == null)
-      throw new Error("Can't add a login with a null username.");
+      throw "Can't add a login with a null username.";
 
     if (login.password == null || login.password.length == 0)
-      throw new Error("Can't add a login with a null or empty password.");
+      throw "Can't add a login with a null or empty password.";
 
     if (login.formSubmitURL || login.formSubmitURL == "") {
       // We have a form submit URL. Can't have a HTTP realm.
       if (login.httpRealm != null)
-        throw new Error("Can't add a login with both a httpRealm and formSubmitURL.");
+        throw "Can't add a login with both a httpRealm and formSubmitURL.";
     } else if (login.httpRealm) {
       // We have a HTTP realm. Can't have a form submit URL.
       if (login.formSubmitURL != null)
-        throw new Error("Can't add a login with both a httpRealm and formSubmitURL.");
+        throw "Can't add a login with both a httpRealm and formSubmitURL.";
     } else {
       // Need one or the other!
-      throw new Error("Can't add a login without a httpRealm or formSubmitURL.");
+      throw "Can't add a login without a httpRealm or formSubmitURL.";
     }
 
 
@@ -330,7 +329,7 @@ LoginManager.prototype = {
                                  login.httpRealm);
 
     if (logins.some(function(l) login.matches(l, true)))
-      throw new Error("This login already exists.");
+      throw "This login already exists.";
 
     log("Adding login");
     return this._storage.addLogin(login);
@@ -481,7 +480,7 @@ LoginManager.prototype = {
   setLoginSavingEnabled : function (hostname, enabled) {
     // Nulls won't round-trip with getAllDisabledHosts().
     if (hostname.indexOf("\0") != -1)
-      throw new Error("Invalid hostname");
+      throw "Invalid hostname";
 
     log("Login saving for", hostname, "now enabled?", enabled);
     return this._storage.setLoginSavingEnabled(hostname, enabled);

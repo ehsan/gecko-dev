@@ -56,7 +56,7 @@ public:
                        OCSPCache& ocspCache, void* pinArg,
                        CertVerifier::OcspGetConfig ocspGETConfig,
                        CertVerifier::PinningMode pinningMode,
-                       unsigned int minRSABits,
+                       bool forEV,
           /*optional*/ const char* hostname = nullptr,
       /*optional out*/ ScopedCERTCertList* builtChain = nullptr);
 
@@ -69,9 +69,6 @@ public:
                               mozilla::pkix::Input candidateCertDER,
                               /*out*/ mozilla::pkix::TrustLevel& trustLevel)
                               MOZ_OVERRIDE;
-
-  virtual Result CheckSignatureDigestAlgorithm(
-                   mozilla::pkix::DigestAlgorithm digestAlg) MOZ_OVERRIDE;
 
   virtual Result CheckRSAPublicKeyModulusSizeInBits(
                    mozilla::pkix::EndEntityOrCA endEntityOrCA,
@@ -130,7 +127,7 @@ private:
   void* mPinArg; // non-owning!
   const CertVerifier::OcspGetConfig mOCSPGetConfig;
   CertVerifier::PinningMode mPinningMode;
-  const unsigned int mMinRSABits;
+  const unsigned int mMinimumNonECCBits;
   const char* mHostname; // non-owning - only used for pinning checks
   ScopedCERTCertList* mBuiltChain; // non-owning
   nsCOMPtr<nsICertBlocklist> mCertBlocklist;

@@ -58,23 +58,20 @@ struct CommandOptions
       NDEFRecordStruct record;
       record.mTnf = currentValue[i].mTnf;
 
-      if (currentValue[i].mType.WasPassed() &&
-          !currentValue[i].mType.Value().IsNull()) {
-        const dom::Uint8Array& type = currentValue[i].mType.Value().Value();
+      if (currentValue[i].mType.WasPassed()) {
+        const dom::Uint8Array& type = currentValue[i].mType.Value();
         type.ComputeLengthAndData();
         record.mType.AppendElements(type.Data(), type.Length());
       }
 
-      if (currentValue[i].mId.WasPassed() &&
-          !currentValue[i].mId.Value().IsNull()) {
-        const dom::Uint8Array& id = currentValue[i].mId.Value().Value();
+      if (currentValue[i].mId.WasPassed()) {
+        const dom::Uint8Array& id = currentValue[i].mId.Value();
         id.ComputeLengthAndData();
         record.mId.AppendElements(id.Data(), id.Length());
       }
 
-      if (currentValue[i].mPayload.WasPassed() &&
-          !currentValue[i].mPayload.Value().IsNull()) {
-        const dom::Uint8Array& payload = currentValue[i].mPayload.Value().Value();
+      if (currentValue[i].mPayload.WasPassed()) {
+        const dom::Uint8Array& payload = currentValue[i].mPayload.Value();
         payload.ComputeLengthAndData();
         record.mPayload.AppendElements(payload.Data(), payload.Length());
       }
@@ -86,7 +83,7 @@ struct CommandOptions
 #undef COPY_OPT_FIELD
   }
 
-  dom::NfcRequestType mType;
+  nsString mType;
   int32_t mSessionId;
   nsString mRequestId;
   int32_t mRfState;
@@ -100,16 +97,13 @@ struct CommandOptions
 struct EventOptions
 {
   EventOptions()
-    : mRspType(dom::NfcResponseType::EndGuard_),
-      mNtfType(dom::NfcNotificationType::EndGuard_),
-      mStatus(-1), mErrorCode(-1), mSessionId(-1), mRequestId(EmptyString()),
+    : mType(EmptyString()), mStatus(-1), mErrorCode(-1), mSessionId(-1), mRequestId(EmptyString()),
       mMajorVersion(-1), mMinorVersion(-1), mIsP2P(-1),
       mTagType(-1), mMaxNDEFSize(-1), mIsReadOnly(-1), mIsFormatable(-1), mRfState(-1),
       mOriginType(-1), mOriginIndex(-1)
   {}
 
-  dom::NfcResponseType mRspType;
-  dom::NfcNotificationType mNtfType;
+  nsString mType;
   int32_t mStatus;
   int32_t mErrorCode;
   int32_t mSessionId;

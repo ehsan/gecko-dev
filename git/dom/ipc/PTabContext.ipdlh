@@ -7,6 +7,8 @@
 include protocol PBrowser;
 include PBrowserOrId;
 
+using mozilla::layout::ScrollingBehavior from "mozilla/layout/RenderFrameUtils.h";
+
 namespace mozilla {
 namespace dom {
 
@@ -68,6 +70,7 @@ union IPCTabAppBrowserContext
 
 struct IPCTabContext {
   IPCTabAppBrowserContext appBrowserContext;
+  ScrollingBehavior scrollingBehavior;
 };
 
 }

@@ -116,8 +116,8 @@ function finishCheckUpdateFinished() {
   }
 
   if (IS_MACOSX) {
-    debugDump("testing last modified time on the apply to directory has " +
-              "changed after a successful update (bug 600098)");
+    logTestInfo("testing last modified time on the apply to directory has " +
+                "changed after a successful update (bug 600098)");
     let now = Date.now();
     let applyToDir = getApplyDirFile();
     let timeDiff = Math.abs(applyToDir.lastModifiedTime - now);
@@ -134,22 +134,22 @@ function finishCheckUpdateFinished() {
   do_check_eq(update.state, STATE_SUCCEEDED);
 
   let updatesPatchDir = getUpdatesPatchDir();
-  debugDump("testing " + updatesPatchDir.path + " should exist");
+  logTestInfo("testing " + updatesPatchDir.path + " should exist");
   do_check_true(updatesPatchDir.exists());
 
   log = getUpdatesPatchDir();
   log.append(FILE_UPDATE_LOG);
-  debugDump("testing " + log.path + " shouldn't exist");
+  logTestInfo("testing " + log.path + " shouldn't exist");
   do_check_false(log.exists());
 
   log = getUpdatesDir();
   log.append(FILE_LAST_LOG);
-  debugDump("testing " + log.path + " should exist");
+  logTestInfo("testing " + log.path + " should exist");
   do_check_true(log.exists());
 
   log = getUpdatesDir();
   log.append(FILE_BACKUP_LOG);
-  debugDump("testing " + log.path + " shouldn't exist");
+  logTestInfo("testing " + log.path + " shouldn't exist");
   do_check_false(log.exists());
 
   waitForFilesInUse();

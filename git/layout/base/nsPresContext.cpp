@@ -66,7 +66,6 @@
 #include "nsPIWindowRoot.h"
 #include "mozilla/Preferences.h"
 #include "gfxTextRun.h"
-#include "nsFontFaceUtils.h"
 
 // Needed for Start/Stop of Image Animation
 #include "imgIContainer.h"
@@ -191,10 +190,11 @@ IsVisualCharset(const nsCString& aCharset)
 
 nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   : mType(aType), mDocument(aDocument), mBaseMinFontSize(0),
-    mTextZoom(1.0), mFullZoom(1.0),
-    mLastFontInflationScreenSize(gfxSize(-1.0, -1.0)),
+    mTextZoom(1.0), mFullZoom(1.0), mLastFontInflationScreenWidth(-1.0),
     mPageSize(-1, -1), mPPScale(1.0f),
-    mViewportStyleScrollbar(NS_STYLE_OVERFLOW_AUTO, NS_STYLE_OVERFLOW_AUTO),
+    mViewportStyleScrollbar(NS_STYLE_OVERFLOW_AUTO,
+                            NS_STYLE_OVERFLOW_AUTO,
+                            NS_STYLE_SCROLL_BEHAVIOR_AUTO),
     mImageAnimationModePref(imgIContainer::kNormalAnimMode),
     mAllInvalidated(false),
     mPaintFlashing(false), mPaintFlashingInitialized(false)
@@ -1010,7 +1010,7 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
         if (parentItem) {
           Element* containingElement =
             parent->FindContentForSubDocument(mDocument);
-          if (!containingElement->IsXULElement() ||
+          if (!containingElement->IsXUL() ||
               !containingElement->
                 HasAttr(kNameSpaceID_None,
                         nsGkAtoms::forceOwnRefreshDriver)) {
@@ -1506,8 +1506,8 @@ nsPresContext::SetFullZoom(float aZoom)
   mSupressResizeReflow = false;
 }
 
-gfxSize
-nsPresContext::ScreenSizeInchesForFontInflation(bool* aChanged)
+float
+nsPresContext::ScreenWidthInchesForFontInflation(bool* aChanged)
 {
   if (aChanged) {
     *aChanged = false;
@@ -1516,20 +1516,19 @@ nsPresContext::ScreenSizeInchesForFontInflation(bool* aChanged)
   nsDeviceContext *dx = DeviceContext();
   nsRect clientRect;
   dx->GetClientRect(clientRect); // FIXME: GetClientRect looks expensive
-  float unitsPerInch = dx->AppUnitsPerPhysicalInch();
-  gfxSize deviceSizeInches(float(clientRect.width) / unitsPerInch,
-                           float(clientRect.height) / unitsPerInch);
+  float deviceWidthInches =
+    float(clientRect.width) / float(dx->AppUnitsPerPhysicalInch());
 
-  if (mLastFontInflationScreenSize == gfxSize(-1.0, -1.0)) {
-    mLastFontInflationScreenSize = deviceSizeInches;
+  if (mLastFontInflationScreenWidth == -1.0) {
+    mLastFontInflationScreenWidth = deviceWidthInches;
   }
 
-  if (deviceSizeInches != mLastFontInflationScreenSize && aChanged) {
+  if (deviceWidthInches != mLastFontInflationScreenWidth && aChanged) {
     *aChanged = true;
-    mLastFontInflationScreenSize = deviceSizeInches;
+    mLastFontInflationScreenWidth = deviceWidthInches;
   }
 
-  return deviceSizeInches;
+  return deviceWidthInches;
 }
 
 void
@@ -1855,7 +1854,6 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint,
   }
 
   mUsesRootEMUnits = false;
-  mUsesExChUnits = false;
   mUsesViewportUnits = false;
   RebuildUserFontSet();
   RebuildCounterStyles();
@@ -2148,43 +2146,24 @@ nsPresContext::RebuildUserFontSet()
 }
 
 void
-nsPresContext::UserFontSetUpdated(gfxUserFontEntry* aUpdatedFont)
+nsPresContext::UserFontSetUpdated()
 {
   if (!mShell)
     return;
 
-  bool usePlatformFontList = true;
-#if defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_QT)
-  usePlatformFontList = false;
-#endif
+  // Changes to the set of available fonts can cause updates to layout by:
+  //
+  //   1. Changing the font used for text, which changes anything that
+  //      depends on text measurement, including line breaking and
+  //      intrinsic widths, and any other parts of layout that depend on
+  //      font metrics.  This requires a style change reflow to update.
+  //
+  //   2. Changing the value of the 'ex' and 'ch' units in style data,
+  //      which also depend on font metrics.  Updating this information
+  //      requires rebuilding the rule tree from the top, avoiding the
+  //      reuse of cached data even when no style rules have changed.
 
-  // xxx - until the Linux platform font list is always used, use full
-  // restyle to force updates with gfxPangoFontGroup usage
-  // Note: this method is called without a font when rules in the userfont set
-  // are updated, which may occur during reflow as a result of the lazy
-  // initialization of the userfont set. It would be better to avoid a full
-  // restyle but until this method is only called outside of reflow, schedule a
-  // full restyle in these cases.
-  if (!usePlatformFontList || !aUpdatedFont) {
-    PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW, eRestyle_ForceDescendants);
-    return;
-  }
-
-  // Special case - if either the 'ex' or 'ch' units are used, these
-  // depend upon font metrics. Updating this information requires
-  // rebuilding the rule tree from the top, avoiding the reuse of cached
-  // data even when no style rules have changed.
-  if (UsesExChUnits()) {
-    PostRebuildAllStyleDataEvent(nsChangeHint(0), eRestyle_ForceDescendants);
-  }
-
-  // Iterate over the frame tree looking for frames associated with the
-  // downloadable font family in question. If a frame's nsStyleFont has
-  // the name, check the font group associated with the metrics to see if
-  // it contains that specific font (i.e. the one chosen within the family
-  // given the weight, width, and slant from the nsStyleFont). If it does,
-  // mark that frame dirty and skip inspecting its descendants.
-  nsFontFaceUtils::MarkDirtyForFontChange(mShell->GetRootFrame(), aUpdatedFont);
+  PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW, eRestyle_ForceDescendants);
 }
 
 FontFaceSet*
@@ -2941,9 +2920,7 @@ nsRootPresContext::ComputePluginGeometryUpdates(nsIFrame* aFrame,
   // This is not happening during a paint event.
   ApplyPluginGeometryUpdates();
 #else
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    InitApplyPluginGeometryTimer();
-  }
+  InitApplyPluginGeometryTimer();
 #endif
 }
 

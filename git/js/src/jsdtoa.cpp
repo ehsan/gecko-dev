@@ -499,13 +499,13 @@ js_dtobasestr(DtoaState *state, int base, double dinput)
 }
 
 DtoaState *
-js::NewDtoaState()
+js_NewDtoaState()
 {
     return newdtoa();
 }
 
 void
-js::DestroyDtoaState(DtoaState *state)
+js_DestroyDtoaState(DtoaState *state)
 {
     destroydtoa(state);
 }

@@ -50,7 +50,6 @@ user_pref("browser.panorama.experienced_first_run", true); // Assume experienced
 user_pref("dom.w3c_touch_events.enabled", 1);
 user_pref("dom.undo_manager.enabled", true);
 user_pref("dom.webcomponents.enabled", true);
-user_pref("dom.htmlimports.enabled", true);
 user_pref("dom.animations-api.core.enabled", true);
 // Set a future policy version to avoid the telemetry prompt.
 user_pref("toolkit.telemetry.prompted", 999);
@@ -161,7 +160,7 @@ user_pref("layout.spammy_warnings.enabled", false);
 
 // Enable Media Source Extensions for testing
 user_pref("media.mediasource.enabled", true);
-user_pref("media.mediasource.whitelist", false);
+user_pref("media.mediasource.youtubeonly", false);
 user_pref("media.mediasource.mp4.enabled", true);
 user_pref("media.mediasource.webm.enabled", true);
 
@@ -229,11 +228,6 @@ user_pref('browser.tiles.reportURL', 'http://%(server)s/tests/robocop/robocop_ti
 
 // We want to collect telemetry, but we don't want to send in the results.
 user_pref('toolkit.telemetry.server', 'https://%(server)s/telemetry-dummy/');
-
-// A couple of preferences with default values to test that telemetry preference
-// watching is working.
-user_pref('toolkit.telemetry.test.pref1', true);
-user_pref('toolkit.telemetry.test.pref2', false);
 
 // We don't want to hit the real Firefox Accounts server for tests.  We don't
 // actually need a functioning FxA server, so just set it to something that

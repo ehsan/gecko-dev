@@ -45,7 +45,6 @@ public:
                        mozilla::CSSStyleSheet* aSheet = nullptr);
   ~nsCSSParser();
 
-  static void Startup();
   static void Shutdown();
 
 private:

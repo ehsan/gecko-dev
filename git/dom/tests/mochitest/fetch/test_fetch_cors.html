@@ -42,8 +42,12 @@ function testOnWorker(done) {
 // Driver
 //
 
-testOnWorker(function() {
-  SimpleTest.finish();
+SpecialPowers.pushPrefEnv({"set": [
+  ["dom.fetch.enabled", true]
+]}, function() {
+  testOnWorker(function() {
+    SimpleTest.finish();
+  });
 });
 </script>
 </script>

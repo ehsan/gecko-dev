@@ -267,7 +267,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     if (aChange & nsChangeHint_UpdateTextPath) {
       if (aFrame->IsSVGText()) {
         // Invalidate and reflow the entire SVGTextFrame:
-        NS_ASSERTION(aFrame->GetContent()->IsSVGElement(nsGkAtoms::textPath),
+        NS_ASSERTION(aFrame->GetContent()->IsSVG(nsGkAtoms::textPath),
                      "expected frame for a <textPath> element");
         nsIFrame* text = nsLayoutUtils::GetClosestFrameOfType(
                                                       aFrame,
@@ -332,12 +332,12 @@ ApplyRenderingChangeToTree(nsPresContext* aPresContext,
                            nsIFrame* aFrame,
                            nsChangeHint aChange)
 {
-  // We check StylePosition()->HasTransformStyle() in addition to checking
+  // We check StyleDisplay()->HasTransformStyle() in addition to checking
   // IsTransformed() since we can get here for some frames that don't support
   // CSS transforms.
   NS_ASSERTION(!(aChange & nsChangeHint_UpdateTransformLayer) ||
                aFrame->IsTransformed() ||
-               aFrame->StylePosition()->HasTransformStyle(),
+               aFrame->StyleDisplay()->HasTransformStyle(),
                "Unexpected UpdateTransformLayer hint");
 
   nsIPresShell *shell = aPresContext->PresShell();
@@ -2605,7 +2605,7 @@ ElementRestyler::AddLayerChangesForAnimation()
       // nsChangeHint_UpdateTransformLayer, ApplyRenderingChangeToTree would
       // complain that we're updating a transform layer without a transform).
       if (layerInfo[i].mLayerType == nsDisplayItem::TYPE_TRANSFORM &&
-          !mFrame->StylePosition()->HasTransformStyle()) {
+          !mFrame->StyleDisplay()->HasTransformStyle()) {
         continue;
       }
       NS_UpdateHint(hint, layerInfo[i].mChangeHint);
@@ -3023,9 +3023,9 @@ ElementRestyler::ComputeRestyleResultFromNewContext(nsIFrame* aSelf,
     return eRestyleResult_Continue;
   }
 
-  if (oldContext->ShouldSuppressLineBreak() !=
-        aNewContext->ShouldSuppressLineBreak()) {
-    LOG_RESTYLE_CONTINUE("NS_STYLE_SUPPRESS_LINEBREAK differes"
+  if (oldContext->IsInlineDescendantOfRuby() !=
+        aNewContext->IsInlineDescendantOfRuby()) {
+    LOG_RESTYLE_CONTINUE("NS_STYLE_IS_INLINE_DESCENDANT_OF_RUBY differes"
                          "between old and new style contexts");
     return eRestyleResult_Continue;
   }
@@ -3589,21 +3589,10 @@ ElementRestyler::ComputeStyleChangeFor(nsIFrame*          aFrame,
                                        nsTArray<nsRefPtr<nsStyleContext>>&
                                          aSwappedStructOwners)
 {
-  nsIContent* content = aFrame->GetContent();
-  nsAutoCString idStr;
-  if (profiler_is_active() && content) {
-    nsIAtom* id = content->GetID();
-    if (id) {
-      id->ToUTF8String(idStr);
-    } else {
-      idStr.AssignLiteral("?");
-    }
-  }
+  PROFILER_LABEL("ElementRestyler", "ComputeStyleChangeFor",
+    js::ProfileEntry::Category::CSS);
 
-  PROFILER_LABEL_PRINTF("ElementRestyler", "ComputeStyleChangeFor",
-                        js::ProfileEntry::Category::CSS,
-                        content ? "Element: %s" : "%s",
-                        content ? idStr.get() : "");
+  nsIContent* content = aFrame->GetContent();
   if (aMinChange) {
     aChangeList->AppendChange(aFrame, content, aMinChange);
   }

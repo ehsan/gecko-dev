@@ -7,6 +7,9 @@
     <script type="application/javascript" src="SelectionUtils.js"></script>
     <script type="application/javascript;version=1.8">
 
+// Name of this test.
+const TYPE_NAME = "Robocop:testInputSelections";
+
 // Used to create handle movement events for SelectionHandler.
 const ANCHOR = "ANCHOR";
 const FOCUS = "FOCUS";
@@ -102,8 +105,7 @@ function testLTR_selectAll() {
 
   ]).then(function() {
     // Close selection and complete test.
-    Services.obs.notifyObservers(null, "TextSelection:End",
-      JSON.stringify({selectionID: sh._selectionID}));
+    Services.obs.notifyObservers(null, "TextSelection:End", {});
 
     return Promise.all([
       ok(!sh.isSelectionActive(),
@@ -172,8 +174,7 @@ function testRTL_selectAll() {
 
   ]).then(function() {
     // Close selection and complete test.
-    Services.obs.notifyObservers(null, "TextSelection:End",
-      JSON.stringify({selectionID: sh._selectionID}));
+    Services.obs.notifyObservers(null, "TextSelection:End", {});
 
     return Promise.all([
       ok(!sh.isSelectionActive(),
@@ -218,8 +219,7 @@ function testLTR_dragFocusHandleToSelf() {
   let focusDragSelectionText = sh._getSelectedText();
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testLTR_dragFocusHandleToSelf - Test Starts."),
@@ -278,8 +278,7 @@ function testLTR_dragAnchorHandleToSelf() {
   let anchorDragSelectionText = sh._getSelectedText();
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testLTR_dragAnchorHandleToSelf - Test Starts."),
@@ -337,8 +336,7 @@ function testRTL_dragFocusHandleToSelf() {
   let focusDragSelectionText = sh._getSelectedText();
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testRTL_dragFocusHandleToSelf - Test Starts."),
@@ -397,8 +395,7 @@ function testRTL_dragAnchorHandleToSelf() {
   let anchorDragSelectionText = sh._getSelectedText();
 
   // Complete test, and report.
-  Services.obs.notifyObservers(null, "TextSelection:End",
-    JSON.stringify({selectionID: sh._selectionID}));
+  Services.obs.notifyObservers(null, "TextSelection:End", {});
 
   return Promise.all([
     ok(true, "testRTL_dragAnchorHandleToSelf - Test Starts."),

@@ -113,12 +113,6 @@ class Registers
         invalid_reg
     };
     typedef RegisterID Code;
-    typedef RegisterID Encoding;
-
-    // Content spilled during bailouts.
-    union RegisterContent {
-        uintptr_t r;
-    };
 
     static const char *GetName(Code code) {
         static const char * const Names[] = { "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
@@ -140,11 +134,10 @@ class Registers
     static const uint32_t Total = 32;
     static const uint32_t Allocatable = 14;
 
-    typedef uint32_t SetType;
-    static const SetType AllMask = 0xffffffff;
-    static const SetType ArgRegMask = (1 << a0) | (1 << a1) | (1 << a2) | (1 << a3);
+    static const uint32_t AllMask = 0xffffffff;
+    static const uint32_t ArgRegMask = (1 << a0) | (1 << a1) | (1 << a2) | (1 << a3);
 
-    static const SetType VolatileMask =
+    static const uint32_t VolatileMask =
         (1 << Registers::v0) |
         (1 << Registers::v1) |
         (1 << Registers::a0) |
@@ -162,7 +155,7 @@ class Registers
 
     // We use this constant to save registers when entering functions. This
     // is why $ra is added here even though it is not "Non Volatile".
-    static const SetType NonVolatileMask =
+    static const uint32_t NonVolatileMask =
         (1 << Registers::s0) |
         (1 << Registers::s1) |
         (1 << Registers::s2) |
@@ -173,12 +166,12 @@ class Registers
         (1 << Registers::s7) |
         (1 << Registers::ra);
 
-    static const SetType WrapperMask =
+    static const uint32_t WrapperMask =
         VolatileMask |         // = arguments
         (1 << Registers::t0) | // = outReg
         (1 << Registers::t1);  // = argBase
 
-    static const SetType NonAllocatableMask =
+    static const uint32_t NonAllocatableMask =
         (1 << Registers::zero) |
         (1 << Registers::at) | // at = scratch
         (1 << Registers::t8) | // t8 = scratch
@@ -191,20 +184,21 @@ class Registers
         (1 << Registers::ra);
 
     // Registers that can be allocated without being saved, generally.
-    static const SetType TempMask = VolatileMask & ~NonAllocatableMask;
+    static const uint32_t TempMask = VolatileMask & ~NonAllocatableMask;
 
     // Registers returned from a JS -> JS call.
-    static const SetType JSCallMask =
+    static const uint32_t JSCallMask =
         (1 << Registers::a2) |
         (1 << Registers::a3);
 
     // Registers returned from a JS -> C call.
-    static const SetType CallMask =
+    static const uint32_t CallMask =
         (1 << Registers::v0) |
         (1 << Registers::v1);  // used for double-size returns
 
-    static const SetType AllocatableMask = AllMask & ~NonAllocatableMask;
+    static const uint32_t AllocatableMask = AllMask & ~NonAllocatableMask;
 
+    typedef uint32_t SetType;
     static uint32_t SetSize(SetType x) {
         static_assert(sizeof(SetType) == 4, "SetType must be 32 bits");
         return mozilla::CountPopulation32(x);
@@ -270,12 +264,6 @@ class FloatRegisters
         invalid_freg
     };
     typedef FPRegisterID Code;
-    typedef FPRegisterID Encoding;
-
-    // Content spilled during bailouts.
-    union RegisterContent {
-        double d;
-    };
 
     static const char *GetName(Code code) {
         static const char * const Names[] = { "f0", "f1", "f2", "f3",  "f4", "f5",  "f6", "f7",
@@ -300,12 +288,10 @@ class FloatRegisters
     static const uint32_t Allocatable = 42;
     // When saving all registers we only need to do is save double registers.
     static const uint32_t TotalPhys = 16;
+    static const uint64_t AllDoubleMask = 0x55555555ULL << 32;
+    static const uint64_t AllMask = AllDoubleMask | ((1ULL << 32) - 1);
 
-    typedef uint64_t SetType;
-    static const SetType AllDoubleMask = 0x55555555ULL << 32;
-    static const SetType AllMask = AllDoubleMask | ((1ULL << 32) - 1);
-
-    static const SetType NonVolatileDoubleMask =
+    static const uint64_t NonVolatileDoubleMask =
         ((1ULL << FloatRegisters::f20) |
          (1ULL << FloatRegisters::f22) |
          (1ULL << FloatRegisters::f24) |
@@ -314,7 +300,7 @@ class FloatRegisters
          (1ULL << FloatRegisters::f30)) << 32;
 
     // f20-single and f21-single alias f20-double ...
-    static const SetType NonVolatileMask =
+    static const uint64_t NonVolatileMask =
         NonVolatileDoubleMask |
         (1ULL << FloatRegisters::f20) |
         (1ULL << FloatRegisters::f21) |
@@ -329,16 +315,16 @@ class FloatRegisters
         (1ULL << FloatRegisters::f30) |
         (1ULL << FloatRegisters::f31);
 
-    static const SetType VolatileMask = AllMask & ~NonVolatileMask;
-    static const SetType VolatileDoubleMask = AllDoubleMask & ~NonVolatileDoubleMask;
+    static const uint64_t VolatileMask = AllMask & ~NonVolatileMask;
+    static const uint64_t VolatileDoubleMask = AllDoubleMask & ~NonVolatileDoubleMask;
 
-    static const SetType WrapperMask = VolatileMask;
+    static const uint64_t WrapperMask = VolatileMask;
 
-    static const SetType NonAllocatableDoubleMask =
+    static const uint64_t NonAllocatableDoubleMask =
         ((1ULL << FloatRegisters::f16) |
          (1ULL << FloatRegisters::f18)) << 32;
     // f16-single and f17-single alias f16-double ...
-    static const SetType NonAllocatableMask =
+    static const uint64_t NonAllocatableMask =
         NonAllocatableDoubleMask |
         (1ULL << FloatRegisters::f16) |
         (1ULL << FloatRegisters::f17) |
@@ -346,9 +332,11 @@ class FloatRegisters
         (1ULL << FloatRegisters::f19);
 
     // Registers that can be allocated without being saved, generally.
-    static const SetType TempMask = VolatileMask & ~NonAllocatableMask;
+    static const uint64_t TempMask = VolatileMask & ~NonAllocatableMask;
 
-    static const SetType AllocatableMask = AllMask & ~NonAllocatableMask;
+    static const uint64_t AllocatableMask = AllMask & ~NonAllocatableMask;
+
+    typedef uint64_t SetType;
 };
 
 template <typename T>
@@ -364,7 +352,6 @@ class FloatRegister
 
     typedef FloatRegisters Codes;
     typedef Codes::Code Code;
-    typedef Codes::Encoding Encoding;
 
     uint32_t code_ : 6;
   protected:
@@ -383,32 +370,20 @@ class FloatRegister
         MOZ_ASSERT(!other.isInvalid());
         return kind_ == other.kind_ && code_ == other.code_;
     }
+    bool isDouble() const { return kind_ == Double; }
+    bool isSingle() const { return kind_ == Single; }
     bool equiv(const FloatRegister &other) const { return other.kind_ == kind_; }
     size_t size() const { return (kind_ == Double) ? 8 : 4; }
     bool isInvalid() const {
         return code_ == FloatRegisters::invalid_freg;
     }
 
-    bool isSingle() const { return kind_ == Single; }
-    bool isDouble() const { return kind_ == Double; }
-    bool isInt32x4() const { return false; }
-    bool isFloat32x4() const { return false; }
-
     FloatRegister doubleOverlay(unsigned int which = 0) const;
     FloatRegister singleOverlay(unsigned int which = 0) const;
     FloatRegister sintOverlay(unsigned int which = 0) const;
     FloatRegister uintOverlay(unsigned int which = 0) const;
 
-    FloatRegister asSingle() const { return singleOverlay(); }
-    FloatRegister asDouble() const { return doubleOverlay(); }
-    FloatRegister asInt32x4() const { MOZ_CRASH("NYI"); }
-    FloatRegister asFloat32x4() const { MOZ_CRASH("NYI"); }
-
     Code code() const {
-        MOZ_ASSERT(!isInvalid());
-        return Code(code_  | (kind_ << 5));
-    }
-    Encoding encoding() const {
         MOZ_ASSERT(!isInvalid());
         return Code(code_  | (kind_ << 5));
     }
@@ -498,6 +473,7 @@ class FloatRegister
         return FloatRegisters::FromName(name);
     }
     static TypedRegisterSet<FloatRegister> ReduceSetForPush(const TypedRegisterSet<FloatRegister> &s);
+    static uint32_t GetSizeInBytes(const TypedRegisterSet<FloatRegister> &s);
     static uint32_t GetPushSizeInBytes(const TypedRegisterSet<FloatRegister> &s);
     uint32_t getRegisterDumpOffsetInBytes();
     static uint32_t FirstBit(SetType x) {
@@ -524,12 +500,6 @@ inline bool
 hasMultiAlias() {
     return true;
 }
-
-// See the comments above AsmJSMappedSize in AsmJSValidate.h for more info.
-// TODO: Implement this for MIPS. Note that it requires Codegen to respect the
-// offset field of AsmJSHeapAccess.
-static const size_t AsmJSCheckedImmediateRange = 0;
-static const size_t AsmJSImmediateRange = 0;
 
 } // namespace jit
 } // namespace js

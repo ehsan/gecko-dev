@@ -25,19 +25,19 @@ add_test(function test_icc_get_card_lock_enabled() {
 
     buf.sendParcel = function fakeSendParcel() {
       // Request Type.
-      equal(this.readInt32(), REQUEST_QUERY_FACILITY_LOCK)
+      do_check_eq(this.readInt32(), REQUEST_QUERY_FACILITY_LOCK)
 
       // Token : we don't care.
       this.readInt32();
 
       // Data
       let parcel = this.readStringList();
-      equal(parcel.length, ril.v5Legacy ? 3 : 4);
-      equal(parcel[0], GECKO_CARDLOCK_TO_FACILITY[aLock]);
-      equal(parcel[1], "");
-      equal(parcel[2], serviceClass.toString());
+      do_check_eq(parcel.length, ril.v5Legacy ? 3 : 4);
+      do_check_eq(parcel[0], GECKO_CARDLOCK_TO_FACILITY[aLock]);
+      do_check_eq(parcel[1], "");
+      do_check_eq(parcel[2], serviceClass.toString());
       if (!ril.v5Legacy) {
-        equal(parcel[3], ril.aid);
+        do_check_eq(parcel[3], ril.aid);
       }
     };
 
@@ -64,16 +64,16 @@ add_test(function test_path_id_for_spid_and_spn() {
 
   // Test SIM
   RIL.appType = CARD_APPTYPE_SIM;
-  equal(ICCFileHelper.getEFPath(ICC_EF_SPDI),
+  do_check_eq(ICCFileHelper.getEFPath(ICC_EF_SPDI),
               EF_PATH_MF_SIM + EF_PATH_DF_GSM);
-  equal(ICCFileHelper.getEFPath(ICC_EF_SPN),
+  do_check_eq(ICCFileHelper.getEFPath(ICC_EF_SPN),
               EF_PATH_MF_SIM + EF_PATH_DF_GSM);
 
   // Test USIM
   RIL.appType = CARD_APPTYPE_USIM;
-  equal(ICCFileHelper.getEFPath(ICC_EF_SPDI),
+  do_check_eq(ICCFileHelper.getEFPath(ICC_EF_SPDI),
               EF_PATH_MF_SIM + EF_PATH_ADF_USIM);
-  equal(ICCFileHelper.getEFPath(ICC_EF_SPDI),
+  do_check_eq(ICCFileHelper.getEFPath(ICC_EF_SPDI),
               EF_PATH_MF_SIM + EF_PATH_ADF_USIM);
   run_next_test();
 });
@@ -96,20 +96,20 @@ add_test(function test_icc_set_card_lock_enabled() {
 
     buf.sendParcel = function fakeSendParcel() {
       // Request Type.
-      equal(this.readInt32(), REQUEST_SET_FACILITY_LOCK);
+      do_check_eq(this.readInt32(), REQUEST_SET_FACILITY_LOCK);
 
       // Token : we don't care
       this.readInt32();
 
       // Data
       let parcel = this.readStringList();
-      equal(parcel.length, ril.v5Legacy ? 4 : 5);
-      equal(parcel[0], GECKO_CARDLOCK_TO_FACILITY[aLock]);
-      equal(parcel[1], aEnabled ? "1" : "0");
-      equal(parcel[2], aPassword);
-      equal(parcel[3], serviceClass.toString());
+      do_check_eq(parcel.length, ril.v5Legacy ? 4 : 5);
+      do_check_eq(parcel[0], GECKO_CARDLOCK_TO_FACILITY[aLock]);
+      do_check_eq(parcel[1], aEnabled ? "1" : "0");
+      do_check_eq(parcel[2], aPassword);
+      do_check_eq(parcel[3], serviceClass.toString());
       if (!ril.v5Legacy) {
-        equal(parcel[4], ril.aid);
+        do_check_eq(parcel[4], ril.aid);
       }
     };
 
@@ -144,18 +144,18 @@ add_test(function test_icc_change_card_lock_password() {
 
     buf.sendParcel = function fakeSendParcel() {
       // Request Type.
-      equal(this.readInt32(), GECKO_CARDLOCK_TO_REQUEST[aLock]);
+      do_check_eq(this.readInt32(), GECKO_CARDLOCK_TO_REQUEST[aLock]);
 
       // Token : we don't care
       this.readInt32();
 
       // Data
       let parcel = this.readStringList();
-      equal(parcel.length, ril.v5Legacy ? 2 : 3);
-      equal(parcel[0], aPassword);
-      equal(parcel[1], aNewPassword);
+      do_check_eq(parcel.length, ril.v5Legacy ? 2 : 3);
+      do_check_eq(parcel[0], aPassword);
+      do_check_eq(parcel[1], aNewPassword);
       if (!ril.v5Legacy) {
-        equal(parcel[2], ril.aid);
+        do_check_eq(parcel[2], ril.aid);
       }
     };
 
@@ -189,17 +189,17 @@ add_test(function test_icc_unlock_card_lock_pin() {
 
     buf.sendParcel = function fakeSendParcel() {
       // Request Type.
-      equal(this.readInt32(), GECKO_CARDLOCK_TO_REQUEST[aLock]);
+      do_check_eq(this.readInt32(), GECKO_CARDLOCK_TO_REQUEST[aLock]);
 
       // Token : we don't care
       this.readInt32();
 
       // Data
       let parcel = this.readStringList();
-      equal(parcel.length, ril.v5Legacy ? 1 : 2);
-      equal(parcel[0], aPassword);
+      do_check_eq(parcel.length, ril.v5Legacy ? 1 : 2);
+      do_check_eq(parcel[0], aPassword);
       if (!ril.v5Legacy) {
-        equal(parcel[1], ril.aid);
+        do_check_eq(parcel[1], ril.aid);
       }
     };
 
@@ -233,18 +233,18 @@ add_test(function test_icc_unlock_card_lock_puk() {
 
     buf.sendParcel = function fakeSendParcel() {
       // Request Type.
-      equal(this.readInt32(), GECKO_CARDLOCK_TO_REQUEST[aLock]);
+      do_check_eq(this.readInt32(), GECKO_CARDLOCK_TO_REQUEST[aLock]);
 
       // Token : we don't care
       this.readInt32();
 
       // Data
       let parcel = this.readStringList();
-      equal(parcel.length, ril.v5Legacy ? 2 : 3);
-      equal(parcel[0], aPassword);
-      equal(parcel[1], aNewPin);
+      do_check_eq(parcel.length, ril.v5Legacy ? 2 : 3);
+      do_check_eq(parcel[0], aPassword);
+      do_check_eq(parcel[1], aNewPin);
       if (!ril.v5Legacy) {
-        equal(parcel[2], ril.aid);
+        do_check_eq(parcel[2], ril.aid);
       }
     };
 
@@ -273,15 +273,15 @@ add_test(function test_icc_unlock_card_lock_depersonalization() {
   function do_test(aPassword) {
     buf.sendParcel = function fakeSendParcel() {
       // Request Type.
-      equal(this.readInt32(), REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE);
+      do_check_eq(this.readInt32(), REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE);
 
       // Token : we don't care
       this.readInt32();
 
       // Data
       let parcel = this.readStringList();
-      equal(parcel.length, 1);
-      equal(parcel[0], aPassword);
+      do_check_eq(parcel.length, 1);
+      do_check_eq(parcel[0], aPassword);
     };
 
     ril.iccUnlockCardLock({

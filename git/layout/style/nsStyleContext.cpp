@@ -23,7 +23,6 @@
 #include "GeckoProfiler.h"
 #include "nsIDocument.h"
 #include "nsPrintfCString.h"
-#include "mozilla/Preferences.h"
 
 #ifdef DEBUG
 // #define NOISY_DEBUG
@@ -61,8 +60,6 @@ const uint32_t nsStyleContext::sDependencyTable[] = {
 #undef STYLE_STRUCT_END
 };
 
-// Whether to perform expensive assertions in the nsStyleContext destructor.
-static bool sExpensiveStyleStructAssertionsEnabled;
 #endif
 
 nsStyleContext::nsStyleContext(nsStyleContext* aParent,
@@ -134,21 +131,21 @@ nsStyleContext::~nsStyleContext()
                "destroying style context from old rule tree too late");
 
 #ifdef DEBUG
-  if (sExpensiveStyleStructAssertionsEnabled) {
-    // Assert that the style structs we are about to destroy are not referenced
-    // anywhere else in the style context tree.  These checks are expensive,
-    // which is why they are not enabled by default.
-    nsStyleContext* root = this;
-    while (root->mParent) {
-      root = root->mParent;
-    }
-    root->AssertStructsNotUsedElsewhere(this,
-                                        std::numeric_limits<int32_t>::max());
-  } else {
-    // In DEBUG builds when the pref is not enabled, we perform a more limited
-    // check just of the children of this style context.
-    AssertStructsNotUsedElsewhere(this, 2);
+#if 0
+  // Assert that the style structs we are about to destroy are not referenced
+  // anywhere else in the style context tree.  These checks are expensive,
+  // which is why they are not enabled even #ifdef DEBUG.
+  nsStyleContext* root = this;
+  while (root->mParent) {
+    root = root->mParent;
   }
+  root->AssertStructsNotUsedElsewhere(this,
+                                      std::numeric_limits<int32_t>::max());
+#else
+  // In DEBUG builds we perform a more limited check just of the children
+  // of this style context.
+  AssertStructsNotUsedElsewhere(this, 2);
+#endif
 #endif
 
   mRuleNode->Release();
@@ -516,36 +513,6 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
   *dataSlot = aStruct;
 }
 
-static bool
-ShouldSuppressLineBreak(const nsStyleDisplay* aStyleDisplay,
-                        const nsStyleContext* aContainerContext,
-                        const nsStyleDisplay* aContainerDisplay)
-{
-  // The display change should only occur for "in-flow" children
-  if (aStyleDisplay->IsOutOfFlowStyle()) {
-    return false;
-  }
-  if (aContainerContext->ShouldSuppressLineBreak()) {
-    // Line break suppressing bit is propagated to any children of line
-    // participants, which include inline and inline ruby boxes.
-    if (aContainerDisplay->mDisplay == NS_STYLE_DISPLAY_INLINE ||
-        aContainerDisplay->mDisplay == NS_STYLE_DISPLAY_RUBY ||
-        aContainerDisplay->mDisplay == NS_STYLE_DISPLAY_RUBY_BASE_CONTAINER) {
-      return true;
-    }
-  }
-  // Any descendant of ruby level containers is non-breakable, but
-  // the level containers themselves are breakable. We have to check
-  // the container display type against all ruby display type here
-  // because any of the ruby boxes could be anonymous.
-  if (aContainerDisplay->IsRubyDisplayType() &&
-      aStyleDisplay->mDisplay != NS_STYLE_DISPLAY_RUBY_BASE_CONTAINER &&
-      aStyleDisplay->mDisplay != NS_STYLE_DISPLAY_RUBY_TEXT_CONTAINER) {
-    return true;
-  }
-  return false;
-}
-
 void
 nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
 {
@@ -592,14 +559,7 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
   // doesn't get confused by looking at the style data.
   if (!mParent) {
     uint8_t displayVal = disp->mDisplay;
-    if (displayVal != NS_STYLE_DISPLAY_CONTENTS) {
-      nsRuleNode::EnsureBlockDisplay(displayVal, true);
-    } else {
-      // http://dev.w3.org/csswg/css-display/#transformations
-      // "... a display-outside of 'contents' computes to block-level
-      //  on the root element."
-      displayVal = NS_STYLE_DISPLAY_BLOCK;
-    }
+    nsRuleNode::EnsureBlockDisplay(displayVal, true);
     if (displayVal != disp->mDisplay) {
       nsStyleDisplay *mutable_display =
         static_cast<nsStyleDisplay*>(GetUniqueStyleData(eStyleStruct_Display));
@@ -672,8 +632,12 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
       }
     }
 
-    if (::ShouldSuppressLineBreak(disp, containerContext, containerDisp)) {
-      mBits |= NS_STYLE_SUPPRESS_LINEBREAK;
+    // The display change should only occur for "in-flow" children
+    if (!disp->IsOutOfFlowStyle() &&
+        ((containerDisp->mDisplay == NS_STYLE_DISPLAY_INLINE &&
+          containerContext->IsInlineDescendantOfRuby()) ||
+         containerDisp->IsRubyDisplayType())) {
+      mBits |= NS_STYLE_IS_INLINE_DESCENDANT_OF_RUBY;
       uint8_t displayVal = disp->mDisplay;
       nsRuleNode::EnsureInlineDisplay(displayVal);
       if (displayVal != disp->mDisplay) {
@@ -1421,15 +1385,5 @@ nsStyleContext::LogStyleContextTree(bool aFirst, uint32_t aStructs)
       child = child->mNextSibling;
     } while (mEmptyChild != child);
   }
-}
-#endif
-
-#ifdef DEBUG
-/* static */ void
-nsStyleContext::Initialize()
-{
-  Preferences::AddBoolVarCache(
-      &sExpensiveStyleStructAssertionsEnabled,
-      "layout.css.expensive-style-struct-assertions.enabled");
 }
 #endif

@@ -6,8 +6,6 @@
 
 #include "jit/RematerializedFrame.h"
 
-#include "mozilla/SizePrintfMacros.h"
-
 #include "jit/JitFrames.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/Debugger.h"
@@ -162,7 +160,7 @@ RematerializedFrame::dump()
     if (isFunctionFrame()) {
         fprintf(stderr, "  callee fun: ");
 #ifdef DEBUG
-        DumpValue(ObjectValue(*callee()));
+        js_DumpValue(ObjectValue(*callee()));
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -170,8 +168,8 @@ RematerializedFrame::dump()
         fprintf(stderr, "  global frame, no callee\n");
     }
 
-    fprintf(stderr, "  file %s line %" PRIuSIZE " offset %" PRIuSIZE "\n",
-            script()->filename(), script()->lineno(),
+    fprintf(stderr, "  file %s line %u offset %zu\n",
+            script()->filename(), (unsigned) script()->lineno(),
             script()->pcToOffset(pc()));
 
     fprintf(stderr, "  script = %p\n", (void*) script());
@@ -179,7 +177,7 @@ RematerializedFrame::dump()
     if (isFunctionFrame()) {
         fprintf(stderr, "  scope chain: ");
 #ifdef DEBUG
-        DumpValue(ObjectValue(*scopeChain()));
+        js_DumpValue(ObjectValue(*scopeChain()));
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -187,7 +185,7 @@ RematerializedFrame::dump()
         if (hasArgsObj()) {
             fprintf(stderr, "  args obj: ");
 #ifdef DEBUG
-            DumpValue(ObjectValue(argsObj()));
+            js_DumpValue(ObjectValue(argsObj()));
 #else
             fprintf(stderr, "?\n");
 #endif
@@ -195,7 +193,7 @@ RematerializedFrame::dump()
 
         fprintf(stderr, "  this: ");
 #ifdef DEBUG
-        DumpValue(thisValue());
+        js_DumpValue(thisValue());
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -206,7 +204,7 @@ RematerializedFrame::dump()
             else
                 fprintf(stderr, "  overflown (arg %d): ", i);
 #ifdef DEBUG
-            DumpValue(argv()[i]);
+            js_DumpValue(argv()[i]);
 #else
             fprintf(stderr, "?\n");
 #endif
@@ -215,7 +213,7 @@ RematerializedFrame::dump()
         for (unsigned i = 0; i < script()->nfixed(); i++) {
             fprintf(stderr, "  local %d: ", i);
 #ifdef DEBUG
-            DumpValue(locals()[i]);
+            js_DumpValue(locals()[i]);
 #else
             fprintf(stderr, "?\n");
 #endif

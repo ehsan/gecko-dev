@@ -46,8 +46,8 @@ add_test(function test_reading_ad_and_parsing_mcc_mnc() {
 
     record.readAD();
 
-    equal(ril.iccInfo.mcc, expectedMcc);
-    equal(ril.iccInfo.mnc, expectedMnc);
+    do_check_eq(ril.iccInfo.mcc, expectedMcc);
+    do_check_eq(ril.iccInfo.mnc, expectedMnc);
   }
 
   do_test(undefined, "466923202422409", "466", "92" );
@@ -140,7 +140,7 @@ add_test(function test_reading_optional_efs() {
 
       if (testEf.length !== 0) {
         do_print("Un-handled EF: " + JSON.stringify(testEf));
-        ok(false);
+        do_check_true(false);
       }
     };
 
@@ -196,7 +196,7 @@ add_test(function test_fetch_sim_records() {
     for (let i = 0; i < expectCalled.length; i++ ) {
       if (ifCalled[i] != expectCalled[i]) {
         do_print(expectCalled[i] + " is not called.");
-        ok(false);
+        do_check_true(false);
       }
     }
   }
@@ -263,9 +263,9 @@ add_test(function test_read_mwis() {
     buildMwisData(isActive, msgCount);
     recordHelper.readMWIS();
 
-    equal("iccmwis", postedMessage.rilMessageType);
-    equal(isActive, postedMessage.mwi.active);
-    equal((isActive) ? msgCount : 0, postedMessage.mwi.msgCount);
+    do_check_eq("iccmwis", postedMessage.rilMessageType);
+    do_check_eq(isActive, postedMessage.mwi.active);
+    do_check_eq((isActive) ? msgCount : 0, postedMessage.mwi.msgCount);
   }
 
   do_test(true, GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN);
@@ -319,41 +319,41 @@ add_test(function test_update_mwis() {
       isUpdated = true;
 
       // Request Type.
-      equal(this.readInt32(), REQUEST_SIM_IO);
+      do_check_eq(this.readInt32(), REQUEST_SIM_IO);
 
       // Token : we don't care
       this.readInt32();
 
       // command.
-      equal(this.readInt32(), ICC_COMMAND_UPDATE_RECORD);
+      do_check_eq(this.readInt32(), ICC_COMMAND_UPDATE_RECORD);
 
       // fileId.
-      equal(this.readInt32(), ICC_EF_MWIS);
+      do_check_eq(this.readInt32(), ICC_EF_MWIS);
 
       // pathId.
-      equal(this.readString(),
+      do_check_eq(this.readString(),
                   EF_PATH_MF_SIM + ((ril.appType === CARD_APPTYPE_USIM) ? EF_PATH_ADF_USIM : EF_PATH_DF_GSM));
 
       // p1.
-      equal(this.readInt32(), recordNum);
+      do_check_eq(this.readInt32(), recordNum);
 
       // p2.
-      equal(this.readInt32(), READ_RECORD_ABSOLUTE_MODE);
+      do_check_eq(this.readInt32(), READ_RECORD_ABSOLUTE_MODE);
 
       // p3.
-      equal(this.readInt32(), recordSize);
+      do_check_eq(this.readInt32(), recordSize);
 
       // data.
       let strLen = this.readInt32();
-      equal(recordSize * 2, strLen);
+      do_check_eq(recordSize * 2, strLen);
       let expectedMwis = buildMwisData();
       for (let i = 0; i < recordSize; i++) {
-        equal(expectedMwis[i], pduHelper.readHexOctet());
+        do_check_eq(expectedMwis[i], pduHelper.readHexOctet());
       }
       this.readStringDelimiter(strLen);
 
       // pin2.
-      equal(this.readString(), null);
+      do_check_eq(this.readString(), null);
 
       if (!ril.v5Legacy) {
         // AID. Ignore because it's from modem.
@@ -361,12 +361,12 @@ add_test(function test_update_mwis() {
       }
     };
 
-    ok(!isUpdated);
+    do_check_false(isUpdated);
 
     recordHelper.updateMWIS({ active: isActive,
                               msgCount: count });
 
-    ok((ril.iccInfoPrivate.mwis) ? isUpdated : !isUpdated);
+    do_check_true((ril.iccInfoPrivate.mwis) ? isUpdated : !isUpdated);
   }
 
   do_test(true, GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN);
@@ -485,10 +485,10 @@ add_test(function test_read_new_sms_on_sim() {
 
     let postedMessage = workerHelper.postedMessage;
 
-    equal("sms-received", postedMessage.rilMessageType);
-    equal("+0123456789", postedMessage.SMSC);
-    equal("+9876543210", postedMessage.sender);
-    equal("How are you?", postedMessage.body);
+    do_check_eq("sms-received", postedMessage.rilMessageType);
+    do_check_eq("+0123456789", postedMessage.SMSC);
+    do_check_eq("+9876543210", postedMessage.sender);
+    do_check_eq("How are you?", postedMessage.body);
   }
 
   do_test();
@@ -534,8 +534,8 @@ add_test(function test_update_display_condition() {
 
     record.readSPDI();
 
-    equal(ril.iccInfo.isDisplayNetworkNameRequired, true);
-    equal(ril.iccInfo.isDisplaySpnRequired, false);
+    do_check_eq(ril.iccInfo.isDisplayNetworkNameRequired, true);
+    do_check_eq(ril.iccInfo.isDisplaySpnRequired, false);
   }
 
   function do_test_spn(displayCondition,
@@ -566,8 +566,8 @@ add_test(function test_update_display_condition() {
 
     record.readSPN();
 
-    equal(ril.iccInfo.isDisplayNetworkNameRequired, expectedPlmnNameDisplay);
-    equal(ril.iccInfo.isDisplaySpnRequired, expectedSpnDisplay);
+    do_check_eq(ril.iccInfo.isDisplayNetworkNameRequired, expectedPlmnNameDisplay);
+    do_check_eq(ril.iccInfo.isDisplaySpnRequired, expectedSpnDisplay);
   }
 
   // Create empty operator object.
@@ -758,17 +758,17 @@ add_test(function test_reading_img_basic() {
     };
 
     let onsuccess = function(icons) {
-      equal(icons.length, expected.length);
+      do_check_eq(icons.length, expected.length);
       for (let i = 0; i < icons.length; i++) {
         let icon = icons[i];
         let exp = expected[i];
-        equal(icon.width, exp.width);
-        equal(icon.height, exp.height);
-        equal(icon.codingScheme, exp.codingScheme);
+        do_check_eq(icon.width, exp.width);
+        do_check_eq(icon.height, exp.height);
+        do_check_eq(icon.codingScheme, exp.codingScheme);
 
-        equal(icon.body.length, exp.body.length);
+        do_check_eq(icon.body.length, exp.body.length);
         for (let j = 0; j < icon.body.length; j++) {
-          equal(icon.body[j], exp.body[j]);
+          do_check_eq(icon.body[j], exp.body[j]);
         }
       }
     };
@@ -839,12 +839,12 @@ add_test(function test_reading_img_length_error() {
 
     let onsuccess = function() {
       do_print("onsuccess shouldn't be called.");
-      ok(false);
+      do_check_true(false);
     };
 
     let onerror = function() {
       do_print("onerror called as expected.");
-      ok(true);
+      do_check_true(true);
     };
 
     record.readIMG(0, onsuccess, onerror);
@@ -908,12 +908,12 @@ add_test(function test_reading_img_invalid_fileId() {
 
   let onsuccess = function() {
     do_print("onsuccess shouldn't be called.");
-    ok(false);
+    do_check_true(false);
   };
 
   let onerror = function() {
     do_print("onerror called as expected.");
-    ok(true);
+    do_check_true(true);
   };
 
   record.readIMG(0, onsuccess, onerror);
@@ -957,12 +957,12 @@ add_test(function test_reading_img_wrong_record_length() {
 
     let onsuccess = function() {
       do_print("onsuccess shouldn't be called.");
-      ok(false);
+      do_check_true(false);
     };
 
     let onerror = function() {
       do_print("onerror called as expected.");
-      ok(true);
+      do_check_true(true);
     };
 
     record.readIMG(0, onsuccess, onerror);
@@ -1109,22 +1109,22 @@ add_test(function test_reading_img_color() {
     };
 
     let onsuccess = function(icons) {
-      equal(icons.length, expected.length);
+      do_check_eq(icons.length, expected.length);
       for (let i = 0; i < icons.length; i++) {
         let icon = icons[i];
         let exp = expected[i];
-        equal(icon.width, exp.width);
-        equal(icon.height, exp.height);
-        equal(icon.codingScheme, exp.codingScheme);
+        do_check_eq(icon.width, exp.width);
+        do_check_eq(icon.height, exp.height);
+        do_check_eq(icon.codingScheme, exp.codingScheme);
 
-        equal(icon.body.length, exp.body.length);
+        do_check_eq(icon.body.length, exp.body.length);
         for (let j = 0; j < icon.body.length; j++) {
-          equal(icon.body[j], exp.body[j]);
+          do_check_eq(icon.body[j], exp.body[j]);
         }
 
-        equal(icon.clut.length, exp.clut.length);
+        do_check_eq(icon.clut.length, exp.clut.length);
         for (let j = 0; j < icon.clut.length; j++) {
-          equal(icon.clut[j], exp.clut[j]);
+          do_check_eq(icon.clut[j], exp.clut[j]);
         }
       }
     };
@@ -1274,22 +1274,22 @@ add_test(function test_reading_img_color() {
     };
 
     let onsuccess = function(icons) {
-      equal(icons.length, expected.length);
+      do_check_eq(icons.length, expected.length);
       for (let i = 0; i < icons.length; i++) {
         let icon = icons[i];
         let exp = expected[i];
-        equal(icon.width, exp.width);
-        equal(icon.height, exp.height);
-        equal(icon.codingScheme, exp.codingScheme);
+        do_check_eq(icon.width, exp.width);
+        do_check_eq(icon.height, exp.height);
+        do_check_eq(icon.codingScheme, exp.codingScheme);
 
-        equal(icon.body.length, exp.body.length);
+        do_check_eq(icon.body.length, exp.body.length);
         for (let j = 0; j < icon.body.length; j++) {
-          equal(icon.body[j], exp.body[j]);
+          do_check_eq(icon.body[j], exp.body[j]);
         }
 
-        equal(icon.clut.length, exp.clut.length);
+        do_check_eq(icon.clut.length, exp.clut.length);
         for (let j = 0; j < icon.clut.length; j++) {
-          equal(icon.clut[j], exp.clut[j]);
+          do_check_eq(icon.clut[j], exp.clut[j]);
         }
       }
     };
@@ -1346,15 +1346,15 @@ add_test(function test_read_cphs_info() {
     recordHelper.readCphsInfo(() => { onsuccess = true; },
                               () => { onerror = true; });
 
-    ok((cphsSt) ? onsuccess : onerror);
-    ok(!((cphsSt) ? onerror : onsuccess));
+    do_check_true((cphsSt) ? onsuccess : onerror);
+    do_check_false((cphsSt) ? onerror : onsuccess);
     if (cphsSt) {
-      equal(RIL.iccInfoPrivate.cphsSt.length, cphsSt.length);
+      do_check_eq(RIL.iccInfoPrivate.cphsSt.length, cphsSt.length);
       for (let i = 0; i < cphsSt.length; i++) {
-        equal(RIL.iccInfoPrivate.cphsSt[i], cphsSt[i]);
+        do_check_eq(RIL.iccInfoPrivate.cphsSt[i], cphsSt[i]);
       }
     } else {
-      equal(RIL.iccInfoPrivate.cphsSt, cphsSt);
+      do_check_eq(RIL.iccInfoPrivate.cphsSt, cphsSt);
     }
   }
 
@@ -1439,9 +1439,9 @@ add_test(function test_read_voicemail_number() {
     delete RIL.iccInfoPrivate.mbdn;
     recordHelper[funcName]();
 
-    equal("iccmbdn", postedMessage.rilMessageType);
-    equal("Voicemail", postedMessage.alphaId);
-    equal("111", postedMessage.number);
+    do_check_eq("iccmbdn", postedMessage.rilMessageType);
+    do_check_eq("Voicemail", postedMessage.alphaId);
+    do_check_eq("111", postedMessage.number);
   }
 
   do_test("readMBDN");
@@ -1498,8 +1498,8 @@ add_test(function test_read_mbdn_recovered_from_cphs_mbn() {
 
   recordHelper.readMBDN();
 
-  equal(RIL.iccInfoPrivate.mbdn, undefined);
-  ok(isRecovered);
+  do_check_eq(RIL.iccInfoPrivate.mbdn, undefined);
+  do_check_true(isRecovered);
 
   run_next_test();
 });
@@ -1554,7 +1554,7 @@ add_test(function test_pnn_with_different_coding_scheme() {
 
     record.readPNN();
 
-    equal(ril.iccInfoPrivate.PNN[0].fullName, expectedResult);
+    do_check_eq(ril.iccInfoPrivate.PNN[0].fullName, expectedResult);
     // Reset PNN info for next test
     ril.iccInfoPrivate.PNN = null;
   }
@@ -1630,15 +1630,15 @@ add_test(function test_pnn_with_different_content() {
 
     record.readPNN();
 
-    equal(test_data.length, ril.iccInfoPrivate.PNN.length);
+    do_check_eq(test_data.length, ril.iccInfoPrivate.PNN.length);
     for (let i = 0; i < test_data.length; i++) {
       if (test_data[i].expectedResult) {
-        equal(test_data[i].expectedResult.fullName,
+        do_check_eq(test_data[i].expectedResult.fullName,
                     ril.iccInfoPrivate.PNN[i].fullName);
-        equal(test_data[i].expectedResult.shortName,
+        do_check_eq(test_data[i].expectedResult.shortName,
                     ril.iccInfoPrivate.PNN[i].shortName);
       } else {
-        equal(test_data[i].expectedResult, ril.iccInfoPrivate.PNN[i]);
+        do_check_eq(test_data[i].expectedResult, ril.iccInfoPrivate.PNN[i]);
       }
     }
   }

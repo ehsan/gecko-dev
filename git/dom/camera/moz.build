@@ -25,12 +25,6 @@ UNIFIED_SOURCES += [
 ]
 
 if CONFIG['MOZ_B2G_CAMERA']:
-    XPIDL_SOURCES += [
-        'nsICameraTestHardware.idl',
-    ]
-
-    XPIDL_MODULE = 'dom_camera'
-
     UNIFIED_SOURCES += [
         'GonkCameraControl.cpp',
         'GonkCameraHwMgr.cpp',
@@ -41,11 +35,6 @@ if CONFIG['MOZ_B2G_CAMERA']:
         'GonkRecorderProfiles.cpp',
         'TestGonkCameraControl.cpp',
         'TestGonkCameraHardware.cpp',
-    ]
-
-    EXTRA_COMPONENTS += [
-        'CameraTestHardware.js',
-        'CameraTestHardware.manifest',
     ]
 else:
     UNIFIED_SOURCES += [

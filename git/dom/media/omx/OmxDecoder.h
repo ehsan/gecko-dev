@@ -60,7 +60,7 @@ class OmxDecoder : public OMXCodecProxy::EventListener {
   int32_t mAudioChannels;
   int32_t mAudioSampleRate;
   int64_t mDurationUs;
-  int64_t mLastSeekTime;
+  int64_t mVideoLastFrameTime;
 
   VideoFrame mVideoFrame;
   AudioFrame mAudioFrame;
@@ -214,6 +214,8 @@ public:
   // Receive a message from AHandlerReflector.
   // Called on ALooper thread.
   void onMessageReceived(const sp<AMessage> &msg);
+
+  int64_t ProcessCachedData(int64_t aOffset, bool aWaitForCompletion);
 
   sp<MediaSource> GetAudioOffloadTrack() { return mAudioOffloadTrack; }
 

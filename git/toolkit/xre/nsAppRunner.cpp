@@ -458,8 +458,6 @@ CheckArg(const char* aArg, bool aCheckOSInt = false, const char **aParam = nullp
       if (strimatch(aArg, arg)) {
         if (aRemArg)
           RemoveArg(curarg);
-        else
-          ++curarg;
         if (!aParam) {
           ar = ARG_FOUND;
           break;
@@ -1634,16 +1632,9 @@ RemoteCommandLine(const char* aDesktopStartupID)
   nsresult rv;
   ArgResult ar;
 
-  const char *profile = 0;
   nsAutoCString program(gAppData->remotingName);
   ToLowerCase(program);
   const char *username = getenv("LOGNAME");
-
-  ar = CheckArg("p", false, &profile, false);
-  if (ar == ARG_BAD) {
-    PR_fprintf(PR_STDERR, "Error: argument -p requires a profile name\n");
-    return REMOTE_ARG_BAD;
-  }
 
   const char *temp = nullptr;
   ar = CheckArg("a", true, &temp);
@@ -1667,7 +1658,7 @@ RemoteCommandLine(const char* aDesktopStartupID)
  
   nsXPIDLCString response;
   bool success = false;
-  rv = client.SendCommandLine(program.get(), username, profile,
+  rv = client.SendCommandLine(program.get(), username, nullptr,
                               gArgc, gArgv, aDesktopStartupID,
                               getter_Copies(response), &success);
   // did the command fail?
@@ -3127,13 +3118,6 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     if (NS_FAILED(rv))
       return 2;
 
-#ifdef XP_MACOSX
-    nsCOMPtr<nsIFile> parent;
-    greDir->GetParent(getter_AddRefs(parent));
-    greDir = parent.forget();
-    greDir->AppendNative(NS_LITERAL_CSTRING("Resources"));
-#endif
-
     greDir.forget(&mAppData->xreDirectory);
   }
 
@@ -3313,17 +3297,14 @@ XREMain::XRE_mainInit(bool* aExitFlag)
   // order bit will be 1 if the key is pressed. By masking the returned short
   // with 0x8000 the result will be 0 if the key is not pressed and non-zero
   // otherwise.
-  if ((GetKeyState(VK_SHIFT) & 0x8000) &&
-      !(GetKeyState(VK_CONTROL) & 0x8000) &&
-      !(GetKeyState(VK_MENU) & 0x8000) &&
-      !EnvHasValue("MOZ_DISABLE_SAFE_MODE_KEY")) {
+  if (GetKeyState(VK_SHIFT) & 0x8000 &&
+      !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000)) {
     gSafeMode = true;
   }
 #endif
 
 #ifdef XP_MACOSX
-  if ((GetCurrentEventKeyModifiers() & optionKey) &&
-      !EnvHasValue("MOZ_DISABLE_SAFE_MODE_KEY"))
+  if (GetCurrentEventKeyModifiers() & optionKey)
     gSafeMode = true;
 #endif
 
@@ -3619,46 +3600,13 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
     }
   }
 #endif /* MOZ_WIDGET_GTK */
-#ifdef MOZ_X11
-  // Init X11 in thread-safe mode. Must be called prior to the first call to XOpenDisplay 
-  // (called inside gdk_display_open). This is a requirement for off main tread compositing.
-  // This is done only on X11 platforms if the environment variable MOZ_USE_OMTC is set so 
-  // as to avoid overhead when omtc is not used. 
-  //
-  // On nightly builds, we call this by default to enable OMTC for Electrolysis testing. On
-  // aurora, beta, and release builds, there is a small tpaint regression from enabling this
-  // call, so it sits behind an environment variable.
-  //
-  // An environment variable is used instead of a pref on X11 platforms because we start having 
-  // access to prefs long after the first call to XOpenDisplay which is hard to change due to 
-  // interdependencies in the initialization.
-# ifndef NIGHTLY_BUILD
-  if (PR_GetEnv("MOZ_USE_OMTC") ||
-      PR_GetEnv("MOZ_OMTC_ENABLED"))
-# endif
-  {
-    XInitThreads();
-  }
-#endif
-#if defined(MOZ_WIDGET_GTK)
-  {
-    mGdkDisplay = gdk_display_open(display_name);
-    if (!mGdkDisplay) {
-      PR_fprintf(PR_STDERR, "Error: cannot open display: %s\n", display_name);
-      return 1;
-    }
-    gdk_display_manager_set_default_display (gdk_display_manager_get(),
-                                             mGdkDisplay);
-    if (!GDK_IS_X11_DISPLAY(mGdkDisplay))
-      mDisableRemote = true;
-  }
-#endif
+
 #ifdef MOZ_ENABLE_XREMOTE
   // handle --remote now that xpcom is fired up
   bool newInstance;
   {
     char *e = PR_GetEnv("MOZ_NO_REMOTE");
-    mDisableRemote = (mDisableRemote || (e && *e));
+    mDisableRemote = (e && *e);
     if (mDisableRemote) {
       newInstance = true;
     } else {
@@ -3681,7 +3629,36 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
       return 1;
   }
 #endif
+#ifdef MOZ_X11
+  // Init X11 in thread-safe mode. Must be called prior to the first call to XOpenDisplay 
+  // (called inside gdk_display_open). This is a requirement for off main tread compositing.
+  // This is done only on X11 platforms if the environment variable MOZ_USE_OMTC is set so 
+  // as to avoid overhead when omtc is not used. 
+  //
+  // On nightly builds, we call this by default to enable OMTC for Electrolysis testing. On
+  // aurora, beta, and release builds, there is a small tpaint regression from enabling this
+  // call, so it sits behind an environment variable.
+  //
+  // An environment variable is used instead of a pref on X11 platforms because we start having 
+  // access to prefs long after the first call to XOpenDisplay which is hard to change due to 
+  // interdependencies in the initialization.
+# ifndef NIGHTLY_BUILD
+  if (PR_GetEnv("MOZ_USE_OMTC") ||
+      PR_GetEnv("MOZ_OMTC_ENABLED"))
+# endif
+  {
+    XInitThreads();
+  }
+#endif
 #if defined(MOZ_WIDGET_GTK)
+  mGdkDisplay = gdk_display_open(display_name);
+  if (!mGdkDisplay) {
+    PR_fprintf(PR_STDERR, "Error: cannot open display: %s\n", display_name);
+    return 1;
+  }
+  gdk_display_manager_set_default_display (gdk_display_manager_get(),
+                                           mGdkDisplay);
+    
   // g_set_application_name () is only defined in glib2.2 and higher.
   _g_set_application_name_fn _g_set_application_name =
     (_g_set_application_name_fn)FindFunction("g_set_application_name");
@@ -4645,7 +4622,7 @@ mozilla::BrowserTabsRemoteAutostart()
     if (gSafeMode) {
       LogE10sBlockedReason("Safe mode");
     } else if (disabledForA11y) {
-      LogE10sBlockedReason("An accessibility tool is or was active. See bug 1115956.");
+      LogE10sBlockedReason("An accessibility tool is active");
     } else if (disabledForIME) {
       LogE10sBlockedReason("The keyboard being used has activated IME");
     } else {

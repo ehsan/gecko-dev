@@ -506,7 +506,7 @@ public:
         , mKeyEventsFiltered(false)
         , mPowerWakelock(false)
     {
-        mTouchDispatcher = GeckoTouchDispatcher::GetInstance();
+        mTouchDispatcher = new GeckoTouchDispatcher();
     }
 
     virtual void dump(String8& dump);

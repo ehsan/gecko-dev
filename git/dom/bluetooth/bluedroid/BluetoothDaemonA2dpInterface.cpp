@@ -395,7 +395,7 @@ BluetoothDaemonA2dpInterface::Init(
   nsresult rv = mModule->RegisterModule(BluetoothDaemonA2dpModule::SERVICE_ID,
     0x00, BluetoothDaemonA2dpModule::MAX_NUM_CLIENTS, res);
   if (NS_FAILED(rv) && aRes) {
-    DispatchError(aRes, rv);
+    DispatchError(aRes, STATUS_FAIL);
   }
 }
 
@@ -443,12 +443,8 @@ void
 BluetoothDaemonA2dpInterface::Cleanup(
   BluetoothA2dpResultHandler* aRes)
 {
-  nsresult rv = mModule->UnregisterModule(
-    BluetoothDaemonA2dpModule::SERVICE_ID,
-    new CleanupResultHandler(mModule, aRes));
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->UnregisterModule(BluetoothDaemonA2dpModule::SERVICE_ID,
+                            new CleanupResultHandler(mModule, aRes));
 }
 
 /* Connect / Disconnect */
@@ -459,10 +455,7 @@ BluetoothDaemonA2dpInterface::Connect(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->ConnectCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->ConnectCmd(aBdAddr, aRes);
 }
 
 void
@@ -471,10 +464,7 @@ BluetoothDaemonA2dpInterface::Disconnect(
 {
   MOZ_ASSERT(mModule);
 
-  nsresult rv = mModule->DisconnectCmd(aBdAddr, aRes);
-  if (NS_FAILED(rv)) {
-    DispatchError(aRes, rv);
-  }
+  mModule->DisconnectCmd(aBdAddr, aRes);
 }
 
 void
@@ -485,18 +475,6 @@ BluetoothDaemonA2dpInterface::DispatchError(
                            BluetoothStatus, BluetoothStatus>::Dispatch(
     aRes, &BluetoothA2dpResultHandler::OnError,
     ConstantInitOp1<BluetoothStatus>(aStatus));
-}
-
-void
-BluetoothDaemonA2dpInterface::DispatchError(
-  BluetoothA2dpResultHandler* aRes, nsresult aRv)
-{
-  BluetoothStatus status;
-
-  if (NS_WARN_IF(NS_FAILED(Convert(aRv, status)))) {
-    status = STATUS_FAIL;
-  }
-  DispatchError(aRes, status);
 }
 
 END_BLUETOOTH_NAMESPACE

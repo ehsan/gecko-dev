@@ -21,8 +21,6 @@
 
 using namespace js;
 
-using mozilla::UniquePtr;
-
 const Class WeakSetObject::class_ = {
     "WeakSet",
     JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_CACHED_PROTO(JSProto_WeakSet) |
@@ -88,7 +86,7 @@ WeakSetObject::construct(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (!args.isConstructing()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_FUNCTION, "WeakSet");
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_FUNCTION, "WeakSet");
         return false;
     }
 
@@ -125,11 +123,7 @@ WeakSetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 
             if (isOriginalAdder) {
                 if (keyVal.isPrimitive()) {
-                    UniquePtr<char[], JS::FreePolicy> bytes =
-                        DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, keyVal, NullPtr());
-                    if (!bytes)
-                        return false;
-                    JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT, bytes.get());
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
                     return false;
                 }
 
@@ -156,7 +150,7 @@ WeakSetObject::construct(JSContext *cx, unsigned argc, Value *vp)
 
 
 JSObject *
-js::InitWeakSetClass(JSContext *cx, HandleObject obj)
+js_InitWeakSetClass(JSContext *cx, HandleObject obj)
 {
     return WeakSetObject::initClass(cx, obj);
 }

@@ -30,8 +30,7 @@ public:
 
   nsSSLStatus();
 
-  void SetServerCert(nsNSSCertificate* aServerCert,
-                     nsNSSCertificate::EVStatus aEVStatus);
+  void SetServerCert(nsIX509Cert* aServerCert, nsNSSCertificate::EVStatus aEVStatus);
 
   bool HasServerCert() {
     return mServerCert != nullptr;

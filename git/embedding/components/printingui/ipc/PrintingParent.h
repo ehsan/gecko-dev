@@ -9,10 +9,9 @@
 
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/embedding/PPrintingParent.h"
+#include "mozilla/embedding/PPrintProgressDialogParent.h"
 
 class nsIDOMWindow;
-class PPrintProgressDialogParent;
-class PPrintSettingsDialogParent;
 
 namespace mozilla {
 namespace embedding {
@@ -27,27 +26,16 @@ public:
                      bool* notifyOnOpen,
                      bool* success);
     virtual bool
-    RecvShowPrintDialog(PPrintSettingsDialogParent* aDialog,
-                        PBrowserParent* aParent,
-                        const PrintData& aData);
-
-    virtual bool
-    RecvSavePrintSettings(const PrintData& data,
-                          const bool& usePrinterNamePrefix,
-                          const uint32_t& flags,
-                          nsresult* rv);
+    RecvShowPrintDialog(PBrowserParent* parent,
+                        const PrintData& initSettings,
+                        PrintData* retVal,
+                        bool* success);
 
     virtual PPrintProgressDialogParent*
     AllocPPrintProgressDialogParent();
 
     virtual bool
     DeallocPPrintProgressDialogParent(PPrintProgressDialogParent* aActor);
-
-    virtual PPrintSettingsDialogParent*
-    AllocPPrintSettingsDialogParent();
-
-    virtual bool
-    DeallocPPrintSettingsDialogParent(PPrintSettingsDialogParent* aActor);
 
     virtual void
     ActorDestroy(ActorDestroyReason aWhy);
@@ -58,11 +46,6 @@ public:
 private:
     nsIDOMWindow*
     DOMWindowFromBrowserParent(PBrowserParent* parent);
-
-    nsresult
-    ShowPrintDialog(PBrowserParent* parent,
-                    const PrintData& data,
-                    PrintData* result);
 };
 } // namespace embedding
 } // namespace mozilla

@@ -364,7 +364,7 @@ protected:
     ~AndroidBridge();
 
     void InitStubs(JNIEnv *jEnv);
-    void Init(JNIEnv *jEnv, jni::Object::Param clsLoader);
+    bool Init(JNIEnv *jEnv, jni::Object::Param clsLoader);
 
     bool mOpenedGraphicsLibraries;
     void OpenGraphicsLibraries();

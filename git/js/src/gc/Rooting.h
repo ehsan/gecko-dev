@@ -38,7 +38,6 @@ typedef JS::Handle<ScriptSourceObject*> HandleScriptSource;
 typedef JS::MutableHandle<Shape*>      MutableHandleShape;
 typedef JS::MutableHandle<JSAtom*>     MutableHandleAtom;
 typedef JS::MutableHandle<NativeObject*> MutableHandleNativeObject;
-typedef JS::MutableHandle<PlainObject*> MutableHandlePlainObject;
 
 typedef JS::Rooted<NativeObject*>      RootedNativeObject;
 typedef JS::Rooted<Shape*>             RootedShape;

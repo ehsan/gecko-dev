@@ -15,13 +15,16 @@
 
 namespace js {
 class StringBuffer;
+}
 
 extern JSObject *
-InitJSONClass(JSContext *cx, HandleObject obj);
+js_InitJSONClass(JSContext *cx, js::HandleObject obj);
 
 extern bool
-Stringify(JSContext *cx, js::MutableHandleValue vp, JSObject *replacer,
-          Value space, StringBuffer &sb);
+js_Stringify(JSContext *cx, js::MutableHandleValue vp, JSObject *replacer,
+             js::Value space, js::StringBuffer &sb);
+
+namespace js {
 
 template <typename CharT>
 extern bool

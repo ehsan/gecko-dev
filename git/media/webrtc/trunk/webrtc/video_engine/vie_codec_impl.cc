@@ -87,8 +87,6 @@ static void LogCodec(const VideoCodec& codec) {
                  << codec.codecSpecific.H264.spsLen
                  << ", ppslen: "
                  << codec.codecSpecific.H264.ppsLen;
-  } else if (codec.codecType == kVideoCodecVP9) {
-    LOG(LS_INFO) << "VP9 specific settings";
   }
 }
 

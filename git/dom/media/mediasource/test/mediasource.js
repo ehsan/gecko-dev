@@ -19,7 +19,7 @@ function runWithMSE(testFunction) {
   addLoadEvent(function () {
     SpecialPowers.pushPrefEnv({"set": [
 	[ "media.mediasource.enabled", true ],
-	[ "media.mediasource.whitelist", false ],
+	[ "media.mediasource.youtubeonly", false ],
     ]},
                               bootstrapTest);
   });
@@ -43,14 +43,6 @@ function fetchWithXHR(uri, onLoadFunction) {
 
   return p;
 };
-
-function range(start, end) {
-  var rv = [];
-  for (var i = start; i < end; ++i) {
-    rv.push(i);
-  }
-  return rv;
-}
 
 function once(target, name, cb) {
   var p = new Promise(function(resolve, reject) {

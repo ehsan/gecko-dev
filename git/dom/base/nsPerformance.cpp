@@ -275,8 +275,7 @@ nsPerformanceTiming::ConnectStartHighRes()
   if (!nsContentUtils::IsPerformanceTimingEnabled() || !IsInitialized()) {
     return mZeroTime;
   }
-  return mConnectStart.IsNull() ? DomainLookupEndHighRes()
-                                : TimeStampToDOMHighRes(mConnectStart);
+  return TimeStampToDOMHighResOrFetchStart(mConnectStart);
 }
 
 DOMTimeMilliSec
@@ -291,8 +290,7 @@ nsPerformanceTiming::ConnectEndHighRes()
   if (!nsContentUtils::IsPerformanceTimingEnabled() || !IsInitialized()) {
     return mZeroTime;
   }
-  return mConnectEnd.IsNull() ? DomainLookupEndHighRes()
-                              : TimeStampToDOMHighRes(mConnectEnd);
+  return TimeStampToDOMHighResOrFetchStart(mConnectEnd);
 }
 
 DOMTimeMilliSec

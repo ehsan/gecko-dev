@@ -1219,6 +1219,11 @@ nsHttpChannel::ProcessSSLInformation()
         NS_SUCCEEDED(securityInfo->GetSecurityState(&state)) &&
         (state & nsIWebProgressListener::STATE_IS_BROKEN)) {
         // Send weak crypto warnings to the web console
+        if (state & nsIWebProgressListener::STATE_USES_SSL_3) {
+            nsString consoleErrorTag = NS_LITERAL_STRING("WeakProtocolVersionWarning");
+            nsString consoleErrorCategory = NS_LITERAL_STRING("SSL");
+            AddSecurityMessage(consoleErrorTag, consoleErrorCategory);
+        }
         if (state & nsIWebProgressListener::STATE_USES_WEAK_CRYPTO) {
             nsString consoleErrorTag = NS_LITERAL_STRING("WeakCipherSuiteWarning");
             nsString consoleErrorCategory = NS_LITERAL_STRING("SSL");
@@ -4232,14 +4237,12 @@ nsHttpChannel::InstallCacheListener(int64_t offset)
         do_CreateInstance(kStreamListenerTeeCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIEventTarget> cacheIOTarget;
-    if (!CacheObserver::UseNewCache()) {
-        nsCOMPtr<nsICacheStorageService> serv =
-            do_GetService("@mozilla.org/netwerk/cache-storage-service;1", &rv);
-        NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsICacheStorageService> serv =
+        do_GetService("@mozilla.org/netwerk/cache-storage-service;1", &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-        serv->GetIoTarget(getter_AddRefs(cacheIOTarget));
-    }
+    nsCOMPtr<nsIEventTarget> cacheIOTarget;
+    serv->GetIoTarget(getter_AddRefs(cacheIOTarget));
 
     if (!cacheIOTarget) {
         LOG(("nsHttpChannel::InstallCacheListener sync tee %p rv=%x "
@@ -5147,8 +5150,10 @@ nsHttpChannel::GetProxyInfo(nsIProxyInfo **result)
 
 NS_IMETHODIMP
 nsHttpChannel::GetDomainLookupStart(TimeStamp* _retval) {
-    if (mTransaction)
-        *_retval = mTransaction->GetDomainLookupStart();
+    if (mDNSPrefetch && mDNSPrefetch->TimingsValid())
+        *_retval = mDNSPrefetch->StartTimestamp();
+    else if (mTransaction)
+        *_retval = mTransaction->Timings().domainLookupStart;
     else
         *_retval = mTransactionTimings.domainLookupStart;
     return NS_OK;
@@ -5156,8 +5161,10 @@ nsHttpChannel::GetDomainLookupStart(TimeStamp* _retval) {
 
 NS_IMETHODIMP
 nsHttpChannel::GetDomainLookupEnd(TimeStamp* _retval) {
-    if (mTransaction)
-        *_retval = mTransaction->GetDomainLookupEnd();
+    if (mDNSPrefetch && mDNSPrefetch->TimingsValid())
+        *_retval = mDNSPrefetch->EndTimestamp();
+    else if (mTransaction)
+        *_retval = mTransaction->Timings().domainLookupEnd;
     else
         *_retval = mTransactionTimings.domainLookupEnd;
     return NS_OK;
@@ -5166,7 +5173,7 @@ nsHttpChannel::GetDomainLookupEnd(TimeStamp* _retval) {
 NS_IMETHODIMP
 nsHttpChannel::GetConnectStart(TimeStamp* _retval) {
     if (mTransaction)
-        *_retval = mTransaction->GetConnectStart();
+        *_retval = mTransaction->Timings().connectStart;
     else
         *_retval = mTransactionTimings.connectStart;
     return NS_OK;
@@ -5175,7 +5182,7 @@ nsHttpChannel::GetConnectStart(TimeStamp* _retval) {
 NS_IMETHODIMP
 nsHttpChannel::GetConnectEnd(TimeStamp* _retval) {
     if (mTransaction)
-        *_retval = mTransaction->GetConnectEnd();
+        *_retval = mTransaction->Timings().connectEnd;
     else
         *_retval = mTransactionTimings.connectEnd;
     return NS_OK;
@@ -5184,7 +5191,7 @@ nsHttpChannel::GetConnectEnd(TimeStamp* _retval) {
 NS_IMETHODIMP
 nsHttpChannel::GetRequestStart(TimeStamp* _retval) {
     if (mTransaction)
-        *_retval = mTransaction->GetRequestStart();
+        *_retval = mTransaction->Timings().requestStart;
     else
         *_retval = mTransactionTimings.requestStart;
     return NS_OK;
@@ -5193,7 +5200,7 @@ nsHttpChannel::GetRequestStart(TimeStamp* _retval) {
 NS_IMETHODIMP
 nsHttpChannel::GetResponseStart(TimeStamp* _retval) {
     if (mTransaction)
-        *_retval = mTransaction->GetResponseStart();
+        *_retval = mTransaction->Timings().responseStart;
     else
         *_retval = mTransactionTimings.responseStart;
     return NS_OK;
@@ -5202,7 +5209,7 @@ nsHttpChannel::GetResponseStart(TimeStamp* _retval) {
 NS_IMETHODIMP
 nsHttpChannel::GetResponseEnd(TimeStamp* _retval) {
     if (mTransaction)
-        *_retval = mTransaction->GetResponseEnd();
+        *_retval = mTransaction->Timings().responseEnd;
     else
         *_retval = mTransactionTimings.responseEnd;
     return NS_OK;
@@ -5488,11 +5495,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         mTransactionPump = nullptr;
 
         // We no longer need the dns prefetch object
-        if (mDNSPrefetch && mDNSPrefetch->TimingsValid()
-            && !mTransactionTimings.requestStart.IsNull()
-            && mDNSPrefetch->EndTimestamp() <= mTransactionTimings.requestStart) {
-            // We only need the domainLookup timestamps when not using a
-            // persistent connection, meaning if the endTimestamp < requestStart
+        if (mDNSPrefetch && mDNSPrefetch->TimingsValid()) {
             mTransactionTimings.domainLookupStart =
                 mDNSPrefetch->StartTimestamp();
             mTransactionTimings.domainLookupEnd =
@@ -6435,15 +6438,11 @@ nsHttpChannel::OnLookupComplete(nsICancelable *request,
 
     // We no longer need the dns prefetch object. Note: mDNSPrefetch could be
     // validly null if OnStopRequest has already been called.
-    // We only need the domainLookup timestamps when not loading from cache
-    if (mDNSPrefetch && mDNSPrefetch->TimingsValid() && mTransaction) {
-        TimeStamp requestStart = mTransaction->GetRequestStart();
-        // We only set the domainLookup timestamps if we're not using a
-        // persistent connection.
-        if (requestStart.IsNull() || (mDNSPrefetch->EndTimestamp() < requestStart)) {
-            mTransaction->SetDomainLookupStart(mDNSPrefetch->StartTimestamp());
-            mTransaction->SetDomainLookupEnd(mDNSPrefetch->EndTimestamp());
-        }
+    if (mDNSPrefetch && mDNSPrefetch->TimingsValid()) {
+        mTransactionTimings.domainLookupStart =
+            mDNSPrefetch->StartTimestamp();
+        mTransactionTimings.domainLookupEnd =
+            mDNSPrefetch->EndTimestamp();
     }
     mDNSPrefetch = nullptr;
 

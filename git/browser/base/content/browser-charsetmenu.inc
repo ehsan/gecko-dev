@@ -3,9 +3,9 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 <menu id="charsetMenu"
-    label="&charsetMenu2.label;"
+    label="&charsetMenu.label;"
 #ifndef OMIT_ACCESSKEYS
-    accesskey="&charsetMenu2.accesskey;"
+    accesskey="&charsetMenu.accesskey;"
 #endif
     oncommand="BrowserSetForcedCharacterSet(event.target.getAttribute('charset'));"
 #ifdef OMIT_ACCESSKEYS

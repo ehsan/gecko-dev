@@ -7416,7 +7416,6 @@ var RemoteDebugger = {
         DebuggerServer.init();
         DebuggerServer.addBrowserActors();
         DebuggerServer.registerModule("resource://gre/modules/dbg-browser-actors.js");
-        DebuggerServer.allowChromeProcess = true;
       }
 
       let pathOrPort = this._getPath();
@@ -7711,7 +7710,7 @@ var Distribution = {
     for (let key in localizeablePrefs) {
       try {
         let value = localizeablePrefs[key];
-        value = value.replace(/%LOCALE%/g, locale);
+        value = value.replace("%LOCALE%", locale, "g");
         localizedString.data = "data:text/plain," + key + "=" + value;
         defaults.setComplexValue(key, Ci.nsIPrefLocalizedString, localizedString);
       } catch (e) { /* ignore bad prefs and move on */ }

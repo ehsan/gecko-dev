@@ -303,11 +303,6 @@ public:
   {
     return mLastOptionalBreakFrame != nullptr;
   }
-  // Get the priority of the last optional break position recorded.
-  gfxBreakPriority LastOptionalBreakPriority() const
-  {
-    return mLastOptionalBreakPriority;
-  }
   
   /**
    * Check whether frames overflowed the available width and CanPlaceFrame
@@ -691,6 +686,7 @@ protected:
                                      nscoord aDeltaISize);
 
   void ApplyLineJustificationToAnnotations(PerFrameData* aPFD,
+                                           PerSpanData* aContainingSpan,
                                            nscoord aDeltaICoord,
                                            nscoord aDeltaISize);
 

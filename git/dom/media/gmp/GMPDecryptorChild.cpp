@@ -13,7 +13,15 @@
 #define ON_GMP_THREAD() (mPlugin->GMPMessageLoop() == MessageLoop::current())
 
 #define CALL_ON_GMP_THREAD(_func, ...) \
-  CallOnGMPThread(&GMPDecryptorChild::_func, __VA_ARGS__)
+  do { \
+    if (ON_GMP_THREAD()) { \
+      _func(__VA_ARGS__); \
+    } else { \
+      mPlugin->GMPMessageLoop()->PostTask( \
+        FROM_HERE, NewRunnableMethod(this, &GMPDecryptorChild::_func, __VA_ARGS__) \
+      ); \
+    } \
+  } while(false)
 
 namespace mozilla {
 namespace gmp {
@@ -31,38 +39,6 @@ GMPDecryptorChild::GMPDecryptorChild(GMPChild* aPlugin,
 
 GMPDecryptorChild::~GMPDecryptorChild()
 {
-}
-
-template <typename MethodType, typename... ParamType>
-void
-GMPDecryptorChild::CallMethod(MethodType aMethod, ParamType&&... aParams)
-{
-  MOZ_ASSERT(ON_GMP_THREAD());
-  // Don't send IPC messages after tear-down.
-  if (mSession) {
-    (this->*aMethod)(Forward<ParamType>(aParams)...);
-  }
-}
-
-template<typename T>
-struct AddConstReference {
-  typedef const typename RemoveReference<T>::Type& Type;
-};
-
-template<typename MethodType, typename... ParamType>
-void
-GMPDecryptorChild::CallOnGMPThread(MethodType aMethod, ParamType&&... aParams)
-{
-  if (ON_GMP_THREAD()) {
-    // Use forwarding reference when we can.
-    CallMethod(aMethod, Forward<ParamType>(aParams)...);
-  } else {
-    // Use const reference when we have to.
-    auto m = &GMPDecryptorChild::CallMethod<
-        decltype(aMethod), typename AddConstReference<ParamType>::Type...>;
-    auto t = NewRunnableMethod(this, m, aMethod, aParams...);
-    mPlugin->GMPMessageLoop()->PostTask(FROM_HERE, t);
-  }
 }
 
 void
@@ -169,8 +145,7 @@ GMPDecryptorChild::Decrypted(GMPBuffer* aBuffer, GMPErr aResult)
   if (!ON_GMP_THREAD()) {
     // We should run this whole method on the GMP thread since the buffer needs
     // to be deleted after the SendDecrypted call.
-    auto t = NewRunnableMethod(this, &GMPDecryptorChild::Decrypted, aBuffer, aResult);
-    mPlugin->GMPMessageLoop()->PostTask(FROM_HERE, t);
+    CALL_ON_GMP_THREAD(Decrypted, aBuffer, aResult);
     return;
   }
 
@@ -180,9 +155,7 @@ GMPDecryptorChild::Decrypted(GMPBuffer* aBuffer, GMPErr aResult)
   }
 
   auto buffer = static_cast<GMPBufferImpl*>(aBuffer);
-  if (mSession) {
-    SendDecrypted(buffer->mId, aResult, buffer->mData);
-  }
+  SendDecrypted(buffer->mId, aResult, buffer->mData);
   delete buffer;
 }
 
@@ -348,16 +321,12 @@ GMPDecryptorChild::RecvDecrypt(const uint32_t& aId,
 bool
 GMPDecryptorChild::RecvDecryptingComplete()
 {
-  // Reset |mSession| before calling DecryptingComplete(). We should not send
-  // any IPC messages during tear-down.
-  auto session = mSession;
-  mSession = nullptr;
-
-  if (!session) {
+  if (!mSession) {
     return false;
   }
 
-  session->DecryptingComplete();
+  mSession->DecryptingComplete();
+  mSession = nullptr;
 
   unused << Send__delete__(this);
 

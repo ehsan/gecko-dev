@@ -27,38 +27,17 @@ loop.OTSdkDriver = (function() {
       this.dispatcher = options.dispatcher;
       this.sdk = options.sdk;
 
-      // Note that this will only be defined and usable in a desktop-local
-      // context, not in the standalone web client.
-      this.mozLoop = options.mozLoop;
-
       this.connections = {};
-      this.connectionStartTime = this.CONNECTION_START_TIME_UNINITIALIZED;
 
       this.dispatcher.register(this, [
         "setupStreamElements",
-        "setMute"
+        "setMute",
+        "startScreenShare",
+        "endScreenShare"
       ]);
-
-    /**
-     * XXX This is a workaround for desktop machines that do not have a
-     * camera installed. As we don't yet have device enumeration, when
-     * we do, this can be removed (bug 1138851), and the sdk should handle it.
-     */
-    if ("isDesktop" in options && options.isDesktop &&
-        !window.MediaStreamTrack.getSources) {
-      // If there's no getSources function, the sdk defines its own and caches
-      // the result. So here we define the "normal" one which doesn't get cached, so
-      // we can change it later.
-      window.MediaStreamTrack.getSources = function(callback) {
-        callback([{kind: "audio"}, {kind: "video"}]);
-      };
-    }
   };
 
   OTSdkDriver.prototype = {
-    CONNECTION_START_TIME_UNINITIALIZED: -1,
-    CONNECTION_START_TIME_ALREADY_NOTED: -2,
-
     /**
      * Clones the publisher config into a new object, as the sdk modifies the
      * properties object.
@@ -80,19 +59,9 @@ loop.OTSdkDriver = (function() {
       this.getRemoteElement = actionData.getRemoteElementFunc;
       this.publisherConfig = actionData.publisherConfig;
 
-      this.sdk.on("exception", this._onOTException.bind(this));
-
       // At this state we init the publisher, even though we might be waiting for
       // the initial connect of the session. This saves time when setting up
       // the media.
-      this._publishLocalStreams();
-    },
-
-    /**
-     * Internal function to publish a local stream.
-     * XXX This can be simplified when bug 1138851 is actioned.
-     */
-    _publishLocalStreams: function() {
       this.publisher = this.sdk.initPublisher(this.getLocalElement(),
         this._getCopyPublisherConfig());
       this.publisher.on("streamCreated", this._onLocalStreamCreated.bind(this));
@@ -100,17 +69,6 @@ loop.OTSdkDriver = (function() {
       this.publisher.on("accessDenied", this._onPublishDenied.bind(this));
       this.publisher.on("accessDialogOpened",
         this._onAccessDialogOpened.bind(this));
-    },
-
-    /**
-     * Forces the sdk into not using video, and starts publishing again.
-     * XXX This is part of the work around that will be removed by bug 1138851.
-     */
-    retryPublishWithoutVideo: function() {
-      window.MediaStreamTrack.getSources = function(callback) {
-        callback([{kind: "audio"}]);
-      };
-      this._publishLocalStreams();
     },
 
     /**
@@ -130,27 +88,14 @@ loop.OTSdkDriver = (function() {
 
     /**
      * Initiates a screen sharing publisher.
-     *
-     * options items:
-     *  - {String}  videoSource    The type of screen to share. Values of 'screen',
-     *                             'window', 'application' and 'browser' are
-     *                             currently supported.
-     *  - {mixed}   browserWindow  The unique identifier of a browser window. May
-     *                             be passed when `videoSource` is 'browser'.
-     *  - {Boolean} scrollWithPage Flag to signal that scrolling a page should
-     *                             update the stream. May be passed when
-     *                             `videoSource` is 'browser'.
-     *
-     * @param {Object} options Hash containing options for the SDK
      */
-    startScreenShare: function(options) {
-      // For browser sharing, we store the window Id so that we can avoid unnecessary
-      // re-triggers.
-      if (options.videoSource === "browser") {
-        this._windowId = options.constraints.browserWindow;
-      }
+    startScreenShare: function(actionData) {
+      this.dispatcher.dispatch(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.PENDING
+      }));
 
-      var config = _.extend(this._getCopyPublisherConfig(), options);
+      var config = this._getCopyPublisherConfig();
+      config.videoSource = actionData.type;
 
       this.screenshare = this.sdk.initPublisher(this.getScreenShareElementFunc(),
         config);
@@ -159,36 +104,20 @@ loop.OTSdkDriver = (function() {
     },
 
     /**
-     * Initiates switching the browser window that is being shared.
-     *
-     * @param {Integer} windowId  The windowId of the browser.
-     */
-    switchAcquiredWindow: function(windowId) {
-      if (windowId === this._windowId) {
-        return;
-      }
-
-      this._windowId = windowId;
-      this.screenshare._.switchAcquiredWindow(windowId);
-    },
-
-    /**
-     * Ends an active screenshare session. Return `true` when an active screen-
-     * sharing session was ended or `false` when no session is active.
-     *
-     * @type {Boolean}
+     * Ends an active screenshare session.
      */
     endScreenShare: function() {
       if (!this.screenshare) {
-        return false;
+        return;
       }
 
       this.session.unpublish(this.screenshare);
       this.screenshare.off("accessAllowed accessDenied");
       this.screenshare.destroy();
       delete this.screenshare;
-      delete this._windowId;
-      return true;
+      this.dispatcher.dispatch(new sharedActions.ScreenSharingState({
+        state: SCREEN_SHARE_STATES.INACTIVE
+      }));
     },
 
     /**
@@ -236,15 +165,12 @@ loop.OTSdkDriver = (function() {
         delete this.publisher;
       }
 
-      this._noteConnectionLengthIfNeeded(this.connectionStartTime, performance.now());
-
       // Also, tidy these variables ready for next time.
       delete this._sessionConnected;
       delete this._publisherReady;
       delete this._publishedLocalStream;
       delete this._subscribedRemoteStream;
       this.connections = {};
-      this.connectionStartTime = this.CONNECTION_START_TIME_UNINITIALIZED;
     },
 
     /**
@@ -308,7 +234,6 @@ loop.OTSdkDriver = (function() {
       if (connection && (connection.id in this.connections)) {
         delete this.connections[connection.id];
       }
-      this._noteConnectionLengthIfNeeded(this.connectionStartTime, performance.now());
       this.dispatcher.dispatch(new sharedActions.RemotePeerDisconnected({
         peerHungup: event.reason === "clientDisconnected"
       }));
@@ -335,8 +260,6 @@ loop.OTSdkDriver = (function() {
           return;
       }
 
-      this._noteConnectionLengthIfNeeded(this.connectionStartTime,
-        performance.now());
       this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
         reason: reason
       }));
@@ -408,7 +331,6 @@ loop.OTSdkDriver = (function() {
 
       this._subscribedRemoteStream = true;
       if (this._checkAllStreamsConnected()) {
-        this.connectionStartTime = performance.now();
         this.dispatcher.dispatch(new sharedActions.MediaConnected());
       }
     },
@@ -487,22 +409,6 @@ loop.OTSdkDriver = (function() {
       }));
     },
 
-    _onOTException: function(event) {
-      if (event.code === OT.ExceptionCodes.UNABLE_TO_PUBLISH &&
-          event.message === "GetUserMedia") {
-        // We free up the publisher here in case the store wants to try
-        // grabbing the media again.
-        if (this.publisher) {
-          this.publisher.off("accessAllowed accessDenied accessDialogOpened streamCreated");
-          this.publisher.destroy();
-          delete this.publisher;
-        }
-        this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-          reason: FAILURE_DETAILS.UNABLE_TO_PUBLISH_MEDIA
-        }));
-      }
-    },
-
     /**
      * Handles publishing of property changes to a stream.
      */
@@ -528,7 +434,6 @@ loop.OTSdkDriver = (function() {
         // Now record the fact, and check if we've got all media yet.
         this._publishedLocalStream = true;
         if (this._checkAllStreamsConnected()) {
-          this.connectionStartTime = performance.now();
           this.dispatcher.dispatch(new sharedActions.MediaConnected());
         }
       }
@@ -560,72 +465,6 @@ loop.OTSdkDriver = (function() {
       this.dispatcher.dispatch(new sharedActions.ScreenSharingState({
         state: SCREEN_SHARE_STATES.INACTIVE
       }));
-    },
-
-    /**
-     * A hook exposed only for the use of the functional tests so that
-     * they can check that the bi-directional media count is being updated
-     * correctly.
-     *
-     * @type number
-     * @private
-     */
-    _connectionLengthNotedCalls: 0,
-
-    /**
-     * Wrapper for adding a keyed value that also updates
-     * connectionLengthNoted calls and sets this.connectionStartTime to
-     * this.CONNECTION_START_TIME_ALREADY_NOTED.
-     *
-     * @param {number} callLengthSeconds  the call length in seconds
-     * @private
-     */
-    _noteConnectionLength: function(callLengthSeconds) {
-
-      var bucket = this.mozLoop.TWO_WAY_MEDIA_CONN_LENGTH.SHORTER_THAN_10S;
-
-      if (callLengthSeconds >= 10 && callLengthSeconds <= 30) {
-        bucket = this.mozLoop.TWO_WAY_MEDIA_CONN_LENGTH.BETWEEN_10S_AND_30S;
-      } else if (callLengthSeconds > 30 && callLengthSeconds <= 300) {
-        bucket = this.mozLoop.TWO_WAY_MEDIA_CONN_LENGTH.BETWEEN_30S_AND_5M;
-      } else if (callLengthSeconds > 300) {
-        bucket = this.mozLoop.TWO_WAY_MEDIA_CONN_LENGTH.MORE_THAN_5M;
-      }
-
-      this.mozLoop.telemetryAddKeyedValue("LOOP_TWO_WAY_MEDIA_CONN_LENGTH",
-        bucket);
-      this.connectionStartTime = this.CONNECTION_START_TIME_ALREADY_NOTED;
-
-      this._connectionLengthNotedCalls++;
-    },
-
-    /**
-     * Note connection length if it's valid (the startTime has been initialized
-     * and is not later than endTime) and not yet already noted.  If
-     * this.mozLoop is not defined, we're assumed to be running in the
-     * standalone client and return immediately.
-     *
-     * @param {number} startTime  in milliseconds
-     * @param {number} endTime  in milliseconds
-     * @private
-     */
-    _noteConnectionLengthIfNeeded: function(startTime, endTime) {
-      if (!this.mozLoop) {
-        return;
-      }
-
-      if (startTime == this.CONNECTION_START_TIME_ALREADY_NOTED ||
-          startTime == this.CONNECTION_START_TIME_UNINITIALIZED ||
-          startTime > endTime) {
-        console.log("_noteConnectionLengthIfNeeded called with " +
-                    " invalid params, either the calls were never" +
-                    " connected or there is a bug; startTime:", startTime,
-                    "endTime:", endTime);
-        return;
-      }
-
-      var callLengthSeconds = (endTime - startTime) / 1000;
-      this._noteConnectionLength(callLengthSeconds);
     }
   };
 

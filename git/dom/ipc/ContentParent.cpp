@@ -2286,10 +2286,6 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
                             bool aSetupOffMainThreadCompositing,
                             bool aSendRegisteredChrome)
 {
-    // Initialize the message manager (and load delayed scripts) now that we
-    // have established communications with the child.
-    mMessageManager->InitWithCallback(this);
-
     // Set the subprocess's priority.  We do this early on because we're likely
     // /lowering/ the process's CPU and memory priority, which it has inherited
     // from this process.
@@ -4459,15 +4455,12 @@ ContentParent::RecvBackUpXResources(const FileDescriptor& aXSocketFd)
 }
 
 bool
-ContentParent::RecvOpenAnonymousTemporaryFile(FileDescOrError *aFD)
+ContentParent::RecvOpenAnonymousTemporaryFile(FileDescriptor *aFD)
 {
     PRFileDesc *prfd;
     nsresult rv = NS_OpenAnonymousTemporaryFile(&prfd);
     if (NS_WARN_IF(NS_FAILED(rv))) {
-        // Returning false will kill the child process; instead
-        // propagate the error and let the child handle it.
-        *aFD = rv;
-        return true;
+        return false;
     }
     *aFD = FileDescriptor(FileDescriptor::PlatformHandleType(PR_FileDesc2NativeHandle(prfd)));
     // The FileDescriptor object owns a duplicate of the file handle; we

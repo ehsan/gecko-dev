@@ -62,7 +62,6 @@ class Promise : public nsISupports,
                 public SupportsWeakPtr<Promise>
 {
   friend class NativePromiseCallback;
-  friend class PromiseCallbackTask;
   friend class PromiseResolverTask;
   friend class PromiseTask;
   friend class PromiseReportRejectFeature;
@@ -76,7 +75,7 @@ class Promise : public nsISupports,
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_PROMISE_IID)
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(Promise)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Promise)
   MOZ_DECLARE_REFCOUNTED_TYPENAME(Promise)
 
   // Promise creation tries to create a JS reflector for the Promise, so is
@@ -292,7 +291,8 @@ private:
   JSCallbackThenableRejecter(JSContext *aCx, unsigned aArgc, JS::Value *aVp);
 
   static JSObject*
-  CreateFunction(JSContext* aCx, Promise* aPromise, int32_t aTask);
+  CreateFunction(JSContext* aCx, JSObject* aParent, Promise* aPromise,
+                int32_t aTask);
 
   static JSObject*
   CreateThenableFunction(JSContext* aCx, Promise* aPromise, uint32_t aTask);

@@ -9,7 +9,7 @@ var gExpectedCount;
 function run_test() {
   setupTestCommon();
 
-  debugDump("testing remote update xml attributes");
+  logTestInfo("testing remote update xml attributes");
 
   setUpdateURLOverride();
   setUpdateChannel("test_channel");
@@ -26,7 +26,7 @@ function run_test_helper_pt1(aMsg, aExpectedCount, aNextRunFunc) {
   gCheckFunc = check_test_helper_pt1;
   gNextRunFunc = aNextRunFunc;
   gExpectedCount = aExpectedCount;
-  debugDump(aMsg, Components.stack.caller);
+  logTestInfo(aMsg, Components.stack.caller);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
@@ -41,15 +41,13 @@ function callHandleEvent() {
   gXHR.status = 400;
   gXHR.responseText = gResponseBody;
   try {
-    if (gResponseBody) {
-      let parser = Cc["@mozilla.org/xmlextras/domparser;1"].
-                   createInstance(Ci.nsIDOMParser);
-      gXHR.responseXML = parser.parseFromString(gResponseBody, "application/xml");
-    }
+    var parser = AUS_Cc["@mozilla.org/xmlextras/domparser;1"].
+                 createInstance(AUS_Ci.nsIDOMParser);
+    gXHR.responseXML = parser.parseFromString(gResponseBody, "application/xml");
   } catch (e) {
     gXHR.responseXML = null;
   }
-  let e = { target: gXHR };
+  var e = { target: gXHR };
   gXHR.onload(e);
 }
 
@@ -61,17 +59,17 @@ function run_test_pt01() {
 
 // one update available and the update's property values
 function run_test_pt02() {
-  debugDump("testing one update available and the update's property values");
+  logTestInfo("testing one update available and the update's property values");
   gUpdates = null;
   gUpdateCount = null;
   gCheckFunc = check_test_pt02;
-  let patches = getRemotePatchString("complete", "http://complete/", "SHA1",
+  var patches = getRemotePatchString("complete", "http://complete/", "SHA1",
                                      "98db9dad8e1d80eda7e1170d0187d6f53e477059",
                                      "9856459");
   patches += getRemotePatchString("partial", "http://partial/", "SHA1",
                                   "e6678ca40ae7582316acdeddf3c133c9c8577de4",
                                   "1316138");
-  let updates = getRemoteUpdateString(patches, "minor", "Minor Test",
+  var updates = getRemoteUpdateString(patches, "minor", "Minor Test",
                                       "version 2.1a1pre", "2.1a1pre",
                                       "3.1a1pre", "20080811053724",
                                       "http://details/",
@@ -89,19 +87,19 @@ function check_test_pt02() {
   // XXXrstrong - not specifying a detailsURL will cause a leak due to bug 470244
   // and until this is fixed this will not test the value for detailsURL when it
   // isn't specified in the update xml.
-//  let defaultDetailsURL;
+//  var defaultDetailsURL;
 //  try {
     // Try using a default details URL supplied by the distribution
     // if the update XML does not supply one.
-//    let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].
-//                    getService(Ci.nsIURLFormatter);
+//    var formatter = AUS_Cc["@mozilla.org/toolkit/URLFormatterService;1"].
+//                    getService(AUS_Ci.nsIURLFormatter);
 //    defaultDetailsURL = formatter.formatURLPref(PREF_APP_UPDATE_URL_DETAILS);
 //  } catch (e) {
 //    defaultDetailsURL = "";
 //  }
 
   do_check_eq(gUpdateCount, 1);
-  let bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount).QueryInterface(Ci.nsIPropertyBag);
+  var bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount).QueryInterface(AUS_Ci.nsIPropertyBag);
   do_check_eq(bestUpdate.type, "minor");
   do_check_eq(bestUpdate.name, "Minor Test");
   do_check_eq(bestUpdate.displayVersion, "version 2.1a1pre");
@@ -131,7 +129,7 @@ function check_test_pt02() {
   do_check_eq(bestUpdate.getProperty("custom1_attr"), "custom1 value");
   do_check_eq(bestUpdate.getProperty("custom2_attr"), "custom2 value");
 
-  let patch = bestUpdate.getPatchAt(0);
+  var patch = bestUpdate.getPatchAt(0);
   do_check_eq(patch.type, "complete");
   do_check_eq(patch.URL, "http://complete/");
   do_check_eq(patch.hashFunction, "SHA1");
@@ -161,15 +159,15 @@ function check_test_pt02() {
 
 // one update available and the update's property default values
 function run_test_pt03() {
-  debugDump("testing one update available and the update's property values " +
-            "with the format prior to bug 530872");
+  logTestInfo("testing one update available and the update's property values " +
+              "with the format prior to bug 530872");
   gUpdates = null;
   gUpdateCount = null;
   gCheckFunc = check_test_pt03;
-  let patches = getRemotePatchString("complete", "http://complete/", "SHA1",
+  var patches = getRemotePatchString("complete", "http://complete/", "SHA1",
                                      "98db9dad8e1d80eda7e1170d0187d6f53e477059",
                                      "9856459");
-  let updates = getRemoteUpdateString(patches, "major", "Major Test",
+  var updates = getRemoteUpdateString(patches, "major", "Major Test",
                                       null, null,
                                       "5.1a1pre", "20080811053724",
                                       "http://details/",
@@ -181,7 +179,7 @@ function run_test_pt03() {
 
 function check_test_pt03() {
   do_check_eq(gUpdateCount, 1);
-  let bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
+  var bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
   do_check_eq(bestUpdate.type, "major");
   do_check_eq(bestUpdate.name, "Major Test");
   do_check_eq(bestUpdate.displayVersion, "version 4.1a1pre");
@@ -208,7 +206,7 @@ function check_test_pt03() {
   do_check_eq(bestUpdate.patchCount, 1);
   //XXX TODO - test nsIUpdate:serialize
 
-  let patch = bestUpdate.getPatchAt(0);
+  var patch = bestUpdate.getPatchAt(0);
   do_check_eq(patch.type, "complete");
   do_check_eq(patch.URL, "http://complete/");
   do_check_eq(patch.hashFunction, "SHA1");
@@ -226,9 +224,9 @@ function check_test_pt03() {
   run_test_pt04();
 }
 
-// Empty update xml (an empty xml file returns a root node name of parsererror)
+// Empty update xml
 function run_test_pt04() {
-  gResponseBody = "<parsererror/>";
+  gResponseBody = "\n";
   run_test_helper_pt1("testing empty update xml",
                       null, run_test_pt05);
 }
@@ -242,9 +240,9 @@ function run_test_pt05() {
 
 // one update available with two patches
 function run_test_pt06() {
-  let patches = getRemotePatchString("complete");
+  var patches = getRemotePatchString("complete");
   patches += getRemotePatchString("partial");
-  let updates = getRemoteUpdateString(patches);
+  var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("testing one update available",
                       1, run_test_pt07);
@@ -252,9 +250,9 @@ function run_test_pt06() {
 
 // three updates available each with two patches
 function run_test_pt07() {
-  let patches = getRemotePatchString("complete");
+  var patches = getRemotePatchString("complete");
   patches += getRemotePatchString("partial");
-  let updates = getRemoteUpdateString(patches);
+  var updates = getRemoteUpdateString(patches);
   updates += getRemoteUpdateString(patches);
   updates += getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
@@ -265,9 +263,9 @@ function run_test_pt07() {
 // one update with complete and partial patches with size 0 specified in the
 // update xml
 function run_test_pt08() {
-  let patches = getRemotePatchString("complete", null, null, null, "0");
+  var patches = getRemotePatchString("complete", null, null, null, "0");
   patches += getRemotePatchString("partial", null, null, null, "0");
-  let updates = getRemoteUpdateString(patches);
+  var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("testing one update with complete and partial " +
                       "patches with size 0", 0, run_test_pt09);
@@ -275,8 +273,8 @@ function run_test_pt08() {
 
 // one update with complete patch with size 0 specified in the update xml
 function run_test_pt09() {
-  let patches = getRemotePatchString("complete", null, null, null, "0");
-  let updates = getRemoteUpdateString(patches);
+  var patches = getRemotePatchString("complete", null, null, null, "0");
+  var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("testing one update with complete patch with size 0",
                       0, run_test_pt10);
@@ -284,8 +282,8 @@ function run_test_pt09() {
 
 // one update with partial patch with size 0 specified in the update xml
 function run_test_pt10() {
-  let patches = getRemotePatchString("partial", null, null, null, "0");
-  let updates = getRemoteUpdateString(patches);
+  var patches = getRemotePatchString("partial", null, null, null, "0");
+  var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("testing one update with partial patch with size 0",
                       0, run_test_pt11);
@@ -293,9 +291,9 @@ function run_test_pt10() {
 
 // check that updates for older versions of the application aren't selected
 function run_test_pt11() {
-  let patches = getRemotePatchString("complete");
+  var patches = getRemotePatchString("complete");
   patches += getRemotePatchString("partial");
-  let updates = getRemoteUpdateString(patches, "minor", null, null, "1.0pre");
+  var updates = getRemoteUpdateString(patches, "minor", null, null, "1.0pre");
   updates += getRemoteUpdateString(patches, "minor", null, null, "1.0a");
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("testing two updates older than the current version",
@@ -303,23 +301,23 @@ function run_test_pt11() {
 }
 
 function check_test_pt11() {
-  let bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
+  var bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
   do_check_eq(bestUpdate, null);
   run_test_pt12();
 }
 
 // check that updates for the current version of the application are selected
 function run_test_pt12() {
-  let patches = getRemotePatchString("complete");
+  var patches = getRemotePatchString("complete");
   patches += getRemotePatchString("partial");
-  let updates = getRemoteUpdateString(patches, "minor", null, "version 1.0");
+  var updates = getRemoteUpdateString(patches, "minor", null, "version 1.0");
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("testing one update equal to the current version",
                       1, check_test_pt12);
 }
 
 function check_test_pt12() {
-  let bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
+  var bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
   do_check_neq(bestUpdate, null);
   do_check_eq(bestUpdate.displayVersion, "version 1.0");
 

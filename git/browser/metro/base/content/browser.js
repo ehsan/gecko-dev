@@ -761,7 +761,7 @@ var Browser = {
     hasher.updateFromStream(stringStream, -1);
     let hashASCII = hasher.finish(true);
     // Replace '/' with a valid filesystem character
-    return ("FFTileID_" + hashASCII).replace(/\//g, '_');
+    return ("FFTileID_" + hashASCII).replace('/', '_', 'g');
   },
 
   unpinSite: function browser_unpinSite() {

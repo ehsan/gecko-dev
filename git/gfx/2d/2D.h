@@ -409,15 +409,12 @@ public:
    */
   virtual int32_t Stride() = 0;
 
-  /**
-   * The caller is responsible for ensuring aMappedSurface is not null.
-   */
   virtual bool Map(MapType, MappedSurface *aMappedSurface)
   {
     aMappedSurface->mData = GetData();
     aMappedSurface->mStride = Stride();
-    mIsMapped = !!aMappedSurface->mData;
-    return mIsMapped;
+    mIsMapped = true;
+    return true;
   }
 
   virtual void Unmap()
@@ -1168,8 +1165,6 @@ public:
 
   // This is a little hacky at the moment, but we want to have this data. Bug 1068613.
   static void SetLogForwarder(LogForwarder* aLogFwd);
-
-  static uint32_t GetMaxSurfaceSize(BackendType aType);
 
   static LogForwarder* GetLogForwarder() { return mLogForwarder; }
 

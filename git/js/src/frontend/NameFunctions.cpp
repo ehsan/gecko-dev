@@ -48,7 +48,7 @@ class NameResolver
             return buf->append('.') && buf->append(name);
 
         /* Quote the string as needed. */
-        JSString *source = QuoteString(cx, name, '"');
+        JSString *source = js_QuoteString(cx, name, '"');
         return source && buf->append('[') && buf->append(source) && buf->append(']');
     }
 

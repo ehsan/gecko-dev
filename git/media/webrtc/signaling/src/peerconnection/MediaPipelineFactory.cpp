@@ -427,8 +427,6 @@ MediaPipelineFactory::CreateMediaPipelineReceiving(
   TrackID numericTrackId = stream->GetNumericTrackId(aTrack.GetTrackId());
   MOZ_ASSERT(numericTrackId != TRACK_INVALID);
 
-  bool queue_track = stream->ShouldQueueTracks();
-
   MOZ_MTLOG(ML_DEBUG, __FUNCTION__ << ": Creating pipeline for "
             << numericTrackId << " -> " << aTrack.GetTrackId());
 
@@ -444,8 +442,7 @@ MediaPipelineFactory::CreateMediaPipelineReceiving(
         static_cast<AudioSessionConduit*>(aConduit.get()), // Ugly downcast.
         aRtpFlow,
         aRtcpFlow,
-        aFilter,
-        queue_track);
+        aFilter);
   } else if (aTrack.GetMediaType() == SdpMediaSection::kVideo) {
     pipeline = new MediaPipelineReceiveVideo(
         mPC->GetHandle(),
@@ -458,8 +455,7 @@ MediaPipelineFactory::CreateMediaPipelineReceiving(
         static_cast<VideoSessionConduit*>(aConduit.get()), // Ugly downcast.
         aRtpFlow,
         aRtcpFlow,
-        aFilter,
-        queue_track);
+        aFilter);
   } else {
     MOZ_ASSERT(false);
     MOZ_MTLOG(ML_ERROR, "Invalid media type in CreateMediaPipelineReceiving");
@@ -481,7 +477,6 @@ MediaPipelineFactory::CreateMediaPipelineReceiving(
   }
 
   stream->SyncPipeline(pipeline);
-
   return NS_OK;
 }
 
@@ -782,7 +777,7 @@ MediaPipelineFactory::EnsureExternalCodec(VideoSessionConduit& aConduit,
                                           VideoCodecConfig* aConfig,
                                           bool aIsSend)
 {
-  if (aConfig->mName == "VP8" || aConfig->mName == "VP9") {
+  if (aConfig->mName == "VP8") {
     return kMediaConduitNoError;
   } else if (aConfig->mName == "H264") {
     // Register H.264 codec.

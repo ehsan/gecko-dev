@@ -278,6 +278,21 @@ struct ParamTraits<mozilla::layers::TextureFlags>
 {};
 
 template <>
+struct ParamTraits<mozilla::layers::TextureIdentifier>
+  : public ContiguousEnumSerializer<
+             mozilla::layers::TextureIdentifier,
+             mozilla::layers::TextureIdentifier::Front,
+             mozilla::layers::TextureIdentifier::HighBound>
+{};
+
+template <>
+struct ParamTraits<mozilla::layers::DeprecatedTextureHostFlags>
+  : public BitFlagsEnumSerializer<
+             mozilla::layers::DeprecatedTextureHostFlags,
+             mozilla::layers::DeprecatedTextureHostFlags::ALL_BITS>
+{};
+
+template <>
 struct ParamTraits<mozilla::layers::DiagnosticTypes>
   : public BitFlagsEnumSerializer<
              mozilla::layers::DiagnosticTypes,
@@ -724,6 +739,8 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mCumulativeResolution);
     WriteParam(aMsg, aParam.mZoom);
     WriteParam(aMsg, aParam.mDevPixelsPerCSSPixel);
+    WriteParam(aMsg, aParam.mMayHaveTouchListeners);
+    WriteParam(aMsg, aParam.mMayHaveTouchCaret);
     WriteParam(aMsg, aParam.mPresShellId);
     WriteParam(aMsg, aParam.mIsRoot);
     WriteParam(aMsg, aParam.mHasScrollgrab);
@@ -734,7 +751,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mDoSmoothScroll);
     WriteParam(aMsg, aParam.mSmoothScrollOffset);
     WriteParam(aMsg, aParam.GetLineScrollAmount());
-    WriteParam(aMsg, aParam.AllowVerticalScrollWithWheel());
     WriteParam(aMsg, aParam.GetContentDescription());
   }
 
@@ -765,6 +781,8 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mCumulativeResolution) &&
             ReadParam(aMsg, aIter, &aResult->mZoom) &&
             ReadParam(aMsg, aIter, &aResult->mDevPixelsPerCSSPixel) &&
+            ReadParam(aMsg, aIter, &aResult->mMayHaveTouchListeners) &&
+            ReadParam(aMsg, aIter, &aResult->mMayHaveTouchCaret) &&
             ReadParam(aMsg, aIter, &aResult->mPresShellId) &&
             ReadParam(aMsg, aIter, &aResult->mIsRoot) &&
             ReadParam(aMsg, aIter, &aResult->mHasScrollgrab) &&
@@ -775,7 +793,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mDoSmoothScroll) &&
             ReadParam(aMsg, aIter, &aResult->mSmoothScrollOffset) &&
             ReadParam(aMsg, aIter, &aResult->mLineScrollAmount) &&
-            ReadParam(aMsg, aIter, &aResult->mAllowVerticalScrollWithWheel) &&
             ReadContentDescription(aMsg, aIter, aResult));
   }
 };
@@ -817,12 +834,14 @@ struct ParamTraits<mozilla::layers::TextureInfo>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, aParam.mCompositableType);
+    WriteParam(aMsg, aParam.mDeprecatedTextureHostFlags);
     WriteParam(aMsg, aParam.mTextureFlags);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
     return ReadParam(aMsg, aIter, &aResult->mCompositableType) &&
+           ReadParam(aMsg, aIter, &aResult->mDeprecatedTextureHostFlags) &&
            ReadParam(aMsg, aIter, &aResult->mTextureFlags);
   }
 };

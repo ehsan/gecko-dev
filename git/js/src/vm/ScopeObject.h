@@ -984,9 +984,6 @@ class DebugScopes
     static void onCompartmentUnsetIsDebuggee(JSCompartment *c);
 };
 
-extern bool
-IsDebugScopeSlow(ProxyObject *proxy);
-
 }  /* namespace js */
 
 template<>
@@ -1012,9 +1009,11 @@ template<>
 inline bool
 JSObject::is<js::DebugScopeObject>() const
 {
+    extern bool js_IsDebugScopeSlow(js::ProxyObject *proxy);
+
     // Note: don't use is<ProxyObject>() here -- it also matches subclasses!
     return hasClass(&js::ProxyObject::class_) &&
-           IsDebugScopeSlow(&const_cast<JSObject*>(this)->as<js::ProxyObject>());
+           js_IsDebugScopeSlow(&const_cast<JSObject*>(this)->as<js::ProxyObject>());
 }
 
 template<>

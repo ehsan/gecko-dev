@@ -1030,7 +1030,9 @@ nsDOMWindowUtils::SendWheelEvent(float aX,
 
   wheelEvent.refPoint = ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
 
-  widget->DispatchAPZAwareEvent(&wheelEvent);
+  nsEventStatus status;
+  nsresult rv = widget->DispatchEvent(&wheelEvent, status);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool failedX = false;
   if ((aOptions & WHEEL_EVENT_EXPECTED_OVERFLOW_DELTA_X_ZERO) &&
@@ -1654,18 +1656,20 @@ nsDOMWindowUtils::GetTranslationNodes(nsIDOMNode* aRoot,
   // skip the root tag from being a translation node.
   nsIContent* content = root;
   while ((limit > 0) && (content = content->GetNextNode(root))) {
-    if (!content->IsHTMLElement()) {
+    if (!content->IsHTML()) {
       continue;
     }
 
+    nsIAtom* localName = content->Tag();
+
     // Skip elements that usually contain non-translatable text content.
-    if (content->IsAnyOfHTMLElements(nsGkAtoms::script,
-                                     nsGkAtoms::iframe,
-                                     nsGkAtoms::frameset,
-                                     nsGkAtoms::frame,
-                                     nsGkAtoms::code,
-                                     nsGkAtoms::noscript,
-                                     nsGkAtoms::style)) {
+    if (localName == nsGkAtoms::script ||
+        localName == nsGkAtoms::iframe ||
+        localName == nsGkAtoms::frameset ||
+        localName == nsGkAtoms::frame ||
+        localName == nsGkAtoms::code ||
+        localName == nsGkAtoms::noscript ||
+        localName == nsGkAtoms::style) {
       continue;
     }
 
@@ -2372,6 +2376,31 @@ nsDOMWindowUtils::IsInModalState(bool *retval)
   NS_ENSURE_STATE(window);
 
   *retval = static_cast<nsGlobalWindow*>(window.get())->IsInModalState();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetParent(JS::Handle<JS::Value> aObject,
+                            JSContext* aCx,
+                            JS::MutableHandle<JS::Value> aParent)
+{
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
+
+  // First argument must be an object.
+  if (aObject.isPrimitive()) {
+    return NS_ERROR_XPC_BAD_CONVERT_JS;
+  }
+
+  JS::Rooted<JSObject*> parent(aCx, JS_GetParent(&aObject.toObject()));
+
+  // Outerize if necessary.
+  if (parent) {
+    if (js::ObjectOp outerize = js::GetObjectClass(parent)->ext.outerObject) {
+      parent = outerize(aCx, parent);
+    }
+  }
+
+  aParent.setObject(*parent);
   return NS_OK;
 }
 
@@ -3187,7 +3216,7 @@ nsDOMWindowUtils::GetPlugins(JSContext* cx, JS::MutableHandle<JS::Value> aPlugin
 }
 
 static void
-MaybeReflowForInflationScreenSizeChange(nsPresContext *aPresContext)
+MaybeReflowForInflationScreenWidthChange(nsPresContext *aPresContext)
 {
   if (aPresContext) {
     nsIPresShell* presShell = aPresContext->GetPresShell();
@@ -3196,7 +3225,7 @@ MaybeReflowForInflationScreenSizeChange(nsPresContext *aPresContext)
     bool changed = false;
     if (presShell && presShell->FontSizeInflationEnabled() &&
         presShell->FontSizeInflationMinTwips() != 0) {
-      aPresContext->ScreenSizeInchesForFontInflation(&changed);
+      aPresContext->ScreenWidthInchesForFontInflation(&changed);
     }
 
     changed = changed ||
@@ -3254,7 +3283,7 @@ nsDOMWindowUtils::SetScrollPositionClampingScrollPortSize(float aWidth, float aH
   // size also changes, we hook in the needed updates here rather
   // than adding a separate notification just for this change.
   nsPresContext* presContext = GetPresContext();
-  MaybeReflowForInflationScreenSizeChange(presContext);
+  MaybeReflowForInflationScreenWidthChange(presContext);
 
   return NS_OK;
 }

@@ -6,8 +6,6 @@
 
 #include "jit/JitFrames-inl.h"
 
-#include "mozilla/SizePrintfMacros.h"
-
 #include "jsfun.h"
 #include "jsobj.h"
 #include "jsscript.h"
@@ -53,46 +51,40 @@ OffsetOfFrameSlot(int32_t slot)
     return -slot;
 }
 
-static inline uint8_t *
-AddressOfFrameSlot(JitFrameLayout *fp, int32_t slot)
-{
-    return (uint8_t *) fp + OffsetOfFrameSlot(slot);
-}
-
 static inline uintptr_t
 ReadFrameSlot(JitFrameLayout *fp, int32_t slot)
 {
-    return *(uintptr_t *) AddressOfFrameSlot(fp, slot);
+    return *(uintptr_t *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline void
 WriteFrameSlot(JitFrameLayout *fp, int32_t slot, uintptr_t value)
 {
-    *(uintptr_t *) AddressOfFrameSlot(fp, slot) = value;
+    *(uintptr_t *)((char *)fp + OffsetOfFrameSlot(slot)) = value;
 }
 
 static inline double
 ReadFrameDoubleSlot(JitFrameLayout *fp, int32_t slot)
 {
-    return *(double *) AddressOfFrameSlot(fp, slot);
+    return *(double *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline float
 ReadFrameFloat32Slot(JitFrameLayout *fp, int32_t slot)
 {
-    return *(float *) AddressOfFrameSlot(fp, slot);
+    return *(float *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline int32_t
 ReadFrameInt32Slot(JitFrameLayout *fp, int32_t slot)
 {
-    return *(int32_t *) AddressOfFrameSlot(fp, slot);
+    return *(int32_t *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 static inline bool
 ReadFrameBooleanSlot(JitFrameLayout *fp, int32_t slot)
 {
-    return *(bool *) AddressOfFrameSlot(fp, slot);
+    return *(bool *)((char *)fp + OffsetOfFrameSlot(slot));
 }
 
 JitFrameIterator::JitFrameIterator()
@@ -888,7 +880,7 @@ HandleException(ResumeFromException *rfe)
 
         if (overrecursed) {
             // We hit an overrecursion error during bailout. Report it now.
-            ReportOverRecursed(cx);
+            js_ReportOverRecursed(cx);
         }
     }
 
@@ -992,8 +984,8 @@ MarkThisAndArguments(JSTracer *trc, const JitFrameIterator &frame)
 {
     // Mark |this| and any extra actual arguments for an Ion frame. Marking of
     // formal arguments is taken care of by the frame's safepoint/snapshot,
-    // except when the script might have lazy arguments, in which case we mark
-    // them as well.
+    // except when the script's lazy arguments object aliases those formals,
+    // in which case we mark them as well.
 
     JitFrameLayout *layout = frame.jsFrame();
 
@@ -1001,7 +993,7 @@ MarkThisAndArguments(JSTracer *trc, const JitFrameIterator &frame)
     size_t nformals = 0;
     if (CalleeTokenIsFunction(layout->calleeToken())) {
         JSFunction *fun = CalleeTokenToFunction(layout->calleeToken());
-        nformals = fun->nonLazyScript()->argumentsHasVarBinding() ? 0 : fun->nargs();
+        nformals = fun->nonLazyScript()->argumentsAliasesFormals() ? 0 : fun->nargs();
     }
 
     Value *argv = layout->argv();
@@ -1310,16 +1302,9 @@ MarkJitExitFrame(JSTracer *trc, const JitFrameIterator &frame)
         return;
     }
 
-    if (frame.isExitFrameLayout<IonOOLPropertyOpExitFrameLayout>() ||
-        frame.isExitFrameLayout<IonOOLSetterOpExitFrameLayout>())
-    {
-        // A SetterOp frame is a different size, but that's the only relevant
-        // difference between the two. The fields that need marking are all in
-        // the common base class.
+    if (frame.isExitFrameLayout<IonOOLPropertyOpExitFrameLayout>()) {
         IonOOLPropertyOpExitFrameLayout *oolgetter =
-            frame.isExitFrameLayout<IonOOLPropertyOpExitFrameLayout>()
-            ? frame.exitFrame()->as<IonOOLPropertyOpExitFrameLayout>()
-            : frame.exitFrame()->as<IonOOLSetterOpExitFrameLayout>();
+            frame.exitFrame()->as<IonOOLPropertyOpExitFrameLayout>();
         gc::MarkJitCodeRoot(trc, oolgetter->stubCode(), "ion-ool-property-op-code");
         gc::MarkValueRoot(trc, oolgetter->vp(), "ion-ool-property-op-vp");
         gc::MarkIdRoot(trc, oolgetter->id(), "ion-ool-property-op-id");
@@ -1844,20 +1829,19 @@ SnapshotIterator::allocationValue(const RValueAllocation &alloc, ReadMethod rm)
       case RValueAllocation::DOUBLE_REG:
         return DoubleValue(fromRegister(alloc.fpuReg()));
 
-      case RValueAllocation::ANY_FLOAT_REG:
+      case RValueAllocation::FLOAT32_REG:
       {
         union {
             double d;
             float f;
         } pun;
-        MOZ_ASSERT(alloc.fpuReg().isSingle());
         pun.d = fromRegister(alloc.fpuReg());
         // The register contains the encoding of a float32. We just read
         // the bits without making any conversion.
         return Float32Value(pun.f);
       }
 
-      case RValueAllocation::ANY_FLOAT_STACK:
+      case RValueAllocation::FLOAT32_STACK:
         return Float32Value(ReadFrameFloat32Slot(fp_, alloc.stackOffset()));
 
       case RValueAllocation::TYPED_REG:
@@ -1945,21 +1929,6 @@ SnapshotIterator::allocationValue(const RValueAllocation &alloc, ReadMethod rm)
     }
 }
 
-const FloatRegisters::RegisterContent *
-SnapshotIterator::floatAllocationPointer(const RValueAllocation &alloc) const
-{
-    switch (alloc.mode()) {
-      case RValueAllocation::ANY_FLOAT_REG:
-        return machine_.address(alloc.fpuReg());
-
-      case RValueAllocation::ANY_FLOAT_STACK:
-        return (FloatRegisters::RegisterContent *) AddressOfFrameSlot(fp_, alloc.stackOffset());
-
-      default:
-        MOZ_CRASH("Not a float allocation.");
-    }
-}
-
 Value
 SnapshotIterator::maybeRead(const RValueAllocation &a, MaybeReadFallback &fallback)
 {
@@ -1997,8 +1966,8 @@ SnapshotIterator::writeAllocationValuePayload(const RValueAllocation &alloc, Val
       case RValueAllocation::CST_UNDEFINED:
       case RValueAllocation::CST_NULL:
       case RValueAllocation::DOUBLE_REG:
-      case RValueAllocation::ANY_FLOAT_REG:
-      case RValueAllocation::ANY_FLOAT_STACK:
+      case RValueAllocation::FLOAT32_REG:
+      case RValueAllocation::FLOAT32_STACK:
         MOZ_CRASH("Not a GC thing: Unexpected write");
         break;
 
@@ -2492,39 +2461,32 @@ InlineFrameIterator::isFunctionFrame() const
 }
 
 MachineState
-MachineState::FromBailout(RegisterDump::GPRArray &regs, RegisterDump::FPUArray &fpregs)
+MachineState::FromBailout(mozilla::Array<uintptr_t, Registers::Total> &regs,
+                          mozilla::Array<double, FloatRegisters::TotalPhys> &fpregs)
 {
     MachineState machine;
 
     for (unsigned i = 0; i < Registers::Total; i++)
-        machine.setRegisterLocation(Register::FromCode(i), &regs[i].r);
+        machine.setRegisterLocation(Register::FromCode(i), &regs[i]);
 #ifdef JS_CODEGEN_ARM
     float *fbase = (float*)&fpregs[0];
     for (unsigned i = 0; i < FloatRegisters::TotalDouble; i++)
-        machine.setRegisterLocation(FloatRegister(i, FloatRegister::Double), &fpregs[i].d);
+        machine.setRegisterLocation(FloatRegister(i, FloatRegister::Double), &fpregs[i]);
     for (unsigned i = 0; i < FloatRegisters::TotalSingle; i++)
         machine.setRegisterLocation(FloatRegister(i, FloatRegister::Single), (double*)&fbase[i]);
 #elif defined(JS_CODEGEN_MIPS)
     float *fbase = (float*)&fpregs[0];
     for (unsigned i = 0; i < FloatRegisters::TotalDouble; i++) {
         machine.setRegisterLocation(FloatRegister::FromIndex(i, FloatRegister::Double),
-                                    &fpregs[i].d);
+                                    &fpregs[i]);
     }
     for (unsigned i = 0; i < FloatRegisters::TotalSingle; i++) {
         machine.setRegisterLocation(FloatRegister::FromIndex(i, FloatRegister::Single),
                                     (double*)&fbase[i]);
     }
-#elif defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
-    for (unsigned i = 0; i < FloatRegisters::TotalPhys; i++) {
-        machine.setRegisterLocation(FloatRegister(i, FloatRegisters::Single), &fpregs[i]);
-        machine.setRegisterLocation(FloatRegister(i, FloatRegisters::Double), &fpregs[i]);
-        machine.setRegisterLocation(FloatRegister(i, FloatRegisters::Int32x4), &fpregs[i]);
-        machine.setRegisterLocation(FloatRegister(i, FloatRegisters::Float32x4), &fpregs[i]);
-    }
-#elif defined(JS_CODEGEN_NONE)
-    MOZ_CRASH();
 #else
-# error "Unknown architecture!"
+    for (unsigned i = 0; i < FloatRegisters::Total; i++)
+        machine.setRegisterLocation(FloatRegister::FromCode(i), &fpregs[i]);
 #endif
     return machine;
 }
@@ -2579,7 +2541,7 @@ struct DumpOp {
     void operator()(const Value& v) {
         fprintf(stderr, "  actual (arg %d): ", i_);
 #ifdef DEBUG
-        DumpValue(v);
+        js_DumpValue(v);
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2596,7 +2558,7 @@ JitFrameIterator::dumpBaseline() const
     if (isFunctionFrame()) {
         fprintf(stderr, "  callee fun: ");
 #ifdef DEBUG
-        DumpObject(callee());
+        js_DumpObject(callee());
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2604,8 +2566,8 @@ JitFrameIterator::dumpBaseline() const
         fprintf(stderr, "  global frame, no callee\n");
     }
 
-    fprintf(stderr, "  file %s line %" PRIuSIZE "\n",
-            script()->filename(), script()->lineno());
+    fprintf(stderr, "  file %s line %u\n",
+            script()->filename(), (unsigned) script()->lineno());
 
     JSContext *cx = GetJSContextFromJitCode();
     RootedScript script(cx);
@@ -2623,7 +2585,7 @@ JitFrameIterator::dumpBaseline() const
         fprintf(stderr, "  slot %u: ", i);
 #ifdef DEBUG
         Value *v = frame->valueSlot(i);
-        DumpValue(*v);
+        js_DumpValue(*v);
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2645,7 +2607,7 @@ InlineFrameIterator::dump() const
         isFunction = true;
         fprintf(stderr, "  callee fun: ");
 #ifdef DEBUG
-        DumpObject(callee(fallback));
+        js_DumpObject(callee(fallback));
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2653,8 +2615,8 @@ InlineFrameIterator::dump() const
         fprintf(stderr, "  global frame, no callee\n");
     }
 
-    fprintf(stderr, "  file %s line %" PRIuSIZE "\n",
-            script()->filename(), script()->lineno());
+    fprintf(stderr, "  file %s line %u\n",
+            script()->filename(), (unsigned) script()->lineno());
 
     fprintf(stderr, "  script = %p, pc = %p\n", (void*) script(), pc());
     fprintf(stderr, "  current op: %s\n", js_CodeName[*pc()]);
@@ -2684,7 +2646,7 @@ InlineFrameIterator::dump() const
         } else
             fprintf(stderr, "  slot %u: ", i);
 #ifdef DEBUG
-        DumpValue(si.maybeRead(fallback));
+        js_DumpValue(si.maybeRead(fallback));
 #else
         fprintf(stderr, "?\n");
 #endif
@@ -2783,9 +2745,9 @@ JitFrameIterator::verifyReturnAddressUsingNativeToBytecodeMap()
 
     JitSpew(JitSpew_Profiling, "Found bytecode location of depth %d:", depth);
     for (size_t i = 0; i < location.length(); i++) {
-        JitSpew(JitSpew_Profiling, "   %s:%" PRIuSIZE " - %" PRIuSIZE,
+        JitSpew(JitSpew_Profiling, "   %s:%d - %d",
                 location[i].script->filename(), location[i].script->lineno(),
-                size_t(location[i].pc - location[i].script->code()));
+                (int) (location[i].pc - location[i].script->code()));
     }
 
     if (type_ == JitFrame_IonJS) {
@@ -2795,15 +2757,14 @@ JitFrameIterator::verifyReturnAddressUsingNativeToBytecodeMap()
             MOZ_ASSERT(idx < location.length());
             MOZ_ASSERT_IF(idx < location.length() - 1, inlineFrames.more());
 
-            JitSpew(JitSpew_Profiling,
-                    "Match %d: ION %s:%" PRIuSIZE "(%" PRIuSIZE ") vs N2B %s:%" PRIuSIZE "(%" PRIuSIZE ")",
+            JitSpew(JitSpew_Profiling, "Match %d: ION %s:%d(%d) vs N2B %s:%d(%d)",
                     (int)idx,
                     inlineFrames.script()->filename(),
                     inlineFrames.script()->lineno(),
-                    size_t(inlineFrames.pc() - inlineFrames.script()->code()),
+                    inlineFrames.pc() - inlineFrames.script()->code(),
                     location[idx].script->filename(),
                     location[idx].script->lineno(),
-                    size_t(location[idx].pc - location[idx].script->code()));
+                    location[idx].pc - location[idx].script->code());
 
             MOZ_ASSERT(inlineFrames.script() == location[idx].script);
 
@@ -2895,21 +2856,16 @@ GetPreviousRawFrame(FrameType *frame)
 
 JitProfilingFrameIterator::JitProfilingFrameIterator(void *exitFrame)
 {
+    // Exit frame was en
     ExitFrameLayout *frame = (ExitFrameLayout *) exitFrame;
     FrameType prevType = frame->prevType();
 
-    if (prevType == JitFrame_IonJS || prevType == JitFrame_Unwound_IonJS) {
+    if (prevType == JitFrame_IonJS || prevType == JitFrame_BaselineJS ||
+        prevType == JitFrame_Unwound_IonJS)
+    {
         returnAddressToFp_ = frame->returnAddress();
         fp_ = GetPreviousRawFrame<ExitFrameLayout, uint8_t *>(frame);
         type_ = JitFrame_IonJS;
-        return;
-    }
-
-    if (prevType == JitFrame_BaselineJS) {
-        returnAddressToFp_ = frame->returnAddress();
-        fp_ = GetPreviousRawFrame<ExitFrameLayout, uint8_t *>(frame);
-        type_ = JitFrame_BaselineJS;
-        fixBaselineDebugModeOSRReturnAddress();
         return;
     }
 
@@ -3004,16 +2960,6 @@ JitProfilingFrameIterator::tryInitWithTable(JitcodeGlobalTable *table, void *pc,
 }
 
 void
-JitProfilingFrameIterator::fixBaselineDebugModeOSRReturnAddress()
-{
-    MOZ_ASSERT(type_ == JitFrame_BaselineJS);
-    BaselineFrame *bl = (BaselineFrame *)(fp_ - BaselineFrame::FramePointerOffset -
-                                          BaselineFrame::Size());
-    if (BaselineDebugModeOSRInfo *info = bl->getDebugModeOSRInfo())
-        returnAddressToFp_ = info->resumeAddr;
-}
-
-void
 JitProfilingFrameIterator::operator++()
 {
     /*
@@ -3059,7 +3005,6 @@ JitProfilingFrameIterator::operator++()
         returnAddressToFp_ = frame->returnAddress();
         fp_ = GetPreviousRawFrame<JitFrameLayout, uint8_t *>(frame);
         type_ = JitFrame_BaselineJS;
-        fixBaselineDebugModeOSRReturnAddress();
         return;
     }
 

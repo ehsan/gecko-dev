@@ -7,14 +7,9 @@ var gNextRunFunc;
 var gExpectedStatusResult;
 
 function run_test() {
-  // The network code that downloads the mar file accesses the profile to cache
-  // the download, but the profile is only available after calling
-  // do_get_profile in xpcshell tests. This prevents an error from being logged.
-  do_get_profile();
-
   setupTestCommon();
 
-  debugDump("testing mar download and mar hash verification");
+  logTestInfo("testing mar download and mar hash verification");
 
   Services.prefs.setBoolPref(PREF_APP_UPDATE_STAGING_ENABLED, false);
   // The HTTP server is only used for the mar file downloads since it is slow
@@ -37,12 +32,12 @@ function callHandleEvent() {
   gXHR.status = 400;
   gXHR.responseText = gResponseBody;
   try {
-    let parser = Cc["@mozilla.org/xmlextras/domparser;1"].
-                 createInstance(Ci.nsIDOMParser);
+    var parser = AUS_Cc["@mozilla.org/xmlextras/domparser;1"].
+                 createInstance(AUS_Ci.nsIDOMParser);
     gXHR.responseXML = parser.parseFromString(gResponseBody, "application/xml");
   } catch(e) {
   }
-  let e = { target: gXHR };
+  var e = { target: gXHR };
   gXHR.onload(e);
 }
 
@@ -55,18 +50,17 @@ function run_test_helper_pt1(aMsg, aExpectedStatusResult, aNextRunFunc) {
   gCheckFunc = check_test_helper_pt1_1;
   gNextRunFunc = aNextRunFunc;
   gExpectedStatusResult = aExpectedStatusResult;
-  debugDump(aMsg, Components.stack.caller);
+  logTestInfo(aMsg, Components.stack.caller);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
 function check_test_helper_pt1_1() {
   do_check_eq(gUpdateCount, 1);
   gCheckFunc = check_test_helper_pt1_2;
-  let bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
-  let state = gAUS.downloadUpdate(bestUpdate, false);
-  if (state == STATE_NONE || state == STATE_FAILED) {
+  var bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
+  var state = gAUS.downloadUpdate(bestUpdate, false);
+  if (state == STATE_NONE || state == STATE_FAILED)
     do_throw("nsIApplicationUpdateService:downloadUpdate returned " + state);
-  }
   gAUS.addDownloadListener(downloadListener);
 }
 
@@ -86,24 +80,23 @@ function run_test_helper_bug828858_pt1(aMsg, aExpectedStatusResult, aNextRunFunc
   gCheckFunc = check_test_helper_bug828858_pt1_1;
   gNextRunFunc = aNextRunFunc;
   gExpectedStatusResult = aExpectedStatusResult;
-  debugDump(aMsg, Components.stack.caller);
+  logTestInfo(aMsg, Components.stack.caller);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
 function check_test_helper_bug828858_pt1_1() {
   do_check_eq(gUpdateCount, 1);
   gCheckFunc = check_test_helper_bug828858_pt1_2;
-  let bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
-  let state = gAUS.downloadUpdate(bestUpdate, false);
-  if (state == STATE_NONE || state == STATE_FAILED) {
+  var bestUpdate = gAUS.selectUpdate(gUpdates, gUpdateCount);
+  var state = gAUS.downloadUpdate(bestUpdate, false);
+  if (state == STATE_NONE || state == STATE_FAILED)
     do_throw("nsIApplicationUpdateService:downloadUpdate returned " + state);
-  }
   gAUS.addDownloadListener(downloadListener);
 }
 
 function check_test_helper_bug828858_pt1_2() {
-  if (gStatusResult == Cr.NS_ERROR_CONTENT_CORRUPTED) {
-    do_check_eq(gStatusResult, Cr.NS_ERROR_CONTENT_CORRUPTED);
+  if (gStatusResult == AUS_Cr.NS_ERROR_CONTENT_CORRUPTED) {
+    do_check_eq(gStatusResult, AUS_Cr.NS_ERROR_CONTENT_CORRUPTED);
   } else {
     do_check_eq(gStatusResult, gExpectedStatusResult);
   }
@@ -112,9 +105,9 @@ function check_test_helper_bug828858_pt1_2() {
 }
 
 function setResponseBody(aHashFunction, aHashValue, aSize) {
-  let patches = getRemotePatchString(null, null,
+  var patches = getRemotePatchString(null, null,
                                      aHashFunction, aHashValue, aSize);
-  let updates = getRemoteUpdateString(patches);
+  var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
 }
 
@@ -122,79 +115,79 @@ function setResponseBody(aHashFunction, aHashValue, aSize) {
 function run_test_pt1() {
   setResponseBody("MD5", MD5_HASH_SIMPLE_MAR);
   run_test_helper_pt1("mar download with a valid MD5 hash",
-                      Cr.NS_OK, run_test_pt2);
+                      AUS_Cr.NS_OK, run_test_pt2);
 }
 
 // mar download with an invalid MD5 hash
 function run_test_pt2() {
   setResponseBody("MD5", MD5_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid MD5 hash",
-                      Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt3);
+                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt3);
 }
 
 // mar download with a valid SHA1 hash
 function run_test_pt3() {
   setResponseBody("SHA1", SHA1_HASH_SIMPLE_MAR);
   run_test_helper_pt1("mar download with a valid SHA1 hash",
-                      Cr.NS_OK, run_test_pt4);
+                      AUS_Cr.NS_OK, run_test_pt4);
 }
 
 // mar download with an invalid SHA1 hash
 function run_test_pt4() {
   setResponseBody("SHA1", SHA1_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA1 hash",
-                      Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt5);
+                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt5);
 }
 
 // mar download with a valid SHA256 hash
 function run_test_pt5() {
   setResponseBody("SHA256", SHA256_HASH_SIMPLE_MAR);
   run_test_helper_pt1("mar download with a valid SHA256 hash",
-                      Cr.NS_OK, run_test_pt6);
+                      AUS_Cr.NS_OK, run_test_pt6);
 }
 
 // mar download with an invalid SHA256 hash
 function run_test_pt6() {
   setResponseBody("SHA256", SHA256_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA256 hash",
-                      Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt7);
+                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt7);
 }
 
 // mar download with a valid SHA384 hash
 function run_test_pt7() {
   setResponseBody("SHA384", SHA384_HASH_SIMPLE_MAR);
   run_test_helper_pt1("mar download with a valid SHA384 hash",
-                      Cr.NS_OK, run_test_pt8);
+                      AUS_Cr.NS_OK, run_test_pt8);
 }
 
 // mar download with an invalid SHA384 hash
 function run_test_pt8() {
   setResponseBody("SHA384", SHA384_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA384 hash",
-                      Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt9);
+                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt9);
 }
 
 // mar download with a valid SHA512 hash
 function run_test_pt9() {
   setResponseBody("SHA512", SHA512_HASH_SIMPLE_MAR);
   run_test_helper_pt1("mar download with a valid SHA512 hash",
-                      Cr.NS_OK, run_test_pt10);
+                      AUS_Cr.NS_OK, run_test_pt10);
 }
 
 // mar download with an invalid SHA512 hash
 function run_test_pt10() {
   setResponseBody("SHA512", SHA512_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA512 hash",
-                      Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt11);
+                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt11);
 }
 
 // mar download with the mar not found
 function run_test_pt11() {
-  let patches = getRemotePatchString(null, gURLData + "missing.mar");
-  let updates = getRemoteUpdateString(patches);
+  var patches = getRemotePatchString(null, gURLData + "missing.mar");
+  var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("mar download with the mar not found",
-                      Cr.NS_ERROR_UNEXPECTED, run_test_pt12);
+                      AUS_Cr.NS_ERROR_UNEXPECTED, run_test_pt12);
 }
 
 // mar download with a valid MD5 hash but invalid file size
@@ -209,9 +202,9 @@ function run_test_pt12() {
     // NS_ERROR_CONTENT_CORRUPTED.
     // Bug 828858 was filed to follow up on this issue.
     run_test_helper_bug828858_pt1("mar download with a valid MD5 hash but invalid file size",
-                                  Cr.NS_ERROR_UNEXPECTED, finish_test);
+                                  AUS_Cr.NS_ERROR_UNEXPECTED, finish_test);
   } else {
     run_test_helper_pt1("mar download with a valid MD5 hash but invalid file size",
-                        Cr.NS_ERROR_UNEXPECTED, finish_test);
+                        AUS_Cr.NS_ERROR_UNEXPECTED, finish_test);
   }
 }

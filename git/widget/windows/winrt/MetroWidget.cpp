@@ -1052,6 +1052,14 @@ MetroWidget::ContentGetAllowedTouchBehavior(const nsIntPoint& aPoint)
 }
 
 void
+MetroWidget::ApzcGetAllowedTouchBehavior(WidgetInputEvent* aTransformedEvent,
+                                         nsTArray<TouchBehaviorFlags>& aOutBehaviors)
+{
+  LogFunction();
+  return APZController::sAPZC->GetAllowedTouchBehavior(aTransformedEvent, aOutBehaviors);
+}
+
+void
 MetroWidget::ApzcSetAllowedTouchBehavior(uint64_t aInputBlockId,
                                          nsTArray<TouchBehaviorFlags>& aBehaviors)
 {

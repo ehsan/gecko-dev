@@ -7,10 +7,10 @@ function run_test() {
   setupTestCommon();
 
   // Verify write access to the custom app dir
-  debugDump("testing write access to the application directory");
+  logTestInfo("testing write access to the application directory");
   let testFile = getCurrentProcessDir();
   testFile.append("update_write_access_test");
-  testFile.create(Ci.nsIFile.NORMAL_FILE_TYPE, PERMS_FILE);
+  testFile.create(AUS_Ci.nsIFile.NORMAL_FILE_TYPE, PERMS_FILE);
   do_check_true(testFile.exists());
   testFile.remove(false);
   do_check_false(testFile.exists());
@@ -19,126 +19,116 @@ function run_test() {
 
   if (IS_WIN) {
     // Create a mutex to prevent being able to check for or apply updates.
-    debugDump("attempting to create mutex");
+    logTestInfo("attempting to create mutex");
     let handle = createMutex(getPerInstallationMutexName());
 
-    debugDump("testing that the mutex was successfully created");
+    logTestInfo("testing that the mutex was successfully created");
     do_check_neq(handle, null);
 
     // Check if available updates cannot be checked for when there is a mutex
     // for this installation.
-    debugDump("testing nsIApplicationUpdateService:canCheckForUpdates is " +
-              "false when there is a mutex");
+    logTestInfo("testing nsIApplicationUpdateService:canCheckForUpdates is " +
+                "false when there is a mutex");
     do_check_false(gAUS.canCheckForUpdates);
 
     // Check if updates cannot be applied when there is a mutex for this
     // installation.
-    debugDump("testing nsIApplicationUpdateService:canApplyUpdates is " +
+    logTestInfo("testing nsIApplicationUpdateService:canApplyUpdates is " +
                 "false when there is a mutex");
     do_check_false(gAUS.canApplyUpdates);
 
-    debugDump("destroying mutex");
+    logTestInfo("destroying mutex");
     closeHandle(handle)
   }
 
   // Check if available updates can be checked for
-  debugDump("testing nsIApplicationUpdateService:canCheckForUpdates is true");
+  logTestInfo("testing nsIApplicationUpdateService:canCheckForUpdates is true");
   do_check_true(gAUS.canCheckForUpdates);
   // Check if updates can be applied
-  debugDump("testing nsIApplicationUpdateService:canApplyUpdates is true");
+  logTestInfo("testing nsIApplicationUpdateService:canApplyUpdates is true");
   do_check_true(gAUS.canApplyUpdates);
 
   if (IS_WIN) {
     // Attempt to create a mutex when application update has already created one
     // with the same name.
-    debugDump("attempting to create mutex");
+    logTestInfo("attempting to create mutex");
     let handle = createMutex(getPerInstallationMutexName());
 
-    debugDump("testing that the mutex was not successfully created");
+    logTestInfo("testing that the mutex was not successfully created");
     do_check_eq(handle, null);
   }
 
   doTestFinish();
 }
 
-/**
- * Determines a unique mutex name for the installation.
- *
- * @return Global mutex path.
- */
-function getPerInstallationMutexName() {
-  if (!IS_WIN) {
-    do_throw("Windows only function called by a different platform!");
+if (IS_WIN) {
+  /**
+   * Determines a unique mutex name for the installation.
+   *
+   * @return Global mutex path.
+   */
+  function getPerInstallationMutexName() {
+    let hasher = AUS_Cc["@mozilla.org/security/hash;1"].
+                 createInstance(AUS_Ci.nsICryptoHash);
+    hasher.init(hasher.SHA1);
+
+    let exeFile = Services.dirsvc.get(XRE_EXECUTABLE_FILE, AUS_Ci.nsILocalFile);
+
+    let converter = AUS_Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                    createInstance(AUS_Ci.nsIScriptableUnicodeConverter);
+    converter.charset = "UTF-8";
+    let data = converter.convertToByteArray(exeFile.path.toLowerCase());
+
+    hasher.update(data, data.length);
+    return "Global\\MozillaUpdateMutex-" + hasher.finish(true);
   }
 
-  let hasher = Cc["@mozilla.org/security/hash;1"].
-               createInstance(Ci.nsICryptoHash);
-  hasher.init(hasher.SHA1);
-
-  let exeFile = Services.dirsvc.get(XRE_EXECUTABLE_FILE, Ci.nsILocalFile);
-
-  let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-                  createInstance(Ci.nsIScriptableUnicodeConverter);
-  converter.charset = "UTF-8";
-  let data = converter.convertToByteArray(exeFile.path.toLowerCase());
-
-  hasher.update(data, data.length);
-  return "Global\\MozillaUpdateMutex-" + hasher.finish(true);
-}
-
-/**
- * Closes a Win32 handle.
- *
- * @param  aHandle
- *         The handle to close.
- */
-function closeHandle(aHandle) {
-  if (!IS_WIN) {
-    do_throw("Windows only function called by a different platform!");
+  /**
+   * Closes a Win32 handle.
+   *
+   * @param  aHandle
+   *         The handle to close.
+   */
+  function closeHandle(aHandle) {
+    let lib = ctypes.open("kernel32.dll");
+    let CloseHandle = lib.declare("CloseHandle",
+                                  ctypes.winapi_abi,
+                                  ctypes.int32_t, /* success */
+                                  ctypes.void_t.ptr); /* handle */
+    CloseHandle(aHandle);
+    lib.close();
   }
 
-  let lib = ctypes.open("kernel32.dll");
-  let CloseHandle = lib.declare("CloseHandle",
-                                ctypes.winapi_abi,
-                                ctypes.int32_t, /* success */
-                                ctypes.void_t.ptr); /* handle */
-  CloseHandle(aHandle);
-  lib.close();
-}
+  /**
+   * Creates a mutex.
+   *
+   * @param  aName
+   *         The name for the mutex.
+   * @return The Win32 handle to the mutex.
+   */
+  function createMutex(aName) {
+    const INITIAL_OWN = 1;
+    const ERROR_ALREADY_EXISTS = 0xB7;
+    let lib = ctypes.open("kernel32.dll");
+    let CreateMutexW = lib.declare("CreateMutexW",
+                                   ctypes.winapi_abi,
+                                   ctypes.void_t.ptr, /* return handle */
+                                   ctypes.void_t.ptr, /* security attributes */
+                                   ctypes.int32_t, /* initial owner */
+                                   ctypes.char16_t.ptr); /* name */
 
-/**
- * Creates a mutex.
- *
- * @param  aName
- *         The name for the mutex.
- * @return The Win32 handle to the mutex.
- */
-function createMutex(aName) {
-  if (!IS_WIN) {
-    do_throw("Windows only function called by a different platform!");
+    let handle = CreateMutexW(null, INITIAL_OWN, aName);
+    lib.close();
+    let alreadyExists = ctypes.winLastError == ERROR_ALREADY_EXISTS;
+    if (handle && !handle.isNull() && alreadyExists) {
+      closeHandle(handle);
+      handle = null;
+    }
+
+    if (handle && handle.isNull()) {
+      handle = null;
+    }
+
+    return handle;
   }
-
-  const INITIAL_OWN = 1;
-  const ERROR_ALREADY_EXISTS = 0xB7;
-  let lib = ctypes.open("kernel32.dll");
-  let CreateMutexW = lib.declare("CreateMutexW",
-                                 ctypes.winapi_abi,
-                                 ctypes.void_t.ptr, /* return handle */
-                                 ctypes.void_t.ptr, /* security attributes */
-                                 ctypes.int32_t, /* initial owner */
-                                 ctypes.char16_t.ptr); /* name */
-
-  let handle = CreateMutexW(null, INITIAL_OWN, aName);
-  lib.close();
-  let alreadyExists = ctypes.winLastError == ERROR_ALREADY_EXISTS;
-  if (handle && !handle.isNull() && alreadyExists) {
-    closeHandle(handle);
-    handle = null;
-  }
-
-  if (handle && handle.isNull()) {
-    handle = null;
-  }
-
-  return handle;
 }

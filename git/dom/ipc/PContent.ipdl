@@ -335,11 +335,6 @@ union MaybeFileDesc {
     void_t;
 };
 
-union FileDescOrError {
-    FileDescriptor;
-    nsresult;
-};
-
 union OptionalContentId
 {
   ContentParentId;
@@ -832,7 +827,7 @@ parent:
      */
     BackUpXResources(FileDescriptor aXSocketFd);
 
-    sync OpenAnonymousTemporaryFile() returns (FileDescOrError aFD);
+    sync OpenAnonymousTemporaryFile() returns (FileDescriptor aFD);
 
     /**
      * Keygen requires us to call it after a <keygen> element is parsed and

@@ -80,6 +80,10 @@ nsCycleCollectorLoggerConstructor(nsISupports* aOuter,
 namespace mozilla {
 namespace cyclecollector {
 
+#ifdef DEBUG
+bool IsJSHolder(void* aHolder);
+#endif
+
 void DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
                       DeferredFinalizeFunction aFunc,
                       void* aThing);

@@ -93,7 +93,6 @@ void Mark##base##Range(JSTracer *trc, size_t len, HeapPtr<type*> *thing, const c
 void Mark##base##RootRange(JSTracer *trc, size_t len, type **thing, const char *name);            \
 bool Is##base##Marked(type **thingp);                                                             \
 bool Is##base##Marked(BarrieredBase<type*> *thingp);                                              \
-bool Is##base##MarkedFromAnyThread(type **thingp);                                                \
 bool Is##base##MarkedFromAnyThread(BarrieredBase<type*> *thingp);                                 \
 bool Is##base##AboutToBeFinalized(type **thingp);                                                 \
 bool Is##base##AboutToBeFinalizedFromAnyThread(type **thingp);                                    \
@@ -252,6 +251,13 @@ MarkCrossCompartmentSlot(JSTracer *trc, JSObject *src, HeapValue *dst_slot, cons
 /*** Special Cases ***/
 
 /*
+ * MarkChildren<JSObject> is exposed solely for preWriteBarrier on
+ * JSObject::swap. It should not be considered external interface.
+ */
+void
+MarkChildren(JSTracer *trc, JSObject *obj);
+
+/*
  * Trace through the shape and any shapes it contains to mark
  * non-shape children. This is exposed to the JS API as
  * JS_TraceShapeCycleCollectorChildren.
@@ -313,6 +319,15 @@ Mark(JSTracer *trc, ScopeObject **obj, const char *name)
 {
     MarkObjectUnbarriered(trc, obj, name);
 }
+
+bool
+IsCellMarked(Cell **thingp);
+
+bool
+IsCellAboutToBeFinalized(Cell **thing);
+
+bool
+IsCellAboutToBeFinalizedFromAnyThread(Cell **thing);
 
 inline bool
 IsMarked(BarrieredBase<Value> *v)

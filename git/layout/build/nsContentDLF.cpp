@@ -133,14 +133,16 @@ NS_IMETHODIMP
 nsContentDLF::CreateInstance(const char* aCommand,
                              nsIChannel* aChannel,
                              nsILoadGroup* aLoadGroup,
-                             const nsACString& aContentType,
+                             const char* aContentType, 
                              nsIDocShell* aContainer,
                              nsISupports* aExtraInfo,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
-  // Make a copy of aContentType, because we're possibly going to change it.
-  nsAutoCString contentType(aContentType);
+  // Declare "type" here.  This is because although the variable itself only
+  // needs limited scope, we need to use the raw string memory -- as returned
+  // by "type.get()" farther down in the function.
+  nsAutoCString type;
 
   // Are we viewing source?
   nsCOMPtr<nsIViewSourceChannel> viewSourceChannel = do_QueryInterface(aChannel);
@@ -152,7 +154,6 @@ nsContentDLF::CreateInstance(const char* aCommand,
     // view-source channel normally returns.  Get the actual content
     // type of the data.  If it's known, use it; otherwise use
     // text/plain.
-    nsAutoCString type;
     viewSourceChannel->GetOriginalContentType(type);
     bool knownType = false;
     int32_t typeIndex;
@@ -186,18 +187,18 @@ nsContentDLF::CreateInstance(const char* aCommand,
     } else if (IsImageContentType(type.get())) {
       // If it's an image, we want to display it the same way we normally would.
       // Also note the lifetime of "type" allows us to safely use "get()" here.
-      contentType = type;
+      aContentType = type.get();
     } else {
       viewSourceChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
     }
-  } else if (aContentType.EqualsLiteral(VIEWSOURCE_CONTENT_TYPE)) {
+  } else if (0 == PL_strcmp(VIEWSOURCE_CONTENT_TYPE, aContentType)) {
     aChannel->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
-    contentType = TEXT_PLAIN;
+    aContentType = TEXT_PLAIN;
   }
   // Try html
   int typeIndex=0;
   while(gHTMLTypes[typeIndex]) {
-    if (contentType.EqualsASCII(gHTMLTypes[typeIndex++])) {
+    if (0 == PL_strcmp(gHTMLTypes[typeIndex++], aContentType)) {
       return CreateDocument(aCommand, 
                             aChannel, aLoadGroup,
                             aContainer, kHTMLDocumentCID,
@@ -208,7 +209,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
   // Try XML
   typeIndex = 0;
   while(gXMLTypes[typeIndex]) {
-    if (contentType.EqualsASCII(gXMLTypes[typeIndex++])) {
+    if (0== PL_strcmp(gXMLTypes[typeIndex++], aContentType)) {
       return CreateDocument(aCommand, 
                             aChannel, aLoadGroup,
                             aContainer, kXMLDocumentCID,
@@ -219,7 +220,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
   // Try SVG
   typeIndex = 0;
   while(gSVGTypes[typeIndex]) {
-    if (contentType.EqualsASCII(gSVGTypes[typeIndex++])) {
+    if (!PL_strcmp(gSVGTypes[typeIndex++], aContentType)) {
       return CreateDocument(aCommand,
                             aChannel, aLoadGroup,
                             aContainer, kSVGDocumentCID,
@@ -230,36 +231,37 @@ nsContentDLF::CreateInstance(const char* aCommand,
   // Try XUL
   typeIndex = 0;
   while (gXULTypes[typeIndex]) {
-    if (contentType.EqualsASCII(gXULTypes[typeIndex++])) {
+    if (0 == PL_strcmp(gXULTypes[typeIndex++], aContentType)) {
       if (!MayUseXULXBL(aChannel)) {
         return NS_ERROR_REMOTE_XUL;
       }
 
-      return CreateXULDocument(aCommand, aChannel, aLoadGroup, aContainer,
+      return CreateXULDocument(aCommand,
+                               aChannel, aLoadGroup,
+                               aContentType, aContainer,
                                aExtraInfo, aDocListener, aDocViewer);
     }
   }
 
-  if (mozilla::DecoderTraits::ShouldHandleMediaType(contentType.get())) {
-    return CreateDocument(aCommand,
+  if (mozilla::DecoderTraits::ShouldHandleMediaType(aContentType)) {
+    return CreateDocument(aCommand, 
                           aChannel, aLoadGroup,
                           aContainer, kVideoDocumentCID,
                           aDocListener, aDocViewer);
-  }
+  }  
 
   // Try image types
-  if (IsImageContentType(contentType.get())) {
-    return CreateDocument(aCommand,
+  if (IsImageContentType(aContentType)) {
+    return CreateDocument(aCommand, 
                           aChannel, aLoadGroup,
                           aContainer, kImageDocumentCID,
                           aDocListener, aDocViewer);
   }
 
-  nsRefPtr<nsPluginHost> pluginHost = nsPluginHost::GetInst();
-  // Don't exclude disabled plugins, which will still trigger the "this plugin
-  // is disabled" placeholder.
-  if (pluginHost && pluginHost->HavePluginForType(contentType,
-                                                  nsPluginHost::eExcludeNone)) {
+  nsCOMPtr<nsIPluginHost> pluginHostCOM(do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
+  nsPluginHost *pluginHost = static_cast<nsPluginHost*>(pluginHostCOM.get());
+  if(pluginHost &&
+     pluginHost->PluginExistsForType(aContentType)) {
     return CreateDocument(aCommand,
                           aChannel, aLoadGroup,
                           aContainer, kPluginDocumentCID,
@@ -412,6 +414,7 @@ nsresult
 nsContentDLF::CreateXULDocument(const char* aCommand,
                                 nsIChannel* aChannel,
                                 nsILoadGroup* aLoadGroup,
+                                const char* aContentType,
                                 nsIDocShell* aContainer,
                                 nsISupports* aExtraInfo,
                                 nsIStreamListener** aDocListener,

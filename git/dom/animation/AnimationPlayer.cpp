@@ -31,52 +31,6 @@ AnimationPlayer::WrapObject(JSContext* aCx)
   return dom::AnimationPlayerBinding::Wrap(aCx, this);
 }
 
-void
-AnimationPlayer::SetStartTime(const Nullable<TimeDuration>& aNewStartTime)
-{
-#if 1
-  // Bug 1096776: once we support inactive/missing timelines we'll want to take
-  // the disabled branch.
-  MOZ_ASSERT(mTimeline && !mTimeline->GetCurrentTime().IsNull(),
-             "We don't support inactive/missing timelines yet");
-#else
-  Nullable<TimeDuration> timelineTime = mTimeline->GetCurrentTime();
-  if (mTimeline) {
-    // The spec says to check if the timeline is active (has a resolved time)
-    // before using it here, but we don't need to since it's harmless to set
-    // the already null time to null.
-    timelineTime = mTimeline->GetCurrentTime();
-  }
-  if (timelineTime.IsNull() && !aNewStartTime.IsNull()) {
-    mHoldTime.SetNull();
-  }
-#endif
-  Nullable<TimeDuration> previousCurrentTime = GetCurrentTime();
-  mStartTime = aNewStartTime;
-  if (!aNewStartTime.IsNull()) {
-    // Until bug 1127380 (playbackRate) is implemented, the rate is essentially
-    // one. Once that bug is fixed we should only SetNull() if the rate is not
-    // zero.
-    mHoldTime.SetNull();
-  } else {
-    mHoldTime = previousCurrentTime;
-  }
-
-  CancelPendingPlay();
-  if (mReady) {
-    // We may have already resolved mReady, but in that case calling
-    // MaybeResolve is a no-op, so that's okay.
-    mReady->MaybeResolve(this);
-  }
-
-  UpdateSourceContent();
-  PostUpdate();
-
-  // FIXME: Once bug 1074630 is fixed, run the procedure to update a player's
-  // finished state for player:
-  // http://w3c.github.io/web-animations/#update-a-players-finished-state
-}
-
 Nullable<TimeDuration>
 AnimationPlayer::GetCurrentTime() const
 {
@@ -93,43 +47,6 @@ AnimationPlayer::GetCurrentTime() const
     }
   }
   return result;
-}
-
-// Implements http://w3c.github.io/web-animations/#silently-set-the-current-time
-void
-AnimationPlayer::SilentlySetCurrentTime(const TimeDuration& aSeekTime)
-{
-  if (!mHoldTime.IsNull() ||
-      !mTimeline ||
-      mTimeline->GetCurrentTime().IsNull()
-      /*or, once supported, playback rate is 0, or have pending pause task*/) {
-    mHoldTime.SetValue(aSeekTime);
-    if (!mTimeline || mTimeline->GetCurrentTime().IsNull()) {
-      mStartTime.SetNull();
-    }
-  } else {
-    // once playback rate is supported, need to account for that here
-    mStartTime.SetValue(mTimeline->GetCurrentTime().Value() - aSeekTime);
-  }
-
-  // Once AnimationPlayers store a previous current time, set that to
-  // unresolved.
-}
-
-// Implements http://w3c.github.io/web-animations/#set-the-current-time
-void
-AnimationPlayer::SetCurrentTime(const TimeDuration& aSeekTime)
-{
-  SilentlySetCurrentTime(aSeekTime);
-
-  // Once pending pause tasks are supported, cancel that here.
-
-  UpdateSourceContent();
-  PostUpdate();
-
-  // FIXME: Once bug 1074630 is fixed, run the procedure to update a player's
-  // finished state for player:
-  // http://w3c.github.io/web-animations/#update-a-players-finished-state
 }
 
 AnimationPlayState
@@ -195,30 +112,10 @@ AnimationPlayer::GetStartTimeAsDouble() const
   return AnimationUtils::TimeDurationToDouble(mStartTime);
 }
 
-void
-AnimationPlayer::SetStartTimeAsDouble(const Nullable<double>& aStartTime)
-{
-  return SetStartTime(AnimationUtils::DoubleToTimeDuration(aStartTime));
-}
-  
 Nullable<double>
 AnimationPlayer::GetCurrentTimeAsDouble() const
 {
   return AnimationUtils::TimeDurationToDouble(GetCurrentTime());
-}
-
-void
-AnimationPlayer::SetCurrentTimeAsDouble(const Nullable<double>& aCurrentTime,
-                                        ErrorResult& aRv)
-{
-  if (aCurrentTime.IsNull()) {
-    if (!GetCurrentTime().IsNull()) {
-      aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
-    }
-    return;
-  }
-
-  return SetCurrentTime(TimeDuration::FromMilliseconds(aCurrentTime.Value()));
 }
 
 void

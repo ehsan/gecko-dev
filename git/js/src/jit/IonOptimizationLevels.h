@@ -49,9 +49,6 @@ class OptimizationInfo
     // Toggles whether Effective Address Analysis is performed.
     bool eaa_;
 
-    // Toggles whether Alignment Mask Analysis is performed.
-    bool ama_;
-
     // Toggles whether Edge Case Analysis is used.
     bool edgeCaseAnalysis_;
 
@@ -63,9 +60,6 @@ class OptimizationInfo
 
     // Toggles whether native scripts get inlined.
     bool inlineNative_;
-
-    // Toggles whether eager unboxing of SIMD is used.
-    bool eagerSimdUnbox_;
 
     // Toggles whether global value numbering is used.
     bool gvn_;
@@ -145,10 +139,6 @@ class OptimizationInfo
 
     uint32_t compilerWarmUpThreshold(JSScript *script, jsbytecode *pc = nullptr) const;
 
-    bool eagerSimdUnboxEnabled() const {
-        return eagerSimdUnbox_ && !js_JitOptions.disableEagerSimdUnbox;
-    }
-
     bool gvnEnabled() const {
         return gvn_ && !js_JitOptions.disableGvn;
     }
@@ -175,10 +165,6 @@ class OptimizationInfo
 
     bool eaaEnabled() const {
         return eaa_ && !js_JitOptions.disableEaa;
-    }
-
-    bool amaEnabled() const {
-        return ama_ && !js_JitOptions.disableAma;
     }
 
     bool edgeCaseAnalysisEnabled() const {

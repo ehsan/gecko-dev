@@ -12,7 +12,7 @@
  * this document.
  */
 
-[Exposed=(Worker)]
+[Exposed=Worker]
 interface WorkerGlobalScope : EventTarget {
   readonly attribute WorkerGlobalScope self;
 
@@ -21,7 +21,6 @@ interface WorkerGlobalScope : EventTarget {
 
   readonly attribute WorkerLocation location;
 
-  [Throws]
   void close();
   attribute OnErrorEventHandler onerror;
 
@@ -35,12 +34,6 @@ partial interface WorkerGlobalScope {
   void importScripts(DOMString... urls);
 
   readonly attribute WorkerNavigator navigator;
-};
-
-// https://slightlyoff.github.io/ServiceWorker/spec/service_worker/index.html#self-caches
-partial interface WorkerGlobalScope {
-[Throws, Func="mozilla::dom::cache::CacheStorage::PrefEnabled"]
-readonly attribute CacheStorage caches;
 };
 
 WorkerGlobalScope implements WindowTimers;

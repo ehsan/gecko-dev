@@ -573,8 +573,6 @@ GetSysFontInfo(HDC aHDC, LookAndFeel::FontID anID,
     case LookAndFeel::eFont_Tooltips:
       ptrLogFont = &ncm.lfStatusFont;
       break;
-    default:
-      MOZ_CRASH();
     }
     break;
 

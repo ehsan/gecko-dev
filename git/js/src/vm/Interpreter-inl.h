@@ -92,7 +92,7 @@ static inline bool
 GuardFunApplyArgumentsOptimization(JSContext *cx, AbstractFramePtr frame, CallArgs &args)
 {
     if (args.length() == 2 && IsOptimizedArguments(frame, args[1])) {
-        if (!IsNativeFunction(args.calleev(), js::fun_apply)) {
+        if (!IsNativeFunction(args.calleev(), js_fun_apply)) {
             RootedScript script(cx, frame.script());
             if (!JSScript::argumentsOptimizationFailed(cx, script))
                 return false;
@@ -186,7 +186,7 @@ ValuePropertyBearer(JSContext *cx, InterpreterFrame *fp, HandleValue v, int spin
         return GlobalObject::getOrCreateBooleanPrototype(cx, global);
 
     MOZ_ASSERT(v.isNull() || v.isUndefined());
-    ReportIsNullOrUndefined(cx, spindex, v, NullPtr());
+    js_ReportIsNullOrUndefined(cx, spindex, v, NullPtr());
     return nullptr;
 }
 
@@ -228,7 +228,10 @@ FetchName(JSContext *cx, HandleObject obj, HandleObject obj2, HandlePropertyName
             vp.setUndefined();
             return true;
         }
-        return ReportIsNotDefined(cx, name);
+        JSAutoByteString printable;
+        if (AtomToPrintableString(cx, name, &printable))
+            js_ReportIsNotDefined(cx, printable.ptr());
+        return false;
     }
 
     /* Take the slow path if shape was not found in a native object. */
@@ -310,34 +313,19 @@ SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject s
     RootedPropertyName name(cx, script->getName(pc));
     RootedValue valCopy(cx, val);
 
-    // In strict mode, assigning to an undeclared global variable is an
-    // error. To detect this, we call NativeSetProperty directly and pass
-    // Unqualified. It stores the error, if any, in |result|.
-    bool ok;
-    ObjectOpResult result;
-    RootedId id(cx, NameToId(name));
+    /*
+     * In strict-mode, we need to trigger an error when trying to assign to an
+     * undeclared global variable. To do this, we call NativeSetProperty
+     * directly and pass Unqualified.
+     */
     if (scope->isUnqualifiedVarObj()) {
         MOZ_ASSERT(!scope->getOps()->setProperty);
-        ok = NativeSetProperty(cx, scope.as<NativeObject>(), scope.as<NativeObject>(), id,
-                               Unqualified, &valCopy, result);
-    } else {
-        ok = SetProperty(cx, scope, scope, id, &valCopy, result);
-    }
-    return ok && result.checkStrictErrorOrWarning(cx, scope, id, strict);
-}
-
-inline bool
-InitPropertyOperation(JSContext *cx, JSOp op, HandleObject obj, HandleId id, HandleValue rhs)
-{
-    if (obj->is<PlainObject>() || obj->is<JSFunction>()) {
-        unsigned propAttrs = GetInitDataPropAttrs(op);
-        return NativeDefineProperty(cx, obj.as<NativeObject>(), id, rhs, nullptr, nullptr,
-                                    propAttrs);
+        RootedId id(cx, NameToId(name));
+        return NativeSetProperty(cx, scope.as<NativeObject>(), scope.as<NativeObject>(), id,
+                                 Unqualified, &valCopy, strict);
     }
 
-    MOZ_ASSERT(obj->as<UnboxedPlainObject>().layout().lookup(id));
-    RootedValue v(cx, rhs);
-    return PutProperty(cx, obj, id, &v, false);
+    return SetProperty(cx, scope, scope, name, &valCopy, strict);
 }
 
 inline bool
@@ -367,7 +355,7 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
         JSAutoByteString bytes;
         if (AtomToPrintableString(cx, dn, &bytes)) {
             JS_ALWAYS_FALSE(JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR,
-                                                         GetErrorMessage,
+                                                         js_GetErrorMessage,
                                                          nullptr, JSMSG_REDECLARED_VAR,
                                                          desc.isReadonly() ? "const" : "var",
                                                          bytes.ptr()));
@@ -648,7 +636,7 @@ InitArrayElemOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, uint32_t
     }
 
     if (op == JSOP_INITELEM_INC && index == INT32_MAX) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_SPREAD_TOO_LARGE);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SPREAD_TOO_LARGE);
         return false;
     }
 

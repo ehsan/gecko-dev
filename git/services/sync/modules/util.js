@@ -253,14 +253,14 @@ this.Utils = {
    */
   base32ToFriendly: function base32ToFriendly(input) {
     return input.toLowerCase()
-                .replace(/l/g, '8')
-                .replace(/o/g, '9');
+                .replace("l", '8', "g")
+                .replace("o", '9', "g");
   },
 
   base32FromFriendly: function base32FromFriendly(input) {
     return input.toUpperCase()
-                .replace(/8/g, 'L')
-                .replace(/9/g, 'O');
+                .replace("8", 'L', "g")
+                .replace("9", 'O', "g");
   },
 
   /**

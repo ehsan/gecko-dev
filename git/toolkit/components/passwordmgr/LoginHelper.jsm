@@ -48,7 +48,7 @@ this.LoginHelper = {
         aHostname.indexOf("\r") != -1 ||
         aHostname.indexOf("\n") != -1 ||
         aHostname.indexOf("\0") != -1) {
-      throw new Error("Invalid hostname");
+      throw "Invalid hostname";
     }
   },
 
@@ -73,7 +73,7 @@ this.LoginHelper = {
     // Nulls are invalid, as they don't round-trip well.
     // Mostly not a formatting problem, although ".\0" can be quirky.
     if (badCharacterPresent(aLogin, "\0")) {
-      throw new Error("login values can't contain nulls");
+      throw "login values can't contain nulls";
     }
 
     // In theory these nulls should just be rolled up into the encrypted
@@ -82,26 +82,26 @@ this.LoginHelper = {
     // unexpected round-trip surprises.
     if (aLogin.username.indexOf("\0") != -1 ||
         aLogin.password.indexOf("\0") != -1) {
-      throw new Error("login values can't contain nulls");
+      throw "login values can't contain nulls";
     }
 
     // Newlines are invalid for any field stored as plaintext.
     if (badCharacterPresent(aLogin, "\r") ||
         badCharacterPresent(aLogin, "\n")) {
-      throw new Error("login values can't contain newlines");
+      throw "login values can't contain newlines";
     }
 
     // A line with just a "." can have special meaning.
     if (aLogin.usernameField == "." ||
         aLogin.formSubmitURL == ".") {
-      throw new Error("login values can't be periods");
+      throw "login values can't be periods";
     }
 
     // A hostname with "\ \(" won't roundtrip.
     // eg host="foo (", realm="bar" --> "foo ( (bar)"
     // vs host="foo", realm=" (bar" --> "foo ( (bar)"
     if (aLogin.hostname.indexOf(" (") != -1) {
-      throw new Error("bad parens in hostname");
+      throw "bad parens in hostname";
     }
   },
 
@@ -189,40 +189,40 @@ this.LoginHelper = {
 
           // Fail if caller requests setting an unknown property.
           default:
-            throw new Error("Unexpected propertybag item: " + prop.name);
+            throw "Unexpected propertybag item: " + prop.name;
         }
       }
     } else {
-      throw new Error("newLoginData needs an expected interface!");
+      throw "newLoginData needs an expected interface!";
     }
 
     // Sanity check the login
     if (newLogin.hostname == null || newLogin.hostname.length == 0) {
-      throw new Error("Can't add a login with a null or empty hostname.");
+      throw "Can't add a login with a null or empty hostname.";
     }
 
     // For logins w/o a username, set to "", not null.
     if (newLogin.username == null) {
-      throw new Error("Can't add a login with a null username.");
+      throw "Can't add a login with a null username.";
     }
 
     if (newLogin.password == null || newLogin.password.length == 0) {
-      throw new Error("Can't add a login with a null or empty password.");
+      throw "Can't add a login with a null or empty password.";
     }
 
     if (newLogin.formSubmitURL || newLogin.formSubmitURL == "") {
       // We have a form submit URL. Can't have a HTTP realm.
       if (newLogin.httpRealm != null) {
-        throw new Error("Can't add a login with both a httpRealm and formSubmitURL.");
+        throw "Can't add a login with both a httpRealm and formSubmitURL.";
       }
     } else if (newLogin.httpRealm) {
       // We have a HTTP realm. Can't have a form submit URL.
       if (newLogin.formSubmitURL != null) {
-        throw new Error("Can't add a login with both a httpRealm and formSubmitURL.");
+        throw "Can't add a login with both a httpRealm and formSubmitURL.";
       }
     } else {
       // Need one or the other!
-      throw new Error("Can't add a login without a httpRealm or formSubmitURL.");
+      throw "Can't add a login without a httpRealm or formSubmitURL.";
     }
 
     // Throws if there are bogus values.

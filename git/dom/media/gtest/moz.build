@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'MockMediaResource.cpp',
     'TestAudioCompactor.cpp',
     'TestGMPCrossOrigin.cpp',
@@ -16,12 +16,12 @@ UNIFIED_SOURCES += [
 ]
 
 if CONFIG['MOZ_EME']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'TestEME.cpp',
     ]
 
 if CONFIG['MOZ_WEBM_ENCODER']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'TestVideoTrackEncoder.cpp',
         'TestVorbisTrackEncoder.cpp',
         'TestWebMWriter.cpp',

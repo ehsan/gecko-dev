@@ -98,8 +98,8 @@ struct BluetoothGattClientCallback
   // GATT Client Notification
   typedef BluetoothNotificationHALRunnable3<
     GattClientNotificationHandlerWrapper, void,
-    BluetoothGattStatus, int, BluetoothUuid,
-    BluetoothGattStatus, int, const BluetoothUuid&>
+    int, int, BluetoothUuid,
+    int, int, const BluetoothUuid&>
     RegisterClientNotification;
 
   typedef BluetoothNotificationHALRunnable3<
@@ -110,19 +110,19 @@ struct BluetoothGattClientCallback
 
   typedef BluetoothNotificationHALRunnable4<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, int, nsString,
-    int, BluetoothGattStatus, int, const nsAString&>
+    int, int, int, nsString,
+    int, int, int, const nsAString&>
     ConnectNotification;
 
   typedef BluetoothNotificationHALRunnable4<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, int, nsString,
-    int, BluetoothGattStatus, int, const nsAString&>
+    int, int, int, nsString,
+    int, int, int, const nsAString&>
     DisconnectNotification;
 
   typedef BluetoothNotificationHALRunnable2<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus>
+    int, int>
     SearchCompleteNotification;
 
   typedef BluetoothNotificationHALRunnable2<
@@ -133,32 +133,29 @@ struct BluetoothGattClientCallback
 
   typedef BluetoothNotificationHALRunnable5<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, BluetoothGattServiceId,
-    BluetoothGattId, int,
-    int, BluetoothGattStatus, const BluetoothGattServiceId&,
-    const BluetoothGattId&>
+    int, int, BluetoothGattServiceId, BluetoothGattId, int,
+    int, int, const BluetoothGattServiceId&, const BluetoothGattId&>
     GetCharacteristicNotification;
 
   typedef BluetoothNotificationHALRunnable5<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, BluetoothGattServiceId,
+    int, int, BluetoothGattServiceId,
     BluetoothGattId, BluetoothGattId,
-    int, BluetoothGattStatus, const BluetoothGattServiceId&,
+    int, int, const BluetoothGattServiceId&,
     const BluetoothGattId&, const BluetoothGattId&>
     GetDescriptorNotification;
 
   typedef BluetoothNotificationHALRunnable4<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, BluetoothGattServiceId, BluetoothGattServiceId,
-    int, BluetoothGattStatus, const BluetoothGattServiceId&,
-    const BluetoothGattServiceId&>
+    int, int, BluetoothGattServiceId, BluetoothGattServiceId,
+    int, int, const BluetoothGattServiceId&, const BluetoothGattServiceId&>
     GetIncludedServiceNotification;
 
   typedef BluetoothNotificationHALRunnable5<
     GattClientNotificationHandlerWrapper, void,
-    int, int, BluetoothGattStatus,
+    int, int, int,
     BluetoothGattServiceId, BluetoothGattId,
-    int, int, BluetoothGattStatus,
+    int, int, int,
     const BluetoothGattServiceId&, const BluetoothGattId&>
     RegisterNotificationNotification;
 
@@ -170,42 +167,42 @@ struct BluetoothGattClientCallback
 
   typedef BluetoothNotificationHALRunnable3<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, BluetoothGattReadParam,
-    int, BluetoothGattStatus, const BluetoothGattReadParam&>
+    int, int, BluetoothGattReadParam,
+    int, int, const BluetoothGattReadParam&>
     ReadCharacteristicNotification;
 
   typedef BluetoothNotificationHALRunnable3<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, BluetoothGattWriteParam,
-    int, BluetoothGattStatus, const BluetoothGattWriteParam&>
+    int, int, BluetoothGattWriteParam,
+    int, int, const BluetoothGattWriteParam&>
     WriteCharacteristicNotification;
 
   typedef BluetoothNotificationHALRunnable3<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, BluetoothGattReadParam,
-    int, BluetoothGattStatus, const BluetoothGattReadParam&>
+    int, int, BluetoothGattReadParam,
+    int, int, const BluetoothGattReadParam&>
     ReadDescriptorNotification;
 
   typedef BluetoothNotificationHALRunnable3<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus, BluetoothGattWriteParam,
-    int, BluetoothGattStatus, const BluetoothGattWriteParam&>
+    int, int, BluetoothGattWriteParam,
+    int, int, const BluetoothGattWriteParam&>
     WriteDescriptorNotification;
 
   typedef BluetoothNotificationHALRunnable2<
     GattClientNotificationHandlerWrapper, void,
-    int, BluetoothGattStatus>
+    int, int>
     ExecuteWriteNotification;
 
   typedef BluetoothNotificationHALRunnable4<
     GattClientNotificationHandlerWrapper, void,
-    int, nsString, int, BluetoothGattStatus,
-    int, const nsAString&, int, BluetoothGattStatus>
+    int, nsString, int, int,
+    int, const nsAString&, int, int>
     ReadRemoteRssiNotification;
 
   typedef BluetoothNotificationHALRunnable2<
     GattClientNotificationHandlerWrapper, void,
-    BluetoothGattStatus, int>
+    int, int>
     ListenNotification;
 
   // Bluedroid GATT client callbacks

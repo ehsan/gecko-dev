@@ -19,5 +19,5 @@ class ProcessTestExecutor(TestExecutor):
     def is_alive(self):
         return True
 
-    def do_test(self, test):
+    def run_test(self, test):
         raise NotImplementedError

@@ -25,16 +25,19 @@
             let AppManager = win.AppManager;
 
             function isProjectMarkedAsValid() {
-              let details = win.frames[1];
+              let details = win.UI.projecteditor.window.frames[0];
               return !details.document.body.classList.contains("error");
             }
 
             let packagedAppLocation = getTestFilePath("app");
 
-            yield win.projectList.importPackagedApp(packagedAppLocation);
-            yield waitForUpdate(win, "details");
+            yield win.Cmds.importPackagedApp(packagedAppLocation);
 
             let project = win.AppManager.selectedProject;
+
+            let deferred = promise.defer();
+            win.UI.projecteditor.once("onEditorCreated", deferred.resolve);
+            yield deferred.promise;
 
             ok("name" in project.manifest, "manifest includes name");
             is(project.name, project.manifest.name, "Display name uses manifest name");
@@ -63,7 +66,7 @@
             yield OS.File.writeAtomic(manifestPath, data , {tmpPath: manifestPath + ".tmp"});
 
             // Trigger validation
-            yield AppManager.validateAndUpdateProject(AppManager.selectedProject);
+            yield AppManager.validateProject(AppManager.selectedProject);
             yield nextTick();
 
             ok(!("name" in project.manifest), "manifest has been updated");
@@ -75,7 +78,7 @@
             yield AppManager.writeManifest(project);
 
             // Trigger validation
-            yield AppManager.validateAndUpdateProject(AppManager.selectedProject);
+            yield AppManager.validateProject(AppManager.selectedProject);
             yield nextTick();
 
             ok("name" in project.manifest, "manifest includes name");
@@ -94,3 +97,5 @@
     </script>
   </body>
 </html>
+
+

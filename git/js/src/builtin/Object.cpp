@@ -235,7 +235,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
                 ? !IsIdentifier(JSID_TO_ATOM(id))
                 : JSID_TO_INT(id) < 0)
             {
-                idstr = QuoteString(cx, idstr, char16_t('\''));
+                idstr = js_QuoteString(cx, idstr, char16_t('\''));
                 if (!idstr)
                     return nullptr;
             }
@@ -419,21 +419,21 @@ obj_setPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     if (args.length() < 2) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
                              "Object.setPrototypeOf", "1", "");
         return false;
     }
 
     /* Step 1-2. */
     if (args[0].isNullOrUndefined()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
                              args[0].isNull() ? "null" : "undefined", "object");
         return false;
     }
 
     /* Step 3. */
     if (!args[1].isObjectOrNull()) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_EXPECTED_TYPE,
                              "Object.setPrototypeOf", "an object or null", InformalValueTypeName(args[1]));
         return false;
     }
@@ -444,11 +444,24 @@ obj_setPrototypeOf(JSContext *cx, unsigned argc, Value *vp)
         return true;
     }
 
-    /* Step 5-7. */
+    /* Step 5-6. */
     RootedObject obj(cx, &args[0].toObject());
     RootedObject newProto(cx, args[1].toObjectOrNull());
-    if (!SetPrototype(cx, obj, newProto))
+
+    bool success;
+    if (!SetPrototype(cx, obj, newProto, &success))
         return false;
+
+    /* Step 7. */
+    if (!success) {
+        UniquePtr<char[], JS::FreePolicy> bytes(DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
+                                                                        args[0], NullPtr()));
+        if (!bytes)
+            return false;
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_SETPROTOTYPEOF_FAIL,
+                             bytes.get());
+        return false;
+    }
 
     /* Step 8. */
     args.rval().set(args[0]);
@@ -492,7 +505,7 @@ obj_watch(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     if (args.length() <= 1) {
-        ReportMissingArg(cx, args.calleev(), 1);
+        js_ReportMissingArg(cx, args.calleev(), 1);
         return false;
     }
 
@@ -646,45 +659,46 @@ js::ObjectCreateWithTemplate(JSContext *cx, HandlePlainObject templateObj)
     return ObjectCreateImpl(cx, proto, GenericObject, group);
 }
 
-// ES6 draft rev34 (2015/02/20) 19.1.2.2 Object.create(O [, Properties])
+/* ES5 15.2.3.5: Object.create(O [, Properties]) */
 bool
 js::obj_create(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // Step 1.
     if (args.length() == 0) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
                              "Object.create", "0", "s");
         return false;
     }
 
     if (!args[0].isObjectOrNull()) {
         RootedValue v(cx, args[0]);
-        UniquePtr<char[], JS::FreePolicy> bytes =
-            DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, v, NullPtr());
+        char *bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK, v, NullPtr());
         if (!bytes)
             return false;
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
-                             bytes.get(), "not an object or null");
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
+                             bytes, "not an object or null");
+        js_free(bytes);
         return false;
     }
 
-    // Step 2.
     RootedObject proto(cx, args[0].toObjectOrNull());
     RootedPlainObject obj(cx, ObjectCreateImpl(cx, proto));
     if (!obj)
         return false;
 
-    // Step 3.
+    /* 15.2.3.5 step 4. */
     if (args.hasDefined(1)) {
-        RootedValue val(cx, args[1]);
-        RootedObject props(cx, ToObject(cx, val));
-        if (!props || !DefineProperties(cx, obj, props))
+        if (args[1].isPrimitive()) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
+            return false;
+        }
+
+        RootedObject props(cx, &args[1].toObject());
+        if (!DefineProperties(cx, obj, props))
             return false;
     }
 
-    // Step 4.
+    /* 5. Return obj. */
     args.rval().setObject(*obj);
     return true;
 }
@@ -820,7 +834,8 @@ js::obj_defineProperty(JSContext *cx, unsigned argc, Value *vp)
     if (!desc.initialize(cx, args.get(2)))
         return false;
 
-    if (!StandardDefineProperty(cx, obj, id, desc))
+    bool ignored;
+    if (!StandardDefineProperty(cx, obj, id, desc, true, &ignored))
         return false;
 
     args.rval().setObject(*obj);
@@ -841,7 +856,7 @@ obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 2. */
     if (args.length() < 2) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
                              "Object.defineProperties", "0", "s");
         return false;
     }
@@ -884,9 +899,21 @@ obj_preventExtensions(JSContext *cx, unsigned argc, Value *vp)
     if (!args.get(0).isObject())
         return true;
 
-    // Steps 2-5.
+    // Steps 2-3.
     RootedObject obj(cx, &args.get(0).toObject());
-    return PreventExtensions(cx, obj);
+
+    bool status;
+    if (!PreventExtensions(cx, obj, &status))
+        return false;
+
+    // Step 4.
+    if (!status) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_CANT_CHANGE_EXTENSIBILITY);
+        return false;
+    }
+
+    // Step 5.
+    return true;
 }
 
 // ES6 draft rev27 (2014/08/24) 19.1.2.5 Object.freeze(O)
@@ -1018,8 +1045,15 @@ ProtoSetter(JSContext *cx, unsigned argc, Value *vp)
     }
 
     Rooted<JSObject*> newProto(cx, args[0].toObjectOrNull());
-    if (!SetPrototype(cx, obj, newProto))
+
+    bool success;
+    if (!SetPrototype(cx, obj, newProto, &success))
         return false;
+
+    if (!success) {
+        js_ReportValueError(cx, JSMSG_SETPROTOTYPEOF_FAIL, JSDVG_IGNORE_STACK, thisv, js::NullPtr());
+        return false;
+    }
 
     args.rval().setUndefined();
     return true;

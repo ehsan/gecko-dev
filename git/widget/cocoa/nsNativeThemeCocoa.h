@@ -31,7 +31,6 @@ public:
   enum {
     eThemeGeometryTypeTitlebar = eThemeGeometryTypeUnknown + 1,
     eThemeGeometryTypeToolbar,
-    eThemeGeometryTypeToolbox,
     eThemeGeometryTypeWindowButtons,
     eThemeGeometryTypeFullscreenButton,
     eThemeGeometryTypeMenu,

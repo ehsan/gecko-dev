@@ -10,12 +10,12 @@
 function run_test() {
   setupTestCommon();
 
-  debugDump("testing nsIUpdatePrompt notifications should not be seen when " +
-            "there is already an application update window open");
+  logTestInfo("testing nsIUpdatePrompt notifications should not be seen when " +
+              "there is already an application update window open");
 
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SILENT, false);
 
-  let registrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
+  let registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
   registrar.registerFactory(Components.ID("{1dfeb90a-2193-45d5-9cb8-864928b2af55}"),
                             "Fake Window Watcher",
                             "@mozilla.org/embedcomp/window-watcher;1",
@@ -27,7 +27,7 @@ function run_test() {
 
   standardInit();
 
-  debugDump("testing showUpdateInstalled should not call openWindow");
+  logTestInfo("testing showUpdateInstalled should not call openWindow");
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SHOW_INSTALLED_UI, true);
 
   gCheckFunc = check_showUpdateInstalled;
@@ -36,7 +36,7 @@ function run_test() {
   // didn't throw and otherwise it would report no tests run.
   do_check_true(true);
 
-  debugDump("testing showUpdateAvailable should not call openWindow");
+  logTestInfo("testing showUpdateAvailable should not call openWindow");
   writeUpdatesToXMLFile(getLocalUpdatesXMLString(""), false);
   let patches = getLocalPatchString(null, null, null, null, null, null,
                                     STATE_FAILED);
@@ -52,7 +52,7 @@ function run_test() {
   // didn't throw and otherwise it would report no tests run.
   do_check_true(true);
 
-  registrar = Cm.QueryInterface(Ci.nsIComponentRegistrar);
+  registrar = Components.manager.QueryInterface(AUS_Ci.nsIComponentRegistrar);
   registrar.unregisterFactory(Components.ID("{1dfeb90a-2193-45d5-9cb8-864928b2af55}"),
                               WindowWatcherFactory);
   registrar.unregisterFactory(Components.ID("{1dfeb90a-2193-45d5-9cb8-864928b2af56}"),
@@ -69,36 +69,46 @@ function check_showUpdateAvailable() {
   do_throw("showUpdateAvailable should not have called openWindow!");
 }
 
-const WindowWatcher = {
+var WindowWatcher = {
   openWindow: function(aParent, aUrl, aName, aFeatures, aArgs) {
     gCheckFunc();
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWindowWatcher])
-};
+  QueryInterface: function(aIID) {
+    if (aIID.equals(AUS_Ci.nsIWindowWatcher) ||
+        aIID.equals(AUS_Ci.nsISupports))
+      return this;
 
-const WindowWatcherFactory = {
+    throw AUS_Cr.NS_ERROR_NO_INTERFACE;
+  }
+}
+
+var WindowWatcherFactory = {
   createInstance: function createInstance(aOuter, aIID) {
-    if (aOuter != null) {
-      throw Cr.NS_ERROR_NO_AGGREGATION;
-    }
+    if (aOuter != null)
+      throw AUS_Cr.NS_ERROR_NO_AGGREGATION;
     return WindowWatcher.QueryInterface(aIID);
   }
 };
 
-const WindowMediator = {
+var WindowMediator = {
   getMostRecentWindow: function(aWindowType) {
-    return { getInterface: XPCOMUtils.generateQI([Ci.nsIDOMWindow]) };
+    return { getInterface: XPCOMUtils.generateQI([AUS_Ci.nsIDOMWindow]) };
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIWindowMediator])
+  QueryInterface: function(aIID) {
+    if (aIID.equals(AUS_Ci.nsIWindowMediator) ||
+        aIID.equals(AUS_Ci.nsISupports))
+      return this;
+
+    throw AUS_Cr.NS_ERROR_NO_INTERFACE;
+  }
 }
 
-const WindowMediatorFactory = {
+var WindowMediatorFactory = {
   createInstance: function createInstance(aOuter, aIID) {
-    if (aOuter != null) {
-      throw Cr.NS_ERROR_NO_AGGREGATION;
-    }
+    if (aOuter != null)
+      throw AUS_Cr.NS_ERROR_NO_AGGREGATION;
     return WindowMediator.QueryInterface(aIID);
   }
 };

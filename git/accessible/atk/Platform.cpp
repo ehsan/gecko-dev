@@ -18,9 +18,8 @@
 #include <dbus/dbus.h>
 #endif
 #include <gtk/gtk.h>
-
 #if (MOZ_WIDGET_GTK == 3)
-extern "C" __attribute__((weak,visibility("default"))) int atk_bridge_adaptor_init(int*, char **[]);
+#include <atk-bridge.h>
 #endif
 
 using namespace mozilla;
@@ -47,6 +46,7 @@ static gulong sToplevel_hide_hook = 0;
 
 GType g_atk_hyperlink_impl_type = G_TYPE_INVALID;
 
+#if (MOZ_WIDGET_GTK == 2)
 struct GnomeAccessibilityModule
 {
     const char *libName;
@@ -67,13 +67,11 @@ static GnomeAccessibilityModule sAtkBridge = {
     "gnome_accessibility_module_shutdown", nullptr
 };
 
-#if (MOZ_WIDGET_GTK == 2)
 static GnomeAccessibilityModule sGail = {
     "libgail.so", nullptr,
     "gnome_accessibility_module_init", nullptr,
     "gnome_accessibility_module_shutdown", nullptr
 };
-#endif
 
 static nsresult
 LoadGtkModule(GnomeAccessibilityModule& aModule)
@@ -100,11 +98,7 @@ LoadGtkModule(GnomeAccessibilityModule& aModule)
             else
                 subLen = loc2 - loc1;
             nsAutoCString sub(Substring(libPath, loc1, subLen));
-#if (MOZ_WIDGET_GTK == 2)
             sub.AppendLiteral("/gtk-2.0/modules/");
-#else
-            sub.AppendLiteral("/gtk-3.0/modules/");
-#endif
             sub.Append(aModule.libName);
             aModule.lib = PR_LoadLibrary(sub.get());
             if (aModule.lib)
@@ -129,6 +123,7 @@ LoadGtkModule(GnomeAccessibilityModule& aModule)
     }
     return NS_OK;
 }
+#endif // (MOZ_WIDGET_GTK == 2)
 
 void
 a11y::PlatformInit()
@@ -180,17 +175,14 @@ a11y::PlatformInit()
 
   // Init atk-bridge now
   PR_SetEnv("NO_AT_BRIDGE=0");
-#if (MOZ_WIDGET_GTK == 3)
-  if (atk_bridge_adaptor_init) {
-    atk_bridge_adaptor_init(nullptr, nullptr);
-  } else
-#endif
-  {
-    nsresult rv = LoadGtkModule(sAtkBridge);
-    if (NS_SUCCEEDED(rv)) {
-      (*sAtkBridge.init)();
-    }
+#if (MOZ_WIDGET_GTK == 2)
+  rv = LoadGtkModule(sAtkBridge);
+  if (NS_SUCCEEDED(rv)) {
+    (*sAtkBridge.init)();
   }
+#else
+  atk_bridge_adaptor_init(nullptr, nullptr);
+#endif
 
   if (!sToplevel_event_hook_added) {
     sToplevel_event_hook_added = true;
@@ -218,6 +210,7 @@ a11y::PlatformShutdown()
                                     sToplevel_hide_hook);
     }
 
+#if (MOZ_WIDGET_GTK == 2)
     if (sAtkBridge.lib) {
         // Do not shutdown/unload atk-bridge,
         // an exit function registered will take care of it
@@ -228,7 +221,6 @@ a11y::PlatformShutdown()
         sAtkBridge.init = nullptr;
         sAtkBridge.shutdown = nullptr;
     }
-#if (MOZ_WIDGET_GTK == 2)
     if (sGail.lib) {
         // Do not shutdown gail because
         // 1) Maybe it's not init-ed by us. e.g. GtkEmbed

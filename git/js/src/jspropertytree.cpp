@@ -14,6 +14,8 @@
 
 #include "vm/Shape.h"
 
+#include "jsgcinlines.h"
+
 #include "vm/Shape-inl.h"
 
 using namespace js;
@@ -71,7 +73,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
 
         KidsHash *hash = HashChildren(shape, child);
         if (!hash) {
-            ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
             return false;
         }
         kidp->setHash(hash);
@@ -80,7 +82,7 @@ PropertyTree::insertChild(ExclusiveContext *cx, Shape *parent, Shape *child)
     }
 
     if (!kidp->toHash()->putNew(StackShape(child), child)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 
@@ -226,20 +228,16 @@ Shape::fixupDictionaryShapeAfterMovingGC()
     if (!listp)
         return;
 
-    // Get a fake cell pointer to use for the calls below. This might not point
-    // to the beginning of a cell, but will point into the right arena and will
-    // have the right alignment.
-    Cell *cell = reinterpret_cast<Cell *>(uintptr_t(listp) & ~CellMask);
-
     // It's possible that this shape is unreachable and that listp points to the
     // location of a dead object in the nursery, in which case we should never
     // touch it again.
-    if (IsInsideNursery(cell)) {
+    if (IsInsideNursery(reinterpret_cast<Cell *>(listp))) {
         listp = nullptr;
         return;
     }
 
-    AllocKind kind = TenuredCell::fromPointer(cell)->getAllocKind();
+    MOZ_ASSERT(!IsInsideNursery(reinterpret_cast<Cell *>(listp)));
+    AllocKind kind = TenuredCell::fromPointer(listp)->getAllocKind();
     MOZ_ASSERT(kind == FINALIZE_SHAPE ||
                kind == FINALIZE_ACCESSOR_SHAPE ||
                kind <= FINALIZE_OBJECT_LAST);
@@ -251,8 +249,8 @@ Shape::fixupDictionaryShapeAfterMovingGC()
     } else {
         // listp points to the shape_ field of an object.
         JSObject *last = reinterpret_cast<JSObject *>(uintptr_t(listp) -
-                                                      JSObject::offsetOfShape());
-        listp = &gc::MaybeForwarded(last)->as<NativeObject>().shape_;
+                                                      offsetof(JSObject, shape_));
+        listp = &gc::MaybeForwarded(last)->shape_;
     }
 }
 
@@ -282,13 +280,13 @@ Shape::fixupShapeTreeAfterMovingGC()
         if (IsForwarded(unowned))
             unowned = Forwarded(unowned);
 
-        GetterOp getter = key->getter();
+        PropertyOp getter = key->getter();
         if (key->hasGetterObject())
-            getter = GetterOp(MaybeForwarded(key->getterObject()));
+            getter = PropertyOp(MaybeForwarded(key->getterObject()));
 
-        SetterOp setter = key->setter();
+        StrictPropertyOp setter = key->setter();
         if (key->hasSetterObject())
-            setter = SetterOp(MaybeForwarded(key->setterObject()));
+            setter = StrictPropertyOp(MaybeForwarded(key->setterObject()));
 
         StackShape lookup(unowned,
                           const_cast<Shape *>(key)->propidRef(),

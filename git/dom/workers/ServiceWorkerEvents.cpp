@@ -28,6 +28,7 @@ BEGIN_WORKERS_NAMESPACE
 
 FetchEvent::FetchEvent(EventTarget* aOwner)
 : Event(aOwner, nullptr, nullptr)
+, mWindowId(0)
 , mIsReload(false)
 , mWaitToRespond(false)
 {
@@ -40,11 +41,11 @@ FetchEvent::~FetchEvent()
 void
 FetchEvent::PostInit(nsMainThreadPtrHandle<nsIInterceptedChannel>& aChannel,
                      nsMainThreadPtrHandle<ServiceWorker>& aServiceWorker,
-                     nsAutoPtr<ServiceWorkerClientInfo>& aClientInfo)
+                     uint64_t aWindowId)
 {
   mChannel = aChannel;
   mServiceWorker = aServiceWorker;
-  mClientInfo = aClientInfo;
+  mWindowId = aWindowId;
 }
 
 /*static*/ already_AddRefed<FetchEvent>
@@ -243,14 +244,10 @@ FetchEvent::RespondWith(Promise& aPromise, ErrorResult& aRv)
 }
 
 already_AddRefed<ServiceWorkerClient>
-FetchEvent::GetClient()
+FetchEvent::Client()
 {
   if (!mClient) {
-    if (!mClientInfo) {
-      return nullptr;
-    }
-
-    mClient = new ServiceWorkerClient(GetParentObject(), *mClientInfo);
+    mClient = new ServiceWorkerClient(GetParentObject(), mWindowId);
   }
   nsRefPtr<ServiceWorkerClient> client = mClient;
   return client.forget();

@@ -26,7 +26,6 @@ const GRAPH_WHEEL_ZOOM_SENSITIVITY = 0.00035;
 const GRAPH_WHEEL_SCROLL_SENSITIVITY = 0.5;
 const GRAPH_MIN_SELECTION_WIDTH = 0.001; // ms
 
-const FIND_OPTIMAL_TICK_INTERVAL_MAX_ITERS = 100;
 const TIMELINE_TICKS_MULTIPLE = 5; // ms
 const TIMELINE_TICKS_SPACING_MIN = 75; // px
 
@@ -181,9 +180,7 @@ FlameGraph.prototype = {
   /**
    * Destroys this graph.
    */
-  destroy: Task.async(function*() {
-    yield this.ready();
-
+  destroy: function() {
     this._window.removeEventListener("mousemove", this._onMouseMove);
     this._window.removeEventListener("mousedown", this._onMouseDown);
     this._window.removeEventListener("mouseup", this._onMouseUp);
@@ -203,7 +200,7 @@ FlameGraph.prototype = {
     this._data = null;
 
     this.emit("destroyed");
-  }),
+  },
 
   /**
    * Rendering options. Subclasses should override these.
@@ -792,8 +789,6 @@ FlameGraph.prototype = {
   _findOptimalTickInterval: function(dataScale) {
     let timingStep = TIMELINE_TICKS_MULTIPLE;
     let spacingMin = TIMELINE_TICKS_SPACING_MIN * this._pixelRatio;
-    let maxIters = FIND_OPTIMAL_TICK_INTERVAL_MAX_ITERS;
-    let numIters = 0;
 
     if (dataScale > spacingMin) {
       return dataScale;
@@ -801,9 +796,6 @@ FlameGraph.prototype = {
 
     while (true) {
       let scaledStep = dataScale * timingStep;
-      if (++numIters > maxIters) {
-        return scaledStep;
-      }
       if (scaledStep < spacingMin) {
         timingStep <<= 1;
         continue;

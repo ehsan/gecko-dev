@@ -10,7 +10,6 @@
 #include "nsIGlobalHistory2.h"
 #include "nsIObserverService.h"
 #include "nsIURI.h"
-#include "mozilla/Services.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsDownloadHistory
@@ -43,7 +42,7 @@ nsDownloadHistory::AddDownload(nsIURI* aSource,
 
   if (!visited) {
     nsCOMPtr<nsIObserverService> os =
-      mozilla::services::GetObserverService();
+      do_GetService("@mozilla.org/observer-service;1");
     if (os) {
       os->NotifyObservers(aSource, NS_LINK_VISITED_EVENT_TOPIC, nullptr);
     }

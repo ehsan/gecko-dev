@@ -11,7 +11,6 @@
 #include "nsRefPtr.h"
 
 class nsIDOMWindowUtils;
-class nsIDocument;
 class nsIPresShell;
 class nsIWidget;
 
@@ -38,19 +37,17 @@ public:
   // GeckoContentController interface
   virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics) MOZ_OVERRIDE;
   virtual void PostDelayedTask(Task* aTask, int aDelayMs) MOZ_OVERRIDE;
-  virtual void RequestFlingSnap(const FrameMetrics::ViewID& aScrollId,
-                                const mozilla::CSSPoint& aDestination) MOZ_OVERRIDE;
   virtual void AcknowledgeScrollUpdate(const FrameMetrics::ViewID& aScrollId,
                                        const uint32_t& aScrollGeneration) MOZ_OVERRIDE;
 
-  virtual void HandleDoubleTap(const mozilla::CSSPoint& aPoint, Modifiers aModifiers,
+  virtual void HandleDoubleTap(const mozilla::CSSPoint& aPoint, int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE {}
-  virtual void HandleSingleTap(const mozilla::CSSPoint& aPoint, Modifiers aModifiers,
+  virtual void HandleSingleTap(const mozilla::CSSPoint& aPoint, int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
-  virtual void HandleLongTap(const mozilla::CSSPoint& aPoint, Modifiers aModifiers,
+  virtual void HandleLongTap(const mozilla::CSSPoint& aPoint, int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid,
                                uint64_t aInputBlockId) MOZ_OVERRIDE;
-  virtual void HandleLongTapUp(const CSSPoint& aPoint, Modifiers aModifiers,
+  virtual void HandleLongTapUp(const CSSPoint& aPoint, int32_t aModifiers,
                                const ScrollableLayerGuid& aGuid) MOZ_OVERRIDE;
   virtual void SendAsyncScrollDOMEvent(bool aIsRoot, const mozilla::CSSRect &aContentRect,
                                        const mozilla::CSSSize &aScrollableSize) MOZ_OVERRIDE {}
@@ -65,7 +62,6 @@ private:
   void InitializeRoot();
   float GetPresShellResolution() const;
   nsIPresShell* GetPresShell() const;
-  nsIDocument* GetDocument() const;
   already_AddRefed<nsIDOMWindowUtils> GetDOMWindowUtils() const;
 };
 

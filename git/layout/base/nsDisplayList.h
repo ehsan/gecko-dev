@@ -254,13 +254,6 @@ public:
    */
   ViewID GetCurrentScrollParentId() const { return mCurrentScrollParentId; }
   /**
-   * Get and set the flag that indicates if scroll parents should have layers
-   * forcibly created. This flag is set when a deeply nested scrollframe has
-   * a displayport, and for scroll handoff to work properly the ancestor
-   * scrollframes should also get their own scrollable layers.
-   */
-  void ForceLayerForScrollParent() { mForceLayerForScrollParent = true; }
-  /**
    * Get the ViewID and the scrollbar flags corresponding to the scrollbar for
    * which we are building display items at the moment.
    */
@@ -345,11 +338,7 @@ public:
   }
   bool IsBuildingLayerEventRegions()
   {
-    if (mMode == PAINTING) {
-      return (gfxPrefs::LayoutEventRegionsEnabled() ||
-              gfxPrefs::AsyncPanZoomEnabled());
-    }
-    return false;
+    return (gfxPrefs::LayoutEventRegionsEnabled() && mMode == PAINTING);
   }
   bool IsInsidePointerEventsNoneDoc()
   {
@@ -671,41 +660,15 @@ public:
   class AutoCurrentScrollParentIdSetter {
   public:
     AutoCurrentScrollParentIdSetter(nsDisplayListBuilder* aBuilder, ViewID aScrollId)
-      : mBuilder(aBuilder)
-      , mOldValue(aBuilder->mCurrentScrollParentId)
-      , mOldForceLayer(aBuilder->mForceLayerForScrollParent) {
-      // If this AutoCurrentScrollParentIdSetter has the same scrollId as the
-      // previous one on the stack, then that means the scrollframe that
-      // created this isn't actually scrollable and cannot participate in
-      // scroll handoff. We set mCanBeScrollParent to false to indicate this.
-      mCanBeScrollParent = (mOldValue != aScrollId);
+      : mBuilder(aBuilder), mOldValue(aBuilder->mCurrentScrollParentId) {
       aBuilder->mCurrentScrollParentId = aScrollId;
-      aBuilder->mForceLayerForScrollParent = false;
     }
-    bool ShouldForceLayerForScrollParent() const {
-      // Only scrollframes participating in scroll handoff can be forced to
-      // layerize
-      return mCanBeScrollParent && mBuilder->mForceLayerForScrollParent;
-    };
     ~AutoCurrentScrollParentIdSetter() {
       mBuilder->mCurrentScrollParentId = mOldValue;
-      if (mCanBeScrollParent) {
-        // If this flag is set, caller code is responsible for having dealt
-        // with the current value of mBuilder->mForceLayerForScrollParent, so
-        // we can just restore the old value.
-        mBuilder->mForceLayerForScrollParent = mOldForceLayer;
-      } else {
-        // Otherwise we need to keep propagating the force-layerization flag
-        // upwards to the next ancestor scrollframe that does participate in
-        // scroll handoff.
-        mBuilder->mForceLayerForScrollParent |= mOldForceLayer;
-      }
     }
   private:
     nsDisplayListBuilder* mBuilder;
     ViewID                mOldValue;
-    bool                  mOldForceLayer;
-    bool                  mCanBeScrollParent;
   };
 
   /**
@@ -956,7 +919,6 @@ private:
   bool                           mHaveScrollableDisplayPort;
   bool                           mWindowDraggingAllowed;
   bool                           mIsBuildingForPopup;
-  bool                           mForceLayerForScrollParent;
 };
 
 class nsDisplayItem;
@@ -3690,12 +3652,6 @@ public:
 
   explicit nsCharClipDisplayItem(nsIFrame* aFrame)
     : nsDisplayItem(aFrame) {}
-
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
-
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE;
 
   struct ClipEdges {
     ClipEdges(const nsDisplayItem& aItem,

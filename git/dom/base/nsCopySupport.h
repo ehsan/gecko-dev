@@ -23,8 +23,7 @@ class nsCopySupport
 {
   // class of static helper functions for copy support
   public:
-    static nsresult HTMLCopy(nsISelection *aSel, nsIDocument *aDoc,
-                             int16_t aClipboardID, bool aWithRubyAnnotation);
+    static nsresult HTMLCopy(nsISelection *aSel, nsIDocument *aDoc, int16_t aClipboardID);
     static nsresult DoHooks(nsIDocument *aDoc, nsITransferable *aTrans,
                             bool *aDoPutOnClipboard);
 

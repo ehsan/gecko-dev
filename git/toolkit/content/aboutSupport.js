@@ -343,18 +343,16 @@ let snapshotFormatters = {
 
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
   sandbox: function sandbox(data) {
+    const keys = ["hasSeccompBPF", "canSandboxContent", "canSandboxMedia"];
     let strings = stringBundle();
     let tbody = $("sandbox-tbody");
-    for (let key in data) {
-      // Simplify the display a little in the common case.
-      if (key === "hasPrivilegedUserNamespaces" &&
-          data[key] === data["hasUserNamespaces"]) {
-        continue;
+    for (let key of keys) {
+      if (key in data) {
+	tbody.appendChild($.new("tr", [
+	  $.new("th", strings.GetStringFromName(key), "column"),
+	  $.new("td", data[key])
+	]));
       }
-      tbody.appendChild($.new("tr", [
-        $.new("th", strings.GetStringFromName(key), "column"),
-        $.new("td", data[key])
-      ]));
     }
   },
 #endif

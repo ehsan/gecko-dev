@@ -21,7 +21,6 @@ XPIDL_SOURCES += [
     'nsINetworkService.idl',
     'nsINetworkWorker.idl',
     'nsISystemWorkerManager.idl',
-    'nsITetheringService.idl',
     'nsIVolume.idl',
     'nsIVolumeMountLock.idl',
     'nsIVolumeService.idl',
@@ -73,12 +72,12 @@ if CONFIG['ENABLE_TESTS']:
 EXTRA_COMPONENTS += [
     'NetworkInterfaceListService.js',
     'NetworkInterfaceListService.manifest',
-    'NetworkManager.js',
     'NetworkManager.manifest',
     'NetworkService.js',
     'NetworkService.manifest',
-    'TetheringService.js',
-    'TetheringService.manifest',
+]
+EXTRA_PP_COMPONENTS += [
+    'NetworkManager.js',
 ]
 EXTRA_JS_MODULES += [
     'systemlibs.js',
@@ -89,8 +88,9 @@ if CONFIG['MOZ_B2G_RIL']:
         'nsIRadioInterfaceLayer.idl',
     ]
     EXTRA_COMPONENTS += [
+        'RadioInterfaceLayer.js',
+        'RadioInterfaceLayer.manifest',
         'RILContentHelper.js',
-        'RILContentHelper.manifest',
         'RILSystemMessengerHelper.js',
         'RILSystemMessengerHelper.manifest',
     ]
@@ -100,11 +100,6 @@ if CONFIG['MOZ_B2G_RIL']:
         'ril_worker_buf_object.js',
         'RILSystemMessenger.jsm',
     ]
-    if not CONFIG['DISABLE_MOZ_RIL_GEOLOC']:
-        EXTRA_COMPONENTS += [
-            'RadioInterfaceLayer.js',
-            'RadioInterfaceLayer.manifest',
-        ]
 
 FAIL_ON_WARNINGS = True
 

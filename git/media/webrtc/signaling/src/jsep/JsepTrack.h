@@ -68,22 +68,10 @@ public:
     return mStreamId;
   }
 
-  virtual void
-  SetStreamId(const std::string& id)
-  {
-    mStreamId = id;
-  }
-
   virtual const std::string&
   GetTrackId() const
   {
     return mTrackId;
-  }
-
-  virtual void
-  SetTrackId(const std::string& id)
-  {
-    mTrackId = id;
   }
 
   virtual const std::string&
@@ -149,8 +137,8 @@ protected:
 
 private:
   const mozilla::SdpMediaSection::MediaType mType;
-  std::string mStreamId;
-  std::string mTrackId;
+  const std::string mStreamId;
+  const std::string mTrackId;
   std::string mCNAME;
   const Direction mDirection;
   UniquePtr<JsepTrackNegotiatedDetails> mNegotiatedDetails;

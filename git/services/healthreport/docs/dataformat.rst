@@ -668,7 +668,7 @@ Example
     }
 
 org.mozilla.addons.plugins
---------------------------
+-------------------------
 
 This measurement contains information about the currently-installed plugins.
 
@@ -697,7 +697,7 @@ directly from ``nsIPluginTag`` via ``nsIPluginHost``.
 *updateDay* is the number of days since UNIX epoch of the plugins last modified
 time.
 *mimeTypes* is the list of mimetypes the plugin supports, see
-``nsIPluginTag.getMimeTypes()``.
+``nsIPluginTag.getMimeTypes()`.
 
 Example
 ^^^^^^^
@@ -1898,31 +1898,4 @@ Example
       "another-tag": [
         "foobar-value"
       ]
-    }
-
-org.mozilla.passwordmgr.passwordmgr
------------------------------------
-
-Daily measurement reporting information about the Password Manager
-
-Version 1
-^^^^^^^^^
-
-Property:
-
-numSavedPasswords
-    number of passwords saved in the Password Manager
-
-enabled
-    Whether or not the user has disabled the Password Manager in prefernces
-
-Example
-^^^^^^^
-
-::
-
-    "org.mozilla.passwordmgr.passwordmgr": {
-      "_v": 1,
-      "numSavedPasswords": 5,
-      "enabled": 0,
     }

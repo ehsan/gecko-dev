@@ -114,12 +114,6 @@ private:
 
   virtual bool RecvDecryptingComplete() MOZ_OVERRIDE;
 
-  template <typename MethodType, typename... ParamType>
-  void CallMethod(MethodType, ParamType&&...);
-
-  template<typename MethodType, typename... ParamType>
-  void CallOnGMPThread(MethodType, ParamType&&...);
-
   // GMP's GMPDecryptor implementation.
   // Only call into this on the (GMP process) main thread.
   GMPDecryptor* mSession;

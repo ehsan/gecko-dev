@@ -214,7 +214,9 @@ class TypedArrayObject : public NativeObject
 
     static bool is(HandleValue v);
 
+    static bool copyWithin(JSContext *cx, unsigned argc, Value *vp);
     static bool set(JSContext *cx, unsigned argc, Value *vp);
+    static bool subarray(JSContext *cx, unsigned argc, Value *vp);
 };
 
 inline bool
@@ -307,9 +309,6 @@ TypedArrayElemSize(Scalar::Type viewType)
 {
     return 1u << TypedArrayShift(viewType);
 }
-
-extern JSObject *
-InitDataViewClass(JSContext *cx, HandleObject obj);
 
 class DataViewObject : public NativeObject
 {

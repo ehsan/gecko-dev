@@ -474,8 +474,8 @@ class ArenaList {
         return *this;
     }
 
-    ArenaHeader *removeRemainingArenas(ArenaHeader **arenap);
-    ArenaHeader **pickArenasToRelocate(size_t &arenaTotalOut, size_t &relocTotalOut);
+    ArenaHeader *removeRemainingArenas(ArenaHeader **arenap, const AutoLockGC &lock);
+    ArenaHeader *pickArenasToRelocate(JSRuntime *runtime);
     ArenaHeader *relocateArenas(ArenaHeader *toRelocate, ArenaHeader *relocated,
                                 gcstats::Statistics& stats);
 };
@@ -804,8 +804,7 @@ class ArenaLists
         MOZ_ASSERT(freeLists[kind].isEmpty());
     }
 
-    bool relocateArenas(ArenaHeader *&relocatedListOut, JS::gcreason::Reason reason,
-                        gcstats::Statistics& stats);
+    ArenaHeader *relocateArenas(ArenaHeader *relocatedList, gcstats::Statistics& stats);
 
     void queueForegroundObjectsForSweep(FreeOp *fop);
     void queueForegroundThingsForSweep(FreeOp *fop);
@@ -854,11 +853,15 @@ const size_t MAX_EMPTY_CHUNK_AGE = 4;
 
 } /* namespace gc */
 
+} /* namespace js */
+
 extern bool
-InitGC(JSRuntime *rt, uint32_t maxbytes);
+js_InitGC(JSRuntime *rt, uint32_t maxbytes);
 
 extern void
-FinishGC(JSRuntime *rt);
+js_FinishGC(JSRuntime *rt);
+
+namespace js {
 
 class InterpreterFrame;
 
@@ -995,7 +998,6 @@ class GCParallelTask
 
   public:
     GCParallelTask() : state(NotStarted), duration_(0) {}
-    virtual ~GCParallelTask();
 
     // Time spent in the most recent invocation of this task.
     int64_t duration() const { return duration_; }
@@ -1109,8 +1111,12 @@ extern void
 IterateScripts(JSRuntime *rt, JSCompartment *compartment,
                void *data, IterateScriptCallback scriptCallback);
 
+} /* namespace js */
+
 extern void
-FinalizeStringRT(JSRuntime *rt, JSString *str);
+js_FinalizeStringRT(JSRuntime *rt, JSString *str);
+
+namespace js {
 
 JSCompartment *
 NewCompartment(JSContext *cx, JS::Zone *zone, JSPrincipals *principals,
@@ -1164,8 +1170,8 @@ class RelocationOverlay
 
     void forwardTo(Cell *cell) {
         MOZ_ASSERT(!isForwarded());
-        static_assert(offsetof(JSObject, group_) == offsetof(RelocationOverlay, newLocation_),
-                      "forwarding pointer and group should be at same location, "
+        static_assert(offsetof(JSObject, shape_) == offsetof(RelocationOverlay, newLocation_),
+                      "forwarding pointer and shape should be at same location, "
                       "so that obj->zone() works on forwarded objects");
         newLocation_ = cell;
         magic_ = Relocated;
@@ -1175,35 +1181,15 @@ class RelocationOverlay
     RelocationOverlay *next() const {
         return next_;
     }
-
-    static bool isCellForwarded(Cell *cell) {
-        return fromCell(cell)->isForwarded();
-    }
 };
 
 /* Functions for checking and updating things that might be moved by compacting GC. */
-
-template <typename T>
-struct MightBeForwarded
-{
-    static_assert(mozilla::IsBaseOf<Cell, T>::value,
-                  "T must derive from Cell");
-    static_assert(!mozilla::IsSame<Cell, T>::value && !mozilla::IsSame<TenuredCell, T>::value,
-                  "T must not be Cell or TenuredCell");
-
-    static const bool value = mozilla::IsBaseOf<JSObject, T>::value;
-};
 
 template <typename T>
 inline bool
 IsForwarded(T *t)
 {
     RelocationOverlay *overlay = RelocationOverlay::fromCell(t);
-    if (!MightBeForwarded<T>::value) {
-        MOZ_ASSERT(!overlay->isForwarded());
-        return false;
-    }
-
     return overlay->isForwarded();
 }
 
@@ -1260,7 +1246,7 @@ inline void
 CheckGCThingAfterMovingGC(T *t)
 {
     MOZ_ASSERT_IF(t, !IsInsideNursery(t));
-    MOZ_ASSERT_IF(t, !RelocationOverlay::isCellForwarded(t));
+    MOZ_ASSERT_IF(t, !IsForwarded(t));
 }
 
 inline void
@@ -1292,14 +1278,14 @@ const int ZealCheckHashTablesOnMinorGC = 13;
 const int ZealCompactValue = 14;
 const int ZealLimit = 14;
 
+extern const char *ZealModeHelpText;
+
 enum VerifierType {
     PreBarrierVerifier,
     PostBarrierVerifier
 };
 
 #ifdef JS_GC_ZEAL
-
-extern const char *ZealModeHelpText;
 
 /* Check that write barriers have been used correctly. See jsgc.cpp. */
 void

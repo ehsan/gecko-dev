@@ -119,10 +119,9 @@ typedef JSConstScalarSpec<int32_t> JSConstIntegerSpec;
 typedef void
 (* JSTraceDataOp)(JSTracer *trc, void *data);
 
+void js_FinishGC(JSRuntime *rt);
+
 namespace js {
-
-void FinishGC(JSRuntime *rt);
-
 namespace gc {
 class StoreBuffer;
 void MarkPersistentRootedChains(JSTracer *);

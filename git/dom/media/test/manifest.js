@@ -737,19 +737,6 @@ function removeNodeAndSource(n) {
   }
 }
 
-function once(target, name, cb) {
-  var p = new Promise(function(resolve, reject) {
-    target.addEventListener(name, function() {
-      target.removeEventListener(name, cb);
-      resolve();
-    });
-  });
-  if (cb) {
-    p.then(cb);
-  }
-  return p;
-}
-
 // Number of tests to run in parallel.
 var PARALLEL_TESTS = 2;
 

@@ -61,6 +61,10 @@ public:
     GetInitialState();
   }
 
+  virtual ~SwitchHandler()
+  {
+  }
+
   bool CheckEvent(NetlinkEvent* aEvent)
   {
     if (strcmp(GetSubsystem(), aEvent->getSubsystem()) ||
@@ -82,10 +86,6 @@ public:
     return mDevice;
   }
 protected:
-  virtual ~SwitchHandler()
-  {
-  }
-
   virtual const char* GetSubsystem()
   {
     return "switch";

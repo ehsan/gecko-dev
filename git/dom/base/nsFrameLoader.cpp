@@ -185,7 +185,7 @@ nsFrameLoader::~nsFrameLoader()
   if (mMessageManager) {
     mMessageManager->Disconnect();
   }
-  MOZ_RELEASE_ASSERT(mDestroyCalled);
+  nsFrameLoader::Destroy();
 }
 
 nsFrameLoader*
@@ -194,7 +194,7 @@ nsFrameLoader::Create(Element* aOwner, bool aNetworkCreated)
   NS_ENSURE_TRUE(aOwner, nullptr);
   nsIDocument* doc = aOwner->OwnerDoc();
   NS_ENSURE_TRUE(!doc->IsResourceDoc() &&
-                 ((!doc->IsLoadedAsData() && aOwner->GetComposedDoc()) ||
+                 ((!doc->IsLoadedAsData() && aOwner->GetUncomposedDoc()) ||
                    doc->IsStaticDocument()),
                  nullptr);
 
@@ -208,7 +208,7 @@ nsFrameLoader::LoadFrame()
 
   nsAutoString src;
 
-  bool isSrcdoc = mOwnerContent->IsHTMLElement(nsGkAtoms::iframe) &&
+  bool isSrcdoc = mOwnerContent->IsHTML(nsGkAtoms::iframe) &&
                   mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::srcdoc);
   if (isSrcdoc) {
     src.AssignLiteral("about:srcdoc");
@@ -222,7 +222,7 @@ nsFrameLoader::LoadFrame()
       // If the frame is a XUL element and has the attribute 'nodefaultsrc=true'
       // then we will not use 'about:blank' as fallback but return early without
       // starting a load if no 'src' attribute is given (or it's empty).
-      if (mOwnerContent->IsXULElement() &&
+      if (mOwnerContent->IsXUL() &&
           mOwnerContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::nodefaultsrc,
                                      nsGkAtoms::_true, eCaseMatters)) {
         return NS_OK;
@@ -349,7 +349,7 @@ private:
 nsresult
 nsFrameLoader::ReallyStartLoadingInternal()
 {
-  NS_ENSURE_STATE(mURIToLoad && mOwnerContent && mOwnerContent->IsInComposedDoc());
+  NS_ENSURE_STATE(mURIToLoad && mOwnerContent && mOwnerContent->IsInDoc());
 
   PROFILER_LABEL("nsFrameLoader", "ReallyStartLoading",
     js::ProfileEntry::Category::OTHER);
@@ -369,7 +369,7 @@ nsFrameLoader::ReallyStartLoadingInternal()
       }
     }
 
-    if (mRemoteBrowserShown || ShowRemoteFrame(ScreenIntSize(0, 0))) {
+    if (mRemoteBrowserShown || ShowRemoteFrame(nsIntSize(0, 0))) {
       // FIXME get error codes from child
       mRemoteBrowser->LoadURL(mURIToLoad);
     } else {
@@ -402,7 +402,7 @@ nsFrameLoader::ReallyStartLoadingInternal()
   nsCOMPtr<nsIURI> referrer;
   
   nsAutoString srcdoc;
-  bool isSrcdoc = mOwnerContent->IsHTMLElement(nsGkAtoms::iframe) &&
+  bool isSrcdoc = mOwnerContent->IsHTML(nsGkAtoms::iframe) &&
                   mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::srcdoc,
                                          srcdoc);
 
@@ -764,7 +764,7 @@ nsFrameLoader::Show(int32_t marginWidth, int32_t marginHeight,
     }
   }
 
-  ScreenIntSize size = frame->GetSubdocumentSize();
+  nsIntSize size = frame->GetSubdocumentSize();
   if (mRemoteFrame) {
     return ShowRemoteFrame(size, frame);
   }
@@ -857,7 +857,7 @@ nsFrameLoader::MarginsChanged(uint32_t aMarginWidth,
 }
 
 bool
-nsFrameLoader::ShowRemoteFrame(const ScreenIntSize& size,
+nsFrameLoader::ShowRemoteFrame(const nsIntSize& size,
                                nsSubDocumentFrame *aFrame)
 {
   NS_ASSERTION(mRemoteFrame, "ShowRemote only makes sense on remote frames.");
@@ -876,12 +876,12 @@ nsFrameLoader::ShowRemoteFrame(const ScreenIntSize& size,
   // want here.  For now, hack.
   if (!mRemoteBrowserShown) {
     if (!mOwnerContent ||
-        !mOwnerContent->GetComposedDoc()) {
+        !mOwnerContent->GetUncomposedDoc()) {
       return false;
     }
 
     nsRefPtr<layers::LayerManager> layerManager =
-      nsContentUtils::LayerManagerForDocument(mOwnerContent->GetComposedDoc());
+      nsContentUtils::LayerManagerForDocument(mOwnerContent->GetUncomposedDoc());
     if (!layerManager) {
       // This is just not going to work.
       return false;
@@ -972,8 +972,8 @@ nsFrameLoader::SwapWithOtherRemoteLoader(nsFrameLoader* aOther,
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsIDocument* ourDoc = ourContent->GetComposedDoc();
-  nsIDocument* otherDoc = otherContent->GetComposedDoc();
+  nsIDocument* ourDoc = ourContent->GetCurrentDoc();
+  nsIDocument* otherDoc = otherContent->GetCurrentDoc();
   if (!ourDoc || !otherDoc) {
     // Again, how odd, given that we had docshells
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -1191,8 +1191,8 @@ nsFrameLoader::SwapWithOtherLoader(nsFrameLoader* aOther,
     otherChildDocument->GetParentDocument();
 
   // Make sure to swap docshells between the two frames.
-  nsIDocument* ourDoc = ourContent->GetComposedDoc();
-  nsIDocument* otherDoc = otherContent->GetComposedDoc();
+  nsIDocument* ourDoc = ourContent->GetUncomposedDoc();
+  nsIDocument* otherDoc = otherContent->GetUncomposedDoc();
   if (!ourDoc || !otherDoc) {
     // Again, how odd, given that we had docshells
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -1612,7 +1612,7 @@ nsFrameLoader::MaybeCreateDocShell()
   // XXXbz this is such a total hack.... We really need to have a
   // better setup for doing this.
   nsIDocument* doc = mOwnerContent->OwnerDoc();
-  if (!(doc->IsStaticDocument() || mOwnerContent->IsInComposedDoc())) {
+  if (!(doc->IsStaticDocument() || mOwnerContent->IsInDoc())) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -1729,7 +1729,7 @@ nsFrameLoader::MaybeCreateDocShell()
   }
 
   if (mIsTopLevelContent &&
-      mOwnerContent->IsXULElement(nsGkAtoms::browser) &&
+      mOwnerContent->IsXUL(nsGkAtoms::browser) &&
       !mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disablehistory)) {
     nsresult rv;
     nsCOMPtr<nsISHistory> sessionHistory =
@@ -1815,7 +1815,7 @@ nsFrameLoader::GetURL(nsString& aURI)
 {
   aURI.Truncate();
 
-  if (mOwnerContent->IsHTMLElement(nsGkAtoms::object)) {
+  if (mOwnerContent->Tag() == nsGkAtoms::object) {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::data, aURI);
   } else {
     mOwnerContent->GetAttr(kNameSpaceID_None, nsGkAtoms::src, aURI);
@@ -1957,7 +1957,7 @@ nsFrameLoader::UpdatePositionAndSize(nsSubDocumentFrame *aIFrame)
 {
   if (mRemoteFrame) {
     if (mRemoteBrowser) {
-      ScreenIntSize size = aIFrame->GetSubdocumentSize();
+      nsIntSize size = aIFrame->GetSubdocumentSize();
       nsIntRect dimensions;
       NS_ENSURE_SUCCESS(GetWindowDimensions(dimensions), NS_ERROR_FAILURE);
       nsIntPoint chromeDisp = aIFrame->GetChromeDisplacement();
@@ -1990,7 +1990,7 @@ nsFrameLoader::UpdateBaseWindowPositionAndSize(nsSubDocumentFrame *aIFrame)
       return;
     }
 
-    ScreenIntSize size = aIFrame->GetSubdocumentSize();
+    nsIntSize size = aIFrame->GetSubdocumentSize();
 
     baseWindow->SetPositionAndSize(x, y, size.width, size.height, false);
   }
@@ -2115,7 +2115,7 @@ nsFrameLoader::TryRemoteBrowser()
       return false;
     }
 
-    if (!mOwnerContent->IsXULElement()) {
+    if (!mOwnerContent->IsXUL()) {
       return false;
     }
 
@@ -2146,15 +2146,24 @@ nsFrameLoader::TryRemoteBrowser()
   MutableTabContext context;
   nsCOMPtr<mozIApplication> ownApp = GetOwnApp();
   nsCOMPtr<mozIApplication> containingApp = GetContainingApp();
+  ScrollingBehavior scrollingBehavior = DEFAULT_SCROLLING;
+
+  if (Preferences::GetBool("layers.async-pan-zoom.enabled", false) ||
+      mOwnerContent->AttrValueIs(kNameSpaceID_None,
+                                 nsGkAtoms::mozasyncpanzoom,
+                                 nsGkAtoms::_true,
+                                 eCaseMatters)) {
+    scrollingBehavior = ASYNC_PAN_ZOOM;
+  }
 
   bool rv = true;
   if (ownApp) {
-    rv = context.SetTabContextForAppFrame(ownApp, containingApp);
+    rv = context.SetTabContextForAppFrame(ownApp, containingApp, scrollingBehavior);
   } else if (OwnerIsBrowserFrame()) {
     // The |else| above is unnecessary; OwnerIsBrowserFrame() implies !ownApp.
-    rv = context.SetTabContextForBrowserFrame(containingApp);
+    rv = context.SetTabContextForBrowserFrame(containingApp, scrollingBehavior);
   } else {
-    rv = context.SetTabContextForNormalFrame();
+    rv = context.SetTabContextForNormalFrame(scrollingBehavior);
   }
   NS_ENSURE_TRUE(rv, false);
 
@@ -2415,7 +2424,7 @@ nsFrameLoader::EnsureMessageManager()
   if (!mIsTopLevelContent &&
       !OwnerIsBrowserOrAppFrame() &&
       !mRemoteFrame &&
-      !(mOwnerContent->IsXULElement() &&
+      !(mOwnerContent->IsXUL() &&
         mOwnerContent->AttrValueIs(kNameSpaceID_None,
                                    nsGkAtoms::forcemessagemanager,
                                    nsGkAtoms::_true, eCaseMatters))) {
@@ -2436,7 +2445,7 @@ nsFrameLoader::EnsureMessageManager()
 
   if (chromeWindow) {
     nsAutoString messagemanagergroup;
-    if (mOwnerContent->IsXULElement() &&
+    if (mOwnerContent->IsXUL() &&
         mOwnerContent->GetAttr(kNameSpaceID_None,
                                nsGkAtoms::messagemanagergroup,
                                messagemanagergroup)) {
@@ -2494,7 +2503,7 @@ nsFrameLoader::SetRemoteBrowser(nsITabParent* aTabParent)
   mRemoteFrame = true;
   mRemoteBrowser = TabParent::GetFrom(aTabParent);
   mChildID = mRemoteBrowser ? mRemoteBrowser->Manager()->ChildID() : 0;
-  ShowRemoteFrame(ScreenIntSize(0, 0));
+  ShowRemoteFrame(nsIntSize(0, 0));
 }
 
 void
@@ -2665,40 +2674,17 @@ nsFrameLoader::RequestNotifyAfterRemotePaint()
   // If remote browsing (e10s), handle this with the TabParent.
   if (mRemoteBrowser) {
     unused << mRemoteBrowser->SendRequestNotifyAfterRemotePaint();
+    return NS_OK;
   }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameLoader::RequestNotifyLayerTreeReady()
-{
-  if (mRemoteBrowser) {
-    return mRemoteBrowser->RequestNotifyLayerTreeReady() ? NS_OK : NS_ERROR_NOT_AVAILABLE;
+  // If not remote browsing, directly use the document's window.
+  nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mDocShell);
+  if (!window) {
+    NS_WARNING("Unable to get window for synchronous MozAfterRemotePaint event.");
+    return NS_OK;
   }
 
-  nsRefPtr<AsyncEventDispatcher> event =
-    new AsyncEventDispatcher(mOwnerContent,
-                             NS_LITERAL_STRING("MozLayerTreeReady"),
-                             true, false);
-  event->PostDOMEvent();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameLoader::RequestNotifyLayerTreeCleared()
-{
-  if (mRemoteBrowser) {
-    return mRemoteBrowser->RequestNotifyLayerTreeCleared() ? NS_OK : NS_ERROR_NOT_AVAILABLE;
-  }
-
-  nsRefPtr<AsyncEventDispatcher> event =
-    new AsyncEventDispatcher(mOwnerContent,
-                             NS_LITERAL_STRING("MozLayerTreeCleared"),
-                             true, false);
-  event->PostDOMEvent();
-
+  window->SetRequestNotifyAfterRemotePaint();
   return NS_OK;
 }
 

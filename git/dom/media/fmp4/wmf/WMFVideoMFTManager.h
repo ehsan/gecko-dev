@@ -61,6 +61,8 @@ private:
   RefPtr<MFTDecoder> mDecoder;
   RefPtr<layers::ImageContainer> mImageContainer;
   nsAutoPtr<DXVA2Manager> mDXVA2Manager;
+  RefPtr<FlushableMediaTaskQueue> mTaskQueue;
+  MediaDataDecoderCallback* mCallback;
 
   const bool mDXVAEnabled;
   const layers::LayersBackend mLayersBackend;

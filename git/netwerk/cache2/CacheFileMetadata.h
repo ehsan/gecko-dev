@@ -186,12 +186,9 @@ private:
   char                               *mWriteBuf;
   CacheFileMetadataHeader             mMetaHdr;
   uint32_t                            mElementsSize;
-  bool                                mIsDirty        : 1;
-  bool                                mAnonymous      : 1;
-  bool                                mInBrowser      : 1;
-  bool                                mAllocExactSize : 1;
-  bool                                mFirstRead      : 1;
-  mozilla::TimeStamp                  mReadStart;
+  bool                                mIsDirty;
+  bool                                mAnonymous;
+  bool                                mInBrowser;
   uint32_t                            mAppId;
   nsCOMPtr<CacheFileMetadataListener> mListener;
 };

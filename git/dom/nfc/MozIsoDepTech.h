@@ -45,7 +45,7 @@ private:
   nsRefPtr<nsPIDOMWindow> mWindow;
   nsRefPtr<MozNFCTag> mTag;
 
-  static const NFCTechType mTechnology;
+  static const NFCTechType mTechnology = NFCTechType::ISO_DEP;
 };
 
 } // namespace dom

@@ -187,7 +187,6 @@ MarkerDetails.prototype = {
 
       if (displayName) {
         let functionLabel = this._document.createElement("label");
-        functionLabel.className = "devtools-monospace";
         functionLabel.setAttribute("value", displayName);
         hbox.appendChild(functionLabel);
       }

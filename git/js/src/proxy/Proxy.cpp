@@ -35,7 +35,7 @@ js::AutoEnterPolicy::reportErrorIfExceptionIsNotPending(JSContext *cx, jsid id)
         return;
 
     if (JSID_IS_VOID(id)) {
-        JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                              JSMSG_OBJECT_ACCESS_DENIED);
     } else {
         RootedValue idVal(cx, IdToValue(id));
@@ -48,7 +48,7 @@ js::AutoEnterPolicy::reportErrorIfExceptionIsNotPending(JSContext *cx, jsid id)
         if (str->ensureFlat(cx) && chars.initTwoByte(cx, str))
             prop = chars.twoByteChars();
 
-        JS_ReportErrorNumberUC(cx, GetErrorMessage, nullptr, JSMSG_PROPERTY_ACCESS_DENIED,
+        JS_ReportErrorNumberUC(cx, js_GetErrorMessage, nullptr, JSMSG_PROPERTY_ACCESS_DENIED,
                                prop);
     }
 }
@@ -134,17 +134,14 @@ Proxy::getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
 
 bool
 Proxy::defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                      MutableHandle<PropertyDescriptor> desc, ObjectOpResult &result)
+                      MutableHandle<PropertyDescriptor> desc)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
     AutoEnterPolicy policy(cx, handler, proxy, id, BaseProxyHandler::SET, true);
-    if (!policy.allowed()) {
-        if (!policy.returnValue())
-            return false;
-        return result.succeed();
-    }
-    return proxy->as<ProxyObject>().handler()->defineProperty(cx, proxy, id, desc, result);
+    if (!policy.allowed())
+        return policy.returnValue();
+    return proxy->as<ProxyObject>().handler()->defineProperty(cx, proxy, id, desc);
 }
 
 bool
@@ -159,18 +156,15 @@ Proxy::ownPropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 }
 
 bool
-Proxy::delete_(JSContext *cx, HandleObject proxy, HandleId id, ObjectOpResult &result)
+Proxy::delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
+    *bp = true; // default result if we refuse to perform this action
     AutoEnterPolicy policy(cx, handler, proxy, id, BaseProxyHandler::SET, true);
-    if (!policy.allowed()) {
-        bool ok = policy.returnValue();
-        if (ok)
-            result.succeed();
-        return ok;
-    }
-    return proxy->as<ProxyObject>().handler()->delete_(cx, proxy, id, result);
+    if (!policy.allowed())
+        return policy.returnValue();
+    return proxy->as<ProxyObject>().handler()->delete_(cx, proxy, id, bp);
 }
 
 JS_FRIEND_API(bool)
@@ -194,19 +188,19 @@ js::AppendUnique(JSContext *cx, AutoIdVector &base, AutoIdVector &others)
 }
 
 /* static */ bool
-Proxy::getPrototype(JSContext *cx, HandleObject proxy, MutableHandleObject proto)
+Proxy::getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject proto)
 {
     MOZ_ASSERT(proxy->hasLazyPrototype());
     JS_CHECK_RECURSION(cx, return false);
-    return proxy->as<ProxyObject>().handler()->getPrototype(cx, proxy, proto);
+    return proxy->as<ProxyObject>().handler()->getPrototypeOf(cx, proxy, proto);
 }
 
 /* static */ bool
-Proxy::setPrototype(JSContext *cx, HandleObject proxy, HandleObject proto, ObjectOpResult &result)
+Proxy::setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto, bool *bp)
 {
     MOZ_ASSERT(proxy->hasLazyPrototype());
     JS_CHECK_RECURSION(cx, return false);
-    return proxy->as<ProxyObject>().handler()->setPrototype(cx, proxy, proto, result);
+    return proxy->as<ProxyObject>().handler()->setPrototypeOf(cx, proxy, proto, bp);
 }
 
 /* static */ bool
@@ -218,11 +212,11 @@ Proxy::setImmutablePrototype(JSContext *cx, HandleObject proxy, bool *succeeded)
 }
 
 /* static */ bool
-Proxy::preventExtensions(JSContext *cx, HandleObject proxy, ObjectOpResult &result)
+Proxy::preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
-    return handler->preventExtensions(cx, proxy, result);
+    return handler->preventExtensions(cx, proxy, succeeded);
 }
 
 /* static */ bool
@@ -307,23 +301,20 @@ Proxy::callProp(JSContext *cx, HandleObject proxy, HandleObject receiver, Handle
 }
 
 bool
-Proxy::set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-           MutableHandleValue vp, ObjectOpResult &result)
+Proxy::set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id, bool strict,
+           MutableHandleValue vp)
 {
     JS_CHECK_RECURSION(cx, return false);
     const BaseProxyHandler *handler = proxy->as<ProxyObject>().handler();
     AutoEnterPolicy policy(cx, handler, proxy, id, BaseProxyHandler::SET, true);
-    if (!policy.allowed()) {
-        if (!policy.returnValue())
-            return false;
-        return result.succeed();
-    }
+    if (!policy.allowed())
+        return policy.returnValue();
 
     // Special case. See the comment on BaseProxyHandler::mHasPrototype.
     if (handler->hasPrototype())
-        return handler->BaseProxyHandler::set(cx, proxy, receiver, id, vp, result);
+        return handler->BaseProxyHandler::set(cx, proxy, receiver, id, strict, vp);
 
-    return handler->set(cx, proxy, receiver, id, vp, result);
+    return handler->set(cx, proxy, receiver, id, strict, vp);
 }
 
 bool
@@ -560,8 +551,7 @@ js::proxy_LookupProperty(JSContext *cx, HandleObject obj, HandleId id,
 
 bool
 js::proxy_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                         GetterOp getter, SetterOp setter, unsigned attrs,
-                         ObjectOpResult &result)
+                         PropertyOp getter, StrictPropertyOp setter, unsigned attrs)
 {
     Rooted<PropertyDescriptor> desc(cx);
     desc.object().set(obj);
@@ -569,7 +559,7 @@ js::proxy_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
     desc.setAttributes(attrs);
     desc.setGetter(getter);
     desc.setSetter(setter);
-    return Proxy::defineProperty(cx, obj, id, &desc, result);
+    return Proxy::defineProperty(cx, obj, id, &desc);
 }
 
 bool
@@ -587,9 +577,9 @@ js::proxy_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, Ha
 
 bool
 js::proxy_SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
-                      MutableHandleValue vp, ObjectOpResult &result)
+                      MutableHandleValue vp, bool strict)
 {
-    return Proxy::set(cx, obj, receiver, id, vp, result);
+    return Proxy::set(cx, obj, receiver, id, strict, vp);
 }
 
 bool
@@ -600,11 +590,13 @@ js::proxy_GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 bool
-js::proxy_DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, ObjectOpResult &result)
+js::proxy_DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
-    if (!Proxy::delete_(cx, obj, id, result))
+    bool deleted;
+    if (!Proxy::delete_(cx, obj, id, &deleted))
         return false;
-    return SuppressDeletedProperty(cx, obj, id); // XXX is this necessary?
+    *succeeded = deleted;
+    return SuppressDeletedProperty(cx, obj, id);
 }
 
 void
@@ -618,8 +610,6 @@ js::proxy_Trace(JSTracer *trc, JSObject *obj)
 ProxyObject::trace(JSTracer *trc, JSObject *obj)
 {
     ProxyObject *proxy = &obj->as<ProxyObject>();
-
-    MarkShape(trc, &proxy->shape, "ProxyObject_shape");
 
 #ifdef DEBUG
     if (trc->runtime()->gc.isStrictProxyCheckingEnabled() && proxy->is<WrapperObject>()) {
@@ -738,21 +728,22 @@ const Class* const js::ProxyClassPtr = &js::ProxyObject::class_;
 
 JS_FRIEND_API(JSObject *)
 js::NewProxyObject(JSContext *cx, const BaseProxyHandler *handler, HandleValue priv, JSObject *proto_,
-                   const ProxyOptions &options)
+                   JSObject *parent_, const ProxyOptions &options)
 {
     if (options.lazyProto()) {
         MOZ_ASSERT(!proto_);
         proto_ = TaggedProto::LazyProto;
     }
 
-    return ProxyObject::New(cx, handler, priv, TaggedProto(proto_), options);
+    return ProxyObject::New(cx, handler, priv, TaggedProto(proto_), parent_,
+                            options);
 }
 
 void
 ProxyObject::renew(JSContext *cx, const BaseProxyHandler *handler, Value priv)
 {
     MOZ_ASSERT_IF(IsCrossCompartmentWrapper(this), IsDeadProxyObject(this));
-    assertParentIs(cx->global());
+    MOZ_ASSERT(getParent() == cx->global());
     MOZ_ASSERT(getClass() == &ProxyObject::class_);
     MOZ_ASSERT(!getClass()->ext.innerObject);
     MOZ_ASSERT(hasLazyPrototype());
@@ -764,7 +755,7 @@ ProxyObject::renew(JSContext *cx, const BaseProxyHandler *handler, Value priv)
 }
 
 JS_FRIEND_API(JSObject *)
-js::InitProxyClass(JSContext *cx, HandleObject obj)
+js_InitProxyClass(JSContext *cx, HandleObject obj)
 {
     static const JSFunctionSpec static_methods[] = {
         JS_FN("create",         proxy_create,          2, 0),

@@ -481,12 +481,7 @@ class TypedArrayMethods
     typedef typename SomeTypedArray::template OfType<uint8_clamped>::Type Uint8ClampedArrayType;
 
   public:
-    // subarray(start[, end])
-    // %TypedArray%.prototype.subarray is a self-hosted method, so this code is
-    // only used for shared typed arrays.  We should self-host both methods
-    // eventually (but note TypedArraySubarray will require changes to be used
-    // with shared typed arrays), but we need to rejigger the shared typed
-    // array prototype chain before we can do that.
+    /* subarray(start[, end]) */
     static bool
     subarray(JSContext *cx, CallArgs args)
     {
@@ -512,7 +507,7 @@ class TypedArrayMethods
             begin = end;
 
         if (begin > tarray->length() || end > tarray->length() || begin > end) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_INDEX);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_INDEX);
             return false;
         }
 
@@ -574,11 +569,6 @@ class TypedArrayMethods
 
     /* copyWithin(target, start[, end]) */
     // ES6 draft rev 26, 22.2.3.5
-    // %TypedArray%.prototype.copyWithin is a self-hosted method, so this code
-    // is only used for shared typed arrays.  We should self-host both methods
-    // eventually (but note TypedArrayCopyWithin will require changes to be
-    // usable for shared typed arrays), but we need to rejigger the shared
-    // typed array prototype chain before we can do that.
     static bool
     copyWithin(JSContext *cx, CallArgs args)
     {
@@ -632,7 +622,7 @@ class TypedArrayMethods
             count > lengthDuringMove - from ||
             count > lengthDuringMove - to)
         {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
             return false;
         }
 
@@ -675,7 +665,7 @@ class TypedArrayMethods
 
         // The first argument must be either a typed array or arraylike.
         if (args.length() == 0 || !args[0].isObject()) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);
             return false;
         }
 
@@ -686,7 +676,7 @@ class TypedArrayMethods
 
             if (offset < 0 || uint32_t(offset) > target->length()) {
                 // the given offset is bogus
-                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr,
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                                      JSMSG_TYPED_ARRAY_BAD_INDEX, "2");
                 return false;
             }
@@ -695,7 +685,7 @@ class TypedArrayMethods
         RootedObject arg0(cx, &args[0].toObject());
         if (IsAnyTypedArray(arg0)) {
             if (AnyTypedArrayLength(arg0) > target->length() - offset) {
-                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
                 return false;
             }
 
@@ -707,7 +697,7 @@ class TypedArrayMethods
                 return false;
 
             if (uint32_t(offset) > target->length() || len > target->length() - offset) {
-                JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_BAD_ARRAY_LENGTH);
                 return false;
             }
 

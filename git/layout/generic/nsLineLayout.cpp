@@ -207,10 +207,10 @@ nsLineLayout::BeginLineReflow(nscoord aICoord, nscoord aBCoord,
   psd->mIEnd = aICoord + aISize;
   mContainerSize = aContainerSize;
 
-  // If we're in a constrained block-size frame, then we don't allow a
+  // If we're in a constrained height frame, then we don't allow a
   // max line box width to take effect.
   if (!(LineContainerFrame()->GetStateBits() &
-        NS_FRAME_IN_CONSTRAINED_BSIZE)) {
+        NS_FRAME_IN_CONSTRAINED_HEIGHT)) {
 
     // If the available size is greater than the maximum line box width (if
     // specified), then we need to adjust the line box width to be at the max
@@ -457,7 +457,7 @@ nsLineLayout::BeginSpan(nsIFrame* aFrame,
   nsIFrame* frame = aSpanReflowState->frame;
   psd->mNoWrap = !frame->StyleText()->WhiteSpaceCanWrap(frame) ||
                  mSuppressLineWrap ||
-                 frame->StyleContext()->ShouldSuppressLineBreak();
+                 frame->StyleContext()->IsInlineDescendantOfRuby();
   psd->mWritingMode = aSpanReflowState->GetWritingMode();
 
   // Switch to new span
@@ -1019,6 +1019,8 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     } else {
       if (nsGkAtoms::letterFrame==frameType) {
         pfd->mIsLetterFrame = true;
+      } else if (nsGkAtoms::rubyFrame == frameType) {
+        SyncAnnotationBounds(pfd);
       }
       if (pfd->mSpan) {
         isEmpty = !pfd->mSpan->mHasNonemptyContent && pfd->mFrame->IsSelfEmpty();
@@ -1125,7 +1127,6 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
         }
         if (nsGkAtoms::rubyFrame == frameType) {
           mHasRuby = true;
-          SyncAnnotationBounds(pfd);
         }
       }
 
@@ -1442,17 +1443,11 @@ nsLineLayout::PlaceFrame(PerFrameData* pfd, nsHTMLReflowMetrics& aMetrics)
 {
   WritingMode lineWM = mRootSpan->mWritingMode;
 
-  // If the frame's block direction does not match the line's, we can't use
-  // its ascent; instead, treat it as a block with baseline at the block-end
-  // edge (or block-begin in the case of an "inverted" line).
-  if (pfd->mFrame->GetWritingMode().GetBlockDir() != lineWM.GetBlockDir()) {
-    pfd->mAscent = lineWM.IsLineInverted() ? 0 : aMetrics.BSize(lineWM);
+  // Record ascent and update max-ascent and max-descent values
+  if (aMetrics.BlockStartAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
+    pfd->mAscent = pfd->mFrame->GetLogicalBaseline(lineWM);
   } else {
-    if (aMetrics.BlockStartAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
-      pfd->mAscent = pfd->mFrame->GetLogicalBaseline(lineWM);
-    } else {
-      pfd->mAscent = aMetrics.BlockStartAscent();
-    }
+    pfd->mAscent = aMetrics.BlockStartAscent();
   }
 
   // Advance to next inline coordinate
@@ -2168,10 +2163,8 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
       // "raises" the box by the given distance while a negative value
       // "lowers" the box by the given distance (with zero being the
       // baseline). Since Y coordinates increase towards the bottom of
-      // the screen we reverse the sign, unless the line orientation is
-      // inverted relative to block direction.
-      nscoord revisedBaselineBCoord = baselineBCoord - offset *
-        lineWM.FlowRelativeToLineRelativeFactor();
+      // the screen we reverse the sign.
+      nscoord revisedBaselineBCoord = baselineBCoord - offset;
       pfd->mBounds.BStart(lineWM) = revisedBaselineBCoord - pfd->mAscent;
       pfd->mBlockDirAlign = VALIGN_OTHER;
     }
@@ -2266,10 +2259,11 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
     if (!applyMinLH && isLastLine) {
       nsIContent* blockContent = mRootSpan->mFrame->mFrame->GetContent();
       if (blockContent) {
+        nsIAtom *blockTagAtom = blockContent->Tag();
         // (3) above, if the last line of LI, DT, or DD
-        if (blockContent->IsAnyOfHTMLElements(nsGkAtoms::li,
-                                              nsGkAtoms::dt,
-                                              nsGkAtoms::dd)) {
+        if (blockTagAtom == nsGkAtoms::li ||
+            blockTagAtom == nsGkAtoms::dt ||
+            blockTagAtom == nsGkAtoms::dd) {
           applyMinLH = true;
         }
       }
@@ -2790,13 +2784,8 @@ nsLineLayout::AdvanceAnnotationInlineBounds(PerFrameData* aPFD,
       // This ruby text container is a span.
       (psd->mFirstFrame == psd->mLastFrame && psd->mFirstFrame &&
        !psd->mFirstFrame->mIsLinkedToBase)) {
-    // For ruby text frames, only increase frames
-    // which are not auto-hidden.
-    if (frameType != nsGkAtoms::rubyTextFrame ||
-        !static_cast<nsRubyTextFrame*>(frame)->IsAutoHidden()) {
-      nscoord reservedISize = RubyUtils::GetReservedISize(frame);
-      RubyUtils::SetReservedISize(frame, reservedISize + aDeltaISize);
-    }
+    nscoord reservedISize = RubyUtils::GetReservedISize(frame);
+    RubyUtils::SetReservedISize(frame, reservedISize + aDeltaISize);
   } else {
     // It is a normal ruby text container. Its children will expand
     // themselves properly. We only need to expand its own size here.
@@ -2808,15 +2797,17 @@ nsLineLayout::AdvanceAnnotationInlineBounds(PerFrameData* aPFD,
 /**
  * This function applies the changes of icoord and isize caused by
  * justification to annotations of the given frame.
+ * aPFD must be one of the frames in aContainingSpan.
  */
 void
 nsLineLayout::ApplyLineJustificationToAnnotations(PerFrameData* aPFD,
+                                                  PerSpanData* aContainingSpan,
                                                   nscoord aDeltaICoord,
                                                   nscoord aDeltaISize)
 {
   PerFrameData* pfd = aPFD->mNextAnnotation;
+  nscoord containerWidth = ContainerWidthForSpan(aContainingSpan);
   while (pfd) {
-    nscoord containerWidth = pfd->mFrame->GetParent()->GetRect().Width();
     AdvanceAnnotationInlineBounds(pfd, containerWidth,
                                   aDeltaICoord, aDeltaISize);
 
@@ -2885,7 +2876,8 @@ nsLineLayout::ApplyFrameJustification(PerSpanData* aPSD,
 
       // The gaps added to the end of the frame should also be
       // excluded from the isize added to the annotation.
-      ApplyLineJustificationToAnnotations(pfd, deltaICoord, dw - gapsAtEnd);
+      ApplyLineJustificationToAnnotations(pfd, aPSD,
+                                          deltaICoord, dw - gapsAtEnd);
       deltaICoord += dw;
       pfd->mFrame->SetRect(lineWM, pfd->mBounds, ContainerWidthForSpan(aPSD));
     }
@@ -2896,14 +2888,11 @@ nsLineLayout::ApplyFrameJustification(PerSpanData* aPSD,
 static nsIFrame*
 FindNearestRubyBaseAncestor(nsIFrame* aFrame)
 {
-  MOZ_ASSERT(aFrame->StyleContext()->ShouldSuppressLineBreak());
+  MOZ_ASSERT(aFrame->StyleContext()->IsInlineDescendantOfRuby());
   while (aFrame && aFrame->GetType() != nsGkAtoms::rubyBaseFrame) {
     aFrame = aFrame->GetParent();
   }
-  // XXX It is possible that no ruby base ancestor is found because of
-  // some edge cases like form control or canvas inside ruby text.
-  // See bug 1138092 comment 4.
-  NS_ASSERTION(aFrame, "No ruby base ancestor?");
+  MOZ_ASSERT(aFrame, "No ruby base ancestor?");
   return aFrame;
 }
 
@@ -3071,19 +3060,19 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
     ComputeFrameJustification(psd, computeState);
     if (mHasRuby && computeState.mFirstParticipant) {
       PerFrameData* firstFrame = computeState.mFirstParticipant;
-      if (firstFrame->mFrame->StyleContext()->ShouldSuppressLineBreak()) {
+      if (firstFrame->mFrame->StyleContext()->IsInlineDescendantOfRuby()) {
         MOZ_ASSERT(!firstFrame->mJustificationAssignment.mGapsAtStart);
         nsIFrame* rubyBase = FindNearestRubyBaseAncestor(firstFrame->mFrame);
-        if (rubyBase && IsRubyAlignSpaceAround(rubyBase)) {
+        if (IsRubyAlignSpaceAround(rubyBase)) {
           firstFrame->mJustificationAssignment.mGapsAtStart = 1;
           additionalGaps++;
         }
       }
       PerFrameData* lastFrame = computeState.mLastParticipant;
-      if (lastFrame->mFrame->StyleContext()->ShouldSuppressLineBreak()) {
+      if (lastFrame->mFrame->StyleContext()->IsInlineDescendantOfRuby()) {
         MOZ_ASSERT(!lastFrame->mJustificationAssignment.mGapsAtEnd);
         nsIFrame* rubyBase = FindNearestRubyBaseAncestor(lastFrame->mFrame);
-        if (rubyBase && IsRubyAlignSpaceAround(rubyBase)) {
+        if (IsRubyAlignSpaceAround(rubyBase)) {
           lastFrame->mJustificationAssignment.mGapsAtEnd = 1;
           additionalGaps++;
         }
@@ -3272,7 +3261,7 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
         if (pfd->mRecomputeOverflow ||
             frame->StyleContext()->HasTextDecorationLines()) {
           nsTextFrame* f = static_cast<nsTextFrame*>(frame);
-          r = f->RecomputeOverflow(mBlockReflowState->frame);
+          r = f->RecomputeOverflow(*mBlockReflowState);
         }
         frame->FinishAndStoreOverflow(r, frame->GetSize());
       }

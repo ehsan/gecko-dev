@@ -199,7 +199,6 @@ this.DOMApplicationRegistry = {
   allAppsLaunchable: false,
   _updateHandlers: [ ],
   _pendingUninstalls: {},
-  _contentActions: new Map(),
   dirKey: DIRECTORY_NAME,
 
   init: function() {
@@ -210,7 +209,6 @@ this.DOMApplicationRegistry = {
                      "Webapps:GetInstalled",
                      "Webapps:GetNotInstalled",
                      "Webapps:Launch",
-                     "Webapps:LocationChange",
                      "Webapps:InstallPackage",
                      "Webapps:GetList",
                      "Webapps:RegisterForMessages",
@@ -251,8 +249,7 @@ this.DOMApplicationRegistry = {
     this.loadAndUpdateApps();
 
     Langpacks.registerRegistryFunctions(this.broadcastMessage.bind(this),
-                                        this._appIdForManifestURL.bind(this),
-                                        this.getFullAppByManifestURL.bind(this));
+                                        this._appIdForManifestURL.bind(this));
   },
 
   // loads the current registry, that could be empty on first run.
@@ -394,11 +391,8 @@ this.DOMApplicationRegistry = {
 
   _saveWidgetsFullPath: function(aManifest, aDestApp) {
     if (aManifest.widgetPages) {
-      let resolve = (aPage)=>{
-        let filepath = AppsUtils.getFilePath(aPage);
-        return Services.io.newURI(aManifest.resolveURL(filepath), null, null);
-      };
-      aDestApp.widgetPages = aManifest.widgetPages.map(resolve);
+      aDestApp.widgetPages = aManifest.widgetPages.map(aManifest.resolveURL,
+                                                       aManifest/* thisArg */);
     } else {
       aDestApp.widgetPages = [];
     }
@@ -1390,9 +1384,6 @@ this.DOMApplicationRegistry = {
           break;
         case "Webapps:Launch":
           this.doLaunch(msg, mm);
-          break;
-        case "Webapps:LocationChange":
-          this.onLocationChange(msg.oid);
           break;
         case "Webapps:CheckInstalled":
           this.checkInstalled(msg, mm);
@@ -2534,7 +2525,6 @@ this.DOMApplicationRegistry = {
       aMm.sendAsyncMessage("Webapps:Install:Return:KO", aData);
       Cu.reportError("Error installing app from: " + app.installOrigin +
                      ": " + aError);
-      this.popContentAction(aData.oid);
     }.bind(this);
 
     if (app.receipts.length > 0) {
@@ -2596,27 +2586,17 @@ this.DOMApplicationRegistry = {
 
     let installApp = (function() {
       app.manifestHash = this.computeManifestHash(app.manifest);
-
-      // Check to see if the action has been cancelled in the interim.
-      let cancelled = this.actionCancelled(aData.oid);
-      this.popContentAction(aData.oid);
-      if (!cancelled) {
-        // We allow bypassing the install confirmation process to facilitate
-        // automation.
-        let prefName = "dom.mozApps.auto_confirm_install";
-        if (Services.prefs.prefHasUserValue(prefName) &&
-            Services.prefs.getBoolPref(prefName)) {
-          this.confirmInstall(aData);
-        } else {
-          Services.obs.notifyObservers(aMm, "webapps-ask-install",
-                                       JSON.stringify(aData));
-        }
+      // We allow bypassing the install confirmation process to facilitate
+      // automation.
+      let prefName = "dom.mozApps.auto_confirm_install";
+      if (Services.prefs.prefHasUserValue(prefName) &&
+          Services.prefs.getBoolPref(prefName)) {
+        this.confirmInstall(aData);
+      } else {
+        Services.obs.notifyObservers(aMm, "webapps-ask-install",
+                                     JSON.stringify(aData));
       }
     }).bind(this);
-
-    // This action will be popped on success in installApp, or on
-    // failure in sendError.
-    this.pushContentAction(aData.oid);
 
     // We may already have the manifest (e.g. AutoInstall),
     // in which case we don't need to load it.
@@ -2689,7 +2669,6 @@ this.DOMApplicationRegistry = {
       aMm.sendAsyncMessage("Webapps:Install:Return:KO", aData);
       Cu.reportError("Error installing packaged app from: " +
                      app.installOrigin + ": " + aError);
-      this.popContentAction(aData.oid);
     }.bind(this);
 
     if (app.receipts.length > 0) {
@@ -2728,26 +2707,17 @@ this.DOMApplicationRegistry = {
     let installApp = (function() {
       app.manifestHash = this.computeManifestHash(app.updateManifest);
 
-      // Check to see if the action has been cancelled in the interim.
-      let cancelled = this.actionCancelled(aData.oid);
-      this.popContentAction(aData.oid);
-      if (!cancelled) {
-        // We allow bypassing the install confirmation process to facilitate
-        // automation.
-        let prefName = "dom.mozApps.auto_confirm_install";
-        if (Services.prefs.prefHasUserValue(prefName) &&
-            Services.prefs.getBoolPref(prefName)) {
-          this.confirmInstall(aData);
-        } else {
-          Services.obs.notifyObservers(aMm, "webapps-ask-install",
-                                       JSON.stringify(aData));
-        }
+      // We allow bypassing the install confirmation process to facilitate
+      // automation.
+      let prefName = "dom.mozApps.auto_confirm_install";
+      if (Services.prefs.prefHasUserValue(prefName) &&
+          Services.prefs.getBoolPref(prefName)) {
+        this.confirmInstall(aData);
+      } else {
+        Services.obs.notifyObservers(aMm, "webapps-ask-install",
+                                     JSON.stringify(aData));
       }
     }).bind(this);
-
-    // This action will be popped on success in installApp, or on
-    // failure in sendError.
-    this.pushContentAction(aData.oid);
 
     // We may already have the manifest (e.g. AutoInstall),
     // in which case we don't need to load it.
@@ -2795,42 +2765,6 @@ this.DOMApplicationRegistry = {
     }).bind(this), false);
 
     xhr.send(null);
-  },
-
-  onLocationChange(oid) {
-    let action = this._contentActions.get(oid);
-    if (action) {
-      action.cancelled = true;
-    }
-  },
-
-  pushContentAction: function(windowID) {
-    let actions = this._contentActions.get(windowID);
-    if (!actions) {
-      actions = {
-        count: 0,
-        cancelled: false,
-      };
-      this._contentActions.set(windowID, actions);
-    }
-    actions.count++;
-  },
-
-  popContentAction: function(windowID) {
-    let actions = this._contentActions.get(windowID);
-    if (!actions) {
-      Cu.reportError(`Failed to pop content action for window with ID ${windowID}`);
-      return;
-    }
-    actions.count--;
-    if (!actions.count) {
-      this._contentActions.delete(windowID);
-    }
-  },
-
-  actionCancelled: function(windowID) {
-    return this._contentActions.has(windowID) &&
-           this._contentActions.get(windowID).cancelled;
   },
 
   denyInstall: function(aData) {
@@ -4671,30 +4605,6 @@ this.DOMApplicationRegistry = {
 
   getAppByManifestURL: function(aManifestURL) {
     return AppsUtils.getAppByManifestURL(this.webapps, aManifestURL);
-  },
-
-  // Returns a promise that resolves to the app object with the manifest.
-  getFullAppByManifestURL: function(aManifestURL, aEntryPoint) {
-    let app = this.getAppByManifestURL(aManifestURL);
-    if (!app) {
-      return Promise.reject("NoSuchApp");
-    }
-
-    return this.getManifestFor(aManifestURL).then((aManifest) => {
-      let manifest = aEntryPoint && aManifest.entry_points &&
-                     aManifest.entry_points[aEntryPoint]
-        ? aManifest.entry_points[aEntryPoint]
-        : aManifest;
-
-      // `version` doesn't change based on entry points, and we need it
-      // to check langpack versions.
-      if (manifest !== aManifest) {
-        manifest.version = aManifest.version;
-      }
-
-      app.manifest = new ManifestHelper(manifest, app.origin, app.manifestURL);
-      return app;
-    });
   },
 
   _getAppWithManifest: Task.async(function*(aManifestURL) {

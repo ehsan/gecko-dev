@@ -15,7 +15,6 @@
 #include "jsapi.h"
 
 #include "gc/Barrier.h"
-#include "gc/Marking.h"
 
 #include "js/RootingAPI.h"
 #include "js/TypeDecls.h"
@@ -34,11 +33,7 @@ class Symbol : public js::gc::TenuredCell
     uint64_t unused2_;
 
     Symbol(SymbolCode code, JSAtom *desc)
-        : code_(code), description_(desc)
-    {
-        // Silence warnings about unused2 being... unused.
-        (void)unused2_;
-    }
+        : code_(code), description_(desc) {}
 
     Symbol(const Symbol &) = delete;
     void operator=(const Symbol &) = delete;
@@ -56,10 +51,7 @@ class Symbol : public js::gc::TenuredCell
     bool isWellKnownSymbol() const { return uint32_t(code_) < WellKnownSymbolLimit; }
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SYMBOL; }
-    inline void markChildren(JSTracer *trc) {
-        if (description_)
-            js::gc::MarkStringUnbarriered(trc, &description_, "description");
-    }
+    inline void markChildren(JSTracer *trc);
     inline void finalize(js::FreeOp *) {}
 
 #ifdef DEBUG

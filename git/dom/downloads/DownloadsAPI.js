@@ -21,12 +21,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "volumeService",
                                    "@mozilla.org/telephony/volume-service;1",
                                     "nsIVolumeService");
 
-/**
-  * The content process implementations of navigator.mozDownloadManager and its
-  * DOMDownload download objects.  Uses DownloadsIPC.jsm to communicate with
-  * DownloadsAPI.jsm in the parent process.
-  */
-
 function debug(aStr) {
 #ifdef MOZ_DEBUG
   dump("-*- DownloadsAPI.js : " + aStr + "\n");
@@ -46,15 +40,6 @@ DOMDownloadManagerImpl.prototype = {
     this.initDOMRequestHelper(aWindow,
                               ["Downloads:Added",
                                "Downloads:Removed"]);
-
-    // Get the manifest URL if this is an installed app
-    let appsService = Cc["@mozilla.org/AppsService;1"]
-                        .getService(Ci.nsIAppsService);
-    let principal = aWindow.document.nodePrincipal;
-    // This returns the empty string if we're not an installed app.  Coerce to
-    // null.
-    this._manifestURL = appsService.getManifestURLByLocalId(principal.appId) ||
-                          null;
   },
 
   uninit: function() {
@@ -94,8 +79,23 @@ DOMDownloadManagerImpl.prototype = {
 
   clearAllDone: function() {
     debug("clearAllDone()");
-    // This is a void function; we just kick it off.  No promises, etc.
-    DownloadsIPC.clearAllDone();
+    return this.createPromise(function (aResolve, aReject) {
+      DownloadsIPC.clearAllDone().then(
+        function(aDownloads) {
+          // Turn the list of download objects into DOM objects and
+          // send them.
+          let array = new this._window.Array();
+          for (let id in aDownloads) {
+            let dom = createDOMDownloadObject(this._window, aDownloads[id]);
+            array.push(this._prepareForContent(dom));
+          }
+          aResolve(array);
+        }.bind(this),
+        function() {
+          aReject("ClearAllDoneError");
+        }
+      );
+    }.bind(this));
   },
 
   remove: function(aDownload) {
@@ -120,67 +120,6 @@ DOMDownloadManagerImpl.prototype = {
       );
     }.bind(this));
   },
-
-  adoptDownload: function(aAdoptDownloadDict) {
-    // Our AdoptDownloadDict only includes simple types, which WebIDL enforces.
-    // We have no object/any types so we do not need to worry about invoking
-    // JSON.stringify (and it inheriting our security privileges).
-    debug("adoptDownload");
-    return this.createPromise(function (aResolve, aReject) {
-      if (!aAdoptDownloadDict) {
-        debug("Download dictionary is required!");
-        aReject("InvalidDownload");
-        return;
-      }
-      if (!aAdoptDownloadDict.storageName || !aAdoptDownloadDict.storagePath ||
-          !aAdoptDownloadDict.contentType) {
-        debug("Missing one of: storageName, storagePath, contentType");
-        aReject("InvalidDownload");
-        return;
-      }
-
-      // Convert storageName/storagePath to a local filesystem path.
-      let volume;
-      // getVolumeByName throws if you give it something it doesn't like
-      // because XPConnect converts the NS_ERROR_NOT_AVAILABLE to an
-      // exception.  So catch it.
-      try {
-        volume = volumeService.getVolumeByName(aAdoptDownloadDict.storageName);
-      } catch (ex) {}
-      if (!volume) {
-        debug("Invalid storage name: " + aAdoptDownloadDict.storageName);
-        aReject("InvalidDownload");
-        return;
-      }
-      let computedPath = volume.mountPoint + '/' +
-                           aAdoptDownloadDict.storagePath;
-      // We validate that there is actually a file at the given path in the
-      // parent process in DownloadsAPI.js because that's where the file
-      // access would actually occur either way.
-
-      // Create a DownloadsAPI.jsm 'jsonDownload' style representation.
-      let jsonDownload = {
-        url: aAdoptDownloadDict.url,
-        path: computedPath,
-        contentType: aAdoptDownloadDict.contentType,
-        startTime: aAdoptDownloadDict.startTime.valueOf() || Date.now(),
-        sourceAppManifestURL: this._manifestURL
-      };
-
-      DownloadsIPC.adoptDownload(jsonDownload).then(
-        function(aResult) {
-          let domDownload = createDOMDownloadObject(this._window, aResult);
-          aResolve(this._prepareForContent(domDownload));
-        }.bind(this),
-        function(aResult) {
-          // This will be one of: AdoptError (generic catch-all),
-          // AdoptNoSuchFile, AdoptFileIsDirectory
-          aReject(aResult.error);
-        }
-      );
-    }.bind(this));
-  },
-
 
   /**
     * Turns a chrome download object into a content accessible one.
@@ -356,11 +295,6 @@ DOMDownloadImpl.prototype = {
     }
   },
 
-  /**
-    * Initialize a DOMDownload instance for the given window using the
-    * 'jsonDownload' serialized format of the download encoded by
-    * DownloadsAPI.jsm.
-    */
   _init: function(aWindow, aDownload) {
     this._window = aWindow;
     this.id = aDownload.id;
@@ -380,13 +314,12 @@ DOMDownloadImpl.prototype = {
     }
 
     let props = ["totalBytes", "currentBytes", "url", "path", "storageName",
-                 "storagePath", "state", "contentType", "startTime",
-                 "sourceAppManifestURL"];
+                 "storagePath", "state", "contentType", "startTime"];
     let changed = false;
     let changedProps = {};
 
     props.forEach((prop) => {
-      if (prop in aDownload && (aDownload[prop] != this[prop])) {
+      if (aDownload[prop] && (aDownload[prop] != this[prop])) {
         this[prop] = aDownload[prop];
         changedProps[prop] = changed = true;
       }

@@ -41,36 +41,28 @@ class CompositorVsyncObserver;
 // this sample time, we extrapolate the last two touch events to the sample
 // time. The magic numbers defined as constants are taken from android
 // InputTransport.cpp.
-class GeckoTouchDispatcher MOZ_FINAL
+class GeckoTouchDispatcher
 {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GeckoTouchDispatcher)
 
 public:
-  static GeckoTouchDispatcher* GetInstance();
+  GeckoTouchDispatcher();
   void NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime);
   void DispatchTouchEvent(MultiTouchInput aMultiTouch);
-  void DispatchTouchNonMoveEvent(MultiTouchInput aInput);
   void DispatchTouchMoveEvents(TimeStamp aVsyncTime);
-  void NotifyVsync(TimeStamp aVsyncTimestamp);
-  void SetCompositorVsyncObserver(layers::CompositorVsyncObserver* aObserver);
-
-protected:
-  ~GeckoTouchDispatcher() {}
+  static bool NotifyVsync(TimeStamp aVsyncTimestamp);
+  static void SetCompositorVsyncObserver(layers::CompositorVsyncObserver* aObserver);
 
 private:
-  GeckoTouchDispatcher();
   void ResampleTouchMoves(MultiTouchInput& aOutTouch, TimeStamp vsyncTime);
   void SendTouchEvent(MultiTouchInput& aData);
   void DispatchMouseEvent(MultiTouchInput& aMultiTouch,
                           bool aForwardToChildren);
 
-  // mTouchQueueLock is used to protect the vector and state below
-  // as it is accessed on multiple threads.
+  // mTouchQueueLock are used to protect the vector below
+  // as it is accessed on the vsync thread and main thread
   Mutex mTouchQueueLock;
   std::vector<MultiTouchInput> mTouchMoveEvents;
-  bool mHavePendingTouchMoves;
-  int mInflightNonMoveEvents;
-  // end stuff protected by mTouchQueueLock
 
   bool mResamplingEnabled;
   bool mTouchEventsFiltered;

@@ -42,7 +42,6 @@
 #include "mozilla/dom/HTMLEmbedElementBinding.h"
 #include "mozilla/dom/HTMLAppletElementBinding.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/dom/ResolveSystemBinding.h"
 #include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "WorkerPrivate.h"
 #include "nsDOMClassInfo.h"
@@ -250,6 +249,26 @@ ErrorResult::ReportJSExceptionFromJSImplementation(JSContext* aCx)
   nsresult rv =
     UNWRAP_OBJECT(DOMException, &mJSException.toObject(), domException);
   if (NS_SUCCEEDED(rv)) {
+    // We may have to create a new DOMException object, because the one we
+    // have has a stack that includes the chrome code that threw it, and in
+    // particular has the wrong file/line/column information.
+    JS::Rooted<JS::Value> reflector(aCx);
+    if (!domException->Sanitize(aCx, &reflector)) {
+      // Well, that threw _an_ exception.  Let's forget ours.  We can just
+      // unroot and not change the value, since mJSException is completely
+      // ignored if mResult is not NS_ERROR_DOM_JS_EXCEPTION and we plan to
+      // change mResult to a different value.
+      js::RemoveRawValueRoot(aCx, &mJSException);
+
+      // We no longer have a useful exception but we do want to signal that an
+      // error occured.
+      mResult = NS_ERROR_FAILURE;
+
+      // But do make sure to not ReportJSException here, since we don't have one.
+      return;
+    }
+
+    mJSException = reflector;
     ReportJSException(aCx);
     return;
   }
@@ -288,6 +307,17 @@ ErrorResult::StealJSException(JSContext* cx,
   value.set(mJSException);
   js::RemoveRawValueRoot(cx, &mJSException);
   mResult = NS_OK;
+
+  if (value.isObject()) {
+    // If it's a DOMException we may need to sanitize it.
+    dom::DOMException* domException;
+    nsresult rv =
+      UNWRAP_OBJECT(DOMException, &value.toObject(), domException);
+    if (NS_SUCCEEDED(rv) && !domException->Sanitize(cx, value)) {
+      JS_GetPendingException(cx, value);
+      JS_ClearPendingException(cx);
+    }
+  }
 }
 
 void
@@ -377,7 +407,7 @@ InterfaceObjectToString(JSContext* cx, unsigned argc, JS::Value *vp)
 {
   JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
   if (!args.thisv().isObject()) {
-    JS_ReportErrorNumber(cx, js::GetErrorMessage, nullptr,
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
                          JSMSG_CANT_CONVERT_TO, "null", "object");
     return false;
   }
@@ -425,7 +455,8 @@ CreateConstructor(JSContext* cx, JS::Handle<JSObject*> global, const char* name,
                   const JSNativeHolder* nativeHolder, unsigned ctorNargs)
 {
   JSFunction* fun = js::NewFunctionWithReserved(cx, Constructor, ctorNargs,
-                                                JSFUN_CONSTRUCTOR, name);
+                                                JSFUN_CONSTRUCTOR, global,
+                                                name);
   if (!fun) {
     return nullptr;
   }
@@ -466,7 +497,7 @@ CreateInterfaceObject(JSContext* cx, JS::Handle<JSObject*> global,
   if (constructorClass) {
     MOZ_ASSERT(constructorProto);
     constructor = JS_NewObjectWithGivenProto(cx, Jsvalify(constructorClass),
-                                             constructorProto);
+                                             constructorProto, global);
   } else {
     MOZ_ASSERT(constructorNative);
     MOZ_ASSERT(constructorProto == JS_GetFunctionPrototype(cx, global));
@@ -613,7 +644,7 @@ CreateInterfacePrototypeObject(JSContext* cx, JS::Handle<JSObject*> global,
                                const NativeProperties* chromeOnlyProperties)
 {
   JS::Rooted<JSObject*> ourProto(cx,
-    JS_NewObjectWithUniqueType(cx, Jsvalify(protoClass), parentProto));
+    JS_NewObjectWithUniqueType(cx, Jsvalify(protoClass), parentProto, global));
   if (!ourProto ||
       !DefineProperties(cx, ourProto, properties, chromeOnlyProperties)) {
     return nullptr;
@@ -824,11 +855,9 @@ XPCOMObjectToJsval(JSContext* cx, JS::Handle<JSObject*> scope,
 
 #ifdef DEBUG
   JSObject* jsobj = rval.toObjectOrNull();
-  if (jsobj &&
-      js::GetGlobalForObjectCrossCompartment(jsobj) == jsobj) {
+  if (jsobj && !js::GetObjectParent(jsobj))
     NS_ASSERTION(js::GetObjectClass(jsobj)->flags & JSCLASS_IS_GLOBAL,
                  "Why did we recreate this wrapper?");
-  }
 #endif
 
   return true;
@@ -980,26 +1009,6 @@ GetNativePropertyHooks(JSContext *cx, JS::Handle<JSObject*> obj,
   return ifaceAndProtoJSClass->mNativeHooks;
 }
 
-static JSObject*
-XrayCreateFunction(JSContext* cx, JS::Handle<JSObject*> wrapper,
-                   JSNativeWrapper native, unsigned nargs, JS::Handle<jsid> id)
-{
-  JSFunction* fun = js::NewFunctionByIdWithReserved(cx, native.op, nargs, 0, id);
-  if (!fun) {
-    return nullptr;
-  }
-
-  SET_JITINFO(fun, native.info);
-  JSObject* obj = JS_GetFunctionObject(fun);
-  js::SetFunctionNativeReserved(obj, XRAY_DOM_FUNCTION_PARENT_WRAPPER_SLOT,
-                                JS::ObjectValue(*wrapper));
-#ifdef DEBUG
-  js::SetFunctionNativeReserved(obj, XRAY_DOM_FUNCTION_NATIVE_SLOT_FOR_SELF,
-                                JS::ObjectValue(*obj));
-#endif
-  return obj;
-}
-
 static bool
 XrayResolveAttribute(JSContext* cx, JS::Handle<JSObject*> wrapper,
                      JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
@@ -1022,18 +1031,23 @@ XrayResolveAttribute(JSContext* cx, JS::Handle<JSObject*> wrapper,
           // way to do this is wrap them up as functions ourselves.
           desc.setAttributes(attrSpec.flags);
           // They all have getters, so we can just make it.
-          JS::Rooted<JSObject*> funobj(cx,
-            XrayCreateFunction(cx, wrapper, attrSpec.getter.native, 0, id));
-          if (!funobj)
+          JS::Rooted<JSFunction*> fun(cx,
+                                      JS_NewFunctionById(cx, attrSpec.getter.native.op,
+                                                         0, 0, wrapper, id));
+          if (!fun)
             return false;
+          SET_JITINFO(fun, attrSpec.getter.native.info);
+          JSObject *funobj = JS_GetFunctionObject(fun);
           desc.setGetterObject(funobj);
           desc.attributesRef() |= JSPROP_GETTER;
           if (attrSpec.setter.native.op) {
             // We have a setter! Make it.
-            funobj =
-              XrayCreateFunction(cx, wrapper, attrSpec.setter.native, 1, id);
-            if (!funobj)
+            fun = JS_NewFunctionById(cx, attrSpec.setter.native.op, 1, 0,
+                                     wrapper, id);
+            if (!fun)
               return false;
+            SET_JITINFO(fun, attrSpec.setter.native.info);
+            funobj = JS_GetFunctionObject(fun);
             desc.setSetterObject(funobj);
             desc.attributesRef() |= JSPROP_SETTER;
           } else {
@@ -1068,24 +1082,22 @@ XrayResolveMethod(JSContext* cx, JS::Handle<JSObject*> wrapper,
           cacheOnHolder = true;
 
           const JSFunctionSpec& methodSpec = methodSpecs[i];
-          JSObject *funobj;
+          JSFunction *fun;
           if (methodSpec.selfHostedName) {
-            JSFunction* fun =
-              JS::GetSelfHostedFunction(cx, methodSpec.selfHostedName, id,
-                                        methodSpec.nargs);
+            fun = JS::GetSelfHostedFunction(cx, methodSpec.selfHostedName, id, methodSpec.nargs);
             if (!fun) {
               return false;
             }
             MOZ_ASSERT(!methodSpec.call.op, "Bad FunctionSpec declaration: non-null native");
             MOZ_ASSERT(!methodSpec.call.info, "Bad FunctionSpec declaration: non-null jitinfo");
-            funobj = JS_GetFunctionObject(fun);
           } else {
-            funobj = XrayCreateFunction(cx, wrapper, methodSpec.call,
-                                        methodSpec.nargs, id);
-            if (!funobj) {
+            fun = JS_NewFunctionById(cx, methodSpec.call.op, methodSpec.nargs, 0, wrapper, id);
+            if (!fun) {
               return false;
             }
+            SET_JITINFO(fun, methodSpec.call.info);
           }
+          JSObject *funobj = JS_GetFunctionObject(fun);
           desc.value().setObject(*funobj);
           desc.setAttributes(methodSpec.flags);
           desc.object().set(wrapper);
@@ -1390,7 +1402,7 @@ XrayResolveOwnProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
     if (IdEquals(id, "toString") && !JS_ObjectIsFunction(cx, obj)) {
       MOZ_ASSERT(IsDOMIfaceAndProtoClass(js::GetObjectClass(obj)));
 
-      JS::Rooted<JSFunction*> toString(cx, JS_NewFunction(cx, InterfaceObjectToString, 0, 0, "toString"));
+      JS::Rooted<JSFunction*> toString(cx, JS_NewFunction(cx, InterfaceObjectToString, 0, 0, wrapper, "toString"));
       if (!toString) {
         return false;
       }
@@ -1439,14 +1451,13 @@ XrayResolveOwnProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
 bool
 XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
                    JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                   JS::MutableHandle<JSPropertyDescriptor> desc,
-                   JS::ObjectOpResult &result, bool *defined)
+                   JS::MutableHandle<JSPropertyDescriptor> desc, bool* defined)
 {
   if (!js::IsProxy(obj))
-    return true;
+      return true;
 
   const DOMProxyHandler* handler = GetDOMProxyHandler(obj);
-  return handler->defineProperty(cx, wrapper, id, desc, result, defined);
+  return handler->defineProperty(cx, wrapper, id, desc, defined);
 }
 
 template<typename SpecType>
@@ -1604,7 +1615,7 @@ XrayOwnPropertyKeys(JSContext* cx, JS::Handle<JSObject*> wrapper,
                                    obj, flags, props);
 }
 
-NativePropertyHooks sEmptyNativePropertyHooks = {
+NativePropertyHooks sWorkerNativePropertyHooks = {
   nullptr,
   nullptr,
   {
@@ -1724,6 +1735,31 @@ DictionaryBase::AppendJSONToString(const char16_t* aJSONData,
   return true;
 }
 
+
+// Dynamically ensure that two objects don't end up with the same reserved slot.
+class MOZ_STACK_CLASS AutoCloneDOMObjectSlotGuard
+{
+public:
+  AutoCloneDOMObjectSlotGuard(JSContext* aCx, JSObject* aOld, JSObject* aNew)
+    : mOldReflector(aCx, aOld), mNewReflector(aCx, aNew)
+  {
+    MOZ_ASSERT(js::GetReservedOrProxyPrivateSlot(aOld, DOM_OBJECT_SLOT) ==
+               js::GetReservedOrProxyPrivateSlot(aNew, DOM_OBJECT_SLOT));
+  }
+
+  ~AutoCloneDOMObjectSlotGuard()
+  {
+    if (js::GetReservedOrProxyPrivateSlot(mOldReflector, DOM_OBJECT_SLOT).toPrivate()) {
+      js::SetReservedOrProxyPrivateSlot(mNewReflector, DOM_OBJECT_SLOT,
+                                        JS::PrivateValue(nullptr));
+    }
+  }
+
+private:
+  JS::Rooted<JSObject*> mOldReflector;
+  JS::Rooted<JSObject*> mNewReflector;
+};
+
 nsresult
 ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
 {
@@ -1738,20 +1774,17 @@ ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
   JS::Rooted<JSObject*> aObj(aCx, aObjArg);
   const DOMJSClass* domClass = GetDOMClass(aObj);
 
-  // DOM things are always parented to globals.
-  JS::Rooted<JSObject*> oldParent(aCx,
-                                  js::GetGlobalForObjectCrossCompartment(aObj));
-  MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(oldParent) == oldParent);
-
+  JS::Rooted<JSObject*> oldParent(aCx, JS_GetParent(aObj));
   JS::Rooted<JSObject*> newParent(aCx, domClass->mGetParent(aCx, aObj));
-  MOZ_ASSERT(js::GetGlobalForObjectCrossCompartment(newParent) == newParent);
 
   JSAutoCompartment oldAc(aCx, oldParent);
 
   JSCompartment* oldCompartment = js::GetObjectCompartment(oldParent);
   JSCompartment* newCompartment = js::GetObjectCompartment(newParent);
   if (oldCompartment == newCompartment) {
-    MOZ_ASSERT(oldParent == newParent);
+    if (!JS_SetParent(aCx, aObj, newParent)) {
+      MOZ_CRASH();
+    }
     return NS_OK;
   }
 
@@ -1769,55 +1802,64 @@ ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
   JSAutoCompartment newAc(aCx, newParent);
 
   // First we clone the reflector. We get a copy of its properties and clone its
-  // expando chain.
+  // expando chain. The only part that is dangerous here is that if we have to
+  // return early we must avoid ending up with two reflectors pointing to the
+  // same native. Other than that, the objects we create will just go away.
 
-  JS::Handle<JSObject*> proto = (domClass->mGetProto)(aCx, newParent);
+  JS::Rooted<JSObject*> global(aCx,
+                               js::GetGlobalForObjectCrossCompartment(newParent));
+  JS::Handle<JSObject*> proto = (domClass->mGetProto)(aCx, global);
   if (!proto) {
     return NS_ERROR_FAILURE;
   }
 
-  JS::Rooted<JSObject*> newobj(aCx, JS_CloneObject(aCx, aObj, proto));
+  JS::Rooted<JSObject*> newobj(aCx, JS_CloneObject(aCx, aObj, proto, newParent));
   if (!newobj) {
     return NS_ERROR_FAILURE;
   }
 
-  JS::Rooted<JSObject*> propertyHolder(aCx);
-  JS::Rooted<JSObject*> copyFrom(aCx, isProxy ? expandoObject : aObj);
-  if (copyFrom) {
-    propertyHolder = JS_NewObjectWithGivenProto(aCx, nullptr, JS::NullPtr());
-    if (!propertyHolder) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    if (!JS_CopyPropertiesFrom(aCx, propertyHolder, copyFrom)) {
-      return NS_ERROR_FAILURE;
-    }
-  } else {
-    propertyHolder = nullptr;
-  }
-
-  // Expandos from other compartments are attached to the target JS object.
-  // Copy them over, and let the old ones die a natural death.
-
-  // Note that at this point the DOM_OBJECT_SLOT for |newobj| has not been set.
-  // CloneExpandoChain() will use this property of |newobj| when it calls
-  // preserveWrapper() via attachExpandoObject() if |aObj| has expandos set, and
-  // preserveWrapper() will not do anything in this case.  This is safe because
-  // if expandos are present then the wrapper will already have been preserved
-  // for this native.
-  if (!xpc::XrayUtils::CloneExpandoChain(aCx, newobj, aObj)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // We've set up |newobj|, so we make it own the native by setting its reserved
-  // slot and nulling out the reserved slot of |obj|.
-  //
-  // NB: It's important to do this _after_ copying the properties to
-  // propertyHolder. Otherwise, an object with |foo.x === foo| will
-  // crash when JS_CopyPropertiesFrom tries to call wrap() on foo.x.
   js::SetReservedOrProxyPrivateSlot(newobj, DOM_OBJECT_SLOT,
                                     js::GetReservedOrProxyPrivateSlot(aObj, DOM_OBJECT_SLOT));
-  js::SetReservedOrProxyPrivateSlot(aObj, DOM_OBJECT_SLOT, JS::PrivateValue(nullptr));
+
+  // At this point, both |aObj| and |newobj| point to the same native
+  // which is bad, because one of them will end up being finalized with a
+  // native it does not own. |cloneGuard| ensures that if we exit before
+  // clearing |aObj|'s reserved slot the reserved slot of |newobj| will be
+  // set to null. |aObj| will go away soon, because we swap it with
+  // another object during the transplant and let that object die.
+  JS::Rooted<JSObject*> propertyHolder(aCx);
+  {
+    AutoCloneDOMObjectSlotGuard cloneGuard(aCx, aObj, newobj);
+
+    JS::Rooted<JSObject*> copyFrom(aCx, isProxy ? expandoObject : aObj);
+    if (copyFrom) {
+      propertyHolder = JS_NewObjectWithGivenProto(aCx, nullptr, JS::NullPtr(),
+                                                  newParent);
+      if (!propertyHolder) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+
+      if (!JS_CopyPropertiesFrom(aCx, propertyHolder, copyFrom)) {
+        return NS_ERROR_FAILURE;
+      }
+    } else {
+      propertyHolder = nullptr;
+    }
+
+    // Expandos from other compartments are attached to the target JS object.
+    // Copy them over, and let the old ones die a natural death.
+    if (!xpc::XrayUtils::CloneExpandoChain(aCx, newobj, aObj)) {
+      return NS_ERROR_FAILURE;
+    }
+
+    // We've set up |newobj|, so we make it own the native by nulling
+    // out the reserved slot of |obj|.
+    //
+    // NB: It's important to do this _after_ copying the properties to
+    // propertyHolder. Otherwise, an object with |foo.x === foo| will
+    // crash when JS_CopyPropertiesFrom tries to call wrap() on foo.x.
+    js::SetReservedOrProxyPrivateSlot(aObj, DOM_OBJECT_SLOT, JS::PrivateValue(nullptr));
+  }
 
   aObj = xpc::TransplantObject(aCx, aObj, newobj);
   if (!aObj) {
@@ -1861,7 +1903,12 @@ ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
     htmlobject->SetupProtoChain(aCx, aObj);
   }
 
-  // Now we can just return the wrapper
+  // Now we can just fix up the parent and return the wrapper
+
+  if (newParent && !JS_SetParent(aCx, aObj, newParent)) {
+    MOZ_CRASH();
+  }
+
   return NS_OK;
 }
 
@@ -2318,20 +2365,12 @@ bool
 ResolveGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj,
               JS::Handle<jsid> aId, bool* aResolvedp)
 {
-  MOZ_ASSERT(JS_IsGlobalObject(aObj),
-             "Should have a global here, since we plan to resolve standard "
-             "classes!");
-
   return JS_ResolveStandardClass(aCx, aObj, aId, aResolvedp);
 }
 
 bool
 EnumerateGlobal(JSContext* aCx, JS::Handle<JSObject*> aObj)
 {
-  MOZ_ASSERT(JS_IsGlobalObject(aObj),
-             "Should have a global here, since we plan to enumerate standard "
-             "classes!");
-
   return JS_EnumerateStandardClasses(aCx, aObj);
 }
 
@@ -2384,7 +2423,13 @@ EnforceNotInPrerendering(JSContext* aCx, JSObject* aObj)
     return true;
   }
 
-  if (window->GetIsPrerendered()) {
+  nsIDocShell* docShell = window->GetDocShell();
+  if (!docShell) {
+    // Without a docshell, we cannot check the safety.
+    return true;
+  }
+
+  if (docShell->GetIsPrerendered()) {
     HandlePrerenderingViolation(window);
     // When the bindings layer sees a false return value, it returns false form
     // the JSNative in order to trigger an uncatchable exception.
@@ -2723,29 +2768,6 @@ UnwrapArgImpl(JS::Handle<JSObject*> src,
     // nsIPropertyBag. We must use AggregatedQueryInterface in cases where
     // there is an outer to avoid nasty recursion.
     return wrappedJS->QueryInterface(iid, ppArg);
-}
-
-bool
-SystemGlobalResolve(JSContext* cx, JS::Handle<JSObject*> obj,
-                    JS::Handle<jsid> id, bool* resolvedp)
-{
-  if (!ResolveGlobal(cx, obj, id, resolvedp)) {
-    return false;
-  }
-
-  if (*resolvedp) {
-    return true;
-  }
-
-  return ResolveSystemBinding(cx, obj, id, resolvedp);
-}
-
-bool
-SystemGlobalEnumerate(JSContext* cx, JS::Handle<JSObject*> obj)
-{
-  bool ignored = false;
-  return EnumerateGlobal(cx, obj) &&
-         ResolveSystemBinding(cx, obj, JSID_VOIDHANDLE, &ignored);
 }
 
 } // namespace dom

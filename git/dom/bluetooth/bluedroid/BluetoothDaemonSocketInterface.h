@@ -113,10 +113,6 @@ public:
   void Close(BluetoothSocketResultHandler* aRes);
 
 private:
-  void DispatchError(BluetoothSocketResultHandler* aRes,
-                     BluetoothStatus aStatus);
-  void DispatchError(BluetoothSocketResultHandler* aRes, nsresult aRv);
-
   BluetoothDaemonSocketModule* mModule;
 };
 

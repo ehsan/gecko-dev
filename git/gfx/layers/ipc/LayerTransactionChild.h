@@ -51,14 +51,11 @@ public:
                                PTextureChild* aTexture,
                                const FenceHandle& aFence);
 
-  uint64_t GetId() const { return mId; }
-
 protected:
-  explicit LayerTransactionChild(const uint64_t& aId)
+  LayerTransactionChild()
     : mForwarder(nullptr)
     , mIPCOpen(false)
     , mDestroyed(false)
-    , mId(aId)
   {}
   ~LayerTransactionChild() { }
 
@@ -93,7 +90,6 @@ protected:
   ShadowLayerForwarder* mForwarder;
   bool mIPCOpen;
   bool mDestroyed;
-  uint64_t mId;
 };
 
 } // namespace layers

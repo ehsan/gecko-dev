@@ -385,8 +385,6 @@ public:
                        PRFileDesc **aFd = nullptr);
   static nsresult Init(nsZipArchive *zip, const char *entry,
                        nsZipHandle **ret);
-  static nsresult Init(const uint8_t* aData, uint32_t aLen,
-                       nsZipHandle **aRet);
 
   NS_METHOD_(MozExternalRefCountType) AddRef(void);
   NS_METHOD_(MozExternalRefCountType) Release(void);

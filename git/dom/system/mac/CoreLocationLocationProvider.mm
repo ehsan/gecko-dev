@@ -13,7 +13,6 @@
 #include "nsCocoaFeatures.h"
 #include "prtime.h"
 #include "mozilla/Telemetry.h"
-#include "MLSFallback.h"
 
 #include <CoreLocation/CLError.h>
 #include <CoreLocation/CLLocation.h>
@@ -33,6 +32,7 @@ static const CLLocationAccuracy kDEFAULT_ACCURACY = kCLLocationAccuracyNearestTe
 @interface LocationDelegate : NSObject <CLLocationManagerDelegate>
 {
   CoreLocationLocationProvider* mProvider;
+  NSTimer* mHandoffTimer;
 }
 
 - (id)init:(CoreLocationLocationProvider*)aProvider;
@@ -50,6 +50,23 @@ static const CLLocationAccuracy kDEFAULT_ACCURACY = kCLLocationAccuracyNearestTe
   }
 
   return self;
+}
+
+- (void)shutdownHandoffTimer
+{
+  if (!mHandoffTimer) {
+    return;
+  }
+
+  [mHandoffTimer invalidate];
+  [mHandoffTimer release];
+  mHandoffTimer = nil;
+}
+
+- (void)handoffToGeoIPProvider
+{
+  [self shutdownHandoffTimer];
+  mProvider->CreateMLSFallbackProvider();
 }
 
 - (void)locationManager:(CLLocationManager*)aManager
@@ -70,15 +87,21 @@ static const CLLocationAccuracy kDEFAULT_ACCURACY = kCLLocationAccuracyNearestTe
     return;
   }
 
-  // The CL provider does not fallback to GeoIP, so use NetworkGeolocationProvider for this.
-  // The concept here is: on error, hand off geolocation to MLS, which will then report
-  // back a location or error. We can't call this with no delay however, as this method
-  // is called with an error code of 0 in both failed geolocation cases, and also when
-  // geolocation is not immediately available.
-  // The 2 sec delay is arbitrarily large enough that CL has a reasonable head start and
-  // if it is likely to succeed, it should complete before the MLS provider.
-  // Take note that in locationManager:didUpdateLocations: the handoff to MLS is stopped.
-  mProvider->CreateMLSFallbackProvider();
+  if (!mHandoffTimer) {
+    // The CL provider does not fallback to GeoIP, so use NetworkGeolocationProvider for this.
+    // The concept here is: on error, hand off geolocation to MLS, which will then report
+    // back a location or error. We can't call this with no delay however, as this method
+    // is called with an error code of 0 in both failed geolocation cases, and also when
+    // geolocation is not immediately available.
+    // The 2 sec delay is arbitrarily large enough that CL has a reasonable head start and
+    // if it is likely to succeed, it should complete before the MLS provider.
+    // Take note that in locationManager:didUpdateLocations: the handoff to MLS is stopped.
+    mHandoffTimer = [[NSTimer scheduledTimerWithTimeInterval:2.0
+                                                     target:self
+                                                   selector:@selector(handoffToGeoIPProvider)
+                                                   userInfo:nil
+                                                    repeats:NO] retain];
+  }
 }
 
 - (void)locationManager:(CLLocationManager*)aManager didUpdateLocations:(NSArray*)aLocations
@@ -87,6 +110,7 @@ static const CLLocationAccuracy kDEFAULT_ACCURACY = kCLLocationAccuracyNearestTe
     return;
   }
 
+  [self shutdownHandoffTimer];
   mProvider->CancelMLSFallbackProvider();
 
   CLLocation* location = [aLocations objectAtIndex:0];
@@ -110,10 +134,6 @@ NS_IMPL_ISUPPORTS(CoreLocationLocationProvider::MLSUpdate, nsIGeolocationUpdate)
 
 CoreLocationLocationProvider::MLSUpdate::MLSUpdate(CoreLocationLocationProvider& parentProvider)
   : mParentLocationProvider(parentProvider)
-{
-}
-
-CoreLocationLocationProvider::MLSUpdate::~MLSUpdate()
 {
 }
 
@@ -180,10 +200,6 @@ CoreLocationLocationProvider::CoreLocationLocationProvider()
 {
 }
 
-CoreLocationLocationProvider::~CoreLocationLocationProvider()
-{
-}
-
 NS_IMETHODIMP
 CoreLocationLocationProvider::Startup()
 {
@@ -218,6 +234,7 @@ CoreLocationLocationProvider::Shutdown()
 {
   NS_ENSURE_STATE(mCLObjects);
 
+  [mCLObjects->mLocationDelegate shutdownHandoffTimer];
   [mCLObjects->mLocationManager stopUpdatingLocation];
 
   delete mCLObjects;
@@ -263,8 +280,13 @@ CoreLocationLocationProvider::CreateMLSFallbackProvider()
     return;
   }
 
-  mMLSFallbackProvider = new MLSFallback();
-  mMLSFallbackProvider->Startup(new MLSUpdate(*this));
+  mMLSFallbackProvider = do_CreateInstance("@mozilla.org/geolocation/mls-provider;1");
+  if (mMLSFallbackProvider) {
+    nsresult rv = mMLSFallbackProvider->Startup();
+    if (NS_SUCCEEDED(rv)) {
+      mMLSFallbackProvider->Watch(new CoreLocationLocationProvider::MLSUpdate(*this));
+    }
+  }
 }
 
 void

@@ -19,7 +19,6 @@ namespace js {
 class TypeDescr;
 class UnboxedLayout;
 
-class PreliminaryObjectArrayWithTemplate;
 class TypeNewScript;
 class HeapTypeSet;
 class AutoClearTypeInferenceStateOnOOM;
@@ -127,10 +126,6 @@ AsTaggedProto(HandleObject obj)
             reinterpret_cast<TaggedProto const*>(obj.address()));
 }
 
-namespace gc {
-void MergeCompartments(JSCompartment *source, JSCompartment *target);
-}
-
 /*
  * Lazy object groups overview.
  *
@@ -154,16 +149,18 @@ void MergeCompartments(JSCompartment *source, JSCompartment *target);
 /* Type information about an object accessed by a script. */
 class ObjectGroup : public gc::TenuredCell
 {
-    friend void gc::MergeCompartments(JSCompartment *source, JSCompartment *target);
-
     /* Class shared by objects in this group. */
     const Class *clasp_;
 
     /* Prototype shared by objects in this group. */
     HeapPtrObject proto_;
 
-    /* Compartment shared by objects in this group. */
-    JSCompartment *compartment_;
+    /*
+     * Whether there is a singleton JS object with this group. That JS object
+     * must appear in type sets instead of this; we include the back reference
+     * here to allow reverting the JS object to a lazy group.
+     */
+    HeapPtrObject singleton_;
 
   public:
 
@@ -179,25 +176,27 @@ class ObjectGroup : public gc::TenuredCell
         return TaggedProto(proto_);
     }
 
+    JSObject *singleton() const {
+        return singleton_;
+    }
+
     // For use during marking, don't call otherwise.
     HeapPtrObject &protoRaw() { return proto_; }
+    HeapPtrObject &singletonRaw() { return singleton_; }
 
     void setProto(TaggedProto proto);
     void setProtoUnchecked(TaggedProto proto);
 
-    bool singleton() const {
-        return flagsDontCheckGeneration() & OBJECT_FLAG_SINGLETON;
+    void initSingleton(JSObject *singleton) {
+        singleton_ = singleton;
     }
 
-    bool lazy() const {
-        bool res = flagsDontCheckGeneration() & OBJECT_FLAG_LAZY_SINGLETON;
-        MOZ_ASSERT_IF(res, singleton());
-        return res;
-    }
-
-    JSCompartment *compartment() const {
-        return compartment_;
-    }
+    /*
+     * Value held by singleton if this is a standin group for a singleton JS
+     * object whose group has not been constructed yet.
+     */
+    static const size_t LAZY_SINGLETON = 1;
+    bool lazy() const { return singleton() == (JSObject *) LAZY_SINGLETON; }
 
   private:
     /* Flags for this group. */
@@ -214,9 +213,6 @@ class ObjectGroup : public gc::TenuredCell
         // When used by the 'new' group when constructing an interpreted
         // function, the addendum stores a TypeNewScript.
         Addendum_NewScript,
-
-        // For some plain objects, the addendum stores a PreliminaryObjectArrayWithTemplate.
-        Addendum_PreliminaryObjects,
 
         // When objects in this group have an unboxed representation, the
         // addendum stores an UnboxedLayout (which might have a TypeNewScript
@@ -256,9 +252,9 @@ class ObjectGroup : public gc::TenuredCell
     }
 
     TypeNewScript *anyNewScript();
-    void detachNewScript(bool writeBarrier, ObjectGroup *replacement);
+    void detachNewScript(bool writeBarrier);
 
-    ObjectGroupFlags flagsDontCheckGeneration() const {
+    ObjectGroupFlags flagsDontCheckGeneration() {
         return flags_;
     }
 
@@ -288,39 +284,14 @@ class ObjectGroup : public gc::TenuredCell
         setAddendum(Addendum_NewScript, newScript);
     }
 
-    PreliminaryObjectArrayWithTemplate *maybePreliminaryObjects() {
-        maybeSweep(nullptr);
-        return maybePreliminaryObjectsDontCheckGeneration();
-    }
-
-    PreliminaryObjectArrayWithTemplate *maybePreliminaryObjectsDontCheckGeneration() {
-        if (addendumKind() == Addendum_PreliminaryObjects)
-            return reinterpret_cast<PreliminaryObjectArrayWithTemplate *>(addendum_);
-        return nullptr;
-    }
-
-    void setPreliminaryObjects(PreliminaryObjectArrayWithTemplate *preliminaryObjects) {
-        setAddendum(Addendum_PreliminaryObjects, preliminaryObjects);
-    }
-
-    void detachPreliminaryObjects() {
-        MOZ_ASSERT(maybePreliminaryObjects());
-        setAddendum(Addendum_None, nullptr);
-    }
-
     UnboxedLayout *maybeUnboxedLayout() {
         maybeSweep(nullptr);
         return maybeUnboxedLayoutDontCheckGeneration();
     }
 
-    UnboxedLayout &unboxedLayoutDontCheckGeneration() const {
-        MOZ_ASSERT(addendumKind() == Addendum_UnboxedLayout);
-        return *maybeUnboxedLayoutDontCheckGeneration();
-    }
-
     UnboxedLayout &unboxedLayout() {
-        maybeSweep(nullptr);
-        return unboxedLayoutDontCheckGeneration();
+        MOZ_ASSERT(addendumKind() == Addendum_UnboxedLayout);
+        return *maybeUnboxedLayout();
     }
 
     void setUnboxedLayout(UnboxedLayout *layout) {
@@ -433,8 +404,7 @@ class ObjectGroup : public gc::TenuredCell
     Property **propertySet;
   public:
 
-    inline ObjectGroup(const Class *clasp, TaggedProto proto, JSCompartment *comp,
-                       ObjectGroupFlags initialFlags);
+    inline ObjectGroup(const Class *clasp, TaggedProto proto, ObjectGroupFlags initialFlags);
 
     inline bool hasAnyFlags(ObjectGroupFlags flags) {
         MOZ_ASSERT((flags & OBJECT_FLAG_DYNAMIC_MASK) == flags);
@@ -486,31 +456,26 @@ class ObjectGroup : public gc::TenuredCell
      * Get or create a property of this object. Only call this for properties which
      * a script accesses explicitly.
      */
-    inline HeapTypeSet *getProperty(ExclusiveContext *cx, JSObject *obj, jsid id);
+    inline HeapTypeSet *getProperty(ExclusiveContext *cx, jsid id);
 
     /* Get a property only if it already exists. */
     inline HeapTypeSet *maybeGetProperty(jsid id);
 
-    /*
-     * Iterate through the group's properties. getPropertyCount overapproximates
-     * in the hash case (see SET_ARRAY_SIZE in TypeInference-inl.h), and
-     * getProperty may return nullptr.
-     */
     inline unsigned getPropertyCount();
     inline Property *getProperty(unsigned i);
 
     /* Helpers */
 
-    void updateNewPropertyTypes(ExclusiveContext *cx, JSObject *obj, jsid id, HeapTypeSet *types);
+    void updateNewPropertyTypes(ExclusiveContext *cx, jsid id, HeapTypeSet *types);
     bool addDefiniteProperties(ExclusiveContext *cx, Shape *shape);
     bool matchDefiniteProperties(HandleObject obj);
-    void markPropertyNonData(ExclusiveContext *cx, JSObject *obj, jsid id);
-    void markPropertyNonWritable(ExclusiveContext *cx, JSObject *obj, jsid id);
+    void markPropertyNonData(ExclusiveContext *cx, jsid id);
+    void markPropertyNonWritable(ExclusiveContext *cx, jsid id);
     void markStateChange(ExclusiveContext *cx);
     void setFlags(ExclusiveContext *cx, ObjectGroupFlags flags);
     void markUnknown(ExclusiveContext *cx);
     void maybeClearNewScriptOnOOM();
-    void clearNewScript(ExclusiveContext *cx, ObjectGroup *replacement = nullptr);
+    void clearNewScript(ExclusiveContext *cx);
     bool isPropertyNonData(jsid id);
     bool isPropertyNonWritable(jsid id);
 
@@ -558,15 +523,8 @@ class ObjectGroup : public gc::TenuredCell
         return offsetof(ObjectGroup, flags_);
     }
 
-    // Get the bit pattern stored in an object's addendum when it has an
-    // original unboxed group.
-    static inline int32_t addendumOriginalUnboxedGroupValue() {
-        return Addendum_OriginalUnboxedGroup << OBJECT_FLAG_ADDENDUM_SHIFT;
-    }
-
-    inline uint32_t basePropertyCount();
-
   private:
+    inline uint32_t basePropertyCount();
     inline void setBasePropertyCount(uint32_t count);
 
     static void staticAsserts() {

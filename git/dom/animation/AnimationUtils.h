@@ -26,18 +26,6 @@ public:
 
     return result;
   }
-
-  static Nullable<TimeDuration>
-    DoubleToTimeDuration(const Nullable<double>& aTime)
-  {
-    Nullable<TimeDuration> result;
-
-    if (!aTime.IsNull()) {
-      result.SetValue(TimeDuration::FromMilliseconds(aTime.Value()));
-    }
-
-    return result;
-  }
 };
 
 } // namespace dom

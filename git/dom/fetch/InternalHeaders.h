@@ -24,7 +24,6 @@ namespace dom {
 
 template<typename T> class MozMap;
 class HeadersOrByteStringSequenceSequenceOrByteStringMozMap;
-class PHeadersEntry;
 
 class InternalHeaders MOZ_FINAL
 {
@@ -62,9 +61,6 @@ public:
     MOZ_ASSERT(!result.Failed());
   }
 
-  explicit InternalHeaders(const nsTArray<PHeadersEntry>& aHeaders,
-                           HeadersGuardEnum aGuard = HeadersGuardEnum::None);
-
   void Append(const nsACString& aName, const nsACString& aValue,
               ErrorResult& aRv);
   void Delete(const nsACString& aName, ErrorResult& aRv);
@@ -90,9 +86,6 @@ public:
 
   static already_AddRefed<InternalHeaders>
   CORSHeaders(InternalHeaders* aHeaders);
-
-  void
-  GetPHeaders(nsTArray<PHeadersEntry>& aPHeadersOut) const;
 
   void
   GetEntries(nsTArray<InternalHeaders::Entry>& aEntries) const;

@@ -1958,12 +1958,7 @@ let GuidHelper = {
         },
 
         QueryInterface: XPCOMUtils.generateQI(Ci.nsINavBookmarkObserver),
-
-        onBeginUpdateBatch: function() {},
-        onEndUpdateBatch: function() {},
-        onItemChanged: function() {},
-        onItemVisited: function() {},
-        onItemMoved: function() {},
+        __noSuchMethod__: () => {}, // Catch all all onItem* methods.
       };
       PlacesUtils.bookmarks.addObserver(this.observer, false);
       PlacesUtils.registerShutdownFunction(() => {

@@ -187,28 +187,24 @@
   INT32X4_QUARTERNARY_FUNCTION_LIST(V)                                              \
   INT32X4_SHUFFLE_FUNCTION_LIST(V)
 
-#define CONVERSION_INT32X4_SIMD_OP(_) \
-    _(fromFloat32x4)                  \
-    _(fromFloat32x4Bits)
 #define FOREACH_INT32X4_SIMD_OP(_)   \
-    CONVERSION_INT32X4_SIMD_OP(_)    \
+    _(fromFloat32x4)                 \
+    _(fromFloat32x4Bits)             \
     _(shiftLeftByScalar)             \
     _(shiftRightArithmeticByScalar)  \
     _(shiftRightLogicalByScalar)
-#define UNARY_ARITH_FLOAT32X4_SIMD_OP(_) \
-    _(abs)                           \
-    _(sqrt)                          \
-    _(reciprocal)                    \
-    _(reciprocalSqrt)
-#define BINARY_ARITH_FLOAT32X4_SIMD_OP(_) \
+#define ARITH_FLOAT32X4_SIMD_OP(_)   \
     _(div)                           \
     _(max)                           \
     _(min)                           \
     _(maxNum)                        \
     _(minNum)
 #define FOREACH_FLOAT32X4_SIMD_OP(_) \
-    UNARY_ARITH_FLOAT32X4_SIMD_OP(_) \
-    BINARY_ARITH_FLOAT32X4_SIMD_OP(_)\
+    ARITH_FLOAT32X4_SIMD_OP(_)       \
+    _(abs)                           \
+    _(sqrt)                          \
+    _(reciprocal)                    \
+    _(reciprocalSqrt)                \
     _(fromInt32x4)                   \
     _(fromInt32x4Bits)
 #define ARITH_COMMONX4_SIMD_OP(_)    \
@@ -219,42 +215,35 @@
     _(and)                           \
     _(or)                            \
     _(xor)
-#define COMP_COMMONX4_TO_INT32X4_SIMD_OP(_) \
+#define FOREACH_COMMONX4_SIMD_OP(_)  \
+    ARITH_COMMONX4_SIMD_OP(_)        \
+    BITWISE_COMMONX4_SIMD_OP(_)      \
     _(lessThan)                      \
     _(lessThanOrEqual)               \
     _(equal)                         \
     _(notEqual)                      \
     _(greaterThan)                   \
-    _(greaterThanOrEqual)
-#define WITH_COMMONX4_SIMD_OP(_)     \
+    _(greaterThanOrEqual)            \
+    _(bitselect)                     \
+    _(select)                        \
+    _(swizzle)                       \
+    _(shuffle)                       \
+    _(splat)                         \
     _(withX)                         \
     _(withY)                         \
     _(withZ)                         \
-    _(withW)
-// TODO: remove when all SIMD calls are inlined (bug 1112155)
-#define ION_COMMONX4_SIMD_OP(_)      \
-    ARITH_COMMONX4_SIMD_OP(_)        \
-    BITWISE_COMMONX4_SIMD_OP(_)      \
-    WITH_COMMONX4_SIMD_OP(_)         \
-    _(bitselect)                     \
-    _(select)                        \
-    _(splat)                         \
+    _(withW)                         \
     _(not)                           \
     _(neg)                           \
-    _(swizzle)                       \
     _(load)                          \
-    _(store)                         \
-    _(check)
-#define FOREACH_COMMONX4_SIMD_OP(_)  \
-    ION_COMMONX4_SIMD_OP(_)          \
-    COMP_COMMONX4_TO_INT32X4_SIMD_OP(_) \
-    _(shuffle)                       \
     _(loadX)                         \
     _(loadXY)                        \
     _(loadXYZ)                       \
+    _(store)                         \
     _(storeX)                        \
     _(storeXY)                       \
-    _(storeXYZ)
+    _(storeXYZ)                      \
+    _(check)
 #define FORALL_SIMD_OP(_)            \
     FOREACH_INT32X4_SIMD_OP(_)       \
     FOREACH_FLOAT32X4_SIMD_OP(_)     \
@@ -334,7 +323,7 @@ struct Int32x4 {
 };
 
 template<typename V>
-JSObject *CreateSimd(JSContext *cx, const typename V::Elem *data);
+JSObject *CreateSimd(JSContext *cx, typename V::Elem *data);
 
 template<typename V>
 bool IsVectorObject(HandleValue v);
@@ -360,9 +349,9 @@ simd_int32x4_##Name(JSContext *cx, unsigned argc, Value *vp);
 INT32X4_FUNCTION_LIST(DECLARE_SIMD_INT32x4_FUNCTION)
 #undef DECLARE_SIMD_INT32x4_FUNCTION
 
-JSObject *
-InitSIMDClass(JSContext *cx, HandleObject obj);
-
 }  /* namespace js */
+
+JSObject *
+js_InitSIMDClass(JSContext *cx, js::HandleObject obj);
 
 #endif /* builtin_SIMD_h */

@@ -29,17 +29,16 @@ namespace jit {
 
 struct Register {
     typedef Registers Codes;
-    typedef Codes::Encoding Encoding;
     typedef Codes::Code Code;
     typedef Codes::SetType SetType;
     Code code_;
     static Register FromCode(uint32_t i) {
         MOZ_ASSERT(i < Registers::Total);
-        Register r = { Code(i) };
+        Register r = { (Registers::Code)i };
         return r;
     }
     static Register FromName(const char *name) {
-        Code code = Registers::FromName(name);
+        Registers::Code code = Registers::FromName(name);
         Register r = { code };
         return r;
     }
@@ -86,13 +85,9 @@ struct Register {
 
 class RegisterDump
 {
-  public:
-    typedef mozilla::Array<Registers::RegisterContent, Registers::Total> GPRArray;
-    typedef mozilla::Array<FloatRegisters::RegisterContent, FloatRegisters::TotalPhys> FPUArray;
-
   protected: // Silence Clang warning.
-    GPRArray regs_;
-    FPUArray fpregs_;
+    mozilla::Array<uintptr_t, Registers::Total> regs_;
+    mozilla::Array<double, FloatRegisters::TotalPhys> fpregs_;
 
   public:
     static size_t offsetOfRegister(Register reg) {
@@ -106,24 +101,18 @@ class RegisterDump
 // Information needed to recover machine register state.
 class MachineState
 {
-    mozilla::Array<Registers::RegisterContent *, Registers::Total> regs_;
-    mozilla::Array<FloatRegisters::RegisterContent *, FloatRegisters::Total> fpregs_;
+    mozilla::Array<uintptr_t *, Registers::Total> regs_;
+    mozilla::Array<double *, FloatRegisters::Total> fpregs_;
 
   public:
-    static MachineState FromBailout(RegisterDump::GPRArray &regs, RegisterDump::FPUArray &fpregs);
+    static MachineState FromBailout(mozilla::Array<uintptr_t, Registers::Total> &regs,
+                                    mozilla::Array<double, FloatRegisters::TotalPhys> &fpregs);
 
     void setRegisterLocation(Register reg, uintptr_t *up) {
-        regs_[reg.code()] = (Registers::RegisterContent *) up;
-    }
-    void setRegisterLocation(FloatRegister reg, float *fp) {
-        MOZ_ASSERT(reg.isSingle());
-        fpregs_[reg.code()] = (FloatRegisters::RegisterContent *) fp;
+        regs_[reg.code()] = up;
     }
     void setRegisterLocation(FloatRegister reg, double *dp) {
-        fpregs_[reg.code()] = (FloatRegisters::RegisterContent *) dp;
-    }
-    void setRegisterLocation(FloatRegister reg, FloatRegisters::RegisterContent *rp) {
-        fpregs_[reg.code()] = rp;
+        fpregs_[reg.code()] = dp;
     }
 
     bool has(Register reg) const {
@@ -133,16 +122,13 @@ class MachineState
         return fpregs_[reg.code()] != nullptr;
     }
     uintptr_t read(Register reg) const {
-        return regs_[reg.code()]->r;
+        return *regs_[reg.code()];
     }
     double read(FloatRegister reg) const {
-        return fpregs_[reg.code()]->d;
+        return *fpregs_[reg.code()];
     }
     void write(Register reg, uintptr_t value) const {
-        regs_[reg.code()]->r = value;
-    }
-    const FloatRegisters::RegisterContent *address(FloatRegister reg) const {
-        return fpregs_[reg.code()];
+        *regs_[reg.code()] = value;
     }
 };
 

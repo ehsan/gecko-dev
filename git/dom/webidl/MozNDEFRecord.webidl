@@ -5,11 +5,6 @@
 
 /* Copyright © 2013 Deutsche Telekom, Inc. */
 
-/**
- * Type Name Format.
- *
- * @see NFCForum-TS-NDEF 3.2.6 TNF
- */
 enum TNF {
   "empty",
   "well-known",
@@ -20,62 +15,7 @@ enum TNF {
   "unchanged"
 };
 
-/**
- * Prefixes of well-known URI.
- *
- * @see NFCForum-TS-RTD_URI Table 3. Abbreviation Table.
- */
-enum WellKnownURIPrefix {
-  "",
-  "http://www.",
-  "https://www.",
-  "http://",
-  "https://",
-  "tel:",
-  "mailto:",
-  "ftp://anonymous:anonymous@",
-  "ftp://ftp.",
-  "ftps://",
-  "sftp://",
-  "smb://",
-  "nfs://",
-  "ftp://",
-  "dav://",
-  "news:",
-  "telnet://",
-  "imap:",
-  "rtsp://",
-  "urn:",
-  "pop:",
-  "sip:",
-  "sips:",
-  "tftp:",
-  "btspp://",
-  "btl2cap://",
-  "btgoep://",
-  "tcpobex://",
-  "irdaobex://",
-  "file://",
-  "urn:epc:id:",
-  "urn:epc:tag:",
-  "urn:epc:pat:",
-  "urn:epc:raw:",
-  "urn:epc:",
-  "urn:nfc:"
-};
-
-/**
- * Record Type Description.
- *
- * Record Types from well-known NDEF Records.
- * @see NFCForum-TS-RTD
- */
-enum RTD {
-  "U", // URI
-};
-
-[Constructor(optional MozNDEFRecordOptions options),
- Constructor(DOMString uri)]
+[Constructor(optional MozNDEFRecordOptions options)]
 interface MozNDEFRecord
 {
   /**
@@ -108,17 +48,11 @@ interface MozNDEFRecord
    */
   [Constant]
   readonly attribute unsigned long size;
-
-  /**
-   * Returns this NDEF Record as URI, return null if this record cannot be
-   * decoded as a well-known URI record.
-   */
-  DOMString? getAsURI();
 };
 
 dictionary MozNDEFRecordOptions {
   TNF tnf = "empty";
-  Uint8Array? type;
-  Uint8Array? id;
-  Uint8Array? payload;
+  Uint8Array type;
+  Uint8Array id;
+  Uint8Array payload;
 };

@@ -565,7 +565,7 @@ ShadowRoot::ChangePoolHost(nsIContent* aNewHost)
 bool
 ShadowRoot::IsShadowInsertionPoint(nsIContent* aContent)
 {
-  if (aContent && aContent->IsHTMLElement(nsGkAtoms::shadow)) {
+  if (aContent && aContent->IsHTML(nsGkAtoms::shadow)) {
     HTMLShadowElement* shadowElem = static_cast<HTMLShadowElement*>(aContent);
     return shadowElem->IsInsertionPoint();
   }
@@ -597,7 +597,7 @@ ShadowRoot::IsPooledNode(nsIContent* aContent, nsIContent* aContainer,
     return true;
   }
 
-  if (aContainer && aContainer->IsHTMLElement(nsGkAtoms::content)) {
+  if (aContainer && aContainer->IsHTML(nsGkAtoms::content)) {
     // Fallback content will end up in pool if its parent is a child of the host.
     HTMLContentElement* content = static_cast<HTMLContentElement*>(aContainer);
     return content->IsInsertionPoint() && content->MatchedNodes().IsEmpty() &&
@@ -709,15 +709,6 @@ ShadowRoot::ContentRemoved(nsIDocument* aDocument,
   if (IsPooledNode(aChild, aContainer, mPoolHost)) {
     RemoveDistributedNode(aChild);
   }
-}
-
-void
-ShadowRoot::DestroyContent()
-{
-  if (mOlderShadow) {
-    mOlderShadow->DestroyContent();
-  }
-  DocumentFragment::DestroyContent();
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(ShadowRootStyleSheetList, StyleSheetList,

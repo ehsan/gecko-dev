@@ -115,7 +115,8 @@ BluetoothProfileController::AddProfileWithServiceClass(
       profile = BluetoothHidManager::Get();
       break;
     default:
-      DispatchReplyError(mRunnable, NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
+      DispatchBluetoothReply(mRunnable, BluetoothValue(),
+                             NS_LITERAL_STRING(ERR_UNKNOWN_PROFILE));
       mCallback();
       return;
   }
@@ -128,7 +129,8 @@ BluetoothProfileController::AddProfile(BluetoothProfileManagerBase* aProfile,
                                        bool aCheckConnected)
 {
   if (!aProfile) {
-    DispatchReplyError(mRunnable, NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
+    DispatchBluetoothReply(mRunnable, BluetoothValue(),
+                           NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     mCallback();
     return;
   }
@@ -253,11 +255,13 @@ BluetoothProfileController::EndSession()
   // The action has completed, so the DOM request should be replied then invoke
   // the callback.
   if (mSuccess) {
-    DispatchReplySuccess(mRunnable);
+    DispatchBluetoothReply(mRunnable, BluetoothValue(true), EmptyString());
   } else if (mConnect) {
-    DispatchReplyError(mRunnable, NS_LITERAL_STRING(ERR_CONNECTION_FAILED));
+    DispatchBluetoothReply(mRunnable, BluetoothValue(true),
+                           NS_LITERAL_STRING(ERR_CONNECTION_FAILED));
   } else {
-    DispatchReplyError(mRunnable, NS_LITERAL_STRING(ERR_DISCONNECTION_FAILED));
+    DispatchBluetoothReply(mRunnable, BluetoothValue(true),
+                           NS_LITERAL_STRING(ERR_DISCONNECTION_FAILED));
   }
 
   mCallback();

@@ -530,7 +530,7 @@ nsNumberControlFrame::GetNumberControlFrameForTextField(nsIFrame* aFrame)
   if (content->IsInNativeAnonymousSubtree() &&
       content->GetParent() && content->GetParent()->GetParent()) {
     nsIContent* grandparent = content->GetParent()->GetParent();
-    if (grandparent->IsHTMLElement(nsGkAtoms::input) &&
+    if (grandparent->IsHTML(nsGkAtoms::input) &&
         grandparent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                                  nsGkAtoms::number, eCaseMatters)) {
       return do_QueryFrame(grandparent->GetPrimaryFrame());
@@ -552,7 +552,7 @@ nsNumberControlFrame::GetNumberControlFrameForSpinButton(nsIFrame* aFrame)
       content->GetParent() && content->GetParent()->GetParent() &&
       content->GetParent()->GetParent()->GetParent()) {
     nsIContent* greatgrandparent = content->GetParent()->GetParent()->GetParent();
-    if (greatgrandparent->IsHTMLElement(nsGkAtoms::input) &&
+    if (greatgrandparent->IsHTML(nsGkAtoms::input) &&
         greatgrandparent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
                                       nsGkAtoms::number, eCaseMatters)) {
       return do_QueryFrame(greatgrandparent->GetPrimaryFrame());
@@ -805,17 +805,17 @@ nsNumberControlFrame::GetPseudoElement(nsCSSPseudoElements::Type aType)
   }
 
   if (aType == nsCSSPseudoElements::ePseudo_mozNumberSpinBox) {
-    // Might be null.
+    MOZ_ASSERT(mSpinBox);
     return mSpinBox;
   }
 
   if (aType == nsCSSPseudoElements::ePseudo_mozNumberSpinUp) {
-    // Might be null.
+    MOZ_ASSERT(mSpinUp);
     return mSpinUp;
   }
 
   if (aType == nsCSSPseudoElements::ePseudo_mozNumberSpinDown) {
-    // Might be null.
+    MOZ_ASSERT(mSpinDown);
     return mSpinDown;
   }
 

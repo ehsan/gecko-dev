@@ -35,7 +35,6 @@ using namespace js::gc;
 using namespace js::jit;
 
 using mozilla::DebugOnly;
-using mozilla::PodArrayZero;
 
 JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options = JS::CompartmentOptions())
   : options_(options),
@@ -144,7 +143,7 @@ JSRuntime::createJitRuntime(JSContext *cx)
     jitRuntime_ = jrt;
 
     if (!jitRuntime_->initialize(cx)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
 
         js_delete(jitRuntime_);
         jitRuntime_ = nullptr;
@@ -204,15 +203,8 @@ class WrapperMapRef : public BufferableRef
         CrossCompartmentKey prior = key;
         if (key.debugger)
             Mark(trc, &key.debugger, "CCW debugger");
-        if (key.kind == CrossCompartmentKey::ObjectWrapper ||
-            key.kind == CrossCompartmentKey::DebuggerObject ||
-            key.kind == CrossCompartmentKey::DebuggerEnvironment ||
-            key.kind == CrossCompartmentKey::DebuggerSource)
-        {
-            MOZ_ASSERT(IsInsideNursery(key.wrapped) ||
-                       key.wrapped->asTenured().getTraceKind() == JSTRACE_OBJECT);
+        if (key.kind != CrossCompartmentKey::StringWrapper)
             Mark(trc, reinterpret_cast<JSObject**>(&key.wrapped), "CCW wrapped object");
-        }
         if (key.debugger == prior.debugger && key.wrapped == prior.wrapped)
             return;
 
@@ -427,25 +419,24 @@ JSCompartment::wrap(JSContext *cx, MutableHandleObject obj, HandleObject existin
     if (WrapperMap::Ptr p = crossCompartmentWrappers.lookup(CrossCompartmentKey(key))) {
         obj.set(&p->value().get().toObject());
         MOZ_ASSERT(obj->is<CrossCompartmentWrapperObject>());
-        obj->assertParentIs(global);
+        MOZ_ASSERT(obj->getParent() == global);
         return true;
     }
 
     RootedObject existing(cx, existingArg);
     if (existing) {
-        // existing is known to be a proxy, so we know its parent global.
-        existing->assertParentIs(global);
         // Is it possible to reuse |existing|?
         if (!existing->getTaggedProto().isLazy() ||
             // Note: Class asserted above, so all that's left to check is callability
             existing->isCallable() ||
+            existing->getParent() != global ||
             obj->isCallable())
         {
             existing = nullptr;
         }
     }
 
-    obj.set(cb->wrap(cx, existing, obj));
+    obj.set(cb->wrap(cx, existing, obj, global));
     if (!obj)
         return false;
 
@@ -504,14 +495,14 @@ JSCompartment::wrap(JSContext *cx, MutableHandle<PropDesc> desc)
 }
 
 /*
- * This method marks pointers that cross compartment boundaries. It is called in
- * per-zone GCs (since full GCs naturally follow pointers across compartments)
- * and when compacting to update cross-compartment pointers.
+ * This method marks pointers that cross compartment boundaries. It should be
+ * called only for per-compartment GCs, since full GCs naturally follow pointers
+ * across compartments.
  */
 void
 JSCompartment::markCrossCompartmentWrappers(JSTracer *trc)
 {
-    MOZ_ASSERT(!zone()->isCollecting() || trc->runtime()->isHeapCompacting());
+    MOZ_ASSERT(!zone()->isCollecting());
 
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         Value v = e.front().value();
@@ -639,30 +630,7 @@ JSCompartment::sweepCrossCompartmentWrappers()
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         CrossCompartmentKey key = e.front().key();
-        bool keyDying;
-        switch (key.kind) {
-          case CrossCompartmentKey::ObjectWrapper:
-          case CrossCompartmentKey::DebuggerObject:
-          case CrossCompartmentKey::DebuggerEnvironment:
-          case CrossCompartmentKey::DebuggerSource:
-              MOZ_ASSERT(IsInsideNursery(key.wrapped) ||
-                         key.wrapped->asTenured().getTraceKind() == JSTRACE_OBJECT);
-              keyDying = IsObjectAboutToBeFinalizedFromAnyThread(
-                  reinterpret_cast<JSObject**>(&key.wrapped));
-              break;
-          case CrossCompartmentKey::StringWrapper:
-              MOZ_ASSERT(key.wrapped->asTenured().getTraceKind() == JSTRACE_STRING);
-              keyDying = IsStringAboutToBeFinalizedFromAnyThread(
-                  reinterpret_cast<JSString**>(&key.wrapped));
-              break;
-          case CrossCompartmentKey::DebuggerScript:
-              MOZ_ASSERT(key.wrapped->asTenured().getTraceKind() == JSTRACE_SCRIPT);
-              keyDying = IsScriptAboutToBeFinalizedFromAnyThread(
-                  reinterpret_cast<JSScript**>(&key.wrapped));
-              break;
-          default:
-              MOZ_CRASH("Unknown key kind");
-        }
+        bool keyDying = IsCellAboutToBeFinalizedFromAnyThread(&key.wrapped);
         bool valDying = IsValueAboutToBeFinalizedFromAnyThread(e.front().value().unsafeGet());
         bool dbgDying = key.debugger && IsObjectAboutToBeFinalizedFromAnyThread(&key.debugger);
         if (keyDying || valDying || dbgDying) {

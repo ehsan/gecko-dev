@@ -1927,7 +1927,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     textFlags |= GetSpacingFlags(WordSpacing(f));
     nsTextFrameUtils::CompressionMode compression =
       CSSWhitespaceToCompressionMode[textStyle->mWhiteSpace];
-    if ((enabledJustification || f->StyleContext()->ShouldSuppressLineBreak()) &&
+    if ((enabledJustification || f->StyleContext()->IsInlineDescendantOfRuby()) &&
         !textStyle->WhiteSpaceIsSignificant() && !isSVG) {
       textFlags |= gfxTextRunFactory::TEXT_ENABLE_SPACING;
     }
@@ -1964,7 +1964,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     if (mLineContainer->HasAnyStateBits(TEXT_IS_IN_TOKEN_MATHML)) {
       // All MathML tokens except <mtext> use 'math' script.
       if (!(parent && parent->GetContent() &&
-          parent->GetContent()->IsMathMLElement(nsGkAtoms::mtext_))) {
+          parent->GetContent()->Tag() == nsGkAtoms::mtext_)) {
         textFlags |= gfxTextRunFactory::TEXT_USE_MATH_SCRIPT;
       }
       nsIMathMLFrame* mathFrame = do_QueryFrame(parent);
@@ -2803,7 +2803,7 @@ static int32_t FindChar(const nsTextFragment* frag,
 
 static bool IsChineseOrJapanese(nsIFrame* aFrame)
 {
-  if (aFrame->StyleContext()->ShouldSuppressLineBreak()) {
+  if (aFrame->StyleContext()->IsInlineDescendantOfRuby()) {
     // Always treat ruby as CJ language so that those characters can
     // be expanded properly even when surrounded by other language.
     return true;
@@ -4539,11 +4539,26 @@ nsTextFrame::CharacterDataChanged(CharacterDataChangeInfo* aInfo)
   return NS_OK;
 }
 
-class nsDisplayTextGeometry : public nsCharClipGeometry
+/* virtual */ void
+nsTextFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
+{
+  // A belt-and-braces check just in case we never get the
+  // MarkIntrinsicISizesDirty call from the style system.
+  if (StyleText()->mTextTransform == NS_STYLE_TEXT_TRANSFORM_CAPITALIZE &&
+      mTextRun &&
+      !(mTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_TRANSFORMED)) {
+    NS_ERROR("the current textrun doesn't match the style");
+    // The current textrun is now of the wrong type.
+    ClearTextRuns();
+  }
+  nsFrame::DidSetStyleContext(aOldStyleContext);
+}
+
+class nsDisplayTextGeometry : public nsDisplayItemGenericGeometry
 {
 public:
-  nsDisplayTextGeometry(nsCharClipDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
-    : nsCharClipGeometry(aItem, aBuilder)
+  nsDisplayTextGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
+    : nsDisplayItemGenericGeometry(aItem, aBuilder)
   {
     nsTextFrame* f = static_cast<nsTextFrame*>(aItem->Frame());
     f->GetTextDecorations(f->PresContext(), nsTextFrame::eResolvedColors, mDecorations);
@@ -4614,8 +4629,6 @@ public:
     nsRect newRect = geometry->mBounds;
     nsRect oldRect = GetBounds(aBuilder, &snap);
     if (decorations != geometry->mDecorations ||
-        mLeftEdge != geometry->mLeftEdge ||
-        mRightEdge != geometry->mRightEdge ||
         !oldRect.IsEqualInterior(newRect) ||
         !geometry->mBorderRect.IsEqualInterior(GetBorderRect())) {
       aInvalidRegion->Or(oldRect, newRect);
@@ -4915,7 +4928,7 @@ nsTextFrame::GetTextDecorations(
 
     // In quirks mode, if we're on an HTML table element, we're done.
     if (compatMode == eCompatibility_NavQuirks &&
-        f->GetContent()->IsHTMLElement(nsGkAtoms::table)) {
+        f->GetContent()->IsHTML(nsGkAtoms::table)) {
       break;
     }
 
@@ -5216,13 +5229,18 @@ PaintDecorationLine(nsIFrame* aFrame,
 {
   nscolor lineColor = aOverrideColor ? *aOverrideColor : aColor;
   if (aCallbacks) {
-    Rect path = nsCSSRendering::DecorationLineToPath(ToRect(aDirtyRect),
-      ToPoint(aPt), ToSize(aLineSize), aAscent, aOffset, aDecoration, aStyle,
+    if (aDecorationType == eNormalDecoration) {
+      aCallbacks->NotifyBeforeDecorationLine(lineColor);
+    } else {
+      aCallbacks->NotifyBeforeSelectionDecorationLine(lineColor);
+    }
+    nsCSSRendering::DecorationLineToPath(aFrame, aCtx, aDirtyRect, lineColor,
+      aPt, aICoordInFrame, aLineSize, aAscent, aOffset, aDecoration, aStyle,
       aVertical, aDescentLimit);
     if (aDecorationType == eNormalDecoration) {
-      aCallbacks->PaintDecorationLine(path, lineColor);
+      aCallbacks->NotifyDecorationLinePathEmitted();
     } else {
-      aCallbacks->PaintSelectionDecorationLine(path, lineColor);
+      aCallbacks->NotifySelectionDecorationLinePathEmitted();
     }
   } else {
     nsCSSRendering::PaintDecorationLine(aFrame, *aCtx->GetDrawTarget(),
@@ -8291,9 +8309,11 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   gfxFloat availWidth = aAvailableWidth;
   bool canTrimTrailingWhitespace = !textStyle->WhiteSpaceIsSignificant() ||
                                    (GetStateBits() & TEXT_IS_IN_TOKEN_MATHML);
-  gfxBreakPriority breakPriority = aLineLayout.LastOptionalBreakPriority();
+  int32_t unusedOffset;
+  gfxBreakPriority breakPriority;
+  aLineLayout.GetLastOptionalBreakPosition(&unusedOffset, &breakPriority);
   gfxTextRun::SuppressBreak suppressBreak = gfxTextRun::eNoSuppressBreak;
-  if (StyleContext()->ShouldSuppressLineBreak()) {
+  if (StyleContext()->IsInlineDescendantOfRuby()) {
     suppressBreak = gfxTextRun::eSuppressAllBreaks;
   } else if (!aLineLayout.LineIsBreakable()) {
     suppressBreak = gfxTextRun::eSuppressInitialBreak;
@@ -8504,7 +8524,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   bool emptyTextAtStartOfLine = atStartOfLine && length == 0;
   if (!breakAfter && charsFit == length && !emptyTextAtStartOfLine &&
       transformedOffset + transformedLength == mTextRun->GetLength() &&
-      !StyleContext()->ShouldSuppressLineBreak() &&
+      !StyleContext()->IsInlineDescendantOfRuby() &&
       (mTextRun->GetFlags() & nsTextFrameUtils::TEXT_HAS_TRAILING_BREAK)) {
     // We placed all the text in the textrun and we have a break opportunity at
     // the end of the textrun. We need to record it because the following
@@ -8566,7 +8586,7 @@ nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
   if (!textStyle->WhiteSpaceIsSignificant() &&
       (lineContainer->StyleText()->mTextAlign == NS_STYLE_TEXT_ALIGN_JUSTIFY ||
        lineContainer->StyleText()->mTextAlignLast == NS_STYLE_TEXT_ALIGN_JUSTIFY ||
-       StyleContext()->ShouldSuppressLineBreak()) &&
+       StyleContext()->IsInlineDescendantOfRuby()) &&
       !lineContainer->IsSVGText()) {
     AddStateBits(TEXT_JUSTIFICATION_ENABLED);
     provider.ComputeJustification(offset, charsFit);
@@ -8670,7 +8690,7 @@ nsTextFrame::TrimTrailingWhiteSpace(nsRenderingContext* aRC)
 }
 
 nsOverflowAreas
-nsTextFrame::RecomputeOverflow(nsIFrame* aBlockFrame)
+nsTextFrame::RecomputeOverflow(const nsHTMLReflowState& aBlockReflowState)
 {
   nsRect bounds(nsPoint(0, 0), GetSize());
   nsOverflowAreas result(bounds, bounds);
@@ -8699,7 +8719,8 @@ nsTextFrame::RecomputeOverflow(nsIFrame* aBlockFrame)
   }
   nsRect &vis = result.VisualOverflow();
   vis.UnionRect(vis, boundingBox);
-  UnionAdditionalOverflow(PresContext(), aBlockFrame, provider, &vis, true);
+  UnionAdditionalOverflow(PresContext(), aBlockReflowState.frame, provider,
+                          &vis, true);
   return result;
 }
 
@@ -8994,9 +9015,18 @@ nsTextFrame::HasAnyNoncollapsedCharacters()
 bool
 nsTextFrame::UpdateOverflow()
 {
+  const nsRect rect(nsPoint(0, 0), GetSize());
+  nsOverflowAreas overflowAreas(rect, rect);
+
   if (GetStateBits() & NS_FRAME_FIRST_REFLOW) {
     return false;
   }
+  gfxSkipCharsIterator iter = EnsureTextRun(nsTextFrame::eInflated);
+  if (!mTextRun) {
+    return false;
+  }
+  PropertyProvider provider(this, iter, nsTextFrame::eInflated);
+  provider.InitializeForDisplay(true);
 
   nsIFrame* decorationsBlock;
   if (IsFloatingFirstLetterChild()) {
@@ -9018,8 +9048,8 @@ nsTextFrame::UpdateOverflow()
     }
   }
 
-  nsOverflowAreas overflowAreas = RecomputeOverflow(decorationsBlock);
-
+  UnionAdditionalOverflow(PresContext(), decorationsBlock, provider,
+                          &overflowAreas.VisualOverflow(), true);
   return FinishAndStoreOverflow(overflowAreas, GetSize());
 }
 

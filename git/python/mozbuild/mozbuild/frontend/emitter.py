@@ -74,10 +74,7 @@ from .data import (
 
 from .reader import SandboxValidationError
 
-from .context import (
-    Context,
-    SubContext,
-)
+from .context import Context
 
 
 class TreeMetadataEmitter(LoggingMixin):
@@ -138,11 +135,6 @@ class TreeMetadataEmitter(LoggingMixin):
                     raise Exception('Unhandled object of type %s' % type(o))
 
         for out in output:
-            # Nothing in sub-contexts is currently of interest to us. Filter
-            # them all out.
-            if isinstance(out, SubContext):
-                continue
-
             if isinstance(out, Context):
                 # Keep all contexts around, we will need them later.
                 contexts[out.objdir] = out
@@ -161,14 +153,11 @@ class TreeMetadataEmitter(LoggingMixin):
             else:
                 raise Exception('Unhandled output type: %s' % type(out))
 
-        # Don't emit Linkable objects when COMPILE_ENVIRONMENT is explicitely
-        # set to a value meaning false (usually '').
-        if self.config.substs.get('COMPILE_ENVIRONMENT', True):
-            start = time.time()
-            objs = list(self._emit_libs_derived(contexts))
-            emitter_time += time.time() - start
+        start = time.time()
+        objs = list(self._emit_libs_derived(contexts))
+        emitter_time += time.time() - start
 
-            for o in emit_objs(objs): yield o
+        for o in emit_objs(objs): yield o
 
         yield ReaderSummary(file_count, sandbox_execution_time, emitter_time)
 
@@ -535,13 +524,7 @@ class TreeMetadataEmitter(LoggingMixin):
                 flags = generated_files[f]
                 output = f
                 if flags.script:
-                    method = "main"
-                    # Deal with cases like "C:\\path\\to\\script.py:function".
-                    if not flags.script.endswith('.py') and ':' in flags.script:
-                        script, method = flags.script.rsplit(':', 1)
-                    else:
-                        script = flags.script
-                    script = mozpath.join(context.srcdir, script)
+                    script = mozpath.join(context.srcdir, flags.script)
                     inputs = [mozpath.join(context.srcdir, i) for i in flags.inputs]
 
                     if not os.path.exists(script):
@@ -559,9 +542,8 @@ class TreeMetadataEmitter(LoggingMixin):
                                 % (f, i), context)
                 else:
                     script = None
-                    method = None
                     inputs = []
-                yield GeneratedFile(context, script, method, output, inputs)
+                yield GeneratedFile(context, script, output, inputs)
 
         test_harness_files = context.get('TEST_HARNESS_FILES')
         if test_harness_files:
@@ -911,8 +893,7 @@ class TreeMetadataEmitter(LoggingMixin):
         install_prefix = mozpath.join(install_root, install_subdir)
 
         try:
-            m = manifestparser.TestManifest(manifests=[path], strict=True,
-                                            rootdir=context.config.topsrcdir)
+            m = manifestparser.TestManifest(manifests=[path], strict=True)
             defaults = m.manifest_defaults[os.path.normpath(path)]
             if not m.tests and not 'support-files' in defaults:
                 raise SandboxValidationError('Empty test manifest: %s'
@@ -1006,10 +987,8 @@ class TreeMetadataEmitter(LoggingMixin):
                 # Some test files are compiled and should not be copied into the
                 # test package. They function as identifiers rather than files.
                 if package_tests:
-                    manifest_relpath = mozpath.relpath(test['path'],
-                        mozpath.dirname(test['manifest']))
                     obj.installs[mozpath.normpath(test['path'])] = \
-                        ((mozpath.join(out_dir, manifest_relpath)), True)
+                        (mozpath.join(out_dir, test['relpath']), True)
 
                 process_support_files(test)
 

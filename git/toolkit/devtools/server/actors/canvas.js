@@ -23,10 +23,6 @@ const ANIMATION_GENERATORS = [
   "mozRequestAnimationFrame"
 ];
 
-const LOOP_GENERATORS = [
-  "setTimeout"
-];
-
 const DRAW_CALLS = [
   // 2D canvas
   "fill",
@@ -212,8 +208,7 @@ let FrameSnapshotFront = protocol.FrontClass(FrameSnapshotActor, {
    * was already generated and retrieved once.
    */
   generateScreenshotFor: custom(function(functionCall) {
-    if (CanvasFront.ANIMATION_GENERATORS.has(functionCall.name) ||
-        CanvasFront.LOOP_GENERATORS.has(functionCall.name)) {
+    if (CanvasFront.ANIMATION_GENERATORS.has(functionCall.name)) {
       return promise.resolve(this._animationFrameEndScreenshot);
     }
     let cachedScreenshot = this._cachedScreenshots.get(functionCall);
@@ -262,7 +257,7 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
     this._callWatcher.onCall = this._onContentFunctionCall;
     this._callWatcher.setup({
       tracedGlobals: CANVAS_CONTEXTS,
-      tracedFunctions: [...ANIMATION_GENERATORS, ...LOOP_GENERATORS],
+      tracedFunctions: ANIMATION_GENERATORS,
       performReload: reload,
       storeCalls: true
     });
@@ -308,7 +303,11 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
   /**
    * Records a snapshot of all the calls made during the next animation frame.
    * The animation should be implemented via the de-facto requestAnimationFrame
-   * utility, or inside recursive `setTimeout`s. `setInterval` at this time are not supported.
+   * utility, not inside a `setInterval` or recursive `setTimeout`.
+   *
+   * XXX: Currently only supporting requestAnimationFrame. When this isn't used,
+   * it'd be a good idea to display a huge red flashing banner telling people to
+   * STOP USING `setInterval` OR `setTimeout` FOR ANIMATION. Bug 978948.
    */
   recordAnimationFrame: method(function() {
     if (this._callWatcher.isRecording()) {
@@ -322,23 +321,7 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
     let deferred = this._currentAnimationFrameSnapshot = promise.defer();
     return deferred.promise;
   }, {
-    response: { snapshot: RetVal("nullable:frame-snapshot") }
-  }),
-
-  /**
-   * Cease attempts to record an animation frame.
-   */
-  stopRecordingAnimationFrame: method(function() {
-   if (!this._callWatcher.isRecording()) {
-      return;
-    }
-    this._animationStarted = false;
-    this._callWatcher.pauseRecording();
-    this._callWatcher.eraseRecording();
-    this._currentAnimationFrameSnapshot.resolve(null);
-    this._currentAnimationFrameSnapshot = null;
-  }, {
-    oneway: true
+    response: { snapshot: RetVal("frame-snapshot") }
   }),
 
   /**
@@ -356,15 +339,7 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
     // They need to be cloned.
     inplaceShallowCloneArrays(args, window);
 
-    // Handle animations generated using requestAnimationFrame
     if (CanvasFront.ANIMATION_GENERATORS.has(name)) {
-      this._handleAnimationFrame(functionCall);
-      return;
-    }
-    // Handle animations generated using setTimeout. While using
-    // those timers is considered extremely poor practice, they're still widely
-    // used on the web, especially for old demos; it's nice to support them as well.
-    if (CanvasFront.LOOP_GENERATORS.has(name)) {
       this._handleAnimationFrame(functionCall);
       return;
     }
@@ -837,7 +812,6 @@ let CanvasFront = exports.CanvasFront = protocol.FrontClass(CanvasActor, {
  */
 CanvasFront.CANVAS_CONTEXTS = new Set(CANVAS_CONTEXTS);
 CanvasFront.ANIMATION_GENERATORS = new Set(ANIMATION_GENERATORS);
-CanvasFront.LOOP_GENERATORS = new Set(LOOP_GENERATORS);
 CanvasFront.DRAW_CALLS = new Set(DRAW_CALLS);
 CanvasFront.INTERESTING_CALLS = new Set(INTERESTING_CALLS);
 CanvasFront.THUMBNAIL_SIZE = 50; // px

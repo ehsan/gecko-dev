@@ -66,7 +66,6 @@ loop.conversation = (function(mozL10n) {
             client={this.props.client}
             conversation={this.props.conversation}
             sdk={this.props.sdk}
-            isDesktop={true}
             conversationAppStore={this.props.conversationAppStore}
           />);
         }
@@ -119,15 +118,9 @@ loop.conversation = (function(mozL10n) {
     var dispatcher = new loop.Dispatcher();
     var client = new loop.Client();
     var sdkDriver = new loop.OTSdkDriver({
-      isDesktop: true,
       dispatcher: dispatcher,
-      sdk: OT,
-      mozLoop: navigator.mozLoop
+      sdk: OT
     });
-
-    // expose for functional tests
-    loop.conversation._sdkDriver = sdkDriver;
-
     var appVersionInfo = navigator.mozLoop.appVersionInfo;
     var feedbackClient = new loop.FeedbackAPIClient(
       navigator.mozLoop.getLoopPref("feedback.baseUrl"), {
@@ -144,12 +137,10 @@ loop.conversation = (function(mozL10n) {
     });
     var conversationStore = new loop.store.ConversationStore(dispatcher, {
       client: client,
-      isDesktop: true,
       mozLoop: navigator.mozLoop,
       sdkDriver: sdkDriver
     });
     var activeRoomStore = new loop.store.ActiveRoomStore(dispatcher, {
-      isDesktop: true,
       mozLoop: navigator.mozLoop,
       sdkDriver: sdkDriver
     });
@@ -207,15 +198,7 @@ loop.conversation = (function(mozL10n) {
 
   return {
     AppControllerView: AppControllerView,
-    init: init,
-
-    /**
-     * Exposed for the use of functional tests to be able to check
-     * metric-related execution as the call sequence progresses.
-     *
-     * @type loop.OTSdkDriver
-     */
-    _sdkDriver: null
+    init: init
   };
 })(document.mozL10n);
 

@@ -36,7 +36,7 @@ namespace dom {
 
 nsIContentParent::nsIContentParent()
 {
-  mMessageManager = nsFrameMessageManager::NewProcessMessageManager(true);
+  mMessageManager = nsFrameMessageManager::NewProcessMessageManager(this);
 }
 
 ContentParent*

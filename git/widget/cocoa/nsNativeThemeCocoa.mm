@@ -280,9 +280,9 @@ static BOOL IsToolbarStyleContainer(nsIFrame* aFrame)
   if (!content)
     return NO;
 
-  if (content->IsAnyOfXULElements(nsGkAtoms::toolbar,
-                                  nsGkAtoms::toolbox,
-                                  nsGkAtoms::statusbar))
+  if (content->Tag() == nsGkAtoms::toolbar ||
+      content->Tag() == nsGkAtoms::toolbox ||
+      content->Tag() == nsGkAtoms::statusbar)
     return YES;
 
   switch (aFrame->StyleDisplay()->mAppearance) {
@@ -1741,7 +1741,7 @@ nsNativeThemeCocoa::DrawMeter(CGContextRef cgContext, const HIRect& inBoxRect,
   // When using -moz-meterbar on an non meter element, we will not be able to
   // get all the needed information so we just draw an empty meter.
   nsIContent* content = aFrame->GetContent();
-  if (!(content && content->IsHTMLElement(nsGkAtoms::meter))) {
+  if (!(content && content->IsHTML(nsGkAtoms::meter))) {
     DrawCellWithSnapping(mMeterBarCell, cgContext, inBoxRect,
                          meterSetting, VerticalAlignFactor(aFrame),
                          mCellDrawView, IsFrameRTL(aFrame));
@@ -2514,7 +2514,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 
     case NS_THEME_SPINNER: {
       nsIContent* content = aFrame->GetContent();
-      if (content->IsHTMLElement()) {
+      if (content->IsHTML()) {
         // In HTML the theming for the spin buttons is drawn individually into
         // their own backgrounds instead of being drawn into the background of
         // their spinner parent as it is for XUL.
@@ -2597,6 +2597,12 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
     }
       break;
 
+    case NS_THEME_TOOLBOX: {
+      HIThemeHeaderDrawInfo hdi = { 0, kThemeStateActive, kHIThemeHeaderKindWindow };
+      HIThemeDrawHeader(&macRect, &hdi, cgContext, HITHEME_ORIENTATION);
+    }
+      break;
+
     case NS_THEME_STATUSBAR: 
       DrawStatusBar(cgContext, macRect, aFrame);
       break;
@@ -2628,7 +2634,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       // though, check the focused attribute of xul textboxes in this case.
       // On Mac, focus rings are always shown for textboxes, so we do not need
       // to check the window's focus ring state here
-      if (aFrame->GetContent()->IsXULElement() && IsFocused(aFrame)) {
+      if (aFrame->GetContent()->IsXUL() && IsFocused(aFrame)) {
         eventState |= NS_EVENT_STATE_FOCUS;
       }
 
@@ -3200,7 +3206,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsPresContext* aPresContext,
     case NS_THEME_SPINNER_DOWN_BUTTON:
     {
       SInt32 buttonHeight = 0, buttonWidth = 0;
-      if (aFrame->GetContent()->IsXULElement()) {
+      if (aFrame->GetContent()->IsXUL()) {
         ::GetThemeMetric(kThemeMetricLittleArrowsWidth, &buttonWidth);
         ::GetThemeMetric(kThemeMetricLittleArrowsHeight, &buttonHeight);
       } else {
@@ -3488,8 +3494,6 @@ nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType,
     case NS_THEME_PROGRESSBAR_VERTICAL:
     case NS_THEME_METERBAR:
     case NS_THEME_METERBAR_CHUNK:
-    case NS_THEME_MAC_VIBRANCY_LIGHT:
-    case NS_THEME_MAC_VIBRANCY_DARK:
       *aShouldRepaint = false;
       return NS_OK;
   }
@@ -3594,7 +3598,7 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
     case NS_THEME_TEXTFIELD:
     case NS_THEME_TEXTFIELD_MULTILINE:
     case NS_THEME_SEARCHFIELD:
-    case NS_THEME_TOOLBOX:
+    //case NS_THEME_TOOLBOX:
     //case NS_THEME_TOOLBAR_BUTTON:
     case NS_THEME_PROGRESSBAR:
     case NS_THEME_PROGRESSBAR_VERTICAL:
@@ -3806,8 +3810,6 @@ nsNativeThemeCocoa::ThemeGeometryTypeForWidget(nsIFrame* aFrame, uint8_t aWidget
     case NS_THEME_TOOLBAR:
     case NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR:
       return eThemeGeometryTypeToolbar;
-    case NS_THEME_TOOLBOX:
-      return eThemeGeometryTypeToolbox;
     case NS_THEME_WINDOW_BUTTON_BOX:
       return eThemeGeometryTypeWindowButtons;
     case NS_THEME_MOZ_MAC_FULLSCREEN_BUTTON:

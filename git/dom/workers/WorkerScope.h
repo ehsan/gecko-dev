@@ -20,12 +20,6 @@ class Function;
 class Promise;
 class RequestOrUSVString;
 
-namespace cache {
-
-class CacheStorage;
-
-} // namespace cache
-
 namespace indexedDB {
 
 class IDBFactory;
@@ -54,7 +48,6 @@ class WorkerGlobalScope : public DOMEventTargetHelper,
   nsRefPtr<WorkerNavigator> mNavigator;
   nsRefPtr<Performance> mPerformance;
   nsRefPtr<IDBFactory> mIndexedDB;
-  nsRefPtr<cache::CacheStorage> mCacheStorage;
 
 protected:
   WorkerPrivate* mWorkerPrivate;
@@ -98,7 +91,7 @@ public:
   GetExistingNavigator() const;
 
   void
-  Close(JSContext* aCx, ErrorResult& aRv);
+  Close(JSContext* aCx);
 
   OnErrorEventHandlerNonNull*
   GetOnerror();
@@ -148,9 +141,6 @@ public:
 
   already_AddRefed<IDBFactory>
   GetIndexedDB(ErrorResult& aErrorResult);
-
-  already_AddRefed<cache::CacheStorage>
-  GetCaches(ErrorResult& aRv);
 };
 
 class DedicatedWorkerGlobalScope MOZ_FINAL : public WorkerGlobalScope
@@ -219,6 +209,12 @@ public:
   }
 
   void
+  Close() const
+  {
+    // no-op close.
+  }
+
+  void
   Update();
 
   already_AddRefed<Promise>
@@ -235,41 +231,8 @@ public:
   IMPL_EVENT_HANDLER(message)
 };
 
-class WorkerDebuggerGlobalScope MOZ_FINAL : public DOMEventTargetHelper,
-                                            public nsIGlobalObject
-{
-  WorkerPrivate* mWorkerPrivate;
-
-public:
-  explicit WorkerDebuggerGlobalScope(WorkerPrivate* aWorkerPrivate);
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  virtual JSObject*
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE
-  {
-    MOZ_CRASH("Shouldn't get here!");
-  }
-
-  virtual bool
-  WrapGlobalObject(JSContext* aCx,
-                   JS::MutableHandle<JSObject*> aReflector);
-
-  virtual JSObject*
-  GetGlobalJSObject(void) MOZ_OVERRIDE
-  {
-    return GetWrapper();
-  }
-
-  void
-  GetGlobal(JSContext* aCx, JS::MutableHandle<JSObject*> aGlobal);
-
-  void
-  Dump(JSContext* aCx, const Optional<nsAString>& aString) const;
-
-private:
-  virtual ~WorkerDebuggerGlobalScope();
-};
+JSObject*
+CreateGlobalScope(JSContext* aCx);
 
 END_WORKERS_NAMESPACE
 

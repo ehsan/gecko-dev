@@ -36,6 +36,7 @@ class DataBuffer {
   const uint8_t *data() const { return data_.get(); }
   uint8_t *data() { return data_.get(); }
   size_t len() const { return len_; }
+  const bool empty() const { return len_ != 0; }
 
 private:
   UniquePtr<uint8_t[]> data_;

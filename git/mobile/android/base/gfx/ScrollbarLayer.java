@@ -29,8 +29,6 @@ public class ScrollbarLayer extends TileLayer {
 
     private int[] mTextureIDs;
 
-    private final BufferedImage mImage;
-
     // To avoid excessive GC, declare some objects here that would otherwise
     // be created and destroyed frequently during draw().
     private final RectF mBarRectF;
@@ -69,8 +67,7 @@ public class ScrollbarLayer extends TileLayer {
     private final Rect mEndCapTexCoords;    // bottom/right endcap coordinates
 
     ScrollbarLayer(LayerRenderer renderer, Bitmap scrollbarImage, IntSize imageSize, boolean vertical) {
-        super(new IntSize(scrollbarImage.getHeight(), scrollbarImage.getWidth()), TileLayer.PaintMode.NORMAL);
-        mImage = new BufferedImage(scrollbarImage);
+        super(new BufferedImage(scrollbarImage), TileLayer.PaintMode.NORMAL);
         mRenderer = renderer;
         mVertical = vertical;
 

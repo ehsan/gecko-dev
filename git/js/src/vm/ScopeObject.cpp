@@ -7,7 +7,6 @@
 #include "vm/ScopeObject-inl.h"
 
 #include "mozilla/PodOperations.h"
-#include "mozilla/SizePrintfMacros.h"
 
 #include "jscompartment.h"
 #include "jsiter.h"
@@ -298,7 +297,7 @@ CallObject::createHollowForDebug(JSContext *cx, HandleFunction callee)
     RootedScript script(cx, callee->nonLazyScript());
     for (BindingIter bi(script); !bi.done(); bi++) {
         id = NameToId(bi->name());
-        if (!SetProperty(cx, callobj, callobj, id, &optimizedOut))
+        if (!SetProperty(cx, callobj, callobj, id, &optimizedOut, true))
             return nullptr;
     }
 
@@ -347,8 +346,8 @@ DeclEnvObject::createTemplateObject(JSContext *cx, HandleFunction fun, gc::Initi
     const Class *clasp = obj->getClass();
     unsigned attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY;
 
-    JSGetterOp getter = clasp->getProperty;
-    JSSetterOp setter = clasp->setProperty;
+    JSPropertyOp getter = clasp->getProperty;
+    JSStrictPropertyOp setter = clasp->setProperty;
     MOZ_ASSERT(getter != JS_PropertyStub);
     MOZ_ASSERT(setter != JS_StrictPropertyStub);
 
@@ -471,11 +470,10 @@ with_LookupProperty(JSContext *cx, HandleObject obj, HandleId id,
 
 static bool
 with_DefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
-                    JSGetterOp getter, JSSetterOp setter, unsigned attrs,
-                    ObjectOpResult &result)
+                    JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
-    return DefineProperty(cx, actual, id, value, getter, setter, attrs, result);
+    return DefineProperty(cx, actual, id, value, getter, setter, attrs);
 }
 
 static bool
@@ -495,13 +493,13 @@ with_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleI
 
 static bool
 with_SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
-                 MutableHandleValue vp, ObjectOpResult &result)
+                 MutableHandleValue vp, bool strict)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
     RootedObject actualReceiver(cx, receiver);
     if (receiver == obj)
         actualReceiver = actual;
-    return SetProperty(cx, actual, actualReceiver, id, vp, result);
+    return SetProperty(cx, actual, actualReceiver, id, vp, strict);
 }
 
 static bool
@@ -513,10 +511,10 @@ with_GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 }
 
 static bool
-with_DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, ObjectOpResult &result)
+with_DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
     RootedObject actual(cx, &obj->as<DynamicWithObject>().object());
-    return DeleteProperty(cx, actual, id, result);
+    return DeleteProperty(cx, actual, id, succeeded);
 }
 
 static JSObject *
@@ -941,7 +939,7 @@ uninitialized_GetProperty(JSContext *cx, HandleObject obj, HandleObject receiver
 
 static bool
 uninitialized_SetProperty(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id,
-                          MutableHandleValue vp, ObjectOpResult &result)
+                          MutableHandleValue vp, bool strict)
 {
     ReportUninitializedLexicalId(cx, id);
     return false;
@@ -956,7 +954,7 @@ uninitialized_GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId
 }
 
 static bool
-uninitialized_DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, ObjectOpResult &result)
+uninitialized_DeleteProperty(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded)
 {
     ReportUninitializedLexicalId(cx, id);
     return false;
@@ -1440,12 +1438,12 @@ class DebugScopeProxy : public BaseProxyHandler
 
     MOZ_CONSTEXPR DebugScopeProxy() : BaseProxyHandler(&family) {}
 
-    bool preventExtensions(JSContext *cx, HandleObject proxy,
-                           ObjectOpResult &result) const MOZ_OVERRIDE
+    bool preventExtensions(JSContext *cx, HandleObject proxy, bool *succeeded) const MOZ_OVERRIDE
     {
         // always [[Extensible]], can't be made non-[[Extensible]], like most
         // proxies
-        return result.fail(JSMSG_CANT_CHANGE_EXTENSIBILITY);
+        *succeeded = false;
+        return true;
     }
 
     bool isExtensible(JSContext *cx, HandleObject proxy, bool *extensible) const MOZ_OVERRIDE
@@ -1471,7 +1469,7 @@ class DebugScopeProxy : public BaseProxyHandler
             return false;
 
         if (!argsObj) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
                                  "Debugger scope");
             return false;
         }
@@ -1511,7 +1509,7 @@ class DebugScopeProxy : public BaseProxyHandler
           case ACCESS_GENERIC:
             return JS_GetOwnPropertyDescriptorById(cx, scope, id, desc);
           case ACCESS_LOST:
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
             return false;
           default:
             MOZ_CRASH("bad AccessResult");
@@ -1525,7 +1523,7 @@ class DebugScopeProxy : public BaseProxyHandler
             return false;
 
         if (!argsObj) {
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_LIVE,
                                  "Debugger scope");
             return false;
         }
@@ -1555,7 +1553,7 @@ class DebugScopeProxy : public BaseProxyHandler
           case ACCESS_GENERIC:
             return GetProperty(cx, scope, scope, id, vp);
           case ACCESS_LOST:
-            JS_ReportErrorNumber(cx, GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_OPTIMIZED_OUT);
             return false;
           default:
             MOZ_CRASH("bad AccessResult");
@@ -1603,8 +1601,8 @@ class DebugScopeProxy : public BaseProxyHandler
         }
     }
 
-    bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-             MutableHandleValue vp, ObjectOpResult &result) const MOZ_OVERRIDE
+    bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id, bool strict,
+             MutableHandleValue vp) const MOZ_OVERRIDE
     {
         Rooted<DebugScopeObject*> debugScope(cx, &proxy->as<DebugScopeObject>());
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
@@ -1618,17 +1616,16 @@ class DebugScopeProxy : public BaseProxyHandler
 
         switch (access) {
           case ACCESS_UNALIASED:
-            return result.succeed();
+            return true;
           case ACCESS_GENERIC:
-            return SetProperty(cx, scope, scope, id, vp, result);
+            return SetProperty(cx, scope, scope, id, vp, strict);
           default:
             MOZ_CRASH("bad AccessResult");
         }
     }
 
     bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
-                        MutableHandle<PropertyDescriptor> desc,
-                        ObjectOpResult &result) const MOZ_OVERRIDE
+                        MutableHandle<PropertyDescriptor> desc) const MOZ_OVERRIDE
     {
         Rooted<ScopeObject*> scope(cx, &proxy->as<DebugScopeObject>().scope());
 
@@ -1638,7 +1635,13 @@ class DebugScopeProxy : public BaseProxyHandler
         if (found)
             return Throw(cx, id, JSMSG_CANT_REDEFINE_PROP);
 
-        return JS_DefinePropertyById(cx, scope, id, desc, result);
+        return JS_DefinePropertyById(cx, scope, id, desc.value(),
+                                     // Descriptors never store JSNatives for
+                                     // accessors: they have either JSFunctions
+                                     // or JSPropertyOps.
+                                     desc.attributes() | JSPROP_PROPOP_ACCESSORS,
+                                     JS_PROPERTYOP_GETTER(desc.getter()),
+                                     JS_PROPERTYOP_SETTER(desc.setter()));
     }
 
     bool ownPropertyKeys(JSContext *cx, HandleObject proxy, AutoIdVector &props) const MOZ_OVERRIDE
@@ -1714,10 +1717,11 @@ class DebugScopeProxy : public BaseProxyHandler
         return true;
     }
 
-    bool delete_(JSContext *cx, HandleObject proxy, HandleId id,
-                 ObjectOpResult &result) const MOZ_OVERRIDE
+    bool delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) const MOZ_OVERRIDE
     {
-        return result.fail(JSMSG_CANT_DELETE);
+        RootedValue idval(cx, IdToValue(id));
+        return js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_CANT_DELETE,
+                                        JSDVG_IGNORE_STACK, idval, NullPtr(), nullptr, nullptr);
     }
 };
 
@@ -1732,7 +1736,7 @@ DebugScopeObject::create(JSContext *cx, ScopeObject &scope, HandleObject enclosi
     MOZ_ASSERT(scope.compartment() == cx->compartment());
     RootedValue priv(cx, ObjectValue(scope));
     JSObject *obj = NewProxyObject(cx, &DebugScopeProxy::singleton, priv,
-                                   nullptr /* proto */);
+                                   nullptr /* proto */, &scope.global());
     if (!obj)
         return nullptr;
 
@@ -1807,7 +1811,7 @@ DebugScopeObject::isOptimizedOut() const
 }
 
 bool
-js::IsDebugScopeSlow(ProxyObject *proxy)
+js_IsDebugScopeSlow(ProxyObject *proxy)
 {
     MOZ_ASSERT(proxy->hasClass(&ProxyObject::class_));
     return proxy->handler() == &DebugScopeProxy::singleton;
@@ -1972,7 +1976,7 @@ DebugScopes::ensureCompartmentData(JSContext *cx)
     if (c->debugScopes)
         js_delete<DebugScopes>(c->debugScopes);
     c->debugScopes = nullptr;
-    ReportOutOfMemory(cx);
+    js_ReportOutOfMemory(cx);
     return nullptr;
 }
 
@@ -2006,7 +2010,7 @@ DebugScopes::addDebugScope(JSContext *cx, ScopeObject &scope, DebugScopeObject &
 
     MOZ_ASSERT(!scopes->proxiedScopes.has(&scope));
     if (!scopes->proxiedScopes.put(&scope, &debugScope)) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 
@@ -2050,7 +2054,7 @@ DebugScopes::addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject 
     MissingScopeKey key(si);
     MOZ_ASSERT(!scopes->missingScopes.has(key));
     if (!scopes->missingScopes.put(key, ReadBarriered<DebugScopeObject*>(&debugScope))) {
-        ReportOutOfMemory(cx);
+        js_ReportOutOfMemory(cx);
         return false;
     }
 
@@ -2059,7 +2063,7 @@ DebugScopes::addDebugScope(JSContext *cx, const ScopeIter &si, DebugScopeObject 
     if (si.withinInitialFrame()) {
         MOZ_ASSERT(!scopes->liveScopes.has(&debugScope.scope()));
         if (!scopes->liveScopes.put(&debugScope.scope(), LiveScopeVal(si))) {
-            ReportOutOfMemory(cx);
+            js_ReportOutOfMemory(cx);
             return false;
         }
         liveScopesPostWriteBarrier(cx->runtime(), &scopes->liveScopes, &debugScope.scope());
@@ -2605,14 +2609,14 @@ AnalyzeEntrainedVariablesInScript(JSContext *cx, HandleScript script, HandleScri
             buf.printf(" ");
         }
 
-        buf.printf("(%s:%" PRIuSIZE ") has variables entrained by ", script->filename(), script->lineno());
+        buf.printf("(%s:%d) has variables entrained by ", script->filename(), script->lineno());
 
         if (JSAtom *name = innerScript->functionNonDelazifying()->displayAtom()) {
             buf.putString(name);
             buf.printf(" ");
         }
 
-        buf.printf("(%s:%" PRIuSIZE ") ::", innerScript->filename(), innerScript->lineno());
+        buf.printf("(%s:%d) ::", innerScript->filename(), innerScript->lineno());
 
         for (PropertyNameSet::Range r = remainingNames.all(); !r.empty(); r.popFront()) {
             buf.printf(" ");

@@ -20,24 +20,22 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
 
   <script type="application/javascript">
 
-    function addTestEditable(aID, aTestRun, aBeforeContent, aAfterContent)
+    function addTestEditable(aID, aTestRun)
     {
       var et = new editableTextTest(aID);
-      var startOffset = aBeforeContent ? aBeforeContent.length : 0;
-      // XXX afterContent currently is not used
 
       //////////////////////////////////////////////////////////////////////////
       // setTextContents
-      et.scheduleTest(et.setTextContents, "hello", startOffset);
-      et.scheduleTest(et.setTextContents, "olleh", startOffset);
-      et.scheduleTest(et.setTextContents, "", startOffset);
+      et.scheduleTest(et.setTextContents, "hello");
+      et.scheduleTest(et.setTextContents, "olleh");
+      et.scheduleTest(et.setTextContents, "");
 
       //////////////////////////////////////////////////////////////////////////
       // insertText
-      et.scheduleTest(et.insertText, "hello", startOffset, "hello");
-      et.scheduleTest(et.insertText, "ma ", startOffset, "ma hello");
-      et.scheduleTest(et.insertText, "ma", startOffset + 2, "mama hello");
-      et.scheduleTest(et.insertText, " hello", startOffset + 10, "mama hello hello");
+      et.scheduleTest(et.insertText, "hello", 0, "hello");
+      et.scheduleTest(et.insertText, "ma ", 0, "ma hello");
+      et.scheduleTest(et.insertText, "ma", 2, "mama hello");
+      et.scheduleTest(et.insertText, " hello", 10, "mama hello hello");
 
       // XXX: bug 452584
 
@@ -73,10 +71,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
 
       addTestEditable("input", testRun);
       addTestEditable("div", testRun);
-      addTestEditable("divb", testRun, "pseudo element", "");
-      addTestEditable("diva", testRun, "", "pseudo element");
-      addTestEditable("divba", testRun, "before", "after");
-      addTestEditable(getNode("frame").contentDocument, testRun);
+      addTestEditable(getNode("frame").contentDocument, testRun, '\n');
 
       testRun.run(); // Will call SimpleTest.finish();
     }
@@ -95,35 +90,16 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
     SimpleTest.waitForExplicitFinish();
     addA11yLoadEvent(doTest);
   </script>
-  <style>
-    #divb::before,
-    #diva::after {
-      content: "pseudo element";
-    }
-    #divba::before {
-      content: "before";
-    }
-    #divba::after {
-      content: "after";
-    }
-  </style>
 </head>
 <body>
 
   <a target="_blank"
      title="nsIAccessibleEditableText chrome tests"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=452161">
-    Bug 452161
-  </a>
+     href="https://bugzilla.mozilla.org/show_bug.cgi?id=452161">Mozilla Bug 452161</a>
   <a target="_blank"
      title="Cache rendered text on a11y side"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=626660">
-    Bug 626660
-  </a>
-  <a target="_blank"
-     title="Pseudo element support test"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=1105611">
-    Bug 1105611
+    Mozilla Bug 626660
   </a>
   <p id="display"></p>
   <div id="content" style="display: none"></div>
@@ -132,10 +108,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
 
   <input id="input"/>
 
-  <div id="div" contenteditable="true"></div>
-  <div id="divb" contenteditable="true"></div>
-  <div id="diva" contenteditable="true"></div>
-  <div id="divba" contenteditable="true"></div>
+  <div id="div" contentEditable="true"></div>
 
   <iframe id="frame"/>
 </body>

@@ -19,7 +19,7 @@ function* performTest() {
 
   yield testGraph(graph);
 
-  yield graph.destroy();
+  graph.destroy();
   host.destroy();
 }
 
@@ -54,7 +54,7 @@ function* testGraph(graph) {
 
   is(graph._maxTooltip.querySelector("[text=value]").textContent, "60",
     "The maximum tooltip displays the correct value.");
-  is(graph._avgTooltip.querySelector("[text=value]").textContent, "41.72",
+  is(graph._avgTooltip.querySelector("[text=value]").textContent, "41.71",
     "The average tooltip displays the correct value.");
   is(graph._minTooltip.querySelector("[text=value]").textContent, "10",
     "The minimum tooltip displays the correct value.");

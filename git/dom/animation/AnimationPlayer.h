@@ -72,10 +72,7 @@ public:
   Animation* GetSource() const { return mSource; }
   AnimationTimeline* Timeline() const { return mTimeline; }
   Nullable<TimeDuration> GetStartTime() const { return mStartTime; }
-  void SetStartTime(const Nullable<TimeDuration>& aNewStartTime);
   Nullable<TimeDuration> GetCurrentTime() const;
-  void SilentlySetCurrentTime(const TimeDuration& aNewCurrentTime);
-  void SetCurrentTime(const TimeDuration& aNewCurrentTime);
   AnimationPlayState PlayState() const;
   virtual Promise* GetReady(ErrorResult& aRv);
   virtual void Play();
@@ -87,10 +84,7 @@ public:
   // script but when called from script we (or one of our subclasses) perform
   // extra steps such as flushing style or converting the return type.
   Nullable<double> GetStartTimeAsDouble() const;
-  void SetStartTimeAsDouble(const Nullable<double>& aStartTime);
   Nullable<double> GetCurrentTimeAsDouble() const;
-  void SetCurrentTimeAsDouble(const Nullable<double>& aCurrentTime,
-                              ErrorResult& aRv);
   virtual AnimationPlayState PlayStateFromJS() const { return PlayState(); }
   virtual void PlayFromJS() { Play(); }
   // PauseFromJS is currently only here for symmetry with PlayFromJS but

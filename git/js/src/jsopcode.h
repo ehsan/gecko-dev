@@ -11,8 +11,6 @@
  * JS bytecode definitions.
  */
 
-#include "mozilla/UniquePtr.h"
-
 #include "jsbytecode.h"
 #include "jstypes.h"
 #include "NamespaceImports.h"
@@ -394,15 +392,15 @@ JOF_OPTYPE(JSOp op)
 #pragma warning(disable:4100)
 #endif
 
-namespace js {
-
 /*
  * Return a GC'ed string containing the chars in str, with any non-printing
  * chars or quotes (' or " as specified by the quote argument) escaped, and
  * with the quote character at the beginning and end of the result string.
  */
 extern JSString *
-QuoteString(ExclusiveContext *cx, JSString *str, char16_t quote);
+js_QuoteString(js::ExclusiveContext *cx, JSString *str, char16_t quote);
+
+namespace js {
 
 static inline bool
 IsJumpOpcode(JSOp op)
@@ -454,7 +452,7 @@ class SrcNoteLineScanner
      */
     bool lineHeader;
 
-  public:
+public:
     SrcNoteLineScanner(jssrcnote *sn, uint32_t lineno)
         : offset(0), sn(sn), lineno(lineno)
     {
@@ -493,7 +491,7 @@ class SrcNoteLineScanner
             SrcNoteType type = (SrcNoteType) SN_TYPE(sn);
             if (type == SRC_SETLINE || type == SRC_NEWLINE) {
                 if (type == SRC_SETLINE)
-                    lineno = GetSrcNoteOffset(sn, 0);
+                    lineno = js_GetSrcNoteOffset(sn, 0);
                 else
                     lineno++;
 
@@ -537,13 +535,13 @@ ReconstructStackDepth(JSContext *cx, JSScript *script, jsbytecode *pc, uint32_t 
 #define JSDVG_IGNORE_STACK      0
 #define JSDVG_SEARCH_STACK      1
 
-namespace js {
-
 /*
  * Get the length of variable-length bytecode like JSOP_TABLESWITCH.
  */
 extern size_t
-GetVariableBytecodeLength(jsbytecode *pc);
+js_GetVariableBytecodeLength(jsbytecode *pc);
+
+namespace js {
 
 /*
  * Find the source expression that resulted in v, and return a newly allocated
@@ -562,7 +560,7 @@ GetVariableBytecodeLength(jsbytecode *pc);
  *
  * The caller must call JS_free on the result after a successful call.
  */
-mozilla::UniquePtr<char[], JS::FreePolicy>
+char *
 DecompileValueGenerator(JSContext *cx, int spindex, HandleValue v,
                         HandleString fallback, int skipStackHits = 0);
 
@@ -678,7 +676,7 @@ GetBytecodeLength(jsbytecode *pc)
 
     if (js_CodeSpec[op].length != -1)
         return js_CodeSpec[op].length;
-    return GetVariableBytecodeLength(pc);
+    return js_GetVariableBytecodeLength(pc);
 }
 
 static inline bool
@@ -987,22 +985,25 @@ GetNextPc(jsbytecode *pc)
     return pc + GetBytecodeLength(pc);
 }
 
+} /* namespace js */
+
 #if defined(DEBUG)
 /*
  * Disassemblers, for debugging only.
  */
 bool
-Disassemble(JSContext *cx, JS::Handle<JSScript*> script, bool lines, Sprinter *sp);
+js_Disassemble(JSContext *cx, JS::Handle<JSScript*> script, bool lines, js::Sprinter *sp);
 
 unsigned
-Disassemble1(JSContext *cx, JS::Handle<JSScript*> script, jsbytecode *pc, unsigned loc,
-             bool lines, Sprinter *sp);
+js_Disassemble1(JSContext *cx, JS::Handle<JSScript*> script, jsbytecode *pc, unsigned loc,
+                bool lines, js::Sprinter *sp);
 
 #endif
 
 void
-DumpPCCounts(JSContext *cx, JS::Handle<JSScript*> script, Sprinter *sp);
+js_DumpPCCounts(JSContext *cx, JS::Handle<JSScript*> script, js::Sprinter *sp);
 
+namespace js {
 namespace jit { struct IonScriptCounts; }
 void
 DumpIonScriptCounts(js::Sprinter *sp, jit::IonScriptCounts *ionCounts);

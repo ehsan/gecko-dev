@@ -472,7 +472,6 @@ public:
 private:
   void DispatchError(BluetoothHandsfreeResultHandler* aRes,
                      BluetoothStatus aStatus);
-  void DispatchError(BluetoothHandsfreeResultHandler* aRes, nsresult aRv);
 
   BluetoothDaemonHandsfreeModule* mModule;
 };

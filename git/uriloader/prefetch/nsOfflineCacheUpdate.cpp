@@ -363,7 +363,8 @@ nsOfflineCacheUpdateItem::OpenChannel(nsOfflineCacheUpdate *aUpdate)
     NS_ENSURE_SUCCESS(rv, rv);
 
     uint32_t flags = nsIRequest::LOAD_BACKGROUND |
-                     nsICachingChannel::LOAD_ONLY_IF_MODIFIED;
+                     nsICachingChannel::LOAD_ONLY_IF_MODIFIED |
+                     nsICachingChannel::LOAD_CHECK_OFFLINE_CACHE;
 
     if (mApplicationCache == mPreviousApplicationCache) {
         // Same app cache to read from and to write to is used during

@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/CompositorParent.h"
 #include <stddef.h>                     // for size_t
 #include "ClientLayerManager.h"         // for ClientLayerManager
 #include "base/message_loop.h"          // for MessageLoop
@@ -41,53 +40,19 @@ Atomic<int32_t> CompositableForwarder::sSerialCounter(0);
 
 CompositorChild::CompositorChild(ClientLayerManager *aLayerManager)
   : mLayerManager(aLayerManager)
-  , mCanSend(false)
+  , mCanSend(true)
 {
 }
 
 CompositorChild::~CompositorChild()
 {
-  if (mCanSend) {
-    gfxCriticalError() << "CompositorChild was not deinitialized";
-  }
-}
-
-static void DeferredDestroyCompositor(nsRefPtr<CompositorParent> aCompositorParent,
-                                      nsRefPtr<CompositorChild> aCompositorChild)
-{
-    // Bug 848949 needs to be fixed before
-    // we can close the channel properly
-    //aCompositorChild->Close();
 }
 
 void
 CompositorChild::Destroy()
 {
-  // This must not be called from the destructor!
-  MOZ_ASSERT(mRefCnt != 0);
-
-  if (!mCanSend) {
-    NS_WARNING("Trying to deinitialize a CompositorChild twice");
-    return;
-  }
-
-  SendWillStop();
-  // The call just made to SendWillStop can result in IPC from the
-  // CompositorParent to the CompositorChild (e.g. caused by the destruction
-  // of shared memory). We need to ensure this gets processed by the
-  // CompositorChild before it gets destroyed. It suffices to ensure that
-  // events already in the MessageLoop get processed before the
-  // CompositorChild is destroyed, so we add a task to the MessageLoop to
-  // handle compositor desctruction.
-
-  // From now on the only message we can send is Stop.
-  mCanSend = false;
-
-  if (mLayerManager) {
-    mLayerManager->Destroy();
-    mLayerManager = nullptr;
-  }
-
+  mLayerManager->Destroy();
+  mLayerManager = nullptr;
   // start from the end of the array because Destroy() can cause the
   // LayerTransactionChild to be removed from the array.
   for (int i = ManagedPLayerTransactionChild().Length() - 1; i >= 0; --i) {
@@ -95,14 +60,8 @@ CompositorChild::Destroy()
       static_cast<LayerTransactionChild*>(ManagedPLayerTransactionChild()[i]);
     layers->Destroy();
   }
-
+  MOZ_ASSERT(!mCanSend);
   SendStop();
-
-  // The DeferredDestroyCompositor task takes ownership of compositorParent and
-  // will release them when it runs.
-  nsRefPtr<CompositorChild> selfRef = this;
-  MessageLoop::current()->PostTask(FROM_HERE,
-             NewRunnableFunction(DeferredDestroyCompositor, mCompositorParent, selfRef));
 }
 
 bool
@@ -135,8 +94,6 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
     return nullptr;
   }
 
-  child->mCanSend = true;
-
   // We release this ref in ActorDestroy().
   sCompositor = child.forget().take();
 
@@ -147,18 +104,6 @@ CompositorChild::Create(Transport* aTransport, ProcessId aOtherProcess)
 
   // We release this ref in ActorDestroy().
   return sCompositor;
-}
-
-bool
-CompositorChild::OpenSameProcess(CompositorParent* aParent)
-{
-  MOZ_ASSERT(aParent);
-
-  mCompositorParent = aParent;
-  mCanSend = Open(mCompositorParent->GetIPCChannel(),
-                  CompositorParent::CompositorLoop(),
-                  ipc::ChildSide);
-  return mCanSend;
 }
 
 /*static*/ CompositorChild*
@@ -176,27 +121,14 @@ CompositorChild::AllocPLayerTransactionChild(const nsTArray<LayersBackend>& aBac
                                              bool*)
 {
   MOZ_ASSERT(mCanSend);
-  LayerTransactionChild* c = new LayerTransactionChild(aId);
+  LayerTransactionChild* c = new LayerTransactionChild();
   c->AddIPDLReference();
   return c;
-}
-
-/*static*/ PLDHashOperator
-CompositorChild::RemoveSharedMetricsForLayersId(const uint64_t& aKey,
-                                                nsAutoPtr<SharedFrameMetricsData>& aData,
-                                                void* aLayerTransactionChild)
-{
-  uint64_t childId = static_cast<LayerTransactionChild*>(aLayerTransactionChild)->GetId();
-  if (aData->GetLayersId() == childId) {
-    return PLDHashOperator::PL_DHASH_REMOVE;
-  }
-  return PLDHashOperator::PL_DHASH_NEXT;
 }
 
 bool
 CompositorChild::DeallocPLayerTransactionChild(PLayerTransactionChild* actor)
 {
-  mFrameMetricsTable.Enumerate(RemoveSharedMetricsForLayersId, actor);
   static_cast<LayerTransactionChild*>(actor)->ReleaseIPDLReference();
   return true;
 }
@@ -330,20 +262,6 @@ CompositorChild::RecvUpdatePluginConfigurations(const nsIntPoint& aContentOffset
 }
 
 bool
-CompositorChild::RecvUpdatePluginVisibility(nsTArray<uintptr_t>&& aVisibleIdList)
-{
-#if !defined(XP_WIN) && !defined(MOZ_WIDGET_GTK)
-  NS_NOTREACHED("CompositorChild::RecvUpdatePluginVisibility calls "
-                "unexpected on this platform.");
-  return false;
-#else
-  MOZ_ASSERT(NS_IsMainThread());
-  nsIWidget::UpdateRegisteredPluginWindowVisibility(aVisibleIdList);
-  return true;
-#endif // !defined(XP_WIN) && !defined(MOZ_WIDGET_GTK)
-}
-
-bool
 CompositorChild::RecvDidComposite(const uint64_t& aId, const uint64_t& aTransactionId)
 {
   if (mLayerManager) {
@@ -407,11 +325,9 @@ bool
 CompositorChild::RecvSharedCompositorFrameMetrics(
     const mozilla::ipc::SharedMemoryBasic::Handle& metrics,
     const CrossProcessMutexHandle& handle,
-    const uint64_t& aLayersId,
     const uint32_t& aAPZCId)
 {
-  SharedFrameMetricsData* data = new SharedFrameMetricsData(
-    metrics, handle, aLayersId, aAPZCId);
+  SharedFrameMetricsData* data = new SharedFrameMetricsData(metrics, handle, aAPZCId);
   mFrameMetricsTable.Put(data->GetViewID(), data);
   return true;
 }
@@ -434,11 +350,9 @@ CompositorChild::RecvReleaseSharedCompositorFrameMetrics(
 CompositorChild::SharedFrameMetricsData::SharedFrameMetricsData(
     const ipc::SharedMemoryBasic::Handle& metrics,
     const CrossProcessMutexHandle& handle,
-    const uint64_t& aLayersId,
-    const uint32_t& aAPZCId)
-  : mMutex(nullptr)
-  , mLayersId(aLayersId)
-  , mAPZCId(aAPZCId)
+    const uint32_t& aAPZCId) :
+    mMutex(nullptr),
+    mAPZCId(aAPZCId)
 {
   mBuffer = new ipc::SharedMemoryBasic(metrics);
   mBuffer->Map(sizeof(FrameMetrics));
@@ -473,12 +387,6 @@ CompositorChild::SharedFrameMetricsData::GetViewID()
   // Not locking to read of mScrollId since it should not change after being
   // initially set.
   return frame->GetScrollId();
-}
-
-uint64_t
-CompositorChild::SharedFrameMetricsData::GetLayersId() const
-{
-  return mLayersId;
 }
 
 uint32_t
@@ -537,6 +445,8 @@ bool
 CompositorChild::SendWillStop()
 {
   MOZ_ASSERT(mCanSend);
+  // From now on the only two messages we can send are WillStop and Stop.
+  mCanSend = false;
   return PCompositorChild::SendWillStop();
 }
 

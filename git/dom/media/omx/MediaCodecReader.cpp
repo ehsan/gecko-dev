@@ -45,6 +45,11 @@ using namespace mozilla::layers;
 
 namespace mozilla {
 
+enum {
+  kNotifyCodecReserved = 'core',
+  kNotifyCodecCanceled = 'coca',
+};
+
 static const int64_t sInvalidDurationUs = INT64_C(-1);
 static const int64_t sInvalidTimestampUs = INT64_C(-1);
 
@@ -67,6 +72,25 @@ IsValidTimestampUs(int64_t aTimestamp)
   return aTimestamp >= INT64_C(0);
 }
 
+MediaCodecReader::MessageHandler::MessageHandler(MediaCodecReader* aReader)
+  : mReader(aReader)
+{
+}
+
+MediaCodecReader::MessageHandler::~MessageHandler()
+{
+  mReader = nullptr;
+}
+
+void
+MediaCodecReader::MessageHandler::onMessageReceived(
+  const sp<AMessage>& aMessage)
+{
+  if (mReader) {
+    mReader->onMessageReceived(aMessage);
+  }
+}
+
 MediaCodecReader::VideoResourceListener::VideoResourceListener(
   MediaCodecReader* aReader)
   : mReader(aReader)
@@ -82,7 +106,7 @@ void
 MediaCodecReader::VideoResourceListener::codecReserved()
 {
   if (mReader) {
-    mReader->VideoCodecReserved();
+    mReader->codecReserved(mReader->mVideoTrack);
   }
 }
 
@@ -90,7 +114,7 @@ void
 MediaCodecReader::VideoResourceListener::codecCanceled()
 {
   if (mReader) {
-    mReader->VideoCodecCanceled();
+    mReader->codecCanceled(mReader->mVideoTrack);
   }
 }
 
@@ -276,6 +300,7 @@ MediaCodecReader::MediaCodecReader(AbstractMediaDecoder* aDecoder)
   , mNextParserPosition(INT64_C(0))
   , mParsedDataLength(INT64_C(0))
 {
+  mHandler = new MessageHandler(this);
   mVideoListener = new VideoResourceListener(this);
 }
 
@@ -672,14 +697,6 @@ MediaCodecReader::ReadMetadata(MediaInfo* aInfo,
   UpdateIsWaitingMediaResources();
   if (IsWaitingMediaResources()) {
     return NS_OK;
-  }
-
-  // Configure video codec after the codecReserved.
-  if (mVideoTrack.mSource != nullptr) {
-    if (!ConfigureMediaCodec(mVideoTrack)) {
-      DestroyMediaCodec(mVideoTrack);
-      return NS_ERROR_FAILURE;
-    }
   }
 
   // TODO: start streaming
@@ -1086,8 +1103,8 @@ MediaCodecReader::ReallocateResources()
   if (CreateLooper() &&
       CreateExtractor() &&
       CreateMediaSources() &&
-      CreateTaskQueues() &&
-      CreateMediaCodecs()) {
+      CreateMediaCodecs() &&
+      CreateTaskQueues()) {
     return true;
   }
 
@@ -1133,6 +1150,9 @@ MediaCodecReader::CreateLooper()
   sp<ALooper> looper = new ALooper;
   looper->setName("MediaCodecReader::mLooper");
 
+  // Register AMessage handler to ALooper.
+  looper->registerHandler(mHandler);
+
   // Start ALooper thread.
   if (looper->start() != OK) {
     return false;
@@ -1148,6 +1168,11 @@ MediaCodecReader::DestroyLooper()
 {
   if (mLooper == nullptr) {
     return;
+  }
+
+  // Unregister AMessage handler from ALooper.
+  if (mHandler != nullptr) {
+    mLooper->unregisterHandler(mHandler->id());
   }
 
   // Stop ALooper thread.
@@ -1279,11 +1304,13 @@ MediaCodecReader::ShutdownTaskQueues()
 bool
 MediaCodecReader::CreateTaskQueues()
 {
-  if (mAudioTrack.mSource != nullptr && !mAudioTrack.mTaskQueue) {
+  if (mAudioTrack.mSource != nullptr && mAudioTrack.mCodec != nullptr &&
+      !mAudioTrack.mTaskQueue) {
     mAudioTrack.mTaskQueue = CreateFlushableMediaDecodeTaskQueue();
     NS_ENSURE_TRUE(mAudioTrack.mTaskQueue, false);
   }
-  if (mVideoTrack.mSource != nullptr && !mVideoTrack.mTaskQueue) {
+  if (mVideoTrack.mSource != nullptr && mVideoTrack.mCodec != nullptr &&
+      !mVideoTrack.mTaskQueue) {
     mVideoTrack.mTaskQueue = CreateFlushableMediaDecodeTaskQueue();
     NS_ENSURE_TRUE(mVideoTrack.mTaskQueue, false);
     mVideoTrack.mReleaseBufferTaskQueue = CreateMediaDecodeTaskQueue();
@@ -1916,21 +1943,58 @@ MediaCodecReader::ClearColorConverterBuffer()
   mColorConverterBufferSize = 0;
 }
 
-// Called on Binder thread.
+// Called on MediaCodecReader::mLooper thread.
 void
-MediaCodecReader::VideoCodecReserved()
+MediaCodecReader::onMessageReceived(const sp<AMessage>& aMessage)
 {
-  mDecoder->NotifyWaitingForResourcesStatusChanged();
+  switch (aMessage->what()) {
+
+    case kNotifyCodecReserved:
+    {
+      // Our decode may have acquired the hardware resource that it needs
+      // to start. Notify the state machine to resume loading metadata.
+      mDecoder->NotifyWaitingForResourcesStatusChanged();
+      break;
+    }
+
+    case kNotifyCodecCanceled:
+    {
+      ReleaseCriticalResources();
+      break;
+    }
+
+    default:
+      TRESPASS();
+      break;
+  }
 }
 
 // Called on Binder thread.
 void
-MediaCodecReader::VideoCodecCanceled()
+MediaCodecReader::codecReserved(Track& aTrack)
 {
-  if (mVideoTrack.mTaskQueue) {
-    RefPtr<nsIRunnable> task =
-      NS_NewRunnableMethod(this, &MediaCodecReader::ReleaseCriticalResources);
-    mVideoTrack.mTaskQueue->Dispatch(task);
+  if (!ConfigureMediaCodec(aTrack)) {
+    DestroyMediaCodec(aTrack);
+    return;
+  }
+
+  if (mHandler != nullptr) {
+    // post kNotifyCodecReserved to MediaCodecReader::mLooper thread.
+    sp<AMessage> notify = new AMessage(kNotifyCodecReserved, mHandler->id());
+    notify->post();
+  }
+}
+
+// Called on Binder thread.
+void
+MediaCodecReader::codecCanceled(Track& aTrack)
+{
+  DestroyMediaCodec(aTrack);
+
+  if (mHandler != nullptr) {
+    // post kNotifyCodecCanceled to MediaCodecReader::mLooper thread.
+    sp<AMessage> notify = new AMessage(kNotifyCodecCanceled, mHandler->id());
+    notify->post();
   }
 }
 

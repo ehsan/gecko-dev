@@ -225,7 +225,7 @@ public:
   NS_DECL_NSIPROCESSCHECKER
 
   static nsFrameMessageManager*
-  NewProcessMessageManager(bool aIsRemote);
+  NewProcessMessageManager(mozilla::dom::nsIContentParent* aProcess);
 
   nsresult ReceiveMessage(nsISupports* aTarget, const nsAString& aMessage,
                           bool aIsSync, const StructuredCloneData* aCloneData,
@@ -401,8 +401,6 @@ public:
     nsCOMPtr<nsIXPConnectJSObjectHolder> ref = mGlobal;
     return ref.forget();
   }
-
-  void MarkScopesForCC();
 protected:
   friend class nsMessageManagerScriptCx;
   nsMessageManagerScriptExecutor() { MOZ_COUNT_CTOR(nsMessageManagerScriptExecutor); }

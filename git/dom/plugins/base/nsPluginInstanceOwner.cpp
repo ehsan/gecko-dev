@@ -994,11 +994,13 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetTagType(nsPluginTagType *result)
 
   *result = nsPluginTagType_Unknown;
 
-  if (mContent->IsHTMLElement(nsGkAtoms::applet))
+  nsIAtom *atom = mContent->Tag();
+
+  if (atom == nsGkAtoms::applet)
     *result = nsPluginTagType_Applet;
-  else if (mContent->IsHTMLElement(nsGkAtoms::embed))
+  else if (atom == nsGkAtoms::embed)
     *result = nsPluginTagType_Embed;
-  else if (mContent->IsHTMLElement(nsGkAtoms::object))
+  else if (atom == nsGkAtoms::object)
     *result = nsPluginTagType_Object;
 
   return NS_OK;

@@ -36,7 +36,11 @@
 
   SimpleTest.waitForExplicitFinish();
 
-  runTest();
+  SpecialPowers.pushPrefEnv({"set": [
+    ["dom.fetch.enabled", true]
+  ]}, function() {
+    runTest();
+  });
 </script>
 </pre>
 </body>

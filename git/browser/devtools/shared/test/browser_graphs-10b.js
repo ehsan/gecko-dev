@@ -33,7 +33,7 @@ function* performTest() {
   is(refreshCount, 0, "The graph shouldn't have been refreshed at all.");
   is(refreshCancelledCount, 2, "The graph should've had 2 refresh attempts.");
 
-  yield graph.destroy();
+  graph.destroy();
   host.destroy();
 }
 

@@ -75,6 +75,12 @@ HTMLLabelAccessible::RelationByType(RelationType aType)
   return rel;
 }
 
+role
+HTMLLabelAccessible::NativeRole()
+{
+  return roles::LABEL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLOuputAccessible
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,3 +96,21 @@ HTMLOutputAccessible::RelationByType(RelationType aType)
 
   return rel;
 }
+
+role
+HTMLOutputAccessible::NativeRole()
+{
+  return roles::SECTION;
+}
+
+already_AddRefed<nsIPersistentProperties>
+HTMLOutputAccessible::NativeAttributes()
+{
+  nsCOMPtr<nsIPersistentProperties> attributes =
+    AccessibleWrap::NativeAttributes();
+  nsAccUtils::SetAccAttr(attributes, nsGkAtoms::live,
+                         NS_LITERAL_STRING("polite"));
+
+  return attributes.forget();
+}
+

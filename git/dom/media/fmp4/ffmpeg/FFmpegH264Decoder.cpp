@@ -10,6 +10,7 @@
 #include "ImageContainer.h"
 
 #include "mp4_demuxer/mp4_demuxer.h"
+#include "mp4_demuxer/AnnexB.h"
 
 #include "FFmpegH264Decoder.h"
 
@@ -30,11 +31,8 @@ FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   : FFmpegDataDecoder(aTaskQueue, GetCodecId(aConfig.mime_type))
   , mCallback(aCallback)
   , mImageContainer(aImageContainer)
-  , mDisplayWidth(aConfig.display_width)
-  , mDisplayHeight(aConfig.display_height)
 {
   MOZ_COUNT_CTOR(FFmpegH264Decoder);
-  mExtraData = aConfig.extra_data;
 }
 
 nsresult
@@ -54,6 +52,12 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(mp4_demuxer::MP4Sample* aSample)
 {
   AVPacket packet;
   av_init_packet(&packet);
+
+  if (!mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample)) {
+    NS_WARNING("FFmpeg h264 decoder failed to convert sample to Annex B.");
+    mCallback->Error();
+    return DecodeResult::DECODE_ERROR;
+  }
 
   if (!aSample->Pad(FF_INPUT_BUFFER_PADDING_SIZE)) {
     NS_WARNING("FFmpeg h264 decoder failed to allocate sample.");
@@ -87,7 +91,7 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(mp4_demuxer::MP4Sample* aSample)
   // If we've decoded a frame then we need to output it
   if (decoded) {
     VideoInfo info;
-    info.mDisplay = nsIntSize(mDisplayWidth, mDisplayHeight);
+    info.mDisplay = nsIntSize(mCodecContext->width, mCodecContext->height);
     info.mStereoMode = StereoMode::MONO;
     info.mHasVideo = true;
 

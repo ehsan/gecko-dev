@@ -29,9 +29,7 @@ class SVGFragmentIdentifier
 public:
   /**
    * Process the SVG fragment identifier, if there is one.
-   * @return true if we found a valid svgView()-style fragment identifier,
-   * in which case further processing by the caller can stop. Otherwise return
-   * false as we may have an ordinary anchor which needs to be :target matched.
+   * @return true if we found something we recognised
    */
   static bool ProcessFragmentIdentifier(nsIDocument *aDocument,
                                         const nsAString &aAnchorName);

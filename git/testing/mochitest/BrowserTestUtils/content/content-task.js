@@ -4,8 +4,7 @@
 
 "use strict";
 
-const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
-
+let Cu = Components.utils;
 Cu.import("resource://gre/modules/Task.jsm", this);
 
 addMessageListener("content-task:spawn", function (msg) {

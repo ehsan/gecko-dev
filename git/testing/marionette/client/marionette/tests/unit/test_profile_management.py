@@ -3,8 +3,8 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import os
-from marionette_driver.errors import JavascriptException
-from marionette import MarionetteTestCase
+from errors import JavascriptException
+from marionette_test import MarionetteTestCase
 
 class TestLog(MarionetteTestCase):
     def setUp(self):
@@ -36,28 +36,3 @@ class TestLog(MarionetteTestCase):
         self.marionette.restart()
         bool_value = self.marionette.execute_script("return SpecialPowers.getBoolPref('marionette.test.restart');")
         self.assertTrue(bool_value)
-
-    def test_in_app_restart_the_browser(self):
-        self.marionette.execute_script("SpecialPowers.setBoolPref('marionette.test.restart', true);")
-
-        # A "soft" restart initiated inside the application should keep track of this pref.
-        self.marionette.restart(in_app=True)
-        bool_value = self.marionette.execute_script("""
-          return SpecialPowers.getBoolPref('marionette.test.restart');
-        """)
-        self.assertTrue(bool_value)
-
-        bool_value = self.marionette.execute_script("""
-          SpecialPowers.setBoolPref('marionette.test.restart', false);
-          return SpecialPowers.getBoolPref('marionette.test.restart');
-        """)
-        self.assertFalse(bool_value)
-
-        # A "hard" restart is still possible (i.e., our instance is still able
-        # to kill the browser).
-        self.marionette.restart()
-
-        # The "hard" restart blows away the pref we set.
-        self.assertRaisesRegexp(JavascriptException, "Error getting pref",
-                                self.marionette.execute_script,
-                                "return SpecialPowers.getBoolPref('marionette.test.restart');")

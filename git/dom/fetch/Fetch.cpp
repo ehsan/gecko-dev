@@ -177,7 +177,7 @@ public:
     nsRefPtr<FetchDriver> fetch = new FetchDriver(mRequest, principal, loadGroup);
     nsIDocument* doc = mResolver->GetWorkerPrivate()->GetDocument();
     if (doc) {
-      fetch->SetDocument(doc);
+      fetch->SetReferrerPolicy(doc->GetReferrerPolicy());
     }
 
     nsresult rv = fetch->Fetch(mResolver);
@@ -234,7 +234,7 @@ FetchRequest(nsIGlobalObject* aGlobal, const RequestOrUSVString& aInput,
     nsCOMPtr<nsILoadGroup> loadGroup = doc->GetDocumentLoadGroup();
     nsRefPtr<FetchDriver> fetch =
       new FetchDriver(r, doc->NodePrincipal(), loadGroup);
-    fetch->SetDocument(doc);
+    fetch->SetReferrerPolicy(doc->GetReferrerPolicy());
     aRv = fetch->Fetch(resolver);
     if (NS_WARN_IF(aRv.Failed())) {
       return nullptr;
@@ -315,6 +315,7 @@ public:
       result.ThrowTypeError(MSG_FETCH_FAILED);
       promise->MaybeReject(result);
     }
+
     return true;
   }
 };

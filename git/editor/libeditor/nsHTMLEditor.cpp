@@ -743,20 +743,23 @@ nsHTMLEditor::NodeIsBlockStatic(const dom::Element* aElement)
 {
   MOZ_ASSERT(aElement);
 
+  nsIAtom* tagAtom = aElement->Tag();
+  MOZ_ASSERT(tagAtom);
+
   // Nodes we know we want to treat as block
   // even though the parser says they're not:
-  if (aElement->IsAnyOfHTMLElements(nsGkAtoms::body,
-                                    nsGkAtoms::head,
-                                    nsGkAtoms::tbody,
-                                    nsGkAtoms::thead,
-                                    nsGkAtoms::tfoot,
-                                    nsGkAtoms::tr,
-                                    nsGkAtoms::th,
-                                    nsGkAtoms::td,
-                                    nsGkAtoms::li,
-                                    nsGkAtoms::dt,
-                                    nsGkAtoms::dd,
-                                    nsGkAtoms::pre)) {
+  if (tagAtom == nsGkAtoms::body ||
+      tagAtom == nsGkAtoms::head ||
+      tagAtom == nsGkAtoms::tbody ||
+      tagAtom == nsGkAtoms::thead ||
+      tagAtom == nsGkAtoms::tfoot ||
+      tagAtom == nsGkAtoms::tr ||
+      tagAtom == nsGkAtoms::th ||
+      tagAtom == nsGkAtoms::td ||
+      tagAtom == nsGkAtoms::li ||
+      tagAtom == nsGkAtoms::dt ||
+      tagAtom == nsGkAtoms::dd ||
+      tagAtom == nsGkAtoms::pre) {
     return true;
   }
 
@@ -766,12 +769,11 @@ nsHTMLEditor::NodeIsBlockStatic(const dom::Element* aElement)
   nsresult rv =
 #endif
     nsContentUtils::GetParserService()->
-    IsBlock(nsContentUtils::GetParserService()->HTMLAtomTagToId(
-              aElement->NodeInfo()->NameAtom()),
+    IsBlock(nsContentUtils::GetParserService()->HTMLAtomTagToId(tagAtom),
             isBlock);
   MOZ_ASSERT(rv == NS_OK);
 
-  AssertParserServiceIsCorrect(aElement->NodeInfo()->NameAtom(), isBlock);
+  AssertParserServiceIsCorrect(tagAtom, isBlock);
 
   return isBlock;
 }
@@ -1592,7 +1594,7 @@ nsHTMLEditor::InsertNodeAtPoint(nsIDOMNode *aNode,
   while (!CanContain(*parent, *node)) {
     // If the current parent is a root (body or table element)
     // then go no further - we can't insert
-    if (parent->IsHTMLElement(nsGkAtoms::body) ||
+    if (parent->Tag() == nsGkAtoms::body ||
         nsHTMLEditUtils::IsTableElement(parent)) {
       return NS_ERROR_FAILURE;
     }
@@ -1854,7 +1856,7 @@ nsHTMLEditor::GetHTMLBackgroundColorState(bool *aMixed, nsAString &aOutColor)
     }
 
     // Once we hit the body, we're done
-    if (element->IsHTMLElement(nsGkAtoms::body)) {
+    if (element->IsHTML(nsGkAtoms::body)) {
       return NS_OK;
     }
 
@@ -2293,7 +2295,7 @@ nsHTMLEditor::GetElementOrParentByTagName(const nsAString& aTagName,
     // stop at table cells, but that's too messy when you are trying to find
     // the parent table
     if (current->GetParentElement() &&
-        current->GetParentElement()->IsHTMLElement(nsGkAtoms::body)) {
+        current->GetParentElement()->Tag() == nsGkAtoms::body) {
       break;
     }
   }
@@ -3046,9 +3048,10 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
 
       // See if it's an image or an embed and also include all links.
       // Let mail decide which link to send or not
-      if (element->IsAnyOfHTMLElements(nsGkAtoms::img, nsGkAtoms::embed,
-                                       nsGkAtoms::a) ||
-          (element->IsHTMLElement(nsGkAtoms::body) &&
+      if (element->IsHTML(nsGkAtoms::img) ||
+          element->IsHTML(nsGkAtoms::embed) ||
+          element->IsHTML(nsGkAtoms::a) ||
+          (element->IsHTML(nsGkAtoms::body) &&
            element->HasAttr(kNameSpaceID_None, nsGkAtoms::background))) {
         nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(node);
         (*aNodeList)->AppendElement(domNode);
@@ -3272,7 +3275,7 @@ nsHTMLEditor::GetIsSelectionEditable(bool* aIsSelectionEditable)
   // Per the editing spec as of June 2012: we have to have a selection whose
   // start and end nodes are editable, and which share an ancestor editing
   // host.  (Bug 766387.)
-  *aIsSelectionEditable = selection->RangeCount() &&
+  *aIsSelectionEditable = selection->GetRangeCount() &&
                           selection->GetAnchorNode()->IsEditable() &&
                           selection->GetFocusNode()->IsEditable();
 
@@ -3643,7 +3646,7 @@ bool
 nsHTMLEditor::SetCaretInTableCell(nsIDOMElement* aElement)
 {
   nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
-  if (!element || !element->IsHTMLElement() ||
+  if (!element || !element->IsHTML() ||
       !nsHTMLEditUtils::IsTableElement(element) ||
       !IsDescendantOfEditorRoot(element)) {
     return false;
@@ -4357,7 +4360,7 @@ nsHTMLEditor::IsEmptyNodeImpl(nsINode* aNode,
           break;
         }
 
-        if (aSingleBRDoesntCount && !*aSeenBR && child->IsHTMLElement(nsGkAtoms::br)) {
+        if (aSingleBRDoesntCount && !*aSeenBR && child->IsHTML(nsGkAtoms::br)) {
           // the first br in a block doesn't count if the caller so indicated
           *aSeenBR = true;
         } else {
@@ -4367,7 +4370,7 @@ nsHTMLEditor::IsEmptyNodeImpl(nsINode* aNode,
           if (child->IsElement()) {
             if (isListItemOrCell) {
               if (nsHTMLEditUtils::IsList(child) ||
-                  child->IsHTMLElement(nsGkAtoms::table)) {
+                  child->IsHTML(nsGkAtoms::table)) {
                 // break out if we find we aren't empty
                 *outIsEmptyNode = false;
                 return NS_OK;
@@ -4544,7 +4547,7 @@ nsHTMLEditor::SetCSSBackgroundColor(const nsAString& aColor)
   {
     // loop thru the ranges in the selection
     nsAutoString bgcolor; bgcolor.AssignLiteral("bgcolor");
-    uint32_t rangeCount = selection->RangeCount();
+    uint32_t rangeCount = selection->GetRangeCount();
     for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
       nsCOMPtr<nsIDOMNode> cachedBlockParent = nullptr;
       nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
@@ -4740,11 +4743,11 @@ nsHTMLEditor::AreNodesSameType(nsIContent* aNode1, nsIContent* aNode2)
   MOZ_ASSERT(aNode1);
   MOZ_ASSERT(aNode2);
 
-  if (aNode1->NodeInfo()->NameAtom() != aNode2->NodeInfo()->NameAtom()) {
+  if (aNode1->Tag() != aNode2->Tag()) {
     return false;
   }
 
-  if (!IsCSSEnabled() || !aNode1->IsHTMLElement(nsGkAtoms::span)) {
+  if (!IsCSSEnabled() || !aNode1->IsHTML(nsGkAtoms::span)) {
     return true;
   }
 
@@ -4794,14 +4797,13 @@ nsHTMLEditor::CopyLastEditableChildStyles(nsIDOMNode * aPreviousBlock, nsIDOMNod
   }
   while (childElement && (childElement->AsDOMNode() != aPreviousBlock)) {
     if (nsHTMLEditUtils::IsInlineStyle(childElement) ||
-        childElement->IsHTMLElement(nsGkAtoms::span)) {
+        childElement->Tag() == nsGkAtoms::span) {
       if (newStyles) {
-        newStyles = InsertContainerAbove(newStyles,
-                                         childElement->NodeInfo()->NameAtom());
+        newStyles = InsertContainerAbove(newStyles, childElement->Tag());
         NS_ENSURE_STATE(newStyles);
       } else {
-        deepestStyle = newStyles =
-          CreateNode(childElement->NodeInfo()->NameAtom(), newBlock, 0);
+        deepestStyle = newStyles = CreateNode(childElement->Tag(), newBlock,
+                                              0);
         NS_ENSURE_STATE(newStyles);
       }
       CloneAttributes(newStyles, childElement);

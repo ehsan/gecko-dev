@@ -212,6 +212,7 @@ public:
                             const mozilla::WidgetKeyboardEvent& aEvent,
                             DoCommandCallback aCallback,
                             void* aCallbackData) MOZ_OVERRIDE { return false; }
+  NS_IMETHOD              SetLayersAcceleration(bool aEnabled) MOZ_OVERRIDE;
   virtual bool            ComputeShouldAccelerate(bool aDefault);
   NS_IMETHOD              GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() MOZ_OVERRIDE { return nsIMEUpdatePreference(); }
@@ -230,9 +231,6 @@ public:
   NS_IMETHOD              RegisterTouchWindow() MOZ_OVERRIDE;
   NS_IMETHOD              UnregisterTouchWindow() MOZ_OVERRIDE;
   NS_IMETHOD_(TextEventDispatcher*) GetTextEventDispatcher() MOZ_OVERRIDE MOZ_FINAL;
-
-  // Dispatch an event that must be first be routed through APZ.
-  nsEventStatus DispatchAPZAwareEvent(mozilla::WidgetInputEvent* aEvent) MOZ_OVERRIDE;
 
   void NotifyWindowDestroyed();
   void NotifySizeMoveDone();
@@ -329,10 +327,11 @@ protected:
   virtual void ConfigureAPZCTreeManager();
   virtual already_AddRefed<GeckoContentController> CreateRootContentController();
 
-  // Dispatch an event that has already been routed through APZ.
-  nsEventStatus ProcessUntransformedAPZEvent(mozilla::WidgetInputEvent* aEvent,
-                                             const ScrollableLayerGuid& aGuid,
-                                             uint64_t aInputBlockId);
+  // Dispatch an event that has been routed through APZ directly from the
+  // widget.
+  nsEventStatus DispatchEventForAPZ(mozilla::WidgetGUIEvent* aEvent,
+                                    const ScrollableLayerGuid& aGuid,
+                                    uint64_t aInputBlockId);
 
   const nsIntRegion RegionFromArray(const nsTArray<nsIntRect>& aRects);
   void ArrayFromRegion(const nsIntRegion& aRegion, nsTArray<nsIntRect>& aRects);
@@ -441,7 +440,6 @@ protected:
    * reached (This is the case with gtk2 for instance).
    */
   void DestroyCompositor();
-  void DestroyLayerManager();
 
   nsIWidgetListener* mWidgetListener;
   nsIWidgetListener* mAttachedWidgetListener;

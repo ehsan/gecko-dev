@@ -427,10 +427,10 @@ pref("media.getusermedia.screensharing.enabled", true);
 #endif
 
 #ifdef RELEASE_BUILD
-pref("media.getusermedia.screensharing.allowed_domains", "webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,*.clearslide.com,appear.in,*.appear.in,tokbox.com,*.tokbox.com,*.sso.francetelecom.fr,*.si.francetelecom.fr,*.sso.infra.ftgroup,*.multimedia-conference.orange-business.com,*.espacecollaboration.orange-business.com,example.com");
+pref("media.getusermedia.screensharing.allowed_domains", "webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,*.clearslide.com,appear.in,*.appear.in,tokbox.com,*.tokbox.com,example.com");
 #else
  // temporary value, not intended for release - bug 1049087
-pref("media.getusermedia.screensharing.allowed_domains", "mozilla.github.io,webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,*.clearslide.com,appear.in,*.appear.in,tokbox.com,*.tokbox.com,*.sso.francetelecom.fr,*.si.francetelecom.fr,*.sso.infra.ftgroup,*.multimedia-conference.orange-business.com,*.espacecollaboration.orange-business.com,example.com");
+pref("media.getusermedia.screensharing.allowed_domains", "mozilla.github.io,webex.com,*.webex.com,collaborate.com,*.collaborate.com,projectsquared.com,*.projectsquared.com,*.room.co,room.co,beta.talky.io,talky.io,*.clearslide.com,appear.in,*.appear.in,tokbox.com,*.tokbox.com,example.com");
 #endif
 // OS/X 10.6 and XP have screen/window sharing off by default due to various issues - Caveat emptor
 pref("media.getusermedia.screensharing.allow_on_old_platforms", false);
@@ -453,9 +453,9 @@ pref("media.mediasource.enabled", false);
 #endif
 
 #ifdef RELEASE_BUILD
-pref("media.mediasource.whitelist", true);
+pref("media.mediasource.youtubeonly", true);
 #else
-pref("media.mediasource.whitelist", false);
+pref("media.mediasource.youtubeonly", false);
 #endif // RELEASE_BUILD
 
 pref("media.mediasource.mp4.enabled", true);
@@ -487,6 +487,9 @@ pref("media.audio_data.enabled", false);
 
 // Whether to use async panning and zooming
 pref("layers.async-pan-zoom.enabled", false);
+
+// Whether to enable containerless async scrolling
+pref("layout.async-containerless-scrolling.enabled", true);
 
 // Whether to enable event region building during painting
 pref("layout.event-regions.enabled", false);
@@ -594,11 +597,6 @@ pref("gfx.color_management.enablev4", false);
 
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
-
-// disable downloadable font cache so that behavior is consistently
-// the uncached load behavior across pages (useful for testing reflow problems)
-pref("gfx.downloadable_fonts.disable_cache", false);
-
 #ifdef RELEASE_BUILD
 pref("gfx.downloadable_fonts.woff2.enabled", false);
 #else
@@ -1068,7 +1066,6 @@ pref("javascript.options.mem.gc_compacting", true);
 pref("javascript.options.mem.log", false);
 pref("javascript.options.mem.notify", false);
 pref("javascript.options.gc_on_memory_pressure", true);
-pref("javascript.options.compact_on_user_inactive", true);
 
 pref("javascript.options.mem.gc_high_frequency_time_limit_ms", 1000);
 pref("javascript.options.mem.gc_high_frequency_low_limit_mb", 100);
@@ -1350,8 +1347,7 @@ pref("network.http.tcp_keepalive.short_lived_idle_time", 10);
 pref("network.http.tcp_keepalive.long_lived_connections", true);
 pref("network.http.tcp_keepalive.long_lived_idle_time", 600);
 
-pref("network.http.enforce-framing.http1", false); // should be named "strict"
-pref("network.http.enforce-framing.soft", true);
+pref("network.http.enforce-framing.http1", false);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -1360,12 +1356,6 @@ pref("network.http.enforce-framing.soft", true);
 pref("network.ftp.data.qos", 0);
 pref("network.ftp.control.qos", 0);
 
-// If this pref is false only one xpcom event will be served per poll
-// iteration. This is the original behavior.
-// If it is true multiple events will be served.
-pref("network.sts.serve_multiple_events_per_poll_iteration", true);
-// The max time to spend on xpcom events between two polls in ms.
-pref("network.sts.max_time_for_events_between_two_polls", 100);
 // </http>
 
 // 2147483647 == PR_INT32_MAX == ~2 GB
@@ -1583,9 +1573,6 @@ pref("network.dnsCacheExpirationGracePeriod", 60);
 // This preference can be used to turn off DNS prefetch.
 pref("network.dns.disablePrefetch", false);
 
-// Contols whether or not "localhost" should resolve when offline
-pref("network.dns.offline-localhost", true);
-
 // This preference controls whether or not URLs with UTF-8 characters are
 // escaped.  Set this preference to TRUE for strict RFC2396 conformance.
 pref("network.standard-url.escape-utf8", true);
@@ -1593,9 +1580,6 @@ pref("network.standard-url.escape-utf8", true);
 // This preference controls whether or not URLs are always encoded and sent as
 // UTF-8.
 pref("network.standard-url.encode-utf8", true);
-
-// The maximum allowed length for a URL - 1MB default
-pref("network.standard-url.max-length", 1048576);
 
 // Idle timeout for ftp control connections - 5 minute default
 pref("network.ftp.idleConnectionTimeout", 300);
@@ -1720,11 +1704,6 @@ pref("network.stricttransportsecurity.preloadlist", true);
 
 pref("converter.html2txt.structs",          true); // Output structured phrases (strong, em, code, sub, sup, b, i, u)
 pref("converter.html2txt.header_strategy",  1); // 0 = no indention; 1 = indention, increased with header level; 2 = numbering and slight indention
-// Whether we include ruby annotation in the text despite whether it
-// is requested. This was true because we didn't explicitly strip out
-// annotations. Set false by default to provide a better behavior, but
-// we want to be able to pref-off it if user doesn't like it.
-pref("converter.html2txt.always_include_ruby", false);
 
 pref("intl.accept_languages",               "chrome://global/locale/intl.properties");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
@@ -2102,23 +2081,6 @@ pref("layout.css.isolation.enabled", true);
 // Is support for CSS Filters enabled?
 pref("layout.css.filters.enabled", true);
 
-// Is support for scroll-snap enabled?
-pref("layout.css.scroll-snap.enabled", false);
-
-// Set the threshold distance in CSS pixels below which scrolling will snap to
-// an edge, when scroll snapping is set to "proximity".
-pref("layout.css.scroll-snap.proximity-threshold", 200);
-
-// When selecting the snap point for CSS scroll snapping, the velocity of the
-// scroll frame is clamped to this speed, in CSS pixels / s.
-pref("layout.css.scroll-snap.prediction-max-velocity", 2000);
-
-// When selecting the snap point for CSS scroll snapping, the velocity of the
-// scroll frame is integrated over this duration, in seconds.  The snap point
-// best suited for this position is selected, enabling the user to perform fling
-// gestures.
-pref("layout.css.scroll-snap.prediction-sensitivity", "0.750");
-
 // Is support for basic shapes in clip-path enabled?
 pref("layout.css.clip-path-shapes.enabled", false);
 
@@ -2171,10 +2133,6 @@ pref("layout.css.prefixes.transitions", true);
 pref("layout.css.prefixes.animations", true);
 pref("layout.css.prefixes.box-sizing", true);
 pref("layout.css.prefixes.font-features", true);
-
-// Is the CSS Unprefixing Service enabled? (This service emulates support
-// for certain vendor-prefixed properties & values, for sites on a "fixlist".)
-pref("layout.css.unprefixing-service.enabled", false);
 
 // Is support for the :scope selector enabled?
 pref("layout.css.scope-pseudo.enabled", true);
@@ -4180,11 +4138,6 @@ pref("dom.imagecapture.enabled", false);
 // W3C touch-action css property (related to touch and pointer events)
 pref("layout.css.touch_action.enabled", false);
 
-// Enables some assertions in nsStyleContext that are too expensive
-// for general use, but might be useful to enable for specific tests.
-// This only has an effect in DEBUG-builds.
-pref("layout.css.expensive-style-struct-assertions.enabled", false);
-
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
 
@@ -4464,10 +4417,8 @@ pref("beacon.enabled", true);
 // Camera prefs
 pref("camera.control.face_detection.enabled", true);
 
-
-// SW Cache API
-pref("dom.caches.enabled", false);
-
+// Fetch API.
+pref("dom.fetch.enabled", false);
 #ifdef MOZ_WIDGET_GONK
 // Empirically, this is the value returned by hal::GetTotalSystemMemory()
 // when Flame's memory is limited to 512MiB. If the camera stack determines
@@ -4510,16 +4461,6 @@ pref("dom.mozSettings.SettingsService.verbose.enabled", false);
 // IndexedDB transactions to be opened as readonly or keep everything as
 // readwrite.
 pref("dom.mozSettings.allowForceReadOnly", false);
-
-// The interval at which to check for slow running addons
-#ifdef NIGHTLY_BUILD
-pref("browser.addon-watch.interval", 15000);
-#else
-pref("browser.addon-watch.interval", -1);
-#endif
-pref("browser.addon-watch.ignore", "[\"mochikit@mozilla.org\",\"special-powers@mozilla.org\"]");
-// the percentage of time addons are allowed to use without being labeled slow
-pref("browser.addon-watch.percentage-limit", 5);
 
 // RequestSync API is disabled by default.
 pref("dom.requestSync.enabled", false);
@@ -4620,11 +4561,7 @@ pref("media.gmp.insecure.allow", false);
 
 // Use vsync aligned rendering. b2g prefs are in b2g.js
 // Only supported on windows, os x, and b2g
-#if defined(XP_MACOSX)
-pref("gfx.vsync.hw-vsync.enabled", true);
-pref("gfx.vsync.compositor", true);
-pref("gfx.vsync.refreshdriver", false);
-#elif defined(XP_WIN)
+#if defined(XP_WIN) || defined(XP_MACOSX)
 pref("gfx.vsync.hw-vsync.enabled", false);
 pref("gfx.vsync.compositor", false);
 pref("gfx.vsync.refreshdriver", false);

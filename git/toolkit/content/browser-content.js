@@ -146,7 +146,6 @@ let ClickEventHandler = {
 
   stopScroll: function() {
     if (this._scrollable) {
-      this._scrollable.mozScrollSnap();
       this._scrollable = null;
 
       Cc["@mozilla.org/eventlistenerservice;1"]
@@ -379,17 +378,12 @@ let Printing = {
     this.MESSAGES.forEach(msgName => addMessageListener(msgName, this));
   },
 
-  get shouldSavePrintSettings() {
-    return Services.prefs.getBoolPref("print.use_global_printsettings", false) &&
-           Services.prefs.getBoolPref("print.save_print_settings", false);
-  },
-
   receiveMessage(message) {
     let objects = message.objects;
     let data = message.data;
     switch(message.name) {
       case "Printing:Preview:Enter": {
-        this.enterPrintPreview(objects.contentWindow);
+        this.enterPrintPreview(objects.printSettings, objects.contentWindow);
         break;
       }
 
@@ -409,37 +403,19 @@ let Printing = {
       }
 
       case "Printing:Print": {
-        this.print(objects.contentWindow);
+        this.print(objects.printSettings, objects.contentWindow);
         break;
       }
     }
   },
 
-  getPrintSettings() {
-    try {
-      let PSSVC = Cc["@mozilla.org/gfx/printsettings-service;1"]
-                    .getService(Ci.nsIPrintSettingsService);
-
-      let printSettings = PSSVC.globalPrintSettings;
-      if (!printSettings.printerName) {
-        printSettings.printerName = PSSVC.defaultPrinterName;
-      }
-      // First get any defaults from the printer
-      PSSVC.initPrintSettingsFromPrinter(printSettings.printerName,
-                                         printSettings);
-      // now augment them with any values from last time
-      PSSVC.initPrintSettingsFromPrefs(printSettings, true,
-                                       printSettings.kInitSaveAll);
-
-      return printSettings;
-    } catch(e) {
-      Components.utils.reportError(e);
+  enterPrintPreview(printSettings, contentWindow) {
+    // Bug 1088070 - we should instantiate nsIPrintSettings here in the
+    // content script instead of passing it down as a CPOW.
+    if (Cu.isCrossProcessWrapper(printSettings)) {
+      printSettings = null;
     }
 
-    return null;
-  },
-
-  enterPrintPreview(contentWindow) {
     // We'll call this whenever we've finished reflowing the document, or if
     // we errored out while attempting to print preview (in which case, we'll
     // notify the parent that we've failed).
@@ -462,7 +438,6 @@ let Printing = {
     addEventListener("printPreviewUpdate", onPrintPreviewReady);
 
     try {
-      let printSettings = this.getPrintSettings();
       docShell.printPreview.printPreview(printSettings, contentWindow, this);
     } catch(error) {
       // This might fail if we, for example, attempt to print a XUL document.
@@ -476,8 +451,13 @@ let Printing = {
     docShell.printPreview.exitPrintPreview();
   },
 
-  print(contentWindow) {
-    let printSettings = this.getPrintSettings();
+  print(printSettings, contentWindow) {
+    // Bug 1088070 - we should instantiate nsIPrintSettings here in the
+    // content script instead of passing it down as a CPOW.
+    if (Cu.isCrossProcessWrapper(printSettings)) {
+      printSettings = null;
+    }
+
     let rv = Cr.NS_OK;
     try {
       let print = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -486,21 +466,9 @@ let Printing = {
     } catch(e) {
       // Pressing cancel is expressed as an NS_ERROR_ABORT return value,
       // causing an exception to be thrown which we catch here.
-      if (e.result != Cr.NS_ERROR_ABORT) {
-        Cu.reportError(`In Printing:Print:Done handler, got unexpected rv
-                        ${e.result}.`);
-      }
+      rv = e.result;
     }
-
-    if (this.shouldSavePrintSettings) {
-      let PSSVC = Cc["@mozilla.org/gfx/printsettings-service;1"]
-                    .getService(Ci.nsIPrintSettingsService);
-
-      PSSVC.savePrintSettingsToPrefs(printSettings, true,
-                                     printSettings.kInitSaveAll);
-      PSSVC.savePrintSettingsToPrefs(printSettings, false,
-                                     printSettings.kInitSavePrinterName);
-    }
+    sendAsyncMessage("Printing:Print:Done", { rv }, { printSettings });
   },
 
   updatePageCount() {

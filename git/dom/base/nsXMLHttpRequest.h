@@ -488,6 +488,7 @@ public:
     }
     aRv = Send(RequestBody(aStream));
   }
+  void SendAsBinary(const nsAString& aBody, ErrorResult& aRv);
 
   void Abort();
 

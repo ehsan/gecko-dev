@@ -17,8 +17,8 @@ namespace Disassembler {
 
 class ComplexAddress {
     int32_t disp_;
-    Register::Encoding base_ : 8;
-    Register::Encoding index_ : 8;
+    Register::Code base_ : 8;
+    Register::Code index_ : 8;
     int8_t scale_; // log2 encoding
     bool isPCRelative_;
 
@@ -33,7 +33,7 @@ class ComplexAddress {
         MOZ_ASSERT(*this == *this);
     }
 
-    ComplexAddress(int32_t disp, Register::Encoding base)
+    ComplexAddress(int32_t disp, Register::Code base)
       : disp_(disp),
         base_(base),
         index_(Registers::Invalid),
@@ -45,7 +45,7 @@ class ComplexAddress {
         MOZ_ASSERT(base_ == base);
     }
 
-    ComplexAddress(int32_t disp, Register::Encoding base, Register::Encoding index, int scale)
+    ComplexAddress(int32_t disp, Register::Code base, Register::Code index, int scale)
       : disp_(disp),
         base_(base),
         index_(index),
@@ -97,11 +97,11 @@ class ComplexAddress {
         return disp_;
     }
 
-    Register::Encoding base() const {
+    Register::Code base() const {
         return base_;
     }
 
-    Register::Encoding index() const {
+    Register::Code index() const {
         return index_;
     }
 
@@ -128,8 +128,8 @@ class OtherOperand {
     Kind kind_;
     union {
         int32_t imm;
-        Register::Encoding gpr;
-        FloatRegister::Encoding fpr;
+        Register::Code gpr;
+        FloatRegister::Code fpr;
     } u_;
 
   public:
@@ -147,14 +147,14 @@ class OtherOperand {
         MOZ_ASSERT(*this == *this);
     }
 
-    explicit OtherOperand(Register::Encoding gpr)
+    explicit OtherOperand(Register::Code gpr)
       : kind_(GPR)
     {
         u_.gpr = gpr;
         MOZ_ASSERT(*this == *this);
     }
 
-    explicit OtherOperand(FloatRegister::Encoding fpr)
+    explicit OtherOperand(FloatRegister::Code fpr)
       : kind_(FPR)
     {
         u_.fpr = fpr;
@@ -170,12 +170,12 @@ class OtherOperand {
         return u_.imm;
     }
 
-    Register::Encoding gpr() const {
+    Register::Code gpr() const {
         MOZ_ASSERT(kind_ == GPR);
         return u_.gpr;
     }
 
-    FloatRegister::Encoding fpr() const {
+    FloatRegister::Code fpr() const {
         MOZ_ASSERT(kind_ == FPR);
         return u_.fpr;
     }
@@ -257,6 +257,7 @@ VerifyHeapAccess(uint8_t *begin, uint8_t *end, const HeapAccess &expected)
     MOZ_ASSERT(e == end);
     MOZ_ASSERT(disassembled == expected);
 }
+
 #endif
 
 } // namespace Disassembler

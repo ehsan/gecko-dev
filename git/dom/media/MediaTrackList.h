@@ -106,11 +106,6 @@ public:
 
   MediaTrack* GetTrackById(const nsAString& aId);
 
-  bool IsEmpty() const
-  {
-    return mTracks.IsEmpty();
-  }
-
   uint32_t Length() const
   {
     return mTracks.Length();

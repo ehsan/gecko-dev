@@ -50,21 +50,23 @@ BluetoothPairingListener::~BluetoothPairingListener()
 }
 
 void
-BluetoothPairingListener::DispatchPairingEvent(const nsAString& aName,
-                                               const nsAString& aAddress,
+BluetoothPairingListener::DispatchPairingEvent(BluetoothDevice* aDevice,
                                                const nsAString& aPasskey,
                                                const nsAString& aType)
 {
-  MOZ_ASSERT(!aName.IsEmpty() && !aAddress.IsEmpty() && !aType.IsEmpty());
+  MOZ_ASSERT(aDevice && !aType.IsEmpty());
+
+  nsString address;
+  aDevice->GetAddress(address);
 
   nsRefPtr<BluetoothPairingHandle> handle =
     BluetoothPairingHandle::Create(GetOwner(),
-                                   aAddress,
+                                   address,
                                    aType,
                                    aPasskey);
 
   BluetoothPairingEventInit init;
-  init.mDeviceName = aName;
+  init.mDevice = aDevice;
   init.mHandle = handle;
 
   nsRefPtr<BluetoothPairingEvent> event =
@@ -94,13 +96,20 @@ BluetoothPairingListener::Notify(const BluetoothSignal& aData)
                arr[2].value().type() == BluetoothValue::TnsString && // passkey
                arr[3].value().type() == BluetoothValue::TnsString);  // type
 
-    nsString address = arr[0].value().get_nsString();
-    nsString name = arr[1].value().get_nsString();
+    nsString deviceAddress = arr[0].value().get_nsString();
+    nsString deviceName = arr[1].value().get_nsString();
     nsString passkey = arr[2].value().get_nsString();
     nsString type = arr[3].value().get_nsString();
 
+    // Create a temporary device with deviceAddress and deviceName
+    InfallibleTArray<BluetoothNamedValue> props;
+    BT_APPEND_NAMED_VALUE(props, "Address", deviceAddress);
+    BT_APPEND_NAMED_VALUE(props, "Name", deviceName);
+    nsRefPtr<BluetoothDevice> device =
+      BluetoothDevice::Create(GetOwner(), props);
+
     // Notify pairing listener of pairing requests
-    DispatchPairingEvent(name, address, passkey, type);
+    DispatchPairingEvent(device, passkey, type);
   } else {
     BT_WARNING("Not handling pairing listener signal: %s",
                NS_ConvertUTF16toUTF8(aData.name()).get());

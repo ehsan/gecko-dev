@@ -212,8 +212,10 @@ ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // Desktop does not support async zoom yet, so we ignore this for those
   // platforms.
 #if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
-  if (mWidget && mWidget->GetOwningTabChild()) {
-    mCompositorMightResample = gfxPrefs::AsyncPanZoomEnabled();
+  if (mWidget) {
+    if (dom::TabChild* window = mWidget->GetOwningTabChild()) {
+      mCompositorMightResample = window->IsAsyncPanZoomEnabled();
+    }
   }
 #endif
 
@@ -583,6 +585,17 @@ ClientLayerManager::ForwardTransaction(bool aScheduleComposite)
 
         contentClient->SwapBuffers(obs.frontUpdatedRegion());
 
+        break;
+      }
+      case EditReply::TOpTextureSwap: {
+        MOZ_LAYERS_LOG(("[LayersForwarder] TextureSwap"));
+
+        const OpTextureSwap& ots = reply.get_OpTextureSwap();
+
+        CompositableClient* compositable =
+          CompositableClient::FromIPDLActor(ots.compositableChild());
+        MOZ_ASSERT(compositable);
+        compositable->SetDescriptorFromReply(ots.textureId(), ots.image());
         break;
       }
       case EditReply::TReturnReleaseFence: {

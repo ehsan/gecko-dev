@@ -99,12 +99,12 @@ def match(path, pattern):
     '''
     if not pattern:
         return True
-    if pattern not in re_cache:
-        p = re.escape(pattern)
-        p = re.sub(r'(^|\\\/)\\\*\\\*\\\/', r'\1(?:.+/)?', p)
-        p = re.sub(r'(^|\\\/)\\\*\\\*$', r'(?:\1.+)?', p)
-        p = p.replace(r'\*', '[^/]*') + '(?:/.*)?$'
-        re_cache[pattern] = re.compile(p)
+    if not pattern in re_cache:
+        pattern = re.escape(pattern)
+        pattern = re.sub(r'(^|\\\/)\\\*\\\*\\\/', r'\1(?:.+/)?', pattern)
+        pattern = re.sub(r'(^|\\\/)\\\*\\\*$', r'(?:\1.+)?', pattern)
+        pattern = pattern.replace(r'\*', '[^/]*') + '(?:/.*)?$'
+        re_cache[pattern] = re.compile(pattern)
     return re_cache[pattern].match(path) is not None
 
 

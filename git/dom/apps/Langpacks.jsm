@@ -47,17 +47,14 @@ this.Langpacks = {
   _data: {},
   _broadcaster: null,
   _appIdFromManifestURL: null,
-  _appFromManifestURL: null,
 
   init: function() {
     ppmm.addMessageListener("Webapps:GetLocalizationResource", this);
-    ppmm.addMessageListener("Webapps:GetLocalizedValue", this);
   },
 
-  registerRegistryFunctions: function(aBroadcaster, aIdGetter, aAppGetter) {
+  registerRegistryFunctions: function(aBroadcaster, aIdGetter) {
     this._broadcaster = aBroadcaster;
     this._appIdFromManifestURL = aIdGetter;
-    this._appFromManifestURL = aAppGetter;
   },
 
   receiveMessage: function(aMessage) {
@@ -66,9 +63,6 @@ this.Langpacks = {
     switch (aMessage.name) {
       case "Webapps:GetLocalizationResource":
         this.getLocalizationResource(data, mm);
-        break;
-      case "Webapps:GetLocalizedValue":
-        this.getLocalizedValue(data, mm);
         break;
       default:
         debug("Unexpected message: " + aMessage.name);
@@ -114,35 +108,6 @@ this.Langpacks = {
     this._broadcaster("Webapps:UpdateState", message);
   },
 
-  _getResource: function(aURL, aResponseType) {
-    let xhr =  Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-                 .createInstance(Ci.nsIXMLHttpRequest);
-    xhr.mozBackgroundRequest = true;
-    xhr.open("GET", aURL);
-
-    // Default to text response type, but the webidl binding takes care of
-    // validating the dataType value.
-    xhr.responseType = "text";
-    if (aResponseType === "json") {
-      xhr.responseType = "json";
-    } else if (aResponseType === "binary") {
-      xhr.responseType = "blob";
-    }
-
-    return new Promise((aResolve, aReject) => {
-      xhr.addEventListener("load", function() {
-        debug("Success loading " + aURL);
-        if (xhr.status >= 200 && xhr.status < 400) {
-          aResolve(xhr.response);
-        } else {
-          aReject();
-        }
-      });
-      xhr.addEventListener("error", aReject);
-      xhr.send(null);
-    });
-  },
-
   getLocalizationResource: function(aData, aMm) {
     debug("getLocalizationResource " + uneval(aData));
 
@@ -178,103 +143,33 @@ this.Langpacks = {
     let href = item.url + aData.path;
     debug("Will load " + href);
 
-    this._getResource(href, aData.dataType).then(
-      (aResponse) => {
+    let xhr =  Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
+                 .createInstance(Ci.nsIXMLHttpRequest);
+    xhr.mozBackgroundRequest = true;
+    xhr.open("GET", href);
+
+    // Default to text response type, but the webidl binding takes care of
+    // validating the dataType value.
+    xhr.responseType = "text";
+    if (aData.dataType === "json") {
+      xhr.responseType = "json";
+    } else if (aData.dataType === "binary") {
+      xhr.responseType = "blob";
+    }
+
+    xhr.addEventListener("load", function() {
+      debug("Success loading " + href);
+      if (xhr.status >= 200 && xhr.status < 400) {
         aMm.sendAsyncMessage("Webapps:GetLocalizationResource:Return",
-          { requestID: aData.requestID, oid: aData.oid, data: aResponse });
-      },
-      () => { sendError("Error loading " + href, "UnavailableResource"); }
-    );
-  },
-
-  getLocalizedValue: function(aData, aMm) {
-    debug("getLocalizedValue " + aData.property);
-    function sendError(aMsg, aCode) {
-      debug(aMsg);
-      aMm.sendAsyncMessage("Webapps:GetLocalizedValue:Return",
-        { success: false,
-          requestID: aData.requestID,
-          oid: aData.oid,
-          error: aCode });
-    }
-
-    function getValueFromManifest(aManifest) {
-      debug("Getting " + aData.property + " from the manifest.");
-      let value = aManifest._localeProp(aData.property);
-      if (!value) {
-        sendError("No property " + aData.property + " in manifest", "UnknownProperty");
+          { requestID: aData.requestID, oid: aData.oid, data: xhr.response });
       } else {
-        aMm.sendAsyncMessage("Webapps:GetLocalizedValue:Return",
-        { success: true,
-          requestID: aData.requestID,
-          oid: aData.oid,
-          value: value });
+        sendError("Error loading " + href, "UnavailableResource");
       }
-    }
-
-    let self = this;
-
-    function getValueFromLangpack(aItem, aManifest) {
-      debug("Getting value from langpack at " + aItem.url + "/manifest.json")
-      let href = aItem.url + "/manifest.json";
-
-      function getProperty(aResponse, aProp) {
-       let root = aData.entryPoint && aResponse.entry_points &&
-                   aResponse.entry_points[aData.entryPoint]
-          ? aResponse.entry_points[aData.entryPoint]
-          : aResponse;
-        return root[aProp];
-      }
-
-      self._getResource(href, "json").then(
-        (aResponse) => {
-          let propValue = getProperty(aResponse, aData.property);
-          if (propValue) {
-            aMm.sendAsyncMessage("Webapps:GetLocalizedValue:Return",
-              { success: true,
-                requestID: aData.requestID,
-                oid: aData.oid,
-                value: propValue });
-          } else {
-            getValueFromManifest(aManifest);
-          }
-        },
-        () => { getValueFromManifest(aManifest); }
-      );
-    }
-
-    // We need to get the app with the manifest since the version is only
-    // available in the manifest.
-    this._appFromManifestURL(aData.manifestURL, aData.entryPoint)
-      .then(aApp => {
-        let manifest = aApp.manifest;
-
-        // No langpack for this app or we have langpack(s) for this app, but
-        // not for this language.
-        // Fallback to the manifest values.
-        if (!this._data[aData.manifestURL] ||
-            !this._data[aData.manifestURL].langs[aData.lang]) {
-          getValueFromManifest(manifest);
-          return;
-        }
-
-        if (!manifest.version) {
-          getValueFromManifest(manifest);
-          return;
-        }
-
-        // Check that we have the langpack for the right app version.
-        let item = this._data[aData.manifestURL].langs[aData.lang];
-        // Only keep x.y in the manifest's version in case it's x.y.z
-        let manVersion = manifest.version.split('.').slice(0, 2).join('.');
-        if (item.target == manVersion) {
-          getValueFromLangpack(item, manifest);
-          return;
-        }
-        // Fallback on getting the value from the manifest.
-        getValueFromManifest(manifest);
-      })
-      .catch(aError => { sendError("No app!", "NoSuchApp") });
+    });
+    xhr.addEventListener("error", function() {
+      sendError("Error loading " + href, "UnavailableResource");
+    });
+    xhr.send(null);
   },
 
   // Validates the langpack part of a manifest.

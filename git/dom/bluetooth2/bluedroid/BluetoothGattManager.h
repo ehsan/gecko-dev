@@ -51,7 +51,7 @@ private:
 
   void HandleShutdown();
 
-  void RegisterClientNotification(BluetoothGattStatus aStatus,
+  void RegisterClientNotification(int aStatus,
                                   int aClientIf,
                                   const BluetoothUuid& aAppUuid) MOZ_OVERRIDE;
 
@@ -60,41 +60,40 @@ private:
     const BluetoothGattAdvData& aAdvData) MOZ_OVERRIDE;
 
   void ConnectNotification(int aConnId,
-                           BluetoothGattStatus aStatus,
+                           int aStatus,
                            int aClientIf,
                            const nsAString& aBdAddr) MOZ_OVERRIDE;
 
   void DisconnectNotification(int aConnId,
-                              BluetoothGattStatus aStatus,
+                              int aStatus,
                               int aClientIf,
                               const nsAString& aBdAddr) MOZ_OVERRIDE;
 
-  void SearchCompleteNotification(int aConnId,
-                                  BluetoothGattStatus aStatus) MOZ_OVERRIDE;
+  void SearchCompleteNotification(int aConnId, int aStatus) MOZ_OVERRIDE;
 
   void SearchResultNotification(int aConnId,
                                 const BluetoothGattServiceId& aServiceId)
                                 MOZ_OVERRIDE;
 
   void GetCharacteristicNotification(
-    int aConnId, BluetoothGattStatus aStatus,
+    int aConnId, int aStatus,
     const BluetoothGattServiceId& aServiceId,
     const BluetoothGattId& aCharId,
     int aCharProperty) MOZ_OVERRIDE;
 
   void GetDescriptorNotification(
-    int aConnId, BluetoothGattStatus aStatus,
+    int aConnId, int aStatus,
     const BluetoothGattServiceId& aServiceId,
     const BluetoothGattId& aCharId,
     const BluetoothGattId& aDescriptorId) MOZ_OVERRIDE;
 
   void GetIncludedServiceNotification(
-    int aConnId, BluetoothGattStatus aStatus,
+    int aConnId, int aStatus,
     const BluetoothGattServiceId& aServiceId,
     const BluetoothGattServiceId& aIncludedServId) MOZ_OVERRIDE;
 
   void RegisterNotificationNotification(
-    int aConnId, int aIsRegister, BluetoothGattStatus aStatus,
+    int aConnId, int aIsRegister, int aStatus,
     const BluetoothGattServiceId& aServiceId,
     const BluetoothGattId& aCharId) MOZ_OVERRIDE;
 
@@ -103,34 +102,32 @@ private:
                           MOZ_OVERRIDE;
 
   void ReadCharacteristicNotification(int aConnId,
-                                      BluetoothGattStatus aStatus,
+                                      int aStatus,
                                       const BluetoothGattReadParam& aReadParam)
                                       MOZ_OVERRIDE;
 
   void WriteCharacteristicNotification(
-    int aConnId, BluetoothGattStatus aStatus,
+    int aConnId, int aStatus,
     const BluetoothGattWriteParam& aWriteParam) MOZ_OVERRIDE;
 
   void ReadDescriptorNotification(int aConnId,
-                                  BluetoothGattStatus aStatus,
+                                  int aStatus,
                                   const BluetoothGattReadParam& aReadParam)
                                   MOZ_OVERRIDE;
 
   void WriteDescriptorNotification(int aConnId,
-                                   BluetoothGattStatus aStatus,
+                                   int aStatus,
                                    const BluetoothGattWriteParam& aWriteParam)
                                    MOZ_OVERRIDE;
 
-  void ExecuteWriteNotification(int aConnId,
-                                BluetoothGattStatus aStatus) MOZ_OVERRIDE;
+  void ExecuteWriteNotification(int aConnId, int aStatus) MOZ_OVERRIDE;
 
   void ReadRemoteRssiNotification(int aClientIf,
                                   const nsAString& aBdAddr,
                                   int aRssi,
-                                  BluetoothGattStatus aStatus) MOZ_OVERRIDE;
+                                  int aStatus) MOZ_OVERRIDE;
 
-  void ListenNotification(BluetoothGattStatus aStatus,
-                          int aServerIf) MOZ_OVERRIDE;
+  void ListenNotification(int aStatus, int aServerIf) MOZ_OVERRIDE;
 
   static bool mInShutdown;
 };
