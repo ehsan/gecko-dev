@@ -993,7 +993,7 @@ js::testingFunc_bailout(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static const JSFunctionSpecWithHelp TestingFunctions[] = {
+static JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("gc", ::GC, 0, 0,
 "gc([obj] | 'compartment')",
 "  Run the garbage collector. When obj is given, GC only its compartment.\n"

@@ -51,7 +51,7 @@ Histograms gHistograms[] = {
   SQLITE_TELEMETRY("places.sqlite", PLACES),
   SQLITE_TELEMETRY("cookies.sqlite", COOKIES),
   SQLITE_TELEMETRY("webappsstore.sqlite", WEBAPPS),
-  SQLITE_TELEMETRY(nullptr, OTHER)
+  SQLITE_TELEMETRY(NULL, OTHER)
 };
 #undef SQLITE_TELEMETRY
 
@@ -123,7 +123,7 @@ xClose(sqlite3_file *pFile)
   rc = p->pReal->pMethods->xClose(p->pReal);
   if( rc==SQLITE_OK ){
     delete p->base.pMethods;
-    p->base.pMethods = nullptr;
+    p->base.pMethods = NULL;
     p->quotaObject = nullptr;
   }
   return rc;
@@ -330,7 +330,7 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
   sqlite3_vfs *orig_vfs = static_cast<sqlite3_vfs*>(vfs->pAppData);
   int rc;
   telemetry_file *p = (telemetry_file *)pFile;
-  Histograms *h = nullptr;
+  Histograms *h = NULL;
   // check if the filename is one we are probing for
   for(size_t i = 0;i < sizeof(gHistograms)/sizeof(gHistograms[0]);i++) {
     h = &gHistograms[i];
@@ -389,9 +389,9 @@ xOpen(sqlite3_vfs* vfs, const char *zName, sqlite3_file* pFile,
     pNew->xShmBarrier = pSub->xShmBarrier ? xShmBarrier : 0;
     pNew->xShmUnmap = pSub->xShmUnmap ? xShmUnmap : 0;
     // Methods added in version 3.
-    // SQLite 3.7.17 calls these methods without checking for nullptr first,
+    // SQLite 3.7.17 calls these methods without checking for NULL first,
     // so we always define them.  Verify that we're not going to call
-    // nullptrs, though.
+    // NULL pointers, though.
     MOZ_ASSERT(pSub->xFetch);
     pNew->xFetch = xFetch;
     MOZ_ASSERT(pSub->xUnfetch);
@@ -530,11 +530,11 @@ sqlite3_vfs* ConstructTelemetryVFS()
     expected_vfs = (vfs != nullptr);
   }
   else {
-    vfs = sqlite3_vfs_find(nullptr);
+    vfs = sqlite3_vfs_find(NULL);
     expected_vfs = vfs->zName && !strcmp(vfs->zName, EXPECTED_VFS);
   }
   if (!expected_vfs) {
-    return nullptr;
+    return NULL;
   }
 
   sqlite3_vfs *tvfs = new ::sqlite3_vfs;

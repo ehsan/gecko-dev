@@ -158,10 +158,10 @@ PropDesc::wrapInto(JSContext *cx, HandleObject obj, const jsid &id, jsid *wrappe
     return !obj->is<ProxyObject>() || desc->makeObject(cx);
 }
 
-static const ObjectElements emptyElementsHeader(0, 0);
+static ObjectElements emptyElementsHeader(0, 0);
 
 /* Objects with no elements share one empty set of elements. */
-HeapSlot *const js::emptyObjectElements =
+HeapSlot *js::emptyObjectElements =
     reinterpret_cast<HeapSlot *>(uintptr_t(&emptyElementsHeader) + sizeof(ObjectElements));
 
 /* static */ bool

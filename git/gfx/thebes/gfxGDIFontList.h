@@ -17,11 +17,11 @@ class AutoDC // get the global device context, and auto-release it on destructio
 {
 public:
     AutoDC() {
-        mDC = ::GetDC(nullptr);
+        mDC = ::GetDC(NULL);
     }
 
     ~AutoDC() {
-        ::ReleaseDC(nullptr, mDC);
+        ::ReleaseDC(NULL, mDC);
     }
 
     HDC GetDC() {
@@ -44,7 +44,7 @@ public:
             mDC = aDC;
             mOldFont = (HFONT)::SelectObject(aDC, mFont);
         } else {
-            mOldFont = nullptr;
+            mOldFont = NULL;
         }
     }
 
@@ -66,7 +66,7 @@ public:
     }
 
     bool IsValid() const {
-        return mFont != nullptr;
+        return mFont != NULL;
     }
 
     HFONT GetFont() const {

@@ -788,7 +788,7 @@ class OrderedHashSet
 /*** HashableValue *******************************************************************************/
 
 bool
-HashableValue::setValue(JSContext *cx, HandleValue v)
+HashableValue::setValue(JSContext *cx, const Value &v)
 {
     if (v.isString()) {
         // Atomize so that hash() and operator==() are fast and infallible.

@@ -119,8 +119,7 @@ HelperBase::WrapNative(JSContext* aCx,
   NS_ASSERTION(aResult.address(), "Null pointer!");
   NS_ASSERTION(mRequest, "Null request!");
 
-  nsRefPtr<IDBWrapperCache> wrapper = static_cast<IDBWrapperCache*>(mRequest);
-  JS::Rooted<JSObject*> global(aCx, wrapper->GetParentObject());
+  JS::Rooted<JSObject*> global(aCx, mRequest->GetParentObject());
   NS_ASSERTION(global, "This should never be null!");
 
   nsresult rv =
@@ -174,7 +173,7 @@ AsyncConnectionHelper::~AsyncConnectionHelper()
 
     if (mainThread) {
       if (database) {
-        NS_ProxyRelease(mainThread, static_cast<IDBWrapperCache*>(database));
+        NS_ProxyRelease(mainThread, static_cast<nsIIDBDatabase*>(database));
       }
       if (transaction) {
         NS_ProxyRelease(mainThread, static_cast<IDBWrapperCache*>(transaction));

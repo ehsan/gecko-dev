@@ -21,8 +21,8 @@ let Decoder = new TextDecoder();
  * {fun:function_name, args:array_of_arguments_or_null, id: custom_id}
  *
  * Sends messages:
- * {ok: result, id: custom_id, telemetry: {}} /
- * {fail: serialized_form_of_OS.File.Error, id: custom_id}
+ * {ok: result, id: custom_id} / {fail: serialized_form_of_OS.File.Error,
+ *                                id: custom_id}
  */
 self.onmessage = function (msg) {
   let data = msg.data;
@@ -34,7 +34,7 @@ self.onmessage = function (msg) {
   let id = data.id;
 
   try {
-    result = Agent[data.fun].apply(Agent, data.args) || {};
+    result = Agent[data.fun].apply(Agent, data.args);
   } catch (ex if ex instanceof OS.File.Error) {
     // Instances of OS.File.Error know how to serialize themselves
     // (deserialization ensures that we end up with OS-specific
@@ -46,11 +46,7 @@ self.onmessage = function (msg) {
   // Other exceptions do not, and should be propagated through DOM's
   // built-in mechanism for uncaught errors, although this mechanism
   // may lose interesting information.
-  self.postMessage({
-    ok: result.result,
-    id: id,
-    telemetry: result.telemetry || {}
-  });
+  self.postMessage({ok: result, id: id});
 };
 
 let Agent = {
@@ -104,34 +100,24 @@ let Agent = {
   read: function () {
     for (let path of [this.path, this.backupPath]) {
       try {
-        let durationMs = Date.now();
-        let bytes = File.read(path);
-        durationMs = Date.now() - durationMs;
-        this.initialState = Decoder.decode(bytes);
-
-        return {
-          result: this.initialState,
-          telemetry: {FX_SESSION_RESTORE_READ_FILE_MS: durationMs}
-        };
+        return this.initialState = Decoder.decode(File.read(path));
       } catch (ex if isNoSuchFileEx(ex)) {
         // Ignore exceptions about non-existent files.
       }
     }
+
     // No sessionstore data files found. Return an empty string.
-    return {result: ""};
+    return "";
   },
 
   /**
    * Write the session to disk.
    */
   write: function (stateString, options) {
-    let telemetry = {};
     if (!this.hasWrittenState) {
       if (options && options.backupOnFirstWrite) {
         try {
-          let startMs = Date.now();
           File.move(this.path, this.backupPath);
-          telemetry.FX_SESSION_RESTORE_BACKUP_FILE_MS = Date.now() - startMs;
         } catch (ex if isNoSuchFileEx(ex)) {
           // Ignore exceptions about non-existent files.
         }
@@ -140,7 +126,8 @@ let Agent = {
       this.hasWrittenState = true;
     }
 
-    return this._write(stateString, telemetry);
+    let bytes = Encoder.encode(stateString);
+    return File.writeAtomic(this.path, bytes, {tmpPath: this.path + ".tmp"});
   },
 
   /**
@@ -171,18 +158,8 @@ let Agent = {
 
     state.session = state.session || {};
     state.session.state = loadState;
-    return this._write(JSON.stringify(state));
-  },
-
-  /**
-   * Write a stateString to disk
-   */
-  _write: function (stateString, telemetry = {}) {
-    let bytes = Encoder.encode(stateString);
-    let startMs = Date.now();
-    let result = File.writeAtomic(this.path, bytes, {tmpPath: this.path + ".tmp"});
-    telemetry.FX_SESSION_RESTORE_WRITE_FILE_MS = Date.now() - startMs;
-    return {result: result, telemetry: telemetry};
+    let bytes = Encoder.encode(JSON.stringify(state));
+    return File.writeAtomic(this.path, bytes, {tmpPath: this.path + ".tmp"});
   },
 
   /**
@@ -190,10 +167,10 @@ let Agent = {
    */
   createBackupCopy: function (ext) {
     try {
-      return {result: File.copy(this.path, this.backupPath + ext)};
+      return File.copy(this.path, this.backupPath + ext);
     } catch (ex if isNoSuchFileEx(ex)) {
       // Ignore exceptions about non-existent files.
-      return {result: true};
+      return true;
     }
   },
 
@@ -202,10 +179,10 @@ let Agent = {
    */
   removeBackupCopy: function (ext) {
     try {
-      return {result: File.remove(this.backupPath + ext)};
+      return File.remove(this.backupPath + ext);
     } catch (ex if isNoSuchFileEx(ex)) {
       // Ignore exceptions about non-existent files.
-      return {result: true};
+      return true;
     }
   },
 
@@ -242,7 +219,7 @@ let Agent = {
       throw exn;
     }
 
-    return {result: true};
+    return true;
   }
 };
 

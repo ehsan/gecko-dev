@@ -1162,8 +1162,6 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMCSSStyleRule)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMCSSStyleRule)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(DOMCSSStyleRule)
-
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(DOMCSSStyleRule)
   // Trace the wrapper for our declaration.  This just expands out
   // NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER which we can't use
@@ -1175,7 +1173,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMCSSStyleRule)
   // Unlink the wrapper for our declaraton.  This just expands out
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER which we can't use
   // directly because the wrapper is on the declaration, not on us.
-  tmp->DOMDeclaration()->ReleaseWrapper(static_cast<nsISupports*>(p));
+  nsContentUtils::ReleaseWrapper(static_cast<nsISupports*>(p), tmp->DOMDeclaration());
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DOMCSSStyleRule)

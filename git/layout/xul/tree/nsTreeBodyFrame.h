@@ -543,7 +543,7 @@ protected: // Data Members
 
   nsRevocableEventPtr<ScrollEvent> mScrollEvent;
 
-  nsRefPtr<ScrollbarActivity> mScrollbarActivity;
+  nsCOMPtr<ScrollbarActivity> mScrollbarActivity;
 
   // The cached box object parent.
   nsCOMPtr<nsITreeBoxObject> mTreeBoxObject;

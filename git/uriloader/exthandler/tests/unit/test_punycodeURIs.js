@@ -11,11 +11,9 @@ const kOutputFile = "result.txt";
 const kMaxCheckExistAttempts = 30; // seconds
 var gCheckExistsAttempts = 0;
 
-const tempDir = do_get_tempdir();
-
 function checkFile() {
   // This is where we expect the output
-  var tempFile = tempDir.clone();
+  var tempFile = do_get_cwd();
   tempFile.append(kOutputFile);
 
   if (!tempFile.exists()) {
@@ -92,7 +90,7 @@ function run_test() {
       do_throw("Could not locate the WriteArgument tests executable\n");
   }
 
-  var outFile = tempDir.clone();
+  var outFile = processDir.clone();
   outFile.append(kOutputFile);
 
   // Set an environment variable for WriteArgument to pick up

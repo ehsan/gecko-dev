@@ -7,6 +7,8 @@ var testGenerator = testSteps();
 
 function testSteps()
 {
+  const nsIIDBObjectStore = Components.interfaces.nsIIDBObjectStore;
+
   // Test object stores
 
   const name = "test_complex_keyPaths";

@@ -104,7 +104,7 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JS::Handle<JSObject*> obj,
   // down on the proto chain.
   JS::Rooted<JSObject*> base(cx, obj);
   while (JS_GetClass(base) != &nsXBLDocGlobalObject::gSharedGlobalClass) {
-    if (!::JS_GetPrototype(cx, base, &base)) {
+    if (!::JS_GetPrototype(cx, base, base.address())) {
       return JS_FALSE;
     }
     if (!base) {
@@ -252,11 +252,9 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
   JS_SetErrorReporter(cx, xpc::SystemErrorReporter);
 
   JS::CompartmentOptions options;
-  options.setZone(JS::SystemZone)
-         .setInvisibleToDebugger(true);
+  options.setZone(JS::SystemZone);
   mJSObject = JS_NewGlobalObject(cx, &gSharedGlobalClass,
                                  nsJSPrincipals::get(GetPrincipal()),
-                                 JS::DontFireOnNewGlobalHook,
                                  options);
   if (!mJSObject)
       return NS_OK;
@@ -395,8 +393,6 @@ TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
   proto->Trace(closure->mCallbacks, closure->mClosure);
   return kHashEnumerateNext;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLDocumentInfo)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
   if (tmp->mBindingTable) {

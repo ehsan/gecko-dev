@@ -28,12 +28,9 @@
 #include "ipc/IndexedDBParent.h"
 
 #include "IndexedDatabaseInlines.h"
-#include "mozilla/dom/BindingDeclarations.h"
 
 USING_INDEXEDDB_NAMESPACE
 using namespace mozilla::dom::indexedDB::ipc;
-using mozilla::dom::Optional;
-using mozilla::ErrorResult;
 
 static_assert(sizeof(size_t) >= sizeof(IDBCursor::Direction),
               "Relying on conversion between size_t and "
@@ -276,25 +273,26 @@ IDBCursor::Create(IDBRequest* aRequest,
 }
 
 // static
-IDBCursor::Direction
-IDBCursor::ConvertDirection(mozilla::dom::IDBCursorDirection aDirection)
+nsresult
+IDBCursor::ParseDirection(const nsAString& aDirection, Direction* aResult)
 {
-  switch (aDirection) {
-    case mozilla::dom::IDBCursorDirection::Next:
-      return NEXT;
-
-    case mozilla::dom::IDBCursorDirection::Nextunique:
-      return NEXT_UNIQUE;
-
-    case mozilla::dom::IDBCursorDirection::Prev:
-      return PREV;
-
-    case mozilla::dom::IDBCursorDirection::Prevunique:
-      return PREV_UNIQUE;
-
-    default:
-      MOZ_CRASH("Unknown direction!");
+  if (aDirection.EqualsLiteral("next")) {
+    *aResult = NEXT;
   }
+  else if (aDirection.EqualsLiteral("nextunique")) {
+    *aResult = NEXT_UNIQUE;
+  }
+  else if (aDirection.EqualsLiteral("prev")) {
+    *aResult = PREV;
+  }
+  else if (aDirection.EqualsLiteral("prevunique")) {
+    *aResult = PREV_UNIQUE;
+  }
+  else {
+    return NS_ERROR_TYPE_ERR;
+  }
+  
+  return NS_OK;
 }
 
 // static
@@ -356,8 +354,6 @@ IDBCursor::IDBCursor()
   mHaveValue(true)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  SetIsDOMBinding();
 }
 
 IDBCursor::~IDBCursor()
@@ -393,27 +389,31 @@ IDBCursor::DropJSObjects()
   NS_DROP_JS_OBJECTS(this, IDBCursor);
 }
 
-void
-IDBCursor::ContinueInternal(const Key& aKey, int32_t aCount, ErrorResult& aRv)
+nsresult
+IDBCursor::ContinueInternal(const Key& aKey,
+                            int32_t aCount)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aCount > 0, "Must have a count!");
 
   if (!mTransaction->IsOpen()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR);
-    return;
+    return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
   if (!mHaveValue || mContinueCalled) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   mContinueToKey = aKey;
 
 #ifdef DEBUG
-  NS_ASSERTION(mRequest->ReadyState() == IDBRequestReadyState::Done,
-               "Should be DONE!");
+  {
+    nsAutoString readyState;
+    if (NS_FAILED(mRequest->GetReadyState(readyState))) {
+      NS_ERROR("This should never fail!");
+    }
+    NS_ASSERTION(readyState.EqualsLiteral("done"), "Should be DONE!");
+  }
 #endif
 
   mRequest->Reset();
@@ -437,16 +437,11 @@ IDBCursor::ContinueInternal(const Key& aKey, int32_t aCount, ErrorResult& aRv)
   }
 
   nsresult rv = helper->DispatchToTransactionPool();
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to dispatch!");
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-    return;
-  }
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   mContinueCalled = true;
+  return NS_OK;
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBCursor)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBCursor)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -457,7 +452,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBCursor)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBCursor)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
   NS_ASSERTION(tmp->mHaveCachedKey || JSVAL_IS_VOID(tmp->mCachedKey),
                "Should have a cached key");
   NS_ASSERTION(tmp->mHaveCachedPrimaryKey ||
@@ -472,79 +466,76 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBCursor)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   // Don't unlink mObjectStore, mIndex, or mTransaction!
   tmp->DropJSObjects();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mRequest)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IDBCursor)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIIDBCursor)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIIDBCursorWithValue, mType != INDEXKEY)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(IDBCursorWithValue,
+                                                   mType != INDEXKEY)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(IDBCursor,
+                                                   mType == INDEXKEY)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(IDBCursor)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(IDBCursor)
 
-JSObject*
-IDBCursor::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
-{
-  return mType != INDEXKEY
-          ? IDBCursorWithValueBinding::Wrap(aCx, aScope, this)
-          : IDBCursorBinding::Wrap(aCx, aScope, this);
-}
+DOMCI_DATA(IDBCursor, IDBCursor)
+DOMCI_DATA(IDBCursorWithValue, IDBCursor)
 
-mozilla::dom::IDBCursorDirection
-IDBCursor::GetDirection() const
+NS_IMETHODIMP
+IDBCursor::GetDirection(nsAString& aDirection)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   switch (mDirection) {
     case NEXT:
-      return mozilla::dom::IDBCursorDirection::Next;
-
+      aDirection.AssignLiteral("next");
+      break;
     case NEXT_UNIQUE:
-      return mozilla::dom::IDBCursorDirection::Nextunique;
-
+      aDirection.AssignLiteral("nextunique");
+      break;
     case PREV:
-      return mozilla::dom::IDBCursorDirection::Prev;
-
+      aDirection.AssignLiteral("prev");
+      break;
     case PREV_UNIQUE:
-      return mozilla::dom::IDBCursorDirection::Prevunique;
+      aDirection.AssignLiteral("prevunique");
+      break;
 
     case DIRECTION_INVALID:
     default:
-      MOZ_CRASH("Unknown direction!");
-      return mozilla::dom::IDBCursorDirection::Next;
+      NS_NOTREACHED("Bad direction value!");
+      return NS_ERROR_UNEXPECTED;
   }
+
+  return NS_OK;
 }
 
-
-already_AddRefed<nsISupports>
-IDBCursor::Source() const
+NS_IMETHODIMP
+IDBCursor::GetSource(nsISupports** aSource)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsCOMPtr<nsISupports> source;
-  if (mType == OBJECTSTORE) {
-    source = do_QueryInterface(mObjectStore);
-  }
-  else {
-    source = do_QueryInterface(mIndex);
-  }
-
-  return source.forget();
+  return mType == OBJECTSTORE ?
+         CallQueryInterface(mObjectStore, aSource) :
+         CallQueryInterface(mIndex, aSource);
 }
 
-JS::Value
-IDBCursor::GetKey(JSContext* aCx, ErrorResult& aRv)
+NS_IMETHODIMP
+IDBCursor::GetKey(JSContext* aCx,
+                  jsval* aKey)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   NS_ASSERTION(!mKey.IsUnset() || !mHaveValue, "Bad key!");
 
   if (!mHaveValue) {
-    return JSVAL_VOID;
+    *aKey = JSVAL_VOID;
+    return NS_OK;
   }
 
   if (!mHaveCachedKey) {
@@ -553,22 +544,25 @@ IDBCursor::GetKey(JSContext* aCx, ErrorResult& aRv)
       mRooted = true;
     }
 
-    aRv = mKey.ToJSVal(aCx, mCachedKey);
-    ENSURE_SUCCESS(aRv, JSVAL_VOID);
+    nsresult rv = mKey.ToJSVal(aCx, mCachedKey);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mHaveCachedKey = true;
   }
 
-  return mCachedKey;
+  *aKey = mCachedKey;
+  return NS_OK;
 }
 
-JS::Value
-IDBCursor::GetPrimaryKey(JSContext* aCx, ErrorResult& aRv)
+NS_IMETHODIMP
+IDBCursor::GetPrimaryKey(JSContext* aCx,
+                         jsval* aValue)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!mHaveValue) {
-    return JSVAL_VOID;
+    *aValue = JSVAL_VOID;
+    return NS_OK;
   }
 
   if (!mHaveCachedPrimaryKey) {
@@ -584,23 +578,26 @@ IDBCursor::GetPrimaryKey(JSContext* aCx, ErrorResult& aRv)
 
     const Key& key = mType == OBJECTSTORE ? mKey : mObjectKey;
 
-    aRv = key.ToJSVal(aCx, mCachedPrimaryKey);
-    ENSURE_SUCCESS(aRv, JSVAL_VOID);
+    nsresult rv = key.ToJSVal(aCx, mCachedPrimaryKey);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mHaveCachedPrimaryKey = true;
   }
 
-  return mCachedPrimaryKey;
+  *aValue = mCachedPrimaryKey;
+  return NS_OK;
 }
 
-JS::Value
-IDBCursor::GetValue(JSContext* aCx, ErrorResult& aRv)
+NS_IMETHODIMP
+IDBCursor::GetValue(JSContext* aCx,
+                    jsval* aValue)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mType != INDEXKEY, "GetValue shouldn't exist on index keys");
 
   if (!mHaveValue) {
-    return JSVAL_VOID;
+    *aValue = JSVAL_VOID;
+    return NS_OK;
   }
 
   if (!mHaveCachedValue) {
@@ -611,8 +608,7 @@ IDBCursor::GetValue(JSContext* aCx, ErrorResult& aRv)
 
     JS::Rooted<JS::Value> val(aCx);
     if (!IDBObjectStore::DeserializeValue(aCx, mCloneReadInfo, &val)) {
-      aRv.Throw(NS_ERROR_DOM_DATA_CLONE_ERR);
-      return JSVAL_VOID;
+      return NS_ERROR_DOM_DATA_CLONE_ERR;
     }
 
     mCloneReadInfo.mCloneBuffer.clear();
@@ -621,37 +617,33 @@ IDBCursor::GetValue(JSContext* aCx, ErrorResult& aRv)
     mHaveCachedValue = true;
   }
 
-  return mCachedValue;
+  *aValue = mCachedValue;
+  return NS_OK;
 }
 
-void
-IDBCursor::Continue(JSContext* aCx,
-                    const Optional<JS::Handle<JS::Value> >& aKey,
-                    ErrorResult &aRv)
+NS_IMETHODIMP
+IDBCursor::Continue(const jsval& aKey,
+                    JSContext* aCx)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   Key key;
-  if (aKey.WasPassed()) {
-    aRv = key.SetFromJSVal(aCx, aKey.Value());
-    ENSURE_SUCCESS_VOID(aRv);
-  }
+  nsresult rv = key.SetFromJSVal(aCx, aKey);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (!key.IsUnset()) {
     switch (mDirection) {
       case IDBCursor::NEXT:
       case IDBCursor::NEXT_UNIQUE:
         if (key <= mKey) {
-          aRv.Throw(NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
-          return;
+          return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
         }
         break;
 
       case IDBCursor::PREV:
       case IDBCursor::PREV_UNIQUE:
         if (key >= mKey) {
-          aRv.Throw(NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
-          return;
+          return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
         }
         break;
 
@@ -660,9 +652,9 @@ IDBCursor::Continue(JSContext* aCx,
     }
   }
 
-  ContinueInternal(key, 1, aRv);
-  if (aRv.Failed()) {
-    return;
+  rv = ContinueInternal(key, 1);
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
 #ifdef IDB_PROFILER_USE_MARKS
@@ -692,70 +684,67 @@ IDBCursor::Continue(JSContext* aCx,
                       key.IsUnset() ? "" : IDB_PROFILER_STRING(key));
   }
 #endif
+
+  return NS_OK;
 }
 
-already_AddRefed<IDBRequest>
-IDBCursor::Update(JSContext* aCx, JS::Handle<JS::Value> aValue,
-                  ErrorResult& aRv)
+NS_IMETHODIMP
+IDBCursor::Update(const jsval& aValue,
+                  JSContext* aCx,
+                  nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!mTransaction->IsOpen()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
   if (!mTransaction->IsWriteAllowed()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR;
   }
 
   if (!mHaveValue || mType == INDEXKEY) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   NS_ASSERTION(mObjectStore, "This cannot be null!");
   NS_ASSERTION(!mKey.IsUnset() , "Bad key!");
   NS_ASSERTION(mType != INDEXOBJECT || !mObjectKey.IsUnset(), "Bad key!");
 
+  nsresult rv;
+
   JSAutoRequest ar(aCx);
 
   Key& objectKey = (mType == OBJECTSTORE) ? mKey : mObjectKey;
 
-  nsRefPtr<IDBRequest> request;
+  nsCOMPtr<nsIIDBRequest> request;
   if (mObjectStore->HasValidKeyPath()) {
     // Make sure the object given has the correct keyPath value set on it.
     const KeyPath& keyPath = mObjectStore->GetKeyPath();
     Key key;
 
-    aRv = keyPath.ExtractKey(aCx, aValue, key);
-    if (aRv.Failed()) {
-      return nullptr;
+    rv = keyPath.ExtractKey(aCx, aValue, key);
+    if (NS_FAILED(rv)) {
+      return rv;
     }
 
     if (key != objectKey) {
-      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_DATA_ERR);
-      return nullptr;
+      return NS_ERROR_DOM_INDEXEDDB_DATA_ERR;
     }
 
-    JS::Rooted<JS::Value> value(aCx, aValue);
-    Optional<JS::Handle<JS::Value> > keyValue(aCx);
-    request = mObjectStore->Put(aCx, value, keyValue, aRv);
-    if (aRv.Failed()) {
-      return nullptr;
+    rv = mObjectStore->Put(aValue, JSVAL_VOID, aCx, 0, getter_AddRefs(request));
+    if (NS_FAILED(rv)) {
+      return rv;
     }
   }
   else {
     JS::Rooted<JS::Value> keyVal(aCx);
-    aRv = objectKey.ToJSVal(aCx, &keyVal);
-    ENSURE_SUCCESS(aRv, nullptr);
+    rv = objectKey.ToJSVal(aCx, &keyVal);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    JS::Rooted<JS::Value> value(aCx, aValue);
-    Optional<JS::Handle<JS::Value> > keyValue(aCx, keyVal);
-    request = mObjectStore->Put(aCx, value, keyValue, aRv);
-    if (aRv.Failed()) {
-      return nullptr;
+    rv = mObjectStore->Put(aValue, keyVal, aCx, 1, getter_AddRefs(request));
+    if (NS_FAILED(rv)) {
+      return rv;
     }
   }
 
@@ -793,27 +782,26 @@ IDBCursor::Update(JSContext* aCx, JS::Handle<JS::Value> aValue,
   }
 #endif
 
-  return request.forget();
+  request.forget(_retval);
+  return NS_OK;
 }
 
-already_AddRefed<IDBRequest>
-IDBCursor::Delete(JSContext* aCx, ErrorResult& aRv)
+NS_IMETHODIMP
+IDBCursor::Delete(JSContext* aCx,
+                  nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   if (!mTransaction->IsOpen()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_TRANSACTION_INACTIVE_ERR;
   }
 
   if (!mTransaction->IsWriteAllowed()) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_READ_ONLY_ERR;
   }
 
   if (!mHaveValue || mType == INDEXKEY) {
-    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
   NS_ASSERTION(mObjectStore, "This cannot be null!");
@@ -822,17 +810,19 @@ IDBCursor::Delete(JSContext* aCx, ErrorResult& aRv)
   Key& objectKey = (mType == OBJECTSTORE) ? mKey : mObjectKey;
 
   JS::Rooted<JS::Value> key(aCx);
-  aRv = objectKey.ToJSVal(aCx, &key);
-  ENSURE_SUCCESS(aRv, nullptr);
+  nsresult rv = objectKey.ToJSVal(aCx, &key);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<IDBRequest> request = mObjectStore->Delete(aCx, key, aRv);
-  if (aRv.Failed()) {
-    return nullptr;
+  nsCOMPtr<nsIIDBRequest> request;
+  rv = mObjectStore->Delete(key, aCx, getter_AddRefs(request));
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
 #ifdef IDB_PROFILER_USE_MARKS
   {
-    uint64_t requestSerial = request->GetSerialNumber();
+    uint64_t requestSerial =
+      static_cast<IDBRequest*>(request.get())->GetSerialNumber();
     if (mType == OBJECTSTORE) {
       IDB_PROFILER_MARK("IndexedDB Request %llu: "
                         "database(%s).transaction(%s).objectStore(%s)."
@@ -863,22 +853,24 @@ IDBCursor::Delete(JSContext* aCx, ErrorResult& aRv)
   }
 #endif
 
-  return request.forget();
+  request.forget(_retval);
+  return NS_OK;
 }
 
-void
-IDBCursor::Advance(uint32_t aCount, ErrorResult &aRv)
+NS_IMETHODIMP
+IDBCursor::Advance(int64_t aCount)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (aCount < 1) {
-    aRv.ThrowTypeError(MSG_INVALID_ADVANCE_COUNT);
-    return;
+  if (aCount < 1 || aCount > UINT32_MAX) {
+    return NS_ERROR_TYPE_ERR;
   }
 
   Key key;
-  ContinueInternal(key, int32_t(aCount), aRv);
-  ENSURE_SUCCESS_VOID(aRv);
+  nsresult rv = ContinueInternal(key, int32_t(aCount));
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
 #ifdef IDB_PROFILER_USE_MARKS
   {
@@ -907,6 +899,8 @@ IDBCursor::Advance(uint32_t aCount, ErrorResult &aRv)
     }
   }
 #endif
+
+  return NS_OK;
 }
 
 void

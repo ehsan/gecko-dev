@@ -545,7 +545,7 @@ protected:
   /**
    * Check if the target is valid after calling EnsureTarget.
    */
-  bool IsTargetValid() { return mTarget != sErrorTarget && mTarget != nullptr; }
+  bool IsTargetValid() { return mTarget != sErrorTarget; }
 
   /**
     * Returns the surface format this canvas should be allocated using. Takes

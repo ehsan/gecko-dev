@@ -185,8 +185,6 @@ SetOrRemoveObject(PLDHashTable& table, nsIContent* aKey, nsISupports* aValue)
 
 // Implement our nsISupports methods
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsBindingManager)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBindingManager)
   tmp->mDestroyed = true;
 

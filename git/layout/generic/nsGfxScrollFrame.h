@@ -287,7 +287,7 @@ public:
   nsIFrame* mResizerBox;
   nsContainerFrame* mOuter;
   nsRefPtr<AsyncScroll> mAsyncScroll;
-  nsRefPtr<ScrollbarActivity> mScrollbarActivity;
+  nsCOMPtr<ScrollbarActivity> mScrollbarActivity;
   nsTArray<nsIScrollPositionListener*> mListeners;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.

@@ -22,14 +22,7 @@ userExtDir.append(gAppInfo.ID);
 registerDirectory("XREUSysExt", userExtDir.parent);
 
 Components.utils.import("resource://testing-common/httpd.js");
-// Create and configure the HTTP server.
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-
-// register files with server
-testserver.registerDirectory("/addons/", do_get_file("addons"));
-mapFile("/data/test_dictionary.rdf", testserver);
+var testserver;
 
 /**
  * This object is both a factory and an mozISpellCheckingEngine implementation (so, it
@@ -107,6 +100,12 @@ var HunspellEngine = {
 
 function run_test() {
   do_test_pending();
+
+  // Create and configure the HTTP server.
+  testserver = new HttpServer();
+  testserver.registerDirectory("/data/", do_get_file("data"));
+  testserver.registerDirectory("/addons/", do_get_file("addons"));
+  testserver.start(4444);
 
   startupManager();
 
@@ -507,7 +506,7 @@ function run_test_23() {
     "onNewInstall"
   ]);
 
-  let url = "http://localhost:" + gPort + "/addons/test_dictionary.xpi";
+  let url = "http://localhost:4444/addons/test_dictionary.xpi";
   AddonManager.getInstallForURL(url, function(install) {
     ensure_test_completed();
 
@@ -654,7 +653,7 @@ function run_test_27() {
   writeInstallRDFForExtension({
     id: "ab-CD@dictionaries.addons.mozilla.org",
     version: "1.0",
-    updateURL: "http://localhost:" + gPort + "/data/test_dictionary.rdf",
+    updateURL: "http://localhost:4444/data/test_dictionary.rdf",
     targetApplications: [{
       id: "xpcshell@tests.mozilla.org",
       minVersion: "1",
@@ -700,7 +699,7 @@ function run_test_28() {
     id: "ef@dictionaries.addons.mozilla.org",
     version: "1.0",
     type: "64",
-    updateURL: "http://localhost:" + gPort + "/data/test_dictionary.rdf",
+    updateURL: "http://localhost:4444/data/test_dictionary.rdf",
     targetApplications: [{
       id: "xpcshell@tests.mozilla.org",
       minVersion: "1",
@@ -746,7 +745,7 @@ function run_test_29() {
     id: "gh@dictionaries.addons.mozilla.org",
     version: "1.0",
     type: "64",
-    updateURL: "http://localhost:" + gPort + "/data/test_dictionary.rdf",
+    updateURL: "http://localhost:4444/data/test_dictionary.rdf",
     targetApplications: [{
       id: "xpcshell@tests.mozilla.org",
       minVersion: "1",

@@ -300,10 +300,10 @@ class ForOfIterator
         return ok && !currentValue.get().isMagic(JS_NO_ITER_VALUE);
     }
 
-    MutableHandleValue value() {
+    Value &value() {
         JS_ASSERT(ok);
         JS_ASSERT(!closed);
-        return &currentValue;
+        return currentValue.get();
     }
 
     bool close() {

@@ -4497,8 +4497,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   uint32_t msg = aEnter ? NS_MOUSE_ENTER : NS_MOUSE_EXIT;
   nsMouseEvent event(true, msg, mGeckoChild, nsMouseEvent::eReal);
-  event.refPoint = LayoutDeviceIntPoint::FromUntyped(
-    mGeckoChild->CocoaPointsToDevPixels(localEventLocation));
+  event.refPoint = mGeckoChild->CocoaPointsToDevPixels(localEventLocation);
 
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
@@ -4940,8 +4939,7 @@ static int32_t RoundUp(double aDouble)
   NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, [self window]);
   NSPoint localPoint = [self convertPoint:locationInWindow fromView:nil];
 
-  outGeckoEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(
-    mGeckoChild->CocoaPointsToDevPixels(localPoint));
+  outGeckoEvent->refPoint = mGeckoChild->CocoaPointsToDevPixels(localPoint);
 
   nsMouseEvent_base* mouseEvent =
     static_cast<nsMouseEvent_base*>(outGeckoEvent);
@@ -5225,9 +5223,9 @@ static int32_t RoundUp(double aDouble)
   if (mGeckoChild && mTextInputHandler && mTextInputHandler->IsFocused()) {
 #ifdef MOZ_CRASHREPORTER
     NSWindow* window = [self window];
-    NSString* info = [NSString stringWithFormat:@"\nview [%@], window [%@], key event [%@], window is key %i, is fullscreen %i, app is active %i",
+    NSString* info = [NSString stringWithFormat:@"\nview [%@], window [%@], key event [%@], window is key %i, is fullscreen %i, is zoomed %i, app is active %i",
                       self, window, theEvent, [window isKeyWindow], ([window styleMask] & (1 << 14)) != 0,
-                      [NSApp isActive]];
+                      [window isZoomed], [NSApp isActive]];
     nsAutoCString additionalInfo([info UTF8String]);
 #endif
     if (mIsPluginView) {
@@ -5364,9 +5362,8 @@ static int32_t RoundUp(double aDouble)
   // hitTest needs coordinates in device pixels
   NSPoint eventLoc = nsCocoaUtils::ScreenLocationForEvent(currentEvent);
   eventLoc.y = nsCocoaUtils::FlippedScreenY(eventLoc.y);
-  LayoutDeviceIntPoint widgetLoc = LayoutDeviceIntPoint::FromUntyped(
-    mGeckoChild->CocoaPointsToDevPixels(eventLoc) -
-    mGeckoChild->WidgetToScreenOffset());
+  nsIntPoint widgetLoc = mGeckoChild->CocoaPointsToDevPixels(eventLoc) -
+    mGeckoChild->WidgetToScreenOffset();
 
   nsQueryContentEvent hitTest(true, NS_QUERY_DOM_WIDGET_HITTEST, mGeckoChild);
   hitTest.InitForQueryDOMWidgetHittest(widgetLoc);
@@ -5598,8 +5595,7 @@ static int32_t RoundUp(double aDouble)
   NSPoint draggingLoc = [aSender draggingLocation];
   NSPoint localPoint = [self convertPoint:draggingLoc fromView:nil];
 
-  geckoEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(
-    mGeckoChild->CocoaPointsToDevPixels(localPoint));
+  geckoEvent.refPoint = mGeckoChild->CocoaPointsToDevPixels(localPoint);
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGeckoChild->DispatchWindowEvent(geckoEvent);

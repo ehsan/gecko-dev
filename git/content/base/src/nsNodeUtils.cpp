@@ -260,7 +260,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     }
   }
 
-  aNode->ReleaseWrapper(aNode);
+  nsContentUtils::ReleaseWrapper(aNode, aNode);
 }
 
 struct MOZ_STACK_CLASS nsHandlerData

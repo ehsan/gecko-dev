@@ -321,23 +321,35 @@ class AsmJSModule
     // This struct holds the data required to do this.
     struct PostLinkFailureInfo
     {
+        JSRuntime *         rt;
+        JSPrincipals *      originPrincipals;
         ScriptSource *      scriptSource;
         uint32_t            bufStart;      // offset of the function body's start
         uint32_t            bufEnd;        // offset of the function body's end
 
         PostLinkFailureInfo()
-          : scriptSource(), bufStart(), bufEnd()
+          : rt(), originPrincipals(), scriptSource(), bufStart(), bufEnd()
         {}
 
-        void init(ScriptSource *scriptSource, uint32_t bufStart, uint32_t bufEnd) {
-            JS_ASSERT(!this->scriptSource);
+        void init(JSRuntime *rt, JSPrincipals *originPrincipals, ScriptSource *scriptSource,
+                  uint32_t bufStart, uint32_t bufEnd)
+        {
+            JS_ASSERT(!this->rt);
+
+            this->rt               = rt;
+            this->originPrincipals = originPrincipals;
             this->scriptSource     = scriptSource;
             this->bufStart         = bufStart;
             this->bufEnd           = bufEnd;
+
+            if (originPrincipals)
+                JS_HoldPrincipals(originPrincipals);
             scriptSource->incref();
         }
 
         ~PostLinkFailureInfo() {
+            if (originPrincipals)
+                JS_DropPrincipals(rt, originPrincipals);
             if (scriptSource)
                 scriptSource->decref();
         }
@@ -706,10 +718,12 @@ class AsmJSModule
     PropertyName *importArgumentName() const { return importArgumentName_; }
     PropertyName *bufferArgumentName() const { return bufferArgumentName_; }
 
-    void initPostLinkFailureInfo(ScriptSource *scriptSource,
+    void initPostLinkFailureInfo(JSRuntime *rt,
+                                 JSPrincipals *originPrincipals,
+                                 ScriptSource *scriptSource,
                                  uint32_t bufStart,
                                  uint32_t bufEnd) {
-        postLinkFailureInfo_.init(scriptSource, bufStart, bufEnd);
+        postLinkFailureInfo_.init(rt, originPrincipals, scriptSource, bufStart, bufEnd);
     }
     const PostLinkFailureInfo &postLinkFailureInfo() const {
         return postLinkFailureInfo_;

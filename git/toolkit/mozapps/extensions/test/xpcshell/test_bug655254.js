@@ -14,10 +14,7 @@ Services.prefs.setIntPref("extensions.enabledScopes",
 createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2", "1.9.2");
 
 Components.utils.import("resource://testing-common/httpd.js");
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-mapFile("/data/test_bug655254.rdf", testserver);
+var testserver;
 
 var userDir = gProfD.clone();
 userDir.append("extensions2");
@@ -40,7 +37,7 @@ var addon1 = {
   id: "addon1@tests.mozilla.org",
   version: "1.0",
   name: "Test 1",
-  updateURL: "http://localhost:" + gPort + "/data/test_bug655254.rdf",
+  updateURL: "http://localhost:4444/data/test_bug655254.rdf",
   targetApplications: [{
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
@@ -51,6 +48,12 @@ var addon1 = {
 // Set up the profile
 function run_test() {
   do_test_pending();
+
+  // Create and configure the HTTP server.
+  testserver = new HttpServer();
+  testserver.registerDirectory("/data/", do_get_file("data"));
+  testserver.start(4444);
+
   run_test_1();
 }
 

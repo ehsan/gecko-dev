@@ -1755,7 +1755,7 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
              "Someone messed with our prototype property?");
 
   JS::Rooted<JSObject*> proto(cx);
-  if (!JS_GetPrototype(cx, instance, &proto)) {
+  if (!JS_GetPrototype(cx, instance, proto.address())) {
     return false;
   }
 
@@ -1765,7 +1765,7 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
       return true;
     }
 
-    if (!JS_GetPrototype(cx, proto, &proto)) {
+    if (!JS_GetPrototype(cx, proto, proto.address())) {
       return false;
     }
   }

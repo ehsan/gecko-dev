@@ -31,7 +31,7 @@ public:
    */
   SQLiteMutex(const char *aName)
   : BlockingResourceBase(aName, eMutex)
-  , mMutex(nullptr)
+  , mMutex(NULL)
   {
   }
 

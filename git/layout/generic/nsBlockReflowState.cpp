@@ -633,7 +633,6 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                                               aFloat, offsets);
 
   nsMargin floatMargin; // computed margin
-  nsMargin floatOffsets;
   nsReflowStatus reflowStatus;
 
   // If it's a floating first-letter, we need to reflow it before we
@@ -641,8 +640,8 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // of the first letter until reflow!).
   bool isLetter = aFloat->GetType() == nsGkAtoms::letterFrame;
   if (isLetter) {
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat, floatMargin,
-                        floatOffsets, false, reflowStatus);
+    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
+                        floatMargin, false, reflowStatus);
     floatMarginWidth = aFloat->GetSize().width + floatMargin.LeftRight();
     NS_ASSERTION(NS_FRAME_IS_COMPLETE(reflowStatus),
                  "letter frames shouldn't break, and if they do now, "
@@ -771,8 +770,8 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
   // where to break.
   if (!isLetter) {
     bool pushedDown = mY != saveY;
-    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat, floatMargin,
-                        floatOffsets, pushedDown, reflowStatus);
+    mBlock->ReflowFloat(*this, adjustedAvailableSpace, aFloat,
+                        floatMargin, pushedDown, reflowStatus);
   }
   if (aFloat->GetPrevInFlow())
     floatMargin.top = 0;
@@ -818,8 +817,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
                  floatMargin.top + floatY);
 
   // If float is relatively positioned, factor that in as well
-  nsHTMLReflowState::ApplyRelativePositioning(floatDisplay, floatOffsets,
-                                              &origin);
+  origin += aFloat->GetRelativeOffset(floatDisplay);
 
   // Position the float and make sure and views are properly
   // positioned. We need to explicitly position its child views as

@@ -230,7 +230,7 @@ class DeviceManagerSUT(DeviceManager):
 
                     # Get our response
                     try:
-                        # Wait up to a second for socket to become ready for reading...
+                          # Wait up to a second for socket to become ready for reading...
                         if select.select([self._sock], [], [], select_timeout)[0]:
                             temp = self._sock.recv(1024)
                             self._logger.debug("response: %s" % temp)
@@ -338,10 +338,9 @@ class DeviceManagerSUT(DeviceManager):
         # woops, we couldn't find an end of line/return value
         raise DMError("Automation Error: Error finding end of line/return value when running '%s'" % cmdline)
 
-    def pushFile(self, localname, destname, retryLimit=None, createDir=True):
+    def pushFile(self, localname, destname, retryLimit = None):
         retryLimit = retryLimit or self.retryLimit
-        if createDir:
-            self.mkDirs(destname)
+        self.mkDirs(destname)
 
         try:
             filesize = os.path.getsize(localname)
@@ -383,7 +382,8 @@ class DeviceManagerSUT(DeviceManager):
                     self.mkDirs(remoteName)
                     existentDirectories.append(parent)
 
-                self.pushFile(os.path.join(root, f), remoteName, retryLimit=retryLimit, createDir=False)
+                self.pushFile(os.path.join(root, f), remoteName, retryLimit=retryLimit)
+
 
     def dirExists(self, remotePath):
         ret = self._runCmds([{ 'cmd': 'isdir ' + remotePath }]).strip()
@@ -562,23 +562,30 @@ class DeviceManagerSUT(DeviceManager):
         # the class level if we wanted to refactor sendCMD().  For now they are
         # only used to pull files.
 
-        def uread(to_recv, error_msg):
+        def uread(to_recv, error_msg, timeout=None):
             """ unbuffered read """
-            try:
-                data = ""
-                if select.select([self._sock], [], [], self.default_timeout)[0]:
-                    data = self._sock.recv(to_recv)
-                if not data:
-                    # timed out waiting for response or error response
-                    err(error_msg)
+            timer = 0
+            select_timeout = 1
+            if not timeout:
+                timeout = self.default_timeout
 
+            try:
+                if select.select([self._sock], [], [], select_timeout)[0]:
+                    data = self._sock.recv(to_recv)
+                    timer = 0
+                timer += select_timeout
+                if timer > timeout:
+                    err('timeout in uread while retrieving file')
+
+                if not data:
+                    err(error_msg)
                 return data
             except:
                 err(error_msg)
 
         def read_until_char(c, buf, error_msg):
             """ read until 'c' is found; buffer rest """
-            while not c in buf:
+            while not '\n' in buf:
                 data = uread(1024, error_msg)
                 buf += data
             return buf.partition(c)

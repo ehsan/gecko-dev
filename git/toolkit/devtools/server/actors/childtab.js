@@ -45,7 +45,7 @@ Object.defineProperty(ContentTabActor.prototype, "url", {
   configurable: false
 });
 
-Object.defineProperty(ContentTabActor.prototype, "window", {
+Object.defineProperty(ContentTabActor.prototype, "contentWindow", {
   get: function() {
     return this.browser;
   },

@@ -1911,12 +1911,8 @@ MTruncateToInt32::foldsTo(bool useValueNumbers)
 MDefinition *
 MToDouble::foldsTo(bool useValueNumbers)
 {
-    MDefinition *in = input();
-    if (in->type() == MIRType_Double)
-        return in;
-
-    if (in->isConstant()) {
-        const Value &v = in->toConstant()->value();
+    if (input()->isConstant()) {
+        const Value &v = input()->toConstant()->value();
         if (v.isNumber()) {
             double out = v.toNumber();
             return MConstant::New(DoubleValue(out));

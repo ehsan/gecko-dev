@@ -449,13 +449,8 @@ protected:
 
   /**
    * Create accessible tree.
-   *
-   * @param aRoot       [in] a root of subtree to create
-   * @param aFocusedAcc [in, optional] a focused accessible under created
-   *                      subtree if any
    */
-  void CacheChildrenInSubtree(Accessible* aRoot,
-                              Accessible** aFocusedAcc = nullptr);
+  void CacheChildrenInSubtree(Accessible* aRoot);
 
   /**
    * Remove accessibles in subtree from node to accessible map.

@@ -17,8 +17,6 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMEventTargetHelper)
-
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
@@ -85,7 +83,7 @@ nsDOMEventTargetHelper::~nsDOMEventTargetHelper()
   if (mListenerManager) {
     mListenerManager->Disconnect();
   }
-  ReleaseWrapper(this);
+  nsContentUtils::ReleaseWrapper(this, this);
 }
 
 void

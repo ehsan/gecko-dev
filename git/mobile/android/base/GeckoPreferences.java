@@ -31,7 +31,6 @@ import android.preference.EditTextPreference;
 import android.preference.ListPreference;
 import android.preference.Preference;
 import android.preference.Preference.OnPreferenceChangeListener;
-import android.preference.Preference.OnPreferenceClickListener;
 import android.preference.PreferenceActivity;
 import android.preference.PreferenceGroup;
 import android.preference.PreferenceManager;
@@ -75,7 +74,6 @@ public class GeckoPreferences
     private static String PREFS_UPDATER_AUTODOWNLOAD = "app.update.autodownload";
     private static String PREFS_GEO_REPORTING = "app.geo.reportdata";
     private static String PREFS_HEALTHREPORT_LINK = NON_PREF_PREFIX + "healthreport.link";
-    private static String PREFS_DEVTOOLS_REMOTE_ENABLED = "devtools.debugger.remote-enabled";
 
     public static String PREFS_RESTORE_SESSION = NON_PREF_PREFIX + "restoreSession";
 
@@ -309,18 +307,6 @@ public class GeckoPreferences
                     preferences.removePreference(pref);
                     i--;
                     continue;
-                } else if (PREFS_DEVTOOLS_REMOTE_ENABLED.equals(key)) {
-                    final Context thisContext = this;
-                    pref.setOnPreferenceClickListener(new OnPreferenceClickListener() {
-                        @Override
-                        public boolean onPreferenceClick(Preference preference) {
-                            // Display toast to remind setting up tcp forwarding.
-                            if (((CheckBoxPreference) preference).isChecked()) {
-                                Toast.makeText(thisContext, R.string.devtools_remote_debugging_forward, Toast.LENGTH_SHORT).show();
-                            }
-                            return true;
-                        }
-                    });
                 }
 
                 // Some Preference UI elements are not actually preferences,

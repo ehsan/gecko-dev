@@ -40,7 +40,7 @@ gfxGDIFont::gfxGDIFont(GDIFontEntry *aFontEntry,
                        bool aNeedsBold,
                        AntialiasOption anAAOption)
     : gfxFont(aFontEntry, aFontStyle, anAAOption),
-      mFont(nullptr),
+      mFont(NULL),
       mFontFace(nullptr),
       mMetrics(nullptr),
       mSpaceGlyph(0),
@@ -543,7 +543,7 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
     AutoSelectFont fs(dc, GetHFONT());
 
     int devWidth;
-    if (GetCharWidthI(dc, aGID, 1, nullptr, &devWidth)) {
+    if (GetCharWidthI(dc, aGID, 1, NULL, &devWidth)) {
         // ensure width is positive, 16.16 fixed-point value
         width = (devWidth & 0x7fff) << 16;
         mGlyphWidths.Put(aGID, width);

@@ -556,7 +556,7 @@ RefPtr<DrawTarget>
 gfxPlatform::CreateDrawTargetForSurface(gfxASurface *aSurface, const IntSize& aSize)
 {
   RefPtr<DrawTarget> drawTarget = Factory::CreateDrawTargetForCairoSurface(aSurface->CairoSurface(), aSize);
-  aSurface->SetData(&kDrawTarget, drawTarget, nullptr);
+  aSurface->SetData(&kDrawTarget, drawTarget, NULL);
   return drawTarget;
 }
 
@@ -604,13 +604,13 @@ void SourceSnapshotDetached(cairo_surface_t *nullSurf)
   gfxImageSurface* origSurf =
     static_cast<gfxImageSurface*>(cairo_surface_get_user_data(nullSurf, &kSourceSurface));
 
-  origSurf->SetData(&kSourceSurface, nullptr, nullptr);
+  origSurf->SetData(&kSourceSurface, NULL, NULL);
 }
 #else
 void SourceSnapshotDetached(void *nullSurf)
 {
   gfxImageSurface* origSurf = static_cast<gfxImageSurface*>(nullSurf);
-  origSurf->SetData(&kSourceSurface, nullptr, nullptr);
+  origSurf->SetData(&kSourceSurface, NULL, NULL);
 }
 #endif
 
@@ -738,7 +738,7 @@ gfxPlatform::GetSourceSurfaceForSurface(DrawTarget *aTarget, gfxASurface *aSurfa
     cairo_surface_set_user_data(nullSurf,
                                 &kSourceSurface,
                                 imgSurface,
-                                nullptr);
+                                NULL);
     cairo_surface_attach_snapshot(imgSurface->CairoSurface(), nullSurf, SourceSnapshotDetached);
     cairo_surface_destroy(nullSurf);
 #else
@@ -849,7 +849,7 @@ gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSi
     nsRefPtr<gfxASurface> surf = CreateOffscreenSurface(ThebesIntSize(aSize),
                                                         ContentForFormat(aFormat));
     if (!surf || surf->CairoStatus()) {
-      return nullptr;
+      return NULL;
     }
 
     return CreateDrawTargetForSurface(surf, aSize);

@@ -10,19 +10,18 @@ Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
 Services.prefs.setBoolPref("extensions.hotfix.cert.checkAttributes", false);
 
 Components.utils.import("resource://testing-common/httpd.js");
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-testserver.registerDirectory("/addons/", do_get_file("addons"));
-mapFile("/data/test_hotfix_1.rdf", testserver);
-mapFile("/data/test_hotfix_2.rdf", testserver);
-mapFile("/data/test_hotfix_3.rdf", testserver);
-
+var testserver;
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
 
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
+
+  // Create and configure the HTTP server.
+  testserver = new HttpServer();
+  testserver.registerDirectory("/data/", do_get_file("data"));
+  testserver.registerDirectory("/addons/", do_get_file("addons"));
+  testserver.start(4444);
 
   startupManager();
 
@@ -37,8 +36,7 @@ function end_test() {
 // Test that background updates find and install any available hotfix
 function run_test_1() {
   Services.prefs.setCharPref("extensions.hotfix.id", "hotfix@tests.mozilla.org");
-  Services.prefs.setCharPref("extensions.update.background.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.update.background.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -92,8 +90,7 @@ function run_test_2() {
 // Install a newer hotfix
 function run_test_3() {
   restartManager();
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_2.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_2.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -127,8 +124,7 @@ function check_test_3() {
 function run_test_4() {
   restartManager();
 
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_3.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_3.rdf");
 
   AddonManager.addInstallListener({
     onNewInstall: function() {
@@ -151,8 +147,7 @@ function run_test_4() {
 function run_test_5() {
   restartManager();
 
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   AddonManager.addInstallListener({
     onNewInstall: function() {
@@ -176,8 +171,7 @@ function run_test_6() {
   restartManager();
 
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -284,8 +278,7 @@ function run_test_8() {
   restartManager();
 
   Services.prefs.setCharPref("extensions.hotfix.lastVersion", "0");
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_1.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_1.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [
@@ -304,8 +297,7 @@ function run_test_8() {
 }
 
 function check_test_8() {
-  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:" +
-                             gPort + "/data/test_hotfix_2.rdf");
+  Services.prefs.setCharPref("extensions.hotfix.url", "http://localhost:4444/data/test_hotfix_2.rdf");
 
   prepare_test({
     "hotfix@tests.mozilla.org": [

@@ -92,7 +92,7 @@ NS_IMPL_QUERY_INTERFACE1(StartTransactionRunnable, nsIRunnable)
 // static
 already_AddRefed<IDBTransaction>
 IDBTransaction::CreateInternal(IDBDatabase* aDatabase,
-                               const Sequence<nsString>& aObjectStoreNames,
+                               nsTArray<nsString>& aObjectStoreNames,
                                Mode aMode,
                                bool aDispatchDelayed,
                                bool aIsVersionChangeTransactionChild)
@@ -603,8 +603,6 @@ IDBTransaction::Abort(nsresult aErrorCode)
   return AbortInternal(aErrorCode, error.forget());
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(IDBTransaction)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBTransaction,
                                                   IDBWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDatabase)
@@ -701,7 +699,7 @@ IDBTransaction::GetObjectStoreNames(ErrorResult& aRv)
   return list.forget();
 }
 
-already_AddRefed<IDBObjectStore>
+already_AddRefed<nsIIDBObjectStore>
 IDBTransaction::ObjectStore(const nsAString& aName, ErrorResult& aRv)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");

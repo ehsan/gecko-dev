@@ -31,7 +31,6 @@
 #include "nsAutoPtr.h"
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/Touch.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace dom {
@@ -678,9 +677,9 @@ public:
   uint32_t    message;
   // Relative to the widget of the event, or if there is no widget then it is
   // in screen coordinates. Not modified by layout code.
-  mozilla::LayoutDeviceIntPoint refPoint;
+  nsIntPoint  refPoint;
   // The previous refPoint, if known, used to calculate mouse movement deltas.
-  mozilla::LayoutDeviceIntPoint lastRefPoint;
+  nsIntPoint  lastRefPoint;
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
   uint64_t    time;
@@ -1510,7 +1509,7 @@ public:
     mInput.mLength = aLength;
   }
 
-  void InitForQueryDOMWidgetHittest(const mozilla::LayoutDeviceIntPoint& aPoint)
+  void InitForQueryDOMWidgetHittest(nsIntPoint& aPoint)
   {
     NS_ASSERTION(message == NS_QUERY_DOM_WIDGET_HITTEST,
                  "wrong initializer is called");

@@ -4,12 +4,6 @@
 
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
-// using a dynamic port in the addon metadata
-Components.utils.import("resource://testing-common/httpd.js");
-let gServer = new HttpServer();
-gServer.start(-1);
-gPort = gServer.identity.primaryPort;
-
 // This verifies that themes behave as expected
 
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
@@ -237,11 +231,11 @@ function run_test_3() {
     name: "Test LW Theme",
     description: "A test theme",
     author: "Mozilla",
-    homepageURL: "http://localhost:" + gPort + "/data/index.html",
-    headerURL: "http://localhost:" + gPort + "/data/header.png",
-    footerURL: "http://localhost:" + gPort + "/data/footer.png",
-    previewURL: "http://localhost:" + gPort + "/data/preview.png",
-    iconURL: "http://localhost:" + gPort + "/data/icon.png"
+    homepageURL: "http://localhost:4444/data/index.html",
+    headerURL: "http://localhost:4444/data/header.png",
+    footerURL: "http://localhost:4444/data/footer.png",
+    previewURL: "http://localhost:4444/data/preview.png",
+    iconURL: "http://localhost:4444/data/icon.png"
   };
 
   ensure_test_completed();
@@ -253,10 +247,10 @@ function run_test_3() {
     do_check_eq(p1.type, "theme");
     do_check_eq(p1.description, "A test theme");
     do_check_eq(p1.creator, "Mozilla");
-    do_check_eq(p1.homepageURL, "http://localhost:" + gPort + "/data/index.html");
-    do_check_eq(p1.iconURL, "http://localhost:" + gPort + "/data/icon.png");
+    do_check_eq(p1.homepageURL, "http://localhost:4444/data/index.html");
+    do_check_eq(p1.iconURL, "http://localhost:4444/data/icon.png");
     do_check_eq(p1.screenshots.length, 1);
-    do_check_eq(p1.screenshots[0], "http://localhost:" + gPort + "/data/preview.png");
+    do_check_eq(p1.screenshots[0], "http://localhost:4444/data/preview.png");
     do_check_false(p1.appDisabled);
     do_check_false(p1.userDisabled);
     do_check_true(p1.isCompatible);
@@ -314,11 +308,11 @@ function run_test_4() {
     name: "Test LW Theme",
     description: "A second test theme",
     author: "Mozilla",
-    homepageURL: "http://localhost:" + gPort + "/data/index.html",
-    headerURL: "http://localhost:" + gPort + "/data/header.png",
-    footerURL: "http://localhost:" + gPort + "/data/footer.png",
-    previewURL: "http://localhost:" + gPort + "/data/preview.png",
-    iconURL: "http://localhost:" + gPort + "/data/icon.png"
+    homepageURL: "http://localhost:4444/data/index.html",
+    headerURL: "http://localhost:4444/data/header.png",
+    footerURL: "http://localhost:4444/data/footer.png",
+    previewURL: "http://localhost:4444/data/preview.png",
+    iconURL: "http://localhost:4444/data/icon.png"
   };
 
   ensure_test_completed();
@@ -787,11 +781,11 @@ function run_test_14() {
     name: "Test LW Theme",
     description: "A test theme",
     author: "Mozilla",
-    homepageURL: "http://localhost:" + gPort + "/data/index.html",
-    headerURL: "http://localhost:" + gPort + "/data/header.png",
-    footerURL: "http://localhost:" + gPort + "/data/footer.png",
-    previewURL: "http://localhost:" + gPort + "/data/preview.png",
-    iconURL: "http://localhost:" + gPort + "/data/icon.png"
+    homepageURL: "http://localhost:4444/data/index.html",
+    headerURL: "http://localhost:4444/data/header.png",
+    footerURL: "http://localhost:4444/data/footer.png",
+    previewURL: "http://localhost:4444/data/preview.png",
+    iconURL: "http://localhost:4444/data/icon.png"
   };
 
   AddonManager.getAddonByID("default@tests.mozilla.org", function(d) {

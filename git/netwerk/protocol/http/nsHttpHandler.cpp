@@ -309,8 +309,12 @@ nsHttpHandler::Init()
 #ifdef ANDROID
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
 #else
-    mProductSub.AssignLiteral("20100101");
+    mProductSub.AssignLiteral(MOZ_UA_BUILDID);
 #endif
+    if (mProductSub.IsEmpty() && appInfo)
+        appInfo->GetPlatformBuildID(mProductSub);
+    if (mProductSub.Length() > 8)
+        mProductSub.SetLength(8);
 
 #if DEBUG
     // dump user agent prefs

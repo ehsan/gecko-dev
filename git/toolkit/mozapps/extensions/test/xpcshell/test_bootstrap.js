@@ -30,11 +30,7 @@ userExtDir.append(gAppInfo.ID);
 registerDirectory("XREUSysExt", userExtDir.parent);
 
 Components.utils.import("resource://testing-common/httpd.js");
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-
-testserver.registerDirectory("/addons/", do_get_file("addons"));
+var testserver;
 
 function resetPrefs() {
   Services.prefs.setIntPref("bootstraptest.active_version", -1);
@@ -145,6 +141,11 @@ function run_test() {
   do_test_pending();
 
   resetPrefs();
+
+  // Create and configure the HTTP server.
+  testserver = new HttpServer();
+  testserver.registerDirectory("/addons/", do_get_file("addons"));
+  testserver.start(4444);
 
   startupManager();
 
@@ -1136,7 +1137,7 @@ function run_test_23() {
     "onNewInstall"
   ]);
 
-  let url = "http://localhost:" + gPort + "/addons/test_bootstrap1_1.xpi";
+  let url = "http://localhost:4444/addons/test_bootstrap1_1.xpi";
   AddonManager.getInstallForURL(url, function(install) {
     ensure_test_completed();
 

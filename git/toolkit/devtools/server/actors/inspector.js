@@ -2021,7 +2021,15 @@ var InspectorActor = protocol.ActorClass({
     this.tabActor = tabActor;
   },
 
-  get window() this.tabActor.window,
+  get window() {
+    let tabActor = this.tabActor;
+    if (tabActor.browser instanceof Ci.nsIDOMWindow) {
+      return tabActor.browser;
+    } else if (tabActor.browser instanceof Ci.nsIDOMElement) {
+      return tabActor.browser.contentWindow;
+    }
+    return null;
+  },
 
   getWalker: method(function(options={}) {
     if (this._walkerPromise) {

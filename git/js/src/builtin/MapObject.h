@@ -36,7 +36,7 @@ class HashableValue {
 
     HashableValue() : value(UndefinedValue()) {}
 
-    bool setValue(JSContext *cx, HandleValue v);
+    bool setValue(JSContext *cx, const Value &v);
     HashNumber hash() const;
     bool operator==(const HashableValue &other) const;
     HashableValue mark(JSTracer *trc) const;
@@ -53,7 +53,7 @@ class AutoHashableValueRooter : private AutoGCRooter
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
-    bool setValue(JSContext *cx, HandleValue v) {
+    bool setValue(JSContext *cx, const Value &v) {
         return value.setValue(cx, v);
     }
 

@@ -1165,16 +1165,14 @@ nsLayoutUtils::GetNearestScrollableFrameForDirection(nsIFrame* aFrame,
 
 // static
 nsIScrollableFrame*
-nsLayoutUtils::GetNearestScrollableFrame(nsIFrame* aFrame, uint32_t aFlags)
+nsLayoutUtils::GetNearestScrollableFrame(nsIFrame* aFrame)
 {
   NS_ASSERTION(aFrame, "GetNearestScrollableFrame expects a non-null frame");
-  for (nsIFrame* f = aFrame; f; f = (aFlags & SCROLLABLE_SAME_DOC) ?
-       f->GetParent() : nsLayoutUtils::GetCrossDocParentFrame(f)) {
+  for (nsIFrame* f = aFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
     nsIScrollableFrame* scrollableFrame = do_QueryFrame(f);
     if (scrollableFrame) {
       nsPresContext::ScrollbarStyles ss = scrollableFrame->GetScrollbarStyles();
-      if ((aFlags & SCROLLABLE_INCLUDE_HIDDEN) ||
-          ss.mVertical != NS_STYLE_OVERFLOW_HIDDEN ||
+      if (ss.mVertical != NS_STYLE_OVERFLOW_HIDDEN ||
           ss.mHorizontal != NS_STYLE_OVERFLOW_HIDDEN)
         return scrollableFrame;
     }
@@ -1260,7 +1258,7 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
 
   const nsGUIEvent* GUIEvent = static_cast<const nsGUIEvent*>(aEvent);
   return GetEventCoordinatesRelativeTo(aEvent,
-                                       LayoutDeviceIntPoint::ToUntyped(GUIEvent->refPoint),
+                                       GUIEvent->refPoint,
                                        aFrame);
 }
 

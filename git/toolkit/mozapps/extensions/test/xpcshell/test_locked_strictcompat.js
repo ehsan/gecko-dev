@@ -6,11 +6,7 @@
 
 
 Components.utils.import("resource://testing-common/httpd.js");
-var testserver = new HttpServer();
-testserver.start(-1);
-gPort = testserver.identity.primaryPort;
-mapFile("/data/test_corrupt.rdf", testserver);
-testserver.registerDirectory("/addons/", do_get_file("addons"));
+var testserver;
 
 // The test extension uses an insecure update url.
 Services.prefs.setBoolPref(PREF_EM_CHECK_UPDATE_SECURITY, false);
@@ -45,7 +41,7 @@ var addon3 = {
   id: "addon3@tests.mozilla.org",
   version: "1.0",
   name: "Test 3",
-  updateURL: "http://localhost:" + gPort + "/data/test_corrupt.rdf",
+  updateURL: "http://localhost:4444/data/test_corrupt.rdf",
   targetApplications: [{
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
@@ -58,7 +54,7 @@ var addon4 = {
   id: "addon4@tests.mozilla.org",
   version: "1.0",
   name: "Test 4",
-  updateURL: "http://localhost:" + gPort + "/data/test_corrupt.rdf",
+  updateURL: "http://localhost:4444/data/test_corrupt.rdf",
   targetApplications: [{
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
@@ -146,6 +142,12 @@ function run_test() {
   writeInstallRDFForExtension(addon7, profileDir);
   writeInstallRDFForExtension(theme1, profileDir);
   writeInstallRDFForExtension(theme2, profileDir);
+
+  // Create and configure the HTTP server.
+  testserver = new HttpServer();
+  testserver.registerDirectory("/addons/", do_get_file("addons"));
+  testserver.registerDirectory("/data/", do_get_file("data"));
+  testserver.start(4444);
 
   // Startup the profile and setup the initial state
   startupManager();

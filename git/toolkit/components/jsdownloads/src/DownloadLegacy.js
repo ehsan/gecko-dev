@@ -87,17 +87,10 @@ DownloadLegacyTransfer.prototype = {
       this._componentFailed = true;
     }
 
-    if ((aStateFlags & Ci.nsIWebProgressListener.STATE_START) &&
+    // Detect when the last file has been received, or the download failed.
+    if ((aStateFlags & Ci.nsIWebProgressListener.STATE_STOP) &&
         (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK)) {
-      // The main request has just started.  Wait for the associated Download
-      // object to be available before notifying.
-      this._deferDownload.promise.then(function (aDownload) {
-        aDownload.saver.onTransferStarted(aRequest);
-      }).then(null, Cu.reportError);
-    } else if ((aStateFlags & Ci.nsIWebProgressListener.STATE_STOP) &&
-        (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK)) {
-      // The last file has been received, or the download failed.  Wait for the
-      // associated Download object to be available before notifying.
+      // Wait for the associated Download object to be available.
       this._deferDownload.promise.then(function DLT_OSC_onDownload(aDownload) {
         aDownload.saver.onTransferFinished(aRequest, aStatus);
       }).then(null, Cu.reportError);
@@ -182,8 +175,7 @@ DownloadLegacyTransfer.prototype = {
     // download system to initialize before the object is created.
     Downloads.createDownload({
       source: { url: aSource.spec, isPrivate: aIsPrivate },
-      target: { path: aTarget.QueryInterface(Ci.nsIFileURL).file.path,
-                partFilePath: aTempFile && aTempFile.path },
+      target: aTarget.QueryInterface(Ci.nsIFileURL).file,
       saver: "legacy",
       launchWhenSuccedded: launchWhenSuccedded,
       contentType: contentType,
@@ -196,11 +188,6 @@ DownloadLegacyTransfer.prototype = {
           aCancelable.cancel(Cr.NS_ERROR_ABORT);
         }
       }).then(null, Cu.reportError);
-
-      // Legacy components keep partial data when they use a ".part" file.
-      if (aTempFile) {
-        aDownload.tryToKeepPartialData = true;
-      }
 
       // Start the download before allowing it to be controlled.
       aDownload.start().then(null, function () {

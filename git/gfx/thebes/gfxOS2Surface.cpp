@@ -149,7 +149,7 @@ gfxOS2Surface::~gfxOS2Surface()
         }
     } else {
         if (mBitmap) {
-            GpiSetBitmap(mPS, nullptr);
+            GpiSetBitmap(mPS, NULL);
             GpiDeleteBitmap(mBitmap);
         }
         if (mPS) {

@@ -224,7 +224,7 @@ gfxWindowsSurface::BeginPrinting(const nsAString& aTitle,
     docinfo.cbSize = sizeof(docinfo);
     docinfo.lpszDocName = titleStr.Length() > 0 ? titleStr.get() : L"Mozilla Document";
     docinfo.lpszOutput = docName.Length() > 0 ? docName.get() : nullptr;
-    docinfo.lpszDatatype = nullptr;
+    docinfo.lpszDatatype = NULL;
     docinfo.fwType = 0;
 
     ::StartDocW(mDC, &docinfo);

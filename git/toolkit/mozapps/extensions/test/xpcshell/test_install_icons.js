@@ -2,15 +2,9 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-// use httpserver to find an available port
-Components.utils.import("resource://testing-common/httpd.js");
-var gServer = new HttpServer();
-gServer.start(-1);
-gPort = gServer.identity.primaryPort;
-
-var addon_url = "http://localhost:" + gPort + "/test.xpi";
-var icon32_url = "http://localhost:" + gPort + "/icon.png";
-var icon64_url = "http://localhost:" + gPort + "/icon64.png";
+var addon_url = "http://localhost:4444/test.xpi";
+var icon32_url = "http://localhost:4444/icon.png";
+var icon64_url = "http://localhost:4444/icon64.png";
 
 function run_test() {
   do_test_pending();

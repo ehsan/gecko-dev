@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -25,6 +24,7 @@
 #include "ClientLayerManager.h"
 #include "BasicLayers.h"
 #include "FrameMetrics.h"
+#include "nsIObserver.h"
 #include "Windows.Graphics.Display.h"
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
@@ -795,16 +795,62 @@ MetroWidget::ShouldUseAPZC()
          Preferences::GetBool(kPrefName, false);
 }
 
-CompositorParent* MetroWidget::NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight)
+class MetroCompositorParent : public CompositorParent,
+                              public nsIObserver
 {
-  CompositorParent *compositor = nsBaseWidget::NewCompositorParent(aSurfaceWidth, aSurfaceHeight);
+public:
+  NS_DECL_ISUPPORTS
+  MetroCompositorParent(MetroWidget* aMetroWidget, bool aRenderToEGLSurface,
+                        int aSurfaceWidth, int aSurfaceHeight) :
+    CompositorParent(aMetroWidget, aRenderToEGLSurface,
+                     aSurfaceHeight, aSurfaceHeight),
+    mMetroWidget(aMetroWidget)
+  {
+    nsresult rv;
+    nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1", &rv);
+    if (NS_SUCCEEDED(rv)) {
+      observerService->AddObserver(this, "viewport-needs-updating", false);
+    }
 
-  if (ShouldUseAPZC()) {
-    CompositorParent::SetControllerForLayerTree(compositor->RootLayerTreeId(), this);
-    MetroWidget::sAPZC = CompositorParent::GetAPZCTreeManager(compositor->RootLayerTreeId());
+    CompositorParent::SetControllerForLayerTree(RootLayerTreeId(), aMetroWidget);
+    MetroWidget::sAPZC = CompositorParent::GetAPZCTreeManager(RootLayerTreeId());
   }
 
-  return compositor;
+  NS_IMETHODIMP Observe(nsISupports *subject, const char *topic, const PRUnichar *data)
+  {
+    LogFunction();
+
+    NS_ENSURE_ARG_POINTER(topic);
+    if (!strcmp(topic, "viewport-needs-updating")) {
+      Layer* targetLayer = GetLayerManager()->GetPrimaryScrollableLayer();
+      if (targetLayer && targetLayer->AsContainerLayer() && MetroWidget::sAPZC) {
+        FrameMetrics frameMetrics =
+          targetLayer->AsContainerLayer()->GetFrameMetrics();
+        frameMetrics.mDisplayPort =
+          AsyncPanZoomController::CalculatePendingDisplayPort(frameMetrics,
+                                                              mozilla::gfx::Point(0.0f, 0.0f),
+                                                              mozilla::gfx::Point(0.0f, 0.0f),
+                                                              0.0);
+        mMetroWidget->RequestContentRepaint(frameMetrics);
+      }
+    }
+    return NS_OK;
+  }
+
+protected:
+  nsCOMPtr<MetroWidget> mMetroWidget;
+};
+
+NS_IMPL_ISUPPORTS1(MetroCompositorParent, nsIObserver)
+
+
+CompositorParent* MetroWidget::NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight)
+{
+  if (ShouldUseAPZC()) {
+    return new MetroCompositorParent(this, true, aSurfaceWidth, aSurfaceHeight);
+  } else {
+    return nsBaseWidget::NewCompositorParent(aSurfaceWidth, aSurfaceHeight);
+  }
 }
 
 LayerManager*
@@ -977,10 +1023,10 @@ MetroWidget::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
   if (!aPoint) {
     event.refPoint.x = event.refPoint.y = 0;
   } else {
-    CSSIntPoint cssPoint(aPoint->x, aPoint->y);
-    LayoutDeviceIntPoint layoutDeviceIntPoint = CSSIntPointToLayoutDeviceIntPoint(cssPoint);
-    event.refPoint.x = layoutDeviceIntPoint.x;
-    event.refPoint.y = layoutDeviceIntPoint.y;
+    // convert CSS pixels to device pixels for event.refPoint
+    double scale = GetDefaultScale(); 
+    event.refPoint.x = int32_t(NS_round(aPoint->x * scale));
+    event.refPoint.y = int32_t(NS_round(aPoint->y * scale));
   }
   event.time = ::GetMessageTime();
 }
@@ -1065,15 +1111,6 @@ double MetroWidget::GetDefaultScaleInternal()
     }
   }
   return 1.0;
-}
-
-LayoutDeviceIntPoint
-MetroWidget::CSSIntPointToLayoutDeviceIntPoint(const CSSIntPoint &aCSSPoint)
-{
-  double scale = GetDefaultScale();
-  LayoutDeviceIntPoint devPx(int32_t(NS_round(scale * aCSSPoint.x)),
-                             int32_t(NS_round(scale * aCSSPoint.y)));
-  return devPx;
 }
 
 float MetroWidget::GetDPI()
@@ -1328,13 +1365,11 @@ public:
 
         NS_ConvertASCIItoUTF16 data(nsPrintfCString("{ " \
                                                     "  \"resolution\": %.2f, " \
-                                                    "  \"scrollId\": %d, " \
                                                     "  \"compositedRect\": { \"width\": %d, \"height\": %d }, " \
                                                     "  \"displayPort\":    { \"x\": %d, \"y\": %d, \"width\": %d, \"height\": %d }, " \
                                                     "  \"scrollTo\":       { \"x\": %d, \"y\": %d }" \
                                                     "}",
                                                     (float)(resolution.scale / mFrameMetrics.mDevPixelsPerCSSPixel.scale),
-                                                    (int)mFrameMetrics.mScrollId,
                                                     (int)compositedRect.width,
                                                     (int)compositedRect.height,
                                                     (int)mFrameMetrics.mDisplayPort.x,
@@ -1374,7 +1409,7 @@ MetroWidget::HandleDoubleTap(const CSSIntPoint& aPoint)
     return;
   }
 
-  mMetroInput->HandleDoubleTap(CSSIntPointToLayoutDeviceIntPoint(aPoint));
+  mMetroInput->HandleDoubleTap(aPoint);
 }
 
 void
@@ -1386,7 +1421,7 @@ MetroWidget::HandleSingleTap(const CSSIntPoint& aPoint)
     return;
   }
 
-  mMetroInput->HandleSingleTap(CSSIntPointToLayoutDeviceIntPoint(aPoint));
+  mMetroInput->HandleSingleTap(aPoint);
 }
 
 void
@@ -1398,7 +1433,7 @@ MetroWidget::HandleLongTap(const CSSIntPoint& aPoint)
     return;
   }
 
-  mMetroInput->HandleLongTap(CSSIntPointToLayoutDeviceIntPoint(aPoint));
+  mMetroInput->HandleLongTap(aPoint);
 }
 
 void

@@ -397,7 +397,7 @@ var SelectionHandler = {
   },
 
   searchSelection: function sh_searchSelection() {
-    let selectedText = this.getSelectedText();
+    let selectedText = this._getSelectedText();
     if (selectedText.length) {
       let req = Services.search.defaultEngine.getSubmission(selectedText);
       BrowserApp.selectOrOpenTab(req.uri.spec);

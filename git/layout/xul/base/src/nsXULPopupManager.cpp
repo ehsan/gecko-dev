@@ -1183,7 +1183,7 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
     event.widget = nullptr;
   }
 
-  event.refPoint = LayoutDeviceIntPoint::FromUntyped(mCachedMousePoint);
+  event.refPoint = mCachedMousePoint;
   event.modifiers = mCachedModifiers;
   nsEventDispatcher::Dispatch(popup, presContext, &event, nullptr, &status);
 

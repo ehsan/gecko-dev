@@ -164,14 +164,9 @@ webidl_files = \
   HTMLTrackElement.webidl \
   HTMLUListElement.webidl \
   HTMLVideoElement.webidl \
-  IDBCursor.webidl \
   IDBDatabase.webidl \
   IDBFactory.webidl \
   IDBFileHandle.webidl \
-  IDBIndex.webidl \
-  IDBObjectStore.webidl \
-  IDBOpenDBRequest.webidl \
-  IDBRequest.webidl \
   IDBTransaction.webidl \
   IDBVersionChangeEvent.webidl \
   ImageData.webidl \

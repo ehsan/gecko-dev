@@ -42,7 +42,7 @@ DisableFontActivation()
 {
     // get the main bundle identifier
     CFBundleRef mainBundle = ::CFBundleGetMainBundle();
-    CFStringRef mainBundleID = nullptr;
+    CFStringRef mainBundleID = NULL;
 
     if (mainBundle) {
         mainBundleID = ::CFBundleGetIdentifier(mainBundle);
@@ -470,7 +470,7 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
         return nullptr;
 
     // get the size of location
-    err = NCMGetProfileLocation(cmProfile, nullptr, &locationSize);
+    err = NCMGetProfileLocation(cmProfile, NULL, &locationSize);
     if (err != noErr)
         return nullptr;
 

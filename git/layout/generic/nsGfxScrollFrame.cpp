@@ -3014,8 +3014,7 @@ void nsGfxScrollFrameInner::CurPosAttributeChanged(nsIContent* aContent)
   }
 
   if (mScrollbarActivity) {
-    nsRefPtr<ScrollbarActivity> scrollbarActivity(mScrollbarActivity);
-    scrollbarActivity->ActivityOccurred();
+    mScrollbarActivity->ActivityOccurred();
   }
 
   bool isSmooth = aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::smooth);
@@ -3890,8 +3889,7 @@ nsGfxScrollFrameInner::SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom,
   aContent->SetAttr(kNameSpaceID_None, aAtom, newValue, true);
 
   if (mScrollbarActivity) {
-    nsRefPtr<ScrollbarActivity> scrollbarActivity(mScrollbarActivity);
-    scrollbarActivity->ActivityOccurred();
+    mScrollbarActivity->ActivityOccurred();
   }
 }
 

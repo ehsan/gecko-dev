@@ -12,8 +12,6 @@
 namespace mozilla {
 namespace layers {
 
-class CompositorChild;
-
 class ClientLayerManager : public LayerManager,
                            public ShadowLayerForwarder
 {

@@ -88,9 +88,7 @@ public:
   virtual void WillRefresh(TimeStamp aTime) MOZ_OVERRIDE;
 
   static void FadeBeginTimerFired(nsITimer* aTimer, void* aSelf) {
-    nsRefPtr<ScrollbarActivity> scrollbarActivity(
-      reinterpret_cast<ScrollbarActivity*>(aSelf));
-    scrollbarActivity->BeginFade();
+    reinterpret_cast<ScrollbarActivity*>(aSelf)->BeginFade();
   }
 
 protected:
