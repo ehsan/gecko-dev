@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -48,6 +48,7 @@
 #include "jsbit.h"
 #include "jsutil.h"
 #include "jstask.h"
+#include "jsversion.h"
 
 JS_BEGIN_EXTERN_C
 
@@ -74,8 +75,8 @@ js_GetGCThingTraceKind(void *thing);
  * The sole purpose of the function is to preserve public API compatibility
  * in JS_GetStringBytes which takes only single JSString* argument.
  */
-JSRuntime*
-js_GetGCStringRuntime(JSString *str);
+JSRuntime *
+js_GetGCThingRuntime(void *thing);
 
 #if 1
 /*
@@ -178,7 +179,7 @@ extern void
 js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp);
 
 extern JS_REQUIRES_STACK void
-js_TraceRuntime(JSTracer *trc, JSBool allAtoms);
+js_TraceRuntime(JSTracer *trc);
 
 extern JS_REQUIRES_STACK JS_FRIEND_API(void)
 js_TraceContext(JSTracer *trc, JSContext *acx);
@@ -208,23 +209,14 @@ typedef enum JSGCInvocationKind {
 
     /*
      * Flag bit telling js_GC that the caller has already acquired rt->gcLock.
-     * Currently, this flag is set for the invocation kinds that also preserve
-     * atoms and weak roots, so we don't need another bit for GC_KEEP_ATOMS.
      */
     GC_LOCK_HELD        = 0x10,
-    GC_KEEP_ATOMS       = GC_LOCK_HELD,
 
     /*
      * Called from js_SetProtoOrParent with a request to set an object's proto
      * or parent slot inserted on rt->setSlotRequests.
      */
-    GC_SET_SLOT_REQUEST = GC_LOCK_HELD | 1,
-
-    /*
-     * Called from js_NewGCThing as a last-ditch GC attempt. See comments in
-     * jsgc.c just before js_GC's definition for details.
-     */
-    GC_LAST_DITCH       = GC_LOCK_HELD | 2
+    GC_SET_SLOT_REQUEST = GC_LOCK_HELD | 1
 } JSGCInvocationKind;
 
 extern void
@@ -239,6 +231,7 @@ js_CallGCMarker(JSTracer *trc, void *thing, uint32 kind);
  */
 enum JSFinalizeGCThingKind {
     FINALIZE_OBJECT,
+    FINALIZE_ITER,
     FINALIZE_FUNCTION,
 #if JS_HAS_XML_SUPPORT
     FINALIZE_XML,
@@ -276,6 +269,12 @@ static inline JSObject *
 js_NewGCObject(JSContext *cx)
 {
     return (JSObject *) js_NewFinalizableGCThing(cx, FINALIZE_OBJECT);
+}
+
+static inline JSObject *
+js_NewGCIter(JSContext *cx)
+{
+    return (JSObject *) js_NewFinalizableGCThing(cx, FINALIZE_ITER);
 }
 
 static inline JSString *
@@ -426,15 +425,19 @@ struct JSGCStats {
     uint32  maxunmarked;/* maximum number of things with children to mark
                            later */
 #endif
-    uint32  maxlevel;   /* maximum GC nesting (indirect recursion) level */
-    uint32  poke;       /* number of potentially useful GC calls */
-    uint32  afree;      /* thing arenas freed so far */
-    uint32  stackseg;   /* total extraordinary stack segments scanned */
-    uint32  segslots;   /* total stack segment jsval slots scanned */
-    uint32  nclose;     /* number of objects with close hooks */
-    uint32  maxnclose;  /* max number of objects with close hooks */
-    uint32  closelater; /* number of close hooks scheduled to run */
-    uint32  maxcloselater; /* max number of close hooks scheduled to run */
+    uint32  maxlevel;       /* maximum GC nesting (indirect recursion) level */
+    uint32  poke;           /* number of potentially useful GC calls */
+    uint32  afree;          /* thing arenas freed so far */
+    uint32  stackseg;       /* total extraordinary stack segments scanned */
+    uint32  segslots;       /* total stack segment jsval slots scanned */
+    uint32  nclose;         /* number of objects with close hooks */
+    uint32  maxnclose;      /* max number of objects with close hooks */
+    uint32  closelater;     /* number of close hooks scheduled to run */
+    uint32  maxcloselater;  /* max number of close hooks scheduled to run */
+    uint32  nallarenas;     /* number of all allocated arenas */
+    uint32  maxnallarenas;  /* maximum number of all allocated arenas */
+    uint32  nchunks;        /* number of allocated chunks */
+    uint32  maxnchunks;     /* maximum number of allocated chunks */
 
     JSGCArenaStats  arenaStats[FINALIZE_LIMIT];
     JSGCArenaStats  doubleArenaStats;
@@ -453,5 +456,28 @@ extern void
 js_MarkTraps(JSTracer *trc);
 
 JS_END_EXTERN_C
+
+namespace js {
+
+void
+TraceObjectVector(JSTracer *trc, JSObject **vec, uint32 len);
+
+inline void
+#ifdef DEBUG
+TraceValues(JSTracer *trc, size_t len, jsval *vec, const char *name)
+#else
+TraceValues(JSTracer *trc, size_t len, jsval *vec, const char *) /* last arg unused in release. kill unreferenced formal param warnings */
+#endif
+{
+    for (jsval *vp = vec, *end = vp + len; vp < end; vp++) {
+        jsval v = *vp;
+        if (JSVAL_IS_TRACEABLE(v)) {
+            JS_SET_TRACING_INDEX(trc, name, vp - vec);
+            js_CallGCMarker(trc, JSVAL_TO_TRACEABLE(v), JSVAL_TRACE_KIND(v));
+        }
+    }
+}
+
+}
 
 #endif /* jsgc_h___ */

@@ -220,6 +220,8 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 #endif
 
 #include "nsContentErrors.h"
+#include "nsIChannelPolicy.h"
+#include "nsIContentSecurityPolicy.h"
 
 // Number of documents currently loading
 static PRInt32 gNumberOfDocumentsLoading = 0;
@@ -1606,7 +1608,7 @@ nsDocShell::GetPresShell(nsIPresShell ** aPresShell)
     NS_ENSURE_ARG_POINTER(aPresShell);
     *aPresShell = nsnull;
 
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     (void) GetPresContext(getter_AddRefs(presContext));
 
     if (presContext) {
@@ -1624,7 +1626,7 @@ nsDocShell::GetEldestPresShell(nsIPresShell** aPresShell)
     NS_ENSURE_ARG_POINTER(aPresShell);
     *aPresShell = nsnull;
 
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     (void) GetEldestPresContext(getter_AddRefs(presContext));
 
     if (presContext) {
@@ -2415,6 +2417,12 @@ nsDocShell::SetItemType(PRInt32 aItemType)
     // disable auth prompting for anything but content
     mAllowAuth = mItemType == typeContent; 
 
+    nsRefPtr<nsPresContext> presContext = nsnull;
+    GetPresContext(getter_AddRefs(presContext));
+    if (presContext) {
+        presContext->InvalidateIsChromeCache();
+    }
+
     return NS_OK;
 }
 
@@ -2814,7 +2822,7 @@ PrintDocTree(nsIDocShellTreeItem * aParentNode, int aLevel)
   aParentNode->GetItemType(&type);
   nsCOMPtr<nsIPresShell> presShell;
   parentAsDocShell->GetPresShell(getter_AddRefs(presShell));
-  nsCOMPtr<nsPresContext> presContext;
+  nsRefPtr<nsPresContext> presContext;
   parentAsDocShell->GetPresContext(getter_AddRefs(presContext));
   nsIDocument *doc = presShell->GetDocument();
 
@@ -8274,6 +8282,27 @@ nsDocShell::DoURILoad(nsIURI * aURI,
         loadFlags |= nsIChannel::LOAD_BACKGROUND;
     }
 
+    // check for Content Security Policy to pass along with the
+    // new channel we are creating
+    nsCOMPtr<nsIChannelPolicy> channelPolicy;
+    if (IsFrame()) {
+        // check the parent docshell for a CSP
+        nsCOMPtr<nsIContentSecurityPolicy> csp;
+        nsCOMPtr<nsIDocShellTreeItem> parentItem;
+        GetSameTypeParent(getter_AddRefs(parentItem));
+        nsCOMPtr<nsIDOMDocument> domDoc(do_GetInterface(parentItem));
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+        if (doc) {
+            rv = doc->NodePrincipal()->GetCsp(getter_AddRefs(csp));
+            NS_ENSURE_SUCCESS(rv, rv);
+            if (csp) {
+                channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
+                channelPolicy->SetContentSecurityPolicy(csp);
+                channelPolicy->SetLoadType(nsIContentPolicy::TYPE_SUBDOCUMENT);
+            }
+        }
+    }
+
     // open a channel for the url
     nsCOMPtr<nsIChannel> channel;
 
@@ -8282,7 +8311,8 @@ nsDocShell::DoURILoad(nsIURI * aURI,
                        nsnull,
                        nsnull,
                        static_cast<nsIInterfaceRequestor *>(this),
-                       loadFlags);
+                       loadFlags,
+                       channelPolicy);
     if (NS_FAILED(rv)) {
         if (rv == NS_ERROR_UNKNOWN_PROTOCOL) {
             // This is a uri with a protocol scheme we don't know how
@@ -10647,7 +10677,7 @@ PRBool
 nsDocShell::URIIsLocalFile(nsIURI *aURI)
 {
     PRBool isFile;
-    nsCOMPtr<nsINetUtil> util = do_GetIOService();
+    nsCOMPtr<nsINetUtil> util = do_GetNetUtil();
 
     return util && NS_SUCCEEDED(util->ProtocolHasFlags(aURI,
                                     nsIProtocolHandler::URI_IS_LOCAL_FILE,

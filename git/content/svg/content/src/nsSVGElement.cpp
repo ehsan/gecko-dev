@@ -97,6 +97,13 @@
 #include "nsIDOMSVGTransformable.h"
 #endif // MOZ_SMIL
 
+// This is needed to ensure correct handling of calls to the
+// vararg-list methods in this file:
+//   nsSVGElement::GetAnimated{Length,Number,Integer}Values
+// See bug 547964 for details:
+PR_STATIC_ASSERT(sizeof(void*) == sizeof(nsnull));
+
+
 nsSVGEnumMapping nsSVGElement::sSVGUnitTypesMap[] = {
   {&nsGkAtoms::userSpaceOnUse, nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE},
   {&nsGkAtoms::objectBoundingBox, nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX},
@@ -1132,7 +1139,7 @@ MappedAttrParser::ParseMappedAttrValue(nsIAtom* aMappedAttrName,
     nsCSSProps::LookupProperty(nsAtomString(aMappedAttrName));
   PRBool changed; // outparam for ParseProperty. (ignored)
   mParser.ParseProperty(propertyID, aMappedAttrValue, mDocURI, mBaseURI,
-                        mNodePrincipal, mDecl, &changed);
+                        mNodePrincipal, mDecl, &changed, PR_FALSE);
 }
 
 already_AddRefed<nsICSSStyleRule>
@@ -1243,9 +1250,8 @@ nsSVGElement::UpdateAnimatedContentStyleRule()
 
   MappedAttrParser mappedAttrParser(doc->CSSLoader(), doc->GetDocumentURI(),
                                     GetBaseURI(), NodePrincipal());
-  doc->PropertyTable()->Enumerate(this, SMIL_MAPPED_ATTR_ANIMVAL,
-                                  ParseMappedAttrAnimValueCallback,
-                                  &mappedAttrParser);
+  doc->PropertyTable(SMIL_MAPPED_ATTR_ANIMVAL)->
+    Enumerate(this, ParseMappedAttrAnimValueCallback, &mappedAttrParser);
  
   nsRefPtr<nsICSSStyleRule>
     animContentStyleRule(mappedAttrParser.CreateStyleRule());

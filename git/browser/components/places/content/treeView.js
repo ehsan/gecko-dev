@@ -147,7 +147,7 @@ PlacesTreeView.prototype = {
    *        node which isn't supposed to be in the tree (e.g. separators in
    *        sorted trees).
    * @param [optional] aForceBuild
-   *        @see isPlainContainer.
+   *        @see _isPlainContainer.
    *        If true, the row will be computed even if the node still isn't set
    *        in our rows array.
    * @param [optional] aParentRow
@@ -255,8 +255,6 @@ PlacesTreeView.prototype = {
     return this._rows[aRow] = parent.getChild(aRow - parentRow - 1);
   },
 
-  _rootNode: null,
-
   /**
    * This takes a container and recursively appends our rows array per its
    * contents.  Assumes that the rows arrays has no rows for the given
@@ -284,9 +282,8 @@ PlacesTreeView.prototype = {
     // iteration.
     let cc = aContainer.childCount;
     let newElements = new Array(cc);
-    this._rows =
-      this._rows.slice(0, aFirstChildRow).concat(newElements)
-          .concat(this._rows.slice(aFirstChildRow, this._rows.length));
+    this._rows = this._rows.splice(0, aFirstChildRow)
+                     .concat(newElements, this._rows);
 
     if (this._isPlainContainer(aContainer))
       return cc;
@@ -295,12 +292,12 @@ PlacesTreeView.prototype = {
     const trueLiteral = PlacesUIUtils.RDF.GetLiteral("true");
     let sortingMode = this._result.sortingMode;
 
-    let rowsInsertedCounter = 0;
+    let rowsInserted = 0;
     for (let i = 0; i < cc; i++) {
       let curChild = aContainer.getChild(i);
       let curChildType = curChild.type;
 
-      let row = aFirstChildRow + rowsInsertedCounter;
+      let row = aFirstChildRow + rowsInserted;
 
       // Don't display separators when sorted.
       if (curChildType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR) {
@@ -314,7 +311,7 @@ PlacesTreeView.prototype = {
       }
 
       this._rows[row] = curChild;
-      rowsInsertedCounter++;
+      rowsInserted++;
 
       // Recursively do containers.
       if (!this._flatList &&
@@ -327,12 +324,12 @@ PlacesTreeView.prototype = {
         if (isopen != curChild.containerOpen)
           aToOpen.push(curChild);
         else if (curChild.containerOpen && curChild.childCount > 0)
-          rowsAddedCounter += this._buildVisibleSection(curChild, aToOpen,
-                                                        row + 1);
+          rowsInserted += this._buildVisibleSection(curChild, aToOpen,
+                                                    row + 1);
       }
     }
 
-    return rowsInsertedCounter;
+    return rowsInserted;
   },
 
   /**
@@ -343,9 +340,9 @@ PlacesTreeView.prototype = {
   function PTV__countVisibleRowsForNodeAtRow(aNodeRow) {
     let node = this._rows[aNodeRow];
 
-    // If it's not listed yet, we know that it's a leaf node.
-    if (node === undefined ||
-        !(node instanceof Ci.nsINavHistoryContainerResultNode))
+    // If it's not listed yet, we know that it's a leaf node (instanceof also
+    // null-checks).
+    if (!(node instanceof Ci.nsINavHistoryContainerResultNode))
       return 1;
 
     let outerLevel = node.indentLevel;
@@ -415,12 +412,16 @@ PlacesTreeView.prototype = {
     let parent = aOldNode.parent;
     if (parent) {
       // If the node's parent is still set, the node is not obsolete
-      // and we should just find out its new position.  However, if the node's
-      // parent is closed, the node is invisible.
-      if (parent.containerOpen)
-        return this._getRowForNode(aOldNode, true);
+      // and we should just find out its new position.
+      // However, if any of the node's ancestor is closed, the node is
+      // invisible.
+      let ancestors = PlacesUtils.nodeAncestors(aOldNode);
+      for (let ancestor in ancestors) {
+        if (!ancestor.containerOpen)
+          return -1;
+      }
 
-      return -1;
+      return this._getRowForNode(aOldNode, true);
     }
 
     // There's a broken edge case here.
@@ -472,7 +473,7 @@ PlacesTreeView.prototype = {
 
     // If only one node was previously selected and there's no selection now,
     // select the node at its old row, if any.
-    if (aNodesInfo.length == 1 && selection.getRangeCount() == 0) {
+    if (aNodesInfo.length == 1 && selection.count == 0) {
       let row = Math.min(aNodesInfo[0].oldRow, this._rows.length - 1);
       selection.rangedSelect(row, row, true);
       if (aNodesInfo[0].wasVisible && scrollToRow == -1)
@@ -569,11 +570,11 @@ PlacesTreeView.prototype = {
       case Ci.nsINavHistoryQueryOptions.SORT_BY_KEYWORD_DESCENDING:
         return [this.COLUMN_TYPE_KEYWORD, true];
       case Ci.nsINavHistoryQueryOptions.SORT_BY_ANNOTATION_ASCENDING:
-        if (this._result.sortingAnnotation == DESCRIPTION_ANNO)
+        if (this._result.sortingAnnotation == PlacesUIUtils.DESCRIPTION_ANNO)
           return [this.COLUMN_TYPE_DESCRIPTION, false];
         break;
       case Ci.nsINavHistoryQueryOptions.SORT_BY_ANNOTATION_DESCENDING:
-        if (this._result.sortingAnnotation == DESCRIPTION_ANNO)
+        if (this._result.sortingAnnotation == PlacesUIUtils.DESCRIPTION_ANNO)
           return [this.COLUMN_TYPE_DESCRIPTION, true];
       case Ci.nsINavHistoryQueryOptions.SORT_BY_DATEADDED_ASCENDING:
         return [this.COLUMN_TYPE_DATEADDED, false];
@@ -652,7 +653,7 @@ PlacesTreeView.prototype = {
     this._rows.splice(row, 0, aNode);
     this._tree.rowCountChanged(row, 1);
 
-    if (PlacesUtils.nodeIsContainer(aNode) && asContainer(aNode).containerOpen)
+    if (PlacesUtils.nodeIsContainer(aNode) && PlacesUtils.asContainer(aNode).containerOpen)
       this.invalidateContainer(aNode);
   },
 
@@ -826,7 +827,7 @@ PlacesTreeView.prototype = {
   },
 
   nodeAnnotationChanged: function PTV_nodeAnnotationChanged(aNode, aAnno) {
-    if (aAnno == DESCRIPTION_ANNO)
+    if (aAnno == PlacesUIUtils.DESCRIPTION_ANNO)
       this._invalidateCellValue(aNode, this.COLUMN_TYPE_DESCRIPTION);
   },
 
@@ -846,6 +847,9 @@ PlacesTreeView.prototype = {
   containerClosed: function PTV_containerClosed(aNode) {
     this.invalidateContainer(aNode);
   },
+
+  containerStateChanged:
+  function PTV_containerStateChanged(aNode, aOldState, aNewState) {},
 
   invalidateContainer: function PTV_invalidateContainer(aContainer) {
     NS_ASSERT(this._result, "Need to have a result to update");
@@ -1105,7 +1109,7 @@ PlacesTreeView.prototype = {
   isContainer: function PTV_isContainer(aRow) {
     // Only leaf nodes aren't listed in the rows array.
     let node = this._rows[aRow];
-    if (!node)
+    if (node === undefined)
       return false;
 
     if (PlacesUtils.nodeIsContainer(node)) {
@@ -1120,7 +1124,7 @@ PlacesTreeView.prototype = {
         if ((PlacesUtils.nodeIsQuery(parent) ||
              PlacesUtils.nodeIsFolder(parent)) &&
             !node.hasChildren)
-          return asQuery(parent).queryOptions.expandQueries;
+          return PlacesUtils.asQuery(parent).queryOptions.expandQueries;
       }
       return true;
     }
@@ -1206,7 +1210,7 @@ PlacesTreeView.prototype = {
         if (PlacesControllerDragHelper.disallowInsertion(container))
           return null;
 
-        let queryOptions = asQuery(this._result.root).queryOptions;
+        let queryOptions = PlacesUtils.asQuery(this._result.root).queryOptions;
         if (queryOptions.sortingMode !=
               Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
           // If we are within a sorted view, insert at the end.
@@ -1334,7 +1338,7 @@ PlacesTreeView.prototype = {
         if (node.itemId != -1) {
           try {
             return PlacesUtils.annotations.
-                               getItemAnnotation(node.itemId, DESCRIPTION_ANNO);
+                               getItemAnnotation(node.itemId, PlacesUIUtils.DESCRIPTION_ANNO);
           }
           catch (ex) { /* has no description */ }
         }
@@ -1468,17 +1472,17 @@ PlacesTreeView.prototype = {
         break;
       case this.COLUMN_TYPE_DESCRIPTION:
         if (oldSort == NHQO.SORT_BY_ANNOTATION_ASCENDING &&
-            oldSortingAnnotation == DESCRIPTION_ANNO) {
+            oldSortingAnnotation == PlacesUIUtils.DESCRIPTION_ANNO) {
           newSort = NHQO.SORT_BY_ANNOTATION_DESCENDING;
-          newSortingAnnotation = DESCRIPTION_ANNO;
+          newSortingAnnotation = PlacesUIUtils.DESCRIPTION_ANNO;
         }
         else if (allowTriState &&
                  oldSort == NHQO.SORT_BY_ANNOTATION_DESCENDING &&
-                 oldSortingAnnotation == DESCRIPTION_ANNO)
+                 oldSortingAnnotation == PlacesUIUtils.DESCRIPTION_ANNO)
           newSort = NHQO.SORT_BY_NONE;
         else {
           newSort = NHQO.SORT_BY_ANNOTATION_ASCENDING;
-          newSortingAnnotation = DESCRIPTION_ANNO;
+          newSortingAnnotation = PlacesUIUtils.DESCRIPTION_ANNO;
         }
 
         break;
@@ -1568,6 +1572,7 @@ function PlacesTreeView(aFlatList, aOnOpenFlatContainer) {
   this._tree = null;
   this._result = null;
   this._selection = null;
+  this._rootNode = null;
   this._rows = [];
   this._flatList = aFlatList;
   this._openContainerCallback = aOnOpenFlatContainer;

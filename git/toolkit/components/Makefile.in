@@ -69,6 +69,12 @@ PARALLEL_DIRS += \
   viewconfig \
   $(NULL)
 
+ifdef BUILD_CTYPES
+PARALLEL_DIRS += \
+  ctypes \
+  $(NULL)
+endif
+
 ifneq (,$(filter cocoa, $(MOZ_WIDGET_TOOLKIT)))
 TOOL_DIRS += alerts
 else
@@ -119,10 +125,5 @@ DIRS += \
   $(NULL)
 
 EXTRA_PP_COMPONENTS = nsDefaultCLH.js
-
-ifeq ($(MOZ_BUILD_APP),camino)
-DIRS += autocomplete/public
-DIRS += downloads/public
-endif
 
 include $(topsrcdir)/config/rules.mk

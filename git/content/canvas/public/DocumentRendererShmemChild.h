@@ -55,7 +55,7 @@ public:
                         const PRInt32& y, const PRInt32& w,
                         const PRInt32& h, const nsString& aBGColor,
                         const PRUint32& flags, const PRBool& flush,
-			const gfxMatrix &aMatrix,
+                        const gfxMatrix& aMatrix,
                         const PRInt32& bufw, const PRInt32& bufh,
                         Shmem& data);
 

@@ -411,7 +411,7 @@ var PlacesCommandHook = {
 
       var parent = aParent != undefined ?
                    aParent : PlacesUtils.unfiledBookmarksFolderId;
-      var descAnno = { name: DESCRIPTION_ANNO, value: description };
+      var descAnno = { name: PlacesUIUtils.DESCRIPTION_ANNO, value: description };
       var txn = PlacesUIUtils.ptm.createItem(uri, parent, -1,
                                              title, null, [descAnno]);
       PlacesUIUtils.ptm.doTransaction(txn);
@@ -632,7 +632,7 @@ var HistoryMenu = {
           iconURL = "moz-anno:favicon:" + iconURL;
         m.setAttribute("image", iconURL);
       }
-      m.setAttribute("class", "menuitem-iconic bookmark-item");
+      m.setAttribute("class", "menuitem-iconic bookmark-item menuitem-with-favicon");
       m.setAttribute("value", i);
       m.setAttribute("oncommand", "undoCloseTab(" + i + ");");
 
@@ -714,7 +714,7 @@ var HistoryMenu = {
           iconURL = "moz-anno:favicon:" + iconURL;
         m.setAttribute("image", iconURL);
       }
-      m.setAttribute("class", "menuitem-iconic bookmark-item");
+      m.setAttribute("class", "menuitem-iconic bookmark-item menuitem-with-favicon");
       m.setAttribute("oncommand", "undoCloseWindow(" + i + ");");
 
       // Set the targetURI attribute so it will be shown in tooltip and statusbar.

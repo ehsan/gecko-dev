@@ -162,7 +162,7 @@ namespace nanojit
         Rlr  = 8,
         Rctr = 9,
 
-        deprecated_UnknownReg = 127,
+        deprecated_UnknownReg = 127,    // XXX: remove eventually, see bug 538924
         FirstReg = R0,
         LastReg = F31
     };
@@ -226,6 +226,8 @@ namespace nanojit
         PPC_srawi   = 0x7C000670, // shift right algebraic word immediate
         PPC_srd     = 0x7C000436, // shift right doubleword (zero ext)
         PPC_srw     = 0x7C000430, // shift right word (zero ext)
+        PPC_stb     = 0x98000000, // store byte
+        PPC_stbx    = 0x7C0001AE, // store byte indexed
         PPC_std     = 0xF8000000, // store doubleword
         PPC_stdu    = 0xF8000001, // store doubleword with update
         PPC_stdux   = 0x7C00016A, // store doubleword with update indexed
@@ -287,7 +289,7 @@ namespace nanojit
         void nativePageSetup();                                             \
         void br(NIns *addr, int link);                                      \
         void br_far(NIns *addr, int link);                                  \
-        void asm_regarg(ArgSize, LIns*, Register);                          \
+        void asm_regarg(ArgType, LIns*, Register);                          \
         void asm_li(Register r, int32_t imm);                               \
         void asm_li32(Register r, int32_t imm);                             \
         void asm_li64(Register r, uint64_t imm);                            \
@@ -389,14 +391,14 @@ namespace nanojit
     #define SRD(rd,rs,rb)   BITALU2(srd,  rd, rs, rb, 0)
     #define SRAD(rd,rs,rb)  BITALU2(srad, rd, rs, rb, 0)
 
-    #define FADD(rd,ra,rb)  FPUAB(fadd, rd, ra, rb, 0)
-    #define FADD_(rd,ra,rb) FPUAB(fadd, rd, ra, rb, 1)
-    #define FDIV(rd,ra,rb)  FPUAB(fdiv, rd, ra, rb, 0)
-    #define FDIV_(rd,ra,rb) FPUAB(fdiv, rd, ra, rb, 1)
-    #define FMUL(rd,ra,rb)  FPUAC(fmul, rd, ra, rb, 0)
-    #define FMUL_(rd,ra,rb) FPUAC(fmul, rd, ra, rb, 1)
-    #define FSUB(rd,ra,rb)  FPUAB(fsub, rd, ra, rb, 0)
-    #define FSUB_(rd,ra,rb) FPUAB(fsub, rd, ra, rb, 1)
+    #define FADD(rd,ra,rb)  FPUAB(addd, rd, ra, rb, 0)
+    #define FADD_(rd,ra,rb) FPUAB(addd, rd, ra, rb, 1)
+    #define FDIV(rd,ra,rb)  FPUAB(divd, rd, ra, rb, 0)
+    #define FDIV_(rd,ra,rb) FPUAB(divd, rd, ra, rb, 1)
+    #define FMUL(rd,ra,rb)  FPUAC(muld, rd, ra, rb, 0)
+    #define FMUL_(rd,ra,rb) FPUAC(muld, rd, ra, rb, 1)
+    #define FSUB(rd,ra,rb)  FPUAB(subd, rd, ra, rb, 0)
+    #define FSUB_(rd,ra,rb) FPUAB(subd, rd, ra, rb, 1)
 
     #define MULLI(rd,ra,simm) EMIT1(PPC_mulli | GPR(rd)<<21 | GPR(ra)<<16 | uint16_t(simm),\
         "mulli %s,%s,%d", gpn(rd), gpn(ra), int16_t(simm))
@@ -437,7 +439,7 @@ namespace nanojit
     #define MFCTR(r) MFSPR(r, ctr)
 
     #define MEMd(op, r, d, a) do {\
-        NanoAssert(isS16(d) && (d&3)==0);\
+        NanoAssert(isS16(d));\
         EMIT1(PPC_##op | GPR(r)<<21 | GPR(a)<<16 | uint16_t(d), "%s %s,%d(%s)", #op, gpn(r), int16_t(d), gpn(a));\
         } while(0) /* no addr */
 
@@ -463,11 +465,17 @@ namespace nanojit
     #define LWZX(r, a, b) MEMx(lwzx, r, a, b)
     #define LDX(r,  a, b) MEMx(ldx,  r, a, b)
 
+    // store word (32-bit integer)
     #define STW(r,  d, b)     MEMd(stw,    r, d, b)
     #define STWU(r, d, b)     MEMd(stwu,   r, d, b)
     #define STWX(s, a, b)     MEMx(stwx,   s, a, b)
     #define STWUX(s, a, b)    MEMux(stwux, s, a, b)
 
+    // store byte
+    #define STB(r,  d, b)     MEMd(stb,    r, d, b)
+    #define STBX(s, a, b)     MEMx(stbx,   s, a, b)
+
+    // store double (64-bit float)
     #define STD(r,  d, b)     MEMd(std,    r, d, b)
     #define STDU(r, d, b)     MEMd(stdu,   r, d, b)
     #define STDX(s, a, b)     MEMx(stdx,   s, a, b)

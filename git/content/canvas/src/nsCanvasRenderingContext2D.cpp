@@ -47,6 +47,9 @@
 #define _USE_MATH_DEFINES
 #endif
 #include <math.h>
+#if defined(XP_WIN) || defined(XP_OS2)
+#include <float.h>
+#endif
 
 #include "prmem.h"
 
@@ -84,8 +87,6 @@
 #include "nsGfxCIID.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIDocShell.h"
-#include "nsPresContext.h"
-#include "nsIPresShell.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
@@ -93,7 +94,6 @@
 #include "nsIDocShellTreeNode.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
-#include "jsnum.h"
 
 #include "nsTArray.h"
 
@@ -124,6 +124,8 @@
 #  include "mozilla/ipc/DocumentRendererShmemParent.h"
 // windows.h (included by chromium code) defines this, in its infinite wisdom
 #  undef DrawText
+
+using mozilla::ipc::SharedMemory;
 #endif
 
 using namespace mozilla;
@@ -135,7 +137,18 @@ using namespace mozilla;
 
 /* Float validation stuff */
 
-#define VALIDATE(_f)  if (!JSDOUBLE_IS_FINITE(_f)) return PR_FALSE
+static inline bool
+DoubleIsFinite(double d)
+{
+#ifdef WIN32
+    // NOTE: '!!' casts an int to bool without spamming MSVC warning C4800.
+    return !!_finite(d);
+#else
+    return finite(d);
+#endif
+}
+
+#define VALIDATE(_f)  if (!DoubleIsFinite(_f)) return PR_FALSE
 
 /* These must take doubles as args, because JSDOUBLE_IS_FINITE expects
  * to take the address of its argument; we can't cast/convert in the
@@ -249,6 +262,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasGradient, NS_CANVASGRADIENT_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasGradient)
 NS_IMPL_RELEASE(nsCanvasGradient)
 
+DOMCI_DATA(CanvasGradient, nsCanvasGradient)
+
 NS_INTERFACE_MAP_BEGIN(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsCanvasGradient)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasGradient)
@@ -295,6 +310,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsCanvasPattern, NS_CANVASPATTERN_PRIVATE_IID)
 NS_IMPL_ADDREF(nsCanvasPattern)
 NS_IMPL_RELEASE(nsCanvasPattern)
 
+DOMCI_DATA(CanvasPattern, nsCanvasPattern)
+
 NS_INTERFACE_MAP_BEGIN(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsCanvasPattern)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasPattern)
@@ -331,6 +348,8 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsTextMetrics, NS_TEXTMETRICS_PRIVATE_IID)
 
 NS_IMPL_ADDREF(nsTextMetrics)
 NS_IMPL_RELEASE(nsTextMetrics)
+
+DOMCI_DATA(TextMetrics, nsTextMetrics)
 
 NS_INTERFACE_MAP_BEGIN(nsTextMetrics)
   NS_INTERFACE_MAP_ENTRY(nsTextMetrics)
@@ -369,7 +388,7 @@ public:
     NS_IMETHOD Redraw(const gfxRect &r);
     // Swap this back buffer with the front, and copy its contents to the new back.
     // x, y, w, and h specify the area of |back| that is dirty.
-    NS_IMETHOD Swap(mozilla::ipc::Shmem &back, PRInt32 x, PRInt32 y, 
+    NS_IMETHOD Swap(mozilla::ipc::Shmem& back, PRInt32 x, PRInt32 y, 
                     PRInt32 w, PRInt32 h);
 
     // nsISupports interface
@@ -442,7 +461,6 @@ protected:
     // process to render to, and then swap our two buffers when it finishes.
     mozilla::ipc::Shmem mFrontBuffer;
     mozilla::ipc::Shmem mBackBuffer;
-    nsRefPtr<gfxASurface> mFrontSurface;
     nsRefPtr<gfxASurface> mBackSurface;
 
     // Creates a new mFrontBuffer and mBackBuffer of the correct size.
@@ -714,6 +732,8 @@ protected:
 NS_IMPL_ADDREF(nsCanvasRenderingContext2D)
 NS_IMPL_RELEASE(nsCanvasRenderingContext2D)
 
+DOMCI_DATA(CanvasRenderingContext2D, nsCanvasRenderingContext2D)
+
 NS_INTERFACE_MAP_BEGIN(nsCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCanvasRenderingContext2D)
   NS_INTERFACE_MAP_ENTRY(nsICanvasRenderingContextInternal)
@@ -743,9 +763,12 @@ NS_NewCanvasRenderingContext2D(nsIDOMCanvasRenderingContext2D** aResult)
 }
 
 nsCanvasRenderingContext2D::nsCanvasRenderingContext2D()
-    : mValid(PR_FALSE), mOpaque(PR_FALSE), mShmem(PR_FALSE), mCanvasElement(nsnull),
-      mSaveCount(0), mIsEntireFrameInvalid(PR_FALSE), mInvalidateCount(0),
-      mLastStyle(STYLE_MAX), mStyleStack(20)
+    :  mValid(PR_FALSE), mOpaque(PR_FALSE), mCanvasElement(nsnull)
+    ,  mSaveCount(0), mIsEntireFrameInvalid(PR_FALSE), mInvalidateCount(0)
+    ,  mLastStyle(STYLE_MAX), mStyleStack(20)
+#ifdef MOZ_IPC
+    , mShmem(PR_FALSE)
+#endif
 {
     sNumLivingContexts++;
 }
@@ -756,8 +779,8 @@ nsCanvasRenderingContext2D::~nsCanvasRenderingContext2D()
 
     sNumLivingContexts--;
     if (!sNumLivingContexts) {
-        delete sUnpremultiplyTable;
-        delete sPremultiplyTable;
+        delete[] sUnpremultiplyTable;
+        delete[] sPremultiplyTable;
         sUnpremultiplyTable = nsnull;
         sPremultiplyTable = nsnull;
     }
@@ -957,18 +980,17 @@ nsCanvasRenderingContext2D::CreateShmemSegments(PRInt32 width, PRInt32 height,
                                                 gfxASurface::gfxImageFormat format)
 {
     if (!mozilla::dom::ContentProcessParent::GetSingleton()->
-                AllocShmem(width * height * 4, &mFrontBuffer))
+        AllocShmem(width * height * 4, SharedMemory::TYPE_BASIC,
+                   &mFrontBuffer))
         return false;
     if (!mozilla::dom::ContentProcessParent::GetSingleton()->
-                AllocShmem(width * height * 4, &mBackBuffer))
+                AllocShmem(width * height * 4, SharedMemory::TYPE_BASIC,
+                           &mBackBuffer))
         return false;
 
     mBackSurface = new gfxImageSurface(mBackBuffer.get<unsigned char>(),
                                        gfxIntSize(width, height),
                                        width * 4, format);
-    mFrontSurface = new gfxImageSurface(mFrontBuffer.get<unsigned char>(),
-                                        gfxIntSize(width, height),
-                                        width * 4, format);
 
     return true;
 }
@@ -987,14 +1009,16 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
         if (mOpaque)
             format = gfxASurface::ImageFormatRGB24;
 
-	
 #ifdef MOZ_IPC
-	if (mShmem)
-	    CreateShmemSegments(width, height, format);
+        if (mShmem && CreateShmemSegments(width, height, format)) {
+            NS_ABORT_IF_FALSE(mFrontBuffer.get<unsigned char>(), "No front buffer!");
+            surface = new gfxImageSurface(mFrontBuffer.get<unsigned char>(),
+                                          gfxIntSize(width, height),
+                                          width * 4, format);
+        } else
 #endif
-
-	surface = gfxPlatform::GetPlatform()->CreateOffscreenSurface
-	    (gfxIntSize(width, height), format);
+            surface = gfxPlatform::GetPlatform()->CreateOffscreenSurface
+                (gfxIntSize(width, height), format);
 
         if (surface && surface->CairoStatus() != 0)
             surface = NULL;
@@ -1078,6 +1102,7 @@ nsCanvasRenderingContext2D::SetIsOpaque(PRBool isOpaque)
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::SetIsShmem(PRBool isShmem)
 {
+#ifdef MOZ_IPC
     if (isShmem == mShmem)
         return NS_OK;
 
@@ -1091,15 +1116,16 @@ nsCanvasRenderingContext2D::SetIsShmem(PRBool isShmem)
     }
 
     return NS_OK;
+#else
+    return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Swap(mozilla::ipc::Shmem &aBack, 
+nsCanvasRenderingContext2D::Swap(mozilla::ipc::Shmem& aBack, 
                                  PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
 {
-#ifndef MOZ_IPC
-    return NS_ERROR_NOT_IMPLEMENTED;
-#else
+#ifdef MOZ_IPC
     // Our front buffer is always the correct size. If this back buffer doesn't
     // match the front buffer's size, it's out of date (we've resized since
     // this message was sent) and we should just ignore it.
@@ -1113,18 +1139,13 @@ nsCanvasRenderingContext2D::Swap(mozilla::ipc::Shmem &aBack,
     mFrontBuffer = aBack;
 
     // do want mozilla::Swap
-    nsRefPtr<gfxASurface> tmp = mFrontSurface;
-    mFrontSurface = mBackSurface;
+    nsRefPtr<gfxASurface> tmp = mSurface;
+    mSurface = mBackSurface;
     mBackSurface = tmp;
 
-    nsRefPtr<gfxPattern> pat = new gfxPattern(mFrontSurface);
-
-    mThebes->NewPath();
-    mThebes->PixelSnappedRectangleAndSetPattern(gfxRect(x, y, w, h), pat);
-    mThebes->Fill();
-
-    // get rid of the pattern surface ref
-    mThebes->SetColor(gfxRGBA(1,1,1,1));
+    nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
+    CopyContext(ctx, mThebes);
+    mThebes = ctx;
 
     Redraw(gfxRect(x, y, w, h));
 
@@ -1136,15 +1157,17 @@ nsCanvasRenderingContext2D::Swap(mozilla::ipc::Shmem &aBack,
     nsCOMPtr<nsIContent> content = do_QueryInterface(mCanvasElement);
     nsIDocument* ownerDoc = nsnull;
     if (content)
-	ownerDoc = content->GetOwnerDoc();
+        ownerDoc = content->GetOwnerDoc();
 
     if (ownerDoc && mCanvasElement) {
-	nsContentUtils::DispatchTrustedEvent(ownerDoc, mCanvasElement, 
-					     NS_LITERAL_STRING("MozAsyncCanvasRender"),
-					     /* aCanBubble = */ PR_TRUE, /* aCancelable = */ PR_TRUE);
+        nsContentUtils::DispatchTrustedEvent(ownerDoc, mCanvasElement, 
+                                             NS_LITERAL_STRING("MozAsyncCanvasRender"),
+                                             /* aCanBubble = */ PR_TRUE, 
+                                             /* aCancelable = */ PR_TRUE);
     }
-
     return NS_OK;
+#else
+    return NS_ERROR_NOT_IMPLEMENTED;
 #endif
 }
 
@@ -1710,7 +1733,7 @@ nsCanvasRenderingContext2D::ShadowInitialize(const gfxRect& extents, gfxAlphaBox
                        blurRadius.height, blurRadius.width);
     drawExtents = drawExtents.Intersect(clipExtents - CurrentState().shadowOffset);
 
-    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull);
+    gfxContext* ctx = blur.Init(drawExtents, blurRadius, nsnull, nsnull);
 
     if (!ctx)
         return nsnull;
@@ -2158,19 +2181,14 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
             return rv;
         nsCOMArray<nsIStyleRule> parentRules;
         parentRules.AppendObject(parentRule);
-        parentContext =
-            styleSet->ResolveStyleForRules(nsnull, nsnull,
-                                           nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                                           nsnull, parentRules);
+        parentContext = styleSet->ResolveStyleForRules(nsnull, parentRules);
     }
 
     if (!parentContext)
         return NS_ERROR_FAILURE;
 
     nsRefPtr<nsStyleContext> sc =
-        styleSet->ResolveStyleForRules(parentContext, nsnull,
-                                       nsCSSPseudoElements::ePseudo_NotPseudoElement,
-                                       nsnull, rules);
+        styleSet->ResolveStyleForRules(parentContext, rules);
     if (!sc)
         return NS_ERROR_FAILURE;
     const nsStyleFont* fontStyle = sc->GetStyleFont();
@@ -2193,7 +2211,7 @@ nsCanvasRenderingContext2D::SetFont(const nsAString& font)
     gfxFontStyle style(fontStyle->mFont.style,
                        fontStyle->mFont.weight,
                        fontStyle->mFont.stretch,
-                       NSAppUnitsToFloatPixels(fontSize, aupcp),
+                       NSAppUnitsToFloatPixels(fontSize, float(aupcp)),
                        language,
                        fontStyle->mFont.sizeAdjust,
                        fontStyle->mFont.systemFont,
@@ -3456,7 +3474,8 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
 
     // protect against too-large surfaces that will cause allocation
     // or overflow issues
-    if (!gfxASurface::CheckSurfaceSize(gfxIntSize(aW, aH), 0xffff))
+    if (!gfxASurface::CheckSurfaceSize(gfxIntSize(PRInt32(aW), PRInt32(aH)),
+                                       0xffff))
         return NS_ERROR_FAILURE;
 
     // We can't allow web apps to call this until we fix at least the
@@ -3475,7 +3494,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH))
         FlushLayoutForTree(aWindow);
 
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aWindow);
     if (win) {
         nsIDocShell* docshell = win->GetDocShell();
@@ -3595,7 +3614,7 @@ nsCanvasRenderingContext2D::AsyncDrawXULElement(nsIDOMXULElement* aElem, float a
             child->SendPDocumentRendererShmemConstructor(x, y, w, h,
                                                          nsString(aBGColor),
                                                          renderDocFlags, flush,
-							 mThebes->CurrentMatrix(),
+                                                         mThebes->CurrentMatrix(),
                                                          mWidth, mHeight,
                                                          mBackBuffer);
         if (!pdocrender)

@@ -129,7 +129,6 @@ protected:
     bool ShouldContinueFromTimeout();
 
     // Executed on the IO thread.
-    void OnSendReply(Message* msg);
     void NotifyWorkerThread();
 
     // On both
@@ -153,6 +152,10 @@ protected:
     static bool sIsPumpingMessages;
 
     int32 mTimeoutMs;
+
+#ifdef OS_WIN
+    HANDLE mEvent;
+#endif
 
 private:
     bool EventOccurred();

@@ -238,6 +238,8 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsRange)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsRange)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsRange)
 
+DOMCI_DATA(Range, nsRange)
+
 // QueryInterface implementation for nsRange
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsRange)
   NS_INTERFACE_MAP_ENTRY(nsIDOMRange)
@@ -2031,10 +2033,9 @@ NS_IMETHODIMP
 nsRange::CreateContextualFragment(const nsAString& aFragment,
                                   nsIDOMDocumentFragment** aReturn)
 {
-  nsCOMPtr<nsIDOMNode> start = do_QueryInterface(mStartParent);
   if (mIsPositioned) {
-    return nsContentUtils::CreateContextualFragment(start, aFragment, PR_TRUE,
-                                                    aReturn);
+    return nsContentUtils::CreateContextualFragment(mStartParent, aFragment,
+                                                    PR_TRUE, aReturn);
   }
   return NS_ERROR_FAILURE;
 }

@@ -66,10 +66,11 @@ _CHROME_FILES = \
   test_space_key_pauses_resumes.xul \
   test_privatebrowsing_title.xul \
   test_ui_stays_open_on_alert_clickback.xul \
-  test_unkownContentType_dialog_layout.xul \
+  test_unknownContentType_dialog_layout.xul \
   test_bug_412360.xul \
   test_bug_429247.xul \
   test_bug_462172.xul \
+  test_close_on_last_window.xul \
   unknownContentType_dialog_layout_data.txt \
   unknownContentType_dialog_layout_data.txt^headers^ \
   unknownContentType_dialog_layout_data.pif \
@@ -85,14 +86,8 @@ endif
 ifeq ($(OS_ARCH),WINNT)
 _CHROME_FILES += \
   test_taskbarprogress_downloadstates.xul \
+  test_taskbarprogress_service.xul \
   $(NULL)
-
-_BROWSER_FILES = \
-  browser_taskbarprogress_service.js \
-  $(NULL)
-
-libs:: $(_BROWSER_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
 endif
 
 libs:: $(_CHROME_FILES)

@@ -64,7 +64,6 @@
 struct nsRect;
 class nsIContent;
 class nsIFrame;
-class nsIPresShell;
 class nsIDOMNode;
 class nsIAtom;
 class nsIView;
@@ -232,6 +231,11 @@ public:
   void SetParent(nsAccessible *aParent);
 
   /**
+   * Cache children if necessary. Return true if the accessible is defunct.
+   */
+  PRBool EnsureChildren();
+
+  /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
    * Should be called when accessible tree is changed because document has
    * transformed.
@@ -318,11 +322,6 @@ protected:
   virtual void CacheChildren();
 
   /**
-   * Cache children if necessary. Return true if the accessible is defunct.
-   */
-  PRBool EnsureChildren();
-
-  /**
    * Return sibling accessible at the given offset.
    */
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
@@ -351,10 +350,6 @@ protected:
   // helper method to verify frames
   static nsresult GetFullKeyName(const nsAString& aModifierName, const nsAString& aKeyName, nsAString& aStringOut);
   static nsresult GetTranslatedString(const nsAString& aKey, nsAString& aStringOut);
-
-  // nsCOMPtr<>& is useful here, because getter_AddRefs() nulls the comptr's value, and NextChild
-  // depends on the passed-in comptr being null or already set to a child (finding the next sibling).
-  nsIAccessible *NextChild(nsCOMPtr<nsIAccessible>& aAccessible);
     
   already_AddRefed<nsIAccessible> GetNextWithState(nsIAccessible *aStart, PRUint32 matchState);
 
@@ -366,7 +361,7 @@ protected:
    * @param  aStartNode  [in] the DOM node to start from
    * @return              the resulting accessible
    */   
-  already_AddRefed<nsIAccessible>
+  already_AddRefed<nsAccessible>
     GetFirstAvailableAccessible(nsIDOMNode *aStartNode);
 
   // Hyperlink helpers

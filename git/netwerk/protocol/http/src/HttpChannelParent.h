@@ -65,13 +65,19 @@ public:
   virtual ~HttpChannelParent();
 
 protected:
-  virtual bool RecvAsyncOpen(const nsCString& uriSpec, 
-                             const nsCString& charset,
-                             const nsCString& originalUriSpec, 
-                             const nsCString& originalCharset,
-                             const nsCString& docUriSpec, 
-                             const nsCString& docCharset,
-                             const PRUint32&  loadFlags);
+  virtual bool RecvAsyncOpen(const IPC::URI&            uri,
+                             const IPC::URI&            originalUri,
+                             const IPC::URI&            docUri,
+                             const IPC::URI&            referrerUri,
+                             const PRUint32&            loadFlags,
+                             const RequestHeaderTuples& requestHeaders,
+                             const nsHttpAtom&          requestMethod,
+                             const PRUint16&            priority,
+                             const PRUint8&             redirectionLimit,
+                             const PRBool&              allowPipelining,
+                             const PRBool&              forceAllowThirdPartyCookie);
+
+  virtual bool RecvSetPriority(const PRUint16& priority);
 };
 
 } // namespace net

@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -467,6 +467,9 @@ JS_ValueToSource(JSContext *cx, jsval v);
 extern JS_PUBLIC_API(JSBool)
 JS_ValueToNumber(JSContext *cx, jsval v, jsdouble *dp);
 
+extern JS_PUBLIC_API(JSBool)
+JS_DoubleIsInt32(jsdouble d, jsint *ip);
+
 /*
  * Convert a value to a number, then to an int32, according to the ECMA rules
  * for ToInt32.
@@ -558,6 +561,9 @@ JS_SuspendRequest(JSContext *cx);
 extern JS_PUBLIC_API(void)
 JS_ResumeRequest(JSContext *cx, jsrefcount saveDepth);
 
+extern JS_PUBLIC_API(void)
+JS_TransferRequest(JSContext *cx, JSContext *another);
+
 #ifdef __cplusplus
 JS_END_EXTERN_C
 
@@ -621,6 +627,27 @@ class JSAutoSuspendRequest {
     static void *operator new(size_t) CPP_THROW_NEW { return 0; };
     static void operator delete(void *, size_t) { };
 #endif
+};
+
+class JSAutoTransferRequest
+{
+  public:
+    JSAutoTransferRequest(JSContext* cx1, JSContext* cx2)
+        : cx1(cx1), cx2(cx2) {
+        if(cx1 != cx2)
+            JS_TransferRequest(cx1, cx2);
+    }
+    ~JSAutoTransferRequest() {
+        if(cx1 != cx2)
+            JS_TransferRequest(cx2, cx1);
+    }
+  private:
+    JSContext* const cx1;
+    JSContext* const cx2;
+
+    /* Not copyable. */
+    JSAutoTransferRequest(JSAutoTransferRequest &);
+    void operator =(JSAutoTransferRequest&);
 };
 
 JS_BEGIN_EXTERN_C
@@ -795,6 +822,15 @@ JS_GetScopeChain(JSContext *cx);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_GetGlobalForObject(JSContext *cx, JSObject *obj);
+
+#ifdef JS_HAS_CTYPES
+/*
+ * Initialize the 'ctypes' object on a global variable 'obj'. The 'ctypes'
+ * object will be sealed.
+ */
+extern JS_PUBLIC_API(JSBool)
+JS_InitCTypesClass(JSContext *cx, JSObject *global);
+#endif
 
 /*
  * Macros to hide interpreter stack layout details from a JSFastNative using
@@ -1431,7 +1467,7 @@ struct JSExtendedClass {
 #define JSCLASS_NEW_ENUMERATE           (1<<1)  /* has JSNewEnumerateOp hook */
 #define JSCLASS_NEW_RESOLVE             (1<<2)  /* has JSNewResolveOp hook */
 #define JSCLASS_PRIVATE_IS_NSISUPPORTS  (1<<3)  /* private is (nsISupports *) */
-#define JSCLASS_SHARE_ALL_PROPERTIES    (1<<4)  /* all properties are SHARED */
+/* (1<<4) was JSCLASS_SHARE_ALL_PROPERTIES, now obsolete. See bug 527805. */
 #define JSCLASS_NEW_RESOLVE_GETS_START  (1<<5)  /* JSNewResolveOp gets starting
                                                    object in prototype chain
                                                    passed in via *objp in/out
@@ -1679,6 +1715,9 @@ JS_ConstructObjectWithArguments(JSContext *cx, JSClass *clasp, JSObject *proto,
                                 JSObject *parent, uintN argc, jsval *argv);
 
 extern JS_PUBLIC_API(JSObject *)
+JS_New(JSContext *cx, JSObject *ctor, uintN argc, jsval *argv);
+
+extern JS_PUBLIC_API(JSObject *)
 JS_DefineObject(JSContext *cx, JSObject *obj, const char *name, JSClass *clasp,
                 JSObject *proto, uintN attrs);
 
@@ -1695,6 +1734,9 @@ JS_DefineProperty(JSContext *cx, JSObject *obj, const char *name, jsval value,
 extern JS_PUBLIC_API(JSBool)
 JS_DefinePropertyById(JSContext *cx, JSObject *obj, jsid id, jsval value,
                       JSPropertyOp getter, JSPropertyOp setter, uintN attrs);
+
+extern JS_PUBLIC_API(JSBool)
+JS_DefineOwnProperty(JSContext *cx, JSObject *obj, jsid id, jsval descriptor, JSBool *bp);
 
 /*
  * Determine the attributes (JSPROP_* flags) of a property on a given object.
@@ -1789,6 +1831,9 @@ struct JSPropertyDescriptor {
 extern JS_PUBLIC_API(JSBool)
 JS_GetPropertyDescriptorById(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                              JSPropertyDescriptor *desc);
+
+extern JS_PUBLIC_API(JSBool)
+JS_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_GetProperty(JSContext *cx, JSObject *obj, const char *name, jsval *vp);
@@ -2225,10 +2270,10 @@ extern JS_PUBLIC_API(JSString *)
 JS_DecompileFunctionBody(JSContext *cx, JSFunction *fun, uintN indent);
 
 /*
- * NB: JS_ExecuteScript, JS_ExecuteScriptPart, and the JS_Evaluate*Script*
- * quadruplets all use the obj parameter as the initial scope chain header,
- * the 'this' keyword value, and the variables object (ECMA parlance for where
- * 'var' and 'function' bind names) of the execution context for script.
+ * NB: JS_ExecuteScript and the JS_Evaluate*Script* quadruplets use the obj
+ * parameter as the initial scope chain header, the 'this' keyword value, and
+ * the variables object (ECMA parlance for where 'var' and 'function' bind
+ * names) of the execution context for script.
  *
  * Using obj as the variables object is problematic if obj's parent (which is
  * the scope chain link; see JS_SetParent and JS_NewObject) is not null: in
@@ -2267,10 +2312,6 @@ JS_ExecuteScript(JSContext *cx, JSObject *obj, JSScript *script, jsval *rval);
  * main body, but not both.
  */
 typedef enum JSExecPart { JSEXEC_PROLOG, JSEXEC_MAIN } JSExecPart;
-
-extern JS_PUBLIC_API(JSBool)
-JS_ExecuteScriptPart(JSContext *cx, JSObject *obj, JSScript *script,
-                     JSExecPart part, jsval *rval);
 
 extern JS_PUBLIC_API(JSBool)
 JS_EvaluateScript(JSContext *cx, JSObject *obj,

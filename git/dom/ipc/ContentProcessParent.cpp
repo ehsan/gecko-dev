@@ -41,17 +41,14 @@
 #include "TabParent.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/net/NeckoParent.h"
-#include "mozilla/IHistory.h"
 
 #include "nsIObserverService.h"
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
-#include "nsDocShellCID.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
-#include "nsNetUtil.h"
-#include "nsChromeRegistry.h"
+#include "nsChromeRegistryChrome.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -67,7 +64,7 @@ ContentProcessParent::GetSingleton()
 {
     if (gSingleton && !gSingleton->IsAlive())
         gSingleton = nsnull;
-
+    
     if (!gSingleton) {
         nsRefPtr<ContentProcessParent> parent = new ContentProcessParent();
         if (parent) {
@@ -130,6 +127,7 @@ ContentProcessParent::DestroyTestShell(TestShellParent* aTestShell)
 ContentProcessParent::ContentProcessParent()
     : mMonitor("ContentProcessParent::mMonitor")
     , mRunToCompletionDepth(0)
+    , mShouldCallUnblockChild(false)
     , mIsAlive(true)
 {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -137,7 +135,9 @@ ContentProcessParent::ContentProcessParent()
     mSubprocess->AsyncLaunch();
     Open(mSubprocess->GetChannel(), mSubprocess->GetChildProcessHandle());
 
-    nsChromeRegistry* chromeRegistry = nsChromeRegistry::GetService();
+    nsCOMPtr<nsIChromeRegistry> registrySvc = nsChromeRegistry::GetService();
+    nsChromeRegistryChrome* chromeRegistry =
+        static_cast<nsChromeRegistryChrome*>(registrySvc.get());
     chromeRegistry->SendRegisteredChrome(this);
 }
 
@@ -186,13 +186,18 @@ ContentProcessParent::Observe(nsISupports* aSubject,
 PIFrameEmbeddingParent*
 ContentProcessParent::AllocPIFrameEmbedding()
 {
-    return new TabParent();
+  TabParent* parent = new TabParent();
+  if (parent){
+    NS_ADDREF(parent);
+  }
+  return parent;
 }
 
 bool
 ContentProcessParent::DeallocPIFrameEmbedding(PIFrameEmbeddingParent* frame)
 {
-  delete frame;
+  TabParent* parent = static_cast<TabParent*>(frame);
+  NS_RELEASE(parent);
   return true;
 }
 
@@ -222,6 +227,18 @@ ContentProcessParent::DeallocPNecko(PNeckoParent* necko)
     return true;
 }
 
+void
+ContentProcessParent::ReportChildAlreadyBlocked()
+{
+    if (!mRunToCompletionDepth) {
+#ifdef DEBUG
+        printf("Running to completion...\n");
+#endif
+        mRunToCompletionDepth = 1;
+        mShouldCallUnblockChild = false;
+    }
+}
+    
 bool
 ContentProcessParent::RequestRunToCompletion()
 {
@@ -231,26 +248,9 @@ ContentProcessParent::RequestRunToCompletion()
         printf("Running to completion...\n");
 #endif
         mRunToCompletionDepth = 1;
+        mShouldCallUnblockChild = true;
     }
-
     return !!mRunToCompletionDepth;
-}
-
-bool
-ContentProcessParent::RecvStartVisitedQuery(const nsCString& aURISpec, nsresult* rv)
-{
-    // reconstruct our IPDL-passed nsIURI
-    nsCOMPtr<nsIURI> newURI;
-    *rv = NS_NewURI(getter_AddRefs(newURI), aURISpec);
-    if (NS_SUCCEEDED(*rv)) {
-        nsCOMPtr<IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
-        if (history) {
-            *rv = history->RegisterVisitedCallback(newURI, nsnull);
-        }
-    } else {
-        *rv = NS_ERROR_UNEXPECTED; 
-    }  
-    return true;
 }
 
 /* void onDispatchedEvent (in nsIThreadInternal thread); */
@@ -288,7 +288,10 @@ ContentProcessParent::AfterProcessNextEvent(nsIThreadInternal *thread,
 #ifdef DEBUG
             printf("... ran to completion.\n");
 #endif
-            UnblockChild();
+            if (mShouldCallUnblockChild) {
+                mShouldCallUnblockChild = false;
+                UnblockChild();
+            }
     }
 
     if (mOldObserver)

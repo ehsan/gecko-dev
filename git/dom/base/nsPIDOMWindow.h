@@ -49,6 +49,7 @@
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsEvent.h"
+#include "nsGUIEvent.h"
 
 #define DOM_WINDOW_DESTROYED_TOPIC "dom-window-destroyed"
 
@@ -70,7 +71,6 @@ class nsIDocShell;
 class nsIContent;
 class nsIDocument;
 class nsIScriptTimeoutHandler;
-class nsPresContext;
 struct nsTimeout;
 class nsScriptObjectHolder;
 class nsXBLPrototypeHandler;
@@ -78,8 +78,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x81cdf500, 0x2183, 0x4af6, \
-  { 0xa4, 0x56, 0x35, 0x1f, 0x4a, 0x0d, 0x1a, 0x0b } }
+{ 0xC5CB154D, 0x17C0, 0x49E9, \
+  { 0x9C, 0x83, 0xFF, 0xC7, 0x2C, 0x93, 0xAF, 0x24 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -92,6 +92,16 @@ public:
 
   // this is called GetTopWindowRoot to avoid conflicts with nsIDOMWindow2::GetWindowRoot
   virtual already_AddRefed<nsPIWindowRoot> GetTopWindowRoot() = 0;
+
+  virtual void SetActive(PRBool aActive)
+  {
+    mIsActive = aActive;
+  }
+
+  PRBool IsActive()
+  {
+    return mIsActive;
+  }
 
   nsPIDOMEventTarget* GetChromeEventHandler() const
   {
@@ -451,6 +461,23 @@ public:
   virtual void SetReadyForFocus() = 0;
 
   /**
+   * Whether the focused content within the window should show a focus ring.
+   */
+  virtual PRBool ShouldShowFocusRing() = 0;
+
+  /**
+   * Set the keyboard indicator state for accelerators and focus rings.
+   */
+  virtual void SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
+                                     UIStateChangeType aShowFocusRings) = 0;
+
+  /**
+   * Get the keyboard indicator state for accelerators and focus rings.
+   */
+  virtual void GetKeyboardIndicators(PRBool* aShowAccelerators,
+                                     PRBool* aShowFocusRings) = 0;
+
+  /**
    * Indicates that the page in the window has been hidden. This is used to
    * reset the focus state.
    */
@@ -490,8 +517,8 @@ protected:
       mRunningTimeout(nsnull), mMutationBits(0), mIsDocumentLoaded(PR_FALSE),
       mIsHandlingResizeEvent(PR_FALSE), mIsInnerWindow(aOuterWindow != nsnull),
       mMayHavePaintEventListener(PR_FALSE),
-      mIsModalContentWindow(PR_FALSE), mInnerWindow(nsnull),
-      mOuterWindow(aOuterWindow)
+      mIsModalContentWindow(PR_FALSE), mIsActive(PR_FALSE),
+      mInnerWindow(nsnull), mOuterWindow(aOuterWindow)
   {
   }
 
@@ -524,6 +551,9 @@ protected:
   // This variable is used on both inner and outer windows (and they
   // should match).
   PRPackedBool           mIsModalContentWindow;
+
+  // Tracks activation state that's used for :-moz-window-inactive.
+  PRPackedBool           mIsActive;
 
   // And these are the references between inner and outer windows.
   nsPIDOMWindow         *mInnerWindow;

@@ -99,7 +99,8 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 class QEvent;
 
 class MozQWidget;
-class QGraphicsScene;
+
+class nsIdleService;
 
 class nsWindow : public nsBaseWidget,
                  public nsSupportsWeakReference
@@ -255,7 +256,7 @@ protected:
     virtual nsEventStatus OnMotionNotifyEvent(QGraphicsSceneMouseEvent *);
     virtual nsEventStatus OnButtonPressEvent(QGraphicsSceneMouseEvent *);
     virtual nsEventStatus OnButtonReleaseEvent(QGraphicsSceneMouseEvent *);
-    virtual nsEventStatus mouseDoubleClickEvent(QGraphicsSceneMouseEvent *);
+    virtual nsEventStatus OnMouseDoubleClickEvent(QGraphicsSceneMouseEvent *);
     virtual nsEventStatus OnFocusInEvent(QEvent *);
     virtual nsEventStatus OnFocusOutEvent(QEvent *);
     virtual nsEventStatus OnKeyPressEvent(QKeyEvent *);
@@ -323,6 +324,7 @@ private:
     PluginType         mPluginType;
 
     nsRefPtr<gfxASurface> mThebesSurface;
+    nsCOMPtr<nsIdleService> mIdleService;
 
     PRBool       mIsTransparent;
  
@@ -364,10 +366,9 @@ private:
     }
     PRInt32 mQCursor;
 
-    PRPackedBool mNeedsResize;
-    PRPackedBool mNeedsMove;
-    PRPackedBool mListenForResizes;
-    PRPackedBool mNeedsShow;
+    // Call this function when the users activity is the direct cause of an
+    // event (like a keypress or mouse click).
+    void UserActivity();
 
     // Remember dirty area caused by ::Scroll
     QRegion mDirtyScrollArea;
@@ -376,7 +377,12 @@ private:
     double mTouchPointDistance;
     double mLastPinchDistance;
     PRBool mMouseEventsDisabled;
- #endif
+#endif
+
+    PRPackedBool mNeedsResize;
+    PRPackedBool mNeedsMove;
+    PRPackedBool mListenForResizes;
+    PRPackedBool mNeedsShow;
 };
 
 class nsChildWindow : public nsWindow

@@ -144,8 +144,7 @@ public:
   NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
-  NS_HIDDEN_(void) CoverValue(nsCSSProperty aProperty,
-                              nsStyleAnimation::Value &aStartValue)
+  void CoverValue(nsCSSProperty aProperty, nsStyleAnimation::Value &aStartValue)
   {
     CoveredValue v = { aProperty, aStartValue };
     mCoveredValues.AppendElement(v);
@@ -393,7 +392,7 @@ nsTransitionManager::StyleContextChanged(nsIContent *aElement,
   NS_PRECONDITION(aOldStyleContext->GetPseudo() ==
                       aNewStyleContext->GetPseudo(),
                   "pseudo type mismatch");
-  // If we were called from ReParentStyleContext, this assertion would
+  // If we were called from ReparentStyleContext, this assertion would
   // actually fire.  If we need to be called from there, we can probably
   // just remove it; the condition probably isn't critical, although
   // it's worth thinking about some more.
@@ -886,16 +885,22 @@ nsTransitionManager::RulesMatching(XULTreeRuleProcessorData* aData)
 }
 #endif
 
-nsReStyleHint
+nsRestyleHint
 nsTransitionManager::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
-  return nsReStyleHint(0);
+  return nsRestyleHint(0);
 }
 
-nsReStyleHint
+PRBool
+nsTransitionManager::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
+{
+  return PR_FALSE;
+}
+
+nsRestyleHint
 nsTransitionManager::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 {
-  return nsReStyleHint(0);
+  return nsRestyleHint(0);
 }
 
 NS_IMETHODIMP

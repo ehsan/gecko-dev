@@ -55,8 +55,6 @@
 #include "nsIToolkitChromeRegistry.h"
 #include "nsIToolkitProfile.h"
 
-#include "nsChromeRegistry.h"
-
 #if defined(OS_LINUX)
 #  define XP_LINUX
 #endif
@@ -83,6 +81,7 @@
 #include "base/message_loop.h"
 #include "base/process_util.h"
 #include "chrome/common/child_process.h"
+#include "chrome/common/notification_service.h"
 
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/ipc/BrowserProcessSubThread.h"
@@ -92,7 +91,8 @@
 #include "mozilla/dom/ContentProcessThread.h"
 #include "mozilla/dom/ContentProcessParent.h"
 #include "mozilla/dom/ContentProcessChild.h"
-#include "mozilla/dom/TabParent.h"
+
+#include "mozilla/jsipc/ContextWrapperParent.h"
 
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
@@ -113,6 +113,10 @@ using mozilla::plugins::PluginThreadChild;
 using mozilla::dom::ContentProcessThread;
 using mozilla::dom::ContentProcessParent;
 using mozilla::dom::ContentProcessChild;
+
+using mozilla::jsipc::PContextWrapperParent;
+using mozilla::jsipc::ContextWrapperParent;
+
 using mozilla::ipc::TestShellParent;
 using mozilla::ipc::TestShellCommandParent;
 using mozilla::ipc::XPCShellEnvironment;
@@ -198,10 +202,11 @@ XRE_InitEmbedding(nsILocalFile *aLibXULDirectory,
   if (NS_FAILED(rv))
     return rv;
 
-  // We do not need to autoregister components here. The CheckUpdateFile()
-  // bits in NS_InitXPCOM3 check for an .autoreg file. If the app wants
-  // to autoregister every time (for instance, if it's debug), it can do
-  // so after we return from this function.
+  // We do not need to autoregister components here. The CheckCompatibility()
+  // bits in nsAppRunner.cpp check for an invalidation flag in
+  // compatibility.ini.
+  // If the app wants to autoregister every time (for instance, if it's debug),
+  // it can do so after we return from this function.
 
   nsCOMPtr<nsIObserver> startupNotifier
     (do_CreateInstance(NS_APPSTARTUPNOTIFIER_CONTRACTID));
@@ -233,56 +238,6 @@ XRE_TermEmbedding()
   NS_ShutdownXPCOM(nsnull);
   delete [] sCombined;
   delete gDirServiceProvider;
-}
-
-static nsresult
-GetChromeRegistry(nsChromeRegistry* *aResult)
-{
-  if(!nsChromeRegistry::gChromeRegistry)
-  {
-    // We don't actually want this ref, we just want the service to
-    // initialize if it hasn't already.
-    nsCOMPtr<nsIChromeRegistry> reg(do_GetService(NS_CHROMEREGISTRY_CONTRACTID));
-    NS_ENSURE_TRUE(nsChromeRegistry::gChromeRegistry, NS_ERROR_FAILURE);
-  }
-  *aResult = nsChromeRegistry::gChromeRegistry;
-  return NS_OK;
-}
-
-nsresult
-XRE_SendParentChromeRegistry(mozilla::dom::TabParent* aParent)
-{
-  nsChromeRegistry* chromeRegistry = nsnull;
-  nsresult rv = GetChromeRegistry(&chromeRegistry);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  chromeRegistry->SendRegisteredPackages(aParent);
-  return NS_OK;
-}
-
-nsresult
-XRE_RegisterChromePackage(const nsString& aPackage,
-                          const nsString& aBaseURI,
-                          const PRUint32& aFlags)
-{
-  nsChromeRegistry* chromeRegistry = nsnull;
-  nsresult rv = GetChromeRegistry(&chromeRegistry);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  chromeRegistry->RegisterPackage(aPackage, aBaseURI, aFlags);
-  return NS_OK;
-}
-
-nsresult
-XRE_RegisterChromeResource(const nsString& aPackage,
-                           const nsString& aResolvedURI)
-{
-  nsChromeRegistry* chromeRegistry = nsnull;
-  nsresult rv = GetChromeRegistry(&chromeRegistry);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  chromeRegistry->RegisterResource(aPackage, aResolvedURI);
-  return NS_OK;
 }
 
 const char*
@@ -319,11 +274,12 @@ static MessageLoop* sIOMessageLoop;
 // IPDL wants access to this crashreporter interface, and
 // crashreporter is built in such a way to make that awkward
 PRBool
-XRE_GetMinidumpForChild(PRUint32 aChildPid, nsIFile** aDump)
+XRE_TakeMinidumpForChild(PRUint32 aChildPid, nsILocalFile** aDump)
 {
-  return CrashReporter::GetMinidumpForChild(aChildPid, aDump);
+  return CrashReporter::TakeMinidumpForChild(aChildPid, aDump);
 }
 
+#if !defined(XP_MACOSX)
 PRBool
 XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 {
@@ -335,6 +291,7 @@ XRE_SetRemoteExceptionHandler(const char* aPipe/*= 0*/)
 #  error "OOP crash reporter unsupported on this platform"
 #endif
 }
+#endif // !XP_MACOSX
 #endif // if defined(MOZ_CRASHREPORTER)
 
 nsresult
@@ -382,6 +339,7 @@ XRE_InitChildProcess(int aArgc,
   NS_ABORT_IF_FALSE(ok, "can't open handle to parent");
 
   base::AtExitManager exitManager;
+  NotificationService notificationService;
 
   NS_LogInit();
 
@@ -567,6 +525,16 @@ XRE_ShutdownChildProcess()
 
 namespace {
 TestShellParent* gTestShellParent = nsnull;
+TestShellParent* GetOrCreateTestShellParent()
+{
+    if (!gTestShellParent) {
+        ContentProcessParent* parent = ContentProcessParent::GetSingleton();
+        NS_ENSURE_TRUE(parent, nsnull);
+        gTestShellParent = parent->CreateTestShell();
+        NS_ENSURE_TRUE(gTestShellParent, nsnull);
+    }
+    return gTestShellParent;
+}
 }
 
 bool
@@ -574,28 +542,30 @@ XRE_SendTestShellCommand(JSContext* aCx,
                          JSString* aCommand,
                          void* aCallback)
 {
-    if (!gTestShellParent) {
-        ContentProcessParent* parent = ContentProcessParent::GetSingleton();
-        NS_ENSURE_TRUE(parent, false);
-
-        gTestShellParent = parent->CreateTestShell();
-        NS_ENSURE_TRUE(gTestShellParent, false);
-    }
+    TestShellParent* tsp = GetOrCreateTestShellParent();
+    NS_ENSURE_TRUE(tsp, false);
 
     nsDependentString command((PRUnichar*)JS_GetStringChars(aCommand),
                               JS_GetStringLength(aCommand));
     if (!aCallback) {
-        return gTestShellParent->SendExecuteCommand(command);
+        return tsp->SendExecuteCommand(command);
     }
 
     TestShellCommandParent* callback = static_cast<TestShellCommandParent*>(
-        gTestShellParent->SendPTestShellCommandConstructor(command));
+        tsp->SendPTestShellCommandConstructor(command));
     NS_ENSURE_TRUE(callback, false);
 
     jsval callbackVal = *reinterpret_cast<jsval*>(aCallback);
     NS_ENSURE_TRUE(callback->SetCallback(aCx, callbackVal), false);
 
     return true;
+}
+
+bool
+XRE_GetChildGlobalObject(JSContext* aCx, JSObject** aGlobalP)
+{
+    TestShellParent* tsp = GetOrCreateTestShellParent();
+    return tsp && tsp->GetGlobalJSObject(aCx, aGlobalP);
 }
 
 bool

@@ -123,8 +123,7 @@ gfxQtPlatform::gfxQtPlatform()
     nsresult rv;
     PRInt32 ival;
     // 0 - default gfxQPainterSurface
-    // 1 - gfxXlibSurface
-    // 2 - gfxImageSurface
+    // 1 - gfxImageSurface
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
     if (prefs) {
       rv = prefs->GetIntPref("mozilla.widget-qt.render-mode", &ival);
@@ -141,9 +140,6 @@ gfxQtPlatform::gfxQtPlatform()
             mRenderMode = RENDER_QPAINTER;
             break;
         case 1:
-            mRenderMode = RENDER_XLIB;
-            break;
-        case 2:
             mRenderMode = RENDER_SHARED_IMAGE;
             break;
         default:
@@ -195,8 +191,6 @@ gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
     }
 
     if (mRenderMode == RENDER_SHARED_IMAGE) {
-      if (imageFormat == gfxASurface::ImageFormatRGB24 && QX11Info().depth() == 16)
-          imageFormat = gfxASurface::ImageFormatRGB16;
       newSurface = new gfxImageSurface(size, imageFormat);
       return newSurface.forget();
     }
@@ -209,8 +203,6 @@ gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
             break;
         case gfxASurface::ImageFormatRGB24:
             xrenderFormatID = PictStandardRGB24;
-            break;
-        case gfxASurface::ImageFormatRGB16:
             break;
         case gfxASurface::ImageFormatA8:
             xrenderFormatID = PictStandardA8;
@@ -225,11 +217,8 @@ gfxQtPlatform::CreateOffscreenSurface(const gfxIntSize& size,
     // XXX we really need a different interface here, something that passes
     // in more context, including the display and/or target surface type that
     // we should try to match
-    XRenderPictFormat* xrenderFormat = nsnull;
-    if ((xrenderFormatID == PictStandardRGB24 && QX11Info().depth() == 16) || xrenderFormatID == -1)
-        xrenderFormat = XRenderFindVisualFormat(QX11Info().display(), (Visual*)QX11Info().visual());
-    else
-        xrenderFormat = XRenderFindStandardFormat(QX11Info().display(), xrenderFormatID);
+    XRenderPictFormat* xrenderFormat =
+        XRenderFindStandardFormat(QX11Info().display(), xrenderFormatID);
 
     newSurface = new gfxXlibSurface((Display*)QX11Info().display(),
                                     xrenderFormat,

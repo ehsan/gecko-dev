@@ -105,7 +105,7 @@ public:
 
   // Swap this back buffer with the front, and copy its contents to the new
   // back. x, y, w, and h specify the area of |back| that is dirty.
-  NS_IMETHOD Swap(mozilla::ipc::Shmem &back,
+  NS_IMETHOD Swap(mozilla::ipc::Shmem& back,
                   PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h) = 0;
 };
 

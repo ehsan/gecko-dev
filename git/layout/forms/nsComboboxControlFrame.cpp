@@ -54,6 +54,7 @@
 #include "nsIDOMHTMLSelectElement.h" 
 #include "nsIDOMHTMLOptionElement.h" 
 #include "nsIDOMNSHTMLOptionCollectn.h" 
+#include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsIDeviceContext.h"
 #include "nsIView.h"
@@ -900,17 +901,6 @@ nsComboboxControlFrame::RemoveOption(PRInt32 aIndex)
 }
 
 NS_IMETHODIMP
-nsComboboxControlFrame::GetOptionSelected(PRInt32 aIndex, PRBool* aValue)
-{
-  NS_ASSERTION(mDropdownFrame, "No dropdown frame!");
-
-  nsISelectControlFrame* listFrame = do_QueryFrame(mDropdownFrame);
-  NS_ASSERTION(listFrame, "No list frame!");
-
-  return listFrame->GetOptionSelected(aIndex, aValue);
-}
-
-NS_IMETHODIMP
 nsComboboxControlFrame::OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex)
 {
   nsAutoScriptBlocker scriptBlocker;
@@ -1365,14 +1355,21 @@ nsComboboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsPresContext *presContext = PresContext();
-  const nsStyleDisplay *disp = GetStyleDisplay();
-  if ((!IsThemed(disp) ||
-       !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
-      mDisplayFrame && IsVisibleForPainting(aBuilder)) {
-    nsresult rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-                                                   nsDisplayComboboxFocus(this));
-    NS_ENSURE_SUCCESS(rv, rv);
+  // draw a focus indicator only when focus rings should be drawn
+  nsIDocument* doc = mContent->GetCurrentDoc();
+  if (doc) {
+    nsPIDOMWindow* window = doc->GetWindow();
+    if (window && window->ShouldShowFocusRing()) {
+      nsPresContext *presContext = PresContext();
+      const nsStyleDisplay *disp = GetStyleDisplay();
+      if ((!IsThemed(disp) ||
+           !presContext->GetTheme()->ThemeDrawsFocusForWidget(presContext, this, disp->mAppearance)) &&
+          mDisplayFrame && IsVisibleForPainting(aBuilder)) {
+        nsresult rv = aLists.Content()->AppendNewToTop(new (aBuilder)
+                                                       nsDisplayComboboxFocus(this));
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+    }
   }
 
   return DisplaySelectionOverlay(aBuilder, aLists);

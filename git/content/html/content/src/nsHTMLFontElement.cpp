@@ -95,6 +95,8 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLFontElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFontElement, nsGenericElement)
 
 
+DOMCI_DATA(HTMLFontElement, nsHTMLFontElement)
+
 // QueryInterface implementation for nsHTMLFontElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFontElement)
   NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLFontElement, nsIDOMHTMLFontElement)
@@ -198,7 +200,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
           if (unit == nsAttrValue::eInteger || unit == nsAttrValue::eEnum) { 
             PRInt32 size;
             if (unit == nsAttrValue::eEnum) // int (+/-)
-              size = value->GetEnumValue() + 3;  // XXX should be BASEFONT, not three see bug 3875
+              size = value->GetEnumValue() + 3;
             else
               size = value->GetIntegerValue();
 

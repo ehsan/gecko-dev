@@ -603,11 +603,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       aBuilder->UpdateStyleSheet(node);
       return rv;
     }
-    case eTreeOpProcessBase: {
-      nsIContent* node = *(mOne.node);
-      rv = aBuilder->ProcessBASETag(node);
-      return rv;
-    }
     case eTreeOpProcessMeta: {
       nsIContent* node = *(mOne.node);
       rv = aBuilder->ProcessMETATag(node);
@@ -637,7 +632,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpDocumentMode: {
-      aBuilder->DocumentMode(mOne.mode);
+      aBuilder->SetDocumentMode(mOne.mode);
       return rv;
     }
     case eTreeOpSetStyleLineNumber: {

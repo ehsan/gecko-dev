@@ -23,6 +23,7 @@
  * Contributor(s):
  *   Darin Fisher <darin@netscape.com> (original author)
  *   Christian Biesinger <cbiesinger@web.de>
+ *   Daniel Witte <dwitte@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,64 +42,41 @@
 #ifndef nsHttpChannel_h__
 #define nsHttpChannel_h__
 
+#include "HttpBaseChannel.h"
+
 #include "nsHttpTransaction.h"
-#include "nsHttpRequestHead.h"
 #include "nsHttpAuthCache.h"
-#include "nsHashPropertyBag.h"
 #include "nsInputStreamPump.h"
 #include "nsThreadUtils.h"
-#include "nsString.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsInt64.h"
 
-#include "nsIHttpChannel.h"
-#include "nsIHttpChannelInternal.h"
-#include "nsIHttpHeaderVisitor.h"
 #include "nsIHttpEventSink.h"
-#include "nsIChannelEventSink.h"
-#include "nsIStreamListener.h"
-#include "nsIIOService.h"
-#include "nsIURI.h"
-#include "nsILoadGroup.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsIInputStream.h"
-#include "nsIProgressEventSink.h"
 #include "nsICachingChannel.h"
-#include "nsICacheSession.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsICacheListener.h"
 #include "nsIApplicationCache.h"
 #include "nsIApplicationCacheChannel.h"
 #include "nsIEncodedChannel.h"
-#include "nsITransport.h"
 #include "nsIUploadChannel.h"
 #include "nsIUploadChannel2.h"
 #include "nsIStringEnumerator.h"
-#include "nsIOutputStream.h"
-#include "nsIAsyncInputStream.h"
 #include "nsIPrompt.h"
 #include "nsIResumableChannel.h"
-#include "nsISupportsPriority.h"
 #include "nsIProtocolProxyCallback.h"
 #include "nsICancelable.h"
 #include "nsIProxiedChannel.h"
 #include "nsITraceableChannel.h"
 #include "nsIAuthPromptCallback.h"
 
-class nsHttpResponseHead;
 class nsAHttpConnection;
 class nsIHttpAuthenticator;
-class nsProxyInfo;
+
+using namespace mozilla::net;
 
 //-----------------------------------------------------------------------------
 // nsHttpChannel
 //-----------------------------------------------------------------------------
 
-class nsHttpChannel : public nsHashPropertyBag
-                    , public nsIHttpChannel
-                    , public nsIHttpChannelInternal
+class nsHttpChannel : public HttpBaseChannel
                     , public nsIStreamListener
                     , public nsICachingChannel
                     , public nsIUploadChannel
@@ -107,7 +85,6 @@ class nsHttpChannel : public nsHashPropertyBag
                     , public nsIEncodedChannel
                     , public nsITransportEventSink
                     , public nsIResumableChannel
-                    , public nsISupportsPriority
                     , public nsIProtocolProxyCallback
                     , public nsIProxiedChannel
                     , public nsITraceableChannel
@@ -116,9 +93,6 @@ class nsHttpChannel : public nsHashPropertyBag
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
-    NS_DECL_NSIREQUEST
-    NS_DECL_NSICHANNEL
-    NS_DECL_NSIHTTPCHANNEL
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
     NS_DECL_NSICACHINGCHANNEL
@@ -126,10 +100,8 @@ public:
     NS_DECL_NSIUPLOADCHANNEL2
     NS_DECL_NSICACHELISTENER
     NS_DECL_NSIENCODEDCHANNEL
-    NS_DECL_NSIHTTPCHANNELINTERNAL
     NS_DECL_NSITRANSPORTEVENTSINK
     NS_DECL_NSIRESUMABLECHANNEL
-    NS_DECL_NSISUPPORTSPRIORITY
     NS_DECL_NSIPROTOCOLPROXYCALLBACK
     NS_DECL_NSIPROXIEDCHANNEL
     NS_DECL_NSITRACEABLECHANNEL
@@ -140,15 +112,34 @@ public:
     nsHttpChannel();
     virtual ~nsHttpChannel();
 
-    nsresult Init(nsIURI *uri,
-                  PRUint8 capabilities,
-                  nsProxyInfo* proxyInfo);
+    // Methods HttpBaseChannel didn't implement for us or that we override.
+    //
+    // nsIRequest
+    NS_IMETHOD Cancel(nsresult status);
+    NS_IMETHOD Suspend();
+    NS_IMETHOD Resume();
+    // nsIChannel
+    NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo);
+    NS_IMETHOD AsyncOpen(nsIStreamListener *listener, nsISupports *aContext);
+    // nsIHttpChannelInternal
+    NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey);
+    // nsISupportsPriority
+    NS_IMETHOD SetPriority(PRInt32 value);
 
-public: /* internal; workaround lame compilers */ 
+public: /* internal necko use only */ 
     typedef void (nsHttpChannel:: *nsAsyncCallback)(void);
+    nsHttpResponseHead * GetResponseHead() const { return mResponseHead; }
+
+    nsresult SetReferrerInternal(nsIURI *referrer) {
+        nsCAutoString spec;
+        nsresult rv = referrer->GetAsciiSpec(spec);
+        if (NS_FAILED(rv)) return rv;
+        mReferrer = referrer;
+        mRequestHead.SetHeader(nsHttp::Referer, spec);
+        return NS_OK;
+    }
 
 private:
-
     // Helper function to simplify getting notification callbacks.
     template <class T>
     void GetCallback(nsCOMPtr<T> &aResult)
@@ -263,43 +254,20 @@ private:
     nsresult ContinueOnAuthAvailable(const nsCSubstring& creds);
 
 private:
-    nsCOMPtr<nsIURI>                  mOriginalURI;
-    nsCOMPtr<nsIURI>                  mURI;
-    nsCOMPtr<nsIURI>                  mDocumentURI;
-    nsCOMPtr<nsIStreamListener>       mListener;
-    nsCOMPtr<nsISupports>             mListenerContext;
-    nsCOMPtr<nsILoadGroup>            mLoadGroup;
-    nsCOMPtr<nsISupports>             mOwner;
-    nsCOMPtr<nsIInterfaceRequestor>   mCallbacks;
-    nsCOMPtr<nsIProgressEventSink>    mProgressSink;
     nsCOMPtr<nsIInputStream>          mUploadStream;
-    nsCOMPtr<nsIURI>                  mReferrer;
     nsCOMPtr<nsISupports>             mSecurityInfo;
     nsCOMPtr<nsICancelable>           mProxyRequest;
 
-    nsHttpRequestHead                 mRequestHead;
-    nsHttpResponseHead               *mResponseHead;
-
     nsRefPtr<nsInputStreamPump>       mTransactionPump;
-    nsHttpTransaction                *mTransaction;     // hard ref
-    nsHttpConnectionInfo             *mConnectionInfo;  // hard ref
+    nsRefPtr<nsHttpTransaction>       mTransaction;
 
-    nsCString                         mSpec; // ASCII encoded URL spec
-
-    PRUint32                          mLoadFlags;
-    PRUint32                          mStatus;
     PRUint64                          mLogicalOffset;
-    PRUint8                           mCaps;
-    PRInt16                           mPriority;
-
-    nsCString                         mContentTypeHint;
-    nsCString                         mContentCharsetHint;
     nsCString                         mUserSetCookieHeader;
 
     // cache specific data
     nsCOMPtr<nsICacheEntryDescriptor> mCacheEntry;
     nsRefPtr<nsInputStreamPump>       mCachePump;
-    nsHttpResponseHead               *mCachedResponseHead;
+    nsAutoPtr<nsHttpResponseHead>     mCachedResponseHead;
     nsCacheAccessMode                 mCacheAccess;
     PRUint32                          mPostID;
     PRUint32                          mRequestTime;
@@ -347,22 +315,15 @@ private:
     // before we have either a cache pump or a transaction pump.
     PRUint32                          mSuspendCount;
 
-    // redirection specific data.
-    PRUint8                           mRedirectionLimit;
-
     // If the channel is associated with a cache, and the URI matched
     // a fallback namespace, this will hold the key for the fallback
     // cache entry.
     nsCString                         mFallbackKey;
 
     // state flags
-    PRUint32                          mIsPending                : 1;
-    PRUint32                          mWasOpened                : 1;
     PRUint32                          mApplyConversion          : 1;
-    PRUint32                          mAllowPipelining          : 1;
     PRUint32                          mCachedContentIsValid     : 1;
     PRUint32                          mCachedContentIsPartial   : 1;
-    PRUint32                          mResponseHeadersModified  : 1;
     PRUint32                          mCanceled                 : 1;
     PRUint32                          mTransactionReplaced      : 1;
     PRUint32                          mUploadStreamHasHeaders   : 1;
@@ -386,7 +347,6 @@ private:
     PRUint32                          mChooseApplicationCache   : 1;
     PRUint32                          mLoadedFromApplicationCache : 1;
     PRUint32                          mTracingEnabled           : 1;
-    PRUint32                          mForceAllowThirdPartyCookie : 1;
     // True if consumer added its own If-None-Match or If-Modified-Since
     // headers. In such a case we must not override them in the cache code
     // and also we want to pass possible 304 code response through.

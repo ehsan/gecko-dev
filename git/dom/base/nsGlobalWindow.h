@@ -289,6 +289,7 @@ public:
   // nsPIDOMWindow
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();
   virtual NS_HIDDEN_(void) ActivateOrDeactivate(PRBool aActivate);
+  virtual NS_HIDDEN_(void) SetActive(PRBool aActive);
   virtual NS_HIDDEN_(void) SetChromeEventHandler(nsPIDOMEventTarget* aChromeEventHandler);
 
   virtual NS_HIDDEN_(void) SetOpenerScriptPrincipal(nsIPrincipal* aPrincipal);
@@ -561,6 +562,7 @@ protected:
 
   // The timeout implementation functions.
   void RunTimeout(nsTimeout *aTimeout);
+  void RunTimeout() { RunTimeout(nsnull); }
 
   void ClearAllTimeouts();
   // Insert aTimeout into the list, before all timeouts that would
@@ -666,6 +668,13 @@ protected:
 
   virtual PRUint32 GetFocusMethod();
 
+  virtual PRBool ShouldShowFocusRing();
+
+  virtual void SetKeyboardIndicators(UIStateChangeType aShowAccelerators,
+                                     UIStateChangeType aShowFocusRings);
+  virtual void GetKeyboardIndicators(PRBool* aShowAccelerators,
+                                     PRBool* aShowFocusRings);
+
   void UpdateCanvasFocus(PRBool aFocusChanged, nsIContent* aNewContent);
 
   already_AddRefed<nsPIWindowRoot> GetTopWindowRoot();
@@ -720,6 +729,20 @@ protected:
   // event.
   PRPackedBool           mNeedsFocus : 1;
   PRPackedBool           mHasFocus : 1;
+
+  // whether to show keyboard accelerators
+  PRPackedBool           mShowAccelerators : 1;
+
+  // whether to show focus rings
+  PRPackedBool           mShowFocusRings : 1;
+
+  // when true, show focus rings for the current focused content only.
+  // This will be reset when another element is focused
+  PRPackedBool           mShowFocusRingForContent : 1;
+
+  // true if tab navigation has occured for this window. Focus rings
+  // should be displayed.
+  PRPackedBool           mFocusByKeyOccured : 1;
 
   // Indicates whether this window is getting acceleration change events
   PRPackedBool           mHasAcceleration  : 1;

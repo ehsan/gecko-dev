@@ -39,7 +39,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
-#include "nsPresContext.h"
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 
@@ -92,6 +91,8 @@ nsHTMLTableCaptionElement::~nsHTMLTableCaptionElement()
 NS_IMPL_ADDREF_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLTableCaptionElement, nsGenericElement)
 
+
+DOMCI_DATA(HTMLTableCaptionElement, nsHTMLTableCaptionElement)
 
 // QueryInterface implementation for nsHTMLTableCaptionElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLTableCaptionElement)

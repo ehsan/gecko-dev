@@ -47,7 +47,7 @@
 #include "nsIContentViewer.h"
 #include "nsCURILoader.h"
 #include "nsDocAccessible.h"
-#include "nsHTMLImageAccessibleWrap.h"
+#include "nsHTMLImageMapAccessible.h"
 #include "nsHTMLLinkAccessible.h"
 #include "nsHTMLSelectAccessible.h"
 #include "nsHTMLTableAccessibleWrap.h"
@@ -55,6 +55,7 @@
 #include "nsHyperTextAccessibleWrap.h"
 #include "nsIAccessibilityService.h"
 #include "nsIAccessibleProvider.h"
+
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAreaElement.h"
 #include "nsIDOMHTMLLegendElement.h"
@@ -63,6 +64,7 @@
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMXULElement.h"
+#include "nsIHTMLDocument.h"
 #include "nsIDocShell.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -78,7 +80,6 @@
 #include "nsOuterDocAccessible.h"
 #include "nsRootAccessibleWrap.h"
 #include "nsTextFragment.h"
-#include "nsPresContext.h"
 #include "nsServiceManagerUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsIWebProgress.h"
@@ -253,7 +254,7 @@ nsAccessibilityService::ProcessDocLoadEvent(nsIWebProgress *aWebProgress,
 }
 
 // nsIAccessibilityService
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::NotifyOfAnchorJumpTo(nsIContent *aTarget)
 {
   nsCOMPtr<nsIDOMNode> targetNode(do_QueryInterface(aTarget));
@@ -283,7 +284,7 @@ nsAccessibilityService::NotifyOfAnchorJumpTo(nsIContent *aTarget)
 }
 
 // nsIAccessibilityService
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
                                             nsIAccessible *aTarget)
 {
@@ -381,7 +382,7 @@ nsAccessibilityService::GetShellFromNode(nsIDOMNode *aNode, nsIWeakReference **a
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessibilityService
 
-NS_IMETHODIMP 
+nsresult
 nsAccessibilityService::CreateOuterDocAccessible(nsIDOMNode* aDOMNode, 
                                                  nsIAccessible **aOuterDocAccessible)
 {
@@ -463,7 +464,7 @@ nsAccessibilityService::CreateDocOrRootAccessible(nsIPresShell *aShell,
  /**
    * HTML widget creation
    */
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTML4ButtonAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -480,7 +481,7 @@ nsAccessibilityService::CreateHTML4ButtonAccessible(nsIFrame *aFrame, nsIAccessi
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLButtonAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -568,7 +569,7 @@ nsAccessibilityService::CreateHTMLAccessibleByMarkup(nsIFrame *aFrame,
   return accessible.forget();
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLLIAccessible(nsIFrame *aFrame, 
                                                nsIFrame *aBulletFrame,
                                                const nsAString& aBulletText,
@@ -588,7 +589,7 @@ nsAccessibilityService::CreateHTMLLIAccessible(nsIFrame *aFrame,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHyperTextAccessible(nsIFrame *aFrame, nsIAccessible **aAccessible)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -607,7 +608,7 @@ nsAccessibilityService::CreateHyperTextAccessible(nsIFrame *aFrame, nsIAccessibl
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLCheckboxAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -624,7 +625,7 @@ nsAccessibilityService::CreateHTMLCheckboxAccessible(nsIFrame *aFrame, nsIAccess
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+nsresult
 nsAccessibilityService::CreateHTMLComboboxAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aPresShell, nsIAccessible **_retval)
 {
   *_retval = new nsHTMLComboboxAccessible(aDOMNode, aPresShell);
@@ -635,35 +636,57 @@ nsAccessibilityService::CreateHTMLComboboxAccessible(nsIDOMNode* aDOMNode, nsIWe
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsAccessibilityService::CreateHTMLImageAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
+nsresult
+nsAccessibilityService::CreateHTMLImageAccessible(nsIFrame *aFrame,
+                                                  nsIAccessible **aAccessible)
 {
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+
   nsCOMPtr<nsIDOMNode> node;
   nsCOMPtr<nsIWeakReference> weakShell;
   nsresult rv = GetInfo(aFrame, getter_AddRefs(weakShell), getter_AddRefs(node));
   if (NS_FAILED(rv))
     return rv;
 
-  *_retval = nsnull;
-  nsCOMPtr<nsIDOMElement> domElement(do_QueryInterface(node));
-  if (domElement) {
-      *_retval = new nsHTMLImageAccessibleWrap(node, weakShell);
+  nsCOMPtr<nsIContent> content = do_QueryInterface(node);
+  NS_ENSURE_STATE(content);
+
+  nsCOMPtr<nsIHTMLDocument> htmlDoc =
+    do_QueryInterface(content->GetCurrentDoc());
+
+  nsCOMPtr<nsIDOMHTMLMapElement> mapElm;
+  if (htmlDoc) {
+    nsAutoString mapElmName;
+    content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::usemap,
+                     mapElmName);
+
+    if (!mapElmName.IsEmpty()) {
+      if (mapElmName.CharAt(0) == '#')
+        mapElmName.Cut(0,1);
+      mapElm = htmlDoc->GetImageMap(mapElmName);
+    }
   }
 
-  if (! *_retval) 
+  if (mapElm)
+    *aAccessible = new nsHTMLImageMapAccessible(node, weakShell, mapElm);
+  else
+    *aAccessible = new nsHTMLImageAccessibleWrap(node, weakShell);
+
+  if (!*aAccessible)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  NS_ADDREF(*_retval);
+  NS_ADDREF(*aAccessible);
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLGenericAccessible(nsIFrame *aFrame, nsIAccessible **aAccessible)
 {
   return CreateHyperTextAccessible(aFrame, aAccessible);
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLGroupboxAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -680,7 +703,7 @@ nsAccessibilityService::CreateHTMLGroupboxAccessible(nsIFrame *aFrame, nsIAccess
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+nsresult
 nsAccessibilityService::CreateHTMLListboxAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aPresShell, nsIAccessible **_retval)
 {
   *_retval = new nsHTMLSelectListAccessible(aDOMNode, aPresShell);
@@ -691,7 +714,7 @@ nsAccessibilityService::CreateHTMLListboxAccessible(nsIDOMNode* aDOMNode, nsIWea
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLMediaAccessible(nsIFrame *aFrame,
                                                   nsIAccessible **aAccessible)
 {
@@ -721,7 +744,7 @@ nsAccessibilityService::CreateHTMLMediaAccessible(nsIFrame *aFrame,
   *  3) An image or imagemap, where the image frame points back to 
   *     the object element DOMNode
   */
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLObjectFrameAccessible(nsObjectFrame *aFrame,
                                                         nsIAccessible **aAccessible)
 {
@@ -770,7 +793,7 @@ nsAccessibilityService::CreateHTMLObjectFrameAccessible(nsObjectFrame *aFrame,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLRadioButtonAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -787,7 +810,7 @@ nsAccessibilityService::CreateHTMLRadioButtonAccessible(nsIFrame *aFrame, nsIAcc
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+nsresult
 nsAccessibilityService::CreateHTMLSelectOptionAccessible(nsIDOMNode* aDOMNode, 
                                                          nsIAccessible *aParent, 
                                                          nsIWeakReference* aPresShell, 
@@ -801,7 +824,7 @@ nsAccessibilityService::CreateHTMLSelectOptionAccessible(nsIDOMNode* aDOMNode,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLTableAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -818,7 +841,7 @@ nsAccessibilityService::CreateHTMLTableAccessible(nsIFrame *aFrame, nsIAccessibl
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLTableCellAccessible(nsIFrame *aFrame,
                                                       nsIAccessible **aAccessible)
 {
@@ -836,7 +859,7 @@ nsAccessibilityService::CreateHTMLTableCellAccessible(nsIFrame *aFrame,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLTextAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   *_retval = nsnull;
@@ -856,7 +879,7 @@ nsAccessibilityService::CreateHTMLTextAccessible(nsIFrame *aFrame, nsIAccessible
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLTextFieldAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -873,7 +896,7 @@ nsAccessibilityService::CreateHTMLTextFieldAccessible(nsIFrame *aFrame, nsIAcces
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLLabelAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -890,7 +913,7 @@ nsAccessibilityService::CreateHTMLLabelAccessible(nsIFrame *aFrame, nsIAccessibl
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLHRAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -907,7 +930,7 @@ nsAccessibilityService::CreateHTMLHRAccessible(nsIFrame *aFrame, nsIAccessible *
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLBRAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -924,7 +947,7 @@ nsAccessibilityService::CreateHTMLBRAccessible(nsIFrame *aFrame, nsIAccessible *
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::CreateHTMLCaptionAccessible(nsIFrame *aFrame, nsIAccessible **_retval)
 {
   nsCOMPtr<nsIDOMNode> node;
@@ -1210,25 +1233,15 @@ nsAccessibilityService::GetAccessibleInShell(nsIDOMNode *aNode,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService public
 
-nsresult
+already_AddRefed<nsAccessible>
 nsAccessibilityService::GetAccessibleInWeakShell(nsIDOMNode *aNode, 
-                                                 nsIWeakReference *aWeakShell,
-                                                 nsIAccessible **aAccessible) 
+                                                 nsIWeakReference *aWeakShell) 
 {
-  NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
-
-  NS_ENSURE_ARG(aNode);
-  NS_ENSURE_ARG(aWeakShell);
+  if (!aNode || !aWeakShell)
+    return nsnull;
 
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(aWeakShell));
-  nsRefPtr<nsAccessible> accessible =
-    GetAccessible(aNode, presShell, aWeakShell);
-
-  if (accessible)
-    CallQueryInterface(accessible.get(), aAccessible);
-
-  return NS_OK;
+  return GetAccessible(aNode, presShell, aWeakShell);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1380,33 +1393,11 @@ nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
   }
 
   if (weakFrame.GetFrame()->GetContent() != content) {
-    // Not the main content for this frame!
-    // For example, this happens because <area> elements return the
-    // image frame as their primary frame. The main content for the 
-    // image frame is the image content.
-
-    // Check if frame is an image frame, and content is <area>.
-    nsIImageFrame *imageFrame = do_QueryFrame(weakFrame.GetFrame());
-    nsCOMPtr<nsIDOMHTMLAreaElement> areaElmt = do_QueryInterface(content);
-    if (imageFrame && areaElmt) {
-      // XXX: it's a hack we should try the cache before or if failed cache
-      // the image accessible.
-      nsCOMPtr<nsIAccessible> imageAcc;
-      CreateHTMLImageAccessible(weakFrame.GetFrame(), getter_AddRefs(imageAcc));
-      if (imageAcc) {
-        // Cache children.
-        PRInt32 childCount;
-        imageAcc->GetChildCount(&childCount);
-        // <area> accessible should be in cache now.
-        nsAccessNode* cachedAreaAcc = GetCachedAccessNode(aNode, aWeakShell);
-        if (cachedAreaAcc) {
-          newAcc = nsAccUtils::QueryObject<nsAccessible>(cachedAreaAcc);
-          return newAcc.forget();
-        }
-      }
-    }
-
-    return nsnull;
+    // Not the main content for this frame. This happens because <area>
+    // elements return the image frame as their primary frame. The main content
+    // for the image frame is the image content. If the frame is not an image
+    // frame or the node is not an area element then null is returned.
+    return GetAreaAccessible(weakFrame.GetFrame(), aNode, aWeakShell);
   }
 
   // Attempt to create an accessible based on what we know.
@@ -1495,9 +1486,8 @@ nsAccessibilityService::GetAccessible(nsIDOMNode *aNode,
 
         if (tableFrame->GetType() == nsAccessibilityAtoms::tableOuterFrame) {
           nsCOMPtr<nsIDOMNode> tableNode(do_QueryInterface(tableContent));
-          nsCOMPtr<nsIAccessible> tableAccessible;
-          GetAccessibleInWeakShell(tableNode, aWeakShell,
-                                   getter_AddRefs(tableAccessible));
+          nsRefPtr<nsAccessible> tableAccessible =
+            GetAccessibleInWeakShell(tableNode, aWeakShell);
 
           if (tableAccessible) {
             if (!roleMapEntry) {
@@ -1746,6 +1736,52 @@ nsAccessibilityService::GetRelevantContentNodeFor(nsIDOMNode *aNode,
 }
 
 already_AddRefed<nsAccessible>
+nsAccessibilityService::GetAreaAccessible(nsIFrame *aImageFrame,
+                                          nsIDOMNode *aAreaNode,
+                                          nsIWeakReference *aWeakShell)
+{
+  // Check if frame is an image frame, and content is <area>.
+  nsIImageFrame *imageFrame = do_QueryFrame(aImageFrame);
+  if (!imageFrame)
+    return nsnull;
+
+  nsCOMPtr<nsIDOMHTMLAreaElement> areaElmt = do_QueryInterface(aAreaNode);
+  if (!areaElmt)
+    return nsnull;
+
+  // Try to get image map accessible from the global cache or create it
+  // if failed.
+  nsRefPtr<nsAccessible> imageAcc;
+
+  nsCOMPtr<nsIDOMNode> imageNode(do_QueryInterface(aImageFrame->GetContent()));
+  nsAccessNode *cachedImgAcc = GetCachedAccessNode(imageNode, aWeakShell);
+  if (cachedImgAcc)
+    imageAcc = nsAccUtils::QueryObject<nsAccessible>(cachedImgAcc);
+
+  if (!imageAcc) {
+    nsCOMPtr<nsIAccessible> imageAccessible;
+    CreateHTMLImageAccessible(aImageFrame,
+                              getter_AddRefs(imageAccessible));
+
+    imageAcc = nsAccUtils::QueryObject<nsAccessible>(imageAccessible);
+    if (!InitAccessible(imageAcc, nsnull))
+      return nsnull;
+  }
+
+  // Make sure <area> accessible children of the image map are cached so
+  // that they should be available in global cache.
+  imageAcc->EnsureChildren();
+
+  nsAccessNode *cachedAreaAcc = GetCachedAccessNode(aAreaNode, aWeakShell);
+  if (!cachedAreaAcc)
+    return nsnull;
+
+  nsRefPtr<nsAccessible> areaAcc =
+    nsAccUtils::QueryObject<nsAccessible>(cachedAreaAcc);
+  return areaAcc.forget();
+}
+
+already_AddRefed<nsAccessible>
 nsAccessibilityService::CreateAccessibleByType(nsIDOMNode *aNode,
                                                nsIWeakReference *aWeakShell)
 {
@@ -1990,7 +2026,9 @@ nsAccessibilityService::CreateAccessibleByType(nsIDOMNode *aNode,
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessibilityService (DON'T put methods here)
 
-NS_IMETHODIMP nsAccessibilityService::AddNativeRootAccessible(void * aAtkAccessible,  nsIAccessible **aRootAccessible)
+nsresult
+nsAccessibilityService::AddNativeRootAccessible(void *aAtkAccessible,
+                                                nsIAccessible **aRootAccessible)
 {
 #ifdef MOZ_ACCESSIBILITY_ATK
   nsNativeRootAccessibleWrap* rootAccWrap =
@@ -2011,7 +2049,8 @@ NS_IMETHODIMP nsAccessibilityService::AddNativeRootAccessible(void * aAtkAccessi
 #endif
 }
 
-NS_IMETHODIMP nsAccessibilityService::RemoveNativeRootAccessible(nsIAccessible * aRootAccessible)
+nsresult
+nsAccessibilityService::RemoveNativeRootAccessible(nsIAccessible *aRootAccessible)
 {
 #ifdef MOZ_ACCESSIBILITY_ATK
   void* atkAccessible;
@@ -2030,7 +2069,7 @@ NS_IMETHODIMP nsAccessibilityService::RemoveNativeRootAccessible(nsIAccessible *
 }
 
 // Called from layout when the frame tree owned by a node changes significantly
-NS_IMETHODIMP
+nsresult
 nsAccessibilityService::InvalidateSubtreeFor(nsIPresShell *aShell,
                                              nsIContent *aChangeContent,
                                              PRUint32 aChangeType)

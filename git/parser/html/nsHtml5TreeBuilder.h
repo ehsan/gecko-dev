@@ -56,7 +56,6 @@
 #include "nsAHtml5TreeBuilderState.h"
 
 class nsHtml5StreamParser;
-class nsHtml5SpeculativeLoader;
 
 class nsHtml5Tokenizer;
 class nsHtml5MetaScanner;
@@ -101,7 +100,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void startTokenization(nsHtml5Tokenizer* self);
     void doctype(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier, PRBool forceQuirks);
     void comment(PRUnichar* buf, PRInt32 start, PRInt32 length);
-    void ensureBufferSpace(PRInt32 addedLength);
     void characters(const PRUnichar* buf, PRInt32 start, PRInt32 length);
     void eof();
     void endTokenization();
@@ -184,11 +182,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void appendVoidFormToCurrent(nsHtml5HtmlAttributes* attributes);
   protected:
     void accumulateCharacters(const PRUnichar* buf, PRInt32 start, PRInt32 length);
-    inline void accumulateCharacter(PRUnichar c)
-    {
-      charBuffer[charBufferLen++] = c;
-    }
-
+    void accumulateCharacter(PRUnichar c);
     void requestSuspension();
     nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
     nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
@@ -237,7 +231,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     PRInt32 getForeignFlag();
     PRBool isNeedToDropLF();
     PRBool isQuirks();
-    PRInt32 getListLength();
+    PRInt32 getListOfActiveFormattingElementsLength();
     PRInt32 getStackLength();
     static void initializeStatics();
     static void releaseStatics();
@@ -249,7 +243,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 jArray<const char*,PRInt32> nsHtml5TreeBuilder::QUIRKY_PUBLIC_IDS = nsnull;
 #endif
 
-#define NS_HTML5TREE_BUILDER_BUFFER_FLUSH_THRESHOLD 4096
 #define NS_HTML5TREE_BUILDER_STACK_MAX_DEPTH 200
 #define NS_HTML5TREE_BUILDER_OTHER 0
 #define NS_HTML5TREE_BUILDER_A 1

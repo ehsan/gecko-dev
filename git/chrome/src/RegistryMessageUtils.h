@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Josh Matthews <josh@joshmatthews.net>
+ *   Josh Matthews <josh@joshmatthews.net> (Initial Developer)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,44 +36,64 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef RegistryMessageUtils_h__
-#define RegistryMessageUtils_h__
+#ifndef mozilla_RegistryMessageUtils_h
+#define mozilla_RegistryMessageUtils_h
 
 #include "IPC/IPCMessageUtils.h"
-#include "nsIURI.h"
-#include "nsNetUtil.h"
+#include "nsStringGlue.h"
 
-#ifndef MOZILLA_INTERNAL_API
-#include "nsStringAPI.h"
-#else
-#include "nsString.h"
-#endif
+struct SerializedURI
+{
+  nsCString spec;
+  nsCString charset;
+};
+
+struct ChromePackage
+{
+  nsCString package;
+  SerializedURI contentBaseURI;
+  SerializedURI localeBaseURI;
+  SerializedURI skinBaseURI;
+  PRUint32 flags;
+};
+
+struct ResourceMapping
+{
+  nsCString resource;
+  SerializedURI resolvedURI;
+};
+
+struct OverrideMapping
+{
+  SerializedURI originalURI;
+  SerializedURI overrideURI;
+};
 
 namespace IPC {
 
-inline void WriteURI(Message* aMsg, nsIURI* aURI)
+template<>
+struct ParamTraits<SerializedURI>
 {
-  nsCString spec;
-  if (aURI)
-    aURI->GetSpec(spec);
-  WriteParam(aMsg, spec);
-}
+  typedef SerializedURI paramType;
 
-inline bool ReadURI(const Message* aMsg, void** aIter, nsIURI* *aURI)
-{
-  *aURI = nsnull;
-  
-  nsCString spec;
-  if (!ReadParam(aMsg, aIter, &spec))
-    return false;
-
-  if (spec.Length()) {
-    nsresult rv = NS_NewURI(aURI, spec);
-    NS_ENSURE_SUCCESS(rv, false);
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.spec);
+    WriteParam(aMsg, aParam.charset);
   }
 
-  return true;
-}
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    nsCString spec, charset;
+    if (ReadParam(aMsg, aIter, &spec) &&
+        ReadParam(aMsg, aIter, &charset)) {
+      aResult->spec = spec;
+      aResult->charset = charset;
+      return true;
+    }
+    return false;
+  }
+};
   
 template <>
 struct ParamTraits<ChromePackage>
@@ -83,21 +103,27 @@ struct ParamTraits<ChromePackage>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, aParam.package);
-    WriteURI(aMsg, aParam.baseURI);
+    WriteParam(aMsg, aParam.contentBaseURI);
+    WriteParam(aMsg, aParam.localeBaseURI);
+    WriteParam(aMsg, aParam.skinBaseURI);
     WriteParam(aMsg, aParam.flags);
   }
   
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
     nsCString package;
-    nsCOMPtr<nsIURI> uri;
+    SerializedURI contentBaseURI, localeBaseURI, skinBaseURI;
     PRUint32 flags;
     
     if (ReadParam(aMsg, aIter, &package) &&
-        ReadURI(aMsg, aIter, getter_AddRefs(uri)) &&
+        ReadParam(aMsg, aIter, &contentBaseURI) &&
+        ReadParam(aMsg, aIter, &localeBaseURI) &&
+        ReadParam(aMsg, aIter, &skinBaseURI) &&
         ReadParam(aMsg, aIter, &flags)) {
       aResult->package = package;
-      aResult->baseURI = uri;
+      aResult->contentBaseURI = contentBaseURI;
+      aResult->localeBaseURI = localeBaseURI;
+      aResult->skinBaseURI = skinBaseURI;
       aResult->flags = flags;
       return true;
     }
@@ -106,33 +132,33 @@ struct ParamTraits<ChromePackage>
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    nsCString spec;
-    aParam.baseURI->GetSpec(spec);
-    aLog->append(StringPrintf(L"[%s, %s, %u]", aParam.package.get(),
-                             spec.get(), aParam.flags));
+    aLog->append(StringPrintf(L"[%s, %s, %s, %s, %u]", aParam.package.get(),
+                             aParam.contentBaseURI.spec.get(),
+                             aParam.localeBaseURI.spec.get(),
+                             aParam.skinBaseURI.spec.get(), aParam.flags));
   }
 };
 
 template <>
-struct ParamTraits<ChromeResource>
+struct ParamTraits<ResourceMapping>
 {
-  typedef ChromeResource paramType;
+  typedef ResourceMapping paramType;
   
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    WriteParam(aMsg, aParam.package);
-    WriteURI(aMsg, aParam.resolvedURI);
+    WriteParam(aMsg, aParam.resource);
+    WriteParam(aMsg, aParam.resolvedURI);
   }
   
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    nsCString package;
-    nsCOMPtr<nsIURI> uri;
+    nsCString resource;
+    SerializedURI resolvedURI;
     
-    if (ReadParam(aMsg, aIter, &package) &&
-        ReadURI(aMsg, aIter, getter_AddRefs(uri))) {
-      aResult->package = package;
-      aResult->resolvedURI = uri;
+    if (ReadParam(aMsg, aIter, &resource) &&
+        ReadParam(aMsg, aIter, &resolvedURI)) {
+      aResult->resource = resource;
+      aResult->resolvedURI = resolvedURI;
       return true;
     }
     return false;
@@ -140,13 +166,43 @@ struct ParamTraits<ChromeResource>
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    nsCString spec;
-    aParam.resolvedURI->GetSpec(spec);
-    aLog->append(StringPrintf(L"[%s, %s, %u]", aParam.package.get(),
-                             spec.get()));
+    aLog->append(StringPrintf(L"[%s, %s, %u]", aParam.resource.get(),
+                             aParam.resolvedURI.spec.get()));
+  }
+};
+
+template <>
+struct ParamTraits<OverrideMapping>
+{
+  typedef OverrideMapping paramType;
+  
+  static void Write(Message* aMsg, const paramType& aParam)
+  {
+    WriteParam(aMsg, aParam.originalURI);
+    WriteParam(aMsg, aParam.overrideURI);
+  }
+  
+  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  {
+    SerializedURI originalURI;
+    SerializedURI overrideURI;
+    
+    if (ReadParam(aMsg, aIter, &originalURI) &&
+        ReadParam(aMsg, aIter, &overrideURI)) {
+      aResult->originalURI = originalURI;
+      aResult->overrideURI = overrideURI;
+      return true;
+    }
+    return false;
+  }
+
+  static void Log(const paramType& aParam, std::wstring* aLog)
+  {
+    aLog->append(StringPrintf(L"[%s, %s, %u]", aParam.originalURI.spec.get(),
+                             aParam.overrideURI.spec.get()));
   }
 };
 
 }
 
-#endif // RegistryMessageUtils_h__
+#endif // RegistryMessageUtils_h

@@ -138,9 +138,13 @@ public:
                                nsRefPtr<nsFrameLoader>& aFirstToSwap,
                                nsRefPtr<nsFrameLoader>& aSecondToSwap);
 
+  // When IPC is enabled, destroy any associated child process.
+  void DestroyChild();
+
 #ifdef MOZ_IPC
   mozilla::dom::PIFrameEmbeddingParent* GetChildProcess();
 #endif
+  NS_IMETHOD GetCrossProcessObjectWrapper(nsIVariant** cpow);
 
   nsFrameMessageManager* GetFrameMessageManager() { return mMessageManager; }
 

@@ -43,17 +43,52 @@
 
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 
+#include "jsapi.h"
 #include "nsCOMPtr.h"
 #include "nsIBrowserDOMWindow.h"
+#include "nsIWebProgress.h"
+#include "nsIWebProgressListener.h"
+#include "nsWeakReference.h"
 
 class nsIURI;
 class nsIDOMElement;
 class gfxMatrix;
 
-namespace mozilla {
-namespace dom {
+struct JSContext;
+struct JSObject;
 
-class TabParent : public PIFrameEmbeddingParent
+namespace mozilla {
+
+namespace jsipc {
+class PContextWrapperParent;
+class PObjectWrapperParent;
+}
+
+namespace dom {
+struct TabParentListenerInfo 
+{
+  TabParentListenerInfo(nsIWeakReference *aListener, unsigned long aNotifyMask)
+    : mWeakListener(aListener), mNotifyMask(aNotifyMask)
+  {
+  }
+
+  TabParentListenerInfo(const TabParentListenerInfo& obj)
+    : mWeakListener(obj.mWeakListener), mNotifyMask(obj.mNotifyMask) 
+  {
+  }
+
+  nsWeakPtr mWeakListener;
+
+  PRUint32 mNotifyMask;
+};
+
+inline    
+bool operator==(const TabParentListenerInfo& lhs, const TabParentListenerInfo& rhs)
+{
+  return &lhs == &rhs;
+}
+
+class TabParent : public PIFrameEmbeddingParent, public nsIWebProgress
 {
 public:
     TabParent();
@@ -65,10 +100,26 @@ public:
 
     virtual bool RecvmoveFocus(const bool& aForward);
     virtual bool RecvsendEvent(const RemoteDOMEvent& aEvent);
+    virtual bool RecvnotifyProgressChange(const PRInt64& aProgress,
+                                          const PRInt64& aProgressMax,
+                                          const PRInt64& aTotalProgress,
+                                          const PRInt64& aMaxTotalProgress);
+    virtual bool RecvnotifyStateChange(const PRUint32& aStateFlags,
+                                       const nsresult& aStatus);
+    virtual bool RecvnotifyLocationChange(const nsCString& aUri);
+    virtual bool RecvnotifyStatusChange(const nsresult& status,
+                                        const nsString& message);
+    virtual bool RecvnotifySecurityChange(const PRUint32& aState);
+    virtual bool RecvrefreshAttempted(const nsCString& aURI,
+                                      const PRInt32& aMillis,
+                                      const bool& aSameURI,
+                                      bool* aAllowRefresh);
+
     virtual bool AnswercreateWindow(PIFrameEmbeddingParent** retval);
-    virtual bool RecvsendSyncMessageToParent(const nsString& aMessage,
-                                             const nsString& aJSON,
-                                             nsTArray<nsString>* aJSONRetVal);
+    virtual bool AnswersendSyncMessageToParent(const nsString& aMessage,
+                                               const nsString& aJSON,
+                                               const nsTArray<PObjectWrapperParent*>&,
+                                               nsTArray<nsString>* aJSONRetVal);
     virtual bool RecvsendAsyncMessageToParent(const nsString& aMessage,
                                               const nsString& aJSON);
 
@@ -100,15 +151,35 @@ public:
             const nsString& bgcolor,
             const PRUint32& flags,
             const bool& flush,
-	    const gfxMatrix& aMatrix,
+            const gfxMatrix& aMatrix,
             const PRInt32& bufw,
             const PRInt32& bufh,
-            Shmem &buf);
+            Shmem& buf);
     virtual bool DeallocPDocumentRendererShmem(PDocumentRendererShmemParent* actor);
 
+    virtual PContextWrapperParent* AllocPContextWrapper();
+    virtual bool DeallocPContextWrapper(PContextWrapperParent* actor);
+
+    JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
+
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIWEBPROGRESS
+
 protected:
+    bool ReceiveMessage(const nsString& aMessage,
+                        PRBool aSync,
+                        const nsString& aJSON,
+                        const nsTArray<PObjectWrapperParent*>* aObjects,
+                        nsTArray<nsString>* aJSONRetVal = nsnull);
+
+    TabParentListenerInfo* GetListenerInfo(nsIWebProgressListener *aListener);
+
+    void ActorDestroy(ActorDestroyReason why);
+
     nsIDOMElement* mFrameElement;
     nsCOMPtr<nsIBrowserDOMWindow> mBrowserDOMWindow;
+
+    nsTArray<TabParentListenerInfo> mListenerInfoList;
 };
 
 } // namespace dom

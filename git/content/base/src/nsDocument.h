@@ -544,8 +544,7 @@ public:
   /**
    * Get/Set the base target of a link in a document.
    */
-  virtual void GetBaseTarget(nsAString &aBaseTarget) const;
-  virtual void SetBaseTarget(const nsAString &aBaseTarget);
+  virtual void GetBaseTarget(nsAString &aBaseTarget);
 
   /**
    * Return a standard name for the document's character set. This will
@@ -656,13 +655,6 @@ public:
   virtual nsPIDOMWindow *GetWindow();
 
   /**
-   * Return the inner window used as the script compilation scope for
-   * this document. If you're not absolutely sure you need this, use
-   * GetWindow().
-   */
-  virtual nsPIDOMWindow *GetInnerWindow();
-
-  /**
    * Get the script loader for this document
    */
   virtual nsScriptLoader* ScriptLoader();
@@ -693,6 +685,7 @@ public:
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask);
+  virtual void DocumentStatesChanged(PRInt32 aStateMask);
 
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
                                 nsIStyleRule* aOldStyleRule,
@@ -703,6 +696,7 @@ public:
                                 nsIStyleRule* aStyleRule);
 
   virtual void FlushPendingNotifications(mozFlushType aType);
+  virtual void FlushExternalResources(mozFlushType aType);
   virtual nsIScriptEventManager* GetScriptEventManager();
   virtual void SetXMLDeclaration(const PRUnichar *aVersion,
                                  const PRUnichar *aEncoding,
@@ -872,10 +866,17 @@ public:
   virtual NS_HIDDEN_(nsresult) GetContentListFor(nsIContent* aContent,
                                                  nsIDOMNodeList** aResult);
 
-  virtual NS_HIDDEN_(nsresult) ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
+  virtual NS_HIDDEN_(nsresult) ElementFromPointHelper(float aX, float aY,
                                                       PRBool aIgnoreRootScrollFrame,
                                                       PRBool aFlushLayout,
                                                       nsIDOMElement** aReturn);
+
+  virtual NS_HIDDEN_(nsresult) NodesFromRectHelper(float aX, float aY,
+                                                   float aTopSize, float aRightSize,
+                                                   float aBottomSize, float aLeftSize,
+                                                   PRBool aIgnoreRootScrollFrame,
+                                                   PRBool aFlushLayout,
+                                                   nsIDOMNodeList** aReturn);
 
   virtual NS_HIDDEN_(void) FlushSkinBindings();
 
@@ -938,6 +939,8 @@ public:
                                        nsICSSStyleSheet** sheet);
 
   virtual nsISupports* GetCurrentContentSink();
+
+  virtual PRInt32 GetDocumentState();
 
   virtual void RegisterFileDataUri(nsACString& aUri);
 
@@ -1005,6 +1008,8 @@ protected:
                               const nsAString& aType,
                               PRBool aPersisted);
 
+  virtual nsPIDOMWindow *GetInnerWindowInternal();
+
   // nsContentList match functions for GetElementsByClassName
   static PRBool MatchClassNames(nsIContent* aContent, PRInt32 aNamespaceID,
                                 nsIAtom* aAtom, void* aData);
@@ -1021,6 +1026,8 @@ protected:
 
   nsDocument(const char* aContentType);
   virtual ~nsDocument();
+
+  void EnsureOnloadBlocker();
 
   nsCString mReferrer;
   nsString mLastModified;
@@ -1051,9 +1058,6 @@ protected:
   // document can get its script context and scope. This is the
   // *inner* window object.
   nsCOMPtr<nsIScriptGlobalObject> mScriptGlobalObject;
-  // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
-  // updated on every set of mSecriptGlobalObject.
-  nsPIDOMWindow *mWindow;
 
   // If document is created for example using
   // document.implementation.createDocument(...), mScriptObject points to
@@ -1133,6 +1137,9 @@ protected:
   nsCOMPtr<nsIApplicationCache> mApplicationCache;
 
   nsCOMPtr<nsIContent> mFirstBaseNodeWithHref;
+
+  PRInt32 mDocumentState;
+  PRInt32 mGotDocumentState;
 
 private:
   friend class nsUnblockOnloadEvent;

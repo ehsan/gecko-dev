@@ -71,7 +71,6 @@
 #include "nsINodeInfo.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIPrivateDOMImplementation.h"
 #include "nsIRangeUtils.h"
@@ -106,6 +105,7 @@
 #include "nsDOMParser.h"
 #include "nsDOMSerializer.h"
 #include "nsXMLHttpRequest.h"
+#include "nsChannelPolicy.h"
 
 // view stuff
 #include "nsViewsCID.h"
@@ -296,6 +296,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileDataProtocolHandler)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDOMParser)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsDOMStorageManager,
                                          nsDOMStorageManager::GetInstance)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsChannelPolicy)
 
 //-----------------------------------------------------------------------------
 
@@ -525,7 +526,6 @@ MAKE_CTOR(CreateXMLContentBuilder,        nsIXMLContentBuilder,        NS_NewXML
 MAKE_CTOR(CreateContentDLF,               nsIDocumentLoaderFactory,    NS_NewContentDocumentLoaderFactory)
 MAKE_CTOR(CreateEventListenerService,     nsIEventListenerService,     NS_NewEventListenerService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWyciwygProtocolHandler)
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsContentAreaDragDrop)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDataDocumentContentPolicy)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsNoDataProtocolContentPolicy)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSyncLoadService)
@@ -875,6 +875,16 @@ CSPServiceRegistration(nsIComponentManager *aCompMgr,
                                 PR_TRUE,
                                 PR_TRUE,
                                 getter_Copies(previous));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = catman->AddCategoryEntry("net-channel-event-sinks",
+                                "CSPService",
+                                CSPSERVICE_CONTRACTID,
+                                PR_TRUE,
+                                PR_TRUE,
+                                getter_Copies(previous));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return rv;
 }
 
@@ -895,6 +905,10 @@ CSPServiceUnregistration(nsIComponentManager *aCompMgr,
   if (NS_FAILED(rv)) return rv;
 
   rv = catman->DeleteCategoryEntry("content-policy",
+                                   "CSPService",
+                                   PR_TRUE);
+
+  rv = catman->DeleteCategoryEntry("net-channel-event-sinks",
                                    "CSPService",
                                    PR_TRUE);
 
@@ -1319,11 +1333,6 @@ static const nsModuleComponentInfo gComponents[] = {
     NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "wyciwyg",
     nsWyciwygProtocolHandlerConstructor },
 
-  { "Content Area DragDrop",
-    NS_CONTENTAREADRAGDROP_CID,
-    NS_CONTENTAREADRAGDROP_CONTRACTID,
-    nsContentAreaDragDropConstructor },
-
   { "SyncLoad DOM Service",
     NS_SYNCLOADDOMSERVICE_CID,
     NS_SYNCLOADDOMSERVICE_CONTRACTID,
@@ -1518,7 +1527,12 @@ static const nsModuleComponentInfo gComponents[] = {
     { "Event Listener Service",
       NS_EVENTLISTENERSERVICE_CID,
       NS_EVENTLISTENERSERVICE_CONTRACTID,
-      CreateEventListenerService }
+      CreateEventListenerService },
+
+    { "Channel Policy",
+      NSCHANNELPOLICY_CID,
+      NSCHANNELPOLICY_CONTRACTID,
+      nsChannelPolicyConstructor }
 };
 
 NS_IMPL_NSGETMODULE_WITH_CTOR(nsLayoutModule, gComponents, Initialize)

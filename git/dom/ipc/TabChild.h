@@ -48,6 +48,8 @@
 #include "nsIWebBrowserChrome2.h"
 #include "nsIEmbeddingSiteWindow2.h"
 #include "nsIWebBrowserChromeFocus.h"
+#include "nsIWebProgressListener.h"
+#include "nsIWebProgressListener2.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIInterfaceRequestor.h"
@@ -65,10 +67,17 @@
 #include "nsIPrincipal.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptContext.h"
+#include "nsWeakReference.h"
 
 class gfxMatrix;
 
 namespace mozilla {
+
+namespace jsipc {
+class PContextWrapperChild;
+class ContextWrapperChild;
+}
+
 namespace dom {
 
 class TabChild;
@@ -133,11 +142,13 @@ protected:
 };
 
 class TabChild : public PIFrameEmbeddingChild,
+                 public nsIWebProgressListener2,
                  public nsIWebBrowserChrome2,
                  public nsIEmbeddingSiteWindow2,
                  public nsIWebBrowserChromeFocus,
                  public nsIInterfaceRequestor,
-                 public nsIWindowProvider
+                 public nsIWindowProvider,
+                 public nsSupportsWeakReference
 {
 public:
     TabChild();
@@ -146,6 +157,8 @@ public:
     nsresult Init();
 
     NS_DECL_ISUPPORTS
+    NS_DECL_NSIWEBPROGRESSLISTENER
+    NS_DECL_NSIWEBPROGRESSLISTENER2
     NS_DECL_NSIWEBBROWSERCHROME
     NS_DECL_NSIWEBBROWSERCHROME2
     NS_DECL_NSIEMBEDDINGSITEWINDOW
@@ -196,7 +209,7 @@ public:
             const PRUint32& flags,
             const bool& flush);
 
-    virtual mozilla::ipc::PDocumentRendererShmemChild* AllocPDocumentRendererShmem(
+    virtual PDocumentRendererShmemChild* AllocPDocumentRendererShmem(
             const PRInt32& x,
             const PRInt32& y,
             const PRInt32& w,
@@ -204,13 +217,13 @@ public:
             const nsString& bgcolor,
             const PRUint32& flags,
             const bool& flush,
-	    const gfxMatrix& aMatrix,
+            const gfxMatrix& aMatrix,
             const PRInt32& bufw,
             const PRInt32& bufh,
             Shmem& buf);
     virtual bool DeallocPDocumentRendererShmem(PDocumentRendererShmemChild* actor);
     virtual bool RecvPDocumentRendererShmemConstructor(
-            mozilla::ipc::PDocumentRendererShmemChild *__a,
+            PDocumentRendererShmemChild *__a,
             const PRInt32& aX,
             const PRInt32& aY,
             const PRInt32& aW,
@@ -218,7 +231,7 @@ public:
             const nsString& bgcolor,
             const PRUint32& flags,
             const bool& flush,
-	    const gfxMatrix& aMatrix,
+            const gfxMatrix& aMatrix,
             const PRInt32& aBufW,
             const PRInt32& aBufH,
             Shmem& aBuf);
@@ -229,12 +242,10 @@ public:
 
     nsIPrincipal* GetPrincipal() { return mPrincipal; }
 
-    virtual bool RecvregisterChromePackage(const nsString& aPackage,
-                                           const nsString& aBaseURI,
-                                           const PRUint32& aFlags);
-    virtual bool RecvregisterChromeResource(const nsString& aPackage,
-                                            const nsString& aResolvedURI);
+    virtual PContextWrapperChild* AllocPContextWrapper();
+    virtual bool DeallocPContextWrapper(PContextWrapperChild* actor);
 
+    nsresult GetObjectsForMessage(nsTArray<PObjectWrapperChild*>& aObjects);
 private:
     bool InitTabChildGlobal();
 
@@ -243,6 +254,8 @@ private:
     nsCOMPtr<nsIXPConnectJSObjectHolder> mRootGlobal;
 
     JSContext* mCx;
+
+    mozilla::jsipc::ContextWrapperChild* mContextWrapper;
 
     nsCOMPtr<nsIChannel> mChannel;
 

@@ -115,11 +115,18 @@ class Link;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID      \
-{ 0x36f0a42c, 0x089b, 0x4909, \
-  { 0xb3, 0xee, 0xc5, 0xa4, 0x00, 0x90, 0x30, 0x02 } }
+{ 0x4a0c9bfa, 0xef60, 0x4bb2, \
+  { 0x87, 0x5e, 0xac, 0xdb, 0xe8, 0xfe, 0xa1, 0xb5 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
+
+// Document states
+
+// RTL locale: specific to the XUL localedir attribute
+#define NS_DOCUMENT_STATE_RTL_LOCALE              (1 << 0)
+// Window activation status
+#define NS_DOCUMENT_STATE_WINDOW_INACTIVE         (1 << 1)
 
 //----------------------------------------------------------------------
 
@@ -242,8 +249,7 @@ public:
   /**
    * Get/Set the base target of a link in a document.
    */
-  virtual void GetBaseTarget(nsAString &aBaseTarget) const = 0;
-  virtual void SetBaseTarget(const nsAString &aBaseTarget) = 0;
+  virtual void GetBaseTarget(nsAString &aBaseTarget) = 0;
 
   /**
    * Return a standard name for the document's character set.
@@ -634,7 +640,10 @@ public:
    * this document. If you're not absolutely sure you need this, use
    * GetWindow().
    */
-  virtual nsPIDOMWindow *GetInnerWindow() = 0;
+  nsPIDOMWindow* GetInnerWindow()
+  {
+    return mRemovedFromDocShell ? GetInnerWindowInternal() : mWindow;
+  }
 
   /**
    * Get the script loader for this document
@@ -677,6 +686,11 @@ public:
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask) = 0;
 
+  // Notify that a document state has changed.
+  // This should only be called by callers whose state is also reflected in the
+  // implementation of nsDocument::GetDocumentState.
+  virtual void DocumentStatesChanged(PRInt32 aStateMask) = 0;
+
   // Observation hooks for style data to propagate notifications
   // to document observers
   virtual void StyleRuleChanged(nsIStyleSheet* aStyleSheet,
@@ -692,6 +706,14 @@ public:
    * (since those may affect the layout of this one).
    */
   virtual void FlushPendingNotifications(mozFlushType aType) = 0;
+
+  /**
+   * Calls FlushPendingNotifications on any external resources this document
+   * has. If this document has no external resources or is an external resource
+   * itself this does nothing. This should only be called with
+   * aType >= Flush_Style.
+   */
+  virtual void FlushExternalResources(mozFlushType aType) = 0;
 
   nsBindingManager* BindingManager() const
   {
@@ -793,7 +815,16 @@ public:
    */
   virtual PRInt32 GetDefaultNamespaceID() const = 0;
 
-  nsPropertyTable* PropertyTable() { return &mPropertyTable; }
+  void DeleteAllProperties();
+  void DeleteAllPropertiesFor(nsINode* aNode);
+
+  nsPropertyTable* PropertyTable(PRUint16 aCategory) {
+    if (aCategory == 0)
+      return &mPropertyTable;
+    return GetExtraPropertyTable(aCategory);
+  }
+  PRUint32 GetPropertyTableCount()
+  { return mExtraPropertyTables.Length() + 1; }
 
   /**
    * Sets the ID used to identify this part of the multipart document
@@ -973,10 +1004,17 @@ public:
    *
    * @see nsIDOMWindowUtils::elementFromPoint
    */
-  virtual nsresult ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
+  virtual nsresult ElementFromPointHelper(float aX, float aY,
                                           PRBool aIgnoreRootScrollFrame,
                                           PRBool aFlushLayout,
                                           nsIDOMElement** aReturn) = 0;
+
+  virtual nsresult NodesFromRectHelper(float aX, float aY,
+                                       float aTopSize, float aRightSize,
+                                       float aBottomSize, float aLeftSize,
+                                       PRBool aIgnoreRootScrollFrame,
+                                       PRBool aFlushLayout,
+                                       nsIDOMNodeList** aReturn) = 0;
 
   /**
    * See FlushSkinBindings on nsBindingManager
@@ -1283,22 +1321,11 @@ public:
   virtual int GetDocumentLWTheme() { return Doc_Theme_None; }
 
   /**
-   * Gets the document's cached pointer to the first <base> element in this
-   * document which has an href attribute.  If the document doesn't contain any
-   * <base> elements with an href, returns null.
+   * Returns the document state.
+   * Document state bits have the form NS_DOCUMENT_STATE_* and are declared in
+   * nsIDocument.h.
    */
-  virtual nsIContent* GetFirstBaseNodeWithHref() = 0;
-
-  /**
-   * Sets the document's cached pointer to the first <base> element with an
-   * href attribute in this document and updates the document's base URI
-   * according to the element's href.
-   *
-   * If the given node is the same as the current first base node, this
-   * function still updates the document's base URI according to the node's
-   * href, if it changed.
-   */
-  virtual nsresult SetFirstBaseNodeWithHref(nsIContent *node) = 0;
+  virtual PRInt32 GetDocumentState() = 0;
 
   virtual nsISupports* GetCurrentContentSink() = 0;
 
@@ -1318,6 +1345,11 @@ protected:
     //     do it here but nsNodeInfoManager is a concrete class that we don't
     //     want to expose to users of the nsIDocument API outside of Gecko.
   }
+
+  nsPropertyTable* GetExtraPropertyTable(PRUint16 aCategory);
+
+  // Never ever call this. Only call GetInnerWindow!
+  virtual nsPIDOMWindow *GetInnerWindowInternal() = 0;
 
   /**
    * These methods should be called before and after dispatching
@@ -1360,11 +1392,12 @@ protected:
 
 #ifdef MOZ_SMIL
   // SMIL Animation Controller, lazily-initialized in GetAnimationController
-  nsAutoPtr<nsSMILAnimationController> mAnimationController;
+  nsRefPtr<nsSMILAnimationController> mAnimationController;
 #endif // MOZ_SMIL
 
   // Table of element properties for this document.
   nsPropertyTable mPropertyTable;
+  nsTArray<nsAutoPtr<nsPropertyTable> > mExtraPropertyTables;
 
   // Compatibility mode
   nsCompatibility mCompatMode;
@@ -1452,6 +1485,10 @@ protected:
   PRUint32 mEventsSuppressed;
 
   nsString mPendingStateObject;
+
+  // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
+  // updated on every set of mSecriptGlobalObject.
+  nsPIDOMWindow *mWindow;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

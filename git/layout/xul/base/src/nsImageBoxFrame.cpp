@@ -55,7 +55,6 @@
 #include "nsHTMLParts.h"
 #include "nsString.h"
 #include "nsLeafFrame.h"
-#include "nsPresContext.h"
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
@@ -117,7 +116,7 @@ nsImageBoxFrameEvent::Run()
     return NS_OK;
   }
 
-  nsCOMPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
+  nsRefPtr<nsPresContext> pres_context = pres_shell->GetPresContext();
   if (!pres_context) {
     return NS_OK;
   }

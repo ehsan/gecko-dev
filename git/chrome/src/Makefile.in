@@ -53,15 +53,19 @@ LIBXUL_LIBRARY  = 1
 EXPORTS_NAMESPACES = mozilla/chrome
 
 EXPORTS_mozilla/chrome = \
-		ChromeTypes.h \
 		RegistryMessageUtils.h \
 		$(NULL)
 
 CPPSRCS		= \
 		nsChromeFactory.cpp \
 		nsChromeRegistry.cpp \
+		nsChromeRegistryChrome.cpp \
 		nsChromeProtocolHandler.cpp \
 		$(NULL)
+
+ifdef MOZ_IPC
+CPPSRCS += nsChromeRegistryContent.cpp
+endif
 
 EXTRA_DSO_LDOPTS = \
                 $(MOZ_UNICHARUTIL_LIBS) \
@@ -81,7 +85,6 @@ include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
-		-I$(topsrcdir)/dom/ipc \
 		-I$(topsrcdir)/netwerk/protocol/res/src \
 		-I$(topsrcdir)/netwerk/base/src \
 		$(NULL)

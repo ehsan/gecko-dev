@@ -78,9 +78,6 @@ gfxSharedImageSurface::getASurface(void)
     if (mDepth == 32)
         imageFormat = gfxASurface::ImageFormatARGB32;
 
-    if (mDepth == 16)
-        imageFormat = gfxASurface::ImageFormatRGB16;
-
     gfxASurface* result = new gfxImageSurface(mData, mSize, mStride, imageFormat);
     NS_IF_ADDREF(result);
     return result;
@@ -118,8 +115,8 @@ getSystemDisplay()
 bool
 gfxSharedImageSurface::Init(const gfxIntSize& aSize,
                             gfxImageFormat aFormat,
-                            int aShmId,
-                            Display *aDisplay)
+                            int aDepth,
+                            int aShmId)
 {
     mSize = aSize;
 
@@ -127,13 +124,17 @@ gfxSharedImageSurface::Init(const gfxIntSize& aSize,
         mFormat = aFormat;
         if (!ComputeDepth())
             return false;
+    } else if (aDepth) {
+        mDepth = aDepth;
+        if (!ComputeFormat())
+            NS_WARNING("Will work with system depth");
     } else {
         mDepth = getSystemDepth();
         if (!ComputeFormat())
             NS_WARNING("Will work with system depth");
     }
 
-    mDisp = aDisplay ? aDisplay : getSystemDisplay();
+    mDisp = getSystemDisplay();
     if (!mDisp)
         return false;
 
@@ -151,7 +152,7 @@ gfxSharedImageSurface::CreateInternal(int aShmid)
         mShmId = aShmid;
         mOwnsData = false;
     } else
-        mShmId = shmget(IPC_PRIVATE, GetDataSize(), IPC_CREAT | 0777);
+        mShmId = shmget(IPC_PRIVATE, GetDataSize(), IPC_CREAT | 0600);
 
     if (mShmId == -1)
         return false;
@@ -191,8 +192,6 @@ gfxSharedImageSurface::ComputeFormat()
         mFormat = ImageFormatARGB32;
     if (mDepth == 24)
         mFormat = ImageFormatRGB24;
-    if (mDepth == 16)
-        mFormat = ImageFormatRGB16;
     else {
         NS_WARNING("Unknown depth specified to gfxSharedImageSurface!");
         mFormat = ImageFormatUnknown;
@@ -210,8 +209,6 @@ gfxSharedImageSurface::ComputeDepth()
         mDepth = 32;
     else if (mFormat == ImageFormatRGB24)
         mDepth = 24;
-    else if (mFormat == ImageFormatRGB16)
-        mDepth = 16;
     else {
         NS_WARNING("Unknown format specified to gfxSharedImageSurface!");
         return false;

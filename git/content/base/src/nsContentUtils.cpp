@@ -190,6 +190,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "jsarray.h"
 #include "jsdate.h"
 #include "jsregexp.h"
+#include "jstypedarray.h"
 
 const char kLoadAsData[] = "loadAsData";
 
@@ -237,6 +238,8 @@ nsIInterfaceRequestor* nsContentUtils::sSameOriginChecker = nsnull;
 
 nsIJSRuntimeService *nsAutoGCRoot::sJSRuntimeService;
 JSRuntime *nsAutoGCRoot::sJSScriptRuntime;
+
+PRBool nsContentUtils::sIsHandlingKeyBoardEvent = PR_FALSE;
 
 PRBool nsContentUtils::sInitialized = PR_FALSE;
 
@@ -1305,7 +1308,7 @@ nsContentUtils::ReparentContentWrappersInScope(nsIScriptGlobalObject *aOldScope,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  return sXPConnect->ReparentScopeAwareWrappers(cx, oldScopeObj, newScopeObj);
+  return sXPConnect->MoveWrappers(cx, oldScopeObj, newScopeObj);
 }
 
 nsIDocShell *
@@ -3699,27 +3702,26 @@ nsContentUtils::IsValidNodeName(nsIAtom *aLocalName, nsIAtom *aPrefix,
 
 /* static */
 nsresult
-nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
+nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
                                          const nsAString& aFragment,
                                          PRBool aWillOwnFragment,
                                          nsIDOMDocumentFragment** aReturn)
 {
-  NS_ENSURE_ARG(aContextNode);
   *aReturn = nsnull;
+  NS_ENSURE_ARG(aContextNode);
 
   nsresult rv;
-  nsCOMPtr<nsINode> node = do_QueryInterface(aContextNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NOT_AVAILABLE);
 
   // If we don't have a document here, we can't get the right security context
   // for compiling event handlers... so just bail out.
-  nsCOMPtr<nsIDocument> document = node->GetOwnerDoc();
+  nsCOMPtr<nsIDocument> document = aContextNode->GetOwnerDoc();
   NS_ENSURE_TRUE(document, NS_ERROR_NOT_AVAILABLE);
-  
-  PRBool bCaseSensitive = !document->IsHTML();
 
-  nsCOMPtr<nsIHTMLDocument> htmlDoc(do_QueryInterface(document));
-  PRBool isHTML = htmlDoc && !bCaseSensitive;
+  PRBool isHTML = document->IsHTML();
+#ifdef DEBUG
+  nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(document);
+  NS_ASSERTION(!isHTML || htmlDoc, "Should have HTMLDocument here!");
+#endif
 
   if (isHTML && nsHtml5Module::sEnabled) {
     // See if the document has a cached fragment parser. nsHTMLDocument is the
@@ -3735,7 +3737,6 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
       if (!parser) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      document->SetFragmentParser(parser);
     }
     nsCOMPtr<nsIDOMDocumentFragment> frag;
     rv = NS_NewDocumentFragment(getter_AddRefs(frag), document->NodeInfoManager());
@@ -3764,7 +3765,8 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
                             (document->GetCompatibilityMode() == eCompatibility_NavQuirks));
     }
   
-    NS_ADDREF(*aReturn = frag);
+    frag.swap(*aReturn);
+    document->SetFragmentParser(parser);
     return NS_OK;
   }
 
@@ -5413,7 +5415,7 @@ public:
   jsval source;
   jsval clone;
   jsval temp;
-  JSAutoIdArray ids;
+  js::AutoIdArray ids;
   jsuint index;
 
 private:
@@ -5431,7 +5433,7 @@ private:
   }
 
   CloneStackFrame* prevFrame;
-  JSAutoTempValueRooter tvrVals;
+  js::AutoArrayRooter tvrVals;
 };
 
 class CloneStack
@@ -5658,7 +5660,30 @@ CloneSimpleValues(JSContext* cx,
                                       robj, rid);
   }
 
-  // ImageData is just a normal JSObject with some properties in our impl.
+  // Typed array objects.
+  if (js_IsTypedArray(obj)) {
+    js::TypedArray* src = js::TypedArray::fromJSObject(obj);
+    JSObject* newTypedArray = js_CreateTypedArrayWithArray(cx, src->type, obj);
+    if (!newTypedArray) {
+      return NS_ERROR_FAILURE;
+    }
+    return SetPropertyOnValueOrObject(cx, OBJECT_TO_JSVAL(newTypedArray), rval,
+                                      robj, rid);
+  }
+
+  // ArrayBuffer objects.
+  if (js_IsArrayBuffer(obj)) {
+    js::ArrayBuffer* src = js::ArrayBuffer::fromJSObject(obj);
+    JSObject* newBuffer = js_CreateArrayBuffer(cx, src->byteLength);
+    if (!newBuffer) {
+      return NS_ERROR_FAILURE;
+    }
+    memcpy(js::ArrayBuffer::fromJSObject(newBuffer)->data, src->data,
+           src->byteLength);
+    return SetPropertyOnValueOrObject(cx, OBJECT_TO_JSVAL(newBuffer), rval,
+                                      robj, rid);
+  }
+
   // Do we support File?
   // Do we support Blob?
   // Do we support FileList?
@@ -5697,7 +5722,7 @@ nsContentUtils::CreateStructuredClone(JSContext* cx,
   }
 
   jsval output = OBJECT_TO_JSVAL(obj);
-  JSAutoTempValueRooter tvr(cx, output);
+  js::AutoValueRooter tvr(cx, output);
 
   CloneStack stack(cx);
   if (!stack.Push(val, OBJECT_TO_JSVAL(obj),
@@ -5781,23 +5806,29 @@ nsContentUtils::ReparentClonedObjectToScope(JSContext* cx,
     ReparentObjectData& data = objectData[objectData.Length() - 1];
 
     if (!data.ids && !data.index) {
-      // First, fix the prototype of the object.
-      JSClass* clasp = JS_GET_CLASS(cx, data.obj);
-      JSProtoKey protoKey = JSCLASS_CACHED_PROTO_KEY(clasp);
-      if (!protoKey) {
+      // Typed arrays are special and don't need to be enumerated.
+      if (js_IsTypedArray(data.obj)) {
+        if (!js_ReparentTypedArrayToScope(cx, data.obj, scope)) {
+          return NS_ERROR_FAILURE;
+        }
+
+        // No need to enumerate anything here.
+        objectData.RemoveElementAt(objectData.Length() - 1);
+        continue;
+      }
+
+      JSProtoKey key = JSCLASS_CACHED_PROTO_KEY(JS_GET_CLASS(cx, data.obj));
+      if (!key) {
         // We should never be reparenting an object that doesn't have a standard
         // proto key.
         return NS_ERROR_FAILURE;
       }
 
+      // Fix the prototype and parent first.
       JSObject* proto;
-      if (!js_GetClassPrototype(cx, scope, protoKey, &proto) ||
-          !JS_SetPrototype(cx, data.obj, proto)) {
-        return NS_ERROR_FAILURE;
-      }
-
-      // Adjust the parent.
-      if (!JS_SetParent(cx, data.obj, scope)) {
+      if (!js_GetClassPrototype(cx, scope, key, &proto) ||
+          !JS_SetPrototype(cx, data.obj, proto) ||
+          !JS_SetParent(cx, data.obj, scope)) {
         return NS_ERROR_FAILURE;
       }
 
@@ -5909,8 +5940,9 @@ nsContentUtils::CheckCCWrapperTraversal(nsISupports* aScriptObjectHolder,
 }
 #endif
 
-mozAutoRemovableBlockerRemover::mozAutoRemovableBlockerRemover(nsIDocument* aDocument)
+mozAutoRemovableBlockerRemover::mozAutoRemovableBlockerRemover(nsIDocument* aDocument MOZILLA_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
 {
+  MOZILLA_GUARD_OBJECT_NOTIFIER_INIT;
   mNestingLevel = nsContentUtils::GetRemovableScriptBlockerLevel();
   mDocument = aDocument;
   nsISupports* sink = aDocument ? aDocument->GetCurrentContentSink() : nsnull;
@@ -5936,3 +5968,24 @@ mozAutoRemovableBlockerRemover::~mozAutoRemovableBlockerRemover()
     }
   }
 }
+
+void nsContentUtils::RemoveNewlines(nsString &aString)
+{
+  // strip CR/LF and null
+  static const char badChars[] = {'\r', '\n', 0};
+  aString.StripChars(badChars);
+}
+
+void nsContentUtils::PlatformToDOMLineBreaks(nsString &aString)
+{
+  if (aString.FindChar(PRUnichar('\r')) != -1) {
+    // Windows linebreaks: Map CRLF to LF:
+    aString.ReplaceSubstring(NS_LITERAL_STRING("\r\n").get(),
+                             NS_LITERAL_STRING("\n").get());
+
+    // Mac linebreaks: Map any remaining CR to LF:
+    aString.ReplaceSubstring(NS_LITERAL_STRING("\r").get(),
+                             NS_LITERAL_STRING("\n").get());
+  }
+}
+

@@ -110,6 +110,8 @@
 #include "mozAutoDocUpdate.h"
 #include "nsHTMLFormElement.h"
 
+#include "nsTextEditRules.h"
+
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
@@ -423,6 +425,12 @@ protected:
    */
   nsresult UpdateFileList();
 
+  /**
+   * Determine whether the editor needs to be initialized explicitly for
+   * a particular event.
+   */
+  PRBool NeedToInitializeEditorForEvent(nsEventChainPreVisitor& aVisitor) const;
+
   nsCOMPtr<nsIControllers> mControllers;
 
   /**
@@ -497,6 +505,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_ADDREF_INHERITED(nsHTMLInputElement, nsGenericElement) 
 NS_IMPL_RELEASE_INHERITED(nsHTMLInputElement, nsGenericElement) 
 
+
+DOMCI_DATA(HTMLInputElement, nsHTMLInputElement)
 
 // QueryInterface implementation for nsHTMLInputElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLInputElement)
@@ -872,6 +882,13 @@ nsHTMLInputElement::GetValue(nsAString& aValue)
       } else {
         CopyUTF8toUTF16(mValue, aValue);
       }
+
+      // If the value is not owned by the frame, then we should handle any
+      // exiting newline characters inside it, instead of relying on the
+      // editor to do it for us.
+      nsString value(aValue);
+      nsTextEditRules::HandleNewLines(value, -1);
+      aValue.Assign(value);
     }
 
     return NS_OK;
@@ -999,7 +1016,9 @@ nsHTMLInputElement::TakeTextFrameValue(const nsAString& aValue)
   if (mValue) {
     nsMemory::Free(mValue);
   }
-  mValue = ToNewUTF8String(aValue);
+  nsString value(aValue);
+  nsContentUtils::PlatformToDOMLineBreaks(value);
+  mValue = ToNewUTF8String(value);
   return NS_OK;
 }
 
@@ -1120,9 +1139,8 @@ nsHTMLInputElement::SetValueInternal(const nsAString& aValue,
       // value yet (per OwnsValue()), it will turn around and call
       // TakeTextFrameValue() on us, but will update its display with the new
       // value if needed.
-      formControlFrame->SetFormProperty(
+      return formControlFrame->SetFormProperty(
         aUserInput ? nsGkAtoms::userInput : nsGkAtoms::value, aValue);
-      return NS_OK;
     }
 
     SetValueChanged(PR_TRUE);
@@ -1397,7 +1415,7 @@ nsHTMLInputElement::FireOnChange()
   //
   nsEventStatus status = nsEventStatus_eIgnore;
   nsEvent event(PR_TRUE, NS_FORM_CHANGE);
-  nsCOMPtr<nsPresContext> presContext = GetPresContext();
+  nsRefPtr<nsPresContext> presContext = GetPresContext();
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), presContext,
                               &event, nsnull, &status);
 }
@@ -1455,7 +1473,7 @@ nsHTMLInputElement::Select()
 
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
 
-  nsCOMPtr<nsPresContext> presContext = GetPresContext();
+  nsRefPtr<nsPresContext> presContext = GetPresContext();
   if (state == eInactiveWindow) {
     if (fm)
       fm->SetFocus(this, nsIFocusManager::FLAG_NOSCROLL);
@@ -1536,31 +1554,66 @@ nsHTMLInputElement::Click()
     if (!doc) {
       return rv;
     }
-    
-    nsIPresShell *shell = doc->GetPrimaryShell();
 
+    nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
+    nsRefPtr<nsPresContext> context = nsnull;
     if (shell) {
-      nsCOMPtr<nsPresContext> context = shell->GetPresContext();
+      context = shell->GetPresContext();
+    }
 
-      if (context) {
-        // Click() is never called from native code, but it may be
-        // called from chrome JS. Mark this event trusted if Click()
-        // is called from chrome code.
-        nsMouseEvent event(nsContentUtils::IsCallerChrome(),
-                           NS_MOUSE_CLICK, nsnull, nsMouseEvent::eReal);
-        nsEventStatus status = nsEventStatus_eIgnore;
-
-        SET_BOOLBIT(mBitField, BF_HANDLING_CLICK, PR_TRUE);
-
-        nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), context,
-                                    &event, nsnull, &status);
-
-        SET_BOOLBIT(mBitField, BF_HANDLING_CLICK, PR_FALSE);
+    if (!context) {
+      doc->FlushPendingNotifications(Flush_Frames);
+      shell = doc->GetPrimaryShell();
+      if (shell) {
+        context = shell->GetPresContext();
       }
+    }
+
+    if (context) {
+      // Click() is never called from native code, but it may be
+      // called from chrome JS. Mark this event trusted if Click()
+      // is called from chrome code.
+      nsMouseEvent event(nsContentUtils::IsCallerChrome(),
+                         NS_MOUSE_CLICK, nsnull, nsMouseEvent::eReal);
+      event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_UNKNOWN;
+      nsEventStatus status = nsEventStatus_eIgnore;
+
+      SET_BOOLBIT(mBitField, BF_HANDLING_CLICK, PR_TRUE);
+
+      nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), context,
+                                  &event, nsnull, &status);
+
+      SET_BOOLBIT(mBitField, BF_HANDLING_CLICK, PR_FALSE);
     }
   }
 
   return NS_OK;
+}
+
+PRBool
+nsHTMLInputElement::NeedToInitializeEditorForEvent(nsEventChainPreVisitor& aVisitor) const
+{
+  // We only need to initialize the editor for text input controls because they
+  // are lazily initialized.  We don't need to initialize the control for
+  // certain types of events, because we know that those events are safe to be
+  // handled without the editor being initialized.  These events include:
+  // mousein/move/out, and DOM mutation events.
+  if ((mType == NS_FORM_INPUT_TEXT ||
+       mType == NS_FORM_INPUT_PASSWORD) &&
+      aVisitor.mEvent->eventStructType != NS_MUTATION_EVENT) {
+
+    switch (aVisitor.mEvent->message) {
+    case NS_MOUSE_MOVE:
+    case NS_MOUSE_ENTER:
+    case NS_MOUSE_EXIT:
+    case NS_MOUSE_ENTER_SYNTH:
+    case NS_MOUSE_EXIT_SYNTH:
+      return PR_FALSE;
+      break;
+    }
+    return PR_TRUE;
+  }
+  return PR_FALSE;
 }
 
 nsresult
@@ -1587,6 +1640,13 @@ nsHTMLInputElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
         return NS_OK;
       }
     }
+  }
+
+  // Initialize the editor if needed.
+  if (NeedToInitializeEditorForEvent(aVisitor)) {
+    nsITextControlFrame* textControlFrame = do_QueryFrame(GetPrimaryFrame());
+    if (textControlFrame)
+      textControlFrame->EnsureEditorInitialized();
   }
 
   //FIXME Allow submission etc. also when there is no prescontext, Bug 329509.
@@ -1868,7 +1928,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               fm->GetLastFocusMethod(document->GetWindow(), &lastFocusMethod);
               if (lastFocusMethod &
                   (nsIFocusManager::FLAG_BYKEY | nsIFocusManager::FLAG_BYMOVEFOCUS)) {
-                nsCOMPtr<nsPresContext> presContext = GetPresContext();
+                nsRefPtr<nsPresContext> presContext = GetPresContext();
                 if (DispatchSelectEvent(presContext)) {
                   SelectAll(presContext);
                 }
@@ -1908,6 +1968,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
               {
                 nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
                                    NS_MOUSE_CLICK, nsnull, nsMouseEvent::eReal);
+                event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
                 nsEventStatus status = nsEventStatus_eIgnore;
 
                 nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this),
@@ -1943,6 +2004,7 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
                       nsMouseEvent event(NS_IS_TRUSTED_EVENT(aVisitor.mEvent),
                                          NS_MOUSE_CLICK, nsnull,
                                          nsMouseEvent::eReal);
+                      event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
                       rv = nsEventDispatcher::Dispatch(radioContent,
                                                        aVisitor.mPresContext,
                                                        &event, nsnull, &status);

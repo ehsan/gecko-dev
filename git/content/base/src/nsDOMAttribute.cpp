@@ -109,6 +109,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttribute)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+DOMCI_DATA(Attr, nsDOMAttribute)
+
 // QueryInterface implementation for nsDOMAttribute
 NS_INTERFACE_TABLE_HEAD(nsDOMAttribute)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
@@ -157,7 +160,7 @@ nsDOMAttribute::SetOwnerDocument(nsIDocument* aDocument)
   nsIDocument *doc = GetOwnerDoc();
   NS_ASSERTION(doc != aDocument, "bad call to nsDOMAttribute::SetOwnerDocument");
   if (doc) {
-    doc->PropertyTable()->DeleteAllPropertiesFor(this);
+    doc->DeleteAllPropertiesFor(this);
   }
 
   nsCOMPtr<nsINodeInfo> newNodeInfo;
@@ -539,9 +542,10 @@ NS_IMETHODIMP
 nsDOMAttribute::IsEqualNode(nsIDOMNode* aOther,
                             PRBool* aReturn)
 {
-  NS_ENSURE_ARG_POINTER(aOther);
-
   *aReturn = PR_FALSE;
+
+  if (!aOther)
+    return NS_OK;
 
   // Node type check by QI.  We also reuse this later.
   nsCOMPtr<nsIAttribute> aOtherAttr = do_QueryInterface(aOther);

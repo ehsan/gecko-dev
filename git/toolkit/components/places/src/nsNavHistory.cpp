@@ -197,17 +197,13 @@ static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
 // Max number of containers, used to initialize the params hash.
 #define HISTORY_DATE_CONT_MAX 10
 
+// Observed topics.
 #ifdef MOZ_XUL
 #define TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING "autocomplete-will-enter-text"
-#define TOPIC_AUTOCOMPLETE_FEEDBACK_UPDATED "places-autocomplete-feedback-updated"
 #endif
-#define TOPIC_XPCOM_SHUTDOWN "xpcom-shutdown"
 #define TOPIC_IDLE_DAILY "idle-daily"
-#define TOPIC_DATABASE_VACUUM_STARTING "places-vacuum-starting"
-#define TOPIC_DATABASE_LOCKED "places-database-locked"
-#define TOPIC_PLACES_INIT_COMPLETE "places-init-complete"
 #define TOPIC_PREF_CHANGED "nsPref:changed"
-
+#define TOPIC_GLOBAL_SHUTDOWN "profile-before-change"
 
 NS_IMPL_THREADSAFE_ADDREF(nsNavHistory)
 NS_IMPL_THREADSAFE_RELEASE(nsNavHistory)
@@ -385,7 +381,7 @@ PLACES_FACTORY_SINGLETON_IMPLEMENTATION(nsNavHistory, gHistoryService)
 
 nsNavHistory::nsNavHistory()
 : mBatchLevel(0)
-, mBatchHasTransaction(PR_FALSE)
+, mBatchDBTransaction(nsnull)
 , mCachedNow(0)
 , mExpireNowTimer(nsnull)
 , mLastSessionID(0)
@@ -486,7 +482,7 @@ nsNavHistory::Init()
   nsCOMPtr<nsIObserverService> obsSvc =
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
   if (obsSvc) {
-    (void)obsSvc->AddObserver(this, TOPIC_XPCOM_SHUTDOWN, PR_FALSE);
+    (void)obsSvc->AddObserver(this, TOPIC_GLOBAL_SHUTDOWN, PR_FALSE);
     (void)obsSvc->AddObserver(this, TOPIC_IDLE_DAILY, PR_FALSE);
     (void)obsSvc->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
 #ifdef MOZ_XUL
@@ -991,6 +987,13 @@ nsNavHistory::InitTempTables()
   rv = mDBConn->ExecuteSimpleSQL(CREATE_MOZ_HISTORYVISITS_SYNC_TRIGGER);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  // moz_openpages_temp
+  rv = mDBConn->ExecuteSimpleSQL(CREATE_MOZ_OPENPAGES_TEMP);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mDBConn->ExecuteSimpleSQL(CREATE_REMOVEOPENPAGE_CLEANUP_TRIGGER);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 
@@ -1217,6 +1220,27 @@ nsNavHistory::InitStatements()
       "WHERE url = ?2"),
     getter_AddRefs(mDBSetPlaceTitle));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // mDBRegisterOpenPage
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+      "INSERT OR REPLACE INTO moz_openpages_temp (place_id, open_count) "
+      "VALUES (?1, "
+        "IFNULL("
+          "(SELECT open_count + 1 FROM moz_openpages_temp WHERE place_id = ?1), "
+          "1"
+        ")"
+      ")"),
+    getter_AddRefs(mDBRegisterOpenPage));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // mDBUnregisterOpenPage
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+      "UPDATE moz_openpages_temp "
+      "SET open_count = open_count - 1 "
+      "WHERE place_id = ?1"),
+    getter_AddRefs(mDBUnregisterOpenPage));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // mDBVisitsForFrecency
   // NOTE: This is not limited to visits with "visit_type NOT IN (0,4,7,8)"
   // because otherwise mDBVisitsForFrecency would return no visits
@@ -4256,11 +4280,7 @@ nsresult
 nsNavHistory::BeginUpdateBatch()
 {
   if (mBatchLevel++ == 0) {
-    PRBool transactionInProgress = PR_TRUE; // default to no transaction on err
-    mDBConn->GetTransactionInProgress(&transactionInProgress);
-    mBatchHasTransaction = ! transactionInProgress;
-    if (mBatchHasTransaction)
-      mDBConn->BeginTransaction();
+    mBatchDBTransaction = new mozStorageTransaction(mDBConn, PR_FALSE);
 
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavHistoryObserver, OnBeginUpdateBatch());
@@ -4273,9 +4293,13 @@ nsresult
 nsNavHistory::EndUpdateBatch()
 {
   if (--mBatchLevel == 0) {
-    if (mBatchHasTransaction)
-      mDBConn->CommitTransaction();
-    mBatchHasTransaction = PR_FALSE;
+    if (mBatchDBTransaction) {
+      nsresult rv = mBatchDBTransaction->Commit();
+      NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Batch failed to commit transaction");
+      delete mBatchDBTransaction;
+      mBatchDBTransaction = nsnull;
+    }
+
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavHistoryObserver, OnEndUpdateBatch());
   }
@@ -5035,6 +5059,72 @@ nsNavHistory::MarkPageAsFollowedLink(nsIURI *aURI)
 }
 
 
+NS_IMETHODIMP
+nsNavHistory::RegisterOpenPage(nsIURI* aURI)
+{
+  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
+  NS_ENSURE_ARG(aURI);
+
+  // Don't add any pages while in Private Browsing mode, so as to avoid leaking
+  // information about other windows that might otherwise stay hidden
+  // and private.
+  if (InPrivateBrowsingMode())
+    return NS_OK;
+
+  PRBool canAdd = PR_FALSE;
+  nsresult rv = CanAddURI(aURI, &canAdd);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  PRInt64 placeId;
+  // Note: If the URI has never been added to history (but can be added),
+  // LAZY_ADD will cause this to add an orphan page, until the visit is added.
+  rv = GetUrlIdFor(aURI, &placeId, canAdd);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (placeId == 0)
+    return NS_OK;
+
+  mozStorageStatementScoper scoper(mDBRegisterOpenPage);
+
+  rv = mDBRegisterOpenPage->BindInt64Parameter(0, placeId);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mDBRegisterOpenPage->Execute();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsNavHistory::UnregisterOpenPage(nsIURI* aURI)
+{
+  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
+  NS_ENSURE_ARG(aURI);
+
+  // Entering Private Browsing mode will unregister all open pages, therefore
+  // there shouldn't be anything in the moz_openpages_temp table. So we can stop
+  // now without doing any unnecessary work.
+  if (InPrivateBrowsingMode())
+    return NS_OK;
+
+  PRInt64 placeId;
+  nsresult rv = GetUrlIdFor(aURI, &placeId, PR_FALSE);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (placeId == 0)
+    return NS_OK;
+
+  mozStorageStatementScoper scoper(mDBUnregisterOpenPage);
+
+  rv = mDBUnregisterOpenPage->BindInt64Parameter(0, placeId);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = mDBUnregisterOpenPage->Execute();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+
 // nsNavHistory::SetCharsetForURI
 //
 // Sets the character-set for a URI.
@@ -5611,33 +5701,32 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
-  if (strcmp(aTopic, TOPIC_XPCOM_SHUTDOWN) == 0) {
+  if (strcmp(aTopic, TOPIC_GLOBAL_SHUTDOWN) == 0) {
     nsCOMPtr<nsIObserverService> os =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
     if (os) {
       os->RemoveObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC);
       os->RemoveObserver(this, TOPIC_IDLE_DAILY);
-      os->RemoveObserver(this, TOPIC_XPCOM_SHUTDOWN);
+      os->RemoveObserver(this, TOPIC_GLOBAL_SHUTDOWN);
 #ifdef MOZ_XUL
       os->RemoveObserver(this, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING);
 #endif
+
+      // Notify that Places is shutting down.
+      os->NotifyObservers(nsnull, TOPIC_PLACES_SHUTDOWN, nsnull);
     }
 
-    // If xpcom-shutdown is called in the same scope as the service init, we
-    // should immediately serve the places-init topic, this way topic observers
+    // If shutdown happens in the same scope as the service init, we should
+    // immediately serve the places-init topic, this way topic observers
     // won't try to access the database after xpcom-shutdown.
     nsCOMPtr<nsISimpleEnumerator> e;
     nsresult rv = os->EnumerateObservers(TOPIC_PLACES_INIT_COMPLETE,
                                          getter_AddRefs(e));
     if (NS_SUCCEEDED(rv) && e) {
       // This covers a special case that can happen in tests, if the test
-      // does never interrupt the main thread we could receive xpcom-shutdown
-      // before we fire any notification, that means that if we notify now
-      // we will init the category cache after xpcom-shutdown, category
-      // observing services will be then initialized and leaked.
-      // We could shutdown earlier (see bug 529821) but also in such a case
-      // we could have async statements trying to notify after xpcom-shutdown,
-      // so, for now, we just avoid to notify from now on.
+      // does never interrupt the main thread we could shutdown
+      // before we fire any notification.  That means that if we notify from now
+      // on, we could init the category cache after xpcom-shutdown and leak.
       mCanNotify = false;
 
       nsCOMPtr<nsIObserver> observer;
@@ -5718,7 +5807,7 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
   }
   else if (strcmp(aTopic, TOPIC_IDLE_DAILY) == 0) {
     // Ensure our connection is still alive.  The idle-daily observer is removed
-    // on xpcom-shutdown, but we could have closed the connection earlier due
+    // on shutdown, but we could have closed the connection earlier due
     // to errors or during normal shutdown process.
     NS_ENSURE_TRUE(mDBConn, NS_OK);
 
@@ -5853,7 +5942,7 @@ nsNavHistory::VacuumDatabase()
       getter_AddRefs(journalToDefault));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    mozIStorageStatement *stmts[] = {
+    mozIStorageBaseStatement *stmts[] = {
       journalToMemory,
       vacuum,
       journalToDefault
@@ -5907,7 +5996,7 @@ nsNavHistory::DecayFrecency()
     getter_AddRefs(deleteAdaptive));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mozIStorageStatement *stmts[] = {
+  mozIStorageBaseStatement *stmts[] = {
     decayFrecency,
     decayAdaptive,
     deleteAdaptive
@@ -5924,18 +6013,19 @@ nsNavHistory::DecayFrecency()
 
 #ifdef LAZY_ADD
 
-// nsNavHistory::AddLazyLoadFaviconMessage
-
 nsresult
-nsNavHistory::AddLazyLoadFaviconMessage(nsIURI* aPage, nsIURI* aFavicon,
-                                        PRBool aForceReload)
+nsNavHistory::AddLazyLoadFaviconMessage(nsIURI* aPageURI,
+                                        nsIURI* aFaviconURI,
+                                        PRBool aForceReload,
+                                        nsIFaviconDataCallback* aCallback)
 {
   LazyMessage message;
-  nsresult rv = message.Init(LazyMessage::Type_Favicon, aPage);
+  nsresult rv = message.Init(LazyMessage::Type_Favicon, aPageURI);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = aFavicon->Clone(getter_AddRefs(message.favicon));
+  rv = aFaviconURI->Clone(getter_AddRefs(message.favicon));
   NS_ENSURE_SUCCESS(rv, rv);
   message.alwaysLoadFavicon = aForceReload;
+  message.callback = aCallback;
   return AddLazyMessage(message);
 }
 
@@ -6017,14 +6107,15 @@ nsNavHistory::CommitLazyMessages(PRBool aIsShutdown)
         SetPageTitleInternal(message.uri, message.title);
         break;
       case LazyMessage::Type_Favicon: {
-        // Favicons cannot use async channels after xpcom-shutdown.
+        // Favicons cannot use async channels after shutdown.
         if (aIsShutdown)
           continue;
         nsFaviconService* faviconService = nsFaviconService::GetFaviconService();
         if (faviconService) {
           faviconService->DoSetAndLoadFaviconForPage(message.uri,
                                                      message.favicon,
-                                                     message.alwaysLoadFavicon);
+                                                     message.alwaysLoadFavicon,
+                                                     message.callback);
         }
         break;
       }
@@ -7003,7 +7094,10 @@ nsNavHistory::VisitIdToResultNode(PRInt64 visitId,
     return NS_ERROR_INVALID_ARG;
   }
 
-  return RowToResult(statement, aOptions, aResult);
+  nsCOMPtr<mozIStorageValueArray> row = do_QueryInterface(statement, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return RowToResult(row, aOptions, aResult);
 }
 
 nsresult
@@ -7024,7 +7118,10 @@ nsNavHistory::BookmarkIdToResultNode(PRInt64 aBookmarkId, nsNavHistoryQueryOptio
     return NS_ERROR_INVALID_ARG;
   }
 
-  return RowToResult(stmt, aOptions, aResult);
+  nsCOMPtr<mozIStorageValueArray> row = do_QueryInterface(stmt, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return RowToResult(row, aOptions, aResult);
 }
 
 void
@@ -8154,6 +8251,8 @@ nsNavHistory::FinalizeStatements() {
     mDBUpdateFrecencyAndHidden,
     mDBGetPlaceVisitStats,
     mDBFullVisitCount,
+    mDBRegisterOpenPage,
+    mDBUnregisterOpenPage,
   };
 
   for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(stmts); i++) {

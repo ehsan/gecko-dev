@@ -1009,8 +1009,9 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
 
   // Paint the border
   nsRecessedBorder recessedBorder(borderEdgeWidth, PresContext());
-  nsCSSRendering::PaintBorder(PresContext(), aRenderingContext, this, inner,
-                              inner, recessedBorder, mStyleContext);
+  nsCSSRendering::PaintBorderWithStyleBorder(PresContext(), aRenderingContext,
+                                             this, inner, inner,
+                                             recessedBorder, mStyleContext);
 
   // Adjust the inner rect to account for the one pixel recessed border,
   // and a six pixel padding on each edge
@@ -1258,12 +1259,9 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 
   // XXX what on EARTH is this code for?
-  PRInt16 displaySelection = 0;
   nsresult result;
   nsPresContext* presContext = PresContext();
-  result = presContext->PresShell()->GetSelectionFlags(&displaySelection);
-  if (NS_FAILED(result))
-    return result;
+  PRInt16 displaySelection = presContext->PresShell()->GetSelectionFlags();
   if (!(displaySelection & nsISelectionDisplay::DISPLAY_IMAGES))
     return NS_OK;//no need to check the blue border, we cannot be drawn selected
 //insert hook here for image selection drawing

@@ -272,6 +272,8 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLDocument, nsDocument)
 NS_IMPL_RELEASE_INHERITED(nsHTMLDocument, nsDocument)
 
 
+DOMCI_DATA(HTMLDocument, nsHTMLDocument)
+
 // QueryInterface implementation for nsHTMLDocument
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLDocument)
   NS_DOCUMENT_INTERFACE_TABLE_BEGIN(nsHTMLDocument)
@@ -1849,7 +1851,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   if (!IsHTML() || mDisableDocWrite) {
     // No calling document.open() on XHTML
 
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
   PRBool loadAsHtml5 = nsHtml5Module::sEnabled;
@@ -1937,6 +1939,12 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 
     nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(shell));
     webnav->Stop(nsIWebNavigation::STOP_NETWORK);
+
+    // The Stop call may have cancelled the onload blocker request or prevented
+    // it from getting added, so we need to make sure it gets added to the
+    // document again otherwise the document could have a non-zero onload block
+    // count without the onload blocker request being in the loadgroup.
+    EnsureOnloadBlocker();
   }
 
   // The open occurred after the document finished loading.
@@ -2099,7 +2107,7 @@ nsHTMLDocument::Close()
   if (!IsHTML()) {
     // No calling document.close() on XHTML!
 
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
   nsresult rv = NS_OK;
@@ -2164,7 +2172,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
   if (!IsHTML() || mDisableDocWrite) {
     // No calling document.write*() on XHTML!
 
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
 
   nsresult rv = NS_OK;

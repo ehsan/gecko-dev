@@ -41,7 +41,6 @@
 #include "nsParserCIID.h"
 #include "nsIParser.h"
 #include "nsIXMLContentSink.h"
-#include "nsIPresShell.h"
 #include "nsPresContext.h" 
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
@@ -232,6 +231,8 @@ nsXMLDocument::~nsXMLDocument()
   // XXX We rather crash than hang
   mLoopingForSyncLoad = PR_FALSE;
 }
+
+DOMCI_DATA(XMLDocument, nsXMLDocument)
 
 // QueryInterface implementation for nsXMLDocument
 NS_INTERFACE_TABLE_HEAD(nsXMLDocument)

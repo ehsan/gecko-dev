@@ -89,11 +89,6 @@
 #include <unistd.h>
 #endif
 
-#ifdef MOZ_IPC
-#include "mozilla/dom/ContentProcessParent.h"
-#include "mozilla/ipc/TestShellParent.h"
-#endif
-
 #ifndef XPCONNECT_STANDALONE
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
@@ -113,11 +108,6 @@
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
-#endif
-
-#ifdef MOZ_IPC
-using mozilla::dom::ContentProcessParent;
-using mozilla::ipc::TestShellParent;
 #endif
 
 class XPCShellDirProvider : public nsIDirectoryServiceProvider2
@@ -563,6 +553,19 @@ GC(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
+#ifdef JS_GC_ZEAL
+static JSBool
+GCZeal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
+{
+    uint32 zeal;
+    if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
+        return JS_FALSE;
+
+    JS_SetGCZeal(cx, (PRUint8)zeal);
+    return JS_TRUE;
+}
+#endif
+
 #ifdef DEBUG
 
 static JSBool
@@ -691,6 +694,21 @@ SendCommand(JSContext* cx,
     return JS_TRUE;
 }
 
+static JSBool
+GetChildGlobalObject(JSContext* cx,
+                     JSObject*,
+                     uintN,
+                     jsval*,
+                     jsval* rval)
+{
+    JSObject* global;
+    if (XRE_GetChildGlobalObject(cx, &global)) {
+        *rval = OBJECT_TO_JSVAL(global);
+        return JS_TRUE;
+    }
+    return JS_FALSE;
+}
+
 #endif // MOZ_IPC
 
 /*
@@ -801,6 +819,9 @@ static JSFunctionSpec glob_functions[] = {
     {"dumpXPC",         DumpXPC,        1,0,0},
     {"dump",            Dump,           1,0,0},
     {"gc",              GC,             0,0,0},
+#ifdef JS_GC_ZEAL
+    {"gczeal",          GCZeal,         1,0,0},
+#endif
     {"clear",           Clear,          1,0,0},
     {"options",         Options,        0,0,0},
 #ifdef DEBUG
@@ -808,6 +829,7 @@ static JSFunctionSpec glob_functions[] = {
 #endif
 #ifdef MOZ_IPC
     {"sendCommand",     SendCommand,    1,0,0},
+    {"getChildGlobalObject", GetChildGlobalObject, 0,0,0},
 #endif
 #ifdef MOZ_SHARK
     {"startShark",      js_StartShark,      0,0,0},

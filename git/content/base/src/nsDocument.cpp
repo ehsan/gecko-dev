@@ -477,6 +477,8 @@ nsDOMStyleSheetList::~nsDOMStyleSheetList()
   }
 }
 
+DOMCI_DATA(StyleSheetList, nsDOMStyleSheetList)
+
 // XXX couldn't we use the GetIIDs method from CSSStyleSheetList here?
 // QueryInterface implementation for nsDOMStyleSheetList
 NS_INTERFACE_TABLE_HEAD(nsDOMStyleSheetList)
@@ -1269,6 +1271,8 @@ nsDOMImplementation::~nsDOMImplementation()
 {
 }
 
+DOMCI_DATA(DOMImplementation, nsDOMImplementation)
+
 // QueryInterface implementation for nsDOMImplementation
 NS_INTERFACE_MAP_BEGIN(nsDOMImplementation)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMImplementation)
@@ -1780,6 +1784,32 @@ nsDocument::Init()
   NS_ENSURE_TRUE(mScriptLoader, NS_ERROR_OUT_OF_MEMORY);
 
   return NS_OK;
+}
+
+void 
+nsIDocument::DeleteAllProperties()
+{
+  for (PRUint32 i = 0; i < GetPropertyTableCount(); ++i) {
+    PropertyTable(i)->DeleteAllProperties();
+  }
+}
+
+void
+nsIDocument::DeleteAllPropertiesFor(nsINode* aNode)
+{
+  for (PRUint32 i = 0; i < GetPropertyTableCount(); ++i) {
+    PropertyTable(i)->DeleteAllPropertiesFor(aNode);
+  }
+}
+
+nsPropertyTable*
+nsIDocument::GetExtraPropertyTable(PRUint16 aCategory)
+{
+  NS_ASSERTION(aCategory > 0, "Category 0 should have already been handled");
+  while (aCategory - 1 >= mExtraPropertyTables.Length()) {
+    mExtraPropertyTables.AppendElement(new nsPropertyTable());
+  }
+  return mExtraPropertyTables[aCategory - 1];
 }
 
 nsresult
@@ -2622,13 +2652,13 @@ nsDocument::GetActiveElement(nsIDOMElement **aElement)
 }
 
 NS_IMETHODIMP
-nsDocument::ElementFromPoint(PRInt32 aX, PRInt32 aY, nsIDOMElement** aReturn)
+nsDocument::ElementFromPoint(float aX, float aY, nsIDOMElement** aReturn)
 {
   return ElementFromPointHelper(aX, aY, PR_FALSE, PR_TRUE, aReturn);
 }
 
 nsresult
-nsDocument::ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
+nsDocument::ElementFromPointHelper(float aX, float aY,
                                    PRBool aIgnoreRootScrollFrame,
                                    PRBool aFlushLayout,
                                    nsIDOMElement** aReturn)
@@ -2683,6 +2713,94 @@ nsDocument::ElementFromPointHelper(PRInt32 aX, PRInt32 aY,
  
   if (ptContent)
     CallQueryInterface(ptContent, aReturn);
+  return NS_OK;
+}
+
+nsresult
+nsDocument::NodesFromRectHelper(float aX, float aY,
+                                float aTopSize, float aRightSize,
+                                float aBottomSize, float aLeftSize,
+                                PRBool aIgnoreRootScrollFrame,
+                                PRBool aFlushLayout,
+                                nsIDOMNodeList** aReturn)
+{
+  NS_ENSURE_ARG_POINTER(aReturn);
+  
+  nsBaseContentList* elements = new nsBaseContentList();
+  NS_ADDREF(elements);
+  *aReturn = elements;
+
+  // Following the same behavior of elementFromPoint,
+  // we don't return anything if either coord is negative
+  if (!aIgnoreRootScrollFrame && (aX < 0 || aY < 0))
+    return NS_OK;
+
+  nscoord x = nsPresContext::CSSPixelsToAppUnits(aX - aLeftSize);
+  nscoord y = nsPresContext::CSSPixelsToAppUnits(aY - aTopSize);
+  nscoord w = nsPresContext::CSSPixelsToAppUnits(aLeftSize + aRightSize) + 1;
+  nscoord h = nsPresContext::CSSPixelsToAppUnits(aTopSize + aBottomSize) + 1;
+
+  nsRect rect(x, y, w, h);
+
+  // Make sure the layout information we get is up-to-date, and
+  // ensure we get a root frame (for everything but XUL)
+  if (aFlushLayout) {
+    FlushPendingNotifications(Flush_Layout);
+  }
+
+  nsIPresShell *ps = GetPrimaryShell();
+  NS_ENSURE_STATE(ps);
+  nsIFrame *rootFrame = ps->GetRootFrame();
+
+  // XUL docs, unlike HTML, have no frame tree until everything's done loading
+  if (!rootFrame)
+    return NS_OK; // return nothing to premature XUL callers as a reminder to wait
+
+  nsTArray<nsIFrame*> outFrames;
+  nsLayoutUtils::GetFramesForArea(rootFrame, rect, outFrames,
+                                  PR_TRUE, aIgnoreRootScrollFrame);
+
+  PRInt32 length = outFrames.Length();
+  if (!length)
+    return NS_OK;
+
+  // Used to filter out repeated elements in sequence.
+  nsIContent* lastAdded = nsnull;
+
+  for (PRInt32 i = 0; i < length; i++) {
+
+    nsIContent* ptContent = outFrames.ElementAt(i)->GetContent();
+    NS_ENSURE_STATE(ptContent);
+
+    // If the content is in a subdocument, try to get the element from |this| doc
+    nsIDocument *currentDoc = ptContent->GetCurrentDoc();
+    if (currentDoc && (currentDoc != this)) {
+      // XXX felipe: I can't get this type right without the intermediate vars
+      nsCOMPtr<nsIDOMElement> x = CheckAncestryAndGetFrame(currentDoc);
+      nsCOMPtr<nsIContent> elementDoc = do_QueryInterface(x);
+      if (elementDoc != lastAdded) {
+        elements->AppendElement(elementDoc);
+        lastAdded = elementDoc;
+      }
+      continue;
+    }
+
+    // If we have an anonymous element (such as an internal div from a textbox),
+    // or a node that isn't an element or a text node,
+    // replace it with the first non-anonymous parent node.
+    while (ptContent &&
+           (!(ptContent->IsNodeOfType(nsINode::eELEMENT) ||
+              ptContent->IsNodeOfType(nsINode::eTEXT)) ||
+            ptContent->IsInAnonymousSubtree())) {
+      // XXXldb: Faster to jump to GetBindingParent if non-null?
+      ptContent = ptContent->GetParent();
+    }
+   
+    if (ptContent && ptContent != lastAdded) {
+      elements->AppendElement(ptContent);
+      lastAdded = ptContent;
+    }
+  }
   return NS_OK;
 }
 
@@ -2795,48 +2913,45 @@ nsDocument::ReleaseCapture()
 nsresult
 nsDocument::SetBaseURI(nsIURI* aURI)
 {
-  nsresult rv = NS_OK;
-
-  nsCOMPtr<nsIURI> oldBase = nsIDocument::GetBaseURI();
-  if (aURI) {
-    rv = nsContentUtils::GetSecurityManager()->
-      CheckLoadURIWithPrincipal(NodePrincipal(), aURI,
-                                nsIScriptSecurityManager::STANDARD);
-    if (NS_SUCCEEDED(rv)) {
-      mDocumentBaseURI = NS_TryToMakeImmutable(aURI);
+  if (!aURI && !mDocumentBaseURI) {
+    return NS_OK;
+  }
+  
+  // Don't do anything if the URI wasn't actually changed.
+  if (aURI && mDocumentBaseURI) {
+    PRBool equalBases = PR_FALSE;
+    mDocumentBaseURI->Equals(aURI, &equalBases);
+    if (equalBases) {
+      return NS_OK;
     }
+  }
+
+  if (aURI) {
+    mDocumentBaseURI = NS_TryToMakeImmutable(aURI);
   } else {
     mDocumentBaseURI = nsnull;
   }
+  RefreshLinkHrefs();
 
-  nsIURI* newBase = nsIDocument::GetBaseURI();
-  PRBool equalBases = PR_FALSE;
-  if (oldBase && newBase) {
-    oldBase->Equals(newBase, &equalBases);
-  }
-  else {
-    equalBases = !oldBase && !newBase;
-  }
-
-  // If the document's base URI has changed, we need to re-resolve all the
-  // cached link hrefs relative to the new base.
-  if (!equalBases) {
-    RefreshLinkHrefs();
-  }
-
-  return rv;
+  return NS_OK;
 }
 
 void
-nsDocument::GetBaseTarget(nsAString &aBaseTarget) const
+nsDocument::GetBaseTarget(nsAString &aBaseTarget)
 {
-  aBaseTarget.Assign(mBaseTarget);
-}
-
-void
-nsDocument::SetBaseTarget(const nsAString &aBaseTarget)
-{
-  mBaseTarget.Assign(aBaseTarget);
+  aBaseTarget.Truncate();
+  nsIContent* head = GetHeadContent();
+  if (!head) {
+    return;
+  }
+  
+  for (ChildIterator iter(head); !iter.IsDone(); iter.Next()) {
+    nsIContent* child = iter;
+    if (child->NodeInfo()->Equals(nsGkAtoms::base, kNameSpaceID_XHTML) &&
+        child->GetAttr(kNameSpaceID_None, nsGkAtoms::target, aBaseTarget)) {
+      return;
+    }
+  }
 }
 
 void
@@ -3718,11 +3833,10 @@ nsDocument::GetWindow()
 }
 
 nsPIDOMWindow *
-nsDocument::GetInnerWindow()
+nsDocument::GetInnerWindowInternal()
 {
-  if (!mRemovedFromDocShell) {
-    return mWindow;
-  }
+  NS_ASSERTION(mRemovedFromDocShell,
+               "This document should have been removed from docshell!");
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
@@ -3998,7 +4112,7 @@ nsDocument::DispatchContentLoadedEvents()
 
           nsIPresShell *shell = parent->GetPrimaryShell();
           if (shell) {
-            nsCOMPtr<nsPresContext> context = shell->GetPresContext();
+            nsRefPtr<nsPresContext> context = shell->GetPresContext();
 
             if (context) {
               nsEventDispatcher::Dispatch(parent, context, innerEvent, event,
@@ -4053,6 +4167,16 @@ nsDocument::ContentStatesChanged(nsIContent* aContent1, nsIContent* aContent2,
 {
   NS_DOCUMENT_NOTIFY_OBSERVERS(ContentStatesChanged,
                                (this, aContent1, aContent2, aStateMask));
+}
+
+void
+nsDocument::DocumentStatesChanged(PRInt32 aStateMask)
+{
+  // Invalidate our cached state.
+  mGotDocumentState &= ~aStateMask;
+  mDocumentState &= ~aStateMask;
+
+  NS_DOCUMENT_NOTIFY_OBSERVERS(DocumentStatesChanged, (this, aStateMask));
 }
 
 void
@@ -5658,9 +5782,10 @@ nsDocument::IsSameNode(nsIDOMNode* aOther, PRBool* aReturn)
 NS_IMETHODIMP
 nsDocument::IsEqualNode(nsIDOMNode* aOther, PRBool* aReturn)
 {
-  NS_ENSURE_ARG_POINTER(aOther);
-
   *aReturn = PR_FALSE;
+
+  if (!aOther)
+    return NS_OK;
 
   // Node type check by QI.  We also reuse this later.
   nsCOMPtr<nsIDocument> aOtherDoc = do_QueryInterface(aOther);
@@ -6018,34 +6143,39 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
     BlastSubtreeToPieces(adoptedNode);
 
     if (!sameDocument && oldDocument) {
-      PRUint32 i, count = nodesWithProperties.Count();
-      for (i = 0; i < count; ++i) {
-        // Remove all properties.
-        oldDocument->PropertyTable()->
-          DeleteAllPropertiesFor(nodesWithProperties[i]);
+      PRUint32 count = nodesWithProperties.Count();
+      for (PRUint32 j = 0; j < oldDocument->GetPropertyTableCount(); ++j) {
+        for (PRUint32 i = 0; i < count; ++i) {
+          // Remove all properties.
+          oldDocument->PropertyTable(j)->
+            DeleteAllPropertiesFor(nodesWithProperties[i]);
+        }
       }
     }
 
     return rv;
   }
 
-  PRUint32 i, count = nodesWithProperties.Count();
+  PRUint32 count = nodesWithProperties.Count();
   if (!sameDocument && oldDocument) {
-    nsPropertyTable *oldTable = oldDocument->PropertyTable();
-    nsPropertyTable *newTable = PropertyTable();
-    for (i = 0; i < count; ++i) {
-      rv = oldTable->TransferOrDeleteAllPropertiesFor(nodesWithProperties[i],
-                                                      newTable);
-      if (NS_FAILED(rv)) {
-        while (++i < count) {
+    for (PRUint32 j = 0; j < oldDocument->GetPropertyTableCount(); ++j) {
+      nsPropertyTable *oldTable = oldDocument->PropertyTable(j);
+      nsPropertyTable *newTable = PropertyTable(j);
+      for (PRUint32 i = 0; i < count; ++i) {
+        if (NS_SUCCEEDED(rv)) {
+          rv = oldTable->TransferOrDeleteAllPropertiesFor(nodesWithProperties[i],
+                                                          newTable);
+        } else {
           oldTable->DeleteAllPropertiesFor(nodesWithProperties[i]);
         }
-
-        // Disconnect all nodes from their parents.
-        BlastSubtreeToPieces(adoptedNode);
-
-        return rv;
       }
+    }
+
+    if (NS_FAILED(rv)) {
+      // Disconnect all nodes from their parents.
+      BlastSubtreeToPieces(adoptedNode);
+
+      return rv;
     }
   }
 
@@ -6187,7 +6317,7 @@ nsDocument::DispatchEvent(nsIDOMEvent* aEvent, PRBool *_retval)
 {
   // Obtain a presentation context
   nsIPresShell *shell = GetPrimaryShell();
-  nsCOMPtr<nsPresContext> context;
+  nsRefPtr<nsPresContext> context;
   if (shell) {
      context = shell->GetPresContext();
   }
@@ -6340,6 +6470,26 @@ nsDocument::FlushPendingNotifications(mozFlushType aType)
   if (shell) {
     shell->FlushPendingNotifications(aType);
   }
+}
+
+static PRBool
+Flush(nsIDocument* aDocument, void* aData)
+{
+  const mozFlushType* type = static_cast<const mozFlushType*>(aData);
+  aDocument->FlushPendingNotifications(*type);
+  return PR_TRUE;
+}
+
+void
+nsDocument::FlushExternalResources(mozFlushType aType)
+{
+  NS_ASSERTION(aType >= Flush_Style,
+    "should only need to flush for style or higher in external resources");
+
+  if (GetDisplayDocument()) {
+    return;
+  }
+  EnumerateExternalResources(Flush, &aType);
 }
 
 nsIScriptEventManager*
@@ -6642,7 +6792,7 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
       "refresh",
       "x-dns-prefetch-control",
       "x-content-security-policy",
-      "x-content-security-policy-read-only",
+      "x-content-security-policy-report-only",
       // add more http headers if you need
       // XXXbz don't add content-location support without reading bug
       // 238654 and its dependencies/dups first.
@@ -6746,12 +6896,11 @@ nsDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
 PRBool
 nsDocument::IsSafeToFlush() const
 {
-  PRBool isSafeToFlush = PR_TRUE;
   nsCOMPtr<nsIPresShell> shell = GetPrimaryShell();
-  if (shell) {
-    shell->IsSafeToFlush(isSafeToFlush);
-  }
-  return isSafeToFlush;
+  if (!shell)
+    return PR_TRUE;
+
+  return shell->IsSafeToFlush();
 }
 
 nsresult
@@ -6997,6 +7146,34 @@ nsDocument::GetLayoutHistoryState() const
   }
 
   return state;
+}
+
+void
+nsDocument::EnsureOnloadBlocker()
+{
+  // If mScriptGlobalObject is null, we shouldn't be messing with the loadgroup
+  // -- it's not ours.
+  if (mOnloadBlockCount != 0 && mScriptGlobalObject) {
+    nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
+    if (loadGroup) {
+      // Check first to see if mOnloadBlocker is in the loadgroup.
+      nsCOMPtr<nsISimpleEnumerator> requests;
+      loadGroup->GetRequests(getter_AddRefs(requests));
+
+      PRBool hasMore = PR_FALSE;
+      while (NS_SUCCEEDED(requests->HasMoreElements(&hasMore)) && hasMore) {
+        nsCOMPtr<nsISupports> elem;
+        requests->GetNext(getter_AddRefs(elem));
+        nsCOMPtr<nsIRequest> request = do_QueryInterface(elem);
+        if (request && request == mOnloadBlocker) {
+          return;
+        }
+      }
+
+      // Not in the loadgroup, so add it.
+      loadGroup->AddRequest(mOnloadBlocker, nsnull);
+    }
+  }
 }
 
 void
@@ -7392,48 +7569,6 @@ nsDocument::RefreshLinkHrefs()
   }
 }
 
-nsIContent*
-nsDocument::GetFirstBaseNodeWithHref()
-{
-  return mFirstBaseNodeWithHref;
-}
-
-nsresult
-nsDocument::SetFirstBaseNodeWithHref(nsIContent *elem)
-{
-  mFirstBaseNodeWithHref = elem;
-
-  if (!elem) {
-    SetBaseURI(nsnull);
-    return NS_OK;
-  }
-
-  NS_ASSERTION(elem->Tag() == nsGkAtoms::base,
-               "Setting base node to a non <base> element?");
-  NS_ASSERTION(elem->GetNameSpaceID() == kNameSpaceID_XHTML,
-               "Setting base node to a non XHTML element?");
-
-  nsIDocument* doc = elem->GetOwnerDoc();
-  nsIURI* currentURI = nsIDocument::GetDocumentURI();
-
-  // Resolve the <base> element's href relative to our current URI
-  nsAutoString href;
-  PRBool hasHref = elem->GetAttr(kNameSpaceID_None, nsGkAtoms::href, href);
-  NS_ASSERTION(hasHref,
-               "Setting first base node to a node with no href attr?");
-
-  nsCOMPtr<nsIURI> newBaseURI;
-  nsContentUtils::NewURIWithDocumentCharset(
-    getter_AddRefs(newBaseURI), href, doc, currentURI);
-
-  // Try to set our base URI.  If that fails, try to set our base URI to null.
-  nsresult rv =  SetBaseURI(newBaseURI);
-  if (NS_FAILED(rv)) {
-    return SetBaseURI(nsnull);
-  }
-  return rv;
-}
-
 NS_IMETHODIMP
 nsDocument::GetScriptTypeID(PRUint32 *aScriptType)
 {
@@ -7615,6 +7750,26 @@ nsDocument::MaybePreLoadImage(nsIURI* uri)
   if (NS_SUCCEEDED(rv)) {
     mPreloadingImages.AppendObject(request);
   }
+}
+
+PRInt32
+nsDocument::GetDocumentState()
+{
+  if (!(mGotDocumentState & NS_DOCUMENT_STATE_RTL_LOCALE)) {
+    if (IsDocumentRightToLeft()) {
+      mDocumentState |= NS_DOCUMENT_STATE_RTL_LOCALE;
+    }
+    mGotDocumentState |= NS_DOCUMENT_STATE_RTL_LOCALE;
+  }
+  if (!(mGotDocumentState & NS_DOCUMENT_STATE_WINDOW_INACTIVE)) {
+    nsIPresShell* shell = GetPrimaryShell();
+    if (shell && shell->GetPresContext() &&
+        shell->GetPresContext()->IsTopLevelWindowInactive()) {
+      mDocumentState |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
+    }
+    mGotDocumentState |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
+  }
+  return mDocumentState;
 }
 
 namespace {

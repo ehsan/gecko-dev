@@ -83,6 +83,7 @@ public:
     TestShellParent* CreateTestShell();
     bool DestroyTestShell(TestShellParent* aTestShell);
 
+    void ReportChildAlreadyBlocked();
     bool RequestRunToCompletion();
 
     bool IsAlive();
@@ -110,13 +111,12 @@ private:
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
-    virtual bool RecvStartVisitedQuery(const nsCString& aURISpec, nsresult* rv);
-
     mozilla::Monitor mMonitor;
 
     GeckoChildProcessHost* mSubprocess;
 
     int mRunToCompletionDepth;
+    bool mShouldCallUnblockChild;
     nsCOMPtr<nsIThreadObserver> mOldObserver;
 
     bool mIsAlive;
