@@ -11,8 +11,10 @@
 #include <stdlib.h>
 
 #include "mozilla/Attributes.h"
+#include "nsHttp.h"
 #include "nsString.h"
 #include "nsCRT.h"
+#include "prprf.h"
 #include "mozIApplicationClearPrivateDataParams.h"
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"

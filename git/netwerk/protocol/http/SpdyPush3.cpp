@@ -9,10 +9,8 @@
 
 #include <algorithm>
 
+#include "nsDependentString.h"
 #include "SpdyPush3.h"
-#include "PSpdyPush3.h"
-#include "SpdySession3.h"
-#include "nsHttpRequestHead.h"
 
 namespace mozilla {
 namespace net {

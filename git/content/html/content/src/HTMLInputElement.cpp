@@ -101,8 +101,6 @@
 #include "nsIColorPicker.h"
 #include "nsIStringEnumerator.h"
 #include "HTMLSplitOnSpacesTokenizer.h"
-#include "nsIController.h"
-#include "nsIMIMEInfo.h"
 
 // input type=date
 #include "js/Date.h"

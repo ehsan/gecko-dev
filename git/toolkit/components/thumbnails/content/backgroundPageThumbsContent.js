@@ -13,7 +13,12 @@ Cu.import("resource://gre/modules/Services.jsm");
 const backgroundPageThumbsContent = {
 
   init: function () {
-    Services.obs.addObserver(this, "document-element-inserted", true);
+    // Arrange to prevent (most) popup dialogs for this window - popups done
+    // in the parent (eg, auth) aren't prevented, but alert() etc are.
+    let dwu = content.
+                QueryInterface(Ci.nsIInterfaceRequestor).
+                getInterface(Ci.nsIDOMWindowUtils);
+    dwu.preventFurtherDialogs();
 
     // We want a low network priority for this service - lower than b/g tabs
     // etc - so set it to the lowest priority available.
@@ -36,19 +41,6 @@ const backgroundPageThumbsContent = {
       QueryInterface(Ci.nsIInterfaceRequestor).
       getInterface(Ci.nsIWebProgress).
       addProgressListener(this, Ci.nsIWebProgress.NOTIFY_STATE_WINDOW);
-  },
-
-  observe: function (subj, topic, data) {
-    // Arrange to prevent (most) popup dialogs for this window - popups done
-    // in the parent (eg, auth) aren't prevented, but alert() etc are.
-    // preventFurtherDialogs only works on the current inner window, so it has
-    // to be called every page load, but before scripts run.
-    if (subj == content.document) {
-      content.
-        QueryInterface(Ci.nsIInterfaceRequestor).
-        getInterface(Ci.nsIDOMWindowUtils).
-        preventFurtherDialogs();
-    }
   },
 
   get _webNav() {
@@ -110,7 +102,6 @@ const backgroundPageThumbsContent = {
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIWebProgressListener,
     Ci.nsISupportsWeakReference,
-    Ci.nsIObserver,
   ]),
 };
 

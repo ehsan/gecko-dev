@@ -39,16 +39,15 @@ function testGen() {
   outputNode.focus();
 
   scrollBox.onscroll = () => {
-    info("onscroll top " + scrollBox.scrollTop);
-    if (scrollBox.scrollTop != 0) {
+    if (scrollBox.scrollTop == 0) {
       // Wait for scroll to 0.
       return;
     }
     scrollBox.onscroll = null;
-    is(scrollBox.scrollTop, 0, "scroll location updated (moved to top)");
+    isnot(scrollBox.scrollTop, 0, "scroll location updated (moved to top)");
     testNext();
   };
-  EventUtils.synthesizeKey("VK_HOME", {}, hud.iframeWindow);
+  EventUtils.synthesizeKey("VK_HOME", {});
 
   yield undefined;
 

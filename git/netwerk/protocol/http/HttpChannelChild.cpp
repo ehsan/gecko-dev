@@ -15,6 +15,7 @@
 
 #include "nsStringStream.h"
 #include "nsHttpHandler.h"
+#include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 #include "nsSerializationHelper.h"
 #include "mozilla/Attributes.h"

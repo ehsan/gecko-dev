@@ -4,16 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsITransport.idl"
+#include "nsINetAddr.idl"
 
 interface nsIInterfaceRequestor;
-interface nsINetAddr;
 
 %{ C++
-namespace mozilla {
-namespace net {
-union NetAddr;
-}
-}
+#include "mozilla/net/DNS.h"
 %}
 native NetAddr(mozilla::net::NetAddr);
 

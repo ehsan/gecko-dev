@@ -19,7 +19,6 @@
 #include "mozilla/net/DashboardTypes.h"
 
 class nsASocketHandler;
-struct PRPollDesc;
 
 //-----------------------------------------------------------------------------
 

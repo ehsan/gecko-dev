@@ -34,7 +34,6 @@
 #include "nsIPermissionManager.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptTimeoutHandler.h"
-#include "nsIController.h"
 
 #ifdef XP_WIN
 // Thanks so much, Microsoft! :(

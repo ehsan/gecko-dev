@@ -907,7 +907,6 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
     const char *fileName = "@evaluate";
     RootedObject element(cx);
     JSAutoByteString fileNameBytes;
-    RootedString sourceURL(cx);
     RootedString sourceMapURL(cx);
     unsigned lineNumber = 1;
     RootedObject global(cx, NULL);
@@ -967,14 +966,6 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
             return false;
         if (!JSVAL_IS_PRIMITIVE(v))
             element = JSVAL_TO_OBJECT(v);
-
-        if (!JS_GetProperty(cx, opts, "sourceURL", &v))
-            return false;
-        if (!JSVAL_IS_VOID(v)) {
-            sourceURL = JS_ValueToString(cx, v);
-            if (!sourceURL)
-                return false;
-        }
 
         if (!JS_GetProperty(cx, opts, "sourceMapURL", &v))
             return false;
@@ -1064,13 +1055,6 @@ Evaluate(JSContext *cx, unsigned argc, jsval *vp)
         if (!script)
             return false;
 
-        if (sourceURL && !script->scriptSource()->hasSourceURL()) {
-            const jschar *surl = JS_GetStringCharsZ(cx, sourceURL);
-            if (!surl)
-                return false;
-            if (!script->scriptSource()->setSourceURL(cx, surl))
-                return false;
-        }
         if (sourceMapURL && !script->scriptSource()->hasSourceMapURL()) {
             const jschar *smurl = JS_GetStringCharsZ(cx, sourceMapURL);
             if (!smurl)

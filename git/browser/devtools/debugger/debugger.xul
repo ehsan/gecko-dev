@@ -325,10 +325,11 @@
           </vbox>
           <toolbar id="sources-toolbar" class="devtools-toolbar">
             <toolbarbutton id="pretty-print"
-                           label="{}"
                            tooltiptext="&debuggerUI.sources.prettyPrint;"
                            class="devtools-toolbarbutton devtools-monospace"
-                           command="prettyPrintCommand"/>
+                           command="prettyPrintCommand">
+              {}
+            </toolbarbutton>
           </toolbar>
         </vbox>
         <splitter class="devtools-side-splitter"/>

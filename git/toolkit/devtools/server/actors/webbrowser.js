@@ -7,7 +7,6 @@
 "use strict";
 
 let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-XPCOMUtils.defineLazyModuleGetter(this, "Services", "resource://gre/modules/Services.jsm");
 
 /**
  * Browser-specific actors.
@@ -20,7 +19,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services", "resource://gre/modules/Serv
  */
 function allAppShellDOMWindows(aWindowType)
 {
-  let e = Services.wm.getEnumerator(aWindowType);
+  let e = windowMediator.getEnumerator(aWindowType);
   while (e.hasMoreElements()) {
     yield e.getNext();
   }
@@ -66,6 +65,9 @@ function createRootActor(aConnection)
                          onShutdown: sendShutdownEvent
                        });
 }
+
+var windowMediator = Cc["@mozilla.org/appshell/window-mediator;1"]
+                     .getService(Ci.nsIWindowMediator);
 
 /**
  * A live list of BrowserTabActors representing the current browser tabs,
@@ -194,7 +196,7 @@ BrowserTabList.prototype._getChildren = function(aWindow) {
 };
 
 BrowserTabList.prototype.getList = function() {
-  let topXULWindow = Services.wm.getMostRecentWindow(DebuggerServer.chromeWindowType);
+  let topXULWindow = windowMediator.getMostRecentWindow(DebuggerServer.chromeWindowType);
 
   // As a sanity check, make sure all the actors presently in our map get
   // picked up when we iterate over all windows' tabs.
@@ -368,7 +370,7 @@ BrowserTabList.prototype.handleEvent = makeInfallible(function(aEvent) {
 BrowserTabList.prototype._listenToMediatorIf = function(aShouldListen) {
   if (!aShouldListen !== !this._listeningToMediator) {
     let op = aShouldListen ? "addListener" : "removeListener";
-    Services.wm[op](this);
+    windowMediator[op](this);
     this._listeningToMediator = aShouldListen;
   }
 };
