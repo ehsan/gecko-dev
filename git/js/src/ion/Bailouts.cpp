@@ -158,8 +158,7 @@ ion::CheckFrequentBailouts(JSContext *cx, JSScript *script)
     // we compile this script LICM will be disabled.
 
     if (script->hasIonScript() &&
-        script->ionScript()->numBailouts() >= js_IonOptions.frequentBailoutThreshold &&
-        !script->hadFrequentBailouts)
+        script->ionScript()->numBailouts() >= js_IonOptions.frequentBailoutThreshold)
     {
         script->hadFrequentBailouts = true;
 

@@ -724,7 +724,7 @@ nsresult
 HTMLCanvasElement::GetContext(const nsAString& aContextId,
                               nsISupports** aContext)
 {
-  return GetContext(aContextId, JS::UndefinedHandleValue, nullptr, aContext);
+  return GetContext(aContextId, JS::UndefinedValue(), nullptr, aContext);
 }
 
 NS_IMETHODIMP

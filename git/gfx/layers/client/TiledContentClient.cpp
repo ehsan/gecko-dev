@@ -273,7 +273,7 @@ BasicTiledLayerBuffer::ValidateTile(BasicTiledLayerTile aTile,
 
 static nsIntRect
 RoundedTransformViewportBounds(const gfx::Rect& aViewport,
-                               const CSSPoint& aScrollOffset,
+                               const gfx::Point& aScrollOffset,
                                const gfxSize& aResolution,
                                float aScaleX,
                                float aScaleY,

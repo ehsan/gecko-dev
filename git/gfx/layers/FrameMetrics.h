@@ -10,7 +10,6 @@
 #include "gfxTypes.h"
 #include "nsRect.h"
 #include "mozilla/gfx/Rect.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace layers {
@@ -191,7 +190,7 @@ public:
   //
   // This is valid for any layer, but is always relative to this frame and
   // not any parents, regardless of parent transforms.
-  mozilla::CSSPoint mScrollOffset;
+  gfx::Point mScrollOffset;
 
   // A unique ID assigned to each scrollable frame (unless this is
   // ROOT_SCROLL_ID, in which case it is not unique).

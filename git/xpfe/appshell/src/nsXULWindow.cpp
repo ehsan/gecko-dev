@@ -25,6 +25,7 @@
 #include "nsIServiceManager.h"
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
+#include "nsIDOMBarProp.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDOMElement.h"
@@ -53,11 +54,9 @@
 #include "nsCxPusher.h"
 #include "nsWebShellWindow.h" // get rid of this one, too...
 #include "nsDOMEvent.h"
-#include "nsGlobalWindow.h"
 
 #include "prenv.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/BarProps.h"
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla;
@@ -1982,14 +1981,12 @@ void nsXULWindow::PlaceWindowLayersBehind(uint32_t aLowLevel,
 
 void nsXULWindow::SetContentScrollbarVisibility(bool aVisible)
 {
-  nsCOMPtr<nsPIDOMWindow> contentWin(do_GetInterface(mPrimaryContentShell));
+  nsCOMPtr<nsIDOMWindow> contentWin(do_GetInterface(mPrimaryContentShell));
   if (contentWin) {
-    nsRefPtr<nsGlobalWindow> window = static_cast<nsGlobalWindow*>(contentWin.get());
-    nsRefPtr<mozilla::dom::BarProp> scrollbars = window->Scrollbars();
-    if (scrollbars) {
-      mozilla::ErrorResult rv;
-      scrollbars->SetVisible(aVisible, rv);
-    }
+    nsCOMPtr<nsIDOMBarProp> scrollbars;
+    contentWin->GetScrollbars(getter_AddRefs(scrollbars));
+    if (scrollbars)
+      scrollbars->SetVisible(aVisible);
   }
 }
 

@@ -531,9 +531,8 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         } else if (IsDOMObject(obj)) {
               // Not all DOM objects implement nsISupports. But if they don't,
               // there's nothing to do in this HasInstance hook.
-              identity = UnwrapDOMObjectToISupports(obj);
-              if (!identity)
-                  return NS_OK;
+              if (!UnwrapDOMObjectToISupports(obj, identity))
+                  return NS_OK;;
               nsCOMPtr<nsISupports> supp;
               identity->QueryInterface(*iid, getter_AddRefs(supp));
               *bp = supp;
@@ -715,7 +714,10 @@ static void
 GetWrapperObject(MutableHandleObject obj)
 {
     obj.set(NULL);
-    nsXPConnect* xpc = nsXPConnect::XPConnect();
+    nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+    if (!xpc)
+        return;
+
     nsAXPCNativeCallContext *ccxp = NULL;
     xpc->GetCurrentNativeCallContext(&ccxp);
     if (!ccxp)
@@ -767,7 +769,7 @@ nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
     if (NS_FAILED(rv) || !inst)
         return NS_ERROR_XPC_CI_RETURNED_FAILURE;
 
-    rv = nsXPConnect::XPConnect()->WrapNativeToJSVal(cx, obj, inst, nullptr, iid, true, retval, nullptr);
+    rv = nsXPConnect::GetXPConnect()->WrapNativeToJSVal(cx, obj, inst, nullptr, iid, true, retval, nullptr);
     if (NS_FAILED(rv) || JSVAL_IS_PRIMITIVE(*retval))
         return NS_ERROR_XPC_CANT_CREATE_WN;
     return NS_OK;
@@ -816,7 +818,7 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
 
     RootedObject instJSObj(cx);
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = nsXPConnect::XPConnect()->WrapNative(cx, obj, srvc, *iid, getter_AddRefs(holder));
+    rv = nsXPConnect::GetXPConnect()->WrapNative(cx, obj, srvc, *iid, getter_AddRefs(holder));
     if (NS_FAILED(rv) || !holder ||
         // Assign, not compare
         !(instJSObj = holder->GetJSObject()))
@@ -893,7 +895,7 @@ xpc_NewIDObject(JSContext *cx, HandleObject jsobj, const nsID& aID)
     nsCOMPtr<nsIJSID> iid =
             dont_AddRef(static_cast<nsIJSID*>(nsJSID::NewID(aID)));
     if (iid) {
-        nsXPConnect* xpc = nsXPConnect::XPConnect();
+        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
         if (xpc) {
             nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
             nsresult rv = xpc->WrapNative(cx, jsobj,

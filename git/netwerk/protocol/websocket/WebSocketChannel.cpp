@@ -1632,8 +1632,7 @@ WebSocketChannel::PrimeNewOutgoingMessage()
     // and there isn't an internal error, use that.
     if (NS_SUCCEEDED(mStopOnClose)) {
       if (mScriptCloseCode) {
-        uint16_t temp = PR_htons(mScriptCloseCode);
-        memcpy(payload, &temp, 2);
+        *((uint16_t *)payload) = PR_htons(mScriptCloseCode);
         mOutHeader[1] += 2;
         mHdrOutToSend = 8;
         if (!mScriptCloseReason.IsEmpty()) {
@@ -1652,8 +1651,7 @@ WebSocketChannel::PrimeNewOutgoingMessage()
         mHdrOutToSend = 6;
       }
     } else {
-      uint16_t temp = PR_htons(ResultToCloseCode(mStopOnClose));
-      memcpy(payload, &temp, 2);
+      *((uint16_t *)payload) = PR_htons(ResultToCloseCode(mStopOnClose));
       mOutHeader[1] += 2;
       mHdrOutToSend = 8;
     }
@@ -1741,8 +1739,7 @@ WebSocketChannel::PrimeNewOutgoingMessage()
     mask = * reinterpret_cast<uint32_t *>(buffer);
     NS_Free(buffer);
   } while (!mask);
-  uint32_t temp = PR_htonl(mask);
-  memcpy(payload - 4, &temp, 4);
+  *(((uint32_t *)payload) - 1) = PR_htonl(mask);
 
   LOG(("WebSocketChannel::PrimeNewOutgoingMessage() using mask %08x\n", mask));
 

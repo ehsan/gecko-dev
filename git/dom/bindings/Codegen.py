@@ -5104,7 +5104,7 @@ class CGGenericMethod(CGAbstractBindingMethod):
         return CGIndenter(CGGeneric(
             "const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));\n"
             "MOZ_ASSERT(info->type == JSJitInfo::Method);\n"
-            "JSJitMethodOp method = info->method;\n"
+            "JSJitMethodOp method = (JSJitMethodOp)info->op;\n"
             "return method(cx, obj, self, argc, vp);"))
 
 class CGSpecializedMethod(CGAbstractStaticMethod):
@@ -5240,7 +5240,7 @@ class CGGenericGetter(CGAbstractBindingMethod):
         return CGIndenter(CGGeneric(
             "const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));\n"
             "MOZ_ASSERT(info->type == JSJitInfo::Getter);\n"
-            "JSJitGetterOp getter = info->getter;\n"
+            "JSJitPropertyOp getter = info->op;\n"
             "return getter(cx, obj, self, vp);"))
 
 class CGSpecializedGetter(CGAbstractStaticMethod):
@@ -5324,7 +5324,7 @@ class CGGenericSetter(CGAbstractBindingMethod):
                 "JS::Value* argv = JS_ARGV(cx, vp);\n"
                 "const JSJitInfo *info = FUNCTION_VALUE_TO_JITINFO(JS_CALLEE(cx, vp));\n"
                 "MOZ_ASSERT(info->type == JSJitInfo::Setter);\n"
-                "JSJitSetterOp setter = info->setter;\n"
+                "JSJitPropertyOp setter = info->op;\n"
                 "if (!setter(cx, obj, self, argv)) {\n"
                 "  return false;\n"
                 "}\n"
@@ -5431,7 +5431,7 @@ class CGMemberJITInfo(CGThing):
                             "")
         return ("\n"
                 "static const JSJitInfo %s = {\n"
-                "  { %s },\n"
+                "  %s,\n"
                 "  %s,\n"
                 "  %s,\n"
                 "  JSJitInfo::%s,\n"
@@ -5445,9 +5445,7 @@ class CGMemberJITInfo(CGThing):
     def define(self):
         if self.member.isAttr():
             getterinfo = ("%s_getterinfo" % self.member.identifier.name)
-            # We need the cast here because JSJitGetterOp has a "void* self"
-            # while we have the right type.
-            getter = ("(JSJitGetterOp)get_%s" % self.member.identifier.name)
+            getter = ("(JSJitPropertyOp)get_%s" % self.member.identifier.name)
             getterinfal = "infallible" in self.descriptor.getExtendedAttributes(self.member, getter=True)
             getterconst = self.member.getExtendedAttribute("Constant")
             getterpure = getterconst or self.member.getExtendedAttribute("Pure")
@@ -5459,9 +5457,7 @@ class CGMemberJITInfo(CGThing):
                                         [self.member.type])
             if not self.member.readonly or self.member.getExtendedAttribute("PutForwards") is not None:
                 setterinfo = ("%s_setterinfo" % self.member.identifier.name)
-                # Actually a JSJitSetterOp, but JSJitGetterOp is first in the
-                # union.
-                setter = ("(JSJitGetterOp)set_%s" % self.member.identifier.name)
+                setter = ("(JSJitPropertyOp)set_%s" % self.member.identifier.name)
                 # Setters are always fallible, since they have to do a typed unwrap.
                 result += self.defineJitInfo(setterinfo, setter, "Setter",
                                              False, False, False,
@@ -5470,8 +5466,8 @@ class CGMemberJITInfo(CGThing):
         if self.member.isMethod():
             methodinfo = ("%s_methodinfo" % self.member.identifier.name)
             name = CppKeywords.checkMethodName(self.member.identifier.name)
-            # Actually a JSJitMethodOp, but JSJitGetterOp is first in the union.
-            method = ("(JSJitGetterOp)%s" % name)
+            # Actually a JSJitMethodOp, but JSJitPropertyOp by struct definition.
+            method = ("(JSJitPropertyOp)%s" % name)
 
             # Methods are infallible if they are infallible, have no arguments
             # to unwrap, and have a return type that's infallible to wrap up for
@@ -7516,12 +7512,6 @@ class CGDescriptor(CGThing):
 
         if descriptor.concrete:
             if descriptor.proxy:
-                if descriptor.nativeOwnership != 'nsisupports':
-                    raise TypeError("We don't support non-nsISupports native classes for "
-                                    "proxy-based bindings yet (" + descriptor.name + ")")
-                if not descriptor.wrapperCache:
-                    raise TypeError("We need a wrappercache to support expandos for proxy-based "
-                                    "bindings (" + descriptor.name + ")")
                 cgThings.append(CGProxyIsProxy(descriptor))
                 cgThings.append(CGProxyUnwrap(descriptor))
                 cgThings.append(CGDOMJSProxyHandlerDOMClass(descriptor))
@@ -7640,15 +7630,7 @@ class CGDictionary(CGThing):
                 "// Per spec, we init the parent's members first\n"
                 "if (!%s::Init(cx, val)) {\n"
                 "  return false;\n"
-                "}\n"
-                "MOZ_ASSERT(IsConvertibleToDictionary(cx, val));\n"
-                "\n") % self.makeClassName(self.dictionary.parent)
-        else:
-            body += (
-                "if (!IsConvertibleToDictionary(cx, val)) {\n"
-                "  return ThrowErrorMessage(cx, MSG_NOT_DICTIONARY);\n"
-                "}\n"
-                "\n")
+                "}\n") % self.makeClassName(self.dictionary.parent)
 
         memberInits = [self.getMemberConversion(m).define()
                        for m in self.memberInfo]
@@ -7657,6 +7639,14 @@ class CGDictionary(CGThing):
                 "JSBool found;\n"
                 "JS::Rooted<JS::Value> temp(cx);\n"
                 "bool isNull = val.isNullOrUndefined();\n")
+
+        body += (
+            "if (!IsConvertibleToDictionary(cx, val)) {\n"
+            "  return ThrowErrorMessage(cx, MSG_NOT_DICTIONARY);\n"
+            "}\n"
+            "\n")
+
+        if memberInits:
             body += "\n\n".join(memberInits) + "\n"
 
         body += "return true;"
@@ -9053,24 +9043,60 @@ class CGJSImplMethod(CGNativeMember):
         return genConstructorBody(self.descriptor, initCall)
 
 def genConstructorBody(descriptor, initCall=""):
-    template = (
-        "JS::Rooted<JSObject*> jsImplObj(cx);\n"
-        "nsCOMPtr<nsPIDOMWindow> window =\n"
-        '  ConstructJSImplementation(cx, "${contractId}", global, &jsImplObj, aRv);\n'
-        "if (aRv.Failed()) {\n"
-        "  return nullptr;\n"
-        "}\n"
-        "// Build the C++ implementation.\n"
-        # Leave off the newline in case initCall is empty.
-        "nsRefPtr<${implClass}> impl = new ${implClass}(jsImplObj, window);"
-        "${initCall}\n"
-        "return impl.forget();")
+    return string.Template(
+"""  // Get the window to use as a parent and for initialization.
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(global.Get());
+  if (!window) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
 
-    return string.Template(template).substitute({
-        "implClass" : descriptor.name,
-        "contractId" : descriptor.interface.getJSImplementation(),
-        "initCall" : initCall
-    })
+  JS::Rooted<JSObject*> jsImplObj(cx);
+
+  // Make sure to have nothing on the JS context stack while creating and
+  // initializing the object, so exceptions from that will get reported
+  // properly, since those are never exceptions that a spec wants to be thrown.
+  {  // Scope for the nsCxPusher
+    nsCxPusher pusher;
+    pusher.PushNull();
+    // Get the XPCOM component containing the JS implementation.
+    nsCOMPtr<nsISupports> implISupports = do_CreateInstance("${contractId}");
+    if (!implISupports) {
+      NS_WARNING("Failed to get JS implementation for contract \\"${contractId}\\"");
+      aRv.Throw(NS_ERROR_FAILURE);
+      return nullptr;
+    }
+    // Initialize the object, if it implements nsIDOMGlobalPropertyInitializer.
+    nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi = do_QueryInterface(implISupports);
+    if (gpi) {
+      JS::Rooted<JS::Value> initReturn(cx);
+      nsresult rv = gpi->Init(window, initReturn.address());
+      if (NS_FAILED(rv)) {
+        aRv.Throw(rv);
+       return nullptr;
+      }
+      MOZ_ASSERT(initReturn.isUndefined(),
+                 "Expected nsIDOMGlobalPropertyInitializer to return undefined");
+    }
+    // Extract the JS implementation from the XPCOM object.
+    nsCOMPtr<nsIXPConnectWrappedJS> implWrapped = do_QueryInterface(implISupports);
+    MOZ_ASSERT(implWrapped, "Failed to get wrapped JS from XPCOM component.");
+    if (!implWrapped) {
+      aRv.Throw(NS_ERROR_FAILURE);
+      return nullptr;
+    }
+    jsImplObj = implWrapped->GetJSObject();
+    if (!jsImplObj) {
+      aRv.Throw(NS_ERROR_FAILURE);
+      return nullptr;
+    }
+  }
+  // Build the C++ implementation.
+  nsRefPtr<${implClass}> impl = new ${implClass}(jsImplObj, window);${initCall}
+  return impl.forget();""").substitute({"implClass" : descriptor.name,
+                 "contractId" : descriptor.interface.getJSImplementation(),
+                 "initCall" : initCall
+                 })
 
 # We're always fallible
 def callbackGetterName(attr):

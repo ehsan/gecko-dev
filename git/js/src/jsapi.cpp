@@ -893,10 +893,11 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     parallelWarmup(0),
     ionReturnOverride_(MagicValue(JS_ARG_POISON)),
     useHelperThreads_(useHelperThreads),
-    requestedHelperThreadCount(-1)
+    requestedHelperThreadCount(-1),
 #ifdef DEBUG
-    , enteredPolicy(NULL)
+    enteredPolicy(NULL),
 #endif
+    rngNonce(0)
 {
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&onNewGlobalObjectWatchers);
@@ -5292,7 +5293,6 @@ JS::CompileOptions::CompileOptions(JSContext *cx)
       filename(NULL),
       lineno(1),
       column(0),
-      element(NullPtr()),
       compileAndGo(cx->hasOption(JSOPTION_COMPILE_N_GO)),
       forEval(false),
       noScriptRval(cx->hasOption(JSOPTION_NO_SCRIPT_RVAL)),

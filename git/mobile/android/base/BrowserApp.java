@@ -13,7 +13,6 @@ import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.gfx.PanZoomController;
-import org.mozilla.gecko.health.BrowserHealthReporter;
 import org.mozilla.gecko.menu.GeckoMenu;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GamepadUtils;
@@ -142,8 +141,6 @@ abstract public class BrowserApp extends GeckoApp
     private SharedPreferencesHelper mSharedPreferencesHelper;
 
     private OrderedBroadcastHelper mOrderedBroadcastHelper;
-
-    private BrowserHealthReporter mBrowserHealthReporter;
 
     @Override
     public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
@@ -416,7 +413,6 @@ abstract public class BrowserApp extends GeckoApp
         JavaAddonManager.getInstance().init(getApplicationContext());
         mSharedPreferencesHelper = new SharedPreferencesHelper(getApplicationContext());
         mOrderedBroadcastHelper = new OrderedBroadcastHelper(getApplicationContext());
-        mBrowserHealthReporter = new BrowserHealthReporter();
 
         if (AppConstants.MOZ_ANDROID_BEAM && Build.VERSION.SDK_INT >= 14) {
             NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
@@ -633,11 +629,6 @@ abstract public class BrowserApp extends GeckoApp
         if (mOrderedBroadcastHelper != null) {
             mOrderedBroadcastHelper.uninit();
             mOrderedBroadcastHelper = null;
-        }
-
-        if (mBrowserHealthReporter != null) {
-            mBrowserHealthReporter.uninit();
-            mBrowserHealthReporter = null;
         }
 
         unregisterEventListener("CharEncoding:Data");

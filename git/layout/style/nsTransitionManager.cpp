@@ -912,10 +912,12 @@ nsTransitionManager::WalkTransitionRule(ElementDependentRuleProcessorData* aData
 
     // We need to immediately restyle with animation
     // after doing this.
-    nsRestyleHint hint =
-      aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ?
-      eRestyle_Self : eRestyle_Subtree;
-    mPresContext->PresShell()->RestyleForAnimation(aData->mElement, hint);
+    if (et) {
+      nsRestyleHint hint =
+        aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement ?
+        eRestyle_Self : eRestyle_Subtree;
+      mPresContext->PresShell()->RestyleForAnimation(aData->mElement, hint);
+    }
     return;
   }
 

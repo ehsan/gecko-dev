@@ -40,6 +40,13 @@ XPCCallContext::IsValid() const
     return mState != INIT_FAILED;
 }
 
+inline nsXPConnect*
+XPCCallContext::GetXPConnect() const
+{
+    CHECK_STATE(HAVE_CONTEXT);
+    return mXPC;
+}
+
 inline XPCJSRuntime*
 XPCCallContext::GetRuntime() const
 {
@@ -578,7 +585,7 @@ xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsid id)
 inline jsid
 GetRTIdByIndex(JSContext *cx, unsigned index)
 {
-  XPCJSRuntime *rt = nsXPConnect::XPConnect()->GetRuntime();
+  XPCJSRuntime *rt = nsXPConnect::FastGetXPConnect()->GetRuntime();
   return rt->GetStringID(index);
 }
 

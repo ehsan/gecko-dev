@@ -201,9 +201,10 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
       return NS_OK;
   }
 
-  // Open the popup. LaunchPopup will call StopPropagation and PreventDefault
-  // in the right situations.
+  // Open the popup and cancel the default handling of the event.
   LaunchPopup(aEvent, targetContent);
+  aEvent->StopPropagation();
+  aEvent->PreventDefault();
 
   return NS_OK;
 }
@@ -327,23 +328,20 @@ nsXULPopupListener::LaunchPopup(nsIDOMEvent* aEvent, nsIContent* aTargetContent)
 {
   nsresult rv = NS_OK;
 
-  nsAutoString identifier;
   nsIAtom* type = mIsContext ? nsGkAtoms::context : nsGkAtoms::popup;
-  bool hasPopupAttr = mElement->GetAttr(kNameSpaceID_None, type, identifier);
+
+  nsAutoString identifier;
+  mElement->GetAttr(kNameSpaceID_None, type, identifier);
 
   if (identifier.IsEmpty()) {
-    hasPopupAttr = mElement->GetAttr(kNameSpaceID_None,
-                          mIsContext ? nsGkAtoms::contextmenu : nsGkAtoms::menu,
-                          identifier) || hasPopupAttr;
+    if (type == nsGkAtoms::popup) {
+      mElement->GetAttr(kNameSpaceID_None, nsGkAtoms::menu, identifier);
+    } else {
+      mElement->GetAttr(kNameSpaceID_None, nsGkAtoms::contextmenu, identifier);
+    }
+    if (identifier.IsEmpty())
+      return rv;
   }
-
-  if (hasPopupAttr) {
-    aEvent->StopPropagation();
-    aEvent->PreventDefault();
-  }
-
-  if (identifier.IsEmpty())
-    return rv;
 
   // Try to find the popup content and the document.
   nsCOMPtr<nsIDocument> document = mElement->GetDocument();

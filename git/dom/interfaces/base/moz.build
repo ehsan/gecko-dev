@@ -11,6 +11,7 @@ XPIDL_SOURCES += [
     'nsIContentPrefService.idl',
     'nsIContentPrefService2.idl',
     'nsIContentURIGrouper.idl',
+    'nsIDOMBarProp.idl',
     'nsIDOMCRMFObject.idl',
     'nsIDOMChromeWindow.idl',
     'nsIDOMClientInformation.idl',

@@ -129,18 +129,12 @@ function setLinks(aLinks) {
     });
   }
 
-  // Call populateCache() once to make sure that all link fetching that is
-  // currently in progress has ended. We clear the history, fill it with the
-  // given entries and call populateCache() now again to make sure the cache
-  // has the desired contents.
-  NewTabUtils.links.populateCache(function () {
-    clearHistory(function () {
-      fillHistory(links, function () {
-        NewTabUtils.links.populateCache(function () {
-          NewTabUtils.allPages.update();
-          TestRunner.next();
-        }, true);
-      });
+  clearHistory(function () {
+    fillHistory(links, function () {
+      NewTabUtils.links.populateCache(function () {
+        NewTabUtils.allPages.update();
+        TestRunner.next();
+      }, true);
     });
   });
 }

@@ -734,13 +734,12 @@ SocialProvider.prototype = {
     // Accept *and validate* the page-mark-config message from the provider.
     let promptImages = {};
     let promptMessages = {};
-    let self = this;
     function reportError(reason) {
       Cu.reportError("Invalid page-mark data from provider: " + reason + ": marking is disabled for this provider");
       // and we explicitly reset the page-mark data to null to avoid stale
       // data being used and notify our observers.
-      self._pageMarkInfo = null;
-      Services.obs.notifyObservers(null, "social:page-mark-config", self.origin);
+      this._pageMarkInfo = null;
+      Services.obs.notifyObservers(null, "social:page-mark-config", this.origin);
     }
     if (!data ||
         !data.images || typeof data.images != "object" ||

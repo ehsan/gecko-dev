@@ -65,7 +65,7 @@ LookupInterfaceOrAncestor(uint32_t tableSize, const xpc_qsHashEntry *table,
          * supports, including ancestors.
          */
         nsCOMPtr<nsIInterfaceInfo> info;
-        if (NS_FAILED(nsXPConnect::XPConnect()->GetInfoForIID(&iid, getter_AddRefs(info))))
+        if (NS_FAILED(nsXPConnect::GetXPConnect()->GetInfoForIID(&iid, getter_AddRefs(info))))
             return nullptr;
 
         const nsIID *piid;
@@ -633,7 +633,7 @@ castNative(JSContext *cx,
     } else if (cur) {
         nsISupports *native;
         QITableEntry *entries;
-        if ((native = mozilla::dom::UnwrapDOMObjectToISupports(cur))) {
+        if (mozilla::dom::UnwrapDOMObjectToISupports(cur, native)) {
             entries = nullptr;
         } else if (IS_SLIM_WRAPPER(cur)) {
             native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));

@@ -58,7 +58,7 @@ namespace {
 
   // Wait for 2 seconds for Dialer processing event 'BLDN'. '2' seconds is a
   // magic number. The mechanism should be revised once we can get call history.
-  static int sWaitingForDialingInterval = 2000; //unit: ms
+  static int sWaitingForProcessingBLDNInterval = 2000; //unit: ms
 } // anonymous namespace
 
 /* CallState for sCINDItems[CINDType::CALL].value
@@ -276,8 +276,8 @@ private:
   {
     MOZ_ASSERT(gBluetoothHfpManager);
 
-    if (!gBluetoothHfpManager->mDialingRequestProcessed) {
-      gBluetoothHfpManager->mDialingRequestProcessed = true;
+    if (!gBluetoothHfpManager->mBLDNProcessed) {
+      gBluetoothHfpManager->mBLDNProcessed = true;
       gBluetoothHfpManager->SendLine("ERROR");
     }
   }
@@ -374,7 +374,7 @@ BluetoothHfpManager::Reset()
   mCMEE = false;
   mCMER = false;
   mReceiveVgsFlag = false;
-  mDialingRequestProcessed = true;
+  mBLDNProcessed = true;
 
   ResetCallArray();
 }
@@ -881,19 +881,15 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
     os->NotifyObservers(nullptr, "bluetooth-volume-change", data.get());
   } else if ((msg.Find("AT+BLDN") != -1) || (msg.Find("ATD>") != -1)) {
     // Dialer app of FFOS v1 does not have plan to support Memory Dailing.
-    // However, in order to pass Bluetooth HFP certification, we still have to
-    // make a call when we receive AT command 'ATD>n'.
-    mDialingRequestProcessed = false;
-
-    if (msg.Find("AT+BLDN") != -1) {
-      NotifyDialer(NS_LITERAL_STRING("BLDN"));
-    } else {
-      NotifyDialer(NS_ConvertUTF8toUTF16(msg));
-    }
+    // However, in order to pass Bluetooth HFP certification, we have to
+    // make a call when we receive AT command 'ATD>n'. The solution here
+    // is firing a 'BLDN' event to Dialer to do 'Last Number Redial'.
+    mBLDNProcessed = false;
+    NotifyDialer(NS_LITERAL_STRING("BLDN"));
 
     MessageLoop::current()->
       PostDelayedTask(FROM_HERE, new RespondToBLDNTask(),
-                      sWaitingForDialingInterval);
+                      sWaitingForProcessingBLDNInterval);
 
     // Don't send response 'OK' here because we'll respond later in either
     // RespondToBLDNTask or HandleCallStateChanged()
@@ -1282,11 +1278,7 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
 
   switch (aCallState) {
     case nsITelephonyProvider::CALL_STATE_HELD:
-      if (!FindFirstCall(nsITelephonyProvider::CALL_STATE_CONNECTED)) {
-        sCINDItems[CINDType::CALLHELD].value = CallHeldState::ONHOLD_NOACTIVE;
-      } else {
-        sCINDItems[CINDType::CALLHELD].value = CallHeldState::ONHOLD_ACTIVE;
-      }
+      sCINDItems[CINDType::CALLHELD].value = CallHeldState::ONHOLD_ACTIVE;
       SendCommand("+CIEV: ", CINDType::CALLHELD);
       break;
     case nsITelephonyProvider::CALL_STATE_INCOMING:
@@ -1317,9 +1309,9 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
       }
       break;
     case nsITelephonyProvider::CALL_STATE_DIALING:
-      if (!mDialingRequestProcessed) {
+      if (!mBLDNProcessed) {
         SendLine("OK");
-        mDialingRequestProcessed = true;
+        mBLDNProcessed = true;
       }
 
       UpdateCIND(CINDType::CALLSETUP, CallSetupState::OUTGOING, aSend);
@@ -1344,26 +1336,24 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
           UpdateCIND(CINDType::CALL, CallState::IN_PROGRESS, aSend);
           UpdateCIND(CINDType::CALLSETUP, CallSetupState::NO_CALLSETUP, aSend);
           break;
+        case nsITelephonyProvider::CALL_STATE_HELD:
+          // Besides checking if there is still held calls, another thing we
+          // need to consider is the state change when receiving AT+CHLD=2.
+          // Assume that there is one active call(c1) and one call on hold(c2).
+          // We got AT+CHLD=2, which swaps active/held position. The first
+          // action would be c2 -> ACTIVE, then c1 -> HELD. When we get the
+          // CallStateChanged event of c2 becoming ACTIVE, we enter here.
+          // However we can't send callheld=0 at this time because we should
+          // see c2 -> ACTIVE + c1 -> HELD as one operation. That's the reason
+          // why I added the GetNumberOfCalls() condition check.
+          if (!FindFirstCall(nsITelephonyProvider::CALL_STATE_HELD) &&
+              GetNumberOfCalls(
+                nsITelephonyProvider::CALL_STATE_CONNECTED) == 1) {
+            UpdateCIND(CINDType::CALLHELD, CallHeldState::NO_CALLHELD, aSend);
+          }
+          break;
         default:
           NS_WARNING("Not handling state changed");
-      }
-
-      // = Handle callheld separately =
-      // Besides checking if there is still held calls, another thing we
-      // need to consider is the state change when receiving AT+CHLD=2.
-      // Assume that there is one active call(c1) and one call on hold(c2).
-      // We got AT+CHLD=2, which swaps active/held position. The first
-      // action would be c2 -> ACTIVE, then c1 -> HELD. When we get the
-      // CallStateChanged event of c2 becoming ACTIVE, we enter here.
-      // However we can't send callheld=0 at this time because we should
-      // see c2 -> ACTIVE + c1 -> HELD as one operation. That's the reason
-      // why I added the GetNumberOfCalls() condition check.
-      if (GetNumberOfCalls(nsITelephonyProvider::CALL_STATE_CONNECTED) == 1) {
-        if (FindFirstCall(nsITelephonyProvider::CALL_STATE_HELD)) {
-          UpdateCIND(CINDType::CALLHELD, CallHeldState::ONHOLD_ACTIVE, aSend);
-        } else if (prevCallState == nsITelephonyProvider::CALL_STATE_HELD) {
-          UpdateCIND(CINDType::CALLHELD, CallHeldState::NO_CALLHELD, aSend);
-        }
       }
       break;
     case nsITelephonyProvider::CALL_STATE_DISCONNECTED:
@@ -1384,17 +1374,11 @@ BluetoothHfpManager::HandleCallStateChanged(uint32_t aCallIndex,
             UpdateCIND(CINDType::CALL, CallState::NO_CALL, aSend);
           }
           break;
+        case nsITelephonyProvider::CALL_STATE_HELD:
+          UpdateCIND(CINDType::CALLHELD, CallHeldState::NO_CALLHELD, aSend);
+          break;
         default:
           NS_WARNING("Not handling state changed");
-      }
-
-      // Handle held calls separately
-      if (!FindFirstCall(nsITelephonyProvider::CALL_STATE_HELD)) {
-        UpdateCIND(CINDType::CALLHELD, CallHeldState::NO_CALLHELD, aSend);
-      } else if (!FindFirstCall(nsITelephonyProvider::CALL_STATE_CONNECTED)) {
-        UpdateCIND(CINDType::CALLHELD, CallHeldState::ONHOLD_NOACTIVE, aSend);
-      } else {
-        UpdateCIND(CINDType::CALLHELD, CallHeldState::ONHOLD_ACTIVE, aSend);
       }
 
       // -1 is necessary because call 0 is an invalid (padding) call object.

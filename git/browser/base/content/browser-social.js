@@ -42,6 +42,12 @@ SocialUI = {
 
     gBrowser.addEventListener("ActivateSocialFeature", this._activationEventHandler.bind(this), true, true);
 
+    // Called when we enter DOM full-screen mode.
+    window.addEventListener("mozfullscreenchange", function () {
+      SocialSidebar.update();
+      SocialChatBar.update();
+    });
+
     SocialChatBar.init();
     SocialMark.init();
     SocialShare.init();
@@ -373,7 +379,7 @@ SocialChatBar = {
       this.chatbar.removeAll();
       this.chatbar.hidden = command.hidden = true;
     } else {
-      this.chatbar.hidden = command.hidden = false;
+      this.chatbar.hidden = command.hidden = document.mozFullScreen;
     }
     command.setAttribute("disabled", command.hidden ? "true" : "false");
   },
@@ -444,14 +450,8 @@ SocialFlyout = {
     return document.getElementById("social-flyout-panel");
   },
 
-  get iframe() {
-    if (!this.panel.firstChild)
-      this._createFrame();
-    return this.panel.firstChild;
-  },
-
   dispatchPanelEvent: function(name) {
-    let doc = this.iframe.contentDocument;
+    let doc = this.panel.firstChild.contentDocument;
     let evt = doc.createEvent("CustomEvent");
     evt.initCustomEvent(name, true, true, {});
     doc.documentElement.dispatchEvent(evt);
@@ -472,9 +472,13 @@ SocialFlyout = {
   },
 
   setFlyoutErrorMessage: function SF_setFlyoutErrorMessage() {
-    this.iframe.removeAttribute("src");
-    this.iframe.webNavigation.loadURI("about:socialerror?mode=compactInfo", null, null, null, null);
-    sizeSocialPanelToContent(this.panel, this.iframe);
+    let iframe = this.panel.firstChild;
+    if (!iframe)
+      return;
+
+    iframe.removeAttribute("src");
+    iframe.webNavigation.loadURI("about:socialerror?mode=compactInfo", null, null, null, null);
+    sizeSocialPanelToContent(this.panel, iframe);
   },
 
   unload: function() {
@@ -490,7 +494,7 @@ SocialFlyout = {
 
   onShown: function(aEvent) {
     let panel = this.panel;
-    let iframe = this.iframe;
+    let iframe = panel.firstChild;
     this._dynamicResizer = new DynamicResizeWatcher();
     iframe.docShell.isActive = true;
     iframe.docShell.isAppTab = true;
@@ -514,35 +518,8 @@ SocialFlyout = {
   onHidden: function(aEvent) {
     this._dynamicResizer.stop();
     this._dynamicResizer = null;
-    this.iframe.docShell.isActive = false;
+    this.panel.firstChild.docShell.isActive = false;
     this.dispatchPanelEvent("socialFrameHide");
-  },
-
-  load: function(aURL, cb) {
-    if (!Social.provider)
-      return;
-
-    this.panel.hidden = false;
-    let iframe = this.iframe;
-    // same url with only ref difference does not cause a new load, so we
-    // want to go right to the callback
-    let src = iframe.contentDocument && iframe.contentDocument.documentURIObject;
-    if (!src || !src.equalsExceptRef(Services.io.newURI(aURL, null, null))) {
-      iframe.addEventListener("load", function documentLoaded() {
-        iframe.removeEventListener("load", documentLoaded, true);
-        cb();
-      }, true);
-      // Force a layout flush by calling .clientTop so
-      // that the docShell of this frame is created
-      iframe.clientTop;
-      Social.setErrorListener(iframe, SocialFlyout.setFlyoutErrorMessage.bind(SocialFlyout))
-      iframe.setAttribute("src", aURL);
-    } else {
-      // we still need to set the src to trigger the contents hashchange event
-      // for ref changes
-      iframe.setAttribute("src", aURL);
-      cb();
-    }
   },
 
   open: function(aURL, yOffset, aCallback) {
@@ -552,24 +529,44 @@ SocialFlyout = {
     if (!SocialUI.enabled)
       return;
     let panel = this.panel;
-    let iframe = this.iframe;
+    if (!panel.firstChild)
+      this._createFrame();
+    panel.hidden = false;
+    let iframe = panel.firstChild;
 
-    this.load(aURL, function() {
-      sizeSocialPanelToContent(panel, iframe);
-      let anchor = document.getElementById("social-sidebar-browser");
-      if (panel.state == "open") {
-        panel.moveToAnchor(anchor, "start_before", 0, yOffset, false);
-      } else {
-        panel.openPopup(anchor, "start_before", 0, yOffset, false, false);
-      }
-      if (aCallback) {
-        try {
-          aCallback(iframe.contentWindow);
-        } catch(e) {
-          Cu.reportError(e);
+    let src = iframe.getAttribute("src");
+    if (src != aURL) {
+      iframe.addEventListener("load", function documentLoaded() {
+        iframe.removeEventListener("load", documentLoaded, true);
+        if (aCallback) {
+          try {
+            aCallback(iframe.contentWindow);
+          } catch(e) {
+            Cu.reportError(e);
+          }
         }
+      }, true);
+      iframe.setAttribute("src", aURL);
+    }
+    else if (aCallback) {
+      try {
+        aCallback(iframe.contentWindow);
+      } catch(e) {
+        Cu.reportError(e);
       }
-    });
+    }
+
+    sizeSocialPanelToContent(panel, iframe);
+    let anchor = document.getElementById("social-sidebar-browser");
+    if (panel.state == "open") {
+      panel.moveToAnchor(anchor, "start_before", 0, yOffset, false);
+    } else {
+      panel.openPopup(anchor, "start_before", 0, yOffset, false, false);
+      // Force a layout flush by calling .clientTop so
+      // that the docShell of this frame is created
+      panel.firstChild.clientTop;
+      Social.setErrorListener(iframe, this.setFlyoutErrorMessage.bind(this))
+    }
   }
 }
 

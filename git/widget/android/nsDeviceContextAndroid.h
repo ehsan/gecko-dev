@@ -5,11 +5,11 @@
 #include "nsIDeviceContextSpec.h"
 #include "nsCOMPtr.h"
 
-class nsDeviceContextSpecAndroid MOZ_FINAL : public nsIDeviceContextSpec
+class nsDeviceContextSpecAndroid : public nsIDeviceContextSpec
 {
 public:
     NS_DECL_ISUPPORTS
-
+    
     NS_IMETHOD GetSurfaceForPrinter(gfxASurface** surface);
 
     NS_IMETHOD Init(nsIWidget* aWidget,

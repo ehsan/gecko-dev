@@ -63,7 +63,6 @@ public:
             const nsRect&        aDirty);
 
   bool IsRasterImage();
-  bool IsAnimatedImage();
   already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager);
 
 private:

@@ -114,7 +114,7 @@ var DebuggerServer = {
 
     this.xpcInspector = Cc["@mozilla.org/jsinspector;1"].getService(Ci.nsIJSInspector);
     this.initTransport(aAllowConnectionCallback);
-    this.addActors("resource://gre/modules/devtools/server/actors/root.js");
+    this.addActors("resource://gre/modules/devtools/server/actors/script.js");
 
     this._initialized = true;
   },
@@ -150,20 +150,15 @@ var DebuggerServer = {
    * method returns, the debugger server must be initialized again before use.
    */
   destroy: function DS_destroy() {
-    if (!this._initialized) {
-      return;
+    if (Object.keys(this._connections).length == 0) {
+      this.closeListener();
+      this.globalActorFactories = {};
+      this.tabActorFactories = {};
+      delete this._allowConnection;
+      this._transportInitialized = false;
+      this._initialized = false;
+      dumpn("Debugger server is shut down.");
     }
-
-    for (let connID of Object.getOwnPropertyNames(this._connections)) {
-      this._connections[connID].close();
-    }
-    this.closeListener();
-    this.globalActorFactories = {};
-    this.tabActorFactories = {};
-    delete this._allowConnection;
-    this._transportInitialized = false;
-    this._initialized = false;
-    dumpn("Debugger server is shut down.");
   },
 
   /**
@@ -183,8 +178,6 @@ var DebuggerServer = {
    */
   addBrowserActors: function DS_addBrowserActors() {
     this.addActors("resource://gre/modules/devtools/server/actors/webbrowser.js");
-    this.addActors("resource://gre/modules/devtools/server/actors/script.js");
-    this.addGlobalActor(this.ChromeDebuggerActor, "chromeDebugger");
     this.addActors("resource://gre/modules/devtools/server/actors/webconsole.js");
     this.addActors("resource://gre/modules/devtools/server/actors/gcli.js");
     if ("nsIProfiler" in Ci)
@@ -271,6 +264,7 @@ var DebuggerServer = {
 
     return clientTransport;
   },
+
 
   // nsIServerSocketListener implementation
 
@@ -441,7 +435,7 @@ ActorPool.prototype = {
    *
    * @param aActor object
    *        The actor implementation.  If the object has a
-   *        'disconnect' property, it will be called when the actor
+   *        'disconnected' property, it will be called when the actor
    *        pool is cleaned up.
    */
   addActor: function AP_addActor(aActor) {
@@ -529,10 +523,6 @@ DebuggerServerConnection.prototype = {
 
   _transport: null,
   get transport() { return this._transport },
-
-  close: function() {
-    this._transport.close();
-  },
 
   send: function DSC_send(aPacket) {
     this.transport.send(aPacket);

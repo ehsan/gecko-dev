@@ -338,9 +338,8 @@ GetParamsForMessage(JSContext* aCx,
   //    properly cases when interface is implemented in JS and used
   //    as a dictionary.
   nsAutoString json;
-  JS::Rooted<JS::Value> v(aCx, aObject);
-  NS_ENSURE_TRUE(JS_Stringify(aCx, v.address(), nullptr, JSVAL_NULL,
-                              JSONCreator, &json), false);
+  JS::Value v = aObject;
+  NS_ENSURE_TRUE(JS_Stringify(aCx, &v, nullptr, JSVAL_NULL, JSONCreator, &json), false);
   NS_ENSURE_TRUE(!json.IsEmpty(), false);
 
   JS::Rooted<JS::Value> val(aCx, JS::NullValue());

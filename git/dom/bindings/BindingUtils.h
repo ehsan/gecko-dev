@@ -153,15 +153,16 @@ GetDOMClass(JSObject* obj)
   return nullptr;
 }
 
-inline nsISupports*
-UnwrapDOMObjectToISupports(JSObject* aObject)
+inline bool
+UnwrapDOMObjectToISupports(JSObject* obj, nsISupports*& result)
 {
-  const DOMClass* clasp = GetDOMClass(aObject);
+  const DOMClass* clasp = GetDOMClass(obj);
   if (!clasp || !clasp->mDOMObjectIsISupports) {
-    return nullptr;
+    return false;
   }
  
-  return UnwrapDOMObject<nsISupports>(aObject);
+  result = UnwrapDOMObject<nsISupports>(obj);
+  return true;
 }
 
 inline bool
@@ -2039,12 +2040,6 @@ GetUnforgeableHolder(JSObject* aGlobal, prototypes::ID aId)
 bool
 GetWindowForJSImplementedObject(JSContext* cx, JS::Handle<JSObject*> obj,
                                 nsPIDOMWindow** window);
-
-already_AddRefed<nsPIDOMWindow>
-ConstructJSImplementation(JSContext* aCx, const char* aContractId,
-                          const GlobalObject& aGlobal,
-                          JS::MutableHandle<JSObject*> aObject,
-                          ErrorResult& aRv);
 
 bool
 RegisterForDeferredFinalization(DeferredFinalizeStartFunction start,

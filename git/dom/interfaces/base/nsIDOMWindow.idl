@@ -53,16 +53,13 @@ interface nsIDOMWindow : nsISupports
 
 
   /* [replaceable] locationbar */
-  /* BarProp */
-  readonly attribute nsISupports                        locationbar;
+  readonly attribute nsIDOMBarProp                      locationbar;
 
   /* [replaceable] menubar */
-  /* BarProp */
-  readonly attribute nsISupports                        menubar;
+  readonly attribute nsIDOMBarProp                      menubar;
 
   /* [replaceable] personalbar */
-  /* BarProp */
-  readonly attribute nsISupports                        personalbar;
+  readonly attribute nsIDOMBarProp                      personalbar;
 
   /**
    * Accessor for the object that controls whether or not scrollbars
@@ -70,16 +67,13 @@ interface nsIDOMWindow : nsISupports
    *
    * This attribute is "replaceable" in JavaScript
    */
-  /* BarProp */
-  readonly attribute nsISupports                        scrollbars;
+  readonly attribute nsIDOMBarProp                      scrollbars;
 
   /* [replaceable] statusbar */
-  /* BarProp */
-  readonly attribute nsISupports                        statusbar;
+  readonly attribute nsIDOMBarProp                      statusbar;
 
   /* [replaceable] toolbar */
-  /* BarProp */
-  readonly attribute nsISupports                        toolbar;
+  readonly attribute nsIDOMBarProp                      toolbar;
 
   /* [replaceable] */
            attribute DOMString                          status;

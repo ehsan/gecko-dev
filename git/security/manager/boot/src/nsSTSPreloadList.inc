@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include "mozilla/StandardInteger.h"
-const PRTime gPreloadListExpirationTime = INT64_C(1380968184244000);
+const PRTime gPreloadListExpirationTime = INT64_C(1380363248599000);
 
 class nsSTSPreload
 {
@@ -23,7 +23,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "app.recurly.com", false },
   { "arivo.com.br", true },
   { "bassh.net", true },
-  { "blog.linode.com", false },
   { "blog.torproject.org", false },
   { "bugzilla.mozilla.org", true },
   { "business.medbank.com.mt", true },
@@ -36,14 +35,11 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "csawctf.poly.edu", true },
   { "developer.mydigipass.com", false },
   { "dist.torproject.org", false },
-  { "dm.lookout.com", false },
-  { "dm.mylookout.com", false },
   { "download.jitsi.org", false },
   { "ebanking.indovinabank.com.vn", false },
   { "entropia.de", false },
   { "espra.com", true },
   { "factor.cc", false },
-  { "forum.linode.com", false },
   { "gocardless.com", true },
   { "grc.com", false },
   { "howrandom.org", true },
@@ -52,8 +48,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "itriskltd.com", true },
   { "keyerror.com", true },
   { "lastpass.com", false },
-  { "library.linode.com", false },
-  { "linode.com", false },
   { "lockify.com", true },
   { "logentries.com", false },
   { "login.persona.org", true },
@@ -61,7 +55,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "lookout.com", false },
   { "luneta.nearbuysystems.com", false },
   { "makeyourlaws.org", false },
-  { "manager.linode.com", false },
   { "mattmccutchen.net", true },
   { "mega.co.nz", false },
   { "members.mayfirst.org", false },
@@ -69,10 +62,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "my.onlime.ch", false },
   { "mylookout.com", false },
   { "neg9.org", false },
-  { "p.linode.com", false },
   { "passwd.io", true },
-  { "paste.linode.com", false },
-  { "pastebin.linode.com", false },
   { "pay.gigahost.dk", true },
   { "paymill.com", true },
   { "paymill.de", true },
@@ -104,7 +94,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "www.grc.com", false },
   { "www.intercom.io", false },
   { "www.irccloud.com", false },
-  { "www.linode.com", false },
   { "www.lookout.com", false },
   { "www.mydigipass.com", false },
   { "www.mylookout.com", false },

@@ -1443,8 +1443,7 @@ MediaStreamGraphImpl::AppendMessage(ControlMessage* aMessage)
     // This should only happen during forced shutdown.
     aMessage->RunDuringShutdown();
     delete aMessage;
-    if (IsEmpty() &&
-        mLifecycleState >= LIFECYCLE_WAITING_FOR_STREAM_DESTRUCTION) {
+    if (IsEmpty()) {
       if (gGraph == this) {
         gGraph = nullptr;
       }

@@ -80,24 +80,6 @@ NS_MEMORY_REPORTER_IMPLEMENT(
 namespace
 {
 
-bool OncePreferenceDirect2DDisabled()
-{
-  static int preferenceValue = -1;
-  if (preferenceValue < 0) {
-    preferenceValue = Preferences::GetBool("gfx.direct2d.disabled", false);
-  }
-  return !!preferenceValue;
-}
-
-bool OncePreferenceDirect2DForceEnabled()
-{
-  static int preferenceValue = -1;
-  if (preferenceValue < 0) {
-    preferenceValue = Preferences::GetBool("gfx.direct2d.force-enabled", false);
-  }
-  return !!preferenceValue;
-}
-
 int64_t GetD2DSurfaceVramUsage() {
   cairo_device_t *device =
       gfxWindowsPlatform::GetPlatform()->GetD2DDevice();
@@ -436,10 +418,8 @@ gfxWindowsPlatform::UpdateRenderMode()
         }
     }
 
-    // These will only be evaluated once, and any subsequent changes to
-    // the preferences will be ignored until restart.
-    d2dDisabled = OncePreferenceDirect2DDisabled();
-    d2dForceEnabled = OncePreferenceDirect2DForceEnabled();
+    d2dDisabled = Preferences::GetBool("gfx.direct2d.disabled", false);
+    d2dForceEnabled = Preferences::GetBool("gfx.direct2d.force-enabled", false);
 
 #ifdef MOZ_METRO
     // In Metro mode there is no fallback available

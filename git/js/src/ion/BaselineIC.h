@@ -1046,11 +1046,6 @@ class ICStubCompiler
         return regs;
     }
 
-#ifdef JSGC_GENERATIONAL
-    inline bool emitPostWriteBarrierSlot(MacroAssembler &masm, Register obj, Register scratch,
-                                         GeneralRegisterSet saveRegs);
-#endif
-
   public:
     virtual ICStub *getStub(ICStubSpace *space) = 0;
 
@@ -4557,7 +4552,7 @@ class ICSetProp_Native : public ICUpdatedStub
     }
 
     class Compiler : public ICStubCompiler {
-        RootedObject obj_;
+        HandleObject obj_;
         bool isFixedSlot_;
         uint32_t offset_;
 
@@ -4571,7 +4566,7 @@ class ICSetProp_Native : public ICUpdatedStub
       public:
         Compiler(JSContext *cx, HandleObject obj, bool isFixedSlot, uint32_t offset)
           : ICStubCompiler(cx, ICStub::SetProp_Native),
-            obj_(cx, obj),
+            obj_(obj),
             isFixedSlot_(isFixedSlot),
             offset_(offset)
         {}

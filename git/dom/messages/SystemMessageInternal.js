@@ -243,17 +243,7 @@ SystemMessageInternal.prototype = {
     return -1;
   },
 
-  _isEmptyObject: function _isEmptyObject(aObj) {
-    for (let name in aObj) {
-      return false;
-    }
-    return true;
-  },
-
-  _removeTargetFromListener: function _removeTargetFromListener(aTarget,
-                                                                aManifest,
-                                                                aRemoveListener,
-                                                                aUri) {
+  _removeTargetFromListener: function _removeTargetFromListener(aTarget, aManifest, aRemoveListener) {
     let targets = this._listeners[aManifest];
     if (!targets) {
       return false;
@@ -270,13 +260,7 @@ SystemMessageInternal.prototype = {
       return true;
     }
 
-    let target = targets[index];
-    if (aUri && target.winCounts[aUri] !== undefined &&
-        --target.winCounts[aUri] === 0) {
-      delete target.winCounts[aUri];
-    }
-
-    if (this._isEmptyObject(target.winCounts)) {
+    if (--targets[index].winCount === 0) {
       if (targets.length === 1) {
         // If it's the only one, get rid of this manifest entirely.
         debug("remove the listener for " + aManifest);
@@ -313,25 +297,17 @@ SystemMessageInternal.prototype = {
       case "SystemMessageManager:Register":
       {
         debug("Got Register from " + msg.uri + " @ " + msg.manifest);
-        let uri = msg.uri;
         let targets, index;
         if (!(targets = this._listeners[msg.manifest])) {
-          let winCounts = {};
-          winCounts[uri] = 1;
           this._listeners[msg.manifest] = [{ target: aMessage.target,
-                                             winCounts: winCounts }];
+                                             uri: msg.uri,
+                                             winCount: 1 }];
         } else if ((index = this._findTargetIndex(targets, aMessage.target)) === -1) {
-          let winCounts = {};
-          winCounts[uri] = 1;
           targets.push({ target: aMessage.target,
-                         winCounts: winCounts });
+                         uri: msg.uri,
+                         winCount: 1 });
         } else {
-          let winCounts = targets[index].winCounts;
-          if (winCounts[uri] === undefined) {
-            winCounts[uri] = 1;
-          } else {
-            winCounts[uri]++;
-          }
+          targets[index].winCount++;
         }
 
         debug("listeners for " + msg.manifest + " innerWinID " + msg.innerWindowID);
@@ -342,7 +318,7 @@ SystemMessageInternal.prototype = {
         debug("Got child-process-shutdown from " + aMessage.target);
         for (let manifest in this._listeners) {
           // See if any processes in this manifest have this target.
-          if (this._removeTargetFromListener(aMessage.target, manifest, true, null)) {
+          if (this._removeTargetFromListener(aMessage.target, manifest, true)) {
             break;
           }
         }
@@ -351,7 +327,7 @@ SystemMessageInternal.prototype = {
       case "SystemMessageManager:Unregister":
       {
         debug("Got Unregister from " + aMessage.target + "innerWinID " + msg.innerWindowID);
-        this._removeTargetFromListener(aMessage.target, msg.manifest, false, msg.uri);
+        this._removeTargetFromListener(aMessage.target, msg.manifest, false);
         break;
       }
       case "SystemMessageManager:GetPendingMessages":
@@ -545,7 +521,7 @@ SystemMessageInternal.prototype = {
         let target = targets[index];
         // We only need to send the system message to the targets which match
         // the manifest URL and page URL of the destination of system message.
-        if (target.winCounts[aPageURI] === undefined) {
+        if (target.uri != aPageURI) {
           continue;
         }
 

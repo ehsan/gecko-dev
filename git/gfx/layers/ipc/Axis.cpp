@@ -292,7 +292,7 @@ float Axis::GetPageEnd() {
 }
 
 float Axis::GetOrigin() {
-  CSSPoint origin = mAsyncPanZoomController->GetFrameMetrics().mScrollOffset;
+  gfx::Point origin = mAsyncPanZoomController->GetFrameMetrics().mScrollOffset;
   return GetPointOffset(origin);
 }
 
@@ -334,7 +334,7 @@ AxisX::AxisX(AsyncPanZoomController* aAsyncPanZoomController)
 
 }
 
-float AxisX::GetPointOffset(const CSSPoint& aPoint)
+float AxisX::GetPointOffset(const gfx::Point& aPoint)
 {
   return aPoint.x;
 }
@@ -355,7 +355,7 @@ AxisY::AxisY(AsyncPanZoomController* aAsyncPanZoomController)
 
 }
 
-float AxisY::GetPointOffset(const CSSPoint& aPoint)
+float AxisY::GetPointOffset(const gfx::Point& aPoint)
 {
   return aPoint.y;
 }

@@ -2373,24 +2373,21 @@ WebConsoleFrame.prototype = {
 
     // Create the text, which consists of an abbreviated version of the URL
     // plus an optional line number. Scratchpad URLs should not be abbreviated.
-    let displayLocation;
-    let fullURL;
+    let text;
 
     if (/^Scratchpad\/\d+$/.test(aSourceURL)) {
-      displayLocation = aSourceURL;
-      fullURL = aSourceURL;
+      text = aSourceURL;
     }
     else {
-      fullURL = aSourceURL.split(" -> ").pop();
-      displayLocation = WebConsoleUtils.abbreviateSourceURL(fullURL);
+      text = WebConsoleUtils.abbreviateSourceURL(aSourceURL);
     }
 
     if (aSourceLine) {
-      displayLocation += ":" + aSourceLine;
+      text += ":" + aSourceLine;
       locationNode.sourceLine = aSourceLine;
     }
 
-    locationNode.setAttribute("value", displayLocation);
+    locationNode.setAttribute("value", text);
 
     // Style appropriately.
     locationNode.setAttribute("crop", "center");
@@ -2400,7 +2397,7 @@ WebConsoleFrame.prototype = {
     locationNode.classList.add("text-link");
 
     // Make the location clickable.
-    locationNode.addEventListener("click", () => {
+    locationNode.addEventListener("click", function() {
       if (/^Scratchpad\/\d+$/.test(aSourceURL)) {
         let wins = Services.wm.getEnumerator("devtools:scratchpad");
 
@@ -2414,16 +2411,16 @@ WebConsoleFrame.prototype = {
         }
       }
       else if (locationNode.parentNode.category == CATEGORY_CSS) {
-        this.owner.viewSourceInStyleEditor(fullURL, aSourceLine);
+        this.owner.viewSourceInStyleEditor(aSourceURL, aSourceLine);
       }
       else if (locationNode.parentNode.category == CATEGORY_JS ||
                locationNode.parentNode.category == CATEGORY_WEBDEV) {
-        this.owner.viewSourceInDebugger(fullURL, aSourceLine);
+        this.owner.viewSourceInDebugger(aSourceURL, aSourceLine);
       }
       else {
-        this.owner.viewSource(fullURL, aSourceLine);
+        this.owner.viewSource(aSourceURL, aSourceLine);
       }
-    }, true);
+    }.bind(this), true);
 
     return locationNode;
   },
@@ -2686,14 +2683,8 @@ function JSTerm(aWebConsoleFrame)
 
   this.lastCompletion = { value: null };
   this.history = [];
-
-  // Holds the number of entries in history. This value is incremented in
-  // this.execute().
-  this.historyIndex = 0; // incremented on this.execute()
-
-  // Holds the index of the history entry that the user is currently viewing.
-  // This is reset to this.history.length when this.execute() is invoked.
-  this.historyPlaceHolder = 0;
+  this.historyIndex = 0;
+  this.historyPlaceHolder = 0;  // this.history.length;
   this._objectActorsInVariablesViews = new Map();
 
   this._keyPress = this.keyPress.bind(this);
@@ -2963,10 +2954,8 @@ JSTerm.prototype = {
     let options = { frame: this.SELECTED_FRAME };
     this.requestEvaluation(aExecuteString, options).then(onResult, onResult);
 
-    // Append a new value in the history of executed code, or overwrite the most
-    // recent entry. The most recent entry may contain the last edited input
-    // value that was not evaluated yet.
-    this.history[this.historyIndex++] = aExecuteString;
+    this.history.push(aExecuteString);
+    this.historyIndex++;
     this.historyPlaceHolder = this.history.length;
     this.setInputValue("");
     this.clearCompletion();
@@ -3948,26 +3937,27 @@ JSTerm.prototype = {
       if (this.historyPlaceHolder <= 0) {
         return false;
       }
+
       let inputVal = this.history[--this.historyPlaceHolder];
-
-      // Save the current input value as the latest entry in history, only if
-      // the user is already at the last entry.
-      // Note: this code does not store changes to items that are already in
-      // history.
-      if (this.historyPlaceHolder+1 == this.historyIndex) {
-        this.history[this.historyIndex] = this.inputNode.value || "";
+      if (inputVal){
+        this.setInputValue(inputVal);
       }
-
-      this.setInputValue(inputVal);
     }
     // Down Arrow key
     else if (aDirection == HISTORY_FORWARD) {
-      if (this.historyPlaceHolder >= (this.history.length-1)) {
+      if (this.historyPlaceHolder == this.history.length - 1) {
+        this.historyPlaceHolder ++;
+        this.setInputValue("");
+      }
+      else if (this.historyPlaceHolder >= (this.history.length)) {
         return false;
       }
-
-      let inputVal = this.history[++this.historyPlaceHolder];
-      this.setInputValue(inputVal);
+      else {
+        let inputVal = this.history[++this.historyPlaceHolder];
+        if (inputVal){
+          this.setInputValue(inputVal);
+        }
+      }
     }
     else {
       throw new Error("Invalid argument 0");

@@ -1481,14 +1481,9 @@ ObjectActor.prototype = {
    * Returns a grip for this actor for returning in a protocol message.
    */
   grip: function OA_grip() {
-    let g = {
-      "type": "object",
-      "class": this.obj.class,
-      "actor": this.actorID,
-      "extensible": this.obj.isExtensible(),
-      "frozen": this.obj.isFrozen(),
-      "sealed": this.obj.isSealed()
-    };
+    let g = { "type": "object",
+              "class": this.obj.class,
+              "actor": this.actorID };
 
     // Add additional properties for functions.
     if (this.obj.class === "Function") {
@@ -1785,7 +1780,7 @@ ObjectActor.prototype.requestTypes = {
 
 
 /**
- * Creates a pause-scoped actor for the specified object.
+ * Creates a pause-scoped  actor for the specified object.
  * @see ObjectActor
  */
 function PauseScopedObjectActor()
@@ -2371,18 +2366,13 @@ Object.defineProperty(Debugger.Frame.prototype, "line", {
  * Creates an actor for handling chrome debugging. ChromeDebuggerActor is a
  * thin wrapper over ThreadActor, slightly changing some of its behavior.
  *
- * @param aConnection object
- *        The DebuggerServerConnection with which this ChromeDebuggerActor
- *        is associated. (Currently unused, but required to make this
- *        constructor usable with addGlobalActor.)
- *
  * @param aHooks object
  *        An object with preNest and postNest methods for calling when entering
  *        and exiting a nested event loop and also addToParentPool and
  *        removeFromParentPool methods for handling the lifetime of actors that
  *        will outlive the thread, like breakpoints.
  */
-function ChromeDebuggerActor(aConnection, aHooks)
+function ChromeDebuggerActor(aHooks)
 {
   ThreadActor.call(this, aHooks);
 }

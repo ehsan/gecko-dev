@@ -4,10 +4,6 @@
 
 package org.mozilla.gecko.background.healthreport;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
-
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.gecko.background.common.log.Logger;
@@ -37,8 +33,7 @@ public class HealthReportGenerator {
    * @throws JSONException if there was an error adding environment data to the resulting document.
    */
   public JSONObject generateDocument(long since, long lastPingTime, String profilePath) throws JSONException {
-    Logger.info(LOG_TAG, "Generating FHR document from " + since + "; last ping " + lastPingTime);
-    Logger.pii(LOG_TAG, "Generating for profile " + profilePath);
+    Logger.info(LOG_TAG, "Generating FHR document from " + since + "; last ping " + lastPingTime + ", for profile " + profilePath);
     ProfileInformationCache cache = new ProfileInformationCache(profilePath);
     if (!cache.restoreUnlessInitialized()) {
       Logger.warn(LOG_TAG, "Not enough profile information to compute current environment.");
@@ -62,13 +57,7 @@ public class HealthReportGenerator {
    * @throws JSONException if there was an error adding environment data to the resulting document.
    */
   public JSONObject generateDocument(long since, long lastPingTime, Environment currentEnvironment) throws JSONException {
-    final String currentHash = currentEnvironment.getHash();
-
-    Logger.debug(LOG_TAG, "Current environment hash: " + currentHash);
-    if (currentHash == null) {
-      Logger.warn(LOG_TAG, "Current hash is null; aborting.");
-      return null;
-    }
+    Logger.debug(LOG_TAG, "Current environment hash: " + currentEnvironment.getHash());
 
     // We want to map field IDs to some strings as we go.
     SparseArray<Environment> envs = storage.getEnvironmentRecordsByID();
@@ -103,12 +92,6 @@ public class HealthReportGenerator {
   }
 
   protected JSONObject getDaysJSON(Environment currentEnvironment, SparseArray<Environment> envs, SparseArray<Field> fields, long since) throws JSONException {
-    if (Logger.shouldLogVerbose(LOG_TAG)) {
-      for (int i = 0; i < envs.size(); ++i) {
-        Logger.trace(LOG_TAG, "Days environment " + envs.keyAt(i) + ": " + envs.get(envs.keyAt(i)).getHash());
-      }
-    }
-
     JSONObject days = new JSONObject();
     Cursor cursor = storage.getRawEventsSince(since);
     try {
@@ -129,19 +112,10 @@ public class HealthReportGenerator {
       JSONObject envObject = null;
 
       while (!cursor.isAfterLast()) {
-        int cEnv = cursor.getInt(1);
-        if (cEnv == -1 ||
-            (cEnv != lastEnv &&
-             envs.indexOfKey(cEnv) < 0)) {
-          Logger.warn(LOG_TAG, "Invalid environment " + cEnv + " in cursor. Skipping.");
-          cursor.moveToNext();
-          continue;
-        }
-
         int cDate  = cursor.getInt(0);
+        int cEnv   = cursor.getInt(1);
         int cField = cursor.getInt(2);
 
-        Logger.trace(LOG_TAG, "Event row: " + cDate + ", " + cEnv + ", " + cField);
         boolean dateChanged = cDate != lastDate;
         boolean envChanged = cEnv != lastEnv;
 
@@ -155,8 +129,7 @@ public class HealthReportGenerator {
 
         if (dateChanged || envChanged) {
           envObject = new JSONObject();
-          // This is safe because we checked above that cEnv is valid.
-          dateObject.put(envs.get(cEnv).getHash(), envObject);
+          dateObject.put(envs.get(cEnv).hash, envObject);
           lastEnv = cEnv;
         }
 
@@ -198,8 +171,8 @@ public class HealthReportGenerator {
     return days;
   }
 
-  public static JSONObject getEnvironmentsJSON(Environment currentEnvironment,
-                                               SparseArray<Environment> envs) throws JSONException {
+  protected JSONObject getEnvironmentsJSON(Environment currentEnvironment,
+                                           SparseArray<Environment> envs) throws JSONException {
     JSONObject environments = new JSONObject();
 
     // Always do this, even if it hasn't recorded anything in the DB.
@@ -216,7 +189,7 @@ public class HealthReportGenerator {
     return environments;
   }
 
-  public static JSONObject jsonify(Environment e, Environment current) throws JSONException {
+  private JSONObject jsonify(Environment e, Environment current) throws JSONException {
     JSONObject age = getProfileAge(e, current);
     JSONObject sysinfo = getSysInfo(e, current);
     JSONObject gecko = getGeckoInfo(e, current);
@@ -245,7 +218,7 @@ public class HealthReportGenerator {
     return out;
   }
 
-  private static JSONObject getProfileAge(Environment e, Environment current) throws JSONException {
+  private JSONObject getProfileAge(Environment e, Environment current) throws JSONException {
     JSONObject age = new JSONObject();
     int changes = 0;
     if (current == null || current.profileCreation != e.profileCreation) {
@@ -259,7 +232,7 @@ public class HealthReportGenerator {
     return age;
   }
 
-  private static JSONObject getSysInfo(Environment e, Environment current) throws JSONException {
+  private JSONObject getSysInfo(Environment e, Environment current) throws JSONException {
     JSONObject sysinfo = new JSONObject();
     int changes = 0;
     if (current == null || current.cpuCount != e.cpuCount) {
@@ -289,7 +262,7 @@ public class HealthReportGenerator {
     return sysinfo;
   }
 
-  private static JSONObject getGeckoInfo(Environment e, Environment current) throws JSONException {
+  private JSONObject getGeckoInfo(Environment e, Environment current) throws JSONException {
     JSONObject gecko = new JSONObject();
     int changes = 0;
     if (current == null || !current.vendor.equals(e.vendor)) {
@@ -339,7 +312,7 @@ public class HealthReportGenerator {
     return gecko;
   }
 
-  private static JSONObject getAppInfo(Environment e, Environment current) throws JSONException {
+  private JSONObject getAppInfo(Environment e, Environment current) throws JSONException {
     JSONObject appinfo = new JSONObject();
     int changes = 0;
     if (current == null || current.isBlocklistEnabled != e.isBlocklistEnabled) {
@@ -357,7 +330,7 @@ public class HealthReportGenerator {
     return appinfo;
   }
 
-  private static JSONObject getAddonCounts(Environment e, Environment current) throws JSONException {
+  private JSONObject getAddonCounts(Environment e, Environment current) throws JSONException {
     JSONObject counts = new JSONObject();
     int changes = 0;
     if (current == null || current.extensionCount != e.extensionCount) {
@@ -379,115 +352,13 @@ public class HealthReportGenerator {
     return counts;
   }
 
-  /**
-   * Compute the *tree* difference set between the two objects. If the two
-   * objects are identical, returns null.
-   *
-   * @param from
-   *          a JSONObject.
-   * @param to
-   *          a JSONObject.
-   * @param includeNull
-   *          if true, keys present in <code>from</code> but not in
-   *          <code>to</code> are included as {@link JSONObject#NULL} in the
-   *          output.
-   *
-   * @return a JSONObject, or null if the two objects are identical.
-   * @throws JSONException
-   *           should not occur, but...
-   */
-  public static JSONObject diff(JSONObject from,
-                                JSONObject to,
-                                boolean includeNull) throws JSONException {
-    if (from == null || from == JSONObject.NULL) {
-      return to;
-    }
-
-    JSONObject out = new JSONObject();
-
-    HashSet<String> toKeys = includeNull ? new HashSet<String>(to.length())
-                                         : null;
-
-    @SuppressWarnings("unchecked")
-    Iterator<String> it = to.keys();
-    while (it.hasNext()) {
-      String key = it.next();
-
-      // Track these as we go if we'll need them later.
-      if (includeNull) {
-        toKeys.add(key);
-      }
-
-      Object value = to.get(key);
-      if (!from.has(key)) {
-        // It must be new.
-        out.put(key, value);
-        continue;
-      }
-
-      // Not new? Then see if it changed.
-      Object old = from.get(key);
-
-      // Two JSONObjects should be diffed.
-      if (old instanceof JSONObject && value instanceof JSONObject) {
-        JSONObject innerDiff = diff(((JSONObject) old), ((JSONObject) value),
-                                    includeNull);
-        // No change? No output.
-        if (innerDiff == null) {
-          continue;
-        }
-
-        // Otherwise include the diff.
-        out.put(key, innerDiff);
-        continue;
-      }
-
-      // A regular value, or a type change. Only skip if they're the same.
-      if (value.equals(old)) {
-        continue;
-      }
-      out.put(key, value);
-    }
-
-    // Now -- if requested -- include any removed keys.
-    if (includeNull) {
-      Set<String> fromKeys = HealthReportUtils.keySet(from);
-      fromKeys.removeAll(toKeys);
-      for (String notPresent : fromKeys) {
-        out.put(notPresent, JSONObject.NULL);
-      }
-    }
-
-    if (out.length() == 0) {
+  private JSONObject getActiveAddons(Environment e, Environment current) throws JSONException {
+    JSONObject active = new JSONObject();
+    int changes = 0;
+    if (current != null && changes == 0) {
       return null;
     }
-    return out;
-  }
-
-  private static JSONObject getActiveAddons(Environment e, Environment current) throws JSONException {
-    // Just return the current add-on set, with a version annotation.
-    // To do so requires copying.
-    if (current == null) {
-      JSONObject out = e.getNonIgnoredAddons();
-      if (out == null) {
-        Logger.warn(LOG_TAG, "Null add-ons to return in FHR document. Returning {}.");
-        out = new JSONObject();        // So that we always return something.
-      }
-      out.put("_v", 1);
-      return out;
-    }
-
-    // Otherwise, return the diff.
-    JSONObject diff = diff(current.getNonIgnoredAddons(), e.getNonIgnoredAddons(), true);
-    if (diff == null) {
-      return null;
-    }
-    if (diff == e.addons) {
-      // Again, needs to copy.
-      return getActiveAddons(e, null);
-    }
-
-    diff.put("_v", 1);
-    return diff;
+    active.put("_v", 1);
+    return active;
   }
 }

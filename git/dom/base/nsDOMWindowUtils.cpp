@@ -3382,7 +3382,7 @@ nsDOMWindowUtils::GetOMTAOrComputedStyle(nsIDOMNode* aNode,
 
   nsRefPtr<nsROCSSPrimitiveValue> cssValue = nullptr;
   nsIFrame* frame = element->GetPrimaryFrame();
-  if (frame && nsLayoutUtils::AreAsyncAnimationsEnabled()) {
+  if (frame) {
     if (aProperty.EqualsLiteral("opacity")) {
       Layer* layer = FrameLayerBuilder::GetDedicatedLayer(frame, nsDisplayItem::TYPE_OPACITY);
       if (layer) {

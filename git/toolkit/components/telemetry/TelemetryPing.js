@@ -674,12 +674,11 @@ TelemetryPing.prototype = {
     }
   },
 
-  submissionPath: function submissionPath() {
-    return "/submit/telemetry/" + this._uuid;
-  },
-
   doPing: function doPing(server, ping, onSuccess, onError) {
-    let url = server + this.submissionPath();
+    let submitPath = "/submit/telemetry/" + (ping.reason == "test-ping"
+                                             ? "test-ping"
+                                             : ping.slug);
+    let url = server + submitPath;
     let request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                   .createInstance(Ci.nsIXMLHttpRequest);
     request.mozBackgroundRequest = true;
