@@ -6,11 +6,9 @@
 
 #include "MediaStreamGraph.h"
 #include "GetUserMediaRequest.h"
-#include "nsHashPropertyBag.h"
 #ifdef MOZ_WIDGET_GONK
 #include "nsIAudioManager.h"
 #endif
-#include "nsIAppsService.h"
 #include "nsIDOMFile.h"
 #include "nsIEventTarget.h"
 #include "nsIUUIDGenerator.h"
@@ -21,12 +19,9 @@
 #include "nsIDocument.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIScriptSecurityManager.h"
-#include "mozilla/dom/TabChild.h"
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/MediaStreamTrackBinding.h"
 #include "mozilla/dom/GetUserMediaRequestBinding.h"
-
-#include "Latency.h"
 
 // For PR_snprintf
 #include "prprf.h"
@@ -141,45 +136,6 @@ static nsresult ValidateTrackConstraints(
     NS_ENSURE_SUCCESS(rv, rv);
   }
   return NS_OK;
-}
-
-static already_AddRefed<nsHashPropertyBag>
-CreateRecordingDeviceEventsSubject(nsPIDOMWindow* aWindow,
-                                   const bool aIsAudio,
-                                   const bool aIsVideo)
-{
-  MOZ_ASSERT(aWindow);
-
-  nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
-  props->SetPropertyAsBool(NS_LITERAL_STRING("isAudio"), aIsAudio);
-  props->SetPropertyAsBool(NS_LITERAL_STRING("isVideo"), aIsVideo);
-
-  nsCOMPtr<nsIDocShell> docShell = aWindow->GetDocShell();
-  if (docShell) {
-    bool isApp;
-    DebugOnly<nsresult> rv = docShell->GetIsApp(&isApp);
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
-
-    nsString requestURL;
-    if (isApp) {
-      rv = docShell->GetAppManifestURL(requestURL);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-    } else {
-      nsCString pageURL;
-      nsCOMPtr<nsIURI> docURI = aWindow->GetDocumentURI();
-      MOZ_ASSERT(docURI);
-
-      rv = docURI->GetSpec(pageURL);
-      MOZ_ASSERT(NS_SUCCEEDED(rv));
-
-      requestURL = NS_ConvertUTF8toUTF16(pageURL);
-    }
-
-    props->SetPropertyAsAString(NS_LITERAL_STRING("requestURL"), requestURL);
-    props->SetPropertyAsBool(NS_LITERAL_STRING("isApp"), isApp);
-  }
-
-  return props.forget();
 }
 
 /**
@@ -608,12 +564,6 @@ public:
       AllocateInputPort(stream, MediaInputPort::FLAG_BLOCK_OUTPUT);
     trackunion->mSourceStream = stream;
     trackunion->mPort = port.forget();
-    // Log the relationship between SourceMediaStream and TrackUnion stream
-    // Make sure logger starts before capture
-    AsyncLatencyLogger::Get(true);
-    LogLatency(AsyncLatencyLogger::MediaStreamCreate,
-               reinterpret_cast<uint64_t>(stream.get()),
-               reinterpret_cast<int64_t>(trackunion->GetStream()));
 
     trackunion->CombineWithPrincipal(window->GetExtantDoc()->NodePrincipal());
 
@@ -634,7 +584,7 @@ public:
     nsRefPtr<MediaOperationRunnable> runnable(
       new MediaOperationRunnable(MEDIA_START, mListener, trackunion,
                                  tracksAvailableCallback,
-                                 mAudioSource, mVideoSource, false, mWindowID));
+                                 mAudioSource, mVideoSource, false));
     mediaThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
 
 #ifdef MOZ_WEBRTC
@@ -1780,7 +1730,7 @@ GetUserMediaCallbackMediaStreamListener::Invalidate()
   runnable = new MediaOperationRunnable(MEDIA_STOP,
                                         this, nullptr, nullptr,
                                         mAudioSource, mVideoSource,
-                                        mFinished, mWindowID);
+                                        mFinished);
   mMediaThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
 }
 
@@ -1837,20 +1787,13 @@ GetUserMediaNotificationEvent::Run()
     }
     break;
   }
-
-  nsCOMPtr<nsPIDOMWindow> window = nsGlobalWindow::GetInnerWindowWithId(mWindowID);
-  MOZ_ASSERT(window);
-
-  nsRefPtr<nsHashPropertyBag> props = 
-    CreateRecordingDeviceEventsSubject(window, mIsAudio, mIsVideo);
-
-  obs->NotifyObservers(static_cast<nsIPropertyBag2*>(props),
+  obs->NotifyObservers(nullptr,
 		       "recording-device-events",
 		       msg.get());
   // Forward recording events to parent process.
   // The events are gathered in chrome process and used for recording indicator
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    unused << dom::TabChild::GetFrom(window)->SendRecordingDeviceEvents(msg, mIsAudio, mIsVideo);
+    unused << dom::ContentChild::GetSingleton()->SendRecordingDeviceEvents(msg);
   }
   return NS_OK;
 }

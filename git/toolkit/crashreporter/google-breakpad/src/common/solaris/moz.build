@@ -24,5 +24,3 @@ HOST_SOURCES += [
     'guid_creator.cc',
 ]
 
-# need static lib
-FORCE_STATIC_LIB = True

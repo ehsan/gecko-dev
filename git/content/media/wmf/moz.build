@@ -10,7 +10,6 @@ EXPORTS += [
     'WMF.h',
     'WMFDecoder.h',
     'WMFReader.h',
-    'WMFUtils.h',
 ]
 
 SOURCES += [

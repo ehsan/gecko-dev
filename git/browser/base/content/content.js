@@ -99,7 +99,7 @@ let AboutHomeListener = {
     if (aData.showKnowYourRights)
       docElt.setAttribute("showKnowYourRights", "true");
     docElt.setAttribute("snippetsVersion", aData.snippetsVersion);
-    docElt.setAttribute("searchEngineName", aData.defaultEngineName);
+    docElt.setAttribute("searchEngineName", Services.search.defaultEngine.name);
   },
 
   onPageLoad: function() {
