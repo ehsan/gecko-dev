@@ -5,6 +5,7 @@
 #ifndef MOOF_PARSER_H_
 #define MOOF_PARSER_H_
 
+#include "media/stagefright/MediaSource.h"
 #include "mp4_demuxer/mp4_demuxer.h"
 #include "MediaResource.h"
 
@@ -91,13 +92,6 @@ public:
   uint64_t mBaseMediaDecodeTime;
 };
 
-struct Sample
-{
-  mozilla::MediaByteRange mByteRange;
-  Interval<Microseconds> mCompositionRange;
-  bool mSync;
-};
-
 class Moof
 {
 public:
@@ -108,7 +102,7 @@ public:
   mozilla::MediaByteRange mRange;
   mozilla::MediaByteRange mMdatRange;
   nsTArray<Interval<Microseconds>> mTimeRanges;
-  nsTArray<Sample> mIndex;
+  nsTArray<stagefright::MediaSource::Indice> mIndex;
 };
 
 class MoofParser
@@ -117,12 +111,9 @@ public:
   MoofParser(Stream* aSource, uint32_t aTrackId)
     : mSource(aSource), mOffset(0), mTrex(aTrackId)
   {
-    // Setting the mTrex.mTrackId to 0 is a nasty work around for calculating
-    // the composition range for MSE. We need an array of tracks.
   }
   void RebuildFragmentedIndex(
     const nsTArray<mozilla::MediaByteRange>& aByteRanges);
-  Interval<Microseconds> GetCompositionRange();
   bool ReachedEnd();
   void ParseMoov(Box& aBox);
   void ParseTrak(Box& aBox);

@@ -848,15 +848,7 @@ class StoreOp
         masm.storePtr(reg, dump);
     }
     void operator()(FloatRegister reg, Address dump) {
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
-        if (reg.isDouble()) {
-            masm.storeDouble(reg, dump);
-        } else {
-            masm.storeFloat32(reg, dump);
-        }
-#else
         masm.storeDouble(reg, dump);
-#endif
     }
 };
 
@@ -897,21 +889,16 @@ class VerifyOp
     }
     void operator()(FloatRegister reg, Address dump) {
         FloatRegister scratch;
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
-        if (reg.isDouble()) {
+#ifdef JS_CODEGEN_ARM
+        if (reg.isDouble())
             scratch = ScratchDoubleReg;
-            masm.loadDouble(dump, scratch);
-            masm.branchDouble(Assembler::DoubleNotEqual, scratch, reg, failure_);
-        } else {
+        else
             scratch = ScratchFloat32Reg;
-            masm.loadFloat32(dump, scratch);
-            masm.branchFloat(Assembler::DoubleNotEqual, scratch, reg, failure_);
-        }
 #else
         scratch = ScratchFloat32Reg;
+#endif
         masm.loadDouble(dump, scratch);
         masm.branchDouble(Assembler::DoubleNotEqual, scratch, reg, failure_);
-#endif
     }
 };
 

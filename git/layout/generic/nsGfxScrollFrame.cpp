@@ -2020,8 +2020,7 @@ ScrollFrameHelper::ScrollToWithOrigin(nsPoint aScrollPosition,
     return;
   }
 
-  nsPresContext* presContext = mOuter->PresContext();
-  TimeStamp now = presContext->RefreshDriver()->MostRecentRefresh();
+  TimeStamp now = TimeStamp::Now();
   bool isSmoothScroll = (aMode == nsIScrollableFrame::SMOOTH) &&
                           IsSmoothScrollingEnabled();
 

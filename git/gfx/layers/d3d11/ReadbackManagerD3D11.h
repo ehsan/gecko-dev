@@ -37,7 +37,7 @@ public:
 private:
   ~ReadbackManagerD3D11();
 
-  static DWORD WINAPI StartTaskThread(void *aManager);
+  friend DWORD WINAPI StartTaskThread(void *aManager);
 
   void ProcessTasks();
 

@@ -34,6 +34,12 @@ public:
 
   explicit ServiceWorkerContainer(nsPIDOMWindow* aWindow);
 
+  nsPIDOMWindow*
+  GetParentObject() const
+  {
+    return mWindow;
+  }
+
   JSObject*
   WrapObject(JSContext* aCx);
 
@@ -52,7 +58,7 @@ public:
   already_AddRefed<Promise>
   GetRegistrations(ErrorResult& aRv);
 
-  Promise*
+  already_AddRefed<Promise>
   GetReady(ErrorResult& aRv);
 
   // Testing only.
@@ -68,19 +74,15 @@ public:
   GetControllingWorkerScriptURLForPath(const nsAString& aPath,
                                        nsString& aScriptURL,
                                        ErrorResult& aRv);
-
-  // DOMEventTargetHelper
-  void DisconnectFromOwner() MOZ_OVERRIDE;
-
 private:
   ~ServiceWorkerContainer();
+
+  nsCOMPtr<nsPIDOMWindow> mWindow;
 
   // This only changes when a worker hijacks everything in its scope by calling
   // replace().
   // FIXME(nsm): Bug 982711. Provide API to let SWM invalidate this.
   nsRefPtr<workers::ServiceWorker> mControllerWorker;
-
-  nsRefPtr<Promise> mReadyPromise;
 };
 
 } // namespace dom

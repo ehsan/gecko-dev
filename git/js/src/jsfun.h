@@ -533,9 +533,6 @@ FunctionHasResolveHook(const JSAtomState &atomState, PropertyName *name);
 extern bool
 fun_resolve(JSContext *cx, HandleObject obj, HandleId id, MutableHandleObject objp);
 
-extern bool
-fun_toString(JSContext *cx, unsigned argc, Value *vp);
-
 /*
  * Function extended with reserved slots for use by various kinds of functions.
  * Most functions do not have these extensions, but enough do that efficient

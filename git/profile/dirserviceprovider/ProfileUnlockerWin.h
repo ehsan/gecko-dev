@@ -8,7 +8,7 @@
 #define mozilla_ProfileUnlockerWin_h
 
 #include <windows.h>
-#include <restartmanager.h>
+#include <RestartManager.h>
 
 #include "nsIProfileUnlocker.h"
 #include "nsProfileStringTypes.h"

@@ -58,6 +58,7 @@ public:
   void OnNuwaReady();
   bool PreallocatedProcessReady();
   already_AddRefed<ContentParent> GetSpareProcess();
+  void RunAfterPreallocatedProcessReady(nsIRunnable* aRunnable);
 
 private:
   void NuwaFork();
@@ -68,6 +69,8 @@ private:
   // The array containing the preallocated processes. 4 as the inline storage size
   // should be enough so we don't need to grow the nsAutoTArray.
   nsAutoTArray<nsRefPtr<ContentParent>, 4> mSpareProcesses;
+
+  nsTArray<nsCOMPtr<nsIRunnable> > mDelayedContentParentRequests;
 
   // Nuwa process is ready for creating new process.
   bool mIsNuwaReady;
@@ -222,6 +225,16 @@ PreallocatedProcessManagerImpl::AllocateNow()
 #ifdef MOZ_NUWA_PROCESS
 
 void
+PreallocatedProcessManagerImpl::RunAfterPreallocatedProcessReady(nsIRunnable* aRequest)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  mDelayedContentParentRequests.AppendElement(aRequest);
+
+  // This is an urgent NuwaFork() request. Request to fork at once.
+  DelayedNuwaFork();
+}
+
+void
 PreallocatedProcessManagerImpl::ScheduleDelayedNuwaFork()
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -298,12 +311,25 @@ PreallocatedProcessManagerImpl::PublishSpareProcess(ContentParent* aContent)
   }
 
   mSpareProcesses.AppendElement(aContent);
+
+  if (!mDelayedContentParentRequests.IsEmpty()) {
+    nsCOMPtr<nsIRunnable> runnable = mDelayedContentParentRequests[0];
+    mDelayedContentParentRequests.RemoveElementAt(0);
+    NS_DispatchToMainThread(runnable);
+  }
 }
 
 void
 PreallocatedProcessManagerImpl::MaybeForgetSpare(ContentParent* aContent)
 {
   MOZ_ASSERT(NS_IsMainThread());
+
+  if (!mDelayedContentParentRequests.IsEmpty()) {
+    if (!mPreallocateAppProcessTask) {
+      // This NuwaFork request is urgent. Don't delay it.
+      DelayedNuwaFork();
+    }
+  }
 
   if (mSpareProcesses.RemoveElement(aContent)) {
     return;
@@ -479,6 +505,12 @@ PreallocatedProcessManager::IsNuwaReady()
 PreallocatedProcessManager::PreallocatedProcessReady()
 {
   return GetPPMImpl()->PreallocatedProcessReady();
+}
+
+/* static */ void
+PreallocatedProcessManager::RunAfterPreallocatedProcessReady(nsIRunnable* aRequest)
+{
+  GetPPMImpl()->RunAfterPreallocatedProcessReady(aRequest);
 }
 
 #endif

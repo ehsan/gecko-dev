@@ -586,13 +586,7 @@ Element::GetScrollFrame(nsIFrame **aStyledFrame, bool aFlushLayout)
 }
 
 void
-Element::ScrollIntoView()
-{
-  ScrollIntoView(true, ScrollOptions());
-}
-
-void
-Element::ScrollIntoView(bool aTop, const ScrollOptions &aOptions)
+Element::ScrollIntoView(bool aTop)
 {
   nsIDocument *document = GetCurrentDoc();
   if (!document) {
@@ -608,17 +602,12 @@ Element::ScrollIntoView(bool aTop, const ScrollOptions &aOptions)
   int16_t vpercent = aTop ? nsIPresShell::SCROLL_TOP :
     nsIPresShell::SCROLL_BOTTOM;
 
-  uint32_t flags = nsIPresShell::SCROLL_OVERFLOW_HIDDEN;
-  if (aOptions.mBehavior == ScrollBehavior::Smooth) {
-    flags |= nsIPresShell::SCROLL_SMOOTH;
-  }
-
   presShell->ScrollContentIntoView(this,
                                    nsIPresShell::ScrollAxis(
                                      vpercent,
                                      nsIPresShell::SCROLL_ALWAYS),
                                    nsIPresShell::ScrollAxis(),
-                                   flags);
+                                   nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
 }
 
 bool

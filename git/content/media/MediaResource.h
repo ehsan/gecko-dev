@@ -154,9 +154,6 @@ public:
 
   MediaByteRange Extents(const MediaByteRange& aByteRange) const
   {
-    if (IsNull()) {
-      return aByteRange;
-    }
     return MediaByteRange(std::min(mStart, aByteRange.mStart),
                           std::max(mEnd, aByteRange.mEnd));
   }

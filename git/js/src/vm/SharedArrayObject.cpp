@@ -72,15 +72,6 @@ MarkValidRegion(void *addr, size_t len)
 #endif
 }
 
-#ifdef JS_CODEGEN_X64
-// Since this SharedArrayBuffer will likely be used for asm.js code, prepare it
-// for asm.js by mapping the 4gb protected zone described in AsmJSValidate.h.
-// Since we want to put the SharedArrayBuffer header immediately before the
-// heap but keep the heap page-aligned, allocate an extra page before the heap.
-static const uint64_t SharedArrayMappedSize = AsmJSMappedSize + AsmJSPageSize;
-static_assert(sizeof(SharedArrayRawBuffer) < AsmJSPageSize, "Page size not big enough");
-#endif
-
 SharedArrayRawBuffer *
 SharedArrayRawBuffer::New(uint32_t length)
 {
@@ -89,19 +80,19 @@ SharedArrayRawBuffer::New(uint32_t length)
 
 #ifdef JS_CODEGEN_X64
     // Get the entire reserved region (with all pages inaccessible)
-    void *p = MapMemory(SharedArrayMappedSize, false);
+    void *p = MapMemory(AsmJSMappedSize, false);
     if (!p)
         return nullptr;
 
     size_t validLength = AsmJSPageSize + length;
     if (!MarkValidRegion(p, validLength)) {
-        UnmapMemory(p, SharedArrayMappedSize);
+        UnmapMemory(p, AsmJSMappedSize);
         return nullptr;
     }
 #   if defined(MOZ_VALGRIND) && defined(VALGRIND_DISABLE_ADDR_ERROR_REPORTING_IN_RANGE)
     // Tell Valgrind/Memcheck to not report accesses in the inaccessible region.
     VALGRIND_DISABLE_ADDR_ERROR_REPORTING_IN_RANGE((unsigned char*)p + validLength,
-                                                   SharedArrayMappedSize-validLength);
+                                                   AsmJSMappedSize-validLength);
 #   endif
 #else
     uint32_t allocSize = length + AsmJSPageSize;
@@ -135,12 +126,14 @@ SharedArrayRawBuffer::dropReference()
         uint8_t *p = this->dataPointer() - AsmJSPageSize;
         JS_ASSERT(uintptr_t(p) % AsmJSPageSize == 0);
 #ifdef JS_CODEGEN_X64
-        UnmapMemory(p, SharedArrayMappedSize);
+        UnmapMemory(p, AsmJSMappedSize);
 #       if defined(MOZ_VALGRIND) \
            && defined(VALGRIND_ENABLE_ADDR_ERROR_REPORTING_IN_RANGE)
         // Tell Valgrind/Memcheck to recommence reporting accesses in the
         // previously-inaccessible region.
-        VALGRIND_ENABLE_ADDR_ERROR_REPORTING_IN_RANGE(p, SharedArrayMappedSize);
+        if (AsmJSMappedSize > 0) {
+            VALGRIND_ENABLE_ADDR_ERROR_REPORTING_IN_RANGE(p, AsmJSMappedSize);
+        }
 #       endif
 #else
         UnmapMemory(p, this->length + AsmJSPageSize);

@@ -13,6 +13,10 @@ def main(file):
     config.read(file)
     flags = set()
     try:
+        if config.getint('XRE', 'EnableExtensionManager') == 1:
+            flags.add('NS_XRE_ENABLE_EXTENSION_MANAGER')
+    except: pass
+    try:
         if config.getint('XRE', 'EnableProfileMigrator') == 1:
             flags.add('NS_XRE_ENABLE_PROFILE_MIGRATOR')
     except: pass

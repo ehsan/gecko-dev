@@ -206,10 +206,7 @@ SelectionCarets::HandleEvent(WidgetEvent* aEvent)
 static void
 SetElementVisibility(dom::Element* aElement, bool aVisible)
 {
-  if (!aElement) {
-    return;
-  }
-
+  NS_ENSURE_TRUE_VOID(aElement);
   ErrorResult err;
   aElement->ClassList()->Toggle(NS_LITERAL_STRING("hidden"),
                                    dom::Optional<bool>(!aVisible), err);
@@ -261,10 +258,7 @@ SelectionCarets::SetTilted(bool aIsTilt)
 {
   dom::Element* startElement = mPresShell->GetSelectionCaretsStartElement();
   dom::Element* endElement = mPresShell->GetSelectionCaretsEndElement();
-
-  if (!startElement || !endElement) {
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(startElement && endElement);
 
   ErrorResult err;
   startElement->ClassList()->Toggle(NS_LITERAL_STRING("tilt"),
@@ -319,9 +313,7 @@ FindFirstNodeWithFrame(nsIDocument* aDocument,
                        bool aBackward,
                        int& aOutOffset)
 {
-  if (!aDocument || !aRange || !aFrameSelection) {
-    return nullptr;
-  }
+  NS_ENSURE_TRUE(aDocument && aRange && aFrameSelection, nullptr);
 
   nsCOMPtr<nsINode> startNode =
     do_QueryInterface(aBackward ? aRange->GetEndParent() : aRange->GetStartParent());
@@ -349,10 +341,7 @@ FindFirstNodeWithFrame(nsIDocument* aDocument,
                                 nullptr,
                                 err);
 
-  if (!walker) {
-    return nullptr;
-  }
-
+  NS_ENSURE_TRUE(walker, nullptr);
   startFrame = startContent ? startContent->GetPrimaryFrame() : nullptr;
   while (!startFrame && startNode != endNode) {
     if (aBackward) {
@@ -519,30 +508,19 @@ SelectionCarets::SelectWord()
     return NS_OK;
   }
 
-  if (!mPresShell) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mPresShell, NS_OK);
 
   nsIFrame* canvasFrame = mPresShell->GetCanvasFrame();
-  if (!canvasFrame) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(canvasFrame, NS_OK);
 
   // Find content offsets for mouse down point
   nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(canvasFrame, mDownPoint,
     nsLayoutUtils::IGNORE_PAINT_SUPPRESSION | nsLayoutUtils::IGNORE_CROSS_DOC);
-  if (!ptFrame) {
-    return NS_OK;
-  }
-
+  NS_ENSURE_TRUE(ptFrame, NS_OK);
   nsPoint ptInFrame = mDownPoint;
   nsLayoutUtils::TransformPoint(canvasFrame, ptFrame, ptInFrame);
 
   nsIFrame* caretFocusFrame = GetCaretFocusFrame();
-  if (!caretFocusFrame) {
-    return NS_OK;
-  }
-
   SetSelectionDragState(true);
   nsFrame* frame = static_cast<nsFrame*>(ptFrame);
   nsresult rs = frame->SelectByTypeAtPoint(mPresShell->GetPresContext(), ptInFrame,
@@ -591,9 +569,7 @@ CompareRangeWithContentOffset(nsRange* aRange,
   nsIFrame* theFrame =
     aSelection->GetFrameForNodeOffset(content, nodeOffset, hint, &offset);
 
-  if (!theFrame) {
-    return false;
-  }
+  NS_ENSURE_TRUE(theFrame, false);
 
   // Move one character forward/backward from point and get offset
   nsPeekOffsetStruct pos(eSelectCluster,
@@ -629,9 +605,7 @@ nsEventStatus
 SelectionCarets::DragSelection(const nsPoint &movePoint)
 {
   nsIFrame* canvasFrame = mPresShell->GetCanvasFrame();
-  if (!canvasFrame) {
-    return nsEventStatus_eConsumeNoDefault;
-  }
+  NS_ENSURE_TRUE(canvasFrame, nsEventStatus_eConsumeNoDefault);
 
   // Find out which content we point to
   nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(canvasFrame, movePoint,
@@ -641,10 +615,6 @@ SelectionCarets::DragSelection(const nsPoint &movePoint)
   }
 
   nsIFrame* caretFocusFrame = GetCaretFocusFrame();
-  if (!caretFocusFrame) {
-    return nsEventStatus_eConsumeNoDefault;
-  }
-
   nsRefPtr<nsFrameSelection> fs = caretFocusFrame->GetFrameSelection();
 
   nsresult result;
@@ -659,9 +629,7 @@ SelectionCarets::DragSelection(const nsPoint &movePoint)
 
   nsFrame::ContentOffsets offsets =
     newFrame->GetContentOffsetsFromPoint(newPoint);
-  if (!offsets.content) {
-    return nsEventStatus_eConsumeNoDefault;
-  }
+  NS_ENSURE_TRUE(offsets.content, nsEventStatus_eConsumeNoDefault);
 
   nsISelection* caretSelection = GetSelection();
   nsRefPtr<dom::Selection> selection = static_cast<dom::Selection*>(caretSelection);
@@ -743,12 +711,17 @@ void
 SelectionCarets::SetSelectionDragState(bool aState)
 {
   nsIFrame* caretFocusFrame = GetCaretFocusFrame();
-  if (!caretFocusFrame) {
+  nsRefPtr<nsFrameSelection> fs = caretFocusFrame->GetFrameSelection();
+  if (fs->GetDragState() == aState) {
     return;
   }
-
-  nsRefPtr<nsFrameSelection> fs = caretFocusFrame->GetFrameSelection();
   fs->SetDragState(aState);
+
+  if (aState) {
+    fs->StartBatchChanges();
+  } else {
+    fs->EndBatchChanges();
+  }
 }
 
 void
@@ -762,9 +735,7 @@ SelectionCarets::SetSelectionDirection(bool aForward)
 static void
 SetFramePos(dom::Element* aElement, const nsPoint& aPosition)
 {
-  if (!aElement) {
-    return;
-  }
+  NS_ENSURE_TRUE_VOID(aElement);
 
   nsAutoString styleStr;
   styleStr.AppendLiteral("left:");
@@ -793,14 +764,10 @@ SelectionCarets::GetStartFrameRect()
 {
   nsIFrame* canvasFrame = mPresShell->GetCanvasFrame();
   dom::Element* element = mPresShell->GetSelectionCaretsStartElement();
-  if (!element) {
-    return nsRect();
-  }
+  NS_ENSURE_TRUE(element, nsRect());
 
   nsIFrame* frame = element->GetPrimaryFrame();
-  if (!frame) {
-    return nsRect();
-  }
+  NS_ENSURE_TRUE(frame, nsRect());
 
   nsRect frameRect = frame->GetRectRelativeToSelf();
   nsLayoutUtils::TransformRect(frame, canvasFrame, frameRect);
@@ -812,14 +779,10 @@ SelectionCarets::GetEndFrameRect()
 {
   nsIFrame* canvasFrame = mPresShell->GetCanvasFrame();
   dom::Element* element = mPresShell->GetSelectionCaretsEndElement();
-  if (!element) {
-    return nsRect();
-  }
+  NS_ENSURE_TRUE(element, nsRect());
 
   nsIFrame* frame = element->GetPrimaryFrame();
-  if (!frame) {
-    return nsRect();
-  }
+  NS_ENSURE_TRUE(frame, nsRect());
 
   nsRect frameRect = frame->GetRectRelativeToSelf();
   nsLayoutUtils::TransformRect(frame, canvasFrame, frameRect);
@@ -830,9 +793,7 @@ nsIFrame*
 SelectionCarets::GetCaretFocusFrame()
 {
   nsRefPtr<nsCaret> caret = mPresShell->GetCaret();
-  if (!caret) {
-    return nullptr;
-  }
+  NS_ENSURE_TRUE(caret, nullptr);
 
   nsRect focusRect;
   return caret->GetGeometry(&focusRect);
@@ -841,14 +802,9 @@ SelectionCarets::GetCaretFocusFrame()
 bool
 SelectionCarets::GetCaretVisible()
 {
-  if (!mPresShell) {
-    return false;
-  }
-
+  NS_ENSURE_TRUE(mPresShell, false);
   nsRefPtr<nsCaret> caret = mPresShell->GetCaret();
-  if (!caret) {
-    return false;
-  }
+  NS_ENSURE_TRUE(caret, false);
 
   return caret->IsVisible();
 }
