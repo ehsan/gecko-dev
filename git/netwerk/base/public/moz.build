@@ -11,7 +11,6 @@ XPIDL_SOURCES += [
     'nsIApplicationCacheContainer.idl',
     'nsIApplicationCacheService.idl',
     'nsIAsyncStreamCopier.idl',
-    'nsIArrayBufferInputStream.idl',
     'nsIAsyncVerifyRedirectCallback.idl',
     'nsIAuthInformation.idl',
     'nsIAuthModule.idl',

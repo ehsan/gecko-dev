@@ -362,12 +362,11 @@ DeviceStorageFile::IsSafePath()
   mPath.BeginReading(start);
   mPath.EndReading(end);
 
-  // if the path is a '~' or starts with '~/', return false.
+  // if the path has a ~ or \ in it, return false.
   NS_NAMED_LITERAL_STRING(tilde, "~");
-  NS_NAMED_LITERAL_STRING(tildeSlash, "~/");
-  if (mPath.Equals(tilde) ||
-      StringBeginsWith(mPath, tildeSlash)) {
-    NS_WARNING("Path name starts with tilde!");
+  NS_NAMED_LITERAL_STRING(bslash, "\\");
+  if (FindInReadable(tilde, start, end) ||
+      FindInReadable(bslash, start, end)) {
     return false;
    }
   // split on /.  if any token is "", ., or .., return false.
