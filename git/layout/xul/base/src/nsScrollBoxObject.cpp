@@ -13,8 +13,6 @@
 #include "nsIFrame.h"
 #include "nsIScrollableFrame.h"
 
-using namespace mozilla;
-
 class nsScrollBoxObject : public nsIScrollBoxObject, public nsBoxObject
 {
 public:
@@ -56,7 +54,7 @@ NS_IMETHODIMP nsScrollBoxObject::ScrollTo(int32_t x, int32_t y)
   nsIScrollableFrame* sf = GetScrollFrame();
   if (!sf)
     return NS_ERROR_FAILURE;
-  sf->ScrollToCSSPixels(CSSIntPoint(x, y));
+  sf->ScrollToCSSPixels(nsIntPoint(x, y));
   return NS_OK;
 }
 

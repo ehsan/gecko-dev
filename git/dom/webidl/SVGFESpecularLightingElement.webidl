@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGAnimatedNumber;
+
 interface SVGFESpecularLightingElement : SVGElement {
   readonly attribute SVGAnimatedString in1;
   readonly attribute SVGAnimatedNumber surfaceScale;
