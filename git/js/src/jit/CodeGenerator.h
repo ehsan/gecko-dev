@@ -389,8 +389,7 @@ class CodeGenerator : public CodeGeneratorSpecific
                                const LDefinition *scratch1, const LDefinition *scratch2,
                                FloatRegister fr,
                                Label *ifTruthy, Label *ifFalsy,
-                               OutOfLineTestObject *ool,
-                               MDefinition *valueMIR);
+                               OutOfLineTestObject *ool);
 
     // Test whether value is truthy or not and jump to the corresponding label.
     // If the value can be an object that emulates |undefined|, |ool| must be
@@ -401,8 +400,7 @@ class CodeGenerator : public CodeGeneratorSpecific
                          const LDefinition *scratch1, const LDefinition *scratch2,
                          FloatRegister fr,
                          Label *ifTruthy, Label *ifFalsy,
-                         OutOfLineTestObject *ool,
-                         MDefinition *valueMIR);
+                         OutOfLineTestObject *ool);
 
     // This function behaves like testObjectEmulatesUndefined with the exception
     // that it can choose to let control flow fall through when the object

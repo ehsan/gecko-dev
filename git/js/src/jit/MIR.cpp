@@ -230,7 +230,7 @@ MTest::New(TempAllocator &alloc, MDefinition *ins, MBasicBlock *ifTrue, MBasicBl
 }
 
 void
-MTest::cacheOperandMightEmulateUndefined()
+MTest::infer()
 {
     JS_ASSERT(operandMightEmulateUndefined());
 
@@ -2174,7 +2174,7 @@ MTypeOf::foldsTo(TempAllocator &alloc, bool useValueNumbers)
 }
 
 void
-MTypeOf::cacheInputMaybeCallableOrEmulatesUndefined()
+MTypeOf::infer()
 {
     JS_ASSERT(inputMaybeCallableOrEmulatesUndefined());
 
@@ -2669,7 +2669,7 @@ MCompare::filtersUndefinedOrNull(bool trueBranch, MDefinition **subject, bool *f
 }
 
 void
-MNot::cacheOperandMightEmulateUndefined()
+MNot::infer()
 {
     JS_ASSERT(operandMightEmulateUndefined());
 

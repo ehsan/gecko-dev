@@ -7487,11 +7487,8 @@ CSSParserImpl::ParseGridTemplateAreasLine(const nsAutoString& aInput,
   nsCSSGridTemplateAreaToken token;
   css::GridNamedArea* currentArea = nullptr;
   uint32_t row = aAreas->NRows();
-  // Column numbers starts at 1, but we might not have any, eg
-  // grid-template-areas:""; which will result in mNColumns == 0.
-  uint32_t column = 0;
-  while (scanner.Next(token)) {
-    ++column;
+  uint32_t column;
+  for (column = 1; scanner.Next(token); column++) {
     if (token.isTrash) {
       return false;
     }
@@ -7543,7 +7540,7 @@ CSSParserImpl::ParseGridTemplateAreasLine(const nsAutoString& aInput,
       }
     }
   }
-  if (currentArea && currentArea->mColumnEnd != column + 1) {
+  if (currentArea && currentArea->mColumnEnd != column) {
     NS_ASSERTION(currentArea->mRowStart != row,
                  "Inconsistent column end for the first row of a named area.");
     // Not a rectangle

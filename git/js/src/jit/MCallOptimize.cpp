@@ -1637,10 +1637,10 @@ IonBuilder::inlineHasClasses(CallInfo &callInfo, const Class *clasp1, const Clas
             current->add(either);
             // Convert to bool with the '!!' idiom
             MNot *resultInverted = MNot::New(alloc(), either);
-            resultInverted->cacheOperandMightEmulateUndefined();
+            resultInverted->infer();
             current->add(resultInverted);
             MNot *result = MNot::New(alloc(), resultInverted);
-            result->cacheOperandMightEmulateUndefined();
+            result->infer();
             current->add(result);
             current->push(result);
         }
