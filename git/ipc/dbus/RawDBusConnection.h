@@ -22,7 +22,7 @@ struct DBusConnection;
 namespace mozilla {
 namespace ipc {
 
-class RawDBusConnection : public AtomicRefCounted<RawDBusConnection>
+class RawDBusConnection : public detail::RefCounted<RawDBusConnection, detail::AtomicRefCount>
 {
   struct ScopedDBusConnectionPtrTraits : ScopedFreePtrTraits<DBusConnection>
   {
