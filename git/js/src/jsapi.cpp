@@ -5827,8 +5827,7 @@ JS_PUBLIC_API(JSBool)
 JS_ThrowReportedError(JSContext *cx, const char *message,
                       JSErrorReport *reportp)
 {
-    return JS_IsRunning(cx) &&
-           js_ErrorToException(cx, message, reportp, NULL, NULL);
+    return JS_IsRunning(cx) && js_ErrorToException(cx, message, reportp);
 }
 
 JS_PUBLIC_API(JSBool)
