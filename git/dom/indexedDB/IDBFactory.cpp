@@ -69,6 +69,7 @@
 #include "IDBKeyRange.h"
 #include "IndexedDatabaseManager.h"
 #include "Key.h"
+#include "LazyIdleThread.h"
 #include "nsIScriptSecurityManager.h"
 
 using namespace mozilla;
