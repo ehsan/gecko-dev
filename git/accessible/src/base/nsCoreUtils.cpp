@@ -56,7 +56,6 @@
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
-#include "nsIDocumentViewer.h"
 #include "nsIContentViewer.h"
 #include "nsIEventListenerManager.h"
 #include "nsIPresShell.h"
@@ -314,36 +313,26 @@ nsCoreUtils::GetRoleContent(nsIDOMNode *aDOMNode)
 }
 
 PRBool
-nsCoreUtils::IsAncestorOf(nsIDOMNode *aPossibleAncestorNode,
-                          nsIDOMNode *aPossibleDescendantNode)
+nsCoreUtils::IsAncestorOf(nsINode *aPossibleAncestorNode,
+                          nsINode *aPossibleDescendantNode)
 {
   NS_ENSURE_TRUE(aPossibleAncestorNode && aPossibleDescendantNode, PR_FALSE);
 
-  nsCOMPtr<nsIDOMNode> loopNode = aPossibleDescendantNode;
-  nsCOMPtr<nsIDOMNode> parentNode;
-  while (NS_SUCCEEDED(loopNode->GetParentNode(getter_AddRefs(parentNode))) &&
-         parentNode) {
-    if (parentNode == aPossibleAncestorNode) {
+  nsINode *parentNode = aPossibleDescendantNode;
+  while ((parentNode = parentNode->GetNodeParent())) {
+    if (parentNode == aPossibleAncestorNode)
       return PR_TRUE;
-    }
-    loopNode.swap(parentNode);
   }
+
   return PR_FALSE;
 }
 
 PRBool
-nsCoreUtils::AreSiblings(nsIDOMNode *aDOMNode1,
-                        nsIDOMNode *aDOMNode2)
+nsCoreUtils::AreSiblings(nsINode *aNode1, nsINode *aNode2)
 {
-  NS_ENSURE_TRUE(aDOMNode1 && aDOMNode2, PR_FALSE);
+  NS_ENSURE_TRUE(aNode1 && aNode2, PR_FALSE);
 
-  nsCOMPtr<nsIDOMNode> parentNode1, parentNode2;
-  if (NS_SUCCEEDED(aDOMNode1->GetParentNode(getter_AddRefs(parentNode1))) &&
-      NS_SUCCEEDED(aDOMNode2->GetParentNode(getter_AddRefs(parentNode2))) &&
-      parentNode1 == parentNode2) {
-    return PR_TRUE;
-  }
-  return PR_FALSE;
+  return aNode1->GetNodeParent() == aNode2->GetNodeParent();
 }
 
 nsresult
@@ -560,17 +549,12 @@ nsCoreUtils::GetDOMNodeForContainer(nsIDocShellTreeItem *aContainer)
   if (!cv)
     return nsnull;
 
-  nsCOMPtr<nsIDocumentViewer> docv(do_QueryInterface(cv));
-  if (!docv)
-    return nsnull;
-
-  nsCOMPtr<nsIDocument> doc;
-  docv->GetDocument(getter_AddRefs(doc));
+  nsIDocument* doc = cv->GetDocument();
   if (!doc)
     return nsnull;
 
   nsIDOMNode* node = nsnull;
-  CallQueryInterface(doc.get(), &node);
+  CallQueryInterface(doc, &node);
   return node;
 }
 

@@ -84,7 +84,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIURI.h"
-#include "nsITimer.h"
 #include "nsArrayUtils.h"
 #include "nsIMutableArray.h"
 #include "nsIObserverService.h"
@@ -449,8 +448,8 @@ nsAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
     // Copy access key from label node unless it is labeled
     // via an ancestor <label>, in which case that would be redundant
     nsCOMPtr<nsIContent> labelContent(nsCoreUtils::GetLabelContent(content));
-    nsCOMPtr<nsIDOMNode> labelNode = do_QueryInterface(labelContent);
-    if (labelNode && !nsCoreUtils::IsAncestorOf(labelNode, mDOMNode))
+    nsCOMPtr<nsINode> thisNode = do_QueryInterface(mDOMNode);
+    if (labelContent && !nsCoreUtils::IsAncestorOf(labelContent, thisNode))
       key = nsCoreUtils::GetAccessKeyFor(labelContent);
   }
 
@@ -1709,11 +1708,13 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
       if (nsAccUtils::Role(tabPanel) == nsIAccessibleRole::ROLE_PROPERTYPAGE) {
         nsCOMPtr<nsIAccessNode> tabPanelAccessNode(do_QueryInterface(tabPanel));
-        nsCOMPtr<nsIDOMNode> tabPanelNode;
-        tabPanelAccessNode->GetDOMNode(getter_AddRefs(tabPanelNode));
-        NS_ENSURE_STATE(tabPanelNode);
+        nsCOMPtr<nsIDOMNode> tabPanelDOMNode;
+        tabPanelAccessNode->GetDOMNode(getter_AddRefs(tabPanelDOMNode));
+        NS_ENSURE_STATE(tabPanelDOMNode);
 
-        if (nsCoreUtils::IsAncestorOf(tabPanelNode, gLastFocusedNode))
+        nsCOMPtr<nsINode> tabPanelNode(do_QueryInterface(tabPanelDOMNode));
+        nsCOMPtr<nsINode> lastFocusedNode(do_QueryInterface(gLastFocusedNode));
+        if (nsCoreUtils::IsAncestorOf(tabPanelNode, lastFocusedNode))
           *aState |= nsIAccessibleStates::STATE_SELECTED;
       }
     }
@@ -2120,8 +2121,8 @@ nsAccessible::DoAction(PRUint8 aIndex)
     return NS_ERROR_FAILURE;
 
   if (GetActionRule(nsAccUtils::State(this)) != eNoAction) {
-    nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
-    return DoCommand(content);
+    DoCommand();
+    return NS_OK;
   }
 
   return NS_ERROR_INVALID_ARG;
@@ -2492,44 +2493,15 @@ NS_IMETHODIMP nsAccessible::GetNativeInterface(void **aOutAccessible)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsresult
+void
 nsAccessible::DoCommand(nsIContent *aContent, PRUint32 aActionIndex)
 {
-  if (gDoCommandTimer) {
-    // Already have timer going for another command
-    NS_WARNING("Doubling up on do command timers doesn't work. This wasn't expected.");
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsITimer> timer = do_CreateInstance("@mozilla.org/timer;1");
-  NS_ENSURE_TRUE(timer, NS_ERROR_OUT_OF_MEMORY);
-
   nsCOMPtr<nsIContent> content = aContent;
   if (!content)
     content = do_QueryInterface(mDOMNode);
 
-  // Command closure object memory will be free in DoCommandCallback().
-  nsCommandClosure *closure =
-    new nsCommandClosure(this, content, aActionIndex);
-  NS_ENSURE_TRUE(closure, NS_ERROR_OUT_OF_MEMORY);
-
-  NS_ADDREF(gDoCommandTimer = timer);
-  return gDoCommandTimer->InitWithFuncCallback(DoCommandCallback,
-                                               static_cast<void*>(closure),
-                                               0, nsITimer::TYPE_ONE_SHOT);
-}
-
-void
-nsAccessible::DoCommandCallback(nsITimer *aTimer, void *aClosure)
-{
-  NS_ASSERTION(gDoCommandTimer,
-               "How did we get here if there was no gDoCommandTimer?");
-  NS_RELEASE(gDoCommandTimer);
-
-  nsCommandClosure *closure = static_cast<nsCommandClosure*>(aClosure);
-  closure->accessible->DispatchClickEvent(closure->content,
-                                          closure->actionIndex);
-  delete closure;
+  NS_DISPATCH_RUNNABLEMETHOD_ARG2(DispatchClickEvent, this,
+                                  content, aActionIndex)
 }
 
 void

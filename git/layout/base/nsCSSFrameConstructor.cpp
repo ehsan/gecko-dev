@@ -2165,7 +2165,11 @@ static PRBool
 NeedFrameFor(nsIFrame*   aParentFrame,
              nsIContent* aChildContent) 
 {
-  NS_PRECONDITION(!aChildContent->GetPrimaryFrame(), "Why did we get called?");
+  // XXX the GetContent() != aChildContent check is needed due to bug 135040.
+  // Remove it once that's fixed.
+  NS_PRECONDITION(!aChildContent->GetPrimaryFrame() ||
+                  aChildContent->GetPrimaryFrame()->GetContent() != aChildContent,
+                  "Why did we get called?");
 
   // don't create a whitespace frame if aParentFrame doesn't want it.
   // always create frames for children in generated content. counter(),
@@ -7498,7 +7502,10 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     // can require plugin clipping to change. If we requested a reflow,
     // we don't need to do this since the reflow will do it for us.
     nsIFrame* rootFrame = mPresShell->FrameManager()->GetRootFrame();
-    presContext->RootPresContext()->UpdatePluginGeometry(rootFrame);
+    nsRootPresContext* rootPC = presContext->GetRootPresContext();
+    if (rootPC) {
+      rootPC->UpdatePluginGeometry(rootFrame);
+    }
   }
 
   // cleanup references and verify the style tree.  Note that the latter needs
