@@ -3848,13 +3848,6 @@ ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto_, JSFunction 
 
         if (obj->is<StringObject>())
             AddTypeProperty(this, type, "length", Type::Int32Type());
-
-        if (obj->is<ErrorObject>()) {
-            AddTypeProperty(this, type, "fileName", types::Type::StringType());
-            AddTypeProperty(this, type, "lineNumber", types::Type::Int32Type());
-            AddTypeProperty(this, type, "columnNumber", types::Type::Int32Type());
-            AddTypeProperty(this, type, "stack", types::Type::StringType());
-        }
     }
 
     /*
@@ -4414,9 +4407,7 @@ TypeScript::printTypes(JSContext *cx, HandleScript script) const
 /////////////////////////////////////////////////////////////////////
 
 bool
-TypeObject::addTypedObjectAddendum(JSContext *cx,
-                                   TypeTypedObject::Kind kind,
-                                   TypeRepresentation *repr)
+TypeObject::addTypedObjectAddendum(JSContext *cx, TypeRepresentation *repr)
 {
     if (!cx->typeInferenceEnabled())
         return true;
@@ -4434,7 +4425,7 @@ TypeObject::addTypedObjectAddendum(JSContext *cx,
         return true;
     }
 
-    TypeTypedObject *typedObject = js_new<TypeTypedObject>(kind, repr);
+    TypeTypedObject *typedObject = js_new<TypeTypedObject>(repr);
     if (!typedObject)
         return false;
     addendum = typedObject;
@@ -4453,10 +4444,8 @@ TypeNewScript::TypeNewScript()
   : TypeObjectAddendum(NewScript)
 {}
 
-TypeTypedObject::TypeTypedObject(Kind kind,
-                                 TypeRepresentation *repr)
+TypeTypedObject::TypeTypedObject(TypeRepresentation *repr)
   : TypeObjectAddendum(TypedObject),
-    kind(kind),
     typeRepr(repr)
 {
 }

@@ -614,8 +614,6 @@ private:
 NS_IMETHODIMP
 HTMLInputElement::nsFilePickerShownCallback::Done(int16_t aResult)
 {
-  mInput->PickerClosed();
-
   if (aResult == nsIFilePicker::returnCancel) {
     return NS_OK;
   }
@@ -798,8 +796,6 @@ nsColorPickerShownCallback::Done(const nsAString& aColor)
    */
   nsresult rv = NS_OK;
 
-  mInput->PickerClosed();
-
   if (!aColor.IsEmpty()) {
     UpdateInternal(aColor, false);
   }
@@ -843,11 +839,6 @@ HTMLInputElement::IsPopupBlocked() const
 nsresult
 HTMLInputElement::InitColorPicker()
 {
-  if (mPickerRunning) {
-    NS_WARNING("Just one nsIColorPicker is allowed");
-    return NS_ERROR_FAILURE;
-  }
-
   nsCOMPtr<nsIDocument> doc = OwnerDoc();
 
   nsCOMPtr<nsPIDOMWindow> win = doc->GetWindow();
@@ -878,22 +869,12 @@ HTMLInputElement::InitColorPicker()
   nsCOMPtr<nsIColorPickerShownCallback> callback =
     new nsColorPickerShownCallback(this, colorPicker);
 
-  rv = colorPicker->Open(callback);
-  if (NS_SUCCEEDED(rv)) {
-    mPickerRunning = true;
-  }
-
-  return rv;
+  return colorPicker->Open(callback);
 }
 
 nsresult
 HTMLInputElement::InitFilePicker(FilePickerType aType)
 {
-  if (mPickerRunning) {
-    NS_WARNING("Just one nsIFilePicker is allowed");
-    return NS_ERROR_FAILURE;
-  }
-
   // Get parent nsPIDOMWindow object.
   nsCOMPtr<nsIDocument> doc = OwnerDoc();
 
@@ -974,16 +955,10 @@ HTMLInputElement::InitFilePicker(FilePickerType aType)
       }
     }
 
-    rv = filePicker->Open(callback);
-    if (NS_SUCCEEDED(rv)) {
-      mPickerRunning = true;
-    }
-
-    return rv;
+    return filePicker->Open(callback);
   }
 
   HTMLInputElement::gUploadLastDir->FetchDirectoryAndDisplayPicker(doc, filePicker, callback);
-  mPickerRunning = true;
   return NS_OK;
 }
 
@@ -1119,8 +1094,6 @@ HTMLInputElement::HTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   , mIsDraggingRange(false)
   , mProgressTimerIsActive(false)
   , mNumberControlSpinnerIsSpinning(false)
-  , mNumberControlSpinnerSpinsUp(false)
-  , mPickerRunning(false)
 {
   // We are in a type=text so we now we currenty need a nsTextEditorState.
   mInputData.mState = new nsTextEditorState(this);
@@ -7203,12 +7176,6 @@ HTMLInputElement::UpdateHasRange()
     mHasRange = true;
     return;
   }
-}
-
-void
-HTMLInputElement::PickerClosed()
-{
-  mPickerRunning = false;
 }
 
 JSObject*

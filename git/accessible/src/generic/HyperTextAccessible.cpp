@@ -602,55 +602,41 @@ HyperTextAccessible::HypertextOffsetsToDOMRange(int32_t aStartHTOffset,
 }
 
 int32_t
-HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
-                                nsSelectionAmount aAmount,
-                                EWordMovementType aWordMovementType)
+HyperTextAccessible::GetRelativeOffset(nsIPresShell* aPresShell,
+                                       nsIFrame* aFromFrame,
+                                       int32_t aFromOffset,
+                                       Accessible* aFromAccessible,
+                                       nsSelectionAmount aAmount,
+                                       nsDirection aDirection,
+                                       bool aNeedsStart,
+                                       EWordMovementType aWordMovementType)
 {
-  // Convert hypertext offset to frame-relative offset.
-  int32_t offsetInFrame = aOffset, notUsedOffset = aOffset;
-  nsRefPtr<Accessible> accAtOffset;
-  nsIFrame* frameAtOffset =
-    GetPosAndText(offsetInFrame, notUsedOffset, nullptr, nullptr,
-                  getter_AddRefs(accAtOffset));
-  if (!frameAtOffset) {
-    if (aOffset == CharacterCount()) {
-      // Asking for start of line, while on last character.
-      if (accAtOffset)
-        frameAtOffset = accAtOffset->GetFrame();
-    }
-    NS_ASSERTION(frameAtOffset, "No start frame for text getting!");
-    if (!frameAtOffset)
-      return -1;
+  const bool kIsJumpLinesOk = true;          // okay to jump lines
+  const bool kIsScrollViewAStop = false;     // do not stop at scroll views
+  const bool kIsKeyboardSelect = true;       // is keyboard selection
+  const bool kIsVisualBidi = false;          // use visual order for bidi text
 
-    // We're on the last continuation since we're on the last character.
-    frameAtOffset = frameAtOffset->LastContinuation();
-  }
+  // Ask layout for the new node and offset, after moving the appropriate amount
 
-  // Return hypertext offset of the boundary of the found word.
-  int32_t contentOffset = offsetInFrame;
-  nsIFrame* primaryFrame = accAtOffset->GetFrame();
-  NS_ENSURE_TRUE(primaryFrame, -1);
+  nsresult rv;
+  int32_t contentOffset = aFromOffset;
+  nsIFrame *frame = aFromAccessible->GetFrame();
+  NS_ENSURE_TRUE(frame, -1);
 
-  nsresult rv = NS_OK;
-  if (primaryFrame->GetType() == nsGkAtoms::textFrame) {
-    rv = RenderedToContentOffset(primaryFrame, offsetInFrame, &contentOffset);
+  if (frame->GetType() == nsGkAtoms::textFrame) {
+    rv = RenderedToContentOffset(frame, aFromOffset, &contentOffset);
     NS_ENSURE_SUCCESS(rv, -1);
   }
 
-  const bool kIsJumpLinesOk = true; // okay to jump lines
-  const bool kIsScrollViewAStop = false; // do not stop at scroll views
-  const bool kIsKeyboardSelect = true; // is keyboard selection
-  const bool kIsVisualBidi = false; // use visual order for bidi text
   nsPeekOffsetStruct pos(aAmount, aDirection, contentOffset,
-                         0, kIsJumpLinesOk, kIsScrollViewAStop,
-                         kIsKeyboardSelect, kIsVisualBidi,
+                         0, kIsJumpLinesOk, kIsScrollViewAStop, kIsKeyboardSelect, kIsVisualBidi,
                          aWordMovementType);
-  rv = frameAtOffset->PeekOffset(&pos);
+  rv = aFromFrame->PeekOffset(&pos);
 
   // PeekOffset fails on last/first lines of the text in certain cases.
   if (NS_FAILED(rv) && aAmount == eSelectLine) {
     pos.mAmount = (aDirection == eDirNext) ? eSelectEndLine : eSelectBeginLine;
-    frameAtOffset->PeekOffset(&pos);
+    aFromFrame->PeekOffset(&pos);
   }
   if (!pos.mResultContent)
     return -1;
@@ -677,13 +663,44 @@ HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
       // XXX Bullet hack -- we should remove this once list bullets use anonymous content
       hyperTextOffset = 0;
     }
-    if (aWordMovementType != eStartWord && aAmount != eSelectBeginLine &&
-        hyperTextOffset > 0) {
+    if (!aNeedsStart && hyperTextOffset > 0) {
       -- hyperTextOffset;
     }
   }
 
   return hyperTextOffset;
+}
+
+int32_t
+HyperTextAccessible::FindOffset(int32_t aOffset, nsDirection aDirection,
+                                nsSelectionAmount aAmount,
+                                EWordMovementType aWordMovementType)
+{
+  // Convert hypertext offset to frame-relative offset.
+  int32_t offsetInFrame = aOffset, notUsedOffset = aOffset;
+  nsRefPtr<Accessible> accAtOffset;
+  nsIFrame* frameAtOffset =
+    GetPosAndText(offsetInFrame, notUsedOffset, nullptr, nullptr,
+                  getter_AddRefs(accAtOffset));
+  if (!frameAtOffset) {
+    if (aOffset == CharacterCount()) {
+      // Asking for start of line, while on last character.
+      if (accAtOffset)
+        frameAtOffset = accAtOffset->GetFrame();
+    }
+    NS_ASSERTION(frameAtOffset, "No start frame for text getting!");
+    if (!frameAtOffset)
+      return -1;
+
+    // We're on the last continuation since we're on the last character.
+    frameAtOffset = frameAtOffset->LastContinuation();
+  }
+
+  // Return hypertext offset of the boundary of the found word.
+  return GetRelativeOffset(mDoc->PresShell(), frameAtOffset, offsetInFrame,
+                           accAtOffset, aAmount, aDirection,
+                           (aWordMovementType == eStartWord || aAmount == eSelectBeginLine),
+                           aWordMovementType);
 }
 
 int32_t

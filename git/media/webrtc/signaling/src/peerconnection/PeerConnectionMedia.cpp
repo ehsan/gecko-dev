@@ -20,11 +20,9 @@
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/RTCStatsReportBinding.h"
 #endif
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 namespace sipcc {
 
@@ -247,11 +245,6 @@ PeerConnectionMedia::AddStream(nsIDOMMediaStream* aMediaStream, uint32_t *stream
 
   // Adding tracks here based on nsDOMMediaStream expectation settings
   uint32_t hints = stream->GetHintContents();
-#ifdef MOZILLA_INTERNAL_API
-  if (!Preferences::GetBool("media.peerconnection.video.enabled", true)) {
-    hints &= ~(DOMMediaStream::HINT_CONTENTS_VIDEO);
-  }
-#endif
 
   if (!(hints & (DOMMediaStream::HINT_CONTENTS_AUDIO |
         DOMMediaStream::HINT_CONTENTS_VIDEO))) {
@@ -465,58 +458,6 @@ SourceStreamInfo::GetPipeline(int aTrack) {
   }
 
   return it->second;
-}
-
-// This methods gathers statistics for the getStats API.
-// aTrack == 0 means gather stats for all tracks.
-
-nsresult
-SourceStreamInfo::GetPipelineStats(DOMHighResTimeStamp now, int aTrack,
-                                   Sequence<RTCInboundRTPStreamStats > *inbound,
-                                   Sequence<RTCOutboundRTPStreamStats > *outbound)
-{
-#ifdef MOZILLA_INTERNAL_API
-  ASSERT_ON_THREAD(mParent->GetSTSThread());
-  // walk through all the MediaPipelines and gather stats
-  for (std::map<int, RefPtr<MediaPipeline> >::iterator it = mPipelines.begin();
-       it != mPipelines.end();
-       ++it) {
-    if (!aTrack || aTrack == it->first) {
-      const MediaPipeline &mp = *it->second;
-      nsString idstr = (mp.Conduit()->type() == MediaSessionConduit::AUDIO) ?
-          NS_LITERAL_STRING("audio_") : NS_LITERAL_STRING("video_");
-      idstr.AppendInt(mp.trackid());
-
-      switch (mp.direction()) {
-        case MediaPipeline::TRANSMIT: {
-          RTCOutboundRTPStreamStats s;
-          s.mTimestamp.Construct(now);
-          s.mId.Construct(NS_LITERAL_STRING("outbound_rtp_") + idstr);
-          s.mType.Construct(RTCStatsType::Outboundrtp);
-          // TODO: Get SSRC
-          // int channel = mp.Conduit()->GetChannel();
-          s.mSsrc.Construct(NS_LITERAL_STRING("123457"));
-          s.mPacketsSent.Construct(mp.rtp_packets_sent());
-          s.mBytesSent.Construct(mp.rtp_bytes_sent());
-          outbound->AppendElement(s);
-          break;
-        }
-        case MediaPipeline::RECEIVE: {
-          RTCInboundRTPStreamStats s;
-          s.mTimestamp.Construct(now);
-          s.mId.Construct(NS_LITERAL_STRING("inbound_rtp_") + idstr);
-          s.mType.Construct(RTCStatsType::Inboundrtp);
-          s.mSsrc.Construct(NS_LITERAL_STRING("123457"));
-          s.mPacketsReceived.Construct(mp.rtp_packets_received());
-          s.mBytesReceived.Construct(mp.rtp_bytes_received());
-          inbound->AppendElement(s);
-          break;
-        }
-      }
-    }
-  }
-#endif
-  return NS_OK;
 }
 
 void

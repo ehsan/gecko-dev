@@ -17,8 +17,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/Shape-inl.h"
-
 using namespace js;
 using js::frontend::TokenStream;
 
@@ -275,9 +273,10 @@ RegExpObject::createShared(ExclusiveContext *cx, RegExpGuard *g)
 }
 
 Shape *
-RegExpObject::assignInitialShape(ExclusiveContext *cx, Handle<RegExpObject*> self)
+RegExpObject::assignInitialShape(ExclusiveContext *cx)
 {
-    JS_ASSERT(self->nativeEmpty());
+    JS_ASSERT(is<RegExpObject>());
+    JS_ASSERT(nativeEmpty());
 
     JS_STATIC_ASSERT(LAST_INDEX_SLOT == 0);
     JS_STATIC_ASSERT(SOURCE_SLOT == LAST_INDEX_SLOT + 1);
@@ -286,8 +285,10 @@ RegExpObject::assignInitialShape(ExclusiveContext *cx, Handle<RegExpObject*> sel
     JS_STATIC_ASSERT(MULTILINE_FLAG_SLOT == IGNORE_CASE_FLAG_SLOT + 1);
     JS_STATIC_ASSERT(STICKY_FLAG_SLOT == MULTILINE_FLAG_SLOT + 1);
 
+    RootedObject self(cx, this);
+
     /* The lastIndex property alone is writable but non-configurable. */
-    if (!self->addDataProperty(cx, cx->names().lastIndex, LAST_INDEX_SLOT, JSPROP_PERMANENT))
+    if (!addDataProperty(cx, cx->names().lastIndex, LAST_INDEX_SLOT, JSPROP_PERMANENT))
         return nullptr;
 
     /* Remaining instance properties are non-writable and non-configurable. */
@@ -308,8 +309,19 @@ RegExpObject::init(ExclusiveContext *cx, HandleAtom source, RegExpFlag flags)
 {
     Rooted<RegExpObject *> self(cx, this);
 
-    if (!EmptyShape::ensureInitialCustomShape<RegExpObject>(cx, self))
-        return false;
+    if (nativeEmpty()) {
+        if (isDelegate()) {
+            if (!assignInitialShape(cx))
+                return false;
+        } else {
+            RootedShape shape(cx, assignInitialShape(cx));
+            if (!shape)
+                return false;
+            RootedObject proto(cx, self->getProto());
+            EmptyShape::insertInitialShape(cx, shape, proto);
+        }
+        JS_ASSERT(!self->nativeEmpty());
+    }
 
     JS_ASSERT(self->nativeLookup(cx, NameToId(cx->names().lastIndex))->slot() ==
               LAST_INDEX_SLOT);

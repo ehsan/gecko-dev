@@ -13,7 +13,6 @@
 #include <dxgi.h>
 #include <d3d10misc.h>
 #include <atlbase.h>
-#include <shlobj.h>
 
 //#define SHOW_CONSOLE 1
 extern HANDLE sCon;
@@ -25,8 +24,6 @@ void Log(const wchar_t *fmt, ...);
 void SetupConsole();
 #endif
 
-AHE_TYPE GetLastAHE();
-bool SetLastAHE(AHE_TYPE ahe);
 bool IsDX10Available();
 bool GetDWORDRegKey(LPCWSTR name, DWORD &value);
 bool SetDWORDRegKey(LPCWSTR name, DWORD value);

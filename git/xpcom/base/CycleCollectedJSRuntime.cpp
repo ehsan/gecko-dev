@@ -1109,7 +1109,6 @@ CycleCollectedJSRuntime::OnGC(JSGCStatus aStatus)
 {
   switch (aStatus) {
     case JSGC_BEGIN:
-      nsCycleCollector_prepareForGarbageCollection();
       break;
     case JSGC_END:
     {

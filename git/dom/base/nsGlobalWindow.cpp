@@ -1281,7 +1281,7 @@ nsGlobalWindow::~nsGlobalWindow()
     }
   }
 
-  ClearDelayedEventsAndDropDocument();
+  mDoc = nullptr;
 
   // Outer windows are always supposed to call CleanUp before letting themselves
   // be destroyed. And while CleanUp generally seems to be intended to clean up
@@ -1350,15 +1350,6 @@ nsGlobalWindow::MaybeForgiveSpamCount()
     NS_ASSERTION(gOpenPopupSpamCount >= 0,
                  "Unbalanced decrement of gOpenPopupSpamCount");
   }
-}
-
-void
-nsGlobalWindow::ClearDelayedEventsAndDropDocument()
-{
-  if (mDoc && mDoc->EventHandlingSuppressed()) {
-    mDoc->UnsuppressEventHandlingAndFireEvents(false);
-  }
-  mDoc = nullptr;
 }
 
 void
@@ -2780,7 +2771,7 @@ nsGlobalWindow::DetachFromDocShell()
     mDocBaseURI = mDoc->GetDocBaseURI();
 
     // Release our document reference
-    ClearDelayedEventsAndDropDocument();
+    mDoc = nullptr;
     mFocusedNode = nullptr;
   }
 
@@ -8199,10 +8190,8 @@ nsGlobalWindow::EnterModalState()
     NS_ASSERTION(!mSuspendedDoc, "Shouldn't have mSuspendedDoc here!");
 
     mSuspendedDoc = topWin->GetExtantDoc();
-    if (mSuspendedDoc && mSuspendedDoc->EventHandlingSuppressed()) {
+    if (mSuspendedDoc) {
       mSuspendedDoc->SuppressEventHandling();
-    } else {
-      mSuspendedDoc = nullptr;
     }
   }
   topWin->mModalStateDepth++;

@@ -21,7 +21,6 @@ using namespace mozilla::gfx;
 using namespace mozilla::layers;
 using ::testing::_;
 using ::testing::NiceMock; 
-using ::testing::AtLeast;
 
 class MockContentController : public GeckoContentController {
 public:
@@ -170,7 +169,7 @@ TEST(AsyncPanZoomController, Pinch) {
   apzc->SetFrameMetrics(fm);
   // the visible area of the document in CSS pixels is x=300 y=300 w=50 h=100
 
-  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(AtLeast(1));
+  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(2);
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
 
   ApzcPinch(apzc, 250, 300, 1.25);
@@ -210,7 +209,7 @@ TEST(AsyncPanZoomController, Overzoom) {
   apzc->SetFrameMetrics(fm);
   // the visible area of the document in CSS pixels is x=10 y=0 w=100 h=100
 
-  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(AtLeast(1));
+  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(1);
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
 
   ApzcPinch(apzc, 50, 50, 0.5);
@@ -354,7 +353,7 @@ TEST(AsyncPanZoomController, Pan) {
   apzc->SetFrameMetrics(TestFrameMetrics());
   apzc->NotifyLayersUpdated(TestFrameMetrics(), true);
 
-  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(AtLeast(1));
+  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(4);
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
 
   int time = 0;
@@ -387,7 +386,7 @@ TEST(AsyncPanZoomController, Fling) {
   apzc->SetFrameMetrics(TestFrameMetrics());
   apzc->NotifyLayersUpdated(TestFrameMetrics(), true);
 
-  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(AtLeast(1));
+  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(2);
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
 
   int time = 0;
@@ -417,7 +416,7 @@ TEST(AsyncPanZoomController, OverScrollPanning) {
   apzc->SetFrameMetrics(TestFrameMetrics());
   apzc->NotifyLayersUpdated(TestFrameMetrics(), true);
 
-  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(AtLeast(1));
+  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(4);
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
 
   // Pan sufficiently to hit overscroll behavior
@@ -660,7 +659,7 @@ TEST(APZCTreeManager, HitTesting2) {
   int time = 0;
   // Silence GMock warnings about "uninteresting mock function calls".
   EXPECT_CALL(*mcc, PostDelayedTask(_,_)).Times(1);
-  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(AtLeast(1));
+  EXPECT_CALL(*mcc, SendAsyncScrollDOMEvent(_,_,_)).Times(2);
   EXPECT_CALL(*mcc, RequestContentRepaint(_)).Times(1);
   ApzcPan(apzcroot, manager, time, 100, 50);
 

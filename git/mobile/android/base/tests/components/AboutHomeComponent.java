@@ -45,7 +45,7 @@ public class AboutHomeComponent extends BaseComponent {
                     (expectedPageIndex >= 0) ? expectedPageIndex : Page.values().length - 1;
         }
 
-        assertEquals("The current HomePager page is " + expectedPage,
+        assertEquals("The current HomePager page is " + Page.values()[expectedPageIndex],
                      expectedPageIndex, getHomePagerView().getCurrentItem());
         return this;
     }

@@ -4981,13 +4981,6 @@ GenerateCode(ModuleCompiler &m, ModuleCompiler::Func &func, MIRGenerator &mir, L
 {
     int64_t before = PRMJ_Now();
 
-    // A single MacroAssembler is reused for all function compilations so
-    // that there is a single linear code segment for each module. To avoid
-    // spiking memory, a LifoAllocScope in the caller frees all MIR/LIR
-    // after each function is compiled. This method is responsible for cleaning
-    // out any dangling pointers that the MacroAssembler may have kept.
-    m.masm().resetForNewCodeGenerator(mir.alloc());
-
     m.masm().bind(func.code());
 
     ScopedJSDeletePtr<CodeGenerator> codegen(jit::GenerateCode(&mir, &lir, &m.masm()));
@@ -5017,6 +5010,13 @@ GenerateCode(ModuleCompiler &m, ModuleCompiler::Func &func, MIRGenerator &mir, L
             return false;
     }
 #endif
+
+    // A single MacroAssembler is reused for all function compilations so
+    // that there is a single linear code segment for each module. To avoid
+    // spiking memory, a LifoAllocScope in the caller frees all MIR/LIR
+    // after each function is compiled. This method is responsible for cleaning
+    // out any dangling pointers that the MacroAssembler may have kept.
+    m.masm().resetForNewCodeGenerator();
 
     // Align internal function headers.
     m.masm().align(CodeAlignment);
@@ -5507,7 +5507,7 @@ AssertStackAlignment(MacroAssembler &masm)
     Label ok;
     JS_ASSERT(IsPowerOfTwo(StackAlignment));
     masm.branchTestPtr(Assembler::Zero, StackPointer, Imm32(StackAlignment - 1), &ok);
-    masm.assume_unreachable("Stack should be aligned.");
+    masm.breakpoint();
     masm.bind(&ok);
 #endif
 }
@@ -5962,6 +5962,7 @@ GenerateOOLConvert(ModuleCompiler &m, RetType retType, Label *throwLabel)
     // passed to this FFI call.
     unsigned arraySize = sizeof(Value);
     unsigned stackDec = StackDecrementForCall(masm, callArgTypes, arraySize);
+    masm.setFramePushed(0);
     masm.reserveStack(stackDec);
 
     // Store value
@@ -5995,7 +5996,6 @@ GenerateOOLConvert(ModuleCompiler &m, RetType retType, Label *throwLabel)
     JS_ASSERT(i.done());
 
     // Call
-    AssertStackAlignment(masm);
     switch (retType.which()) {
       case RetType::Signed:
           masm.call(AsmJSImm_CoerceInPlace_ToInt32);
@@ -6138,7 +6138,6 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     masm.branchTestMagic(Assembler::Equal, JSReturnOperand, throwLabel);
 #endif
 
-    uint32_t oolConvertFramePushed = masm.framePushed();
     switch (exit.sig().retType().which()) {
       case RetType::Void:
         break;
@@ -6161,15 +6160,13 @@ GenerateFFIIonExit(ModuleCompiler &m, const ModuleCompiler::ExitDescriptor &exit
     // oolConvert
     if (oolConvert.used()) {
         masm.bind(&oolConvert);
-        masm.setFramePushed(oolConvertFramePushed);
         GenerateOOLConvert(m, exit.sig().retType(), throwLabel);
-        masm.setFramePushed(0);
         masm.jump(&done);
     }
 
 #ifdef DEBUG
     masm.bind(&ionFailed);
-    masm.assume_unreachable("AsmJS to IonMonkey call failed.");
+    masm.breakpoint();
 #endif
 }
 
@@ -6404,8 +6401,6 @@ FinishModule(ModuleCompiler &m,
     LifoAlloc lifo(LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
     TempAllocator alloc(&lifo);
     IonContext ionContext(m.cx(), &alloc);
-
-    m.masm().resetForNewCodeGenerator(alloc);
 
     if (!GenerateStubs(m))
         return false;

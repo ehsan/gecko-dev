@@ -10,10 +10,9 @@
  * utility methods for subclasses, and so forth.
  */
 
-#include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/StaticPtr.h"
 #include "mozilla/Util.h"
+#include "mozilla/Likely.h"
 
 #include "mozilla/dom/FragmentOrElement.h"
 
@@ -1320,42 +1319,29 @@ FindOptimizableSubtreeRoot(nsINode* aNode)
     }
     aNode = p;
   }
-
+  
   if (aNode->UnoptimizableCCNode()) {
     return nullptr;
   }
   return aNode;
 }
 
-StaticAutoPtr<nsTHashtable<nsPtrHashKey<nsINode>>> gCCBlackMarkedNodes;
+nsAutoTArray<nsINode*, 1020>* gCCBlackMarkedNodes = nullptr;
 
-static PLDHashOperator
-VisitBlackMarkedNode(nsPtrHashKey<nsINode>* aEntry, void*)
-{
-  nsINode* n = aEntry->GetKey();
-  n->SetCCMarkedRoot(false);
-  n->SetInCCBlackTree(false);
-  return PL_DHASH_NEXT;
-}
-
-static void
+void
 ClearBlackMarkedNodes()
 {
   if (!gCCBlackMarkedNodes) {
     return;
   }
-  gCCBlackMarkedNodes->EnumerateEntries(VisitBlackMarkedNode, nullptr);
-  gCCBlackMarkedNodes = nullptr;
-}
-
-// static
-void
-FragmentOrElement::RemoveBlackMarkedNode(nsINode* aNode)
-{
-  if (!gCCBlackMarkedNodes) {
-    return;
+  uint32_t len = gCCBlackMarkedNodes->Length();
+  for (uint32_t i = 0; i < len; ++i) {
+    nsINode* n = gCCBlackMarkedNodes->ElementAt(i);
+    n->SetCCMarkedRoot(false);
+    n->SetInCCBlackTree(false);
   }
-  gCCBlackMarkedNodes->RemoveEntry(aNode);
+  delete gCCBlackMarkedNodes;
+  gCCBlackMarkedNodes = nullptr;
 }
 
 // static
@@ -1385,14 +1371,14 @@ FragmentOrElement::CanSkipInCC(nsINode* aNode)
   if (!root) {
     return false;
   }
-
+  
   // Subtree has been traversed already.
   if (root->CCMarkedRoot()) {
     return root->InCCBlackTree() && !NeedsScriptTraverse(aNode);
   }
 
   if (!gCCBlackMarkedNodes) {
-    gCCBlackMarkedNodes = new nsTHashtable<nsPtrHashKey<nsINode> >(1020);
+    gCCBlackMarkedNodes = new nsAutoTArray<nsINode*, 1020>;
   }
 
   // nodesToUnpurple contains nodes which will be removed
@@ -1436,7 +1422,7 @@ FragmentOrElement::CanSkipInCC(nsINode* aNode)
 
   root->SetCCMarkedRoot(true);
   root->SetInCCBlackTree(foundBlack);
-  gCCBlackMarkedNodes->PutEntry(root);
+  gCCBlackMarkedNodes->AppendElement(root);
 
   if (!foundBlack) {
     return false;
@@ -1451,8 +1437,8 @@ FragmentOrElement::CanSkipInCC(nsINode* aNode)
     for (uint32_t i = 0; i < grayNodes.Length(); ++i) {
       nsINode* node = grayNodes[i];
       node->SetInCCBlackTree(true);
-      gCCBlackMarkedNodes->PutEntry(node);
     }
+    gCCBlackMarkedNodes->AppendElements(grayNodes);
   }
 
   // Subtree is black, we can remove non-gray purple nodes from

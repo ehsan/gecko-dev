@@ -1253,7 +1253,11 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
     accessible = new XULMenubarAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:menulist")) {
-    accessible = new XULComboboxAccessible(aContent, aDoc);
+      if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::droppable,
+                                nsGkAtoms::_false, eCaseMatters))
+      accessible = new XULTextFieldAccessible(aContent, aDoc);
+      else
+      accessible = new XULComboboxAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:menuitem")) {
     accessible = new XULMenuitemAccessibleWrap(aContent, aDoc);
@@ -1310,7 +1314,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
     accessible = new XULLabelAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:textbox")) {
-    accessible = new EnumRoleAccessible(aContent, aDoc, roles::SECTION);
+    accessible = new XULTextFieldAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:thumb")) {
     accessible = new XULThumbAccessible(aContent, aDoc);

@@ -265,10 +265,10 @@ Desktop browser's sync prefs.
             <hbox id="toolbar-context-page" pack="end">
               <circularprogressindicator id="download-progress" class="appbar-primary"
                                      oncommand="MetroDownloadsView.onDownloadButton()"/>
-              <toolbarbutton id="star-button" class="appbar-primary hide-on-start"
+              <toolbarbutton id="star-button" class="appbar-primary"
                              type="checkbox"
                              oncommand="Appbar.onStarButton()"/>
-              <toolbarbutton id="pin-button" class="appbar-primary hide-on-start"
+              <toolbarbutton id="pin-button" class="appbar-primary"
                              type="checkbox"
                              oncommand="Appbar.onPinButton()"/>
               <toolbarbutton id="menu-button" class="appbar-primary"
@@ -672,13 +672,7 @@ Desktop browser's sync prefs.
       </settings>
       <setting pref="signon.rememberSignons" title="&optionsHeader.privacy.passwords.label;" type="bool"/>
       <settings id="prefs-reporting" label="&optionsHeader.reporting.title;">
-        <setting pref="app.crashreporter.autosubmit"
-                 type="bool"
-                 title="&optionsHeader.reporting.crashes.label;" />
-        <setting pref="app.crashreporter.submitURLs"
-                 id="prefs-reporting-submitURLs"
-                 type="bool"
-                 title="&optionsHeader.reporting.crashes.submitURLs;" />
+        <setting pref="app.crashreporter.autosubmit" type="bool" title="&optionsHeader.reporting.crashes.label;" oncommand="BrowserUI.crashReportingPrefChanged(this.value);"/>
       </settings>
       <settings id="prefs-telemetry" label="&optionsHeader.telemetry.title;">
         <setting pref="toolkit.telemetry.enabled" type="bool" title="&optionsHeader.telemetry.label;"/>

@@ -24,7 +24,6 @@
 /* Splitters */
 .devtools-horizontal-splitter {
   -moz-appearance: none;
-  background-image: none;
   border-top: 1px solid black;
   border-bottom-width: 0;
   min-height: 3px;
@@ -35,7 +34,6 @@
 
 .devtools-side-splitter {
   -moz-appearance: none;
-  background-image: none;
   border: 0;
   -moz-border-start: 1px solid black;
   min-width: 0;

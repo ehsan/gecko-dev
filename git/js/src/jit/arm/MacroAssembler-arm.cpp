@@ -958,7 +958,7 @@ MacroAssemblerARM::ma_mod_mask(Register src, Register dest, Register hold, int32
     // Do a trial subtraction, this is the same operation as cmp, but we store the dest
     ma_sub(dest, Imm32(mask), secondScratchReg_, SetCond);
     // If (sum - C) > 0, store sum - C back into sum, thus performing a modulus.
-    ma_mov(secondScratchReg_, dest, NoSetCond, NotSigned);
+    ma_mov(secondScratchReg_, dest, NoSetCond, Unsigned);
     // Get rid of the bits that we extracted before, and set the condition codes
     as_mov(ScratchRegister, lsr(ScratchRegister, shift), SetCond);
     // If the shift produced zero, finish, otherwise, continue in the loop.
@@ -3662,24 +3662,13 @@ MacroAssemblerARMCompat::callWithABIPost(uint32_t stackAdjust, Result result)
     if (secondScratchReg_ != lr)
         ma_mov(secondScratchReg_, lr);
 
-    switch (result) {
-      case DOUBLE:
-#ifndef JS_CPU_ARM_HARDFP
+    if (result == DOUBLE) {
+#ifdef JS_CPU_ARM_HARDFP
+        as_vmov(ReturnFloatReg, d0);
+#else
         // Move double from r0/r1 to ReturnFloatReg.
         as_vxfer(r0, r1, ReturnFloatReg, CoreToFloat);
-        break;
 #endif
-      case FLOAT:
-#ifndef JS_CPU_ARM_HARDFP
-        // Move float32 from r0 to ReturnFloatReg.
-        as_vxfer(r0, InvalidReg, VFPRegister(d0).singleOverlay(), CoreToFloat);
-        break;
-#endif
-      case GENERAL:
-        break;
-
-      default:
-        MOZ_ASSUME_UNREACHABLE("unexpected callWithABI result");
     }
 
     freeStack(stackAdjust);
@@ -3884,7 +3873,7 @@ MacroAssemblerARMCompat::floor(FloatRegister input, Register output, Label *bail
     // the int range, and special handling is required.
     // zero is also caught by this case, but floor of a negative number
     // should never be zero.
-    ma_b(bail, NotSigned);
+    ma_b(bail, Unsigned);
 
     bind(&fin);
 }
@@ -3936,7 +3925,7 @@ MacroAssemblerARMCompat::floorf(FloatRegister input, Register output, Label *bai
     // the int range, and special handling is required.
     // zero is also caught by this case, but floor of a negative number
     // should never be zero.
-    ma_b(bail, NotSigned);
+    ma_b(bail, Unsigned);
 
     bind(&fin);
 }
@@ -4023,7 +4012,7 @@ MacroAssemblerARMCompat::round(FloatRegister input, Register output, Label *bail
     // If the result looks non-negative, then this value didn't actually fit into
     // the int range, and special handling is required, or it was zero, which means
     // the result is actually -0.0 which also requires special handling.
-    ma_b(bail, NotSigned);
+    ma_b(bail, Unsigned);
 
     bind(&fin);
 }

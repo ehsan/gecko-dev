@@ -240,8 +240,6 @@ var Stepper = (function StepperClosure() {
     return out;
   }
 
-  var opMap = null;
-
   var glyphCommands = {
     'showText': 0,
     'showSpacedText': 0,
@@ -273,12 +271,6 @@ var Stepper = (function StepperClosure() {
       headerRow.appendChild(c('th', 'args'));
       panel.appendChild(content);
       this.table = table;
-      if (!opMap) {
-        opMap = Object.create(null);
-        for (var key in PDFJS.OPS) {
-          opMap[PDFJS.OPS[key]] = key;
-        }
-      }
     },
     updateOperatorList: function updateOperatorList(operatorList) {
       var self = this;
@@ -308,7 +300,7 @@ var Stepper = (function StepperClosure() {
         breakCell.appendChild(cbox);
         line.appendChild(breakCell);
         line.appendChild(c('td', i.toString()));
-        var fn = opMap[operatorList.fnArray[i]];
+        var fn = operatorList.fnArray[i];
         var decArgs = args;
         if (fn in glyphCommands) {
           var glyphIndex = glyphCommands[fn];
