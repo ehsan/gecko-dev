@@ -39,8 +39,6 @@ using mozilla::gfx::SourceSurface;
 namespace mozilla {
 namespace layers {
 
-int32_t Image::sSerialCounter = 0;
-
 already_AddRefed<Image>
 ImageFactory::CreateImage(const ImageFormat *aFormats,
                           uint32_t aNumFormats,

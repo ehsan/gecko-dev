@@ -5563,9 +5563,9 @@ dumpValue(const Value &v)
         v.toString()->dump();
     else if (v.isObject() && v.toObject().isFunction()) {
         JSFunction *fun = v.toObject().toFunction();
-        if (fun->displayAtom()) {
+        if (fun->atom) {
             fputs("<function ", stderr);
-            FileEscapedString(stderr, fun->displayAtom(), 0);
+            FileEscapedString(stderr, fun->atom, 0);
         } else {
             fputs("<unnamed function", stderr);
         }

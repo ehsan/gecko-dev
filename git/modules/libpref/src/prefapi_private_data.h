@@ -8,11 +8,7 @@
 extern PLDHashTable			gHashTable;
 extern bool                 gDirty;
 
-namespace mozilla {
-namespace dom {
-class PrefSetting;
-}
-}
+struct PrefTuple;
 
 enum pref_SaveTypes { SAVE_NONSHARED, SAVE_SHARED, SAVE_ALL, SAVE_ALL_AND_DEFAULTS };
 
@@ -26,14 +22,12 @@ PLDHashOperator
 pref_savePref(PLDHashTable *table, PLDHashEntryHdr *heh, uint32_t i, void *arg);
 
 PLDHashOperator
-pref_GetPrefs(PLDHashTable *table,
-              PLDHashEntryHdr *heh, uint32_t i, void *arg);
+pref_MirrorPrefs(PLDHashTable *table, PLDHashEntryHdr *heh, uint32_t i, void *arg);
 
 nsresult
-pref_SetPref(const mozilla::dom::PrefSetting& aPref);
+pref_SetPrefTuple(const PrefTuple &aPref,bool set_default = false);
 
 int pref_CompareStrings(const void *v1, const void *v2, void* unused);
 PrefHashEntry* pref_HashTableLookup(const void *key);
 
-void pref_GetPrefFromEntry(PrefHashEntry *aHashEntry,
-                           mozilla::dom::PrefSetting* aPref);
+void pref_GetTupleFromEntry(PrefHashEntry *aHashEntry, PrefTuple *aTuple);

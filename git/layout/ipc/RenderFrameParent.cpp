@@ -158,9 +158,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
   // metricsScrollOffset is in layer coordinates.
-  gfx::Point metricsScrollOffset = aMetrics->mViewportScrollOffset;
-  nsIntPoint roundedMetricsScrollOffset =
-    nsIntPoint(NS_lround(metricsScrollOffset.x), NS_lround(metricsScrollOffset.y));
+  nsIntPoint metricsScrollOffset = aMetrics->mViewportScrollOffset;
 
   if (aRootFrameLoader->AsyncScrollEnabled() && !aMetrics->mDisplayPort.IsEmpty()) {
     // Only use asynchronous scrolling if it is enabled and there is a
@@ -168,8 +166,8 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
     // synchronously scrolled for identifying a scroll area before it is
     // being actively scrolled.
     nsIntPoint scrollCompensation(
-      (scrollOffset.x / aTempScaleX - roundedMetricsScrollOffset.x) * aConfig.mXScale,
-      (scrollOffset.y / aTempScaleY - roundedMetricsScrollOffset.y) * aConfig.mYScale);
+      (scrollOffset.x / aTempScaleX - metricsScrollOffset.x) * aConfig.mXScale,
+      (scrollOffset.y / aTempScaleY - metricsScrollOffset.y) * aConfig.mYScale);
 
     return ViewTransform(-scrollCompensation, aConfig.mXScale, aConfig.mYScale);
   } else {
@@ -701,7 +699,7 @@ RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent,
                                     nsInputEvent* aOutEvent)
 {
   if (mPanZoomController) {
-    mPanZoomController->ReceiveInputEvent(aEvent, aOutEvent);
+    mPanZoomController->HandleInputEvent(aEvent, aOutEvent);
   }
 }
 
@@ -885,18 +883,18 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 }
 
 void
-RenderFrameParent::ZoomToRect(const gfxRect& aRect)
+RenderFrameParent::NotifyDOMTouchListenerAdded()
 {
   if (mPanZoomController) {
-    mPanZoomController->ZoomToRect(aRect);
+    mPanZoomController->NotifyDOMTouchListenerAdded();
   }
 }
 
 void
-RenderFrameParent::ContentReceivedTouch(bool aPreventDefault)
+RenderFrameParent::ZoomToRect(const gfxRect& aRect)
 {
   if (mPanZoomController) {
-    mPanZoomController->ContentReceivedTouch(aPreventDefault);
+    mPanZoomController->ZoomToRect(aRect);
   }
 }
 

@@ -170,14 +170,12 @@ struct JSCompartment
         return &rt->gcMarker;
     }
 
-  public:
+  private:
     enum CompartmentGCState {
         NoGC,
-        Mark,
-        Sweep
+        Collecting
     };
 
-  private:
     bool                         gcScheduled;
     CompartmentGCState           gcState;
     bool                         gcPreserveCode;
@@ -203,9 +201,9 @@ struct JSCompartment
         return rt->isHeapCollecting() && gcState != NoGC;
     }
 
-    void setGCState(CompartmentGCState state) {
+    void setCollecting(bool collecting) {
         JS_ASSERT(rt->isHeapBusy());
-        gcState = state;
+        gcState = collecting ? Collecting : NoGC;
     }
 
     void scheduleGC() {
@@ -229,12 +227,8 @@ struct JSCompartment
         return gcState != NoGC;
     }
 
-    bool isGCMarking() {
-        return gcState == Mark;
-    }
-
     bool isGCSweeping() {
-        return gcState == Sweep;
+        return gcState != NoGC && rt->gcIncrementalState == js::gc::SWEEP;
     }
 
     size_t                       gcBytes;
@@ -248,11 +242,13 @@ struct JSCompartment
 
     int64_t                      lastCodeRelease;
 
-    /* Pools for analysis and type information in this compartment. */
-    static const size_t LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 128 * 1024;
-    js::LifoAlloc                analysisLifoAlloc;
+    /*
+     * Pool for analysis and intermediate type information in this compartment.
+     * Cleared on every GC, unless the GC happens during analysis (indicated
+     * by activeAnalysis, which is implied by activeInference).
+     */
+    static const size_t TYPE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 128 * 1024;
     js::LifoAlloc                typeLifoAlloc;
-
     bool                         activeAnalysis;
     bool                         activeInference;
 
@@ -340,7 +336,7 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
     void markTypes(JSTracer *trc);
-    void discardJitCode(js::FreeOp *fop, bool discardConstraints);
+    void discardJitCode(js::FreeOp *fop);
     bool isDiscardingJitCode(JSTracer *trc);
     void sweep(js::FreeOp *fop, bool releaseTypes);
     void sweepCrossCompartmentWrappers();

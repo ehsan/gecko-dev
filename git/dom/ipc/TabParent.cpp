@@ -1099,19 +1099,19 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
 }
 
 bool
-TabParent::RecvZoomToRect(const gfxRect& aRect)
+TabParent::RecvNotifyDOMTouchListenerAdded()
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ZoomToRect(aRect);
+    rfp->NotifyDOMTouchListenerAdded();
   }
   return true;
 }
 
 bool
-TabParent::RecvContentReceivedTouch(const bool& aPreventDefault)
+TabParent::RecvZoomToRect(const gfxRect& aRect)
 {
   if (RenderFrameParent* rfp = GetRenderFrame()) {
-    rfp->ContentReceivedTouch(aPreventDefault);
+    rfp->ZoomToRect(aRect);
   }
   return true;
 }

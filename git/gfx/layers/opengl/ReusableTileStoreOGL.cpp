@@ -220,9 +220,7 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
             TransformBounds(gfxRect(parentMetrics.mDisplayPort));
           const FrameMetrics& metrics = scrollableLayer->GetFrameMetrics();
           const nsIntSize& contentSize = metrics.mContentRect.Size();
-          const gfx::Point& scrollOffset = metrics.mViewportScrollOffset;
-          const nsIntPoint& contentOrigin = metrics.mContentRect.TopLeft() -
-            nsIntPoint(NS_lround(scrollOffset.x), NS_lround(scrollOffset.y));
+          const nsIntPoint& contentOrigin = metrics.mContentRect.TopLeft() - metrics.mViewportScrollOffset;
           gfxRect contentRect = gfxRect(contentOrigin.x, contentOrigin.y,
                                         contentSize.width, contentSize.height);
           contentBounds = scrollableLayer->GetEffectiveTransform().TransformBounds(contentRect);

@@ -36,6 +36,7 @@
 #include "prefapi.h"
 #include "prefread.h"
 #include "prefapi_private_data.h"
+#include "PrefTuple.h"
 
 #include "mozilla/Omnijar.h"
 #include "nsZipArchive.h"
@@ -284,12 +285,13 @@ Preferences::Init()
 
   using mozilla::dom::ContentChild;
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    InfallibleTArray<PrefSetting> prefs;
-    ContentChild::GetSingleton()->SendReadPrefsArray(&prefs);
+    InfallibleTArray<PrefTuple> array;
+    ContentChild::GetSingleton()->SendReadPrefsArray(&array);
 
     // Store the array
-    for (uint32_t i = 0; i < prefs.Length(); ++i) {
-      pref_SetPref(prefs[i]);
+    nsTArray<PrefTuple>::size_type index = array.Length();
+    while (index-- > 0) {
+      pref_SetPrefTuple(array[index], true);
     }
     return NS_OK;
   }
@@ -468,26 +470,34 @@ ReadExtensionPrefs(nsIFile *aFile)
 }
 
 void
-Preferences::SetPreference(const PrefSetting& aPref)
+Preferences::SetPreference(const PrefTuple *aPref)
 {
-  pref_SetPref(aPref);
+  pref_SetPrefTuple(*aPref, true);
 }
 
 void
-Preferences::GetPreference(PrefSetting* aPref)
+Preferences::ClearContentPref(const char *aPref)
 {
-  PrefHashEntry *entry = pref_HashTableLookup(aPref->name().get());
+  PREF_ClearUserPref(aPref);
+}
+
+bool
+Preferences::MirrorPreference(const char *aPref, PrefTuple *aTuple)
+{
+  PrefHashEntry *entry = pref_HashTableLookup(aPref);
   if (!entry)
-    return;
+    return false;
 
-  pref_GetPrefFromEntry(entry, aPref);
+  pref_GetTupleFromEntry(entry, aTuple);
+  return true;
 }
 
 void
-Preferences::GetPreferences(InfallibleTArray<PrefSetting>* aPrefs)
+Preferences::MirrorPreferences(nsTArray<PrefTuple,
+                                        nsTArrayInfallibleAllocator> *aArray)
 {
-  aPrefs->SetCapacity(PL_DHASH_TABLE_SIZE(&gHashTable));
-  PL_DHashTableEnumerate(&gHashTable, pref_GetPrefs, aPrefs);
+  aArray->SetCapacity(PL_DHASH_TABLE_SIZE(&gHashTable));
+  PL_DHashTableEnumerate(&gHashTable, pref_MirrorPrefs, aArray);
 }
 
 NS_IMETHODIMP

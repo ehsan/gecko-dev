@@ -94,9 +94,9 @@ public:
 
   void NotifyDimensionsChanged(int width, int height);
 
-  void ZoomToRect(const gfxRect& aRect);
+  void NotifyDOMTouchListenerAdded();
 
-  void ContentReceivedTouch(bool aPreventDefault);
+  void ZoomToRect(const gfxRect& aRect);
 
 protected:
   void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

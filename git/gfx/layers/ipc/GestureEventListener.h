@@ -8,8 +8,6 @@
 #include "InputData.h"
 #include "Axis.h"
 
-#include "base/message_loop.h"
-
 namespace mozilla {
 namespace layers {
 

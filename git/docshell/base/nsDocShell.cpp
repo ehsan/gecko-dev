@@ -5135,7 +5135,9 @@ nsDocShell::SetIsActive(bool aIsActive)
           continue;
       }
 
-      if (!docshell->GetIsContentBoundary()) {
+      bool isContentBoundary = false;
+      docshell->GetIsContentBoundary(&isContentBoundary);
+      if (!isContentBoundary) {
           docshell->SetIsActive(aIsActive);
       }
   }
@@ -12266,21 +12268,22 @@ nsDocShell::GetFrameType()
     return mIsBrowserFrame ? eFrameTypeBrowser : eFrameTypeRegular;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsDocShell::GetIsBrowserElement(bool* aIsBrowser)
 {
     *aIsBrowser = (GetFrameType() == eFrameTypeBrowser);
+
     return NS_OK;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsDocShell::GetIsApp(bool* aIsApp)
 {
     *aIsApp = (GetFrameType() == eFrameTypeApp);
     return NS_OK;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsDocShell::GetIsContentBoundary(bool* aIsContentBoundary)
 {
     switch (GetFrameType()) {
@@ -12296,21 +12299,21 @@ nsDocShell::GetIsContentBoundary(bool* aIsContentBoundary)
     return NS_OK;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsDocShell::GetIsInBrowserElement(bool* aIsInBrowserElement)
 {
     *aIsInBrowserElement = (GetInheritedFrameType() == eFrameTypeBrowser);
     return NS_OK;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsDocShell::GetIsInApp(bool* aIsInApp)
 {
     *aIsInApp = (GetInheritedFrameType() == eFrameTypeApp);
     return NS_OK;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsDocShell::GetIsBelowContentBoundary(bool* aIsInContentBoundary)
 {
     switch (GetInheritedFrameType()) {
@@ -12336,7 +12339,7 @@ nsDocShell::SetAppId(uint32_t aAppId)
     return NS_OK;
 }
 
-/* [infallible] */ NS_IMETHODIMP
+NS_IMETHODIMP
 nsDocShell::GetAppId(uint32_t* aAppId)
 {
     if (mAppId != nsIScriptSecurityManager::NO_APP_ID) {

@@ -179,7 +179,10 @@ Readability.prototype = {
     if (curTitle.split(' ').length <= 4)
       curTitle = origTitle;
 
-    return curTitle;
+    let articleTitle = doc.createElement("H1");
+    articleTitle.innerHTML = curTitle;
+
+    return articleTitle;
   },
 
   /**
@@ -1352,7 +1355,7 @@ Readability.prototype = {
     //   }).bind(this), 500);
     // }
 
-    return { title: articleTitle,
+    return { title: this._getInnerText(articleTitle),
              byline: this._articleByline,
              content: articleContent.innerHTML };
   }

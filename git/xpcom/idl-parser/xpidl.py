@@ -715,7 +715,6 @@ class Attribute(object):
     undefined = None
     deprecated = False
     nullable = False
-    infallible = False
     defvalue = None
 
     def __init__(self, type, name, attlist, readonly, nullable, defvalue, location, doccomments):
@@ -771,8 +770,6 @@ class Attribute(object):
                     self.deprecated = True
                 elif name == 'nostdcall':
                     self.nostdcall = True
-                elif name == 'infallible':
-                    self.infallible = True
                 else:
                     raise IDLError("Unexpected attribute '%s'" % name, aloc)
 
@@ -791,15 +788,6 @@ class Attribute(object):
             getBuiltinOrNativeTypeName(self.realtype) != '[domstring]'):
             raise IDLError("Nullable types (T?) is supported only for DOMString",
                            self.location)
-        if self.infallible and not self.realtype.kind == 'builtin':
-            raise IDLError('[infallible] only works on builtin types '
-                           '(numbers, bool, and raw char types)',
-                           self.location)
-        if self.infallible and not iface.attributes.builtinclass:
-            raise IDLError('[infallible] attributes are only allowed on '
-                           '[builtinclass] interfaces',
-                           self.location)
-
 
     def toIDL(self):
         attribs = attlistToIDL(self.attlist)

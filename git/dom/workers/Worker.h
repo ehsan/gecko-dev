@@ -9,11 +9,8 @@
 #include "Workers.h"
 
 #include "jspubtd.h"
-#include "mozilla/dom/DOMJSClass.h"
 
 BEGIN_WORKERS_NAMESPACE
-
-extern mozilla::dom::NativePropertyHooks sNativePropertyHooks;
 
 namespace worker {
 

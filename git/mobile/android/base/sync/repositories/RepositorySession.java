@@ -240,7 +240,9 @@ public abstract class RepositorySession {
       delegate.deferredFinishDelegate(delegateQueue).onFinishSucceeded(this, this.getBundle(null));
     } catch (InvalidSessionTransitionException e) {
       Logger.error(LOG_TAG, "Tried to finish() an unstarted or already finished session");
-      throw new InactiveSessionException(e);
+      InactiveSessionException ex = new InactiveSessionException(null);
+      ex.initCause(e);
+      throw ex;
     }
 
     Logger.trace(LOG_TAG, "Shutting down work queues.");

@@ -761,9 +761,7 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     if (mIsFirstPaint) {
       mContentRect = metrics.mContentRect;
-      const gfx::Point& scrollOffset = metrics.mViewportScrollOffset;
-      SetFirstPaintViewport(nsIntPoint(NS_lround(scrollOffset.x),
-                                       NS_lround(scrollOffset.y)),
+      SetFirstPaintViewport(metrics.mViewportScrollOffset,
                             1/rootScaleX,
                             mContentRect,
                             metrics.mCSSContentRect);
@@ -777,9 +775,9 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
     // notifications, so that Java can take these into account in its response.
     // Calculate the absolute display port to send to Java
     nsIntRect displayPort = metrics.mDisplayPort;
-    gfx::Point scrollOffset = metrics.mViewportScrollOffset;
-    displayPort.x += NS_lround(scrollOffset.x);
-    displayPort.y += NS_lround(scrollOffset.y);
+    nsIntPoint scrollOffset = metrics.mViewportScrollOffset;
+    displayPort.x += scrollOffset.x;
+    displayPort.y += scrollOffset.y;
 
     SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
                      mScrollOffset, mXScale, mYScale);
@@ -796,8 +794,7 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     nsIntPoint metricsScrollOffset(0, 0);
     if (metrics.IsScrollable()) {
-      metricsScrollOffset =
-        nsIntPoint(NS_lround(scrollOffset.x), NS_lround(scrollOffset.y));
+      metricsScrollOffset = metrics.mViewportScrollOffset;
     }
 
     nsIntPoint scrollCompensation(

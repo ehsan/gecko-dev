@@ -8599,7 +8599,9 @@ HasCrossProcessParent(nsIDocument* aDocument)
   if (!docShell) {
     return false;
   }
-  return docShell->GetIsBrowserElement();
+  bool isBrowserElement = false;
+  docShell->GetIsBrowserElement(&isBrowserElement);
+  return isBrowserElement;
 }
 
 static bool

@@ -469,9 +469,6 @@ struct JSScript : public js::gc::Cell
                                          JSCompartment::scriptCountsMap */
     bool            hasDebugScript:1; /* script has an entry in
                                          JSCompartment::debugScriptMap */
-    bool            hasFreezeConstraints:1; /* freeze constraints for stack
-                                             * type sets have been generated */
-
   private:
     /* See comments below. */
     bool            argsHasVarBinding_:1;
@@ -577,8 +574,6 @@ struct JSScript : public js::gc::Cell
     inline bool hasAnalysis();
     inline void clearAnalysis();
     inline js::analyze::ScriptAnalysis *analysis();
-
-    inline void clearPropertyReadTypes();
 
     inline bool hasGlobal() const;
     inline bool hasClearedGlobal() const;
@@ -1180,11 +1175,10 @@ js_GetScriptLineExtent(JSScript *script);
 namespace js {
 
 extern unsigned
-PCToLineNumber(JSScript *script, jsbytecode *pc, unsigned *columnp = NULL);
+PCToLineNumber(JSScript *script, jsbytecode *pc);
 
 extern unsigned
-PCToLineNumber(unsigned startLine, jssrcnote *notes, jsbytecode *code, jsbytecode *pc,
-               unsigned *columnp = NULL);
+PCToLineNumber(unsigned startLine, jssrcnote *notes, jsbytecode *code, jsbytecode *pc);
 
 extern unsigned
 CurrentLine(JSContext *cx);

@@ -24,6 +24,7 @@ include "mozilla/net/NeckoMessageUtils.h";
 include "mozilla/dom/TabMessageUtils.h";
 
 include "nsGeoPositionIPCSerialiser.h";
+include "PPrefTuple.h";
 
 include DOMTypes;
 
@@ -134,23 +135,6 @@ union AppId {
   nullable PBrowser;
 };
 
-union PrefValue {
-  nsCString;
-  int32_t;
-  bool;
-};
-
-union MaybePrefValue {
-  PrefValue;
-  null_t;
-};
-
-struct PrefSetting {
-  nsCString name;
-  MaybePrefValue defaultValue;
-  MaybePrefValue userValue;
-};
-
 rpc protocol PContent
 {
     parent opens PCompositor;
@@ -199,7 +183,8 @@ child:
 
     async NotifyVisited(URI uri);
 
-    PreferenceUpdate(PrefSetting pref);
+    PreferenceUpdate(PrefTuple pref);
+    ClearUserPreference(nsCString prefName);
 
     NotifyAlertsObserver(nsCString topic, nsString data);
 
@@ -263,7 +248,7 @@ parent:
     async LoadURIExternal(URI uri);
 
     // PrefService message
-    sync ReadPrefsArray() returns (PrefSetting[] prefs);
+    sync ReadPrefsArray() returns (PrefTuple[] retValue);
 
     sync ReadFontList() returns (FontListEntry[] retValue);
 

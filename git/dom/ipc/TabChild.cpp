@@ -114,7 +114,15 @@ TabChild::Observe(nsISupports *aSubject,
                   const char *aTopic,
                   const PRUnichar *aData)
 {
-  if (!strcmp(aTopic, "cancel-default-pan-zoom")) {
+  if (!strcmp(aTopic, "dom-touch-listener-added")) {
+    nsCOMPtr<nsIDOMWindow> subject(do_QueryInterface(aSubject));
+    nsCOMPtr<nsIDOMWindow> win(do_GetInterface(mWebNav));
+    nsCOMPtr<nsIDOMWindow> topSubject;
+    subject->GetTop(getter_AddRefs(topSubject));
+    if (win == topSubject) {
+      SendNotifyDOMTouchListenerAdded();
+    }
+  } else if (!strcmp(aTopic, "cancel-default-pan-zoom")) {
     nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aSubject));
     nsCOMPtr<nsITabChild> tabChild(GetTabChildFrom(docShell));
     if (tabChild == this) {
@@ -155,6 +163,9 @@ TabChild::Init()
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
 
   if (observerService) {
+    observerService->AddObserver(this,
+                                 "dom-touch-listener-added",
+                                 false);
     observerService->AddObserver(this,
                                  "cancel-default-pan-zoom",
                                  false);
@@ -386,7 +397,12 @@ TabChild::ProvideWindow(nsIDOMWindow* aParent, uint32_t aChromeFlags,
     // open a modal-type window, we're going to create a new <iframe mozbrowser>
     // and return its window here.
     nsCOMPtr<nsIDocShell> docshell = do_GetInterface(aParent);
-    if (docshell && docshell->GetIsBelowContentBoundary() &&
+    bool isInContentBoundary = false;
+    if (docshell) {
+      docshell->GetIsBelowContentBoundary(&isInContentBoundary);
+    }
+
+    if (isInContentBoundary &&
         !(aChromeFlags & (nsIWebBrowserChrome::CHROME_MODAL |
                           nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                           nsIWebBrowserChrome::CHROME_OPENAS_CHROME))) {
@@ -721,8 +737,8 @@ TabChild::RecvUpdateFrame(const FrameMetrics& aFrameMetrics)
     }
 
     nsCString data;
-    data += nsPrintfCString("{ \"x\" : %d", NS_lround(aFrameMetrics.mViewportScrollOffset.x));
-    data += nsPrintfCString(", \"y\" : %d", NS_lround(aFrameMetrics.mViewportScrollOffset.y));
+    data += nsPrintfCString("{ \"x\" : %d", aFrameMetrics.mViewportScrollOffset.x);
+    data += nsPrintfCString(", \"y\" : %d", aFrameMetrics.mViewportScrollOffset.y);
     // We don't treat the x and y scales any differently for this
     // semi-platform-specific code.
     data += nsPrintfCString(", \"zoom\" : %f", aFrameMetrics.mResolution.width);
@@ -820,13 +836,6 @@ TabChild::RecvRealTouchEvent(const nsTouchEvent& aEvent)
 {
     nsTouchEvent localEvent(aEvent);
     nsEventStatus status = DispatchWidgetEvent(localEvent);
-
-    nsCOMPtr<nsPIDOMWindow> outerWindow = do_GetInterface(mWebNav);
-    nsCOMPtr<nsPIDOMWindow> innerWindow = outerWindow->GetCurrentInnerWindow();
-    if (innerWindow && innerWindow->HasTouchEventListeners()) {
-      SendContentReceivedTouch(nsIPresShell::gPreventMouseEvents);
-    }
-
     if (status == nsEventStatus_eConsumeNoDefault) {
         return true;
     }
