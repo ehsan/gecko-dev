@@ -222,8 +222,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      */
     void RemovedFromDocument();
 
-    static void Traverse(nsObjectLoadingContent *tmp,
-                         nsCycleCollectionTraversalCallback &cb);
+    void Traverse(nsCycleCollectionTraversalCallback &cb);
 
     void CreateStaticClone(nsObjectLoadingContent* aDest) const;
   private:

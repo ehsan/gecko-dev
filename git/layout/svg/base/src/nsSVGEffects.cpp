@@ -504,7 +504,7 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
                       CreateMarkerProperty);
   }
 
-  nsIFrame *kid = aFrame->GetFirstPrincipalChild();
+  nsIFrame *kid = aFrame->GetFirstChild(nsnull);
   while (kid) {
     if (kid->GetContent()->IsElement()) {
       UpdateEffects(kid);

@@ -575,13 +575,7 @@ nsAttrAndChildArray::SetAndTakeMappedAttr(nsIAtom* aLocalName,
                                           nsHTMLStyleSheet* aSheet)
 {
   nsRefPtr<nsMappedAttributes> mapped;
-
-  PRBool willAdd = PR_TRUE;
-  if (mImpl && mImpl->mMappedAttrs) {
-    willAdd = mImpl->mMappedAttrs->GetAttr(aLocalName) == nsnull;
-  }
-
-  nsresult rv = GetModifiableMapped(aContent, aSheet, willAdd,
+  nsresult rv = GetModifiableMapped(aContent, aSheet, PR_TRUE,
                                     getter_AddRefs(mapped));
   NS_ENSURE_SUCCESS(rv, rv);
 

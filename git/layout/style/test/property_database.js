@@ -472,16 +472,6 @@ var gCSSProperties = {
 		other_values: [ "border-box", "padding-box" ],
 		invalid_values: [ "margin-box", "content", "padding", "border", "margin" ]
 	},
-	"-moz-columns": {
-		domProp: "MozColumns",
-		inherited: false,
-		type: CSS_TYPE_TRUE_SHORTHAND,
-		subproperties: [ "-moz-column-count", "-moz-column-width" ],
-		initial_values: [ "auto", "auto auto" ],
-		other_values: [ "3", "20px", "2 10px", "10px 2", "2 auto", "auto 2", "auto 50px", "50px auto" ],
-		invalid_values: [ "5%", "-1px", "-1", "3 5", "10px 4px", "10 2px 5in", "30px -1",
-		                  "auto 3 5px", "5 auto 20px", "auto auto auto" ]
-	},
 	"-moz-column-count": {
 		domProp: "MozColumnCount",
 		inherited: false,
@@ -939,9 +929,7 @@ var gCSSProperties = {
 			"translate(-moz-calc(5px - 3 * 10%), 50px)",
 			"translate(-50px, -moz-calc(5px - 10% * 3))",
 			"matrix(1, 0, 0, 1, -moz-calc(5px * 3), -moz-calc(10% - 3px))"
-		].concat(SpecialPowers.getBoolPref("layout.3d-transforms.enabled") ? [
-            "translatez(1px)", "translatez(4em)", "translatez(-4px)", "translatez(0px)", "translatez(2px) translatez(5px)", "translate3d(3px, 4px, 5px)", "translate3d(2em, 3px, 1em)", "translatex(2px) translate3d(4px, 5px, 6px) translatey(1px)", "scale3d(4, 4, 4)", "scale3d(-2, 3, -7)", "scalez(4)", "scalez(-6)", "rotate3d(2, 3, 4, 45deg)", "rotate3d(-3, 7, 0, 12rad)", "rotatex(15deg)", "rotatey(-12grad)", "rotatez(72rad)", "perspective(1000px)", "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)"
-		] : []),
+		],
 		invalid_values: ["1px", "#0000ff", "red", "auto", "translatex(1px 1px)", "translatex(translatex(1px))", "translatex(#0000ff)", "translatex(red)", "translatey()", "matrix(1, 2, 3, 4, 5, 6)", "matrix(1px, 2px, 3px, 4px, 5px, 6px)", "scale(150%)", "skewx(red)", "matrix(1%, 0, 0, 0, 0px, 0px)", "matrix(0, 1%, 2, 3, 4px,5px)", "matrix(0, 1, 2%, 3, 4px, 5px)", "matrix(0, 1, 2, 3%, 4%, 5%)",
 			/* invalid calc() values */
 			"translatey(-moz-min(5px,10%))",
@@ -949,9 +937,7 @@ var gCSSProperties = {
 			"translate(10px, -moz-calc(min(5px,10%)))",
 			"translate(-moz-calc(max(5px,10%)), 10%)",
 			"matrix(1, 0, 0, 1, -moz-max(5px * 3), -moz-calc(10% - 3px))"
-		].concat(SpecialPowers.getBoolPref("layout.3d-transforms.enabled") ? [
-            "perspective(0px)", "perspective(-10px)", "matrix3d(dinosaur)", "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)", "matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)", "rotatey(words)", "rotatex(7)", "translate3d(3px, 4px, 1px, 7px)"
-		] : [])
+		]
 	},
 	"-moz-transform-origin": {
 		domProp: "MozTransformOrigin",
@@ -1024,14 +1010,6 @@ var gCSSProperties = {
         other_values: [ "hidden" ],
         invalid_values: [ "collapse" ]
     },
-	"-moz-transform-style": {
-		domProp: "MozTransformStyle",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "flat" ],
-		other_values: [ "preserve-3d" ],
-		invalid_values: []
-	},
 	"-moz-user-focus": {
 		domProp: "MozUserFocus",
 		inherited: true,

@@ -77,7 +77,7 @@ public:
   virtual nsIScrollableFrame* GetScrollTargetFrame() {
     if (!IsScrollable())
       return nsnull;
-    return do_QueryFrame(GetFirstPrincipalChild());
+    return do_QueryFrame(GetFirstChild(nsnull));
   }
 
   virtual nscoord GetMinWidth(nsRenderingContext* aRenderingContext);
@@ -128,7 +128,7 @@ public:
 
   // Utility methods to set current widget state
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
 //==== BEGIN NSIFORMCONTROLFRAME

@@ -214,7 +214,7 @@ protected:
   // Change the state of the object with this. The broadcast argument
   // determines if the onreadystatechange listener should be called.
   nsresult ChangeState(PRUint32 aState, PRBool aBroadcast = PR_TRUE);
-  already_AddRefed<nsILoadGroup> GetLoadGroup() const;
+  nsresult GetLoadGroup(nsILoadGroup **aLoadGroup);
   nsIURI *GetBaseURI();
 
   nsresult RemoveAddEventListener(const nsAString& aType,

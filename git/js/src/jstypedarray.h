@@ -57,6 +57,7 @@ namespace js {
  */
 struct JS_FRIEND_API(ArrayBuffer) {
     static Class slowClass;
+    static Class fastClass;
     static JSPropertySpec jsprops[];
 
     static JSBool prop_getByteLength(JSContext *cx, JSObject *obj, jsid id, Value *vp);
@@ -106,6 +107,10 @@ struct JS_FRIEND_API(ArrayBuffer) {
 
     static JSObject *
     getArrayBuffer(JSObject *obj);
+
+    static inline unsigned int getByteLength(JSObject *obj);
+
+    static inline uint8 * getDataOffset(JSObject *obj);
 };
 
 /*
@@ -180,8 +185,8 @@ struct JS_FRIEND_API(TypedArray) {
     static bool
     isArrayIndex(JSContext *cx, JSObject *obj, jsid id, jsuint *ip = NULL);
 
-    static inline uint32 slotWidth(int atype) {
-        switch (atype) {
+    static inline int slotWidth(JSObject *obj) {
+        switch (getType(obj)) {
           case js::TypedArray::TYPE_INT8:
           case js::TypedArray::TYPE_UINT8:
           case js::TypedArray::TYPE_UINT8_CLAMPED:
@@ -196,17 +201,10 @@ struct JS_FRIEND_API(TypedArray) {
           case js::TypedArray::TYPE_FLOAT64:
             return 8;
           default:
-            JS_NOT_REACHED("invalid typed array type");
+            JS_NOT_REACHED("invalid typed array");
             return 0;
         }
     }
-
-    static inline int slotWidth(JSObject *obj) {
-        return slotWidth(getType(obj));
-    }
-
-    static int lengthOffset();
-    static int dataOffset();
 };
 
 extern bool

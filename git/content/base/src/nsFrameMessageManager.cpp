@@ -177,13 +177,6 @@ nsFrameMessageManager::LoadFrameScript(const nsAString& aURL,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsFrameMessageManager::RemoveDelayedFrameScript(const nsAString& aURL)
-{
-  mPendingScripts.RemoveElement(aURL);
-  return NS_OK;
-}
-
 static JSBool
 JSONCreator(const jschar* aBuf, uint32 aLen, void* aData)
 {
@@ -457,7 +450,8 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           // messageManager is wrapped in TabChildGlobal.
           nsCOMPtr<nsISupports> defaultThisValue;
           if (mChrome) {
-            defaultThisValue = do_QueryObject(this);
+            defaultThisValue =
+              do_QueryInterface(static_cast<nsIContentFrameMessageManager*>(this));
           } else {
             defaultThisValue = aTarget;
           }

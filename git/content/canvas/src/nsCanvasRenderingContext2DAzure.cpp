@@ -605,7 +605,8 @@ protected:
     * Gets the pres shell from either the canvas element or the doc shell
     */
   nsIPresShell *GetPresShell() {
-    nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
+    nsCOMPtr<nsIContent> content =
+      do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement));
     if (content) {
       nsIDocument* ownerDoc = content->GetOwnerDoc();
       return ownerDoc ? ownerDoc->GetShell() : nsnull;
@@ -1234,7 +1235,8 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
   if (size.width <= 0xFFFF && size.height <= 0xFFFF &&
       size.width >= 0 && size.height >= 0) {
     SurfaceFormat format = GetSurfaceFormat();
-    nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
+    nsCOMPtr<nsIContent> content =
+      do_QueryInterface(static_cast<nsIDOMHTMLCanvasElement*>(mCanvasElement));
     nsIDocument* ownerDoc = nsnull;
     if (content) {
       ownerDoc = content->GetOwnerDoc();

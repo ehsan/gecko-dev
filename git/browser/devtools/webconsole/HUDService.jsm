@@ -27,7 +27,6 @@
  *   Patrick Walton <pcwalton@mozilla.com>
  *   Julian Viereck <jviereck@mozilla.com>
  *   Mihai Șucan <mihai.sucan@gmail.com>
- *   Michael Ratcliffe <mratcliffe@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -72,12 +71,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "clipboardHelper",
                                    "@mozilla.org/widget/clipboardhelper;1",
                                    "nsIClipboardHelper");
 
-XPCOMUtils.defineLazyGetter(this, "StyleInspector", function () {
-  var obj = {};
-  Cu.import("resource:///modules/devtools/StyleInspector.jsm", obj);
-  return obj.StyleInspector;
-});
-
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
   var obj = {};
   Cu.import("resource://gre/modules/NetUtil.jsm", obj);
@@ -97,7 +90,7 @@ XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
 XPCOMUtils.defineLazyGetter(this, "AutocompletePopup", function () {
   var obj = {};
   try {
-    Cu.import("resource:///modules/AutocompletePopup.jsm", obj);
+    Cu.import("resource://gre/modules/AutocompletePopup.jsm", obj);
   }
   catch (err) {
     Cu.reportError(err);
@@ -1782,11 +1775,6 @@ HUD_SERVICE.prototype =
     let panels = popupset.querySelectorAll("panel[hudId=" + aHUDId + "]");
     for (let i = 0; i < panels.length; i++) {
       panels[i].hidePopup();
-    }
-    panels = popupset.querySelectorAll("panel[hudToolId=" + aHUDId + "]");
-    for (let i = 0; i < panels.length; i++) {
-      panels[i].hidePopup();
-      popupset.removeChild(panels[i]);
     }
 
     let id = ConsoleUtils.supString(aHUDId);
@@ -4406,37 +4394,6 @@ function JSTermHelper(aJSTerm)
     aJSTerm.helperEvaluated = true;
     let propPanel = aJSTerm.openPropertyPanel(null, unwrap(aObject));
     propPanel.panel.setAttribute("hudId", aJSTerm.hudId);
-  };
-
-  /**
-   * Inspects the passed aNode in the style inspector.
-   *
-   * @param object aNode
-   *        aNode to inspect.
-   * @returns void
-   */
-  aJSTerm.sandbox.inspectstyle = function JSTH_inspectstyle(aNode)
-  {
-    let errstr = null;
-    aJSTerm.helperEvaluated = true;
-
-    if (!Services.prefs.getBoolPref("devtools.styleinspector.enabled")) {
-      errstr = HUDService.getStr("inspectStyle.styleInspectorNotEnabled");
-    } else if (!aNode) {
-      errstr = HUDService.getStr("inspectStyle.nullObjectPassed");
-    } else if (!(aNode instanceof Ci.nsIDOMNode)) {
-      errstr = HUDService.getStr("inspectStyle.mustBeDomNode");
-    } else if (!(aNode.style instanceof Ci.nsIDOMCSSStyleDeclaration)) {
-      errstr = HUDService.getStr("inspectStyle.nodeHasNoStyleProps");
-    }
-
-    if (!errstr) {
-      let stylePanel = StyleInspector.createPanel();
-      stylePanel.setAttribute("hudToolId", aJSTerm.hudId);
-      stylePanel.selectNode(aNode, true);
-    } else {
-      aJSTerm.writeOutput(errstr + "\n", CATEGORY_OUTPUT, SEVERITY_ERROR);
-    }
   };
 
   /**

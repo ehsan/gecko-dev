@@ -112,33 +112,33 @@ public:
   // Overloaded nsTableFrame methods
 
   NS_IMETHOD
-  SetInitialChildList(ChildListID  aListID,
+  SetInitialChildList(nsIAtom*  aListName,
                       nsFrameList& aChildList);
 
   NS_IMETHOD
-  AppendFrames(ChildListID  aListID,
+  AppendFrames(nsIAtom*  aListName,
                nsFrameList& aFrameList)
   {
-    nsresult rv = nsTableFrame::AppendFrames(aListID, aFrameList);
+    nsresult rv = nsTableFrame::AppendFrames(aListName, aFrameList);
     RestyleTable();
     return rv;
   }
 
   NS_IMETHOD
-  InsertFrames(ChildListID aListID,
+  InsertFrames(nsIAtom*  aListName,
                nsIFrame* aPrevFrame,
                nsFrameList& aFrameList)
   {
-    nsresult rv = nsTableFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+    nsresult rv = nsTableFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
     RestyleTable();
     return rv;
   }
 
   NS_IMETHOD
-  RemoveFrame(ChildListID aListID,
+  RemoveFrame(nsIAtom*  aListName,
               nsIFrame* aOldFrame)
   {
-    nsresult rv = nsTableFrame::RemoveFrame(aListID, aOldFrame);
+    nsresult rv = nsTableFrame::RemoveFrame(aListName, aOldFrame);
     RestyleTable();
     return rv;
   }
@@ -175,29 +175,29 @@ public:
                    PRInt32  aModType);
 
   NS_IMETHOD
-  AppendFrames(ChildListID  aListID,
+  AppendFrames(nsIAtom*  aListName,
                nsFrameList& aFrameList)
   {
-    nsresult rv = nsTableRowFrame::AppendFrames(aListID, aFrameList);
+    nsresult rv = nsTableRowFrame::AppendFrames(aListName, aFrameList);
     RestyleTable();
     return rv;
   }
 
   NS_IMETHOD
-  InsertFrames(ChildListID aListID,
+  InsertFrames(nsIAtom*  aListName,
                nsIFrame* aPrevFrame,
                nsFrameList& aFrameList)
   {
-    nsresult rv = nsTableRowFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+    nsresult rv = nsTableRowFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
     RestyleTable();
     return rv;
   }
 
   NS_IMETHOD
-  RemoveFrame(ChildListID aListID,
+  RemoveFrame(nsIAtom*  aListName,
               nsIFrame* aOldFrame)
   {
-    nsresult rv = nsTableRowFrame::RemoveFrame(aListID, aOldFrame);
+    nsresult rv = nsTableRowFrame::RemoveFrame(aListName, aOldFrame);
     RestyleTable();
     return rv;
   }

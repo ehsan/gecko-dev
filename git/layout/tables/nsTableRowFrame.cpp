@@ -201,10 +201,10 @@ nsTableRowFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 }
 
 NS_IMETHODIMP
-nsTableRowFrame::AppendFrames(ChildListID     aListID,
+nsTableRowFrame::AppendFrames(nsIAtom*        aListName,
                               nsFrameList&    aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+  NS_ASSERTION(!aListName, "unexpected child list");
 
   // Append the frames
   // XXXbz why do we append here first, then append to table, while
@@ -231,11 +231,11 @@ nsTableRowFrame::AppendFrames(ChildListID     aListID,
 
 
 NS_IMETHODIMP
-nsTableRowFrame::InsertFrames(ChildListID     aListID,
+nsTableRowFrame::InsertFrames(nsIAtom*        aListName,
                               nsIFrame*       aPrevFrame,
                               nsFrameList&    aFrameList)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+  NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
 
@@ -273,10 +273,10 @@ nsTableRowFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableRowFrame::RemoveFrame(ChildListID     aListID,
+nsTableRowFrame::RemoveFrame(nsIAtom*        aListName,
                              nsIFrame*       aOldFrame)
 {
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list");
+  NS_ASSERTION(!aListName, "unexpected child list");
 
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   if (tableFrame) {
@@ -449,7 +449,7 @@ nscoord nsTableRowFrame::GetRowBaseline()
   nscoord ascent = 0;
    while (childFrame) {
     if (IS_TABLE_CELL(childFrame->GetType())) {
-      nsIFrame* firstKid = childFrame->GetFirstPrincipalChild();
+      nsIFrame* firstKid = childFrame->GetFirstChild(nsnull);
       ascent = NS_MAX(ascent, firstKid->GetRect().YMost());
     }
     // Get the next child
@@ -559,7 +559,7 @@ nsTableRowFrame::CalcHeight(const nsHTMLReflowState& aReflowState)
       }
       // height may have changed, adjust descent to absorb any excess difference
       nscoord ascent;
-       if (!kidFrame->GetFirstPrincipalChild()->GetFirstPrincipalChild())
+       if (!kidFrame->GetFirstChild(nsnull)->GetFirstChild(nsnull))
          ascent = desSize.height;
        else
          ascent = cellFrame->GetCellBaseline();
@@ -946,7 +946,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         }
         // height may have changed, adjust descent to absorb any excess difference
         nscoord ascent;
-        if (!kidFrame->GetFirstPrincipalChild()->GetFirstPrincipalChild())
+        if (!kidFrame->GetFirstChild(nsnull)->GetFirstChild(nsnull))
           ascent = desiredSize.height;
         else
           ascent = ((nsTableCellFrame *)kidFrame)->GetCellBaseline();

@@ -76,11 +76,11 @@ public:
 
   // Override SetInitialChildList/AppendFrames/InsertFrames to
   // create views for our child frames if necessary
-  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
                                   nsFrameList&    aChildList);
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 

@@ -260,7 +260,7 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 
 
 NS_IMETHODIMP
-nsTableCellFrame::AppendFrames(ChildListID     aListID,
+nsTableCellFrame::AppendFrames(nsIAtom*        aListName,
                                nsFrameList&    aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
@@ -268,7 +268,7 @@ nsTableCellFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableCellFrame::InsertFrames(ChildListID     aListID,
+nsTableCellFrame::InsertFrames(nsIAtom*        aListName,
                                nsIFrame*       aPrevFrame,
                                nsFrameList&    aFrameList)
 {
@@ -277,7 +277,7 @@ nsTableCellFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableCellFrame::RemoveFrame(ChildListID     aListID,
+nsTableCellFrame::RemoveFrame(nsIAtom*        aListName,
                               nsIFrame*       aOldFrame)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
@@ -648,7 +648,7 @@ nsTableCellFrame::CellHasVisibleContent(nscoord       height,
     return PR_TRUE;
   if (tableFrame->IsBorderCollapse())
     return PR_TRUE;
-  nsIFrame* innerFrame = kidFrame->GetFirstPrincipalChild();
+  nsIFrame* innerFrame = kidFrame->GetFirstChild(nsnull);
   while(innerFrame) {
     nsIAtom* frameType = innerFrame->GetType();
     if (nsGkAtoms::textFrame == frameType) {

@@ -1525,13 +1525,10 @@ nsObjectLoadingContent::RemovedFromDocument()
   }
 }
 
-/* static */
 void
-nsObjectLoadingContent::Traverse(nsObjectLoadingContent *tmp,
-                                 nsCycleCollectionTraversalCallback &cb)
+nsObjectLoadingContent::Traverse(nsCycleCollectionTraversalCallback &cb)
 {
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameLoader");
-  cb.NoteXPCOMChild(static_cast<nsIFrameLoader*>(tmp->mFrameLoader));
+  cb.NoteXPCOMChild(static_cast<nsIFrameLoader*>(mFrameLoader));
 }
 
 // <private>

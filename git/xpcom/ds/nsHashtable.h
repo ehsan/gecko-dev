@@ -109,10 +109,11 @@ class nsHashKey {
 // Return values for nsHashtableEnumFunc
 enum {
     kHashEnumerateStop      = PR_FALSE,
-    kHashEnumerateNext      = PR_TRUE
+    kHashEnumerateNext      = PR_TRUE,
+    kHashEnumerateRemove    = 2
 };
 
-typedef PRBool
+typedef PRIntn
 (* nsHashtableEnumFunc)(nsHashKey *aKey, void *aData, void* aClosure);
 
 typedef nsresult
@@ -195,6 +196,8 @@ class nsSupportsHashtable
   : private nsHashtable
 {
   public:
+    typedef PRBool (* EnumFunc) (nsHashKey *aKey, void *aData, void* aClosure);
+
     nsSupportsHashtable(PRUint32 aSize = 16, PRBool threadSafe = PR_FALSE)
       : nsHashtable(aSize, threadSafe) {}
     ~nsSupportsHashtable();
@@ -211,7 +214,7 @@ class nsSupportsHashtable
     nsISupports* Get(nsHashKey *aKey);
     PRBool Remove(nsHashKey *aKey, nsISupports **value = nsnull);
     nsHashtable *Clone();
-    void Enumerate(nsHashtableEnumFunc aEnumFunc, void* aClosure = NULL) {
+    void Enumerate(EnumFunc aEnumFunc, void* aClosure = NULL) {
         nsHashtable::Enumerate(aEnumFunc, aClosure);
     }
     void Reset();

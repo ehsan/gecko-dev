@@ -60,6 +60,7 @@
 #include "nsIDOMWindow.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIDocument.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNSEvent.h"
 #include "nsServiceManagerUtils.h"
@@ -129,8 +130,9 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   // check if someone has attempted to prevent this action.
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(mouseEvent);
-  if (!domNSEvent) {
+  nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent;
+  nsUIEvent = do_QueryInterface(mouseEvent);
+  if (!nsUIEvent) {
     return NS_OK;
   }
 
@@ -158,7 +160,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   PRBool preventDefault;
-  domNSEvent->GetPreventDefault(&preventDefault);
+  nsUIEvent->GetPreventDefault(&preventDefault);
   if (preventDefault && targetNode && mIsContext) {
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.

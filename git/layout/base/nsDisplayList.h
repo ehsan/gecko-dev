@@ -1009,8 +1009,6 @@ public:
    */
   void SortByContentOrder(nsDisplayListBuilder* aBuilder, nsIContent* aCommonAncestor);
 
-  void SortByZPosition(nsDisplayListBuilder* aBuilder, nsIContent* aCommonAncestor);
-
   /**
    * Generic stable sort. Take care, because some of the items might be nsDisplayLists
    * themselves.
@@ -2082,13 +2080,6 @@ public:
     MOZ_COUNT_CTOR(nsDisplayTransform);
   }
 
-  nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
-                     nsDisplayItem *aItem) :
-  nsDisplayItem(aBuilder, aFrame), mStoredList(aBuilder, aFrame, aItem)
-  {
-    MOZ_COUNT_CTOR(nsDisplayTransform);
-  }
-
 #ifdef NS_BUILD_REFCNT_LOGGING
   virtual ~nsDisplayTransform()
   {
@@ -2193,8 +2184,7 @@ public:
   static gfx3DMatrix GetResultingTransformMatrix(const nsIFrame* aFrame,
                                                  const nsPoint& aOrigin,
                                                  float aFactor,
-                                                 const nsRect* aBoundsOverride = nsnull,
-                                                 nsIFrame** aOutAncestor = nsnull);
+                                                 const nsRect* aBoundsOverride = nsnull);
 
 private:
   nsDisplayWrapList mStoredList;

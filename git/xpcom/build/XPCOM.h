@@ -140,7 +140,7 @@
 #include "nsIObjectOutputStream.h"
 #include "nsIPipe.h"
 
-#ifdef MOZ_WIDGET_COCOA
+#ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
 #include "nsIMacUtils.h"
 #endif

@@ -69,7 +69,7 @@
 #endif
 
 class nsIInputStream;
-struct nsIntRect;
+class nsIntRect;
 class nsPluginDOMContextMenuListener;
 class nsObjectFrame;
 class nsDisplayListBuilder;
@@ -83,9 +83,7 @@ class gfxXlibSurface;
 #endif
 
 #ifdef MOZ_WIDGET_QT
-#ifdef MOZ_X11
 #include "gfxQtNativeRenderer.h"
-#endif
 #endif
 
 #ifdef XP_OS2
@@ -130,9 +128,6 @@ public:
   
   nsresult MouseDown(nsIDOMEvent* aKeyEvent);
   nsresult KeyPress(nsIDOMEvent* aKeyEvent);
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-  nsresult Text(nsIDOMEvent* aTextEvent);
-#endif
 
   nsresult Destroy();  
   

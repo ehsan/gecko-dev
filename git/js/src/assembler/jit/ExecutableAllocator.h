@@ -81,8 +81,6 @@ namespace JSC {
 
   class ExecutableAllocator;
 
-  enum CodeKind { METHOD_CODE, REGEXP_CODE };
-
   // These are reference-counted. A new one starts with a count of 1. 
   class ExecutablePool {
 
@@ -104,10 +102,6 @@ private:
 
     // Reference count for automatic reclamation.
     unsigned m_refCount;
- 
-    // Number of bytes currently used for Method and Regexp JIT code.
-    size_t m_mjitCodeMethod;
-    size_t m_mjitCodeRegexp;
 
 public:
     // Flag for downstream use, whether to try to release references to this pool.
@@ -139,22 +133,16 @@ private:
 
     ExecutablePool(ExecutableAllocator* allocator, Allocation a)
       : m_allocator(allocator), m_freePtr(a.pages), m_end(m_freePtr + a.size), m_allocation(a),
-        m_refCount(1), m_mjitCodeMethod(0), m_mjitCodeRegexp(0), m_destroy(false), m_gcNumber(0)
+        m_refCount(1), m_destroy(false), m_gcNumber(0)
     { }
 
     ~ExecutablePool();
 
-    void* alloc(size_t n, CodeKind kind)
+    void* alloc(size_t n)
     {
         JS_ASSERT(n <= available());
         void *result = m_freePtr;
         m_freePtr += n;
-
-        if ( kind == REGEXP_CODE )
-            m_mjitCodeRegexp += n;
-        else
-            m_mjitCodeMethod += n;
-
         return result;
     }
     
@@ -197,7 +185,7 @@ public:
     // alloc() returns a pointer to some memory, and also (by reference) a
     // pointer to reference-counted pool. The caller owns a reference to the
     // pool; i.e. alloc() increments the count before returning the object.
-    void* alloc(size_t n, ExecutablePool** poolp, CodeKind type)
+    void* alloc(size_t n, ExecutablePool** poolp)
     {
         // Round 'n' up to a multiple of word size; if all allocations are of
         // word sized quantities, then all subsequent allocations will be
@@ -214,7 +202,7 @@ public:
 
         // This alloc is infallible because poolForSize() just obtained
         // (found, or created if necessary) a pool that had enough space.
-        void *result = (*poolp)->alloc(n, type);
+        void *result = (*poolp)->alloc(n);
         JS_ASSERT(result);
         return result;
     }
@@ -225,7 +213,7 @@ public:
         m_pools.remove(m_pools.lookup(pool));   // this asserts if |pool| is not in m_pools
     }
 
-    void getCodeStats(size_t& method, size_t& regexp, size_t& unused) const;
+    size_t getCodeSize() const;
 
 private:
     static size_t pageSize;
@@ -370,7 +358,7 @@ public:
         //
         // Modify "start" and "end" to avoid GCC 4.3.0-4.4.2 bug in
         // mips_expand_synci_loop that may execute synci one more time.
-        // "start" points to the first byte of the cache line.
+        // "start" points to the fisrt byte of the cache line.
         // "end" points to the last byte of the line before the last cache line.
         // Because size is always a multiple of 4, this is safe to set
         // "end" to the last byte.
@@ -386,7 +374,7 @@ public:
         _flush_cache(reinterpret_cast<char*>(code), size, BCACHE);
 #endif
     }
-#elif WTF_CPU_ARM && WTF_OS_IOS
+#elif WTF_CPU_ARM_THUMB2 && WTF_OS_IOS
     static void cacheFlush(void* code, size_t size)
     {
         sys_dcache_flush(code, size);

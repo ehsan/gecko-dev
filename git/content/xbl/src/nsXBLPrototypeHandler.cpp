@@ -52,6 +52,7 @@
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMXULElement.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIURI.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLInputElement.h"
@@ -317,19 +318,17 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   rv = EnsureEventHandler(boundGlobal, boundContext, onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Bind it to the bound element
+  // Temporarily bind it to the bound element
   void *scope = boundGlobal->GetScriptGlobal(stID);
-  nsScriptObjectHolder boundHandler(boundContext);
   rv = boundContext->BindCompiledEventHandler(scriptTarget, scope,
-                                              handler, boundHandler);
+                                              onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Execute it.
   nsCOMPtr<nsIDOMEventListener> eventListener;
-  rv = NS_NewJSEventListener(boundContext, scope,
-                             scriptTarget, onEventAtom,
-                             boundHandler, getter_AddRefs(eventListener));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_NewJSEventListener(boundContext, scope,
+                        scriptTarget, onEventAtom,
+                        getter_AddRefs(eventListener));
 
   // Handle the event.
   eventListener->HandleEvent(aEvent);
@@ -386,10 +385,9 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
 
   // See if preventDefault has been set.  If so, don't execute.
   PRBool preventDefault = PR_FALSE;
-  nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aEvent);
-  if (domNSEvent) {
-    domNSEvent->GetPreventDefault(&preventDefault);
-  }
+  nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent(do_QueryInterface(aEvent));
+  if (nsUIEvent)
+    nsUIEvent->GetPreventDefault(&preventDefault);
 
   if (preventDefault)
     return NS_OK;

@@ -120,16 +120,16 @@ public:
   virtual PRIntn GetSkipSides() const { return 0; }
 
   NS_IMETHOD
-  AppendFrames(ChildListID     aListID,
+  AppendFrames(nsIAtom*        aListName,
                nsFrameList&    aFrameList);
 
   NS_IMETHOD
-  InsertFrames(ChildListID     aListID,
+  InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
                nsFrameList&    aFrameList);
 
   NS_IMETHOD
-  RemoveFrame(ChildListID     aListID,
+  RemoveFrame(nsIAtom*        aListName,
               nsIFrame*       aOldFrame);
 
   /**
@@ -406,49 +406,49 @@ public:
   // beware, mFrames is not set by nsBlockFrame
   // cannot use mFrames{.FirstChild()|.etc} since the block code doesn't set mFrames
   NS_IMETHOD
-  SetInitialChildList(ChildListID     aListID,
+  SetInitialChildList(nsIAtom*        aListName,
                       nsFrameList&    aChildList)
   {
-    NS_ASSERTION(aListID == kPrincipalList, "unexpected frame list");
-    nsresult rv = nsBlockFrame::SetInitialChildList(aListID, aChildList);
+    NS_ASSERTION(!aListName, "unexpected frame list");
+    nsresult rv = nsBlockFrame::SetInitialChildList(aListName, aChildList);
     // re-resolve our subtree to set any mathml-expected data
     nsMathMLContainerFrame::RebuildAutomaticDataForChildren(this);
     return rv;
   }
 
   NS_IMETHOD
-  AppendFrames(ChildListID     aListID,
+  AppendFrames(nsIAtom*        aListName,
                nsFrameList&    aFrameList)
   {
-    NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
+    NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
-    nsresult rv = nsBlockFrame::AppendFrames(aListID, aFrameList);
-    if (NS_LIKELY(aListID == kPrincipalList))
+    nsresult rv = nsBlockFrame::AppendFrames(aListName, aFrameList);
+    if (NS_LIKELY(!aListName))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
 
   NS_IMETHOD
-  InsertFrames(ChildListID     aListID,
+  InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
                nsFrameList&    aFrameList)
   {
-    NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
+    NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
-    nsresult rv = nsBlockFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
-    if (NS_LIKELY(aListID == kPrincipalList))
+    nsresult rv = nsBlockFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
+    if (NS_LIKELY(!aListName))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
 
   NS_IMETHOD
-  RemoveFrame(ChildListID     aListID,
+  RemoveFrame(nsIAtom*        aListName,
               nsIFrame*       aOldFrame)
   {
-    NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
+    NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
-    nsresult rv = nsBlockFrame::RemoveFrame(aListID, aOldFrame);
-    if (NS_LIKELY(aListID == kPrincipalList))
+    nsresult rv = nsBlockFrame::RemoveFrame(aListName, aOldFrame);
+    if (NS_LIKELY(!aListName))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
@@ -476,49 +476,49 @@ public:
   friend nsIFrame* NS_NewMathMLmathInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  SetInitialChildList(ChildListID     aListID,
+  SetInitialChildList(nsIAtom*        aListName,
                       nsFrameList&    aChildList)
   {
-    NS_ASSERTION(aListID == kPrincipalList, "unexpected frame list");
-    nsresult rv = nsInlineFrame::SetInitialChildList(aListID, aChildList);
+    NS_ASSERTION(!aListName, "unexpected frame list");
+    nsresult rv = nsInlineFrame::SetInitialChildList(aListName, aChildList);
     // re-resolve our subtree to set any mathml-expected data
     nsMathMLContainerFrame::RebuildAutomaticDataForChildren(this);
     return rv;
   }
 
   NS_IMETHOD
-  AppendFrames(ChildListID     aListID,
+  AppendFrames(nsIAtom*        aListName,
                nsFrameList&    aFrameList)
   {
-    NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
+    NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
-    nsresult rv = nsInlineFrame::AppendFrames(aListID, aFrameList);
-    if (NS_LIKELY(aListID == kPrincipalList))
+    nsresult rv = nsInlineFrame::AppendFrames(aListName, aFrameList);
+    if (NS_LIKELY(!aListName))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
 
   NS_IMETHOD
-  InsertFrames(ChildListID     aListID,
+  InsertFrames(nsIAtom*        aListName,
                nsIFrame*       aPrevFrame,
                nsFrameList&    aFrameList)
   {
-    NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
+    NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
-    nsresult rv = nsInlineFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
-    if (NS_LIKELY(aListID == kPrincipalList))
+    nsresult rv = nsInlineFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
+    if (NS_LIKELY(!aListName))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
 
   NS_IMETHOD
-  RemoveFrame(ChildListID     aListID,
+  RemoveFrame(nsIAtom*        aListName,
               nsIFrame*       aOldFrame)
   {
-    NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
+    NS_ASSERTION(!aListName || nsGkAtoms::nextBidi == aListName,
                  "unexpected frame list");
-    nsresult rv = nsInlineFrame::RemoveFrame(aListID, aOldFrame);
-    if (NS_LIKELY(aListID == kPrincipalList))
+    nsresult rv = nsInlineFrame::RemoveFrame(aListName, aOldFrame);
+    if (NS_LIKELY(!aListName))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }

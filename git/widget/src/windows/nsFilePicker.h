@@ -106,7 +106,7 @@ class AutoRestoreWorkingPath
 public:
   AutoRestoreWorkingPath();
   ~AutoRestoreWorkingPath();
-  inline bool HasWorkingPath() const
+  inline bool AutoRestoreWorkingPath::HasWorkingPath() const
   {
     return mWorkingPath != NULL;
   }

@@ -76,7 +76,6 @@
 #include "jslibmath.h"
 
 #include "jsatominlines.h"
-#include "jsinferinlines.h"
 #include "jsinterpinlines.h"
 #include "jsnuminlines.h"
 #include "jsobjinlines.h"
@@ -85,7 +84,6 @@
 #include "vm/String-inl.h"
 
 using namespace js;
-using namespace js::types;
 using namespace mozilla;
 
 #ifndef JS_HAVE_STDINT_H /* Native support is innocent until proven guilty. */
@@ -451,7 +449,7 @@ num_parseInt(JSContext *cx, uintN argc, Value *vp)
         if (vp[2].isDouble() &&
             vp[2].toDouble() > -1.0e21 &&
             vp[2].toDouble() < 1.0e21) {
-            vp->setNumber(ParseIntDoubleHelper(vp[2].toDouble()));
+            vp->setDouble(ParseIntDoubleHelper(vp[2].toDouble()));
             return true;
         }
     }
@@ -1106,15 +1104,14 @@ js_InitNumberClass(JSContext *cx, JSObject *obj)
     /* XXX must do at least once per new thread, so do it per JSContext... */
     FIX_FPU();
 
+    if (!JS_DefineFunctions(cx, obj, number_functions))
+        return NULL;
+
     proto = js_InitClass(cx, obj, NULL, &js_NumberClass, Number, 1,
                          NULL, number_methods, NULL, NULL);
     if (!proto || !(ctor = JS_GetConstructor(cx, proto)))
         return NULL;
     proto->setPrimitiveThis(Int32Value(0));
-
-    if (!JS_DefineFunctions(cx, obj, number_functions))
-        return NULL;
-
     if (!JS_DefineConstDoubles(cx, ctor, number_constants))
         return NULL;
 
@@ -1206,7 +1203,6 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
     if (JSDOUBLE_IS_INT32(d, &i)) {
         if (base == 10 && JSAtom::hasIntStatic(i))
             return &JSAtom::intStatic(i);
-#ifdef JS_HAS_STATIC_STRINGS
         if (jsuint(i) < jsuint(base)) {
             if (i < 10)
                 return &JSAtom::intStatic(i);
@@ -1214,7 +1210,6 @@ js_NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
             JS_ASSERT(JSAtom::hasUnitStatic(c));
             return &JSAtom::unitStatic(c);
         }
-#endif
 
         if (JSFlatString *str = c->dtoaCache.lookup(base, d))
             return str;

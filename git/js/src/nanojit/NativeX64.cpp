@@ -493,7 +493,7 @@ namespace nanojit
     void Assembler::CVTSQ2SD(R l, R r)  { emitprr(X64_cvtsq2sd,l,r); asm_output("cvtsq2sd %s, %s",RQ(l),RQ(r)); }
     void Assembler::CVTSI2SD(R l, R r)  { emitprr(X64_cvtsi2sd,l,r); asm_output("cvtsi2sd %s, %s",RQ(l),RL(r)); }
     void Assembler::CVTSS2SD(R l, R r)  { emitprr(X64_cvtss2sd,l,r); asm_output("cvtss2sd %s, %s",RQ(l),RL(r)); }
-    void Assembler::CVTSD2SS(R l, R r)  { emitprr(X64_cvtsd2ss,l,r); asm_output("cvtsd2ss %s, %s",RQ(l),RQ(r)); }
+    void Assembler::CVTSD2SS(R l, R r)  { emitprr(X64_cvtsd2ss,l,r); asm_output("cvtsd2ss %s, %s",RL(l),RQ(r)); }
     void Assembler::CVTSD2SI(R l, R r)  { emitprr(X64_cvtsd2si,l,r); asm_output("cvtsd2si %s, %s",RL(l),RQ(r)); }
     void Assembler::CVTTSD2SI(R l, R r) { emitprr(X64_cvttsd2si,l,r);asm_output("cvttsd2si %s, %s",RL(l),RQ(r));}
     void Assembler::UCOMISD( R l, R r)  { emitprr(X64_ucomisd, l,r); asm_output("ucomisd %s, %s", RQ(l),RQ(r)); }
@@ -1727,12 +1727,9 @@ namespace nanojit
                 break;
             }
             case LIR_std2f: {
+                Register b = getBaseReg(base, d, BaseRegs);
                 Register r = findRegFor(value, FpRegs);
                 Register t = registerAllocTmp(FpRegs & ~rmask(r));
-                // Here, it is safe to call getBaseReg after registerAllocTmp
-                // because BaseRegs does not overlap with FpRegs, so getBaseReg
-                // will not allocate register |t|.
-                Register b = getBaseReg(base, d, BaseRegs);
 
                 MOVSSMR(t, d, b);   // store
                 CVTSD2SS(t, r);     // cvt to single-precision
@@ -2028,7 +2025,6 @@ namespace nanojit
             next = patch+6;
         } else if ((patch[0] == 0xFF) && (patch[1] == 0x25)) {
             // jmp 64bit target
-            // This uses RIP-relative addressing, the 4 bytes after FF 25 is an offset of 0.
             next = patch+6;
             ((int64_t*)next)[0] = int64_t(target);
             return;

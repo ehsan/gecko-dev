@@ -91,15 +91,10 @@ js_InitFunctionAndObjectClasses(JSContext *cx, JSObject *obj)
     if (!obj_proto)
         return NULL;
 
-    /*
-     * Function.prototype and the global object delegate to Object.prototype.
-     * Don't update the prototype if the __proto__ of either object was cleared
-     * after the objects started getting used.
-     */
-    if (fun_proto->shouldSplicePrototype(cx) && !fun_proto->splicePrototype(cx, obj_proto))
-        return NULL;
-    if (obj->shouldSplicePrototype(cx) && !obj->splicePrototype(cx, obj_proto))
-        return NULL;
+    /* Function.prototype and the global object delegate to Object.prototype. */
+    fun_proto->setProto(obj_proto);
+    if (!obj->getProto())
+        obj->setProto(obj_proto);
 
     return fun_proto;
 }
@@ -112,7 +107,7 @@ GlobalObject::create(JSContext *cx, Class *clasp)
     JS_ASSERT(clasp->flags & JSCLASS_IS_GLOBAL);
 
     JSObject *obj = NewNonFunction<WithProto::Given>(cx, clasp, NULL, NULL);
-    if (!obj || !obj->setSingletonType(cx))
+    if (!obj)
         return NULL;
 
     GlobalObject *globalObj = obj->asGlobal();
@@ -125,7 +120,6 @@ GlobalObject::create(JSContext *cx, Class *clasp)
         return NULL;
     globalObj->setSlot(REGEXP_STATICS, ObjectValue(*res));
     globalObj->setFlags(0);
-
     return globalObj;
 }
 
@@ -231,15 +225,14 @@ CreateBlankProto(JSContext *cx, Class *clasp, JSObject &proto, GlobalObject &glo
     JS_ASSERT(clasp != &js_FunctionClass);
 
     JSObject *blankProto = NewNonFunction<WithProto::Given>(cx, clasp, &proto, &global);
-    if (!blankProto || !blankProto->setSingletonType(cx))
+    if (!blankProto)
         return NULL;
 
     /*
      * Supply the created prototype object with an empty shape for the benefit
      * of callers of JSObject::initSharingEmptyShape.
      */
-    types::TypeObject *type = blankProto->getNewType(cx);
-    if (!type || !type->getEmptyShape(cx, clasp, gc::FINALIZE_OBJECT0))
+    if (!blankProto->getEmptyShape(cx, clasp, gc::FINALIZE_OBJECT0))
         return NULL;
 
     return blankProto;
@@ -276,8 +269,7 @@ DefinePropertiesAndBrand(JSContext *cx, JSObject *obj, JSPropertySpec *ps, JSFun
 {
     if ((ps && !JS_DefineProperties(cx, obj, ps)) || (fs && !JS_DefineFunctions(cx, obj, fs)))
         return false;
-    if (!cx->typeInferenceEnabled())
-        obj->brand(cx);
+    obj->brand(cx);
     return true;
 }
 

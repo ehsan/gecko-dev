@@ -274,9 +274,6 @@ PluginInstanceParent::AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* 
 #elif defined(ANDROID)
 #warning Need Android impl
     int id;
-#elif defined(MOZ_WIDGET_QT)
-#  warning Need Qt non X impl
-    int id;
 #else
 #warning Implement me
 #endif
@@ -617,31 +614,6 @@ PluginInstanceParent::AsyncSetWindow(NPWindow* aWindow)
 
     return NS_OK;
 }
-
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-nsresult
-PluginInstanceParent::HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled)
-{
-    switch (anEvent.eventStructType) {
-    case NS_KEY_EVENT:
-        if (!CallHandleKeyEvent(static_cast<const nsKeyEvent&>(anEvent),
-                                handled)) {
-            return NS_ERROR_FAILURE;
-        }
-        break;
-    case NS_TEXT_EVENT:
-        if (!CallHandleTextEvent(static_cast<const nsTextEvent&>(anEvent),
-                                 handled)) {
-            return NS_ERROR_FAILURE;
-        }
-        break;
-    default:
-        NS_ERROR("Not implemented for this event type");
-        return NS_ERROR_FAILURE;
-    }
-    return NS_OK;
-}
-#endif
 
 nsresult
 PluginInstanceParent::GetImage(ImageContainer* aContainer, Image** aImage)

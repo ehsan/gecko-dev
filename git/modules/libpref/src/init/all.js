@@ -624,7 +624,6 @@ pref("javascript.options.methodjit.chrome",  true);
 pref("javascript.options.jitprofiling.content", true);
 pref("javascript.options.jitprofiling.chrome",  true);
 pref("javascript.options.methodjit_always", false);
-pref("javascript.options.typeinference", true);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
@@ -778,10 +777,6 @@ pref("network.http.qos", 0);
 // to wait before trying a different connection. 0 means do not use a second
 // connection.
 pref("network.http.connection-retry-timeout", 250);
-
-// Disable IPv6 for backup connections to workaround problems about broken
-// IPv6 connectivity.
-pref("network.http.fast-fallback-to-IPv4", false);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -1129,10 +1124,8 @@ pref("intl.hyphenation-alias.fr-*", "fr");
 pref("intl.hyphenation-alias.gl-*", "gl");
 pref("intl.hyphenation-alias.hr-*", "hr");
 pref("intl.hyphenation-alias.hsb-*", "hsb");
-pref("intl.hyphenation-alias.hu-*", "hu");
 pref("intl.hyphenation-alias.ia-*", "ia");
 pref("intl.hyphenation-alias.is-*", "is");
-pref("intl.hyphenation-alias.it-*", "it");
 pref("intl.hyphenation-alias.kmr-*", "kmr");
 pref("intl.hyphenation-alias.la-*", "la");
 pref("intl.hyphenation-alias.lt-*", "lt");
@@ -1142,7 +1135,6 @@ pref("intl.hyphenation-alias.pt-*", "pt");
 pref("intl.hyphenation-alias.ru-*", "ru");
 pref("intl.hyphenation-alias.sl-*", "sl");
 pref("intl.hyphenation-alias.sv-*", "sv");
-pref("intl.hyphenation-alias.tr-*", "tr");
 pref("intl.hyphenation-alias.uk-*", "uk");
 
 // use reformed (1996) German patterns by default unless specifically tagged as de-1901
@@ -2115,15 +2107,15 @@ pref("font.name-list.monospace.x-central-euro", "Courier");
 pref("font.name-list.cursive.x-central-euro", "Apple Chancery");
 pref("font.name-list.fantasy.x-central-euro", "Papyrus");
 
-pref("font.name.serif.x-cyrillic", "Times");
-pref("font.name.sans-serif.x-cyrillic", "Helvetica");
-pref("font.name.monospace.x-cyrillic", "Monaco");
-pref("font.name.cursive.x-cyrillic", "Geneva");
+pref("font.name.serif.x-cyrillic", "Times CY");
+pref("font.name.sans-serif.x-cyrillic", "Helvetica CY");
+pref("font.name.monospace.x-cyrillic", "Monaco CY");
+pref("font.name.cursive.x-cyrillic", "Geneva CY");
 pref("font.name.fantasy.x-cyrillic", "Charcoal CY");
-pref("font.name-list.serif.x-cyrillic", "Times");
-pref("font.name-list.sans-serif.x-cyrillic", "Helvetica");
-pref("font.name-list.monospace.x-cyrillic", "Monaco");
-pref("font.name-list.cursive.x-cyrillic", "Geneva");
+pref("font.name-list.serif.x-cyrillic", "Times CY");
+pref("font.name-list.sans-serif.x-cyrillic", "Helvetica CY");
+pref("font.name-list.monospace.x-cyrillic", "Monaco CY");
+pref("font.name-list.cursive.x-cyrillic", "Geneva CY");
 pref("font.name-list.fantasy.x-cyrillic", "Charcoal CY");
 
 pref("font.name.serif.x-devanagari", "Devanagari MT");
@@ -3339,11 +3331,5 @@ pref("network.buffer.cache.size",  32768);
 // Desktop Notification
 pref("notification.feature.enabled", false);
 
-// Alert sliding effect
-pref("alerts.slideIncrement", 1);
-pref("alerts.slideIncrementTime", 10);
-pref("alerts.totalOpenTime", 4000);
-pref("alerts.disableSlidingEffect", false);
- 
 //3D Transforms
-pref("layout.3d-transforms.enabled", false);
+pref("layout.3d-transforms.enabled, false);

@@ -51,8 +51,7 @@ EXPORTS_NAMESPACES = mozilla/gfx
 EXPORTS_mozilla/gfx	= \
         2D.h \
         BasePoint.h \
-        BasePoint3D.h \
-        BasePoint4D.h \
+	BasePoint3D.h \
         BaseMargin.h \
         BaseRect.h \
         BaseSize.h \

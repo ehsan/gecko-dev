@@ -223,7 +223,7 @@ nsLayoutUtils::GetLastContinuationWithChild(nsIFrame* aFrame)
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");
   aFrame = aFrame->GetLastContinuation();
-  while (!aFrame->GetFirstPrincipalChild() &&
+  while (!aFrame->GetFirstChild(nsnull) &&
          aFrame->GetPrevContinuation()) {
     aFrame = aFrame->GetPrevContinuation();
   }
@@ -244,7 +244,7 @@ GetFirstChildFrame(nsIFrame*       aFrame,
   NS_PRECONDITION(aFrame, "NULL frame pointer");
 
   // Get the first child frame
-  nsIFrame* childFrame = aFrame->GetFirstPrincipalChild();
+  nsIFrame* childFrame = aFrame->GetFirstChild(nsnull);
 
   // If the child frame is a pseudo-frame, then return its first child.
   // Note that the frame we create for the generated content is also a
@@ -272,10 +272,9 @@ GetLastChildFrame(nsIFrame*       aFrame,
   NS_PRECONDITION(aFrame, "NULL frame pointer");
 
   // Get the last continuation frame that's a parent
-  nsIFrame* lastParentContinuation =
-    nsLayoutUtils::GetLastContinuationWithChild(aFrame);
-  nsIFrame* lastChildFrame =
-    lastParentContinuation->GetLastChild(nsIFrame::kPrincipalList);
+  nsIFrame* lastParentContinuation = nsLayoutUtils::GetLastContinuationWithChild(aFrame);
+
+  nsIFrame* lastChildFrame = lastParentContinuation->GetLastChild(nsnull);
   if (lastChildFrame) {
     // Get the frame's first continuation. This matters in case the frame has
     // been continued across multiple lines or split by BiDi resolution.
@@ -297,18 +296,18 @@ GetLastChildFrame(nsIFrame*       aFrame,
 }
 
 //static
-nsIFrame::ChildListID
+nsIAtom*
 nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
 {
-  nsIFrame::ChildListID id = nsIFrame::kPrincipalList;
+  nsIAtom*      listName;
 
   if (aChildFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER) {
     nsIFrame* pif = aChildFrame->GetPrevInFlow();
     if (pif->GetParent() == aChildFrame->GetParent()) {
-      id = nsIFrame::kExcessOverflowContainersList;
+      listName = nsGkAtoms::excessOverflowContainersList;
     }
     else {
-      id = nsIFrame::kOverflowContainersList;
+      listName = nsGkAtoms::overflowContainersList;
     }
   }
   // See if the frame is moved out of the flow
@@ -317,12 +316,12 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
     const nsStyleDisplay* disp = aChildFrame->GetStyleDisplay();
 
     if (NS_STYLE_POSITION_ABSOLUTE == disp->mPosition) {
-      id = nsIFrame::kAbsoluteList;
+      listName = nsGkAtoms::absoluteList;
     } else if (NS_STYLE_POSITION_FIXED == disp->mPosition) {
       if (nsLayoutUtils::IsReallyFixedPos(aChildFrame)) {
-        id = nsIFrame::kFixedList;
+        listName = nsGkAtoms::fixedList;
       } else {
-        id = nsIFrame::kAbsoluteList;
+        listName = nsGkAtoms::absoluteList;
       }
 #ifdef MOZ_XUL
     } else if (NS_STYLE_DISPLAY_POPUP == disp->mDisplay) {
@@ -337,12 +336,12 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
       // Return here, because the postcondition for this function actually
       // fails for this case, since the popups are not in a "real" frame list
       // in the popup set.
-      return nsIFrame::kPopupList;
+      return nsGkAtoms::popupList;
 #endif // MOZ_XUL
     } else {
       NS_ASSERTION(aChildFrame->GetStyleDisplay()->IsFloating(),
                    "not a floated frame");
-      id = nsIFrame::kFloatList;
+      listName = nsGkAtoms::floatList;
     }
 
   } else {
@@ -350,19 +349,17 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
     if (nsGkAtoms::menuPopupFrame == childType) {
       nsIFrame* parent = aChildFrame->GetParent();
       nsIFrame* firstPopup = (parent)
-                             ? parent->GetFirstChild(nsIFrame::kPopupList)
+                             ? parent->GetFirstChild(nsGkAtoms::popupList)
                              : nsnull;
       NS_ASSERTION(!firstPopup || !firstPopup->GetNextSibling(),
                    "We assume popupList only has one child, but it has more.");
-      id = firstPopup == aChildFrame
-             ? nsIFrame::kPopupList
-             : nsIFrame::kPrincipalList;
+      listName = firstPopup == aChildFrame ? nsGkAtoms::popupList : nsnull;
     } else if (nsGkAtoms::tableColGroupFrame == childType) {
-      id = nsIFrame::kColGroupList;
+      listName = nsGkAtoms::colGroupList;
     } else if (nsGkAtoms::tableCaptionFrame == aChildFrame->GetType()) {
-      id = nsIFrame::kCaptionList;
+      listName = nsGkAtoms::captionList;
     } else {
-      id = nsIFrame::kPrincipalList;
+      listName = nsnull;
     }
   }
 
@@ -370,22 +367,22 @@ nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame)
   // Verify that the frame is actually in that child list or in the
   // corresponding overflow list.
   nsIFrame* parent = aChildFrame->GetParent();
-  PRBool found = parent->GetChildList(id).ContainsFrame(aChildFrame);
+  PRBool found = parent->GetChildList(listName).ContainsFrame(aChildFrame);
   if (!found) {
     if (!(aChildFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
-      found = parent->GetChildList(nsIFrame::kOverflowList)
+      found = parent->GetChildList(nsGkAtoms::overflowList)
                 .ContainsFrame(aChildFrame);
     }
     else if (aChildFrame->GetStyleDisplay()->IsFloating()) {
-      found = parent->GetChildList(nsIFrame::kOverflowOutOfFlowList)
+      found = parent->GetChildList(nsGkAtoms::overflowOutOfFlowList)
                 .ContainsFrame(aChildFrame);
     }
-    // else it's positioned and should have been on the 'id' child list.
+    // else it's positioned and should have been on the 'listName' child list.
     NS_POSTCONDITION(found, "not in child list");
   }
 #endif
 
-  return id;
+  return listName;
 }
 
 // static
@@ -439,7 +436,7 @@ nsIFrame*
 nsLayoutUtils::GetStyleFrame(nsIFrame* aFrame)
 {
   if (aFrame->GetType() == nsGkAtoms::tableOuterFrame) {
-    nsIFrame* inner = aFrame->GetFirstPrincipalChild();
+    nsIFrame* inner = aFrame->GetFirstChild(nsnull);
     NS_ASSERTION(inner, "Outer table must have an inner");
     return inner;
   }
@@ -1008,15 +1005,14 @@ gfx3DMatrix
 nsLayoutUtils::ChangeMatrixBasis(const gfxPoint3D &aOrigin,
                                  const gfx3DMatrix &aMatrix)
 {
-  gfx3DMatrix result = aMatrix;
+  /* These are translation matrices from world-to-origin of relative frame and
+   * vice-versa.
+   */
+  gfx3DMatrix worldToOrigin = gfx3DMatrix::Translation(-aOrigin);
+  gfx3DMatrix originToWorld = gfx3DMatrix::Translation(aOrigin);
 
-  /* Translate to the origin before aMatrix */
-  result.Translate(-aOrigin);
-
-  /* Translate back into position after aMatrix */
-  result.TranslatePost(aOrigin);
-
-  return result; 
+  /* Multiply all three to get the transform! */
+  return worldToOrigin * aMatrix * originToWorld;
 }
 
 /**
@@ -1452,7 +1448,7 @@ GetNextPage(nsIFrame* aPageContentFrame)
     return nsnull;
   NS_ASSERTION(nextPageFrame->GetType() == nsGkAtoms::pageFrame,
                "pageFrame's sibling is not a page frame...");
-  nsIFrame* f = nextPageFrame->GetFirstPrincipalChild();
+  nsIFrame* f = nextPageFrame->GetFirstChild(nsnull);
   NS_ASSERTION(f, "pageFrame has no page content frame!");
   NS_ASSERTION(f->GetType() == nsGkAtoms::pageContentFrame,
                "pageFrame's child is not page content!");
@@ -1803,8 +1799,8 @@ AddBoxesForFrame(nsIFrame* aFrame,
   nsIAtom* pseudoType = aFrame->GetStyleContext()->GetPseudo();
 
   if (pseudoType == nsCSSAnonBoxes::tableOuter) {
-    AddBoxesForFrame(aFrame->GetFirstPrincipalChild(), aCallback);
-    nsIFrame* kid = aFrame->GetFirstChild(nsIFrame::kCaptionList);
+    AddBoxesForFrame(aFrame->GetFirstChild(nsnull), aCallback);
+    nsIFrame* kid = aFrame->GetFirstChild(nsGkAtoms::captionList);
     if (kid) {
       AddBoxesForFrame(kid, aCallback);
     }
@@ -1812,7 +1808,7 @@ AddBoxesForFrame(nsIFrame* aFrame,
              pseudoType == nsCSSAnonBoxes::mozAnonymousPositionedBlock ||
              pseudoType == nsCSSAnonBoxes::mozMathMLAnonymousBlock ||
              pseudoType == nsCSSAnonBoxes::mozXULAnonymousBlock) {
-    for (nsIFrame* kid = aFrame->GetFirstPrincipalChild(); kid; kid = kid->GetNextSibling()) {
+    for (nsIFrame* kid = aFrame->GetFirstChild(nsnull); kid; kid = kid->GetNextSibling()) {
       AddBoxesForFrame(kid, aCallback);
     }
   } else {
@@ -3077,7 +3073,7 @@ nsLayoutUtils::GetFirstLinePosition(const nsIFrame* aFrame,
 
     if (fType == nsGkAtoms::fieldSetFrame) {
       LinePosition kidPosition;
-      nsIFrame* kid = aFrame->GetFirstPrincipalChild();
+      nsIFrame* kid = aFrame->GetFirstChild(nsnull);
       // kid might be a legend frame here, but that's ok.
       if (GetFirstLinePosition(kid, &kidPosition)) {
         *aResult = kidPosition + kid->GetPosition().y;
@@ -3183,28 +3179,31 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
   // We want scrollable overflow rather than visual because this
   // calculation is intended to affect layout.
   if (aFrame->GetScrollableOverflowRect().height > contentBottom) {
-    nsIFrame::ChildListIDs skip(nsIFrame::kOverflowList |
-                                nsIFrame::kExcessOverflowContainersList |
-                                nsIFrame::kOverflowOutOfFlowList);
     nsBlockFrame* blockFrame = GetAsBlock(aFrame);
-    if (blockFrame) {
-      contentBottom =
-        NS_MAX(contentBottom, CalculateBlockContentBottom(blockFrame));
-      skip |= nsIFrame::kPrincipalList;
-    }
-    nsIFrame::ChildListIterator lists(aFrame);
-    for (; !lists.IsDone(); lists.Next()) {
-      if (!skip.Contains(lists.CurrentID())) {
-        nsFrameList::Enumerator childFrames(lists.CurrentList()); 
-        for (; !childFrames.AtEnd(); childFrames.Next()) {
-          nsIFrame* child = childFrames.get();
+    nsIAtom* childList = nsnull;
+    PRIntn nextListID = 0;
+    do {
+      if (childList == nsnull && blockFrame) {
+        contentBottom = NS_MAX(contentBottom, CalculateBlockContentBottom(blockFrame));
+      }
+      else if (childList != nsGkAtoms::overflowList &&
+               childList != nsGkAtoms::excessOverflowContainersList &&
+               childList != nsGkAtoms::overflowOutOfFlowList)
+      {
+        for (nsIFrame* child = aFrame->GetFirstChild(childList);
+            child; child = child->GetNextSibling())
+        {
           nscoord offset = child->GetRect().y - child->GetRelativeOffset().y;
           contentBottom = NS_MAX(contentBottom,
                                  CalculateContentBottom(child) + offset);
         }
       }
-    }
+
+      childList = aFrame->GetAdditionalChildListName(nextListID);
+      nextListID++;
+    } while (childList);
   }
+
   return contentBottom;
 }
 
@@ -3758,7 +3757,7 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
   // doing otherwise breaks window display effects on some platforms,
   // specifically Vista. (bug 450322)
   if (aBackgroundFrame->GetType() == nsGkAtoms::viewportFrame &&
-      !aBackgroundFrame->GetFirstPrincipalChild()) {
+      !aBackgroundFrame->GetFirstChild(nsnull)) {
     return eTransparencyOpaque;
   }
 
@@ -4215,13 +4214,15 @@ nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(nsIFrame *aSubtreeRoot)
   NS_ASSERTION(start == end || IsInLetterFrame(aSubtreeRoot),
                "frame tree not empty, but caller reported complete status");
 
-  nsIFrame::ChildListIterator lists(aSubtreeRoot);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(childFrames.get());
+  PRInt32 listIndex = 0;
+  nsIAtom* childList = nsnull;
+  do {
+    for (nsIFrame* child = aSubtreeRoot->GetFirstChild(childList); child;
+         child = child->GetNextSibling()) {
+      nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(child);
     }
-  }
+    childList = aSubtreeRoot->GetAdditionalChildListName(listIndex++);
+  } while (childList);
 }
 #endif
 
@@ -4238,8 +4239,7 @@ nsLayoutUtils::GetFontFacesForFrames(nsIFrame* aFrame,
   }
 
   while (aFrame) {
-    nsIFrame::ChildListID childLists[] = { nsIFrame::kPrincipalList,
-                                           nsIFrame::kPopupList };
+    nsIAtom* childLists[] = { nsnull, nsGkAtoms::popupList };
     for (int i = 0; i < NS_ARRAY_LENGTH(childLists); ++i) {
       nsFrameList children(aFrame->GetChildList(childLists[i]));
       for (nsFrameList::Enumerator e(children); !e.AtEnd(); e.Next()) {

@@ -90,20 +90,7 @@ JSSHELL_BINS  = \
 ifndef MOZ_NATIVE_NSPR
 JSSHELL_BINS += $(DIST)/bin/$(LIB_PREFIX)nspr4$(DLL_SUFFIX)
 ifeq ($(OS_ARCH),WINNT)
-ifdef MOZ_MEMORY
-JSSHELL_BINS += $(DIST)/bin/jemalloc$(DLL_SUFFIX)
-endif
-ifeq ($(_MSC_VER),1400)
-JSSHELL_BINS += $(DIST)/bin/Microsoft.VC80.CRT.manifest
-JSSHELL_BINS += $(DIST)/bin/msvcr80.dll
-endif
-ifeq ($(_MSC_VER),1500)
-JSSHELL_BINS += $(DIST)/bin/Microsoft.VC90.CRT.manifest
-JSSHELL_BINS += $(DIST)/bin/msvcr90.dll
-endif
-ifeq ($(_MSC_VER),1600)
-JSSHELL_BINS += $(DIST)/bin/msvcr100.dll
-endif
+JSSHELL_BINS += $(DIST)/bin/mozcrt19$(DLL_SUFFIX)
 else
 JSSHELL_BINS += \
   $(DIST)/bin/$(LIB_PREFIX)plds4$(DLL_SUFFIX) \
@@ -419,8 +406,6 @@ GENERATE_CACHE = \
   $(UNZIP) startupCache.zip && \
   rm startupCache.zip && \
   $(ZIP) -r9m omni.jar jsloader/resource/$(PRECOMPILE_RESOURCE)
-else
-GENERATE_CACHE =
 endif
 endif
 
@@ -574,6 +559,9 @@ endif
 
 GARBAGE		+= $(DIST)/$(PACKAGE) $(PACKAGE)
 
+ifeq ($(OS_ARCH),IRIX)
+STRIP_FLAGS	= -f
+endif
 ifeq ($(OS_ARCH),OS2)
 STRIP		= $(MOZILLA_DIR)/toolkit/mozapps/installer/os2/strip.cmd
 endif

@@ -33,7 +33,6 @@ let XULDocument = Ci.nsIDOMXULDocument;
 let HTMLHtmlElement = Ci.nsIDOMHTMLHtmlElement;
 let HTMLIFrameElement = Ci.nsIDOMHTMLIFrameElement;
 let HTMLFrameElement = Ci.nsIDOMHTMLFrameElement;
-let HTMLFrameSetElement = Ci.nsIDOMHTMLFrameSetElement;
 let HTMLSelectElement = Ci.nsIDOMHTMLSelectElement;
 let HTMLOptionElement = Ci.nsIDOMHTMLOptionElement;
 
@@ -746,11 +745,6 @@ let ViewportHandler = {
     if (Util.isParentProcess())
       return { defaultZoom: 1, autoSize: true, allowZoom: false, autoScale: false };
 
-    // HACK: Since we can't set the scale correctly in frameset pages yet (bug 645756), we force
-    // them to device-width and scale=1 so they will lay out reasonably.
-    if (content.frames.length > 0 && (content.document.body instanceof HTMLFrameSetElement))
-      return { defaultZoom: 1, autoSize: true, allowZoom: false, autoScale: false };
-
     // viewport details found here
     // http://developer.apple.com/safari/library/documentation/AppleApplications/Reference/SafariHTMLRef/Articles/MetaTags.html
     // http://developer.apple.com/safari/library/documentation/AppleApplications/Reference/SafariWebContent/UsingtheViewport/UsingtheViewport.html
@@ -1017,6 +1011,10 @@ ContextHandler.registerType("link-openable", function(aState, aElement) {
 
 ContextHandler.registerType("link-shareable", function(aState, aElement) {
   return Util.isShareableScheme(aState.linkProtocol);
+});
+
+ContextHandler.registerType("input-text", function(aState, aElement) {
+    return (aElement instanceof Ci.nsIDOMHTMLInputElement && aElement.mozIsTextField(false)) || aElement instanceof Ci.nsIDOMHTMLTextAreaElement;
 });
 
 ["image", "video"].forEach(function(aType) {
@@ -1367,7 +1365,7 @@ var SelectionHandler = {
       elem = utils.elementFromPoint(x, y, true, false);
     }
     if (!elem)
-      return {};
+      return;
     
     return { contentWindow: elem.ownerDocument.defaultView, offset: offset };
   },
@@ -1386,9 +1384,6 @@ var SelectionHandler = {
         let x = json.x - scrollOffset.x;
         let y = json.y - scrollOffset.y;
         let { contentWindow: contentWindow, offset: offset } = this.getCurrentWindowAndOffset(x, y, scrollOffset);
-        if (!contentWindow)
-          return;
-
         let currentDocShell = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation).QueryInterface(Ci.nsIDocShell);
 
         // Remove any previous selected or created ranges. Tapping anywhere on a
@@ -1503,9 +1498,6 @@ var SelectionHandler = {
         this.cache.rect = this._extractFromRange(range, this.cache.offset).rect;
         break;
       case "Browser:SelectionMeasure": {
-        if (!this.contentWindow)
-          return;
-
         let selection = this.contentWindow.getSelection();
         let range = selection.getRangeAt(0).QueryInterface(Ci.nsIDOMNSRange);
         if (!range)

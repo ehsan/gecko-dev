@@ -98,7 +98,6 @@
 #include "imgIRequest.h"
 #include "nsIDOMDOMImplementation.h"
 #include "nsIDOMTouchEvent.h"
-#include "nsIInlineEventHandlers.h"
 #include "nsDataHashtable.h"
 #include "TimeStamp.h"
 
@@ -493,8 +492,7 @@ class nsDocument : public nsIDocument,
                    public nsIRadioGroupContainer,
                    public nsIApplicationCacheContainer,
                    public nsStubMutationObserver,
-                   public nsIDOMDocumentTouch,
-                   public nsIInlineEventHandlers
+                   public nsIDOMDocumentTouch
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -783,14 +781,8 @@ public:
   // nsIApplicationCacheContainer
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
 
-  // nsITouchEventReceiver
-  NS_DECL_NSITOUCHEVENTRECEIVER
-
   // nsIDOMDocumentTouch
   NS_DECL_NSIDOMDOCUMENTTOUCH
-
-  // nsIInlineEventHandlers
-  NS_DECL_NSIINLINEEVENTHANDLERS
 
   virtual nsresult Init();
   

@@ -1422,99 +1422,45 @@ public:
     return result;
   }
 
-  class MemoryReporter : public nsIMemoryMultiReporter
+  static PLDHashOperator LiveShellSizeEnumerator(PresShellPtrKey *aEntry,
+                                                 void *userArg)
   {
-  public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIMEMORYMULTIREPORTER
-  protected:
-    static PLDHashOperator SizeEnumerator(PresShellPtrKey *aEntry, void *userArg);
-  };
+    PresShell *aShell = static_cast<PresShell*>(aEntry->GetKey());
+    PRUint32 *val = (PRUint32*)userArg;
+    *val += aShell->EstimateMemoryUsed();
+    *val += aShell->mPresContext->EstimateMemoryUsed();
+    return PL_DHASH_NEXT;
+  }
+
+  static PLDHashOperator StyleSizeEnumerator(PresShellPtrKey *aEntry,
+                                             void *userArg)
+  {
+    PresShell *aShell = static_cast<PresShell*>(aEntry->GetKey());
+    PRUint32 *val = (PRUint32*)userArg;
+    *val += aShell->StyleSet()->SizeOf();
+    return PL_DHASH_NEXT;
+  }
+
+  static PRUint32
+  EstimateShellsMemory(nsTHashtable<PresShellPtrKey>::Enumerator aEnumerator)
+  {
+    PRUint32 result = 0;
+    sLiveShells->EnumerateEntries(aEnumerator, &result);
+    return result;
+  }
+
+  static PRInt64 SizeOfLayoutMemoryReporter() {
+    return EstimateShellsMemory(LiveShellSizeEnumerator);
+  }
+
+  static PRInt64 SizeOfStyleMemoryReporter() {
+    return EstimateShellsMemory(StyleSizeEnumerator);
+  }
 
 protected:
   void QueryIsActive();
   nsresult UpdateImageLockingState();
 };
-
-NS_IMPL_ISUPPORTS1(PresShell::MemoryReporter, nsIMemoryMultiReporter)
-
-namespace {
-
-struct MemoryReporterData
-{
-  nsIMemoryMultiReporterCallback* callback;
-  nsISupports* closure;
-};
-
-} // anonymous namespace
-
-/* static */ PLDHashOperator
-PresShell::MemoryReporter::SizeEnumerator(PresShellPtrKey *aEntry,
-                                          void *userArg)
-{
-  PresShell *aShell = static_cast<PresShell*>(aEntry->GetKey());
-  MemoryReporterData *data = (MemoryReporterData*)userArg;
-
-  // Build the string "explicit/layout/shell(<uri of the document>)"
-  nsCAutoString str("explicit/layout/shell(");
-
-  nsIDocument* doc = aShell->GetDocument();
-  if (doc) {
-    nsIURI* docURI = doc->GetDocumentURI();
-
-    if (docURI) {
-      nsCString spec;
-      docURI->GetSpec(spec);
-
-      // A hack: replace forward slashes with '\\' so they aren't
-      // treated as path separators.  Users of the reporters
-      // (such as about:memory) have to undo this change.
-      spec.ReplaceChar('/', '\\');
-
-      str += spec;
-    }
-  }
-
-  str += NS_LITERAL_CSTRING(")");
-
-  NS_NAMED_LITERAL_CSTRING(kArenaDesc, "Memory used by layout PresShell, PresContext, and other related areas.");
-  NS_NAMED_LITERAL_CSTRING(kStyleDesc, "Memory used by the style system.");
-
-  nsCAutoString arenaPath = str + NS_LITERAL_CSTRING("/arenas");
-  nsCAutoString stylePath = str + NS_LITERAL_CSTRING("/styledata");
-
-  PRUint32 arenasSize;
-  arenasSize = aShell->EstimateMemoryUsed();
-  arenasSize += aShell->mPresContext->EstimateMemoryUsed();
-
-  PRUint32 styleSize;
-  styleSize = aShell->StyleSet()->SizeOf();
-
-  data->callback->
-    Callback(EmptyCString(), arenaPath, nsIMemoryReporter::KIND_HEAP,
-             nsIMemoryReporter::UNITS_BYTES, arenasSize, kArenaDesc,
-             data->closure);
-
-  data->callback->
-    Callback(EmptyCString(), stylePath, nsIMemoryReporter::KIND_HEAP,
-             nsIMemoryReporter::UNITS_BYTES, styleSize, kStyleDesc,
-             data->closure);
-
-  return PL_DHASH_NEXT;
-}
-
-NS_IMETHODIMP
-PresShell::MemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
-                                          nsISupports* aClosure)
-{
-  MemoryReporterData data;
-  data.callback = aCb;
-  data.closure = aClosure;
-
-  sLiveShells->EnumerateEntries(SizeEnumerator, &data);
-
-  return NS_OK;
-}
 
 class nsAutoCauseReflowNotifier
 {
@@ -1719,6 +1665,20 @@ NS_NewPresShell(nsIPresShell** aInstancePtrResult)
 nsTHashtable<PresShell::PresShellPtrKey> *nsIPresShell::sLiveShells = 0;
 static PRBool sSynthMouseMove = PR_TRUE;
 
+NS_MEMORY_REPORTER_IMPLEMENT(LayoutPresShell,
+    "explicit/layout/arenas",
+    KIND_HEAP,
+    UNITS_BYTES,
+    PresShell::SizeOfLayoutMemoryReporter,
+    "Memory used by layout PresShell, PresContext, and other related areas.")
+
+NS_MEMORY_REPORTER_IMPLEMENT(LayoutStyle,
+    "explicit/layout/styledata",
+    KIND_HEAP,
+    UNITS_BYTES,
+    PresShell::SizeOfStyleMemoryReporter,
+    "Memory used by the style system.")
+
 PresShell::PresShell()
   : mMouseLocation(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)
 {
@@ -1746,7 +1706,8 @@ PresShell::PresShell()
 
   static bool registeredReporter = false;
   if (!registeredReporter) {
-    NS_RegisterMemoryMultiReporter(new MemoryReporter);
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutPresShell));
+    NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(LayoutStyle));
     Preferences::AddBoolVarCache(&sSynthMouseMove,
                                  "layout.reflow.synthMouseMove", PR_TRUE);
     registeredReporter = true;
@@ -3398,7 +3359,7 @@ nsIPresShell::GetRootScrollFrame() const
   // Ensure root frame is a viewport frame
   if (!rootFrame || nsGkAtoms::viewportFrame != rootFrame->GetType())
     return nsnull;
-  nsIFrame* theFrame = rootFrame->GetFirstPrincipalChild();
+  nsIFrame* theFrame = rootFrame->GetFirstChild(nsnull);
   if (!theFrame || nsGkAtoms::scrollFrame != theFrame->GetType())
     return nsnull;
   return theFrame;
@@ -3638,15 +3599,16 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
           }
         }
 
-        nsIFrame::ChildListIterator lists(f);
-        for (; !lists.IsDone(); lists.Next()) {
-          nsFrameList::Enumerator childFrames(lists.CurrentList());
-          for (; !childFrames.AtEnd(); childFrames.Next()) {
-            nsIFrame* kid = childFrames.get();
+        PRInt32 childListIndex = 0;
+        nsIAtom *childListName;
+        do {
+          childListName = f->GetAdditionalChildListName(childListIndex++);
+          for (nsIFrame *kid = f->GetFirstChild(childListName); kid;
+               kid = kid->GetNextSibling()) {
             kid->MarkIntrinsicWidthsDirty();
             stack.AppendElement(kid);
           }
-        }
+        } while (childListName);
       } while (stack.Length() != 0);
     }
 
@@ -4851,6 +4813,16 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
       if (rootPresContext) {
         rootPresContext->UpdatePluginGeometry();
       }
+#ifdef DEBUG
+      if (!mIsDestroying) {
+        nsIView* rootView = mViewManager->GetRootView();
+        if (rootView) {
+          nsRect bounds = rootView->GetBounds();
+          NS_ASSERTION(bounds.Size() == mPresContext->GetVisibleArea().Size(),
+                       "root view / pres context visible size mismatch");
+        }
+      }
+#endif
     }
 
     PRUint32 updateFlags = NS_VMREFRESH_NO_SYNC;
@@ -6120,6 +6092,21 @@ PresShell::ProcessSynthMouseMoveEvent(PRBool aFromScroll)
   }
 }
 
+static void DrawThebesLayer(ThebesLayer* aLayer,
+                            gfxContext* aContext,
+                            const nsIntRegion& aRegionToDraw,
+                            const nsIntRegion& aRegionToInvalidate,
+                            void* aCallbackData)
+{
+  PaintParams* params = static_cast<PaintParams*>(aCallbackData);
+  aContext->NewPath();
+  aContext->SetColor(gfxRGBA(params->mBackgroundColor));
+  nsIntRect dirtyRect = aRegionToDraw.GetBounds();
+  aContext->Rectangle(
+    gfxRect(dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height));
+  aContext->Fill();
+}
+
 NS_IMETHODIMP
 PresShell::Paint(nsIView*           aViewToPaint,
                  nsIWidget*         aWidgetToPaint,
@@ -6166,9 +6153,11 @@ PresShell::Paint(nsIView*           aViewToPaint,
       if (layerManager->EndEmptyTransaction()) {
         frame->UpdatePaintCountForPaintedPresShells();
         presContext->NotifyDidPaintForSubtree();
+        
         return NS_OK;
       }
     }
+    
 
     frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
   }
@@ -6198,17 +6187,14 @@ PresShell::Paint(nsIView*           aViewToPaint,
     return NS_OK;
   }
 
-  nsRefPtr<ColorLayer> root = layerManager->CreateColorLayer();
+  nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
   if (root) {
-    nsPresContext* pc = GetPresContext();
-    nsIntRect bounds =
-      pc->GetVisibleArea().ToOutsidePixels(pc->AppUnitsPerDevPixel());
-    bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
-    root->SetColor(bgcolor);
-    root->SetVisibleRegion(bounds);
+    root->SetVisibleRegion(aIntDirtyRegion);
     layerManager->SetRoot(root);
   }
-  layerManager->EndTransaction(NULL, NULL);
+  bgcolor = NS_ComposeColors(bgcolor, mCanvasBackgroundColor);
+  PaintParams params = { bgcolor };
+  layerManager->EndTransaction(DrawThebesLayer, &params);
 
   presContext->NotifyDidPaintForSubtree();
   return NS_OK;
@@ -6644,7 +6630,7 @@ PresShell::HandleEvent(nsIView         *aView,
                 capturingContent->IsHTML()) {
               // a dropdown <select> has a child in its selectPopupList and we should
               // capture on that instead.
-              nsIFrame* childFrame = captureFrame->GetChildList(nsIFrame::kSelectPopupList).FirstChild();
+              nsIFrame* childFrame = captureFrame->GetChildList(nsGkAtoms::selectPopupList).FirstChild();
               if (childFrame) {
                 captureFrame = childFrame;
               }
@@ -8177,11 +8163,12 @@ WalkFramesThroughPlaceholders(nsPresContext *aPresContext, nsIFrame *aFrame,
   if (!walkChildren)
     return;
 
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsIFrame* child = childFrames.get();
+  PRInt32 listIndex = 0;
+  nsIAtom* childList = nsnull;
+
+  do {
+    nsIFrame *child = aFrame->GetFirstChild(childList);
+    while (child) {
       if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
         // only do frames that are in flow, and recur through the
         // out-of-flows of placeholders.
@@ -8189,8 +8176,11 @@ WalkFramesThroughPlaceholders(nsPresContext *aPresContext, nsIFrame *aFrame,
                                       nsPlaceholderFrame::GetRealFrameFor(child),
                                       aFunc, aClosure);
       }
+      child = child->GetNextSibling();
     }
-  }
+
+    childList = aFrame->GetAdditionalChildListName(listIndex++);
+  } while (childList);
 }
 #endif
 
@@ -8381,11 +8371,11 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
   //if (aFirstFrame->GetType() == nsGkAtoms::scrollbarFrame)
   //  return PR_TRUE;
   PRBool ok = PR_TRUE;
-  nsIFrame::ChildListIterator lists1(aFirstFrame);
-  nsIFrame::ChildListIterator lists2(aSecondFrame);
+  nsIAtom* listName = nsnull;
+  PRInt32 listIndex = 0;
   do {
-    const nsFrameList& kids1 = !lists1.IsDone() ? lists1.CurrentList() : nsFrameList();
-    const nsFrameList& kids2 = !lists2.IsDone() ? lists2.CurrentList() : nsFrameList();
+    const nsFrameList& kids1 = aFirstFrame->GetChildList(listName);
+    const nsFrameList& kids2 = aSecondFrame->GetChildList(listName);
     PRInt32 l1 = kids1.GetLength();
     PRInt32 l2 = kids2.GetLength();;
     if (l1 != l2) {
@@ -8471,21 +8461,34 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
       break;
     }
 
-    lists1.Next();
-    lists2.Next();
-    if (lists1.IsDone() != lists2.IsDone() ||
-        (!lists1.IsDone() && lists1.CurrentID() != lists2.CurrentID())) {
+    nsIAtom* listName1 = aFirstFrame->GetAdditionalChildListName(listIndex);
+    nsIAtom* listName2 = aSecondFrame->GetAdditionalChildListName(listIndex);
+    listIndex++;
+    if (listName1 != listName2) {
       if (0 == (VERIFY_REFLOW_ALL & gVerifyReflowFlags)) {
         ok = PR_FALSE;
       }
       LogVerifyMessage(kids1.FirstChild(), kids2.FirstChild(),
                        "child list names are not matched: ");
-      fprintf(stdout, "%s != %s\n",
-              !lists1.IsDone() ? mozilla::layout::ChildListName(lists1.CurrentID()) : "(null)",
-              !lists2.IsDone() ? mozilla::layout::ChildListName(lists2.CurrentID()) : "(null)");
+      nsAutoString tmp;
+      if (nsnull != listName1) {
+        listName1->ToString(tmp);
+        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), stdout);
+      }
+      else
+        fputs("(null)", stdout);
+      printf(" != ");
+      if (nsnull != listName2) {
+        listName2->ToString(tmp);
+        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), stdout);
+      }
+      else
+        fputs("(null)", stdout);
+      printf("\n");
       break;
     }
-  } while (ok && !lists1.IsDone());
+    listName = listName1;
+  } while (ok && (listName != nsnull));
 
   return ok;
 }
@@ -8507,7 +8510,7 @@ FindTopFrame(nsIFrame* aRoot)
     }
 
     // Try one of the children
-    nsIFrame* kid = aRoot->GetFirstPrincipalChild();
+    nsIFrame* kid = aRoot->GetFirstChild(nsnull);
     while (nsnull != kid) {
       nsIFrame* result = FindTopFrame(kid);
       if (nsnull != result) {
@@ -9141,7 +9144,7 @@ static void RecurseIndiTotals(nsPresContext* aPresContext,
     nsMemory::Free(name);
   }
 
-  nsIFrame* child = aParentFrame->GetFirstPrincipalChild();
+  nsIFrame* child = aParentFrame->GetFirstChild(nsnull);
   while (child) {
     RecurseIndiTotals(aPresContext, aHT, child, aLevel+1);
     child = child->GetNextSibling();

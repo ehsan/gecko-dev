@@ -72,7 +72,6 @@
 #include "vm/Debugger.h"
 
 #include "jsatominlines.h"
-#include "jsinferinlines.h"
 #include "jsobjinlines.h"
 #include "jsinterpinlines.h"
 #include "jsscopeinlines.h"
@@ -81,6 +80,9 @@
 #include "vm/Stack-inl.h"
 
 #include "jsautooplen.h"
+
+#include "methodjit/MethodJIT.h"
+#include "methodjit/Retcon.h"
 
 #ifdef __APPLE__
 #include "sharkctl.h"
@@ -152,6 +154,34 @@ JS_SetDebugModeForCompartment(JSContext *cx, JSCompartment *comp, JSBool debug)
     return comp->setDebugModeFromC(cx, !!debug);
 }
 
+JS_FRIEND_API(JSBool)
+js_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
+{
+    assertSameCompartment(cx, script);
+
+#ifdef JS_METHODJIT
+    if (!script->singleStepMode == !singleStep)
+        return JS_TRUE;
+#endif
+
+    JS_ASSERT_IF(singleStep, cx->compartment->debugMode());
+
+#ifdef JS_METHODJIT
+    /* request the next recompile to inject single step interrupts */
+    script->singleStepMode = !!singleStep;
+
+    js::mjit::JITScript *jit = script->jitNormal ? script->jitNormal : script->jitCtor;
+    if (jit && script->singleStepMode != jit->singleStepMode) {
+        js::mjit::Recompiler recompiler(cx, script);
+        if (!recompiler.recompile()) {
+            script->singleStepMode = !singleStep;
+            return JS_FALSE;
+        }
+    }
+#endif
+    return JS_TRUE;
+}
+
 static JSBool
 CheckDebugMode(JSContext *cx)
 {
@@ -175,7 +205,7 @@ JS_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
     if (!CheckDebugMode(cx))
         return JS_FALSE;
 
-    return script->setStepModeFlag(cx, singleStep);
+    return js_SetSingleStepMode(cx, script, singleStep);
 }
 
 jsbytecode *
@@ -259,11 +289,11 @@ JITInhibitingHookChange(JSRuntime *rt, bool wasInhibited)
     if (wasInhibited) {
         if (!rt->debuggerInhibitsJIT()) {
             for (JSCList *cl = rt->contextList.next; cl != &rt->contextList; cl = cl->next)
-                JSContext::fromLinkField(cl)->updateJITEnabled();
+                js_ContextFromLinkField(cl)->updateJITEnabled();
         }
     } else if (rt->debuggerInhibitsJIT()) {
         for (JSCList *cl = rt->contextList.next; cl != &rt->contextList; cl = cl->next)
-            JSContext::fromLinkField(cl)->traceJitEnabled = false;
+            js_ContextFromLinkField(cl)->traceJitEnabled = false;
     }
 }
 #endif
@@ -306,6 +336,7 @@ JS_ClearInterrupt(JSRuntime *rt, JSInterruptHook *hoop, void **closurep)
 
 /************************************************************************/
 
+
 JS_PUBLIC_API(JSBool)
 JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
                  JSWatchPointHandler handler, JSObject *closure)
@@ -345,8 +376,6 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
                              obj->getClass()->name);
         return false;
     }
-
-    types::MarkTypePropertyConfigured(cx, obj, propid);
 
     WatchpointMap *wpmap = cx->compartment->watchpointMap;
     if (!wpmap) {
@@ -543,7 +572,7 @@ JS_PUBLIC_API(JSStackFrame *)
 JS_FrameIterator(JSContext *cx, JSStackFrame **iteratorp)
 {
     StackFrame *fp = Valueify(*iteratorp);
-    *iteratorp = Jsvalify((fp == NULL) ? js_GetTopStackFrame(cx, FRAME_EXPAND_ALL) : fp->prev());
+    *iteratorp = Jsvalify((fp == NULL) ? js_GetTopStackFrame(cx) : fp->prev());
     return *iteratorp;
 }
 
@@ -556,7 +585,7 @@ JS_GetFrameScript(JSContext *cx, JSStackFrame *fp)
 JS_PUBLIC_API(jsbytecode *)
 JS_GetFramePC(JSContext *cx, JSStackFrame *fp)
 {
-    return Valueify(fp)->pcQuadratic(cx->stack);
+    return Valueify(fp)->pcQuadratic(cx);
 }
 
 JS_PUBLIC_API(JSStackFrame *)
@@ -1878,9 +1907,9 @@ jstv_Filename(JSStackFrame *fp)
 inline uintN
 jstv_Lineno(JSContext *cx, JSStackFrame *fp)
 {
-    while (fp && fp->pcQuadratic(cx->stack) == NULL)
+    while (fp && fp->pcQuadratic(cx) == NULL)
         fp = fp->prev();
-    return (fp && fp->pcQuadratic(cx->stack)) ? js_FramePCToLineNumber(cx, fp) : 0;
+    return (fp && fp->pcQuadratic(cx)) ? js_FramePCToLineNumber(cx, fp) : 0;
 }
 
 /* Collect states here and distribute to a matching buffer, if any */

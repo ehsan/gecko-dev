@@ -49,7 +49,6 @@
 #include "nsBidiUtils.h"
 #include "nsToolkit.h"
 #include "nsCocoaUtils.h"
-#include "nsPrintfCString.h"
 
 #ifdef __LP64__
 #include "ComplexTextInputPanel.h"

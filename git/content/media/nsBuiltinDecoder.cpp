@@ -780,8 +780,8 @@ void nsBuiltinDecoder::SeekingStoppedAtEnd()
       seekWasAborted = PR_TRUE;
     } else {
       UnpinForSeek();
-      fireEnded = PR_TRUE;
-      ChangeState(PLAY_STATE_ENDED);
+      fireEnded = mNextState != PLAY_STATE_PLAYING;
+      ChangeState(fireEnded ? PLAY_STATE_ENDED : mNextState);
     }
   }
 
@@ -937,15 +937,6 @@ nsresult nsBuiltinDecoder::GetSeekable(nsTimeRanges* aSeekable)
   }
 
   return GetBuffered(aSeekable);
-}
-
-void nsBuiltinDecoder::SetEndTime(double aTime)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  if (mDecoderStateMachine) {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    mDecoderStateMachine->SetFragmentEndTime(static_cast<PRInt64>(aTime * USECS_PER_S));
-  }
 }
 
 void nsBuiltinDecoder::Suspend()

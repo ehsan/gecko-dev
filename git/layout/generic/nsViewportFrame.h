@@ -63,7 +63,7 @@ public:
 
   ViewportFrame(nsStyleContext* aContext)
     : nsContainerFrame(aContext)
-    , mFixedContainer(kFixedList)
+    , mFixedContainer(nsGkAtoms::fixedList)
   {}
   virtual ~ViewportFrame() { } // useful for debugging
 
@@ -73,21 +73,22 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        asPrevInFlow);
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
-  virtual nsFrameList GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
+
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -120,6 +121,7 @@ public:
 protected:
   nsPoint AdjustReflowStateForScrollbars(nsHTMLReflowState* aReflowState) const;
 
+protected:
   // position: fixed content is really content which is absolutely positioned with
   // respect to the viewport.
   nsAbsoluteContainingBlock mFixedContainer;

@@ -548,10 +548,10 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
     return NS_OK;
   }
   
-  PRBool intrinsicSizeChanged = UpdateIntrinsicSize(aImage);
-  intrinsicSizeChanged = UpdateIntrinsicRatio(aImage) || intrinsicSizeChanged;
+  UpdateIntrinsicSize(aImage);
+  UpdateIntrinsicRatio(aImage);
 
-  if (intrinsicSizeChanged && (mState & IMAGE_GOTINITIALREFLOW)) {
+  if (mState & IMAGE_GOTINITIALREFLOW) {
     // Now we need to reflow if we have an unconstrained size and have
     // already gotten the initial reflow
     if (!(mState & IMAGE_SIZECONSTRAINED)) { 

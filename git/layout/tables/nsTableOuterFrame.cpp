@@ -129,7 +129,7 @@ nsTableCaptionFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
   // it's anonymous.
   nsIFrame* outerFrame = GetParent();
   if (outerFrame && outerFrame->GetType() == nsGkAtoms::tableOuterFrame) {
-    nsIFrame* innerFrame = outerFrame->GetFirstPrincipalChild();
+    nsIFrame* innerFrame = outerFrame->GetFirstChild(nsnull);
     if (innerFrame) {
       *aProviderFrame =
         nsFrame::CorrectStyleParentFrame(innerFrame,
@@ -219,36 +219,37 @@ nsTableOuterFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 nsFrameList
-nsTableOuterFrame::GetChildList(ChildListID aListID) const
+nsTableOuterFrame::GetChildList(nsIAtom* aListName) const
 {
-  switch (aListID) {
-    case kPrincipalList:
-      return mFrames;
-    case kCaptionList:
-      return mCaptionFrames;
-    default:
-      return nsFrameList::EmptyList();
+  if (nsGkAtoms::captionList == aListName) {
+    return mCaptionFrames;
   }
+  if (!aListName) {
+    return mFrames;
+  }
+  return nsFrameList::EmptyList();
 }
 
-void
-nsTableOuterFrame::GetChildLists(nsTArray<ChildList>* aLists) const
+nsIAtom*
+nsTableOuterFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 {
-  mFrames.AppendIfNonempty(aLists, kPrincipalList);
-  mCaptionFrames.AppendIfNonempty(aLists, kCaptionList);
+  if (aIndex == NS_TABLE_FRAME_CAPTION_LIST_INDEX) {
+    return nsGkAtoms::captionList;
+  }
+  return nsnull;
 }
 
 NS_IMETHODIMP 
-nsTableOuterFrame::SetInitialChildList(ChildListID     aListID,
+nsTableOuterFrame::SetInitialChildList(nsIAtom*        aListName,
                                        nsFrameList&    aChildList)
 {
-  if (kCaptionList == aListID) {
+  if (nsGkAtoms::captionList == aListName) {
     // the frame constructor already checked for table-caption display type
     mCaptionFrames.SetFrames(aChildList);
     mCaptionFrame = mCaptionFrames.FirstChild();
   }
   else {
-    NS_ASSERTION(aListID == kPrincipalList, "wrong childlist");
+    NS_ASSERTION(!aListName, "wrong childlist");
     NS_ASSERTION(mFrames.IsEmpty(), "Frame leak!");
     mInnerTableFrame = nsnull;
     if (aChildList.NotEmpty()) {
@@ -267,14 +268,14 @@ nsTableOuterFrame::SetInitialChildList(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableOuterFrame::AppendFrames(ChildListID     aListID,
+nsTableOuterFrame::AppendFrames(nsIAtom*        aListName,
                                 nsFrameList&    aFrameList)
 {
   nsresult rv;
 
   // We only have two child frames: the inner table and a caption frame.
   // The inner frame is provided when we're initialized, and it cannot change
-  if (kCaptionList == aListID) {
+  if (nsGkAtoms::captionList == aListName) {
     NS_ASSERTION(aFrameList.IsEmpty() ||
                  aFrameList.FirstChild()->GetType() == nsGkAtoms::tableCaptionFrame,
                  "appending non-caption frame to captionList");
@@ -297,11 +298,11 @@ nsTableOuterFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsTableOuterFrame::InsertFrames(ChildListID     aListID,
+nsTableOuterFrame::InsertFrames(nsIAtom*        aListName,
                                 nsIFrame*       aPrevFrame,
                                 nsFrameList&    aFrameList)
 {
-  if (kCaptionList == aListID) {
+  if (nsGkAtoms::captionList == aListName) {
     NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                  "inserting after sibling frame with different parent");
     NS_ASSERTION(aFrameList.IsEmpty() ||
@@ -319,17 +320,17 @@ nsTableOuterFrame::InsertFrames(ChildListID     aListID,
   }
   else {
     NS_PRECONDITION(!aPrevFrame, "invalid previous frame");
-    return AppendFrames(aListID, aFrameList);
+    return AppendFrames(aListName, aFrameList);
   }
 }
 
 NS_IMETHODIMP
-nsTableOuterFrame::RemoveFrame(ChildListID     aListID,
+nsTableOuterFrame::RemoveFrame(nsIAtom*        aListName,
                                nsIFrame*       aOldFrame)
 {
   // We only have two child frames: the inner table and one caption frame.
   // The inner frame can't be removed so this should be the caption
-  NS_PRECONDITION(kCaptionList == aListID, "can't remove inner frame");
+  NS_PRECONDITION(nsGkAtoms::captionList == aListName, "can't remove inner frame");
 
   if (HasSideCaption()) {
     // The old caption width had an effect on the inner table width so

@@ -43,6 +43,7 @@ USE_AUTOCONF 	= 1
 MOZILLA_CLIENT	= 1
 target          = @target@
 ac_configure_args = @ac_configure_args@
+BUILD_MODULES	= @BUILD_MODULES@
 MOZILLA_VERSION = @MOZILLA_VERSION@
 
 MOZ_BUILD_APP = @MOZ_BUILD_APP@
@@ -177,10 +178,7 @@ _MSC_VER	= @_MSC_VER@
 
 DLL_PREFIX	= @DLL_PREFIX@
 LIB_PREFIX	= @LIB_PREFIX@
-# We do magic with OBJ_SUFFIX in config.mk, the following ensures we don't
-# manually use it before config.mk inclusion
-OBJ_SUFFIX	= $(error config/config.mk needs to be included before using OBJ_SUFFIX)
-_OBJ_SUFFIX	= @OBJ_SUFFIX@
+OBJ_SUFFIX	= @OBJ_SUFFIX@
 LIB_SUFFIX	= @LIB_SUFFIX@
 DLL_SUFFIX	= @DLL_SUFFIX@
 BIN_SUFFIX	= @BIN_SUFFIX@
@@ -191,7 +189,7 @@ USE_N32		= @USE_N32@
 HAVE_64BIT_OS	= @HAVE_64BIT_OS@
 
 # Temp hack.  It is not my intention to leave this crap in here for ever.
-# Im talking to fur right now to solve the problem without introducing
+# Im talking to fur right now to solve the problem without introducing 
 # NS_USE_NATIVE to the build system -ramiro.
 NS_USE_NATIVE = @NS_USE_NATIVE@
 
@@ -264,7 +262,8 @@ EDITLINE_LIBS      = @EDITLINE_LIBS@
 # to normal behavior. Makefile's that create shared libraries out of
 # archives use these flags to force in all of the .o files in the
 # archives into the shared library.
-WRAP_LDFLAGS            = @WRAP_LDFLAGS@
+WRAP_MALLOC_LIB         = @WRAP_MALLOC_LIB@
+WRAP_MALLOC_CFLAGS      = @WRAP_MALLOC_CFLAGS@
 DSO_CFLAGS              = @DSO_CFLAGS@
 DSO_PIC_CFLAGS          = @DSO_PIC_CFLAGS@
 MKSHLIB                 = @MKSHLIB@

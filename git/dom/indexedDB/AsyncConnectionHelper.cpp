@@ -46,8 +46,8 @@
 #include "nsThreadUtils.h"
 
 #include "IDBEvents.h"
+#include "IDBFactory.h"
 #include "IDBTransaction.h"
-#include "IndexedDatabaseManager.h"
 #include "TransactionThreadPool.h"
 
 using mozilla::TimeStamp;
@@ -245,7 +245,7 @@ AsyncConnectionHelper::Run()
   if (NS_SUCCEEDED(rv)) {
     bool hasSavepoint = false;
     if (mDatabase) {
-      IndexedDatabaseManager::SetCurrentDatabase(mDatabase);
+      IDBFactory::SetCurrentDatabase(mDatabase);
 
       // Make the first savepoint.
       if (mTransaction) {
@@ -258,7 +258,7 @@ AsyncConnectionHelper::Run()
     mResultCode = DoDatabaseWork(connection);
 
     if (mDatabase) {
-      IndexedDatabaseManager::SetCurrentDatabase(nsnull);
+      IDBFactory::SetCurrentDatabase(nsnull);
 
       // Release or roll back the savepoint depending on the error code.
       if (hasSavepoint) {
@@ -290,7 +290,8 @@ AsyncConnectionHelper::Run()
 #ifdef DEBUG
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsISupports> handlerSupports(do_QueryInterface(handler));
-      nsCOMPtr<nsISupports> thisSupports = do_QueryObject(this);
+      nsCOMPtr<nsISupports> thisSupports =
+        do_QueryInterface(static_cast<nsIRunnable*>(this));
       NS_ASSERTION(thisSupports == handlerSupports, "Mismatch!");
     }
 #endif

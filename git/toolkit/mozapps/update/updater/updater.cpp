@@ -1578,7 +1578,7 @@ LaunchWinPostProcess(const WCHAR *appExe)
   wcscat(cmdline, exearg);
 
   if (!_wcsnicmp(exeasync, L"false", 6) || !_wcsnicmp(exeasync, L"0", 2))
-    async = false;
+    async = PR_FALSE;
 
   // We want to launch the post update helper app to update the Windows
   // registry even if there is a failure with removing the uninstall.update

@@ -42,16 +42,12 @@
  *    HISTOGRAM(id, minimum, maximum, bucket count, histogram kind,
  *              human-readable description for about:telemetry)
  *
- * This file is the master list of telemetry histograms reported to Mozilla servers.
- * The other data reported by telemetry is listed on https://wiki.mozilla.org/Privacy/Reviews/Telemetry/Measurements
- *
  */
 
 /**
  * a11y telemetry
  */
 HISTOGRAM(A11Y_INSTANTIATED, 0, 1, 2, BOOLEAN, "has accessibility support been instantiated")
-HISTOGRAM(DLLBLOCKLIST_HOOK_INSTALLED, 0, 1, 2, BOOLEAN, "was the DLL blocklist hook installed successfully")
 
 HISTOGRAM(CYCLE_COLLECTOR, 1, 10000, 50, EXPONENTIAL, "Time spent on one cycle collection (ms)")
 HISTOGRAM(CYCLE_COLLECTOR_VISITED_REF_COUNTED, 1, 300000, 50, EXPONENTIAL, "Number of ref counted objects visited by the cycle collector")

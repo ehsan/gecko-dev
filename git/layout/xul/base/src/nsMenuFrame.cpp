@@ -301,21 +301,15 @@ nsMenuFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
+// The following methods are all overridden to ensure that the menupopup frame
+// is placed in the appropriate list.
 nsFrameList
-nsMenuFrame::GetChildList(ChildListID aListID) const
+nsMenuFrame::GetChildList(nsIAtom* aListName) const
 {
-  if (kPopupList == aListID) {
+  if (nsGkAtoms::popupList == aListName) {
     return nsFrameList(mPopupFrame, mPopupFrame);
   }
-  return nsBoxFrame::GetChildList(aListID);
-}
-
-void
-nsMenuFrame::GetChildLists(nsTArray<ChildList>* aLists) const
-{
-  nsBoxFrame::GetChildLists(aLists);
-  nsFrameList popupList(mPopupFrame, mPopupFrame);
-  popupList.AppendIfNonempty(aLists, kPopupList);
+  return nsBoxFrame::GetChildList(aListName);
 }
 
 void
@@ -332,14 +326,22 @@ nsMenuFrame::SetPopupFrame(nsFrameList& aFrameList)
 }
 
 NS_IMETHODIMP
-nsMenuFrame::SetInitialChildList(ChildListID     aListID,
+nsMenuFrame::SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList)
 {
   NS_ASSERTION(!mPopupFrame, "already have a popup frame set");
-  if (aListID == kPrincipalList || aListID == kPopupList) {
+  if (!aListName || aListName == nsGkAtoms::popupList)
     SetPopupFrame(aChildList);
+  return nsBoxFrame::SetInitialChildList(aListName, aChildList);
+}
+
+nsIAtom*
+nsMenuFrame::GetAdditionalChildListName(PRInt32 aIndex) const
+{
+  if (NS_MENU_POPUP_LIST_INDEX == aIndex) {
+    return nsGkAtoms::popupList;
   }
-  return nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  return nsnull;
 }
 
 void
@@ -958,7 +960,7 @@ nsMenuFrame::UpdateMenuSpecialState(nsPresContext* aPresContext)
   // get the first sibling in this menu popup. This frame may be it, and if we're
   // being called at creation time, this frame isn't yet in the parent's child list.
   // All I'm saying is that this may fail, but it's most likely alright.
-  nsIFrame* sib = GetParent()->GetFirstPrincipalChild();
+  nsIFrame* sib = GetParent()->GetFirstChild(nsnull);
 
   while (sib) {
     if (sib != this && sib->GetType() == nsGkAtoms::menuFrame) {
@@ -1254,7 +1256,7 @@ nsMenuFrame::PassMenuCommandEventToPopupManager()
 }
 
 NS_IMETHODIMP
-nsMenuFrame::RemoveFrame(ChildListID     aListID,
+nsMenuFrame::RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame)
 {
   nsresult rv =  NS_OK;
@@ -1268,18 +1270,18 @@ nsMenuFrame::RemoveFrame(ChildListID     aListID,
                        NS_FRAME_HAS_DIRTY_CHILDREN);
     rv = NS_OK;
   } else {
-    rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+    rv = nsBoxFrame::RemoveFrame(aListName, aOldFrame);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsMenuFrame::InsertFrames(ChildListID     aListID,
+nsMenuFrame::InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList)
 {
-  if (!mPopupFrame && (aListID == kPrincipalList || aListID == kPopupList)) {
+  if (!mPopupFrame && (!aListName || aListName == nsGkAtoms::popupList)) {
     SetPopupFrame(aFrameList);
     if (mPopupFrame) {
 #ifdef DEBUG_LAYOUT
@@ -1300,14 +1302,14 @@ nsMenuFrame::InsertFrames(ChildListID     aListID,
     aPrevFrame = nsnull;
   }
 
-  return nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  return nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
 }
 
 NS_IMETHODIMP
-nsMenuFrame::AppendFrames(ChildListID     aListID,
+nsMenuFrame::AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList)
 {
-  if (!mPopupFrame && (aListID == kPrincipalList || aListID == kPopupList)) {
+  if (!mPopupFrame && (!aListName || aListName == nsGkAtoms::popupList)) {
     SetPopupFrame(aFrameList);
     if (mPopupFrame) {
 
@@ -1324,7 +1326,7 @@ nsMenuFrame::AppendFrames(ChildListID     aListID,
   if (aFrameList.IsEmpty())
     return NS_OK;
 
-  return nsBoxFrame::AppendFrames(aListID, aFrameList); 
+  return nsBoxFrame::AppendFrames(aListName, aFrameList); 
 }
 
 PRBool
@@ -1349,7 +1351,7 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
       GetBorderAndPadding(borderPadding);
 
       // if there is a scroll frame, add the desired width of the scrollbar as well
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstPrincipalChild());
+      nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstChild(nsnull));
       nscoord scrollbarWidth = 0;
       if (scrollFrame) {
         scrollbarWidth =
@@ -1429,7 +1431,7 @@ nsIScrollableFrame* nsMenuFrame::GetScrollTargetFrame()
 {
   if (!mPopupFrame)
     return nsnull;
-  nsIFrame* childFrame = mPopupFrame->GetFirstPrincipalChild();
+  nsIFrame* childFrame = mPopupFrame->GetFirstChild(nsnull);
   if (childFrame)
     return mPopupFrame->GetScrollFrame(childFrame);
   return nsnull;
