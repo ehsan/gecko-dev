@@ -9,14 +9,10 @@
  */
 
 
-#ifndef VPX_PORTS_ARM_H_
-#define VPX_PORTS_ARM_H_
+#ifndef VPX_PORTS_ARM_H
+#define VPX_PORTS_ARM_H
 #include <stdlib.h>
 #include "vpx_config.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /*ARMv5TE "Enhanced DSP" instructions.*/
 #define HAS_EDSP  0x01
@@ -27,9 +23,5 @@ extern "C" {
 
 int arm_cpu_caps(void);
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VPX_PORTS_ARM_H_
 

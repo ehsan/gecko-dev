@@ -30,14 +30,11 @@ using namespace mozilla::pkix;
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-static const unsigned int DEFAULT_MINIMUM_NON_ECC_BITS = 2048;
-
 namespace mozilla { namespace psm {
 
 AppTrustDomain::AppTrustDomain(ScopedCERTCertList& certChain, void* pinArg)
   : mCertChain(certChain)
   , mPinArg(pinArg)
-  , mMinimumNonECCBits(DEFAULT_MINIMUM_NON_ECC_BITS)
 {
 }
 
@@ -74,8 +71,6 @@ AppTrustDomain::SetTrustedRoot(AppTrustedRoot trustedRoot)
     case nsIX509CertDB::AppMarketplaceStageRoot:
       trustedDER.data = const_cast<uint8_t*>(marketplaceStageRoot);
       trustedDER.len = mozilla::ArrayLength(marketplaceStageRoot);
-      // The staging root was generated with a 1024-bit key.
-      mMinimumNonECCBits = 1024u;
       break;
 
     case nsIX509CertDB::AppXPCShellRoot:
@@ -218,7 +213,7 @@ AppTrustDomain::VerifySignedData(const SignedDataWithSignature& signedData,
                                  Input subjectPublicKeyInfo)
 {
   return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
-                                           mMinimumNonECCBits, mPinArg);
+                                           mPinArg);
 }
 
 Result
@@ -252,8 +247,7 @@ AppTrustDomain::IsChainValid(const DERArray& certChain, Time time)
 Result
 AppTrustDomain::CheckPublicKey(Input subjectPublicKeyInfo)
 {
-  return ::mozilla::pkix::CheckPublicKey(subjectPublicKeyInfo,
-                                         mMinimumNonECCBits);
+  return ::mozilla::pkix::CheckPublicKey(subjectPublicKeyInfo);
 }
 
 } } // namespace mozilla::psm

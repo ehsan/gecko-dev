@@ -144,7 +144,7 @@ HTMLShadowElement::BindToTree(nsIDocument* aDocument,
 
   if (mIsInsertionPoint && containingShadow) {
     // Propagate BindToTree calls to projected shadow root children.
-    ShadowRoot* projectedShadow = containingShadow->GetOlderShadowRoot();
+    ShadowRoot* projectedShadow = containingShadow->GetOlderShadow();
     if (projectedShadow) {
       for (nsIContent* child = projectedShadow->GetFirstChild(); child;
            child = child->GetNextSibling()) {
@@ -167,7 +167,7 @@ HTMLShadowElement::UnbindFromTree(bool aDeep, bool aNullParent)
   if (mIsInsertionPoint && oldContainingShadow) {
     // Propagate UnbindFromTree call to previous projected shadow
     // root children.
-    ShadowRoot* projectedShadow = oldContainingShadow->GetOlderShadowRoot();
+    ShadowRoot* projectedShadow = oldContainingShadow->GetOlderShadow();
     if (projectedShadow) {
       for (nsIContent* child = projectedShadow->GetFirstChild(); child;
            child = child->GetNextSibling()) {
@@ -220,7 +220,7 @@ HTMLShadowElement::DistributeSingleNode(nsIContent* aContent)
   // Handle the case where the parent of this shadow element is a ShadowRoot
   // that is projected into a shadow insertion point in the younger ShadowRoot.
   ShadowRoot* containingShadow = GetContainingShadow();
-  ShadowRoot* youngerShadow = containingShadow->GetYoungerShadowRoot();
+  ShadowRoot* youngerShadow = containingShadow->GetYoungerShadow();
   if (youngerShadow && GetParent() == containingShadow) {
     HTMLShadowElement* youngerShadowElement = youngerShadow->GetShadowElement();
     if (youngerShadowElement) {
@@ -247,7 +247,7 @@ HTMLShadowElement::RemoveDistributedNode(nsIContent* aContent)
   // Handle the case where the parent of this shadow element is a ShadowRoot
   // that is projected into a shadow insertion point in the younger ShadowRoot.
   ShadowRoot* containingShadow = GetContainingShadow();
-  ShadowRoot* youngerShadow = containingShadow->GetYoungerShadowRoot();
+  ShadowRoot* youngerShadow = containingShadow->GetYoungerShadow();
   if (youngerShadow && GetParent() == containingShadow) {
     HTMLShadowElement* youngerShadowElement = youngerShadow->GetShadowElement();
     if (youngerShadowElement) {
@@ -263,7 +263,7 @@ HTMLShadowElement::DistributeAllNodes()
   // into this shadow insertion point so update the destination insertion
   // points.
   ShadowRoot* containingShadow = GetContainingShadow();
-  ShadowRoot* olderShadow = containingShadow->GetOlderShadowRoot();
+  ShadowRoot* olderShadow = containingShadow->GetOlderShadow();
   if (olderShadow) {
     ExplicitChildIterator childIterator(olderShadow);
     for (nsIContent* content = childIterator.GetNextChild();
@@ -286,7 +286,7 @@ HTMLShadowElement::DistributeAllNodes()
 
   // Handle the case where the parent of this shadow element is a ShadowRoot
   // that is projected into a shadow insertion point in the younger ShadowRoot.
-  ShadowRoot* youngerShadow = containingShadow->GetYoungerShadowRoot();
+  ShadowRoot* youngerShadow = containingShadow->GetYoungerShadow();
   if (youngerShadow && GetParent() == containingShadow) {
     HTMLShadowElement* youngerShadowElement = youngerShadow->GetShadowElement();
     if (youngerShadowElement) {

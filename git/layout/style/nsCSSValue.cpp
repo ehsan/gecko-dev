@@ -264,14 +264,13 @@ bool nsCSSValue::operator==(const nsCSSValue& aOther) const
       return *mValue.mRect == *aOther.mValue.mRect;
     }
     else if (eCSSUnit_List == mUnit) {
-      return nsCSSValueList::Equal(mValue.mList, aOther.mValue.mList);
+      return *mValue.mList == *aOther.mValue.mList;
     }
     else if (eCSSUnit_SharedList == mUnit) {
       return *mValue.mSharedList == *aOther.mValue.mSharedList;
     }
     else if (eCSSUnit_PairList == mUnit) {
-      return nsCSSValuePairList::Equal(mValue.mPairList,
-                                       aOther.mValue.mPairList);
+      return *mValue.mPairList == *aOther.mValue.mPairList;
     }
     else if (eCSSUnit_GridTemplateAreas == mUnit) {
       return *mValue.mGridTemplateAreas == *aOther.mValue.mGridTemplateAreas;
@@ -1876,15 +1875,13 @@ nsCSSValueList::AppendToString(nsCSSProperty aProperty, nsAString& aResult,
   }
 }
 
-/* static */ bool
-nsCSSValueList::Equal(const nsCSSValueList* aList1,
-                      const nsCSSValueList* aList2)
+bool
+nsCSSValueList::operator==(const nsCSSValueList& aOther) const
 {
-  if (aList1 == aList2) {
+  if (this == &aOther)
     return true;
-  }
 
-  const nsCSSValueList *p1 = aList1, *p2 = aList2;
+  const nsCSSValueList *p1 = this, *p2 = &aOther;
   for ( ; p1 && p2; p1 = p1->mNext, p2 = p2->mNext) {
     if (p1->mValue != p2->mValue)
       return false;
@@ -1937,7 +1934,8 @@ nsCSSValueSharedList::AppendToString(nsCSSProperty aProperty, nsAString& aResult
 bool
 nsCSSValueSharedList::operator==(const nsCSSValueSharedList& aOther) const
 {
-  return nsCSSValueList::Equal(mHead, aOther.mHead);
+  return !mHead == !aOther.mHead &&
+         (!mHead || *mHead == *aOther.mHead);
 }
 
 size_t
@@ -2150,15 +2148,13 @@ nsCSSValuePairList::AppendToString(nsCSSProperty aProperty,
   }
 }
 
-/* static */ bool
-nsCSSValuePairList::Equal(const nsCSSValuePairList* aList1,
-                          const nsCSSValuePairList* aList2)
+bool
+nsCSSValuePairList::operator==(const nsCSSValuePairList& aOther) const
 {
-  if (aList1 == aList2) {
+  if (this == &aOther)
     return true;
-  }
 
-  const nsCSSValuePairList *p1 = aList1, *p2 = aList2;
+  const nsCSSValuePairList *p1 = this, *p2 = &aOther;
   for ( ; p1 && p2; p1 = p1->mNext, p2 = p2->mNext) {
     if (p1->mXValue != p2->mXValue ||
         p1->mYValue != p2->mYValue)

@@ -6,6 +6,6 @@
 
 dictionary ProfileTimelineMarker {
   DOMString name = "";
-  DOMHighResTimeStamp start = 0;
-  DOMHighResTimeStamp end = 0;
+  DOMTimeStamp start = 0;
+  DOMTimeStamp end = 0;
 };

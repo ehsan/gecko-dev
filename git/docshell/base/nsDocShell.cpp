@@ -2834,10 +2834,10 @@ nsDocShell::SetRecordProfileTimelineMarkers(bool aValue)
   if (currentValue != aValue) {
     if (aValue) {
       ++gProfileTimelineRecordingsCount;
-      mProfileTimelineRecording = true;
+      mProfileTimelineStartTime = TimeStamp::Now();
     } else {
       --gProfileTimelineRecordingsCount;
-      mProfileTimelineRecording = false;
+      mProfileTimelineStartTime = TimeStamp();
       ClearProfileTimelineMarkers();
     }
   }
@@ -2851,7 +2851,7 @@ nsDocShell::SetRecordProfileTimelineMarkers(bool aValue)
 NS_IMETHODIMP
 nsDocShell::GetRecordProfileTimelineMarkers(bool* aValue)
 {
-  *aValue = mProfileTimelineRecording;
+  *aValue = !mProfileTimelineStartTime.IsNull();
   return NS_OK;
 }
 
@@ -2939,12 +2939,10 @@ nsDocShell::PopProfileTimelineMarkers(JSContext* aCx,
 #endif
 }
 
-nsresult
-nsDocShell::Now(DOMHighResTimeStamp* aWhen)
+float
+nsDocShell::GetProfileTimelineDelta()
 {
-  bool ignore;
-  *aWhen = (TimeStamp::Now() - TimeStamp::ProcessCreation(ignore)).ToMilliseconds();
-  return NS_OK;
+  return (TimeStamp::Now() - mProfileTimelineStartTime).ToMilliseconds();
 }
 
 void
@@ -2952,9 +2950,8 @@ nsDocShell::AddProfileTimelineMarker(const char* aName,
                                      TracingMetadata aMetaData)
 {
 #ifdef MOZ_ENABLE_PROFILER_SPS
-  if (mProfileTimelineRecording) {
-    DOMHighResTimeStamp delta;
-    Now(&delta);
+  if (!mProfileTimelineStartTime.IsNull()) {
+    float delta = GetProfileTimelineDelta();
     ProfilerMarkerTracing* payload = new ProfilerMarkerTracing("Timeline",
                                                                aMetaData);
     mProfileTimelineMarkers.AppendElement(
@@ -2969,9 +2966,8 @@ nsDocShell::AddProfileTimelineMarker(const char* aName,
                                      TracingMetadata aMetaData)
 {
 #ifdef MOZ_ENABLE_PROFILER_SPS
-  if (mProfileTimelineRecording) {
-    DOMHighResTimeStamp delta;
-    Now(&delta);
+  if (!mProfileTimelineStartTime.IsNull()) {
+    float delta = GetProfileTimelineDelta();
     ProfilerMarkerTracing* payload = new ProfilerMarkerTracing("Timeline",
                                                                aMetaData,
                                                                aCause);

@@ -951,15 +951,15 @@ private:
     nsWeakPtr mOpener;
     nsWeakPtr mOpenedRemote;
 
-    // True if recording profiles.
-    bool mProfileTimelineRecording;
+    // Storing profile timeline markers and if/when recording started
+    mozilla::TimeStamp mProfileTimelineStartTime;
 
 #ifdef MOZ_ENABLE_PROFILER_SPS
     struct InternalProfileTimelineMarker
     {
       InternalProfileTimelineMarker(const char* aName,
                                     ProfilerMarkerTracing* aPayload,
-                                    DOMHighResTimeStamp aTime)
+                                    float aTime)
         : mName(aName)
         , mPayload(aPayload)
         , mTime(aTime)
@@ -972,10 +972,14 @@ private:
 
       const char* mName;
       ProfilerMarkerTracing* mPayload;
-      DOMHighResTimeStamp mTime;
+      float mTime;
     };
     nsTArray<InternalProfileTimelineMarker*> mProfileTimelineMarkers;
 #endif
+
+    // Get the elapsed time (in millis) since the profile timeline recording
+    // started
+    float GetProfileTimelineDelta();
 
     // Get rid of all the timeline markers accumulated so far
     void ClearProfileTimelineMarkers();

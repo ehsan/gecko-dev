@@ -170,9 +170,6 @@ Overview.prototype = Heritage.extend(AbstractCanvasGraph.prototype, {
       ctx.beginPath();
 
       for (let { start, end } of batch) {
-        start -= this._data.startTime;
-        end -= this._data.startTime;
-
         let left = start * dataScale;
         let duration = Math.max(end - start, OVERVIEW_MARKER_DURATION_MIN);
         let width = Math.max(duration * dataScale, this._pixelRatio);

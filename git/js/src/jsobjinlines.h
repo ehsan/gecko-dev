@@ -88,34 +88,7 @@ JSObject::finalize(js::FreeOp *fop)
     if (clasp->finalize)
         clasp->finalize(fop, this);
 
-    if (!clasp->isNative())
-        return;
-
-    js::NativeObject *nobj = &as<js::NativeObject>();
-
-    if (nobj->hasDynamicSlots())
-        fop->free_(nobj->slots_);
-
-    if (nobj->hasDynamicElements()) {
-        js::ObjectElements *elements = nobj->getElementsHeader();
-        if (elements->isCopyOnWrite()) {
-            if (elements->ownerObject() == this) {
-                // Don't free the elements until object finalization finishes,
-                // so that other objects can access these elements while they
-                // are themselves finalized.
-                fop->freeLater(elements);
-            }
-        } else {
-            fop->free_(elements);
-        }
-    }
-
-    // For dictionary objects (which must be native), it's possible that
-    // unreachable shapes may be marked whose listp points into this object.
-    // In case this happens, null out the shape's pointer here so that a moving
-    // GC will not try to access the dead object.
-    if (shape_->listp == &shape_)
-        shape_->listp = nullptr;
+    finish(fop);
 }
 
 /* static */ inline bool
@@ -239,7 +212,7 @@ JSObject::setProto(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto, 
     }
 
     JS::Rooted<js::TaggedProto> taggedProto(cx, js::TaggedProto(proto));
-    *succeeded = SetClassAndProto(cx, obj, obj->getClass(), taggedProto);
+    *succeeded = SetClassAndProto(cx, obj, obj->getClass(), taggedProto, false);
     return *succeeded;
 }
 
@@ -280,8 +253,7 @@ ClassCanHaveFixedData(const js::Class *clasp)
     // arrays we only use enough to cover the class reserved slots, so that
     // the remaining space in the object's allocation is available for the
     // buffer's data.
-    return !clasp->isNative()
-        || clasp == &js::ArrayBufferObject::class_
+    return clasp == &js::ArrayBufferObject::class_
         || clasp == &js::InlineOpaqueTypedObject::class_
         || js::IsTypedArrayClass(clasp);
 }
@@ -298,14 +270,6 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
     MOZ_ASSERT_IF(type->clasp()->flags & JSCLASS_BACKGROUND_FINALIZE, IsBackgroundFinalized(kind));
     MOZ_ASSERT_IF(type->clasp()->finalize, heap == js::gc::TenuredHeap);
 
-    // Non-native classes cannot have reserved slots or private data, and the
-    // objects can't have any fixed slots, for compatibility with
-    // GetReservedOrProxyPrivateSlot.
-    MOZ_ASSERT_IF(!type->clasp()->isNative(), JSCLASS_RESERVED_SLOTS(type->clasp()) == 0);
-    MOZ_ASSERT_IF(!type->clasp()->isNative(), !type->clasp()->hasPrivate());
-    MOZ_ASSERT_IF(!type->clasp()->isNative(), shape->numFixedSlots() == 0);
-    MOZ_ASSERT_IF(!type->clasp()->isNative(), shape->slotSpan() == 0);
-
     const js::Class *clasp = type->clasp();
     size_t nDynamicSlots =
         js::NativeObject::dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan(), clasp);
@@ -316,15 +280,15 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
 
     obj->shape_.init(shape);
     obj->type_.init(type);
-
     // Note: slots are created and assigned internally by NewGCObject.
-    obj->setInitialElementsMaybeNonNative(js::emptyObjectElements);
+    obj->fakeNativeElements() = js::emptyObjectElements;
 
     if (clasp->hasPrivate())
-        obj->as<js::NativeObject>().privateRef(shape->numFixedSlots()) = nullptr;
+        obj->fakeNativePrivateRef(shape->numFixedSlots()) = nullptr;
 
-    if (size_t span = shape->slotSpan())
-        obj->as<js::NativeObject>().initializeSlotRange(0, span);
+    size_t span = shape->slotSpan();
+    if (span)
+        obj->fakeNativeInitializeSlotRange(0, span);
 
     // JSFunction's fixed slots expect POD-style initialization.
     if (type->clasp()->isJSFunction())
@@ -336,15 +300,30 @@ JSObject::create(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::Initi
 }
 
 inline void
-JSObject::setInitialSlotsMaybeNonNative(js::HeapSlot *slots)
+JSObject::finish(js::FreeOp *fop)
 {
-    static_cast<js::NativeObject *>(this)->slots_ = slots;
-}
+    if (fakeNativeHasDynamicSlots())
+        fop->free_(fakeNativeSlots());
 
-inline void
-JSObject::setInitialElementsMaybeNonNative(js::HeapSlot *elements)
-{
-    static_cast<js::NativeObject *>(this)->elements_ = elements;
+    if (fakeNativeHasDynamicElements()) {
+        js::ObjectElements *elements = fakeNativeGetElementsHeader();
+        if (elements->isCopyOnWrite()) {
+            if (elements->ownerObject() == this) {
+                // Don't free the elements until object finalization finishes,
+                // so that other objects can access these elements while they
+                // are themselves finalized.
+                fop->freeLater(elements);
+            }
+        } else {
+            fop->free_(elements);
+        }
+    }
+
+    // It's possible that unreachable shapes may be marked whose listp points
+    // into this object. In case this happens, null out the shape's pointer here
+    // so that a moving GC will not try to access the dead object.
+    if (shape_->listp == &shape_)
+        shape_->listp = nullptr;
 }
 
 /* static */ inline bool
@@ -800,7 +779,8 @@ static MOZ_ALWAYS_INLINE bool
 NewObjectMetadata(ExclusiveContext *cxArg, JSObject **pmetadata)
 {
     // The metadata callback is invoked before each created object, except when
-    // analysis/compilation is active, to avoid recursion.
+    // analysis/compilation is active, to avoid recursion.  It is also skipped
+    // when we allocate objects during a bailout, to prevent stack iterations.
     MOZ_ASSERT(!*pmetadata);
     if (JSContext *cx = cxArg->maybeJSContext()) {
         if (MOZ_UNLIKELY((size_t)cx->compartment()->hasObjectMetadataCallback()) &&

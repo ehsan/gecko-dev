@@ -3,10 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "gfxPattern.h"
-
-#include "gfxUtils.h"
 #include "gfxTypes.h"
+#include "gfxPattern.h"
 #include "gfxASurface.h"
 #include "gfxPlatform.h"
 #include "gfx2DGlue.h"
@@ -22,7 +20,7 @@ using namespace mozilla::gfx;
 gfxPattern::gfxPattern(const gfxRGBA& aColor)
   : mExtend(EXTEND_NONE)
 {
-  mGfxPattern.InitColorPattern(ToDeviceColor(aColor));
+  mGfxPattern.InitColorPattern(Color(aColor.r, aColor.g, aColor.b, aColor.a));
 }
 
 // linear
@@ -59,10 +57,17 @@ gfxPattern::AddColorStop(gfxFloat offset, const gfxRGBA& c)
   }
 
   mStops = nullptr;
+  gfxRGBA color = c;
+  if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
+    qcms_transform *transform = gfxPlatform::GetCMSRGBTransform();
+    if (transform) {
+      gfxPlatform::TransformPixel(color, color, transform);
+    }
+  }
 
   GradientStop stop;
   stop.offset = offset;
-  stop.color = ToDeviceColor(c);
+  stop.color = ToColor(color);
   mStopsList.AppendElement(stop);
 }
 

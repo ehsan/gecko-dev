@@ -8,8 +8,6 @@
 namespace mozilla {
 namespace gfx {
 
-UserDataKey sDisablePixelSnapping;
-
 void
 AppendRoundedRectToPath(PathBuilder* aPathBuilder,
                         const Rect& aRect,

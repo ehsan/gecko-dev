@@ -8,7 +8,6 @@
 #include "nsImageFrame.h"
 
 #include "gfx2DGlue.h"
-#include "gfxUtils.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/gfx/2D.h"
@@ -1260,7 +1259,7 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
     // if we could not draw the icon, flag that we're waiting for it and
     // just draw some graffiti in the mean time
     if (!iconUsed) {
-      ColorPattern color(ToDeviceColor(Color(1.f, 0.f, 0.f, 1.f)));
+      ColorPattern color(Color(1.f, 0.f, 0.f, 1.f));
       DrawTarget* drawTarget = aRenderingContext.GetDrawTarget();
 
       nscoord iconXPos = (vis->mDirection ==   NS_STYLE_DIRECTION_RTL) ?
@@ -1320,7 +1319,7 @@ static void PaintDebugImageMap(nsIFrame* aFrame, nsRenderingContext* aCtx,
   drawTarget->SetTransform(
     drawTarget->GetTransform().PreTranslate(ToPoint(devPixelOffset)));
   f->GetImageMap()->Draw(aFrame, *drawTarget,
-                         ColorPattern(ToDeviceColor(Color(0.f, 0.f, 0.f, 1.f))));
+                         ColorPattern(Color(0.f, 0.f, 0.f, 1.f)));
 }
 #endif
 
@@ -1497,14 +1496,13 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
       drawTarget->GetTransform().PreTranslate(ToPoint(devPixelOffset)));
 
     // solid white stroke:
-    ColorPattern white(ToDeviceColor(Color(1.f, 1.f, 1.f, 1.f)));
-    map->Draw(this, *drawTarget, white);
+    map->Draw(this, *drawTarget, ColorPattern(Color(1.f, 1.f, 1.f, 1.f)));
 
     // then dashed black stroke over the top:
-    ColorPattern black(ToDeviceColor(Color(0.f, 0.f, 0.f, 1.f)));
     StrokeOptions strokeOptions;
     nsLayoutUtils::InitDashPattern(strokeOptions, NS_STYLE_BORDER_STYLE_DOTTED);
-    map->Draw(this, *drawTarget, black, strokeOptions);
+    map->Draw(this, *drawTarget, ColorPattern(Color(0.f, 0.f, 0.f, 1.f)),
+              strokeOptions);
   }
 }
 

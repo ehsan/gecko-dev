@@ -203,7 +203,6 @@
 #include "nsSandboxFlags.h"
 #include "TimeChangeObserver.h"
 #include "mozilla/dom/AudioContext.h"
-#include "mozilla/dom/BlobBinding.h"
 #include "mozilla/dom/BrowserElementDictionariesBinding.h"
 #include "mozilla/dom/Console.h"
 #include "mozilla/dom/FunctionBinding.h"
@@ -696,6 +695,7 @@ protected:
 const js::Class OuterWindowProxyClass =
     PROXY_CLASS_WITH_EXT(
         "Proxy",
+        0, /* additional slots */
         0, /* additional class flags */
         PROXY_MAKE_EXT(
             nullptr, /* outerObject */

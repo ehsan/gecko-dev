@@ -6816,14 +6816,14 @@ nsContentUtils::HasDistributedChildren(nsIContent* aContent)
   if (shadow) {
     // Children of a shadow root are distributed to
     // the shadow insertion point of the younger shadow root.
-    return shadow->GetYoungerShadowRoot();
+    return shadow->GetYoungerShadow();
   }
 
   HTMLShadowElement* shadowEl = HTMLShadowElement::FromContent(aContent);
   if (shadowEl && shadowEl->IsInsertionPoint()) {
     // Children of a shadow insertion points are distributed
     // to the insertion points in the older shadow root.
-    return shadowEl->GetOlderShadowRoot();
+    return shadow->GetOlderShadow();
   }
 
   HTMLContentElement* contentEl = HTMLContentElement::FromContent(aContent);

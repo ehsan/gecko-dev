@@ -104,7 +104,7 @@ public:
   NS_FORWARD_TO_EVENT
 
   virtual JSObject*
-  WrapObjectInternal(JSContext* aCx) MOZ_OVERRIDE;
+  WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
 private:
   IDBVersionChangeEvent(EventTarget* aOwner, uint64_t aOldVersion)

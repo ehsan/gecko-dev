@@ -874,7 +874,7 @@ GetAquaAppearance()
 static void
 RenderWithCoreUI(CGRect aRect, CGContextRef cgContext, NSDictionary* aOptions)
 {
-  id appearance = GetAquaAppearance();
+  static id appearance = GetAquaAppearance();
 
   if (aRect.size.width * aRect.size.height > BITMAP_MAX_AREA) {
     return;

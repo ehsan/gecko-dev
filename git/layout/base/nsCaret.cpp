@@ -10,8 +10,6 @@
 
 #include <algorithm>
 
-#include "gfxUtils.h"
-#include "mozilla/gfx/2D.h"
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
 #include "nsFrameSelection.h"
@@ -22,7 +20,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
-#include "nsLayoutUtils.h"
 #include "nsRenderingContext.h"
 #include "nsPresContext.h"
 #include "nsBlockFrame.h"
@@ -39,7 +36,6 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 // The bidi indicator hangs off the caret to one side, to show which
 // direction the typing is in. It needs to be at least 2x2 to avoid looking like 
@@ -524,22 +520,15 @@ void nsCaret::PaintCaret(nsDisplayListBuilder *aBuilder,
   }
   NS_ASSERTION(frame == aForFrame, "We're referring different frame");
 
-  DrawTarget* drawTarget = aCtx->GetDrawTarget();
-  int32_t appUnitsPerDevPixel = frame->PresContext()->AppUnitsPerDevPixel();
+  nscolor foregroundColor = aForFrame->GetCaretColorAt(contentOffset);
+  aCtx->SetColor(foregroundColor);
 
   nsRect caretRect;
   nsRect hookRect;
   ComputeCaretRects(frame, contentOffset, &caretRect, &hookRect);
-
-  Rect devPxCaretRect =
-    NSRectToRect(caretRect + aOffset, appUnitsPerDevPixel, *drawTarget);
-  Rect devPxHookRect =
-    NSRectToRect(hookRect + aOffset, appUnitsPerDevPixel, *drawTarget);
-  ColorPattern color(ToDeviceColor(frame->GetCaretColorAt(contentOffset)));
-
-  drawTarget->FillRect(devPxCaretRect, color);
+  aCtx->FillRect(caretRect + aOffset);
   if (!hookRect.IsEmpty()) {
-    drawTarget->FillRect(devPxHookRect, color);
+    aCtx->FillRect(hookRect + aOffset);
   }
 }
 

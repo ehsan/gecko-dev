@@ -2954,6 +2954,6 @@ FragmentOrElement::SetIsElementInStyleScopeFlagOnShadowTree(bool aInStyleScope)
   ShadowRoot* shadowRoot = GetShadowRoot();
   while (shadowRoot) {
     shadowRoot->SetIsElementInStyleScopeFlagOnSubtree(aInStyleScope);
-    shadowRoot = shadowRoot->GetOlderShadowRoot();
+    shadowRoot = shadowRoot->GetOlderShadow();
   }
 }

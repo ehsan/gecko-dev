@@ -10,7 +10,6 @@
 #include "nsPIDOMWindow.h"
 
 #include "mozilla/ErrorResult.h"
-#include "mozilla/dom/FetchBinding.h"
 #include "mozilla/dom/Headers.h"
 #include "mozilla/dom/Promise.h"
 

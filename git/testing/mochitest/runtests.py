@@ -661,6 +661,7 @@ class MochitestUtilsMixin(object):
 
     tests = self.getActiveTests(options, disabled)
     paths = []
+
     for test in tests:
       if testsToFilter and (test['path'] not in testsToFilter):
         continue
@@ -1596,6 +1597,8 @@ class Mochitest(MochitestUtilsMixin):
     paths = []
 
     for test in tests:
+      if test.get('expected') == 'fail':
+        raise Exception('fail-if encountered for test: %s. There is no support for fail-if in Mochitests.' % test['name'])
       pathAbs = os.path.abspath(test['path'])
       assert pathAbs.startswith(self.testRootAbs)
       tp = pathAbs[len(self.testRootAbs):].replace('\\', '/').strip('/')
@@ -1609,10 +1612,8 @@ class Mochitest(MochitestUtilsMixin):
         continue
 
       testob = {'path': tp}
-      if 'disabled' in test:
+      if test.has_key('disabled'):
         testob['disabled'] = test['disabled']
-      if 'expected' in test:
-        testob['expected'] = test['expected']
       paths.append(testob)
 
     def path_sort(ob1, ob2):
@@ -1642,7 +1643,7 @@ class Mochitest(MochitestUtilsMixin):
 
     testsToRun = []
     for test in tests:
-      if 'disabled' in test:
+      if test.has_key('disabled'):
         continue
       testsToRun.append(test['path'])
 

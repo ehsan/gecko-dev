@@ -34,7 +34,6 @@
 #include "nsProxyRelease.h"
 #include "nsPIDOMWindow.h"
 #include "nsPerformance.h"
-#include "nsINetworkInterceptController.h"
 
 #include <algorithm>
 
@@ -70,7 +69,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mResponseTimeoutEnabled(true)
   , mAllRedirectsSameOrigin(true)
   , mAllRedirectsPassTimingAllowCheck(true)
-  , mForceNoIntercept(false)
   , mSuspendCount(0)
   , mProxyResolveFlags(0)
   , mContentDispositionHint(UINT32_MAX)
@@ -1666,12 +1664,6 @@ HttpBaseChannel::GetLastModifiedTime(PRTime* lastModifiedTime)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-HttpBaseChannel::ForceNoIntercept()
-{
-  mForceNoIntercept = true;
-  return NS_OK;
-}
 
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsISupportsPriority
@@ -1773,19 +1765,6 @@ HttpBaseChannel::GetPrincipal(bool requireAppId)
   }
 
   return mPrincipal;
-}
-
-bool
-HttpBaseChannel::ShouldIntercept()
-{
-  nsCOMPtr<nsINetworkInterceptController> controller;
-  GetCallback(controller);
-  bool shouldIntercept = false;
-  if (controller && !mForceNoIntercept) {
-    nsresult rv = controller->ShouldPrepareForIntercept(mURI, &shouldIntercept);
-    NS_ENSURE_SUCCESS(rv, false);
-  }
-  return shouldIntercept;
 }
 
 // nsIRedirectHistory

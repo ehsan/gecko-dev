@@ -83,7 +83,7 @@ const WorkerSandbox = EventEmitter.compose({
    */
   emitSync: function emitSync() {
     let args = Array.slice(arguments);
-    return this._emitToContent(Cu.cloneInto(args, this._addonWorker._window));
+    return this._emitToContent(args);
   },
 
   /**
@@ -195,7 +195,7 @@ const WorkerSandbox = EventEmitter.compose({
         evaluate: evaluate,
       },
     }, ContentWorker, {cloneFunctions: true});
-    let onEvent = Cu.exportFunction(this._onContentEvent.bind(this), ContentWorker);
+    let onEvent = this._onContentEvent.bind(this);
     let result = Cu.waiveXrays(ContentWorker).inject(content, chromeAPI, onEvent, options);
     this._emitToContent = result;
 

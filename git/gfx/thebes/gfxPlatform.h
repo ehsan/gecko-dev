@@ -493,7 +493,13 @@ public:
      *
      * Sets 'out' to 'in' if transform is nullptr.
      */
-    static void TransformPixel(const Color& in, Color& out, qcms_transform *transform);
+    static void TransformPixel(const gfxRGBA& in, gfxRGBA& out, qcms_transform *transform);
+
+    /**
+     * Converts the color using the GetCMSRGBTransform() transform if the
+     * CMS mode is eCMSMode_All, else just returns the color.
+     */
+    static Color MaybeTransformColor(const gfxRGBA& aColor);
 
     /**
      * Return the output device ICC profile.

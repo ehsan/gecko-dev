@@ -182,6 +182,9 @@ FunctionEnd
   ${AndIf} $TmpVal == "HKLM"
   ; On Windows 2000 we do not install the maintenance service.
   ${AndIf} ${AtLeastWinXP}
+    ; Add the registry keys for allowed certificates.
+    ${AddMaintCertKeys}
+
     ; We check to see if the maintenance service install was already attempted.
     ; Since the Maintenance service can be installed either x86 or x64,
     ; always use the 64-bit registry for checking if an attempt was made.
@@ -193,9 +196,6 @@ FunctionEnd
     ${If} ${RunningX64}
       SetRegView lastused
     ${EndIf}
-
-    ; Add the registry keys for allowed certificates.
-    ${AddMaintCertKeys}
 
     ; If the maintenance service is already installed, do nothing.
     ; The maintenance service will launch:
@@ -812,18 +812,8 @@ FunctionEnd
     ${If} ${RunningX64}
       SetRegView 64
     ${EndIf}
-
-    ; PrefetchProcessName was originally used to experiment with deleting
-    ; Windows prefetch as a speed optimization.  It is no longer used though.
-    DeleteRegValue HKLM "$R0" "prefetchProcessName"
-
-    ; Setting the Attempted value will ensure that a new Maintenance Service
-    ; install will never be attempted again after this from updates.  The value
-    ; is used only to see if updates should attempt new service installs.
-    WriteRegDWORD HKLM "Software\Mozilla\MaintenanceService" "Attempted" 1
-
-    ; These values associate the allowed certificates for the current
-    ; installation.
+    DeleteRegKey HKLM "$R0"
+    WriteRegStr HKLM "$R0" "prefetchProcessName" "FIREFOX"
     WriteRegStr HKLM "$R0\0" "name" "${CERTIFICATE_NAME}"
     WriteRegStr HKLM "$R0\0" "issuer" "${CERTIFICATE_ISSUER}"
     ${If} ${RunningX64}

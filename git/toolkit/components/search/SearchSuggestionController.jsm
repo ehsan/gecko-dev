@@ -47,8 +47,7 @@ this.SearchSuggestionController = function SearchSuggestionController(callback =
 
 this.SearchSuggestionController.prototype = {
   /**
-   * The maximum number of local form history results to return. This limit is
-   * only enforced if remote results are also returned.
+   * The maximum number of local form history results to return.
    */
   maxLocalResults: 7,
 
@@ -201,7 +200,8 @@ this.SearchSuggestionController.prototype = {
               return;
             }
             let fhEntries = [];
-            for (let i = 0; i < result.matchCount; ++i) {
+            let maxHistoryItems = Math.min(result.matchCount, this.maxLocalResults);
+            for (let i = 0; i < maxHistoryItems; ++i) {
               fhEntries.push(result.getValueAt(i));
             }
             deferredFormHistory.resolve({
@@ -335,13 +335,8 @@ this.SearchSuggestionController.prototype = {
       }
     }
 
-    // If we have remote results, cap the number of local results
-    if (results.remote.length) {
-      results.local = results.local.slice(0, this.maxLocalResults);
-    }
-
     // We don't want things to appear in both history and suggestions so remove entries from
-    // remote results that are already in local.
+    // remote results that are alrady in local.
     if (results.remote.length && results.local.length) {
       for (let i = 0; i < results.local.length; ++i) {
         let term = results.local[i];

@@ -60,7 +60,7 @@ struct SetDOMProxyInformation
 {
   SetDOMProxyInformation() {
     js::SetDOMProxyInformation((const void*) &DOMProxyHandler::family,
-                               JSPROXYSLOT_EXPANDO, DOMProxyShadows);
+                               js::PROXY_EXTRA_SLOT + JSPROXYSLOT_EXPANDO, DOMProxyShadows);
   }
 };
 

@@ -1364,8 +1364,6 @@ const int ZealCheckHashTablesOnMinorGC = 13;
 const int ZealCompactValue = 14;
 const int ZealLimit = 14;
 
-extern const char *ZealModeHelpText;
-
 enum VerifierType {
     PreBarrierVerifier,
     PostBarrierVerifier
