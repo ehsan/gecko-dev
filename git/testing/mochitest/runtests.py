@@ -176,15 +176,7 @@ class MochitestUtilsMixin(object):
 
   def __init__(self):
     os.chdir(SCRIPT_DIR)
-    path = SCRIPT_DIR
-    dirs = []
-    while path != os.path.expanduser('~'):
-        if path in dirs:
-            break
-        dirs.append(path)
-        path = os.path.split(path)[0]
-
-    mozinfo.find_and_update_from_json(*dirs)
+    mozinfo.find_and_update_from_json(SCRIPT_DIR)
 
   def getFullPath(self, path):
     " Get an absolute path relative to self.oldcwd."

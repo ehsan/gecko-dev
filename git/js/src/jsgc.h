@@ -13,8 +13,8 @@
 #include "mozilla/MemoryReporting.h"
 
 #include "jsapi.h"
-#include "jslock.h"
 #include "jsobj.h"
+#include "jslock.h"
 
 #include "js/GCAPI.h"
 #include "js/Vector.h"
@@ -409,7 +409,7 @@ class ArenaLists
     /* For each arena kind, a list of arenas remaining to be swept. */
     ArenaHeader *arenaListsToSweep[FINALIZE_LIMIT];
 
-    /* Shape arenas to be swept in the foreground. */
+    /* Shape areneas to be swept in the foreground. */
     ArenaHeader *gcShapeArenasToSweep;
 
   public:
@@ -661,9 +661,6 @@ AddStringRoot(JSContext *cx, JSString **rp, const char *name);
 
 extern bool
 AddObjectRoot(JSContext *cx, JSObject **rp, const char *name);
-
-extern bool
-AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name);
 
 extern bool
 AddScriptRoot(JSContext *cx, JSScript **rp, const char *name);
@@ -1338,13 +1335,6 @@ SetFullCompartmentChecks(JSContext *cx, bool enabled);
 void
 FinishBackgroundFinalize(JSRuntime *rt);
 
-/*
- * Merge all contents of source into target. This can only be used if source is
- * the only compartment in its zone.
- */
-void
-MergeCompartments(JSCompartment *source, JSCompartment *target);
-
 const int ZealPokeValue = 1;
 const int ZealAllocValue = 2;
 const int ZealFrameGCValue = 3;
@@ -1359,7 +1349,8 @@ const int ZealIncrementalMarkAllThenFinish = 9;
 const int ZealIncrementalMultipleSlices = 10;
 const int ZealVerifierPostValue = 11;
 const int ZealFrameVerifierPostValue = 12;
-const int ZealLimit = 12;
+const int ZealPurgeAnalysisValue = 13;
+const int ZealLimit = 13;
 
 enum VerifierType {
     PreBarrierVerifier,

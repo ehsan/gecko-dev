@@ -135,6 +135,7 @@ protected:
 
     // Members which can go away whenever
     JSContext* mCx;
+    nsCOMPtr<nsIScriptContext> mCtx;
 
     // And now members whose construction/destruction order we need to control.
 

@@ -691,14 +691,7 @@ struct JSRuntime : public JS::shadow::Runtime,
      * If non-zero, we were been asked to call the operation callback as soon
      * as possible.
      */
-#ifdef JS_THREADSAFE
-    mozilla::Atomic<int32_t, mozilla::Relaxed> interrupt;
-#else
-    int32_t interrupt;
-#endif
-
-    /* Set when handling a signal for a thread associated with this runtime. */
-    bool handlingSignal;
+    volatile int32_t    interrupt;
 
     /* Branch callback */
     JSOperationCallback operationCallback;
@@ -774,9 +767,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     friend class js::AutoPauseWorkersForGC;
 
   public:
-    void setUsedByExclusiveThread(JS::Zone *zone);
-    void clearUsedByExclusiveThread(JS::Zone *zone);
-
 #endif // JS_THREADSAFE
 
     bool currentThreadHasExclusiveAccess() {
@@ -1177,6 +1167,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     bool needZealousGC() {
         if (gcNextScheduled > 0 && --gcNextScheduled == 0) {
             if (gcZeal() == js::gc::ZealAllocValue ||
+                gcZeal() == js::gc::ZealPurgeAnalysisValue ||
                 (gcZeal() >= js::gc::ZealIncrementalRootsThenFinish &&
                  gcZeal() <= js::gc::ZealIncrementalMultipleSlices))
             {
@@ -1199,6 +1190,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     JSFinalizeCallback  gcFinalizeCallback;
 
     void                *gcCallbackData;
+
+    js::AnalysisPurgeCallback analysisPurgeCallback;
+    uint64_t            analysisPurgeTriggerBytes;
 
   private:
     /*
@@ -1301,7 +1295,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     js::GCHelperThread  gcHelperThread;
 
-#if defined(XP_MACOSX) && defined(JS_ION)
+#ifdef XP_MACOSX
     js::AsmJSMachExceptionHandler asmJSMachExceptionHandler;
 #endif
 
@@ -1405,8 +1399,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     // The atoms compartment is the only one in its zone.
     inline bool isAtomsZone(JS::Zone *zone);
-
-    inline bool atomsZoneNeedsBarrier();
 
     union {
         /*
@@ -1542,15 +1534,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     JS_FRIEND_API(void *) onOutOfMemory(void *p, size_t nbytes);
     JS_FRIEND_API(void *) onOutOfMemory(void *p, size_t nbytes, JSContext *cx);
 
-    // Ways in which the operation callback on the runtime can be triggered,
-    // varying based on which thread is triggering the callback.
-    enum OperationCallbackTrigger {
-        TriggerCallbackMainThread,
-        TriggerCallbackAnyThread,
-        TriggerCallbackAnyThreadDontStopIon
-    };
-
-    void triggerOperationCallback(OperationCallbackTrigger trigger);
+    void triggerOperationCallback();
 
     void setJitHardening(bool enabled);
     bool getJitHardening() const {

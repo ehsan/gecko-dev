@@ -9,8 +9,8 @@
 #include "jscntxt.h"
 
 #ifdef JS_THREADSAFE
-# include "prprf.h"
 # include "prthread.h"
+# include "prprf.h"
 # include "jit/BaselineJIT.h"
 # include "vm/Monitor.h"
 #endif
@@ -1609,9 +1609,7 @@ ForkJoinShared::setAbortFlag(bool fatal)
     abort_ = true;
     fatal_ = fatal_ || fatal;
 
-    // Note: DontStopIon here avoids the expensive memory protection needed to
-    // interrupt Ion code compiled for sequential execution.
-    cx_->runtime()->triggerOperationCallback(JSRuntime::TriggerCallbackAnyThreadDontStopIon);
+    cx_->runtime()->triggerOperationCallback();
 }
 
 void

@@ -10,7 +10,6 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/PodOperations.h"
 
-#include "jsautooplen.h"
 #include "jscntxt.h"
 #include "jscompartment.h"
 
@@ -68,7 +67,17 @@ ScriptAnalysis::addJump(JSContext *cx, unsigned offset,
     if (offset < *currentOffset) {
         hasLoops_ = true;
 
-        if (!code->analyzed) {
+        if (code->analyzed) {
+            /*
+             * Backedge in a do-while loop, the body has been analyzed. Rewalk
+             * the body to set inLoop bits.
+             */
+            for (unsigned i = offset; i <= *currentOffset; i++) {
+                Bytecode *code = maybeCode(i);
+                if (code)
+                    code->inLoop = true;
+            }
+        } else {
             /*
              * Backedge in a while/for loop, whose body has not been analyzed
              * due to a lack of fallthrough at the loop head. Roll back the
@@ -132,11 +141,22 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             escapedSlots[LocalSlot(script_, bi.frameIndex())] = allVarsAliased || bi->aliased();
     }
 
+    /*
+     * If the script is in debug mode, JS_SetFrameReturnValue can be called at
+     * any safe point.
+     */
+    if (cx->compartment()->debugMode())
+        usesReturnValue_ = true;
+
     bool heavyweight = script_->function() && script_->function()->isHeavyweight();
 
     isIonInlineable = true;
     if (heavyweight || cx->compartment()->debugMode())
         isIonInlineable = false;
+
+    modifiesArguments_ = false;
+    if (heavyweight)
+        modifiesArguments_ = true;
 
     canTrackVars = true;
 
@@ -203,6 +223,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
          * analyzed before the backedge was seen.
          */
         if (forwardLoop) {
+            code->inLoop = true;
             if (forwardLoop <= offset)
                 forwardLoop = 0;
         }
@@ -214,7 +235,11 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
         code->analyzed = true;
 
+        if (forwardCatch)
+            code->inTryBlock = true;
+
         if (script_->hasBreakpointsAt(pc)) {
+            code->safePoint = true;
             canTrackVars = false;
             isIonInlineable = false;
         }
@@ -240,6 +265,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
           case JSOP_SETRVAL:
           case JSOP_POPV:
+            usesReturnValue_ = true;
             isIonInlineable = false;
             break;
 
@@ -281,6 +307,16 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             isIonInlineable = false;
             break;
 
+          case JSOP_THIS:
+            usesThisValue_ = true;
+            break;
+
+          case JSOP_CALL:
+          case JSOP_NEW:
+            /* Only consider potentially inlineable calls here. */
+            hasFunctionCalls_ = true;
+            break;
+
           case JSOP_TABLESWITCH: {
             isIonInlineable = false;
             unsigned defaultOffset = offset + GET_JUMP_OFFSET(pc);
@@ -292,6 +328,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
             if (!addJump(cx, defaultOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
                 return;
+            getCode(defaultOffset).safePoint = true;
 
             for (int32_t i = low; i <= high; i++) {
                 unsigned targetOffset = offset + GET_JUMP_OFFSET(pc2);
@@ -299,6 +336,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
                     if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
                         return;
                 }
+                getCode(targetOffset).safePoint = true;
                 pc2 += JUMP_OFFSET_LEN;
             }
             break;
@@ -327,6 +365,7 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
                         if (!addJump(cx, catchOffset, &nextOffset, &forwardJump, &forwardLoop, stackDepth))
                             return;
                         getCode(catchOffset).exceptionEntry = true;
+                        getCode(catchOffset).safePoint = true;
                     }
                 }
             }
@@ -360,6 +399,10 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             break;
           }
 
+          case JSOP_SETARG:
+            modifiesArguments_ = true;
+            break;
+
           case JSOP_GETPROP:
           case JSOP_CALLPROP:
           case JSOP_LENGTH:
@@ -380,8 +423,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
 
           /* Additional opcodes which can be both compiled both normally and inline. */
           case JSOP_ARGUMENTS:
-          case JSOP_CALL:
-          case JSOP_NEW:
           case JSOP_FUNCALL:
           case JSOP_FUNAPPLY:
           case JSOP_CALLEE:
@@ -442,7 +483,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_ENDITER:
           case JSOP_POP:
           case JSOP_GETARG:
-          case JSOP_SETARG:
           case JSOP_CALLARG:
           case JSOP_BINDGNAME:
           case JSOP_UINT16:
@@ -479,7 +519,6 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
           case JSOP_LOOPENTRY:
           case JSOP_NOTEARG:
           case JSOP_REST:
-          case JSOP_THIS:
             break;
 
           default:
@@ -499,6 +538,9 @@ ScriptAnalysis::analyzeBytecode(JSContext *cx)
             unsigned targetOffset = offset + GET_JUMP_OFFSET(pc);
             if (!addJump(cx, targetOffset, &nextOffset, &forwardJump, &forwardLoop, newStackDepth))
                 return;
+
+            if (op == JSOP_CASE || op == JSOP_DEFAULT)
+                getCode(targetOffset).safePoint = true;
         }
 
         /* Handle any fallthrough from this opcode. */
@@ -587,6 +629,9 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
             continue;
         }
 
+        if (loop && code->safePoint)
+            loop->hasSafePoints = true;
+
         jsbytecode *pc = script_->code + offset;
 
         JSOp op = (JSOp) *pc;
@@ -608,6 +653,10 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
             loop = loop->parent;
             JS_ASSERT_IF(loop, loop->head < offset);
         }
+
+        /* Find the last jump target in the loop, other than the initial entry point. */
+        if (loop && code->jumpTarget && offset != loop->entry && offset > loop->lastBlock)
+            loop->lastBlock = offset;
 
         if (code->exceptionEntry) {
             DebugOnly<bool> found = false;
@@ -679,6 +728,15 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
             }
             break;
 
+          case JSOP_NEW:
+          case JSOP_CALL:
+          case JSOP_EVAL:
+          case JSOP_FUNAPPLY:
+          case JSOP_FUNCALL:
+            if (loop)
+                loop->hasCallsLoops = true;
+            break;
+
           case JSOP_LOOPENTRY:
             getCode(offset).loop = loop;
             break;
@@ -694,6 +752,13 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
              */
             uint32_t targetOffset = FollowBranch(cx, script_, offset);
 
+            /*
+             * Watch for 'continue' statements in the loop body, which are
+             * jumps to the entry offset separate from the initial jump.
+             */
+            if (loop && loop->entry == targetOffset && loop->entry > loop->lastBlock)
+                loop->lastBlock = loop->entry;
+
             if (targetOffset < offset) {
                 /* This is a loop back edge, no lifetime to pull in yet. */
 
@@ -701,6 +766,14 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
                 JSOp nop = JSOp(script_->code[targetOffset]);
                 JS_ASSERT(nop == JSOP_LOOPHEAD);
 #endif
+
+                /*
+                 * If we already have a loop, it is an outer loop and we
+                 * need to prune the last block in the loop --- we do not
+                 * track 'continue' statements for outer loops.
+                 */
+                if (loop && loop->entry > loop->lastBlock)
+                    loop->lastBlock = loop->entry;
 
                 LoopAnalysis *nloop = alloc.new_<LoopAnalysis>();
                 if (!nloop) {
@@ -710,12 +783,18 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
                 }
                 PodZero(nloop);
 
+                if (loop) {
+                    loop->hasCallsLoops = true;
+                    nloop->depth = loop->depth + 1;
+                }
+
                 nloop->parent = loop;
                 loop = nloop;
 
                 getCode(targetOffset).loop = loop;
                 loop->head = targetOffset;
                 loop->backedge = offset;
+                loop->lastBlock = loop->head;
 
                 /*
                  * Find the entry jump, which will be a GOTO for 'for' or
@@ -730,15 +809,15 @@ ScriptAnalysis::analyzeLifetimes(JSContext *cx)
                     jsbytecode *entrypc = script_->code + entry;
 
                     if (JSOp(*entrypc) == JSOP_GOTO)
-                        entry += GET_JUMP_OFFSET(entrypc);
+                        loop->entry = entry + GET_JUMP_OFFSET(entrypc);
                     else
-                        entry = targetOffset;
+                        loop->entry = targetOffset;
                 } else {
                     /* Do-while loop at the start of the script. */
-                    entry = targetOffset;
+                    loop->entry = targetOffset;
                 }
-                JS_ASSERT(script_->code[entry] == JSOP_LOOPHEAD ||
-                          script_->code[entry] == JSOP_LOOPENTRY);
+                JS_ASSERT(script_->code[loop->entry] == JSOP_LOOPHEAD ||
+                          script_->code[loop->entry] == JSOP_LOOPENTRY);
             } else {
                 for (unsigned i = 0; i < savedCount; i++) {
                     LifetimeVariable &var = *saved[i];
@@ -784,7 +863,7 @@ LifetimeVariable::print() const
 {
     Lifetime *segment = lifetime ? lifetime : saved;
     while (segment) {
-        printf(" (%u,%u)", segment->start, segment->end);
+        printf(" (%u,%u%s)", segment->start, segment->end, segment->loopTail ? ",tail" : "");
         segment = segment->next;
     }
     printf("\n");
@@ -953,6 +1032,7 @@ ScriptAnalysis::extendVariable(JSContext *cx, LifetimeVariable &var,
                 return;
             }
             tail->start = segment->end;
+            tail->loopTail = true;
 
             /*
              * Clear the segment's saved end, but preserve in the tail if this
@@ -1245,7 +1325,7 @@ ScriptAnalysis::analyzeSSA(JSContext *cx)
 
         stackDepth += ndefs;
 
-        if (op == JSOP_SETARG || op == JSOP_SETLOCAL) {
+        if (BytecodeUpdatesSlot(op)) {
             uint32_t slot = GetBytecodeSlot(script_, pc);
             if (trackSlot(slot)) {
                 mergeBranchTarget(cx, values[slot], slot, branchTargets, offset);

@@ -6,12 +6,13 @@
 
 #include "jit/CodeGenerator.h"
 
+#include "jslibmath.h"
+
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
-#include "jslibmath.h"
 #include "jsmath.h"
 #include "jsnum.h"
 
@@ -469,26 +470,6 @@ CodeGenerator::testValueTruthy(const ValueOperand &value,
     masm.jump(ifTruthy);
 }
 
-Label *
-CodeGenerator::getJumpLabelForBranch(MBasicBlock *block)
-{
-    if (!labelForBackedgeWithImplicitCheck(block))
-        return block->lir()->label();
-
-    // We need to use a patchable jump for this backedge, but want to treat
-    // this as a normal label target to simplify codegen. Efficiency isn't so
-    // important here as these tests are extremely unlikely to be used in loop
-    // backedges, so emit inline code for the patchable jump. Heap allocating
-    // the label allows it to be used by out of line blocks.
-    Label *res = GetIonContext()->temp->lifoAlloc()->new_<Label>();
-    Label after;
-    masm.jump(&after);
-    masm.bind(res);
-    jumpToBlock(block);
-    masm.bind(&after);
-    return res;
-}
-
 bool
 CodeGenerator::visitTestOAndBranch(LTestOAndBranch *lir)
 {
@@ -499,10 +480,7 @@ CodeGenerator::visitTestOAndBranch(LTestOAndBranch *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    Label *truthy = getJumpLabelForBranch(lir->ifTruthy());
-    Label *falsy = getJumpLabelForBranch(lir->ifFalsy());
-
-    testObjectTruthy(ToRegister(lir->input()), truthy, falsy,
+    testObjectTruthy(ToRegister(lir->input()), lir->ifTruthy(), lir->ifFalsy(),
                      ToRegister(lir->temp()), ool);
     return true;
 
@@ -518,13 +496,10 @@ CodeGenerator::visitTestVAndBranch(LTestVAndBranch *lir)
             return false;
     }
 
-    Label *truthy = getJumpLabelForBranch(lir->ifTruthy());
-    Label *falsy = getJumpLabelForBranch(lir->ifFalsy());
-
     testValueTruthy(ToValue(lir, LTestVAndBranch::Input),
                     lir->temp1(), lir->temp2(),
                     ToFloatRegister(lir->tempFloat()),
-                    truthy, falsy, ool);
+                    lir->ifTruthy(), lir->ifFalsy(), ool);
     return true;
 }
 
@@ -824,63 +799,13 @@ CodeGenerator::visitOsiPoint(LOsiPoint *lir)
 bool
 CodeGenerator::visitGoto(LGoto *lir)
 {
-    jumpToBlock(lir->target());
-    return true;
-}
+    LBlock *target = lir->target()->lir();
 
-// Out-of-line path to execute any move groups between the start of a loop
-// header and its interrupt check, then invoke the interrupt handler.
-class OutOfLineInterruptCheckImplicit : public OutOfLineCodeBase<CodeGenerator>
-{
-  public:
-    LBlock *block;
-    LInterruptCheckImplicit *lir;
+    // No jump necessary if we can fall through to the next block.
+    if (isNextBlock(target))
+        return true;
 
-    OutOfLineInterruptCheckImplicit(LBlock *block, LInterruptCheckImplicit *lir)
-      : block(block), lir(lir)
-    { }
-
-    bool accept(CodeGenerator *codegen) {
-        return codegen->visitOutOfLineInterruptCheckImplicit(this);
-    }
-};
-
-bool
-CodeGenerator::visitOutOfLineInterruptCheckImplicit(OutOfLineInterruptCheckImplicit *ool)
-{
-    LInstructionIterator iter = ool->block->begin();
-    for (; iter != ool->block->end(); iter++) {
-        if (iter->isLabel()) {
-            // Nothing to do.
-        } else if (iter->isMoveGroup()) {
-            // Replay this move group that preceds the interrupt check at the
-            // start of the loop header. Any incoming jumps here will be from
-            // the backedge and will skip over the move group emitted inline.
-            visitMoveGroup(iter->toMoveGroup());
-        } else {
-            break;
-        }
-    }
-    JS_ASSERT(*iter == ool->lir);
-
-    saveLive(ool->lir);
-    if (!callVM(InterruptCheckInfo, ool->lir))
-        return false;
-    restoreLive(ool->lir);
-    masm.jump(ool->rejoin());
-
-    return true;
-}
-
-bool
-CodeGenerator::visitInterruptCheckImplicit(LInterruptCheckImplicit *lir)
-{
-    OutOfLineInterruptCheckImplicit *ool = new OutOfLineInterruptCheckImplicit(current, lir);
-    if (!addOutOfLineCode(ool))
-        return false;
-
-    lir->setOolEntry(ool->entry());
-    masm.bind(ool->rejoin());
+    masm.jump(target->label());
     return true;
 }
 
@@ -1756,12 +1681,8 @@ CodeGenerator::visitCallGeneric(LCallGeneric *call)
     masm.loadObjClass(calleereg, nargsreg);
     masm.branchPtr(Assembler::NotEqual, nargsreg, ImmWord(&JSFunction::class_), &invoke);
 
-    // Guard that calleereg is an interpreted function with a JSScript.
-    // If we are constructing, also ensure the callee is a constructor.
-    if (call->mir()->isConstructing())
-        masm.branchIfNotInterpretedConstructor(calleereg, nargsreg, &invoke);
-    else
-        masm.branchIfFunctionHasNoScript(calleereg, &invoke);
+    // Guard that calleereg is an interpreted function with a JSScript:
+    masm.branchIfFunctionHasNoScript(calleereg, &invoke);
 
     // Knowing that calleereg is a non-native function, load the JSScript.
     masm.loadPtr(Address(calleereg, JSFunction::offsetOfNativeOrScript()), objreg);
@@ -1869,8 +1790,6 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     JS_ASSERT(!target->isNative());
     // Missing arguments must have been explicitly appended by the IonBuilder.
     JS_ASSERT(target->nargs <= call->numStackArgs());
-
-    JS_ASSERT_IF(call->mir()->isConstructing(), target->isInterpretedConstructor());
 
     masm.checkStackAlignment();
 
@@ -4032,9 +3951,8 @@ CodeGenerator::visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBran
         }
 
         Register tag = masm.splitTagForTest(value);
-
-        Label *ifTrueLabel = getJumpLabelForBranch(ifTrue);
-        Label *ifFalseLabel = getJumpLabelForBranch(ifFalse);
+        Label *ifTrueLabel = ifTrue->lir()->label();
+        Label *ifFalseLabel = ifFalse->lir()->label();
 
         masm.branchTestNull(Assembler::Equal, tag, ifTrueLabel);
         masm.branchTestUndefined(Assembler::Equal, tag, ifTrueLabel);
@@ -4130,8 +4048,8 @@ CodeGenerator::visitEmulatesUndefinedAndBranch(LEmulatesUndefinedAndBranch *lir)
             op = JSOP_EQ;
         }
 
-        equal = getJumpLabelForBranch(ifTrue);
-        unequal = getJumpLabelForBranch(ifFalse);
+        equal = ifTrue->lir()->label();
+        unequal = ifFalse->lir()->label();
     }
 
     Register objreg = ToRegister(lir->input());
@@ -5526,25 +5444,8 @@ CodeGenerator::link()
 {
     JSContext *cx = GetIonContext()->cx;
 
-    // Lock the runtime against operation callbacks during the link.
-    // We don't want an operation callback to protect the code for the script
-    // before it has been filled in, as we could segv before the runtime's
-    // patchable backedges have been fully updated.
-    JSRuntime::AutoLockForOperationCallback lock(cx->runtime());
-
-    // Make sure we don't segv while filling in the code, to avoid deadlocking
-    // inside the signal handler.
-    cx->runtime()->ionRuntime()->ensureIonCodeAccessible(cx->runtime());
-
-    // Implicit interrupts are used only for sequential code. In parallel mode
-    // use the normal executable allocator so that we cannot segv during
-    // execution off the main thread.
-    ExecutionMode executionMode = gen->info().executionMode();
-
     Linker linker(masm);
-    IonCode *code = (executionMode == SequentialExecution)
-                    ? linker.newCodeForIonScript(cx)
-                    : linker.newCode(cx, JSC::ION_CODE);
+    IonCode *code = linker.newCode(cx, JSC::ION_CODE);
     if (!code)
         return false;
 
@@ -5552,6 +5453,7 @@ CodeGenerator::link()
     encodeSafepoints();
 
     JSScript *script = gen->info().script();
+    ExecutionMode executionMode = gen->info().executionMode();
     JS_ASSERT(!HasIonScript(script, executionMode));
 
     uint32_t scriptFrameSize = frameClass_ == FrameSizeClass::None()
@@ -5575,7 +5477,7 @@ CodeGenerator::link()
                      safepointIndices_.length(), osiIndices_.length(),
                      cacheList_.length(), runtimeData_.length(),
                      safepoints_.size(), graph.mir().numScripts(),
-                     callTargets.length(), patchableBackedges_.length());
+                     callTargets.length());
 
     ionScript->setMethod(code);
     ionScript->setSkipArgCheckEntryOffset(getSkipArgCheckEntryOffset());
@@ -5638,8 +5540,6 @@ CodeGenerator::link()
     ionScript->copyScriptEntries(graph.mir().scripts());
     if (callTargets.length() > 0)
         ionScript->copyCallTargetEntries(callTargets.begin());
-    if (patchableBackedges_.length() > 0)
-        ionScript->copyPatchableBackedges(cx, code, patchableBackedges_.begin());
 
     switch (executionMode) {
       case SequentialExecution:

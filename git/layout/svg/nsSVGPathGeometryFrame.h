@@ -56,8 +56,6 @@ public:
                                nsIAtom*        aAttribute,
                                int32_t         aModType) MOZ_OVERRIDE;
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-
   /**
    * Get the "type" of the frame
    *

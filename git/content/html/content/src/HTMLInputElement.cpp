@@ -97,7 +97,6 @@
 #include <limits>
 
 #include "nsIColorPicker.h"
-#include "nsIStringEnumerator.h"
 
 // input type=date
 #include "js/Date.h"
@@ -264,9 +263,10 @@ NS_IMPL_ISUPPORTS1(HTMLInputElementState, HTMLInputElementState)
 NS_DEFINE_STATIC_IID_ACCESSOR(HTMLInputElementState, NS_INPUT_ELEMENT_STATE_IID)
 
 HTMLInputElement::nsFilePickerShownCallback::nsFilePickerShownCallback(
-  HTMLInputElement* aInput, nsIFilePicker* aFilePicker)
+  HTMLInputElement* aInput, nsIFilePicker* aFilePicker, bool aMulti)
   : mFilePicker(aFilePicker)
   , mInput(aInput)
+  , mMulti(aMulti)
 {
 }
 
@@ -319,13 +319,9 @@ HTMLInputElement::nsFilePickerShownCallback::Done(int16_t aResult)
     return NS_OK;
   }
 
-  int16_t mode;
-  mFilePicker->GetMode(&mode);
-  bool multi = mode == static_cast<int16_t>(nsIFilePicker::modeOpenMultiple);
-
   // Collect new selected filenames
   nsCOMArray<nsIDOMFile> newFiles;
-  if (multi) {
+  if (mMulti) {
     nsCOMPtr<nsISimpleEnumerator> iter;
     nsresult rv = mFilePicker->GetDomfiles(getter_AddRefs(iter));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -585,7 +581,7 @@ HTMLInputElement::InitFilePicker()
   const nsCOMArray<nsIDOMFile>& oldFiles = GetFilesInternal();
 
   nsCOMPtr<nsIFilePickerShownCallback> callback =
-    new HTMLInputElement::nsFilePickerShownCallback(this, filePicker);
+    new HTMLInputElement::nsFilePickerShownCallback(this, filePicker, multi);
 
   if (oldFiles.Count()) {
     nsString path;

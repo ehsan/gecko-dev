@@ -35,17 +35,6 @@ class OutOfLineCallVM;
 
 class OutOfLineTruncateSlow;
 
-struct PatchableBackedgeInfo
-{
-    CodeOffsetJump backedge;
-    Label *loopHeader;
-    Label *interruptCheck;
-
-    PatchableBackedgeInfo(CodeOffsetJump backedge, Label *loopHeader, Label *interruptCheck)
-      : backedge(backedge), loopHeader(loopHeader), interruptCheck(interruptCheck)
-    {}
-};
-
 class CodeGeneratorShared : public LInstructionVisitor
 {
     js::Vector<OutOfLineCode *, 0, SystemAllocPolicy> outOfLineCode_;
@@ -85,9 +74,6 @@ class CodeGeneratorShared : public LInstructionVisitor
 
     // List of stack slots that have been pushed as arguments to an MCall.
     js::Vector<uint32_t, 0, SystemAllocPolicy> pushedArgumentSlots_;
-
-    // Patchable backedges generated for loops.
-    Vector<PatchableBackedgeInfo, 0, SystemAllocPolicy> patchableBackedges_;
 
     // When profiling is enabled, this is the instrumentation manager which
     // maintains state of what script is currently being generated (for inline
@@ -361,15 +347,6 @@ class CodeGeneratorShared : public LInstructionVisitor
     bool addOutOfLineCode(OutOfLineCode *code);
     bool hasOutOfLineCode() { return !outOfLineCode_.empty(); }
     bool generateOutOfLineCode();
-
-    Label *labelForBackedgeWithImplicitCheck(MBasicBlock *mir);
-
-    // Generate a jump to the start of the specified block, adding information
-    // if this is a loop backedge. Use this in place of jumping directly to
-    // mir->lir()->label(), or use getJumpLabelForBranch() if a label to use
-    // directly is needed.
-    void jumpToBlock(MBasicBlock *mir);
-    void jumpToBlock(MBasicBlock *mir, Assembler::Condition cond);
 
   private:
     void generateInvalidateEpilogue();
@@ -711,8 +688,6 @@ class OutOfLinePropagateAbortPar : public OutOfLineCode
 
     bool generate(CodeGeneratorShared *codegen);
 };
-
-extern const VMFunction InterruptCheckInfo;
 
 } // namespace ion
 } // namespace js

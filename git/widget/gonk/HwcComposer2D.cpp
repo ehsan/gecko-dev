@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2013 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -319,15 +319,6 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
         return true;
     }
 
-    // HWC supports only the following 2D transformations:
-    //
-    // Scaling via the sourceCrop and displayFrame in hwc_layer_t
-    // Translation via the sourceCrop and displayFrame in hwc_layer_t
-    // Rotation (in square angles only) via the HWC_TRANSFORM_ROT_* flags
-    // Reflection (horizontal and vertical) via the HWC_TRANSFORM_FLIP_* flags
-    //
-    // A 2D transform with PreservesAxisAlignedRectangles() has all the attributes
-    // above
     gfxMatrix transform;
     const gfx3DMatrix& transform3D = aLayer->GetEffectiveTransform();
     if (!transform3D.Is2D(&transform) || !transform.PreservesAxisAlignedRectangles()) {
@@ -365,8 +356,6 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
             return false;
         }
     }
-    // Buffer rotation is not to be confused with the angled rotation done by a transform matrix
-    // It's a fancy ThebesLayer feature used for scrolling
     if (state.BufferRotated()) {
         LOGD("%s Layer has a rotated buffer", aLayer->Name());
         return false;
@@ -424,122 +413,24 @@ HwcComposer2D::PrepareLayerList(Layer* aLayer,
             hwcLayer.flags |= HWC_FORMAT_RB_SWAP;
         }
 
-        // Translation and scaling have been addressed in PrepareLayerRects().
-        // Given the above and that we checked for PreservesAxisAlignedRectangles()
-        // the only possible transformations left to address are
-        // square angle rotation and horizontal/vertical reflection.
-        //
-        // The rotation and reflection permutations total 16 but can be
-        // reduced to 8 transformations after eliminating redundancies.
-        //
-        // All matrices represented here are in the form
-        //
-        // | xx  xy |
-        // | yx  yy |
-        //
-        // And ignore scaling.
-        //
-        // Reflection is applied before rotation
         gfxMatrix rotation = transform * aGLWorldTransform;
-        // Compute fuzzy zero like PreservesAxisAlignedRectangles()
+        // Compute fuzzy equal like PreservesAxisAlignedRectangles()
         if (fabs(rotation.xx) < 1e-6) {
             if (rotation.xy < 0) {
-                if (rotation.yx > 0) {
-                    // 90 degree rotation
-                    //
-                    // |  0  -1  |
-                    // |  1   0  |
-                    //
-                    hwcLayer.transform = HWC_TRANSFORM_ROT_90;
-                    LOGD("Layer rotated 90 degrees");
-                }
-                else {
-                    // Horizontal reflection then 90 degree rotation
-                    //
-                    // |  0  -1  | | -1   0  | = |  0  -1  |
-                    // |  1   0  | |  0   1  |   | -1   0  |
-                    //
-                    // same as vertical reflection then 270 degree rotation
-                    //
-                    // |  0   1  | |  1   0  | = |  0  -1  |
-                    // | -1   0  | |  0  -1  |   | -1   0  |
-                    //
-                    hwcLayer.transform = HWC_TRANSFORM_ROT_90 | HWC_TRANSFORM_FLIP_H;
-                    LOGD("Layer vertically reflected then rotated 270 degrees");
-                }
+                hwcLayer.transform = HWC_TRANSFORM_ROT_90;
+                LOGD("Layer buffer rotated 90 degrees");
             } else {
-                if (rotation.yx < 0) {
-                    // 270 degree rotation
-                    //
-                    // |  0   1  |
-                    // | -1   0  |
-                    //
-                    hwcLayer.transform = HWC_TRANSFORM_ROT_270;
-                    LOGD("Layer rotated 270 degrees");
-                }
-                else {
-                    // Vertical reflection then 90 degree rotation
-                    //
-                    // |  0   1  | | -1   0  | = |  0   1  |
-                    // | -1   0  | |  0   1  |   |  1   0  |
-                    //
-                    // Same as horizontal reflection then 270 degree rotation
-                    //
-                    // |  0  -1  | |  1   0  | = |  0   1  |
-                    // |  1   0  | |  0  -1  |   |  1   0  |
-                    //
-                    hwcLayer.transform = HWC_TRANSFORM_ROT_90 | HWC_TRANSFORM_FLIP_V;
-                    LOGD("Layer horizontally reflected then rotated 270 degrees");
-                }
+                hwcLayer.transform = HWC_TRANSFORM_ROT_270;
+                LOGD("Layer buffer rotated 270 degrees");
             }
         } else if (rotation.xx < 0) {
-            if (rotation.yy > 0) {
-                // Horizontal reflection
-                //
-                // | -1   0  |
-                // |  0   1  |
-                //
-                hwcLayer.transform = HWC_TRANSFORM_FLIP_H;
-                LOGD("Layer rotated 180 degrees");
-            }
-            else {
-                // 180 degree rotation
-                //
-                // | -1   0  |
-                // |  0  -1  |
-                //
-                // Same as horizontal and vertical reflection
-                //
-                // | -1   0  | |  1   0  | = | -1   0  |
-                // |  0   1  | |  0  -1  |   |  0  -1  |
-                //
-                hwcLayer.transform = HWC_TRANSFORM_ROT_180;
-                LOGD("Layer rotated 180 degrees");
-            }
+            hwcLayer.transform = HWC_TRANSFORM_ROT_180;
+            LOGD("Layer buffer rotated 180 degrees");
         } else {
-            if (rotation.yy < 0) {
-                // Vertical reflection
-                //
-                // |  1   0  |
-                // |  0  -1  |
-                //
-                hwcLayer.transform = HWC_TRANSFORM_FLIP_V;
-                LOGD("Layer rotated 180 degrees");
-            }
-            else {
-                // No rotation or reflection
-                //
-                // |  1   0  |
-                // |  0   1  |
-                //
-                hwcLayer.transform = 0;
-            }
+            hwcLayer.transform = 0;
         }
 
-        if (state.YFlipped()) {
-           // Invert vertical reflection flag if it was already set
-           hwcLayer.transform ^= HWC_TRANSFORM_FLIP_V;
-        }
+        hwcLayer.transform |= state.YFlipped() ? HWC_TRANSFORM_FLIP_V : 0;
         hwc_region_t region;
         if (visibleRegion.GetNumRects() > 1) {
             mVisibleRegions.push_back(RectVector());

@@ -797,6 +797,12 @@ Sprinter::operator[](size_t off)
     return *(base + off);
 }
 
+bool
+Sprinter::empty() const
+{
+    return *base == 0;
+}
+
 char *
 Sprinter::reserve(size_t len)
 {
@@ -809,6 +815,15 @@ Sprinter::reserve(size_t len)
 
     char *sb = base + offset;
     offset += len;
+    return sb;
+}
+
+char *
+Sprinter::reserveAndClear(size_t len)
+{
+    char *sb = reserve(len);
+    if (sb)
+        memset(sb, 0, len);
     return sb;
 }
 
@@ -889,15 +904,35 @@ Sprinter::printf(const char *fmt, ...)
     return -1;
 }
 
+void
+Sprinter::setOffset(const char *end)
+{
+    JS_ASSERT(end >= base && end < base + size);
+    offset = end - base;
+}
+
+void
+Sprinter::setOffset(ptrdiff_t off)
+{
+    JS_ASSERT(off >= 0 && (size_t) off < size);
+    offset = off;
+}
+
 ptrdiff_t
 Sprinter::getOffset() const
 {
     return offset;
 }
 
-void
-Sprinter::reportOutOfMemory()
+ptrdiff_t
+Sprinter::getOffsetOf(const char *string) const
 {
+    JS_ASSERT(string >= base && string < base + size);
+    return string - base;
+}
+
+void
+Sprinter::reportOutOfMemory() {
     if (reportedOOM)
         return;
     js_ReportOutOfMemory(context);
@@ -905,8 +940,7 @@ Sprinter::reportOutOfMemory()
 }
 
 bool
-Sprinter::hadOutOfMemory() const
-{
+Sprinter::hadOutOfMemory() const {
     return reportedOOM;
 }
 

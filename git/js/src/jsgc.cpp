@@ -4,6 +4,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* JS Mark-and-Sweep Garbage Collector. */
+
+#include "jsgcinlines.h"
+
+#include "mozilla/DebugOnly.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/Move.h"
+#include "mozilla/Util.h"
+
+#include "jsscriptinlines.h"
+
+using mozilla::Swap;
+
 /*
  * This code implements a mark-and-sweep garbage collector. The mark phase is
  * incremental. Most sweeping is done on a background thread. A GC is divided
@@ -32,13 +45,6 @@
  * like the C stack and the VM stack, since it would be too expensive to put
  * barriers on them.
  */
-
-#include "jsgcinlines.h"
-
-#include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
-#include "mozilla/Util.h"
 
 #include <string.h>     /* for memset used when DEBUG */
 #ifndef XP_WIN
@@ -79,7 +85,6 @@
 #include "vm/WrapperObject.h"
 
 #include "jsobjinlines.h"
-#include "jsscriptinlines.h"
 
 #include "vm/Runtime-inl.h"
 #include "vm/Stack-inl.h"
@@ -91,7 +96,6 @@ using namespace js::gc;
 using mozilla::ArrayEnd;
 using mozilla::DebugOnly;
 using mozilla::Maybe;
-using mozilla::Swap;
 
 /* Perform a Full GC every 20 seconds if MaybeGC is called */
 static const uint64_t GC_IDLE_FULL_SPAN = 20 * 1000 * 1000;
@@ -455,12 +459,7 @@ FinalizeArenas(FreeOp *fop,
         return FinalizeTypedArenas<JSExternalString>(fop, src, dest, thingKind, budget);
       case FINALIZE_IONCODE:
 #ifdef JS_ION
-      {
-        // IonCode finalization may release references on an executable
-        // allocator that is accessed when triggering interrupts.
-        JSRuntime::AutoLockForOperationCallback lock(fop->runtime());
         return FinalizeTypedArenas<ion::IonCode>(fop, src, dest, thingKind, budget);
-      }
 #endif
       default:
         MOZ_ASSUME_UNREACHABLE("Invalid alloc kind");
@@ -1080,12 +1079,6 @@ js::AddObjectRoot(JSContext *cx, JSObject **rp, const char *name)
 }
 
 extern bool
-js::AddObjectRoot(JSRuntime *rt, JSObject **rp, const char *name)
-{
-    return AddRoot(rt, rp, name, JS_GC_ROOT_OBJECT_PTR);
-}
-
-extern bool
 js::AddScriptRoot(JSContext *cx, JSScript **rp, const char *name)
 {
     return AddRoot(cx, rp, name, JS_GC_ROOT_SCRIPT_PTR);
@@ -1224,7 +1217,7 @@ ArenaLists::allocateFromArenaInline(Zone *zone, AllocKind thingKind)
          * background finalization runs and can modify head or cursor at any
          * moment. So we always allocate a new arena in that case.
          */
-        maybeLock.lock(zone->runtimeFromAnyThread());
+        maybeLock.lock(zone->runtimeFromMainThread());
         if (*bfs == BFS_RUN) {
             JS_ASSERT(!*al->cursor);
             chunk = PickChunk(zone);
@@ -1924,7 +1917,7 @@ TriggerOperationCallback(JSRuntime *rt, JS::gcreason::Reason reason)
 
     rt->gcIsNeeded = true;
     rt->gcTriggerReason = reason;
-    rt->triggerOperationCallback(JSRuntime::TriggerCallbackMainThread);
+    rt->triggerOperationCallback();
 }
 
 void
@@ -4775,50 +4768,6 @@ js::NewCompartment(JSContext *cx, Zone *zone, JSPrincipals *principals,
 }
 
 void
-gc::MergeCompartments(JSCompartment *source, JSCompartment *target)
-{
-    JSRuntime *rt = source->runtimeFromMainThread();
-    AutoPrepareForTracing prepare(rt);
-
-    // Cleanup tables and other state in the source compartment that will be
-    // meaningless after merging into the target compartment.
-
-    source->clearTables();
-
-    // Fixup compartment pointers in source to refer to target.
-
-    for (CellIter iter(source->zone(), FINALIZE_SCRIPT); !iter.done(); iter.next()) {
-        JSScript *script = iter.get<JSScript>();
-        JS_ASSERT(script->compartment() == source);
-        script->compartment_ = target;
-    }
-
-    for (CellIter iter(source->zone(), FINALIZE_BASE_SHAPE); !iter.done(); iter.next()) {
-        BaseShape *base = iter.get<BaseShape>();
-        JS_ASSERT(base->compartment() == source);
-        base->compartment_ = target;
-    }
-
-    // Fixup zone pointers in source's zone to refer to target's zone.
-
-    for (size_t thingKind = 0; thingKind != FINALIZE_LIMIT; thingKind++) {
-        for (ArenaIter aiter(source->zone(), AllocKind(thingKind)); !aiter.done(); aiter.next()) {
-            ArenaHeader *aheader = aiter.get();
-            aheader->zone = target->zone();
-        }
-    }
-
-    // The source should be the only compartment in its zone.
-    for (CompartmentsInZoneIter c(source->zone()); !c.done(); c.next())
-        JS_ASSERT(c.get() == source);
-
-    // Merge the allocator in source's zone into target's zone.
-    target->zone()->allocator.arenas.adoptArenas(rt, &source->zone()->allocator.arenas);
-    target->zone()->gcBytes += source->zone()->gcBytes;
-    source->zone()->gcBytes = 0;
-}
-
-void
 gc::RunDebugGC(JSContext *cx)
 {
 #ifdef JS_GC_ZEAL
@@ -4863,6 +4812,8 @@ gc::RunDebugGC(JSContext *cx)
         {
             rt->gcIncrementalLimit = rt->gcZealFrequency / 2;
         }
+    } else if (type == ZealPurgeAnalysisValue) {
+        cx->compartment()->types.maybePurgeAnalysis(cx, /* force = */ true);
     } else {
         Collect(rt, false, SliceBudget::Unlimited, GC_NORMAL, JS::gcreason::DEBUG_GC);
     }
@@ -5092,7 +5043,6 @@ ArenaLists::adoptArenas(JSRuntime *rt, ArenaLists *fromArenaLists)
 
             toList->insert(fromHeader);
         }
-        fromList->cursor = &fromList->head;
     }
 }
 

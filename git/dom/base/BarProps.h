@@ -13,7 +13,9 @@
 #define mozilla_dom_BarProps_h
 
 #include "mozilla/Attributes.h"
+#include "mozilla/ErrorResult.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIWeakReference.h"
 #include "nsWrapperCache.h"
 #include "nsAutoPtr.h"
 
@@ -22,9 +24,6 @@ class nsIWebBrowserChrome;
 class nsPIDOMWindow;
 
 namespace mozilla {
-
-class ErrorResult;
-
 namespace dom {
 
 // Script "BarProp" object

@@ -1242,7 +1242,8 @@ private:
   {
   public:
     nsFilePickerShownCallback(HTMLInputElement* aInput,
-                              nsIFilePicker* aFilePicker);
+                              nsIFilePicker* aFilePicker,
+                              bool aMulti);
     virtual ~nsFilePickerShownCallback()
     { }
 
@@ -1253,6 +1254,7 @@ private:
   private:
     nsCOMPtr<nsIFilePicker> mFilePicker;
     nsRefPtr<HTMLInputElement> mInput;
+    bool mMulti;
   };
 };
 

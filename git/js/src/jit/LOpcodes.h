@@ -229,7 +229,6 @@
     _(InstanceOfV)                  \
     _(CallInstanceOf)               \
     _(InterruptCheck)               \
-    _(InterruptCheckImplicit)       \
     _(FunctionBoundary)             \
     _(GetDOMProperty)               \
     _(SetDOMProperty)               \

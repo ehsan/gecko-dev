@@ -173,6 +173,8 @@ let RootActor = protocol.ActorClass({
     this.manage(this);
   },
 
+  toString: function() "root actor",
+
   sayHello: simpleHello,
 
   getChild: method(function(id) {
@@ -244,7 +246,7 @@ let RootFront = protocol.FrontClass(RootActor, {
 
   clearTemporaryChildren: protocol.custom(function() {
     if (!this._temporaryHolder) {
-      return resolve(undefined);
+      return;
     }
     this._temporaryHolder.destroy();
     delete this._temporaryHolder;

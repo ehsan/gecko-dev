@@ -69,6 +69,7 @@ class LinearScanAllocator : public LiveRangeAllocator<LinearScanVirtualRegister>
       public:
         void enqueueForward(LiveInterval *after, LiveInterval *interval);
         void enqueueBackward(LiveInterval *interval);
+        void enqueueAtHead(LiveInterval *interval);
 
         void assertSorted();
 

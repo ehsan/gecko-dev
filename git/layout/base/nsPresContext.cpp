@@ -69,8 +69,6 @@
 #include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/TabChild.h"
 #include "RestyleManager.h"
-#include "nsRefreshDriver.h"
-#include "Layers.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -95,16 +93,6 @@ using namespace mozilla::dom;
 using namespace mozilla::layers;
 
 uint8_t gNotifySubDocInvalidationData;
-
-/**
- * Layer UserData for ContainerLayers that want to be notified
- * of local invalidations of them and their descendant layers.
- * Pass a callback to ComputeDifferences to have these called.
- */
-class ContainerLayerPresContext : public LayerUserData {
-public:
-  nsPresContext* mPresContext;
-};
 
 namespace {
 
@@ -1521,30 +1509,6 @@ nsPresContext::GetContainerExternal() const
   return GetContainerInternal();
 }
 
-bool
-nsPresContext::ThrottledStyleIsUpToDate() const
-{
-  return mLastUpdateThrottledStyle == mRefreshDriver->MostRecentRefresh();
-}
-
-void
-nsPresContext::TickLastUpdateThrottledStyle()
-{
-  mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
-}
-
-bool
-nsPresContext::StyleUpdateForAllAnimationsIsUpToDate()
-{
-  return mLastStyleUpdateForAllAnimations == mRefreshDriver->MostRecentRefresh();
-}
-
-void
-nsPresContext::TickLastStyleUpdateForAllAnimations()
-{
-  mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
-}
-
 #ifdef IBMBIDI
 bool
 nsPresContext::BidiEnabledExternal() const
@@ -1791,6 +1755,7 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
   mUsesRootEMUnits = false;
   mUsesViewportUnits = false;
   RebuildUserFontSet();
+  AnimationManager()->KeyframesListIsDirty();
 
   RestyleManager()->RebuildAllStyleData(aExtraHint);
 }
@@ -2360,20 +2325,6 @@ nsPresContext::NotifySubDocInvalidation(ContainerLayer* aContainer,
     rect.MoveBy(-topLeft);
     data->mPresContext->NotifyInvalidation(rect, 0);
   }
-}
-
-void
-nsPresContext::SetNotifySubDocInvalidationData(ContainerLayer* aContainer)
-{
-  ContainerLayerPresContext* pres = new ContainerLayerPresContext;
-  pres->mPresContext = this;
-  aContainer->SetUserData(&gNotifySubDocInvalidationData, pres);
-}
-
-/* static */ void
-nsPresContext::ClearNotifySubDocInvalidationData(ContainerLayer* aContainer)
-{
-  aContainer->SetUserData(&gNotifySubDocInvalidationData, nullptr);
 }
 
 struct NotifyDidPaintSubdocumentCallbackClosure {

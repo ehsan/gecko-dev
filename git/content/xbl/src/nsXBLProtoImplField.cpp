@@ -8,7 +8,6 @@
 #include "nsString.h"
 #include "nsJSUtils.h"
 #include "jsapi.h"
-#include "js/CharacterEncoding.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "nsXBLProtoImplField.h"

@@ -11,8 +11,8 @@
 #include "mozilla/MemoryReporting.h"
 #endif
 
-#include "jsbytecode.h"
 #include "jsclass.h"
+#include "jsbytecode.h"
 #include "jspubtd.h"
 
 #include "js/CallArgs.h"
@@ -771,6 +771,12 @@ GetContextStructuredCloneCallbacks(JSContext *cx);
 
 extern JS_FRIEND_API(bool)
 IsContextRunningJS(JSContext *cx);
+
+typedef void
+(* AnalysisPurgeCallback)(JSRuntime *rt, JS::Handle<JSFlatString*> desc);
+
+extern JS_FRIEND_API(AnalysisPurgeCallback)
+SetAnalysisPurgeCallback(JSRuntime *rt, AnalysisPurgeCallback callback);
 
 typedef bool
 (* DOMInstanceClassMatchesProto)(JS::HandleObject protoObject, uint32_t protoID,

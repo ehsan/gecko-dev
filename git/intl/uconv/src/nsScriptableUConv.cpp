@@ -13,6 +13,9 @@
 #include "nsCRT.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCharsetAlias.h"
+#include "pratom.h"
+
+static int32_t          gInstanceCount = 0;
 
 /* Implementation file */
 NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
@@ -20,10 +23,12 @@ NS_IMPL_ISUPPORTS1(nsScriptableUnicodeConverter, nsIScriptableUnicodeConverter)
 nsScriptableUnicodeConverter::nsScriptableUnicodeConverter()
 : mIsInternal(false)
 {
+  PR_ATOMIC_INCREMENT(&gInstanceCount);
 }
 
 nsScriptableUnicodeConverter::~nsScriptableUnicodeConverter()
 {
+  PR_ATOMIC_DECREMENT(&gInstanceCount);
 }
 
 nsresult

@@ -20,7 +20,6 @@
 #include "nsClassHashtable.h"
 #include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Mutex.h"
 
 class nsIURI;
 class nsOfflineCacheDevice;
@@ -148,8 +147,6 @@ public:
 
   nsresult                GetApplicationCache(const nsACString &clientID,
                                               nsIApplicationCache **out);
-  nsresult                GetApplicationCache_Unlocked(const nsACString &clientID,
-                                                       nsIApplicationCache **out);
 
   nsresult                GetActiveCache(const nsACString &group,
                                          nsIApplicationCache **out);
@@ -273,8 +270,6 @@ private:
   uint32_t                        mCacheCapacity; // in bytes
   int32_t                         mDeltaCounter;
   bool                            mAutoShutdown;
-
-  mozilla::Mutex                  mLock;
 
   nsInterfaceHashtable<nsCStringHashKey, nsIWeakReference> mCaches;
   nsClassHashtable<nsCStringHashKey, nsCString> mActiveCachesByGroup;

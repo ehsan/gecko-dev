@@ -18,8 +18,8 @@
 #include <string.h>
 
 #ifdef JS_OOM_DO_BACKTRACES
-#include <execinfo.h>
 #include <stdio.h>
+#include <execinfo.h>
 #endif
 
 #include "jstypes.h"

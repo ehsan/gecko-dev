@@ -89,7 +89,6 @@ class WorkerThreadState
 
     bool canStartAsmJSCompile();
     bool canStartIonCompile();
-    bool canStartParseTask();
 
     uint32_t harvestFailedAsmJSJobs() {
         JS_ASSERT(isLocked());
@@ -114,8 +113,6 @@ class WorkerThreadState
     void *maybeAsmJSFailedFunction() const {
         return asmJSFailedFunction;
     }
-
-    void finishParseTaskForScript(JSScript *script);
 
   private:
 
@@ -227,8 +224,7 @@ CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script);
  */
 bool
 StartOffThreadParseScript(JSContext *cx, const CompileOptions &options,
-                          const jschar *chars, size_t length, HandleObject scopeChain,
-                          JS::OffThreadCompileCallback callback, void *callbackData);
+                          const jschar *chars, size_t length);
 
 /* Block until in progress and pending off thread parse jobs have finished. */
 void
@@ -336,31 +332,17 @@ struct AsmJSParallelTask
 
 struct ParseTask
 {
-    Zone *zone;
+    JSRuntime *runtime;
     ExclusiveContext *cx;
     CompileOptions options;
     const jschar *chars;
     size_t length;
     LifoAlloc alloc;
 
-    // Rooted pointer to the scope in the target compartment which the
-    // resulting script will be merged into. This is not safe to use off the
-    // main thread.
-    JSObject *scopeChain;
-
-    // Callback invoked off the main thread when the parse finishes.
-    JS::OffThreadCompileCallback callback;
-    void *callbackData;
-
-    // Holds the final script between the invocation of the callback and the
-    // point where FinishOffThreadScript is called, which will destroy the
-    // ParseTask.
     JSScript *script;
 
-    ParseTask(Zone *zone, ExclusiveContext *cx, const CompileOptions &options,
-              const jschar *chars, size_t length, JSObject *scopeChain,
-              JS::OffThreadCompileCallback callback, void *callbackData);
-
+    ParseTask(JSRuntime *rt, ExclusiveContext *cx, const CompileOptions &options,
+              const jschar *chars, size_t length);
     ~ParseTask();
 };
 
