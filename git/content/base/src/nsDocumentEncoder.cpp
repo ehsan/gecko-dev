@@ -271,12 +271,10 @@ nsDocumentEncoder::SerializeNodeStart(nsIDOMNode* aNode,
   nsCOMPtr<nsIDOMNode> node;
 
   // Caller didn't do fixup, so we'll do it ourselves
-  if (!aOriginalNode) {
+  if (!aOriginalNode && mNodeFixup) {
     aOriginalNode = aNode;
-    if (mNodeFixup) { 
-      PRBool dummy;
-      mNodeFixup->FixupNode(aNode, &dummy, getter_AddRefs(node));
-    }
+    PRBool dummy;
+    mNodeFixup->FixupNode(aNode, &dummy, getter_AddRefs(node));
   }
 
   // Either there was no fixed-up node,

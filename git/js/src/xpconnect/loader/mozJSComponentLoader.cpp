@@ -83,7 +83,7 @@
 #include "prmem.h"
 #include "plbase64.h"
 
-#if defined(MOZ_SHARK) || defined(MOZ_CALLGRIND) || defined(MOZ_VTUNE)
+#if defined(MOZ_SHARK) || defined(MOZ_CALLGRIND)
 #include "jsdbgapi.h"
 #endif
 
@@ -286,12 +286,6 @@ static JSFunctionSpec gGlobalFun[] = {
     {"startCallgrind",  js_StartCallgrind, 0,0,0},
     {"stopCallgrind",   js_StopCallgrind,  0,0,0},
     {"dumpCallgrind",   js_DumpCallgrind,  1,0,0},
-#endif
-#ifdef MOZ_VTUNE
-    {"startVtune",      js_StartVtune,     1,0,0},
-    {"stopVtune",       js_StopVtune,      0,0,0},
-    {"pauseVtune",      js_PauseVtune,     0,0,0},
-    {"resumeVtune",     js_ResumeVtune,    0,0,0},
 #endif
     {nsnull,nsnull,0,0,0}
 };

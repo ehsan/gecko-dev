@@ -790,13 +790,12 @@ typedef nsTextRange* nsTextRangeArray;
 struct nsTextEventReply
 {
   nsTextEventReply()
-    : mCursorIsCollapsed(PR_FALSE), mReferenceWidget(nsnull)
+    : mCursorIsCollapsed(PR_FALSE)
   {
   }
 
   nsRect mCursorPosition;
   PRBool mCursorIsCollapsed;
-  nsIWidget* mReferenceWidget;
 };
 
 typedef struct nsTextEventReply nsTextEventReply;

@@ -2834,12 +2834,6 @@ static JSFunctionSpec shell_functions[] = {
     JS_FS("stopCallgrind",   js_StopCallgrind,   0,0,0),
     JS_FS("dumpCallgrind",   js_DumpCallgrind,   1,0,0),
 #endif
-#ifdef MOZ_VTUNE
-    JS_FS("startVtune",      js_StartVtune,    1,0,0),
-    JS_FS("stopVtune",       js_StopVtune,     0,0,0),
-    JS_FS("pauseVtune",      js_PauseVtune,    0,0,0),
-    JS_FS("resumeVtune",     js_ResumeVtune,   0,0,0),
-#endif
 #ifdef DEBUG_ARRAYS
     JS_FS("arrayInfo",       js_ArrayInfo,       1,0,0),
 #endif
@@ -2920,13 +2914,7 @@ static const char *const shell_help_messages[] = {
 #ifdef MOZ_CALLGRIND
 "startCallgrind()         Start callgrind instrumentation.\n",
 "stopCallgrind()          Stop callgrind instumentation.",
-"dumpCallgrind([name])    Dump callgrind counters.\n",
-#endif
-#ifdef MOZ_VTUNE
-"startVtune([filename])   Start vtune instrumentation.\n",
-"stopVtune()              Stop vtune instumentation.",
-"pauseVtune()             Pause vtune collection.\n",
-"resumeVtune()            Resume vtune collection.\n",
+"dumpCallgrind()          Dump callgrind counters.\n",
 #endif
 #ifdef DEBUG_ARRAYS
 "arrayInfo(a1, a2, ...)   Report statistics about arrays.",

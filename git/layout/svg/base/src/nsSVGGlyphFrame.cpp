@@ -229,11 +229,8 @@ NS_IMETHODIMP
 nsSVGGlyphFrame::DidSetStyleContext()
 {
   nsSVGGlyphFrameBase::DidSetStyleContext();
-
-  if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    ClearTextRun();
-    NotifyGlyphMetricsChange();
-  }
+  ClearTextRun();
+  NotifyGlyphMetricsChange();
 
   return NS_OK;
 }
@@ -461,6 +458,8 @@ nsSVGGlyphFrame::InitialUpdate()
 
   NS_ASSERTION(!(mState & NS_FRAME_IN_REFLOW),
                "We don't actually participate in reflow");
+
+  NotifyGlyphMetricsChange();
 
   // Do unset the various reflow bits, though.
   mState &= ~(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |

@@ -149,6 +149,7 @@ void nsHTMLVideoElement::UnbindFromTree(PRBool aDeep,
   nsHTMLMediaElement::UnbindFromTree(aDeep, aNullParent);
 }
 
+
 nsresult nsHTMLVideoElement::InitializeDecoder(nsAString& aChosenMediaResource)
 {
   if (mDecoder) 
