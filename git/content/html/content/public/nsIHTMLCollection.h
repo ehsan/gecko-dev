@@ -12,9 +12,6 @@
 struct JSContext;
 class JSObject;
 class nsINode;
-class nsString;
-template<class> class nsTArray;
-
 namespace mozilla {
 class ErrorResult;
 

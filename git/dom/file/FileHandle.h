@@ -21,12 +21,6 @@
 class nsIDOMFile;
 class nsIFileStorage;
 
-namespace mozilla {
-namespace dom {
-class DOMRequest;
-} // namespace dom
-} // namespace mozilla
-
 BEGIN_FILE_NAMESPACE
 
 class FileService;
@@ -67,7 +61,7 @@ public:
     aType = mType;
   }
   already_AddRefed<nsIDOMLockedFile> Open(FileMode aMode, ErrorResult& aError);
-  already_AddRefed<DOMRequest> GetFile(ErrorResult& aError);
+  already_AddRefed<nsIDOMDOMRequest> GetFile(ErrorResult& aError);
   IMPL_EVENT_HANDLER(abort)
   IMPL_EVENT_HANDLER(error)
 

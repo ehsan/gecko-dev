@@ -15,7 +15,6 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsIContent;
-class nsIObjectOutputStream;
 class nsIScriptContext;
 
 struct nsXBLTextWithLineNumber

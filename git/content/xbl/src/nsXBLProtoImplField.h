@@ -12,8 +12,6 @@
 #include "nsString.h"
 #include "nsXBLProtoImplMember.h"
 
-class nsIObjectInputStream;
-class nsIObjectOutputStream;
 class nsIURI;
 
 class nsXBLProtoImplField

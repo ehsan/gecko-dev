@@ -13,7 +13,6 @@
 #include "mozilla/ErrorResult.h"
 #include "AudioSegment.h"
 #include "nsIScriptError.h"
-#include "nsPIDOMWindow.h"
 
 namespace mozilla {
 namespace dom {

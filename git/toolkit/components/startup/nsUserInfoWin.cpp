@@ -4,8 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsUserInfo.h"
-
-#include "mozilla/Util.h" // ArrayLength
 #include "nsString.h"
 #include "windows.h"
 #include "nsCRT.h"

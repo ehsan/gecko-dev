@@ -4,9 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsMixedContentBlocker.h"
-
 #include "nsContentPolicyUtils.h"
-#include "nsThreadUtils.h"
+
 #include "nsINode.h"
 #include "nsCOMPtr.h"
 #include "nsIDocShell.h"

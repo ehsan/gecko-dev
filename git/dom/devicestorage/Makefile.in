@@ -34,7 +34,6 @@ CPPSRCS		= \
 
 EXPORTS         = \
 		DeviceStorage.h \
-		nsDeviceStorage.h \
 		$(NULL)
 
 LOCAL_INCLUDES = \

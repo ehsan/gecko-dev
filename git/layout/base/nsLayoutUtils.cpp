@@ -2261,12 +2261,10 @@ void nsLayoutUtils::RectAccumulator::AddRect(const nsRect& aRect) {
 }
 
 nsLayoutUtils::RectListBuilder::RectListBuilder(nsClientRectList* aList)
-  : mRectList(aList)
-{
-}
+  : mRectList(aList), mRV(NS_OK) {}
 
 void nsLayoutUtils::RectListBuilder::AddRect(const nsRect& aRect) {
-  nsRefPtr<nsClientRect> rect = new nsClientRect(mRectList);
+  nsRefPtr<nsClientRect> rect = new nsClientRect();
 
   rect->SetLayoutRect(aRect);
   mRectList->Append(rect);

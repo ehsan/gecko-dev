@@ -6,7 +6,9 @@
 TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
+    'nsIDOMArchiveRequest.idl',
     'nsIDOMFileHandle.idl',
+    'nsIDOMFileRequest.idl',
     'nsIDOMLockedFile.idl',
 ]
 

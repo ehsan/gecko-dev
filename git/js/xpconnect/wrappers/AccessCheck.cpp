@@ -10,9 +10,7 @@
 #include "AccessCheck.h"
 
 #include "nsJSPrincipals.h"
-#include "nsIDocument.h"
 #include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
@@ -327,7 +325,8 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
             nsCOMPtr<nsPIDOMWindow> win =
                 do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(wrapper));
             if (win) {
-                nsCOMPtr<nsIDocument> doc = win->GetExtantDoc();
+                nsCOMPtr<nsIDocument> doc =
+                    do_QueryInterface(win->GetExtantDocument());
                 if (doc) {
                     doc->WarnOnceAbout(nsIDocument::eNoExposedProps,
                                        /* asError = */ true);
