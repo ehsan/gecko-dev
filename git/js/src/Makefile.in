@@ -147,7 +147,6 @@ CPPSRCS		= \
 		jsopcode.cpp \
 		jsparse.cpp \
 		jsprf.cpp \
-		jspropertycache.cpp \
 		jspropertytree.cpp \
 		jsregexp.cpp \
 		jsscan.cpp \
@@ -203,8 +202,6 @@ INSTALLED_HEADERS = \
 		jsotypes.h \
 		jsparse.h \
 		jsprf.h \
-		jspropertycache.h \
-		jspropertycacheinlines.h \
 		jspropertytree.h \
 		jsproto.tbl \
 		jsprvtd.h \

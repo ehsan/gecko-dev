@@ -98,6 +98,7 @@ typedef struct JSCompiler           JSCompiler;
 typedef struct JSFunctionBox        JSFunctionBox;
 typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
+typedef struct JSPropCacheEntry     JSPropCacheEntry;
 typedef struct JSProperty           JSProperty;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
 typedef struct JSEmptyScope         JSEmptyScope;
@@ -174,8 +175,6 @@ class HashSet;
 
 class DeflatedStringCache;
 
-struct PropertyCache;
-struct PropertyCacheEntry;
 } /* namespace js */
 
 /* Common instantiations. */
