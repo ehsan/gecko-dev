@@ -134,6 +134,7 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     localeCallbacks(nullptr),
     defaultLocale(nullptr),
     defaultVersion_(JSVERSION_DEFAULT),
+    futexAPI_(nullptr),
     ownerThread_(nullptr),
     ownerThreadNative_(0),
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
@@ -325,9 +326,6 @@ JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
     if (!spsProfiler.init())
         return false;
 
-    if (!fx.initInstance())
-        return false;
-
     return true;
 }
 
@@ -335,7 +333,8 @@ JSRuntime::~JSRuntime()
 {
     MOZ_ASSERT(!isHeapBusy());
 
-    fx.destroyInstance();
+    delete futexAPI_;
+    futexAPI_ = nullptr;
 
     if (gcInitialized) {
         /* Free source hook early, as its destructor may want to delete roots. */
@@ -603,18 +602,8 @@ JSRuntime::requestInterrupt(InterruptMode mode)
     interrupt_ = true;
     jitStackLimit_ = UINTPTR_MAX;
 
-    if (mode == JSRuntime::RequestInterruptUrgent) {
-        // If this interrupt is urgent (slow script dialog and garbage
-        // collection among others), take additional steps to
-        // interrupt corner cases where the above fields are not
-        // regularly polled.  Wake both ilooping JIT code and
-        // futexWait.
-        fx.lock();
-        if (fx.isWaiting())
-            fx.wake(FutexRuntime::WakeForJSInterrupt);
-        fx.unlock();
+    if (mode == JSRuntime::RequestInterruptUrgent)
         InterruptRunningJitCode(this);
-    }
 }
 
 bool

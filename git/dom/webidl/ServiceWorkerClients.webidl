@@ -9,22 +9,11 @@
  */
 
 [Exposed=ServiceWorker]
-interface Clients {
+interface ServiceWorkerClients {
   // A list of client objects, identifiable by ID, that correspond to windows
   // (or workers) that are "controlled" by this SW
   [Throws]
-  Promise<sequence<Client>?> matchAll(optional ClientQueryOptions options);
+  Promise<sequence<ServiceWorkerClient>?> getServiced();
+  [Throws]
+  Promise<any> reloadAll();
 };
-
-dictionary ClientQueryOptions {
-  boolean includeUncontrolled = false;
-  ClientType type = "window";
-};
-
-enum ClientType {
-  "window",
-  "worker",
-  "sharedworker",
-  "all"
-};
-

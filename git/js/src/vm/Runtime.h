@@ -25,7 +25,6 @@
 #ifdef XP_MACOSX
 # include "asmjs/AsmJSSignalHandlers.h"
 #endif
-#include "builtin/AtomicsObject.h"
 #include "ds/FixedSizeHash.h"
 #include "frontend/ParseMaps.h"
 #include "gc/GCRuntime.h"
@@ -788,8 +787,8 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Default JSVersion. */
     JSVersion defaultVersion_;
 
-    /* Futex state, used by futexWait and futexWake on the Atomics object */
-    js::FutexRuntime fx;
+    /* Futex API, if installed */
+    JS::PerRuntimeFutexAPI *futexAPI_;
 
   private:
     /* See comment for JS_AbortIfWrongThread in jsapi.h. */

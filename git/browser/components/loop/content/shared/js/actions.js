@@ -202,8 +202,6 @@ loop.shared.actions = (function() {
      * Used to start a screen share.
      */
     StartScreenShare: Action.define("startScreenShare", {
-      // The part of the screen to share, e.g. "window" or "browser".
-      type: String
     }),
 
     /**

@@ -151,11 +151,9 @@ js::ExecuteRegExpLegacy(JSContext *cx, RegExpStatics *res, RegExpObject &reobj,
  *       flags := ToString(flags) if defined(flags) else ''
  */
 static bool
-CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args,
-                    RegExpStaticsUse staticsUse)
+CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
 {
     if (args.length() == 0) {
-        MOZ_ASSERT(staticsUse == UseRegExpStatics);
         RegExpStatics *res = cx->global()->getRegExpStatics(cx);
         if (!res)
             return false;
@@ -235,13 +233,10 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args,
     if (!irregexp::ParsePatternSyntax(dummyTokenStream, cx->tempLifoAlloc(), source))
         return false;
 
-    if (staticsUse == UseRegExpStatics) {
-        RegExpStatics *res = cx->global()->getRegExpStatics(cx);
-        if (!res)
-            return false;
-        flags = RegExpFlag(flags | res->getFlags());
-    }
-    RegExpObject *reobj = builder.build(source, flags);
+    RegExpStatics *res = cx->global()->getRegExpStatics(cx);
+    if (!res)
+        return false;
+    RegExpObject *reobj = builder.build(source, RegExpFlag(flags | res->getFlags()));
     if (!reobj)
         return false;
 
@@ -260,7 +255,7 @@ regexp_compile_impl(JSContext *cx, CallArgs args)
 {
     MOZ_ASSERT(IsRegExp(args.thisv()));
     RegExpObjectBuilder builder(cx, &args.thisv().toObject().as<RegExpObject>());
-    return CompileRegExpObject(cx, builder, args, UseRegExpStatics);
+    return CompileRegExpObject(cx, builder, args);
 }
 
 static bool
@@ -291,21 +286,7 @@ regexp_construct(JSContext *cx, unsigned argc, Value *vp)
     }
 
     RegExpObjectBuilder builder(cx);
-    return CompileRegExpObject(cx, builder, args, UseRegExpStatics);
-}
-
-bool
-js::regexp_construct_no_statics(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    MOZ_ASSERT(args.length() == 1 || args.length() == 2);
-    MOZ_ASSERT(args[0].isString());
-    MOZ_ASSERT_IF(args.length() == 2, args[1].isString());
-    MOZ_ASSERT(!args.isConstructing());
-
-    RegExpObjectBuilder builder(cx);
-    return CompileRegExpObject(cx, builder, args, DontUseRegExpStatics);
+    return CompileRegExpObject(cx, builder, args);
 }
 
 MOZ_ALWAYS_INLINE bool

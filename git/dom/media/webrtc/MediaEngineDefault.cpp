@@ -69,7 +69,7 @@ MediaEngineDefaultVideoSource::GetUUID(nsAString& aUUID)
 }
 
 nsresult
-MediaEngineDefaultVideoSource::Allocate(const dom::MediaTrackConstraints &aConstraints,
+MediaEngineDefaultVideoSource::Allocate(const VideoTrackConstraintsN &aConstraints,
                                         const MediaEnginePrefs &aPrefs)
 {
   if (mState != kReleased) {
@@ -349,7 +349,7 @@ MediaEngineDefaultAudioSource::GetUUID(nsAString& aUUID)
 }
 
 nsresult
-MediaEngineDefaultAudioSource::Allocate(const dom::MediaTrackConstraints &aConstraints,
+MediaEngineDefaultAudioSource::Allocate(const AudioTrackConstraintsN &aConstraints,
                                         const MediaEnginePrefs &aPrefs)
 {
   if (mState != kReleased) {

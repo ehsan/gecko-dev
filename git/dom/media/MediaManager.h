@@ -523,7 +523,7 @@ public:
   explicit VideoDevice(Source* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   Source* GetSource();
-  uint32_t GetBestFitnessDistance(
+  bool SatisfiesConstraintSets(
     const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
 };
 
@@ -535,7 +535,7 @@ public:
   explicit AudioDevice(Source* aSource);
   NS_IMETHOD GetType(nsAString& aType);
   Source* GetSource();
-  uint32_t GetBestFitnessDistance(
+  bool SatisfiesConstraintSets(
     const nsTArray<const dom::MediaTrackConstraintSet*>& aConstraintSets);
 };
 

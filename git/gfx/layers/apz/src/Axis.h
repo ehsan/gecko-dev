@@ -232,12 +232,11 @@ protected:
   // GetOverscroll() never changes sign during animation. This is necessary,
   // as mOverscroll itself oscillates around zero during animation.
   // If we're not sampling overscroll animation, mOverscrollScale will be 1.0
-  // and mLastOverscrollPeak will be zero.
+  // and mOverscrollOffset will be zero.
   // If we are animating, after the overscroll reaches its peak,
-  // mOverscrollScale will be 2.0 and mLastOverscrollPeak will store the amount
-  // of overscroll at the last peak of the oscillation. Together, these values
-  // guarantee that the result of GetOverscroll() never changes sign.
-  ParentLayerCoord mLastOverscrollPeak;
+  // mOverscrollScale will be 2.0 and mOverscrollOffset will store a value that
+  // guarantees that the result of GetOverscroll() never changes sign.
+  ParentLayerCoord mOverscrollOffset;
   float mOverscrollScale;
 
   // A queue of (timestamp, velocity) pairs; these are the historical

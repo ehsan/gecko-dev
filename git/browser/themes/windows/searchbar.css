@@ -128,11 +128,8 @@ searchbar[oneoffui] .search-go-button:-moz-locale-dir(rtl) > .toolbarbutton-icon
 
 .search-panel-current-engine {
   border-top: none !important;
-  -moz-box-align: center;
-}
-
-.search-panel-current-engine:not([showonlysettings]) {
   border-bottom: 1px solid #ccc;
+  -moz-box-align: center;
 }
 
 .search-panel-header {

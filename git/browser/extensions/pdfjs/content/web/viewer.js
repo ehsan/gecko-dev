@@ -5481,8 +5481,12 @@ var PDFViewerApplication = {
   get supportsPrinting() {
     var canvas = document.createElement('canvas');
     var value = 'mozPrintCallback' in canvas;
-
-    return PDFJS.shadow(this, 'supportsPrinting', value);
+    // shadow
+    Object.defineProperty(this, 'supportsPrinting', { value: value,
+                                                      enumerable: true,
+                                                      configurable: true,
+                                                      writable: false });
+    return value;
   },
 
   get supportsFullscreen() {
@@ -5497,34 +5501,50 @@ var PDFViewerApplication = {
       support = false;
     }
 
-    return PDFJS.shadow(this, 'supportsFullscreen', support);
+    Object.defineProperty(this, 'supportsFullscreen', { value: support,
+                                                        enumerable: true,
+                                                        configurable: true,
+                                                        writable: false });
+    return support;
   },
 
   get supportsIntegratedFind() {
     var support = false;
     support = FirefoxCom.requestSync('supportsIntegratedFind');
-
-    return PDFJS.shadow(this, 'supportsIntegratedFind', support);
+    Object.defineProperty(this, 'supportsIntegratedFind', { value: support,
+                                                            enumerable: true,
+                                                            configurable: true,
+                                                            writable: false });
+    return support;
   },
 
   get supportsDocumentFonts() {
     var support = true;
     support = FirefoxCom.requestSync('supportsDocumentFonts');
-
-    return PDFJS.shadow(this, 'supportsDocumentFonts', support);
+    Object.defineProperty(this, 'supportsDocumentFonts', { value: support,
+                                                           enumerable: true,
+                                                           configurable: true,
+                                                           writable: false });
+    return support;
   },
 
   get supportsDocumentColors() {
     var support = true;
     support = FirefoxCom.requestSync('supportsDocumentColors');
-
-    return PDFJS.shadow(this, 'supportsDocumentColors', support);
+    Object.defineProperty(this, 'supportsDocumentColors', { value: support,
+                                                            enumerable: true,
+                                                            configurable: true,
+                                                            writable: false });
+    return support;
   },
 
   get loadingBar() {
     var bar = new ProgressBar('#loadingBar', {});
-
-    return PDFJS.shadow(this, 'loadingBar', bar);
+    Object.defineProperty(this, 'loadingBar', { value: bar,
+                                                enumerable: true,
+                                                configurable: true,
+                                                writable: false });
+    return bar;
   },
 
   initPassiveLoading: function pdfViewInitPassiveLoading() {

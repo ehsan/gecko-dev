@@ -49,6 +49,7 @@
 
 #ifdef MOZ_WIDGET_GTK
 #include "nsIGIOService.h"
+#include "nsIGnomeVFSService.h"
 #endif
 
 #ifdef MOZ_WIDGET_COCOA
@@ -1970,7 +1971,9 @@ nsLocalFile::Reveal()
 {
 #ifdef MOZ_WIDGET_GTK
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  if (!giovfs) {
+  nsCOMPtr<nsIGnomeVFSService> gnomevfs =
+    do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (!giovfs && !gnomevfs) {
     return NS_ERROR_FAILURE;
   }
 
@@ -1980,8 +1983,15 @@ nsLocalFile::Reveal()
   }
 
   if (isDirectory) {
-    return giovfs->ShowURIForInput(mPath);
-  } else if (NS_SUCCEEDED(giovfs->OrgFreedesktopFileManager1ShowItems(mPath))) {
+    if (giovfs) {
+      return giovfs->ShowURIForInput(mPath);
+    } else
+      /* Fallback to GnomeVFS */
+    {
+      return gnomevfs->ShowURIForInput(mPath);
+    }
+  } else if (giovfs &&
+             NS_SUCCEEDED(giovfs->OrgFreedesktopFileManager1ShowItems(mPath))) {
     return NS_OK;
   } else {
     nsCOMPtr<nsIFile> parentDir;
@@ -1993,7 +2003,11 @@ nsLocalFile::Reveal()
       return NS_ERROR_FAILURE;
     }
 
-    return giovfs->ShowURIForInput(dirPath);
+    if (giovfs) {
+      return giovfs->ShowURIForInput(dirPath);
+    } else {
+      return gnomevfs->ShowURIForInput(dirPath);
+    }
   }
 #elif defined(MOZ_WIDGET_COCOA)
   CFURLRef url;
@@ -2013,11 +2027,16 @@ nsLocalFile::Launch()
 {
 #ifdef MOZ_WIDGET_GTK
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  if (!giovfs) {
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIGnomeVFSService> gnomevfs =
+    do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
+  if (giovfs) {
+    return giovfs->ShowURIForInput(mPath);
+  } else if (gnomevfs) {
+    /* GnomeVFS fallback */
+    return gnomevfs->ShowURIForInput(mPath);
   }
 
-  return giovfs->ShowURIForInput(mPath);
+  return NS_ERROR_FAILURE;
 #elif defined(MOZ_ENABLE_CONTENTACTION)
   QUrl uri = QUrl::fromLocalFile(QString::fromUtf8(mPath.get()));
   ContentAction::Action action =

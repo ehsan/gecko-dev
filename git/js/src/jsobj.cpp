@@ -411,8 +411,7 @@ js::Throw(JSContext *cx, jsid id, unsigned errorNumber)
 {
     MOZ_ASSERT(js_ErrorFormatString[errorNumber].argCount == 1);
 
-    RootedValue idVal(cx, IdToValue(id));
-    JSString *idstr = ValueToSource(cx, idVal);
+    JSString *idstr = IdToString(cx, id);
     if (!idstr)
        return false;
     JSAutoByteString bytes(cx, idstr);

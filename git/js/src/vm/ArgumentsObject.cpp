@@ -391,25 +391,25 @@ static bool
 args_enumerate(JSContext *cx, HandleObject obj)
 {
     Rooted<NormalArgumentsObject*> argsobj(cx, &obj->as<NormalArgumentsObject>());
-
     RootedId id(cx);
-    bool found;
 
-    // Trigger reflection.
-    id = NameToId(cx->names().length);
-    if (!HasProperty(cx, argsobj, id, &found))
-        return false;
+    /*
+     * Trigger reflection in args_resolve using a series of js_LookupProperty
+     * calls.
+     */
+    int argc = int(argsobj->initialLength());
+    for (int i = -2; i != argc; i++) {
+        id = (i == -2)
+             ? NameToId(cx->names().length)
+             : (i == -1)
+             ? NameToId(cx->names().callee)
+             : INT_TO_JSID(i);
 
-    id = NameToId(cx->names().callee);
-    if (!HasProperty(cx, argsobj, id, &found))
-        return false;
-
-    for (unsigned i = 0; i < argsobj->initialLength(); i++) {
-        id = INT_TO_JSID(i);
-        if (!HasProperty(cx, argsobj, id, &found))
+        RootedObject pobj(cx);
+        RootedShape prop(cx);
+        if (!NativeLookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
             return false;
     }
-
     return true;
 }
 
@@ -511,25 +511,32 @@ strictargs_enumerate(JSContext *cx, HandleObject obj)
 {
     Rooted<StrictArgumentsObject*> argsobj(cx, &obj->as<StrictArgumentsObject>());
 
+    /*
+     * Trigger reflection in strictargs_resolve using a series of
+     * js_LookupProperty calls.
+     */
+    RootedObject pobj(cx);
+    RootedShape prop(cx);
     RootedId id(cx);
-    bool found;
 
-    // Trigger reflection.
+    // length
     id = NameToId(cx->names().length);
-    if (!HasProperty(cx, argsobj, id, &found))
+    if (!NativeLookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
         return false;
 
+    // callee
     id = NameToId(cx->names().callee);
-    if (!HasProperty(cx, argsobj, id, &found))
+    if (!NativeLookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
         return false;
 
+    // caller
     id = NameToId(cx->names().caller);
-    if (!HasProperty(cx, argsobj, id, &found))
+    if (!NativeLookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
         return false;
 
-    for (unsigned i = 0; i < argsobj->initialLength(); i++) {
+    for (uint32_t i = 0, argc = argsobj->initialLength(); i < argc; i++) {
         id = INT_TO_JSID(i);
-        if (!HasProperty(cx, argsobj, id, &found))
+        if (!NativeLookupProperty<CanGC>(cx, argsobj, id, &pobj, &prop))
             return false;
     }
 

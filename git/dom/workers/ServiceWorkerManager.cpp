@@ -427,7 +427,7 @@ public:
   }
 
   bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
+  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
     aWorkerPrivate->AssertIsOnWorkerThread();
     if (aWorkerPrivate->WorkerScriptExecutedSuccessfully()) {
@@ -2154,7 +2154,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   NS_IMETHOD
-  VisitHeader(const nsACString& aHeader, const nsACString& aValue) MOZ_OVERRIDE
+  VisitHeader(const nsACString& aHeader, const nsACString& aValue)
   {
     mHeaderNames.AppendElement(aHeader);
     mHeaderValues.AppendElement(aValue);
@@ -2195,7 +2195,7 @@ public:
   }
 
   bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
+  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
     MOZ_ASSERT(aWorkerPrivate);
     return DispatchFetchEvent(aCx, aWorkerPrivate);
@@ -2637,8 +2637,8 @@ FireControllerChangeOnMatchingDocument(nsISupports* aKey,
 } // anonymous namespace
 
 void
-ServiceWorkerManager::GetAllClients(const nsCString& aScope,
-                                    nsTArray<uint64_t>* aControlledDocuments)
+ServiceWorkerManager::GetServicedClients(const nsCString& aScope,
+                                     nsTArray<uint64_t>* aControlledDocuments)
 {
   nsRefPtr<ServiceWorkerRegistrationInfo> registration = GetRegistration(aScope);
 

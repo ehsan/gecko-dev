@@ -1749,8 +1749,7 @@ ReportPropertyError(JSContext *cx,
                     const unsigned errorNumber,
                     HandleId id)
 {
-    RootedValue idVal(cx, IdToValue(id));
-    RootedString str(cx, ValueToSource(cx, idVal));
+    RootedString str(cx, IdToString(cx, id));
     if (!str)
         return false;
 
