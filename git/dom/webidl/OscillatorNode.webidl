@@ -36,6 +36,3 @@ interface OscillatorNode : AudioNode {
 
 };
 
-// Mozilla extensions
-OscillatorNode implements AudioNodePassThrough;
-

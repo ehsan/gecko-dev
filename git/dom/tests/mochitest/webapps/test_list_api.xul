@@ -19,6 +19,7 @@
 <script>
 
 var props = {
+  QueryInterface: "function",
   checkInstalled: "function",
   getInstalled: "function",
   getSelf: "function",
@@ -35,18 +36,13 @@ for (var p in props) {
 }
 
 var mgmtProps = {
-  addEventListener: "function",
+  QueryInterface: "function",
   applyDownload: "function",
-  dispatchEvent: "function",
-  getEventHandler: "function",
   getAll: "function",
   getNotInstalled: "function",
   uninstall: "function",
   oninstall: "object",
   onuninstall: "object",
-  ownerGlobal: "object",
-  removeEventListener: "function",
-  setEventHandler: "function",
 };
 
 isDeeply([p for (p in navigator.mozApps.mgmt)].sort(),

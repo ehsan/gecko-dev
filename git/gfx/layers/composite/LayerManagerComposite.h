@@ -73,7 +73,7 @@ class LayerManagerComposite : public LayerManager
   typedef mozilla::gfx::SurfaceFormat SurfaceFormat;
 
 public:
-  explicit LayerManagerComposite(Compositor* aCompositor);
+  LayerManagerComposite(Compositor* aCompositor);
   ~LayerManagerComposite();
 
   virtual void Destroy() MOZ_OVERRIDE;
@@ -315,7 +315,7 @@ private:
 class LayerComposite
 {
 public:
-  explicit LayerComposite(LayerManagerComposite* aManager);
+  LayerComposite(LayerManagerComposite* aManager);
 
   virtual ~LayerComposite();
 

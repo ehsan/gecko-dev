@@ -64,7 +64,8 @@ class Telephony::Callback : public nsITelephonyCallback
 public:
   NS_DECL_ISUPPORTS
 
-  Callback(Telephony* aTelephony, Promise* aPromise, uint32_t aServiceId)
+  Callback(Telephony* aTelephony, Promise* aPromise, uint32_t aServiceId,
+           const nsAString& aNumber)
     : mTelephony(aTelephony), mPromise(aPromise), mServiceId(aServiceId)
   {
     MOZ_ASSERT(mTelephony);
@@ -263,7 +264,7 @@ Telephony::DialInternal(uint32_t aServiceId, const nsAString& aNumber,
   }
 
   nsCOMPtr<nsITelephonyCallback> callback =
-    new Callback(this, promise, aServiceId);
+    new Callback(this, promise, aServiceId, aNumber);
   nsresult rv = mService->Dial(aServiceId, aNumber, aEmergency, callback);
   if (NS_FAILED(rv)) {
     promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
@@ -366,8 +367,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Telephony,
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(Telephony)
-  // Telephony does not expose nsITelephonyListener.  mListener is the exposed
-  // nsITelephonyListener and forwards the calls it receives to us.
 NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(Telephony, DOMEventTargetHelper)

@@ -217,6 +217,7 @@ private:
   uint32_t mPreAttrChangeLength;
   int64_t mPreCharacterDataChangeLength;
 
+  bool mIsEditorInTransaction;
   bool mIsSelectionChangeEventPending;
   bool mSelectionChangeCausedOnlyByComposition;
   bool mIsPositionChangeEventPending;

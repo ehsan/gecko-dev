@@ -19,7 +19,7 @@ namespace layers {
 
 class BasicContainerLayer : public ContainerLayer, public BasicImplData {
 public:
-  explicit BasicContainerLayer(BasicLayerManager* aManager) :
+  BasicContainerLayer(BasicLayerManager* aManager) :
     ContainerLayer(aManager,
                    static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST()))
   {

@@ -96,7 +96,10 @@
 *|*::-moz-list-bullet, *|*::-moz-list-number {
   display: inline;
   vertical-align: baseline;
-  font-variant-numeric: tabular-nums;
+  /* TODO: Replace this with font-variant-numeric:tabular-nums once the
+     font-variant-* properties are enabled for all channels (bug 975744). */
+  -moz-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
 }
 
 /* Links */

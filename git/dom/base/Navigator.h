@@ -36,7 +36,6 @@ struct MediaStreamConstraints;
 class WakeLock;
 class ArrayBufferViewOrBlobOrStringOrFormData;
 struct MobileIdOptions;
-class ServiceWorkerContainer;
 }
 }
 
@@ -104,6 +103,10 @@ namespace system {
 class AudioChannelManager;
 #endif
 } // namespace system
+
+namespace workers {
+class ServiceWorkerContainer;
+} // namespace workers
 
 class Navigator : public nsIDOMNavigator
                 , public nsIMozNavigatorNetwork
@@ -259,7 +262,7 @@ public:
                               ErrorResult& aRv);
 #endif // MOZ_MEDIA_NAVIGATOR
 
-  already_AddRefed<ServiceWorkerContainer> ServiceWorker();
+  already_AddRefed<workers::ServiceWorkerContainer> ServiceWorker();
 
   bool DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
                     JS::Handle<jsid> aId,
@@ -337,7 +340,7 @@ private:
   nsCOMPtr<nsIDOMNavigatorSystemMessages> mMessagesManager;
   nsTArray<nsRefPtr<nsDOMDeviceStorage> > mDeviceStorageStores;
   nsRefPtr<time::TimeManager> mTimeManager;
-  nsRefPtr<ServiceWorkerContainer> mServiceWorkerContainer;
+  nsRefPtr<workers::ServiceWorkerContainer> mServiceWorkerContainer;
   nsCOMPtr<nsPIDOMWindow> mWindow;
 
   // Hashtable for saving cached objects newresolve created, so we don't create

@@ -128,15 +128,14 @@ GMPChild::Init(const std::string& aPluginPath,
     return false;
   }
 
-#ifdef MOZ_CRASHREPORTER
-  SendPCrashReporterConstructor(CrashReporter::CurrentThreadId());
-#endif
-
 #if defined(XP_MACOSX) && defined(MOZ_GMP_SANDBOX)
   mPluginPath = aPluginPath;
   return true;
 #endif
 
+#ifdef MOZ_CRASHREPORTER
+  SendPCrashReporterConstructor(CrashReporter::CurrentThreadId());
+#endif
 #if defined(XP_WIN)
   mozilla::SandboxTarget::Instance()->StartSandbox();
 #endif
@@ -398,32 +397,6 @@ GMPChild::GetGMPTimers()
     mTimerChild = static_cast<GMPTimerChild*>(sc);
   }
   return mTimerChild;
-}
-
-PGMPStorageChild*
-GMPChild::AllocPGMPStorageChild()
-{
-  return new GMPStorageChild(this);
-}
-
-bool
-GMPChild::DeallocPGMPStorageChild(PGMPStorageChild* aActor)
-{
-  mStorage = nullptr;
-  return true;
-}
-
-GMPStorageChild*
-GMPChild::GetGMPStorage()
-{
-  if (!mStorage) {
-    PGMPStorageChild* sc = SendPGMPStorageConstructor();
-    if (!sc) {
-      return nullptr;
-    }
-    mStorage = static_cast<GMPStorageChild*>(sc);
-  }
-  return mStorage;
 }
 
 bool

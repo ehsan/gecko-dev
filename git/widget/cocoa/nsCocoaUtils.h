@@ -54,7 +54,7 @@ class SourceSurface;
 // Used to retain a Cocoa object for the remainder of a method's execution.
 class nsAutoRetainCocoaObject {
 public:
-explicit nsAutoRetainCocoaObject(id anObject)
+nsAutoRetainCocoaObject(id anObject)
 {
   mObject = NS_OBJC_TRY_EXPR_ABORT([anObject retain]);
 }

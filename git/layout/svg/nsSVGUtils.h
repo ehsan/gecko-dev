@@ -90,10 +90,10 @@ public:
   SVGBBox() 
     : mIsEmpty(true) {}
 
-  MOZ_IMPLICIT SVGBBox(const Rect& aRect)
+  SVGBBox(const Rect& aRect)
     : mBBox(aRect), mIsEmpty(false) {}
 
-  MOZ_IMPLICIT SVGBBox(const gfxRect& aRect)
+  SVGBBox(const gfxRect& aRect)
     : mBBox(ToRect(aRect)), mIsEmpty(false) {}
 
   gfxRect ToThebesRect() const {

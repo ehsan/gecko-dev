@@ -17,45 +17,46 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=833386
 </div>
 <pre id="test">
 <script class="testbody" type="text/javascript">
-reflectLimitedEnumerated({
-  element: document.createElement("track"),
-  attribute: "kind",
-  validValues: ["subtitles", "captions", "descriptions", "chapters",
-                "metadata"],
-  invalidValues: ["foo", "bar", "\u0000", "null", "", "subtitle", "caption",
-                  "description", "chapter", "meta"],
-  defaultValue: "subtitles"
-});
+SimpleTest.waitForExplicitFinish();
+SpecialPowers.pushPrefEnv({"set": [["media.webvtt.enabled", true]]},
+  function() {
+    reflectLimitedEnumerated({
+      element: document.createElement("track"),
+      attribute: "kind",
+      validValues: ["subtitles", "captions", "descriptions", "chapters", "metadata"],
+      invalidValues: ["foo", "bar", "\u0000", "null", "", "subtitle", "caption", "description", "chapter", "meta"],
+      defaultValue: "subtitles"
+    });
+    // Default attribute
+    reflectBoolean({
+      element: document.createElement("track"),
+      attribute: "default"
+    });
+    // Label attribute
+    reflectString({
+      element: document.createElement("track"),
+      attribute: "label",
+      otherValues: [ "foo", "BAR", "_FoO", "\u0000", "null", "white space" ]
+    });
+    // Source attribute
+    reflectURL({
+      element: document.createElement("track"),
+      attribute: "src",
+      otherValues: ["foo", "bar", "\u0000", "null", ""]
+    });
+    // Source Language attribute
+    reflectString({
+      element: document.createElement("track"),
+      attribute: "srclang",
+      otherValues: ["foo", "bar", "\u0000", "null", ""]
+    });
 
-// Default attribute
-reflectBoolean({
-  element: document.createElement("track"),
-  attribute: "default"
-});
+    var track = document.createElement("track");
+    is(track.readyState, 0, "Default ready state should be 0 (NONE).");
 
-// Label attribute
-reflectString({
-  element: document.createElement("track"),
-  attribute: "label",
-  otherValues: [ "foo", "BAR", "_FoO", "\u0000", "null", "white space" ]
-});
-
-// Source attribute
-reflectURL({
-  element: document.createElement("track"),
-  attribute: "src",
-  otherValues: ["foo", "bar", "\u0000", "null", ""]
-});
-
-// Source Language attribute
-reflectString({
-  element: document.createElement("track"),
-  attribute: "srclang",
-  otherValues: ["foo", "bar", "\u0000", "null", ""]
-});
-
-var track = document.createElement("track");
-is(track.readyState, 0, "Default ready state should be 0 (NONE).");
+    SimpleTest.finish();
+  }
+);
 </script>
 </pre>
 </body>

@@ -31,7 +31,7 @@ class ImageLayerComposite : public ImageLayer,
   typedef gl::TextureImage TextureImage;
 
 public:
-  explicit ImageLayerComposite(LayerManagerComposite* aManager);
+  ImageLayerComposite(LayerManagerComposite* aManager);
 
 protected:
   virtual ~ImageLayerComposite();

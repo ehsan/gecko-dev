@@ -119,11 +119,8 @@ public:
   // required to begin playback have been acquired. Can be called on any thread.
   virtual void NotifyWaitingForResourcesStatusChanged() = 0;
 
-  // Set by Reader if the current audio track can be offloaded
-  virtual void SetPlatformCanOffloadAudio(bool aCanOffloadAudio) {}
-
-  // Called by Decoder/State machine to check audio offload condtions are met
-  virtual bool CheckDecoderCanOffloadAudio() { return false; }
+  // Called by Reader if the current audio track can be offloaded
+  virtual void SetCanOffloadAudio(bool aCanOffloadAudio) {}
 
   // Called from HTMLMediaElement when owner document activity changes
   virtual void SetElementVisibility(bool aIsVisible) {}

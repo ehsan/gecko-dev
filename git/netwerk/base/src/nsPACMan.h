@@ -24,7 +24,6 @@
 class nsPACMan;
 class nsISystemProxySettings;
 class nsIThread;
-class WaitForThreadShutdown;
 
 /**
  * This class defines a callback interface used by AsyncGetProxyForURI.
@@ -165,7 +164,6 @@ private:
   friend class PendingPACQuery;
   friend class PACLoadComplete;
   friend class ExecutePACThreadAction;
-  friend class WaitForThreadShutdown;
 
   ~nsPACMan();
 

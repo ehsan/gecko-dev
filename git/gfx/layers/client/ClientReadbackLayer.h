@@ -17,7 +17,7 @@ class ClientReadbackLayer :
   public ClientLayer
 {
 public:
-  explicit ClientReadbackLayer(ClientLayerManager *aManager)
+    ClientReadbackLayer(ClientLayerManager *aManager)
     : ReadbackLayer(aManager, nullptr)
   {
       mImplData = static_cast<ClientLayer*>(this);

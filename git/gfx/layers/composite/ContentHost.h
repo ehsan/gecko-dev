@@ -68,7 +68,7 @@ public:
   bool PaintWillResample() { return mPaintWillResample; }
 
 protected:
-  explicit ContentHost(const TextureInfo& aTextureInfo)
+  ContentHost(const TextureInfo& aTextureInfo)
     : CompositableHost(aTextureInfo)
     , mPaintWillResample(false)
   {}
@@ -93,7 +93,7 @@ public:
   typedef RotatedContentBuffer::ContentType ContentType;
   typedef RotatedContentBuffer::PaintState PaintState;
 
-  explicit ContentHostBase(const TextureInfo& aTextureInfo);
+  ContentHostBase(const TextureInfo& aTextureInfo);
   virtual ~ContentHostBase();
 
   virtual void Composite(EffectChain& aEffectChain,
@@ -127,7 +127,7 @@ protected:
 class ContentHostTexture : public ContentHostBase
 {
 public:
-  explicit ContentHostTexture(const TextureInfo& aTextureInfo)
+  ContentHostTexture(const TextureInfo& aTextureInfo)
     : ContentHostBase(aTextureInfo)
     , mLocked(false)
   { }
@@ -201,7 +201,7 @@ protected:
 class ContentHostDoubleBuffered : public ContentHostTexture
 {
 public:
-  explicit ContentHostDoubleBuffered(const TextureInfo& aTextureInfo)
+  ContentHostDoubleBuffered(const TextureInfo& aTextureInfo)
     : ContentHostTexture(aTextureInfo)
   {}
 
@@ -225,7 +225,7 @@ protected:
 class ContentHostSingleBuffered : public ContentHostTexture
 {
 public:
-  explicit ContentHostSingleBuffered(const TextureInfo& aTextureInfo)
+  ContentHostSingleBuffered(const TextureInfo& aTextureInfo)
     : ContentHostTexture(aTextureInfo)
   {}
   virtual ~ContentHostSingleBuffered() {}
@@ -251,7 +251,7 @@ public:
 class ContentHostIncremental : public ContentHostBase
 {
 public:
-  explicit ContentHostIncremental(const TextureInfo& aTextureInfo);
+  ContentHostIncremental(const TextureInfo& aTextureInfo);
   ~ContentHostIncremental();
 
   virtual CompositableType GetType() { return CompositableType::BUFFER_CONTENT_INC; }

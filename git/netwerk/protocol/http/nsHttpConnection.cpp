@@ -310,19 +310,21 @@ nsHttpConnection::EnsureNPNComplete()
         return false;
     }
 
-    if (NS_SUCCEEDED(rv)) {
-        LOG(("nsHttpConnection::EnsureNPNComplete %p [%s] negotiated to '%s'%s\n",
-             this, mConnInfo->HashKey().get(), negotiatedNPN.get(),
-             mTLSFilter ? " [Double Tunnel]" : ""));
-
-        uint32_t infoIndex;
-        const SpdyInformation *info = gHttpHandler->SpdyInfo();
-        if (NS_SUCCEEDED(info->GetNPNIndex(negotiatedNPN, &infoIndex))) {
-            StartSpdy(info->Version[infoIndex]);
-        }
-
-        Telemetry::Accumulate(Telemetry::SPDY_NPN_CONNECT, UsingSpdy());
+    if (NS_FAILED(rv)) {
+        goto npnComplete;
     }
+    LOG(("nsHttpConnection::EnsureNPNComplete %p [%s] negotiated to '%s'%s\n",
+         this, mConnInfo->HashKey().get(), negotiatedNPN.get(),
+         mTLSFilter ? " [Double Tunnel]" : ""));
+
+    uint8_t spdyVersion;
+    rv = gHttpHandler->SpdyInfo()->GetNPNVersionIndex(negotiatedNPN,
+                                                      &spdyVersion);
+    if (NS_SUCCEEDED(rv)) {
+        StartSpdy(spdyVersion);
+    }
+
+    Telemetry::Accumulate(Telemetry::SPDY_NPN_CONNECT, UsingSpdy());
 
 npnComplete:
     LOG(("nsHttpConnection::EnsureNPNComplete setting complete to true"));
@@ -473,10 +475,6 @@ nsHttpConnection::SetupSSL()
     }
 }
 
-// The naming of NPN is historical - this function creates the basic
-// offer list for both NPN and ALPN. ALPN validation callbacks are made
-// now before the handshake is complete, and NPN validation callbacks
-// are made during the handshake.
 nsresult
 nsHttpConnection::SetupNPNList(nsISSLSocketControl *ssl, uint32_t caps)
 {
@@ -494,12 +492,10 @@ nsHttpConnection::SetupNPNList(nsISSLSocketControl *ssl, uint32_t caps)
     if (gHttpHandler->IsSpdyEnabled() &&
         !(caps & NS_HTTP_DISALLOW_SPDY)) {
         LOG(("nsHttpConnection::SetupSSL Allow SPDY NPN selection"));
-        const SpdyInformation *info = gHttpHandler->SpdyInfo();
         for (uint32_t index = SpdyInformation::kCount; index > 0; --index) {
-            if (info->ProtocolEnabled(index - 1) &&
-                info->ALPNCallbacks[index - 1](ssl)) {
-                protocolArray.AppendElement(info->VersionString[index - 1]);
-            }
+            if (gHttpHandler->SpdyInfo()->ProtocolEnabled(index - 1))
+                protocolArray.AppendElement(
+                    gHttpHandler->SpdyInfo()->VersionString[index - 1]);
         }
     }
 

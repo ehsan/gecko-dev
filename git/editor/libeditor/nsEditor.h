@@ -895,7 +895,6 @@ protected:
   bool mDidPreDestroy;    // whether PreDestroy has been called
   bool mDidPostCreate;    // whether PostCreate has been called
   bool mDispatchInputEvent;
-  bool mIsInEditAction;   // true while the instance is handling an edit action
 
   friend bool NSCanUnload(nsISupports* serviceMgr);
   friend class nsAutoTxnsConserveSelection;
