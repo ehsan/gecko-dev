@@ -6,24 +6,23 @@
 "use strict";
 
 const { Cc, Ci, Cu, Cr } = require("chrome");
-const promise = require("sdk/core/promise");
 const EventEmitter = require("devtools/shared/event-emitter");
+const promise = require("sdk/core/promise");
 
 function DebuggerPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this._toolbox = toolbox;
-  this._destroyer = null;
 
   this._view = this.panelWin.DebuggerView;
   this._controller = this.panelWin.DebuggerController;
   this._controller._target = this.target;
+  this._bkp = this._controller.Breakpoints;
 
   this.highlightWhenPaused = this.highlightWhenPaused.bind(this);
   this.unhighlightWhenResumed = this.unhighlightWhenResumed.bind(this);
 
   EventEmitter.decorate(this);
-};
-
+}
 exports.DebuggerPanel = DebuggerPanel;
 
 DebuggerPanel.prototype = {
@@ -33,7 +32,7 @@ DebuggerPanel.prototype = {
    * @return object
    *         A promise that is resolved when the Debugger completes opening.
    */
-  open: function() {
+  open: function DebuggerPanel_open() {
     let targetPromise;
 
     // Local debugging needs to make the target remote.
@@ -55,41 +54,40 @@ DebuggerPanel.prototype = {
       })
       .then(null, function onError(aReason) {
         Cu.reportError("DebuggerPanel open failed. " +
-                       aReason.error + ": " + aReason.message);
+                       reason.error + ": " + reason.message);
       });
   },
 
   // DevToolPanel API
-
   get target() this._toolbox.target,
 
   destroy: function() {
-    // Make sure this panel is not already destroyed.
-    if (this._destroyer) {
-      return this._destroyer;
-    }
-
     this.target.off("thread-paused", this.highlightWhenPaused);
     this.target.off("thread-resumed", this.unhighlightWhenResumed);
-
-    return this._destroyer = this._controller.shutdownDebugger().then(() => {
-      this.emit("destroyed");
-    });
+    this.emit("destroyed");
+    return promise.resolve(null);
   },
 
   // DebuggerPanel API
 
-  addBreakpoint: function(aLocation, aOptions) {
-    return this._controller.Breakpoints.addBreakpoint(aLocation, aOptions);
+  addBreakpoint: function() {
+    this._bkp.addBreakpoint.apply(this._bkp, arguments);
   },
 
-  removeBreakpoint: function(aLocation) {
-    return this._controller.Breakpoints.removeBreakpoint(aLocation);
+  removeBreakpoint: function() {
+    this._bkp.removeBreakpoint.apply(this._bkp, arguments);
+  },
+
+  getBreakpoint: function() {
+    return this._bkp.getBreakpoint.apply(this._bkp, arguments);
+  },
+
+  getAllBreakpoints: function() {
+    return this._bkp.store;
   },
 
   highlightWhenPaused: function() {
     this._toolbox.highlightTool("jsdebugger");
-
     // Also raise the toolbox window if it is undocked or select the
     // corresponding tab when toolbox is docked.
     this._toolbox.raise();

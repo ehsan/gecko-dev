@@ -1,114 +1,100 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-/**
- * Make sure the listAddons request works as specified.
- */
-const ADDON1_URL = EXAMPLE_URL + "addon1.xpi";
-const ADDON2_URL = EXAMPLE_URL + "addon2.xpi";
+// Make sure the listAddons request works as specified.
 
-let gAddon1, gAddon1Actor, gAddon2, gAddon2Actor, gClient;
+var gAddon1 = null;
+var gAddon1Actor = null;
 
-function test() {
-  if (!DebuggerServer.initialized) {
-    DebuggerServer.init(() => true);
-    DebuggerServer.addBrowserActors();
-  }
+var gAddon2 = null;
+var gAddon2Actor = null;
 
+var gClient = null;
+
+function test()
+{
   let transport = DebuggerServer.connectPipe();
   gClient = new DebuggerClient(transport);
-  gClient.connect((aType, aTraits) => {
-    is(aType, "browser",
-      "Root actor should identify itself as a browser.");
-
-    promise.resolve(null)
-      .then(testFirstAddon)
-      .then(testSecondAddon)
-      .then(testRemoveFirstAddon)
-      .then(testRemoveSecondAddon)
-      .then(closeConnection)
-      .then(finish)
-      .then(null, aError => {
-        ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
-      });
-  });
+  gClient.connect(function (aType, aTraits) {
+    is(aType, "browser", "Root actor should identify itself as a browser.");
+    test_first_addon();
+  })
 }
 
-function testFirstAddon() {
+function test_first_addon()
+{
   let addonListChanged = false;
-  gClient.addOneTimeListener("addonListChanged", () => {
+  gClient.addOneTimeListener("addonListChanged", function () {
     addonListChanged = true;
   });
-
-  return addAddon(ADDON1_URL).then(aAddon => {
+  addAddon(ADDON1_URL, function(aAddon) {
     gAddon1 = aAddon;
-
-    return getAddonActorForUrl(gClient, ADDON1_URL).then(aGrip => {
+    gClient.listAddons(function(aResponse) {
+      for each (let addon in aResponse.addons) {
+        if (addon.url == ADDON1_URL) {
+          gAddon1Actor = addon.actor;
+        }
+      }
       ok(!addonListChanged, "Should not yet be notified that list of addons changed.");
-      ok(aGrip, "Should find an addon actor for addon1.");
-      gAddon1Actor = aGrip.actor;
+      ok(gAddon1Actor, "Should find an addon actor for addon1.");
+      test_second_addon();
     });
   });
 }
 
-function testSecondAddon() {
+function test_second_addon()
+{
   let addonListChanged = false;
   gClient.addOneTimeListener("addonListChanged", function () {
     addonListChanged = true;
   });
-
-  return addAddon(ADDON2_URL).then(aAddon => {
+  addAddon(ADDON2_URL, function(aAddon) {
     gAddon2 = aAddon;
-
-    return getAddonActorForUrl(gClient, ADDON1_URL).then(aFirstGrip => {
-      return getAddonActorForUrl(gClient, ADDON2_URL).then(aSecondGrip => {
-        ok(addonListChanged, "Should be notified that list of addons changed.");
-        is(aFirstGrip.actor, gAddon1Actor, "First addon's actor shouldn't have changed.");
-        ok(aSecondGrip, "Should find a addon actor for the second addon.");
-        gAddon2Actor = aSecondGrip.actor;
-      });
+    gClient.listAddons(function(aResponse) {
+      let foundAddon1 = false;
+      for each (let addon in aResponse.addons) {
+        if (addon.url == ADDON1_URL) {
+          is(addon.actor, gAddon1Actor, "Addon1's actor shouldn't have changed.");
+          foundAddon1 = true;
+        }
+        if (addon.url == ADDON2_URL) {
+          gAddon2Actor = addon.actor;
+        }
+      }
+      ok(addonListChanged, "Should be notified that list of addons changed.");
+      ok(foundAddon1, "Should find an addon actor for addon1.");
+      ok(gAddon2Actor, "Should find an actor for addon2.");
+      test_remove_addon();
     });
   });
 }
 
-function testRemoveFirstAddon() {
+function test_remove_addon()
+{
   let addonListChanged = false;
   gClient.addOneTimeListener("addonListChanged", function () {
     addonListChanged = true;
   });
-
-  removeAddon(gAddon1).then(() => {
-    return getAddonActorForUrl(gClient, ADDON1_URL).then(aGrip => {
+  removeAddon(gAddon1, function() {
+    gClient.listAddons(function(aResponse) {
+      let foundAddon1 = false;
+      for each (let addon in aResponse.addons) {
+        if (addon.url == ADDON1_URL) {
+          foundAddon1 = true;
+        }
+      }
       ok(addonListChanged, "Should be notified that list of addons changed.");
-      ok(!aGrip, "Shouldn't find a addon actor for the first addon anymore.");
+      ok(!foundAddon1, "Addon1 should be gone");
+      finish_test();
     });
   });
 }
 
-function testRemoveSecondAddon() {
-  let addonListChanged = false;
-  gClient.addOneTimeListener("addonListChanged", function () {
-    addonListChanged = true;
-  });
-
-  removeAddon(gAddon2).then(() => {
-    return getAddonActorForUrl(gClient, ADDON2_URL).then(aGrip => {
-      ok(addonListChanged, "Should be notified that list of addons changed.");
-      ok(!aGrip, "Shouldn't find a addon actor for the second addon anymore.");
+function finish_test()
+{
+  removeAddon(gAddon2, function() {
+    gClient.close(function() {
+      finish();
     });
   });
 }
-
-function closeConnection() {
-  let deferred = promise.defer();
-  gClient.close(deferred.resolve);
-  return deferred.promise;
-}
-
-registerCleanupFunction(function() {
-  gAddon1 = null;
-  gAddon1Actor = null;
-  gAddon2 = null;
-  gAddon2Actor = null;
-  gClient = null;
-});

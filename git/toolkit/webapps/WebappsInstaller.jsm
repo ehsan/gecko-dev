@@ -61,10 +61,8 @@ this.WebappsInstaller = {
    *
    * @param aData the data provided to the install function
    * @param aManifest the manifest data provided by the web app
-   * @param aZipPath path to the zip file for packaged apps (undefined for
-   *                 hosted apps)
    */
-  install: function(aData, aManifest, aZipPath) {
+  install: function(aData, aManifest) {
     try {
       if (Services.prefs.getBoolPref("browser.mozApps.installer.dry_run")) {
         return Promise.resolve();
@@ -73,7 +71,7 @@ this.WebappsInstaller = {
 
     this.shell.init(aData, aManifest);
 
-    return this.shell.install(aZipPath).then(() => {
+    return this.shell.install().then(() => {
       let data = {
         "installDir": this.shell.installDir.path,
         "app": {
@@ -98,11 +96,10 @@ this.WebappsInstaller = {
  *
  */
 function NativeApp(aData) {
+  this.uniqueName = WebappOSUtils.getUniqueName(aData.app);
+
   let jsonManifest = aData.isPackage ? aData.app.updateManifest : aData.app.manifest;
   let manifest = new ManifestHelper(jsonManifest, aData.app.origin);
-
-  aData.app.name = manifest.name;
-  this.uniqueName = WebappOSUtils.getUniqueName(aData.app);
 
   this.appName = sanitize(manifest.name);
   this.appNameAsFilename = stripStringForFilename(this.appName);
@@ -129,11 +126,10 @@ NativeApp.prototype = {
    *
    */
   init: function(aData, aManifest) {
-    let app = aData.app;
     let manifest = this.manifest = new ManifestHelper(aManifest,
-                                                      app.origin);
+                                                      aData.app.origin);
 
-    let origin = Services.io.newURI(app.origin, null, null);
+    let origin = Services.io.newURI(aData.app.origin, null, null);
 
     let biggestIcon = getBiggestIconURL(manifest.icons);
     try {
@@ -173,7 +169,7 @@ NativeApp.prototype = {
       this.shortDescription = this.appName;
     }
 
-    this.categories = app.categories.slice(0);
+    this.categories = aData.app.categories.slice(0);
 
     // The app registry is the Firefox profile from which the app
     // was installed.
@@ -183,26 +179,10 @@ NativeApp.prototype = {
       "registryDir": registryFolder.path,
       "app": {
         "manifest": aManifest,
-        "origin": app.origin,
-        "manifestURL": app.manifestURL,
-        "installOrigin": app.installOrigin,
-        "categories": app.categories,
-        "receipts": app.receipts,
-        "installTime": app.installTime,
+        "origin": aData.app.origin,
+        "manifestURL": aData.app.manifestURL
       }
     };
-
-    if (app.etag) {
-      this.webappJson.app.etag = app.etag;
-    }
-
-    if (app.packageEtag) {
-      this.webappJson.app.packageEtag = app.packageEtag;
-    }
-
-    if (app.updateManifest) {
-      this.webappJson.app.updateManifest = app.updateManifest;
-    }
 
     this.runtimeFolder = Services.dirsvc.get("GreD", Ci.nsIFile);
   },
@@ -213,23 +193,6 @@ NativeApp.prototype = {
    */
   getIcon: function() {
     try {
-      // If the icon is in the zip package, we should modify the url
-      // to point to the zip file (we can't use the app protocol yet
-      // because the app isn't installed yet).
-      if (this.iconURI.scheme == "app") {
-        let zipFile = Cc["@mozilla.org/file/local;1"].
-                      createInstance(Ci.nsIFile);
-        zipFile.initWithPath(OS.Path.join(this.installDir.path,
-                                          "application.zip"));
-        let zipUrl = Services.io.newFileURI(zipFile).spec;
-
-        let filePath = this.iconURI.QueryInterface(Ci.nsIURL).filePath;
-
-        this.iconURI = Services.io.newURI("jar:" + zipUrl + "!" + filePath,
-                                          null, null);
-      }
-
-
       let [ mimeType, icon ] = yield downloadIcon(this.iconURI);
       yield this.processIcon(mimeType, icon);
     }
@@ -308,19 +271,13 @@ WinNativeApp.prototype = {
    * Install the app in the system
    *
    */
-  install: function(aZipPath) {
+  install: function() {
     return Task.spawn(function() {
       try {
         this._copyPrebuiltFiles();
         this._createShortcutFiles();
         this._createConfigFiles();
         this._writeSystemKeys();
-
-        if (aZipPath) {
-          yield OS.File.move(aZipPath, OS.Path.join(this.installDir.path,
-                                                    "application.zip"));
-        }
-
         yield this.getIcon();
       } catch (ex) {
         this._removeInstallation(false);
@@ -667,17 +624,11 @@ MacNativeApp.prototype = {
     this._createDirectoryStructure();
   },
 
-  install: function(aZipPath) {
+  install: function() {
     return Task.spawn(function() {
       try {
         this._copyPrebuiltFiles();
         this._createConfigFiles();
-
-        if (aZipPath) {
-          yield OS.File.move(aZipPath, OS.Path.join(this.installDir.path,
-                                                    "application.zip"));
-        }
-
         yield this.getIcon();
         this._moveToApplicationsFolder();
       } catch (ex) {
@@ -870,17 +821,11 @@ LinuxNativeApp.prototype = {
     this._createDirectoryStructure();
   },
 
-  install: function(aZipPath) {
+  install: function() {
     return Task.spawn(function() {
       try {
         this._copyPrebuiltFiles();
         this._createConfigFiles();
-
-        if (aZipPath) {
-          yield OS.File.move(aZipPath, OS.Path.join(this.installDir.path,
-                                                    "application.zip"));
-        }
-
         yield this.getIcon();
       } catch (ex) {
         this._removeInstallation(false);

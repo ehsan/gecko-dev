@@ -686,7 +686,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    * Adds odd/even attributes to all the visible items in this container.
    */
   refreshZebra: function() {
-    let visibleItems = this.visibleItems;
+    let visibleItems = this.orderedVisibleItems;
 
     for (let i = 0, len = visibleItems.length; i < len; i++) {
       let requestItem = visibleItems[i];
@@ -723,8 +723,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
       return void this._flushRequests();
     }
     // Allow requests to settle down first.
-    setNamedTimeout(
-      "update-requests", REQUESTS_REFRESH_RATE, () => this._flushRequests());
+    drain("update-requests", REQUESTS_REFRESH_RATE, () => this._flushRequests());
   },
 
   /**
@@ -1195,8 +1194,7 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    */
   _onResize: function(e) {
     // Allow requests to settle down first.
-    setNamedTimeout(
-      "resize-events", RESIZE_REFRESH_RATE, () => this._flushWaterfallViews(true));
+    drain("resize-events", RESIZE_REFRESH_RATE, () => this._flushWaterfallViews(true));
   },
 
   /**
@@ -2154,6 +2152,16 @@ function writeQueryText(aParams) {
 function writeQueryString(aParams) {
   return [(name + "=" + value) for ({name, value} of aParams)].join("&");
 }
+
+/**
+ * Helper for draining a rapid succession of events and invoking a callback
+ * once everything settles down.
+ */
+function drain(aId, aWait, aCallback, aStore = drain.store) {
+  window.clearTimeout(aStore.get(aId));
+  aStore.set(aId, window.setTimeout(aCallback, aWait));
+}
+drain.store = new Map();
 
 /**
  * Preliminary setup for the NetMonitorView object.

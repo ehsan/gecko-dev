@@ -1950,8 +1950,8 @@ this.DOMApplicationRegistry = {
         }
 
         // Disallow reinstalls from the same manifest URL for now.
-        let id = this._appIdForManifestURL(app.manifestURL);
-        if (id !== null && this._isLaunchable(this.webapps[id])) {
+        if (this._appIdForManifestURL(app.manifestURL) !== null &&
+            this._isLaunchable(app)) {
           sendError("REINSTALL_FORBIDDEN");
           return;
         }
@@ -2069,7 +2069,7 @@ this.DOMApplicationRegistry = {
                                   app: app,
                                   manifest: aManifest });
           if (installSuccessCallback) {
-            installSuccessCallback(aManifest, zipFile.path);
+            installSuccessCallback(aManifest);
           }
         }).bind(this));
       }).bind(this));
@@ -2209,11 +2209,6 @@ this.DOMApplicationRegistry = {
 
   _nextLocalId: function() {
     let id = Services.prefs.getIntPref("dom.mozApps.maxLocalId") + 1;
-
-    while (this.getManifestURLByLocalId(id)) {
-      id++;
-    }
-
     Services.prefs.setIntPref("dom.mozApps.maxLocalId", id);
     Services.prefs.savePrefFile(null);
     return id;
@@ -2943,8 +2938,7 @@ this.DOMApplicationRegistry = {
     let tmp = [];
 
     for (let appId in this.webapps) {
-      if (this.webapps[appId].manifestURL == aData.manifestURL &&
-          this._isLaunchable(this.webapps[appId])) {
+      if (this.webapps[appId].manifestURL == aData.manifestURL) {
         aData.app = AppsUtils.cloneAppObject(this.webapps[appId]);
         tmp.push({ id: appId });
         break;
