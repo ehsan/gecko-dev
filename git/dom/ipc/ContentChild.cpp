@@ -19,21 +19,18 @@
 #include "AudioChild.h"
 #endif
 
-#include "mozilla/Attributes.h"
-#include "mozilla/MemoryInfoDumper.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
 #include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/StorageChild.h"
-#include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/layers/CompositorChild.h"
-#include "mozilla/layers/ImageBridgeChild.h"
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Attributes.h"
 
 #if defined(MOZ_SYDNEYAUDIO)
 #include "nsAudioStream.h"
@@ -53,7 +50,7 @@
 #include "nsDebugImpl.h"
 #include "nsLayoutStylesheetCache.h"
 
-#include "IHistory.h"
+#include "History.h"
 #include "nsDocShellCID.h"
 #include "nsNetUtil.h"
 
@@ -93,22 +90,16 @@
 #include "mozilla/dom/indexedDB/PIndexedDBChild.h"
 #include "mozilla/dom/sms/SmsChild.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestChild.h"
-#include "mozilla/dom/bluetooth/PBluetoothChild.h"
 
 #include "nsDOMFile.h"
 #include "nsIRemoteBlob.h"
-#include "ProcessUtils.h"
 #include "StructuredCloneUtils.h"
 #include "URIUtils.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
-#include "nsDeviceStorage.h"
-#include "AudioChannelService.h"
 
-using namespace base;
 using namespace mozilla::docshell;
-using namespace mozilla::dom::bluetooth;
 using namespace mozilla::dom::devicestorage;
 using namespace mozilla::dom::sms;
 using namespace mozilla::dom::indexedDB;
@@ -116,6 +107,7 @@ using namespace mozilla::hal_sandbox;
 using namespace mozilla::ipc;
 using namespace mozilla::layers;
 using namespace mozilla::net;
+using namespace mozilla::places;
 #if defined(MOZ_WIDGET_GONK)
 using namespace mozilla::system;
 #endif
@@ -232,11 +224,13 @@ ConsoleListener::Observe(nsIConsoleMessage* aMessage)
 ContentChild* ContentChild::sSingleton;
 
 ContentChild::ContentChild()
- : TabContext()
- , mID(uint64_t(-1))
+ :
+   mID(uint64_t(-1))
 #ifdef ANDROID
    ,mScreenSize(0, 0)
 #endif
+   , mIsForApp(false)
+   , mIsForBrowser(false)
 {
     // This process is a content process, so it's clearly running in
     // multiprocess mode!
@@ -292,33 +286,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
 #endif
 #endif
 
-    bool startBackground = true;
-    SendGetProcessAttributes(&mID, &startBackground,
-                             &mIsForApp, &mIsForBrowser);
-    hal::SetProcessPriority(
-        GetCurrentProcId(),
-        startBackground ? hal::PROCESS_PRIORITY_BACKGROUND:
-                          hal::PROCESS_PRIORITY_FOREGROUND);
-    if (mIsForApp && !mIsForBrowser) {
-        SetProcessName(NS_LITERAL_STRING("(Preallocated app)"));
-    } else {
-        SetProcessName(NS_LITERAL_STRING("Browser"));
-    }
-
     return true;
-}
-
-void
-ContentChild::SetProcessName(const nsAString& aName)
-{
-    mProcessName = aName;
-    mozilla::ipc::SetThisProcessName(NS_LossyConvertUTF16toASCII(aName).get());
-}
-
-const void
-ContentChild::GetProcessName(nsAString& aName)
-{
-    aName.Assign(mProcessName);
 }
 
 void
@@ -333,10 +301,6 @@ ContentChild::InitXPCOM()
     mConsoleListener = new ConsoleListener(this);
     if (NS_FAILED(svc->RegisterListener(mConsoleListener)))
         NS_WARNING("Couldn't register console listener for child process");
-
-    bool isOffline;
-    SendGetXPCOMProcessAttributes(&isOffline);
-    RecvSetOffline(isOffline);
 }
 
 PMemoryReportRequestChild*
@@ -439,39 +403,9 @@ ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* chi
 }
 
 bool
-ContentChild::RecvAudioChannelNotify()
-{
-    nsRefPtr<AudioChannelService> service =
-        AudioChannelService::GetAudioChannelService();
-    if (service) {
-        service->Notify();
-    }
-    return true;
-}
-
-bool
 ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
 {
     delete actor;
-    return true;
-}
-
-bool
-ContentChild::RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
-                                          const bool& aMinimizeMemoryUsage,
-                                          const bool& aDumpChildProcesses)
-{
-    MemoryInfoDumper::DumpMemoryReportsToFile(
-        aIdentifier, aMinimizeMemoryUsage, aDumpChildProcesses);
-    return true;
-}
-
-bool
-ContentChild::RecvDumpGCAndCCLogsToFile(const nsString& aIdentifier,
-                                        const bool& aDumpChildProcesses)
-{
-    MemoryInfoDumper::DumpGCAndCCLogsToFile(
-        aIdentifier, aDumpChildProcesses);
     return true;
 }
 
@@ -482,42 +416,14 @@ ContentChild::AllocPCompositor(mozilla::ipc::Transport* aTransport,
     return CompositorChild::Create(aTransport, aOtherProcess);
 }
 
-PImageBridgeChild*
-ContentChild::AllocPImageBridge(mozilla::ipc::Transport* aTransport,
-                                base::ProcessId aOtherProcess)
-{
-    return ImageBridgeChild::StartUpInChildProcess(aTransport, aOtherProcess);
-}
-
-static CancelableTask* sFirstIdleTask;
-
-static void FirstIdle(void)
-{
-    MOZ_ASSERT(sFirstIdleTask);
-    sFirstIdleTask = nullptr;
-    ContentChild::GetSingleton()->SendFirstIdle();
-}
-
 PBrowserChild*
-ContentChild::AllocPBrowser(const IPCTabContext& aContext,
-                            const uint32_t& aChromeFlags)
+ContentChild::AllocPBrowser(const uint32_t& aChromeFlags,
+                            const bool& aIsBrowserElement, const AppId& aApp)
 {
-    static bool firstIdleTaskPosted = false;
-    if (!firstIdleTaskPosted) {
-        MOZ_ASSERT(!sFirstIdleTask);
-        sFirstIdleTask = NewRunnableFunction(FirstIdle);
-        MessageLoop::current()->PostIdleTask(FROM_HERE, sFirstIdleTask);
-        firstIdleTaskPosted = true;
-    }
-
-    // We'll happily accept any kind of IPCTabContext here; we don't need to
-    // check that it's of a certain type for security purposes, because we
-    // believe whatever the parent process tells us.
-
-    nsRefPtr<TabChild> child = TabChild::Create(TabContext(aContext), aChromeFlags);
-
-    // The ref here is released below.
-    return child.forget().get();
+    uint32_t appId = aApp.get_uint32_t();
+    nsRefPtr<TabChild> iframe = new TabChild(aChromeFlags, aIsBrowserElement,
+                                             appId);
+    return NS_SUCCEEDED(iframe->Init()) ? iframe.forget().get() : NULL;
 }
 
 bool
@@ -563,11 +469,9 @@ ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
 
   BlobConstructorParams params;
 
-  if (blob->IsSizeUnknown() || blob->IsDateUnknown()) {
-    // We don't want to call GetSize or GetLastModifiedDate
-    // yet since that may stat a file on the main thread
-    // here. Instead we'll learn the size lazily from the
-    // other process.
+  if (blob->IsSizeUnknown()) {
+    // We don't want to call GetSize yet since that may stat a file on the main
+    // thread here. Instead we'll learn the size lazily from the other process.
     params = MysteryBlobConstructorParams();
   }
   else {
@@ -584,9 +488,6 @@ ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
       FileBlobConstructorParams fileParams;
 
       rv = file->GetName(fileParams.name());
-      NS_ENSURE_SUCCESS(rv, nullptr);
-
-      rv = file->GetMozLastModifiedDate(&fileParams.modDate());
       NS_ENSURE_SUCCESS(rv, nullptr);
 
       fileParams.contentType() = contentType;
@@ -775,30 +676,6 @@ ContentChild::DeallocPStorage(PStorageChild* aActor)
     return true;
 }
 
-PBluetoothChild*
-ContentChild::AllocPBluetooth()
-{
-#ifdef MOZ_B2G_BT
-    MOZ_NOT_REACHED("No one should be allocating PBluetoothChild actors");
-    return nullptr;
-#else
-    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
-    return nullptr;
-#endif
-}
-
-bool
-ContentChild::DeallocPBluetooth(PBluetoothChild* aActor)
-{
-#ifdef MOZ_B2G_BT
-    delete aActor;
-    return true;
-#else
-    MOZ_NOT_REACHED("No support for bluetooth on this platform!");
-    return false;
-#endif
-}
-
 bool
 ContentChild::RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
                                  const InfallibleTArray<ResourceMapping>& resources,
@@ -837,10 +714,6 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
     // keep persistent state.
     QuickExit();
 #endif
-
-    if (sFirstIdleTask) {
-        sFirstIdleTask->Cancel();
-    }
 
     mAlertObservers.Clear();
 
@@ -922,10 +795,7 @@ ContentChild::RecvNotifyVisited(const URIParams& aURI)
     if (!newURI) {
         return false;
     }
-    nsCOMPtr<IHistory> history = services::GetHistoryService();
-    if (history) {
-      history->NotifyVisited(newURI);
-    }
+    History::GetService()->NotifyVisited(newURI);
     return true;
 }
 
@@ -1059,8 +929,6 @@ PreloadSlowThings()
 {
     // This fetches and creates all the built-in stylesheets.
     nsLayoutStylesheetCache::UserContentSheet();
-
-    TabChild::PreloadSlowThings();
 }
 
 bool
@@ -1074,6 +942,20 @@ ContentChild::RecvAppInfo(const nsCString& version, const nsCString& buildID)
 }
 
 bool
+ContentChild::RecvSetProcessAttributes(const uint64_t &id,
+                                       const bool& aIsForApp,
+                                       const bool& aIsForBrowser)
+{
+    if (mID != uint64_t(-1)) {
+        NS_WARNING("Setting content child's ID twice?");
+    }
+    mID = id;
+    mIsForApp = aIsForApp;
+    mIsForBrowser = aIsForBrowser;
+    return true;
+}
+
+bool
 ContentChild::RecvLastPrivateDocShellDestroyed()
 {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -1082,17 +964,15 @@ ContentChild::RecvLastPrivateDocShellDestroyed()
 }
 
 bool
-ContentChild::RecvFilePathUpdate(const nsString& type, const nsString& path, const nsCString& aReason)
+ContentChild::RecvFilePathUpdate(const nsString& path, const nsCString& aReason)
 {
     nsCOMPtr<nsIFile> file;
     NS_NewLocalFile(path, false, getter_AddRefs(file));
 
-    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(type, file);
-
     nsString reason;
     CopyASCIItoUTF16(aReason, reason);
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    obs->NotifyObservers(dsf, "file-watcher-update", reason.get());
+    obs->NotifyObservers(file, "file-watcher-update", reason.get());
     return true;
 }
 

@@ -13,7 +13,6 @@
 #include "nsError.h"
 #include "nsMappedAttributes.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsContentList.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
@@ -61,8 +60,8 @@ public:
                                                      nsGenericHTMLElement)
 
 protected:
-  already_AddRefed<nsIDOMHTMLTableSectionElement> GetSection() const;
-  already_AddRefed<nsIDOMHTMLTableElement> GetTable() const;
+  nsresult GetSection(nsIDOMHTMLTableSectionElement** aSection);
+  nsresult GetTable(nsIDOMHTMLTableElement** aTable);
   nsRefPtr<nsContentList> mCells;
 };
 
@@ -101,44 +100,52 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLTableRowElement)
 
 
 // protected method
-already_AddRefed<nsIDOMHTMLTableSectionElement>
-nsHTMLTableRowElement::GetSection() const
+nsresult
+nsHTMLTableRowElement::GetSection(nsIDOMHTMLTableSectionElement** aSection)
 {
+  NS_ENSURE_ARG_POINTER(aSection);
   nsCOMPtr<nsIDOMHTMLTableSectionElement> section =
     do_QueryInterface(GetParent());
-  return section.forget();
+  section.forget(aSection);
+  return NS_OK;
 }
 
 // protected method
-already_AddRefed<nsIDOMHTMLTableElement>
-nsHTMLTableRowElement::GetTable() const
+nsresult
+nsHTMLTableRowElement::GetTable(nsIDOMHTMLTableElement** aTable)
 {
+  NS_ENSURE_ARG_POINTER(aTable);
+  *aTable = nullptr;
+
   nsIContent* parent = GetParent();
   if (!parent) {
-    return nullptr;
+    return NS_OK;
   }
 
   // We may not be in a section
   nsCOMPtr<nsIDOMHTMLTableElement> table = do_QueryInterface(parent);
   if (table) {
-    return table.forget();
+    table.forget(aTable);
+    return NS_OK;
   }
 
   parent = parent->GetParent();
   if (!parent) {
-    return nullptr;
+    return NS_OK;
   }
   table = do_QueryInterface(parent);
-  return table.forget();
+  table.forget(aTable);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLTableRowElement::GetRowIndex(int32_t* aValue)
 {
   *aValue = -1;
-  nsCOMPtr<nsIDOMHTMLTableElement> table = GetTable();
-  if (!table) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMHTMLTableElement> table;
+  nsresult rv = GetTable(getter_AddRefs(table));
+  if (NS_FAILED(rv) || !table) {
+    return rv;
   }
 
   nsCOMPtr<nsIDOMHTMLCollection> rows;
@@ -148,7 +155,7 @@ nsHTMLTableRowElement::GetRowIndex(int32_t* aValue)
   rows->GetLength(&numRows);
 
   for (uint32_t i = 0; i < numRows; i++) {
-    if (rows->GetElementAt(i) == this) {
+    if (rows->GetNodeAt(i) == static_cast<nsIContent*>(this)) {
       *aValue = i;
       break;
     }
@@ -160,9 +167,10 @@ NS_IMETHODIMP
 nsHTMLTableRowElement::GetSectionRowIndex(int32_t* aValue)
 {
   *aValue = -1;
-  nsCOMPtr<nsIDOMHTMLTableSectionElement> section = GetSection();
-  if (!section) {
-    return NS_OK;
+  nsCOMPtr<nsIDOMHTMLTableSectionElement> section;
+  nsresult rv = GetSection(getter_AddRefs(section));
+  if (NS_FAILED(rv) || !section) {
+    return rv;
   }
 
   nsCOMPtr<nsIDOMHTMLCollection> rows;
@@ -171,7 +179,7 @@ nsHTMLTableRowElement::GetSectionRowIndex(int32_t* aValue)
   uint32_t numRows;
   rows->GetLength(&numRows);
   for (uint32_t i = 0; i < numRows; i++) {
-    if (rows->GetElementAt(i) == this) {
+    if (rows->GetNodeAt(i) == static_cast<nsIContent*>(this)) {
       *aValue = i;
       break;
     }

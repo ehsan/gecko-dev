@@ -111,13 +111,13 @@ nsIconChannel::Init(nsIURI* aURI)
   nsCOMPtr<nsIMozIconURI> iconURI = do_QueryInterface(aURI);
   NS_ASSERTION(iconURI, "URI is not an nsIMozIconURI");
 
-  nsAutoCString stockIcon;
+  nsCAutoString stockIcon;
   iconURI->GetStockIcon(stockIcon);
 
   uint32_t desiredImageSize;
   iconURI->GetImageSize(&desiredImageSize);
 
-  nsAutoCString iconFileExt;
+  nsCAutoString iconFileExt;
   iconURI->GetFileExtension(iconFileExt);
 
   return moz_icon_to_channel(iconURI, iconFileExt, desiredImageSize, getter_AddRefs(mRealChannel));

@@ -31,6 +31,11 @@ int ParseFTPList(const char *line, struct list_state *state,
     return 0;
 
   memset( result, 0, sizeof(*result) );
+  if (state->magic != ((void *)ParseFTPList))
+  {
+    memset( state, 0, sizeof(*state) );
+    state->magic = ((void *)ParseFTPList);
+  }
   state->numlines++;
 
   /* carry buffer is only valid from one line to the next */
@@ -132,7 +137,7 @@ int ParseFTPList(const char *line, struct list_state *state,
                 PRTime t;
                 PRTime seconds;
                 PR_sscanf(p+1, "%llu", &seconds);
-                t = seconds * PR_USEC_PER_SEC;
+                LL_MUL(t, seconds, PR_USEC_PER_SEC);
                 PR_ExplodeTime(t, PR_LocalTimeParameters, &(result->fe_time) );
               }
             }
@@ -489,7 +494,7 @@ int ParseFTPList(const char *line, struct list_state *state,
               uint64_t fsz, factor;
               LL_UI2L(fsz, strtoul(tokens[1], (char **)0, 10));
               LL_UI2L(factor, 512);
-              fsz *= factor;
+              LL_MUL(fsz, fsz, factor);
               PR_snprintf(result->fe_size, sizeof(result->fe_size), 
                           "%lld", fsz);
             } 

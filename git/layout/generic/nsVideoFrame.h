@@ -9,7 +9,6 @@
 #ifndef nsVideoFrame_h___
 #define nsVideoFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 #include "nsString.h"
 #include "nsAString.h"
@@ -17,7 +16,6 @@
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsIAnonymousContentCreator.h"
-#include "FrameLayerBuilder.h"
 
 namespace mozilla {
 namespace layers {
@@ -36,7 +34,6 @@ class nsVideoFrame : public nsContainerFrame, public nsIAnonymousContentCreator
 public:
   typedef mozilla::layers::Layer Layer;
   typedef mozilla::layers::LayerManager LayerManager;
-  typedef mozilla::FrameLayerBuilder::ContainerParameters ContainerParameters;
 
   nsVideoFrame(nsStyleContext* aContext);
 
@@ -45,7 +42,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
@@ -60,8 +57,8 @@ public:
                              uint32_t aFlags) MOZ_OVERRIDE;
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
-  virtual bool IsLeaf() const MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual bool IsLeaf() const;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -79,9 +76,9 @@ public:
     return nsSplittableFrame::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced));
   }
   
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
+  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilters) MOZ_OVERRIDE;
+                                        uint32_t aFilters);
 
   nsIContent* GetPosterImage() { return mPosterImage; }
 
@@ -95,8 +92,7 @@ public:
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                      LayerManager* aManager,
-                                     nsDisplayItem* aItem,
-                                     const ContainerParameters& aContainerParameters);
+                                     nsDisplayItem* aItem);
 
 protected:
 

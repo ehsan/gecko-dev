@@ -12,7 +12,7 @@ NS_IMPL_ISUPPORTS1(nsDirIndex,
                    nsIDirIndex)
 
 nsDirIndex::nsDirIndex() : mType(TYPE_UNKNOWN),
-                           mSize(UINT64_MAX),
+                           mSize(LL_MAXUINT),
                            mLastModified(-1) {
 }
 

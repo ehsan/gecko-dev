@@ -5,8 +5,6 @@
 # This file contains miscellaneous utility functions that don't belong anywhere
 # in particular.
 
-from __future__ import unicode_literals
-
 import hashlib
 
 

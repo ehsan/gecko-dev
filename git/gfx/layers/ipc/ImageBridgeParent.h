@@ -23,8 +23,6 @@ public:
   ImageBridgeParent(MessageLoop* aLoop);
   ~ImageBridgeParent();
 
-  static PImageBridgeParent*
-  Create(Transport* aTransport, ProcessId aOtherProcess);
 
   virtual PGrallocBufferParent*
   AllocPGrallocBuffer(const gfxIntSize&, const uint32_t&, const uint32_t&,

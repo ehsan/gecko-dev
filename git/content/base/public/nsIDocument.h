@@ -603,15 +603,6 @@ public:
   virtual void AddCatalogStyleSheet(nsIStyleSheet* aSheet) = 0;
   virtual void EnsureCatalogStyleSheet(const char *aStyleSheetURI) = 0;
 
-  enum additionalSheetType {
-    eAgentSheet,
-    eUserSheet,
-    SheetTypeCount
-  };
-
-  virtual nsresult LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetURI) = 0;
-  virtual void RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* sheetURI) = 0;
-
   /**
    * Get this document's CSSLoader.  This is guaranteed to not return null.
    */
@@ -1492,12 +1483,10 @@ public:
                                  const nsAString& aCrossOriginAttr) = 0;
 
   /**
-   * Called by nsParser to preload style sheets.  Can also be merged into the
-   * parser if and when the parser is merged with libgklayout.  aCrossOriginAttr
-   * should be a void string if the attr is not present.
+   * Called by nsParser to preload style sheets.  Can also be merged into
+   * the parser if and when the parser is merged with libgklayout.
    */
-  virtual void PreloadStyle(nsIURI* aURI, const nsAString& aCharset,
-                            const nsAString& aCrossOriginAttr) = 0;
+  virtual void PreloadStyle(nsIURI* aURI, const nsAString& aCharset) = 0;
 
   /**
    * Called by the chrome registry to load style sheets.  Can be put

@@ -54,7 +54,6 @@
 #include "mozilla/dom/DirectionalityUtils.h"
 #include "nsDocument.h"
 #include "nsAttrValueOrString.h"
-#include "nsAttrValueInlines.h"
 #ifdef MOZ_XUL
 #include "nsXULElement.h"
 #endif /* MOZ_XUL */
@@ -102,6 +101,7 @@
 #include "nsRuleProcessorData.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsTextNode.h"
+#include "dombindings.h"
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -1160,11 +1160,8 @@ nsGenericElement::HasAttribute(const nsAString& aName, bool* aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
 
-  const nsAttrValue* val =
-    mAttrsAndChildren.GetAttr(aName,
-                              IsHTML() && IsInHTMLDocument() ?
-                                eIgnoreCase : eCaseMatters);
-  *aReturn = (val != nullptr);
+  const nsAttrName* name = InternalGetExistingAttrNameFromQName(aName);
+  *aReturn = (name != nullptr);
 
   return NS_OK;
 }
@@ -1695,20 +1692,6 @@ nsGenericElement::GetExistingAttrNameFromQName(const nsAString& aStr) const
   return nodeInfo;
 }
 
-NS_IMETHODIMP
-nsGenericElement::GetAttributes(nsIDOMNamedNodeMap** aAttributes)
-{
-  nsDOMSlots *slots = DOMSlots();
-
-  if (!slots->mAttributeMap) {
-    slots->mAttributeMap = new nsDOMAttributeMap(this);
-  }
-
-  NS_ADDREF(*aAttributes = slots->mAttributeMap);
-
-  return NS_OK;
-}
-
 // static
 bool
 nsGenericElement::ShouldBlur(nsIContent *aContent)
@@ -1831,9 +1814,9 @@ nsGenericElement::LeaveLink(nsPresContext* aPresContext)
 }
 
 nsresult
-nsGenericElement::SetEventHandler(nsIAtom* aEventName,
-                                  const nsAString& aValue,
-                                  bool aDefer)
+nsGenericElement::AddScriptEventListener(nsIAtom* aEventName,
+                                         const nsAString& aValue,
+                                         bool aDefer)
 {
   nsIDocument *ownerDoc = OwnerDoc();
   if (ownerDoc->IsLoadedAsData()) {
@@ -1851,9 +1834,8 @@ nsGenericElement::SetEventHandler(nsIAtom* aEventName,
   }
 
   defer = defer && aDefer; // only defer if everyone agrees...
-  manager->SetEventHandler(aEventName, aValue,
-                           nsIProgrammingLanguage::JAVASCRIPT,
-                           defer, !nsContentUtils::IsChromeDoc(ownerDoc));
+  manager->AddScriptEventListener(aEventName, aValue, nsIProgrammingLanguage::JAVASCRIPT,
+                                  defer, !nsContentUtils::IsChromeDoc(ownerDoc));
   return NS_OK;
 }
 

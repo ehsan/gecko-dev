@@ -35,7 +35,7 @@ public:
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxContentType contentType);
 
-    mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
+    mozilla::RefPtr<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
@@ -98,7 +98,7 @@ public:
 
     static int32_t GetDPI();
 
-    bool UseXRender() {
+    static bool UseXRender() {
 #if defined(MOZ_X11) && defined(MOZ_PLATFORM_MAEMO)
         // XRender is not accelerated on the Maemo at the moment, and 
         // X server pixman is out of our control; it's likely to be 
@@ -111,10 +111,6 @@ public:
         // this, we'll only disable this for maemo.
         return true;
 #elif defined(MOZ_X11)
-        if (GetContentBackend() != mozilla::gfx::BACKEND_NONE &&
-            GetContentBackend() != mozilla::gfx::BACKEND_CAIRO)
-            return false;
-
         return sUseXRender;
 #else
         return false;

@@ -9,7 +9,7 @@
 interface nsIDOMDOMError;
 interface nsIDOMWindow;
 
-[scriptable, builtinclass, uuid(d88998b7-ee30-4ae5-bbed-58f5711929de)]
+[scriptable, builtinclass, uuid(a3ad2846-ffb2-48d7-a786-2254cb82560d)]
 interface nsIDOMDOMRequest : nsIDOMEventTarget
 {
   readonly attribute DOMString readyState; // "pending" or "done"
@@ -17,17 +17,15 @@ interface nsIDOMDOMRequest : nsIDOMEventTarget
   readonly attribute jsval result;
   readonly attribute nsIDOMDOMError error;
 
-  [implicit_jscontext] attribute jsval onsuccess;
-  [implicit_jscontext] attribute jsval onerror;
+  attribute nsIDOMEventListener onsuccess;
+  attribute nsIDOMEventListener onerror;
 };
 
-[scriptable, builtinclass, uuid(10996de9-e6f6-4058-97bd-45f1fe065eb5)]
+[scriptable, builtinclass, uuid(eebcdf29-f8fa-4c36-bbc7-2146b1cbaf7b)]
 interface nsIDOMRequestService : nsISupports
 {
   nsIDOMDOMRequest createRequest(in nsIDOMWindow window);
 
   void fireSuccess(in nsIDOMDOMRequest request, in jsval result);
   void fireError(in nsIDOMDOMRequest request, in DOMString error);
-  void fireSuccessAsync(in nsIDOMDOMRequest request, in jsval result);
-  void fireErrorAsync(in nsIDOMDOMRequest request, in DOMString error);
 };

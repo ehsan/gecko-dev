@@ -271,7 +271,7 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
     guchar        *data = NULL;
     gint           length = 0;
     bool           foundData = false;
-    nsAutoCString  foundFlavor;
+    nsCAutoString  foundFlavor;
 
     // Get a list of flavors this transferable can import
     nsCOMPtr<nsISupportsArray> flavors;
@@ -331,10 +331,8 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
                     continue;
 
                 nsCOMPtr<nsIInputStream> byteStream;
-                NS_NewByteInputStream(getter_AddRefs(byteStream), 
-                                      (const char*)gtk_selection_data_get_data(selectionData),
-                                      gtk_selection_data_get_length(selectionData), 
-                                      NS_ASSIGNMENT_COPY);
+                NS_NewByteInputStream(getter_AddRefs(byteStream), (const char*)selectionData->data,
+                                      selectionData->length, NS_ASSIGNMENT_COPY);
                 aTransferable->SetTransferData(flavorStr, byteStream, sizeof(nsIInputStream*));
                 gtk_selection_data_free(selectionData);
                 return NS_OK;
@@ -346,14 +344,13 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
             GtkSelectionData *selectionData;
             selectionData = wait_for_contents(clipboard, atom);
             if (selectionData) {
-                const guchar *clipboardData = gtk_selection_data_get_data(selectionData);
-                length = gtk_selection_data_get_length(selectionData);
+                length = selectionData->length;
                 // Special case text/html since we can convert into UCS2
                 if (!strcmp(flavorStr, kHTMLMime)) {
                     PRUnichar* htmlBody= nullptr;
                     int32_t htmlBodyLen = 0;
                     // Convert text/html into our unicode format
-                    ConvertHTMLtoUCS2(const_cast<guchar*>(clipboardData), length,
+                    ConvertHTMLtoUCS2((guchar *)selectionData->data, length,
                                       &htmlBody, htmlBodyLen);
                     // Try next data format?
                     if (!htmlBodyLen)
@@ -364,7 +361,7 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
                     data = (guchar *)nsMemory::Alloc(length);
                     if (!data)
                         break;
-                    memcpy(data, clipboardData, length);
+                    memcpy(data, selectionData->data, length);
                 }
                 foundData = true;
                 foundFlavor = flavorStr;
@@ -516,10 +513,9 @@ nsClipboard::SelectionGetEvent(GtkClipboard     *aClipboard,
     int32_t whichClipboard;
 
     // which clipboard?
-    GdkAtom selection = gtk_selection_data_get_selection(aSelectionData);
-    if (selection == GDK_SELECTION_PRIMARY)
+    if (aSelectionData->selection == GDK_SELECTION_PRIMARY)
         whichClipboard = kSelectionClipboard;
-    else if (selection == GDK_SELECTION_CLIPBOARD)
+    else if (aSelectionData->selection == GDK_SELECTION_CLIPBOARD)
         whichClipboard = kGlobalClipboard;
     else
         return; // THAT AIN'T NO CLIPBOARD I EVER HEARD OF
@@ -538,15 +534,12 @@ nsClipboard::SelectionGetEvent(GtkClipboard     *aClipboard,
     nsCOMPtr<nsISupports> item;
     uint32_t len;
 
-  
-    GdkAtom selectionTarget = gtk_selection_data_get_target(aSelectionData);
-  
     // Check to see if the selection data includes any of the string
     // types that we support.
-    if (selectionTarget == gdk_atom_intern ("STRING", FALSE) ||
-        selectionTarget == gdk_atom_intern ("TEXT", FALSE) ||
-        selectionTarget == gdk_atom_intern ("COMPOUND_TEXT", FALSE) ||
-        selectionTarget == gdk_atom_intern ("UTF8_STRING", FALSE)) {
+    if (aSelectionData->target == gdk_atom_intern ("STRING", FALSE) ||
+        aSelectionData->target == gdk_atom_intern ("TEXT", FALSE) ||
+        aSelectionData->target == gdk_atom_intern ("COMPOUND_TEXT", FALSE) ||
+        aSelectionData->target == gdk_atom_intern ("UTF8_STRING", FALSE)) {
         // Try to convert our internal type into a text string.  Get
         // the transferable for this clipboard and try to get the
         // text/unicode type for it.
@@ -574,7 +567,7 @@ nsClipboard::SelectionGetEvent(GtkClipboard     *aClipboard,
     }
 
     // Check to see if the selection data is an image type
-    if (gtk_targets_include_image(&selectionTarget, 1, TRUE)) {
+    if (gtk_targets_include_image(&aSelectionData->target, 1, TRUE)) {
         // Look through our transfer data for the image
         static const char* const imageMimeTypes[] = {
             kNativeImageMime, kPNGImageMime, kJPEGImageMime, kJPGImageMime, kGIFImageMime };
@@ -605,7 +598,7 @@ nsClipboard::SelectionGetEvent(GtkClipboard     *aClipboard,
 
     // Try to match up the selection data target to something our
     // transferable provides.
-    gchar *target_name = gdk_atom_name(selectionTarget);
+    gchar *target_name = gdk_atom_name(aSelectionData->target);
     if (!target_name)
         return;
 
@@ -622,7 +615,7 @@ nsClipboard::SelectionGetEvent(GtkClipboard     *aClipboard,
 
     if (primitive_data) {
         // Check to see if the selection data is text/html
-        if (selectionTarget == gdk_atom_intern (kHTMLMime, FALSE)) {
+        if (aSelectionData->target == gdk_atom_intern (kHTMLMime, FALSE)) {
             /*
              * "text/html" can be encoded UCS2. It is recommended that
              * documents transmitted as UCS2 always begin with a ZERO-WIDTH
@@ -642,7 +635,7 @@ nsClipboard::SelectionGetEvent(GtkClipboard     *aClipboard,
             len += sizeof(prefix);
         }
   
-        gtk_selection_data_set(aSelectionData, selectionTarget,
+        gtk_selection_data_set(aSelectionData, aSelectionData->target,
                                8, /* 8 bits in a unit */
                                (const guchar *)primitive_data, len);
         nsMemory::Free(primitive_data);
@@ -708,7 +701,7 @@ clipboard_clear_cb(GtkClipboard *aGtkClipboard,
 void ConvertHTMLtoUCS2(guchar * data, int32_t dataLength,
                        PRUnichar** unicodeData, int32_t& outUnicodeLen)
 {
-    nsAutoCString charset;
+    nsCAutoString charset;
     GetHTMLCharset(data, dataLength, charset);// get charset of HTML
     if (charset.EqualsLiteral("UTF-16")) {//current mozilla
         outUnicodeLen = (dataLength / 2) - 1;
@@ -823,7 +816,7 @@ DispatchSelectionNotifyEvent(GtkWidget *widget, XEvent *xevent)
 {
     GdkEvent event;
     event.selection.type = GDK_SELECTION_NOTIFY;
-    event.selection.window = gtk_widget_get_window(widget);
+    event.selection.window = widget->window;
     event.selection.selection = gdk_x11_xatom_to_atom(xevent->xselection.selection);
     event.selection.target = gdk_x11_xatom_to_atom(xevent->xselection.target);
     event.selection.property = gdk_x11_xatom_to_atom(xevent->xselection.property);
@@ -835,11 +828,10 @@ DispatchSelectionNotifyEvent(GtkWidget *widget, XEvent *xevent)
 static void
 DispatchPropertyNotifyEvent(GtkWidget *widget, XEvent *xevent)
 {
-    GdkWindow *window = gtk_widget_get_window(widget);
-    if ((gdk_window_get_events(window)) & GDK_PROPERTY_CHANGE_MASK) {
+    if (((GdkWindowObject *) widget->window)->event_mask & GDK_PROPERTY_CHANGE_MASK) {
         GdkEvent event;
         event.property.type = GDK_PROPERTY_NOTIFY;
-        event.property.window = window;
+        event.property.window = widget->window;
         event.property.atom = gdk_x11_xatom_to_atom(xevent->xproperty.atom);
         event.property.time = xevent->xproperty.time;
         event.property.state = xevent->xproperty.state;
@@ -863,9 +855,7 @@ checkEventProc(Display *display, XEvent *event, XPointer arg)
         (event->xany.type == PropertyNotify &&
          event->xproperty.atom == context->selAtom)) {
 
-        GdkWindow *cbWindow = 
-            gdk_x11_window_lookup_for_display(gdk_x11_lookup_xdisplay(display),
-                                              event->xany.window);
+        GdkWindow *cbWindow = gdk_window_lookup(event->xany.window);
         if (cbWindow) {
             GtkWidget *cbWidget = NULL;
             gdk_window_get_user_data(cbWindow, (gpointer *)&cbWidget);
@@ -888,7 +878,7 @@ wait_for_retrieval(GtkClipboard *clipboard, retrieval_context *r_context)
     if (r_context->completed)  // the request completed synchronously
         return true;
 
-    Display *xDisplay = GDK_DISPLAY_XDISPLAY(gdk_display_get_default()) ;
+    Display *xDisplay = GDK_DISPLAY();
     checkEventContext context;
     context.cbWidget = NULL;
     context.selAtom = gdk_x11_atom_to_xatom(gdk_atom_intern("GDK_SELECTION",
@@ -947,7 +937,7 @@ clipboard_contents_received(GtkClipboard     *clipboard,
 
     context->completed = true;
 
-    if (gtk_selection_data_get_length(selection_data) >= 0)
+    if (selection_data->length >= 0)
         context->data = gtk_selection_data_copy(selection_data);
 }
 

@@ -91,6 +91,7 @@
 #include "nscore.h"
 #include "plbase64.h"
 #include "prmem.h"
+#include "prtypes.h"
 
 class nsIAtom;
 class nsILoadContext;
@@ -1039,7 +1040,7 @@ FindIntegerAfterString(const char *aLeadingString,
   if (numBack == -1)
     return false;
 
-  nsAutoCString numStr(Substring(aCStr, numFront, numBack-numFront));
+  nsCAutoString numStr(Substring(aCStr, numFront, numBack-numFront));
   nsresult errorCode;
   foundNumber = numStr.ToInteger(&errorCode);
   return true;
@@ -1101,7 +1102,7 @@ nsHTMLEditor::ParseCFHTML(nsCString & aCfhtml, PRUnichar **aStuffToPaste, PRUnic
   }
 
   // create context string
-  nsAutoCString contextUTF8(Substring(aCfhtml, startHTML, startFragment - startHTML) +
+  nsCAutoString contextUTF8(Substring(aCfhtml, startHTML, startFragment - startHTML) +
                             NS_LITERAL_CSTRING("<!--" kInsertCookie "-->") +
                             Substring(aCfhtml, endFragment, endHTML - endFragment));
 
@@ -1136,7 +1137,7 @@ nsHTMLEditor::ParseCFHTML(nsCString & aCfhtml, PRUnichar **aStuffToPaste, PRUnic
   }
 
   // create fragment string
-  nsAutoCString fragmentUTF8(Substring(aCfhtml, startFragment, endFragment-startFragment));
+  nsCAutoString fragmentUTF8(Substring(aCfhtml, startFragment, endFragment-startFragment));
 
   // remove the StartFragment/EndFragment comments from the fragment, if present
   RemoveFragComments(fragmentUTF8);
@@ -1193,7 +1194,7 @@ nsresult nsHTMLEditor::InsertObject(const char* aType, nsISupports* aObject, boo
 
       nsCOMPtr<nsIMIMEService> mime = do_GetService("@mozilla.org/mime;1");
       NS_ENSURE_TRUE(mime, NS_ERROR_FAILURE);
-      nsAutoCString contentType;
+      nsCAutoString contentType;
       rv = mime->GetTypeFromFile(fileObj, contentType);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1222,7 +1223,7 @@ nsresult nsHTMLEditor::InsertObject(const char* aType, nsISupports* aObject, boo
     }
 
     nsCString imageData;
-    rv = NS_ConsumeStream(imageStream, UINT32_MAX, imageData);
+    rv = NS_ConsumeStream(imageStream, PR_UINT32_MAX, imageData);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = imageStream->Close();
@@ -1288,7 +1289,7 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
       nsCOMPtr<nsISupportsCString> textDataObj = do_QueryInterface(genericDataObj);
       if (textDataObj && len > 0)
       {
-        nsAutoCString cfhtml;
+        nsCAutoString cfhtml;
         textDataObj->GetData(cfhtml);
         NS_ASSERTION(cfhtml.Length() <= (len), "Invalid length!");
         nsXPIDLString cfcontext, cffragment, cfselection; // cfselection left emtpy for now
@@ -1326,7 +1327,7 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
       } else {
         nsCOMPtr<nsISupportsCString> textDataObj(do_QueryInterface(genericDataObj));
         if (textDataObj && len > 0) {
-          nsAutoCString text;
+          nsCAutoString text;
           textDataObj->GetData(text);
           NS_ASSERTION(text.Length() <= len, "Invalid length!");
           stuffToPaste.Assign(NS_ConvertUTF8toUTF16(Substring(text, 0, len)));
@@ -1373,6 +1374,8 @@ nsresult nsHTMLEditor::InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
                                               int32_t aDestOffset,
                                               bool aDoDeleteSelection)
 {
+  nsresult rv = NS_OK;
+
   nsCOMPtr<nsIDOMDOMStringList> types;
   aDataTransfer->MozTypesAt(aIndex, getter_AddRefs(types));
 
@@ -1381,7 +1384,7 @@ nsresult nsHTMLEditor::InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
 
   bool isText = IsPlaintextEditor();
   bool isSafe = IsSafeToInsertData(aSourceDoc);
-
+  
   uint32_t length;
   types->GetLength(&length);
   for (uint32_t t = 0; t < length; t++) {
@@ -1399,8 +1402,10 @@ nsresult nsHTMLEditor::InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
         if (variant) {
           nsCOMPtr<nsISupports> object;
           variant->GetAsISupports(getter_AddRefs(object));
-          return InsertObject(NS_ConvertUTF16toUTF8(type).get(), object, isSafe,
-                              aSourceDoc, aDestinationNode, aDestOffset, aDoDeleteSelection);
+          rv = InsertObject(NS_ConvertUTF16toUTF8(type).get(), object, isSafe,
+                            aSourceDoc, aDestinationNode, aDestOffset, aDoDeleteSelection);
+          if (NS_SUCCEEDED(rv))
+            return NS_OK;
         }
       }
       else if (!hasPrivateHTMLFlavor && type.EqualsLiteral(kNativeHTMLMime)) {
@@ -1410,16 +1415,18 @@ nsresult nsHTMLEditor::InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
 
         nsXPIDLString cfcontext, cffragment, cfselection; // cfselection left emtpy for now
 
-        nsresult rv = ParseCFHTML(cfhtml, getter_Copies(cffragment), getter_Copies(cfcontext));
+        rv = ParseCFHTML(cfhtml, getter_Copies(cffragment), getter_Copies(cfcontext));
         if (NS_SUCCEEDED(rv) && !cffragment.IsEmpty())
         {
           nsAutoEditBatch beginBatching(this);
-          return DoInsertHTMLWithContext(cffragment,
-                                         cfcontext, cfselection, type,
-                                         aSourceDoc,
-                                         aDestinationNode, aDestOffset,
-                                         aDoDeleteSelection,
-                                         isSafe);
+          rv = DoInsertHTMLWithContext(cffragment,
+                                       cfcontext, cfselection, type,
+                                       aSourceDoc,
+                                       aDestinationNode, aDestOffset,
+                                       aDoDeleteSelection,
+                                       isSafe);
+          if (NS_SUCCEEDED(rv))
+            return NS_OK;
         }
       }
       else if (type.EqualsLiteral(kHTMLMime)) {
@@ -1430,12 +1437,14 @@ nsresult nsHTMLEditor::InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
 
         nsAutoEditBatch beginBatching(this);
         if (type.EqualsLiteral(kHTMLMime)) {
-          return DoInsertHTMLWithContext(text,
-                                         contextString, infoString, type,
-                                         aSourceDoc,
-                                         aDestinationNode, aDestOffset,
-                                         aDoDeleteSelection,
-                                         isSafe);
+          rv = DoInsertHTMLWithContext(text,
+                                       contextString, infoString, type,
+                                       aSourceDoc,
+                                       aDestinationNode, aDestOffset,
+                                       aDoDeleteSelection,
+                                       isSafe);
+          if (NS_SUCCEEDED(rv))
+            return NS_OK;
         }
       }
     }
@@ -1446,11 +1455,13 @@ nsresult nsHTMLEditor::InsertFromDataTransfer(nsIDOMDataTransfer *aDataTransfer,
       GetStringFromDataTransfer(aDataTransfer, type, aIndex, text);
 
       nsAutoEditBatch beginBatching(this);
-      return InsertTextAt(text, aDestinationNode, aDestOffset, aDoDeleteSelection);
+      rv = InsertTextAt(text, aDestinationNode, aDestOffset, aDoDeleteSelection);
+      if (NS_SUCCEEDED(rv))
+        return NS_OK;
     }
   }
 
-  return NS_OK;
+  return rv;
 }
 
 bool nsHTMLEditor::HavePrivateHTMLFlavor(nsIClipboard *aClipboard)

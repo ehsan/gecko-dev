@@ -63,7 +63,7 @@ CrossProcessMutex::ShareToProcess(ProcessHandle aHandle)
   HANDLE newHandle;
   bool succeeded = ::DuplicateHandle(GetCurrentProcessHandle(),
                                      mMutex, aHandle, &newHandle,
-                                     0, FALSE, DUPLICATE_SAME_ACCESS);
+                                     NULL, FALSE, DUPLICATE_SAME_ACCESS);
 
   if (!succeeded) {
     return NULL;

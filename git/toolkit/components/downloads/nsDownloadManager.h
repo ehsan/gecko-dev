@@ -382,6 +382,7 @@ private:
   nsCOMPtr<nsIMIMEInfo> mMIMEInfo;
 
   DownloadState mDownloadState;
+  DownloadType mDownloadType;
 
   uint32_t mID;
   int32_t mPercentComplete;
@@ -400,7 +401,6 @@ private:
   double mSpeed;
 
   bool mHasMultipleFiles;
-  bool mPrivate;
 
   /**
    * Track various states of the download trying to auto-resume when starting

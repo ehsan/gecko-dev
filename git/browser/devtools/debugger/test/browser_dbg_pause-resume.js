@@ -7,18 +7,12 @@
 var gPane = null;
 var gTab = null;
 var gDebugger = null;
-var gView = null;
-var gLH = null;
-var gL10N = null;
 
 function test() {
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
     gDebugger = gPane.contentWindow;
-    gView = gDebugger.DebuggerView;
-    gLH = gDebugger.LayoutHelpers;
-    gL10N = gDebugger.L10N;
 
     testPause();
   });
@@ -29,8 +23,7 @@ function testPause() {
     "Should be running after debug_tab_pane.");
 
   let button = gDebugger.document.getElementById("resume");
-  is(button.getAttribute("tooltiptext"),
-     gL10N.getFormatStr("pauseButtonTooltip", [gLH.prettyKey(gView._resumeKey)]),
+  is(button.getAttribute("tooltiptext"), gDebugger.L10N.getStr("pauseTooltip"),
     "Button tooltip should be pause when running.");
 
   gDebugger.DebuggerController.activeThread.addOneTimeListener("paused", function() {
@@ -42,8 +35,7 @@ function testPause() {
       is(gDebugger.DebuggerController.activeThread.paused, true,
         "Should be paused after an interrupt request.");
 
-      is(button.getAttribute("tooltiptext"),
-         gL10N.getFormatStr("resumeButtonTooltip", [gLH.prettyKey(gView._resumeKey)]),
+      is(button.getAttribute("tooltiptext"), gDebugger.L10N.getStr("resumeTooltip"),
         "Button tooltip should be resume when paused.");
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 0,
@@ -66,8 +58,7 @@ function testResume() {
         "Should be paused after an interrupt request.");
 
       let button = gDebugger.document.getElementById("resume");
-      is(button.getAttribute("tooltiptext"),
-         gL10N.getFormatStr("pauseButtonTooltip", [gLH.prettyKey(gView._resumeKey)]),
+      is(button.getAttribute("tooltiptext"), gDebugger.L10N.getStr("pauseTooltip"),
         "Button tooltip should be pause when running.");
 
       closeDebuggerAndFinish();
@@ -83,8 +74,4 @@ registerCleanupFunction(function() {
   removeTab(gTab);
   gPane = null;
   gTab = null;
-  gDebugger = null;
-  gView = null;
-  gLH = null;
-  gL10N = null;
 });

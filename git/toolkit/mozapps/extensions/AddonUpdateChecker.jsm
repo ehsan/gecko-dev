@@ -13,7 +13,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-this.EXPORTED_SYMBOLS = [ "AddonUpdateChecker" ];
+var EXPORTED_SYMBOLS = [ "AddonUpdateChecker" ];
 
 const TIMEOUT               = 2 * 60 * 1000;
 const PREFIX_NS_RDF         = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
@@ -157,7 +157,7 @@ RDFSerializer.prototype = {
                      target.Value + "</em:" + prop + ">\n");
         }
         else {
-          throw Components.Exception("Cannot serialize unknown literal type");
+          throw new Error("Cannot serialize unknown literal type");
         }
       }
     }
@@ -184,7 +184,7 @@ RDFSerializer.prototype = {
   serializeResource: function RDFS_serializeResource(aDs, aResource, aIndent) {
     if (this.resources.indexOf(aResource) != -1 ) {
       // We cannot output multiple references to the same resource.
-      throw Components.Exception("Cannot serialize multiple references to " + aResource.Value);
+      throw new Error("Cannot serialize multiple references to " + aResource.Value);
     }
     if (aIndent === undefined)
       aIndent = "";
@@ -256,7 +256,7 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
   function getRequiredProperty(aDs, aSource, aProperty) {
     let value = getProperty(aDs, aSource, aProperty);
     if (!value)
-      throw Components.Exception("Update manifest is missing a required " + aProperty + " property.");
+      throw new Error("Update manifest is missing a required " + aProperty + " property.");
     return value;
   }
 
@@ -266,28 +266,33 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
            createInstance(Ci.nsIRDFDataSource);
   rdfParser.parseString(ds, aRequest.channel.URI, aRequest.responseText);
 
-  // Differentiating between add-on types is deprecated
-  let extensionRes = gRDF.GetResource(PREFIX_EXTENSION + aId);
-  let themeRes = gRDF.GetResource(PREFIX_THEME + aId);
-  let itemRes = gRDF.GetResource(PREFIX_ITEM + aId);
-  let addonRes = ds.ArcLabelsOut(extensionRes).hasMoreElements() ? extensionRes
-               : ds.ArcLabelsOut(themeRes).hasMoreElements() ? themeRes
-               : itemRes;
+  switch (aType) {
+  case "extension":
+    var item = PREFIX_EXTENSION + aId;
+    break;
+  case "theme":
+    item = PREFIX_THEME + aId;
+    break;
+  default:
+    item = PREFIX_ITEM + aId;
+    break;
+  }
+
+  let extensionRes  = gRDF.GetResource(item);
 
   // If we have an update key then the update manifest must be signed
   if (aUpdateKey) {
-    let signature = getProperty(ds, addonRes, "signature");
+    let signature = getProperty(ds, extensionRes, "signature");
     if (!signature)
-      throw Components.Exception("Update manifest for " + aId + " does not contain a required signature");
+      throw new Error("Update manifest for " + aId + " does not contain a required signature");
     let serializer = new RDFSerializer();
     let updateString = null;
 
     try {
-      updateString = serializer.serializeResource(ds, addonRes);
+      updateString = serializer.serializeResource(ds, extensionRes);
     }
     catch (e) {
-      throw Components.Exception("Failed to generate signed string for " + aId + ". Serializer threw " + e,
-                                 e.result);
+      throw new Error("Failed to generate signed string for " + aId + ". Serializer threw " + e);
     }
 
     let result = false;
@@ -298,15 +303,14 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
       result = verifier.verifyData(updateString, signature, aUpdateKey);
     }
     catch (e) {
-      throw Components.Exception("The signature or updateKey for " + aId + " is malformed." +
-                                 "Verifier threw " + e, e.result);
+      throw new Error("The signature or updateKey for " + aId + " is malformed");
     }
 
     if (!result)
-      throw Components.Exception("The signature for " + aId + " was not created by the add-on's updateKey");
+      throw new Error("The signature for " + aId + " was not created by the add-on's updateKey");
   }
 
-  let updates = ds.GetTarget(addonRes, EM_R("updates"), true);
+  let updates = ds.GetTarget(extensionRes, EM_R("updates"), true);
 
   // A missing updates property doesn't count as a failure, just as no avialable
   // update information
@@ -316,12 +320,12 @@ function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
   }
 
   if (!(updates instanceof Ci.nsIRDFResource))
-    throw Components.Exception("Missing updates property for " + addonRes.Value);
+    throw new Error("Missing updates property for " + extensionRes.Value);
 
   let cu = Cc["@mozilla.org/rdf/container-utils;1"].
            getService(Ci.nsIRDFContainerUtils);
   if (!cu.IsContainer(ds, updates))
-    throw Components.Exception("Updates property was not an RDF container");
+    throw new Error("Updates property was not an RDF container");
 
   let results = [];
   let ctr = Cc["@mozilla.org/rdf/container;1"].
@@ -598,7 +602,7 @@ function matchesVersions(aUpdate, aAppVersion, aPlatformVersion,
   return result;
 }
 
-this.AddonUpdateChecker = {
+var AddonUpdateChecker = {
   // These must be kept in sync with AddonManager
   // The update check timed out
   ERROR_TIMEOUT: -1,

@@ -80,7 +80,7 @@ nsHistory::GetCurrent(nsAString& aCurrent)
     return NS_ERROR_DOM_SECURITY_ERR;
 
   int32_t curIndex=0;
-  nsAutoCString curURL;
+  nsCAutoString curURL;
   nsCOMPtr<nsISHistory> sHistory;
 
   // Get SessionHistory from docshell
@@ -112,7 +112,7 @@ nsHistory::GetPrevious(nsAString& aPrevious)
     return NS_ERROR_DOM_SECURITY_ERR;
 
   int32_t curIndex;
-  nsAutoCString prevURL;
+  nsCAutoString prevURL;
   nsCOMPtr<nsISHistory>  sHistory;
 
   // Get session History from docshell
@@ -144,7 +144,7 @@ nsHistory::GetNext(nsAString& aNext)
     return NS_ERROR_DOM_SECURITY_ERR;
 
   int32_t curIndex;
-  nsAutoCString nextURL;
+  nsCAutoString nextURL;
   nsCOMPtr<nsISHistory>  sHistory;
 
   // Get session History from docshell
@@ -356,7 +356,7 @@ nsHistory::Item(uint32_t aIndex, nsAString& aReturn)
   }
 
   if (uri) {
-    nsAutoCString urlCString;
+    nsCAutoString urlCString;
     rv = uri->GetSpec(urlCString);
 
     CopyUTF8toUTF16(urlCString, aReturn);

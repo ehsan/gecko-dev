@@ -6,7 +6,6 @@
 #ifndef nsGfxRadioControlFrame_h___
 #define nsGfxRadioControlFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsFormControlFrame.h"
 
 #ifdef ACCESSIBILITY
@@ -29,7 +28,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 };
 
 #endif

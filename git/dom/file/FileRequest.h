@@ -51,8 +51,13 @@ private:
   void
   FireProgressEvent(uint64_t aLoaded, uint64_t aTotal);
 
+  virtual void
+  RootResultVal();
+
   nsRefPtr<LockedFile> mLockedFile;
   bool mIsFileRequest;
+
+  NS_DECL_EVENT_HANDLER(progress)
 };
 
 END_FILE_NAMESPACE

@@ -56,7 +56,6 @@ public:
    * Return true if this matrix and |aMatrix| are the same matrix.
    */
   bool operator==(const gfx3DMatrix& aMatrix) const;
-  bool operator!=(const gfx3DMatrix& aMatrix) const;
   
   /**
    * Divide all values in the matrix by a scalar value
@@ -320,8 +319,6 @@ public:
   static gfx3DMatrix ScalingMatrix(float aX, float aY, float aZ);
 
   gfxFloat Determinant() const;
-
-  void NudgeToIntegers(void);
 
 private:
 

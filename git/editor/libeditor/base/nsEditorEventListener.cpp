@@ -48,6 +48,7 @@
 #include "nsLiteralString.h"            // for NS_LITERAL_STRING
 #include "nsServiceManagerUtils.h"      // for do_GetService
 #include "nsString.h"                   // for nsAutoString
+#include "prtypes.h"                    // for int32_t, uint16_t, uint32_t
 #ifdef HANDLE_NATIVE_TEXT_DIRECTION_SWITCH
 #include "nsContentUtils.h"             // for nsContentUtils, etc
 #include "nsIBidiKeyboard.h"            // for nsIBidiKeyboard
@@ -980,7 +981,7 @@ nsEditorEventListener::IsFileControlTextBox()
 {
   dom::Element* root = mEditor->GetRoot();
   if (root && root->ChromeOnlyAccess()) {
-    nsIContent* parent = root->FindFirstNonChromeOnlyAccessContent();
+    nsIContent* parent = root->FindFirstNonNativeAnonymous();
     if (parent && parent->IsHTML(nsGkAtoms::input)) {
       nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(parent);
       MOZ_ASSERT(formControl);

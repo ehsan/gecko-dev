@@ -175,11 +175,6 @@ public:
    * Return true if the table is probably for layout.
    */
   virtual bool IsProbablyLayoutTable() { return false; }
-
-  /**
-   * Convert the table to an Accessible*.
-   */
-  virtual Accessible* AsAccessible() = 0;
 };
 
 } // namespace a11y

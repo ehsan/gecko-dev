@@ -63,14 +63,11 @@
 #include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsIDOMApplicationRegistry.h"
 #include "nsIIdleObserver.h"
 
 // JS includes
 #include "jsapi.h"
-
-#ifdef MOZ_B2G
-#include "nsIDOMWindowB2G.h"
-#endif // MOZ_B2G
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
@@ -274,9 +271,6 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMWindowPerformance,
                        public nsITouchEventReceiver,
                        public nsIInlineEventHandlers
-#ifdef MOZ_B2G
-                     , public nsIDOMWindowB2G
-#endif // MOZ_B2G
 {
 public:
   friend class nsDOMMozURLProperty;
@@ -326,11 +320,6 @@ public:
   // nsIDOMWindow
   NS_DECL_NSIDOMWINDOW
 
-#ifdef MOZ_B2G
-  // nsIDOMWindowB2G
-  NS_DECL_NSIDOMWINDOWB2G
-#endif // MOZ_B2G
-
   // nsIDOMWindowPerformance
   NS_DECL_NSIDOMWINDOWPERFORMANCE
 
@@ -359,7 +348,7 @@ public:
   virtual NS_HIDDEN_(void) PopPopupControlState(PopupControlState state) const;
   virtual NS_HIDDEN_(PopupControlState) GetPopupControlState() const;
 
-  virtual already_AddRefed<nsISupports> SaveWindowState();
+  virtual NS_HIDDEN_(nsresult) SaveWindowState(nsISupports **aState);
   virtual NS_HIDDEN_(nsresult) RestoreWindowState(nsISupports *aState);
   virtual NS_HIDDEN_(void) SuspendTimeouts(uint32_t aIncrease = 1,
                                            bool aFreezeChildren = true);
@@ -400,10 +389,6 @@ public:
 
   // nsIInterfaceRequestor
   NS_DECL_NSIINTERFACEREQUESTOR
-
-  // WebIDL interface.
-  uint32_t GetLength();
-  already_AddRefed<nsIDOMWindow> IndexedGetter(uint32_t aIndex, bool& aFound);
 
   // Object Management
   nsGlobalWindow(nsGlobalWindow *aOuterWindow);
@@ -516,10 +501,6 @@ public:
     return mIsChrome;
   }
 
-  // GetScrollFrame does not flush.  Callers should do it themselves as needed,
-  // depending on which info they actually want off the scrollable frame.
-  nsIScrollableFrame *GetScrollFrame();
-
   nsresult Observe(nsISupports* aSubject, const char* aTopic,
                    const PRUnichar* aData);
 
@@ -552,14 +533,6 @@ public:
 
   virtual void EnableDeviceSensor(uint32_t aType);
   virtual void DisableDeviceSensor(uint32_t aType);
-
-  virtual void EnableTimeChangeNotifications();
-  virtual void DisableTimeChangeNotifications();
-
-#ifdef MOZ_B2G
-  virtual void EnableNetworkEvent(uint32_t aType);
-  virtual void DisableNetworkEvent(uint32_t aType);
-#endif // MOZ_B2G
 
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin);
 
@@ -800,6 +773,9 @@ protected:
   nsresult GetTreeOwner(nsIDocShellTreeOwner** aTreeOwner);
   nsresult GetTreeOwner(nsIBaseWindow** aTreeOwner);
   nsresult GetWebBrowserChrome(nsIWebBrowserChrome** aBrowserChrome);
+  // GetScrollFrame does not flush.  Callers should do it themselves as needed,
+  // depending on which info they actually want off the scrollable frame.
+  nsIScrollableFrame *GetScrollFrame();
   nsresult SecurityCheckURL(const char *aURL);
   nsresult BuildURIfromBase(const char *aURL,
                             nsIURI **aBuiltURI,
@@ -942,9 +918,6 @@ protected:
 
   // Helper for creating performance objects.
   void CreatePerformanceObjectIfNeeded();
-
-  // Outer windows only.
-  nsDOMWindowList* GetWindowList();
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
@@ -1124,7 +1097,6 @@ protected:
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
-  friend class nsDOMDesktopNotification;
 
   static WindowByIdTable* sWindowsById;
   static bool sWarnedAboutWindowInternal;

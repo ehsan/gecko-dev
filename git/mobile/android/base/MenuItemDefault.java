@@ -9,10 +9,9 @@ import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.View;
-import android.widget.AbsListView;
-import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.LinearLayout.LayoutParams;
 import android.widget.TextView;
 
 public class MenuItemDefault extends LinearLayout
@@ -21,29 +20,20 @@ public class MenuItemDefault extends LinearLayout
 
     private ImageView mIcon;
     private TextView mTitle;
-    private CheckBox mCheck;
-    private ImageView mMore;
-
-    private boolean mCheckable;
-    private boolean mChecked;
-    private boolean mHasSubMenu;
+    private ImageView mCheck;
 
     public MenuItemDefault(Context context, AttributeSet attrs) {
         super(context, attrs);
 
         Resources res = context.getResources();
-        setLayoutParams(new AbsListView.LayoutParams((int) (res.getDimension(R.dimen.menu_item_row_width)),
-                                                     (int) (res.getDimension(R.dimen.menu_item_row_height))));
+        setLayoutParams(new LayoutParams((int) (res.getDimension(R.dimen.menu_item_row_width)),
+                                         (int) (res.getDimension(R.dimen.menu_item_row_height))));
+        setBackgroundResource(R.drawable.menu_item_bg);
 
         inflate(context, R.layout.menu_item, this);
         mIcon = (ImageView) findViewById(R.id.icon);
         mTitle = (TextView) findViewById(R.id.title);
-        mCheck = (CheckBox) findViewById(R.id.check);
-        mMore = (ImageView) findViewById(R.id.more);
-
-        mCheckable = false;
-        mChecked = false;
-        mHasSubMenu = false;
+        mCheck = (ImageView) findViewById(R.id.check);
     }
 
     @Override
@@ -82,25 +72,15 @@ public class MenuItemDefault extends LinearLayout
         mTitle.setEnabled(enabled);
         mCheck.setEnabled(enabled);
         mIcon.setColorFilter(enabled ? 0 : 0xFF999999);
-        mMore.setColorFilter(enabled ? 0 : 0xFF999999);
     }
 
     @Override
     public void setCheckable(boolean checkable) {
-        mCheckable = checkable;
-        mCheck.setVisibility(mCheckable && !mHasSubMenu ? VISIBLE : GONE);
+        mCheck.setVisibility(checkable ? VISIBLE : GONE);
     }
 
     @Override
     public void setChecked(boolean checked) {
-        mChecked = checked;
-        mCheck.setChecked(mChecked);
-    }
-
-    @Override
-    public void setSubMenuIndicator(boolean hasSubMenu) {
-        mHasSubMenu = hasSubMenu;
-        mMore.setVisibility(mHasSubMenu ? VISIBLE : GONE);
-        mCheck.setVisibility(mCheckable && !mHasSubMenu ? VISIBLE : GONE);
+        mCheck.setVisibility(checked ? VISIBLE : GONE);
     }
 }

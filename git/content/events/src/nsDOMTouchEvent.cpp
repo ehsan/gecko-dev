@@ -373,13 +373,6 @@ nsDOMTouchEvent::GetShiftKey(bool* aShiftKey)
   return NS_OK;
 }
 
-#ifdef XP_WIN
-namespace mozilla {
-namespace widget {
-extern int32_t IsTouchDeviceSupportPresent();
-} }
-#endif
-
 bool
 nsDOMTouchEvent::PrefEnabled()
 {
@@ -387,20 +380,7 @@ nsDOMTouchEvent::PrefEnabled()
   static bool sPrefValue = false;
   if (!sDidCheckPref) {
     sDidCheckPref = true;
-    int32_t flag = 0;
-    if (NS_SUCCEEDED(Preferences::GetInt("dom.w3c_touch_events.enabled",
-                                         &flag))) {
-      if (flag == 2) {
-#ifdef XP_WIN
-        // On Windows we auto-detect based on device support.
-        sPrefValue = mozilla::widget::IsTouchDeviceSupportPresent();
-#else
-        NS_ERROR("Not implemented");
-#endif
-      } else {
-        sPrefValue = !!flag;
-      }
-    }
+    sPrefValue = Preferences::GetBool("dom.w3c_touch_events.enabled", false);
     if (sPrefValue) {
       nsContentUtils::InitializeTouchEventTable();
     }

@@ -128,7 +128,6 @@ class Compiler : public BaseCompiler
         Label        slowJoinPoint;
         Label        slowPathStart;
         Label        hotPathLabel;
-        Label        ionJoinPoint;
         DataLabelPtr addrLabel1;
         DataLabelPtr addrLabel2;
         Jump         oolJump;
@@ -367,7 +366,7 @@ class Compiler : public BaseCompiler
     Rooted<GlobalObject*> globalObj;
     const HeapSlot *globalSlots;  /* Original slots pointer. */
 
-    MJITInstrumentation sps;
+    SPSInstrumentation sps;
     Assembler masm;
     FrameState frame;
 
@@ -406,7 +405,7 @@ private:
     ActiveFrame *a;
     ActiveFrame *outer;
 
-    RootedScript script_;
+    JSScript *script;
     analyze::ScriptAnalysis *analysis;
     jsbytecode *PC;
 
@@ -631,8 +630,7 @@ private:
     void emitInlineReturnValue(FrameEntry *fe);
     void dispatchCall(VoidPtrStubUInt32 stub, uint32_t argc);
     void interruptCheckHelper();
-    void ionCompileHelper();
-    void inliningCompileHelper();
+    void recompileCheckHelper();
     CompileStatus methodEntryHelper();
     CompileStatus profilingPushHelper();
     void profilingPopHelper();

@@ -5,7 +5,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["StyleEditor", "StyleEditorFlags", "StyleEditorManager"];
+const EXPORTED_SYMBOLS = ["StyleEditor", "StyleEditorFlags", "StyleEditorManager"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -65,7 +65,7 @@ const TRANSITIONS_ENABLED = Services.prefs.getBoolPref(TRANSITIONS_PREF);
  * @see inputElement
  * @see StyleEditorChrome
  */
-this.StyleEditor = function StyleEditor(aDocument, aStyleSheet)
+function StyleEditor(aDocument, aStyleSheet)
 {
   assert(aDocument, "Argument 'aDocument' is required.");
 
@@ -288,24 +288,22 @@ StyleEditor.prototype = {
    */
   importFromFile: function SE_importFromFile(aFile, aParentWindow)
   {
-    let callback = function(aFile) {
-      if (aFile) {
-        this._savedFile = aFile; // remember filename for next save if any
+    aFile = this._showFilePicker(aFile, false, aParentWindow);
+    if (!aFile) {
+      return;
+    }
+    this._savedFile = aFile; // remember filename for next save if any
 
-        NetUtil.asyncFetch(aFile, function onAsyncFetch(aStream, aStatus) {
-          if (!Components.isSuccessCode(aStatus)) {
-            return this._signalError(LOAD_ERROR);
-          }
-          let source = NetUtil.readInputStreamToString(aStream, aStream.available());
-          aStream.close();
-    
-          this._appendNewStyleSheet(source);
-          this.clearFlag(StyleEditorFlags.ERROR);
-        }.bind(this));
+    NetUtil.asyncFetch(aFile, function onAsyncFetch(aStream, aStatus) {
+      if (!Components.isSuccessCode(aStatus)) {
+        return this._signalError(LOAD_ERROR);
       }
-    }.bind(this);
+      let source = NetUtil.readInputStreamToString(aStream, aStream.available());
+      aStream.close();
 
-    this._showFilePicker(aFile, false, aParentWindow, callback);
+      this._appendNewStyleSheet(source);
+      this.clearFlag(StyleEditorFlags.ERROR);
+    }.bind(this));
   },
 
   /**
@@ -555,48 +553,46 @@ StyleEditor.prototype = {
    */
   saveToFile: function SE_saveToFile(aFile, aCallback)
   {
-    let callback = function(aReturnFile) {
-      if (!aReturnFile) {
+    aFile = this._showFilePicker(aFile || this._styleSheetFilePath, true);
+
+    if (!aFile) {
+      if (aCallback) {
+        aCallback(null);
+      }
+      return;
+    }
+
+    if (this._sourceEditor) {
+      this._state.text = this._sourceEditor.getText();
+    }
+
+    let ostream = FileUtils.openSafeFileOutputStream(aFile);
+    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+                      .createInstance(Ci.nsIScriptableUnicodeConverter);
+    converter.charset = "UTF-8";
+    let istream = converter.convertToInputStream(this._state.text);
+
+    NetUtil.asyncCopy(istream, ostream, function SE_onStreamCopied(status) {
+      if (!Components.isSuccessCode(status)) {
         if (aCallback) {
           aCallback(null);
         }
+        this._signalError(SAVE_ERROR);
         return;
       }
+      FileUtils.closeSafeFileOutputStream(ostream);
 
-      if (this._sourceEditor) {
-        this._state.text = this._sourceEditor.getText();
+      // remember filename for next save if any
+      this._friendlyName = null;
+      this._savedFile = aFile;
+      this._persistExpando();
+
+      if (aCallback) {
+        aCallback(aFile);
       }
-
-      let ostream = FileUtils.openSafeFileOutputStream(aReturnFile);
-      let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                        .createInstance(Ci.nsIScriptableUnicodeConverter);
-      converter.charset = "UTF-8";
-      let istream = converter.convertToInputStream(this._state.text);
-
-      NetUtil.asyncCopy(istream, ostream, function SE_onStreamCopied(status) {
-        if (!Components.isSuccessCode(status)) {
-          if (aCallback) {
-            aCallback(null);
-          }
-          this._signalError(SAVE_ERROR);
-          return;
-        }
-        FileUtils.closeSafeFileOutputStream(ostream);
-
-        // remember filename for next save if any
-        this._friendlyName = null;
-        this._savedFile = aReturnFile;
-        this._persistExpando();
-
-        if (aCallback) {
-          aCallback(aReturnFile);
-        }
-        this.clearFlag(StyleEditorFlags.UNSAVED);
-        this.clearFlag(StyleEditorFlags.ERROR);
-      }.bind(this));
-    }.bind(this);
-
-    this._showFilePicker(aFile || this._styleSheetFilePath, true, null, callback);
+      this.clearFlag(StyleEditorFlags.UNSAVED);
+      this.clearFlag(StyleEditorFlags.ERROR);
+    }.bind(this));
   },
 
   /**
@@ -694,36 +690,31 @@ StyleEditor.prototype = {
    * @param nsIWindow aParentWindow
    *        Optional parent window. If null the parent window of the file picker
    *        will be the window of the attached input element.
-   * @param aCallback
-   *        The callback method, which will be called passing in the selected
-   *        file or null if the user did not pick one.
+   * @return nsIFile
+   *         The selected file or null if the user did not pick one.
    */
-  _showFilePicker: function SE__showFilePicker(aFile, aSave, aParentWindow, aCallback)
+  _showFilePicker: function SE__showFilePicker(aFile, aSave, aParentWindow)
   {
     if (typeof(aFile) == "string") {
       try {
         if (Services.io.extractScheme(aFile) == "file") {
           let uri = Services.io.newURI(aFile, null, null);
           let file = uri.QueryInterface(Ci.nsIFileURL).file;
-          aCallback(file);
-          return;
+          return file;
         }
       } catch (ex) {
       }
       try {
         let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
         file.initWithPath(aFile);
-        aCallback(file);
-        return;
+        return file;
       } catch (ex) {
         this._signalError(aSave ? SAVE_ERROR : LOAD_ERROR);
-        aCallback(null);
-        return;
+        return null;
       }
     }
     if (aFile) {
-      aCallback(aFile);
-      return;
+      return aFile;
     }
 
     let window = aParentWindow
@@ -732,19 +723,13 @@ StyleEditor.prototype = {
     let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
     let mode = aSave ? fp.modeSave : fp.modeOpen;
     let key = aSave ? "saveStyleSheet" : "importStyleSheet";
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult == Ci.nsIFilePicker.returnCancel) {
-        aCallback(null);
-      } else {
-        aCallback(fp.file);
-      }
-    };
 
     fp.init(window, _(key + ".title"), mode);
     fp.appendFilters(_(key + ".filter"), "*.css");
     fp.appendFilters(fp.filterAll);
-    fp.open(fpCallback);
-    return;
+
+    let rv = fp.show();
+    return (rv == fp.returnCancel) ? null : fp.file;
   },
 
   /**
@@ -770,87 +755,6 @@ StyleEditor.prototype = {
       default:
         this._loadSourceFromCache(this.styleSheet.href);
         break;
-    }
-  },
-
-  /**
-   * Decode a CSS source string to unicode according to the character set rules
-   * defined in <http://www.w3.org/TR/CSS2/syndata.html#charset>.
-   *
-   * @param string aString
-   *        Source of a CSS stylesheet, loaded from file or cache.
-   * @param string aChannelCharset
-   *        Charset of the source string if set by the HTTP channel.
-   * @return string
-   *         The CSS string, in unicode.
-   */
-  _decodeCSSCharset: function SE__decodeCSSCharset(aString, aChannelCharset)
-  {
-    // StyleSheet's charset can be specified from multiple sources
-
-    if (aChannelCharset.length > 0) {
-      // step 1 of syndata.html: charset given in HTTP header.
-      return this._convertToUnicode(aString, aChannelCharset);
-    }
-
-    let sheet = this.styleSheet;
-    if (sheet) {
-      // Do we have a @charset rule in the stylesheet?
-      // step 2 of syndata.html (without the BOM check).
-      if (sheet.cssRules) {
-        let rules = sheet.cssRules;
-        if (rules.length
-            && rules.item(0).type == Ci.nsIDOMCSSRule.CHARSET_RULE) {
-          return this._convertToUnicode(aString, rules.item(0).encoding);
-        }
-      }
-
-      if (sheet.ownerNode) {
-        // step 3: see <link charset="…">
-        let linkCharset = sheet.ownerNode.getAttribute("charset");
-        if (linkCharset != null) {
-          return this._convertToUnicode(aString, linkCharset);
-        }
-      }
-
-      // step 4 (1 of 2): charset of referring stylesheet.
-      let parentSheet = sheet.parentStyleSheet;
-      if (parentSheet && parentSheet.cssRules &&
-          parentSheet.cssRules[0].type == Ci.nsIDOMCSSRule.CHARSET_RULE) {
-        return this._convertToUnicode(aString,
-            parentSheet.cssRules[0].encoding);
-      }
-
-      // step 4 (2 of 2): charset of referring document.
-      if (sheet.ownerNode && sheet.ownerNode.ownerDocument.characterSet) {
-        return this._convertToUnicode(aString,
-            sheet.ownerNode.ownerDocument.characterSet);
-      }
-    }
-
-    // step 5: default to utf-8.
-    return this._convertToUnicode(aString, "UTF-8");
-  },
-
-  /**
-   * Convert a given string, encoded in a given character set, to unicode.
-   * @param string aString
-   *        A string.
-   * @param string aCharset
-   *        A character set.
-   * @return string
-   *         A unicode string.
-   */
-  _convertToUnicode: function SE__convertToUnicode(aString, aCharset) {
-    // Decoding primitives.
-    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-        .createInstance(Ci.nsIScriptableUnicodeConverter);
-
-    try {
-      converter.charset = aCharset;
-      return converter.ConvertToUnicode(aString);
-    } catch(e) {
-      return aString;
     }
   },
 
@@ -886,7 +790,6 @@ StyleEditor.prototype = {
   {
     let channel = Services.io.newChannel(aHref, null, null);
     let chunks = [];
-    let channelCharset = "";
     let streamListener = { // nsIStreamListener inherits nsIRequestObserver
       onStartRequest: function (aRequest, aContext, aStatusCode) {
         if (!Components.isSuccessCode(aStatusCode)) {
@@ -894,10 +797,6 @@ StyleEditor.prototype = {
         }
       }.bind(this),
       onDataAvailable: function (aRequest, aContext, aStream, aOffset, aCount) {
-        let channel = aRequest.QueryInterface(Ci.nsIChannel);
-        if (!channelCharset) {
-          channelCharset = channel.contentCharset;
-        }
         chunks.push(NetUtil.readInputStreamToString(aStream, aCount));
       },
       onStopRequest: function (aRequest, aContext, aStatusCode) {
@@ -905,17 +804,10 @@ StyleEditor.prototype = {
           return this._signalError(LOAD_ERROR);
         }
 
-        this._onSourceLoad(chunks.join(""), channelCharset);
+        this._onSourceLoad(chunks.join(""));
       }.bind(this)
     };
 
-    if (channel instanceof Ci.nsIPrivateBrowsingChannel) {
-      let contentWin = this.contentDocument.defaultView;
-      let loadContext = contentWin.QueryInterface(Ci.nsIInterfaceRequestor)
-                          .getInterface(Ci.nsIWebNavigation)
-                          .QueryInterface(Ci.nsILoadContext);
-      channel.setPrivate(loadContext.usePrivateBrowsing);
-    }
     channel.loadFlags = channel.LOAD_FROM_CACHE;
     channel.asyncOpen(streamListener, null);
   },
@@ -924,14 +816,9 @@ StyleEditor.prototype = {
    * Called when source has been loaded.
    *
    * @param string aSourceText
-   * @param string aCharset
-   *        Optional. The character set to use. The default is to detect the
-   *        character set following the standard (see
-   *        <http://www.w3.org/TR/CSS2/syndata.html#charset>).
    */
-  _onSourceLoad: function SE__onSourceLoad(aSourceText, aCharset)
+  _onSourceLoad: function SE__onSourceLoad(aSourceText)
   {
-    aSourceText = this._decodeCSSCharset(aSourceText, aCharset || "");
     this._restoreExpando();
     this._state.text = prettifyCSS(aSourceText);
     this._loaded = true;
@@ -1139,7 +1026,7 @@ StyleEditor.prototype = {
  *
  * @see StyleEditor.setFlag
  */
-this.StyleEditorFlags = {
+let StyleEditorFlags = {
   DISABLED:      "disabled",
   ERROR:         "error",
   IMPORTED:      "imported",
@@ -1278,7 +1165,7 @@ function setupBracketCompletion(aSourceEditor)
   * Manage the different editors instances.
   */
 
-this.StyleEditorManager = function StyleEditorManager(aWindow) {
+function StyleEditorManager(aWindow) {
   this.chromeWindow = aWindow;
   this.listenToTabs();
   this.editors = new WeakMap();

@@ -137,9 +137,9 @@ __try {
   if (IsDefunct())
     return E_FAIL;
 
-  if (FAILED(GetCharacterExtents(aStartIndex, aEndIndex,
-                                 aX, aY, aWidth, aHeight))) {
-    return E_FAIL;
+  if (NS_FAILED(GetCharacterExtents(aStartIndex, aEndIndex, 
+                                    aX, aY, aWidth, aHeight))) {
+    return NS_ERROR_FAILURE;
   }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
@@ -191,7 +191,7 @@ TextLeafAccessibleWrap::GetPointFromOffset(nsIFrame* aContainingFrame,
 /*
  * Given an offset, the x, y, width, and height values are filled appropriately.
  */
-HRESULT
+nsresult
 TextLeafAccessibleWrap::GetCharacterExtents(int32_t aStartOffset,
                                             int32_t aEndOffset,
                                             int32_t* aX,
@@ -207,7 +207,7 @@ TextLeafAccessibleWrap::GetCharacterExtents(int32_t aStartOffset,
   nsPresContext* presContext = mDoc->PresContext();
 
   nsIFrame *frame = GetFrame();
-  NS_ENSURE_TRUE(frame, E_FAIL);
+  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   nsPoint startPoint, endPoint;
   nsIFrame *startFrame = GetPointFromOffset(frame, aStartOffset, true, startPoint);
@@ -234,7 +234,7 @@ TextLeafAccessibleWrap::GetCharacterExtents(int32_t aStartOffset,
   *aWidth  = sum.width;
   *aHeight = sum.height;
 
-  return S_OK;
+  return NS_OK;
 }
 
 STDMETHODIMP

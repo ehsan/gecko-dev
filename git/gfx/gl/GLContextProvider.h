@@ -19,8 +19,12 @@ namespace gl {
 
 #define IN_GL_CONTEXT_PROVIDER_H
 
-// Null is always there
+// Null and OSMesa are always there
 #define GL_CONTEXT_PROVIDER_NAME GLContextProviderNull
+#include "GLContextProviderImpl.h"
+#undef GL_CONTEXT_PROVIDER_NAME
+
+#define GL_CONTEXT_PROVIDER_NAME GLContextProviderOSMesa
 #include "GLContextProviderImpl.h"
 #undef GL_CONTEXT_PROVIDER_NAME
 

@@ -35,7 +35,7 @@ var tests = {
   },
   testNoAmbientNotificationsIsNoKeyboardMenu: function(next) {
     // The menu bar isn't as easy to instrument on Mac.
-    if (navigator.platform.contains("Mac")) {
+    if (navigator.platform.indexOf("Mac") != -1) {
       info("Skipping checking the menubar on Mac OS");
       next();
     }
@@ -59,32 +59,10 @@ var tests = {
       iconURL: "https://example.com/browser/browser/base/content/test/moz.png",
       contentPanel: "about:blank",
       counter: 42,
-      label: "Test Ambient 1 \u2046",
+      label: "Test Ambient 1",
       menuURL: "https://example.com/testAmbient1"
     };
-    let ambience2 = {
-      name: "testIcon2",
-      iconURL: "https://example.com/browser/browser/base/content/test/moz.png",
-      contentPanel: "about:blank",
-      counter: 0,
-      label: "Test Ambient 2",
-      menuURL: "https://example.com/testAmbient2"
-    };
-    let ambience3 = {
-      name: "testIcon3",
-      iconURL: "https://example.com/browser/browser/base/content/test/moz.png",
-      contentPanel: "about:blank",
-      counter: 0,
-      label: "Test Ambient 3",
-      menuURL: "https://example.com/testAmbient3"
-    };
     Social.provider.setAmbientNotification(ambience);
-
-    // for Bug 813834.  Check preference whether stored data is correct.
-    is(JSON.parse(Services.prefs.getComplexValue("social.cached.ambientNotificationIcons", Ci.nsISupportsString).data).data.testIcon.label, "Test Ambient 1 \u2046", "label is stored into preference correctly");
-
-    Social.provider.setAmbientNotification(ambience2);
-    Social.provider.setAmbientNotification(ambience3);
 
     let statusIcon = document.querySelector("#social-toolbar-item > box");
     waitForCondition(function() {
@@ -99,7 +77,7 @@ var tests = {
       is(statusIconLabel.value, "", "status value is correct");
 
       // The menu bar isn't as easy to instrument on Mac.
-      if (navigator.platform.contains("Mac"))
+      if (navigator.platform.indexOf("Mac") != -1)
         next();
 
       // Test that keyboard accessible menuitem was added.
@@ -108,10 +86,10 @@ var tests = {
         toolsPopup.removeEventListener("popupshown", ontoolspopupshownAmbient);
         let socialToggleMore = document.getElementById("menu_socialAmbientMenu");
         ok(socialToggleMore, "Keyboard accessible social menu should exist");
-        is(socialToggleMore.querySelectorAll("menuitem").length, 5, "The number of menuitems is minimum plus three ambient notification menuitems.");
+        is(socialToggleMore.querySelectorAll("menuitem").length, 3, "The number of menuitems is minimum plus one ambient notification menuitem.");
         is(socialToggleMore.hidden, false, "Menu is visible when ambient notifications have label & menuURL");
         let menuitem = socialToggleMore.querySelector("menuitem");
-        is(menuitem.getAttribute("label"), "Test Ambient 1 \u2046", "Keyboard accessible ambient menuitem should have specified label");
+        is(menuitem.getAttribute("label"), "Test Ambient 1", "Keyboard accessible ambient menuitem should have specified label");
         toolsPopup.hidePopup();
         next();
       }, false);

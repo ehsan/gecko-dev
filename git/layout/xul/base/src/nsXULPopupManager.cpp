@@ -192,7 +192,7 @@ nsXULPopupManager::Rollup(uint32_t aCount, bool aGetLastRolledUp)
     // if a number of popups to close has been specified, determine the last
     // popup to close
     nsIContent* lastPopup = nullptr;
-    if (aCount != UINT32_MAX) {
+    if (aCount != PR_UINT32_MAX) {
       nsMenuChainItem* last = item;
       while (--aCount && last->GetParent()) {
         last = last->GetParent();
@@ -316,11 +316,6 @@ nsXULPopupManager::PopupMoved(nsIFrame* aFrame, nsIntPoint aPnt)
   if (!menuPopupFrame)
     return;
 
-  // Convert desired point to CSS pixels for comparison
-  nsPresContext* presContext = menuPopupFrame->PresContext();
-  aPnt.x = presContext->DevPixelsToIntCSSPixels(aPnt.x);
-  aPnt.y = presContext->DevPixelsToIntCSSPixels(aPnt.y);
-
   // Don't do anything if the popup is already at the specified location. This
   // prevents recursive calls when a popup is positioned.
   nsIntPoint currentPnt = menuPopupFrame->ScreenPosition();
@@ -351,20 +346,13 @@ nsXULPopupManager::PopupResized(nsIFrame* aFrame, nsIntSize aSize)
   nsPresContext* presContext = menuPopupFrame->PresContext();
 
   nsSize currentSize = menuPopupFrame->GetSize();
-
-  // convert both current and new sizes to integer CSS pixels for comparison;
-  // we won't set attributes if there is only a sub-CSS-pixel discrepancy
-  nsIntSize currCSS(nsPresContext::AppUnitsToIntCSSPixels(currentSize.width),
-                    nsPresContext::AppUnitsToIntCSSPixels(currentSize.height));
-  nsIntSize newCSS(presContext->DevPixelsToIntCSSPixels(aSize.width),
-                   presContext->DevPixelsToIntCSSPixels(aSize.height));
-
-  if (newCSS.width != currCSS.width || newCSS.height != currCSS.height) {
+  if (aSize.width != presContext->AppUnitsToDevPixels(currentSize.width) ||
+      aSize.height != presContext->AppUnitsToDevPixels(currentSize.height)) {
     // for resizes, we just set the width and height attributes
     nsIContent* popup = menuPopupFrame->GetContent();
     nsAutoString width, height;
-    width.AppendInt(newCSS.width);
-    height.AppendInt(newCSS.height);
+    width.AppendInt(aSize.width);
+    height.AppendInt(aSize.height);
     popup->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, false);
     popup->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, true);
   }
@@ -897,7 +885,6 @@ nsXULPopupManager::HidePopupCallback(nsIContent* aPopup,
   nsMouseEvent event(true, NS_XUL_POPUP_HIDDEN, nullptr, nsMouseEvent::eReal);
   nsEventDispatcher::Dispatch(aPopup, aPopupFrame->PresContext(),
                               &event, nullptr, &status);
-  ENSURE_TRUE(weakFrame.IsAlive());
 
   // if there are more popups to close, look for the next one
   if (aNextPopup && aPopup != aLastPopup) {

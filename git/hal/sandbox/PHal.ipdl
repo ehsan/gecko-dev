@@ -24,10 +24,6 @@ using mozilla::hal::SwitchDevice;
 using mozilla::hal::ProcessPriority;
 using nsIntRect;
 using PRTime;
-using mozilla::hal::FMRadioCountry;
-using mozilla::hal::FMRadioOperation;
-using mozilla::hal::FMRadioOperationStatus;
-using mozilla::hal::FMRadioSeekDirection;
 
 namespace mozilla {
 
@@ -77,27 +73,6 @@ struct ScreenConfiguration {
   uint32_t pixelDepth;
 };
 
-struct FMRadioOperationInformation {
-  FMRadioOperation operation;
-  FMRadioOperationStatus status;
-  uint32_t frequency;
-};
-
-struct FMRadioSettings {
-  FMRadioCountry country;
-  uint32_t upperLimit;
-  uint32_t lowerLimit;
-  uint32_t spaceType;
-  uint32_t preEmphasis;
-};
-
-struct SystemTimezoneChangeInformation {
-  // These timezone offsets are relative to UTC in minutes and
-  // have already taken daylight saving time (DST) into account.
-  int32_t oldTimezoneOffsetMinutes;
-  int32_t newTimezoneOffsetMinutes;
-};
-
 } // namespace hal
 
 namespace hal_sandbox {
@@ -111,9 +86,6 @@ child:
     NotifyWakeLockChange(WakeLockInformation aWakeLockInfo);
     NotifyScreenConfigurationChange(ScreenConfiguration aScreenOrientation);
     NotifySwitchChange(SwitchEvent aEvent);
-    NotifySystemClockChange(int64_t aClockDeltaMS); 
-    NotifySystemTimezoneChange(SystemTimezoneChangeInformation aSystemTimezoneChangeInfo); 
-    NotifyFMRadioStatus(FMRadioOperationInformation aInfo);
 
 parent:
     Vibrate(uint32_t[] pattern, uint64_t[] id, PBrowser browser);
@@ -137,25 +109,19 @@ parent:
 
     sync GetScreenBrightness() returns (double brightness);
     SetScreenBrightness(double brightness);
-
-    AdjustSystemClock(int64_t aDeltaMilliseconds);
+    
+    AdjustSystemClock(int32 aDeltaMilliseconds);
     SetTimezone(nsCString aTimezoneSpec);
-    sync GetTimezone()
-      returns (nsCString aTimezoneSpec);
-    EnableSystemClockChangeNotifications();
-    DisableSystemClockChangeNotifications();
-    EnableSystemTimezoneChangeNotifications();
-    DisableSystemTimezoneChangeNotifications();
 
     sync SetLight(LightType light, LightConfiguration aConfig)
       returns (bool status);
     sync GetLight(LightType light)
       returns (LightConfiguration aConfig, bool status);
 
-    ModifyWakeLock(nsString aTopic,
-                   WakeLockControl aLockAdjust,
-                   WakeLockControl aHiddenAdjust,
-                   uint64_t aProcessID);
+    Reboot();
+    PowerOff();
+
+    ModifyWakeLock(nsString aTopic, WakeLockControl aLockAdjust, WakeLockControl aHiddenAdjust);
     EnableWakeLockNotifications();
     DisableWakeLockNotifications();
     sync GetWakeLockInfo(nsString aTopic)
@@ -176,26 +142,10 @@ parent:
 
     SetProcessPriority(int aPid, ProcessPriority aPriority);
 
-    EnableFMRadio(FMRadioSettings aSettings);
-    DisableFMRadio();
-    FMRadioSeek(FMRadioSeekDirection aDirection);
-    sync GetFMRadioSettings()
-      returns (FMRadioSettings settings);
-    SetFMRadioFrequency(uint32_t frequency);
-    sync GetFMRadioFrequency()
-      returns (uint32_t frequency);
-    sync IsFMRadioOn()
-      returns (bool radioOn);
-    sync GetFMRadioSignalStrength()
-      returns (uint32_t strength);
-    CancelFMRadioSeek();
-
-    FactoryReset();
-
 child:
     NotifySensorChange(SensorData aSensorData);
 
-parent:
+parent:    
     EnableSensorNotifications(SensorType aSensor);
     DisableSensorNotifications(SensorType aSensor);
 

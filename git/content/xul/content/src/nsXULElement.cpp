@@ -87,7 +87,6 @@
 #include "rdf.h"
 #include "nsIControllers.h"
 #include "nsAttrValueOrString.h"
-#include "nsAttrValueInlines.h"
 #include "mozilla/Attributes.h"
 
 // The XUL doc interface
@@ -657,7 +656,7 @@ nsXULElement::AddListenerFor(const nsAttrName& aName,
             nsContentUtils::IsEventAttributeName(attr, EventNameType_XUL)) {
             nsAutoString value;
             GetAttr(kNameSpaceID_None, attr, value);
-            SetEventHandler(attr, value, true);
+            AddScriptEventListener(attr, value, true);
         }
     }
 }
@@ -920,11 +919,11 @@ nsXULElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
             MaybeAddPopupListener(aName);
             if (nsContentUtils::IsEventAttributeName(aName, EventNameType_XUL)) {
                 if (aValue->Type() == nsAttrValue::eString) {
-                    SetEventHandler(aName, aValue->GetStringValue(), true);
+                    AddScriptEventListener(aName, aValue->GetStringValue(), true);
                 } else {
                     nsAutoString body;
                     aValue->ToString(body);
-                    SetEventHandler(aName, body, true);
+                    AddScriptEventListener(aName, body, true);
                 }
             }
     
@@ -1376,7 +1375,8 @@ nsXULElement::LoadSrc()
             NodeInfo()->Equals(nsGkAtoms::overlay, kNameSpaceID_XUL)) {
         return NS_OK;
     }
-    nsXULSlots* slots = static_cast<nsXULSlots*>(Slots());
+    nsXULSlots* slots = static_cast<nsXULSlots*>(GetSlots());
+    NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
     if (!slots->mFrameLoader) {
         // false as the last parameter so that xul:iframe/browser/editor
         // session history handling works like dynamic html:iframes.
@@ -1853,7 +1853,7 @@ nsXULElement::RecompileScriptEventListeners()
 
         nsAutoString value;
         GetAttr(kNameSpaceID_None, attr, value);
-        SetEventHandler(attr, value, true);
+        AddScriptEventListener(attr, value, true);
     }
 }
 
@@ -2489,7 +2489,7 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
             return NS_ERROR_UNEXPECTED;
     }
 
-    nsAutoCString urlspec;
+    nsCAutoString urlspec;
     nsContentUtils::GetWrapperSafeScriptFilename(aDocument, aURI, urlspec);
 
     // Ok, compile it to create a prototype script object!

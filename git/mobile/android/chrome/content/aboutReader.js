@@ -141,7 +141,7 @@ AboutReader.prototype = {
     return this._messageElementRef.get();
   },
 
-  observe: function Reader_observe(aMessage, aTopic, aData) {
+  observe: function(aMessage, aTopic, aData) {
     switch(aTopic) {
       case "Reader:FaviconReturn": {
         let info = JSON.parse(aData);

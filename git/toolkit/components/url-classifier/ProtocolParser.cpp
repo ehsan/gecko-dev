@@ -42,7 +42,7 @@ ParseChunkRange(nsACString::const_iterator& aBegin,
   nsACString::const_iterator iter = aBegin;
   FindCharInReadable(',', iter, aEnd);
 
-  nsAutoCString element(Substring(aBegin, iter));
+  nsCAutoString element(Substring(aBegin, iter));
   aBegin = iter;
   if (aBegin != aEnd)
     aBegin++;
@@ -151,7 +151,7 @@ ProtocolParser::FinishHMAC()
     return NS_OK;
   }
 
-  nsAutoCString clientMAC;
+  nsCAutoString clientMAC;
   mHMAC->Finish(true, clientMAC);
 
   if (clientMAC != mServerMAC) {
@@ -212,7 +212,7 @@ ProtocolParser::ProcessControl(bool* aDone)
 {
   nsresult rv;
 
-  nsAutoCString line;
+  nsCAutoString line;
   *aDone = true;
   while (NextLine(line)) {
     //LOG(("Processing %s\n", line.get()));
@@ -400,7 +400,7 @@ ProtocolParser::ProcessChunk(bool* aDone)
   }
 
   // Pull the chunk out of the pending stream data.
-  nsAutoCString chunk;
+  nsCAutoString chunk;
   chunk.Assign(Substring(mPending, 0, mChunkState.length));
   mPending = Substring(mPending, mChunkState.length);
 

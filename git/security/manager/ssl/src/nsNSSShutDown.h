@@ -147,11 +147,11 @@ public:
   
 private:
   nsNSSShutDownList();
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   evaporateAllNSSResourcesHelper(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                                         uint32_t number, void *arg);
 
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   doPK11LogoutHelper(PLDHashTable *table, PLDHashEntryHdr *hdr,
                                                     uint32_t number, void *arg);
 protected:

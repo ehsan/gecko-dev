@@ -406,7 +406,7 @@ nsColumnSetFrame::ChooseColumnStrategy(const nsHTMLReflowState& aReflowState)
     colHeight = NS_MIN(mLastBalanceHeight, GetAvailableContentHeight(aReflowState));
   } else {
     // No balancing, so don't limit the column count
-    numColumns = INT32_MAX;
+    numColumns = PR_INT32_MAX;
   }
 
 #ifdef DEBUG_roc
@@ -432,7 +432,13 @@ static void MoveChildTo(nsIFrame* aParent, nsIFrame* aChild, nsPoint aOrigin) {
     return;
   }
   
+  nsRect r = aChild->GetVisualOverflowRect();
+  r += aChild->GetPosition();
+  aParent->Invalidate(r);
+  r -= aChild->GetPosition();
   aChild->SetPosition(aOrigin);
+  r += aOrigin;
+  aParent->Invalidate(r);
   PlaceFrameView(aChild);
 }
 
@@ -623,7 +629,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
                                        aReflowState.ComputedHeight());
       kidReflowState.mFlags.mIsTopOfPage = true;
       kidReflowState.mFlags.mTableIsSplittable = false;
-      kidReflowState.mFlags.mIsColumnBalancing = aConfig.mBalanceColCount < INT32_MAX;
+      kidReflowState.mFlags.mIsColumnBalancing = aConfig.mBalanceColCount < PR_INT32_MAX;
 
 #ifdef DEBUG_roc
       printf("*** Reflowing child #%d %p: availHeight=%d\n",
@@ -726,7 +732,7 @@ nsColumnSetFrame::ReflowChildren(nsHTMLReflowMetrics&     aDesiredSize,
         reflowNext = true;
         kidNextInFlow->RemoveStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER);
       }
-
+        
       if (columnCount >= aConfig.mBalanceColCount) {
         // No more columns allowed here. Stop.
         aStatus |= NS_FRAME_REFLOW_NEXTINFLOW;
@@ -883,7 +889,7 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
   //------------ Handle Incremental Reflow -----------------
 
   ReflowConfig config = ChooseColumnStrategy(aReflowState);
-  bool isBalancing = config.mBalanceColCount < INT32_MAX;
+  bool isBalancing = config.mBalanceColCount < PR_INT32_MAX;
   
   // If balancing, then we allow the last column to grow to unbounded
   // height during the first reflow. This gives us a way to estimate
@@ -1035,6 +1041,8 @@ nsColumnSetFrame::Reflow(nsPresContext*           aPresContext,
     aStatus = NS_FRAME_COMPLETE;
   }
   
+  CheckInvalidateSizeChange(aDesiredSize);
+
   // XXXjwir3: This call should be replaced with FinishWithAbsoluteFrames
   //           when bug 724978 is fixed and nsColumnSetFrame is a full absolute
   //           container.

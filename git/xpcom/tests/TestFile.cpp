@@ -140,7 +140,7 @@ static bool TestCreateUnique(nsIFile* aBase, const char* aName, int32_t aType, i
     }
 
     if (existsBefore) {
-        nsAutoCString leafName;
+        nsCAutoString leafName;
         rv = file->GetNativeLeafName(leafName);
         if (!VerifyResult(rv, "GetNativeLeafName"))
             return false;
@@ -391,7 +391,7 @@ static bool TestNormalizeNativePath(nsIFile* aBase, nsIFile* aStart)
     if (!file)
         return false;
 
-    nsAutoCString path;
+    nsCAutoString path;
     nsresult rv = file->GetNativePath(path);
     VerifyResult(rv, "GetNativePath");
     path.Append(FixName("/./.."));
@@ -402,7 +402,7 @@ static bool TestNormalizeNativePath(nsIFile* aBase, nsIFile* aStart)
     rv = file->GetNativePath(path);
     VerifyResult(rv, "GetNativePath (after normalization)");
 
-    nsAutoCString basePath;
+    nsCAutoString basePath;
     rv = aBase->GetNativePath(basePath);
     VerifyResult(rv, "GetNativePath (base)");
 

@@ -8,7 +8,6 @@
 #include "nsDOMClassInfoID.h"
 
 #include "nsPresContext.h"
-#include "mozilla/dom/ClientRectListBinding.h"
 #include "dombindings.h"
 
 DOMCI_DATA(ClientRect, nsClientRect)
@@ -87,34 +86,28 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsClientRectList)
 NS_IMETHODIMP    
 nsClientRectList::GetLength(uint32_t* aLength)
 {
-  *aLength = Length();
+  *aLength = mArray.Count();
   return NS_OK;
 }
 
 NS_IMETHODIMP    
 nsClientRectList::Item(uint32_t aIndex, nsIDOMClientRect** aReturn)
 {
-  NS_IF_ADDREF(*aReturn = Item(aIndex));
+  NS_IF_ADDREF(*aReturn = nsClientRectList::GetItemAt(aIndex));
   return NS_OK;
 }
 
 nsIDOMClientRect*
 nsClientRectList::GetItemAt(uint32_t aIndex)
 {
-  return Item(aIndex);
+  return mArray.SafeObjectAt(aIndex);
 }
 
 JSObject*
 nsClientRectList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  JSObject* obj = mozilla::dom::ClientRectListBinding::Wrap(cx, scope, this,
-                                                            triedToWrap);
-  if (obj || *triedToWrap) {
-    return obj;
-  }
-
-  *triedToWrap = true;
-  return mozilla::dom::oldproxybindings::ClientRectList::create(cx, scope, this);
+  return mozilla::dom::oldproxybindings::ClientRectList::create(cx, scope, this,
+                                                       triedToWrap);
 }
 
 static double

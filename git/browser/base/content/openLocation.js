@@ -112,22 +112,15 @@ const nsIFilePicker = Components.interfaces.nsIFilePicker;
 function onChooseFile()
 {
   try {
-    let fp = Components.classes["@mozilla.org/filepicker;1"].
-             createInstance(nsIFilePicker);
-    let fpCallback = function fpCallback_done(aResult) {
-      if (aResult == nsIFilePicker.returnOK && fp.fileURL.spec &&
-          fp.fileURL.spec.length > 0) {
-        dialog.input.value = fp.fileURL.spec;
-      }
-      doEnabling();
-    };
+    var fp = Components.classes["@mozilla.org/filepicker;1"].createInstance(nsIFilePicker);
+    fp.init(window, dialog.bundle.getString("chooseFileDialogTitle"), nsIFilePicker.modeOpen);
+    fp.appendFilters(nsIFilePicker.filterHTML | nsIFilePicker.filterText |
+                     nsIFilePicker.filterAll | nsIFilePicker.filterImages | nsIFilePicker.filterXML);
 
-    fp.init(window, dialog.bundle.getString("chooseFileDialogTitle"),
-            nsIFilePicker.modeOpen);
-    fp.appendFilters(nsIFilePicker.filterAll | nsIFilePicker.filterText |
-                     nsIFilePicker.filterImages | nsIFilePicker.filterXML |
-                     nsIFilePicker.filterHTML);
-    fp.open(fpCallback);
-  } catch (ex) {
+    if (fp.show() == nsIFilePicker.returnOK && fp.fileURL.spec && fp.fileURL.spec.length > 0)
+      dialog.input.value = fp.fileURL.spec;
   }
+  catch(ex) {
+  }
+  doEnabling();
 }

@@ -93,7 +93,7 @@ public:
 
     // We do not allow favicons without a MIME type, so we'll return the default
     // icon.
-    nsAutoCString mimeType;
+    nsCAutoString mimeType;
     (void)row->GetUTF8String(1, mimeType);
     NS_ENSURE_FALSE(mimeType.IsEmpty(), NS_OK);
 
@@ -258,7 +258,7 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
   NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv;
 
-  nsAutoCString path;
+  nsCAutoString path;
   rv = aURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -268,7 +268,7 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 
   // annotation info
   nsCOMPtr<nsIURI> annoURI;
-  nsAutoCString annoName;
+  nsCAutoString annoName;
   rv = ParseAnnoURI(aURI, getter_AddRefs(annoURI), annoName);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -280,7 +280,7 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
   // normal handling for annotations
   uint8_t* data;
   uint32_t dataLen;
-  nsAutoCString mimeType;
+  nsCAutoString mimeType;
 
   // get the data from the annotation service and hand it off to the stream
   rv = annotationService->GetPageAnnotationBinary(annoURI, annoName, &data,
@@ -337,7 +337,7 @@ nsAnnoProtocolHandler::ParseAnnoURI(nsIURI* aURI,
                                     nsIURI** aResultURI, nsCString& aName)
 {
   nsresult rv;
-  nsAutoCString path;
+  nsCAutoString path;
   rv = aURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -47,7 +47,6 @@ class ReceiverFecTest : public ::testing::Test {
         num_fec_packets * 255 / media_packets->size(),
         0,
         false,
-        kFecMaskBursty,
         fec_packets));
     ASSERT_EQ(num_fec_packets, fec_packets->size());
   }
@@ -247,7 +246,6 @@ TEST_F(ReceiverFecTest, TooManyFrames) {
                                   kNumFecPackets * 255 / kNumMediaPackets,
                                   0,
                                   false,
-                                  kFecMaskBursty,
                                   &fec_packets));
 
   DeletePackets(&media_packets);

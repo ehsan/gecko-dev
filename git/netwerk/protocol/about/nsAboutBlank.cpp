@@ -15,18 +15,19 @@ NS_IMETHODIMP
 nsAboutBlank::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
+    nsresult rv;
+    nsIChannel* channel;
 
     nsCOMPtr<nsIInputStream> in;
-    nsresult rv = NS_NewCStringInputStream(getter_AddRefs(in), EmptyCString());
+    rv = NS_NewCStringInputStream(getter_AddRefs(in), EmptyCString());
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewInputStreamChannel(getter_AddRefs(channel), aURI, in,
+    rv = NS_NewInputStreamChannel(&channel, aURI, in,
                                   NS_LITERAL_CSTRING("text/html"),
                                   NS_LITERAL_CSTRING("utf-8"));
     if (NS_FAILED(rv)) return rv;
 
-    channel.forget(result);
+    *result = channel;
     return rv;
 }
 

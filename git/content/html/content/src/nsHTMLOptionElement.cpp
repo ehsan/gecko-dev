@@ -260,19 +260,7 @@ NS_IMETHODIMP
 nsHTMLOptionElement::GetText(nsAString& aText)
 {
   nsAutoString text;
-
-  nsIContent* child = nsINode::GetFirstChild();
-  while (child) {
-    if (child->NodeType() == nsIDOMNode::TEXT_NODE ||
-        child->NodeType() == nsIDOMNode::CDATA_SECTION_NODE) {
-      child->AppendTextTo(text);
-    }
-    if (child->IsHTML(nsGkAtoms::script) || child->IsSVG(nsGkAtoms::script)) {
-      child = child->GetNextNonChildNode(this);
-    } else {
-      child = child->GetNextNode(this);
-    }
-  }
+  nsContentUtils::GetNodeTextContent(this, false, text);
 
   // XXX No CompressWhitespace for nsAString.  Sad.
   text.CompressWhitespace(true, true);

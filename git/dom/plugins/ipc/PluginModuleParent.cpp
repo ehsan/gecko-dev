@@ -174,24 +174,28 @@ PluginModuleParent::WriteExtraDataForMinidump(AnnotationTable& notes)
 
     CrashReporterParent* crashReporter = CrashReporter();
     if (crashReporter) {
+        const nsString& hangID = crashReporter->HangID();
+        if (!hangID.IsEmpty()) {
+            notes.Put(CS("HangID"), NS_ConvertUTF16toUTF8(hangID));
 #ifdef XP_WIN
-        if (mPluginCpuUsageOnHang.Length() > 0) {
-            notes.Put(CS("NumberOfProcessors"),
-                      nsPrintfCString("%d", PR_GetNumberOfProcessors()));
+            if (mPluginCpuUsageOnHang.Length() > 0) {
+              notes.Put(CS("NumberOfProcessors"),
+                        nsPrintfCString("%d", PR_GetNumberOfProcessors()));
 
-            nsCString cpuUsageStr;
-            cpuUsageStr.AppendFloat(std::ceil(mPluginCpuUsageOnHang[0] * 100) / 100);
-            notes.Put(CS("PluginCpuUsage"), cpuUsageStr);
+              nsCString cpuUsageStr;
+              cpuUsageStr.AppendFloat(std::ceil(mPluginCpuUsageOnHang[0] * 100) / 100);
+              notes.Put(CS("PluginCpuUsage"), cpuUsageStr);
 
 #ifdef MOZ_CRASHREPORTER_INJECTOR
-            for (uint32_t i=1; i<mPluginCpuUsageOnHang.Length(); ++i) {
+              for (uint32_t i=1; i<mPluginCpuUsageOnHang.Length(); ++i) {
                 nsCString tempStr;
                 tempStr.AppendFloat(std::ceil(mPluginCpuUsageOnHang[i] * 100) / 100);
                 notes.Put(nsPrintfCString("CpuUsageFlashProcess%d", i), tempStr);
+              }
+#endif
             }
 #endif
         }
-#endif
     }
 }
 #endif  // MOZ_CRASHREPORTER
@@ -203,7 +207,7 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
     if (!strcmp(aPref, kChildTimeoutPref)) {
       // The timeout value used by the parent for children
       int32_t timeoutSecs = Preferences::GetInt(kChildTimeoutPref, 0);
-      int32_t timeoutMs = (timeoutSecs > 0) ? (1000 * timeoutSecs) :
+      int32 timeoutMs = (timeoutSecs > 0) ? (1000 * timeoutSecs) :
                         SyncChannel::kNoTimeout;
       static_cast<PluginModuleParent*>(aModule)->SetReplyTimeoutMs(timeoutMs);
     } else if (!strcmp(aPref, kParentTimeoutPref)) {
@@ -217,20 +221,8 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
 void
 PluginModuleParent::CleanupFromTimeout()
 {
-    if (mShutdown) {
-      return;
-    }
-
-    if (!OkToCleanup()) {
-        // there's still plugin code on the C++ stack, try again
-        MessageLoop::current()->PostDelayedTask(
-            FROM_HERE,
-            mTaskFactory.NewRunnableMethod(
-                &PluginModuleParent::CleanupFromTimeout), 10);
-        return;
-    }
-
-    Close();
+    if (!mShutdown && OkToCleanup())
+        Close();
 }
 
 #ifdef XP_WIN
@@ -300,63 +292,19 @@ GetProcessCpuUsage(const InfallibleTArray<base::ProcessHandle>& processHandles, 
 } // anonymous namespace
 #endif // #ifdef XP_WIN
 
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-static bool
-CreateFlashMinidump(DWORD processId, ThreadId childThread,
-                    nsIFile* parentMinidump, const nsACString& name)
-{
-  if (processId == 0) {
-    return false;
-  }
-
-  base::ProcessHandle handle;
-  if (!base::OpenPrivilegedProcessHandle(processId, &handle)) {
-    return false;
-  }
-
-  bool res = CreateAdditionalChildMinidump(handle, 0, parentMinidump, name);
-  base::CloseProcessHandle(handle);
-
-  return res;
-}
-#endif
-
 bool
 PluginModuleParent::ShouldContinueFromReplyTimeout()
 {
 #ifdef MOZ_CRASHREPORTER
     CrashReporterParent* crashReporter = CrashReporter();
-    crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("PluginHang"),
-                                       NS_LITERAL_CSTRING("1"));
     if (crashReporter->GeneratePairedMinidump(this)) {
+        mBrowserDumpID = crashReporter->ParentDumpID();
         mPluginDumpID = crashReporter->ChildDumpID();
         PLUGIN_LOG_DEBUG(
-                ("generated paired browser/plugin minidumps: %s)",
-                 NS_ConvertUTF16toUTF8(mPluginDumpID).get()));
-
-        nsAutoCString additionalDumps("browser");
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-        nsCOMPtr<nsIFile> pluginDumpFile;
-
-        if (GetMinidumpForID(mPluginDumpID, getter_AddRefs(pluginDumpFile)) &&
-            pluginDumpFile) {
-          nsCOMPtr<nsIFile> childDumpFile;
-
-          if (CreateFlashMinidump(mFlashProcess1, 0, pluginDumpFile,
-                                  NS_LITERAL_CSTRING("flash1"))) {
-            additionalDumps.Append(",flash1");
-          }
-          if (CreateFlashMinidump(mFlashProcess2, 0, pluginDumpFile,
-                                  NS_LITERAL_CSTRING("flash2"))) {
-            additionalDumps.Append(",flash2");
-          }
-        }
-#endif
-
-        crashReporter->AnnotateCrashReport(
-            NS_LITERAL_CSTRING("additional_minidumps"),
-            additionalDumps);
+                ("generated paired browser/plugin minidumps: %s/%s (ID=%s)",
+                 NS_ConvertUTF16toUTF8(mBrowserDumpID).get(),
+                 NS_ConvertUTF16toUTF8(mPluginDumpID).get(),
+                 NS_ConvertUTF16toUTF8(crashReporter->HangID()).get()));
     } else {
         NS_WARNING("failed to capture paired minidumps from hang");
     }
@@ -429,15 +377,15 @@ PluginModuleParent::ProcessFirstMinidump()
     AnnotationTable notes;
     notes.Init(4);
     WriteExtraDataForMinidump(notes);
-
-    if (!mPluginDumpID.IsEmpty()) {
-        crashReporter->GenerateChildData(&notes);
+        
+    if (!mPluginDumpID.IsEmpty() && !mBrowserDumpID.IsEmpty()) {
+        crashReporter->GenerateHangCrashReport(&notes);
         return;
     }
 
-    uint32_t sequence = UINT32_MAX;
+    uint32_t sequence = PR_UINT32_MAX;
     nsCOMPtr<nsIFile> dumpFile;
-    nsAutoCString flashProcessType;
+    nsCAutoString flashProcessType;
     TakeMinidump(getter_AddRefs(dumpFile), &sequence);
 
 #ifdef MOZ_CRASHREPORTER_INJECTOR
@@ -1185,17 +1133,7 @@ PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing)
 
     return i->IsRemoteDrawingCoreAnimation(aDrawing);
 }
-
-nsresult
-PluginModuleParent::ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->ContentsScaleFactorChanged(aContentsScaleFactor);
-}
-#endif // #if defined(XP_MACOSX)
+#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,

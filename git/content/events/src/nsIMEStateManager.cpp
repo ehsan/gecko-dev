@@ -201,25 +201,25 @@ nsIMEStateManager::OnClickInEditor(nsPresContext* aPresContext,
   }
 
   nsCOMPtr<nsIWidget> widget = GetWidget(aPresContext);
-  NS_ENSURE_TRUE_VOID(widget);
+  NS_ENSURE_TRUE(widget, );
 
   bool isTrusted;
   nsresult rv = aMouseEvent->GetIsTrusted(&isTrusted);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_ENSURE_SUCCESS(rv, );
   if (!isTrusted) {
     return; // ignore untrusted event.
   }
 
   uint16_t button;
   rv = aMouseEvent->GetButton(&button);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_ENSURE_SUCCESS(rv, );
   if (button != 0) {
     return; // not a left click event.
   }
 
   int32_t clickCount;
   rv = aMouseEvent->GetDetail(&clickCount);
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_ENSURE_SUCCESS(rv, );
   if (clickCount != 1) {
     return; // should notify only first click event.
   }
@@ -313,7 +313,7 @@ nsIMEStateManager::SetIMEState(const IMEState &aState,
                                nsIWidget* aWidget,
                                InputContextAction aAction)
 {
-  NS_ENSURE_TRUE_VOID(aWidget);
+  NS_ENSURE_TRUE(aWidget, );
 
   InputContext oldContext = aWidget->GetInputContext();
 

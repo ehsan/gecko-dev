@@ -16,6 +16,9 @@ let {NewTabUtils, Sanitizer} = tmp;
 let uri = Services.io.newURI("about:newtab", null, null);
 let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
 
+let sm = Services.domStorageManager;
+let storage = sm.getLocalStorageForPrincipal(principal, "");
+
 registerCleanupFunction(function () {
   while (gBrowser.tabs.length > 1)
     gBrowser.removeTab(gBrowser.tabs[1]);
@@ -180,12 +183,7 @@ function setPinnedLinks(aLinks) {
     });
   }
 
-  let string = Cc["@mozilla.org/supports-string;1"]
-                 .createInstance(Ci.nsISupportsString);
-  string.data = JSON.stringify(links);
-  Services.prefs.setComplexValue("browser.newtabpage.pinned",
-                                 Ci.nsISupportsString, string);
-
+  storage.setItem("pinnedLinks", JSON.stringify(links));
   NewTabUtils.pinnedLinks.resetCache();
   NewTabUtils.allPages.update();
 }

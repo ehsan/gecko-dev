@@ -49,8 +49,7 @@ function is_active_download_available(aID, aSrc, aDst, aName) {
     if (download.id == aID &&
         download.source.spec == aSrc &&
         download.targetFile.path == aDst.path &&
-        download.displayName == aName &&
-        download.isPrivate == pb.privateBrowsingEnabled)
+        download.displayName == aName)
       return true;
   }
   return false;
@@ -174,7 +173,6 @@ function run_test() {
 
           // Create Download-B
           let dlB = addDownload({
-            isPrivate: pb.privateBrowsingEnabled,
             targetFile: fileB,
             sourceURI: downloadBSource,
             downloadName: downloadBName,
@@ -212,7 +210,6 @@ function run_test() {
           // Create Download-C
           httpserv.start(4444);
           dlC = addDownload({
-            isPrivate: pb.privateBrowsingEnabled,
             targetFile: fileC,
             sourceURI: downloadCSource,
             downloadName: downloadCName,
@@ -298,7 +295,6 @@ function run_test() {
 
   // Create Download-A
   let dlA = addDownload({
-    isPrivate: pb.privateBrowsingEnabled,
     targetFile: fileA,
     sourceURI: downloadASource,
     downloadName: downloadAName,

@@ -75,16 +75,6 @@ AccessCheck::subsumesIgnoringDomain(JSCompartment *a, JSCompartment *b)
     return subsumes;
 }
 
-// Does the compartment of the wrapper subsumes the compartment of the wrappee?
-bool
-AccessCheck::wrapperSubsumes(JSObject *wrapper)
-{
-    MOZ_ASSERT(js::IsWrapper(wrapper));
-    JSObject *wrapped = js::UnwrapObject(wrapper);
-    return AccessCheck::subsumes(js::GetObjectCompartment(wrapper),
-                                 js::GetObjectCompartment(wrapped));
-}
-
 bool
 AccessCheck::isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper)
 {
@@ -100,7 +90,7 @@ AccessCheck::isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper)
     if (!js::GetObjectClass(obj)->ext.innerObject) {
         // ...which might be wrapped in a security wrapper.
         obj = js::UnwrapObject(obj);
-        MOZ_ASSERT(js::GetObjectClass(obj)->ext.innerObject);
+        JS_ASSERT(js::GetObjectClass(obj)->ext.innerObject);
     }
 
     // Now innerize it to find the *current* inner window for our outer.
@@ -122,12 +112,6 @@ AccessCheck::isChrome(JSCompartment *compartment)
     bool privileged;
     nsIPrincipal *principal = GetCompartmentPrincipal(compartment);
     return NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) && privileged;
-}
-
-bool
-AccessCheck::isChrome(JSObject *obj)
-{
-    return isChrome(js::GetObjectCompartment(obj));
 }
 
 bool
@@ -244,7 +228,7 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
 
     // PUNCTURE Is always denied for cross-origin access.
     if (act == Wrapper::PUNCTURE) {
-        return false;
+        return nsContentUtils::CallerHasUniversalXPConnect();
     }
 
     const char *name;
@@ -260,7 +244,12 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
             return true;
     }
 
-    return IsWindow(name) && IsFrameId(cx, obj, id);
+    if (IsWindow(name) && IsFrameId(cx, obj, id))
+        return true;
+
+    return (act == Wrapper::SET)
+           ? nsContentUtils::IsCallerTrustedForWrite()
+           : nsContentUtils::IsCallerTrustedForRead();
 }
 
 bool
@@ -275,23 +264,45 @@ AccessCheck::callerIsXBL(JSContext *cx)
 bool
 AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
 {
-    MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
-    if (callerIsChrome())
+    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+    if (!ssm) {
         return true;
+    }
+
+    JSStackFrame *fp;
+    nsIPrincipal *principal = ssm->GetCxSubjectPrincipalAndFrame(cx, &fp);
+    if (!principal) {
+        return false;
+    }
+
+    JSScript *script = nullptr;
+    if (fp) {
+      script = JS_GetFrameScript(cx, fp);
+    } else {
+        if (!JS_DescribeScriptedCaller(cx, &script, nullptr)) {
+            // No code at all is running. So we must be arriving here as the result
+            // of C++ code asking us to do something. Allow access.
+            return true;
+        }
+    }
+
+    bool privileged;
+    if (NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) &&
+        privileged) {
+        return true;
+    }
 
     // Allow any code loaded from chrome://global/ to touch us, even if it was
     // cloned into a less privileged context.
-    JSScript *script;
-    if (!JS_DescribeScriptedCaller(cx, &script, nullptr) || !script)
-        return false;
     static const char prefix[] = "chrome://global/";
     const char *filename;
-    if ((filename = JS_GetScriptFilename(cx, script)) &&
+    if (script &&
+        (filename = JS_GetScriptFilename(cx, script)) &&
         !strncmp(filename, prefix, ArrayLength(prefix) - 1)) {
         return true;
     }
 
-    return false;
+    return NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) && privileged;
 }
 
 bool
@@ -307,7 +318,7 @@ AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
 bool
 AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
 {
-    MOZ_ASSERT(js::IsWrapper(wrapper));
+    JS_ASSERT(js::IsWrapper(wrapper));
 
     unsigned flags;
     JSObject *obj = js::UnwrapObject(wrapper, true, &flags);
@@ -316,7 +327,18 @@ AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
     if (flags & WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG) {
         if (flags & WrapperFactory::SOW_FLAG)
             return !isSystemOnlyAccessPermitted(cx);
-        return true;
+
+        if (flags & WrapperFactory::PARTIALLY_TRANSPARENT)
+            return !XrayUtils::IsTransparent(cx, wrapper);
+
+        nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+        if (!ssm)
+            return true;
+
+        // Bypass script-only status if UniversalXPConnect is enabled.
+        bool privileged;
+        return !NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) ||
+               !privileged;
     }
 
     // In addition, chrome objects can explicitly opt-in by setting .scriptOnly to true.
@@ -366,6 +388,33 @@ Deny(JSContext *cx, jsid id, Wrapper::Action act)
     return false;
 }
 
+bool
+PermitIfUniversalXPConnect(JSContext *cx, jsid id, Wrapper::Action act,
+                           ExposedPropertiesOnly::Permission &perm)
+{
+    // If UniversalXPConnect is enabled, allow access even if __exposedProps__ doesn't
+    // exists.
+    nsIScriptSecurityManager *ssm = XPCWrapper::GetSecurityManager();
+    if (!ssm) {
+        return false;
+    }
+
+    // Double-check that the subject principal according to CAPS is a content
+    // principal rather than the system principal. If it isn't, this check is
+    // meaningless.
+    NS_ASSERTION(!AccessCheck::callerIsChrome(), "About to do a meaningless security check!");
+
+    bool privileged;
+    if (NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) &&
+        privileged) {
+        perm = ExposedPropertiesOnly::PermitPropertyAccess;
+        return true; // Allow
+    }
+
+    // Deny
+    return Deny(cx, id, act);
+}
+
 static bool
 IsInSandbox(JSContext *cx, JSObject *obj)
 {
@@ -394,12 +443,12 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
 
     perm = DenyAccess;
     if (act == Wrapper::PUNCTURE)
-        return Deny(cx, id, act);
+        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
 
     jsid exposedPropsId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS);
 
     // We need to enter the wrappee's compartment to look at __exposedProps__,
-    // but we want to be in the wrapper's compartment if we call Deny().
+    // but we need to be in the wrapper's compartment to check UniversalXPConnect.
     //
     // Unfortunately, |cx| can be in either compartment when we call ::check. :-(
     JSAutoCompartment ac(cx, wrappedObject);
@@ -409,8 +458,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
         return false;
 
     // Always permit access to "length" and indexed properties of arrays.
-    if ((JS_IsArrayObject(cx, wrappedObject) ||
-         JS_IsTypedArrayObject(wrappedObject, cx)) &&
+    if (JS_IsArrayObject(cx, wrappedObject) &&
         ((JSID_IS_INT(id) && JSID_TO_INT(id) >= 0) ||
          (JSID_IS_STRING(id) && JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(id), "length")))) {
         perm = PermitPropertyAccess;
@@ -441,7 +489,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
             perm = PermitPropertyAccess;
             return true;
         }
-        return Deny(cx, id, act);
+        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
     }
 
     if (id == JSID_VOID) {
@@ -456,7 +504,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
 
     if (exposedProps.isNullOrUndefined()) {
         JSAutoCompartment wrapperAC(cx, wrapper);
-        return Deny(cx, id, act);
+        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
     }
 
     if (!exposedProps.isObject()) {
@@ -480,7 +528,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
     }
     if (desc.obj == NULL || !(desc.attrs & JSPROP_ENUMERATE)) {
         JSAutoCompartment wrapperAC(cx, wrapper);
-        return Deny(cx, id, act);
+        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
     }
 
     if (!JSVAL_IS_STRING(desc.value)) {
@@ -526,7 +574,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
     if ((act == Wrapper::SET && !(access & WRITE)) ||
         (act != Wrapper::SET && !(access & READ))) {
         JSAutoCompartment wrapperAC(cx, wrapper);
-        return Deny(cx, id, act);
+        return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
     }
 
     perm = PermitPropertyAccess;
@@ -553,15 +601,7 @@ ComponentsObjectPolicy::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper
         }
     }
 
-    // We don't have any way to recompute same-compartment Components wrappers,
-    // so we need this dynamic check. This can go away when we expose Components
-    // as SpecialPowers.wrap(Components) during automation.
-    if (xpc::IsUniversalXPConnectEnabled(cx)) {
-        perm = PermitPropertyAccess;
-        return true;
-    }
-
-    return Deny(cx, id, act);
+    return PermitIfUniversalXPConnect(cx, id, act, perm);  // Deny
 }
 
 }

@@ -19,7 +19,7 @@ const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-this.EXPORTED_SYMBOLS = [ "LogManager" ];
+var EXPORTED_SYMBOLS = [ "LogManager" ];
 
 var gDebugLogEnabled = false;
 
@@ -124,7 +124,7 @@ AddonLogger.prototype = {
   }
 };
 
-this.LogManager = {
+var LogManager = {
   getLogger: function(aName, aTarget) {
     let logger = new AddonLogger(aName);
 

@@ -26,6 +26,9 @@ protected:
   bool mDone;
   bool mRooted;
 
+  NS_DECL_EVENT_HANDLER(success)
+  NS_DECL_EVENT_HANDLER(error)
+
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDOMREQUEST
@@ -51,8 +54,8 @@ public:
 protected:
   void FireEvent(const nsAString& aType, bool aBubble, bool aCancelable);
 
-  void RootResultVal();
-  void UnrootResultVal();
+  virtual void RootResultVal();
+  virtual void UnrootResultVal();
 
   void Init(nsIDOMWindow* aWindow);
 };

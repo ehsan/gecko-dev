@@ -35,7 +35,7 @@ nsUsageArrayHelper::check(const char *suffix,
                         PRUnichar **outUsages)
 {
   if (!aCertUsage) return;
-  nsAutoCString typestr;
+  nsCAutoString typestr;
   switch (aCertUsage) {
   case certificateUsageSSLClient:
     typestr = "VerifySSLClient";

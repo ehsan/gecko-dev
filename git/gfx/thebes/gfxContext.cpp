@@ -595,20 +595,6 @@ gfxContext::Multiply(const gfxMatrix& matrix)
 }
 
 void
-gfxContext::MultiplyAndNudgeToIntegers(const gfxMatrix& matrix)
-{
-  if (mCairo) {
-    const cairo_matrix_t& mat = reinterpret_cast<const cairo_matrix_t&>(matrix);
-    cairo_transform(mCairo, &mat);
-    // XXX nudging to integers not currently supported for Thebes
-  } else {
-    Matrix transform = ToMatrix(matrix) * mTransform;
-    transform.NudgeToIntegers();
-    ChangeTransform(transform);
-  }
-}
-
-void
 gfxContext::SetMatrix(const gfxMatrix& matrix)
 {
   if (mCairo) {
@@ -2091,7 +2077,6 @@ gfxContext::ChangeTransform(const Matrix &aNewMatrix)
 
     if (toNewUS.IsRectilinear() && mPathIsRect) {
       mRect = toNewUS.TransformBounds(mRect);
-      mRect.NudgeToIntegers();
     } else if (mPathIsRect) {
       mPathBuilder = mDT->CreatePathBuilder(CurrentState().fillRule);
       

@@ -9,7 +9,6 @@
 
 #include "SkAvoidXfermode.h"
 #include "SkColorPriv.h"
-#include "SkFlattenableBuffers.h"
 
 SkAvoidXfermode::SkAvoidXfermode(SkColor opColor, U8CPU tolerance, Mode mode)
 {
@@ -25,18 +24,18 @@ SkAvoidXfermode::SkAvoidXfermode(SkColor opColor, U8CPU tolerance, Mode mode)
 SkAvoidXfermode::SkAvoidXfermode(SkFlattenableReadBuffer& buffer)
     : INHERITED(buffer)
 {
-    fOpColor = buffer.readColor();
-    fDistMul = buffer.readUInt();
-    fMode = (Mode)buffer.readUInt();
+    fOpColor = buffer.readU32();
+    fDistMul = buffer.readU32();
+    fMode = (Mode)buffer.readU8();
 }
 
 void SkAvoidXfermode::flatten(SkFlattenableWriteBuffer& buffer) const
 {
     this->INHERITED::flatten(buffer);
 
-    buffer.writeColor(fOpColor);
-    buffer.writeUInt(fDistMul);
-    buffer.writeUInt(fMode);
+    buffer.write32(fOpColor);
+    buffer.write32(fDistMul);
+    buffer.write8(fMode);
 }
 
 // returns 0..31

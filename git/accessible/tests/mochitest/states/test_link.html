@@ -21,8 +21,6 @@
           src="../events.js"></script>
 
   <script type="application/javascript">
-    //gA11yEventDumpToConsole = true; // debug stuff
-
     function doTest()
     {
       // a@href and its text node
@@ -49,8 +47,6 @@
 
       // a: traversal state
       testStates("link_traversed", 0, 0, STATE_TRAVERSED);
-
-      //enableLogging("docload"); // debug stuff
       registerA11yEventListener(EVENT_DOCUMENT_LOAD_COMPLETE,
                                 traversedLinkTester);
 
@@ -64,7 +60,6 @@
         aEvent.accessible.rootDocument.window.close();
 
         testStates("link_traversed", STATE_TRAVERSED);
-        //disableLogging();
         SimpleTest.finish();
       }
     };

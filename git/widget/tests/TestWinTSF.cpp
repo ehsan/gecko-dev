@@ -2901,7 +2901,7 @@ TestApp::TestScrollMessages(void)
 
 #define DO_CHECK(aFailureCondition, aDescription) \
   if (aFailureCondition) { \
-    nsAutoCString str(aDescription); \
+    nsCAutoString str(aDescription); \
     str.Append(": "); \
     str.Append(#aFailureCondition); \
     fail(str.get()); \

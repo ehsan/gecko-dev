@@ -8,7 +8,6 @@
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsICategoryManager.h"
-#include "nsIMemoryReporter.h"
 #include "nsIServiceManager.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -38,13 +37,6 @@ public:
   // Our hash table ops don't care about the order of these members
   nsString mKey;
   nsGlobalNameStruct mGlobalName;
-
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) {
-    // Measurement of the following members may be added later if DMD finds it
-    // is worthwhile:
-    // - mGlobalName
-    return mKey.SizeOfExcludingThisMustBeUnshared(aMallocSizeOf);
-  }
 };
 
 
@@ -271,7 +263,7 @@ nsScriptNameSpaceManager::RegisterExternalInterfaces(bool aAsProto)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsXPIDLCString IID_string;
-  nsAutoCString category_entry;
+  nsCAutoString category_entry;
   const char* if_name;
   nsCOMPtr<nsISupports> entry;
   nsCOMPtr<nsIInterfaceInfo> if_info;
@@ -687,7 +679,7 @@ nsScriptNameSpaceManager::AddCategoryEntryToHash(nsICategoryManager* aCategoryMa
     return NS_OK;
   }
 
-  nsAutoCString categoryEntry;
+  nsCAutoString categoryEntry;
   nsresult rv = strWrapper->GetData(categoryEntry);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -789,8 +781,7 @@ nsScriptNameSpaceManager::Observe(nsISupports* aSubject, const char* aTopic,
 
 void
 nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAFlatString& aName,
-    mozilla::dom::DefineInterface aDefineDOMInterface,
-    mozilla::dom::PrefEnabled aPrefEnabled)
+    mozilla::dom::DefineInterface aDefineDOMInterface)
 {
   nsGlobalNameStruct *s = AddToHash(&mGlobalNames, &aName);
   if (s) {
@@ -798,25 +789,5 @@ nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAFlatString& aName,
       s->mType = nsGlobalNameStruct::eTypeNewDOMBinding;
     }
     s->mDefineDOMInterface = aDefineDOMInterface;
-    s->mPrefEnabled = aPrefEnabled;
   }
-}
-
-static size_t
-SizeOfEntryExcludingThis(PLDHashEntryHdr *aHdr, nsMallocSizeOfFun aMallocSizeOf,
-                         void *aArg)
-{
-    GlobalNameMapEntry* entry = static_cast<GlobalNameMapEntry*>(aHdr);
-    return entry->SizeOfExcludingThis(aMallocSizeOf);
-}
-
-size_t
-nsScriptNameSpaceManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t n = 0;
-  n += PL_DHashTableSizeOfExcludingThis(&mGlobalNames,
-         SizeOfEntryExcludingThis, aMallocSizeOf);
-  n += PL_DHashTableSizeOfExcludingThis(&mNavigatorNames,
-         SizeOfEntryExcludingThis, aMallocSizeOf);
-  return n;
 }

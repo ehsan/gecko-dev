@@ -30,6 +30,9 @@ class JSONParser
     mozilla::RangedPtr<const jschar> current;
     const mozilla::RangedPtr<const jschar> end;
 
+    /* For current/end as cursors into a string. */
+    js::SkipRoot root;
+
     js::Value v;
 
     const ParsingMode parsingMode;
@@ -61,6 +64,7 @@ class JSONParser
       : cx(cx),
         current(data, length),
         end(data + length, data, length),
+        root(cx, thisDuringConstruction()),
         parsingMode(parsingMode),
         errorHandling(errorHandling)
 #ifdef DEBUG

@@ -7,7 +7,6 @@
 #include "mozilla/dom/AudioParent.h"
 #include "mozilla/unused.h"
 #include "nsThreadUtils.h"
-#include "AudioChannelCommon.h"
 
 // C++ file contents
 namespace mozilla {
@@ -298,7 +297,7 @@ AudioParent::AudioParent(int32_t aNumChannels, int32_t aRate, int32_t aFormat)
 {
   mStream = nsAudioStream::AllocateStream();
   NS_ASSERTION(mStream, "AudioStream allocation failed.");
-  if (NS_FAILED(mStream->Init(aNumChannels, aRate, AUDIO_CHANNEL_NORMAL))) {
+  if (NS_FAILED(mStream->Init(aNumChannels, aRate))) {
       NS_WARNING("AudioStream initialization failed.");
       mStream = nullptr;
       return;

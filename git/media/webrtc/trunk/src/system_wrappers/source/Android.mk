@@ -17,15 +17,14 @@ LOCAL_MODULE := libwebrtc_system_wrappers
 LOCAL_MODULE_TAGS := optional
 LOCAL_CPP_EXTENSION := .cc
 LOCAL_SRC_FILES := \
-    android/cpu-features.c \
-    cpu_features_android.c \
     map.cc \
     sort.cc \
     aligned_malloc.cc \
-    atomic32_posix.cc \
+    atomic32.cc \
     condition_variable.cc \
     cpu_no_op.cc \
     cpu_features.cc \
+    cpu_features_arm.c \
     cpu_info.cc \
     critical_section.cc \
     event.cc \
@@ -38,7 +37,6 @@ LOCAL_SRC_FILES := \
     cpu_linux.cc \
     critical_section_posix.cc \
     event_posix.cc \
-    sleep.cc \
     thread_posix.cc \
     trace_posix.cc \
     rw_lock_posix.cc 

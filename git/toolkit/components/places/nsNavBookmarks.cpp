@@ -16,6 +16,7 @@
 #include "nsPrintfCString.h"
 #include "prprf.h"
 #include "mozilla/storage.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Util.h"
 
 #include "sampler.h"
@@ -236,6 +237,8 @@ NS_IMPL_ISUPPORTS5(nsNavBookmarks
 nsresult
 nsNavBookmarks::Init()
 {
+  NS_TIME_FUNCTION;
+
   mDB = Database::GetDatabase();
   NS_ENSURE_STATE(mDB);
 
@@ -282,7 +285,7 @@ nsNavBookmarks::ReadRoots()
 
   bool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
-    nsAutoCString rootName;
+    nsCAutoString rootName;
     rv = stmt->GetUTF8String(0, rootName);
     NS_ENSURE_SUCCESS(rv, rv);
     int64_t rootId;
@@ -341,7 +344,7 @@ nsNavBookmarks::AdjustIndices(int64_t aFolderId,
                               int32_t aEndIndex,
                               int32_t aDelta)
 {
-  NS_ASSERTION(aStartIndex >= 0 && aEndIndex <= INT32_MAX &&
+  NS_ASSERTION(aStartIndex >= 0 && aEndIndex <= PR_INT32_MAX &&
                aStartIndex <= aEndIndex, "Bad indices");
 
   // Expire all cached items for this parent, since all positions are going to
@@ -561,14 +564,14 @@ nsNavBookmarks::InsertBookmark(int64_t aFolder,
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
   int64_t placeId;
-  nsAutoCString placeGuid;
+  nsCAutoString placeGuid;
   nsresult rv = history->GetOrCreateIdForPage(aURI, &placeId, placeGuid);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Get the correct index for insertion.  This also ensures the parent exists.
   int32_t index, folderCount;
   int64_t grandParentId;
-  nsAutoCString folderGuid;
+  nsCAutoString folderGuid;
   rv = FetchFolderInfo(aFolder, &folderCount, folderGuid, &grandParentId);
   NS_ENSURE_SUCCESS(rv, rv);
   if (aIndex == nsINavBookmarksService::DEFAULT_INDEX ||
@@ -578,13 +581,13 @@ nsNavBookmarks::InsertBookmark(int64_t aFolder,
   else {
     index = aIndex;
     // Create space for the insertion.
-    rv = AdjustIndices(aFolder, index, INT32_MAX, 1);
+    rv = AdjustIndices(aFolder, index, PR_INT32_MAX, 1);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   *aNewBookmarkId = -1;
   PRTime dateAdded = PR_Now();
-  nsAutoCString guid;
+  nsCAutoString guid;
   nsCString title;
   TruncateTitle(aTitle, title);
 
@@ -689,7 +692,7 @@ nsNavBookmarks::RemoveItem(int64_t aItemId)
   // Fix indices in the parent.
   if (bookmark.position != DEFAULT_INDEX) {
     rv = AdjustIndices(bookmark.parentId,
-                       bookmark.position + 1, INT32_MAX, -1);
+                       bookmark.position + 1, PR_INT32_MAX, -1);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -829,7 +832,7 @@ nsNavBookmarks::CreateContainerWithID(int64_t aItemId,
   // Get the correct index for insertion.  This also ensures the parent exists.
   int32_t index, folderCount;
   int64_t grandParentId;
-  nsAutoCString folderGuid;
+  nsCAutoString folderGuid;
   nsresult rv = FetchFolderInfo(aParent, &folderCount, folderGuid, &grandParentId);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -841,13 +844,13 @@ nsNavBookmarks::CreateContainerWithID(int64_t aItemId,
   } else {
     index = *aIndex;
     // Create space for the insertion.
-    rv = AdjustIndices(aParent, index, INT32_MAX, 1);
+    rv = AdjustIndices(aParent, index, PR_INT32_MAX, 1);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   *aNewFolder = aItemId;
   PRTime dateAdded = PR_Now();
-  nsAutoCString guid;
+  nsCAutoString guid;
   nsCString title;
   TruncateTitle(aTitle, title);
 
@@ -881,7 +884,7 @@ nsNavBookmarks::InsertSeparator(int64_t aParent,
   // Get the correct index for insertion.  This also ensures the parent exists.
   int32_t index, folderCount;
   int64_t grandParentId;
-  nsAutoCString folderGuid;
+  nsCAutoString folderGuid;
   nsresult rv = FetchFolderInfo(aParent, &folderCount, folderGuid, &grandParentId);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -894,7 +897,7 @@ nsNavBookmarks::InsertSeparator(int64_t aParent,
   else {
     index = aIndex;
     // Create space for the insertion.
-    rv = AdjustIndices(aParent, index, INT32_MAX, 1);
+    rv = AdjustIndices(aParent, index, PR_INT32_MAX, 1);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -902,7 +905,7 @@ nsNavBookmarks::InsertSeparator(int64_t aParent,
   // Set a NULL title rather than an empty string.
   nsCString voidString;
   voidString.SetIsVoid(true);
-  nsAutoCString guid;
+  nsCAutoString guid;
   PRTime dateAdded = PR_Now();
   rv = InsertBookmarkInDB(-1, SEPARATOR, aParent, index, voidString, dateAdded,
                           0, folderGuid, grandParentId, nullptr,
@@ -1309,7 +1312,7 @@ nsNavBookmarks::MoveItem(int64_t aItemId, int64_t aNewParent, int32_t aIndex)
   // calculate new index
   int32_t newIndex, folderCount;
   int64_t grandParentId;
-  nsAutoCString newParentGuid;
+  nsCAutoString newParentGuid;
   rv = FetchFolderInfo(aNewParent, &folderCount, newParentGuid, &grandParentId);
   NS_ENSURE_SUCCESS(rv, rv);
   if (aIndex == nsINavBookmarksService::DEFAULT_INDEX ||
@@ -1357,10 +1360,10 @@ nsNavBookmarks::MoveItem(int64_t aItemId, int64_t aNewParent, int32_t aIndex)
   else {
     // We're moving between containers, so this happens in two steps.
     // First, fill the hole from the removal from the old parent.
-    rv = AdjustIndices(bookmark.parentId, bookmark.position + 1, INT32_MAX, -1);
+    rv = AdjustIndices(bookmark.parentId, bookmark.position + 1, PR_INT32_MAX, -1);
     NS_ENSURE_SUCCESS(rv, rv);
     // Now, make room in the new parent for the insertion.
-    rv = AdjustIndices(aNewParent, newIndex, INT32_MAX, 1);
+    rv = AdjustIndices(aNewParent, newIndex, PR_INT32_MAX, 1);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1859,7 +1862,7 @@ nsNavBookmarks::ProcessFolderNodeRow(
         return NS_OK;
     }
 
-    nsAutoCString title;
+    nsCAutoString title;
     rv = aRow->GetUTF8String(nsNavHistory::kGetInfoIndex_Title, title);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2020,7 +2023,7 @@ nsNavBookmarks::GetBookmarkedURIFor(nsIURI* aURI, nsIURI** _retval)
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
   int64_t placeId;
-  nsAutoCString placeGuid;
+  nsCAutoString placeGuid;
   nsresult rv = history->GetIdForPage(aURI, &placeId, placeGuid);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!placeId) {
@@ -2085,7 +2088,7 @@ nsNavBookmarks::GetBookmarkedURIFor(nsIURI* aURI, nsIURI** _retval)
   bool hasBookmarkedOrigin;
   if (NS_SUCCEEDED(stmt->ExecuteStep(&hasBookmarkedOrigin)) &&
       hasBookmarkedOrigin) {
-    nsAutoCString spec;
+    nsCAutoString spec;
     rv = stmt->GetUTF8String(0, spec);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = NS_NewURI(_retval, spec);
@@ -2113,7 +2116,7 @@ nsNavBookmarks::ChangeBookmarkURI(int64_t aBookmarkId, nsIURI* aNewURI)
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
   int64_t newPlaceId;
-  nsAutoCString newPlaceGuid;
+  nsCAutoString newPlaceGuid;
   rv = history->GetOrCreateIdForPage(aNewURI, &newPlaceId, newPlaceGuid);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!newPlaceId)
@@ -2152,7 +2155,7 @@ nsNavBookmarks::ChangeBookmarkURI(int64_t aBookmarkId, nsIURI* aNewURI)
   rv = history->UpdateFrecency(bookmark.placeId);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = aNewURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2349,7 +2352,7 @@ nsNavBookmarks::SetItemIndex(int64_t aItemId, int32_t aNewIndex)
   // Ensure we are not going out of range.
   int32_t folderCount;
   int64_t grandParentId;
-  nsAutoCString folderGuid;
+  nsCAutoString folderGuid;
   rv = FetchFolderInfo(bookmark.parentId, &folderCount, folderGuid, &grandParentId);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(aNewIndex < folderCount, NS_ERROR_INVALID_ARG);
@@ -2808,7 +2811,7 @@ nsNavBookmarks::OnDeleteURI(nsIURI* aURI,
 #ifdef DEBUG
   nsNavHistory* history = nsNavHistory::GetHistoryService();
   int64_t placeId;
-  nsAutoCString placeGuid;
+  nsCAutoString placeGuid;
   NS_ABORT_IF_FALSE(
     history && NS_SUCCEEDED(history->GetIdForPage(aURI, &placeId, placeGuid)) && !placeId,
     "OnDeleteURI was notified for a page that still exists?"

@@ -12,8 +12,6 @@
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
 
-#include <math.h>
-
 #include "Layers.h"
 #include "nsJSUtils.h"
 #include "nsCOMPtr.h"
@@ -99,7 +97,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsDOMJSUtils.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValue.h"
-#include "nsAttrValueInlines.h"
 #include "nsReferencedElement.h"
 #include "nsIDragService.h"
 #include "nsIChannelEventSink.h"
@@ -122,14 +119,8 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIDOMHTMLInputElement.h"
 #include "nsParserConstants.h"
 #include "nsIWebNavigation.h"
-#include "nsILoadContext.h"
 #include "nsTextFragment.h"
 #include "mozilla/Selection.h"
-#include "nsSVGUtils.h"
-#include "nsISVGChildFrame.h"
-#include "nsRenderingContext.h"
-#include "gfxSVGGlyphs.h"
-#include "mozilla/dom/EncodingUtils.h"
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
@@ -143,7 +134,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 
 #include "mozAutoDocUpdate.h"
 #include "imgICache.h"
-#include "imgLoader.h"
 #include "xpcprivate.h" // nsXPConnect
 #include "nsScriptSecurityManager.h"
 #include "nsIChannelPolicy.h"
@@ -197,9 +187,7 @@ nsIIOService *nsContentUtils::sIOService;
 nsIXTFService *nsContentUtils::sXTFService = nullptr;
 #endif
 imgILoader *nsContentUtils::sImgLoader;
-imgILoader *nsContentUtils::sPrivateImgLoader;
 imgICache *nsContentUtils::sImgCache;
-imgICache *nsContentUtils::sPrivateImgCache;
 nsIConsoleService *nsContentUtils::sConsoleService;
 nsDataHashtable<nsISupportsHashKey, EventNameMapping>* nsContentUtils::sAtomEventTable = nullptr;
 nsDataHashtable<nsStringHashKey, EventNameMapping>* nsContentUtils::sStringEventTable = nullptr;
@@ -250,8 +238,8 @@ namespace {
 /**
  * Default values for the ViewportInfo structure.
  */
-static const double   kViewportMinScale = 0.0;
-static const double   kViewportMaxScale = 10.0;
+static const float    kViewportMinScale = 0.0;
+static const float    kViewportMaxScale = 10.0;
 static const uint32_t kViewportMinWidth = 200;
 static const uint32_t kViewportMaxWidth = 10000;
 static const uint32_t kViewportMinHeight = 223;
@@ -520,17 +508,15 @@ nsContentUtils::InitImgLoader()
   sImgLoaderInitialized = true;
 
   // Ignore failure and just don't load images
-  nsresult rv = CallCreateInstance("@mozilla.org/image/loader;1", &sImgLoader);
-  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Creation should have succeeded");
-  rv = CallCreateInstance("@mozilla.org/image/loader;1", &sPrivateImgLoader);
-  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "Creation should have succeeded");
-
-  rv = CallQueryInterface(sImgLoader, &sImgCache);
-  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "imgICache and imgILoader should be paired");
-  rv = CallQueryInterface(sPrivateImgLoader, &sPrivateImgCache);
-  NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "imgICache and imgILoader should be paired");
-
-  sPrivateImgCache->RespectPrivacyNotifications();
+  nsresult rv = CallGetService("@mozilla.org/image/loader;1", &sImgLoader);
+  if (NS_FAILED(rv)) {
+    // no image loading for us.  Oh, well.
+    sImgLoader = nullptr;
+    sImgCache = nullptr;
+  } else {
+    if (NS_FAILED(CallGetService("@mozilla.org/image/cache;1", &sImgCache )))
+      sImgCache = nullptr;
+  }
 }
 
 bool
@@ -664,6 +650,40 @@ nsContentUtils::IsAutocompleteEnabled(nsIDOMHTMLInputElement* aInput)
   }
 
   return autocomplete.EqualsLiteral("on");
+}
+
+bool
+nsContentUtils::URIIsChromeOrInPref(nsIURI *aURI, const char *aPref)
+{
+  if (!aURI) {
+    return false;
+  }
+
+  nsCAutoString scheme;
+  aURI->GetScheme(scheme);
+  if (scheme.EqualsLiteral("chrome")) {
+    return true;
+  }
+
+  nsCAutoString prePathUTF8;
+  aURI->GetPrePath(prePathUTF8);
+  NS_ConvertUTF8toUTF16 prePath(prePathUTF8);
+
+  const nsAdoptingString& whitelist = Preferences::GetString(aPref);
+
+  // This tokenizer also strips off whitespace around tokens, as desired.
+  nsCharSeparatedTokenizer tokenizer(whitelist, ',',
+    nsCharSeparatedTokenizerTemplate<>::SEPARATOR_OPTIONAL);
+
+  while (tokenizer.hasMoreTokens()) {
+    const nsSubstring& whitelistItem = tokenizer.nextToken();
+
+    if (whitelistItem.Equals(prePath, nsCaseInsensitiveStringComparator())) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 #define SKIP_WHITESPACE(iter, end_iter, end_res)                 \
@@ -922,8 +942,7 @@ nsContentUtils::ParseSandboxAttributeToFlags(const nsAString& aSandboxAttrValue)
                  SANDBOXED_ORIGIN |
                  SANDBOXED_FORMS |
                  SANDBOXED_SCRIPTS |
-                 SANDBOXED_AUTOMATIC_FEATURES |
-                 SANDBOXED_POINTER_LOCK;
+                 SANDBOXED_AUTOMATIC_FEATURES;
 
   if (!aSandboxAttrValue.IsEmpty()) {
     // The separator optional flag is used because the HTML5 spec says any
@@ -933,6 +952,7 @@ nsContentUtils::ParseSandboxAttributeToFlags(const nsAString& aSandboxAttrValue)
 
     while (tokenizer.hasMoreTokens()) {
       nsDependentSubstring token = tokenizer.nextToken();
+
       if (token.LowerCaseEqualsLiteral("allow-same-origin")) {
         out &= ~SANDBOXED_ORIGIN;
       } else if (token.LowerCaseEqualsLiteral("allow-forms")) {
@@ -944,8 +964,6 @@ nsContentUtils::ParseSandboxAttributeToFlags(const nsAString& aSandboxAttrValue)
         out &= ~SANDBOXED_AUTOMATIC_FEATURES;
       } else if (token.LowerCaseEqualsLiteral("allow-top-navigation")) {
         out &= ~SANDBOXED_TOPLEVEL_NAVIGATION;
-      } else if (token.LowerCaseEqualsLiteral("allow-pointer-lock")) {
-        out &= ~SANDBOXED_POINTER_LOCK;
       }
     }
   }
@@ -1475,9 +1493,7 @@ nsContentUtils::Shutdown()
   NS_IF_RELEASE(sXTFService);
 #endif
   NS_IF_RELEASE(sImgLoader);
-  NS_IF_RELEASE(sPrivateImgLoader);
   NS_IF_RELEASE(sImgCache);
-  NS_IF_RELEASE(sPrivateImgCache);
 #ifdef IBMBIDI
   NS_IF_RELEASE(sBidiKeyboard);
 #endif
@@ -1529,7 +1545,6 @@ nsContentUtils::Shutdown()
 
   NS_IF_RELEASE(sSameOriginChecker);
   
-  EncodingUtils::Shutdown();
   nsTextEditorState::ShutDown();
 }
 
@@ -1537,7 +1552,11 @@ nsContentUtils::Shutdown()
 bool
 nsContentUtils::CallerHasUniversalXPConnect()
 {
-  return IsCallerChrome();
+  bool hasCap;
+  if (NS_FAILED(sSecurityManager->IsCapabilityEnabled("UniversalXPConnect",
+                                                      &hasCap)))
+    return false;
+  return hasCap;
 }
 
 /**
@@ -1795,12 +1814,8 @@ nsContentUtils::IsCallerChrome()
   if (NS_FAILED(rv)) {
     return false;
   }
-  if (is_caller_chrome) {
-    return true;
-  }
 
-  // If the check failed, look for UniversalXPConnect on the cx compartment.
-  return xpc::IsUniversalXPConnectEnabled(GetCurrentJSContext());
+  return is_caller_chrome;
 }
 
 bool
@@ -2691,56 +2706,19 @@ nsContentUtils::CanLoadImage(nsIURI* aURI, nsISupports* aContext,
   return NS_FAILED(rv) ? false : NS_CP_ACCEPTED(decision);
 }
 
-imgILoader*
-nsContentUtils::GetImgLoaderForDocument(nsIDocument* aDoc)
-{
-  if (!sImgLoaderInitialized)
-    InitImgLoader();
-  if (!aDoc)
-    return sImgLoader;
-  bool isPrivate = false;
-  nsCOMPtr<nsILoadGroup> loadGroup = aDoc->GetDocumentLoadGroup();
-  nsCOMPtr<nsIInterfaceRequestor> callbacks;
-  if (loadGroup) {
-    loadGroup->GetNotificationCallbacks(getter_AddRefs(callbacks));
-    if (callbacks) {
-      nsCOMPtr<nsILoadContext> loadContext = do_GetInterface(callbacks);
-      isPrivate = loadContext && loadContext->UsePrivateBrowsing();
-    }
-  } else {
-    nsCOMPtr<nsIChannel> channel = aDoc->GetChannel();
-    isPrivate = channel && NS_UsePrivateBrowsing(channel);
-  }
-  return isPrivate ? sPrivateImgLoader : sImgLoader;
-}
-
-// static
-imgILoader*
-nsContentUtils::GetImgLoaderForChannel(nsIChannel* aChannel)
-{
-  if (!sImgLoaderInitialized)
-    InitImgLoader();
-  if (!aChannel)
-    return sImgLoader;
-  nsCOMPtr<nsILoadContext> context;
-  NS_QueryNotificationCallbacks(aChannel, context);
-  return context && context->UsePrivateBrowsing() ? sPrivateImgLoader : sImgLoader;
-}
-
 // static
 bool
-nsContentUtils::IsImageInCache(nsIURI* aURI, nsIDocument* aDocument)
+nsContentUtils::IsImageInCache(nsIURI* aURI)
 {
     if (!sImgLoaderInitialized)
         InitImgLoader();
 
-    imgILoader* loader = GetImgLoaderForDocument(aDocument);
-    nsCOMPtr<imgICache> cache = do_QueryInterface(loader);
+    if (!sImgCache) return false;
 
     // If something unexpected happened we return false, otherwise if props
     // is set, the image is cached and we return true
     nsCOMPtr<nsIProperties> props;
-    nsresult rv = cache->FindEntryProperties(aURI, getter_AddRefs(props));
+    nsresult rv = sImgCache->FindEntryProperties(aURI, getter_AddRefs(props));
     return (NS_SUCCEEDED(rv) && props);
 }
 
@@ -2756,7 +2734,7 @@ nsContentUtils::LoadImage(nsIURI* aURI, nsIDocument* aLoadingDocument,
   NS_PRECONDITION(aLoadingPrincipal, "Must have a principal");
   NS_PRECONDITION(aRequest, "Null out param");
 
-  imgILoader* imgLoader = GetImgLoaderForDocument(aLoadingDocument);
+  imgILoader* imgLoader = GetImgLoader();
   if (!imgLoader) {
     // nothing we can do here
     return NS_OK;
@@ -2890,7 +2868,7 @@ nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
 }
 
 static bool
-TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm, bool aExactHostMatch)
+TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm)
 {
   if (!aPrincipal) {
     // We always deny (i.e. don't allow) the permission if we don't have a
@@ -2903,12 +2881,7 @@ TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm, bool a
   NS_ENSURE_TRUE(permMgr, false);
 
   uint32_t perm;
-  nsresult rv;
-  if (aExactHostMatch) {
-    rv = permMgr->TestExactPermissionFromPrincipal(aPrincipal, aType, &perm);
-  } else {
-    rv = permMgr->TestPermissionFromPrincipal(aPrincipal, aType, &perm);
-  }
+  nsresult rv = permMgr->TestPermissionFromPrincipal(aPrincipal, aType, &perm);
   NS_ENSURE_SUCCESS(rv, false);
 
   return perm == aPerm;
@@ -2917,25 +2890,13 @@ TestSitePerm(nsIPrincipal* aPrincipal, const char* aType, uint32_t aPerm, bool a
 bool
 nsContentUtils::IsSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
 {
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION, false);
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION);
 }
 
 bool
 nsContentUtils::IsSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
 {
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION, false);
-}
-
-bool
-nsContentUtils::IsExactSitePermAllow(nsIPrincipal* aPrincipal, const char* aType)
-{
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::ALLOW_ACTION, true);
-}
-
-bool
-nsContentUtils::IsExactSitePermDeny(nsIPrincipal* aPrincipal, const char* aType)
-{
-  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION, true);
+  return TestSitePerm(aPrincipal, aType, nsIPermissionManager::DENY_ACTION);
 }
 
 static const char *gEventNames[] = {"event"};
@@ -3274,7 +3235,7 @@ nsContentUtils::ReportToConsole(uint32_t aErrorFlags,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   if (!aLineNumber) {
     JSContext *cx = nullptr;
     sThreadJSContextStack->Peek(&cx);
@@ -3294,9 +3255,9 @@ nsContentUtils::ReportToConsole(uint32_t aErrorFlags,
       do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = errorObject->InitWithWindowID(errorText,
-                                     NS_ConvertUTF8toUTF16(spec), // file name
-                                     aSourceLine,
+  rv = errorObject->InitWithWindowID(errorText.get(),
+                                     NS_ConvertUTF8toUTF16(spec).get(), // file name
+                                     aSourceLine.get(),
                                      aLineNumber, aColumnNumber,
                                      aErrorFlags, aCategory,
                                      innerWindowID);
@@ -3363,7 +3324,7 @@ nsContentUtils::GetWrapperSafeScriptFilename(nsIDocument *aDocument,
       // followed by the string " -> " to the URI of the script we're
       // loading here so that script in that URI gets the same wrapper
       // automation that the chrome document expects.
-      nsAutoCString spec;
+      nsCAutoString spec;
       docURI->GetSpec(spec);
       spec.AppendASCII(" -> ");
       spec.Append(aScriptURI);
@@ -3636,39 +3597,21 @@ nsContentUtils::ConvertStringFromCharset(const nsACString& aCharset,
     return rv;
 
   nsPromiseFlatCString flatInput(aInput);
-  int32_t length = flatInput.Length();
-  int32_t outLen;
-  rv = decoder->GetMaxLength(flatInput.get(), length, &outLen);
+  int32_t srcLen = flatInput.Length();
+  int32_t dstLen;
+  rv = decoder->GetMaxLength(flatInput.get(), srcLen, &dstLen);
   if (NS_FAILED(rv))
     return rv;
 
-  PRUnichar *ustr = (PRUnichar *)nsMemory::Alloc((outLen + 1) *
+  PRUnichar *ustr = (PRUnichar *)nsMemory::Alloc((dstLen + 1) *
                                                  sizeof(PRUnichar));
   if (!ustr)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  const char* data = flatInput.get();
-  aOutput.Truncate();
-  for (;;) {
-    int32_t srcLen = length;
-    int32_t dstLen = outLen;
-    rv = decoder->Convert(data, &srcLen, ustr, &dstLen);
-    // Convert will convert the input partially even if the status
-    // indicates a failure.
+  rv = decoder->Convert(flatInput.get(), &srcLen, ustr, &dstLen);
+  if (NS_SUCCEEDED(rv)) {
     ustr[dstLen] = 0;
-    aOutput.Append(ustr, dstLen);
-    if (rv != NS_ERROR_ILLEGAL_INPUT) {
-      break;
-    }
-    // Emit a decode error manually because some decoders
-    // do not support kOnError_Recover (bug 638379)
-    if (srcLen == -1) {
-      decoder->Reset();
-    } else {
-      data += srcLen + 1;
-      length -= srcLen + 1;
-      aOutput.Append(static_cast<PRUnichar>(0xFFFD));
-    }
+    aOutput.Assign(ustr, dstLen);
   }
 
   nsMemory::Free(ustr);
@@ -3723,7 +3666,7 @@ nsContentUtils::GuessCharset(const char *aData, uint32_t aDataLen,
     const nsAdoptingCString& detectorName =
       Preferences::GetLocalizedCString("intl.charset.detector");
     if (!detectorName.IsEmpty()) {
-      nsAutoCString detectorContractID;
+      nsCAutoString detectorContractID;
       detectorContractID.AssignLiteral(NS_CHARSET_DETECTOR_CONTRACTID_BASE);
       detectorContractID += detectorName;
       detector = do_CreateInstance(detectorContractID.get());
@@ -4759,7 +4702,7 @@ nsContentUtils::GetLinkLocation(Element* aElement, nsString& aLocationString)
 {
   nsCOMPtr<nsIURI> hrefURI = aElement->GetHrefURI();
   if (hrefURI) {
-    nsAutoCString specUTF8;
+    nsCAutoString specUTF8;
     nsresult rv = hrefURI->GetSpec(specUTF8);
     if (NS_SUCCEEDED(rv))
       CopyUTF8toUTF16(specUTF8, aLocationString);
@@ -5116,31 +5059,13 @@ static void ProcessViewportToken(nsIDocument *aDocument,
                          (c == '\t') || (c == '\n') || (c == '\r'))
 
 /* static */
-void
-nsContentUtils::ConstrainViewportValues(ViewportInfo& aViewInfo)
-{
-  // Constrain the min/max zoom as specified at:
-  // dev.w3.org/csswg/css-device-adapt section 6.2
-  aViewInfo.maxZoom = NS_MAX(aViewInfo.minZoom, aViewInfo.maxZoom);
-
-  aViewInfo.defaultZoom = NS_MIN(aViewInfo.defaultZoom, aViewInfo.maxZoom);
-  aViewInfo.defaultZoom = NS_MAX(aViewInfo.defaultZoom, aViewInfo.minZoom);
-}
-
-/* static */
 ViewportInfo
-nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
-                                uint32_t aDisplayWidth,
-                                uint32_t aDisplayHeight)
+nsContentUtils::GetViewportInfo(nsIDocument *aDocument)
 {
   ViewportInfo ret;
   ret.defaultZoom = 1.0;
   ret.autoSize = true;
   ret.allowZoom = true;
-  ret.width = aDisplayWidth;
-  ret.height = aDisplayHeight;
-  ret.minZoom = kViewportMinScale;
-  ret.maxZoom = kViewportMaxScale;
 
   nsAutoString viewport;
   aDocument->GetHeaderData(nsGkAtoms::viewport, viewport);
@@ -5158,7 +5083,6 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
             (docId.Find("Mobile") != -1) ||
             (docId.Find("WML") != -1))
         {
-          nsContentUtils::ConstrainViewportValues(ret);
           return ret;
         }
       }
@@ -5167,7 +5091,6 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
     nsAutoString handheldFriendly;
     aDocument->GetHeaderData(nsGkAtoms::handheldFriendly, handheldFriendly);
     if (handheldFriendly.EqualsLiteral("true")) {
-      nsContentUtils::ConstrainViewportValues(ret);
       return ret;
     }
   }
@@ -5178,12 +5101,12 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
   nsresult errorCode;
   float scaleMinFloat = minScaleStr.ToFloat(&errorCode);
 
-  if (NS_FAILED(errorCode)) {
+  if (errorCode) {
     scaleMinFloat = kViewportMinScale;
   }
 
-  scaleMinFloat = NS_MIN((double)scaleMinFloat, kViewportMaxScale);
-  scaleMinFloat = NS_MAX((double)scaleMinFloat, kViewportMinScale);
+  scaleMinFloat = NS_MIN(scaleMinFloat, kViewportMaxScale);
+  scaleMinFloat = NS_MAX(scaleMinFloat, kViewportMinScale);
 
   nsAutoString maxScaleStr;
   aDocument->GetHeaderData(nsGkAtoms::viewport_maximum_scale, maxScaleStr);
@@ -5193,18 +5116,20 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
   nsresult scaleMaxErrorCode;
   float scaleMaxFloat = maxScaleStr.ToFloat(&scaleMaxErrorCode);
 
-  if (NS_FAILED(scaleMaxErrorCode)) {
+  if (scaleMaxErrorCode) {
     scaleMaxFloat = kViewportMaxScale;
   }
 
-  scaleMaxFloat = NS_MIN((double)scaleMaxFloat, kViewportMaxScale);
-  scaleMaxFloat = NS_MAX((double)scaleMaxFloat, kViewportMinScale);
+  scaleMaxFloat = NS_MIN(scaleMaxFloat, kViewportMaxScale);
+  scaleMaxFloat = NS_MAX(scaleMaxFloat, kViewportMinScale);
 
   nsAutoString scaleStr;
   aDocument->GetHeaderData(nsGkAtoms::viewport_initial_scale, scaleStr);
 
   nsresult scaleErrorCode;
   float scaleFloat = scaleStr.ToFloat(&scaleErrorCode);
+  scaleFloat = NS_MIN(scaleFloat, scaleMaxFloat);
+  scaleFloat = NS_MAX(scaleFloat, scaleMinFloat);
 
   nsAutoString widthStr, heightStr;
 
@@ -5224,44 +5149,37 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
     autoSize = true;
   }
 
-  // Now convert the scale into device pixels per CSS pixel.
-  nsIWidget *widget = WidgetForDocument(aDocument);
-  double pixelRatio = widget ? GetDevicePixelsPerMetaViewportPixel(widget) : 1.0;
-  scaleFloat *= pixelRatio;
-  scaleMinFloat *= pixelRatio;
-  scaleMaxFloat *= pixelRatio;
+  // XXXjwir3:
+  // See bug 706918, comment 23 for more information on this particular section
+  // of the code. We're using "screen size" in place of the size of the content
+  // area, because on mobile, these are close or equal. This will work for our
+  // purposes (bug 706198), but it will need to be changed in the future to be
+  // more correct when we bring the rest of the viewport code into platform.
+  // We actually want the size of the content area, in the event that we don't
+  // have any metadata about the width and/or height. On mobile, the screen size
+  // and the size of the content area are very close, or the same value.
+  // In XUL fennec, the content area is the size of the <browser> widget, but
+  // in native fennec, the content area is the size of the Gecko LayerView
+  // object.
 
-  uint32_t width, height;
-  if (autoSize) {
-    // aDisplayWidth and aDisplayHeight are in device pixels; convert them to
-    // CSS pixels for the viewport size.
-    width = aDisplayWidth / pixelRatio;
-    height = aDisplayHeight / pixelRatio;
-  } else {
-    nsresult widthErrorCode, heightErrorCode;
-    width = widthStr.ToInteger(&widthErrorCode);
-    height = heightStr.ToInteger(&heightErrorCode);
+  // TODO:
+  // Once bug 716575 has been resolved, this code should be changed so that it
+  // does the right thing on all platforms.
+  nsresult result;
+  int32_t screenLeft, screenTop, screenWidth, screenHeight;
+  nsCOMPtr<nsIScreenManager> screenMgr =
+    do_GetService("@mozilla.org/gfx/screenmanager;1", &result);
 
-    // If width or height has not been set to a valid number by this point,
-    // fall back to a default value.
-    bool validWidth = (!widthStr.IsEmpty() && NS_SUCCEEDED(widthErrorCode) && width > 0);
-    bool validHeight = (!heightStr.IsEmpty() && NS_SUCCEEDED(heightErrorCode) && height > 0);
+  nsCOMPtr<nsIScreen> screen;
+  screenMgr->GetPrimaryScreen(getter_AddRefs(screen));
+  screen->GetRect(&screenLeft, &screenTop, &screenWidth, &screenHeight);
 
-    if (!validWidth) {
-      if (validHeight && aDisplayWidth > 0 && aDisplayHeight > 0) {
-        width = uint32_t((height * aDisplayWidth) / aDisplayHeight);
-      } else {
-        width = Preferences::GetInt("browser.viewport.desktopWidth",
-                                    kViewportDefaultScreenWidth);
-      }
-    }
-
-    if (!validHeight) {
-      if (aDisplayWidth > 0 && aDisplayHeight > 0) {
-        height = uint32_t((width * aDisplayHeight) / aDisplayWidth);
-      } else {
-        height = width;
-      }
+  uint32_t width = widthStr.ToInteger(&errorCode);
+  if (errorCode) {
+    if (autoSize) {
+      width = screenWidth;
+    } else {
+      width = Preferences::GetInt("browser.viewport.desktopWidth", 0);
     }
   }
 
@@ -5271,7 +5189,19 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
   // Also recalculate the default zoom, if it wasn't specified in the metadata,
   // and the width is specified.
   if (scaleStr.IsEmpty() && !widthStr.IsEmpty()) {
-    scaleFloat = NS_MAX(scaleFloat, float(aDisplayWidth) / float(width));
+    scaleFloat = NS_MAX(scaleFloat, (float)(screenWidth/width));
+  }
+
+  uint32_t height = heightStr.ToInteger(&errorCode);
+
+  if (errorCode) {
+    height = width * ((float)screenHeight / screenWidth);
+  }
+
+  // If height was provided by the user, but width wasn't, then we should
+  // calculate the width.
+  if (widthStr.IsEmpty() && !heightStr.IsEmpty()) {
+    width = (uint32_t) ((height * screenWidth) / screenHeight);
   }
 
   height = NS_MIN(height, kViewportMaxHeight);
@@ -5279,12 +5209,12 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
 
   // We need to perform a conversion, but only if the initial or maximum
   // scale were set explicitly by the user.
-  if (!scaleStr.IsEmpty() && NS_SUCCEEDED(scaleErrorCode)) {
-    width = NS_MAX(width, (uint32_t)(aDisplayWidth / scaleFloat));
-    height = NS_MAX(height, (uint32_t)(aDisplayHeight / scaleFloat));
-  } else if (!maxScaleStr.IsEmpty() && NS_SUCCEEDED(scaleMaxErrorCode)) {
-    width = NS_MAX(width, (uint32_t)(aDisplayWidth / scaleMaxFloat));
-    height = NS_MAX(height, (uint32_t)(aDisplayHeight / scaleMaxFloat));
+  if (!scaleStr.IsEmpty() && !scaleErrorCode) {
+    width = NS_MAX(width, (uint32_t)(screenWidth / scaleFloat));
+    height = NS_MAX(height, (uint32_t)(screenHeight / scaleFloat));
+  } else if (!maxScaleStr.IsEmpty() && !scaleMaxErrorCode) {
+    width = NS_MAX(width, (uint32_t)(screenWidth / scaleMaxFloat));
+    height = NS_MAX(height, (uint32_t)(screenHeight / scaleMaxFloat));
   }
 
   bool allowZoom = true;
@@ -5304,31 +5234,7 @@ nsContentUtils::GetViewportInfo(nsIDocument *aDocument,
   ret.minZoom = scaleMinFloat;
   ret.maxZoom = scaleMaxFloat;
   ret.autoSize = autoSize;
-
-  nsContentUtils::ConstrainViewportValues(ret);
   return ret;
-}
-
-/* static */
-double
-nsContentUtils::GetDevicePixelsPerMetaViewportPixel(nsIWidget* aWidget)
-{
-  int32_t prefValue = Preferences::GetInt("browser.viewport.scaleRatio", 0);
-  if (prefValue > 0) {
-    return double(prefValue) / 100.0;
-  }
-
-  float dpi = aWidget->GetDPI();
-  if (dpi < 200.0) {
-    // Includes desktop displays, LDPI and MDPI Android devices
-    return 1.0;
-  }
-  if (dpi < 300.0) {
-    // Includes Nokia N900, and HDPI Android devices
-    return 1.5;
-  }
-  // For very high-density displays like the iPhone 4, use an integer ratio.
-  return floor(dpi / 150.0);
 }
 
 /* static */
@@ -5587,7 +5493,7 @@ nsContentUtils::SplitURIAtHash(nsIURI *aURI,
 
   NS_ENSURE_ARG_POINTER(aURI);
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   nsresult rv = aURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6088,7 +5994,10 @@ nsContentUtils::CanAccessNativeAnon()
     }
   }
 
-  if (IsCallerChrome()) {
+  bool privileged;
+  if (NS_SUCCEEDED(sSecurityManager->IsSystemPrincipal(principal, &privileged)) &&
+      privileged) {
+    // Chrome things are allowed to touch us.
     return true;
   }
 
@@ -6099,6 +6008,12 @@ nsContentUtils::CanAccessNativeAnon()
   if (script &&
       (filename = JS_GetScriptFilename(cx, script)) &&
       !strncmp(filename, prefix, ArrayLength(prefix) - 1)) {
+    return true;
+  }
+
+  // Before we throw, check for UniversalXPConnect.
+  nsresult rv = sSecurityManager->IsCapabilityEnabled("UniversalXPConnect", &privileged);
+  if (NS_SUCCEEDED(rv) && privileged) {
     return true;
   }
 
@@ -6226,26 +6141,6 @@ nsContentUtils::CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
   return NS_OK;
 }
 
-// Initial implementation: only stores to RAM, not file
-// TODO: bug 704447: large file support
-nsresult
-nsContentUtils::CreateBlobBuffer(JSContext* aCx,
-                                 const nsACString& aData,
-                                 jsval& aBlob)
-{
-  uint32_t blobLen = aData.Length();
-  void* blobData = PR_Malloc(blobLen);
-  nsCOMPtr<nsIDOMBlob> blob;
-  if (blobData) {
-    memcpy(blobData, aData.BeginReading(), blobLen);
-    blob = new nsDOMMemoryFile(blobData, blobLen, EmptyString());
-  } else {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  JSObject* scope = JS_GetGlobalForScopeChain(aCx);
-  return nsContentUtils::WrapNative(aCx, scope, blob, &aBlob, nullptr, true);
-}
-
 void
 nsContentUtils::StripNullChars(const nsAString& aInStr, nsAString& aOutStr)
 {
@@ -6340,10 +6235,10 @@ nsContentUtils::GetElementsByClassName(nsINode* aRootNode,
   NS_PRECONDITION(aRootNode, "Must have root node");
   
   nsContentList* elements =
-    NS_GetFuncStringHTMLCollection(aRootNode, MatchClassNames,
-                                   DestroyClassNameArray,
-                                   AllocClassMatchingInfo,
-                                   aClasses).get();
+    NS_GetFuncStringContentList(aRootNode, MatchClassNames,
+                                DestroyClassNameArray,
+                                AllocClassMatchingInfo,
+                                aClasses).get();
   NS_ENSURE_TRUE(elements, NS_ERROR_OUT_OF_MEMORY);
 
   // Transfer ownership
@@ -6363,10 +6258,12 @@ public:
   }
 
   NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount,
+                                           size_t objSz,
                                            const char *objName)
   {
   }
   NS_IMETHOD_(void) DescribeGCedNode(bool isMarked,
+                                     size_t objSz,
                                      const char *objName)
   {
   }
@@ -6967,7 +6864,9 @@ nsContentUtils::ReleaseWrapper(nsISupports* aScriptObjectHolder,
     // from both here.
     JSObject* obj = aCache->GetWrapperPreserveColor();
     if (aCache->IsDOMBinding() && obj) {
-      xpc::CompartmentPrivate *priv = xpc::GetCompartmentPrivate(obj);
+      JSCompartment *compartment = js::GetObjectCompartment(obj);
+      xpc::CompartmentPrivate *priv =
+        static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
       priv->RemoveDOMExpandoObject(obj);
     }
     DropJSObjects(aScriptObjectHolder);
@@ -7029,58 +6928,78 @@ nsContentUtils::JSArrayToAtomArray(JSContext* aCx, const JS::Value& aJSArray,
   return NS_OK;
 }
 
-/* static */
-bool
-nsContentUtils::PaintSVGGlyph(Element *aElement, gfxContext *aContext,
-                              gfxFont::DrawMode aDrawMode,
-                              gfxTextObjectPaint *aObjectPaint)
+// static
+nsresult
+nsContentUtils::IsOnPrefWhitelist(nsPIDOMWindow* aWindow,
+                                  const char* aPrefURL, bool* aAllowed)
 {
-  nsIFrame *frame = aElement->GetPrimaryFrame();
-  if (!frame) {
-    NS_WARNING("No frame for SVG glyph");
-    return false;
+  // Make sure we're dealing with an inner window.
+  nsPIDOMWindow* innerWindow = aWindow->IsInnerWindow() ?
+    aWindow :
+    aWindow->GetCurrentInnerWindow();
+  NS_ENSURE_TRUE(innerWindow, NS_ERROR_FAILURE);
+
+  // Make sure we're being called from a window that we have permission to
+  // access.
+  if (!nsContentUtils::CanCallerAccess(innerWindow)) {
+    return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsISVGChildFrame *displayFrame = do_QueryFrame(frame);
-  if (!displayFrame) {
-    NS_WARNING("Non SVG frame for SVG glyph");
-    return false;
+  // Need the document in order to make security decisions.
+  nsCOMPtr<nsIDocument> document =
+    do_QueryInterface(innerWindow->GetExtantDocument());
+  NS_ENSURE_TRUE(document, NS_NOINTERFACE);
+
+  // Do security checks. We assume that chrome is always allowed.
+  if (nsContentUtils::IsSystemPrincipal(document->NodePrincipal())) {
+    *aAllowed = true;
+    return NS_OK;    
   }
 
-  nsRenderingContext context;
+  // We also allow a comma seperated list of pages specified by
+  // preferences.  
+  nsCOMPtr<nsIURI> originalURI;
+  nsresult rv =
+    document->NodePrincipal()->GetURI(getter_AddRefs(originalURI));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  context.Init(frame->PresContext()->DeviceContext(), aContext);
-  context.AddUserData(&gfxTextObjectPaint::sUserDataKey, aObjectPaint, nullptr);
+  nsCOMPtr<nsIURI> documentURI;
+  rv = originalURI->Clone(getter_AddRefs(documentURI));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsresult rv = displayFrame->PaintSVG(&context, nullptr);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  return true;
-}
-
-/* static */
-bool
-nsContentUtils::GetSVGGlyphExtents(Element *aElement, const gfxMatrix& aSVGToAppSpace,
-                                   gfxRect *aResult)
-{
-  nsIFrame *frame = aElement->GetPrimaryFrame();
-  if (!frame) {
-    NS_WARNING("No frame for SVG glyph");
-    return false;
+  // Strip the query string (if there is one) before comparing.
+  nsCOMPtr<nsIURL> documentURL = do_QueryInterface(documentURI);
+  if (documentURL) {
+    rv = documentURL->SetQuery(EmptyCString());
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsISVGChildFrame *displayFrame = do_QueryFrame(frame);
-  if (!displayFrame) {
-    NS_WARNING("Non SVG frame for SVG glyph");
-    return false;
+  bool allowed = false;
+
+  // The pref may not exist but in that case we deny access just as we do if
+  // the url doesn't match.
+  nsCString whitelist;
+  if (NS_SUCCEEDED(Preferences::GetCString(aPrefURL,
+                                           &whitelist))) {
+    nsCOMPtr<nsIIOService> ios = do_GetIOService();
+    NS_ENSURE_TRUE(ios, NS_ERROR_FAILURE);
+
+    nsCCharSeparatedTokenizer tokenizer(whitelist, ',');
+    while (tokenizer.hasMoreTokens()) {
+      nsCOMPtr<nsIURI> uri;
+      if (NS_SUCCEEDED(NS_NewURI(getter_AddRefs(uri), tokenizer.nextToken(),
+                                 nullptr, nullptr, ios))) {
+        rv = documentURI->EqualsExceptRef(uri, &allowed);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        if (allowed) {
+          break;
+        }
+      }
+    }
   }
-
-  *aResult = displayFrame->GetBBoxContribution(aSVGToAppSpace,
-      nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIncludeFillGeometry |
-      nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIncludeStrokeGeometry |
-      nsSVGUtils::eBBoxIncludeMarkers);
-
-  return true;
+  *aAllowed = allowed;
+  return NS_OK;
 }
 
 // static

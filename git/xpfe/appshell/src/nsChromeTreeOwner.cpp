@@ -258,7 +258,8 @@ nsChromeTreeOwner::SetPersistence(bool aPersistPosition,
                                   bool aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
   if (!docShellElement)
     return NS_ERROR_FAILURE;
 
@@ -295,7 +296,8 @@ nsChromeTreeOwner::GetPersistence(bool* aPersistPosition,
                                   bool* aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
   if (!docShellElement) 
     return NS_ERROR_FAILURE;
 
@@ -346,12 +348,6 @@ NS_IMETHODIMP nsChromeTreeOwner::Destroy()
 {
    NS_ENSURE_STATE(mXULWindow);
    return mXULWindow->Destroy();
-}
-
-NS_IMETHODIMP nsChromeTreeOwner::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
-{
-   NS_ENSURE_STATE(mXULWindow);
-   return mXULWindow->GetUnscaledDevicePixelsPerCSSPixel(aScale);
 }
 
 NS_IMETHODIMP nsChromeTreeOwner::SetPosition(int32_t x, int32_t y)

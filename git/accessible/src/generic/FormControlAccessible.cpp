@@ -9,6 +9,7 @@
 #include "Role.h"
 
 #include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULControlElement.h"
 

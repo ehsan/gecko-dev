@@ -43,10 +43,6 @@ class GCHelperThread;
 struct Shape;
 struct SliceBudget;
 
-namespace ion {
-    class IonCode;
-}
-
 namespace gc {
 
 enum State {
@@ -115,7 +111,6 @@ MapAllocToTraceKind(AllocKind thingKind)
         JSTRACE_STRING,     /* FINALIZE_SHORT_STRING */
         JSTRACE_STRING,     /* FINALIZE_STRING */
         JSTRACE_STRING,     /* FINALIZE_EXTERNAL_STRING */
-        JSTRACE_IONCODE,    /* FINALIZE_IONCODE */
     };
     return map[thingKind];
 }
@@ -424,7 +419,6 @@ struct ArenaLists {
     void queueStringsForSweep(FreeOp *fop);
     void queueShapesForSweep(FreeOp *fop);
     void queueScriptsForSweep(FreeOp *fop);
-    void queueIonCodeForSweep(FreeOp *fop);
 
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget);
     static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread);
@@ -639,8 +633,8 @@ class GCHelperThread {
     static void freeElementsAndArray(void **array, void **end) {
         JS_ASSERT(array <= end);
         for (void **p = array; p != end; ++p)
-            js_free(*p);
-        js_free(array);
+            js::Foreground::free_(*p);
+        js::Foreground::free_(array);
     }
 
     static void threadMain(void* arg);
@@ -768,7 +762,7 @@ struct MarkStack {
         if (ballastcap == 0)
             return true;
 
-        ballast = js_pod_malloc<T>(ballastcap);
+        ballast = (T *)js_malloc(sizeof(T) * ballastcap);
         if (!ballast)
             return false;
         ballastLimit = ballast + ballastcap;
@@ -849,7 +843,7 @@ struct MarkStack {
 
         T *newStack;
         if (stack == ballast) {
-            newStack = js_pod_malloc<T>(newcap);
+            newStack = (T *)js_malloc(sizeof(T) * newcap);
             if (!newStack)
                 return false;
             for (T *src = stack, *dst = newStack; src < tos; )
@@ -930,8 +924,7 @@ struct GCMarker : public JSTracer {
         XmlTag,
         ArenaTag,
         SavedValueArrayTag,
-        IonCodeTag,
-        LastTag = IonCodeTag
+        LastTag = SavedValueArrayTag
     };
 
     static const uintptr_t StackTagMask = 7;
@@ -968,12 +961,7 @@ struct GCMarker : public JSTracer {
     void pushXML(JSXML *xml) {
         pushTaggedPtr(XmlTag, xml);
     }
-
 #endif
-
-    void pushIonCode(ion::IonCode *code) {
-        pushTaggedPtr(IonCodeTag, code);
-    }
 
     uint32_t getMarkColor() const {
         return color;
@@ -1210,20 +1198,7 @@ MaybeVerifyBarriers(JSContext *cx, bool always = false)
 } /* namespace gc */
 
 static inline JSCompartment *
-GetGCThingCompartment(void *thing)
-{
-    JS_ASSERT(thing);
-    return reinterpret_cast<gc::Cell *>(thing)->compartment();
-}
-
-static inline JSCompartment *
-GetObjectCompartment(JSObject *obj)
-{
-    return GetGCThingCompartment(obj);
-}
-
-void
-PurgeJITCaches(JSCompartment *c);
+GetObjectCompartment(JSObject *obj) { return reinterpret_cast<js::gc::Cell *>(obj)->compartment(); }
 
 } /* namespace js */
 

@@ -259,11 +259,6 @@ public:
     // Set the receiver robustness mode.
     virtual int SetReceiverRobustnessMode(ReceiverRobustness robustnessMode,
                                           DecodeErrors errorMode);
-    // Enables recording of debugging information.
-    virtual int StartDebugRecording(const char* file_name_utf8);
-
-    // Disables recording of debugging information.
-    virtual int StopDebugRecording();
 
 protected:
     WebRtc_Word32 Decode(const webrtc::VCMEncodedFrame& frame);
@@ -290,9 +285,7 @@ private:
     VCMPacketRequestCallback*           _packetRequestCallback;
     VCMGenericDecoder*                  _decoder;
     VCMGenericDecoder*                  _dualDecoder;
-#ifdef DEBUG_DECODER_BIT_STREAM
     FILE*                               _bitStreamBeforeDecoder;
-#endif
     VCMFrameBuffer                      _frameFromFile;
     VCMKeyRequestMode                   _keyRequestMode;
     bool                                _scheduleKeyRequest;
@@ -305,6 +298,7 @@ private:
     VideoCodecType                      _sendCodecType;
     VCMSendStatisticsCallback*          _sendStatsCallback;
     FILE*                               _encoderInputFile;
+
     VCMCodecDataBase                    _codecDataBase;
     VCMProcessTimer                     _receiveStatsTimer;
     VCMProcessTimer                     _sendStatsTimer;

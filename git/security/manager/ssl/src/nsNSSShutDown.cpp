@@ -157,7 +157,7 @@ nsresult nsNSSShutDownList::doPK11Logout()
   return NS_OK;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 nsNSSShutDownList::doPK11LogoutHelper(PLDHashTable *table, 
   PLDHashEntryHdr *hdr, uint32_t number, void *arg)
 {
@@ -209,7 +209,7 @@ nsresult nsNSSShutDownList::evaporateAllNSSResources()
   return NS_OK;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 nsNSSShutDownList::evaporateAllNSSResourcesHelper(PLDHashTable *table, 
   PLDHashEntryHdr *hdr, uint32_t number, void *arg)
 {

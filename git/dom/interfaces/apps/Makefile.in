@@ -16,7 +16,6 @@ GRE_MODULE     = 1
 
 XPIDLSRCS =                               \
             mozIApplication.idl \
-            mozIApplicationClearPrivateDataParams.idl \
             nsIDOMApplicationRegistry.idl \
             nsIDOMApplicationRegistry2.idl \
             nsIAppsService.idl \

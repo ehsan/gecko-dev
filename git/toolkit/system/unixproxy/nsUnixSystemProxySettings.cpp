@@ -18,7 +18,6 @@
 #include "nsIGSettingsService.h"
 #include "nsInterfaceHashtable.h"
 #include "mozilla/Attributes.h"
-#include "nsIURI.h"
 
 class nsUnixSystemProxySettings MOZ_FINAL : public nsISystemProxySettings {
 public:
@@ -44,14 +43,6 @@ private:
 
 NS_IMPL_ISUPPORTS1(nsUnixSystemProxySettings, nsISystemProxySettings)
 
-NS_IMETHODIMP
-nsUnixSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)
-{
-  // dbus prevents us from being threadsafe, but this routine should not block anyhow
-  *aMainThreadOnly = true;
-  return NS_OK;
-}
-
 nsresult
 nsUnixSystemProxySettings::Init()
 {
@@ -69,7 +60,7 @@ nsUnixSystemProxySettings::Init()
 bool
 nsUnixSystemProxySettings::IsProxyMode(const char* aMode)
 {
-  nsAutoCString mode;
+  nsCAutoString mode;
   return NS_SUCCEEDED(mGConf->GetString(NS_LITERAL_CSTRING("/system/proxy/mode"), mode)) &&
          mode.EqualsASCII(aMode);
 }
@@ -104,7 +95,7 @@ IsInNoProxyList(const nsACString& aHost, int32_t aPort, const char* noProxyVal)
 {
   NS_ASSERTION(aPort >= 0, "Negative port?");
   
-  nsAutoCString noProxy(noProxyVal);
+  nsCAutoString noProxy(noProxyVal);
   if (noProxy.EqualsLiteral("*"))
     return true;
     
@@ -130,7 +121,7 @@ IsInNoProxyList(const nsACString& aHost, int32_t aPort, const char* noProxyVal)
     if (FindCharInReadable(':', colon, last)) {
       ++colon;
       nsDependentCSubstring portStr(colon, last);
-      nsAutoCString portStr2(portStr); // We need this for ToInteger. String API's suck.
+      nsCAutoString portStr2(portStr); // We need this for ToInteger. String API's suck.
       nsresult err;
       port = portStr2.ToInteger(&err);
       if (NS_FAILED(err)) {
@@ -160,10 +151,8 @@ static void SetProxyResult(const char* aType, const nsACString& aHost,
   aResult.AppendASCII(aType);
   aResult.Append(' ');
   aResult.Append(aHost);
-  if (aPort > 0) {
-    aResult.Append(':');
-    aResult.Append(nsPrintfCString("%d", aPort));
-  }
+  aResult.Append(':');
+  aResult.Append(nsPrintfCString("%d", aPort));
 }
 
 static nsresult
@@ -172,7 +161,7 @@ GetProxyFromEnvironment(const nsACString& aScheme,
                         int32_t aPort,
                         nsACString& aResult)
 {
-  nsAutoCString envVar;
+  nsCAutoString envVar;
   envVar.Append(aScheme);
   envVar.AppendLiteral("_proxy");
   const char* proxyVal = PR_GetEnv(envVar.get());
@@ -204,7 +193,7 @@ GetProxyFromEnvironment(const nsACString& aScheme,
   if (!isHTTP)
     return NS_ERROR_UNKNOWN_PROTOCOL;
 
-  nsAutoCString proxyHost;
+  nsCAutoString proxyHost;
   rv = proxyURI->GetHost(proxyHost);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -220,16 +209,16 @@ nsresult
 nsUnixSystemProxySettings::SetProxyResultFromGConf(const char* aKeyBase, const char* aType,
                                                    nsACString& aResult)
 {
-  nsAutoCString hostKey;
+  nsCAutoString hostKey;
   hostKey.AppendASCII(aKeyBase);
   hostKey.AppendLiteral("host");
-  nsAutoCString host;
+  nsCAutoString host;
   nsresult rv = mGConf->GetString(hostKey, host);
   NS_ENSURE_SUCCESS(rv, rv);
   if (host.IsEmpty())
     return NS_ERROR_FAILURE;
   
-  nsAutoCString portKey;
+  nsCAutoString portKey;
   portKey.AppendASCII(aKeyBase);
   portKey.AppendLiteral("port");
   int32_t port;
@@ -259,7 +248,7 @@ nsUnixSystemProxySettings::SetProxyResultFromGSettings(const char* aKeyBase, con
     mSchemeProxySettings.Put(key, proxy_settings);
   }
 
-  nsAutoCString host;
+  nsCAutoString host;
   rv = proxy_settings->GetString(NS_LITERAL_CSTRING("host"), host);
   NS_ENSURE_SUCCESS(rv, rv);
   if (host.IsEmpty())
@@ -351,7 +340,7 @@ static bool HostIgnoredByProxy(const nsACString& aIgnore,
   if (FindCharInReadable('/', slash, end)) {
     ++slash;
     nsDependentCSubstring maskStr(slash, end);
-    nsAutoCString maskStr2(maskStr);
+    nsCAutoString maskStr2(maskStr);
     nsresult err;
     mask = maskStr2.ToInteger(&err);
     if (NS_FAILED(err)) {
@@ -382,7 +371,7 @@ nsUnixSystemProxySettings::GetProxyFromGConf(const nsACString& aScheme,
 {
   bool masterProxySwitch = false;
   mGConf->GetBool(NS_LITERAL_CSTRING("/system/http_proxy/use_http_proxy"), &masterProxySwitch);
-  if (!(IsProxyMode("manual") || masterProxySwitch)) {
+  if (!IsProxyMode("manual") || !masterProxySwitch) {
     aResult.AppendLiteral("DIRECT");
     return NS_OK;
   }
@@ -492,21 +481,29 @@ nsUnixSystemProxySettings::GetProxyFromGSettings(const nsACString& aScheme,
 }
 
 nsresult
-nsUnixSystemProxySettings::GetProxyForURI(const nsACString & aSpec,
-                                          const nsACString & aScheme,
-                                          const nsACString & aHost,
-                                          const int32_t      aPort,
-                                          nsACString & aResult)
+nsUnixSystemProxySettings::GetProxyForURI(nsIURI* aURI, nsACString& aResult)
 {
+  nsCAutoString scheme;
+  nsresult rv = aURI->GetScheme(scheme);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString host;
+  rv = aURI->GetHost(host);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  int32_t port;
+  rv = aURI->GetPort(&port);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (mProxySettings) {
-    nsresult rv = GetProxyFromGSettings(aScheme, aHost, aPort, aResult);
-    if (NS_SUCCEEDED(rv))
+    rv = GetProxyFromGSettings(scheme, host, port, aResult);
+    if (rv == NS_OK)
       return rv;
   }
   if (mGConf)
-    return GetProxyFromGConf(aScheme, aHost, aPort, aResult);
+    return GetProxyFromGConf(scheme, host, port, aResult);
 
-  return GetProxyFromEnvironment(aScheme, aHost, aPort, aResult);
+  return GetProxyFromEnvironment(scheme, host, port, aResult);
 }
 
 #define NS_UNIXSYSTEMPROXYSERVICE_CID  /* 0fa3158c-d5a7-43de-9181-a285e74cf1d4 */\

@@ -482,14 +482,26 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 }
 
 bool
-ShadowLayersParent::RecvClearCachedResources()
+ShadowLayersParent::RecvDrawToSurface(const SurfaceDescriptor& surfaceIn,
+                                      SurfaceDescriptor* surfaceOut)
 {
-  if (mRoot) {
-    // NB: |mRoot| here is the *child* context's root.  In this parent
-    // context, it's just a subtree root.  We need to scope the clear
-    // of resources to exactly that subtree, so we specify it here.
-    mLayerManager->ClearCachedResources(mRoot);
+  *surfaceOut = surfaceIn;
+  if (mDestroyed || layer_manager()->IsDestroyed()) {
+    return true;
   }
+
+  AutoOpenSurface sharedSurface(OPEN_READ_WRITE, surfaceIn);
+
+  nsRefPtr<gfxASurface> localSurface =
+    gfxPlatform::GetPlatform()->CreateOffscreenSurface(sharedSurface.Size(),
+                                                       sharedSurface.ContentType());
+  nsRefPtr<gfxContext> context = new gfxContext(localSurface);
+
+  layer_manager()->BeginTransactionWithTarget(context);
+  layer_manager()->EndTransaction(NULL, NULL);
+  nsRefPtr<gfxContext> contextForCopy = new gfxContext(sharedSurface.Get());
+  contextForCopy->SetOperator(gfxContext::OPERATOR_SOURCE);
+  contextForCopy->DrawSurface(localSurface, localSurface->GetSize());
   return true;
 }
 

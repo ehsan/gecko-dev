@@ -6,7 +6,6 @@
 #ifndef nsMathMLmtableFrame_h___
 #define nsMathMLmtableFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
@@ -26,7 +25,7 @@ public:
   // Overloaded nsIMathMLFrame methods
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
   UpdatePresentationData(uint32_t aFlagsValues,
@@ -36,7 +35,7 @@ public:
   UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
                                     int32_t         aLastIndex,
                                     uint32_t        aFlagsValues,
-                                    uint32_t        aWhichFlags) MOZ_OVERRIDE;
+                                    uint32_t        aWhichFlags);
 
   // overloaded nsTableOuterFrame methods
 
@@ -44,7 +43,7 @@ public:
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
 
   NS_IMETHOD
   AttributeChanged(int32_t  aNameSpaceID,
@@ -144,7 +143,7 @@ public:
 
   NS_IMETHOD
   AppendFrames(ChildListID  aListID,
-               nsFrameList& aFrameList) MOZ_OVERRIDE
+               nsFrameList& aFrameList)
   {
     nsresult rv = nsTableRowFrame::AppendFrames(aListID, aFrameList);
     RestyleTable();
@@ -154,7 +153,7 @@ public:
   NS_IMETHOD
   InsertFrames(ChildListID aListID,
                nsIFrame* aPrevFrame,
-               nsFrameList& aFrameList) MOZ_OVERRIDE
+               nsFrameList& aFrameList)
   {
     nsresult rv = nsTableRowFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
     RestyleTable();
@@ -163,7 +162,7 @@ public:
 
   NS_IMETHOD
   RemoveFrame(ChildListID aListID,
-              nsIFrame* aOldFrame) MOZ_OVERRIDE
+              nsIFrame* aOldFrame)
   {
     nsresult rv = nsTableRowFrame::RemoveFrame(aListID, aOldFrame);
     RestyleTable();
@@ -206,8 +205,8 @@ public:
                    nsIAtom* aAttribute,
                    int32_t  aModType);
 
-  virtual int32_t GetRowSpan() MOZ_OVERRIDE;
-  virtual int32_t GetColSpan() MOZ_OVERRIDE;
+  virtual int32_t GetRowSpan();
+  virtual int32_t GetColSpan();
   virtual bool IsFrameOfType(uint32_t aFlags) const
   {
     return nsTableCellFrame::IsFrameOfType(aFlags & ~(nsIFrame::eMathML));
@@ -234,7 +233,7 @@ public:
   UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
                                     int32_t         aLastIndex,
                                     uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate) MOZ_OVERRIDE
+                                    uint32_t        aFlagsToUpdate)
   {
     nsMathMLContainerFrame::PropagatePresentationDataFromChildAt(this,
       aFirstIndex, aLastIndex, aFlagsValues, aFlagsToUpdate);
@@ -257,7 +256,7 @@ protected:
   nsMathMLmtdInnerFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {}
   virtual ~nsMathMLmtdInnerFrame();
 
-  virtual int GetSkipSides() const MOZ_OVERRIDE { return 0; }
+  virtual int GetSkipSides() const { return 0; }
 };  // class nsMathMLmtdInnerFrame
 
 #endif /* nsMathMLmtableFrame_h___ */

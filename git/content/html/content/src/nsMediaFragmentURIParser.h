@@ -65,7 +65,7 @@ private:
   bool ParseNPTSS(nsDependentSubstring& aString, uint32_t& aSecond);
 
   // Fragment portion of the URI given on construction
-  nsAutoCString mHash;
+  nsCAutoString mHash;
 
   // An array of name/value pairs containing the media fragments
   // parsed from the URI.

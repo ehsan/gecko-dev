@@ -1225,13 +1225,8 @@ nsTextEditRules::RemoveIMETextFromPWBuf(int32_t &aStart, nsAString *aIMEString)
   mPasswordIMEText.Assign(*aIMEString);
 }
 
-NS_IMETHODIMP nsTextEditRules::Notify(nsITimer *)
-{
-  MOZ_ASSERT(mTimer);
-
-  // Check whether our text editor's password flag was changed before this
-  // "hide password character" timer actually fires.
-  nsresult res = IsPasswordEditor() ? HideLastPWInput() : NS_OK;
+NS_IMETHODIMP nsTextEditRules::Notify(class nsITimer *) {
+  nsresult res = HideLastPWInput();
   ASSERT_PASSWORD_LENGTHS_EQUAL();
   mLastLength = 0;
   return res;

@@ -375,8 +375,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
 /*virtual*/
 bool
 nsLookAndFeel::GetFontImpl(FontID aID, nsString& aFontName,
-                           gfxFontStyle& aFontStyle,
-                           float aDevPixPerCSSPixel)
+                           gfxFontStyle& aFontStyle)
 {
     aFontName.AssignLiteral("\"Droid Sans\"");
     aFontStyle.style = NS_FONT_STYLE_NORMAL;
@@ -391,12 +390,4 @@ nsLookAndFeel::GetFontImpl(FontID aID, nsString& aFontName,
 bool
 nsLookAndFeel::GetEchoPasswordImpl() {
     return true;
-}
-
-/*virtual*/
-uint32_t
-nsLookAndFeel::GetPasswordMaskDelayImpl()
-{
-    // Same value on Android framework
-    return 1500;
 }

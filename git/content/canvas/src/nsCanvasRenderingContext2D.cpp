@@ -62,7 +62,6 @@
 #include "gfxBlur.h"
 #include "gfxUtils.h"
 #include "nsRenderingContext.h"
-#include "gfxSVGGlyphs.h"
 
 #include "nsFrameManager.h"
 #include "nsFrameLoader.h"
@@ -1414,9 +1413,7 @@ nsCanvasRenderingContext2D::GetImageFormat() const
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::GetCanvas(nsIDOMHTMLCanvasElement **canvas)
 {
-    if (mCanvasElement) {
-      NS_IF_ADDREF(*canvas = mCanvasElement->GetOriginalCanvas());
-    }
+    NS_IF_ADDREF(*canvas = mCanvasElement);
 
     return NS_OK;
 }
@@ -2825,21 +2822,15 @@ struct NS_STACK_CLASS nsCanvasBidiProcessor : public nsBidiPresUtils::BidiProces
             // throughout the text layout process
         }
 
-        nsRefPtr<gfxPattern> pattern = mThebes->GetPattern();
-
-        bool isFill = mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_FILL;
-        SimpleTextObjectPaint objectPaint(isFill ? pattern.get() : nullptr,
-                                          isFill ? nullptr : pattern.get(),
-                                          mThebes->CurrentMatrix());
-
         mTextRun->Draw(mThebes,
                        point,
-                       isFill ? gfxFont::GLYPH_FILL : gfxFont::GLYPH_STROKE,
+                       mOp == nsCanvasRenderingContext2D::TEXT_DRAW_OPERATION_STROKE ?
+                                    gfxFont::GLYPH_STROKE : gfxFont::GLYPH_FILL,
                        0,
                        mTextRun->GetLength(),
                        nullptr,
                        nullptr,
-                       &objectPaint);
+                       nullptr);
     }
 
     // current text run

@@ -57,7 +57,7 @@ nsStyleSheetService::RegisterFromEnumerator(nsICategoryManager  *aManager,
     NS_ASSERTION(icStr,
                  "category manager entries must be nsISupportsCStrings");
 
-    nsAutoCString name;
+    nsCAutoString name;
     icStr->GetData(name);
 
     nsXPIDLCString spec;

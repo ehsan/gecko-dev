@@ -8,7 +8,6 @@
 #include "SkBlurDrawLooper.h"
 #include "SkBlurMaskFilter.h"
 #include "SkCanvas.h"
-#include "SkFlattenableBuffers.h"
 #include "SkPaint.h"
 #include "SkMaskFilter.h"
 #include "SkColorFilter.h"
@@ -24,11 +23,11 @@ SkBlurDrawLooper::SkBlurDrawLooper(SkScalar radius, SkScalar dx, SkScalar dy,
             SkBlurMaskFilter::kNone_BlurFlag;
 
         blurFlags |= flags & kHighQuality_BlurFlag ?
-            SkBlurMaskFilter::kHighQuality_BlurFlag :
+            SkBlurMaskFilter::kHighQuality_BlurFlag : 
             SkBlurMaskFilter::kNone_BlurFlag;
 
         fBlur = SkBlurMaskFilter::Create(radius,
-                                         SkBlurMaskFilter::kNormal_BlurStyle,
+                                         SkBlurMaskFilter::kNormal_BlurStyle,  
                                          blurFlags);
     } else {
         fBlur = NULL;
@@ -51,10 +50,10 @@ SkBlurDrawLooper::SkBlurDrawLooper(SkFlattenableReadBuffer& buffer)
 
     fDx = buffer.readScalar();
     fDy = buffer.readScalar();
-    fBlurColor = buffer.readColor();
-    fBlur = buffer.readFlattenableT<SkMaskFilter>();
-    fColorFilter = buffer.readFlattenableT<SkColorFilter>();
-    fBlurFlags = buffer.readUInt() & kAll_BlurFlag;
+    fBlurColor = buffer.readU32();
+    fBlur = static_cast<SkMaskFilter*>(buffer.readFlattenable());
+    fColorFilter = static_cast<SkColorFilter*>(buffer.readFlattenable());
+    fBlurFlags = buffer.readU32() & kAll_BlurFlag;
 }
 
 SkBlurDrawLooper::~SkBlurDrawLooper() {
@@ -66,10 +65,10 @@ void SkBlurDrawLooper::flatten(SkFlattenableWriteBuffer& buffer) const {
     this->INHERITED::flatten(buffer);
     buffer.writeScalar(fDx);
     buffer.writeScalar(fDy);
-    buffer.writeColor(fBlurColor);
+    buffer.write32(fBlurColor);
     buffer.writeFlattenable(fBlur);
     buffer.writeFlattenable(fColorFilter);
-    buffer.writeUInt(fBlurFlags);
+    buffer.write32(fBlurFlags);
 }
 
 void SkBlurDrawLooper::init(SkCanvas* canvas) {

@@ -19,8 +19,8 @@ CPPSRCS = \
   AccEvent.cpp \
   AccGroupInfo.cpp \
   AccIterator.cpp \
-  Filters.cpp \
   ARIAStateMap.cpp \
+  filters.cpp \
   FocusManager.cpp \
   NotificationController.cpp \
   nsAccDocManager.cpp \
@@ -40,7 +40,7 @@ CPPSRCS = \
   TextUpdater.cpp \
   $(NULL)
 
-ifneq ($(A11Y_LOG),0)
+ifdef MOZ_DEBUG
 CPPSRCS += \
   Logging.cpp \
   $(NULL)
@@ -93,7 +93,6 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 LOCAL_INCLUDES += \
   -I$(srcdir)/../msaa \
-  -I$(srcdir)/../windows/ia2 \
   $(NULL)
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
@@ -106,8 +105,4 @@ LOCAL_INCLUDES += \
   $(NULL)
 endif
 endif
-endif
-
-ifneq ($(A11Y_LOG),0)
-  DEFINES += -DA11Y_LOG
 endif

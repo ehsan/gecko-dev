@@ -4,11 +4,6 @@
 
 const TAB_URL = EXAMPLE_URL + "browser_dbg_script-switching.html";
 
-/**
- * Tests basic functionality of global search (lowercase + upper case, expected
- * UI behavior, number of results found etc.)
- */
-
 var gPane = null;
 var gTab = null;
 var gDebuggee = null;
@@ -327,6 +322,5 @@ registerCleanupFunction(function() {
   gDebugger = null;
   gEditor = null;
   gScripts = null;
-  gSearchView = null;
   gSearchBox = null;
 });

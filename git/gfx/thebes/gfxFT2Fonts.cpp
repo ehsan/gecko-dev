@@ -202,7 +202,7 @@ void gfxFT2FontGroup::GetPrefFonts(nsIAtom *aLangGroup, nsTArray<nsRefPtr<gfxFon
     NS_ASSERTION(aLangGroup, "aLangGroup is null");
     gfxToolkitPlatform *platform = gfxToolkitPlatform::GetPlatform();
     nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
-    nsAutoCString key;
+    nsCAutoString key;
     aLangGroup->ToUTF8String(key);
     key.Append("-");
     key.AppendInt(GetStyle()->style);
@@ -234,13 +234,13 @@ static int32_t GetCJKLangGroupIndex(const char *aLangGroup) {
 void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList) {
     gfxToolkitPlatform *platform = gfxToolkitPlatform::GetPlatform();
 
-    nsAutoCString key("x-internal-cjk-");
+    nsCAutoString key("x-internal-cjk-");
     key.AppendInt(mStyle.style);
     key.Append("-");
     key.AppendInt(mStyle.weight);
 
     if (!platform->GetPrefFontEntries(key, &aFontEntryList)) {
-        NS_ENSURE_TRUE_VOID(Preferences::GetRootBranch());
+        NS_ENSURE_TRUE(Preferences::GetRootBranch(), );
         // Add the CJK pref fonts from accept languages, the order should be same order
         nsAdoptingCString list = Preferences::GetLocalizedCString("intl.accept_languages");
         if (!list.IsEmpty()) {
@@ -258,7 +258,7 @@ void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEn
                 const char *start = p;
                 while (++p != p_end && *p != kComma)
                     /* nothing */ ;
-                nsAutoCString lang(Substring(start, p));
+                nsCAutoString lang(Substring(start, p));
                 lang.CompressWhitespace(false, true);
                 int32_t index = GetCJKLangGroupIndex(lang.get());
                 if (index >= 0) {

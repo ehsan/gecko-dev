@@ -51,7 +51,6 @@
 #include "nsIConstraintValidation.h"
 
 #include "nsIDOMHTMLButtonElement.h"
-#include "mozilla/dom/HTMLCollectionBinding.h"
 #include "dombindings.h"
 #include "nsSandboxFlags.h"
 
@@ -98,9 +97,6 @@ public:
     return mForm;
   }
 
-  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
-                              mozilla::ErrorResult& error);
-
   nsresult AddElementToTable(nsGenericHTMLFormElement* aChild,
                              const nsAString& aName);
   nsresult RemoveElementFromTable(nsGenericHTMLFormElement* aChild,
@@ -125,13 +121,8 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    JSObject* obj = HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
-    if (obj || *triedToWrap) {
-      return obj;
-    }
-
-    *triedToWrap = true;
-    return oldproxybindings::HTMLCollection::create(cx, scope, this);
+    return mozilla::dom::oldproxybindings::HTMLCollection::create(cx, scope, this,
+                                                         triedToWrap);
   }
 
   nsHTMLFormElement* mForm;  // WEAK - the form owns me
@@ -1697,8 +1688,7 @@ nsHTMLFormElement::CheckValidFormSubmission()
   nsCOMPtr<nsISimpleEnumerator> theEnum;
   nsresult rv = service->EnumerateObservers(NS_INVALIDFORMSUBMIT_SUBJECT,
                                             getter_AddRefs(theEnum));
-  // Return true on error here because that's what we always did
-  NS_ENSURE_SUCCESS(rv, true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool hasObserver = false;
   rv = theEnum->HasMoreElements(&hasObserver);
@@ -1708,8 +1698,7 @@ nsHTMLFormElement::CheckValidFormSubmission()
   if (NS_SUCCEEDED(rv) && hasObserver) {
     nsCOMPtr<nsIMutableArray> invalidElements =
       do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
-    // Return true on error here because that's what we always did
-    NS_ENSURE_SUCCESS(rv, true);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     if (!CheckFormValidity(invalidElements.get())) {
       // For the first invalid submission, we should update element states.
@@ -2224,7 +2213,7 @@ nsFormControlList::GetLength(uint32_t* aLength)
 NS_IMETHODIMP
 nsFormControlList::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports* item = GetElementAt(aIndex);
+  nsISupports* item = GetNodeAt(aIndex);
   if (!item) {
     *aReturn = nullptr;
 
@@ -2521,8 +2510,8 @@ nsFormControlList::GetSortedControls(nsTArray<nsGenericHTMLFormElement*>& aContr
   return NS_OK;
 }
 
-nsGenericElement*
-nsFormControlList::GetElementAt(uint32_t aIndex)
+nsIContent*
+nsFormControlList::GetNodeAt(uint32_t aIndex)
 {
   FlushPendingNotifications();
 
@@ -2535,22 +2524,4 @@ nsFormControlList::GetNamedItem(const nsAString& aName, nsWrapperCache **aCache)
   nsISupports *item = NamedItemInternal(aName, true);
   *aCache = nullptr;
   return item;
-}
-
-JSObject*
-nsFormControlList::NamedItem(JSContext* cx, const nsAString& name,
-                             mozilla::ErrorResult& error)
-{
-  nsISupports *item = NamedItemInternal(name, true);
-  if (!item) {
-    return nullptr;
-  }
-  JSObject* wrapper = GetWrapper();
-  JSAutoCompartment ac(cx, wrapper);
-  JS::Value v;
-  if (!mozilla::dom::WrapObject(cx, wrapper, item, &v)) {
-    error.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-  return &v.toObject();
 }

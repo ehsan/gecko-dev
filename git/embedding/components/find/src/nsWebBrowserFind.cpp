@@ -704,7 +704,11 @@ nsresult nsWebBrowserFind::SearchInFrame(nsIDOMWindow* aWindow,
         rv = subject->Subsumes(theDoc->NodePrincipal(), &subsumes);
         NS_ENSURE_SUCCESS(rv, rv);
         if (!subsumes) {
-            return NS_ERROR_DOM_PROP_ACCESS_DENIED;
+            bool hasCap = false;
+            secMan->IsCapabilityEnabled("UniversalXPConnect", &hasCap);
+            if (!hasCap) {
+                return NS_ERROR_DOM_PROP_ACCESS_DENIED;
+            }
         }
     }
 

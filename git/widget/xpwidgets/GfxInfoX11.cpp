@@ -185,7 +185,7 @@ GfxInfo::GetData()
     mAdapterDescription.AppendLiteral(" -- ");
     mAdapterDescription.Append(mRenderer);
 
-    nsAutoCString note;
+    nsCAutoString note;
     note.Append("OpenGL: ");
     note.Append(mAdapterDescription);
     note.Append(" -- ");

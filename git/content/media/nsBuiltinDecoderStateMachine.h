@@ -605,10 +605,6 @@ protected:
   uint32_t mBufferingWait;
   int64_t  mLowDataThresholdUsecs;
 
-  // If we've got more than mAmpleVideoFrames decoded video frames waiting in
-  // the video queue, we will not decode any more video frames until some have
-  // been consumed by the play state machine thread.
-  uint32_t mAmpleVideoFrames;
   // True if we shouldn't play our audio (but still write it to any capturing
   // streams). When this is true, mStopAudioThread is always true and
   // the audio thread will never start again after it has stopped.
@@ -691,9 +687,6 @@ protected:
   // created. Synchronized by the decoder monitor.
   bool mRequestedNewDecodeThread;
   
-protected:
-  virtual uint32_t GetAmpleVideoFrames() { return mAmpleVideoFrames; }
-
 private:
   // Manager for queuing and dispatching MozAudioAvailable events.  The
   // event manager is accessed from the state machine and audio threads,

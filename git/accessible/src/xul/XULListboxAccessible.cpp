@@ -742,74 +742,126 @@ NS_IMPL_ISUPPORTS_INHERITED1(XULListCellAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // XULListCellAccessible: nsIAccessibleTableCell implementation
 
-TableAccessible*
-XULListCellAccessible::Table() const
+NS_IMETHODIMP
+XULListCellAccessible::GetTable(nsIAccessibleTable** aTable)
 {
+  NS_ENSURE_ARG_POINTER(aTable);
+  *aTable = nullptr;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   Accessible* thisRow = Parent();
   if (!thisRow || thisRow->Role() != roles::ROW)
-    return nullptr;
+    return NS_OK;
 
   Accessible* table = thisRow->Parent();
   if (!table || table->Role() != roles::TABLE)
-    return nullptr;
+    return NS_OK;
 
-  return table->AsTable();
+  CallQueryInterface(table, aTable);
+  return NS_OK;
 }
 
-uint32_t
-XULListCellAccessible::ColIdx() const
+NS_IMETHODIMP
+XULListCellAccessible::GetColumnIndex(int32_t* aColumnIndex)
 {
+  NS_ENSURE_ARG_POINTER(aColumnIndex);
+  *aColumnIndex = -1;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   Accessible* row = Parent();
   if (!row)
-    return 0;
+    return NS_OK;
+
+  *aColumnIndex = 0;
 
   int32_t indexInRow = IndexInParent();
-  uint32_t colIdx = 0;
   for (int32_t idx = 0; idx < indexInRow; idx++) {
     Accessible* cell = row->GetChildAt(idx);
     roles::Role role = cell->Role();
     if (role == roles::CELL || role == roles::GRID_CELL ||
         role == roles::ROWHEADER || role == roles::COLUMNHEADER)
-      colIdx++;
+      (*aColumnIndex)++;
   }
 
-  return colIdx;
+  return NS_OK;
 }
 
-uint32_t
-XULListCellAccessible::RowIdx() const
+NS_IMETHODIMP
+XULListCellAccessible::GetRowIndex(int32_t* aRowIndex)
 {
+  NS_ENSURE_ARG_POINTER(aRowIndex);
+  *aRowIndex = -1;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   Accessible* row = Parent();
   if (!row)
-    return 0;
+    return NS_OK;
 
   Accessible* table = row->Parent();
   if (!table)
-    return 0;
+    return NS_OK;
+
+  *aRowIndex = 0;
 
   int32_t indexInTable = row->IndexInParent();
-  uint32_t rowIdx = 0;
   for (int32_t idx = 0; idx < indexInTable; idx++) {
     row = table->GetChildAt(idx);
     if (row->Role() == roles::ROW)
-      rowIdx++;
+      (*aRowIndex)++;
   }
 
-  return rowIdx;
+  return NS_OK;
 }
 
-void
-XULListCellAccessible::ColHeaderCells(nsTArray<Accessible*>* aCells)
+NS_IMETHODIMP
+XULListCellAccessible::GetColumnExtent(int32_t* aExtentCount)
 {
-  TableAccessible* table = Table();
-  NS_ASSERTION(table, "cell not in a table!");
-  if (!table)
-    return;
+  NS_ENSURE_ARG_POINTER(aExtentCount);
+  *aExtentCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aExtentCount = 1;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+XULListCellAccessible::GetRowExtent(int32_t* aExtentCount)
+{
+  NS_ENSURE_ARG_POINTER(aExtentCount);
+  *aExtentCount = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  *aExtentCount = 1;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+XULListCellAccessible::GetColumnHeaderCells(nsIArray** aHeaderCells)
+{
+  NS_ENSURE_ARG_POINTER(aHeaderCells);
+  *aHeaderCells = nullptr;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIAccessibleTable> table;
+  GetTable(getter_AddRefs(table));
+  NS_ENSURE_STATE(table); // we expect to be in a listbox (table)
 
   // Get column header cell from XUL listhead.
   Accessible* list = nullptr;
 
-  Accessible* tableAcc = table->AsAccessible();
+  nsRefPtr<Accessible> tableAcc(do_QueryObject(table));
   uint32_t tableChildCount = tableAcc->ChildCount();
   for (uint32_t childIdx = 0; childIdx < tableChildCount; childIdx++) {
     Accessible* child = tableAcc->GetChildAt(childIdx);
@@ -820,24 +872,64 @@ XULListCellAccessible::ColHeaderCells(nsTArray<Accessible*>* aCells)
   }
 
   if (list) {
-    Accessible* headerCell = list->GetChildAt(ColIdx());
+    int32_t colIdx = -1;
+    GetColumnIndex(&colIdx);
+
+    nsIAccessible *headerCell = list->GetChildAt(colIdx);
     if (headerCell) {
-      aCells->AppendElement(headerCell);
-      return;
+      nsresult rv = NS_OK;
+      nsCOMPtr<nsIMutableArray> headerCells =
+        do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      headerCells->AppendElement(headerCell, false);
+      NS_ADDREF(*aHeaderCells = headerCells);
+      return NS_OK;
     }
   }
 
   // No column header cell from XUL markup, try to get it from ARIA markup.
-  TableCellAccessible::ColHeaderCells(aCells);
+  return nsAccUtils::GetHeaderCellsFor(table, this,
+                                       nsAccUtils::eColumnHeaderCells,
+                                       aHeaderCells);
 }
 
-bool
-XULListCellAccessible::Selected()
+NS_IMETHODIMP
+XULListCellAccessible::GetRowHeaderCells(nsIArray** aHeaderCells)
 {
-  TableAccessible* table = Table();
-  NS_ENSURE_TRUE(table, false); // we expect to be in a listbox (table)
+  NS_ENSURE_ARG_POINTER(aHeaderCells);
+  *aHeaderCells = nullptr;
 
-  return table->IsRowSelected(RowIdx());
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIAccessibleTable> table;
+  GetTable(getter_AddRefs(table));
+  NS_ENSURE_STATE(table); // we expect to be in a listbox (table)
+
+  // Calculate row header cells from ARIA markup.
+  return nsAccUtils::GetHeaderCellsFor(table, this,
+                                       nsAccUtils::eRowHeaderCells,
+                                       aHeaderCells);
+}
+
+NS_IMETHODIMP
+XULListCellAccessible::IsSelected(bool* aIsSelected)
+{
+  NS_ENSURE_ARG_POINTER(aIsSelected);
+  *aIsSelected = false;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIAccessibleTable> table;
+  GetTable(getter_AddRefs(table));
+  NS_ENSURE_STATE(table); // we expect to be in a listbox (table)
+
+  int32_t rowIdx = -1;
+  GetRowIndex(&rowIdx);
+
+  return table->IsRowSelected(rowIdx, aIsSelected);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -865,11 +957,20 @@ XULListCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribute
     return NS_ERROR_FAILURE;
 
   // "table-cell-index" attribute
-  TableAccessible* table = Table();
+  nsCOMPtr<nsIAccessibleTable> table;
+  GetTable(getter_AddRefs(table));
   NS_ENSURE_STATE(table); // we expect to be in a listbox (table)
 
+  int32_t rowIdx = -1;
+  GetRowIndex(&rowIdx);
+  int32_t colIdx = -1;
+  GetColumnIndex(&colIdx);
+
+  int32_t cellIdx = -1;
+  table->GetCellIndexAt(rowIdx, colIdx, &cellIdx);
+
   nsAutoString stringIdx;
-  stringIdx.AppendInt(table->CellIndexAt(RowIdx(), ColIdx()));
+  stringIdx.AppendInt(cellIdx);
   nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex,
                          stringIdx);
 

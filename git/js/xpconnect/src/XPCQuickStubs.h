@@ -11,6 +11,8 @@
 #include "xpcprivate.h"
 #include "qsObjectHelper.h"
 
+#include "jsatom.h"
+
 /* XPCQuickStubs.h - Support functions used only by quick stubs. */
 
 class XPCCallContext;
@@ -614,7 +616,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     JS::CallArgs args = CallArgsFromVp(argc, vp);
 
     JSObject *callee = &args.callee();
-    js::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
 
@@ -626,7 +628,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     v = js::GetFunctionNativeReserved(callee, 1);
 
     jsval argval = (argc > 0) ? args[0] : JSVAL_VOID;
-    js::RootedId id(cx);
+    JS::RootedId id(cx);
     if (!JS_ValueToId(cx, v, id.address()))
         return false;
     args.rval().set(argval);

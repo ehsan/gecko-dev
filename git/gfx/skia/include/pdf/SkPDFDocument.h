@@ -29,10 +29,10 @@ class SkWStream;
 class SkPDFDocument {
 public:
     enum Flags {
-        kNoCompression_Flags = 0x01,  //!< mask disable stream compression.
-        kNoLinks_Flags       = 0x02,  //!< do not honor link annotations.
+        kNoCompression_Flag = 0x01,  //!< mask disable stream compression.
+        kNoEmbedding_Flag   = 0x02,  //!< mask do not embed fonts.
 
-        kDraftMode_Flags     = 0x01,
+        kDraftMode_Flags    = 0x03,
     };
     /** Create a PDF document.
      */

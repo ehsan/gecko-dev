@@ -41,9 +41,22 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
-  virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
-  virtual bool Draggable() const MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
+  NS_IMETHOD Click() {
+    return nsGenericHTMLElement::Click();
+  }
+  NS_IMETHOD GetTabIndex(int32_t* aTabIndex);
+  NS_IMETHOD SetTabIndex(int32_t aTabIndex);
+  NS_IMETHOD Focus() {
+    return nsGenericHTMLElement::Focus();
+  }
+  NS_IMETHOD GetDraggable(bool* aDraggable);
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
+    return nsGenericHTMLElement::GetInnerHTML(aInnerHTML);
+  }
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
+    return nsGenericHTMLElement::SetInnerHTML(aInnerHTML);
+  }
 
   // nsIDOMHTMLAnchorElement
   NS_DECL_NSIDOMHTMLANCHORELEMENT  
@@ -101,21 +114,15 @@ protected:
   virtual void SetItemValueText(const nsAString& text);
 };
 
-#define ANCHOR_ELEMENT_FLAG_BIT(n_) NODE_FLAG_BIT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + (n_))
-
-// Anchor element specific bits
-enum {
-  // Indicates that a DNS Prefetch has been requested from this Anchor elem
-  HTML_ANCHOR_DNS_PREFETCH_REQUESTED =    ANCHOR_ELEMENT_FLAG_BIT(0),
-
-  // Indicates that a DNS Prefetch was added to the deferral queue
-  HTML_ANCHOR_DNS_PREFETCH_DEFERRED =     ANCHOR_ELEMENT_FLAG_BIT(1)
-};
+// Indicates that a DNS Prefetch has been requested from this Anchor elem
+#define HTML_ANCHOR_DNS_PREFETCH_REQUESTED \
+  (1 << ELEMENT_TYPE_SPECIFIC_BITS_OFFSET)
+// Indicates that a DNS Prefetch was added to the deferral queue
+#define HTML_ANCHOR_DNS_PREFETCH_DEFERRED \
+  (1 << (ELEMENT_TYPE_SPECIFIC_BITS_OFFSET+1))
 
 // Make sure we have enough space for those bits
-PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
-
-#undef ANCHOR_ELEMENT_FLAG_BIT
+PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET+1 < 32);
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
@@ -158,13 +165,8 @@ NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Name, name)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Rel, rel)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Rev, rev)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Shape, shape)
+NS_IMPL_INT_ATTR(nsHTMLAnchorElement, TabIndex, tabindex)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Type, type)
-
-int32_t
-nsHTMLAnchorElement::TabIndexDefault()
-{
-  return 0;
-}
 
 void
 nsHTMLAnchorElement::GetItemValueText(nsAString& aValue)
@@ -178,18 +180,19 @@ nsHTMLAnchorElement::SetItemValueText(const nsAString& aValue)
   SetHref(aValue);
 }
 
-bool
-nsHTMLAnchorElement::Draggable() const
+NS_IMETHODIMP
+nsHTMLAnchorElement::GetDraggable(bool* aDraggable)
 {
   // links can be dragged as long as there is an href and the
   // draggable attribute isn't false
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::href)) {
-    // no href, so just use the same behavior as other elements
-    return nsGenericHTMLElement::Draggable();
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::href)) {
+    *aDraggable = !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
+                               nsGkAtoms::_false, eIgnoreCase);
+    return NS_OK;
   }
 
-  return !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
-                      nsGkAtoms::_false, eIgnoreCase);
+  // no href, so just use the same behavior as other elements
+  return nsGenericHTMLElement::GetDraggable(aDraggable);
 }
 
 void

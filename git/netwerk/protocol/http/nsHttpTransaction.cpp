@@ -28,6 +28,7 @@
 #include "nsServiceManagerUtils.h"   // do_GetService
 #include "nsIHttpActivityObserver.h"
 
+#include "mozilla/FunctionTimer.h"
 
 using namespace mozilla;
 
@@ -52,20 +53,18 @@ static NS_DEFINE_CID(kMultiplexInputStream, NS_MULTIPLEXINPUTSTREAM_CID);
 
 #if defined(PR_LOGGING)
 static void
-LogHeaders(const char *lineStart)
+LogHeaders(const char *lines)
 {
-    nsAutoCString buf;
-    char *endOfLine;
-    while ((endOfLine = PL_strstr(lineStart, "\r\n"))) {
-        buf.Assign(lineStart, endOfLine - lineStart);
-        if (PL_strcasestr(buf.get(), "authorization: ") ||
-            PL_strcasestr(buf.get(), "proxy-authorization: ")) {
-            char *p = PL_strchr(PL_strchr(buf.get(), ' ') + 1, ' ');
-            while (p && *++p)
-                *p = '*';
+    nsCAutoString buf;
+    char *p;
+    while ((p = PL_strstr(lines, "\r\n")) != nullptr) {
+        buf.Assign(lines, p - lines);
+        if (PL_strcasestr(buf.get(), "authorization: ") != nullptr) {
+            char *p = PL_strchr(PL_strchr(buf.get(), ' ')+1, ' ');
+            while (*++p) *p = '*';
         }
         LOG3(("  %s\n", buf.get()));
-        lineStart = endOfLine + 2;
+        lines = p + 2;
     }
 }
 #endif
@@ -172,6 +171,8 @@ nsHttpTransaction::Init(uint8_t caps,
                         nsITransportEventSink *eventsink,
                         nsIAsyncInputStream **responseBody)
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     LOG(("nsHttpTransaction::Init [this=%x caps=%x]\n", this, caps));
@@ -844,7 +845,7 @@ nsHttpTransaction::RestartInProgress()
          this, mContentRead, mContentLength));
 
     mRestartInProgressVerifier.SetAlreadyProcessed(
-        NS_MAX(mRestartInProgressVerifier.AlreadyProcessed(), mContentRead));
+        PR_MAX(mRestartInProgressVerifier.AlreadyProcessed(), mContentRead));
 
     if (!mResponseHeadTaken && !mForTakeResponseHead) {
         // TakeResponseHeader() has not been called yet and this
@@ -1172,7 +1173,7 @@ nsHttpTransaction::HandleContentStart()
 #if defined(PR_LOGGING)
         if (LOG3_ENABLED()) {
             LOG3(("http response [\n"));
-            nsAutoCString headers;
+            nsCAutoString headers;
             mResponseHead->Flatten(headers, false);
             LogHeaders(headers.get());
             LOG3(("]\n"));
@@ -1332,8 +1333,8 @@ nsHttpTransaction::HandleContent(char *buf,
 
     if (toReadBeforeRestart && *contentRead) {
         uint32_t ignore =
-            static_cast<uint32_t>(NS_MIN<int64_t>(toReadBeforeRestart, UINT32_MAX));
-        ignore = NS_MIN(*contentRead, ignore);
+            PR_MIN(toReadBeforeRestart, PR_UINT32_MAX);
+        ignore = PR_MIN(*contentRead, ignore);
         LOG(("Due To Restart ignoring %d of remaining %ld",
              ignore, toReadBeforeRestart));
         *contentRead -= ignore;
@@ -1421,7 +1422,7 @@ nsHttpTransaction::ProcessData(char *buf, uint32_t count, uint32_t *countRead)
         if (mActivityDistributor && mResponseHead && mHaveAllHeaders &&
             !mReportedResponseHeader) {
             mReportedResponseHeader = true;
-            nsAutoCString completeResponseHeaders;
+            nsCAutoString completeResponseHeaders;
             mResponseHead->Flatten(completeResponseHeaders, false);
             completeResponseHeaders.AppendLiteral("\r\n");
             mActivityDistributor->ObserveActivity(

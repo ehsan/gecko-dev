@@ -132,12 +132,13 @@ nsHTMLImageElement::SetItemValueText(const nsAString& aValue)
 // just a string attr purposes of the DOM crossOrigin property.
 NS_IMPL_STRING_ATTR(nsHTMLImageElement, CrossOrigin, crossorigin)
 
-bool
-nsHTMLImageElement::Draggable() const
+NS_IMETHODIMP
+nsHTMLImageElement::GetDraggable(bool* aDraggable)
 {
   // images may be dragged unless the draggable attribute is false
-  return !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
-                      nsGkAtoms::_false, eIgnoreCase);
+  *aDraggable = !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
+                             nsGkAtoms::_false, eIgnoreCase);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -315,7 +316,8 @@ bool
 nsHTMLImageElement::IsHTMLFocusable(bool aWithMouse,
                                     bool *aIsFocusable, int32_t *aTabIndex)
 {
-  int32_t tabIndex = TabIndex();
+  int32_t tabIndex;
+  GetTabIndex(&tabIndex);
 
   if (IsInDoc()) {
     nsAutoString usemap;

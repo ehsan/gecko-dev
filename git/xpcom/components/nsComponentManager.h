@@ -38,7 +38,6 @@
 
 struct nsFactoryEntry;
 class nsIServiceManager;
-class nsIMemoryReporter;
 struct PRThread;
 
 #define NS_COMPONENTMANAGER_CID                      \
@@ -63,6 +62,12 @@ extern const char staticComponentType[];
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const mozilla::Module kXPCOMModule;
+
+// Array of Loaders and their type strings
+struct nsLoaderdata {
+    nsCOMPtr<mozilla::ModuleLoader> loader;
+    nsCString                 type;
+};
 
 class nsComponentManagerImpl MOZ_FINAL
     : public nsIComponentManager
@@ -239,6 +244,8 @@ public:
         SHUTDOWN_COMPLETE
     } mStatus;
 
+    nsTArray<nsLoaderdata> mLoaderData;
+
     PLArenaPool   mArena;
 
     struct PendingServiceInfo {
@@ -253,12 +260,8 @@ public:
 
     nsTArray<PendingServiceInfo> mPendingServices;
 
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
-
 private:
     ~nsComponentManagerImpl();
-
-    nsIMemoryReporter* mReporter;
 };
 
 
@@ -277,8 +280,6 @@ struct nsFactoryEntry
     ~nsFactoryEntry();
 
     already_AddRefed<nsIFactory> GetFactory();
-
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
     const mozilla::Module::CIDEntry* mCIDEntry;
     nsComponentManagerImpl::KnownModule* mModule;

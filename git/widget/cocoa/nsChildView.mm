@@ -32,7 +32,6 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsThemeConstants.h"
 #include "nsIWidgetListener.h"
-#include "nsIPresShell.h"
 
 #include "nsDragService.h"
 #include "nsClipboard.h"
@@ -197,7 +196,7 @@ ConvertGeckoRectToMacRect(const nsIntRect& aRect, Rect& outMacRect)
 // that is a "flipped" cocoa coordinate system (starts in the top-left).
 static inline void
 FlipCocoaScreenCoordinate(NSPoint &inPoint)
-{
+{  
   inPoint.y = nsCocoaUtils::FlippedScreenY(inPoint.y);
 }
 
@@ -216,7 +215,6 @@ nsChildView::nsChildView() : nsBaseWidget()
 , mView(nullptr)
 , mParentView(nullptr)
 , mParentWidget(nullptr)
-, mBackingScaleFactor(0.0)
 , mVisible(false)
 , mDrawing(false)
 , mPluginDrawing(false)
@@ -226,6 +224,9 @@ nsChildView::nsChildView() : nsBaseWidget()
   EnsureLogInitialized();
 
   memset(&mPluginCGContext, 0, sizeof(mPluginCGContext));
+#ifndef NP_NO_QUICKDRAW
+  memset(&mPluginQDPort, 0, sizeof(mPluginQDPort));
+#endif
 
   SetBackgroundColor(NS_RGB(255, 255, 255));
   SetForegroundColor(NS_RGB(0, 0, 0));
@@ -321,12 +322,10 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   
   // create our parallel NSView and hook it up to our parent. Recall
   // that NS_NATIVE_WIDGET is the NSView.
-  CGFloat scaleFactor = nsCocoaUtils::GetBackingScaleFactor(mParentView);
-  NSRect r = nsCocoaUtils::DevPixelsToCocoaPoints(mBounds, scaleFactor);
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
   mView = [(NSView<mozView>*)CreateCocoaView(r) retain];
-  if (!mView) {
-    return NS_ERROR_FAILURE;
-  }
+  if (!mView) return NS_ERROR_FAILURE;
 
   [(ChildView*)mView setIsPluginView:(mWindowType == eWindowType_plugin)];
 
@@ -484,6 +483,7 @@ void* nsChildView::GetNativeData(uint32_t aDataType)
       break;
 
     case NS_NATIVE_PLUGIN_PORT:
+    case NS_NATIVE_PLUGIN_PORT_QD:
     case NS_NATIVE_PLUGIN_PORT_CG:
     {
       // The NP_CGContext pointer should always be NULL in the Cocoa event model.
@@ -491,6 +491,12 @@ void* nsChildView::GetNativeData(uint32_t aDataType)
         return nullptr;
 
       UpdatePluginPort();
+#ifndef NP_NO_QUICKDRAW
+      if (aDataType != NS_NATIVE_PLUGIN_PORT_CG) {
+        retVal = (void*)&mPluginQDPort;
+        break;
+      }
+#endif
       retVal = (void*)&mPluginCGContext;
       break;
     }
@@ -547,6 +553,23 @@ void nsChildView::HidePlugin()
 {
   NS_ASSERTION(mWindowType == eWindowType_plugin,
                "HidePlugin called on non-plugin view");
+
+#ifndef NP_NO_QUICKDRAW
+  if (mPluginInstanceOwner && mView &&
+      [(ChildView*)mView pluginDrawingModel] == NPDrawingModelQuickDraw) {
+    NPWindow* window;
+    mPluginInstanceOwner->GetWindow(window);
+    nsRefPtr<nsNPAPIPluginInstance> instance;
+    mPluginInstanceOwner->GetInstance(getter_AddRefs(instance));
+    if (window && instance) {
+       window->clipRect.top = 0;
+       window->clipRect.left = 0;
+       window->clipRect.bottom = 0;
+       window->clipRect.right = 0;
+       instance->SetWindow(window);
+    }
+  }
+#endif
 }
 
 void nsChildView::UpdatePluginPort()
@@ -554,21 +577,48 @@ void nsChildView::UpdatePluginPort()
   NS_ASSERTION(mWindowType == eWindowType_plugin,
                "UpdatePluginPort called on non-plugin view");
 
-  // [NSGraphicsContext currentContext] is supposed to "return the
-  // current graphics context of the current thread."  But sometimes
-  // (when called while mView isn't focused for drawing) it returns a
-  // graphics context for the wrong window.  [window graphicsContext]
-  // (which "provides the graphics context associated with the window
-  // for the current thread") seems always to return the "right"
-  // graphics context.  See bug 500130.
-  mPluginCGContext.context = NULL;
-  mPluginCGContext.window = NULL;
-#ifndef NP_NO_CARBON
+#if !defined(NP_NO_CARBON) || !defined(NP_NO_QUICKDRAW)
   NSWindow* cocoaWindow = [mView window];
   WindowRef carbonWindow = cocoaWindow ? (WindowRef)[cocoaWindow windowRef] : NULL;
-  if (carbonWindow) {
-    mPluginCGContext.context = (CGContextRef)[[cocoaWindow graphicsContext] graphicsPort];
-    mPluginCGContext.window = carbonWindow;
+#endif
+
+  if (!mView
+#ifndef NP_NO_QUICKDRAW
+    || [(ChildView*)mView pluginDrawingModel] != NPDrawingModelQuickDraw
+#endif
+    ) {
+    // [NSGraphicsContext currentContext] is supposed to "return the
+    // current graphics context of the current thread."  But sometimes
+    // (when called while mView isn't focused for drawing) it returns a
+    // graphics context for the wrong window.  [window graphicsContext]
+    // (which "provides the graphics context associated with the window
+    // for the current thread") seems always to return the "right"
+    // graphics context.  See bug 500130.
+    mPluginCGContext.context = NULL;
+    mPluginCGContext.window = NULL;
+#ifndef NP_NO_CARBON
+    if (carbonWindow) {
+      mPluginCGContext.context = (CGContextRef)[[cocoaWindow graphicsContext] graphicsPort];
+      mPluginCGContext.window = carbonWindow;
+    }
+#endif
+  }
+#ifndef NP_NO_QUICKDRAW
+  else {
+    if (carbonWindow) {
+      mPluginQDPort.port = ::GetWindowPort(carbonWindow);
+
+      NSPoint viewOrigin = [mView convertPoint:NSZeroPoint toView:nil];
+      NSRect frame = [[cocoaWindow contentView] frame];
+      viewOrigin.y = frame.size.height - viewOrigin.y;
+
+      // need to convert view's origin to window coordinates.
+      // then, encode as "SetOrigin" ready values.
+      mPluginQDPort.portx = (int32_t)-viewOrigin.x;
+      mPluginQDPort.porty = (int32_t)-viewOrigin.y;
+    } else {
+      mPluginQDPort.port = NULL;
+    }
   }
 #endif
 }
@@ -756,56 +806,10 @@ NS_IMETHODIMP nsChildView::GetBounds(nsIntRect &aRect)
   if (!mView) {
     aRect = mBounds;
   } else {
-    aRect = CocoaPointsToDevPixels([mView frame]);
+    NSRect frame = [mView frame];
+    NSRectToGeckoRect(frame, aRect);
   }
   return NS_OK;
-}
-
-double
-nsChildView::GetDefaultScaleInternal()
-{
-  return BackingScaleFactor();
-}
-
-CGFloat
-nsChildView::BackingScaleFactor()
-{
-  if (mBackingScaleFactor > 0.0) {
-    return mBackingScaleFactor;
-  }
-  if (!mView) {
-    return 1.0;
-  }
-  mBackingScaleFactor = nsCocoaUtils::GetBackingScaleFactor(mView);
-  return mBackingScaleFactor;
-}
-
-void
-nsChildView::BackingScaleFactorChanged()
-{
-  CGFloat newScale = nsCocoaUtils::GetBackingScaleFactor(mView);
-
-  // ignore notification if it hasn't really changed (or maybe we have
-  // disabled HiDPI mode via prefs)
-  if (mBackingScaleFactor == newScale) {
-    return;
-  }
-
-  mBackingScaleFactor = newScale;
-
-  if (mWidgetListener && !mWidgetListener->GetXULWindow()) {
-    nsIPresShell* presShell = mWidgetListener->GetPresShell();
-    if (presShell) {
-      presShell->BackingScaleFactorChanged();
-    }
-  }
-
-  if (IsPluginView()) {
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsGUIEvent guiEvent(true, NS_PLUGIN_RESOLUTION_CHANGED, this);
-    guiEvent.time = PR_IntervalNow();
-    DispatchEvent(&guiEvent, status);
-  }
 }
 
 NS_IMETHODIMP nsChildView::ConstrainPosition(bool aAllowSlop,
@@ -825,7 +829,9 @@ NS_IMETHODIMP nsChildView::Move(int32_t aX, int32_t aY)
   mBounds.x = aX;
   mBounds.y = aY;
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
+  [mView setFrame:r];
 
   if (mVisible)
     [mView setNeedsDisplay:YES];
@@ -848,7 +854,9 @@ NS_IMETHODIMP nsChildView::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint
   mBounds.width  = aWidth;
   mBounds.height = aHeight;
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
+  [mView setFrame:r];
 
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
@@ -879,7 +887,9 @@ NS_IMETHODIMP nsChildView::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_
     mBounds.height = aHeight;
   }
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(mBounds, r);
+  [mView setFrame:r];
 
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
@@ -1004,6 +1014,26 @@ static void InitializeEventRecord(EventRecord* event, Point* aMousePosition)
 }
 #endif
 
+void nsChildView::PaintQD()
+{
+#ifndef NP_NO_CARBON
+  void *pluginPort = this->GetNativeData(NS_NATIVE_PLUGIN_PORT_QD);
+  void *window = ::GetWindowFromPort(static_cast<NP_Port*>(pluginPort)->port);
+
+  NS_SUCCEEDED(StartDrawPlugin());
+  EventRecord updateEvent;
+  InitializeEventRecord(&updateEvent, nullptr);
+  updateEvent.what = updateEvt;
+  updateEvent.message = UInt32(window);
+
+  nsRefPtr<nsNPAPIPluginInstance> instance;
+  mPluginInstanceOwner->GetInstance(getter_AddRefs(instance));
+
+  instance->HandleEvent(&updateEvent, nullptr);
+  EndDrawPlugin();
+#endif
+}
+
 NS_IMETHODIMP nsChildView::StartDrawPlugin()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -1012,7 +1042,7 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
                "StartDrawPlugin must only be called on a plugin widget");
   if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
 
-  // This code is necessary for CoreGraphics in 32-bit builds.
+  // This code is necessary for both Quickdraw and CoreGraphics in 32-bit builds.
   // See comments below about why. In 64-bit CoreGraphics mode we will not keep
   // this region up to date, plugins should not depend on it.
 #ifndef __LP64__
@@ -1020,15 +1050,18 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   if (!window)
     return NS_ERROR_FAILURE;
 
-  // In QuickDraw drawing mode we used to prevent reentrant handling of any
-  // plugin event. But in CoreGraphics drawing mode only do this if the current
+  // In QuickDraw drawing mode, prevent reentrant handling of any plugin event
+  // (this emulates behavior on the 1.8 branch, where only QuickDraw mode is
+  // supported).  But in CoreGraphics drawing mode only do this if the current
   // plugin event isn't an update/paint event.  This allows popupcontextmenu()
   // to work properly from a plugin that supports the Cocoa event model,
   // without regressing bug 409615.  See bug 435041.  (StartDrawPlugin() and
   // EndDrawPlugin() wrap every call to nsIPluginInstance::HandleEvent() --
   // not just calls that "draw" or paint.)
-  if (mIsDispatchPaint && mPluginDrawing) {
-    return NS_ERROR_FAILURE;
+  bool isQDPlugin = [(ChildView*)mView pluginDrawingModel] == NPDrawingModelQuickDraw;
+  if (isQDPlugin || mIsDispatchPaint) {
+    if (mPluginDrawing)
+      return NS_ERROR_FAILURE;
   }
 
   // It appears that the WindowRef from which we get the plugin port undergoes the
@@ -1046,9 +1079,13 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
   if (::NewRgn && ::GetQDGlobalsThePort && ::GetGWorld && ::SetGWorld &&
       ::IsPortOffscreen && ::GetMainDevice && ::SetOrigin && ::RectRgn &&
       ::SetPortVisibleRegion && ::SetPortClipRegion && ::DisposeRgn) {
+    CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
+    if (isQDPlugin) {
+      port = mPluginQDPort.port;
+    }
+
     RgnHandle pluginRegion = ::NewRgn();
     if (pluginRegion) {
-      CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
       bool portChanged = (port != CGrafPtr(::GetQDGlobalsThePort()));
       CGrafPtr oldPort;
       GDHandle oldDevice;
@@ -1082,6 +1119,8 @@ NS_IMETHODIMP nsChildView::StartDrawPlugin()
         ::SetGWorld(oldPort, oldDevice);
       }
     }
+  } else {
+    NS_WARNING("Cannot set plugin's visible region -- required QuickDraw APIs are missing!");
   }
 #endif
 
@@ -1331,13 +1370,16 @@ NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect)
   if (!mView || !mVisible)
     return NS_OK;
 
+  NSRect r;
+  nsCocoaUtils::GeckoRectToNSRect(aRect, r);
+  
   if ([NSView focusView]) {
     // if a view is focussed (i.e. being drawn), then postpone the invalidate so that we
     // don't lose it.
-    [mView setNeedsPendingDisplayInRect:DevPixelsToCocoaPoints(aRect)];
+    [mView setNeedsPendingDisplayInRect:r];
   }
   else {
-    [mView setNeedsDisplayInRect:DevPixelsToCocoaPoints(aRect)];
+    [mView setNeedsDisplayInRect:r];
   }
 
   return NS_OK;
@@ -1390,10 +1432,15 @@ nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigur
     // it from here.  See bug 592563.
     child->Show(!config.mClipRegion.IsEmpty());
 
+    bool repaint = false;
+#ifndef NP_NO_QUICKDRAW
+    repaint = child->mView &&
+      [(ChildView*)child->mView pluginDrawingModel] == NPDrawingModelQuickDraw;
+#endif
     child->Resize(
         config.mBounds.x, config.mBounds.y,
         config.mBounds.width, config.mBounds.height,
-        false);
+        repaint);
 
     // Store the clip region here in case GetPluginClipRect needs it.
     child->StoreWindowClipRegion(config.mClipRegion);
@@ -1405,7 +1452,7 @@ nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigur
 NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
-  debug_DumpEvent(stdout, event->widget, event, nsAutoCString("something"), 0);
+  debug_DumpEvent(stdout, event->widget, event, nsCAutoString("something"), 0);
 #endif
 
   NS_ASSERTION(!(mTextInputHandler && mTextInputHandler->IsIMEComposing() &&
@@ -1490,26 +1537,27 @@ void nsChildView::ReportSizeEvent()
 #pragma mark -
 
 //    Return the offset between this child view and the screen.
-//    @return       -- widget origin in device-pixel coords
+//    @return       -- widget origin in screen coordinates
 nsIntPoint nsChildView::WidgetToScreenOffset()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  NSPoint origin = NSMakePoint(0, 0);
-
-  // 1. First translate view origin point into window coords.
-  // The returned point is in bottom-left coordinates.
-  origin = [mView convertPoint:origin toView:nil];
-
+  NSPoint temp;
+  temp.x = 0;
+  temp.y = 0;
+  
+  // 1. First translate this point into window coords. The returned point is always in
+  //    bottom-left coordinates.
+  temp = [mView convertPoint:temp toView:nil];  
+  
   // 2. We turn the window-coord rect's origin into screen (still bottom-left) coords.
-  origin = [[mView window] convertBaseToScreen:origin];
-
+  temp = [[mView window] convertBaseToScreen:temp];
+  
   // 3. Since we're dealing in bottom-left coords, we need to make it top-left coords
   //    before we pass it back to Gecko.
-  FlipCocoaScreenCoordinate(origin);
-
-  // convert to device pixels
-  return CocoaPointsToDevPixels(origin);
+  FlipCocoaScreenCoordinate(temp);
+  
+  return nsIntPoint(NSToIntRound(temp.x), NSToIntRound(temp.y));
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
 }
@@ -1845,8 +1893,7 @@ nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometri
       unifiedToolbarHeight = g.mRect.YMost();
     }
   }
-  [(ToolbarWindow*)win
-    setUnifiedToolbarHeight:DevPixelsToCocoaPoints(unifiedToolbarHeight)];
+  [(ToolbarWindow*)win setUnifiedToolbarHeight:unifiedToolbarHeight];
 }
 
 NS_IMETHODIMP
@@ -1950,8 +1997,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mPluginEventModel = NPEventModelCocoa;
 #endif
 #ifndef NP_NO_QUICKDRAW
-    // We don't support the Quickdraw drawing model any more but it's still
-    // the default model for i386 per NPAPI.
     mPluginDrawingModel = NPDrawingModelQuickDraw;
 #else
     mPluginDrawingModel = NPDrawingModelCoreGraphics;
@@ -2073,7 +2118,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
   [[NSNotificationCenter defaultCenter] removeObserver:self];
   [[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
 
-  [super dealloc];
+  [super dealloc];    
+
+#ifndef NP_NO_QUICKDRAW
+  // This sets the current port to _savePort.
+  // todo: Only do if a Quickdraw plugin is present in the hierarchy!
+  // Check if ::SetPort() is available -- it probably won't be on
+  // OS X 10.8 and up.
+  if (::SetPort) {
+    ::SetPort(NULL);
+  }
+#endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2368,6 +2423,16 @@ NSEvent* gLastDragMouseDownEvent = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+#ifndef NP_NO_QUICKDRAW
+  // Set the current GrafPort to a "safe" port before calling [NSQuickDrawView lockFocus],
+  // so that the NSQuickDrawView stashes a pointer to this known-good port internally.
+  // It will set the port back to this port on destruction.
+  // Check if ::SetPort() is available -- it probably won't be on OS X 10.8 and up.
+  if (::SetPort) {
+    ::SetPort(NULL);  // todo: only do if a Quickdraw plugin is present in the hierarchy!
+  }
+#endif
+
   [super lockFocus];
 
   if (mGLContext) {
@@ -2391,22 +2456,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 - (void) _surfaceNeedsUpdate:(NSNotification*)notification
 {
    [self update];
-}
-
-- (BOOL)wantsBestResolutionOpenGLSurface
-{
-  return nsCocoaUtils::HiDPIEnabled() ? YES : NO;
-}
-
-- (void)viewDidChangeBackingProperties
-{
-  [super viewDidChangeBackingProperties];
-  if (mGeckoChild) {
-    // actually, it could be the color space that's changed,
-    // but we can't tell the difference here except by retrieving
-    // the backing scale factor and comparing to the old value
-    mGeckoChild->BackingScaleFactorChanged();
-  }
 }
 
 // The display system has told us that a portion of our view is dirty. Tell
@@ -2440,7 +2489,15 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGeckoChild || !mGeckoChild->IsVisible())
     return;
 
-  // Don't ever draw plugin views explicitly; they'll be drawn as part of their parent widget.
+#ifndef NP_NO_QUICKDRAW
+  if (mIsPluginView && mPluginDrawingModel == NPDrawingModelQuickDraw) {
+    mGeckoChild->PaintQD();
+    return;
+  }
+#endif
+
+  // Don't ever draw non-QuickDraw plugin views explicitly; they'll be drawn as
+  // part of their parent widget.
   if (mIsPluginView)
     return;
 
@@ -2458,20 +2515,36 @@ NSEvent* gLastDragMouseDownEvent = nil;
 #endif
   nsIntRegion region;
 
-  nsIntRect boundingRect = mGeckoChild->CocoaPointsToDevPixels(aRect);
+  nsIntRect boundingRect =
+    nsIntRect(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height);
   const NSRect *rects;
   NSInteger count, i;
   [[NSView focusView] getRectsBeingDrawn:&rects count:&count];
   if (count < MAX_RECTS_IN_REGION) {
     for (i = 0; i < count; ++i) {
       // Add the rect to the region.
-      NSRect r = [self convertRect:rects[i] fromView:[NSView focusView]];
-      region.Or(region, mGeckoChild->CocoaPointsToDevPixels(r));
+      const NSRect& r = [self convertRect:rects[i] fromView:[NSView focusView]];
+      region.Or(region, nsIntRect(r.origin.x, r.origin.y, r.size.width, r.size.height));
     }
     region.And(region, boundingRect);
   } else {
     region = boundingRect;
   }
+
+#ifndef NP_NO_QUICKDRAW
+  // Subtract quickdraw plugin rectangles from the region
+  NSArray* subviews = [self subviews];
+  for (int i = 0; i < int([subviews count]); ++i) {
+    NSView* view = [subviews objectAtIndex:i];
+    if (![view isKindOfClass:[ChildView class]] || [view isHidden])
+      continue;
+    ChildView* cview = (ChildView*) view;
+    if ([cview isPluginView] && [cview pluginDrawingModel] == NPDrawingModelQuickDraw) {
+      NSRect frame = [view frame];
+      region.Sub(region, nsIntRect(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height));
+    }
+  }
+#endif
 
   LayerManager *layerManager = mGeckoChild->GetLayerManager(nullptr);
   if (layerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
@@ -2501,24 +2574,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   // Create Cairo objects.
-
-  // The CGContext that drawRect supplies us with comes with a transform that
-  // scales one user space unit to one Cocoa point, which can consist of
-  // multiple dev pixels. But Gecko expects its supplied context to be scaled
-  // to device pixels, so we need to reverse the scaling.
-  double scale = mGeckoChild->BackingScaleFactor();
-  CGContextScaleCTM(aContext, 1.0 / scale, 1.0 / scale);
-
-  NSSize viewSize = [self bounds].size;
-  nsIntSize backingSize(viewSize.width * scale, viewSize.height * scale);
-
+  NSSize bufferSize = [self bounds].size;
   nsRefPtr<gfxQuartzSurface> targetSurface =
-    new gfxQuartzSurface(aContext, backingSize);
+    new gfxQuartzSurface(aContext, gfxSize(bufferSize.width, bufferSize.height));
   targetSurface->SetAllowUseAsSource(false);
 
   nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
-
-  gfxContextMatrixAutoSaveRestore save(targetContext);
 
   // Set up the clip region.
   nsIntRegionRectIterator iter(region);
@@ -2553,7 +2614,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // Gecko refused to draw, but we've claimed to be opaque, so we have to
     // draw something--fill with white.
     CGContextSetRGBFillColor(aContext, 1, 1, 1, 1);
-    CGContextFillRect(aContext, NSRectToCGRect(aRect));
+    CGContextFillRect(aContext, CGRectMake(aRect.origin.x, aRect.origin.y,
+                                           aRect.size.width, aRect.size.height));
   }
 
   // note that the cairo surface *MUST* be destroyed at this point,
@@ -2569,10 +2631,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
                             ((((unsigned long)self) & 0xff00) >> 8) / 255.0,
                             ((((unsigned long)self) & 0xff0000) >> 16) / 255.0,
                             0.5);
-#endif
+#endif 
   CGContextSetRGBStrokeColor(aContext, 1, 0, 0, 0.8);
   CGContextSetLineWidth(aContext, 4.0);
-  CGContextStrokeRect(aContext, NSRectToCGRect(aRect));
+  CGContextStrokeRect(aContext,
+                      CGRectMake(aRect.origin.x, aRect.origin.y, aRect.size.width, aRect.size.height));
 #endif
 }
 
@@ -2720,7 +2783,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // if we're dealing with menus, we probably have submenus and
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
-      uint32_t popupsToRollup = UINT32_MAX;
+      uint32_t popupsToRollup = PR_UINT32_MAX;
       if (gRollupListener) {
         nsAutoTArray<nsIWidget*, 5> widgetChain;
         uint32_t sameTypeCount = gRollupListener->GetSubmenuWidgetChain(&widgetChain);
@@ -3310,7 +3373,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   uint32_t msg = aEnter ? NS_MOUSE_ENTER : NS_MOUSE_EXIT;
   nsMouseEvent event(true, msg, mGeckoChild, nsMouseEvent::eReal);
-  event.refPoint = mGeckoChild->CocoaPointsToDevPixels(localEventLocation);
+  event.refPoint.x = nscoord((int32_t)localEventLocation.x);
+  event.refPoint.y = nscoord((int32_t)localEventLocation.y);
 
   // Create event for use by plugins.
   // This is going to our child view so we don't need to look up the destination
@@ -3671,13 +3735,12 @@ static int32_t RoundUp(double aDouble)
     // touchpad or a Mighty Mouse. On those devices, [theEvent deviceDeltaX/Y]
     // contains the amount of pixels to scroll. Since Lion this has changed 
     // to [theEvent scrollingDeltaX/Y].
-    double scale = mGeckoChild->BackingScaleFactor();
     if ([theEvent respondsToSelector:@selector(scrollingDeltaX)]) {
-      wheelEvent.deltaX = -[theEvent scrollingDeltaX] * scale;
-      wheelEvent.deltaY = -[theEvent scrollingDeltaY] * scale;
+      wheelEvent.deltaX = -[theEvent scrollingDeltaX];
+      wheelEvent.deltaY = -[theEvent scrollingDeltaY];
     } else {
-      wheelEvent.deltaX = -[theEvent deviceDeltaX] * scale;
-      wheelEvent.deltaY = -[theEvent deviceDeltaY] * scale;
+      wheelEvent.deltaX = -[theEvent deviceDeltaX];
+      wheelEvent.deltaY = -[theEvent deviceDeltaY];
     }
   } else {
     wheelEvent.deltaX = -[theEvent deltaX];
@@ -3854,8 +3917,8 @@ static int32_t RoundUp(double aDouble)
   // convert point to view coordinate system
   NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, [self window]);
   NSPoint localPoint = [self convertPoint:locationInWindow fromView:nil];
-
-  outGeckoEvent->refPoint = mGeckoChild->CocoaPointsToDevPixels(localPoint);
+  outGeckoEvent->refPoint.x = static_cast<nscoord>(localPoint.x);
+  outGeckoEvent->refPoint.y = static_cast<nscoord>(localPoint.y);
 
   nsMouseEvent_base* mouseEvent =
     static_cast<nsMouseEvent_base*>(outGeckoEvent);
@@ -4368,10 +4431,9 @@ static int32_t RoundUp(double aDouble)
 
   // Use our own coordinates in the gecko event.
   // Convert event from gecko global coords to gecko view coords.
-  NSPoint draggingLoc = [aSender draggingLocation];
-  NSPoint localPoint = [self convertPoint:draggingLoc fromView:nil];
-
-  geckoEvent.refPoint = mGeckoChild->CocoaPointsToDevPixels(localPoint);
+  NSPoint localPoint = [self convertPoint:[aSender draggingLocation] fromView:nil];
+  geckoEvent.refPoint.x = static_cast<nscoord>(localPoint.x);
+  geckoEvent.refPoint.y = static_cast<nscoord>(localPoint.y);
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGeckoChild->DispatchWindowEvent(geckoEvent);

@@ -101,7 +101,6 @@ _ABS_DIST = $(call core_abspath,$(DIST))
 JARLOG_DIR = $(call core_abspath,$(DEPTH)/jarlog/)
 JARLOG_DIR_AB_CD = $(JARLOG_DIR)/$(AB_CD)
 
-TAR_CREATE_FLAGS := --exclude=.mkdir.done $(TAR_CREATE_FLAGS)
 CREATE_FINAL_TAR = $(TAR) -c --owner=0 --group=0 --numeric-owner \
   --mode="go-w" --exclude=.mkdir.done -f
 UNPACK_TAR       = tar -xf-
@@ -245,7 +244,7 @@ endif #Create an RPM file
 ifeq ($(MOZ_PKG_FORMAT),APK)
 
 JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar
-include $(MOZILLA_DIR)/config/android-common.mk
+include $(topsrcdir)/config/android-common.mk
 
 JARSIGNER ?= echo
 
@@ -305,7 +304,7 @@ NON_DIST_FILES = \
 
 UPLOAD_EXTRA_FILES += gecko-unsigned-unaligned.apk
 
-include $(MOZILLA_DIR)/ipc/app/defs.mk
+include $(topsrcdir)/ipc/app/defs.mk
 
 DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
 
@@ -456,16 +455,18 @@ _ABS_RUN_TEST_PROGRAM = $(call core_abspath,$(RUN_TEST_PROGRAM))
 endif
 
 ifdef LIBXUL_SDK
+PRECOMPILE_DIR=XCurProcD
 PRECOMPILE_RESOURCE=app
 PRECOMPILE_GRE=$(LIBXUL_DIST)/bin
 else
+PRECOMPILE_DIR=GreD
 PRECOMPILE_RESOURCE=gre
 PRECOMPILE_GRE=$$PWD
 endif
 
 # Silence the unzip step so we don't print any binary data from the comment field.
 GENERATE_CACHE = \
-  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(call core_abspath,$(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js) -e "populate_startupcache('startupCache.zip');" && \
+  $(_ABS_RUN_TEST_PROGRAM) $(LIBXUL_DIST)/bin/xpcshell$(BIN_SUFFIX) -g "$(PRECOMPILE_GRE)" -a "$$PWD" -f $(call core_abspath,$(MOZILLA_DIR)/toolkit/mozapps/installer/precompile_cache.js) -e "populate_startupcache('$(PRECOMPILE_DIR)', '$(OMNIJAR_NAME)', 'startupCache.zip');" && \
   rm -rf jsloader jssubloader && \
   $(UNZIP) -q startupCache.zip && \
   rm startupCache.zip && \
@@ -565,19 +566,20 @@ MOZ_SIGN_PACKAGE_CMD=$(MOZ_SIGN_CMD) $(foreach f,$(MOZ_EXTERNAL_SIGNING_FORMAT),
 endif
 
 ifdef MOZ_SIGN_PREPARED_PACKAGE_CMD
-ifeq (Darwin, $(OS_ARCH))
-MAKE_PACKAGE    = cd ./$(PKG_DMG_SOURCE) && $(MOZ_SIGN_PREPARED_PACKAGE_CMD) $(MOZ_MACBUNDLE_NAME) \
+ifeq (Darwin, $(OS_ARCH)) 
+MAKE_PACKAGE    = $(PREPARE_PACKAGE) \
+                  && cd ./$(PKG_DMG_SOURCE) && $(MOZ_SIGN_PREPARED_PACKAGE_CMD) $(MOZ_MACBUNDLE_NAME) \
                   && rm $(MOZ_MACBUNDLE_NAME)/Contents/CodeResources \
                   && cp $(MOZ_MACBUNDLE_NAME)/Contents/_CodeSignature/CodeResources $(MOZ_MACBUNDLE_NAME)/Contents \
                   && cd $(PACKAGE_BASE_DIR) \
                   && $(INNER_MAKE_PACKAGE)
 else
-MAKE_PACKAGE    = $(MOZ_SIGN_PREPARED_PACKAGE_CMD) \
+MAKE_PACKAGE    = $(PREPARE_PACKAGE) && $(MOZ_SIGN_PREPARED_PACKAGE_CMD) \
 		  $(MOZ_PKG_DIR) && $(INNER_MAKE_PACKAGE)
 endif #Darwin
 
 else
-MAKE_PACKAGE    = $(INNER_MAKE_PACKAGE)
+MAKE_PACKAGE    = $(PREPARE_PACKAGE) && $(INNER_MAKE_PACKAGE)
 endif
 
 ifdef MOZ_SIGN_PACKAGE_CMD
@@ -646,6 +648,7 @@ NO_PKG_FILES += \
 	mangle* \
 	maptsv* \
 	mfc* \
+	mkdepend* \
 	msdump* \
 	msmap* \
 	nm2tsv* \
@@ -718,13 +721,19 @@ $(PERL) -I$(MOZILLA_DIR)/toolkit/mozapps/installer -e 'use Packager; \
        Packager::Copy($1,$2,$3,$4,$5,$(MOZ_PKG_FATAL_WARNINGS),$6,$7);'
 endef
 
-installer-stage: prepare-package
+installer-stage: stage-package
 ifndef MOZ_PKG_MANIFEST
 	$(error MOZ_PKG_MANIFEST unspecified!)
 endif
 	@rm -rf $(DEPTH)/installer-stage $(DIST)/xpt
 	@echo "Staging installer files..."
 	@$(NSINSTALL) -D $(DEPTH)/installer-stage/core
+ifdef MOZ_OMNIJAR
+	@(cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR))
+ifdef MOZ_WEBAPP_RUNTIME
+	@(cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/webapprt && $(PACK_OMNIJAR_WEBAPP_RUNTIME))
+endif
+endif
 	@cp -av $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/. $(DEPTH)/installer-stage/core
 	@(cd $(DEPTH)/installer-stage/core && $(CREATE_PRECOMPLETE_CMD))
 ifdef MOZ_SIGN_PREPARED_PACKAGE_CMD
@@ -851,10 +860,7 @@ ifdef MOZ_PACKAGE_JSSHELL
 endif # MOZ_PACKAGE_JSSHELL
 endif # LIBXUL_SDK
 
-prepare-package: stage-package
-	cd $(DIST) && $(PREPARE_PACKAGE)
-
-make-package-internal: prepare-package make-sourcestamp-file
+make-package-internal: stage-package $(PACKAGE_XULRUNNER) make-sourcestamp-file
 	@echo "Compressing..."
 	cd $(DIST) && $(MAKE_PACKAGE)
 
@@ -882,15 +888,21 @@ make-sourcestamp-file::
 # dist/idl -> prefix/share/idl/appname-version
 # dist/sdk/lib -> prefix/lib/appname-devel-version/lib
 # prefix/lib/appname-devel-version/* symlinks to the above directories
-install:: prepare-package
+install:: stage-package
 ifeq ($(OS_ARCH),WINNT)
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 ifeq (bundle,$(MOZ_FS_LAYOUT))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
+ifdef MOZ_OMNIJAR
+	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && $(PACK_OMNIJAR)
+ifdef MOZ_WEBAPP_RUNTIME
+	cd $(DIST)/$(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/webapprt && $(PACK_OMNIJAR_WEBAPP_RUNTIME)
+endif
+endif
 	$(NSINSTALL) -D $(DESTDIR)$(installdir)
-	(cd $(DIST)/$(MOZ_PKG_DIR) && tar --exclude=precomplete $(TAR_CREATE_FLAGS) - .) | \
+	(cd $(DIST)/$(MOZ_PKG_DIR) && tar $(TAR_CREATE_FLAGS) - .) | \
 	  (cd $(DESTDIR)$(installdir) && tar -xf -)
 	$(NSINSTALL) -D $(DESTDIR)$(bindir)
 	$(RM) -f $(DESTDIR)$(bindir)/$(MOZ_APP_NAME)
@@ -990,10 +1002,6 @@ UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(COMPLETE_MAR).asc)
 UPLOAD_FILES += $(call QUOTED_WILDCARD,$(wildcard $(DIST)/$(PARTIAL_MAR).asc))
 UPLOAD_FILES += $(call QUOTED_WILDCARD,$(INSTALLER_PACKAGE).asc)
 UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(PACKAGE).asc)
-endif
-
-ifdef MOZ_STUB_INSTALLER
-UPLOAD_FILES += $(call QUOTED_WILDCARD,$(DIST)/$(PKG_INST_PATH)$(PKG_STUB_BASENAME).exe)
 endif
 
 checksum:

@@ -7,6 +7,7 @@
 
 #include "nsIDOMHTMLProgressElement.h"
 #include "nsIContent.h"
+#include "prtypes.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
@@ -20,7 +21,6 @@
 #include "nsContentList.h"
 #include "nsFontMetrics.h"
 #include "mozilla/dom/Element.h"
-#include "nsContentList.h"
 
 
 nsIFrame*
@@ -223,7 +223,7 @@ nsProgressFrame::AttributeChanged(int32_t  aNameSpaceID,
     NS_ASSERTION(barFrame, "The progress frame should have a child with a frame!");
     PresContext()->PresShell()->FrameNeedsReflow(barFrame, nsIPresShell::eResize,
                                                  NS_FRAME_IS_DIRTY);
-    InvalidateFrame();
+    Invalidate(GetVisualOverflowRectRelativeToSelf());
   }
 
   return nsContainerFrame::AttributeChanged(aNameSpaceID, aAttribute, aModType);

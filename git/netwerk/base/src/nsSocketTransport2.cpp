@@ -24,7 +24,6 @@
 #include "prnetdb.h"
 #include "prerror.h"
 #include "prerr.h"
-#include "NetworkActivityMonitor.h"
 
 #include "nsIServiceManager.h"
 #include "nsISocketProviderService.h"
@@ -703,8 +702,8 @@ nsSocketTransport::nsSocketTransport()
 
     NS_ADDREF(gSocketTransportService);
 
-    mTimeouts[TIMEOUT_CONNECT]    = UINT16_MAX; // no timeout
-    mTimeouts[TIMEOUT_READ_WRITE] = UINT16_MAX; // no timeout
+    mTimeouts[TIMEOUT_CONNECT]    = PR_UINT16_MAX; // no timeout
+    mTimeouts[TIMEOUT_READ_WRITE] = PR_UINT16_MAX; // no timeout
 }
 
 nsSocketTransport::~nsSocketTransport()
@@ -882,7 +881,7 @@ nsSocketTransport::SendStatus(nsresult status)
         }
     }
     if (sink)
-        sink->OnTransportStatus(this, status, progress, UINT64_MAX);
+        sink->OnTransportStatus(this, status, progress, LL_MAXUINT);
 }
 
 nsresult
@@ -1049,10 +1048,6 @@ nsSocketTransport::InitiateSocket()
 
     nsresult rv;
 
-    if (gIOService->IsOffline() &&
-        !PR_IsNetAddrType(&mNetAddr, PR_IpAddrLoopback))
-        return NS_ERROR_OFFLINE;
-
     //
     // find out if it is going to be ok to attach another socket to the STS.
     // if not then we have to wait for the STS to tell us that it is ok.
@@ -1095,9 +1090,6 @@ nsSocketTransport::InitiateSocket()
         SOCKET_LOG(("  BuildSocket failed [rv=%x]\n", rv));
         return rv;
     }
-
-    // Attach network activity monitor
-    mozilla::net::NetworkActivityMonitor::AttachIOLayer(fd);
 
     PRStatus status;
 
@@ -1672,15 +1664,6 @@ nsSocketTransport::OnSocketDetached(PRFileDesc *fd)
     }
 }
 
-void
-nsSocketTransport::IsLocal(bool *aIsLocal)
-{
-    {
-        MutexAutoLock lock(mLock);
-        *aIsLocal = PR_IsNetAddrType(&mNetAddr, PR_IpAddrLoopback);
-    }
-}
-
 //-----------------------------------------------------------------------------
 // xpcom api
 
@@ -1987,7 +1970,7 @@ nsSocketTransport::SetTimeout(uint32_t type, uint32_t value)
 {
     NS_ENSURE_ARG_MAX(type, nsISocketTransport::TIMEOUT_READ_WRITE);
     // truncate overly large timeout values.
-    mTimeouts[type] = (uint16_t) NS_MIN<uint32_t>(value, UINT16_MAX);
+    mTimeouts[type] = (uint16_t) NS_MIN(value, PR_UINT16_MAX);
     PostEvent(MSG_TIMEOUT_CHANGED);
     return NS_OK;
 }
@@ -2256,7 +2239,7 @@ nsSocketTransport::TraceInBuf(const char *buf, int32_t n)
     if (!val || !*val)
         return;
 
-    nsAutoCString header;
+    nsCAutoString header;
     header.Assign(NS_LITERAL_CSTRING("Reading from: ") + mHost);
     header.Append(':');
     header.AppendInt(mPort);
@@ -2271,7 +2254,7 @@ nsSocketTransport::TraceOutBuf(const char *buf, int32_t n)
     if (!val || !*val)
         return;
 
-    nsAutoCString header;
+    nsCAutoString header;
     header.Assign(NS_LITERAL_CSTRING("Writing to: ") + mHost);
     header.Append(':');
     header.AppendInt(mPort);

@@ -51,6 +51,30 @@ RTPSenderAudio::~RTPSenderAudio()
 }
 
 WebRtc_Word32
+RTPSenderAudio::Init()
+{
+    CriticalSectionScoped cs(_sendAudioCritsect);
+
+    _dtmfPayloadType = -1;
+    _inbandVADactive = false;
+    _cngNBPayloadType = -1;
+    _cngWBPayloadType = -1;
+    _cngSWBPayloadType = -1;
+    _lastPayloadType = -1;
+    _REDPayloadType = -1;
+    _dtmfTimeLastSent = 0;
+    _dtmfTimestampLastSent = 0;
+    ResetDTMF();
+    return 0;
+}
+
+void
+RTPSenderAudio::ChangeUniqueId(const WebRtc_Word32 id)
+{
+    _id = id;
+}
+
+WebRtc_Word32
 RTPSenderAudio::RegisterAudioCallback(RtpAudioFeedback* messagesCallback)
 {
     CriticalSectionScoped cs(_audioFeedbackCritsect);
@@ -203,7 +227,7 @@ RTPSenderAudio::SendTelephoneEventActive(WebRtc_Word8& telephoneEvent) const
         telephoneEvent = _dtmfKey;
         return true;
     }
-    WebRtc_Word64 delaySinceLastDTMF = _clock.GetTimeInMS() - _dtmfTimeLastSent;
+    WebRtc_UWord32 delaySinceLastDTMF = (_clock.GetTimeInMS() - _dtmfTimeLastSent);
     if(delaySinceLastDTMF < 100)
     {
         telephoneEvent = _dtmfKey;
@@ -231,7 +255,8 @@ WebRtc_Word32 RTPSenderAudio::SendAudio(
   if (!_dtmfEventIsOn && PendingDTMF()) {
     CriticalSectionScoped cs(_sendAudioCritsect);
 
-    WebRtc_Word64 delaySinceLastDTMF = _clock.GetTimeInMS() - _dtmfTimeLastSent;
+    WebRtc_UWord32 delaySinceLastDTMF = _clock.GetTimeInMS() -
+        _dtmfTimeLastSent;
 
     if (delaySinceLastDTMF > 100) {
       // New tone to play
@@ -431,7 +456,7 @@ WebRtc_Word32 RTPSenderAudio::SendAudio(
             fragmentation->fragmentationLength[1]);
       } else {
         // silence for too long send only new data
-        dataBuffer[rtpHeaderLength++] = fragmentation->fragmentationPlType[0];
+        dataBuffer[rtpHeaderLength++] = static_cast<WebRtc_UWord8>(payloadType);
         memcpy(dataBuffer+rtpHeaderLength,
                payloadData + fragmentation->fragmentationOffset[0],
                fragmentation->fragmentationLength[0]);
@@ -442,7 +467,6 @@ WebRtc_Word32 RTPSenderAudio::SendAudio(
     } else {
       if (fragmentation && fragmentation->fragmentationVectorSize > 0) {
         // use the fragment info if we have one
-        dataBuffer[rtpHeaderLength++] = fragmentation->fragmentationPlType[0];
         memcpy( dataBuffer+rtpHeaderLength,
                 payloadData + fragmentation->fragmentationOffset[0],
                 fragmentation->fragmentationLength[0]);
@@ -458,7 +482,6 @@ WebRtc_Word32 RTPSenderAudio::SendAudio(
   return _rtpSender->SendToNetwork(dataBuffer,
                                    payloadSize,
                                    static_cast<WebRtc_UWord16>(rtpHeaderLength),
-                                   -1,
                                    kAllowRetransmission);
 }
 
@@ -593,7 +616,7 @@ RTPSenderAudio::SendTelephoneEventPacket(const bool ended,
         ModuleRTPUtility::AssignUWord16ToBuffer(dtmfbuffer+14, duration);
 
         _sendAudioCritsect->Leave();
-        retVal = _rtpSender->SendToNetwork(dtmfbuffer, 4, 12, -1,
+        retVal = _rtpSender->SendToNetwork(dtmfbuffer, 4, 12,
                                            kAllowRetransmission);
         sendCount--;
 

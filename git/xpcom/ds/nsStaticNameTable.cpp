@@ -152,7 +152,7 @@ nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], int32_t Count
 #ifdef DEBUG
         {
             // verify invariants of contents
-            nsAutoCString temp1(raw);
+            nsCAutoString temp1(raw);
             nsDependentCString temp2(raw);
             ToLowerCase(temp1);
             NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");

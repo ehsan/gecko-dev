@@ -64,9 +64,11 @@ TEST_F(RtpFormatVp8Test, TestStrictMode) {
       {true, false, true, true, false, false, false};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);
@@ -92,9 +94,11 @@ TEST_F(RtpFormatVp8Test, TestAggregateMode) {
   const bool kExpectedFragStart[] = {true, false, false, true};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);
@@ -120,9 +124,11 @@ TEST_F(RtpFormatVp8Test, TestAggregateModeManyPartitions1) {
   const bool kExpectedFragStart[] = {true, false, true, true};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);
@@ -148,9 +154,11 @@ TEST_F(RtpFormatVp8Test, TestAggregateModeManyPartitions2) {
   const bool kExpectedFragStart[] = {true, false, true, true, false, true};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);
@@ -176,9 +184,11 @@ TEST_F(RtpFormatVp8Test, TestAggregateModeTwoLargePartitions) {
   const bool kExpectedFragStart[] = {true, false, true, false};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);
@@ -204,9 +214,11 @@ TEST_F(RtpFormatVp8Test, TestEqualSizeModeFallback) {
   const bool kExpectedFragStart[] = {true, false, false, false};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->set_sloppy_partitioning(true);
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
@@ -233,9 +245,11 @@ TEST_F(RtpFormatVp8Test, TestNonReferenceBit) {
   const bool kExpectedFragStart[] = {true, false};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->set_sloppy_partitioning(true);
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
@@ -266,9 +280,11 @@ TEST_F(RtpFormatVp8Test, TestTl0PicIdxAndTID) {
   const bool kExpectedFragStart[1] = {true};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);
@@ -296,9 +312,11 @@ TEST_F(RtpFormatVp8Test, TestKeyIdx) {
   const bool kExpectedFragStart[1] = {true};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);
@@ -327,9 +345,11 @@ TEST_F(RtpFormatVp8Test, TestTIDAndKeyIdx) {
   const bool kExpectedFragStart[1] = {true};
   const int kExpectedNum = sizeof(kExpectedSizes) / sizeof(kExpectedSizes[0]);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]));
+      sizeof(kExpectedPart) / sizeof(kExpectedPart[0]),
+      kExpectedPart_wrong_size);
   COMPILE_ASSERT(kExpectedNum ==
-      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]));
+      sizeof(kExpectedFragStart) / sizeof(kExpectedFragStart[0]),
+      kExpectedFragStart_wrong_size);
 
   helper_->GetAllPacketsAndCheck(&packetizer, kExpectedSizes, kExpectedPart,
                                  kExpectedFragStart, kExpectedNum);

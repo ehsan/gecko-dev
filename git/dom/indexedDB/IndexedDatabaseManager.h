@@ -30,13 +30,6 @@ class nsITimer;
 class nsPIDOMWindow;
 class nsEventChainPostVisitor;
 
-namespace mozilla {
-namespace dom {
-class TabContext;
-}
-}
-
-
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
@@ -64,11 +57,11 @@ public:
 
   // Waits for databases to be cleared and for version change transactions to
   // complete before dispatching the given runnable.
-  nsresult WaitForOpenAllowed(const OriginOrPatternString& aOriginOrPattern,
+  nsresult WaitForOpenAllowed(const nsACString& aOrigin,
                               nsIAtom* aId,
                               nsIRunnable* aRunnable);
 
-  void AllowNextSynchronizedOp(const OriginOrPatternString& aOriginOrPattern,
+  void AllowNextSynchronizedOp(const nsACString& aOrigin,
                                nsIAtom* aId);
 
   nsIThread* IOThread()
@@ -176,7 +169,7 @@ public:
                  const nsAString& aDatabaseName,
                  FileManager* aFileManager);
 
-  void InvalidateFileManagersForPattern(const nsACString& aPattern);
+  void InvalidateFileManagersForOrigin(const nsACString& aOrigin);
 
   void InvalidateFileManager(const nsACString& aOrigin,
                              const nsAString& aDatabaseName);
@@ -207,13 +200,7 @@ public:
                 const nsAString& aName);
 
   static nsresult
-  FireWindowOnError(nsPIDOMWindow* aOwner,
-                    nsEventChainPostVisitor& aVisitor);
-
-  static bool
-  TabContextMayAccessOrigin(const mozilla::dom::TabContext& aContext,
-                            const nsACString& aOrigin);
-
+  FireWindowOnError(nsPIDOMWindow* aOwner, nsEventChainPostVisitor& aVisitor);
 private:
   IndexedDatabaseManager();
   ~IndexedDatabaseManager();
@@ -237,8 +224,6 @@ private:
 
   // Called when a database has been closed.
   void OnDatabaseClosed(IDBDatabase* aDatabase);
-
-  nsresult ClearDatabasesForApp(uint32_t aAppId, bool aBrowserOnly);
 
   // Responsible for clearing the database files for a particular origin on the
   // IO thread. Created when nsIIDBIndexedDatabaseManager::ClearDatabasesForURI
@@ -268,8 +253,8 @@ private:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIRUNNABLE
 
-    OriginClearRunnable(const OriginOrPatternString& aOriginOrPattern)
-    : mOriginOrPattern(aOriginOrPattern),
+    OriginClearRunnable(const nsACString& aOrigin)
+    : mOrigin(aOrigin),
       mCallbackState(Pending)
     { }
 
@@ -294,10 +279,8 @@ private:
                                    nsTArray<nsRefPtr<IDBDatabase> >& aDatabases,
                                    void* aClosure);
 
-    void DeleteFiles(IndexedDatabaseManager* aManager);
-
   private:
-    OriginOrPatternString mOriginOrPattern;
+    nsCString mOrigin;
     CallbackState mCallbackState;
   };
 
@@ -328,15 +311,12 @@ private:
       // Running on the main thread after skipping the work
       Shortcut
     };
-
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIRUNNABLE
 
-    AsyncUsageRunnable(uint32_t aAppId,
-                       bool aInMozBrowserOnly,
-                       const OriginOrPatternString& aOrigin,
-                       nsIURI* aURI,
+    AsyncUsageRunnable(nsIURI* aURI,
+                       const nsACString& aOrigin,
                        nsIIndexedDatabaseUsageCallback* aCallback);
 
     // Sets the canceled flag so that the callback is never called.
@@ -369,14 +349,13 @@ private:
                                   uint64_t* aUsage);
 
     nsCOMPtr<nsIURI> mURI;
+    nsCString mOrigin;
+
     nsCOMPtr<nsIIndexedDatabaseUsageCallback> mCallback;
     uint64_t mUsage;
     uint64_t mFileUsage;
-    uint32_t mAppId;
     int32_t mCanceled;
-    OriginOrPatternString mOrigin;
     CallbackState mCallbackState;
-    bool mInMozBrowserOnly;
   };
 
   // Called when AsyncUsageRunnable has finished its Run() method.
@@ -387,17 +366,16 @@ private:
   // clearing dbs for an origin, etc).
   struct SynchronizedOp
   {
-    SynchronizedOp(const OriginOrPatternString& aOriginOrPattern,
-                   nsIAtom* aId);
+    SynchronizedOp(const nsACString& aOrigin, nsIAtom* aId);
     ~SynchronizedOp();
 
-    // Test whether this SynchronizedOp needs to wait for the given op.
-    bool MustWaitFor(const SynchronizedOp& aOp);
+    // Test whether the second SynchronizedOp needs to get behind this one.
+    bool MustWaitFor(const SynchronizedOp& aRhs) const;
 
     void DelayRunnable(nsIRunnable* aRunnable);
     void DispatchDelayedRunnables();
 
-    const OriginOrPatternString mOriginOrPattern;
+    const nsCString mOrigin;
     nsCOMPtr<nsIAtom> mId;
     nsRefPtr<AsyncConnectionHelper> mHelper;
     nsCOMPtr<nsIRunnable> mRunnable;
@@ -464,12 +442,22 @@ private:
   static nsresult RunSynchronizedOp(IDBDatabase* aDatabase,
                                     SynchronizedOp* aOp);
 
-  SynchronizedOp* FindSynchronizedOp(const nsACString& aPattern,
-                                     nsIAtom* aId);
-
-  bool IsClearOriginPending(const nsACString& aPattern)
+  SynchronizedOp* FindSynchronizedOp(const nsACString& aOrigin,
+                                     nsIAtom* aId)
   {
-    return !!FindSynchronizedOp(aPattern, nullptr);
+    for (uint32_t index = 0; index < mSynchronizedOps.Length(); index++) {
+      const nsAutoPtr<SynchronizedOp>& currentOp = mSynchronizedOps[index];
+      if (currentOp->mOrigin == aOrigin &&
+          (!currentOp->mId || currentOp->mId == aId)) {
+        return currentOp;
+      }
+    }
+    return nullptr;
+  }
+
+  bool IsClearOriginPending(const nsACString& aOrigin)
+  {
+    return !!FindSynchronizedOp(aOrigin, nullptr);
   }
 
   // Maintains a list of live databases per origin.

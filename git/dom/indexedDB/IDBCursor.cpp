@@ -95,7 +95,7 @@ public:
   PackArgumentsForParentProcess(CursorRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -746,7 +746,7 @@ IDBCursor::Advance(int64_t aCount)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (aCount < 1 || aCount > UINT32_MAX) {
+  if (aCount < 1 || aCount > PR_UINT32_MAX) {
     return NS_ERROR_TYPE_ERR;
   }
 
@@ -766,12 +766,6 @@ CursorHelper::Dispatch(nsIEventTarget* aDatabaseThread)
 {
   if (IndexedDatabaseManager::IsMainProcess()) {
     return AsyncConnectionHelper::Dispatch(aDatabaseThread);
-  }
-
-  // If we've been invalidated then there's no point sending anything to the
-  // parent process.
-  if (mCursor->Transaction()->Database()->IsInvalidated()) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   IndexedDBCursorChild* cursorActor = mCursor->GetActorChild();
@@ -802,7 +796,7 @@ ContinueHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   // (less than, if we're running a PREV cursor) or equal to the key that was
   // specified.
 
-  nsAutoCString query;
+  nsCAutoString query;
   if (mCursor->mContinueToKey.IsUnset()) {
     query.Assign(mCursor->mContinueQuery);
   }
@@ -880,14 +874,16 @@ ContinueHelper::PackArgumentsForParentProcess(CursorRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-ContinueHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+ContinueHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   InfallibleTArray<PBlobParent*> blobsParent;
 
@@ -924,7 +920,7 @@ ContinueHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = continueResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 

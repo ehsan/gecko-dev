@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -71,24 +71,21 @@ int WebRtcAec_FreeResampler(void *resampInst)
     return 0;
 }
 
-void WebRtcAec_ResampleLinear(void *resampInst,
-                              const short *inspeech,
-                              int size,
-                              float skew,
-                              short *outspeech,
-                              int *size_out)
+int WebRtcAec_ResampleLinear(void *resampInst,
+                             const short *inspeech,
+                             int size,
+                             float skew,
+                             short *outspeech)
 {
     resampler_t *obj = (resampler_t*) resampInst;
 
     short *y;
     float be, tnew, interp;
-    int tn, mm;
+    int tn, outsize, mm;
 
-    assert(!(size < 0 || size > 2 * FRAME_LEN));
-    assert(resampInst != NULL);
-    assert(inspeech != NULL);
-    assert(outspeech != NULL);
-    assert(size_out != NULL);
+    if (size < 0 || size > 2 * FRAME_LEN) {
+        return -1;
+    }
 
     // Add new frame data in lookahead
     memcpy(&obj->buffer[FRAME_LEN + kResamplingDelay],
@@ -124,13 +121,15 @@ void WebRtcAec_ResampleLinear(void *resampInst,
         tn = (int) tnew;
     }
 
-    *size_out = mm;
-    obj->position += (*size_out) * be - size;
+    outsize = mm;
+    obj->position += outsize * be - size;
 
     // Shift buffer
     memmove(obj->buffer,
             &obj->buffer[size],
             (kResamplerBufferSize - size) * sizeof(short));
+
+    return outsize;
 }
 
 int WebRtcAec_GetSkew(void *resampInst, int rawSkew, float *skewEst)

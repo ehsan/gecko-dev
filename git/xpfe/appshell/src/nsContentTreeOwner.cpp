@@ -312,8 +312,9 @@ nsContentTreeOwner::SetPersistence(bool aPersistPosition,
                                    bool aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
-  if (!docShellElement)
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
+  if(!docShellElement)
     return NS_ERROR_FAILURE;
 
   nsAutoString persistString;
@@ -380,8 +381,9 @@ nsContentTreeOwner::GetPersistence(bool* aPersistPosition,
                                    bool* aPersistSizeMode)
 {
   NS_ENSURE_STATE(mXULWindow);
-  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
-  if (!docShellElement)
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
+  if(!docShellElement) 
     return NS_ERROR_FAILURE;
 
   nsAutoString persistString;
@@ -565,12 +567,6 @@ NS_IMETHODIMP nsContentTreeOwner::Destroy()
    return mXULWindow->Destroy();
 }
 
-NS_IMETHODIMP nsContentTreeOwner::GetUnscaledDevicePixelsPerCSSPixel(double* aScale)
-{
-   NS_ENSURE_STATE(mXULWindow);
-   return mXULWindow->GetUnscaledDevicePixelsPerCSSPixel(aScale);
-}
-
 NS_IMETHODIMP nsContentTreeOwner::SetPosition(int32_t aX, int32_t aY)
 {
    NS_ENSURE_STATE(mXULWindow);
@@ -729,7 +725,8 @@ NS_IMETHODIMP nsContentTreeOwner::SetTitle(const PRUnichar* aTitle)
   // if there is no location bar we modify the title to display at least
   // the scheme and host (if any) as an anti-spoofing measure.
   //
-  nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
+  nsCOMPtr<nsIDOMElement> docShellElement;
+  mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
 
   if (docShellElement) {
     nsAutoString chromeString;
@@ -760,8 +757,8 @@ NS_IMETHODIMP nsContentTreeOwner::SetTitle(const PRUnichar* aTitle)
               nsresult rv = fixup->CreateExposableURI(uri,getter_AddRefs(tmpuri));
               if (NS_SUCCEEDED(rv) && tmpuri) {
                 // (don't bother if there's no host)
-                nsAutoCString host;
-                nsAutoCString prepath;
+                nsCAutoString host;
+                nsCAutoString prepath;
                 tmpuri->GetHost(host);
                 tmpuri->GetPrePath(prepath);
                 if (!host.IsEmpty()) {
@@ -851,7 +848,7 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
   // open a modal-type window, we're going to create a new <iframe mozbrowser>
   // and return its window here.
   nsCOMPtr<nsIDocShell> docshell = do_GetInterface(aParent);
-  if (docshell && docshell->GetIsInBrowserOrApp() &&
+  if (docshell && docshell->GetIsBelowContentBoundary() &&
       !(aChromeFlags & (nsIWebBrowserChrome::CHROME_MODAL |
                         nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                         nsIWebBrowserChrome::CHROME_OPENAS_CHROME))) {
@@ -959,9 +956,11 @@ private:
 void nsContentTreeOwner::XULWindow(nsXULWindow* aXULWindow)
 {
    mXULWindow = aXULWindow;
-   if (mXULWindow && mPrimary) {
+   if(mXULWindow && mPrimary)
+      {
       // Get the window title modifiers
-      nsCOMPtr<nsIDOMElement> docShellElement = mXULWindow->GetWindowDOMElement();
+      nsCOMPtr<nsIDOMElement> docShellElement;
+      mXULWindow->GetWindowDOMElement(getter_AddRefs(docShellElement));
 
       nsAutoString   contentTitleSetting;
 

@@ -17,7 +17,6 @@ class SkMatrix;
 class SkPath;
 class SkPDFArray;
 struct SkRect;
-class SkWStream;
 
 #if 0
 #define PRINT_NOT_IMPL(str) fprintf(stderr, str)

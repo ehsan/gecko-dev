@@ -170,24 +170,18 @@ function test()
   {
     let scriptsView = gView.Scripts;
     let scriptLocations = scriptsView.scriptLocations;
+    info("Available scripts: " + scriptLocations);
 
-    // Poll every few milliseconds until the scripts are retrieved.
-    let count = 0;
-    let intervalID = window.setInterval(function() {
-      dump("count: " + count + " ");
-      if (++count > 50) {
-        ok(false, "Timed out while polling for the scripts.");
-        closeDebuggerAndFinish();
-      }
-      if (scriptLocations.length !== 2) {
-        return;
-      }
-      info("Available scripts: " + scriptLocations);
-
+    if (scriptLocations.length === 2) {
       // We got all the scripts, it's safe to switch.
-      window.clearInterval(intervalID);
       scriptsView.selectScript(scriptLocations[index]);
-    }, 100);
+      return;
+    }
+
+    window.addEventListener("Debugger:AfterNewScript", function _onEvent(aEvent) {
+      window.removeEventListener(aEvent.type, _onEvent);
+      switchScript(index);
+    });
   }
 
   function reloadPage()

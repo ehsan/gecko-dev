@@ -26,7 +26,7 @@ nsDataChannel::OpenContentStream(bool async, nsIInputStream **result,
 
     nsresult rv;
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     rv = URI()->GetAsciiSpec(spec);
     if (NS_FAILED(rv)) return rv;
 
@@ -51,7 +51,7 @@ nsDataChannel::OpenContentStream(bool async, nsIInputStream **result,
     rv = NS_NewPipe(getter_AddRefs(bufInStream),
                     getter_AddRefs(bufOutStream),
                     nsIOService::gDefaultSegmentSize,
-                    UINT32_MAX,
+                    PR_UINT32_MAX,
                     async, true);
     if (NS_FAILED(rv))
         return rv;

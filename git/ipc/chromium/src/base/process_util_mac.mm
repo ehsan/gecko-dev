@@ -43,7 +43,7 @@ bool LaunchApp(const std::vector<std::string>& argv,
                bool wait, ProcessHandle* process_handle,
                ProcessArchitecture arch) {
   return LaunchApp(argv, fds_to_remap, env_vars_to_set,
-                   PRIVILEGES_INHERIT,
+                   SAME_PRIVILEGES_AS_PARENT,
                    wait, process_handle);
 }
 

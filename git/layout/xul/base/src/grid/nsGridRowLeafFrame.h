@@ -14,7 +14,6 @@
 #ifndef nsGridRowLeafFrame_h___
 #define nsGridRowLeafFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBoxFrame.h"
 
 /**
@@ -33,7 +32,7 @@ public:
                                           nsStyleContext* aContext);
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
       return MakeFrameName(NS_LITERAL_STRING("nsGridRowLeaf"), aResult);
   }

@@ -29,7 +29,6 @@
 #include "nsHashPropertyBag.h"
 #include "nsFtpProtocolHandler.h"
 #include "nsNetUtil.h"
-#include "PrivateBrowsingChannel.h"
 
 class nsFtpChannel : public nsBaseChannel,
                      public nsIFTPChannel,
@@ -42,7 +41,7 @@ public:
     NS_DECL_NSIUPLOADCHANNEL
     NS_DECL_NSIRESUMABLECHANNEL
     NS_DECL_NSIPROXIEDCHANNEL
-
+    
     nsFtpChannel(nsIURI *uri, nsIProxyInfo *pi)
         : mProxyInfo(pi)
         , mStartPos(0)
@@ -54,11 +53,6 @@ public:
 
     nsIProxyInfo *ProxyInfo() {
         return mProxyInfo;
-    }
-
-    void SetProxyInfo(nsIProxyInfo *pi)
-    {
-        mProxyInfo = pi;
     }
 
     // Were we asked to resume a download?

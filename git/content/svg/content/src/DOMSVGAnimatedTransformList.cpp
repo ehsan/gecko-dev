@@ -94,7 +94,7 @@ DOMSVGAnimatedTransformList::InternalBaseValListWillChangeLengthTo(
 
   nsRefPtr<DOMSVGAnimatedTransformList> kungFuDeathGrip;
   if (mBaseVal) {
-    if (aNewLength < mBaseVal->LengthNoFlush()) {
+    if (aNewLength < mBaseVal->Length()) {
       // InternalListLengthWillChange might clear last reference to |this|.
       // Retain a temporary reference to keep from dying before returning.
       kungFuDeathGrip = this;

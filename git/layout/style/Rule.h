@@ -16,7 +16,6 @@ class nsIStyleSheet;
 class nsIDocument;
 struct nsRuleData;
 template<class T> struct already_AddRefed;
-class nsHTMLCSSStyleSheet;
 
 namespace mozilla {
 namespace css {
@@ -33,7 +32,7 @@ virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 class Rule : public nsIStyleRule {
 protected:
   Rule()
-    : mSheet(0),
+    : mSheet(nullptr),
       mParentRule(nullptr)
   {
   }
@@ -70,8 +69,7 @@ public:
 
   virtual int32_t GetType() const = 0;
 
-  nsCSSStyleSheet* GetStyleSheet() const;
-  nsHTMLCSSStyleSheet* GetHTMLCSSStyleSheet() const;
+  nsCSSStyleSheet* GetStyleSheet() const { return mSheet; }
 
   // Return the document the rule lives in, if any
   nsIDocument* GetDocument() const
@@ -81,9 +79,6 @@ public:
   }
 
   virtual void SetStyleSheet(nsCSSStyleSheet* aSheet);
-  // This does not need to be virtual, because GroupRule and MediaRule are not
-  // used for inline style.
-  void SetHTMLCSSStyleSheet(nsHTMLCSSStyleSheet* aSheet);
 
   void SetParentRule(GroupRule* aRule) {
     // We don't reference count this up reference. The group rule
@@ -119,9 +114,7 @@ public:
                                                    void* aData);
 
 protected:
-  // This is either an nsCSSStyleSheet* or a nsHTMLStyleSheet*.  The former
-  // if the low bit is 0, the latter if the low bit is 1.
-  uintptr_t         mSheet;
+  nsCSSStyleSheet*  mSheet;
   GroupRule*        mParentRule;
 };
 

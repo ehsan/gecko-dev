@@ -500,10 +500,10 @@ gfxWindowsPlatform::UpdateRenderMode()
                 DWRITE_FACTORY_TYPE_SHARED,
                 __uuidof(IDWriteFactory),
                 reinterpret_cast<IUnknown**>(&factory));
+            mDWriteFactory = factory;
+            factory->Release();
 
-            if (SUCCEEDED(hr) && factory) {
-                mDWriteFactory = factory;
-                factory->Release();
+            if (SUCCEEDED(hr)) {
                 hr = mDWriteFactory->CreateTextAnalyzer(
                     getter_AddRefs(mDWriteAnalyzer));
             }
@@ -516,15 +516,13 @@ gfxWindowsPlatform::UpdateRenderMode()
     }
 #endif
 
-    uint32_t canvasMask = 1 << BACKEND_CAIRO;
-    uint32_t contentMask = 0;
+    uint32_t backendMask = 1 << BACKEND_CAIRO;
     if (mRenderMode == RENDER_DIRECT2D) {
-      canvasMask |= 1 << BACKEND_DIRECT2D;
-      contentMask |= 1 << BACKEND_DIRECT2D;
+      backendMask |= 1 << BACKEND_DIRECT2D;
     } else {
-      canvasMask |= 1 << BACKEND_SKIA;
+      backendMask |= 1 << BACKEND_SKIA;
     }
-    InitBackendPrefs(canvasMask, contentMask);
+    InitCanvasBackend(backendMask);
 }
 
 void
@@ -772,7 +770,7 @@ gfxWindowsPlatform::CreateOffscreenImageSurface(const gfxIntSize& aSize,
     return surface.forget();
 }
 
-TemporaryRef<ScaledFont>
+RefPtr<ScaledFont>
 gfxWindowsPlatform::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
 {
     if (aFont->GetType() == gfxFont::FONT_TYPE_DWRITE) {

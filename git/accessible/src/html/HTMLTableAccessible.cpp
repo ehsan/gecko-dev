@@ -60,8 +60,8 @@ NS_IMPL_ISUPPORTS_INHERITED1(HTMLTableCellAccessible,
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLTableCellAccessible: Accessible implementation
 
-void
-HTMLTableCellAccessible::Shutdown()
+  void
+  HTMLTableCellAccessible::Shutdown()
 {
   mTableCell = nullptr;
   HyperTextAccessibleWrap::Shutdown();
@@ -103,16 +103,20 @@ HTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribu
   NS_ENSURE_SUCCESS(rv, rv);
 
   // table-cell-index attribute
-  TableAccessible* table = Table();
-  if (!table)
+  nsCOMPtr<nsIAccessibleTable> tableAcc(GetTableAccessible());
+  if (!tableAcc)
     return NS_OK;
 
   int32_t rowIdx = -1, colIdx = -1;
   rv = GetCellIndexes(rowIdx, colIdx);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  int32_t idx = -1;
+  rv = tableAcc->GetCellIndexAt(rowIdx, colIdx, &idx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   nsAutoString stringIdx;
-  stringIdx.AppendInt(table->CellIndexAt(rowIdx, colIdx));
+  stringIdx.AppendInt(idx);
   nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::tableCellIndex, stringIdx);
 
   // abbr attribute
@@ -146,123 +150,203 @@ HTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties* aAttribu
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLTableCellAccessible: nsIAccessibleTableCell implementation
 
-TableAccessible*
-HTMLTableCellAccessible::Table() const
+NS_IMETHODIMP
+HTMLTableCellAccessible::GetTable(nsIAccessibleTable** aTable)
 {
-  Accessible* parent = const_cast<HTMLTableCellAccessible*>(this);
-  while ((parent = parent->Parent())) {
-    roles::Role role = parent->Role();
-    if (role == roles::TABLE || role == roles::TREE_TABLE)
-      return parent->AsTable();
-  }
+  NS_ENSURE_ARG_POINTER(aTable);
+  *aTable = nullptr;
 
-  return nullptr;
+  if (IsDefunct())
+    return NS_OK;
+
+  nsCOMPtr<nsIAccessibleTable> table = GetTableAccessible();
+  table.swap(*aTable);
+
+  return NS_OK;
 }
 
-uint32_t
-HTMLTableCellAccessible::ColIdx() const
+NS_IMETHODIMP
+HTMLTableCellAccessible::GetColumnIndex(int32_t* aColumnIndex)
 {
+  NS_ENSURE_ARG_POINTER(aColumnIndex);
+  *aColumnIndex = -1;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsITableCellLayout* cellLayout = GetCellLayout();
-  NS_ENSURE_TRUE(cellLayout, 0);
+  NS_ENSURE_STATE(cellLayout);
 
-  int32_t colIdx = 0;
-  cellLayout->GetColIndex(colIdx);
-  return colIdx > 0 ? static_cast<uint32_t>(colIdx) : 0;
+  return cellLayout->GetColIndex(*aColumnIndex);
 }
 
-uint32_t
-HTMLTableCellAccessible::RowIdx() const
+NS_IMETHODIMP
+HTMLTableCellAccessible::GetRowIndex(int32_t* aRowIndex)
 {
+  NS_ENSURE_ARG_POINTER(aRowIndex);
+  *aRowIndex = -1;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   nsITableCellLayout* cellLayout = GetCellLayout();
-  NS_ENSURE_TRUE(cellLayout, 0);
+  NS_ENSURE_STATE(cellLayout);
 
-  int32_t rowIdx = 0;
-  cellLayout->GetRowIndex(rowIdx);
-  return rowIdx > 0 ? static_cast<uint32_t>(rowIdx) : 0;
+  return cellLayout->GetRowIndex(*aRowIndex);
 }
 
-uint32_t
-HTMLTableCellAccessible::ColExtent() const
+NS_IMETHODIMP
+HTMLTableCellAccessible::GetColumnExtent(int32_t* aExtentCount)
 {
+  NS_ENSURE_ARG_POINTER(aExtentCount);
+  *aExtentCount = 1;
+
   int32_t rowIdx = -1, colIdx = -1;
   GetCellIndexes(rowIdx, colIdx);
 
-  TableAccessible* table = Table();
-  NS_ASSERTION(table, "cell not in a table!");
-  if (!table)
-    return 0;
+  nsCOMPtr<nsIAccessibleTable> table = GetTableAccessible();
+  NS_ENSURE_STATE(table);
 
-  return table->ColExtentAt(rowIdx, colIdx);
+  return table->GetColumnExtentAt(rowIdx, colIdx, aExtentCount);
 }
 
-uint32_t
-HTMLTableCellAccessible::RowExtent() const
+NS_IMETHODIMP
+HTMLTableCellAccessible::GetRowExtent(int32_t* aExtentCount)
 {
+  NS_ENSURE_ARG_POINTER(aExtentCount);
+  *aExtentCount = 1;
+
   int32_t rowIdx = -1, colIdx = -1;
   GetCellIndexes(rowIdx, colIdx);
 
-  TableAccessible* table = Table();
-  NS_ASSERTION(table, "cell not in atable!");
-  if (!table)
-    return 0;
+  nsCOMPtr<nsIAccessibleTable> table = GetTableAccessible();
+  NS_ENSURE_STATE(table);
 
-  return table->RowExtentAt(rowIdx, colIdx);
+  return table->GetRowExtentAt(rowIdx, colIdx, aExtentCount);
 }
 
-void
-HTMLTableCellAccessible::ColHeaderCells(nsTArray<Accessible*>* aCells)
+NS_IMETHODIMP
+HTMLTableCellAccessible::GetColumnHeaderCells(nsIArray** aHeaderCells)
 {
-  IDRefsIterator itr(mDoc, mContent, nsGkAtoms::headers);
-  while (Accessible* cell = itr.Next())
-    if (cell->Role() == roles::COLUMNHEADER)
-      aCells->AppendElement(cell);
+  NS_ENSURE_ARG_POINTER(aHeaderCells);
+  *aHeaderCells = nullptr;
 
-  if (aCells->IsEmpty())
-    TableCellAccessible::ColHeaderCells(aCells);
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  return GetHeaderCells(nsAccUtils::eColumnHeaderCells, aHeaderCells);
 }
 
-void
-HTMLTableCellAccessible::RowHeaderCells(nsTArray<Accessible*>* aCells)
+NS_IMETHODIMP
+HTMLTableCellAccessible::GetRowHeaderCells(nsIArray** aHeaderCells)
 {
-  IDRefsIterator itr(mDoc, mContent, nsGkAtoms::headers);
-  while (Accessible* cell = itr.Next())
-    if (cell->Role() == roles::ROWHEADER)
-      aCells->AppendElement(cell);
+  NS_ENSURE_ARG_POINTER(aHeaderCells);
+  *aHeaderCells = nullptr;
 
-  if (aCells->IsEmpty())
-    TableCellAccessible::RowHeaderCells(aCells);
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  return GetHeaderCells(nsAccUtils::eRowHeaderCells, aHeaderCells);
 }
 
-bool
-HTMLTableCellAccessible::Selected()
+NS_IMETHODIMP
+HTMLTableCellAccessible::IsSelected(bool* aIsSelected)
 {
+  NS_ENSURE_ARG_POINTER(aIsSelected);
+  *aIsSelected = false;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
   int32_t rowIdx = -1, colIdx = -1;
   GetCellIndexes(rowIdx, colIdx);
 
-  TableAccessible* table = Table();
-  NS_ENSURE_TRUE(table, false);
+  nsCOMPtr<nsIAccessibleTable> table = GetTableAccessible();
+  NS_ENSURE_STATE(table);
 
-  return table->IsCellSelected(rowIdx, colIdx);
+  return table->IsCellSelected(rowIdx, colIdx, aIsSelected);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLTableCellAccessible: protected implementation
 
-nsITableCellLayout*
-HTMLTableCellAccessible::GetCellLayout() const
+already_AddRefed<nsIAccessibleTable>
+HTMLTableCellAccessible::GetTableAccessible()
 {
-  return do_QueryFrame(mContent->GetPrimaryFrame());
+  Accessible* parent = this;
+  while ((parent = parent->Parent())) {
+    roles::Role role = parent->Role();
+    if (role == roles::TABLE || role == roles::TREE_TABLE) {
+      nsIAccessibleTable* tableAcc = nullptr;
+      CallQueryInterface(parent, &tableAcc);
+      return tableAcc;
+    }
+  }
+
+  return nullptr;
+}
+
+nsITableCellLayout*
+HTMLTableCellAccessible::GetCellLayout()
+{
+  nsIFrame *frame = mContent->GetPrimaryFrame();
+  NS_ASSERTION(frame, "The frame cannot be obtaied for HTML table cell.");
+  if (!frame)
+    return nullptr;
+
+  nsITableCellLayout *cellLayout = do_QueryFrame(frame);
+  return cellLayout;
 }
 
 nsresult
-HTMLTableCellAccessible::GetCellIndexes(int32_t& aRowIdx, int32_t& aColIdx) const
+HTMLTableCellAccessible::GetCellIndexes(int32_t& aRowIndex, int32_t& aColIndex)
 {
   nsITableCellLayout *cellLayout = GetCellLayout();
   NS_ENSURE_STATE(cellLayout);
 
-  return cellLayout->GetCellIndexes(aRowIdx, aColIdx);
+  return cellLayout->GetCellIndexes(aRowIndex, aColIndex);
 }
 
+nsresult
+HTMLTableCellAccessible::GetHeaderCells(int32_t aRowOrColumnHeaderCell,
+                                        nsIArray** aHeaderCells)
+{
+  // Get header cells from @header attribute.
+  IDRefsIterator iter(mDoc, mContent, nsGkAtoms::headers);
+  nsIContent* headerCellElm = iter.NextElem();
+  if (headerCellElm) {
+    nsresult rv = NS_OK;
+    nsCOMPtr<nsIMutableArray> headerCells =
+      do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+    roles::Role desiredRole = static_cast<roles::Role>(-1) ;
+    if (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells)
+      desiredRole = roles::ROWHEADER;
+    else if (aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells)
+      desiredRole = roles::COLUMNHEADER;
+
+    do {
+      Accessible* headerCell = mDoc->GetAccessible(headerCellElm);
+
+      if (headerCell && headerCell->Role() == desiredRole)
+        headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
+                                   false);
+    } while ((headerCellElm = iter.NextElem()));
+
+    NS_ADDREF(*aHeaderCells = headerCells);
+    return NS_OK;
+  }
+
+  // Otherwise calculate header cells from hierarchy (see 11.4.3 "Algorithm to
+  // find heading information" of w3c HTML 4.01).
+  nsCOMPtr<nsIAccessibleTable> table = GetTableAccessible();
+  if (table) {
+    return nsAccUtils::GetHeaderCellsFor(table, this, aRowOrColumnHeaderCell,
+                                         aHeaderCells);
+  }
+
+  return NS_OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLTableHeaderCellAccessible

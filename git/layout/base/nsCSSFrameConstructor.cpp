@@ -118,7 +118,6 @@
 
 #include "nsRefreshDriver.h"
 #include "nsRuleProcessorData.h"
-#include "sampler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -164,8 +163,6 @@ nsIFrame*
 NS_NewSVGContainerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewSVGUseFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-nsIFrame*
-NS_NewSVGViewFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 extern nsIFrame*
 NS_NewSVGLinearGradientFrame(nsIPresShell *aPresShell, nsStyleContext* aContext);
 extern nsIFrame*
@@ -3869,7 +3866,7 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
 }
 
 static void
-SetFlagsOnSubtree(nsIContent *aNode, uintptr_t aFlagsToSet)
+SetFlagsOnSubtree(nsIContent *aNode, PtrBits aFlagsToSet)
 {
 #ifdef DEBUG
   // Make sure that the node passed to us doesn't have any XBL children
@@ -4975,7 +4972,6 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     SIMPLE_SVG_CREATE(radialGradient, NS_NewSVGRadialGradientFrame),
     SIMPLE_SVG_CREATE(stop, NS_NewSVGStopFrame),
     SIMPLE_SVG_CREATE(use, NS_NewSVGUseFrame),
-    SIMPLE_SVG_CREATE(view, NS_NewSVGViewFrame),
     SIMPLE_SVG_CREATE(marker, NS_NewSVGMarkerFrame),
     SIMPLE_SVG_CREATE(image, NS_NewSVGImageFrame),
     SIMPLE_SVG_CREATE(clipPath, NS_NewSVGClipPathFrame),
@@ -5513,7 +5509,7 @@ nsCSSFrameConstructor::ConstructFramesFromItem(nsFrameConstructorState& aState,
     // We don't do it for SVG text, since we might need to position and
     // measure the white space glyphs due to x/y/dx/dy attributes.
     if (AtLineBoundary(aIter) &&
-        !styleContext->GetStyleText()->WhiteSpaceOrNewlineIsSignificant() &&
+        !styleContext->GetStyleText()->NewlineIsSignificant() &&
         aIter.List()->ParentHasNoXBLChildren() &&
         !(aState.mAdditionalStateBits & NS_FRAME_GENERATED_CONTENT) &&
         (item.mFCData->mBits & FCDATA_IS_LINE_PARTICIPANT) &&
@@ -7702,6 +7698,11 @@ UpdateViewsForTree(nsIFrame* aFrame,
           DoApplyRenderingChangeToTree(child, aFrameManager,
                                        aChange);
         } else {  // regular frame
+          if ((child->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) &&
+              (aChange & nsChangeHint_RepaintFrame)) {
+            FrameLayerBuilder::InvalidateThebesLayerContents(child,
+              child->GetVisualOverflowRectRelativeToSelf());
+          }
           UpdateViewsForTree(child, aFrameManager, aChange);
         }
       }
@@ -7739,11 +7740,6 @@ GetFrameForChildrenOnlyTransformHint(nsIFrame *aFrame)
   // For an nsHTMLScrollFrame, this will get the SVG frame that has the
   // children-only transforms:
   aFrame = aFrame->GetContent()->GetPrimaryFrame();
-  if (aFrame->GetType() == nsGkAtoms::svgOuterSVGFrame) {
-    aFrame = aFrame->GetFirstPrincipalChild();
-    NS_ABORT_IF_FALSE(aFrame->GetType() == nsGkAtoms::svgOuterSVGAnonChildFrame,
-                      "Where is the nsSVGOuterSVGFrame's anon child??");
-  }
   NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG |
                                           nsIFrame::eSVGContainer),
                     "Children-only transforms only expected on SVG frames");
@@ -7771,28 +7767,20 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
                        nsChangeHint(aChange & (nsChangeHint_RepaintFrame |
                                                nsChangeHint_SyncFrameView |
                                                nsChangeHint_UpdateOpacityLayer)));
-    // This must be set to true if the rendering change needs to
-    // invalidate content.  If it's false, a composite-only paint
-    // (empty transaction) will be scheduled.
-    bool needInvalidatingPaint = false;
 
     // if frame has view, will already be invalidated
     if (aChange & nsChangeHint_RepaintFrame) {
       if (aFrame->IsFrameOfType(nsIFrame::eSVG) &&
           !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
         if (aChange & nsChangeHint_UpdateEffects) {
-          needInvalidatingPaint = true;
           // Invalidate and update our area:
-          nsSVGUtils::InvalidateBounds(aFrame, false);
-          nsSVGUtils::ScheduleReflowSVG(aFrame);
+          nsSVGUtils::InvalidateAndScheduleReflowSVG(aFrame);
         } else {
-          needInvalidatingPaint = true;
           // Just invalidate our area:
           nsSVGUtils::InvalidateBounds(aFrame);
         }
       } else {
-        needInvalidatingPaint = true;
-        aFrame->InvalidateFrameSubtree();
+        aFrame->InvalidateOverflowRect();
       }
     }
     if (aChange & nsChangeHint_UpdateTextPath) {
@@ -7802,32 +7790,27 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
       static_cast<nsSVGTextPathFrame*>(aFrame)->NotifyGlyphMetricsChange();
     }
     if (aChange & nsChangeHint_UpdateOpacityLayer) {
-      // FIXME/bug 796697: we can get away with empty transactions for
-      // opacity updates in many cases.
-      needInvalidatingPaint = true;
       aFrame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
+      aFrame->InvalidateLayer(aFrame->GetVisualOverflowRectRelativeToSelf(),
+                              nsDisplayItem::TYPE_OPACITY);
     }
+    
     if (aChange & nsChangeHint_UpdateTransformLayer) {
       aFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
-      // If we're not already going to do an invalidating paint, see
-      // if we can get away with only updating the transform on a
-      // layer for this frame, and not scheduling an invalidating
-      // paint.
-      if (!needInvalidatingPaint) {
-        needInvalidatingPaint |= !aFrame->TryUpdateTransformOnly();
-      }
+      // Invalidate the old transformed area. The new transformed area
+      // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
+      aFrame->InvalidateTransformLayer();
     }
     if (aChange & nsChangeHint_ChildrenOnlyTransform) {
-      needInvalidatingPaint = true;
       nsIFrame* childFrame =
         GetFrameForChildrenOnlyTransformHint(aFrame)->GetFirstPrincipalChild();
       for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
         childFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
+        // Invalidate the old transformed area. The new transformed area
+        // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
+        childFrame->InvalidateTransformLayer();
       }
     }
-    aFrame->SchedulePaint(needInvalidatingPaint ?
-                          nsIFrame::PAINT_DEFAULT :
-                          nsIFrame::PAINT_COMPOSITE_ONLY);
   }
 }
 
@@ -8044,8 +8027,6 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
   if (!count)
     return NS_OK;
 
-  SAMPLE_LABEL("CSS", "ProcessRestyledFrames");
-
   // Make sure to not rebuild quote or counter lists while we're
   // processing restyles
   BeginUpdate();
@@ -8068,6 +8049,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
   }
 
   index = count;
+  bool didInvalidate = false;
   bool didReflow = false;
 
   while (0 <= --index) {
@@ -8076,7 +8058,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     nsChangeHint hint;
     aChangeList.ChangeAt(index, frame, content, hint);
 
-    NS_ASSERTION(!(hint & nsChangeHint_AllReflowHints) ||
+    NS_ASSERTION(!(hint & nsChangeHint_ReflowFrame) ||
                  (hint & nsChangeHint_NeedReflow),
                  "Reflow hint bits set without actually asking for a reflow");
 
@@ -8125,22 +8107,23 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
                   nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer |
                   nsChangeHint_ChildrenOnlyTransform)) {
         ApplyRenderingChangeToTree(presContext, frame, hint);
+        didInvalidate = true;
       }
       NS_ASSERTION(!(hint & nsChangeHint_ChildrenOnlyTransform) ||
                    (hint & nsChangeHint_UpdateOverflow),
                    "nsChangeHint_UpdateOverflow should be passed too");
       if ((hint & nsChangeHint_UpdateOverflow) && !didReflow) {
         if (hint & nsChangeHint_ChildrenOnlyTransform) {
-          // The overflow areas of the child frames need to be updated:
-          nsIFrame* hintFrame = GetFrameForChildrenOnlyTransformHint(frame);
-          nsIFrame* childFrame = hintFrame->GetFirstPrincipalChild();
+          // Update overflow areas of children first:
+          nsIFrame* childFrame =
+            GetFrameForChildrenOnlyTransformHint(frame)->GetFirstPrincipalChild();
           for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
             NS_ABORT_IF_FALSE(childFrame->IsFrameOfType(nsIFrame::eSVG),
                               "Not expecting non-SVG children");
             childFrame->UpdateOverflow();
             NS_ASSERTION(!nsLayoutUtils::GetNextContinuationOrSpecialSibling(childFrame),
                          "SVG frames should not have continuations or special siblings");
-            NS_ASSERTION(childFrame->GetParent() == hintFrame,
+            NS_ASSERTION(childFrame->GetParent() == frame,
                          "SVG child frame not expected to have different parent");
           }
         }
@@ -8178,6 +8161,16 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
   }
 
   EndUpdate();
+
+  if (didInvalidate && !didReflow) {
+    // RepaintFrame changes can indicate changes in opacity etc which
+    // can require plugin clipping to change. If we requested a reflow,
+    // we don't need to do this since the reflow will do it for us.
+    nsRootPresContext* rootPC = presContext->GetRootPresContext();
+    if (rootPC) {
+      rootPC->RequestUpdatePluginGeometry();
+    }
+  }
 
   // cleanup references and verify the style tree.  Note that the latter needs
   // to happen once we've processed the whole list, since until then the tree
@@ -8223,25 +8216,6 @@ nsCSSFrameConstructor::RestyleElement(Element        *aElement,
   }
   NS_ASSERTION(!aPrimaryFrame || aPrimaryFrame->GetContent() == aElement,
                "frame/content mismatch");
-
-  // If we're restyling the root element and there are 'rem' units in
-  // use, handle dynamic changes to the definition of a 'rem' here.
-  if (GetPresContext()->UsesRootEMUnits() && aPrimaryFrame) {
-    nsStyleContext *oldContext = aPrimaryFrame->GetStyleContext();
-    if (!oldContext->GetParent()) { // check that we're the root element
-      nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
-        ResolveStyleFor(aElement, nullptr /* == oldContext->GetParent() */);
-      if (oldContext->GetStyleFont()->mFont.size !=
-          newContext->GetStyleFont()->mFont.size) {
-        // The basis for 'rem' units has changed.
-        DoRebuildAllStyleData(aRestyleTracker, nsChangeHint(0));
-        if (aMinHint == 0) {
-          return;
-        }
-        aPrimaryFrame = aElement->GetPrimaryFrame();
-      }
-    }
-  }
 
   if (aMinHint & nsChangeHint_ReconstructFrame) {
     RecreateFramesForContent(aElement, false);
@@ -9586,7 +9560,7 @@ nsCSSFrameConstructor::CreateNeededAnonFlexItems(
                                 true);
 
     newItem->mIsAllInline = newItem->mHasInlineEnds =
-      newItem->mStyleContext->GetStyleDisplay()->IsInlineOutsideStyle();
+      newItem->mStyleContext->GetStyleDisplay()->IsInlineOutside();
     newItem->mIsBlock = !newItem->mIsAllInline;
 
     NS_ABORT_IF_FALSE(!newItem->mIsAllInline && newItem->mIsBlock,
@@ -12037,24 +12011,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
 
   nsAutoScriptBlocker scriptBlocker;
 
-  nsPresContext *presContext = mPresShell->GetPresContext();
-  presContext->SetProcessingRestyles(true);
-
-  DoRebuildAllStyleData(mPendingRestyles, aExtraHint);
-
-  presContext->SetProcessingRestyles(false);
-
-  // Make sure that we process any pending animation restyles from the
-  // above style change.  Note that we can *almost* implement the above
-  // by just posting a style change -- except we really need to restyle
-  // the root frame rather than the root element's primary frame.
-  ProcessPendingRestyles();
-}
-
-void
-nsCSSFrameConstructor::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
-                                             nsChangeHint aExtraHint)
-{
   // Tell the style set to get the old rule tree out of the way
   // so we can recalculate while maintaining rule tree immutability
   nsresult rv = mPresShell->StyleSet()->BeginReconstruct();
@@ -12062,6 +12018,8 @@ nsCSSFrameConstructor::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
     return;
   }
 
+  nsPresContext *presContext = mPresShell->GetPresContext();
+  presContext->SetProcessingRestyles(true);
   // Recalculate all of the style contexts for the document
   // Note that we can ignore the return value of ComputeStyleChangeFor
   // because we never need to reframe the root frame
@@ -12074,9 +12032,16 @@ nsCSSFrameConstructor::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
   // Note: The restyle tracker we pass in here doesn't matter.
   ComputeStyleChangeFor(mPresShell->GetRootFrame(),
                         &changeList, aExtraHint,
-                        aRestyleTracker, true);
+                        mPendingRestyles, true);
   // Process the required changes
   ProcessRestyledFrames(changeList);
+  presContext->SetProcessingRestyles(false);
+
+  // Make sure that we process any pending animation restyles from the
+  // above style change.  Note that we can *almost* implement the above
+  // by just posting a style change -- except we really need to restyle
+  // the root frame rather than the root element's primary frame.
+  ProcessPendingRestyles();
 
   // Tell the style set it's safe to destroy the old rule tree.  We
   // must do this after the ProcessRestyledFrames call in case the

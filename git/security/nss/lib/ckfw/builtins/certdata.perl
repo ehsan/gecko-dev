@@ -1,9 +1,41 @@
 #!perl -w
 # 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-my $cvs_id = '@(#) $RCSfile: certdata.perl,v $ $Revision: 1.16 $ $Date: 2012/11/30 02:40:52 $';
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Netscape security libraries.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1994-2000
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
+my $cvs_id = '@(#) $RCSfile: certdata.perl,v $ $Revision: 1.13 $ $Date: 2010/03/26 22:06:47 $';
 use strict;
 
 my %constants;
@@ -25,6 +57,7 @@ while(<>) {
   next if (/^\s*$/);
 
   if( /(^CVS_ID\s+)(.*)/ ) {
+#    print "The CVS ID is $2\n";
     $cvsid = $2 . "\"; $cvs_id\"";
     my $scratch = $cvsid;
     $size = 1 + $scratch =~ s/[^"\n]//g;
@@ -128,11 +161,45 @@ for( $i = 0; $i <= $count; $i++ ) {
 sub doprint {
 my $i;
 
-print <<EOD
+open(CFILE, ">certdata.c") || die "Can't open certdata.c: $!";
+
+print CFILE <<EOD
 /* THIS IS A GENERATED FILE */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #ifdef DEBUG
 static const char CVS_ID[] = $cvsid;
 #endif /* DEBUG */
@@ -145,87 +212,88 @@ EOD
     ;
 
 foreach $b (sort values(%constants)) {
-  print $b;
+  print CFILE $b;
 }
 
 for( $i = 0; $i <= $count; $i++ ) {
   if( 0 == $i ) {
-    print "#ifdef DEBUG\n";
+    print CFILE "#ifdef DEBUG\n";
   }
 
-  print "static const CK_ATTRIBUTE_TYPE nss_builtins_types_$i [] = {\n";
+  print CFILE "static const CK_ATTRIBUTE_TYPE nss_builtins_types_$i [] = {\n";
   $o = $objects[$i];
+ # print STDOUT "type $i object $o \n";
   my @ob = @{$o};
   my $j;
   for( $j = 0; $j < @ob; $j++ ) {
     my $l = $ob[$j];
     my @a = @{$l};
-    print " $a[0]";
+    print CFILE " $a[0]";
     if( $j+1 != @ob ) {
-      print ", ";
+      print CFILE ", ";
     }
   }
-  print "\n};\n";
+  print CFILE "\n};\n";
 
   if( 0 == $i ) {
-    print "#endif /* DEBUG */\n";
+    print CFILE "#endif /* DEBUG */\n";
   }
 }
 
 for( $i = 0; $i <= $count; $i++ ) {
   if( 0 == $i ) {
-    print "#ifdef DEBUG\n";
+    print CFILE "#ifdef DEBUG\n";
   }
 
-  print "static const NSSItem nss_builtins_items_$i [] = {\n";
+  print CFILE "static const NSSItem nss_builtins_items_$i [] = {\n";
   $o = $objects[$i];
   my @ob = @{$o};
   my $j;
   for( $j = 0; $j < @ob; $j++ ) {
     my $l = $ob[$j];
     my @a = @{$l};
-    print "  { (void *)$a[1], (PRUint32)$a[2] }";
+    print CFILE "  { (void *)$a[1], (PRUint32)$a[2] }";
     if( $j+1 != @ob ) {
-      print ",\n";
+      print CFILE ",\n";
     } else {
-      print "\n";
+      print CFILE "\n";
     }
   }
-  print "};\n";
+  print CFILE "};\n";
 
   if( 0 == $i ) {
-    print "#endif /* DEBUG */\n";
+    print CFILE "#endif /* DEBUG */\n";
   }
 }
 
-print "\nbuiltinsInternalObject\n";
-print "nss_builtins_data[] = {\n";
+print CFILE "\nbuiltinsInternalObject\n";
+print CFILE "nss_builtins_data[] = {\n";
 
 for( $i = 0; $i <= $count; $i++ ) {
 
   if( 0 == $i ) {
-    print "#ifdef DEBUG\n";
+    print CFILE "#ifdef DEBUG\n";
   }
 
-  print "  { $objsize[$i], nss_builtins_types_$i, nss_builtins_items_$i, {NULL} }";
+  print CFILE "  { $objsize[$i], nss_builtins_types_$i, nss_builtins_items_$i, {NULL} }";
 
   if( $i == $count ) {
-    print "\n";
+    print CFILE "\n";
   } else {
-    print ",\n";
+    print CFILE ",\n";
   }
 
   if( 0 == $i ) {
-    print "#endif /* DEBUG */\n";
+    print CFILE "#endif /* DEBUG */\n";
   }
 }
 
-print "};\n";
+print CFILE "};\n";
 
-print "const PRUint32\n";
-print "#ifdef DEBUG\n";
-print "  nss_builtins_nObjects = $count+1;\n";
-print "#else\n";
-print "  nss_builtins_nObjects = $count;\n";
-print "#endif /* DEBUG */\n";
+print CFILE "const PRUint32\n";
+print CFILE "#ifdef DEBUG\n";
+print CFILE "  nss_builtins_nObjects = $count+1;\n";
+print CFILE "#else\n";
+print CFILE "  nss_builtins_nObjects = $count;\n";
+print CFILE "#endif /* DEBUG */\n";
 }

@@ -29,8 +29,6 @@
 #include "nsIXULAppInfo.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
 
 // JS
 #include "jsdbgapi.h"
@@ -97,8 +95,6 @@ mozilla::ThreadLocal<TableTicker *> tlsTicker;
 bool stack_key_initialized;
 
 TimeStamp sLastTracerEvent;
-int sFrameNumber = 0;
-int sLastFrameNumber = 0;
 
 class ThreadProfile;
 
@@ -323,13 +319,6 @@ public:
             }
           }
           break;
-        case 'f':
-          {
-            if (sample) {
-              b.DefineProperty(sample, "frameNumber", entry.mTagLine);
-            }
-          }
-          break;
         case 't':
           {
             if (sample) {
@@ -457,7 +446,7 @@ static JSBool
 WriteCallback(const jschar *buf, uint32_t len, void *data)
 {
   std::ofstream& stream = *static_cast<std::ofstream*>(data);
-  nsAutoCString profile = NS_ConvertUTF16toUTF8(buf, len);
+  nsCAutoString profile = NS_ConvertUTF16toUTF8(buf, len);
   stream << profile.Data();
   return JS_TRUE;
 }
@@ -481,12 +470,12 @@ public:
     t->SetPaused(true);
 
     // Get file path
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
     nsCString tmpPath;
     tmpPath.AppendPrintf("/sdcard/profile_%i_%i.txt", XRE_GetProcessType(), getpid());
 #else
     nsCOMPtr<nsIFile> tmpFile;
-    nsAutoCString tmpPath;
+    nsCAutoString tmpPath;
     if (NS_FAILED(NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpFile)))) {
       LOG("Failed to find temporary directory.");
       return NS_ERROR_FAILURE;
@@ -580,7 +569,7 @@ JSObject* TableTicker::GetMetaJSObject(JSObjectBuilder& b)
   nsresult res;
   nsCOMPtr<nsIHttpProtocolHandler> http = do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &res);
   if (!NS_FAILED(res)) {
-    nsAutoCString string;
+    nsCAutoString string;
 
     res = http->GetPlatform(string);
     if (!NS_FAILED(res))
@@ -597,7 +586,7 @@ JSObject* TableTicker::GetMetaJSObject(JSObjectBuilder& b)
 
   nsCOMPtr<nsIXULRuntime> runtime = do_GetService("@mozilla.org/xre/runtime;1");
   if (runtime) {
-    nsAutoCString string;
+    nsCAutoString string;
 
     res = runtime->GetXPCOMABI(string);
     if (!NS_FAILED(res))
@@ -610,7 +599,7 @@ JSObject* TableTicker::GetMetaJSObject(JSObjectBuilder& b)
 
   nsCOMPtr<nsIXULAppInfo> appInfo = do_GetService("@mozilla.org/xre/app-info;1");
   if (appInfo) {
-    nsAutoCString string;
+    nsCAutoString string;
 
     res = appInfo->GetName(string);
     if (!NS_FAILED(res))
@@ -937,11 +926,6 @@ void TableTicker::Tick(TickSample* sample)
     TimeDuration delta = sample->timestamp - mStartTime;
     mPrimaryThreadProfile.addTag(ProfileEntry('t', delta.ToMilliseconds()));
   }
-
-  if (sLastFrameNumber != sFrameNumber) {
-    mPrimaryThreadProfile.addTag(ProfileEntry('f', sFrameNumber));
-    sLastFrameNumber = sFrameNumber;
-  }
 }
 
 std::ostream& operator<<(std::ostream& stream, const ThreadProfile& profile)
@@ -975,9 +959,6 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 
 void mozilla_sampler_init()
 {
-  if (stack_key_initialized)
-    return;
-
   if (!tlsStack.init() || !tlsTicker.init()) {
     LOG("Failed to init.");
     return;
@@ -1094,17 +1075,12 @@ void mozilla_sampler_start(int aProfileEntries, int aInterval,
 
   mozilla_sampler_stop();
 
-  TableTicker *t = new TableTicker(aInterval ? aInterval : PROFILE_DEFAULT_INTERVAL,
-                                   aProfileEntries ? aProfileEntries : PROFILE_DEFAULT_ENTRY,
-                                   stack, aFeatures, aFeatureCount);
+  TableTicker *t = new TableTicker(aInterval, aProfileEntries, stack,
+                                   aFeatures, aFeatureCount);
   tlsTicker.set(t);
   t->Start();
   if (t->ProfileJS())
       stack->enableJSSampling();
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (os)
-    os->NotifyObservers(nullptr, "profiler-started", nullptr);
 }
 
 void mozilla_sampler_stop()
@@ -1127,10 +1103,6 @@ void mozilla_sampler_stop()
 
   if (disableJS)
     stack->disableJSSampling();
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (os)
-    os->NotifyObservers(nullptr, "profiler-stopped", nullptr);
 }
 
 bool mozilla_sampler_is_active()
@@ -1171,7 +1143,3 @@ const double* mozilla_sampler_get_responsiveness()
   return sResponsivenessTimes;
 }
 
-void mozilla_sampler_frame_number(int frameNumber)
-{
-  sFrameNumber = frameNumber;
-}

@@ -42,7 +42,9 @@
         'audio_device_impl.cc',
         'audio_device_impl.h',
         'audio_device_config.h',
+        'dummy/audio_device_dummy.cc',
         'dummy/audio_device_dummy.h',
+        'dummy/audio_device_utility_dummy.cc',
         'dummy/audio_device_utility_dummy.h',
       ],
       'conditions': [
@@ -164,8 +166,9 @@
       ], # conditions
     },
   ],
+  # Exclude the test targets when building with chromium.
   'conditions': [
-    ['include_tests==1', {
+    ['build_with_chromium==0', {
       'targets': [
         {
           'target_name': 'audio_device_test_api',
@@ -173,8 +176,8 @@
          'dependencies': [
             'audio_device',
             'webrtc_utility',
-            '<(webrtc_root)/test/test.gyp:test_support_main',
-            '<(DEPTH)/testing/gtest.gyp:gtest',
+            '<(webrtc_root)/../test/test.gyp:test_support_main',
+            '<(webrtc_root)/../testing/gtest.gyp:gtest',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
           ],
           'sources': [
@@ -190,8 +193,8 @@
             'webrtc_utility',
             '<(webrtc_root)/common_audio/common_audio.gyp:resampler',
             '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-            '<(webrtc_root)/test/test.gyp:test_support',
-            '<(DEPTH)/testing/gtest.gyp:gtest',
+            '<(webrtc_root)/../test/test.gyp:test_support',
+            '<(webrtc_root)/../testing/gtest.gyp:gtest',
           ],
           'sources': [
             '../test/audio_device_test_func.cc',

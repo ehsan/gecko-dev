@@ -7,7 +7,7 @@ Cu.import("resource:///modules/devtools/dbg-client.jsm");
 function run_test()
 {
   // Allow incoming connections.
-  DebuggerServer.init(function () true);
+  DebuggerServer.init(function () { return true; });
   DebuggerServer.addActors("resource://test/testactors.js");
 
   add_test(test_socket_conn);
@@ -27,12 +27,7 @@ function really_long() {
 
 function test_socket_conn()
 {
-  do_check_eq(DebuggerServer._socketConnections, 0);
-  do_check_true(DebuggerServer.openListener(2929));
-  do_check_eq(DebuggerServer._socketConnections, 1);
-  // Make sure opening the listener twice does nothing.
-  do_check_true(DebuggerServer.openListener(2929));
-  do_check_eq(DebuggerServer._socketConnections, 1);
+  DebuggerServer.openListener(2929);
 
   let unicodeString = "(╯°□°）╯︵ ┻━┻";
   let transport = debuggerSocketConnect("127.0.0.1", 2929);
@@ -59,12 +54,7 @@ function test_socket_conn()
 
 function test_socket_shutdown()
 {
-  do_check_eq(DebuggerServer._socketConnections, 1);
-  do_check_true(DebuggerServer.closeListener());
-  do_check_eq(DebuggerServer._socketConnections, 0);
-  // Make sure closing the listener twice does nothing.
-  do_check_false(DebuggerServer.closeListener());
-  do_check_eq(DebuggerServer._socketConnections, 0);
+  DebuggerServer.closeListener();
 
   let transport = debuggerSocketConnect("127.0.0.1", 2929);
   transport.hooks = {

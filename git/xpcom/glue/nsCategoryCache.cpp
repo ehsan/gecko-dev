@@ -36,7 +36,7 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory,
     nsCOMPtr<nsISupportsCString> entryName = do_QueryInterface(entry, &rv);
 
     if (NS_SUCCEEDED(rv)) {
-      nsAutoCString categoryEntry;
+      nsCAutoString categoryEntry;
       rv = entryName->GetData(categoryEntry);
 
       nsCString entryValue;
@@ -110,7 +110,7 @@ nsCategoryObserver::Observe(nsISupports* aSubject, const char* aTopic,
       !nsDependentString(aData).Equals(NS_ConvertASCIItoUTF16(mCategory)))
     return NS_OK;
 
-  nsAutoCString str;
+  nsCAutoString str;
   nsCOMPtr<nsISupportsCString> strWrapper(do_QueryInterface(aSubject));
   if (strWrapper)
     strWrapper->GetData(str);
@@ -137,7 +137,7 @@ nsCategoryObserver::Observe(nsISupports* aSubject, const char* aTopic,
     mHash.Put(str, entryValue);
     mListener->EntryAdded(entryValue);
   } else if (strcmp(aTopic, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID) == 0) {
-    nsAutoCString val;
+    nsCAutoString val;
     if (mHash.Get(str, &val)) {
       mHash.Remove(str);
       mListener->EntryRemoved(val);

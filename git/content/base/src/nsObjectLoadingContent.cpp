@@ -11,7 +11,7 @@
  */
 
 // Interface headers
-#include "imgLoader.h"
+#include "imgILoader.h"
 #include "nsEventDispatcher.h"
 #include "nsIContent.h"
 #include "nsIDocShell.h"
@@ -414,7 +414,7 @@ IsSuccessfulRequest(nsIRequest* aRequest)
 static bool
 CanHandleURI(nsIURI* aURI)
 {
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   if (NS_FAILED(aURI->GetScheme(scheme))) {
     return false;
   }
@@ -447,7 +447,14 @@ URIEquals(nsIURI *a, nsIURI *b)
 static bool
 IsSupportedImage(const nsCString& aMimeType)
 {
-  return imgLoader::SupportImageWithMimeType(aMimeType.get());
+  imgILoader* loader = nsContentUtils::GetImgLoader();
+  if (!loader) {
+    return false;
+  }
+
+  bool supported;
+  nsresult rv = loader->SupportImageWithMimeType(aMimeType.get(), &supported);
+  return NS_SUCCEEDED(rv) && supported;
 }
 
 static void
@@ -474,7 +481,7 @@ GetExtensionFromURI(nsIURI* uri, nsCString& ext)
 bool
 IsPluginEnabledByExtension(nsIURI* uri, nsCString& mimeType)
 {
-  nsAutoCString ext;
+  nsCAutoString ext;
   GetExtensionFromURI(uri, ext);
 
   if (ext.IsEmpty()) {
@@ -850,7 +857,7 @@ NS_IMETHODIMP
 nsObjectLoadingContent::OnDataAvailable(nsIRequest *aRequest,
                                         nsISupports *aContext,
                                         nsIInputStream *aInputStream,
-                                        uint64_t aOffset, uint32_t aCount)
+                                        uint32_t aOffset, uint32_t aCount)
 {
   NS_ENSURE_TRUE(nsContentUtils::IsCallerChrome(), NS_ERROR_NOT_AVAILABLE);
 
@@ -928,7 +935,7 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
 
     // Set up new frame to draw.
     objFrame->FixupWindow(objFrame->GetContentRectRelativeToSelf().Size());
-    objFrame->InvalidateFrame();
+    objFrame->Invalidate(objFrame->GetContentRectRelativeToSelf());
   }
   return NS_OK;
 }
@@ -1072,8 +1079,8 @@ nsObjectLoadingContent::CheckLoadPolicy(int16_t *aContentPolicy)
                                           nsContentUtils::GetSecurityManager());
   NS_ENSURE_SUCCESS(rv, false);
   if (NS_CP_REJECTED(*aContentPolicy)) {
-    nsAutoCString uri;
-    nsAutoCString baseUri;
+    nsCAutoString uri;
+    nsCAutoString baseUri;
     mURI->GetSpec(uri);
     mURI->GetSpec(baseUri);
     LOG(("OBJLC [%p]: Content policy denied load of %s (base %s)",
@@ -1146,7 +1153,7 @@ nsObjectLoadingContent::UpdateObjectParameters()
   LOG(("OBJLC [%p]: Updating object parameters", this));
 
   nsresult rv;
-  nsAutoCString newMime;
+  nsCAutoString newMime;
   nsCOMPtr<nsIURI> newURI;
   nsCOMPtr<nsIURI> newBaseURI;
   ObjectType newType;
@@ -1358,7 +1365,7 @@ nsObjectLoadingContent::UpdateObjectParameters()
         // Set the type we'll use for dispatch on the channel.  Otherwise we could
         // end up trying to dispatch to a nsFrameLoader, which will complain that
         // it couldn't find a way to handle application/octet-stream
-        nsAutoCString typeHint, dummy;
+        nsCAutoString typeHint, dummy;
         NS_ParseContentType(newMime, typeHint, dummy);
         if (!typeHint.IsEmpty()) {
           mChannel->SetContentType(typeHint);
@@ -1809,9 +1816,6 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
       CloseChannel();
     }
 
-    // Don't try to initialize final listener below
-    finalListener = nullptr;
-
     // Don't notify, as LoadFallback doesn't know of our previous state
     // (so really this is just setting mFallbackType)
     LoadFallback(fallbackType, false);
@@ -1824,6 +1828,8 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
   // Pass load on to finalListener if loading with a channel
   //
 
+  // If we re-entered and loaded something else, that load will have cleaned up
+  // our our listener.
   if (!mIsLoading) {
     LOG(("OBJLC [%p]: Re-entered before dispatching to final listener", this));
   } else if (finalListener) {
@@ -1848,7 +1854,6 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
       mIsLoading = true;
       UnloadObject(false);
       NS_ENSURE_TRUE(mIsLoading, NS_OK);
-      CloseChannel();
       LoadFallback(fallbackType, true);
     }
   }
@@ -2143,9 +2148,9 @@ nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
 
   // Note that aPluginTag in invalidated after we're called, so copy 
   // out any data we need now.
-  nsAutoCString pluginName;
+  nsCAutoString pluginName;
   aPluginTag->GetName(pluginName);
-  nsAutoCString pluginFilename;
+  nsCAutoString pluginFilename;
   aPluginTag->GetFilename(pluginFilename);
 
   nsCOMPtr<nsIRunnable> ev =

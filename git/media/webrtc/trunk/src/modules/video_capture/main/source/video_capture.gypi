@@ -16,11 +16,6 @@
         '<(webrtc_root)/common_video/common_video.gyp:webrtc_libyuv',
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
       ],
-
-      'cflags_mozilla': [
-        '$(NSPR_CFLAGS)',
-      ],
-
       'include_dirs': [
         '../interface',
         '../../../interface',
@@ -146,26 +141,27 @@
       ], # conditions
     },
   ],
+   # Exclude the test targets when building with chromium.
   'conditions': [
-    ['include_tests==1', {
-      'targets': [
-        {
+    ['build_with_chromium==0', {
+      'targets': [        
+        {        
           'target_name': 'video_capture_module_test',
           'type': 'executable',
           'dependencies': [
            'video_capture_module',
            'webrtc_utility',
            '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-           '<(DEPTH)/testing/gtest.gyp:gtest',
+           '<(webrtc_root)/../testing/gtest.gyp:gtest',
+           '<(webrtc_root)/../test/test.gyp:test_support_main',
           ],
           'include_dirs': [
             '../interface',
           ],
           'sources': [
             '../test/video_capture_unittest.cc',
-            '../test/video_capture_main_mac.mm',
           ],
-          'conditions': [
+          'conditions': [            
            # DEFINE PLATFORM SPECIFIC INCLUDE AND CFLAGS
             ['OS=="mac" or OS=="linux"', {
               'cflags': [
@@ -183,23 +179,13 @@
               ],
             }],
             ['OS=="mac"', {
-              'dependencies': [
-                # Link with a special main for mac so we can use the webcam.
-                '<(webrtc_root)/test/test.gyp:test_support_main_threaded_mac',
-              ],
               'xcode_settings': {
                 # TODO(andrew): CoreAudio and AudioToolbox shouldn't be needed.
                 'OTHER_LDFLAGS': [
                   '-framework Foundation -framework AppKit -framework Cocoa -framework OpenGL -framework CoreVideo -framework CoreAudio -framework AudioToolbox',
                 ],
               },
-            }], # OS=="mac"
-            ['OS!="mac"', {
-              'dependencies': [
-                # Otherwise, use the regular main.
-                '<(webrtc_root)/test/test.gyp:test_support_main',
-              ],
-            }], # OS!="mac"
+            }],
           ] # conditions
         },
       ],

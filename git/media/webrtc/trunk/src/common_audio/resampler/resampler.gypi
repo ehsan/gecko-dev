@@ -29,22 +29,22 @@
     },
   ], # targets
   'conditions': [
-    ['include_tests==1', {
+    ['build_with_chromium==0', {
       'targets' : [
         {
           'target_name': 'resampler_unittests',
           'type': 'executable',
           'dependencies': [
             'resampler',
-            '<(webrtc_root)/test/test.gyp:test_support_main',
-            '<(DEPTH)/testing/gtest.gyp:gtest',
+            '<(webrtc_root)/../test/test.gyp:test_support_main',
+            '<(webrtc_root)/../testing/gtest.gyp:gtest',
           ],
           'sources': [
             'resampler_unittest.cc',
           ],
         }, # resampler_unittests
       ], # targets
-    }], # include_tests
+    }], # build_with_chromium
   ], # conditions
 }
 

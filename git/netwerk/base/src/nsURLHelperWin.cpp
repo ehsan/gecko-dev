@@ -23,7 +23,7 @@ net_GetURLSpecFromActualFile(nsIFile *aFile, nsACString &result)
     // Replace \ with / to convert to an url
     path.ReplaceChar(PRUnichar(0x5Cu), PRUnichar(0x2Fu));
 
-    nsAutoCString escPath;
+    nsCAutoString escPath;
 
     // Windows Desktop paths begin with a drive letter, so need an 'extra'
     // slash at the begining
@@ -62,18 +62,18 @@ net_GetFileFromURLSpec(const nsACString &aURL, nsIFile **result)
 
     const nsACString *specPtr;
 
-    nsAutoCString buf;
+    nsCAutoString buf;
     if (net_NormalizeFileURL(aURL, buf))
         specPtr = &buf;
     else
         specPtr = &aURL;
     
-    nsAutoCString directory, fileBaseName, fileExtension;
+    nsCAutoString directory, fileBaseName, fileExtension;
     
     rv = net_ParseFileURL(*specPtr, directory, fileBaseName, fileExtension);
     if (NS_FAILED(rv)) return rv;
 
-    nsAutoCString path;
+    nsCAutoString path;
 
     if (!directory.IsEmpty()) {
         NS_EscapeURL(directory, esc_Directory|esc_AlwaysCopy, path);

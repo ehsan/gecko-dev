@@ -105,11 +105,6 @@ public:
 
     void PrintDiagnostics(nsCString &log);
 
-    // Sets mPendingTime to the current time stamp or to a null time stamp (if now is false)
-    void SetPendingTime(bool now = true) { mPendingTime = now ? mozilla::TimeStamp::Now() : mozilla::TimeStamp(); }
-    const mozilla::TimeStamp GetPendingTime() { return mPendingTime; }
-    bool UsesPipelining() const { return mCaps & NS_HTTP_ALLOW_PIPELINING; }
-
 private:
     nsresult Restart();
     nsresult RestartInProgress();
@@ -213,9 +208,6 @@ private:
     // protected by nsHttp::GetLock()
     nsHttpResponseHead             *mForTakeResponseHead;
     bool                            mResponseHeadTaken;
-
-    // The time when the transaction was submitted to the Connection Manager
-    mozilla::TimeStamp              mPendingTime;
 
     class RestartVerifier 
     {

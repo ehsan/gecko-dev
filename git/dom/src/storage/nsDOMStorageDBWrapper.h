@@ -89,7 +89,10 @@ public:
   SetKey(DOMStorageImpl* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
-         bool aSecure);
+         bool aSecure,
+         int32_t aQuota,
+         bool aExcludeOfflineFromUsage,
+         int32_t* aNewUsage);
 
   /**
    * Set the secure flag for a key in storage. Does nothing if the key was
@@ -105,7 +108,9 @@ public:
    */
   nsresult
   RemoveKey(DOMStorageImpl* aStorage,
-            const nsAString& aKey);
+            const nsAString& aKey,
+            bool aExcludeOfflineFromUsage,
+            int32_t aKeyUsage);
 
   /**
     * Remove all keys belonging to this storage.
@@ -129,34 +134,27 @@ public:
    * Removes all keys added by a given domain.
    */
   nsresult
-  RemoveOwner(const nsACString& aOwner);
+  RemoveOwner(const nsACString& aOwner, bool aIncludeSubDomains);
 
   /**
-   * Removes all keys from storage. Used when clearing storage.
+   * Removes keys owned by domains that either match or don't match the
+   * list.
    */
   nsresult
-  RemoveAll();
+  RemoveOwners(const nsTArray<nsString>& aOwners,
+               bool aIncludeSubDomains, bool aMatch);
 
   /**
-   * Removes all keys from storage for a specific app.
-   * If aOnlyBrowserElement is true, it will remove only keys with the
-   * browserElement flag set.
-   * aAppId has to be a valid app id. It can't be NO_APP_ID or UNKNOWN_APP_ID.
-   */
-  nsresult
-  RemoveAllForApp(uint32_t aAppId, bool aOnlyBrowserElement);
-
-  /**
-    * Returns usage for a storage using its GetQuotaDBKey() as a key.
+    * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(DOMStorageImpl* aStorage, int32_t *aUsage);
+  GetUsage(DOMStorageImpl* aStorage, bool aExcludeOfflineFromUsage, int32_t *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
     */
   nsresult
-  GetUsage(const nsACString& aDomain, int32_t *aUsage, bool aPrivate);
+  GetUsage(const nsACString& aDomain, bool aIncludeSubDomains, int32_t *aUsage, bool aPrivate);
 
   /**
    * Marks the storage as "cached" after the DOMStorageImpl object has loaded
@@ -182,33 +180,26 @@ public:
     * i.e. reverses the host, appends a dot, appends the schema
     * and a port number.
     */
-  static nsresult CreateScopeDBKey(nsIPrincipal* aPrincipal, nsACString& aKey);
+  static nsresult CreateOriginScopeDBKey(nsIURI* aUri, nsACString& aKey);
 
   /**
     * Turns "http://foo.bar.com" to "moc.rab.oof.",
     * i.e. reverses the host and appends a dot.
     */
-  static nsresult CreateReversedDomain(nsIURI* aUri, nsACString& aKey);
-  static nsresult CreateReversedDomain(const nsACString& aAsciiDomain, nsACString& aKey);
+  static nsresult CreateDomainScopeDBKey(nsIURI* aUri, nsACString& aKey);
+  static nsresult CreateDomainScopeDBKey(const nsACString& aAsciiDomain, nsACString& aKey);
 
   /**
     * Turns "foo.bar.com" to "moc.rab.",
     * i.e. extracts eTLD+1 from the host, reverses the result
     * and appends a dot.
     */
-  static nsresult CreateQuotaDBKey(nsIPrincipal* aPrincipal,
-                                   nsACString& aKey);
+  static nsresult CreateQuotaDomainDBKey(const nsACString& aAsciiDomain,
+                                         bool aIncludeSubDomains, bool aETLDplus1Only,
+                                         nsACString& aKey);
 
-  /**
-    * Turns "foo.bar.com" to "moc.rab.",
-    * i.e. extracts eTLD+1 from the host, reverses the result
-    * and appends a dot.
-    */
-  static nsresult CreateQuotaDBKey(const nsACString& aDomain,
-                                   nsACString& aKey)
-  {
-    return CreateReversedDomain(aDomain, aKey);
-  }
+  static nsresult GetDomainFromScopeKey(const nsACString& aScope,
+                                         nsACString& aDomain);
 
   /**
    * Ensures the temp table flush timer is running. This is called when we add
@@ -230,6 +221,7 @@ public:
   void StopTempTableFlushTimer();
 
 protected:
+  nsDOMStoragePersistentDB mChromePersistentDB;
   nsDOMStoragePersistentDB mPersistentDB;
   nsDOMStorageMemoryDB mSessionOnlyDB;
   nsDOMStorageMemoryDB mPrivateBrowsingDB;

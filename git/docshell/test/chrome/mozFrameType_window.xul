@@ -35,15 +35,12 @@
       // Wait for the window to be closed before finishing the test
       let ww = Components.classes["@mozilla.org/embedcomp/window-watcher;1"]
                    .getService(Components.interfaces.nsIWindowWatcher);
-      ww.registerNotification(function windowObs(subject, topic, data) {
+      ww.registerNotification(function(subject, topic, data) {
         if (topic == "domwindowclosed") {
-          ww.unregisterNotification(windowObs);
-
-          SimpleTest.executeSoon(function () {
-            SimpleTest.waitForFocus(function() {
-              SimpleTest.finish();
-            }, opener);
-          });
+          ww.unregisterNotification(arguments.callee);
+          SimpleTest.waitForFocus(function() {
+            SimpleTest.finish();
+          }, opener);
         }
       });
 

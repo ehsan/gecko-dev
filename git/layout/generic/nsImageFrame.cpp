@@ -587,20 +587,20 @@ nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
   // from
   if (!aCurrentFrame)
     return NS_OK;
-  
+
+  // XXX We really need to round this out, now that we're doing better
+  // image scaling!
+  nsRect r = aRect->IsEqualInterior(nsIntRect::GetMaxSizedIntRect()) ?
+    GetInnerArea() :
+    SourceRectToDest(*aRect);
+
 #ifdef DEBUG_decode
-  printf("Source rect (%d,%d,%d,%d)\n",
-         aRect->x, aRect->y, aRect->width, aRect->height);
+  printf("Source rect (%d,%d,%d,%d) -> invalidate dest rect (%d,%d,%d,%d)\n",
+         aRect->x, aRect->y, aRect->width, aRect->height,
+         r.x, r.y, r.width, r.height);
 #endif
 
-  if (aRect->IsEqualInterior(nsIntRect::GetMaxSizedIntRect())) {
-    InvalidateFrame(nsDisplayItem::TYPE_IMAGE);
-    InvalidateFrame(nsDisplayItem::TYPE_ALT_FEEDBACK);
-  } else {
-    nsRect invalid = SourceRectToDest(*aRect);
-    InvalidateFrameWithRect(invalid, nsDisplayItem::TYPE_IMAGE);
-    InvalidateFrameWithRect(invalid, nsDisplayItem::TYPE_ALT_FEEDBACK);
-  }
+  Invalidate(r);
   
   return NS_OK;
 }
@@ -658,9 +658,12 @@ nsImageFrame::NotifyNewCurrentRequest(imgIRequest *aRequest,
         presShell->FrameNeedsReflow(this, nsIPresShell::eStyleChange,
                                     NS_FRAME_IS_DIRTY);
       }
+    } else {
+      nsSize s = GetSize();
+      nsRect r(0, 0, s.width, s.height);
+      // Update border+content to account for image change
+      Invalidate(r);
     }
-    // Update border+content to account for image change
-    InvalidateFrame();
   }
 }
 
@@ -678,7 +681,12 @@ nsImageFrame::FrameChanged(imgIRequest *aRequest,
     return NS_OK;
   }
 
-  InvalidateLayer(nsDisplayItem::TYPE_IMAGE);
+  nsRect r = aDirtyRect->IsEqualInterior(nsIntRect::GetMaxSizedIntRect()) ?
+    GetInnerArea() :
+    SourceRectToDest(*aDirtyRect);
+
+  // Update border+content to account for image change
+  Invalidate(r);
   return NS_OK;
 }
 
@@ -871,22 +879,16 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
   }
 
   aMetrics.SetOverflowAreasToDesiredBounds();
-  nsEventStates contentState = mContent->AsElement()->State();
-  bool imageOK = IMAGE_OK(contentState, true);
-
-  // Determine if the size is available
-  bool haveSize = false;
-  if (loadStatus & imgIRequest::STATUS_SIZE_AVAILABLE) {
-    haveSize = true;
-  }
-
-  if (!imageOK || !haveSize) {
-    nsRect altFeedbackSize(0, 0,
-                           2*(nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+ICON_PADDING+ALT_BORDER_WIDTH)),
-                           2*(nsPresContext::CSSPixelsToAppUnits(ICON_SIZE+ICON_PADDING+ALT_BORDER_WIDTH)));
-    aMetrics.mOverflowAreas.UnionAllWith(altFeedbackSize);
-  }
   FinishAndStoreOverflow(&aMetrics);
+
+  // Now that that's all done, check whether we're resizing... if we are,
+  // invalidate our rect.
+  // XXXbz we really only want to do this when reflow is completely done, but
+  // we have no way to detect when mRect changes (since SetRect is non-virtual,
+  // so this is the best we can do).
+  if (mRect.width != aMetrics.width || mRect.height != aMetrics.height) {
+    Invalidate(nsRect(0, 0, mRect.width, mRect.height));
+  }
 
   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS,
                   ("exit nsImageFrame::Reflow: size=%d,%d",
@@ -1043,33 +1045,6 @@ struct nsRecessedBorder : public nsStyleBorder {
   }
 };
 
-class nsDisplayAltFeedback : public nsDisplayItem {
-public:
-  nsDisplayAltFeedback(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame) {}
-
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
-  {
-    *aSnap = false;
-    return mFrame->GetVisualOverflowRectRelativeToSelf() + ToReferenceFrame();
-  }
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx)
-  {
-    nsImageFrame* f = static_cast<nsImageFrame*>(mFrame);
-    nsEventStates state = f->GetContent()->AsElement()->State();
-    f->DisplayAltFeedback(*aCtx,
-                          mVisibleRect,
-                          IMAGE_OK(state, true)
-                             ? nsImageFrame::gIconLoad->mLoadingImage
-                             : nsImageFrame::gIconLoad->mBrokenImage,
-                          ToReferenceFrame());
-
-  }
-
-  NS_DISPLAY_DECL_NAME("AltFeedback", TYPE_ALT_FEEDBACK)
-};
-
 void
 nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
                                  const nsRect&        aDirtyRect,
@@ -1184,6 +1159,19 @@ nsImageFrame::DisplayAltFeedback(nsRenderingContext& aRenderingContext,
   aRenderingContext.PopState();
 }
 
+static void PaintAltFeedback(nsIFrame* aFrame, nsRenderingContext* aCtx,
+     const nsRect& aDirtyRect, nsPoint aPt)
+{
+  nsImageFrame* f = static_cast<nsImageFrame*>(aFrame);
+  nsEventStates state = f->GetContent()->AsElement()->State();
+  f->DisplayAltFeedback(*aCtx,
+                        aDirtyRect,
+                        IMAGE_OK(state, true)
+                           ? nsImageFrame::gIconLoad->mLoadingImage
+                           : nsImageFrame::gIconLoad->mBrokenImage,
+                        aPt);
+}
+
 #ifdef DEBUG
 static void PaintDebugImageMap(nsIFrame* aFrame, nsRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
@@ -1280,12 +1268,12 @@ nsDisplayImage::BuildLayer(nsDisplayListBuilder* aBuilder,
 
   nsRefPtr<ImageLayer> layer = aManager->CreateImageLayer();
   layer->SetContainer(container);
-  ConfigureLayer(layer, aParameters.mOffset);
+  ConfigureLayer(layer);
   return layer.forget();
 }
 
 void
-nsDisplayImage::ConfigureLayer(ImageLayer *aLayer, const nsIntPoint& aOffset)
+nsDisplayImage::ConfigureLayer(ImageLayer *aLayer)
 {
   aLayer->SetFilter(nsLayoutUtils::GetGraphicsFilterForFrame(mFrame));
 
@@ -1299,7 +1287,7 @@ nsDisplayImage::ConfigureLayer(ImageLayer *aLayer, const nsIntPoint& aOffset)
   const gfxRect destRect = GetDestRect();
 
   gfxMatrix transform;
-  transform.Translate(destRect.TopLeft() + aOffset);
+  transform.Translate(destRect.TopLeft());
   transform.Scale(destRect.Width()/imageWidth,
                   destRect.Height()/imageHeight);
   aLayer->SetBaseTransform(gfx3DMatrix::From2D(transform));
@@ -1385,7 +1373,8 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
       rv = replacedContent.AppendNewToTop(new (aBuilder)
-          nsDisplayAltFeedback(aBuilder, this));
+          nsDisplayGeneric(aBuilder, this, PaintAltFeedback, "AltFeedback",
+                           nsDisplayItem::TYPE_ALT_FEEDBACK));
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1634,7 +1623,7 @@ nsImageFrame::HandleEvent(nsPresContext* aPresContext,
           // mouse is over the border.
           if (p.x < 0) p.x = 0;
           if (p.y < 0) p.y = 0;
-          nsAutoCString spec;
+          nsCAutoString spec;
           uri->GetSpec(spec);
           spec += nsPrintfCString("?%d,%d", p.x, p.y);
           uri->SetSpec(spec);                
@@ -1719,7 +1708,7 @@ nsImageFrame::GetFrameName(nsAString& aResult) const
 }
 
 NS_IMETHODIMP
-nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
+nsImageFrame::List(FILE* out, int32_t aIndent) const
 {
   IndentBy(out, aIndent);
   ListTag(out);
@@ -1745,7 +1734,7 @@ nsImageFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
     if (currentRequest) {
       nsCOMPtr<nsIURI> uri;
       currentRequest->GetURI(getter_AddRefs(uri));
-      nsAutoCString uristr;
+      nsCAutoString uristr;
       uri->GetAsciiSpec(uristr);
       fprintf(out, " [src=%s]", uristr.get());
     }
@@ -1797,8 +1786,8 @@ nsImageFrame::LoadIcon(const nsAString& aSpec,
   nsCOMPtr<nsIURI> realURI;
   SpecToURI(aSpec, sIOService, getter_AddRefs(realURI));
  
-  nsCOMPtr<imgILoader> il =
-    nsContentUtils::GetImgLoaderForDocument(aPresContext->Document());
+  nsCOMPtr<imgILoader> il(do_GetService("@mozilla.org/image/loader;1", &rv));
+  if (NS_FAILED(rv)) return rv;
 
   nsCOMPtr<nsILoadGroup> loadGroup;
   GetLoadGroup(aPresContext, getter_AddRefs(loadGroup));
@@ -1840,7 +1829,7 @@ nsImageFrame::SpecToURI(const nsAString& aSpec, nsIIOService *aIOService,
   if (mContent) {
     baseURI = mContent->GetBaseURI();
   }
-  nsAutoCString charset;
+  nsCAutoString charset;
   GetDocumentCharacterSet(charset);
   NS_NewURI(aURI, aSpec, 
             charset.IsEmpty() ? nullptr : charset.get(), 
@@ -2022,7 +2011,7 @@ nsImageFrame::IconLoad::OnStopRequest(imgIRequest *aRequest,
   nsImageFrame *frame;
   while (iter.HasMore()) {
     frame = iter.GetNext();
-    frame->InvalidateFrame();
+    frame->Invalidate(frame->GetRect());
   }
 
   return NS_OK;
@@ -2043,7 +2032,7 @@ nsImageFrame::IconLoad::FrameChanged(imgIRequest *aRequest,
   nsImageFrame *frame;
   while (iter.HasMore()) {
     frame = iter.GetNext();
-    frame->InvalidateFrame();
+    frame->Invalidate(frame->GetRect());
   }
 
   return NS_OK;

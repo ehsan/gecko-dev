@@ -5,7 +5,6 @@
 #ifndef nsAnimationManager_h_
 #define nsAnimationManager_h_
 
-#include "mozilla/Attributes.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 #include "nsStyleContext.h"
@@ -128,9 +127,7 @@ struct ElementAnimations : public mozilla::css::CommonElementAnimationData
   // from the main thread, we need the actual ElementAnimation* in order to 
   // get correct animation-fill behavior and to fire animation events.
   // This function returns -1 for the position if the animation should not be
-  // run (because it is not currently active and has no fill behavior), but
-  // only does so if aAnimation is non-null; with a null aAnimation it is an
-  // error to give aCurrentTime < aStartTime, and fill-forwards is assumed.
+  // run (because it is not currently active and has no fill behavior.)
   static double GetPositionInIteration(TimeStamp aStartTime,
                                        TimeStamp aCurrentTime,
                                        TimeDuration aDuration,
@@ -190,11 +187,11 @@ public:
   }
 
   // nsIStyleRuleProcessor (parts)
-  virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
   virtual NS_MUST_OVERRIDE size_t
     SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
@@ -202,7 +199,7 @@ public:
     SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   // nsARefreshObserver
-  virtual void WillRefresh(mozilla::TimeStamp aTime) MOZ_OVERRIDE;
+  virtual void WillRefresh(mozilla::TimeStamp aTime);
 
   /**
    * Return the style rule that RulesMatching should add for

@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["PrivateBrowsingUtils"];
+var EXPORTED_SYMBOLS = ["PrivateBrowsingUtils"];
 
 const Ci = Components.interfaces;
 
-this.PrivateBrowsingUtils = {
+var PrivateBrowsingUtils = {
   isWindowPrivate: function pbu_isWindowPrivate(aWindow) {
     return this.privacyContextFromWindow(aWindow).usePrivateBrowsing;
   },

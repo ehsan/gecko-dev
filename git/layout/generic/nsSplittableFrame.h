@@ -11,7 +11,6 @@
 #ifndef nsSplittableFrame_h___
 #define nsSplittableFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsFrame.h"
 
 // Derived class that allows splitting
@@ -22,7 +21,7 @@ public:
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+                  nsIFrame*        aPrevInFlow);
   
   virtual nsSplittableType GetSplittableType() const;
 
@@ -37,12 +36,12 @@ public:
    */
   
   // Get the previous/next continuation, regardless of its type (fluid or non-fluid).
-  virtual nsIFrame* GetPrevContinuation() const MOZ_OVERRIDE;
-  virtual nsIFrame* GetNextContinuation() const MOZ_OVERRIDE;
+  virtual nsIFrame* GetPrevContinuation() const;
+  virtual nsIFrame* GetNextContinuation() const;
 
   // Set a previous/next non-fluid continuation.
-  NS_IMETHOD SetPrevContinuation(nsIFrame*) MOZ_OVERRIDE;
-  NS_IMETHOD SetNextContinuation(nsIFrame*) MOZ_OVERRIDE;
+  NS_IMETHOD SetPrevContinuation(nsIFrame*);
+  NS_IMETHOD SetNextContinuation(nsIFrame*);
 
   // Get the first/last continuation for this frame.
   virtual nsIFrame* GetFirstContinuation() const;
@@ -58,12 +57,12 @@ public:
   nsIFrame* GetPrevInFlow() const;
   nsIFrame* GetNextInFlow() const;
 
-  virtual nsIFrame* GetPrevInFlowVirtual() const MOZ_OVERRIDE { return GetPrevInFlow(); }
-  virtual nsIFrame* GetNextInFlowVirtual() const MOZ_OVERRIDE { return GetNextInFlow(); }
+  virtual nsIFrame* GetPrevInFlowVirtual() const { return GetPrevInFlow(); }
+  virtual nsIFrame* GetNextInFlowVirtual() const { return GetNextInFlow(); }
   
   // Set a previous/next fluid continuation.
-  NS_IMETHOD  SetPrevInFlow(nsIFrame*) MOZ_OVERRIDE;
-  NS_IMETHOD  SetNextInFlow(nsIFrame*) MOZ_OVERRIDE;
+  NS_IMETHOD  SetPrevInFlow(nsIFrame*);
+  NS_IMETHOD  SetNextInFlow(nsIFrame*);
 
   // Get the first/last frame in the current flow.
   virtual nsIFrame* GetFirstInFlow() const;
@@ -77,7 +76,7 @@ protected:
   nsSplittableFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
 
 #ifdef DEBUG
-  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, int32_t aIndent) MOZ_OVERRIDE;
+  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, int32_t aIndent);
 #endif
 
   nsIFrame*   mPrevContinuation;

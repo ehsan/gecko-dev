@@ -64,6 +64,7 @@ FilePlayerImpl::FilePlayerImpl(const WebRtc_UWord32 instanceID,
       _fileFormat(fileFormat),
       _fileModule(*MediaFile::CreateMediaFile(instanceID)),
       _decodedLengthInMS(0),
+      _decodedAudioBuffer(),
       _audioDecoder(instanceID),
       _codec(),
       _numberOf10MsPerFrame(0),
@@ -116,9 +117,9 @@ WebRtc_Word32 FilePlayerImpl::AudioCodec(CodecInst& audioCodec) const
 }
 
 WebRtc_Word32 FilePlayerImpl::Get10msAudioFromFile(
-    int16_t* outBuffer,
-    int& lengthInSamples,
-    int frequencyInHz)
+    WebRtc_Word16* outBuffer,
+    WebRtc_UWord32& lengthInSamples,
+    WebRtc_UWord32 frequencyInHz)
 {
     if(_codec.plfreq == 0)
     {
@@ -132,13 +133,13 @@ WebRtc_Word32 FilePlayerImpl::Get10msAudioFromFile(
     AudioFrame unresampledAudioFrame;
     if(STR_CASE_CMP(_codec.plname, "L16") == 0)
     {
-        unresampledAudioFrame.sample_rate_hz_ = _codec.plfreq;
+        unresampledAudioFrame._frequencyInHz = _codec.plfreq;
 
         // L16 is un-encoded data. Just pull 10 ms.
         WebRtc_UWord32 lengthInBytes =
-            sizeof(unresampledAudioFrame.data_);
+            sizeof(unresampledAudioFrame._payloadData);
         if (_fileModule.PlayoutAudioData(
-                (WebRtc_Word8*)unresampledAudioFrame.data_,
+                (WebRtc_Word8*)unresampledAudioFrame._payloadData,
                 lengthInBytes) == -1)
         {
             // End of file reached.
@@ -150,7 +151,7 @@ WebRtc_Word32 FilePlayerImpl::Get10msAudioFromFile(
             return 0;
         }
         // One sample is two bytes.
-        unresampledAudioFrame.samples_per_channel_ =
+        unresampledAudioFrame._payloadDataLengthInSamples =
             (WebRtc_UWord16)lengthInBytes >> 1;
 
     }else {
@@ -180,7 +181,7 @@ WebRtc_Word32 FilePlayerImpl::Get10msAudioFromFile(
     }
 
     int outLen = 0;
-    if(_resampler.ResetIfNeeded(unresampledAudioFrame.sample_rate_hz_,
+    if(_resampler.ResetIfNeeded(unresampledAudioFrame._frequencyInHz,
                                 frequencyInHz, kResamplerSynchronous))
     {
         WEBRTC_TRACE(kTraceWarning, kTraceVoice, _instanceID,
@@ -191,8 +192,8 @@ WebRtc_Word32 FilePlayerImpl::Get10msAudioFromFile(
         memset(outBuffer, 0, outLen * sizeof(WebRtc_Word16));
         return 0;
     }
-    _resampler.Push(unresampledAudioFrame.data_,
-                    unresampledAudioFrame.samples_per_channel_,
+    _resampler.Push(unresampledAudioFrame._payloadData,
+                    unresampledAudioFrame._payloadDataLengthInSamples,
                     outBuffer,
                     MAX_AUDIO_BUFFER_IN_SAMPLES,
                     outLen);

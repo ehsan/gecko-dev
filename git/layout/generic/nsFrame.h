@@ -8,7 +8,6 @@
 #ifndef nsFrame_h___
 #define nsFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBox.h"
 #include "nsRect.h"
 #include "nsString.h"
@@ -98,7 +97,7 @@
 //----------------------------------------------------------------------
 
 struct nsBoxLayoutMetrics;
-class nsDisplayBackgroundImage;
+class nsDisplayBackground;
 
 /**
  * Implementation of a simple frame that's not splittable and has no
@@ -297,28 +296,6 @@ public:
                            nscoord aWidthInCB);
 
   NS_IMETHOD  WillReflow(nsPresContext* aPresContext);
-  /**
-   * Calculates the size of this frame after reflowing (calling Reflow on, and
-   * updating the size and position of) its children, as necessary.  The
-   * calculated size is returned to the caller via the nsHTMLReflowMetrics
-   * outparam.  (The caller is responsible for setting the actual size and
-   * position of this frame.)
-   *
-   * A frame's children must _all_ be reflowed if the frame is dirty (the
-   * NS_FRAME_IS_DIRTY bit is set on it).  Otherwise, individual children
-   * must be reflowed if they are dirty or have the NS_FRAME_HAS_DIRTY_CHILDREN
-   * bit set on them.  Otherwise, whether children need to be reflowed depends
-   * on the frame's type (it's up to individual Reflow methods), and on what
-   * has changed.  For example, a change in the width of the frame may require
-   * all of its children to be reflowed (even those without dirty bits set on
-   * them), whereas a change in its height might not.
-   * (nsHTMLReflowState::ShouldReflowAllKids may be helpful in deciding whether
-   * to reflow all the children, but for some frame types it might result in
-   * over-reflow.)
-   *
-   * Note: if it's only the overflow rect(s) of a frame that need to be
-   * updated, then UpdateOverflow should be called instead of Reflow.
-   */
   NS_IMETHOD  Reflow(nsPresContext*          aPresContext,
                      nsHTMLReflowMetrics&     aDesiredSize,
                      const nsHTMLReflowState& aReflowState,
@@ -340,7 +317,9 @@ public:
   virtual bool UpdateOverflow();
 
   // Selection Methods
-
+  // XXX Doc me... (in nsIFrame.h puhleeze)
+  // XXX If these are selection specific, then the name should imply selection
+  // rather than generic event processing, e.g., SelectionHandlePress...
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
                          nsGUIEvent *    aEvent,
                          nsEventStatus*  aEventStatus);
@@ -358,20 +337,13 @@ public:
                            nsGUIEvent *    aEvent,
                            nsEventStatus*  aEventStatus);
 
-  enum { SELECT_ACCUMULATE = 0x01 };
+  NS_IMETHOD PeekBackwardAndForward(nsSelectionAmount aAmountBack,
+                                    nsSelectionAmount aAmountForward,
+                                    int32_t aStartPos,
+                                    nsPresContext* aPresContext,
+                                    bool aJumpLines,
+                                    bool aMultipleSelection);
 
-  nsresult PeekBackwardAndForward(nsSelectionAmount aAmountBack,
-                                  nsSelectionAmount aAmountForward,
-                                  int32_t aStartPos,
-                                  nsPresContext* aPresContext,
-                                  bool aJumpLines,
-                                  uint32_t aSelectFlags);
-
-  nsresult SelectByTypeAtPoint(nsPresContext* aPresContext,
-                               const nsPoint& aPoint,
-                               nsSelectionAmount aBeginAmountType,
-                               nsSelectionAmount aEndAmountType,
-                               uint32_t aSelectFlags);
 
   // Helper for GetContentAndOffsetsFromPoint; calculation of content offsets
   // in this function assumes there is no child frame that can be targeted.
@@ -380,16 +352,26 @@ public:
   // Box layout methods
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
+  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nscoord GetFlex(nsBoxLayoutState& aBoxLayoutState);
-  virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
+  virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState);
 
   // We compute and store the HTML content's overflow area. So don't
   // try to compute it in the box code.
-  virtual bool ComputesOwnOverflowArea() MOZ_OVERRIDE { return true; }
+  virtual bool ComputesOwnOverflowArea() { return true; }
 
   //--------------------------------------------------
   // Additional methods
+
+  /**
+   * Helper method to invalidate portions of a standard container frame if the
+   * desired size indicates that the size has changed (specifically border,
+   * background and outline).
+   * We assume that the difference between the old frame area and the new
+   * frame area is invalidated by some other means.
+   * @param aDesiredSize the new size of the frame
+   */
+  void CheckInvalidateSizeChange(nsHTMLReflowMetrics&     aNewDesiredSize);
 
   // Helper function that tests if the frame tree is too deep; if it is
   // it marks the frame as "unflowable", zeroes out the metrics, sets
@@ -489,19 +471,19 @@ public:
   static void ShutdownLayerActivityTimer();
 
   /**
-   * Adds display items for standard CSS background if necessary.
+   * Adds display item for standard CSS background if necessary.
    * Does not check IsVisibleForPainting.
    * @param aForceBackground draw the background even if the frame
    * background style appears to have no background --- this is useful
    * for frames that might receive a propagated background via
    * nsCSSRendering::FindBackground
-   * @param aBackground *aBackground is set to the bottom-most
-   * nsDisplayBackground item, if any are created, otherwise null.
+   * @param aBackground *aBackground is set to the new nsDisplayBackground item,
+   * if one is created, otherwise null.
    */
   nsresult DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
                                           const nsDisplayListSet& aLists,
                                           bool aForceBackground,
-                                          nsDisplayBackgroundImage** aBackground);
+                                          nsDisplayBackground** aBackground);
   /**
    * Adds display items for standard CSS borders, background and outline for
    * for this frame, as necessary. Checks IsVisibleForPainting and won't
@@ -627,10 +609,10 @@ protected:
   // Fills aCursor with the appropriate information from ui
   static void FillCursorInformationFromStyle(const nsStyleUserInterface* ui,
                                              nsIFrame::Cursor& aCursor);
-  NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
+  NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
 
 #ifdef DEBUG_LAYOUT
-  virtual void GetBoxName(nsAutoString& aName) MOZ_OVERRIDE;
+  virtual void GetBoxName(nsAutoString& aName);
 #endif
 
   void InitBoxMetrics(bool aClear);
@@ -658,7 +640,7 @@ private:
 public:
   // Formerly the nsIFrameDebug interface
 
-  NS_IMETHOD  List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
+  NS_IMETHOD  List(FILE* out, int32_t aIndent) const;
   /**
    * lists the frames beginning from the root frame
    * - calls root frame's List(...)

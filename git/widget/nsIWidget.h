@@ -11,6 +11,7 @@
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
+#include "nsRegion.h"
 #include "nsStringGlue.h"
 
 #include "prthread.h"
@@ -35,15 +36,12 @@ class   gfxASurface;
 class   nsIContent;
 class   ViewWrapper;
 class   nsIWidgetListener;
-class   nsIntRegion;
 
 namespace mozilla {
 namespace dom {
 class TabChild;
 }
 namespace layers {
-class Composer2D;
-class CompositorChild;
 class LayerManager;
 class PLayersChild;
 }
@@ -87,12 +85,11 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_TSF_THREAD_MGR       100
 #define NS_NATIVE_TSF_CATEGORY_MGR     101
 #define NS_NATIVE_TSF_DISPLAY_ATTR_MGR 102
-#define NS_NATIVE_ICOREWINDOW          103 // winrt specific
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0xdb9b0931, 0xebf9, 0x4e0d, \
-    { 0xb2, 0x0a, 0xf7, 0x5f, 0xcb, 0x17, 0xe6, 0xe1 } }
+  { 0xb8f43b25, 0x9036, 0x44e7, \
+    { 0xaa, 0xe2, 0x33, 0x76, 0x6c, 0x35, 0x91, 0xfc } }
 
 /*
  * Window shadow styles
@@ -383,8 +380,6 @@ class nsIWidget : public nsISupports {
     typedef mozilla::dom::TabChild TabChild;
 
   public:
-    typedef mozilla::layers::Composer2D Composer2D;
-    typedef mozilla::layers::CompositorChild CompositorChild;
     typedef mozilla::layers::LayerManager LayerManager;
     typedef mozilla::layers::LayersBackend LayersBackend;
     typedef mozilla::layers::PLayersChild PLayersChild;
@@ -432,10 +427,6 @@ class nsIWidget : public nsISupports {
      * In practice at least one of aParent and aNativeParent will be null. If
      * both are null the widget isn't parented (e.g. context menus or
      * independent top level windows).
-     *
-     * The dimensions given in aRect are specified in the parent's
-     * coordinate system, or for parentless widgets such as top-level
-     * windows, in global CSS pixels.
      *
      * @param     aParent       parent nsIWidget
      * @param     aNativeParent native parent widget
@@ -562,10 +553,9 @@ class nsIWidget : public nsISupports {
      * Return the default scale factor for the window. This is the
      * default number of device pixels per CSS pixel to use. This should
      * depend on OS/platform settings such as the Mac's "UI scale factor"
-     * or Windows' "font DPI". This will take into account Gecko preferences
-     * overriding the system setting.
+     * or Windows' "font DPI".
      */
-    double GetDefaultScale();
+    virtual double GetDefaultScale() = 0;
 
     /**
      * Return the first child of this widget.  Will return null if
@@ -1366,7 +1356,6 @@ class nsIWidget : public nsISupports {
 
     /**
      * A shortcut to SynthesizeNativeMouseEvent, abstracting away the native message.
-     * aPoint is location in device pixels to which the mouse pointer moves to.
      */
     virtual nsresult SynthesizeNativeMouseMove(nsIntPoint aPoint) = 0;
 
@@ -1632,35 +1621,7 @@ class nsIWidget : public nsISupports {
      */
     virtual const SizeConstraints& GetSizeConstraints() const = 0;
 
-    /**
-     * If this is owned by a TabChild, return that.  Otherwise return
-     * null.
-     */
-    virtual TabChild* GetOwningTabChild() { return nullptr; }
-
-    /**
-     * If this isn't directly compositing to its window surface,
-     * return the compositor which is doing that on our behalf.
-     */
-    virtual CompositorChild* GetRemoteRenderer()
-    { return nullptr; }
-
-    /**
-     * If this widget has a more efficient composer available for its
-     * native framebuffer, return it.
-     *
-     * This can be called from a non-main thread, but that thread must
-     * hold a strong reference to this.
-     */
-    virtual Composer2D* GetComposer2D()
-    { return nullptr; }
-
 protected:
-    /**
-     * Like GetDefaultScale, but taking into account only the system settings
-     * and ignoring Gecko preferences.
-     */
-    virtual double GetDefaultScaleInternal() { return 1.0; }
 
     // keep the list of children.  We also keep track of our siblings.
     // The ownership model is as follows: parent holds a strong ref to

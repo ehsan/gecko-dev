@@ -187,7 +187,7 @@ LookupCache::Dump()
     return;
 
   for (uint32 i = 0; i < mCompletions.Length(); i++) {
-    nsAutoCString str;
+    nsCAutoString str;
     mCompletions[i].ToString(str);
     LOG(("Completion: %s", str.get()));
   }
@@ -404,7 +404,7 @@ LookupCache::GetKey(const nsACString& aSpec,
   const nsCSubstring& host = Substring(begin, iter);
 
   if (IsCanonicalizedIP(host)) {
-    nsAutoCString key;
+    nsCAutoString key;
     key.Assign(host);
     key.Append("/");
     return aHash->FromPlaintext(key, aCryptoHash);
@@ -417,7 +417,7 @@ LookupCache::GetKey(const nsACString& aSpec,
     return NS_ERROR_FAILURE;
 
   int32_t last = int32_t(hostComponents.Length()) - 1;
-  nsAutoCString lookupHost;
+  nsCAutoString lookupHost;
 
   if (hostComponents.Length() > 2) {
     lookupHost.Append(hostComponents[last - 2]);
@@ -449,7 +449,7 @@ LookupCache::GetLookupFragments(const nsACString& aSpec,
   }
 
   const nsCSubstring& host = Substring(begin, iter++);
-  nsAutoCString path;
+  nsCAutoString path;
   path.Assign(Substring(iter, end));
 
   /**
@@ -493,7 +493,7 @@ LookupCache::GetLookupFragments(const nsACString& aSpec,
    *    appended that was not present in the original url.
    */
   nsTArray<nsCString> paths;
-  nsAutoCString pathToAdd;
+  nsCAutoString pathToAdd;
 
   path.BeginReading(begin);
   path.EndReading(end);

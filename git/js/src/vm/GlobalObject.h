@@ -22,13 +22,13 @@
 #include "builtin/RegExp.h"
 
 extern JSObject *
-js_InitObjectClass(JSContext *cx, js::HandleObject obj);
+js_InitObjectClass(JSContext *cx, JSObject *obj);
 
 extern JSObject *
-js_InitFunctionClass(JSContext *cx, js::HandleObject obj);
+js_InitFunctionClass(JSContext *cx, JSObject *obj);
 
 extern JSObject *
-js_InitTypedArrayClasses(JSContext *cx, js::HandleObject obj);
+js_InitTypedArrayClasses(JSContext *cx, JSObject *obj);
 
 namespace js {
 
@@ -98,7 +98,8 @@ class GlobalObject : public JSObject
     static const unsigned REGEXP_STATICS          = SET_ITERATOR_PROTO + 1;
     static const unsigned FUNCTION_NS             = REGEXP_STATICS + 1;
     static const unsigned RUNTIME_CODEGEN_ENABLED = FUNCTION_NS + 1;
-    static const unsigned DEBUGGERS               = RUNTIME_CODEGEN_ENABLED + 1;
+    static const unsigned FLAGS                   = RUNTIME_CODEGEN_ENABLED + 1;
+    static const unsigned DEBUGGERS               = FLAGS + 1;
     static const unsigned INTRINSICS              = DEBUGGERS + 1;
 
     /* Total reserved-slot count for global objects. */
@@ -113,10 +114,15 @@ class GlobalObject : public JSObject
         JS_STATIC_ASSERT(JSCLASS_GLOBAL_SLOT_COUNT == RESERVED_SLOTS);
     }
 
+    static const int32_t FLAGS_CLEARED = 0x1;
+
+    inline void setFlags(int32_t flags);
+    inline void initFlags(int32_t flags);
+
     friend JSObject *
-    ::js_InitObjectClass(JSContext *cx, js::HandleObject);
+    ::js_InitObjectClass(JSContext *cx, JSObject *obj);
     friend JSObject *
-    ::js_InitFunctionClass(JSContext *cx, js::HandleObject);
+    ::js_InitFunctionClass(JSContext *cx, JSObject *obj);
 
     /* Initialize the Function and Object classes.  Must only be called once! */
     JSObject *
@@ -368,16 +374,16 @@ class GlobalObject : public JSObject
         return HasDataProperty(cx, holder, NameToId(name), &fun);
     }
 
-    bool getIntrinsicValue(JSContext *cx, PropertyName *name, MutableHandleValue value) {
+    bool getIntrinsicValue(JSContext *cx, PropertyName *name, Value *vp) {
         RootedObject holder(cx, &getSlotRef(INTRINSICS).toObject());
-        RootedId id(cx, NameToId(name));
-        if (HasDataProperty(cx, holder, id, value.address()))
+        jsid id = NameToId(name);
+        if (HasDataProperty(cx, holder, id, vp))
             return true;
-        bool ok = cx->runtime->cloneSelfHostedValueById(cx, id, holder, value);
+        bool ok = cx->runtime->cloneSelfHostedValueById(cx, id, holder, vp);
         if (!ok)
             return false;
 
-        ok = JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
+        ok = JS_DefinePropertyById(cx, holder, id, *vp, NULL, NULL, 0);
         JS_ASSERT(ok);
         return true;
     }
@@ -405,6 +411,12 @@ class GlobalObject : public JSObject
     Value protoGetter() const {
         JS_ASSERT(functionObjectClassesInitialized());
         return getSlot(PROTO_GETTER);
+    }
+
+    void clear(JSContext *cx);
+
+    bool isCleared() const {
+        return getSlot(FLAGS).toInt32() & FLAGS_CLEARED;
     }
 
     bool isRuntimeCodeGenEnabled(JSContext *cx);

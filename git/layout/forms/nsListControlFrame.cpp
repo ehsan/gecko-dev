@@ -256,7 +256,15 @@ nsListControlFrame::InvalidateFocus()
 
   nsIFrame* containerFrame = GetOptionsContainer();
   if (containerFrame) {
-    containerFrame->InvalidateFrame();
+    // Invalidating from the containerFrame because that's where our focus
+    // is drawn.
+    // The origin of the scrollport is the origin of containerFrame.
+    float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+    nsRect invalidateArea = containerFrame->GetVisualOverflowRect();
+    nsRect emptyFallbackArea(0, 0, GetScrollPortRect().width,
+                             CalcFallbackRowHeight(inflation));
+    invalidateArea.UnionRect(invalidateArea, emptyFallbackArea);
+    containerFrame->Invalidate(invalidateArea);
   }
 }
 
@@ -410,7 +418,7 @@ nsListControlFrame::Reflow(nsPresContext*           aPresContext,
     (NS_SUBTREE_DIRTY(this) || aReflowState.ShouldReflowAllKids());
   
   nsHTMLReflowState state(aReflowState);
-  int32_t length = GetNumberOfRows();
+  int32_t length = GetNumberOfOptions();  
 
   nscoord oldHeightOfARow = HeightOfARow();
 
@@ -572,7 +580,7 @@ nsListControlFrame::ReflowAsDropdown(nsPresContext*           aPresContext,
     if (above <= 0 && below <= 0) {
       state.SetComputedHeight(heightOfARow);
       mNumDisplayRows = 1;
-      mDropdownCanGrow = GetNumberOfRows() > 1;
+      mDropdownCanGrow = GetNumberOfOptions() > 1;
     } else {
       nscoord bp = aReflowState.mComputedBorderPadding.TopBottom();
       nscoord availableHeight = NS_MAX(above, below) - bp;
@@ -580,7 +588,7 @@ nsListControlFrame::ReflowAsDropdown(nsPresContext*           aPresContext,
       int32_t rows;
       if (visibleHeight <= availableHeight) {
         // The dropdown fits in the available height.
-        rows = GetNumberOfRows();
+        rows = GetNumberOfOptions();
         mNumDisplayRows = clamped(rows, 1, kMaxDropDownRows);
         if (mNumDisplayRows == rows) {
           newHeight = visibleHeight;  // use the exact height
@@ -754,39 +762,6 @@ nsListControlFrame::InitSelectionRange(int32_t aClickedIndex)
       mEndSelectionIndex = i-1;
     }
   }
-}
-
-static uint32_t
-CountOptionsAndOptgroups(nsIFrame* aFrame)
-{
-  uint32_t count = 0;
-  nsFrameList::Enumerator e(aFrame->PrincipalChildList());
-  for (; !e.AtEnd(); e.Next()) {
-    nsIFrame* child = e.get();
-    nsIContent* content = child->GetContent();
-    if (content) {
-      if (content->IsHTML(nsGkAtoms::option)) {
-        ++count;
-      } else {
-        nsCOMPtr<nsIDOMHTMLOptGroupElement> optgroup = do_QueryInterface(content);
-        if (optgroup) {
-          nsAutoString label;
-          optgroup->GetLabel(label);
-          if (label.Length() > 0) {
-            ++count;
-          }
-          count += CountOptionsAndOptgroups(child);
-        }
-      }
-    }
-  }
-  return count;
-}
-
-uint32_t
-nsListControlFrame::GetNumberOfRows()
-{
-  return ::CountOptionsAndOptgroups(GetContentInsertionFrame());
 }
 
 //---------------------------------------------------------
@@ -1024,8 +999,6 @@ nsListControlFrame::Init(nsIContent*     aContent,
   mEndSelectionIndex = kNothingSelected;
 
   mLastDropdownBackstopColor = PresContext()->DefaultBackgroundColor();
-
-  AddStateBits(NS_FRAME_IN_POPUP);
 
   return result;
 }
@@ -1602,7 +1575,7 @@ nsListControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
     nsresult error = NS_OK;
     bool selected = false;
     int32_t indx = val.ToInteger(&error, 10); // Get index from aValue
-    if (NS_SUCCEEDED(error))
+    if (error == 0)
        selected = IsContentSelectedByIndex(indx); 
   
     aValue.Assign(selected ? NS_LITERAL_STRING("1") : NS_LITERAL_STRING("0"));
@@ -1704,6 +1677,18 @@ nsIAtom*
 nsListControlFrame::GetType() const
 {
   return nsGkAtoms::listControlFrame; 
+}
+
+void
+nsListControlFrame::InvalidateInternal(const nsRect& aDamageRect,
+                                       nscoord aX, nscoord aY, nsIFrame* aForChild,
+                                       uint32_t aFlags)
+{
+  if (!IsInDropDownMode()) {
+    nsHTMLScrollFrame::InvalidateInternal(aDamageRect, aX, aY, this, aFlags);
+    return;
+  }
+  InvalidateRoot(aDamageRect + nsPoint(aX, aY), aFlags);
 }
 
 #ifdef DEBUG

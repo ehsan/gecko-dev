@@ -8,7 +8,6 @@
 #include "nsHashKeys.h"
 #include "nsGlobalWindow.h"
 #include "nsClassHashtable.h"
-#include "nsRefPtrHashtable.h"
 #include "nsObserverService.h"
 
 #include "nsPIDOMWindow.h"
@@ -118,43 +117,14 @@ private:
 typedef nsTArray<nsRefPtr<GetUserMediaCallbackMediaStreamListener> > StreamListeners;
 typedef nsClassHashtable<nsUint64HashKey, StreamListeners> WindowTable;
 
-class MediaDevice : public nsIMediaDevice
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIMEDIADEVICE
-
-  MediaDevice(MediaEngineVideoSource* aSource) {
-    mSource = aSource;
-    mType.Assign(NS_LITERAL_STRING("video"));
-    mSource->GetName(mName);
-  };
-  MediaDevice(MediaEngineAudioSource* aSource) {
-    mSource = aSource;
-    mType.Assign(NS_LITERAL_STRING("audio"));
-    mSource->GetName(mName);
-  };
-  virtual ~MediaDevice() {};
-
-  MediaEngineSource* GetSource();
-private:
-  nsString mName;
-  nsString mType;
-  nsRefPtr<MediaEngineSource> mSource;
-};
-
-class MediaManager MOZ_FINAL : public nsIObserver
-{
+class MediaManager MOZ_FINAL : public nsIObserver {
 public:
   static MediaManager* Get() {
     if (!sSingleton) {
       sSingleton = new MediaManager();
 
-      NS_ASSERTION(NS_IsMainThread(), "Only create MediaManager on main thread");
       nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
       obs->AddObserver(sSingleton, "xpcom-shutdown", false);
-      obs->AddObserver(sSingleton, "getUserMedia:response:allow", false);
-      obs->AddObserver(sSingleton, "getUserMedia:response:deny", false);
     }
     return sSingleton;
   }
@@ -165,12 +135,8 @@ public:
   MediaEngine* GetBackend();
   WindowTable* GetActiveWindows();
 
-  nsresult GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
-    nsIMediaStreamOptions* aParams,
+  nsresult GetUserMedia(nsPIDOMWindow* aWindow, nsIMediaStreamOptions* aParams,
     nsIDOMGetUserMediaSuccessCallback* onSuccess,
-    nsIDOMGetUserMediaErrorCallback* onError);
-  nsresult GetUserMediaDevices(nsPIDOMWindow* aWindow,
-    nsIGetUserMediaDevicesSuccessCallback* onSuccess,
     nsIDOMGetUserMediaErrorCallback* onError);
   void OnNavigation(uint64_t aWindowID);
 
@@ -180,7 +146,6 @@ private:
   : mBackend(nullptr)
   , mMediaThread(nullptr) {
     mActiveWindows.Init();
-    mActiveCallbacks.Init();
   };
   MediaManager(MediaManager const&) {};
 
@@ -191,7 +156,6 @@ private:
   MediaEngine* mBackend;
   nsCOMPtr<nsIThread> mMediaThread;
   WindowTable mActiveWindows;
-  nsRefPtrHashtable<nsStringHashKey, nsRunnable> mActiveCallbacks;
 
   static nsRefPtr<MediaManager> sSingleton;
 };

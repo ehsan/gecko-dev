@@ -93,7 +93,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -134,7 +134,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -165,7 +165,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -206,7 +206,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -246,7 +246,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -295,7 +295,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
 private:
   virtual nsresult EnsureCursor();
@@ -328,7 +328,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -396,7 +396,7 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
 }
 
 IDBIndex::IDBIndex()
-: mId(INT64_MIN),
+: mId(LL_MININT),
   mKeyPath(0),
   mCachedKeyPath(JSVAL_VOID),
   mActorChild(nullptr),
@@ -851,7 +851,7 @@ IDBIndex::GetAll(const jsval& aKey,
   }
 
   if (aOptionalArgCount < 2 || aLimit == 0) {
-    aLimit = UINT32_MAX;
+    aLimit = PR_UINT32_MAX;
   }
 
   nsRefPtr<IDBRequest> request;
@@ -885,7 +885,7 @@ IDBIndex::GetAllKeys(const jsval& aKey,
   }
 
   if (aOptionalArgCount < 2 || aLimit == 0) {
-    aLimit = UINT32_MAX;
+    aLimit = PR_UINT32_MAX;
   }
 
   nsRefPtr<IDBRequest> request;
@@ -1017,12 +1017,6 @@ IndexHelper::Dispatch(nsIEventTarget* aDatabaseThread)
     return AsyncConnectionHelper::Dispatch(aDatabaseThread);
   }
 
-  // If we've been invalidated then there's no point sending anything to the
-  // parent process.
-  if (mIndex->ObjectStore()->Transaction()->Database()->IsInvalidated()) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
   IndexedDBIndexChild* indexActor = mIndex->GetActorChild();
   NS_ASSERTION(indexActor, "Must have an actor here!");
 
@@ -1115,14 +1109,16 @@ GetKeyHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetKeyHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetKeyHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {
@@ -1134,7 +1130,7 @@ GetKeyHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getKeyResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1235,14 +1231,16 @@ GetHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   InfallibleTArray<PBlobParent*> blobsParent;
 
@@ -1277,7 +1275,7 @@ GetHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1324,7 +1322,7 @@ GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
   }
 
   nsCString limitClause;
-  if (mLimit != UINT32_MAX) {
+  if (mLimit != PR_UINT32_MAX) {
     limitClause = NS_LITERAL_CSTRING(" LIMIT ");
     limitClause.AppendInt(mLimit);
   }
@@ -1393,7 +1391,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    for (uint32_t index = 0, count = keys.Length(); index < count; index++) {
+    for (uint32 index = 0, count = keys.Length(); index < count; index++) {
       const Key& key = keys[index];
       NS_ASSERTION(!key.IsUnset(), "Bad key!");
 
@@ -1435,14 +1433,16 @@ GetAllKeysHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetAllKeysHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetAllKeysHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {
@@ -1454,7 +1454,7 @@ GetAllKeysHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getAllKeysResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1489,7 +1489,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
   }
 
   nsCString limitClause;
-  if (mLimit != UINT32_MAX) {
+  if (mLimit != PR_UINT32_MAX) {
     limitClause = NS_LITERAL_CSTRING(" LIMIT ");
     limitClause.AppendInt(mLimit);
   }
@@ -1580,14 +1580,16 @@ GetAllHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetAllHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   GetAllResponse getAllResponse;
 
@@ -1644,7 +1646,7 @@ GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getAllResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1701,7 +1703,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     mKeyRange->GetBindingClause(value, keyRangeClause);
   }
 
-  nsAutoCString directionClause(" ORDER BY value ");
+  nsCAutoString directionClause(" ORDER BY value ");
   switch (mDirection) {
     case IDBCursor::NEXT:
     case IDBCursor::NEXT_UNIQUE:
@@ -1756,7 +1758,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now we need to make the query to get the next match.
-  nsAutoCString queryStart = NS_LITERAL_CSTRING("SELECT value, object_data_key"
+  nsCAutoString queryStart = NS_LITERAL_CSTRING("SELECT value, object_data_key"
                                                 " FROM ") + table +
                              NS_LITERAL_CSTRING(" WHERE index_id = :id");
 
@@ -1907,15 +1909,18 @@ OpenKeyCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-OpenKeyCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+OpenKeyCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   if (NS_SUCCEEDED(aResultCode)) {
     nsresult rv = EnsureCursor();
@@ -1949,15 +1954,19 @@ OpenKeyCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
       params.objectKey() = mObjectKey;
       params.optionalCloneInfo() = mozilla::void_t();
 
-      if (!indexActor->OpenCursor(mCursor, params, openCursorResponse)) {
+      IndexedDBCursorParent* cursorActor = new IndexedDBCursorParent(mCursor);
+
+      if (!indexActor->SendPIndexedDBCursorConstructor(cursorActor, params)) {
         return Error;
       }
+
+      openCursorResponse = cursorActor;
     }
 
     response = openCursorResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -2022,7 +2031,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     mKeyRange->GetBindingClause(value, keyRangeClause);
   }
 
-  nsAutoCString directionClause(" ORDER BY index_table.value ");
+  nsCAutoString directionClause(" ORDER BY index_table.value ");
   switch (mDirection) {
     case IDBCursor::NEXT:
     case IDBCursor::NEXT_UNIQUE:
@@ -2089,7 +2098,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now we need to make the query to get the next match.
-  nsAutoCString queryStart =
+  nsCAutoString queryStart =
     NS_LITERAL_CSTRING("SELECT index_table.value, "
                        "index_table.object_data_key, object_data.data, "
                        "object_data.file_ids FROM ") +
@@ -2236,15 +2245,18 @@ OpenCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-OpenCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+OpenCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   InfallibleTArray<PBlobParent*> blobsParent;
 
@@ -2305,15 +2317,19 @@ OpenCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
       params.optionalCloneInfo() = mSerializedCloneReadInfo;
       params.blobsParent().SwapElements(blobsParent);
 
-      if (!indexActor->OpenCursor(mCursor, params, openCursorResponse)) {
+      IndexedDBCursorParent* cursorActor = new IndexedDBCursorParent(mCursor);
+
+      if (!indexActor->SendPIndexedDBCursorConstructor(cursorActor, params)) {
         return Error;
       }
+
+      openCursorResponse = cursorActor;
     }
 
     response = openCursorResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -2335,7 +2351,7 @@ CountHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(upperKeyName, "upper_key");
   NS_NAMED_LITERAL_CSTRING(value, "value");
 
-  nsAutoCString keyRangeClause;
+  nsCAutoString keyRangeClause;
   if (mKeyRange) {
     if (!mKeyRange->Lower().IsUnset()) {
       AppendConditionClause(value, lowerKeyName, false,
@@ -2412,14 +2428,16 @@ CountHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-CountHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+CountHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {
@@ -2430,7 +2448,7 @@ CountHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = countResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 

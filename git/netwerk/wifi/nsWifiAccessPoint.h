@@ -31,11 +31,6 @@ public:
     mSignal = signal;
   }
 
-  void setMacRaw(const char* aString)
-  {
-    memcpy(mMac, aString, mozilla::ArrayLength(mMac));
-  }
-
   void setMac(const unsigned char mac_as_int[6])
   {
     // mac_as_int is big-endian. Write in byte chunks.
@@ -53,11 +48,6 @@ public:
             mac_as_int[3], mac_as_int[4], mac_as_int[5]);
 
     mMac[17] = 0;
-  }
-
-  void setSSIDRaw(const char* aSSID, unsigned long len) {
-    memcpy(mSsid, aSSID, mozilla::ArrayLength(mSsid));
-    mSsidLen = PR_MIN(len, mozilla::ArrayLength(mSsid));
   }
 
   void setSSID(const char* aSSID, unsigned long len) {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2012 Google Inc. All rights reserved.
+# Copyright (c) 2010 Google Inc. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -23,18 +23,13 @@ test.relocate('src', 'relocate/src')
 
 test.build('shared_dependency.gyp', test.ALL, chdir='relocate/src')
 
-if test.format=='android':
-  makefile_path = 'relocate/src/GypAndroid.mk'
-else:
-  makefile_path = 'relocate/src/Makefile'
-
-with open(makefile_path) as makefile:
+with open('relocate/src/Makefile') as makefile:
   make_contents = makefile.read()
 
 # If we remove the code to generate lib1, Make should still be able
 # to build lib2 since lib1.so already exists.
 make_contents = make_contents.replace('include lib1.target.mk', '')
-with open(makefile_path, 'w') as makefile:
+with open('relocate/src/Makefile', 'w') as makefile:
   makefile.write(make_contents)
 
 test.build('shared_dependency.gyp', test.ALL, chdir='relocate/src')

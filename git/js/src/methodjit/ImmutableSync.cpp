@@ -23,7 +23,7 @@ ImmutableSync::ImmutableSync()
 ImmutableSync::~ImmutableSync()
 {
     if (cx)
-        js_free(entries);
+        cx->free_(entries);
 }
 
 bool
@@ -32,7 +32,7 @@ ImmutableSync::init(JSContext *cx, const FrameState &frame, uint32_t nentries)
     this->cx = cx;
     this->frame = &frame;
 
-    entries = js_pod_calloc<SyncEntry>(nentries);
+    entries = (SyncEntry *)OffTheBooks::calloc_(sizeof(SyncEntry) * nentries);
     return !!entries;
 }
 

@@ -82,7 +82,6 @@ add_test(function test_replaceFaviconDataFromDataURL_validHistoryURI() {
   let favicon = createFavicon("favicon1.png");
   iconsvc.replaceFaviconDataFromDataURL(favicon.uri, createDataURLForFavicon(favicon));
   iconsvc.setAndFetchFaviconForPage(pageURI, favicon.uri, true,
-    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
     function test_replaceFaviconDataFromDataURL_validHistoryURI_check(aURI, aDataLen, aData, aMimeType) {
       checkCallbackSucceeded(aMimeType, aData, favicon.mimetype, favicon.data);
       checkFaviconDataForPage(
@@ -106,7 +105,6 @@ add_test(function test_replaceFaviconDataFromDataURL_overrideDefaultFavicon() {
   iconsvc.replaceFaviconDataFromDataURL(firstFavicon.uri, createDataURLForFavicon(secondFavicon));
   iconsvc.setAndFetchFaviconForPage(
     pageURI, firstFavicon.uri, true,
-    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
     function test_replaceFaviconDataFromDataURL_overrideDefaultFavicon_check(aURI, aDataLen, aData, aMimeType) {
       checkCallbackSucceeded(aMimeType, aData, secondFavicon.mimetype, secondFavicon.data);
       checkFaviconDataForPage(
@@ -130,7 +128,6 @@ add_test(function test_replaceFaviconDataFromDataURL_replaceExisting() {
 
   iconsvc.setAndFetchFaviconForPage(
     pageURI, firstFavicon.uri, true,
-    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
     function test_replaceFaviconDataFromDataURL_replaceExisting_firstSet_check(aURI, aDataLen, aData, aMimeType) {
       checkCallbackSucceeded(aMimeType, aData, firstFavicon.mimetype, firstFavicon.data);
       checkFaviconDataForPage(
@@ -160,7 +157,6 @@ add_test(function test_replaceFaviconDataFromDataURL_unrelatedReplace() {
   iconsvc.replaceFaviconDataFromDataURL(unrelatedFavicon.uri, createDataURLForFavicon(unrelatedFavicon));
   iconsvc.setAndFetchFaviconForPage(
     pageURI, favicon.uri, true,
-    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
     function test_replaceFaviconDataFromDataURL_unrelatedReplace_check(aURI, aDataLen, aData, aMimeType) {
       checkCallbackSucceeded(aMimeType, aData, favicon.mimetype, favicon.data);
       checkFaviconDataForPage(
@@ -214,7 +210,6 @@ add_test(function test_replaceFaviconDataFromDataURL_twiceReplace() {
 
   iconsvc.setAndFetchFaviconForPage(
     pageURI, firstFavicon.uri, true,
-    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
     function test_replaceFaviconDataFromDataURL_twiceReplace_check(aURI, aDataLen, aData, aMimeType) {
       checkCallbackSucceeded(aMimeType, aData, secondFavicon.mimetype, secondFavicon.data);
       checkFaviconDataForPage(
@@ -243,7 +238,6 @@ add_test(function test_replaceFaviconDataFromDataURL_afterRegularAssign() {
 
   iconsvc.setAndFetchFaviconForPage(
     pageURI, firstFavicon.uri, true,
-    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
     function test_replaceFaviconDataFromDataURL_afterRegularAssign_check(aURI, aDataLen, aData, aMimeType) {
       checkCallbackSucceeded(aMimeType, aData, secondFavicon.mimetype, secondFavicon.data);
       checkFaviconDataForPage(
@@ -272,7 +266,6 @@ add_test(function test_replaceFaviconDataFromDataURL_beforeRegularAssign() {
 
   iconsvc.setAndFetchFaviconForPage(
     pageURI, firstFavicon.uri, true,
-    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
     function test_replaceFaviconDataFromDataURL_beforeRegularAssign_check(aURI, aDataLen, aData, aMimeType) {
       checkCallbackSucceeded(aMimeType, aData, secondFavicon.mimetype, secondFavicon.data);
       checkFaviconDataForPage(

@@ -6,7 +6,6 @@
 
 /* static functions */
 let DEBUG = 0;
-let debug;
 if (DEBUG)
   debug = function (s) { dump("-*- SettingsService: " + s + "\n"); }
 else
@@ -23,7 +22,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 const nsIClassInfo            = Ci.nsIClassInfo;
 
 const SETTINGSSERVICELOCK_CONTRACTID = "@mozilla.org/settingsServiceLock;1";
-const SETTINGSSERVICELOCK_CID        = Components.ID("{d7a395a0-e292-11e1-834e-1761d57f5f99}");
+const SETTINGSSERVICELOCK_CID        = Components.ID("{3ab3cbc0-8513-11e1-b0c4-0800200c9a66}");
 const nsISettingsServiceLock         = Ci.nsISettingsServiceLock;
 
 function SettingsServiceLock(aSettingsService)
@@ -52,10 +51,9 @@ SettingsServiceLock.prototype = {
       switch (info.intent) {
         case "set":
           let value = info.value;
-          let message = info.message;
           if(typeof(value) == 'object')
             debug("object name:" + name + ", val: " + JSON.stringify(value));
-          req = store.put({ settingName: name, settingValue: value });
+          req = store.put({settingName: name, settingValue: value});
 
           req.onsuccess = function() {
             debug("set on success");
@@ -64,8 +62,7 @@ SettingsServiceLock.prototype = {
               callback.handle(name, value);
             Services.obs.notifyObservers(lock, "mozsettings-changed", JSON.stringify({
               key: name,
-              value: value,
-              message: message
+              value: value
             }));
             lock._open = false;
           };
@@ -120,29 +117,23 @@ SettingsServiceLock.prototype = {
     this.createTransactionAndProcess();
   },
 
-  set: function set(aName, aValue, aCallback, aMessage) {
+  set: function set(aName, aValue, aCallback) {
     debug("set: " + aName + ": " + JSON.stringify(aValue));
-    if (aMessage === undefined)
-      aMessage = null;
-    this._requests.enqueue({ callback: aCallback,
-                             intent: "set", 
-                             name: aName, 
-                             value: aValue, 
-                             message: aMessage });
+    this._requests.enqueue({ callback: aCallback, intent: "set", name: aName, value: aValue});
     this.createTransactionAndProcess();
   },
 
   classID : SETTINGSSERVICELOCK_CID,
   QueryInterface : XPCOMUtils.generateQI([nsISettingsServiceLock]),
 
-  classInfo : XPCOMUtils.generateCI({ classID: SETTINGSSERVICELOCK_CID,
-                                      contractID: SETTINGSSERVICELOCK_CONTRACTID,
-                                      classDescription: "SettingsServiceLock",
-                                      interfaces: [nsISettingsServiceLock],
-                                      flags: nsIClassInfo.DOM_OBJECT })
+  classInfo : XPCOMUtils.generateCI({classID: SETTINGSSERVICELOCK_CID,
+                                     contractID: SETTINGSSERVICELOCK_CONTRACTID,
+                                     classDescription: "SettingsServiceLock",
+                                     interfaces: [nsISettingsServiceLock],
+                                     flags: nsIClassInfo.DOM_OBJECT})
 };
 
-const SETTINGSSERVICE_CID        = Components.ID("{f656f0c0-f776-11e1-a21f-0800200c9a66}");
+const SETTINGSSERVICE_CID        = Components.ID("{3458e760-8513-11e1-b0c4-0800200c9a66}");
 
 let myGlobal = this;
 
@@ -150,10 +141,8 @@ function SettingsService()
 {
   debug("settingsService Constructor");
   this._locks = new Queue();
-  if (!("indexedDB" in myGlobal)) {
-    let idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
-    idbManager.initWindowless(myGlobal);
-  }
+  var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+  idbManager.initWindowless(myGlobal);
   this._settingsDB = new SettingsDB();
   this._settingsDB.init(myGlobal);
 }
@@ -167,7 +156,7 @@ SettingsService.prototype = {
     Services.tm.currentThread.dispatch(aCallback, Ci.nsIThread.DISPATCH_NORMAL);
   },
 
-  createLock: function createLock() {
+  getLock: function getLock() {
     debug("get lock!");
     var lock = new SettingsServiceLock(this);
     this._locks.enqueue(lock);
@@ -183,4 +172,4 @@ SettingsService.prototype = {
   QueryInterface : XPCOMUtils.generateQI([Ci.nsISettingsService]),
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SettingsService, SettingsServiceLock])
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([SettingsService, SettingsServiceLock])

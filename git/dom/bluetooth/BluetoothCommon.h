@@ -7,9 +7,9 @@
 #ifndef mozilla_dom_bluetooth_bluetoothcommon_h__
 #define mozilla_dom_bluetooth_bluetoothcommon_h__
 
-#include "mozilla/Observer.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 #include "nsTArray.h"
+#include "mozilla/Observer.h"
 
 #define BEGIN_BLUETOOTH_NAMESPACE \
   namespace mozilla { namespace dom { namespace bluetooth {
@@ -24,13 +24,11 @@
 // Bluetooth address format: xx:xx:xx:xx:xx:xx (or xx_xx_xx_xx_xx_xx)
 #define BLUETOOTH_ADDRESS_LENGTH 17
 
-BEGIN_BLUETOOTH_NAMESPACE
+#define DOM_BLUETOOTH_URL_PREF "dom.mozBluetooth.whitelist"
 
-enum BluetoothSocketType {
-  RFCOMM = 1,
-  SCO = 2,
-  L2CAP = 3
-};
+class nsCString;
+
+BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothSignal;
 typedef mozilla::Observer<BluetoothSignal> BluetoothSignalObserver;
@@ -41,9 +39,7 @@ typedef mozilla::Observer<BluetoothSignal> BluetoothSignalObserver;
 enum BluetoothObjectType {
   TYPE_MANAGER = 0,
   TYPE_ADAPTER = 1,
-  TYPE_DEVICE = 2,
-
-  TYPE_INVALID
+  TYPE_DEVICE = 2 
 };
 
 END_BLUETOOTH_NAMESPACE

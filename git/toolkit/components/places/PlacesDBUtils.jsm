@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
-this.EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
+let EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
@@ -32,10 +32,11 @@ XPCOMUtils.defineLazyGetter(this, "DBConn", function() {
 ////////////////////////////////////////////////////////////////////////////////
 //// PlacesDBUtils
 
-this.PlacesDBUtils = {
+let PlacesDBUtils = {
   /**
    * Executes a list of maintenance tasks.
-   * Once finished it will pass a array log to the callback attached to tasks.
+   * Once finished it will pass a array log to the callback attached to tasks,
+   * or print out to the error console if no callback is defined.
    * FINISHED_MAINTENANCE_TOPIC is notified through observer service on finish.
    *
    * @param aTasks
@@ -64,6 +65,14 @@ this.PlacesDBUtils = {
       if (aTasks.callback) {
         let scope = aTasks.scope || Cu.getGlobalForObject(aTasks.callback);
         aTasks.callback.call(scope, aTasks.messages);
+      }
+      else {
+        // Output to the error console.
+        let messages = aTasks.messages;
+        messages.unshift("[ Places Maintenance ]");
+        try {
+          Services.console.logStringMessage(messages.join("\n"));
+        } catch(ex) {}
       }
 
       // Notify observers that maintenance finished.
@@ -998,7 +1007,8 @@ this.PlacesDBUtils = {
    *        this module.
    * @param [optional] aCallback
    *        Callback to be invoked when done.  It will receive an array of
-   *        log messages.
+   *        log messages.  If not specified the log will be printed to the
+   *        Error Console.
    */
   runTasks: function PDBU_runTasks(aTasks, aCallback) {
     let tasks = new Tasks(aTasks);
