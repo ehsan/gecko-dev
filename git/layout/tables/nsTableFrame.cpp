@@ -74,8 +74,6 @@
 #include "nsDisplayList.h"
 #include "nsIScrollableFrame.h"
 
-using namespace mozilla;
-
 /********************************************************************************
  ** nsTableReflowState                                                         **
  ********************************************************************************/
@@ -2343,15 +2341,6 @@ nsTableFrame::GetUsedPadding() const
   return nsMargin(0,0,0,0);
 }
 
-// Destructor function for BCPropertyData properties
-static void
-DestroyBCProperty(void* aPropertyValue)
-{
-  delete static_cast<BCPropertyData*>(aPropertyValue);
-}
-
-NS_DECLARE_FRAME_PROPERTY(TableBCProperty, DestroyBCProperty)
-
 static void
 DivideBCBorderSize(BCPixelSize  aPixelSize,
                    BCPixelSize& aSmallHalf,
@@ -2369,8 +2358,8 @@ nsTableFrame::GetOuterBCBorder() const
 
   nsMargin border(0, 0, 0, 0);
   PRInt32 p2t = nsPresContext::AppUnitsPerCSSPixel();
-  BCPropertyData* propData = static_cast<BCPropertyData*>
-    (Properties().Get(TableBCProperty()));
+  BCPropertyData* propData = 
+    (BCPropertyData*)nsTableFrame::GetProperty((nsIFrame*)this, nsGkAtoms::tableBCProperty, PR_FALSE);
   if (propData) {
     border.top    = BC_BORDER_TOP_HALF_COORD(p2t, propData->mTopBorderWidth);
     border.right  = BC_BORDER_RIGHT_HALF_COORD(p2t, propData->mRightBorderWidth);
@@ -2388,8 +2377,10 @@ nsTableFrame::GetIncludedOuterBCBorder() const
 
   nsMargin border(0, 0, 0, 0);
   PRInt32 p2t = nsPresContext::AppUnitsPerCSSPixel();
-  BCPropertyData* propData = static_cast<BCPropertyData*>
-    (Properties().Get(TableBCProperty()));
+  BCPropertyData* propData =
+    (BCPropertyData*)nsTableFrame::GetProperty((nsIFrame*)this,
+                                                nsGkAtoms::tableBCProperty,
+                                                PR_FALSE);
   if (propData) {
     border.top += BC_BORDER_TOP_HALF_COORD(p2t, propData->mTopBorderWidth);
     border.right += BC_BORDER_RIGHT_HALF_COORD(p2t, propData->mRightCellBorderWidth);
@@ -3822,17 +3813,13 @@ nsTableFrame::SetBCDamageArea(const nsRect& aValue)
     return;
   }
   SetNeedToCalcBCBorders(PR_TRUE);
-  // Get the property
-  FrameProperties props = Properties();
-  BCPropertyData* value = static_cast<BCPropertyData*>
-    (props.Get(TableBCProperty()));
-  if (!value) {
-    value = new BCPropertyData();
-    props.Set(TableBCProperty(), value);
+  // Get the property 
+  BCPropertyData* value = (BCPropertyData*)nsTableFrame::GetProperty(this, nsGkAtoms::tableBCProperty, PR_TRUE);
+  if (value) {
+    // for now just construct a union of the new and old damage areas
+    value->mDamageArea.UnionRect(value->mDamageArea, newRect);
+    CheckFixDamageArea(GetRowCount(), GetColCount(), value->mDamageArea);
   }
-  // for now just construct a union of the new and old damage areas
-  value->mDamageArea.UnionRect(value->mDamageArea, newRect);
-  CheckFixDamageArea(GetRowCount(), GetColCount(), value->mDamageArea);
 }
 
 /* BCCellBorder represents a border segment which can be either a horizontal
@@ -4011,8 +3998,9 @@ BCMapCellInfo::BCMapCellInfo(nsTableFrame* aTableFrame)
   }
   mNumTableRows = mTableFrame->GetRowCount();
   mNumTableCols = mTableFrame->GetColCount();
-  mTableBCData = static_cast<BCPropertyData*>
-    (mTableFrame->Properties().Get(TableBCProperty()));
+  mTableBCData =
+    static_cast <BCPropertyData*>(nsTableFrame::GetProperty(mTableFrame,
+                 nsGkAtoms::tableBCProperty, PR_FALSE));
                  
   ResetCellInfo();
 }
@@ -5487,8 +5475,9 @@ nsTableFrame::CalcBCBorders()
     return; // nothing to do
 
   // Get the property holding the table damage area and border widths
-  BCPropertyData* propData = static_cast<BCPropertyData*>
-    (Properties().Get(TableBCProperty()));
+  BCPropertyData* propData =
+    (BCPropertyData*)nsTableFrame::GetProperty(this, nsGkAtoms::tableBCProperty,
+                                               PR_FALSE);
   if (!propData) ABORT0();
 
   
@@ -7223,6 +7212,70 @@ PRBool nsTableFrame::ColIsSpannedInto(PRInt32 aColIndex)
     result = cellMap->ColIsSpannedInto(aColIndex);
   }
   return result;
+}
+
+// Destructor function for nscoord properties
+static void
+DestroyCoordFunc(void*           aFrame,
+                 nsIAtom*        aPropertyName,
+                 void*           aPropertyValue,
+                 void*           aDtorData)
+{
+  delete static_cast<nscoord*>(aPropertyValue);
+}
+
+// Destructor function point properties
+static void
+DestroyPointFunc(void*           aFrame,
+                 nsIAtom*        aPropertyName,
+                 void*           aPropertyValue,
+                 void*           aDtorData)
+{
+  delete static_cast<nsPoint*>(aPropertyValue);
+}
+
+// Destructor function for BCPropertyData properties
+static void
+DestroyBCPropertyDataFunc(void*           aFrame,
+                          nsIAtom*        aPropertyName,
+                          void*           aPropertyValue,
+                          void*           aDtorData)
+{
+  delete static_cast<BCPropertyData*>(aPropertyValue);
+}
+
+void*
+nsTableFrame::GetProperty(nsIFrame*            aFrame,
+                          nsIAtom*             aPropertyName,
+                          PRBool               aCreateIfNecessary)
+{
+  nsPropertyTable *propTable = aFrame->PresContext()->PropertyTable();
+  void *value = propTable->GetProperty(aFrame, aPropertyName);
+  if (value) {
+    return (nsPoint*)value;  // the property already exists
+  }
+  if (aCreateIfNecessary) {
+    // The property isn't set yet, so allocate a new value, set the property,
+    // and return the newly allocated value
+    NSPropertyDtorFunc dtorFunc = nsnull;
+    if (aPropertyName == nsGkAtoms::collapseOffsetProperty) {
+      value = new nsPoint(0, 0);
+      dtorFunc = DestroyPointFunc;
+    }
+    else if (aPropertyName == nsGkAtoms::rowUnpaginatedHeightProperty) {
+      value = new nscoord;
+      dtorFunc = DestroyCoordFunc;
+    }
+    else if (aPropertyName == nsGkAtoms::tableBCProperty) {
+      value = new BCPropertyData;
+      dtorFunc = DestroyBCPropertyDataFunc;
+    }
+    if (value) {
+      propTable->SetProperty(aFrame, aPropertyName, value, dtorFunc, nsnull);
+    }
+    return value;
+  }
+  return nsnull;
 }
 
 /* static */

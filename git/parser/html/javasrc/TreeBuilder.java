@@ -836,6 +836,19 @@ public abstract class TreeBuilder<T> implements TokenHandler,
     }
 
     /**
+     * @see nu.validator.htmlparser.common.TokenHandler#ensureBufferSpace(int)
+     */
+    public final void ensureBufferSpace(int addedLength) throws SAXException {
+        int newCharBufferCapacity = charBufferLen + addedLength;
+        if (newCharBufferCapacity > charBuffer.length) {
+            char[] newBuf = new char[newCharBufferCapacity];
+            System.arraycopy(charBuffer, 0, newBuf, 0, charBufferLen);
+            Portability.releaseArray(charBuffer);
+            charBuffer = newBuf;
+        }
+    }
+    
+    /**
      * @see nu.validator.htmlparser.common.TokenHandler#characters(char[], int,
      *      int)
      */
@@ -5041,16 +5054,8 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         appendCharacters(stack[currentPtr].node, buf, start, length);
     }
 
-    protected final void accumulateCharacter(char c) throws SAXException {
-        int newLen = charBufferLen + 1;
-        if (newLen > charBuffer.length) {
-            char[] newBuf = new char[newLen];
-            System.arraycopy(charBuffer, 0, newBuf, 0, charBufferLen);
-            Portability.releaseArray(charBuffer);
-            charBuffer = newBuf;
-        }
-        charBuffer[charBufferLen] = c;
-        charBufferLen = newLen;
+    @Inline protected final void accumulateCharacter(char c) throws SAXException {
+        charBuffer[charBufferLen++] = c;
     }
 
     // ------------------------------- //

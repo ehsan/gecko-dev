@@ -1854,7 +1854,7 @@ PresShell::Destroy()
     // We want to do this before we call SetShell() on the prescontext, so
     // property destructors can usefully call GetPresShell() on the
     // prescontext.
-    mPresContext->PropertyTable()->DeleteAll();
+    mPresContext->PropertyTable()->DeleteAllProperties();
   }
 
 
@@ -2754,7 +2754,7 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
     FrameManager()->NotifyDestroyingFrame(aFrame);
 
     // Remove frame properties
-    mPresContext->PropertyTable()->DeleteAllFor(aFrame);
+    mPresContext->PropertyTable()->DeleteAllPropertiesFor(aFrame);
 
     if (aFrame == mCurrentEventFrame) {
       mCurrentEventContent = aFrame->GetContent();
@@ -2781,6 +2781,7 @@ PresShell::NotifyDestroyingFrame(nsIFrame* aFrame)
   }
 }
 
+// note that this can return a null caret, but NS_OK
 already_AddRefed<nsCaret> PresShell::GetCaret()
 {
   nsCaret* caret = mCaret;
@@ -2788,7 +2789,7 @@ already_AddRefed<nsCaret> PresShell::GetCaret()
   return caret;
 }
 
-void PresShell::MaybeInvalidateCaretPosition()
+NS_IMETHODIMP_(void) PresShell::MaybeInvalidateCaretPosition()
 {
   if (mCaret) {
     mCaret->InvalidateOutsideCaret();

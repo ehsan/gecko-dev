@@ -116,7 +116,7 @@
     #define NOISY_TRACE_FRAME(_msg,_frame);
   #endif
 
-using namespace mozilla;
+// IID's
 
 //----------------------------------------------------------------------
 
@@ -534,7 +534,7 @@ nsFrameManager::RemoveFrame(nsIAtom*        aListName,
   // that doesn't change the size of the parent.)
   // This has to sure to invalidate the entire overflow rect; this
   // is important in the presence of absolute positioning
-  aOldFrame->InvalidateOverflowRect();
+  aOldFrame->Invalidate(aOldFrame->GetOverflowRect());
 
   NS_ASSERTION(!aOldFrame->GetPrevContinuation() ||
                // exception for nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames
@@ -904,8 +904,7 @@ nsFrameManager::ReParentStyleContext(nsIFrame* aFrame)
         // oldContext)" check will prevent us from redoing work.
         if ((aFrame->GetStateBits() & NS_FRAME_IS_SPECIAL) &&
             !aFrame->GetPrevContinuation()) {
-          nsIFrame* sib = static_cast<nsIFrame*>
-            (aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling()));
+          nsIFrame* sib = static_cast<nsIFrame*>(aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling));
           if (sib) {
             ReParentStyleContext(sib);
           }
@@ -1469,7 +1468,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
   // as well as all its special siblings and their next-in-flows,
   // reresolving style on all the frames we encounter in this walk.
 
-  FramePropertyTable *propTable = GetPresContext()->PropertyTable();
+  nsPropertyTable *propTable = GetPresContext()->PropertyTable();
 
   do {
     // Outer loop over special siblings
@@ -1499,7 +1498,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
     }
     
     frame2 = static_cast<nsIFrame*>
-      (propTable->Get(frame2, nsIFrame::IBSplitSpecialSibling()));
+                        (propTable->GetProperty(frame2, nsGkAtoms::IBSplitSpecialSibling));
     frame = frame2;
   } while (frame2);
 }

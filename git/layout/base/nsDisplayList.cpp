@@ -96,6 +96,16 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
   }
 }
 
+// Destructor function for the dirty rect property
+static void
+DestroyRectFunc(void*    aFrame,
+                nsIAtom* aPropertyName,
+                void*    aPropertyValue,
+                void*    aDtorData)
+{
+  delete static_cast<nsRect*>(aPropertyValue);
+}
+
 static void MarkFrameForDisplay(nsIFrame* aFrame, nsIFrame* aStopAtFrame) {
   nsFrameManager* frameManager = aFrame->PresContext()->PresShell()->FrameManager();
 
@@ -117,18 +127,17 @@ static void MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame, nsIFrame* aFrame
   nsRect overflowRect = aFrame->GetOverflowRect();
   if (!dirty.IntersectRect(dirty, overflowRect))
     return;
-  aFrame->Properties().Set(nsDisplayListBuilder::OutOfFlowDirtyRectProperty(),
-                           new nsRect(dirty));
+  // if "new nsRect" fails, this won't do anything, but that's okay
+  aFrame->SetProperty(nsGkAtoms::outOfFlowDirtyRectProperty,
+                      new nsRect(dirty), DestroyRectFunc);
 
   MarkFrameForDisplay(aFrame, aDirtyFrame);
 }
 
 static void UnmarkFrameForDisplay(nsIFrame* aFrame) {
-  nsPresContext* presContext = aFrame->PresContext();
-  presContext->PropertyTable()->
-    Delete(aFrame, nsDisplayListBuilder::OutOfFlowDirtyRectProperty());
+  aFrame->DeleteProperty(nsGkAtoms::outOfFlowDirtyRectProperty);
 
-  nsFrameManager* frameManager = presContext->PresShell()->FrameManager();
+  nsFrameManager* frameManager = aFrame->PresContext()->PresShell()->FrameManager();
 
   for (nsIFrame* f = aFrame; f;
        f = nsLayoutUtils::GetParentOrPlaceholderFor(frameManager, f)) {
@@ -1069,7 +1078,7 @@ PRBool
 nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
   // theme background overrides any other background
   if (mIsThemed)
-    return mThemeTransparency == nsITheme::eOpaque;
+    return PR_FALSE;
 
   const nsStyleBackground* bg;
 

@@ -1,8 +1,6 @@
-%define WINSTRIPE_AERO
 %include browser.css
-%undef WINSTRIPE_AERO
 
-%if 0
+/* ::::: Main Window Styling ::::: */
 @media all and (-moz-windows-compositor) {
   #main-window:not(:-moz-lwtheme) {
     -moz-appearance: -moz-win-glass;
@@ -79,7 +77,6 @@
     text-shadow: white -1px -1px .5em, white -1px 1px .5em, white 1px 1px .5em, white 1px -1px .5em;
   }
 }
-%endif
 
 @media not all and (-moz-windows-compositor) {
   #print-preview-toolbar:not(:-moz-lwtheme) {
@@ -91,6 +88,10 @@
   #navigator-toolbox > toolbar {
     -moz-appearance: none;
     border-style: none;
+  }
+
+  .ac-url-text {
+    color: -moz-nativehyperlinktext;
   }
 
   /* Bug 413060, comment 16: Vista Aero is a special case where we use a

@@ -57,7 +57,7 @@
 #include "nsITimer.h"
 #include "nsCRT.h"
 #include "nsIPrintSettings.h"
-#include "FramePropertyTable.h"
+#include "nsPropertyTable.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsRefPtrHashtable.h"
@@ -174,8 +174,6 @@ class nsRootPresContext;
 
 class nsPresContext : public nsIObserver {
 public:
-  typedef mozilla::FramePropertyTable FramePropertyTable;
-
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIOBSERVER
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -785,7 +783,7 @@ public:
   nsIPrintSettings* GetPrintSettings() { return mPrintSettings; }
 
   /* Accessor for table of frame properties */
-  FramePropertyTable* PropertyTable() { return &mPropertyTable; }
+  nsPropertyTable* PropertyTable() { return &mPropertyTable; }
 
   /* Helper function that ensures that this prescontext is shown in its
      docshell if it's the most recent prescontext for the docshell.  Returns
@@ -1028,7 +1026,7 @@ protected:
   nsCOMPtr<nsIPrintSettings> mPrintSettings;
   nsCOMPtr<nsITimer>    mPrefChangedTimer;
 
-  FramePropertyTable    mPropertyTable;
+  nsPropertyTable       mPropertyTable;
 
   nsInvalidateRequestList mInvalidateRequests;
 

@@ -1828,7 +1828,7 @@ nsLayoutUtils::GetNextContinuationOrSpecialSibling(nsIFrame *aFrame)
     // frame in the continuation chain. Walk back to find that frame now.
     aFrame = aFrame->GetFirstContinuation();
 
-    void* value = aFrame->Properties().Get(nsIFrame::IBSplitSpecialSibling());
+    void* value = aFrame->GetProperty(nsGkAtoms::IBSplitSpecialSibling);
     return static_cast<nsIFrame*>(value);
   }
 
@@ -1842,7 +1842,7 @@ nsLayoutUtils::GetFirstContinuationOrSpecialSibling(nsIFrame *aFrame)
   if (result->GetStateBits() & NS_FRAME_IS_SPECIAL) {
     while (PR_TRUE) {
       nsIFrame *f = static_cast<nsIFrame*>
-        (result->Properties().Get(nsIFrame::IBSplitSpecialPrevSibling()));
+        (result->GetProperty(nsGkAtoms::IBSplitSpecialPrevSibling));
       if (!f)
         break;
       result = f;
@@ -3244,11 +3244,9 @@ nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
   if (HasNonZeroCorner(aCSSRootFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
-  nsITheme::Transparency transparency;
+  nsTransparencyMode transparency;
   if (aCSSRootFrame->IsThemed(&transparency))
-    return transparency == nsITheme::eTransparent
-         ? eTransparencyTransparent
-         : eTransparencyOpaque;
+    return transparency;
 
   if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;

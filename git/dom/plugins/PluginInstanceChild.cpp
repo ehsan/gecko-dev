@@ -42,7 +42,6 @@
 #include "BrowserStreamChild.h"
 #include "PluginStreamChild.h"
 #include "StreamNotifyChild.h"
-#include "PluginThreadChild.h"
 
 #include "mozilla/ipc/SyncChannel.h"
 
@@ -98,11 +97,9 @@ PluginInstanceChild::PluginInstanceChild(const NPPluginFuncs* aPluginIface,
     , mCachedWinlessPluginHWND(0)
     , mWinlessPopupSurrogateHWND(0)
 #endif // OS_WIN
-    , mAsyncCallMutex("PluginInstanceChild::mAsyncCallMutex")
 {
     memset(&mWindow, 0, sizeof(mWindow));
     mData.ndata = (void*) this;
-    mData.pdata = nsnull;
 #if defined(MOZ_X11) && defined(XP_UNIX) && !defined(XP_MACOSX)
     mWindow.ws_info = &mWsInfo;
     memset(&mWsInfo, 0, sizeof(mWsInfo));
@@ -546,18 +543,6 @@ PluginInstanceChild::AnswerNPP_HandleEvent(const NPRemoteEvent& event,
         *handled = false;
     else
         *handled = mPluginIface->event(&mData, reinterpret_cast<void*>(&evcopy));
-
-#ifdef XP_MACOSX
-    // Release any reference counted objects created in the child process.
-    if (evcopy.type == NPCocoaEventKeyDown ||
-        evcopy.type == NPCocoaEventKeyUp) {
-      ::CFRelease((CFStringRef)evcopy.data.key.characters);
-      ::CFRelease((CFStringRef)evcopy.data.key.charactersIgnoringModifiers);
-    }
-    else if (evcopy.type == NPCocoaEventTextInput) {
-      ::CFRelease((CFStringRef)evcopy.data.text.text);
-    }
-#endif
 
 #ifdef MOZ_X11
     if (GraphicsExpose == event.event.type) {
@@ -1738,18 +1723,6 @@ PluginInstanceChild::UnscheduleTimer(uint32_t id)
     mTimers.RemoveElement(id, ChildTimer::IDComparator());
 }
 
-void
-PluginInstanceChild::AsyncCall(PluginThreadCallback aFunc, void* aUserData)
-{
-    ChildAsyncCall* task = new ChildAsyncCall(this, aFunc, aUserData);
-
-    {
-        MutexAutoLock lock(mAsyncCallMutex);
-        mPendingAsyncCalls.AppendElement(task);
-    }
-    PluginThreadChild::current()->message_loop()->PostTask(FROM_HERE, task);
-}
-
 static PLDHashOperator
 InvalidateObject(DeletingObjectEntry* e, void* userArg)
 {
@@ -1802,12 +1775,9 @@ PluginInstanceChild::AnswerNPP_Destroy(NPError* aResult)
     for (PRUint32 i = 0; i < streams.Length(); ++i)
         static_cast<BrowserStreamChild*>(streams[i])->FinishDelivery();
 
-    {
-        MutexAutoLock lock(mAsyncCallMutex);
-        for (PRUint32 i = 0; i < mPendingAsyncCalls.Length(); ++i)
-            mPendingAsyncCalls[i]->Cancel();
-        mPendingAsyncCalls.TruncateLength(0);
-    }
+    for (PRUint32 i = 0; i < mPendingAsyncCalls.Length(); ++i)
+        mPendingAsyncCalls[i]->Cancel();
+    mPendingAsyncCalls.TruncateLength(0);
 
     mTimers.Clear();
 
