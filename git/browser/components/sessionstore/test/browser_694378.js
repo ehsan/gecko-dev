@@ -11,6 +11,7 @@ function test() {
   let brokenState = {
     windows: [
       { tabs: [{ entries: [{ url: "about:mozilla" }] }] }
+      //{ tabs: [{ entries: [{ url: "about:robots" }] }] },
     ],
     selectedWindow: 2
   };
@@ -31,3 +32,4 @@ function test() {
   let blankState = { windows: [{ tabs: [{ entries: [{ url: "about:blank" }] }]}]};
   waitForBrowserState(blankState, finish);
 }
+
