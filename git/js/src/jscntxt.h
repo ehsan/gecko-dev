@@ -95,6 +95,10 @@ namespace nanojit
     class Assembler;
     class CodeAlloc;
     class Fragment;
+    class LirBuffer;
+#ifdef DEBUG
+    class LabelMap;
+#endif
     template<typename K> struct DefaultHash;
     template<typename K, typename V, typename H> class HashMap;
     template<typename T> class Seq;
@@ -217,40 +221,32 @@ struct JSTraceMonitor {
     TraceNativeStorage      storage;
 
     /*
-     * There are 5 allocators here.  This might seem like overkill, but they
+     * There are 3 allocators here. This might seem like overkill, but they
      * have different lifecycles, and by keeping them separate we keep the
-     * amount of retained memory down significantly.  They are flushed (ie.
-     * all the allocated memory is freed) periodically.
+     * amount of retained memory down significantly.
      *
-     * - dataAlloc has the lifecycle of the monitor.  It's flushed only when
-     *   the monitor is flushed.  It's used for fragments.
+     * The dataAlloc has the lifecycle of the monitor. It's flushed only
+     * when the monitor is flushed.
      *
-     * - traceAlloc has the same flush lifecycle as the dataAlloc, but it is
-     *   also *marked* when a recording starts and rewinds to the mark point
-     *   if recording aborts.  So you can put things in it that are only
-     *   reachable on a successful record/compile cycle like GuardRecords and
-     *   SideExits.
+     * The traceAlloc has the same flush lifecycle as the dataAlloc, but
+     * it is also *marked* when a recording starts and rewinds to the mark
+     * point if recording aborts. So you can put things in it that are only
+     * reachable on a successful record/compile cycle.
      *
-     * - tempAlloc is flushed after each recording, successful or not.  It's
-     *   used to store LIR code and for all other elements in the LIR
-     *   pipeline.
-     *
-     * - reTempAlloc is just like tempAlloc, but is used for regexp
-     *   compilation in RegExpNativeCompiler rather than normal compilation in
-     *   TraceRecorder.
-     *
-     * - codeAlloc has the same lifetime as dataAlloc, but its API is
-     *   different (CodeAlloc vs. VMAllocator).  It's used for native code.
-     *   It's also a good idea to keep code and data separate to avoid I-cache
-     *   vs. D-cache issues.
+     * The tempAlloc is flushed after each recording, successful or not.
      */
-    VMAllocator*            dataAlloc;
-    VMAllocator*            traceAlloc;
-    VMAllocator*            tempAlloc;
-    VMAllocator*            reTempAlloc;
-    nanojit::CodeAlloc*     codeAlloc;
+
+    VMAllocator*            dataAlloc;   /* A chunk allocator for fragments. */
+    VMAllocator*            traceAlloc;  /* An allocator for trace metadata. */
+    VMAllocator*            tempAlloc;   /* A temporary chunk allocator.  */
+    nanojit::CodeAlloc*     codeAlloc;   /* An allocator for native code. */
     nanojit::Assembler*     assembler;
+    nanojit::LirBuffer*     lirbuf;
+    nanojit::LirBuffer*     reLirBuf;
     FrameInfoCache*         frameCache;
+#ifdef DEBUG
+    nanojit::LabelMap*      labels;
+#endif
 
     TraceRecorder*          recorder;
 
@@ -282,6 +278,11 @@ struct JSTraceMonitor {
      * Fragment map for the regular expression compiler.
      */
     REHashMap*              reFragments;
+
+    /*
+     * A temporary allocator for RE recording.
+     */
+    VMAllocator*            reTempAlloc;
 
 #ifdef DEBUG
     /* Fields needed for fragment/guard profiling. */
@@ -606,10 +607,14 @@ struct JSRuntime {
      */
     ptrdiff_t           gcMallocBytes;
 
-    /* See comments before DelayMarkingChildren is jsgc.cpp. */
-    JSGCArenaInfo       *gcUnmarkedArenaStackTop;
+    /*
+     * Stack of GC arenas containing things that the GC marked, where children
+     * reached from those things have not yet been marked. This helps avoid
+     * using too much native stack during recursive GC marking.
+     */
+    JSGCArenaInfo       *gcUntracedArenaStackTop;
 #ifdef DEBUG
-    size_t              gcMarkLaterCount;
+    size_t              gcTraceLaterCount;
 #endif
 
     /*

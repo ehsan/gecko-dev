@@ -2010,16 +2010,19 @@ JS_LockGCThingRT(JSRuntime *rt, void *thing)
 JS_PUBLIC_API(JSBool)
 JS_UnlockGCThing(JSContext *cx, void *thing)
 {
+    JSBool ok;
+
     CHECK_REQUEST(cx);
-    js_UnlockGCThingRT(cx->runtime, thing);
-    return true;
+    ok = js_UnlockGCThingRT(cx->runtime, thing);
+    if (!ok)
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_UNLOCK);
+    return ok;
 }
 
 JS_PUBLIC_API(JSBool)
 JS_UnlockGCThingRT(JSRuntime *rt, void *thing)
 {
-    js_UnlockGCThingRT(rt, thing);
-    return true;
+    return js_UnlockGCThingRT(rt, thing);
 }
 
 JS_PUBLIC_API(void)
@@ -2542,7 +2545,7 @@ JS_PUBLIC_API(JSBool)
 JS_IsAboutToBeFinalized(JSContext *cx, void *thing)
 {
     JS_ASSERT(thing);
-    return js_IsAboutToBeFinalized(thing);
+    return js_IsAboutToBeFinalized(cx, thing);
 }
 
 JS_PUBLIC_API(void)
