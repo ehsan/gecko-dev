@@ -81,7 +81,7 @@ CPP_SOURCES += [
     'nsSimplePageSequence.cpp',
     'nsSplittableFrame.cpp',
     'nsSubDocumentFrame.cpp',
-    'nsTextFrame.cpp',
+    'nsTextFrameThebes.cpp',
     'nsTextFrameUtils.cpp',
     'nsTextRunTransformations.cpp',
     'nsVideoFrame.cpp',

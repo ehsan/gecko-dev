@@ -1185,16 +1185,16 @@ var StartUI = {
       ContextUI.dismissTabs();
   },
 
-  onNarrowTitleClick: function onNarrowTitleClick(sectionId) {
-    let section = document.getElementById(sectionId);
+  onNarrowTitleClick: function onNarrowTitleClick(gridId) {
+    let grid = document.getElementById(gridId);
 
-    if (section.hasAttribute("expanded"))
+    if (grid.hasAttribute("expanded"))
       return;
 
-    for (let expandedSection of Elements.startUI.querySelectorAll(".meta-section[expanded]"))
-      expandedSection.removeAttribute("expanded")
+    for (let expandedGrid of Elements.startUI.querySelectorAll("[expanded]"))
+      expandedGrid.removeAttribute("expanded")
 
-    section.setAttribute("expanded", "true");
+    grid.setAttribute("expanded", "true");
   },
 
   handleEvent: function handleEvent(aEvent) {

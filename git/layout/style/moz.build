@@ -47,7 +47,6 @@ EXPORTS += [
     'nsRuleProcessorData.h',
     'nsRuleWalker.h',
     'nsStyleAnimation.h',
-    'nsStyleConsts.h',
     'nsStyleContext.h',
     'nsStyleCoord.h',
     'nsStyleSet.h',
