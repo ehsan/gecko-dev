@@ -367,8 +367,9 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
     mIgnoreResume = false;
   }
 
-  // Fires an initial progress event.
-  owner->DownloadProgressed();
+  // Fires an initial progress event and sets up the stall counter so stall events
+  // fire if no download occurs within the required time frame.
+  mDecoder->Progress(false);
 
   return NS_OK;
 }
@@ -1577,11 +1578,9 @@ MediaResource::Create(MediaDecoder* aDecoder, nsIChannel* aChannel)
   return resource.forget();
 }
 
-void BaseMediaResource::SetLoadInBackground(bool aLoadInBackground) {
-  if (aLoadInBackground == mLoadInBackground) {
-    return;
-  }
-  mLoadInBackground = aLoadInBackground;
+void BaseMediaResource::MoveLoadsToBackground() {
+  NS_ASSERTION(!mLoadInBackground, "Why are you calling this more than once?");
+  mLoadInBackground = true;
   if (!mChannel) {
     // No channel, resource is probably already loaded.
     return;
@@ -1589,12 +1588,12 @@ void BaseMediaResource::SetLoadInBackground(bool aLoadInBackground) {
 
   MediaDecoderOwner* owner = mDecoder->GetMediaOwner();
   if (!owner) {
-    NS_WARNING("Null owner in MediaResource::SetLoadInBackground()");
+    NS_WARNING("Null owner in MediaResource::MoveLoadsToBackground()");
     return;
   }
   dom::HTMLMediaElement* element = owner->GetMediaElement();
   if (!element) {
-    NS_WARNING("Null element in MediaResource::SetLoadInBackground()");
+    NS_WARNING("Null element in MediaResource::MoveLoadsToBackground()");
     return;
   }
 
@@ -1605,11 +1604,7 @@ void BaseMediaResource::SetLoadInBackground(bool aLoadInBackground) {
     DebugOnly<nsresult> rv = mChannel->GetLoadFlags(&loadFlags);
     NS_ASSERTION(NS_SUCCEEDED(rv), "GetLoadFlags() failed!");
 
-    if (aLoadInBackground) {
-      loadFlags |= nsIRequest::LOAD_BACKGROUND;
-    } else {
-      loadFlags &= ~nsIRequest::LOAD_BACKGROUND;
-    }
+    loadFlags |= nsIRequest::LOAD_BACKGROUND;
     ModifyLoadFlags(loadFlags);
   }
 }

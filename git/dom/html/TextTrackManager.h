@@ -45,7 +45,7 @@ public:
 
   explicit TextTrackManager(HTMLMediaElement* aMediaElement);
 
-  TextTrackList* GetTextTracks() const;
+  TextTrackList* TextTracks() const;
   already_AddRefed<TextTrack> AddTextTrack(TextTrackKind aKind,
                                            const nsAString& aLabel,
                                            const nsAString& aLanguage,

@@ -135,8 +135,6 @@ public:
 private:
   ~SourceBufferResource();
   nsresult SeekInternal(int64_t aOffset);
-  nsresult ReadInternal(char* aBuffer, uint32_t aCount, uint32_t* aBytes, bool aMayBlock);
-  nsresult ReadAtInternal(int64_t aOffset, char* aBuffer, uint32_t aCount, uint32_t* aBytes, bool aMayBlock);
 
   const nsCString mType;
 

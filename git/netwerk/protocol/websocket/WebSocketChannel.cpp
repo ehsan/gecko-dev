@@ -554,11 +554,10 @@ class CallOnMessageAvailable MOZ_FINAL : public nsIRunnable
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
-  CallOnMessageAvailable(WebSocketChannel* aChannel,
-                         nsACString& aData,
-                         int32_t aLen)
+  CallOnMessageAvailable(WebSocketChannel *aChannel,
+                         nsCString        &aData,
+                         int32_t           aLen)
     : mChannel(aChannel),
-      mListenerMT(aChannel->mListenerMT),
       mData(aData),
       mLen(aLen) {}
 
@@ -566,26 +565,19 @@ public:
   {
     MOZ_ASSERT(mChannel->IsOnTargetThread());
 
-    if (mListenerMT) {
-      if (mLen < 0) {
-        mListenerMT->mListener->OnMessageAvailable(mListenerMT->mContext,
-                                                   mData);
-      } else {
-        mListenerMT->mListener->OnBinaryMessageAvailable(mListenerMT->mContext,
-                                                         mData);
-      }
-    }
-
+    if (mLen < 0)
+      mChannel->mListener->OnMessageAvailable(mChannel->mContext, mData);
+    else
+      mChannel->mListener->OnBinaryMessageAvailable(mChannel->mContext, mData);
     return NS_OK;
   }
 
 private:
   ~CallOnMessageAvailable() {}
 
-  nsRefPtr<WebSocketChannel> mChannel;
-  nsRefPtr<BaseWebSocketChannel::ListenerAndContextContainer> mListenerMT;
-  nsCString mData;
-  int32_t mLen;
+  nsRefPtr<WebSocketChannel>        mChannel;
+  nsCString                         mData;
+  int32_t                           mLen;
 };
 NS_IMPL_ISUPPORTS(CallOnMessageAvailable, nsIRunnable)
 
@@ -598,12 +590,10 @@ class CallOnStop MOZ_FINAL : public nsIRunnable
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
-  CallOnStop(WebSocketChannel* aChannel,
-             nsresult aReason)
+  CallOnStop(WebSocketChannel *aChannel,
+             nsresult          aReason)
     : mChannel(aChannel),
-      mListenerMT(mChannel->mListenerMT),
-      mReason(aReason)
-  {}
+      mReason(aReason) {}
 
   NS_IMETHOD Run()
   {
@@ -611,20 +601,19 @@ public:
 
     nsWSAdmissionManager::OnStopSession(mChannel, mReason);
 
-    if (mListenerMT) {
-      mListenerMT->mListener->OnStop(mListenerMT->mContext, mReason);
-      mChannel->mListenerMT = nullptr;
+    if (mChannel->mListener) {
+      mChannel->mListener->OnStop(mChannel->mContext, mReason);
+      mChannel->mListener = nullptr;
+      mChannel->mContext = nullptr;
     }
-
     return NS_OK;
   }
 
 private:
   ~CallOnStop() {}
 
-  nsRefPtr<WebSocketChannel> mChannel;
-  nsRefPtr<BaseWebSocketChannel::ListenerAndContextContainer> mListenerMT;
-  nsresult mReason;
+  nsRefPtr<WebSocketChannel>        mChannel;
+  nsresult                          mReason;
 };
 NS_IMPL_ISUPPORTS(CallOnStop, nsIRunnable)
 
@@ -637,11 +626,10 @@ class CallOnServerClose MOZ_FINAL : public nsIRunnable
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
-  CallOnServerClose(WebSocketChannel* aChannel,
-                    uint16_t aCode,
-                    nsACString& aReason)
+  CallOnServerClose(WebSocketChannel *aChannel,
+                    uint16_t          aCode,
+                    nsCString        &aReason)
     : mChannel(aChannel),
-      mListenerMT(mChannel->mListenerMT),
       mCode(aCode),
       mReason(aReason) {}
 
@@ -649,20 +637,16 @@ public:
   {
     MOZ_ASSERT(mChannel->IsOnTargetThread());
 
-    if (mListenerMT) {
-      mListenerMT->mListener->OnServerClose(mListenerMT->mContext, mCode,
-                                            mReason);
-    }
+    mChannel->mListener->OnServerClose(mChannel->mContext, mCode, mReason);
     return NS_OK;
   }
 
 private:
   ~CallOnServerClose() {}
 
-  nsRefPtr<WebSocketChannel> mChannel;
-  nsRefPtr<BaseWebSocketChannel::ListenerAndContextContainer> mListenerMT;
-  uint16_t mCode;
-  nsCString mReason;
+  nsRefPtr<WebSocketChannel>        mChannel;
+  uint16_t                          mCode;
+  nsCString                         mReason;
 };
 NS_IMPL_ISUPPORTS(CallOnServerClose, nsIRunnable)
 
@@ -673,10 +657,9 @@ NS_IMPL_ISUPPORTS(CallOnServerClose, nsIRunnable)
 class CallAcknowledge MOZ_FINAL : public nsCancelableRunnable
 {
 public:
-  CallAcknowledge(WebSocketChannel* aChannel,
-                  uint32_t aSize)
+  CallAcknowledge(WebSocketChannel *aChannel,
+                  uint32_t          aSize)
     : mChannel(aChannel),
-      mListenerMT(mChannel->mListenerMT),
       mSize(aSize) {}
 
   NS_IMETHOD Run()
@@ -684,18 +667,15 @@ public:
     MOZ_ASSERT(mChannel->IsOnTargetThread());
 
     LOG(("WebSocketChannel::CallAcknowledge: Size %u\n", mSize));
-    if (mListenerMT) {
-      mListenerMT->mListener->OnAcknowledge(mListenerMT->mContext, mSize);
-    }
+    mChannel->mListener->OnAcknowledge(mChannel->mContext, mSize);
     return NS_OK;
   }
 
 private:
   ~CallAcknowledge() {}
 
-  nsRefPtr<WebSocketChannel> mChannel;
-  nsRefPtr<BaseWebSocketChannel::ListenerAndContextContainer> mListenerMT;
-  uint32_t mSize;
+  nsRefPtr<WebSocketChannel>        mChannel;
+  uint32_t                          mSize;
 };
 
 //-----------------------------------------------------------------------------
@@ -1095,7 +1075,17 @@ WebSocketChannel::~WebSocketChannel()
     NS_ProxyRelease(mainThread, forgettable, false);
   }
 
-  mListenerMT = nullptr;
+  if (mListener) {
+    nsIWebSocketListener *forgettableListener;
+    mListener.forget(&forgettableListener);
+    NS_ProxyRelease(mainThread, forgettableListener, false);
+  }
+
+  if (mContext) {
+    nsISupports *forgettableContext;
+    mContext.forget(&forgettableContext);
+    NS_ProxyRelease(mainThread, forgettableContext, false);
+  }
 
   if (mLoadGroup) {
     nsILoadGroup *forgettableGroup;
@@ -1483,7 +1473,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
            opcode));
     } else if (opcode == kText) {
       LOG(("WebSocketChannel:: text frame received\n"));
-      if (mListenerMT) {
+      if (mListener) {
         nsCString utf8Data;
         if (!utf8Data.Assign((const char *)payload, payloadLength,
                              mozilla::fallible_t()))
@@ -1542,7 +1532,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
           mCloseTimer->Cancel();
           mCloseTimer = nullptr;
         }
-        if (mListenerMT) {
+        if (mListener) {
           mTargetThread->Dispatch(new CallOnServerClose(this, mServerCloseCode,
                                                         mServerCloseReason),
                                   NS_DISPATCH_NORMAL);
@@ -1578,7 +1568,7 @@ WebSocketChannel::ProcessInput(uint8_t *buffer, uint32_t count)
       }
     } else if (opcode == kBinary) {
       LOG(("WebSocketChannel:: binary frame received\n"));
-      if (mListenerMT) {
+      if (mListener) {
         nsCString binaryData((const char *)payload, payloadLength);
         mTargetThread->Dispatch(new CallOnMessageAvailable(this, binaryData,
                                                            payloadLength),
@@ -2138,11 +2128,8 @@ WebSocketChannel::StopSession(nsresult reason)
 
   if (!mCalledOnStop) {
     mCalledOnStop = 1;
-
-    nsWSAdmissionManager::OnStopSession(this, reason);
-
-    nsRefPtr<CallOnStop> runnable = new CallOnStop(this, reason);
-    mTargetThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+    mTargetThread->Dispatch(new CallOnStop(this, reason),
+                            NS_DISPATCH_NORMAL);
   }
 }
 
@@ -2435,10 +2422,10 @@ WebSocketChannel::StartWebsocketData()
   nsWSAdmissionManager::OnConnected(this);
 
   LOG(("WebSocketChannel::StartWebsocketData Notifying Listener %p\n",
-       mListenerMT ? mListenerMT->mListener.get() : nullptr));
+       mListener.get()));
 
-  if (mListenerMT) {
-    mListenerMT->mListener->OnStart(mListenerMT->mContext);
+  if (mListener) {
+    mListener->OnStart(mContext);
   }
 
   // Start keepalive ping timer, if we're using keepalive.
@@ -2801,7 +2788,7 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (mListenerMT || mWasOpened)
+  if (mListener || mWasOpened)
     return NS_ERROR_ALREADY_OPENED;
 
   nsresult rv;
@@ -2967,7 +2954,8 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
   // Only set these if the open was successful:
   //
   mWasOpened = 1;
-  mListenerMT = new ListenerAndContextContainer(aListener, aContext);
+  mListener = aListener;
+  mContext = aContext;
   IncrementSessionCount();
 
   return rv;

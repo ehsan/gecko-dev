@@ -3,7 +3,6 @@
 
 const searchbar = document.getElementById("searchbar");
 const searchIcon = document.getAnonymousElementByAttribute(searchbar, "anonid", "searchbar-search-button");
-const goButton = document.getAnonymousElementByAttribute(searchbar, "anonid", "search-go-button");
 const textbox = searchbar._textbox;
 const searchPopup = document.getElementById("PopupSearchAutoComplete");
 
@@ -223,29 +222,6 @@ add_no_popup_task(function* tab_doesnt_open_popup() {
   textbox.value = "";
 });
 
-// Clicks outside the search popup should close the popup but not consume the click.
-add_task(function* dont_consume_clicks() {
-  gURLBar.focus();
-  textbox.value = "foo";
-
-  let promise = promiseEvent(searchPopup, "popupshown");
-  EventUtils.synthesizeMouseAtCenter(textbox, {});
-  yield promise;
-  isnot(searchPopup.getAttribute("showonlysettings"), "true", "Should show the full popup");
-
-  is(Services.focus.focusedElement, textbox.inputField, "Should have focused the search bar");
-  is(textbox.selectionStart, 0, "Should have selected all of the text");
-  is(textbox.selectionEnd, 3, "Should have selected all of the text");
-
-  promise = promiseEvent(searchPopup, "popuphidden");
-  EventUtils.synthesizeMouseAtCenter(gURLBar, {});
-  yield promise;
-
-  is(Services.focus.focusedElement, gURLBar.inputField, "Should have focused the URL bar");
-
-  textbox.value = "";
-});
-
 // Switching back to the window when the search box has focus from mouse should not open the popup.
 add_task(function* refocus_window_doesnt_open_popup_mouse() {
   gURLBar.focus();
@@ -318,20 +294,4 @@ add_task(function* refocus_window_doesnt_open_popup_keyboard() {
 
   searchPopup.removeEventListener("popupshowing", listener, false);
   textbox.value = "";
-});
-
-// Clicking the search go button shouldn't open the popup
-add_no_popup_task(function* search_go_doesnt_open_popup() {
-  gBrowser.selectedTab = gBrowser.addTab();
-
-  gURLBar.focus();
-  textbox.value = "foo";
-  searchbar.inputChanged();
-
-  let promise = promiseOnLoad();
-  EventUtils.synthesizeMouseAtCenter(goButton, {});
-  yield promise;
-
-  textbox.value = "";
-  gBrowser.removeCurrentTab();
 });

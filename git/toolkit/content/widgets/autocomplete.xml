@@ -336,8 +336,12 @@
 
       <method name="detachController">
         <body><![CDATA[
-          if (this.mController.input == this)
+          try {
+            if  (this.mController.input == this)
             this.mController.input = null;
+          } catch (ex) {
+            // nothing really to do.
+          }
         ]]></body>
       </method>
 
@@ -590,13 +594,8 @@
       <handler event="focus" phase="capturing"
                action="this.attachController();"/>
 
-      <handler event="blur" phase="capturing"><![CDATA[
-        if (!this._dontBlur) {
-          if (this.forceComplete && this.mController.matchCount >= 1)
-            this.mController.handleEnter(false);
-          this.detachController();
-        }
-      ]]></handler>
+      <handler event="blur" phase="capturing"
+               action="if (!this._dontBlur) this.detachController();"/>
     </handlers>
   </binding>
 

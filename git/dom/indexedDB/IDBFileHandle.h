@@ -15,7 +15,6 @@
 #include "mozilla/dom/FileHandle.h"
 #include "mozilla/DOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsWeakReference.h"
 
 class nsPIDOMWindow;
 
@@ -30,8 +29,7 @@ class IDBMutableFile;
 
 class IDBFileHandle MOZ_FINAL : public DOMEventTargetHelper,
                                 public nsIRunnable,
-                                public FileHandleBase,
-                                public nsSupportsWeakReference
+                                public FileHandleBase
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
