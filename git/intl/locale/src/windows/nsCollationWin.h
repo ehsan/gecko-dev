@@ -15,7 +15,6 @@
 
 
 class nsCollationWin MOZ_FINAL : public nsICollation {
-  ~nsCollationWin();
 
 protected:
   nsCollation   *mCollation;  // XP collation class
@@ -23,6 +22,7 @@ protected:
 
 public: 
   nsCollationWin();
+  ~nsCollationWin(); 
 
   // nsISupports interface
   NS_DECL_ISUPPORTS

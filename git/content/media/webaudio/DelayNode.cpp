@@ -42,7 +42,7 @@ public:
               WebAudioUtils::ComputeSmoothingRate(0.02,
                                                   mDestination->SampleRate()))
     , mMaxDelay(aMaxDelayTicks)
-    , mHaveProducedBeforeInput(false)
+    , mLastOutputPosition(-1)
     , mLeftOverData(INT32_MIN)
   {
   }
@@ -110,17 +110,20 @@ public:
 
     mBuffer.Write(aInput);
 
-    // Skip output update if mLastChunks has already been set by
-    // ProduceBlockBeforeInput() when in a cycle.
-    if (!mHaveProducedBeforeInput) {
-      UpdateOutputBlock(aOutput, 0.0);
-    }
-    mHaveProducedBeforeInput = false;
+    UpdateOutputBlock(aOutput);
     mBuffer.NextBlock();
   }
 
-  void UpdateOutputBlock(AudioChunk* aOutput, double minDelay)
+  void UpdateOutputBlock(AudioChunk* aOutput)
   {
+    TrackTicks tick = mSource->GetCurrentPosition();
+    if (tick == mLastOutputPosition) {
+      return; // mLastChunks is already set on the stream
+    }
+
+    mLastOutputPosition = tick;
+    bool inCycle = mSource->AsProcessedStream()->InCycle();
+    double minDelay = inCycle ? static_cast<double>(WEBAUDIO_BLOCK_SIZE) : 0.0;
     double maxDelay = mMaxDelay;
     double sampleRate = mSource->SampleRate();
     ChannelInterpretation channelInterpretation =
@@ -136,7 +139,6 @@ public:
       // Compute the delay values for the duration of the input AudioChunk
       // If this DelayNode is in a cycle, make sure the delay value is at least
       // one block.
-      TrackTicks tick = mSource->GetCurrentPosition();
       double computedDelay[WEBAUDIO_BLOCK_SIZE];
       for (size_t counter = 0; counter < WEBAUDIO_BLOCK_SIZE; ++counter) {
         double delayAtTick = mDelay.GetValueAtTime(tick, counter) * sampleRate;
@@ -153,9 +155,8 @@ public:
     if (mLeftOverData <= 0) {
       aOutput->SetNull(WEBAUDIO_BLOCK_SIZE);
     } else {
-      UpdateOutputBlock(aOutput, WEBAUDIO_BLOCK_SIZE);
+      UpdateOutputBlock(aOutput);
     }
-    mHaveProducedBeforeInput = true;
   }
 
   virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
@@ -179,7 +180,7 @@ public:
   AudioParamTimeline mDelay;
   DelayBuffer mBuffer;
   double mMaxDelay;
-  bool mHaveProducedBeforeInput;
+  TrackTicks mLastOutputPosition;
   // How much data we have in our buffer which needs to be flushed out when our inputs
   // finish.
   int32_t mLeftOverData;

@@ -14,7 +14,6 @@ namespace jit {
 
 class OutOfLineBailout;
 class OutOfLineUndoALUOperation;
-class OutOfLineLoadTypedArrayOutOfBounds;
 class MulNegativeZeroCheck;
 class ModOverflowCheck;
 class ReturnZero;
@@ -32,25 +31,6 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     bool bailout(const T &t, LSnapshot *snapshot);
 
   protected:
-
-    // Load a NaN or zero into a register for an out of bounds AsmJS or static
-    // typed array load.
-    class OutOfLineLoadTypedArrayOutOfBounds : public OutOfLineCodeBase<CodeGeneratorX86Shared>
-    {
-        AnyRegister dest_;
-        bool isFloat32Load_;
-      public:
-        OutOfLineLoadTypedArrayOutOfBounds(AnyRegister dest, bool isFloat32Load)
-          : dest_(dest), isFloat32Load_(isFloat32Load)
-        {}
-
-        AnyRegister dest() const { return dest_; }
-        bool isFloat32Load() const { return isFloat32Load_; }
-        bool accept(CodeGeneratorX86Shared *codegen) {
-            return codegen->visitOutOfLineLoadTypedArrayOutOfBounds(this);
-        }
-    };
-
     // Label for the common return path.
     NonAssertingLabel returnLabel_;
     NonAssertingLabel deoptLabel_;
@@ -117,7 +97,7 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
 
   protected:
     bool generatePrologue();
-    bool generateAsmJSPrologue(Label *stackOverflowLabel);
+    bool generateAsmJSPrologue(Label *stackOverflowLabe);
     bool generateEpilogue();
     bool generateOutOfLineCode();
 
@@ -196,8 +176,6 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
     virtual bool visitEffectiveAddress(LEffectiveAddress *ins);
     virtual bool visitUDivOrMod(LUDivOrMod *ins);
     virtual bool visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
-
-    bool visitOutOfLineLoadTypedArrayOutOfBounds(OutOfLineLoadTypedArrayOutOfBounds *ool);
 
     bool visitForkJoinGetSlice(LForkJoinGetSlice *ins);
 

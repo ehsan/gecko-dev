@@ -521,11 +521,7 @@ ElementAnimation::GetComputedTimingAt(const Nullable<TimeDuration>& aLocalTime,
 
   // Get the normalized time within the active interval.
   TimeDuration activeTime;
-  // FIXME: The following check that the active duration is not equal to Forever
-  // is a temporary workaround to avoid overflow and should be removed once
-  // bug 1039924 is fixed.
-  if (result.mActiveDuration != TimeDuration::Forever() &&
-      localTime >= aTiming.mDelay + result.mActiveDuration) {
+  if (localTime >= aTiming.mDelay + result.mActiveDuration) {
     result.mPhase = ComputedTiming::AnimationPhase_After;
     if (!aTiming.FillsForwards()) {
       // The animation isn't active or filling at this time.

@@ -293,7 +293,6 @@ public:
   bool HandOffFling(AsyncPanZoomController* aApzc, ScreenPoint aVelocity);
 
   bool FlushRepaintsForOverscrollHandoffChain();
-  bool CancelAnimationsForOverscrollHandoffChain();
 
   /**
    * Determine whether |aApzc|, or any APZC along its overscroll handoff chain,

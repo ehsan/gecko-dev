@@ -61,7 +61,7 @@ public:
    * Returns the result of that blending, including whether the current frame
    * changed and what the resulting dirty rectangle is.
    */
-  RefreshResult RequestRefresh(const TimeStamp& aTime);
+  RefreshResult RequestRefresh(const mozilla::TimeStamp& aTime);
 
   /**
    * Call when this image is finished decoding so we know that there aren't any
@@ -136,14 +136,14 @@ private: // methods
    * @returns a RefreshResult that shows whether the frame was successfully
    *          advanced, and its resulting dirty rect.
    */
-  RefreshResult AdvanceFrame(TimeStamp aTime);
+  RefreshResult AdvanceFrame(mozilla::TimeStamp aTime);
 
   /**
    * Get the time the frame we're currently displaying is supposed to end.
    *
    * In the error case, returns an "infinity" timestamp.
    */
-  TimeStamp GetCurrentImgFrameEndTime() const;
+  mozilla::TimeStamp GetCurrentImgFrameEndTime() const;
 
 private: // data
   //! Area of the first frame that needs to be redrawn on subsequent loops.

@@ -8,8 +8,8 @@
 
 #include "imgIContainer.h"
 
-namespace mozilla {
-namespace image {
+using namespace mozilla::image;
+using namespace mozilla;
 
 FrameAnimator::FrameAnimator(FrameBlender& aFrameBlender,
                              uint16_t aAnimationMode)
@@ -177,7 +177,7 @@ FrameAnimator::AdvanceFrame(TimeStamp aTime)
 }
 
 FrameAnimator::RefreshResult
-FrameAnimator::RequestRefresh(const TimeStamp& aTime)
+FrameAnimator::RequestRefresh(const mozilla::TimeStamp& aTime)
 {
   // only advance the frame if the current time is greater than or
   // equal to the current frame's end time.
@@ -263,5 +263,4 @@ FrameAnimator::GetFirstFrameRefreshArea() const
   return mFirstFrameRefreshArea;
 }
 
-} // namespace image
-} // namespace mozilla
+

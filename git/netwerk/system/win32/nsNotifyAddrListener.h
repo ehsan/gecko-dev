@@ -19,8 +19,6 @@ class nsNotifyAddrListener : public nsINetworkLinkService,
                              public nsIRunnable,
                              public nsIObserver
 {
-    virtual ~nsNotifyAddrListener();
-
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSINETWORKLINKSERVICE
@@ -28,6 +26,7 @@ public:
     NS_DECL_NSIOBSERVER
 
     nsNotifyAddrListener();
+    virtual ~nsNotifyAddrListener();
 
     nsresult Init(void);
 

@@ -68,7 +68,7 @@ public:
   void RequestAudioData() MOZ_OVERRIDE
   {
     if (!GetAudioReader()) {
-      MSE_DEBUG("%p MSR::RequestAudioData called with no audio reader", this);
+      MSE_DEBUG("%p DecodeAudioFrame called with no audio reader", this);
       MOZ_ASSERT(mPendingDecoders.IsEmpty());
       GetCallback()->OnDecodeError();
       return;
@@ -83,21 +83,18 @@ public:
 
   void OnAudioEOS()
   {
-    MSE_DEBUG("%p OnAudioEOS %d (%p) EOS (readers=%u)",
-              this, mActiveAudioDecoder, mDecoders[mActiveAudioDecoder].get(), mDecoders.Length());
     GetCallback()->OnAudioEOS();
   }
 
   void RequestVideoData(bool aSkipToNextKeyframe, int64_t aTimeThreshold) MOZ_OVERRIDE
   {
     if (!GetVideoReader()) {
-      MSE_DEBUG("%p MSR::RequestVideoData called with no video reader", this);
+      MSE_DEBUG("%p DecodeVideoFrame called with no video reader", this);
       MOZ_ASSERT(mPendingDecoders.IsEmpty());
       GetCallback()->OnDecodeError();
       return;
     }
     mTimeThreshold = aTimeThreshold;
-    SwitchVideoReaders(SWITCH_OPTIONAL);
     GetVideoReader()->RequestVideoData(aSkipToNextKeyframe, aTimeThreshold);
   }
 
@@ -105,28 +102,28 @@ public:
   {
     if (mDropVideoBeforeThreshold) {
       if (aSample->mTime < mTimeThreshold) {
-        MSE_DEBUG("%p MSR::OnVideoDecoded VideoData mTime %lld below mTimeThreshold %lld",
-                  this, aSample->mTime, mTimeThreshold);
         delete aSample;
         GetVideoReader()->RequestVideoData(false, mTimeThreshold);
-        return;
+      } else {
+        mDropVideoBeforeThreshold = false;
+        GetCallback()->OnVideoDecoded(aSample);
       }
-      mDropVideoBeforeThreshold = false;
+    } else {
+      GetCallback()->OnVideoDecoded(aSample);
     }
-    GetCallback()->OnVideoDecoded(aSample);
   }
 
   void OnVideoEOS()
   {
     // End of stream. See if we can switch to another video decoder.
-    MSE_DEBUG("%p MSR::OnVideoEOS %d (%p) (readers=%u)",
+    MSE_DEBUG("%p MSR::DecodeVF %d (%p) returned false (readers=%u)",
               this, mActiveVideoDecoder, mDecoders[mActiveVideoDecoder].get(), mDecoders.Length());
-    if (SwitchVideoReaders(SWITCH_FORCED)) {
+    if (MaybeSwitchVideoReaders()) {
       // Success! Resume decoding with next video decoder.
       RequestVideoData(false, mTimeThreshold);
     } else {
       // End of stream.
-      MSE_DEBUG("%p MSR::OnVideoEOS %d (%p) EOS (readers=%u)",
+      MSE_DEBUG("%p MSR::DecodeVF %d (%p) EOS (readers=%u)",
                 this, mActiveVideoDecoder, mDecoders[mActiveVideoDecoder].get(), mDecoders.Length());
       GetCallback()->OnVideoEOS();
     }
@@ -178,16 +175,17 @@ public:
   }
 
 private:
+
   // These are read and written on the decode task queue threads.
   int64_t mTimeThreshold;
   bool mDropVideoBeforeThreshold;
 
-  enum SwitchType {
-    SWITCH_OPTIONAL,
-    SWITCH_FORCED
+  enum SwitchState {
+    SWITCHSTATE_SEEKING,
+    SWITCHSTATE_PLAYING
   };
 
-  bool SwitchVideoReaders(SwitchType aType) {
+  bool MaybeSwitchVideoReaders(SwitchState aState = SWITCHSTATE_PLAYING) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     MOZ_ASSERT(mActiveVideoDecoder != -1);
 
@@ -199,12 +197,11 @@ private:
         continue;
       }
 
-      if (aType == SWITCH_FORCED || mTimeThreshold >= mDecoders[i]->GetMediaStartTime()) {
+      if (aState == SWITCHSTATE_SEEKING || mTimeThreshold >= mDecoders[i]->GetMediaStartTime()) {
         GetVideoReader()->SetIdle();
 
         mActiveVideoDecoder = i;
-        mDropVideoBeforeThreshold = true;
-        MSE_DEBUG("%p MSR::SwitchVideoReaders(%d) switching to %d", this, aType, mActiveVideoDecoder);
+        MSE_DEBUG("%p MSR::DecodeVF switching to %d", this, mActiveVideoDecoder);
         return true;
       }
     }
@@ -487,7 +484,7 @@ MediaSourceReader::Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime,
   while (!mMediaSource->ActiveSourceBuffers()->AllContainsTime(target)
          && !IsShutdown()) {
     mMediaSource->WaitForData();
-    SwitchVideoReaders(SWITCH_FORCED);
+    MaybeSwitchVideoReaders(SWITCHSTATE_SEEKING);
   }
 
   if (IsShutdown()) {
