@@ -161,6 +161,7 @@ protected:
   nsCOMPtr<nsIDocShell> mDocShell;
   bool mInitialized;
   bool mLoadingScript;
+  bool mDelayedDisconnect;
 
   // Is this the message manager for an in-process <iframe mozbrowser> or
   // <iframe mozapp>?  This affects where events get sent, so it affects

@@ -101,7 +101,7 @@ nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
                                                      nsIContent* aOwner,
                                                      nsFrameMessageManager* aChrome)
 : mDocShell(aShell), mInitialized(false), mLoadingScript(false),
-  mOwner(aOwner), mChromeMessageManager(aChrome)
+  mDelayedDisconnect(false), mOwner(aOwner), mChromeMessageManager(aChrome)
 {
 
   // If owner corresponds to an <iframe mozbrowser> or <iframe mozapp>, we'll
@@ -234,6 +234,13 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
   if (mListenerManager) {
     mListenerManager->Disconnect();
   }
+
+  if (!mLoadingScript) {
+    ReleaseWrapper(static_cast<EventTarget*>(this));
+    mGlobal = nullptr;
+  } else {
+    mDelayedDisconnect = true;
+  }
 }
 
 NS_IMETHODIMP_(nsIContent *)
@@ -324,4 +331,8 @@ nsInProcessTabChildGlobal::LoadFrameScript(const nsAString& aURL, bool aRunInGlo
   mLoadingScript = true;
   LoadFrameScriptInternal(aURL, aRunInGlobalScope);
   mLoadingScript = tmp;
+  if (!mLoadingScript && mDelayedDisconnect) {
+    mDelayedDisconnect = false;
+    Disconnect();
+  }
 }

@@ -50,7 +50,6 @@ UNIFIED_SOURCES += [
     'FrozenFunctions.cpp',
     'IOInterposer.cpp',
     'LateWriteChecks.cpp',
-    'MainThreadIOLogger.cpp',
     'nsXPComInit.cpp',
     'nsXPCOMStrings.cpp',
     'Services.cpp',

@@ -309,7 +309,6 @@ PluginHangUIChild::HangUIDlgProc(HWND aDlgHandle, UINT aMsgCode, WPARAM aWParam,
     }
     case WM_DESTROY: {
       EnableWindow(mParentWindow, TRUE);
-      SetForegroundWindow(mParentWindow);
       break;
     }
     default:
