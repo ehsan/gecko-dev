@@ -34,8 +34,7 @@ NS_IMPL_ADDREF(MmsMessage)
 NS_IMPL_RELEASE(MmsMessage)
 
 MmsMessage::MmsMessage(int32_t                          aId,
-                       uint64_t                         aThreadId,
-                       const nsAString&                 aIccId,
+                       const uint64_t                   aThreadId,
                        DeliveryState                    aDelivery,
                        const nsTArray<MmsDeliveryInfo>& aDeliveryInfo,
                        const nsAString&                 aSender,
@@ -48,7 +47,6 @@ MmsMessage::MmsMessage(int32_t                          aId,
                        uint64_t                         aExpiryDate)
   : mId(aId),
     mThreadId(aThreadId),
-    mIccId(aIccId),
     mDelivery(aDelivery),
     mDeliveryInfo(aDeliveryInfo),
     mSender(aSender),
@@ -65,7 +63,6 @@ MmsMessage::MmsMessage(int32_t                          aId,
 MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
   : mId(aData.id())
   , mThreadId(aData.threadId())
-  , mIccId(aData.iccId())
   , mDelivery(aData.delivery())
   , mSender(aData.sender())
   , mReceivers(aData.receivers())
@@ -163,8 +160,7 @@ convertTimeToInt(JSContext* aCx, const JS::Value& aTime, uint64_t& aReturn)
 
 /* static */ nsresult
 MmsMessage::Create(int32_t               aId,
-                   uint64_t              aThreadId,
-                   const nsAString&      aIccId,
+                   const uint64_t        aThreadId,
                    const nsAString&      aDelivery,
                    const JS::Value&      aDeliveryInfo,
                    const nsAString&      aSender,
@@ -284,7 +280,6 @@ MmsMessage::Create(int32_t               aId,
 
   nsCOMPtr<nsIDOMMozMmsMessage> message = new MmsMessage(aId,
                                                          aThreadId,
-                                                         aIccId,
                                                          delivery,
                                                          deliveryInfo,
                                                          aSender,
@@ -307,7 +302,6 @@ MmsMessage::GetData(ContentParent* aParent,
 
   aData.id() = mId;
   aData.threadId() = mThreadId;
-  aData.iccId() = mIccId;
   aData.delivery() = mDelivery;
   aData.sender().Assign(mSender);
   aData.receivers() = mReceivers;
@@ -390,13 +384,6 @@ NS_IMETHODIMP
 MmsMessage::GetThreadId(uint64_t* aThreadId)
 {
   *aThreadId = mThreadId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MmsMessage::GetIccId(nsAString& aIccId)
-{
-  aIccId = mIccId;
   return NS_OK;
 }
 

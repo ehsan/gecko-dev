@@ -27,7 +27,6 @@ struct SmsMessageData
 {
   int32_t        id;
   uint64_t       threadId;
-  nsString       iccId;
   DeliveryState  delivery;
   DeliveryStatus deliveryStatus;
   nsString       sender;
@@ -56,7 +55,6 @@ struct MmsMessageData
 {
   int32_t               id;
   uint64_t              threadId;
-  nsString              iccId;
   DeliveryState         delivery;
   MmsDeliveryInfoData[] deliveryInfo;
   nsString              sender;

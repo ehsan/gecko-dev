@@ -20,8 +20,7 @@ MmsService::GetMmsDefaultServiceId(uint32_t* aServiceId)
 }
 
 NS_IMETHODIMP
-MmsService::Send(uint32_t aServiceId,
-                 const JS::Value& aParameters,
+MmsService::Send(const JS::Value& aParameters,
                  nsIMobileMessageCallback *aRequest)
 {
   NS_NOTYETIMPLEMENTED("Implement me!");
