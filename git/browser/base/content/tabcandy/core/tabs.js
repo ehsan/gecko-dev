@@ -330,7 +330,7 @@ function Tabs() {
       var wm = Cc["@mozilla.org/appshell/window-mediator;1"]
                .getService(Ci.nsIWindowMediator);
       var chromeWindow = wm.getMostRecentWindow("navigator:browser");
-      Utils.log( trackedWindows )
+/*       Utils.log( trackedWindows ) */
       if (chromeWindow)
         return trackedWindows.get(chromeWindow);
       return null;
@@ -454,7 +454,7 @@ function Tabs() {
 
     EVENTS_TO_WATCH.forEach(
       function(eventType) {
-        tabbrowser.tabContainer.addEventListener(eventType, onEvent, true);
+        tabbrowser.addEventListener(eventType, onEvent, true);
       });
 
     this.addTab = function addTab(url) {
@@ -473,7 +473,7 @@ function Tabs() {
       function() {
         EVENTS_TO_WATCH.forEach(
           function(eventType) {
-            tabbrowser.tabContainer.removeEventListener(eventType, onEvent, true);
+            tabbrowser.removeEventListener(eventType, onEvent, true);
           });
         for (var i = 0; i < tabbrowser.tabContainer.itemCount; i++)
           unloadBrowserTab(tabbrowser.tabContainer.getItemAtIndex(i));
