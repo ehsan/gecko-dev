@@ -2080,8 +2080,8 @@ nsHttpConnection::OnOutputStreamReady(nsIAsyncOutputStream *out)
 NS_IMETHODIMP
 nsHttpConnection::OnTransportStatus(nsITransport *trans,
                                     nsresult status,
-                                    int64_t progress,
-                                    int64_t progressMax)
+                                    uint64_t progress,
+                                    uint64_t progressMax)
 {
     if (mTransaction)
         mTransaction->OnTransportStatus(trans, status, progress);

@@ -85,6 +85,9 @@ public:
 
   IMPL_EVENT_HANDLER(change)
 
+  // We don't use this for the WorkerDataStore.
+  void SetDataStoreImpl(DataStoreImpl& aStore, ErrorResult& aRv);
+
   void SetBackingDataStore(
     const nsMainThreadPtrHandle<DataStore>& aBackingStore);
 

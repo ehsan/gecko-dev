@@ -6,25 +6,8 @@
 
 // Define elements that bound phone number containers.
 const PHONE_NUMBER_CONTAINERS = "td,div";
-const DEFER_CLOSE_TRIGGER_MS = 125; // Grace period delay before deferred _closeSelection()
 
 var SelectionHandler = {
-
-  // Successful startSelection() or attachCaret().
-  ERROR_NONE: "",
-
-  // Error codes returned during startSelection().
-  START_ERROR_INVALID_MODE: "Invalid selection mode requested.",
-  START_ERROR_NONTEXT_INPUT: "Target element by definition contains no text.",
-  START_ERROR_NO_WORD_SELECTED: "No word selected at point.",
-  START_ERROR_SELECT_WORD_FAILED: "Word selection at point failed.",
-  START_ERROR_SELECT_ALL_PARAGRAPH_FAILED: "Select-All Paragraph failed.",
-  START_ERROR_NO_SELECTION: "Selection performed, but nothing resulted.",
-  START_ERROR_PROXIMITY: "Selection target and result seem unrelated.",
-
-  // Error codes returned during attachCaret().
-  ATTACH_ERROR_INCOMPATIBLE: "Element disabled, handled natively, or not editable.",
-
   HANDLE_TYPE_ANCHOR: "ANCHOR",
   HANDLE_TYPE_CARET: "CARET",
   HANDLE_TYPE_FOCUS: "FOCUS",
@@ -43,7 +26,6 @@ var SelectionHandler = {
   _draggingHandles: false, // True while user drags text selection handles
   _ignoreCompositionChanges: false, // Persist caret during IME composition updates
   _prevHandlePositions: [], // Avoid issuing duplicate "TextSelection:Position" messages
-  _deferCloseTimer: null, // Used to defer _closeSelection() actions during programmatic changes
 
   // TargetElement changes (text <--> no text) trigger actionbar UI update
   _prevTargetElementHasText: null,
@@ -107,11 +89,6 @@ var SelectionHandler = {
   },
 
   observe: function sh_observe(aSubject, aTopic, aData) {
-    // Ignore all but selectionListener notifications during deferred _closeSelection().
-    if (this._deferCloseTimer) {
-      return;
-    }
-
     switch (aTopic) {
       // Update handle/caret position on page reflow (keyboard open/close,
       // dynamic DOM changes, orientation updates, etc).
@@ -239,11 +216,6 @@ var SelectionHandler = {
   },
 
   handleEvent: function sh_handleEvent(aEvent) {
-    // Ignore all but selectionListener notifications during deferred _closeSelection().
-    if (this._deferCloseTimer) {
-      return;
-    }
-
     switch (aEvent.type) {
       case "scroll":
         // Maintain position when top-level document is scrolled
@@ -296,13 +268,7 @@ var SelectionHandler = {
     };
   },
 
-  /**
-   * Observe and react to programmatic SelectionChange notifications.
-   */
   notifySelectionChanged: function sh_notifySelectionChanged(aDocument, aSelection, aReason) {
-    // Cancel any in-progress / deferred _closeSelection() action.
-    this._cancelDeferredCloseSelection();
-
     // Ignore selectionChange notifications during handle movements
     if (this._draggingHandles) {
       return;
@@ -315,15 +281,10 @@ var SelectionHandler = {
       return;
     }
 
-    // If selected text no longer exists, schedule a deferred close action.
+    // If selected text no longer exists, close
     if (!aSelection.toString()) {
-      this._deferCloseSelection();
-      return;
+      this._closeSelection();
     }
-
-    // Update the selection handle positions.
-    this._updateCacheForSelection();
-    this._positionHandles();
   },
 
   /*
@@ -343,26 +304,22 @@ var SelectionHandler = {
     this._closeSelection();
 
     if (this._isNonTextInputElement(aElement)) {
-      return this.START_ERROR_NONTEXT_INPUT;
+      return false;
     }
 
     this._initTargetInfo(aElement, this.TYPE_SELECTION);
 
     // Perform the appropriate selection method, if we can't determine method, or it fails, return
-    let selectionResult = this._performSelection(aOptions);
-    if (selectionResult !== this.ERROR_NONE) {
+    if (!this._performSelection(aOptions)) {
       this._deactivate();
-      return selectionResult;
+      return false;
     }
 
     // Double check results of successful selection operation
     let selection = this._getSelection();
-    if (!selection ||
-        selection.rangeCount == 0 ||
-        selection.getRangeAt(0).collapsed ||
-        this._getSelectedText().length == 0) {
+    if (!selection || selection.rangeCount == 0 || selection.getRangeAt(0).collapsed) {
       this._deactivate();
-      return this.START_ERROR_NO_SELECTION;
+      return false;
     }
 
     // Add a listener to end the selection if it's removed programatically
@@ -377,10 +334,11 @@ var SelectionHandler = {
     // Figure out the distance between the selection and the click
     let positions = this._getHandlePositions(scroll);
 
-    if (aOptions.mode == this.SELECT_AT_POINT &&
-        !this._selectionNearClick(scroll.X + aOptions.x, scroll.Y + aOptions.y, positions)) {
+    if (aOptions.mode == this.SELECT_AT_POINT && !this._selectionNearClick(scroll.X + aOptions.x,
+                                                                      scroll.Y + aOptions.y,
+                                                                      positions)) {
         this._closeSelection();
-        return this.START_ERROR_PROXIMITY;
+        return false;
     }
 
     // Determine position and show handles, open actionbar
@@ -390,7 +348,7 @@ var SelectionHandler = {
       handles: [this.HANDLE_TYPE_ANCHOR, this.HANDLE_TYPE_FOCUS]
     });
     this._updateMenu();
-    return this.ERROR_NONE;
+    return true;
   },
 
   /*
@@ -400,12 +358,8 @@ var SelectionHandler = {
     if (aOptions.mode == this.SELECT_AT_POINT) {
       // Clear any ranges selected outside SelectionHandler, by code such as Find-In-Page.
       this._contentWindow.getSelection().removeAllRanges();
-      try {
-        if (!this._domWinUtils.selectAtPoint(aOptions.x, aOptions.y, Ci.nsIDOMWindowUtils.SELECT_WORDNOSPACE)) {
-          return this.START_ERROR_NO_WORD_SELECTED;
-        }
-      } catch (e) {
-        return this.START_ERROR_SELECT_WORD_FAILED;
+      if (!this._domWinUtils.selectAtPoint(aOptions.x, aOptions.y, Ci.nsIDOMWindowUtils.SELECT_WORDNOSPACE)) {
+        return false;
       }
 
       // Perform additional phone-number "smart selection".
@@ -413,22 +367,17 @@ var SelectionHandler = {
         this._selectSmartPhoneNumber();
       }
 
-      return this.ERROR_NONE;
+      return true;
     }
 
-    // Only selectAll() assumed from this point.
     if (aOptions.mode != this.SELECT_ALL) {
-      return this.START_ERROR_INVALID_MODE;
+      Cu.reportError("SelectionHandler.js: _performSelection() Invalid selection mode " + aOptions.mode);
+      return false;
     }
 
     // HTMLPreElement is a #text node, SELECT_ALL implies entire paragraph
     if (this._targetElement instanceof HTMLPreElement)  {
-      try {
-        this._domWinUtils.selectAtPoint(1, 1, Ci.nsIDOMWindowUtils.SELECT_PARAGRAPH);
-        return this.ERROR_NONE;
-      } catch (e) {
-        return this.START_ERROR_SELECT_ALL_PARAGRAPH_FAILED;
-      }
+      return this._domWinUtils.selectAtPoint(1, 1, Ci.nsIDOMWindowUtils.SELECT_PARAGRAPH);
     }
 
     // Else default to selectALL Document
@@ -455,7 +404,7 @@ var SelectionHandler = {
       }
     }
 
-    return this.ERROR_NONE;
+    return true;
   },
 
   /*
@@ -759,7 +708,7 @@ var SelectionHandler = {
   attachCaret: function sh_attachCaret(aElement) {
     // Ensure it isn't disabled, isn't handled by Android native dialog, and is editable text element
     if (aElement.disabled || InputWidgetHelper.hasInputWidget(aElement) || !this.isElementEditableText(aElement)) {
-      return this.ATTACH_ERROR_INCOMPATIBLE;
+      return false;
     }
 
     this._initTargetInfo(aElement, this.TYPE_CURSOR);
@@ -779,7 +728,7 @@ var SelectionHandler = {
     });
     this._updateMenu();
 
-    return this.ERROR_NONE;
+    return true;
   },
 
   // Target initialization for both TYPE_CURSOR and TYPE_SELECTION
@@ -1031,48 +980,6 @@ var SelectionHandler = {
     this._closeSelection();
   },
 
-  /**
-   * Deferred _closeSelection() actions allow for brief periods where programmatic
-   * selection changes have effectively closed the selection, but we anticipate further
-   * activity that may restore it.
-   *
-   * At this point, we hide the UI handles, and stop responding to messages until
-   * either the final _closeSelection() is triggered, or until our Gecko selectionListener
-   * notices a subsequent programmatic selection that results in a new selection.
-   */
-  _deferCloseSelection: function() {
-    // Schedule the deferred _closeSelection() action.
-    this._deferCloseTimer = setTimeout((function() {
-      // Time is up! Close the selection.
-      this._deferCloseTimer = null;
-      this._closeSelection();
-    }).bind(this), DEFER_CLOSE_TRIGGER_MS);
-
-    // Hide any handles while deferClosed.
-    if (this._prevHandlePositions.length) {
-      let positions = this._prevHandlePositions;
-      for (let i in positions) {
-        positions[i].hidden = true;
-      }
-
-      Messaging.sendRequest({
-        type: "TextSelection:PositionHandles",
-        positions: positions,
-        rtl: this._isRTL
-      });
-    }
-  },
-
-  /**
-   * Cancel any current deferred _closeSelection() action.
-   */
-  _cancelDeferredCloseSelection: function() {
-    if (this._deferCloseTimer) {
-      clearTimeout(this._deferCloseTimer);
-      this._deferCloseTimer = null;
-    }
-  },
-
   /*
    * Shuts SelectionHandler down.
    */
@@ -1088,22 +995,13 @@ var SelectionHandler = {
   },
 
   _clearSelection: function sh_clearSelection() {
-    // Cancel any in-progress / deferred _closeSelection() process.
-    this._cancelDeferredCloseSelection();
-
     let selection = this._getSelection();
     if (selection) {
       // Remove our listener before we clear the selection
       selection.QueryInterface(Ci.nsISelectionPrivate).removeSelectionListener(this);
-
-      // Remove the selection. For editables, we clear selection without losing
-      // element focus. For non-editables, just clear all.
+      // Clear selection without clearing the anchorNode or focusNode
       if (selection.rangeCount != 0) {
-        if (this.isElementEditableText(this._targetElement)) {
-          selection.collapseToStart();
-        } else {
-          selection.removeAllRanges();
-        }
+        selection.collapseToStart();
       }
     }
   },
@@ -1272,11 +1170,6 @@ var SelectionHandler = {
   },
 
   subdocumentScrolled: function sh_subdocumentScrolled(aElement) {
-    // Ignore all but selectionListener notifications during deferred _closeSelection().
-    if (this._deferCloseTimer) {
-      return;
-    }
-
     if (this._activeType == this.TYPE_NONE) {
       return;
     }

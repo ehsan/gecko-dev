@@ -1281,7 +1281,7 @@ Accessible::Value(nsString& aValue)
     Accessible* option = CurrentItem();
     if (!option) {
       Accessible* listbox = nullptr;
-      ARIAOwnsIterator iter(this);
+      IDRefsIterator iter(mDoc, mContent, nsGkAtoms::aria_owns);
       while ((listbox = iter.Next()) && !listbox->IsListControl());
 
       if (!listbox) {
@@ -1559,7 +1559,8 @@ Accessible::RelationByType(RelationType aType)
     }
 
     case RelationType::NODE_CHILD_OF: {
-      Relation rel(new ARIAOwnedByIterator(this));
+      Relation rel(new RelatedAccIterator(Document(), mContent,
+                                          nsGkAtoms::aria_owns));
 
       // This is an ARIA tree or treegrid that doesn't use owns, so we need to
       // get the parent the hard way.
@@ -1589,7 +1590,7 @@ Accessible::RelationByType(RelationType aType)
     }
 
     case RelationType::NODE_PARENT_OF: {
-      Relation rel(new ARIAOwnsIterator(this));
+      Relation rel(new IDRefsIterator(mDoc, mContent, nsGkAtoms::aria_owns));
 
       // ARIA tree or treegrid can do the hierarchy by @aria-level, ARIA trees
       // also can be organized by groups.

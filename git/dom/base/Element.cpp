@@ -1803,12 +1803,6 @@ Element::IsLabelable() const
   return false;
 }
 
-bool
-Element::IsInteractiveHTMLContent() const
-{
-  return false;
-}
-
 css::StyleRule*
 Element::GetInlineStyleRule()
 {

@@ -151,35 +151,23 @@ Request::Constructor(const GlobalObject& aGlobal,
     request->SetCredentialsMode(credentials);
   }
 
-  // Request constructor step 14.
   if (aInit.mMethod.WasPassed()) {
-    nsAutoCString method(aInit.mMethod.Value());
-    nsAutoCString upperCaseMethod = method;
-    ToUpperCase(upperCaseMethod);
+    nsCString method = aInit.mMethod.Value();
+    ToLowerCase(method);
 
-    // Step 14.1. Disallow forbidden methods, and anything that is not a HTTP
-    // token, since HTTP states that Method may be any of the defined values or
-    // a token (extension method).
-    if (upperCaseMethod.EqualsLiteral("CONNECT") ||
-        upperCaseMethod.EqualsLiteral("TRACE") ||
-        upperCaseMethod.EqualsLiteral("TRACK") ||
-        !NS_IsValidHTTPToken(method)) {
+    if (!method.EqualsASCII("options") &&
+        !method.EqualsASCII("get") &&
+        !method.EqualsASCII("head") &&
+        !method.EqualsASCII("post") &&
+        !method.EqualsASCII("put") &&
+        !method.EqualsASCII("delete")) {
       NS_ConvertUTF8toUTF16 label(method);
       aRv.ThrowTypeError(MSG_INVALID_REQUEST_METHOD, &label);
       return nullptr;
     }
 
-    // Step 14.2
-    if (upperCaseMethod.EqualsLiteral("DELETE") ||
-        upperCaseMethod.EqualsLiteral("GET") ||
-        upperCaseMethod.EqualsLiteral("HEAD") ||
-        upperCaseMethod.EqualsLiteral("POST") ||
-        upperCaseMethod.EqualsLiteral("PUT") ||
-        upperCaseMethod.EqualsLiteral("OPTIONS")) {
-      request->SetMethod(upperCaseMethod);
-    } else {
-      request->SetMethod(method);
-    }
+    ToUpperCase(method);
+    request->SetMethod(method);
   }
 
   nsRefPtr<InternalHeaders> requestHeaders = request->Headers();

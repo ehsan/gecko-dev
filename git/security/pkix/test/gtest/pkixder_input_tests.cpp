@@ -262,7 +262,7 @@ TEST_F(pkixder_input_tests, ReadWordWrapAroundPointer)
   ASSERT_EQ(Result::ERROR_BAD_DER, input.Read(b));
 }
 
-TEST_F(pkixder_input_tests, Skip)
+TEST_F(pkixder_input_tests, InputSkip)
 {
   const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
   Input buf(der);
@@ -281,7 +281,7 @@ TEST_F(pkixder_input_tests, Skip)
   ASSERT_EQ(0x44, readByte2);
 }
 
-TEST_F(pkixder_input_tests, Skip_ToEnd)
+TEST_F(pkixder_input_tests, InputSkipToEnd)
 {
   const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
   Input buf(der);
@@ -290,7 +290,7 @@ TEST_F(pkixder_input_tests, Skip_ToEnd)
   ASSERT_TRUE(input.AtEnd());
 }
 
-TEST_F(pkixder_input_tests, Skip_PastEnd)
+TEST_F(pkixder_input_tests, InputSkipPastEnd)
 {
   const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
   Input buf(der);
@@ -299,7 +299,7 @@ TEST_F(pkixder_input_tests, Skip_PastEnd)
   ASSERT_EQ(Result::ERROR_BAD_DER, input.Skip(sizeof der + 1));
 }
 
-TEST_F(pkixder_input_tests, Skip_ToNewInput)
+TEST_F(pkixder_input_tests, InputSkipToNewInput)
 {
   const uint8_t der[] = { 0x01, 0x02, 0x03, 0x04 };
   Input buf(der);
@@ -326,7 +326,7 @@ TEST_F(pkixder_input_tests, Skip_ToNewInput)
   ASSERT_TRUE(skippedInput.AtEnd());
 }
 
-TEST_F(pkixder_input_tests, Skip_ToNewInputPastEnd)
+TEST_F(pkixder_input_tests, InputSkipToNewInputPastEnd)
 {
   const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
   Input buf(der);
@@ -336,7 +336,7 @@ TEST_F(pkixder_input_tests, Skip_ToNewInputPastEnd)
   ASSERT_EQ(Result::ERROR_BAD_DER, input.Skip(sizeof der * 2, skippedInput));
 }
 
-TEST_F(pkixder_input_tests, Skip_ToInput)
+TEST_F(pkixder_input_tests, InputSkipToInput)
 {
   const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
   Input buf(der);
@@ -351,7 +351,7 @@ TEST_F(pkixder_input_tests, Skip_ToInput)
   ASSERT_TRUE(InputsAreEqual(expected, item));
 }
 
-TEST_F(pkixder_input_tests, Skip_WrapAroundPointer)
+TEST_F(pkixder_input_tests, SkipWrapAroundPointer)
 {
   // The original implementation of our buffer read overflow checks was
   // susceptible to integer overflows which could make the checks ineffective.
@@ -367,7 +367,7 @@ TEST_F(pkixder_input_tests, Skip_WrapAroundPointer)
   ASSERT_EQ(Result::ERROR_BAD_DER, input.Skip(1));
 }
 
-TEST_F(pkixder_input_tests, Skip_ToInputPastEnd)
+TEST_F(pkixder_input_tests, SkipToInputPastEnd)
 {
   const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
   Input buf(der);
@@ -375,30 +375,6 @@ TEST_F(pkixder_input_tests, Skip_ToInputPastEnd)
 
   Input skipped;
   ASSERT_EQ(Result::ERROR_BAD_DER, input.Skip(sizeof der + 1, skipped));
-}
-
-TEST_F(pkixder_input_tests, SkipToEnd_ToInput)
-{
-  static const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
-  Input buf(der);
-  Reader input(buf);
-
-  Input skipped;
-  ASSERT_EQ(Success, input.SkipToEnd(skipped));
-}
-
-TEST_F(pkixder_input_tests, SkipToEnd_ToInput_InputAlreadyInited)
-{
-  static const uint8_t der[] = { 0x11, 0x22, 0x33, 0x44 };
-  Input buf(der);
-  Reader input(buf);
-
-  static const uint8_t initialValue[] = { 0x01, 0x02, 0x03 };
-  Input x(initialValue);
-  // Fails because skipped was already initialized once, and Inputs are not
-  // allowed to be Init()d multiple times.
-  ASSERT_EQ(Result::FATAL_ERROR_INVALID_ARGS, input.SkipToEnd(x));
-  ASSERT_TRUE(InputsAreEqual(x, Input(initialValue)));
 }
 
 TEST_F(pkixder_input_tests, ExpectTagAndSkipValue)

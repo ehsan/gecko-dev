@@ -64,10 +64,6 @@
 #include "nsThreadUtils.h"
 #include "mozilla/unused.h"
 
-#ifdef MOZ_NUWA_PROCESS
-#include "ipc/Nuwa.h"
-#endif
-
 using namespace mozilla;
 using namespace mozilla::widget;
 using namespace mozilla::ipc;
@@ -785,13 +781,27 @@ static int32_t sHighPrecisionTimerRequests = 0;
 static nsITimer *sDisableHighPrecisionTimersTimer = nullptr;
 #endif
 
-static void
-CreateContentVsyncRefreshTimer(void*)
+static RefreshDriverTimer*
+CreateVsyncRefreshTimer()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!XRE_IsParentProcess());
+  // Sometimes, gfxPrefs is not initialized here. Make sure the gfxPrefs is
+  // ready.
+  gfxPrefs::GetSingleton();
 
-  // Create the PVsync actor child for vsync-base refresh timer.
+  if (!gfxPrefs::VsyncAlignedRefreshDriver()) {
+    return nullptr;
+  }
+
+  if (XRE_IsParentProcess()) {
+    // Make sure all vsync systems are ready.
+    gfxPlatform::GetPlatform();
+    // In parent process, we don't need to use ipc. We can create the
+    // VsyncRefreshDriverTimer directly.
+    return new VsyncRefreshDriverTimer();
+  }
+
+  // For ChildProcess case.
+  // Create the PVsync actor for vsync-base refresh timer.
   // PBackgroundChild is created asynchronously. If PBackgroundChild is still
   // unavailable, setup VsyncChildCreateCallback callback to handle the async
   // connect. We will still use software timer before PVsync ready, and change
@@ -803,48 +813,14 @@ CreateContentVsyncRefreshTimer(void*)
     // If we already have PBackgroundChild, create the
     // child VsyncRefreshDriverTimer here.
     VsyncChildCreateCallback::CreateVsyncActor(backgroundChild);
-    return;
+    return sRegularRateTimer;
   }
   // Setup VsyncChildCreateCallback callback
   nsRefPtr<nsIIPCBackgroundChildCreateCallback> callback = new VsyncChildCreateCallback();
   if (NS_WARN_IF(!BackgroundChild::GetOrCreateForCurrentThread(callback))) {
     MOZ_CRASH("PVsync actor create failed!");
   }
-}
-
-static void
-CreateVsyncRefreshTimer()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // Sometimes, gfxPrefs is not initialized here. Make sure the gfxPrefs is
-  // ready.
-  gfxPrefs::GetSingleton();
-
-  if (!gfxPrefs::VsyncAlignedRefreshDriver()) {
-    return;
-  }
-
-  if (XRE_IsParentProcess()) {
-    // Make sure all vsync systems are ready.
-    gfxPlatform::GetPlatform();
-    // In parent process, we don't need to use ipc. We can create the
-    // VsyncRefreshDriverTimer directly.
-    sRegularRateTimer = new VsyncRefreshDriverTimer();
-    return;
-  }
-
-#ifdef MOZ_NUWA_PROCESS
-  // NUWA process will just use software timer. Use NuwaAddFinalConstructor()
-  // to register a callback to create the vsync-base refresh timer after a
-  // process is created.
-  if (IsNuwaProcess()) {
-    NuwaAddFinalConstructor(&CreateContentVsyncRefreshTimer, nullptr);
-    return;
-  }
-#endif
-  // If this process is not created by NUWA, just create the vsync timer here.
-  CreateContentVsyncRefreshTimer(nullptr);
+  return nullptr;
 }
 
 static uint32_t
@@ -960,8 +936,8 @@ nsRefreshDriver::ChooseTimer() const
     bool isDefault = true;
     double rate = GetRegularTimerInterval(&isDefault);
 
-    // Try to use vsync-base refresh timer first for sRegularRateTimer.
-    CreateVsyncRefreshTimer();
+    // Try to use vsync-base refresh timer first.
+    sRegularRateTimer = CreateVsyncRefreshTimer();
 
 #ifdef XP_WIN
     if (!sRegularRateTimer && PreciseRefreshDriverTimerWindowsDwmVsync::IsSupported()) {

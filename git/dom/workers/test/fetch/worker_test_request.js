@@ -78,33 +78,17 @@ function testBug1109574() {
 }
 
 function testMethod() {
-  // These get normalized.
-  var allowed = ["delete", "get", "head", "options", "post", "put" ];
+  var allowed = ["delete", "get", "head", "options", "post", "put"];
   for (var i = 0; i < allowed.length; ++i) {
     try {
       var r = new Request("", { method: allowed[i] });
       ok(true, "Method " + allowed[i] + " should be allowed");
-      is(r.method, allowed[i].toUpperCase(),
-         "Standard HTTP method " + allowed[i] + " should be normalized");
     } catch(e) {
       ok(false, "Method " + allowed[i] + " should be allowed");
     }
   }
 
-  var allowed = [ "pAtCh", "foo" ];
-  for (var i = 0; i < allowed.length; ++i) {
-    try {
-      var r = new Request("", { method: allowed[i] });
-      ok(true, "Method " + allowed[i] + " should be allowed");
-      is(r.method, allowed[i],
-         "Non-standard but valid HTTP method " + allowed[i] +
-         " should not be normalized");
-    } catch(e) {
-      ok(false, "Method " + allowed[i] + " should be allowed");
-    }
-  }
-
-  var forbidden = ["connect", "trace", "track", "<invalid token??"];
+  var forbidden = ["aardvark", "connect", "trace", "track"];
   for (var i = 0; i < forbidden.length; ++i) {
     try {
       var r = new Request("", { method: forbidden[i] });

@@ -332,17 +332,13 @@ class BaselineFrame
     void deleteDebugModeOSRInfo();
 
     // See the HAS_OVERRIDE_PC comment.
-    bool hasOverridePc() const {
-        return flags_ & HAS_OVERRIDE_PC;
-    }
-
     jsbytecode *overridePc() const {
-        MOZ_ASSERT(hasOverridePc());
+        MOZ_ASSERT(flags_ & HAS_OVERRIDE_PC);
         return script()->offsetToPC(overrideOffset_);
     }
 
     jsbytecode *maybeOverridePc() const {
-        if (hasOverridePc())
+        if (flags_ & HAS_OVERRIDE_PC)
             return overridePc();
         return nullptr;
     }

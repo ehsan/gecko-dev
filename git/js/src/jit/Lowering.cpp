@@ -3160,13 +3160,6 @@ LIRGenerator::visitGuardString(MGuardString *ins)
 }
 
 void
-LIRGenerator::visitPolyInlineGuard(MPolyInlineGuard *ins)
-{
-    MOZ_ASSERT(ins->input()->type() == MIRType_Object);
-    redefine(ins, ins->input());
-}
-
-void
 LIRGenerator::visitGuardShapePolymorphic(MGuardShapePolymorphic *ins)
 {
     MOZ_ASSERT(ins->obj()->type() == MIRType_Object);

@@ -795,10 +795,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
       const nsStyleBorder *otherVisBorder = otherVis->StyleBorder();
       NS_FOR_CSS_SIDES(side) {
         bool thisFG, otherFG;
-        // Dummy initialisations to keep Valgrind/Memcheck happy.
-        // See bug 1122375 comment 4.
-        nscolor thisColor = NS_RGBA(0, 0, 0, 0);
-        nscolor otherColor = NS_RGBA(0, 0, 0, 0);
+        nscolor thisColor, otherColor;
         thisVisBorder->GetBorderColor(side, thisColor, thisFG);
         otherVisBorder->GetBorderColor(side, otherColor, otherFG);
         if (thisFG != otherFG || (!thisFG && thisColor != otherColor)) {
@@ -838,10 +835,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
     if (!change && PeekStyleTextReset()) {
       const nsStyleTextReset *thisVisTextReset = thisVis->StyleTextReset();
       const nsStyleTextReset *otherVisTextReset = otherVis->StyleTextReset();
-      // Dummy initialisations to keep Valgrind/Memcheck happy.
-      // See bug 1122375 comment 4.
-      nscolor thisVisDecColor = NS_RGBA(0, 0, 0, 0);
-      nscolor otherVisDecColor = NS_RGBA(0, 0, 0, 0);
+      nscolor thisVisDecColor, otherVisDecColor;
       bool thisVisDecColorIsFG, otherVisDecColorIsFG;
       thisVisTextReset->GetDecorationColor(thisVisDecColor,
                                            thisVisDecColorIsFG);

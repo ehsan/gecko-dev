@@ -3210,10 +3210,6 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE;
 
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerLayerParameters& aContainerParameters) MOZ_OVERRIDE;
-
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
                                    const ContainerLayerParameters& aParameters) MOZ_OVERRIDE;
@@ -3223,11 +3219,6 @@ public:
                           nsDisplayItem* aItem) MOZ_OVERRIDE;
 
   virtual bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
-
-  void MarkHoisted() { mHoisted = true; }
-
-private:
-  bool mHoisted;
 };
 
 /**

@@ -30,9 +30,6 @@ public:
 
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
-  // Element
-  virtual bool IsInteractiveHTMLContent() const MOZ_OVERRIDE;
-
   // nsIDOMHTMLObjectElement
   NS_DECL_NSIDOMHTMLOBJECTELEMENT
 

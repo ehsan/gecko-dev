@@ -3211,12 +3211,6 @@ HTMLInputElement::Focus(ErrorResult& aError)
   return;
 }
 
-bool
-HTMLInputElement::IsInteractiveHTMLContent() const
-{
-  return mType != NS_FORM_INPUT_HIDDEN;
-}
-
 NS_IMETHODIMP
 HTMLInputElement::Select()
 {

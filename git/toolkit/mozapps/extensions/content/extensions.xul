@@ -446,8 +446,7 @@
         </vbox>
 
         <!-- detail view -->
-        <scrollbox id="detail-view" flex="1" class="view-pane addon-view" orient="vertical" tabindex="0"
-                   role="document">
+        <scrollbox id="detail-view" flex="1" class="view-pane addon-view" orient="vertical" tabindex="0">
           <!-- global warnings -->
           <hbox class="global-warning-container global-warning">
             <hbox class="global-warning-safemode" flex="1" align="center"

@@ -80,7 +80,7 @@ nsFtpState::nsFtpState()
     , mReceivedControlData(false)
     , mTryingCachedControl(false)
     , mRETRFailed(false)
-    , mFileSize(kJS_MAX_SAFE_UINTEGER)
+    , mFileSize(UINT64_MAX)
     , mServerType(FTP_GENERIC_TYPE)
     , mAction(GET)
     , mAnonymous(true)
@@ -2169,7 +2169,7 @@ nsFtpState::ConvertDirspecFromVMS(nsCString& dirSpec)
 
 NS_IMETHODIMP
 nsFtpState::OnTransportStatus(nsITransport *transport, nsresult status,
-                              int64_t progress, int64_t progressMax)
+                              uint64_t progress, uint64_t progressMax)
 {
     // Mix signals from both the control and data connections.
 

@@ -196,7 +196,7 @@ function handleRequest(req, res) {
 
   else if (u.pathname === "/pushapi1") {
     push1 = res.push(
-	{ hostname: 'localhost:' + serverPort, port: serverPort, path : '/pushapi1/1', method : 'GET',
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/1', method : 'GET',
 	  headers: {'x-pushed-request': 'true', 'x-foo' : 'bar'}});
     push1.writeHead(200, {
       'pushed' : 'yes',
@@ -207,7 +207,7 @@ function handleRequest(req, res) {
     push1.end('1');
 
     push1a = res.push(
-	{ hostname: 'localhost:' + serverPort, port: serverPort, path : '/pushapi1/1', method : 'GET',
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/1', method : 'GET',
 	  headers: {'x-foo' : 'bar', 'x-pushed-request': 'true'}});
     push1a.writeHead(200, {
       'pushed' : 'yes',
@@ -218,7 +218,7 @@ function handleRequest(req, res) {
     push1a.end('1');
 
     push2 = res.push(
-	{ hostname: 'localhost:' + serverPort, port: serverPort, path : '/pushapi1/2', method : 'GET',
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/2', method : 'GET',
 	  headers: {'x-pushed-request': 'true'}});
     push2.writeHead(200, {
 	  'pushed' : 'yes',
@@ -229,7 +229,7 @@ function handleRequest(req, res) {
     push2.end('2');
 
     push3 = res.push(
-	{ hostname: 'localhost:' + serverPort, port: serverPort, path : '/pushapi1/3', method : 'GET',
+	{ hostname: 'localhost:6944', port: 6944, path : '/pushapi1/3', method : 'GET',
 	  headers: {'x-pushed-request': 'true'}});
     push3.writeHead(200, {
 	  'pushed' : 'yes',
@@ -344,7 +344,6 @@ var options = {
 };
 
 var server = http2.createServer(options, handleRequest);
-
 server.on('connection', function(socket) {
   socket.on('error', function() {
     // Ignoring SSL socket errors, since they usually represent a connection that was tore down
@@ -352,10 +351,5 @@ server.on('connection', function(socket) {
     // the first test case if done.
   });
 });
-
-var serverPort;
-function listenok() {
-  serverPort = server._server.address().port;
-  console.log('HTTP2 server listening on port ' + serverPort);
-}
-server.listen(-1, "0.0.0.0", 200, listenok);
+server.listen(6944);
+console.log('HTTP2 server listening on port 6944');
