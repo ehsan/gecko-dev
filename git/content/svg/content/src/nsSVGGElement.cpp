@@ -127,6 +127,6 @@ nsSVGGElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGGElementBase::IsAttributeMapped(name);
 }

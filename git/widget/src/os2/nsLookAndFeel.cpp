@@ -299,9 +299,6 @@ nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
     case eIntID_SubmenuDelay:
         aResult = 300;
         break;
-    case eIntID_TooltipDelay:
-        aResult = 500;
-        break;
     case eIntID_MenusCanOverlapOSBar:
         // we want XUL popups to be able to overlap the task bar.
         aResult = 1;

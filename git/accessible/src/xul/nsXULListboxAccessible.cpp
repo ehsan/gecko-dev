@@ -256,19 +256,24 @@ nsXULListboxAccessible::GetColumnCount(PRInt32 *aColumnsCout)
     return NS_ERROR_FAILURE;
 
   nsIContent* headContent = nsnull;
-  for (nsIContent* childContent = mContent->GetFirstChild(); childContent;
-       childContent = childContent->GetNextSibling()) {
+
+  PRUint32 count = mContent->GetChildCount();
+  for (PRUint32 index = 0; index < count; ++index) {
+    nsIContent* childContent = mContent->GetChildAt(index);
     if (childContent->NodeInfo()->Equals(nsGkAtoms::listcols,
                                          kNameSpaceID_XUL)) {
       headContent = childContent;
     }
   }
+
   if (!headContent)
     return NS_OK;
 
   PRUint32 columnCount = 0;
-  for (nsIContent* childContent = headContent->GetFirstChild(); childContent;
-       childContent = childContent->GetNextSibling()) {
+
+  count = headContent->GetChildCount();
+  for (PRUint32 index = 0; index < count; ++index) {
+    nsIContent* childContent = headContent->GetChildAt(index);
     if (childContent->NodeInfo()->Equals(nsGkAtoms::listcol,
                                          kNameSpaceID_XUL)) {
       columnCount++;
@@ -952,11 +957,11 @@ nsXULListitemAccessible::Description(nsString& aDesc)
 nsresult
 nsXULListitemAccessible::GetNameInternal(nsAString& aName)
 {
-  nsIContent* childContent = mContent->GetFirstChild();
-  if (childContent) {
-    if (childContent->NodeInfo()->Equals(nsGkAtoms::listcell,
-                                         kNameSpaceID_XUL)) {
-      childContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
+  nsIContent* child = mContent->GetChildAt(0);
+  if (child) {
+    if (child->NodeInfo()->Equals(nsGkAtoms::listcell,
+                                  kNameSpaceID_XUL)) {
+      child->GetAttr(kNameSpaceID_None, nsGkAtoms::label, aName);
       return NS_OK;
     }
   }

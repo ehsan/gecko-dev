@@ -222,7 +222,7 @@ menuitem.bookmark-item {
 }
 
 .bookmark-item[query][tagContainer] {
-  list-style-image: url("chrome://browser/skin/places/tag.png");
+  list-style-image: url("chrome://mozapps/skin/places/tagContainerIcon.png");
 }
 
 .bookmark-item[query][dayContainer] {
@@ -1024,7 +1024,8 @@ toolbar[iconsize="small"] #feed-button {
 }
 
 /* Favicon */
-#page-proxy-favicon {
+#page-proxy-favicon,
+#urlbar-throbber {
   width: 16px;
   height: 16px;
 }
@@ -1041,6 +1042,10 @@ toolbar[iconsize="small"] #feed-button {
 
 #page-proxy-favicon[pageproxystate="invalid"] {
   opacity: 0.3;
+}
+
+#urlbar-throbber {
+  list-style-image: url("chrome://browser/skin/places/searching_16.png");
 }
 
 /* Identity indicator */
@@ -1954,7 +1959,7 @@ panel[dimmed="true"] {
 /* Highlighter */
 
 .highlighter-veil {
-  background-color: rgba(25, 25, 25, 0.5);
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 #highlighter-closebutton {

@@ -73,7 +73,6 @@ using mozilla::dom::StorageChild;
 #include "nsNetCID.h"
 #include "mozilla/Preferences.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Telemetry.h"
 
 // calls FlushAndDeleteTemporaryTables(false)
 #define NS_DOMSTORAGE_FLUSH_TIMER_TOPIC "domstorage-flush-timer"
@@ -260,10 +259,9 @@ nsDOMStorageManager::nsDOMStorageManager()
 {
 }
 
-NS_IMPL_ISUPPORTS3(nsDOMStorageManager,
+NS_IMPL_ISUPPORTS2(nsDOMStorageManager,
                    nsIDOMStorageManager,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+                   nsIObserver)
 
 //static
 nsresult
@@ -290,22 +288,25 @@ nsDOMStorageManager::Initialize()
     return NS_OK;
 
   nsresult rv;
-  rv = os->AddObserver(gStorageManager, "cookie-changed", true);
+  rv = os->AddObserver(gStorageManager, "cookie-changed", false);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "offline-app-removed", true);
+  rv = os->AddObserver(gStorageManager, "offline-app-removed", false);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC, true);
+  rv = os->AddObserver(gStorageManager, NS_PRIVATE_BROWSING_SWITCH_TOPIC,
+                       false);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "profile-after-change", true);
+  rv = os->AddObserver(gStorageManager, "profile-after-change", false);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "perm-changed", true);
+  rv = os->AddObserver(gStorageManager, "perm-changed", false);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, "browser:purge-domain-data", true);
+  rv = os->AddObserver(gStorageManager, "browser:purge-domain-data", false);
   NS_ENSURE_SUCCESS(rv, rv);
   // Used for temporary table flushing
-  rv = os->AddObserver(gStorageManager, "profile-before-change", true);
+  rv = os->AddObserver(gStorageManager, "profile-before-change", false);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = os->AddObserver(gStorageManager, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, true);
+  rv = os->AddObserver(gStorageManager, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = os->AddObserver(gStorageManager, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -328,13 +329,6 @@ nsDOMStorageManager::Shutdown()
   NS_IF_RELEASE(gStorageManager);
   gStorageManager = nsnull;
 
-  ShutdownDB();
-}
-
-//static
-void
-nsDOMStorageManager::ShutdownDB()
-{
   delete DOMStorageImpl::gStorageDB;
   DOMStorageImpl::gStorageDB = nsnull;
 }
@@ -490,14 +484,13 @@ nsDOMStorageManager::Observe(nsISupports *aSubject,
     NS_ENSURE_SUCCESS(rv, rv);
 
     DOMStorageImpl::gStorageDB->RemoveOwner(aceDomain, true);
-  } else if (!strcmp(aTopic, "profile-before-change")) {
+  } else if (!strcmp(aTopic, "profile-before-change") || 
+             !strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
     if (DOMStorageImpl::gStorageDB) {
       DebugOnly<nsresult> rv =
         DOMStorageImpl::gStorageDB->FlushAndDeleteTemporaryTables(true);
       NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                        "DOMStorage: temporary table commit failed");
-      DOMStorageImpl::gStorageDB->Close();
-      nsDOMStorageManager::ShutdownDB();
     }
   } else if (!strcmp(aTopic, NS_DOMSTORAGE_FLUSH_TIMER_TOPIC)) {
     if (DOMStorageImpl::gStorageDB) {
@@ -1602,40 +1595,6 @@ nsDOMStorage::GetItem(const nsAString& aKey, nsAString &aData)
   return NS_OK;
 }
 
-static Telemetry::ID
-TelemetryIDForKey(nsPIDOMStorage::nsDOMStorageType type)
-{
-  switch (type) {
-  default:
-    MOZ_ASSERT(false);
-    // We need to return something to satisfy the compiler.
-    // Fallthrough.
-  case nsPIDOMStorage::GlobalStorage:
-    return Telemetry::GLOBALDOMSTORAGE_KEY_SIZE_BYTES;
-  case nsPIDOMStorage::LocalStorage:
-    return Telemetry::LOCALDOMSTORAGE_KEY_SIZE_BYTES;
-  case nsPIDOMStorage::SessionStorage:
-    return Telemetry::SESSIONDOMSTORAGE_KEY_SIZE_BYTES;
-  }
-}
-
-static Telemetry::ID
-TelemetryIDForValue(nsPIDOMStorage::nsDOMStorageType type)
-{
-  switch (type) {
-  default:
-    MOZ_ASSERT(false);
-    // We need to return something to satisfy the compiler.
-    // Fallthrough.
-  case nsPIDOMStorage::GlobalStorage:
-    return Telemetry::GLOBALDOMSTORAGE_VALUE_SIZE_BYTES;
-  case nsPIDOMStorage::LocalStorage:
-    return Telemetry::LOCALDOMSTORAGE_VALUE_SIZE_BYTES;
-  case nsPIDOMStorage::SessionStorage:
-    return Telemetry::SESSIONDOMSTORAGE_VALUE_SIZE_BYTES;
-  }
-}
-
 NS_IMETHODIMP
 nsDOMStorage::GetItem(const nsAString& aKey, nsIDOMStorageItem **aItem)
 {
@@ -1651,9 +1610,6 @@ nsDOMStorage::SetItem(const nsAString& aKey, const nsAString& aData)
 {
   if (!CacheStoragePermissions())
     return NS_ERROR_DOM_SECURITY_ERR;
-
-  Telemetry::Accumulate(TelemetryIDForKey(mStorageType), aKey.Length());
-  Telemetry::Accumulate(TelemetryIDForValue(mStorageType), aData.Length());
 
   nsString oldValue;
   nsresult rv = mStorageImpl->SetValue(IsCallerSecure(), aKey, aData, oldValue);

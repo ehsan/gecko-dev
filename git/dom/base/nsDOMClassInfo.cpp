@@ -140,6 +140,7 @@
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDOMTokenList.h"
 #include "nsIDOMDOMSettableTokenList.h"
+#include "nsIDOMNSElement.h"
 
 #include "nsDOMStringMap.h"
 
@@ -513,7 +514,6 @@
 #include "nsIDOMSmsManager.h"
 #include "nsIDOMSmsMessage.h"
 #include "nsIDOMSmsEvent.h"
-#include "nsIPrivateDOMEvent.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1151,8 +1151,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGTSpanElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA_WITH_NAME(SVGUnknownElement, SVGElement, nsElementSH,
-                                     ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGUseElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
 
@@ -1464,8 +1462,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLUniformLocation, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(WebGLShaderPrecisionFormat, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLActiveInfo, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLExtension, nsDOMGenericSH,
@@ -1576,25 +1572,6 @@ static const nsContractIDMapData kConstructorMap[] =
   NS_DEFINE_CONSTRUCTOR_DATA(EventSource, NS_EVENTSOURCE_CONTRACTID)
 };
 
-#define NS_DEFINE_EVENT_CTOR(_class)                        \
-  nsresult                                                  \
-  NS_DOM##_class##Ctor(nsISupports** aInstancePtrResult)    \
-  {                                                         \
-    nsIDOMEvent* e = nsnull;                                \
-    nsresult rv = NS_NewDOM##_class(&e, nsnull, nsnull);    \
-    *aInstancePtrResult = e;                                \
-    return rv;                                              \
-  }
-
-NS_DEFINE_EVENT_CTOR(Event)
-NS_DEFINE_EVENT_CTOR(CustomEvent)
-NS_DEFINE_EVENT_CTOR(PopStateEvent)
-NS_DEFINE_EVENT_CTOR(HashChangeEvent)
-NS_DEFINE_EVENT_CTOR(PageTransitionEvent)
-NS_DEFINE_EVENT_CTOR(CloseEvent)
-NS_DEFINE_EVENT_CTOR(UIEvent)
-NS_DEFINE_EVENT_CTOR(MouseEvent)
-
 struct nsConstructorFuncMapData
 {
   PRInt32 mDOMClassInfoID;
@@ -1604,21 +1581,10 @@ struct nsConstructorFuncMapData
 #define NS_DEFINE_CONSTRUCTOR_FUNC_DATA(_class, _func)                        \
   { eDOMClassInfo_##_class##_id, _func },
 
-#define NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(_class)   \
-  { eDOMClassInfo_##_class##_id, NS_DOM##_class##Ctor },
-
 static const nsConstructorFuncMapData kConstructorFuncMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFileFile::NewFile)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(MozBlobBuilder, NS_NewBlobBuilder)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(Event)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(CustomEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(PopStateEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(HashChangeEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(PageTransitionEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(CloseEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(UIEvent)
-  NS_DEFINE_EVENT_CONSTRUCTOR_FUNC_DATA(MouseEvent)
 };
 
 nsIXPConnect *nsDOMClassInfo::sXPConnect = nsnull;
@@ -1675,7 +1641,6 @@ jsid nsDOMClassInfo::sURL_id             = JSID_VOID;
 jsid nsDOMClassInfo::sKeyPath_id         = JSID_VOID;
 jsid nsDOMClassInfo::sAutoIncrement_id   = JSID_VOID;
 jsid nsDOMClassInfo::sUnique_id          = JSID_VOID;
-jsid nsDOMClassInfo::sMultiEntry_id      = JSID_VOID;
 jsid nsDOMClassInfo::sOnload_id          = JSID_VOID;
 jsid nsDOMClassInfo::sOnerror_id         = JSID_VOID;
 
@@ -1939,7 +1904,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sKeyPath_id,         cx, "keyPath");
   SET_JSID_TO_STRING(sAutoIncrement_id,   cx, "autoIncrement");
   SET_JSID_TO_STRING(sUnique_id,          cx, "unique");
-  SET_JSID_TO_STRING(sMultiEntry_id,      cx, "multiEntry");
   SET_JSID_TO_STRING(sOnload_id,          cx, "onload");
   SET_JSID_TO_STRING(sOnerror_id,         cx, "onerror");
 
@@ -2225,10 +2189,8 @@ nsDOMClassInfo::RegisterExternalClasses()
     /* number of interfaces due to the terminating null */                    \
     for (size_t i = 0; i < count - 1; ++i) {                                  \
       if (!interface_list[i]) {                                               \
-        /* We are moving the element at index i+1 and successors, */          \
-        /* so we must move only count - (i+1) elements total. */              \
         memmove(&interface_list[i], &interface_list[i+1],                     \
-                sizeof(nsIID*) * (count - (i+1)));                            \
+                sizeof(nsIID*) * (count - i));                                \
         /* Make sure to examine the new pointer we ended up with at this */   \
         /* slot, since it may be null too */                                  \
         --i;                                                                  \
@@ -2252,6 +2214,7 @@ nsDOMClassInfo::RegisterExternalClasses()
 #define DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES                                \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)                      \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                                \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)                                  \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)                               \
     DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)                           \
     DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,                \
@@ -2428,6 +2391,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Element, nsIDOMElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
     DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
@@ -2960,6 +2924,7 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(XULElement, nsIDOMXULElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementCSSInlineStyle)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
     DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
@@ -3063,6 +3028,7 @@ nsDOMClassInfo::Init()
 #define DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES                           \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)                          \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGElement)                           \
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)                            \
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)                         \
     DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)                     \
     DOM_CLASSINFO_MAP_CONDITIONAL_ENTRY(nsITouchEventReceiver,          \
@@ -3489,10 +3455,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTextContentElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGStylable)
-    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(SVGUnknownElement, nsIDOMSVGElement)
     DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -4009,6 +3971,7 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(MathMLElement, nsIDOMElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNodeSelector)
     DOM_CLASSINFO_MAP_ENTRY(nsIInlineEventHandlers)
@@ -4042,10 +4005,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLRenderbuffer, nsIWebGLRenderbuffer)
      DOM_CLASSINFO_MAP_ENTRY(nsIWebGLRenderbuffer)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(WebGLShaderPrecisionFormat, nsIWebGLShaderPrecisionFormat)
-    DOM_CLASSINFO_MAP_ENTRY(nsIWebGLShaderPrecisionFormat)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(WebGLUniformLocation, nsIWebGLUniformLocation)
@@ -4943,7 +4902,6 @@ nsDOMClassInfo::ShutDown()
   sKeyPath_id         = JSID_VOID;
   sAutoIncrement_id   = JSID_VOID;
   sUnique_id          = JSID_VOID;
-  sMultiEntry_id      = JSID_VOID;
   sOnload_id          = JSID_VOID;
   sOnerror_id         = JSID_VOID;
 
@@ -6864,8 +6822,6 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                       &v, getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      // Hold on to the navigator object as a global property so we
-      // don't need to worry about losing expando properties etc.
       if (!::JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull,
                                    JSPROP_READONLY | JSPROP_PERMANENT |
                                    JSPROP_ENUMERATE)) {
@@ -7198,9 +7154,11 @@ nsresult
 nsNavigatorSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
                          JSObject *globalObj, JSObject **parentObj)
 {
-  // window.navigator can hold expandos and thus we need to only ever
-  // create one wrapper per navigator object so that expandos are
-  // visible independently of who's looking it up.
+  // window.navigator is persisted across document transitions if
+  // we're loading a page from the same origin. Because of that we
+  // need to parent the navigator wrapper at the outer window to avoid
+  // holding on to the inner window where the navigator was initially
+  // created too long.
   *parentObj = globalObj;
 
   nsCOMPtr<nsIDOMNavigator> safeNav(do_QueryInterface(nativeObj));
@@ -7212,17 +7170,20 @@ nsNavigatorSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   }
 
   Navigator *nav = static_cast<Navigator*>(safeNav.get());
-  nsGlobalWindow *win = static_cast<nsGlobalWindow*>(nav->GetWindow());
-  if (!win) {
+  nsIDocShell *ds = nav->GetDocShell();
+  if (!ds) {
     NS_WARNING("Refusing to create a navigator in the wrong scope");
-
     return NS_ERROR_UNEXPECTED;
   }
 
-  JSObject *global = win->GetGlobalJSObject();
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_GetInterface(ds);
 
-  if (global) {
-    *parentObj = global;
+  if (sgo) {
+    JSObject *global = sgo->GetGlobalJSObject();
+
+    if (global) {
+      *parentObj = global;
+    }
   }
 
   return NS_OK;
@@ -7974,19 +7935,12 @@ nsNamedArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       }
 
       JSObject *proto = ::JS_GetPrototype(cx, realObj);
+      JSBool hasProp;
 
-      if (proto) {
-        JSBool hasProp;
-        if (!::JS_HasPropertyById(cx, proto, id, &hasProp)) {
-          *_retval = false;
-          return NS_ERROR_FAILURE;
-        }
-
-        if (hasProp) {
-          // We found the property we're resolving on the prototype,
-          // nothing left to do here then.
-          return NS_OK;
-        }
+      if (proto && ::JS_HasPropertyById(cx, proto, id, &hasProp) && hasProp) {
+        // We found the property we're resolving on the prototype,
+        // nothing left to do here then.
+        return NS_OK;
       }
     }
 

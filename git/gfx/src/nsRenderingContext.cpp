@@ -384,6 +384,19 @@ nsRenderingContext::InvertRect(const nsRect& aRect)
 }
 
 void
+nsRenderingContext::InvertRect(nscoord aX, nscoord aY,
+                               nscoord aWidth, nscoord aHeight)
+{
+    InvertRect(nsRect(aX, aY, aWidth, aHeight));
+}
+
+void
+nsRenderingContext::DrawEllipse(const nsRect& aRect)
+{
+    DrawEllipse(aRect.x, aRect.y, aRect.width, aRect.height);
+}
+
+void
 nsRenderingContext::DrawEllipse(nscoord aX, nscoord aY,
                                 nscoord aWidth, nscoord aHeight)
 {

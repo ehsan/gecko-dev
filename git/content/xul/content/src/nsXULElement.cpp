@@ -115,7 +115,7 @@
 #include "nsContentUtils.h"
 #include "nsContentList.h"
 #include "nsMutationEvent.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsDOMAttributeMap.h"
@@ -163,9 +163,9 @@ public:
                                          const nsAString& aBody,
                                          const char* aURL,
                                          PRUint32 aLineNo,
-                                         nsScriptObjectHolder<JSObject>& aHandler);
+                                         nsScriptObjectHolder &aHandler);
     virtual nsresult GetCompiledEventHandler(nsIAtom *aName,
-                                             nsScriptObjectHolder<JSObject>& aHandler);
+                                             nsScriptObjectHolder &aHandler);
 
 private:
     nsRefPtr<nsXULElement> mElement;
@@ -718,7 +718,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsScriptEventHandlerOwnerTearoff)
 nsresult
 nsScriptEventHandlerOwnerTearoff::GetCompiledEventHandler(
                                                 nsIAtom *aName,
-                                                nsScriptObjectHolder<JSObject>& aHandler)
+                                                nsScriptObjectHolder &aHandler)
 {
     XUL_PROTOTYPE_ATTRIBUTE_METER(gNumCacheTests);
     aHandler.drop();
@@ -727,7 +727,7 @@ nsScriptEventHandlerOwnerTearoff::GetCompiledEventHandler(
         mElement->FindPrototypeAttribute(kNameSpaceID_None, aName);
     if (attr) {
         XUL_PROTOTYPE_ATTRIBUTE_METER(gNumCacheHits);
-        aHandler.set(attr->mEventHandler);
+        aHandler.setObject(attr->mEventHandler);
     }
 
     return NS_OK;
@@ -740,7 +740,7 @@ nsScriptEventHandlerOwnerTearoff::CompileEventHandler(
                                                 const nsAString& aBody,
                                                 const char* aURL,
                                                 PRUint32 aLineNo,
-                                                nsScriptObjectHolder<JSObject>& aHandler)
+                                                nsScriptObjectHolder &aHandler)
 {
     nsresult rv;
 
@@ -809,13 +809,13 @@ nsScriptEventHandlerOwnerTearoff::CompileEventHandler(
             rv = nsContentUtils::HoldScriptObject(aContext->GetScriptTypeID(),
                                                   elem,
                                                   &NS_CYCLE_COLLECTION_NAME(nsXULPrototypeNode),
-                                                  aHandler.get(),
+                                                  aHandler,
                                                   elem->mHoldsScriptObject);
             if (NS_FAILED(rv)) return rv;
 
             elem->mHoldsScriptObject = true;
         }
-        attr->mEventHandler = aHandler.get();
+        attr->mEventHandler = aHandler.getObject();
     }
 
     return NS_OK;
@@ -1458,7 +1458,7 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, bool aNotify)
         mutation.mAttrChange = nsIDOMMutationEvent::REMOVAL;
 
         mozAutoSubtreeModified subtree(OwnerDoc(), this);
-        (new nsAsyncDOMEvent(this, mutation))->RunDOMEventWhenSafe();
+        (new nsPLDOMEvent(this, mutation))->RunDOMEventWhenSafe();
     }
 
     return NS_OK;
@@ -3002,7 +3002,7 @@ nsXULPrototypeScript::Deserialize(nsIObjectInputStream* aStream,
                                             mScriptObject.mLangID);
     NS_ASSERTION(context != nsnull, "Have no context for deserialization");
     NS_ENSURE_TRUE(context, NS_ERROR_UNEXPECTED);
-    nsScriptObjectHolder<JSScript> newScriptObject(context);
+    nsScriptObjectHolder newScriptObject(context);
     rv = context->Deserialize(aStream, newScriptObject);
     if (NS_FAILED(rv)) {
         NS_WARNING("Language deseralization failed");
@@ -3138,7 +3138,7 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
 
     // Ok, compile it to create a prototype script object!
 
-    nsScriptObjectHolder<JSScript> newScriptObject(context);
+    nsScriptObjectHolder newScriptObject(context);
     rv = context->CompileScript(aText,
                                 aTextLength,
                                 // Use the enclosing document's principal

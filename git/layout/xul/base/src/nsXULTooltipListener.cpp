@@ -48,8 +48,6 @@
 #include "nsIPopupBoxObject.h"
 #include "nsMenuPopupFrame.h"
 #include "nsIServiceManager.h"
-#include "nsIDragService.h"
-#include "nsIDragSession.h"
 #ifdef MOZ_XUL
 #include "nsITreeView.h"
 #endif
@@ -63,7 +61,6 @@
 #include "nsIRootBox.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/LookAndFeel.h"
 #include "mozilla/dom/Element.h"
 
 
@@ -239,10 +236,8 @@ nsXULTooltipListener::MouseMove(nsIDOMEvent* aEvent)
     if (mTooltipTimer) {
       mTargetNode = do_GetWeakReference(eventTarget);
       if (mTargetNode) {
-        nsresult rv =
-          mTooltipTimer->InitWithFuncCallback(sTooltipCallback, this,
-            LookAndFeel::GetInt(LookAndFeel::eIntID_TooltipDelay, 500),
-            nsITimer::TYPE_ONE_SHOT);
+        nsresult rv = mTooltipTimer->InitWithFuncCallback(sTooltipCallback, this, 
+                                                          kTooltipShowTime, nsITimer::TYPE_ONE_SHOT);
         if (NS_FAILED(rv)) {
           mTargetNode = nsnull;
           mSourceNode = nsnull;
@@ -272,38 +267,14 @@ nsXULTooltipListener::HandleEvent(nsIDOMEvent* aEvent)
       type.EqualsLiteral("keydown") ||
       type.EqualsLiteral("mousedown") ||
       type.EqualsLiteral("mouseup") ||
-      type.EqualsLiteral("dragstart")) {
+      type.EqualsLiteral("dragstart"))
     HideTooltip();
-    return NS_OK;
-  }
-
-  if (type.EqualsLiteral("popuphiding")) {
-    DestroyTooltip();
-    return NS_OK;
-  }
-
-  // Note that mousemove, mouseover and mouseout might be
-  // fired even during dragging due to widget's bug.
-  nsCOMPtr<nsIDragService> dragService =
-    do_GetService("@mozilla.org/widget/dragservice;1");
-  NS_ENSURE_TRUE(dragService, NS_OK);
-  nsCOMPtr<nsIDragSession> dragSession;
-  dragService->GetCurrentSession(getter_AddRefs(dragSession));
-  if (dragSession) {
-    return NS_OK;
-  }
-
-  // Not dragging.
-
-  if (type.EqualsLiteral("mousemove")) {
+  else if (type.EqualsLiteral("mousemove"))
     MouseMove(aEvent);
-    return NS_OK;
-  }
-
-  if (type.EqualsLiteral("mouseout")) {
+  else if (type.EqualsLiteral("mouseout"))
     MouseOut(aEvent);
-    return NS_OK;
-  }
+  else if (type.EqualsLiteral("popuphiding"))
+    DestroyTooltip();
 
   return NS_OK;
 }
@@ -334,13 +305,11 @@ nsXULTooltipListener::AddTooltipSupport(nsIContent* aNode)
   if (!aNode)
     return NS_ERROR_NULL_POINTER;
 
-  aNode->AddSystemEventListener(NS_LITERAL_STRING("mouseout"), this,
-                                false, false);
-  aNode->AddSystemEventListener(NS_LITERAL_STRING("mousemove"), this,
-                                false, false);
-  aNode->AddSystemEventListener(NS_LITERAL_STRING("dragstart"), this,
-                                true, false);
-
+  nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aNode));
+  evtTarget->AddEventListener(NS_LITERAL_STRING("mouseout"), this, false);
+  evtTarget->AddEventListener(NS_LITERAL_STRING("mousemove"), this, false);
+  evtTarget->AddEventListener(NS_LITERAL_STRING("dragstart"), this, true);
+  
   return NS_OK;
 }
 
@@ -350,9 +319,10 @@ nsXULTooltipListener::RemoveTooltipSupport(nsIContent* aNode)
   if (!aNode)
     return NS_ERROR_NULL_POINTER;
 
-  aNode->RemoveSystemEventListener(NS_LITERAL_STRING("mouseout"), this, false);
-  aNode->RemoveSystemEventListener(NS_LITERAL_STRING("mousemove"), this, false);
-  aNode->RemoveSystemEventListener(NS_LITERAL_STRING("dragstart"), this, true);
+  nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(aNode));
+  evtTarget->RemoveEventListener(NS_LITERAL_STRING("mouseout"), this, false);
+  evtTarget->RemoveEventListener(NS_LITERAL_STRING("mousemove"), this, false);
+  evtTarget->RemoveEventListener(NS_LITERAL_STRING("dragstart"), this, true);
 
   return NS_OK;
 }
@@ -447,24 +417,21 @@ nsXULTooltipListener::ShowTooltip()
 
       // listen for popuphidden on the tooltip node, so that we can
       // be sure DestroyPopup is called even if someone else closes the tooltip
-      currentTooltip->AddSystemEventListener(NS_LITERAL_STRING("popuphiding"), 
-                                             this, false, false);
+      nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(currentTooltip));
+      evtTarget->AddEventListener(NS_LITERAL_STRING("popuphiding"), 
+                                  this, false);
 
       // listen for mousedown, mouseup, keydown, and DOMMouseScroll events at document level
       nsIDocument* doc = sourceNode->GetDocument();
       if (doc) {
-        // Probably, we should listen to untrusted events for hiding tooltips
-        // on content since tooltips might disturb something of web
-        // applications.  If we don't specify the aWantsUntrusted of
-        // AddSystemEventListener(), the event target sets it to TRUE if the
-        // target is in content.
-        doc->AddSystemEventListener(NS_LITERAL_STRING("DOMMouseScroll"),
+        evtTarget = do_QueryInterface(doc);
+        evtTarget->AddEventListener(NS_LITERAL_STRING("DOMMouseScroll"), 
                                     this, true);
-        doc->AddSystemEventListener(NS_LITERAL_STRING("mousedown"),
+        evtTarget->AddEventListener(NS_LITERAL_STRING("mousedown"), 
                                     this, true);
-        doc->AddSystemEventListener(NS_LITERAL_STRING("mouseup"),
-                                    this, true);
-        doc->AddSystemEventListener(NS_LITERAL_STRING("keydown"),
+        evtTarget->AddEventListener(NS_LITERAL_STRING("mouseup"), 
+                                    this, true);                                    
+        evtTarget->AddEventListener(NS_LITERAL_STRING("keydown"), 
                                     this, true);
       }
       mSourceNode = nsnull;
@@ -693,12 +660,11 @@ nsXULTooltipListener::DestroyTooltip()
     nsCOMPtr<nsIDocument> doc = currentTooltip->GetDocument();
     if (doc) {
       // remove the mousedown and keydown listener from document
-      doc->RemoveSystemEventListener(NS_LITERAL_STRING("DOMMouseScroll"), this,
-                                     true);
-      doc->RemoveSystemEventListener(NS_LITERAL_STRING("mousedown"), this,
-                                     true);
-      doc->RemoveSystemEventListener(NS_LITERAL_STRING("mouseup"), this, true);
-      doc->RemoveSystemEventListener(NS_LITERAL_STRING("keydown"), this, true);
+      nsCOMPtr<nsIDOMEventTarget> evtTarget(do_QueryInterface(doc));
+      evtTarget->RemoveEventListener(NS_LITERAL_STRING("DOMMouseScroll"), this, true);
+      evtTarget->RemoveEventListener(NS_LITERAL_STRING("mousedown"), this, true);
+      evtTarget->RemoveEventListener(NS_LITERAL_STRING("mouseup"), this, true);
+      evtTarget->RemoveEventListener(NS_LITERAL_STRING("keydown"), this, true);
     }
 
     // remove the popuphidden listener from tooltip

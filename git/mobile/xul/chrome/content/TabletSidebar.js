@@ -59,7 +59,7 @@ var TabletSidebar = {
 
   hide: function hide() {
     Elements.urlbarState.setAttribute("tablet_sidebar", "false");
-    ViewableAreaObserver.update({ setIgnoreTabletSidebar: false });
+    ViewableAreaObserver.update();
   },
 
   /**

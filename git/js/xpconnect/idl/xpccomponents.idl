@@ -1,5 +1,6 @@
-/* -*- Mode: IDL; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -152,7 +153,7 @@ interface ScheduledGCCallback : nsISupports
 /**
 * interface of Components.utils
 */
-[scriptable, uuid(b032a8f1-9149-4cbe-bee6-4ac5dfe7c80a)]
+[scriptable, uuid(11785c1f-346f-475c-950e-fe1bacce70f1)]
 interface nsIXPCComponents_Utils : nsISupports
 {
 
@@ -166,7 +167,7 @@ interface nsIXPCComponents_Utils : nsISupports
      * an exception handler.  If it is not a JS error object, the parameter
      * is converted to a string and reported as a new error.
      */
-    [implicit_jscontext] void reportError(in jsval error);
+    void reportError();
 
     /* lookupMethod is designed to be called from JavaScript only.
      *
@@ -181,8 +182,7 @@ interface nsIXPCComponents_Utils : nsISupports
      * replaced in the content JS code. This method is not recommended for
      * any other use.
      */
-    [implicit_jscontext]
-    jsval lookupMethod(in jsval obj, in jsval name);
+    void lookupMethod();
 
     readonly attribute nsIXPCComponents_utils_Sandbox Sandbox;
 
@@ -198,11 +198,7 @@ interface nsIXPCComponents_Utils : nsISupports
      * s.seven = res;
      * var thirtyFive = C.u.evalInSandbox("five * seven", s);
      */
-    [implicit_jscontext,optional_argc]
-    jsval evalInSandbox(in AString source, in jsval sandbox,
-                        [optional] in jsval version,
-                        [optional] in jsval filename,
-                        [optional] in long lineNo);
+    void evalInSandbox(in AString source/*, obj */);
 
 
     /*
@@ -235,8 +231,8 @@ interface nsIXPCComponents_Utils : nsISupports
      *
      * (This comment is duplicated from xpcIJSModuleLoader.)
      */
-    [implicit_jscontext,optional_argc]
-    jsval import(in AUTF8String aResourceURI, [optional] in jsval targetObj);
+    void /* JSObject */ import(in AUTF8String registryLocation
+                               /*, [optional] in JSObject targetObj */);
 
     /*
      * Unloads the JS module at 'registryLocation'. Existing references to the
@@ -253,15 +249,13 @@ interface nsIXPCComponents_Utils : nsISupports
      *
      * Return a weak reference for the given JS object.
      */
-    [implicit_jscontext]
-    xpcIJSWeakReference getWeakReference(in jsval obj);
+    xpcIJSWeakReference getWeakReference(/* in JSObject obj */);
 
     /*
      * To be called from JS only.
      *
      * Force an immediate garbage collection cycle.
      */
-    [implicit_jscontext]
     void forceGC();
 
     /*
@@ -294,8 +288,7 @@ interface nsIXPCComponents_Utils : nsISupports
      * @param obj The JavaScript object whose global is to be gotten.
      * @return the corresponding global.
      */
-    [implicit_jscontext]
-    jsval getGlobalForObject(in jsval obj);
+    void /* JSObject */ getGlobalForObject(/* in JSObject obj */);
 
     /*
      * To be called from JS only.
@@ -325,27 +318,14 @@ interface nsIXPCComponents_Utils : nsISupports
      * NB: Assume that getting any of these attributes is relatively
      * cheap, but setting any of them is relatively expensive.
      */
-    [implicit_jscontext]
     attribute boolean strict;
-
-    [implicit_jscontext]
     attribute boolean werror;
-
-    [implicit_jscontext]
     attribute boolean atline;
-
-    [implicit_jscontext]
     attribute boolean xml;
-
-    [implicit_jscontext]
     attribute boolean relimit;
-
-    [implicit_jscontext]
     attribute boolean methodjit;
-
-    [implicit_jscontext]
+    attribute boolean jitprofiling;
     attribute boolean methodjit_always;
-
     [implicit_jscontext]
     void setGCZeal(in long zeal);
 };
@@ -353,7 +333,7 @@ interface nsIXPCComponents_Utils : nsISupports
 /**
 * interface of JavaScript's 'Components' object
 */
-[scriptable, uuid(4676e9cf-2c07-423b-b161-26bb9d8067d3)]
+[scriptable, uuid(155809f1-71f1-47c5-be97-d812ba560405)]
 interface nsIXPCComponents : nsISupports
 {
     readonly attribute nsIXPCComponents_Interfaces      interfaces;
@@ -375,11 +355,10 @@ interface nsIXPCComponents : nsISupports
      * (But are you sure you really want this method any more?
      *  See http://developer-test.mozilla.org/en/docs/XPCNativeWrapper )
      */
-    [deprecated,implicit_jscontext]
-    jsval lookupMethod(in jsval obj, in jsval name);
+    [deprecated] void lookupMethod();
 
     /* @deprecated Use Components.utils.reportError instead. */
-    [deprecated, implicit_jscontext] void reportError(in jsval error);
+    [deprecated] void reportError();
 
     /* 'lastResult' is accessible via JavaScript only */
     /* 'returnCode' is accessible via JavaScript only */

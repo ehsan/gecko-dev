@@ -64,7 +64,6 @@ using namespace mozilla;
 
 static const char kPrefDnsCacheEntries[]    = "network.dnsCacheEntries";
 static const char kPrefDnsCacheExpiration[] = "network.dnsCacheExpiration";
-static const char kPrefDnsCacheGrace[]      = "network.dnsCacheExpirationGracePeriod";
 static const char kPrefEnableIDN[]          = "network.enableIDN";
 static const char kPrefIPv4OnlyDomains[]    = "network.dns.ipv4OnlyDomains";
 static const char kPrefDisableIPv6[]        = "network.dns.disableIPv6";
@@ -380,8 +379,7 @@ nsDNSService::Init()
 
     // prefs
     PRUint32 maxCacheEntries  = 400;
-    PRUint32 maxCacheLifetime = 2; // minutes
-    PRUint32 lifetimeGracePeriod = 1;
+    PRUint32 maxCacheLifetime = 3; // minutes
     bool     enableIDN        = true;
     bool     disableIPv6      = false;
     bool     disablePrefetch  = false;
@@ -397,8 +395,6 @@ nsDNSService::Init()
             maxCacheEntries = (PRUint32) val;
         if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheExpiration, &val)))
             maxCacheLifetime = val / 60; // convert from seconds to minutes
-        if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheGrace, &val)))
-            lifetimeGracePeriod = val / 60; // convert from seconds to minutes
 
         // ASSUMPTION: pref branch does not modify out params on failure
         prefs->GetBoolPref(kPrefEnableIDN, &enableIDN);
@@ -417,7 +413,6 @@ nsDNSService::Init()
         if (prefs) {
             prefs->AddObserver(kPrefDnsCacheEntries, this, false);
             prefs->AddObserver(kPrefDnsCacheExpiration, this, false);
-            prefs->AddObserver(kPrefDnsCacheGrace, this, false);
             prefs->AddObserver(kPrefEnableIDN, this, false);
             prefs->AddObserver(kPrefIPv4OnlyDomains, this, false);
             prefs->AddObserver(kPrefDisableIPv6, this, false);
@@ -445,7 +440,6 @@ nsDNSService::Init()
     nsRefPtr<nsHostResolver> res;
     nsresult rv = nsHostResolver::Create(maxCacheEntries,
                                          maxCacheLifetime,
-                                         lifetimeGracePeriod,
                                          getter_AddRefs(res));
     if (NS_SUCCEEDED(rv)) {
         // now, set all of our member variables while holding the lock

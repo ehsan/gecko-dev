@@ -242,7 +242,7 @@ CanvasLayerOGL::RenderLayer(int aPreviousDestination,
 
   if (useGLContext) {
     mCanvasGLContext->MakeCurrent();
-    mCanvasGLContext->GuaranteeResolve();
+    mCanvasGLContext->fFinish();
 
     gl()->MakeCurrent();
     gl()->BindTex2DOffscreen(mCanvasGLContext);

@@ -233,15 +233,6 @@ WeakMap_set(JSContext *cx, uintN argc, Value *vp)
 
     if (!map->put(key, value))
         goto out_of_memory;
-
-    // Preserve wrapped native keys to prevent wrapper optimization.
-    if (key->getClass()->ext.isWrappedNative) {
-        if (!cx->runtime->preserveWrapperCallback ||
-            !cx->runtime->preserveWrapperCallback(cx, key)) {
-            JS_ReportWarning(cx, "Failed to preserve wrapper of wrapped native weak map key.");
-        }
-    }
-
     args.rval().setUndefined();
     return true;
 
@@ -292,6 +283,8 @@ WeakMap_construct(JSContext *cx, uintN argc, Value *vp)
     if (!obj)
         return false;
 
+    obj->initPrivate(NULL);
+
     vp->setObject(*obj);
     return true;
 }
@@ -335,6 +328,7 @@ js_InitWeakMapClass(JSContext *cx, JSObject *obj)
     JSObject *weakMapProto = global->createBlankPrototype(cx, &WeakMapClass);
     if (!weakMapProto)
         return NULL;
+    weakMapProto->initPrivate(NULL);
 
     JSFunction *ctor = global->createConstructor(cx, WeakMap_construct, &WeakMapClass,
                                                  CLASS_ATOM(cx, WeakMap), 0);

@@ -50,6 +50,7 @@ class Test:
         self.slow = False      # True means the test is slow-running
         self.allow_oom = False # True means that OOM is not considered a failure
         self.valgrind = False  # True means run under valgrind
+        self.tmflags = ''      # Value of TMFLAGS env var to pass
         self.error = ''        # Errors to expect and consider passing
 
     def copy(self):
@@ -58,6 +59,7 @@ class Test:
         t.slow = self.slow
         t.allow_oom = self.allow_oom
         t.valgrind = self.valgrind
+        t.tmflags = self.tmflags
         t.error = self.error
         return t
 
@@ -79,7 +81,9 @@ class Test:
                 name, _, value = part.partition(':')
                 if value:
                     value = value.strip()
-                    if name == 'error':
+                    if name == 'TMFLAGS':
+                        test.tmflags = value
+                    elif name == 'error':
                         test.error = value
                     else:
                         print('warning: unrecognized |jit-test| attribute %s'%part)
@@ -197,6 +201,9 @@ def run_cmd_avoid_stdio(cmdline, env, timeout):
     return read_and_unlink(stdoutPath), read_and_unlink(stderrPath), code
 
 def run_test(test, lib_dir, shell_args):
+    env = os.environ.copy()
+    if test.tmflags:
+        env['TMFLAGS'] = test.tmflags
     cmd = get_test_cmd(test.path, test.jitflags, lib_dir, shell_args)
 
     if (test.valgrind and
@@ -218,7 +225,7 @@ def run_test(test, lib_dir, shell_args):
         run = run_cmd_avoid_stdio
     else:
         run = run_cmd
-    out, err, code, timed_out = run(cmd, os.environ, OPTIONS.timeout)
+    out, err, code, timed_out = run(cmd, env, OPTIONS.timeout)
 
     if OPTIONS.show_output:
         sys.stdout.write(out)

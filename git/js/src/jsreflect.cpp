@@ -321,7 +321,7 @@ class NodeBuilder
     }
 
     bool newObject(JSObject **dst) {
-        JSObject *nobj = NewBuiltinClassInstance(cx, &ObjectClass);
+        JSObject *nobj = NewNonFunction<WithProto::Class>(cx, &ObjectClass, NULL, NULL);
         if (!nobj)
             return false;
 
@@ -631,7 +631,7 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, JSObject **dst)
 
     Value tv;
 
-    JSObject *node = NewBuiltinClassInstance(cx, &ObjectClass);
+    JSObject *node = NewNonFunction<WithProto::Class>(cx, &ObjectClass, NULL, NULL);
     if (!node ||
         !setNodeLoc(node, pos) ||
         !atomValue(nodeTypeNames[type], &tv) ||
@@ -1601,7 +1601,7 @@ class ASTSerializer
     JSContext     *cx;
     Parser        *parser;
     NodeBuilder   builder;
-    uint32_t      lineno;
+    uint32        lineno;
 
     Value atomContents(JSAtom *atom) {
         return StringValue(atom ? atom : cx->runtime->atomState.emptyAtom);
@@ -1681,7 +1681,7 @@ class ASTSerializer
     bool xml(ParseNode *pn, Value *dst);
 
   public:
-    ASTSerializer(JSContext *c, bool l, char const *src, uint32_t ln)
+    ASTSerializer(JSContext *c, bool l, char const *src, uint32 ln)
         : cx(c), builder(c, l, src), lineno(ln) {
     }
 
@@ -1780,10 +1780,10 @@ ASTSerializer::binop(ParseNodeKind kind, JSOp op)
         return BINOP_STRICTEQ;
       case PNK_STRICTNE:
         return BINOP_STRICTNE;
-      case PNK_ADD:
-        return BINOP_ADD;
-      case PNK_SUB:
-        return BINOP_SUB;
+      case PNK_PLUS:
+        return BINOP_PLUS;
+      case PNK_MINUS:
+        return BINOP_MINUS;
       case PNK_STAR:
         return BINOP_STAR;
       case PNK_DIV:
@@ -1810,8 +1810,7 @@ ASTSerializer::binop(ParseNodeKind kind, JSOp op)
 bool
 ASTSerializer::statements(ParseNode *pn, NodeVector &elts)
 {
-    JS_ASSERT(pn->isKind(PNK_STATEMENTLIST));
-    JS_ASSERT(pn->isArity(PN_LIST));
+    JS_ASSERT(pn->isKind(PNK_LC) && pn->isArity(PN_LIST));
 
     if (!elts.reserve(pn->pn_count))
         return false;
@@ -1861,7 +1860,7 @@ ASTSerializer::xmls(ParseNode *pn, NodeVector &elts)
 bool
 ASTSerializer::blockStatement(ParseNode *pn, Value *dst)
 {
-    JS_ASSERT(pn->isKind(PNK_STATEMENTLIST));
+    JS_ASSERT(pn->isKind(PNK_LC));
 
     NodeVector stmts(cx);
     return statements(pn, stmts) &&
@@ -1888,17 +1887,13 @@ ASTSerializer::sourceElement(ParseNode *pn, Value *dst)
 bool
 ASTSerializer::declaration(ParseNode *pn, Value *dst)
 {
-    JS_ASSERT(pn->isKind(PNK_FUNCTION) ||
-              pn->isKind(PNK_VAR) ||
-              pn->isKind(PNK_LET) ||
-              pn->isKind(PNK_CONST));
+    JS_ASSERT(pn->isKind(PNK_FUNCTION) || pn->isKind(PNK_VAR) || pn->isKind(PNK_LET));
 
     switch (pn->getKind()) {
       case PNK_FUNCTION:
         return function(pn, AST_FUNC_DECL, dst);
 
       case PNK_VAR:
-      case PNK_CONST:
         return variableDeclaration(pn, false, dst);
 
       default:
@@ -1910,7 +1905,7 @@ ASTSerializer::declaration(ParseNode *pn, Value *dst)
 bool
 ASTSerializer::variableDeclaration(ParseNode *pn, bool let, Value *dst)
 {
-    JS_ASSERT(let ? pn->isKind(PNK_LET) : (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST)));
+    JS_ASSERT(let ? pn->isKind(PNK_LET) : pn->isKind(PNK_VAR));
 
     /* Later updated to VARDECL_CONST if we find a PND_CONST declarator. */
     VarDeclKind kind = let ? VARDECL_LET : VARDECL_VAR;
@@ -2076,7 +2071,7 @@ ASTSerializer::forInit(ParseNode *pn, Value *dst)
         return true;
     }
 
-    return (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST))
+    return pn->isKind(PNK_VAR)
            ? variableDeclaration(pn, false, dst)
            : pn->isKind(PNK_LET)
            ? variableDeclaration(pn, true, dst)
@@ -2090,7 +2085,6 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
     switch (pn->getKind()) {
       case PNK_FUNCTION:
       case PNK_VAR:
-      case PNK_CONST:
       case PNK_LET:
         return declaration(pn, dst);
 
@@ -2117,11 +2111,11 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
                    builder.letStatement(dtors, stmt, &pn->pn_pos, dst);
         }
 
-        if (!pn->isKind(PNK_STATEMENTLIST))
+        if (!pn->isKind(PNK_LC))
             return statement(pn, dst);
         /* FALL THROUGH */
 
-      case PNK_STATEMENTLIST:
+      case PNK_LC:
         return blockStatement(pn, dst);
 
       case PNK_IF:
@@ -2152,7 +2146,7 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
                 : builder.whileStatement(expr, stmt, &pn->pn_pos, dst));
       }
 
-      case PNK_DOWHILE:
+      case PNK_DO:
       {
         Value stmt, test;
 
@@ -2171,7 +2165,7 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
 
         bool isForEach = pn->pn_iflags & JSITER_FOREACH;
 
-        if (head->isKind(PNK_FORIN)) {
+        if (head->isKind(PNK_IN)) {
             Value var, expr;
 
             return (!head->pn_kid1
@@ -2206,7 +2200,7 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
             return false;
 
         ParseNode *head = loop->pn_left;
-        JS_ASSERT(head->isKind(PNK_FORIN));
+        JS_ASSERT(head->isKind(PNK_IN));
 
         bool isForEach = loop->pn_iflags & JSITER_FOREACH;
 
@@ -2252,7 +2246,7 @@ ASTSerializer::statement(ParseNode *pn, Value *dst)
         return builder.debuggerStatement(&pn->pn_pos, dst);
 
 #if JS_HAS_XML_SUPPORT
-      case PNK_DEFXMLNS:
+      case PNK_DEFAULT:
       {
         LOCAL_ASSERT(pn->isArity(PN_UNARY));
 
@@ -2312,7 +2306,7 @@ ASTSerializer::comprehensionBlock(ParseNode *pn, Value *dst)
 
     ParseNode *in = pn->pn_left;
 
-    LOCAL_ASSERT(in && in->isKind(PNK_FORIN));
+    LOCAL_ASSERT(in && in->isKind(PNK_IN));
 
     bool isForEach = pn->pn_iflags & JSITER_FOREACH;
 
@@ -2343,7 +2337,7 @@ ASTSerializer::comprehension(ParseNode *pn, Value *dst)
         if (!optExpression(next->pn_kid1, &filter))
             return false;
         next = next->pn_kid2;
-    } else if (next->isKind(PNK_STATEMENTLIST) && next->pn_count == 0) {
+    } else if (next->isKind(PNK_LC) && next->pn_count == 0) {
         /* FoldConstants optimized away the push. */
         NodeVector empty(cx);
         return builder.arrayExpression(empty, &pn->pn_pos, dst);
@@ -2460,8 +2454,11 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
                builder.assignmentExpression(op, lhs, rhs, &pn->pn_pos, dst);
       }
 
-      case PNK_ADD:
-      case PNK_SUB:
+      case PNK_PLUS:
+      case PNK_MINUS:
+        if (pn->isArity(PN_UNARY))
+            goto unary_plusminus;
+        /* FALL THROUGH */
       case PNK_STRICTEQ:
       case PNK_EQ:
       case PNK_STRICTNE:
@@ -2498,8 +2495,7 @@ ASTSerializer::expression(ParseNode *pn, Value *dst)
       case PNK_VOID:
       case PNK_NOT:
       case PNK_BITNOT:
-      case PNK_POS:
-      case PNK_NEG: {
+      unary_plusminus: {
         UnaryOperator op = unop(pn->getKind(), pn->getOp());
         LOCAL_ASSERT(op > UNOP_ERR && op < UNOP_LIMIT);
 
@@ -2720,7 +2716,7 @@ ASTSerializer::xml(ParseNode *pn, Value *dst)
     JS_CHECK_RECURSION(cx, return false);
     switch (pn->getKind()) {
 #ifdef JS_HAS_XML_SUPPORT
-      case PNK_XMLCURLYEXPR:
+      case PNK_LC:
       {
         Value expr;
         return expression(pn->pn_kid, &expr) &&
@@ -3035,8 +3031,7 @@ ASTSerializer::functionArgsAndBody(ParseNode *pn, NodeVector &args, Value *body)
         LOCAL_ASSERT(head && head->isKind(PNK_SEMI));
 
         pndestruct = head->pn_kid;
-        LOCAL_ASSERT(pndestruct);
-        LOCAL_ASSERT(pndestruct->isKind(PNK_VAR));
+        LOCAL_ASSERT(pndestruct && pndestruct->isKind(PNK_VAR));
     } else {
         pndestruct = NULL;
     }
@@ -3056,7 +3051,7 @@ ASTSerializer::functionArgsAndBody(ParseNode *pn, NodeVector &args, Value *body)
                expression(pnstart->pn_kid, body);
       }
 
-      case PNK_STATEMENTLIST:     /* statement closure */
+      case PNK_LC:     /* statement closure */
       {
         ParseNode *pnstart = (pnbody->pn_xflags & PNX_DESTRUCT)
                                ? pnbody->pn_head->pn_next
@@ -3075,7 +3070,7 @@ bool
 ASTSerializer::functionArgs(ParseNode *pn, ParseNode *pnargs, ParseNode *pndestruct,
                             ParseNode *pnbody, NodeVector &args)
 {
-    uint32_t i = 0;
+    uint32 i = 0;
     ParseNode *arg = pnargs ? pnargs->pn_head : NULL;
     ParseNode *destruct = pndestruct ? pndestruct->pn_head : NULL;
     Value node;
@@ -3135,7 +3130,7 @@ ASTSerializer::functionBody(ParseNode *pn, TokenPos *pos, Value *dst)
 } /* namespace js */
 
 static JSBool
-reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
+reflect_parse(JSContext *cx, uint32 argc, jsval *vp)
 {
     if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_MORE_ARGS_NEEDED,
@@ -3143,13 +3138,13 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
         return JS_FALSE;
     }
 
-    JSString *src = ToString(cx, JS_ARGV(cx, vp)[0]);
+    JSString *src = js_ValueToString(cx, JS_ARGV(cx, vp)[0]);
     if (!src)
         return JS_FALSE;
 
     char *filename = NULL;
     AutoReleaseNullablePtr filenamep(cx, filename);
-    uint32_t lineno = 1;
+    uint32 lineno = 1;
     bool loc = true;
 
     JSObject *builder = NULL;
@@ -3183,7 +3178,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
             }
 
             if (!prop.isNullOrUndefined()) {
-                JSString *str = ToString(cx, prop);
+                JSString *str = js_ValueToString(cx, prop);
                 if (!str)
                     return JS_FALSE;
 
@@ -3201,7 +3196,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
             /* config.line */
             if (!GetPropertyDefault(cx, config, ATOM_TO_JSID(cx->runtime->atomState.lineAtom),
                                     Int32Value(1), &prop) ||
-                !ToUint32(cx, prop, &lineno)) {
+                !ValueToECMAUint32(cx, prop, &lineno)) {
                 return JS_FALSE;
             }
         }
@@ -3232,7 +3227,7 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     if (!chars)
         return JS_FALSE;
 
-    Parser parser(cx, NULL, NULL, NULL, false);
+    Parser parser(cx, NULL, NULL, false);
 
     if (!parser.init(chars, length, filename, lineno, cx->findVersion()))
         return JS_FALSE;
@@ -3264,7 +3259,7 @@ JS_BEGIN_EXTERN_C
 JS_PUBLIC_API(JSObject *)
 JS_InitReflect(JSContext *cx, JSObject *obj)
 {
-    JSObject *Reflect = NewObjectWithClassProto(cx, &ObjectClass, NULL, obj);
+    JSObject *Reflect = NewNonFunction<WithProto::Class>(cx, &ObjectClass, NULL, obj);
     if (!Reflect || !Reflect->setSingletonType(cx))
         return NULL;
 

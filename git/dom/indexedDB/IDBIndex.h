@@ -87,9 +87,9 @@ public:
     return mUnique;
   }
 
-  bool IsMultiEntry() const
+  bool IsAutoIncrement() const
   {
-    return mMultiEntry;
+    return mAutoIncrement;
   }
 
   const nsString& KeyPath() const
@@ -110,7 +110,7 @@ private:
   nsString mName;
   nsString mKeyPath;
   bool mUnique;
-  bool mMultiEntry;
+  bool mAutoIncrement;
 };
 
 END_INDEXEDDB_NAMESPACE

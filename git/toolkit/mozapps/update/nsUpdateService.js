@@ -86,8 +86,6 @@ const PREF_PARTNER_BRANCH                 = "app.partner.";
 const PREF_APP_DISTRIBUTION               = "distribution.id";
 const PREF_APP_DISTRIBUTION_VERSION       = "distribution.version";
 
-const PREF_EM_HOTFIX_ID                   = "extensions.hotfix.id";
-
 const URI_UPDATE_PROMPT_DIALOG  = "chrome://mozapps/content/update/updates.xul";
 const URI_UPDATE_HISTORY_DIALOG = "chrome://mozapps/content/update/history.xul";
 const URI_BRAND_PROPERTIES      = "chrome://branding/locale/brand.properties";
@@ -136,7 +134,6 @@ const STATE_FAILED          = "failed";
 
 // From updater/errors.h:
 const WRITE_ERROR        = 7;
-const UNEXPECTED_ERROR   = 8;
 const ELEVATION_CANCELED = 9;
 
 const CERT_ATTR_CHECK_FAILED_NO_UPDATE  = 100;
@@ -1366,7 +1363,6 @@ UpdateService.prototype = {
                    createInstance(Ci.nsIUpdatePrompt);
 
     update.state = status;
-    this._submitTelemetryPing(status);
     if (status == STATE_SUCCEEDED) {
       update.statusText = gUpdateBundle.GetStringFromName("installSuccess");
 
@@ -1427,31 +1423,6 @@ UpdateService.prototype = {
       update.QueryInterface(Ci.nsIWritablePropertyBag);
       update.setProperty("patchingFailed", oldType);
       prompter.showUpdateError(update);
-    }
-  },
-
-  /**
-   * Submit the results of applying the update via telemetry.
-   *
-   * @param  status
-   *         The status of the update as read from the update.status file
-   */
-  _submitTelemetryPing: function AUS__submitTelemetryPing(status) {
-    try {
-      let parts = status.split(":");
-      if ((parts.length == 1 && status != STATE_SUCCEEDED) ||
-          (parts.length > 1  && parts[0] != STATE_FAILED)) {
-        // we only want to report success or failure
-        return;
-      }
-      let result = 0; // 0 means success
-      if (parts.length > 1) {
-        result = parseInt(parts[1]) || UNEXPECTED_ERROR;
-      }
-      Services.telemetry.getHistogramById("UPDATE_STATUS").add(result);
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Components.utils.reportError(e);
     }
   },
 
@@ -1695,11 +1666,6 @@ UpdateService.prototype = {
   },
 
   _checkAddonCompatibility: function AUS__checkAddonCompatibility() {
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     // Get all the installed add-ons
     var self = this;
     AddonManager.getAllAddons(function(addons) {
@@ -1724,10 +1690,9 @@ UpdateService.prototype = {
         // incompatible. If an addon's type equals plugin it is skipped since
         // checking plugins compatibility information isn't supported and
         // getting the scope property of a plugin breaks in some environments
-        // (see bug 566787). The hotfix add-on is also ignored as it shouldn't
-        // block the user from upgrading.
+        // (see bug 566787).
         try {
-          if (addon.type != "plugin" && addon.id != hotfixID &&
+          if (addon.type != "plugin" &&
               !addon.appDisabled && !addon.userDisabled &&
               addon.scope != AddonManager.SCOPE_APPLICATION &&
               addon.isCompatible &&
@@ -2394,8 +2359,24 @@ Checker.prototype = {
     var prefs = Services.prefs;
     var certs = null;
     if (!prefs.prefHasUserValue(PREF_APP_UPDATE_URL_OVERRIDE) &&
-        getPref("getBoolPref", PREF_APP_UPDATE_CERT_CHECKATTRS, true)) {
-      certs = gCertUtils.readCertPrefs(PREF_APP_UPDATE_CERTS_BRANCH);
+        getPref("getBoolPref", PREF_APP_UPDATE_CERT_CHECKATTRS, true) &&
+        prefs.getBranch(PREF_APP_UPDATE_CERTS_BRANCH).getChildList("").length) {
+      certs = [];
+      let counter = 1;
+      while (true) {
+        let prefBranchCert = prefs.getBranch(PREF_APP_UPDATE_CERTS_BRANCH +
+                                             counter + ".");
+        let prefCertAttrs = prefBranchCert.getChildList("");
+        if (prefCertAttrs.length == 0)
+          break;
+
+        let certAttrs = {};
+        for each (let prefCertAttr in prefCertAttrs)
+          certAttrs[prefCertAttr] = prefBranchCert.getCharPref(prefCertAttr);
+
+        certs.push(certAttrs);
+        counter++;
+      }
     }
 
     try {

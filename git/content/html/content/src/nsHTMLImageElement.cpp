@@ -418,7 +418,7 @@ nsHTMLImageElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sImageAlignAttributeMap
   };
 
-  return FindAttributeDependence(aAttribute, map);
+  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
 }
 
 
@@ -594,7 +594,7 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   }
 
   // The first (optional) argument is the width of the image
-  uint32_t width;
+  uint32 width;
   JSBool ret = JS_ValueToECMAUint32(aContext, argv[0], &width);
   NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
@@ -602,7 +602,7 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
 
   if (NS_SUCCEEDED(rv) && (argc > 1)) {
     // The second (optional) argument is the height of the image
-    uint32_t height;
+    uint32 height;
     ret = JS_ValueToECMAUint32(aContext, argv[1], &height);
     NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 

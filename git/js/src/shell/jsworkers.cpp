@@ -275,7 +275,7 @@ class Event
 
     WorkerParent *recipient;
     Worker *child;
-    uint64_t *data;
+    uint64 *data;
     size_t nbytes;
 
   public:
@@ -307,7 +307,7 @@ class Event
     static EventType *createEvent(JSContext *cx, WorkerParent *recipient, Worker *child,
                                   jsval v)
     {
-        uint64_t *data;
+        uint64 *data;
         size_t nbytes;
         if (!JS_WriteStructuredClone(cx, v, &data, &nbytes, NULL, NULL))
             return NULL;
@@ -663,24 +663,19 @@ class Worker MOZ_FINAL : public WorkerParent
         // alive, this postMessage function cannot be called after the Worker
         // is collected.  Therefore it's safe to stash a pointer (a weak
         // reference) to the C++ Worker object in the reserved slot.
-        post = JS_GetFunctionObject(
-                   js::DefineFunctionWithReserved(context, global, "postMessage",
-                                                  (JSNative) jsPostMessageToParent, 1, 0));
-        if (!post)
+        post = JS_GetFunctionObject(JS_DefineFunction(context, global, "postMessage",
+                                                      (JSNative) jsPostMessageToParent, 1, 0));
+        if (!post || !JS_SetReservedSlot(context, post, 0, PRIVATE_TO_JSVAL(this)))
             goto bad;
 
-        js::SetFunctionNativeReserved(post, 0, PRIVATE_TO_JSVAL(this));
-
-        proto = js::InitClassWithReserved(context, global, NULL, &jsWorkerClass, jsConstruct, 1,
-                                          NULL, jsMethods, NULL, NULL);
+        proto = JS_InitClass(context, global, NULL, &jsWorkerClass, jsConstruct, 1,
+                             NULL, jsMethods, NULL, NULL);
         if (!proto)
             goto bad;
 
         ctor = JS_GetConstructor(context, proto);
-        if (!ctor)
+        if (!ctor || !JS_SetReservedSlot(context, ctor, 0, PRIVATE_TO_JSVAL(this)))
             goto bad;
-
-        js::SetFunctionNativeReserved(post, 0, PRIVATE_TO_JSVAL(this));
 
         JS_EndRequest(context);
         JS_ClearContextThread(context);
@@ -838,17 +833,23 @@ class Worker MOZ_FINAL : public WorkerParent
     }
 
     static bool getWorkerParentFromConstructor(JSContext *cx, JSObject *ctor, WorkerParent **p) {
-        jsval v = js::GetFunctionNativeReserved(ctor, 0);
+        jsval v;
+        if (!JS_GetReservedSlot(cx, ctor, 0, &v))
+            return false;
         if (JSVAL_IS_VOID(v)) {
             // This means ctor is the root Worker constructor (created in
             // Worker::initWorkers as opposed to Worker::createContext, which sets up
             // Worker sandboxes) and nothing is initialized yet.
-            v = js::GetFunctionNativeReserved(ctor, 1);
+            if (!JS_GetReservedSlot(cx, ctor, 1, &v))
+                return false;
             ThreadPool *threadPool = (ThreadPool *) JSVAL_TO_PRIVATE(v);
             if (!threadPool->start(cx))
                 return false;
             WorkerParent *parent = threadPool->getMainQueue();
-            js::SetFunctionNativeReserved(ctor, 0, PRIVATE_TO_JSVAL(parent));
+            if (!JS_SetReservedSlot(cx, ctor, 0, PRIVATE_TO_JSVAL(parent))) {
+                threadPool->shutdown(cx);
+                return false;
+            }
             *p = parent;
             return true;
         }
@@ -887,16 +888,17 @@ class Worker MOZ_FINAL : public WorkerParent
         *objp = threadPool->asObject();
 
         // Create the Worker constructor.
-        JSObject *proto = js::InitClassWithReserved(cx, global, NULL, &jsWorkerClass,
-                                                    jsConstruct, 1,
-                                                    NULL, jsMethods, NULL, NULL);
+        JSObject *proto = JS_InitClass(cx, global, NULL, &jsWorkerClass,
+                                       jsConstruct, 1,
+                                       NULL, jsMethods, NULL, NULL);
         if (!proto)
             return NULL;
 
         // Stash a pointer to the ThreadPool in constructor reserved slot 1.
         // It will be used later when lazily creating the MainQueue.
         JSObject *ctor = JS_GetConstructor(cx, proto);
-        js::SetFunctionNativeReserved(ctor, 1, PRIVATE_TO_JSVAL(threadPool));
+        if (!JS_SetReservedSlot(cx, ctor, 1, PRIVATE_TO_JSVAL(threadPool)))
+            return NULL;
 
         return threadPool;
     }
@@ -918,7 +920,7 @@ class InitEvent : public Event
         if (!filename)
             return fail;
 
-        JSScript *script = JS_CompileUTF8File(cx, child->getGlobal(), filename.ptr());
+        JSScript *script = JS_CompileFile(cx, child->getGlobal(), filename.ptr());
         if (!script)
             return fail;
 
@@ -1137,12 +1139,12 @@ Worker::processOneEvent()
         event = current = events.pop();
     }
 
-    JS_SetRuntimeThread(runtime);
     JS_SetContextThread(context);
     JS_SetNativeStackQuota(context, gMaxStackSize);
 
     Event::Result result;
     {
+        JSAutoSetRuntimeThread asrt(JS_GetRuntime(context));
         JSAutoRequest ar(context);
         result = event->process(context);
     }
@@ -1159,6 +1161,7 @@ Worker::processOneEvent()
         }
     }
     if (result == Event::fail && !checkTermination()) {
+        JSAutoSetRuntimeThread asrt(JS_GetRuntime(context));
         JSAutoRequest ar(context);
         Event *err = ErrorEvent::create(context, this);
         if (err && !parent->post(err)) {
@@ -1174,7 +1177,6 @@ Worker::processOneEvent()
     if (event)
         event->destroy(context);
     JS_ClearContextThread(context);
-    JS_ClearRuntimeThread(runtime);
 
     {
         AutoLock hold2(lock);
@@ -1190,7 +1192,9 @@ Worker::processOneEvent()
 JSBool
 Worker::jsPostMessageToParent(JSContext *cx, uintN argc, jsval *vp)
 {
-    jsval workerval = js::GetFunctionNativeReserved(JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)), 0);
+    jsval workerval;
+    if (!JS_GetReservedSlot(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)), 0, &workerval))
+        return false;
     Worker *w = (Worker *) JSVAL_TO_PRIVATE(workerval);
 
     {

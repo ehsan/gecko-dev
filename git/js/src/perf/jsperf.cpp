@@ -40,8 +40,6 @@
 #include "jscntxt.h" /* for error messages */
 #include "jsobj.h" /* for unwrapping without a context */
 
-#include "jsobjinlines.h"
-
 using JS::PerfMeasurement;
 
 // You cannot forward-declare a static object in C++, so instead
@@ -54,7 +52,7 @@ static PerfMeasurement* GetPMFromThis(JSContext* cx, jsval* vp);
 static JSBool
 pm_construct(JSContext* cx, uintN argc, jsval* vp)
 {
-    uint32_t mask;
+    uint32 mask;
     if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "u", &mask))
         return JS_FALSE;
 
@@ -155,7 +153,7 @@ pm_canMeasureSomething(JSContext* cx, uintN /*unused*/, jsval* vp)
     return JS_TRUE;
 }
 
-const uint8_t PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED;
+const uint8 PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED;
 static JSFunctionSpec pm_fns[] = {
     JS_FN("start",               pm_start,               0, PM_FATTRS),
     JS_FN("stop",                pm_stop,                0, PM_FATTRS),
@@ -164,7 +162,7 @@ static JSFunctionSpec pm_fns[] = {
     JS_FS_END
 };
 
-const uint8_t PM_PATTRS =
+const uint8 PM_PATTRS =
     JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED;
 
 #define GETTER(name)                            \
@@ -190,7 +188,7 @@ static JSPropertySpec pm_props[] = {
 
 // If this were C++ these would be "static const" members.
 
-const uint8_t PM_CATTRS = JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_PERMANENT;
+const uint8 PM_CATTRS = JSPROP_ENUMERATE|JSPROP_READONLY|JSPROP_PERMANENT;
 
 #define CONSTANT(name) { #name, PerfMeasurement::name }
 

@@ -91,7 +91,8 @@ HasFileExtention(const char* name, const char* ext)
 static JSDScript*
 _newJSDScript(JSDContext*  jsdc,
               JSContext    *cx,
-              JSScript     *script)
+              JSScript     *script,
+              JSFunction*  function)
 {
     JSDScript*  jsdscript;
     uintN     lineno;
@@ -113,7 +114,8 @@ _newJSDScript(JSDContext*  jsdc,
     JS_HashTableAdd(jsdc->scriptsTable, (void *)script, (void *)jsdscript);
     JS_APPEND_LINK(&jsdscript->links, &jsdc->scripts);
     jsdscript->jsdc         = jsdc;
-    jsdscript->script       = script;  
+    jsdscript->script       = script;        
+    jsdscript->function     = function;
     jsdscript->lineBase     = lineno;
     jsdscript->lineExtent   = (uintN)NOT_SET_YET;
     jsdscript->data         = NULL;
@@ -323,7 +325,7 @@ jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
     if (!fp)
         JS_FrameIterator(cx, &fp);
     if (fp)
-        jsdscript = _newJSDScript(jsdc, cx, script);
+        jsdscript = _newJSDScript(jsdc, cx, script, JS_GetFrameFunction(cx, fp));
 
     return jsdscript;
 }
@@ -337,14 +339,14 @@ jsd_GetScriptProfileData(JSDContext* jsdc, JSDScript *script)
     return script->profileData;
 }
 
-uint32_t
+uint32
 jsd_GetScriptFlags(JSDContext *jsdc, JSDScript *script)
 {
     return script->flags;
 }
 
 void
-jsd_SetScriptFlags(JSDContext *jsdc, JSDScript *script, uint32_t flags)
+jsd_SetScriptFlags(JSDContext *jsdc, JSDScript *script, uint32 flags)
 {
     script->flags = flags;
 }
@@ -440,7 +442,7 @@ jsd_GetJSScript (JSDContext *jsdc, JSDScript *script)
 JSFunction *
 jsd_GetJSFunction (JSDContext *jsdc, JSDScript *script)
 {
-    return JS_GetScriptFunction(jsdc->dumbContext, script->script);
+    return script->function;
 }
 
 JSDScript*
@@ -499,11 +501,10 @@ JSString*
 jsd_GetScriptFunctionId(JSDContext* jsdc, JSDScript *jsdscript)
 {
     JSString* str;
-    JSFunction *fun = jsd_GetJSFunction(jsdc, jsdscript);
 
-    if( ! fun )
+    if( ! jsdscript->function )
         return NULL;
-    str = JS_GetFunctionId(fun);
+    str = JS_GetFunctionId(jsdscript->function);
 
     /* For compatibility we return "anonymous", not an empty string here. */
     return str ? str : JS_GetAnonymousString(jsdc->jsrt);
@@ -679,7 +680,7 @@ jsd_NewScriptHookProc(
         return;
     
     JSD_LOCK_SCRIPTS(jsdc);
-    jsdscript = _newJSDScript(jsdc, cx, script);
+    jsdscript = _newJSDScript(jsdc, cx, script, fun);
     JSD_UNLOCK_SCRIPTS(jsdc);
     if( ! jsdscript )
         return;

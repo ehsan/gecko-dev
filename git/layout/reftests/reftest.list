@@ -92,9 +92,6 @@ include css-submit-invalid/reftest.list
 # css text-overflow
 include text-overflow/reftest.list
 
-# css selectors
-include css-selectors/reftest.list
-
 # css transitions
 include css-transitions/reftest.list
 

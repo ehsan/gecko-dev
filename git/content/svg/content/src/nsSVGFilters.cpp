@@ -303,7 +303,7 @@ nsSVGFE::IsAttributeMapped(const nsIAtom* name) const
     sFiltersMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFEBase::IsAttributeMapped(name);
 }
 
@@ -2800,7 +2800,7 @@ nsSVGFEFloodElement::IsAttributeMapped(const nsIAtom* name) const
     sFEFloodMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFEFloodElementBase::IsAttributeMapped(name);
 }
 
@@ -4870,7 +4870,7 @@ nsSVGFELightingElement::IsAttributeMapped(const nsIAtom* name) const
     sLightingEffectsMap
   };
 
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFELightingElementBase::IsAttributeMapped(name);
 }
 
@@ -5546,7 +5546,7 @@ nsSVGFEImageElement::IsAttributeMapped(const nsIAtom* name) const
     sGraphicsMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGFEImageElementBase::IsAttributeMapped(name);
 }
 

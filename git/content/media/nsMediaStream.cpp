@@ -74,6 +74,7 @@ nsMediaChannelStream::nsMediaChannelStream(nsMediaDecoder* aDecoder,
     mReopenOnError(false), mIgnoreClose(false),
     mCacheStream(this),
     mLock("nsMediaChannelStream.mLock"),
+    mCacheSuspendCount(0),
     mIgnoreResume(false)
 {
 }
@@ -546,9 +547,8 @@ nsMediaStream* nsMediaChannelStream::CloneData(nsMediaDecoder* aDecoder)
     // is already in the cache we don't create an unneccesary HTTP channel
     // and perform a useless HTTP transaction.
     stream->mSuspendCount = 1;
+    stream->mCacheSuspendCount = 1;
     stream->mCacheStream.InitAsClone(&mCacheStream);
-    stream->mChannelStatistics = mChannelStatistics;
-    stream->mChannelStatistics.Stop(TimeStamp::Now());
   }
   return stream;
 }
@@ -770,6 +770,11 @@ nsMediaChannelStream::CacheClientSeek(PRInt64 aOffset, bool aResume)
     NS_ASSERTION(mSuspendCount > 0, "Too many resumes!");
     // No need to mess with the channel, since we're making a new one
     --mSuspendCount;
+    {
+      MutexAutoLock lock(mLock);
+      NS_ASSERTION(mCacheSuspendCount > 0, "CacheClientSeek(aResume=true) without previous CacheClientSuspend!");
+      --mCacheSuspendCount;
+    }
   }
 
   nsresult rv = RecreateChannel();
@@ -783,6 +788,10 @@ nsMediaChannelStream::CacheClientSeek(PRInt64 aOffset, bool aResume)
 nsresult
 nsMediaChannelStream::CacheClientSuspend()
 {
+  {
+    MutexAutoLock lock(mLock);
+    ++mCacheSuspendCount;
+  }
   Suspend(false);
 
   mDecoder->NotifySuspendedStatusChanged();
@@ -793,6 +802,11 @@ nsresult
 nsMediaChannelStream::CacheClientResume()
 {
   Resume();
+  {
+    MutexAutoLock lock(mLock);
+    NS_ASSERTION(mCacheSuspendCount > 0, "CacheClientResume without previous CacheClientSuspend!");
+    --mCacheSuspendCount;
+  }
 
   mDecoder->NotifySuspendedStatusChanged();
   return NS_OK;
@@ -816,16 +830,11 @@ nsMediaChannelStream::IsDataCachedToEndOfStream(PRInt64 aOffset)
   return mCacheStream.IsDataCachedToEndOfStream(aOffset);
 }
 
-void
-nsMediaChannelStream::EnsureCacheUpToDate()
-{
-  mCacheStream.EnsureCacheUpdate();
-}
-
 bool
-nsMediaChannelStream::IsSuspendedByCache(nsMediaStream** aActiveStream)
+nsMediaChannelStream::IsSuspendedByCache()
 {
-  return mCacheStream.AreAllStreamsForResourceSuspended(aActiveStream);
+  MutexAutoLock lock(mLock);
+  return mCacheSuspendCount > 0;
 }
 
 bool
@@ -941,13 +950,7 @@ public:
   }
   virtual PRInt64 GetCachedDataEnd(PRInt64 aOffset) { return NS_MAX(aOffset, mSize); }
   virtual bool    IsDataCachedToEndOfStream(PRInt64 aOffset) { return true; }
-  virtual bool    IsSuspendedByCache(nsMediaStream** aActiveStream)
-  {
-    if (aActiveStream) {
-      *aActiveStream = nsnull;
-    }
-    return false;
-  }
+  virtual bool    IsSuspendedByCache() { return false; }
   virtual bool    IsSuspended() { return false; }
 
   nsresult GetCachedRanges(nsTArray<nsByteRange>& aRanges);

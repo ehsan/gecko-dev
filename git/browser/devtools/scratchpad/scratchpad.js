@@ -87,13 +87,6 @@ var Scratchpad = {
   executionContext: SCRATCHPAD_CONTEXT_CONTENT,
 
   /**
-   * Tells if this Scratchpad is initialized and ready for use.
-   * @boolean
-   * @see addObserver
-   */
-  initialized: false,
-
-  /**
    * Retrieve the xul:notificationbox DOM element. It notifies the user when
    * the current code execution context is SCRATCHPAD_CONTEXT_BROWSER.
    */
@@ -740,7 +733,7 @@ var Scratchpad = {
   },
 
   /**
-   * The Scratchpad window load event handler. This method
+   * The Scratchpad window DOMContentLoaded event handler. This method
    * initializes the Scratchpad window and source editor.
    *
    * @param nsIDOMEvent aEvent
@@ -791,9 +784,7 @@ var Scratchpad = {
                                  this.onContextMenu);
     this.editor.focus();
     this.editor.setCaretOffset(this.editor.getCharCount());
-
-    this.initialized = true;
-
+    
     if (this.filename && !this.saved) {
       this.onTextChanged();
     }
@@ -875,7 +866,7 @@ var Scratchpad = {
     if (aStatus && !Components.isSuccessCode(aStatus)) {
       return;
     }
-    if (!document || !this.initialized) {
+    if (!document) {
       return;  // file saved to disk after window has closed
     }
     document.title = document.title.replace(/^\*/, "");
@@ -913,7 +904,6 @@ var Scratchpad = {
                                     this.onContextMenu);
     this.editor.destroy();
     this.editor = null;
-    this.initialized = false;
   },
 
   /**
@@ -1043,6 +1033,6 @@ XPCOMUtils.defineLazyGetter(Scratchpad, "strings", function () {
   return Services.strings.createBundle(SCRATCHPAD_L10N);
 });
 
-addEventListener("load", Scratchpad.onLoad.bind(Scratchpad), false);
+addEventListener("DOMContentLoaded", Scratchpad.onLoad.bind(Scratchpad), false);
 addEventListener("unload", Scratchpad.onUnload.bind(Scratchpad), false);
 addEventListener("close", Scratchpad.onClose.bind(Scratchpad), false);

@@ -41,9 +41,10 @@
 
 #include "nsFrame.h"
 #include "nsISVGChildFrame.h"
-#include "nsSVGUtils.h"
 #include "nsGkAtoms.h"
 #include "nsSVGGeometryFrame.h"
+#include "gfxRect.h"
+#include "gfxMatrix.h"
 
 class nsSVGMarkerFrame;
 class nsSVGMarkerProperty;
@@ -101,9 +102,7 @@ protected:
   virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
                                       PRUint32 aFlags);
   NS_IMETHOD_(bool) IsDisplayContainer() { return false; }
-  NS_IMETHOD_(bool) HasValidCoveredRect() {
-    return !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD);
-  }
+  NS_IMETHOD_(bool) HasValidCoveredRect() { return true; }
 
 protected:
   void GeneratePath(gfxContext *aContext,

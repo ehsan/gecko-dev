@@ -119,7 +119,6 @@ CPPSRCS		= \
 		nsSVGTextPathElement.cpp \
 		nsSVGTextPositioningElement.cpp \
 		nsSVGTitleElement.cpp \
-		nsSVGUnknownElement.cpp \
 		nsSVGUseElement.cpp \
 		nsSVGViewBox.cpp \
 		SVGAnimatedLengthList.cpp \

@@ -139,8 +139,6 @@ public:
 
   NS_IMETHOD SetupSilentPrinting();
 
-  NS_IMETHOD GetPageRanges(nsTArray<PRInt32> &aPages);
-
 protected:
   nsPrintSettingsGTK(const nsPrintSettingsGTK& src);
   nsPrintSettingsGTK& operator=(const nsPrintSettingsGTK& rhs);

@@ -1252,12 +1252,8 @@ nsXULTreeGridCellAccessible::GetColumnIndex() const
 {
   PRInt32 index = 0;
   nsCOMPtr<nsITreeColumn> column = mColumn;
-  while (true) {
-    column = nsCoreUtils::GetPreviousSensibleColumn(column);
-    if (!column)
-      break;
+  while (column = nsCoreUtils::GetPreviousSensibleColumn(column))
     index++;
-  }
 
   return index;
 }

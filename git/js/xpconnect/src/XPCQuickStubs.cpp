@@ -147,13 +147,15 @@ PropertyOpForwarder(JSContext *cx, uintN argc, jsval *vp)
     JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
+    jsval v;
 
-    jsval v = js::GetFunctionNativeReserved(callee, 0);
-
+    if (!JS_GetReservedSlot(cx, callee, 0, &v))
+        return false;
     JSObject *ptrobj = JSVAL_TO_OBJECT(v);
     Op *popp = static_cast<Op *>(JS_GetPrivate(cx, ptrobj));
 
-    v = js::GetFunctionNativeReserved(callee, 1);
+    if (!JS_GetReservedSlot(cx, callee, 1, &v))
+        return false;
 
     jsval argval = (argc > 0) ? JS_ARGV(cx, vp)[0] : JSVAL_VOID;
     jsid id;
@@ -185,9 +187,9 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
     // The JS engine provides two reserved slots on function objects for
     // XPConnect to use. Use them to stick the necessary info here.
     JSFunction *fun =
-        js::NewFunctionByIdWithReserved(cx, PropertyOpForwarder<Op>, argc, 0, obj, id);
+        JS_NewFunctionById(cx, PropertyOpForwarder<Op>, argc, 0, obj, id);
     if (!fun)
-        return nsnull;
+        return false;
 
     JSObject *funobj = JS_GetFunctionObject(fun);
 
@@ -197,15 +199,15 @@ GeneratePropertyOp(JSContext *cx, JSObject *obj, jsid id, uintN argc, Op pop)
     // second object to work around this.
     JSObject *ptrobj = JS_NewObject(cx, &PointerHolderClass, nsnull, funobj);
     if (!ptrobj)
-        return nsnull;
+        return false;
     Op *popp = new Op;
     if (!popp)
-        return nsnull;
+        return false;
     *popp = pop;
     JS_SetPrivate(cx, ptrobj, popp);
 
-    js::SetFunctionNativeReserved(funobj, 0, OBJECT_TO_JSVAL(ptrobj));
-    js::SetFunctionNativeReserved(funobj, 1, js::IdToJsval(id));
+    JS_SetReservedSlot(cx, funobj, 0, OBJECT_TO_JSVAL(ptrobj));
+    JS_SetReservedSlot(cx, funobj, 1, js::IdToJsval(id));
     return funobj;
 }
 
@@ -506,7 +508,7 @@ GetMethodInfo(JSContext *cx, jsval *vp, const char **ifaceNamep, jsid *memberIdp
     JSObject *funobj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
     NS_ASSERTION(JS_ObjectIsFunction(cx, funobj),
                  "JSNative callee should be Function object");
-    JSString *str = JS_GetFunctionId(JS_GetObjectFunction(funobj));
+    JSString *str = JS_GetFunctionId((JSFunction *) JS_GetPrivate(cx, funobj));
     jsid methodId = str ? INTERNED_STRING_TO_JSID(cx, str) : JSID_VOID;
     GetMemberInfo(JSVAL_TO_OBJECT(vp[1]), methodId, ifaceNamep);
     *memberIdp = methodId;

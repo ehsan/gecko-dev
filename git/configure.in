@@ -180,7 +180,7 @@ then
 fi
 MOZ_BUILD_ROOT=`pwd`
 
-dnl Default to MSVC for win32 and gcc for darwin
+dnl Default to MSVC for win32 and gcc-4.2 for darwin
 dnl ==============================================================
 if test -z "$CROSS_COMPILE"; then
 case "$target" in
@@ -203,10 +203,8 @@ case "$target" in
     if test -z "$MIDL"; then MIDL=midl; fi
     ;;
 *-darwin*)
-    # we prefer gcc-4.2 over gcc on older darwin, so
-    # use that specific version if it's available.
-    MOZ_PATH_PROGS(CC, $CC gcc-4.2 gcc)
-    MOZ_PATH_PROGS(CXX, $CXX g++-4.2 g++)
+    if test -z "$CC"; then CC=gcc-4.2; fi
+    if test -z "$CXX"; then CXX=g++-4.2; fi
     ;;
 esac
 fi
@@ -2116,23 +2114,9 @@ if test -n "$MOZ_VALGRIND"; then
         AC_MSG_ERROR(
             [--enable-valgrind specified but Valgrind is not installed]))
     AC_DEFINE(MOZ_VALGRIND)
+    MOZ_VALGRIND=1
 fi
 AC_SUBST(MOZ_VALGRIND)
-
-dnl ========================================================
-dnl = Use DMD
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(dmd,
-[  --enable-dmd            Enable DMD; also disables jemalloc (default=no)],
-    MOZ_DMD=1,
-    MOZ_DMD= )
-if test -n "$MOZ_DMD"; then
-    MOZ_CHECK_HEADER([valgrind/valgrind.h], [],
-        AC_MSG_ERROR(
-            [--enable-dmd specified but Valgrind is not installed]))
-    AC_DEFINE(MOZ_DMD)
-fi
-AC_SUBST(MOZ_DMD)
 
 dnl ========================================================
 dnl jprof
@@ -2266,17 +2250,6 @@ if test "$_python_res" != 0; then
     AC_MSG_ERROR([Python $PYTHON_VERSION or higher (but not Python 3.x) is required.])
 fi
 AC_MSG_RESULT([yes])
-
-dnl Check for using a custom <stdint.h> implementation
-dnl ========================================================
-AC_MSG_CHECKING(for custom <stdint.h> implementation)
-if test "$MOZ_CUSTOM_STDINT_H"; then
-  AC_DEFINE_UNQUOTED(MOZ_CUSTOM_STDINT_H, "$MOZ_CUSTOM_STDINT_H")
-  AC_SUBST(MOZ_CUSTOM_STDINT_H)
-  AC_MSG_RESULT(using $MOZ_CUSTOM_STDINT_H)
-else
-  AC_MSG_RESULT(none specified)
-fi
 
 dnl Get mozilla version from central milestone file
 MOZILLA_VERSION=`$PERL $srcdir/config/milestone.pl -topsrcdir $srcdir`
@@ -2698,8 +2671,8 @@ ia64*-hpux*)
         fi
 
         if test -n "$GNU_CC"; then
-            CFLAGS="$CFLAGS -mstackrealign -fno-keep-inline-dllexport"
-            CXXFLAGS="$CXXFLAGS -mstackrealign -fno-keep-inline-dllexport"
+            CFLAGS="$CFLAGS -mstackrealign"
+            CXXFLAGS="$CXXFLAGS -mstackrealign"
         else
             AC_DEFINE(HAVE_STDCALL)
         fi
@@ -3044,8 +3017,47 @@ else
   AC_MSG_RESULT(no)
 fi
 
-dnl Check for int64, uint, and uint_t.
+dnl Check for int16_t, int32_t, int64_t, int64, uint, uint_t, and uint16_t.
 dnl ========================================================
+AC_MSG_CHECKING(for int16_t)
+AC_CACHE_VAL(ac_cv_int16_t,
+ [AC_TRY_COMPILE([#include <stdio.h>
+                  #include <sys/types.h>],
+                 [int16_t foo = 0;],
+                 [ac_cv_int16_t=true],
+                 [ac_cv_int16_t=false])])
+if test "$ac_cv_int16_t" = true ; then
+  AC_DEFINE(HAVE_INT16_T)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+AC_MSG_CHECKING(for int32_t)
+AC_CACHE_VAL(ac_cv_int32_t,
+ [AC_TRY_COMPILE([#include <stdio.h>
+                  #include <sys/types.h>],
+                 [int32_t foo = 0;],
+                 [ac_cv_int32_t=true],
+                 [ac_cv_int32_t=false])])
+if test "$ac_cv_int32_t" = true ; then
+  AC_DEFINE(HAVE_INT32_T)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+AC_MSG_CHECKING(for int64_t)
+AC_CACHE_VAL(ac_cv_int64_t,
+ [AC_TRY_COMPILE([#include <stdio.h>
+                  #include <sys/types.h>],
+                 [int64_t foo = 0;],
+                 [ac_cv_int64_t=true],
+                 [ac_cv_int64_t=false])])
+if test "$ac_cv_int64_t" = true ; then
+  AC_DEFINE(HAVE_INT64_T)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
 AC_MSG_CHECKING(for int64)
 AC_CACHE_VAL(ac_cv_int64,
  [AC_TRY_COMPILE([#include <stdio.h>
@@ -3081,6 +3093,19 @@ AC_CACHE_VAL(ac_cv_uint_t,
                  [ac_cv_uint_t=false])])
 if test "$ac_cv_uint_t" = true ; then
   AC_DEFINE(HAVE_UINT_T)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
+AC_MSG_CHECKING(for uint16_t)
+AC_CACHE_VAL(ac_cv_uint16_t,
+ [AC_TRY_COMPILE([#include <stdio.h>
+                  #include <sys/types.h>],
+                 [uint16_t foo = 0;],
+                 [ac_cv_uint16_t=true],
+                 [ac_cv_uint16_t=false])])
+if test "$ac_cv_uint16_t" = true ; then
+  AC_DEFINE(HAVE_UINT16_T)
   AC_MSG_RESULT(yes)
 else
   AC_MSG_RESULT(no)
@@ -3384,7 +3409,12 @@ freebsd*|openbsd*)
     CPPFLAGS="${CPPFLAGS} ${X_CFLAGS}"
     ;;
 esac
-MOZ_CHECK_COMMON_HEADERS
+MOZ_CHECK_HEADERS(sys/byteorder.h compat.h getopt.h)
+MOZ_CHECK_HEADERS(sys/bitypes.h memory.h unistd.h)
+MOZ_CHECK_HEADERS(gnu/libc-version.h nl_types.h)
+MOZ_CHECK_HEADERS(malloc.h)
+MOZ_CHECK_HEADERS(X11/XKBlib.h)
+MOZ_CHECK_HEADERS(io.h)
 
 dnl These are all the places some variant of statfs can be hiding.
 MOZ_CHECK_HEADERS(sys/statvfs.h sys/statfs.h sys/vfs.h sys/mount.h)
@@ -3979,9 +4009,10 @@ AC_CACHE_CHECK(for modern C++ template specialization syntax support,
                                X<Y> y_x;,
                                ac_cv_cpp_modern_specialize_template_syntax=yes,
                                ac_cv_cpp_modern_specialize_template_syntax=no)])
-if test "$ac_cv_cpp_modern_specialize_template_syntax" = no ; then
-  AC_MSG_ERROR([The C++ compiler does not support template specialization])
+if test "$ac_cv_cpp_modern_specialize_template_syntax" = yes ; then
+  AC_DEFINE(HAVE_CPP_MODERN_SPECIALIZE_TEMPLATE_SYNTAX)
 fi
+
 
 dnl Some compilers support only full specialization, and some don't.
 AC_CACHE_CHECK(whether partial template specialization works,
@@ -4141,6 +4172,13 @@ AC_CACHE_CHECK(for __attribute__((warn_unused_result)),
                                ac_cv_attribute_warn_unused=yes,
                                ac_cv_attribute_warn_unused=no)])
 
+AC_CACHE_CHECK(for __attribute__((noreturn)),
+               ac_cv_attribute_noreturn,
+               [AC_TRY_COMPILE([void f(void) __attribute__((noreturn));],
+                               [],
+                               ac_cv_attribute_noreturn=yes,
+                               ac_cv_attribute_noreturn=no)])
+
 dnl End of C++ language/feature checks
 AC_LANG_C
 
@@ -4194,6 +4232,12 @@ if test "$ac_cv_attribute_warn_unused" = yes ; then
   AC_DEFINE(NS_WARN_UNUSED_RESULT, [__attribute__((warn_unused_result))])
 else
   AC_DEFINE(NS_WARN_UNUSED_RESULT,)
+fi
+
+if test "$ac_cv_attribute_noreturn" = yes ; then
+  AC_DEFINE(NS_NORETURN, [__attribute__((noreturn))])
+else
+  AC_DEFINE(NS_NORETURN,)
 fi
 
 dnl We can't run TRY_COMPILE tests on Windows, so hard-code some
@@ -4325,7 +4369,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.13.2, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.13.1, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
@@ -4641,7 +4685,6 @@ USE_ARM_KUSER=
 BUILD_CTYPES=1
 MOZ_USE_NATIVE_POPUP_WINDOWS=
 MOZ_ANDROID_HISTORY=
-MOZ_GRAPHITE=1
 
 case "${target}" in
 *darwin*)
@@ -4943,7 +4986,6 @@ cairo-gonk)
     TK_LIBS='$(MOZ_CAIRO_LIBS)'
     MOZ_WEBGL=1
     MOZ_PDF_PRINTING=1
-    MOZ_B2G_RIL=1
     ;;
 
 esac
@@ -5483,15 +5525,6 @@ AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
 AC_SUBST(MOZ_DBUS_GLIB_LIBS)
 
 dnl ========================================================
-dnl = Enable Android History instead of Places
-dnl ========================================================
-if test -n "$MOZ_ANDROID_HISTORY"; then
-     dnl Do this if defined in confvars.sh
-     AC_DEFINE(MOZ_ANDROID_HISTORY)
-fi
-
-
-dnl ========================================================
 dnl = Build Personal Security Manager
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(crypto,
@@ -5703,7 +5736,6 @@ if test -n "$MOZ_WEBM"; then
                 [return 0;],
                 [AC_MSG_RESULT([yes])
                  MOZ_NATIVE_LIBVPX=1
-                 AC_DEFINE(MOZ_NATIVE_LIBVPX)
                  MOZ_LIBVPX_INCLUDES="-I${LIBVPX_DIR}/include"
                  MOZ_LIBVPX_LIBS="-L${LIBVPX_DIR}/lib -lvpx"],
                 [AC_MSG_RESULT([no])
@@ -7108,7 +7140,7 @@ dnl = Enable trace malloc
 dnl ========================================================
 NS_TRACE_MALLOC=${MOZ_TRACE_MALLOC}
 MOZ_ARG_ENABLE_BOOL(trace-malloc,
-[  --enable-trace-malloc   Enable malloc tracing; also disables jemalloc],
+[  --enable-trace-malloc   Enable malloc tracing],
     NS_TRACE_MALLOC=1,
     NS_TRACE_MALLOC= )
 if test "$NS_TRACE_MALLOC"; then
@@ -7128,9 +7160,6 @@ MOZ_ARG_ENABLE_BOOL(jemalloc,
     MOZ_MEMORY=)
 
 if test "$NS_TRACE_MALLOC"; then
-    MOZ_MEMORY=
-fi
-if test "$MOZ_DMD"; then
     MOZ_MEMORY=
 fi
 
@@ -7254,7 +7283,7 @@ dnl our own linker.
 if test "$OS_TARGET" = Android; then
     WRAP_LDFLAGS="${WRAP_LDFLAGS} -L$_objdir/dist/lib -lmozutils"
     if test "$MOZ_WIDGET_TOOLKIT" = android; then
-        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=dlopen,--wrap=dlclose,--wrap=dlerror,--wrap=dlsym,--wrap=dladdr,--wrap=getaddrinfo,--wrap=freeaddrinfo,--wrap=gai_strerror"
+        WRAP_LDFLAGS="${WRAP_LDFLAGS} -Wl,--wrap=dlopen,--wrap=dlclose,--wrap=dlerror,--wrap=dlsym,--wrap=dladdr"
     fi
 fi
 
@@ -7294,6 +7323,17 @@ MOZ_ARG_ENABLE_BOOL(trace-jscalls,
     MOZ_TRACE_JSCALLS= )
 if test -n "$MOZ_TRACE_JSCALLS"; then
     AC_DEFINE(MOZ_TRACE_JSCALLS)
+fi
+
+dnl ========================================================
+dnl = Use TraceVis
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(tracevis,
+[  --enable-tracevis       Enable TraceVis tracing tool (default=no)],
+    MOZ_TRACEVIS=1,
+    MOZ_TRACEVIS= )
+if test -n "$MOZ_TRACEVIS"; then
+    AC_DEFINE(MOZ_TRACEVIS)
 fi
 
 dnl ========================================================
@@ -7550,18 +7590,6 @@ MOZ_ARG_ENABLE_BOOL(quantify,
     MOZ_QUANTIFY= )
 
 dnl ========================================================
-dnl = Enable Radio Interface for B2G (Gonk usually)
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(b2g-ril,
-[  --enable-b2g-ril      Set compile flags necessary for testing B2G Radio Interface Layer via network sockets ],
-    MOZ_B2G_RIL=1,
-    MOZ_B2G_RIL= )
-if test -n "$MOZ_B2G_RIL"; then
-   AC_DEFINE(MOZ_B2G_RIL)
-fi
-AC_SUBST(MOZ_B2G_RIL)
-
-dnl ========================================================
 dnl = Support for demangling undefined symbols
 dnl ========================================================
 if test -z "$SKIP_LIBRARY_CHECKS"; then
@@ -7723,12 +7751,35 @@ MOZ_ARG_HEADER(Compiler Options)
 dnl ========================================================
 dnl Check for gcc -pipe support
 dnl ========================================================
-AC_MSG_CHECKING([for -pipe support])
-if test -n "$GNU_CC" -a -n "$GNU_CXX"; then
-    dnl Any gcc that supports firefox supports -pipe.
-    CFLAGS="$CFLAGS -pipe"
-    CXXFLAGS="$CXXFLAGS -pipe"
-    AC_MSG_RESULT([yes])
+AC_MSG_CHECKING([for gcc -pipe support])
+if test -n "$GNU_CC" -a -n "$GNU_CXX" -a -n "$GNU_AS"; then
+    echo '#include <stdio.h>' > dummy-hello.c
+    echo 'int main() { printf("Hello World\n"); exit(0); }' >> dummy-hello.c
+    ${CC} -S dummy-hello.c -o dummy-hello.s 2>&5
+    cat dummy-hello.s 2> /dev/null | ${AS_BIN} -o dummy-hello.S - 2>&5
+    if test $? = 0; then
+        _res_as_stdin="yes"
+    else
+        _res_as_stdin="no"
+    fi
+    if test "$_res_as_stdin" = "yes"; then
+        _SAVE_CFLAGS=$CFLAGS
+        CFLAGS="$CFLAGS -pipe"
+        AC_TRY_COMPILE( [ #include <stdio.h> ],
+            [printf("Hello World\n");],
+            [_res_gcc_pipe="yes"],
+            [_res_gcc_pipe="no"] )
+        CFLAGS=$_SAVE_CFLAGS
+    fi
+    if test "$_res_as_stdin" = "yes" -a "$_res_gcc_pipe" = "yes"; then
+        _res="yes";
+        CFLAGS="$CFLAGS -pipe"
+        CXXFLAGS="$CXXFLAGS -pipe"
+    else
+        _res="no"
+    fi
+    rm -f dummy-hello.c dummy-hello.s dummy-hello.S dummy-hello a.out
+    AC_MSG_RESULT([$_res])
 else
     AC_MSG_RESULT([no])
 fi
@@ -8018,21 +8069,6 @@ AC_SUBST(GLIB_LIBS)
 AC_SUBST(GLIB_GMODULE_LIBS)
 
 dnl ========================================================
-dnl Graphics checks.
-dnl ========================================================
-
-if test "${OS_ARCH}" = "Darwin" -o "${OS_TARGET}" = "Android"; then
-MOZ_ENABLE_SKIA=1
-else
-MOZ_ENABLE_SKIA=
-fi
-
-MOZ_ARG_ENABLE_BOOL(skia,
-[  --enable-skia   Enable use of Skia],
-MOZ_ENABLE_SKIA=1,
-MOZ_ENABLE_SKIA=)
-
-dnl ========================================================
 dnl Check for cairo
 dnl ========================================================
 MOZ_CAIRO_CFLAGS='-I$(LIBXUL_DIST)/include/cairo'
@@ -8192,18 +8228,6 @@ MOZ_HARFBUZZ_LIBS='$(DEPTH)/gfx/harfbuzz/src/$(LIB_PREFIX)mozharfbuzz.$(LIB_SUFF
 AC_SUBST(MOZ_HARFBUZZ_LIBS)
 
 dnl ========================================================
-dnl SIL Graphite
-dnl ========================================================
-if test "$MOZ_GRAPHITE"; then
-  MOZ_GRAPHITE_LIBS='$(DEPTH)/gfx/graphite2/src/$(LIB_PREFIX)mozgraphite2.$(LIB_SUFFIX)'
-  AC_DEFINE(MOZ_GRAPHITE)
-else
-  MOZ_GRAPHITE_LIBS=
-fi
-AC_SUBST(MOZ_GRAPHITE)
-AC_SUBST(MOZ_GRAPHITE_LIBS)
-
-dnl ========================================================
 dnl OTS
 dnl ========================================================
 MOZ_OTS_LIBS='$(DEPTH)/gfx/ots/src/$(LIB_PREFIX)mozots.$(LIB_SUFFIX)'
@@ -8212,13 +8236,7 @@ AC_SUBST(MOZ_OTS_LIBS)
 dnl ========================================================
 dnl Skia 
 dnl ========================================================
-if test "$MOZ_ENABLE_SKIA"; then
-  MOZ_SKIA_LIBS='$(DEPTH)/gfx/skia/$(LIB_PREFIX)skia.$(LIB_SUFFIX)'
-  AC_DEFINE(MOZ_ENABLE_SKIA)
-else
-  MOZ_SKIA_LIBS=
-fi
-AC_SUBST(MOZ_ENABLE_SKIA)
+MOZ_SKIA_LIBS='$(DEPTH)/gfx/skia/$(LIB_PREFIX)skia.$(LIB_SUFFIX)'
 AC_SUBST(MOZ_SKIA_LIBS)
 
 dnl ========================================================
@@ -8470,26 +8488,6 @@ AC_SUBST(MOZ_OS2_TOOLS)
 
 AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
-
-dnl ========================================================
-dnl = Mac bundle name prefix
-dnl ========================================================
-MOZ_ARG_WITH_STRING(macbundlename-prefix,
-[  --with-macbundlename-prefix=prefix
-                          Prefix for MOZ_MACBUNDLE_NAME],
-[ MOZ_MACBUNDLE_NAME_PREFIX="$withval"])
-
-MOZ_MACBUNDLE_NAME=`echo $MOZ_APP_DISPLAYNAME | tr -d ' '`
-if test "$MOZ_MACBUNDLE_NAME_PREFIX"; then
-  MOZ_MACBUNDLE_NAME="${MOZ_MACBUNDLE_NAME_PREFIX}${MOZ_MACBUNDLE_NAME}"
-fi
-
-if test "$MOZ_DEBUG"; then
-  MOZ_MACBUNDLE_NAME=${MOZ_MACBUNDLE_NAME}Debug.app
-else
-  MOZ_MACBUNDLE_NAME=${MOZ_MACBUNDLE_NAME}.app
-fi
-AC_SUBST(MOZ_MACBUNDLE_NAME)
 
 # The following variables are available to branding and application
 # configuration ($BRANDING/configure.sh and $APPLICATION/confvars.sh):
@@ -8819,6 +8817,7 @@ HAVE_CPP_2BYTE_WCHAR_T
 HAVE_CPP_AMBIGUITY_RESOLVING_USING
 HAVE_CPP_CHAR16_T
 HAVE_CPP_DYNAMIC_CAST_TO_VOID_PTR
+HAVE_CPP_MODERN_SPECIALIZE_TEMPLATE_SYNTAX
 HAVE_CPP_PARTIAL_SPECIALIZATION
 HAVE_CPP_TROUBLE_COMPARING_TO_ZERO
 HAVE_STATVFS

@@ -137,7 +137,7 @@ SmsManager::DispatchTrustedSmsEventToSelf(const nsAString& aEventName, nsIDOMMoz
                                                           false, aMessage);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTrusted(true);
+  rv = event->SetTrusted(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;

@@ -2,21 +2,28 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+// Reference to the Scratchpad chrome window object.
+let gScratchpadWindow;
+
 function test()
 {
   waitForExplicitFinish();
 
   gBrowser.selectedTab = gBrowser.addTab();
-  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
-    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
-    openScratchpad(testFalsy);
+  gBrowser.selectedBrowser.addEventListener("load", function() {
+    gBrowser.selectedBrowser.removeEventListener("load", arguments.callee, true);
+
+    gScratchpadWindow = Scratchpad.openScratchpad();
+    gScratchpadWindow.addEventListener("load", testFalsy, false);
   }, true);
 
   content.location = "data:text/html,<p>test falsy display() values in Scratchpad";
 }
 
-function testFalsy()
+function testFalsy(sp)
 {
+  gScratchpadWindow.removeEventListener("load", testFalsy, false);
+
   let sp = gScratchpadWindow.Scratchpad;
   verifyFalsies(sp);
   

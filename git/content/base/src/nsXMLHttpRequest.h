@@ -100,6 +100,7 @@ public:
     mOwner = aOwner;
     mScriptContext = aScriptContext;
   }
+  virtual ~nsXMLHttpRequestUpload();
   NS_DECL_ISUPPORTS_INHERITED
   NS_FORWARD_NSIXMLHTTPREQUESTEVENTTARGET(nsXHREventTarget::)
   NS_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget::)
@@ -216,6 +217,7 @@ protected:
                 PRUint32 count,
                 PRUint32 *writeCount);
   nsresult CreateResponseParsedJSON(JSContext* aCx);
+  nsresult CreateResponseArrayBuffer(JSContext* aCx);
   bool CreateResponseBlob(nsIRequest *request);
   // Change the state of the object with this. The broadcast argument
   // determines if the onreadystatechange listener should be called.

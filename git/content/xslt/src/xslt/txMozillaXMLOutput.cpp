@@ -338,11 +338,9 @@ txMozillaXMLOutput::endElement()
         } else if (ns == kNameSpaceID_XHTML &&
                    (localName == nsGkAtoms::input ||
                     localName == nsGkAtoms::button ||
-                    localName == nsGkAtoms::menuitem ||
-                    localName == nsGkAtoms::audio ||
-                    localName == nsGkAtoms::video )) {
+                    localName == nsGkAtoms::menuitem)) {
           element->DoneCreatingElement();
-        }   
+        }
     }
 
     if (mCreatingNewDocument) {

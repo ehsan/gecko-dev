@@ -38,7 +38,6 @@
 
 #include "nsAccessibleWrap.h"
 
-#include "Compatibility.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 #include "nsWinUtils.h"
@@ -130,7 +129,7 @@ __try {
       *ppv = static_cast<IEnumVARIANT*>(this);
   } else if (IID_IServiceProvider == iid)
     *ppv = static_cast<IServiceProvider*>(this);
-  else if (IID_IAccessible2 == iid && !Compatibility::IsIA2Off())
+  else if (IID_IAccessible2 == iid && !gIsIA2Disabled)
     *ppv = static_cast<IAccessible2*>(this);
 
   if (NULL == *ppv) {
@@ -313,25 +312,22 @@ STDMETHODIMP nsAccessibleWrap::get_accValue(
 {
 __try {
   *pszValue = NULL;
+  nsAccessible *xpAccessible = GetXPAccessibleFor(varChild);
+  if (xpAccessible) {
+    nsAutoString value;
+    if (NS_FAILED(xpAccessible->GetValue(value)))
+      return E_FAIL;
 
-  nsAccessible* xpAccessible = GetXPAccessibleFor(varChild);
-  if (!xpAccessible || xpAccessible->IsDefunct())
-    return E_FAIL;
+    // see bug 438784: Need to expose URL on doc's value attribute.
+    // For this, reverting part of fix for bug 425693 to make this MSAA method 
+    // behave IAccessible2-style.
+    if (value.IsEmpty())
+      return S_FALSE;
 
-  nsAutoString value;
-  if (NS_FAILED(xpAccessible->GetValue(value)))
-    return E_FAIL;
-
-  // See bug 438784: need to expose URL on doc's value attribute. For this,
-  // reverting part of fix for bug 425693 to make this MSAA method behave
-  // IAccessible2-style.
-  if (value.IsEmpty())
-    return S_FALSE;
-
-  *pszValue = ::SysAllocStringLen(value.get(), value.Length());
-  if (!*pszValue)
-    return E_OUTOFMEMORY;
-
+    *pszValue = ::SysAllocStringLen(value.get(), value.Length());
+    if (!*pszValue)
+      return E_OUTOFMEMORY;
+  }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_OK;
 }
@@ -1593,13 +1589,11 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
   NotifyWinEvent(winEvent, hWnd, OBJID_CLIENT, childID);
 
   // JAWS announces collapsed combobox navigation based on focus events.
-  if (Compatibility::IsJAWS()) {
-    if (eventType == nsIAccessibleEvent::EVENT_SELECTION &&
-      accessible->Role() == nsIAccessibleRole::ROLE_COMBOBOX_OPTION) {
-      NotifyWinEvent(EVENT_OBJECT_FOCUS, hWnd, OBJID_CLIENT, childID);
-    }
+  if (eventType == nsIAccessibleEvent::EVENT_SELECTION &&
+      accessible->Role() == nsIAccessibleRole::ROLE_COMBOBOX_OPTION &&
+      nsWinUtils::IsWindowEmulationFor(kJAWSModuleHandle)) {
+    NotifyWinEvent(EVENT_OBJECT_FOCUS, hWnd, OBJID_CLIENT, childID);
   }
-
   return NS_OK;
 }
 

@@ -54,7 +54,6 @@ const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_MAXRESULTS = "extensions.getAddons.maxResults";
 const PREF_CHECK_COMPATIBILITY_BASE = "extensions.checkCompatibility";
 const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
-const PREF_UPDATE_ENABLED = "extensions.update.enabled";
 const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
 const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
 const PREF_GETADDONS_CACHE_ID_ENABLED = "extensions.%ID%.getAddons.cache.enabled";
@@ -348,7 +347,6 @@ var gEventManager = {
 
     Services.prefs.addObserver(PREF_CHECK_COMPATIBILITY, this, false);
     Services.prefs.addObserver(PREF_CHECK_UPDATE_SECURITY, this, false);
-    Services.prefs.addObserver(PREF_UPDATE_ENABLED, this, false);
     Services.prefs.addObserver(PREF_AUTOUPDATE_DEFAULT, this, false);
 
     this.refreshGlobalWarning();
@@ -482,34 +480,27 @@ var gEventManager = {
       page.setAttribute("warning", "checkcompatibility");
       return;
     }
-
+    
     page.removeAttribute("warning");
   },
-
+  
   refreshAutoUpdateDefault: function() {
-    var updateEnabled = true;
-    var autoUpdateDefault = true;
+    var defaultEnable = true;
     try {
-      updateEnabled = Services.prefs.getBoolPref(PREF_UPDATE_ENABLED);
-      autoUpdateDefault = Services.prefs.getBoolPref(PREF_AUTOUPDATE_DEFAULT);
+      defaultEnable = Services.prefs.getBoolPref(PREF_AUTOUPDATE_DEFAULT);
     } catch(e) { }
-
-    // The checkbox needs to reflect that both prefs need to be true
-    // for updates to be checked for and applied automatically
-    document.getElementById("utils-autoUpdateDefault")
-            .setAttribute("checked", updateEnabled && autoUpdateDefault);
-
-    document.getElementById("utils-resetAddonUpdatesToAutomatic").hidden = !autoUpdateDefault;
-    document.getElementById("utils-resetAddonUpdatesToManual").hidden = autoUpdateDefault;
+    document.getElementById("utils-autoUpdateDefault").setAttribute("checked",
+                                                                    defaultEnable);
+    document.getElementById("utils-resetAddonUpdatesToAutomatic").hidden = !defaultEnable;
+    document.getElementById("utils-resetAddonUpdatesToManual").hidden = defaultEnable;
   },
-
+  
   observe: function(aSubject, aTopic, aData) {
     switch (aData) {
     case PREF_CHECK_COMPATIBILITY:
     case PREF_CHECK_UPDATE_SECURITY:
       this.refreshGlobalWarning();
       break;
-    case PREF_UPDATE_ENABLED:
     case PREF_AUTOUPDATE_DEFAULT:
       this.refreshAutoUpdateDefault();
       break;
@@ -762,24 +753,11 @@ var gViewController = {
     cmd_toggleAutoUpdateDefault: {
       isEnabled: function() true,
       doCommand: function() {
-        var updateEnabled = true;
-        var autoUpdateDefault = true;
+        var oldValue = true;
         try {
-          updateEnabled = Services.prefs.getBoolPref(PREF_UPDATE_ENABLED);
-          autoUpdateDefault = Services.prefs.getBoolPref(PREF_AUTOUPDATE_DEFAULT);
+          oldValue = Services.prefs.getBoolPref(PREF_AUTOUPDATE_DEFAULT);
         } catch(e) { }
-
-        if (!updateEnabled || !autoUpdateDefault) {
-          // One or both of the prefs is false, i.e. the checkbox is not checked.
-          // Now toggle both to true. If the user wants us to auto-update
-          // add-ons, we also need to auto-check for updates.
-          Services.prefs.setBoolPref(PREF_UPDATE_ENABLED, true);
-          Services.prefs.setBoolPref(PREF_AUTOUPDATE_DEFAULT, true);
-        } else {
-          // Both prefs are true, i.e. the checkbox is checked.
-          // Toggle the auto pref to false, but don't touch the enabled check.
-          Services.prefs.setBoolPref(PREF_AUTOUPDATE_DEFAULT, false);
-        }
+        Services.prefs.setBoolPref(PREF_AUTOUPDATE_DEFAULT, !oldValue);
       }
     },
 
@@ -1747,16 +1725,6 @@ var gHeader = {
     updateNavButtonVisibility();
   },
 
-  focusSearchBox: function() {
-    this._search.focus();
-  },
-
-  onKeyPress: function(aEvent) {
-    if (String.fromCharCode(aEvent.charCode) == "/") {
-      this.focusSearchBox();
-    }
-  },
-
   get shouldShowNavButtons() {
     var docshellItem = window.QueryInterface(Ci.nsIInterfaceRequestor)
                              .getInterface(Ci.nsIWebNavigation)
@@ -2013,8 +1981,7 @@ var gDiscoverView = {
     // If there was an error loading the page or the new hostname is not the
     // same as the default hostname or the default scheme is secure and the new
     // scheme is insecure then show the error page
-    const NS_ERROR_PARSED_DATA_CACHED = 0x805D0021;
-    if (!(Components.isSuccessCode(aStatus) || aStatus == NS_ERROR_PARSED_DATA_CACHED) ||
+    if (!Components.isSuccessCode(aStatus) ||
         (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded)) {
       this.showError();
     } else {
@@ -2892,13 +2859,13 @@ var gDetailView = {
 
     var xhr = new XMLHttpRequest();
     xhr.open("GET", this._addon.optionsURL, false);
+    xhr.responseType = "document";
     xhr.send();
 
     var xml = xhr.responseXML;
     var settings = xml.querySelectorAll(":root > setting");
 
-    var firstSetting = null;
-    for (var i = 0; i < settings.length; i++) {
+    for (var i = 0, first = true; i < settings.length; i++) {
       var setting = settings[i];
 
       // Remove setting description, for replacement later
@@ -2914,9 +2881,9 @@ var gDetailView = {
 
       rows.appendChild(setting);
       var visible = window.getComputedStyle(setting, null).getPropertyValue("display") != "none";
-      if (!firstSetting && visible) {
+      if (first && visible) {
         setting.setAttribute("first-row", true);
-        firstSetting = setting;
+        first = false;
       }
 
       // Add a new row containing the description
@@ -2933,20 +2900,7 @@ var gDetailView = {
       }
     }
 
-	// Ensure the page has loaded and force the XBL bindings to be synchronously applied,
-	// then notify observers.
-    if (gViewController.viewPort.selectedPanel.hasAttribute("loading")) {
-      gDetailView.node.addEventListener("ViewChanged", function viewChangedEventListener() {
-        gDetailView.node.removeEventListener("ViewChanged", viewChangedEventListener, false);
-        if (firstSetting)
-          firstSetting.clientTop;
-        Services.obs.notifyObservers(document, "addon-options-displayed", gDetailView._addon.id);
-      }, false);
-    } else {
-      if (firstSetting)
-        firstSetting.clientTop;
-      Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
-    }
+    Services.obs.notifyObservers(document, "addon-options-displayed", this._addon.id);
   },
 
   getSelectedAddon: function() {

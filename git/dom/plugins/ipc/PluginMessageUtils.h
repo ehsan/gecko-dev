@@ -110,7 +110,6 @@ typedef nsCString Buffer;
 
 struct NPRemoteWindow
 {
-  NPRemoteWindow();
   uint64_t window;
   int32_t x;
   int32_t y;

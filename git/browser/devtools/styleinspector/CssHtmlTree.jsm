@@ -214,10 +214,7 @@ CssHtmlTree.processTemplate = function CssHtmlTree_processTemplate(aTemplate,
   // All the templater does is to populate a given DOM tree with the given
   // values, so we need to clone the template first.
   let duplicated = aTemplate.cloneNode(true);
-
-  // See https://github.com/mozilla/domtemplate/blob/master/README.md
-  // for docs on the template() function
-  template(duplicated, aData, { allowEval: true });
+  new Templater().processNode(duplicated, aData);
   while (duplicated.firstChild) {
     aDestination.appendChild(duplicated.firstChild);
   }
@@ -467,11 +464,6 @@ CssHtmlTree.prototype = {
     this.onlyUserStylesCheckbox.removeEventListener("command",
       this.onlyUserStylesChanged);
     this.searchField.removeEventListener("command", this.filterChanged);
-
-    // Cancel tree construction
-    if (this._refreshProcess) {
-      this._refreshProcess.cancel();
-    }
 
     // Nodes used in templating
     delete this.root;

@@ -155,7 +155,7 @@ nsScriptError::InitWithWindowID(const PRUnichar *message,
     mColumnNumber = columnNumber;
     mFlags = flags;
     mCategory.Assign(category);
-    mTimeStamp = JS_Now() / 1000;
+    mTimeStamp = PR_Now() / 1000;
     mInnerWindowID = aInnerWindowID;
 
     if (aInnerWindowID) {

@@ -47,7 +47,6 @@
 #include "nsICollation.h"
 #include "nsIFile.h"
 #include "nsIObserver.h"
-#include "nsTArray.h"
 #include "mozilla/Mutex.h"
 
 #include "mozIStorageService.h"
@@ -59,7 +58,6 @@ struct sqlite3_vfs;
 namespace mozilla {
 namespace storage {
 
-class Connection;
 class Service : public mozIStorageService
               , public nsIObserver
               , public mozIStorageServiceQuotaManagement
@@ -105,39 +103,6 @@ public:
    */
   static PRInt32 getSynchronousPref();
 
-  /**
-   * Registers the connection with the storage service.  Connections are
-   * registered so they can be iterated over.
-   *
-   * @pre mRegistrationMutex is not held
-   *
-   * @param  aConnection
-   *         The connection to register.
-   */
-  void registerConnection(Connection *aConnection);
-
-  /**
-   * Unregisters the connection with the storage service.
-   *
-   * @pre mRegistrationMutex is not held
-   *
-   * @param  aConnection
-   *         The connection to unregister.
-   */
-  void unregisterConnection(Connection *aConnection);
-
-  /**
-   * Gets the list of open connections.
-   *
-   * @pre mRegistrationMutex is not held
-   *
-   * @param  aConnections
-   *         An inout param;  it is cleared and the connections are appended to
-   *         it.
-   * @return The open connections.
-   */
-  void getConnections(nsTArray<nsRefPtr<Connection> >& aConnections);
-
 private:
   Service();
   virtual ~Service();
@@ -150,17 +115,6 @@ private:
   Mutex mMutex;
   
   sqlite3_vfs *mSqliteVFS;
-
-  /**
-   * Protects mConnections.
-   */
-  Mutex mRegistrationMutex;
-
-  /**
-   * The list of connections we have created.  Modifications to it are
-   * protected by |mRegistrationMutex|.
-   */
-  nsTArray<nsRefPtr<Connection> > mConnections;
 
   /**
    * Shuts down the storage service, freeing all of the acquired resources.

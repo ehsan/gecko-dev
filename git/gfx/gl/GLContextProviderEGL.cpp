@@ -215,18 +215,6 @@ static EGLConfig
 CreateEGLSurfaceForXSurface(gfxASurface* aSurface, EGLConfig* aConfig = nsnull, EGLenum aDepth = 0);
 #endif
 
-static EGLint gContextAttribs[] = {
-    LOCAL_EGL_CONTEXT_CLIENT_VERSION, 2,
-    LOCAL_EGL_NONE
-};
-
-static EGLint gContextAttribsRobustness[] = {
-    LOCAL_EGL_CONTEXT_CLIENT_VERSION, 2,
-    //LOCAL_EGL_CONTEXT_ROBUST_ACCESS_EXT, LOCAL_EGL_TRUE,
-    LOCAL_EGL_CONTEXT_RESET_NOTIFICATION_STRATEGY_EXT, LOCAL_EGL_LOSE_CONTEXT_ON_RESET_EXT,
-    LOCAL_EGL_NONE
-};
-
 static int
 next_power_of_two(int v)
 {
@@ -257,8 +245,7 @@ static class EGLLibrary
 public:
     EGLLibrary() 
         : mInitialized(false),
-          mEGLLibrary(nsnull),
-          mHasRobustness(false)
+          mEGLLibrary(nsnull)
     {
         mIsANGLE = false;
         mHave_EGL_KHR_image_base = false;
@@ -442,7 +429,7 @@ public:
             return false;
 
         const char *vendor = (const char*) fQueryString(mEGLDisplay, LOCAL_EGL_VENDOR);
-        if (vendor && (strstr(vendor, "TransGaming") != 0 || strstr(vendor, "Google Inc.") != 0)) {
+        if (vendor && strstr(vendor, "TransGaming") != 0) {
             mIsANGLE = true;
         }
         
@@ -531,10 +518,6 @@ public:
             }
         }
 
-        if (strstr(extensions, "EGL_EXT_create_context_robustness")) {
-            mHasRobustness = true;
-        }
-
         mInitialized = true;
         reporter.SetSuccessful();
         return true;
@@ -566,10 +549,6 @@ public:
 
     bool HasANGLESurfaceD3DTexture2DShareHandle() {
         return mHave_EGL_ANGLE_surface_d3d_texture_2d_share_handle;
-    }
-
-    bool HasRobustness() {
-        return mHasRobustness;
     }
 
     void
@@ -646,7 +625,6 @@ private:
     EGLDisplay mEGLDisplay;
 
     bool mIsANGLE;
-    bool mHasRobustness;
 
     bool mHave_EGL_KHR_image_base;
     bool mHave_EGL_KHR_image_pixmap;
@@ -667,20 +645,22 @@ class GLContextEGL : public GLContext
                     bool aIsOffscreen = false)
     {
         EGLContext context;
+        static EGLint cxattribs[] = {
+            LOCAL_EGL_CONTEXT_CLIENT_VERSION, 2,
+            LOCAL_EGL_NONE
+        };
 
         context = sEGLLibrary.fCreateContext(EGL_DISPLAY(),
                                              config,
                                              shareContext ? shareContext->mContext : EGL_NO_CONTEXT,
-                                             sEGLLibrary.HasRobustness() ? gContextAttribsRobustness
-                                                                         : gContextAttribs);
+                                             cxattribs);
         if (!context) {
             if (shareContext) {
                 shareContext = nsnull;
                 context = sEGLLibrary.fCreateContext(EGL_DISPLAY(),
                                                      config,
                                                      EGL_NO_CONTEXT,
-                                                     sEGLLibrary.HasRobustness() ? gContextAttribsRobustness
-                                                                                 : gContextAttribs);
+                                                     cxattribs);
                 if (!context) {
                     NS_WARNING("Failed to create EGLContext!");
                     return nsnull;
@@ -773,7 +753,6 @@ public:
                 mIsDoubleBuffered = true;
         }
 #endif
-
         return ok;
     }
 
@@ -787,12 +766,7 @@ public:
 
     bool SupportsRobustness()
     {
-        return sEGLLibrary.HasRobustness();
-    }
-
-    virtual bool IsANGLE()
-    {
-        return sEGLLibrary.IsANGLE();
+        return false;
     }
 
 #if defined(MOZ_X11) && defined(MOZ_EGL_XRENDER_COMPOSITE)
@@ -860,10 +834,6 @@ public:
             succeeded = sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
                                                  mSurface, mSurface,
                                                  mContext);
-            if (!succeeded && sEGLLibrary.fGetError() == LOCAL_EGL_CONTEXT_LOST) {
-                mContextLost = true;
-                NS_WARNING("EGL context has been lost.");
-            }
             NS_ASSERTION(succeeded, "Failed to make GL context current!");
         }
 
@@ -2130,12 +2100,16 @@ TRY_ATTRIBS_AGAIN:
 
     sEGLLibrary.fBindAPI(LOCAL_EGL_OPENGL_ES_API);
 
+    EGLint cxattrs[] = {
+        LOCAL_EGL_CONTEXT_CLIENT_VERSION, 2,
+        LOCAL_EGL_NONE
+    };
+
     context = sEGLLibrary.fCreateContext(EGL_DISPLAY(),
                                          config,
                                          EGL_NO_CONTEXT,
-                                         sEGLLibrary.HasRobustness() ? gContextAttribsRobustness
-                                                                     : gContextAttribs);
-    if (!context) { 
+                                         cxattrs);
+    if (!context) {
         NS_WARNING("Failed to create context");
         sEGLLibrary.fDestroySurface(EGL_DISPLAY(), surface);
         return nsnull;
@@ -2518,11 +2492,15 @@ GLContextEGL::CreateBasicEGLPixmapOffscreenContext(const gfxIntSize& aSize,
     return nsnull;
   }
 
+  EGLint cxattribs[] = {
+    LOCAL_EGL_CONTEXT_CLIENT_VERSION, 2,
+    LOCAL_EGL_NONE
+  };
+
   EGLContext context = sEGLLibrary.fCreateContext(EGL_DISPLAY(),
                                                   config,
                                                   EGL_NO_CONTEXT,
-                                                  sEGLLibrary.HasRobustness() ? gContextAttribsRobustness
-                                                                              : gContextAttribs);
+                                                  cxattribs);
   if (!context) {
     sEGLLibrary.fDestroySurface(EGL_DISPLAY(), surface);
     return nsnull;

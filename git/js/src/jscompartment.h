@@ -46,7 +46,6 @@
 #include "jsgc.h"
 #include "jsgcstats.h"
 #include "jsobj.h"
-#include "jsscope.h"
 #include "vm/GlobalObject.h"
 
 #ifdef _MSC_VER
@@ -85,7 +84,7 @@ class NativeIterCache {
     /* Cached native iterators. */
     JSObject            *data[SIZE];
 
-    static size_t getIndex(uint32_t key) {
+    static size_t getIndex(uint32 key) {
         return size_t(key) % SIZE;
     }
 
@@ -103,11 +102,11 @@ class NativeIterCache {
         last = NULL;
     }
 
-    JSObject *get(uint32_t key) const {
+    JSObject *get(uint32 key) const {
         return data[getIndex(key)];
     }
 
-    void set(uint32_t key, JSObject *iterobj) {
+    void set(uint32 key, JSObject *iterobj) {
         data[getIndex(key)] = iterobj;
     }
 };
@@ -182,8 +181,8 @@ struct JS_FRIEND_API(JSCompartment) {
         return createBarrierTracer();
     }
 
-    uint32_t                     gcBytes;
-    uint32_t                     gcTriggerBytes;
+    uint32                       gcBytes;
+    uint32                       gcTriggerBytes;
     size_t                       gcLastBytes;
 
     bool                         hold;
@@ -233,7 +232,7 @@ struct JS_FRIEND_API(JSCompartment) {
 
     bool ensureJaegerCompartmentExists(JSContext *cx);
 
-    void sizeOfCode(size_t *method, size_t *regexp, size_t *unused) const;
+    void getMjitCodeStats(size_t& method, size_t& regexp, size_t& unused) const;
 #endif
 
     /*
@@ -249,28 +248,37 @@ struct JS_FRIEND_API(JSCompartment) {
     jsrefcount                   liveDictModeNodes;
 #endif
 
-    /* Set of all unowned base shapes in the compartment. */
-    js::BaseShapeSet             baseShapes;
-    void sweepBaseShapeTable(JSContext *cx);
+    typedef js::ReadBarriered<js::EmptyShape> BarrieredEmptyShape;
+    typedef js::ReadBarriered<const js::Shape> BarrieredShape;
 
-    /* Set of initial shapes in the compartment. */
-    js::InitialShapeSet          initialShapes;
-    void sweepInitialShapeTable(JSContext *cx);
+    /*
+     * Runtime-shared empty scopes for well-known built-in objects that lack
+     * class prototypes (the usual locus of an emptyShape). Mnemonic: ABCDEW
+     */
+    BarrieredEmptyShape          emptyArgumentsShape;
+    BarrieredEmptyShape          emptyBlockShape;
+    BarrieredEmptyShape          emptyCallShape;
+    BarrieredEmptyShape          emptyDeclEnvShape;
+    BarrieredEmptyShape          emptyEnumeratorShape;
+    BarrieredEmptyShape          emptyWithShape;
 
-    /* Set of default 'new' or lazy types in the compartment. */
-    js::types::TypeObjectSet     newTypeObjects;
-    js::types::TypeObjectSet     lazyTypeObjects;
-    void sweepNewTypeObjectTable(JSContext *cx, js::types::TypeObjectSet &table);
+    typedef js::HashSet<js::EmptyShape *,
+                        js::DefaultHasher<js::EmptyShape *>,
+                        js::SystemAllocPolicy> EmptyShapeSet;
 
-    js::types::TypeObject        *emptyTypeObject;
+    EmptyShapeSet                emptyShapes;
 
-    /* Get the default 'new' type for objects with a NULL prototype. */
-    inline js::types::TypeObject *getEmptyType(JSContext *cx);
-
-    js::types::TypeObject *getLazyType(JSContext *cx, JSObject *proto);
-
-    /* Cache to speed up object creation. */
-    js::NewObjectCache           newObjectCache;
+    /*
+     * Initial shapes given to RegExp and String objects, encoding the initial
+     * sets of built-in instance properties and the fixed slots where they must
+     * be stored (see JSObject::JSSLOT_(REGEXP|STRING)_*). Later property
+     * additions may cause these shapes to not be used by a RegExp or String
+     * (even along the entire shape parent chain, should the object go into
+     * dictionary mode). But because all the initial properties are
+     * non-configurable, they will always map to fixed slots.
+     */
+    BarrieredShape               initialRegExpShape;
+    BarrieredShape               initialStringShape;
 
   private:
     enum { DebugFromC = 1, DebugFromJS = 2 };
@@ -308,7 +316,7 @@ struct JS_FRIEND_API(JSCompartment) {
     void purge(JSContext *cx);
 
     void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
-    void reduceGCTriggerBytes(uint32_t amount);
+    void reduceGCTriggerBytes(uint32 amount);
 
     js::DtoaCache dtoaCache;
 
@@ -322,6 +330,9 @@ struct JS_FRIEND_API(JSCompartment) {
      * Each global has its own list of debuggers.
      */
     js::GlobalObjectSet              debuggees;
+
+  public:
+    js::BreakpointSiteMap            breakpointSites;
 
   private:
     JSCompartment *thisForCtor() { return this; }
@@ -358,8 +369,12 @@ struct JS_FRIEND_API(JSCompartment) {
                         js::GlobalObjectSet::Enum *debuggeesEnum = NULL);
     bool setDebugModeFromC(JSContext *cx, bool b);
 
-    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSObject *handler);
-    void clearTraps(JSContext *cx);
+    js::BreakpointSite *getBreakpointSite(jsbytecode *pc);
+    js::BreakpointSite *getOrCreateBreakpointSite(JSContext *cx, JSScript *script, jsbytecode *pc,
+                                                  js::GlobalObject *scriptGlobal);
+    void clearBreakpointsIn(JSContext *cx, js::Debugger *dbg, JSScript *script, JSObject *handler);
+    void clearTraps(JSContext *cx, JSScript *script);
+    bool markTrapClosuresIteratively(JSTracer *trc);
 
   private:
     void sweepBreakpoints(JSContext *cx);

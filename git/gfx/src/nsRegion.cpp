@@ -215,52 +215,27 @@ void RgnRectMemoryAllocator::Free (nsRegion::RgnRect* aRect)
 
 
 // Global pool for nsRegion::RgnRect allocation
-static PRUintn gRectPoolTlsIndex;
-
-void RgnRectMemoryAllocatorDTOR(void *priv)
-{
-  RgnRectMemoryAllocator* allocator = (static_cast<RgnRectMemoryAllocator*>(
-                                       PR_GetThreadPrivate(gRectPoolTlsIndex)));
-  delete allocator;
-}
+static RgnRectMemoryAllocator* gRectPool;
 
 nsresult nsRegion::InitStatic()
 {
-  return PR_NewThreadPrivateIndex(&gRectPoolTlsIndex, RgnRectMemoryAllocatorDTOR);
+  gRectPool = new RgnRectMemoryAllocator(INIT_MEM_CHUNK_ENTRIES);
+  return !gRectPool ? NS_ERROR_OUT_OF_MEMORY : NS_OK;
 }
 
 void nsRegion::ShutdownStatic()
 {
-  RgnRectMemoryAllocator* allocator = (static_cast<RgnRectMemoryAllocator*>(
-                                       PR_GetThreadPrivate(gRectPoolTlsIndex)));
-  if (!allocator)
-    return;
-
-  delete allocator;
-
-  PR_SetThreadPrivate(gRectPoolTlsIndex, nsnull);
+    delete gRectPool;
 }
 
 void* nsRegion::RgnRect::operator new (size_t) CPP_THROW_NEW
 {
-  RgnRectMemoryAllocator* allocator = (static_cast<RgnRectMemoryAllocator*>(
-                                       PR_GetThreadPrivate(gRectPoolTlsIndex)));
-  if (!allocator) {
-    allocator = new RgnRectMemoryAllocator(INIT_MEM_CHUNK_ENTRIES);
-    PR_SetThreadPrivate(gRectPoolTlsIndex, allocator);
-  }
-  return allocator->Alloc ();
+  return gRectPool->Alloc ();
 }
 
 void nsRegion::RgnRect::operator delete (void* aRect, size_t)
 {
-  RgnRectMemoryAllocator* allocator = (static_cast<RgnRectMemoryAllocator*>(
-                                       PR_GetThreadPrivate(gRectPoolTlsIndex)));
-  if (!allocator) {
-    NS_ERROR("Invalid nsRegion::RgnRect delete");
-    return;
-  }
-  allocator->Free (static_cast<RgnRect*>(aRect));
+  gRectPool->Free (static_cast<RgnRect*>(aRect));
 }
 
 

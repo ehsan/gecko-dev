@@ -76,7 +76,7 @@ JS_END_EXTERN_C
 
 struct JSSharpObjectMap {
     jsrefcount  depth;
-    uint32_t    sharpgen;
+    uint32      sharpgen;
     JSHashTable *table;
 };
 
@@ -88,9 +88,6 @@ class JaegerCompartment;
 
 class WeakMapBase;
 class InterpreterFrames;
-
-class ScriptOpcodeCounts;
-struct ScriptOpcodeCountsPair;
 
 /*
  * GetSrcNote cache to avoid O(n^2) growth in finding a source note for a
@@ -128,7 +125,7 @@ struct ThreadData {
      * as possible.  If the thread has an active request, this contributes
      * towards rt->interruptCounter.
      */
-    volatile int32_t    interruptFlags;
+    volatile int32      interruptFlags;
 
 #ifdef JS_THREADSAFE
     /* The request depth for this thread. */
@@ -230,11 +227,6 @@ struct ThreadData {
         propertyCache.purge(cx);
     }
 
-#ifdef JS_THREADSAFE
-    void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, size_t *temporary,
-                             size_t *regexpCode, size_t *stackCommitted);
-#endif
-
     /* This must be called with the GC lock held. */
     void triggerOperationCallback(JSRuntime *rt);
 
@@ -265,7 +257,7 @@ struct JSThread {
     /* Opaque thread-id, from NSPR's PR_GetCurrentThread(). */
     void                *id;
 
-    /* Number of JS_SuspendRequest calls without JS_ResumeRequest. */
+    /* Number of JS_SuspendRequest calls withot JS_ResumeRequest. */
     unsigned            suspendCount;
 
 # ifdef DEBUG
@@ -294,10 +286,6 @@ struct JSThread {
     bool init() {
         return data.init();
     }
-
-    JS_FRIEND_API(void) sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal,
-                                            size_t *temporary, size_t *regexpCode,
-                                            size_t *stackCommitted);
 };
 
 #define JS_THREAD_DATA(cx)      (&(cx)->thread()->data)
@@ -345,8 +333,7 @@ typedef void
 
 namespace js {
 
-typedef Vector<JSCompartment *, 0, SystemAllocPolicy> CompartmentVector;
-typedef Vector<ScriptOpcodeCountsPair, 0, SystemAllocPolicy> ScriptOpcodeCountsVector;
+typedef js::Vector<JSCompartment *, 0, js::SystemAllocPolicy> CompartmentVector;
 
 }
 
@@ -354,6 +341,9 @@ struct JSRuntime
 {
     /* Default compartment. */
     JSCompartment       *atomsCompartment;
+#ifdef JS_THREADSAFE
+    bool                atomsCompartmentIsLocked;
+#endif
 
     /* List of compartments (protected by the GC lock). */
     js::CompartmentVector compartments;
@@ -395,6 +385,20 @@ struct JSRuntime
     JSActivityCallback    activityCallback;
     void                 *activityCallbackArg;
 
+    /*
+     * Shape regenerated whenever a prototype implicated by an "add property"
+     * property cache fill and induced trace guard has a readonly property or a
+     * setter defined on it. This number proxies for the shapes of all objects
+     * along the prototype chain of all objects in the runtime on which such an
+     * add-property result has been cached/traced.
+     *
+     * See bug 492355 for more details.
+     *
+     * This comes early in JSRuntime to minimize the immediate format used by
+     * trace-JITted code that reads it.
+     */
+    uint32              protoHazardShape;
+
     /* Garbage collector state, used by jsgc.c. */
 
     /*
@@ -418,20 +422,20 @@ struct JSRuntime
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
     jsrefcount          gcKeepAtoms;
-    uint32_t            gcBytes;
-    uint32_t            gcTriggerBytes;
+    uint32              gcBytes;
+    uint32              gcTriggerBytes;
     size_t              gcLastBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
-    uint32_t            gcEmptyArenaPoolLifespan;
+    uint32              gcEmptyArenaPoolLifespan;
     /* We access this without the GC lock, however a race will not affect correctness */
-    volatile uint32_t   gcNumFreeArenas;
-    uint32_t            gcNumber;
+    volatile uint32     gcNumFreeArenas;
+    uint32              gcNumber;
     js::GCMarker        *gcIncrementalTracer;
     void                *gcVerifyData;
     bool                gcChunkAllocationSinceLastGC;
-    int64_t             gcNextFullGCTime;
-    int64_t             gcJitReleaseTime;
+    int64               gcNextFullGCTime;
+    int64               gcJitReleaseTime;
     JSGCMode            gcMode;
     volatile jsuword    gcBarrierFailed;
     volatile jsuword    gcIsNeeded;
@@ -441,8 +445,12 @@ struct JSRuntime
     /* The reason that an interrupt-triggered GC should be called. */
     js::gcstats::Reason gcTriggerReason;
 
-    /* Pre-allocated space for the GC mark stack. */
-    uintptr_t           gcMarkStackArray[js::MARK_STACK_LENGTH];
+    /* Pre-allocated space for the GC mark stacks. Pointer type ensures alignment. */
+    void                *gcMarkStackObjs[js::OBJECT_MARK_STACK_SIZE / sizeof(void *)];
+    void                *gcMarkStackRopes[js::ROPES_MARK_STACK_SIZE / sizeof(void *)];
+    void                *gcMarkStackTypes[js::TYPE_MARK_STACK_SIZE / sizeof(void *)];
+    void                *gcMarkStackXMLs[js::XML_MARK_STACK_SIZE / sizeof(void *)];
+    void                *gcMarkStackLarges[js::LARGE_MARK_STACK_SIZE / sizeof(void *)];
 
     /*
      * Compartment that triggered GC. If more than one Compatment need GC,
@@ -468,6 +476,7 @@ struct JSRuntime
     bool                gcPoke;
     bool                gcMarkAndSweep;
     bool                gcRunning;
+    bool                gcRegenShapes;
 
     /*
      * These options control the zealousness of the GC. The fundamental values
@@ -533,9 +542,6 @@ struct JSRuntime
     JSTraceDataOp       gcGrayRootsTraceOp;
     void                *gcGrayRootsData;
 
-    /* Strong references on scripts held for PCCount profiling API. */
-    js::ScriptOpcodeCountsVector *scriptPCCounters;
-
     /* Well-known numbers held for use by this runtime's contexts. */
     js::Value           NaNValue;
     js::Value           negativeInfinityValue;
@@ -551,9 +557,6 @@ struct JSRuntime
 
     /* If true, new compartments are initially in debug mode. */
     bool                debugMode;
-
-    /* If true, new scripts must be created with PC counter information. */
-    bool                profilingScripts;
 
     /* Had an out-of-memory error which did not populate an exception. */
     JSBool              hadOutOfMemory;
@@ -572,7 +575,7 @@ struct JSRuntime
     PRLock              *gcLock;
     PRCondVar           *gcDone;
     PRCondVar           *requestDone;
-    uint32_t            requestCount;
+    uint32              requestCount;
     JSThread            *gcThread;
 
     js::GCHelperThread  gcHelperThread;
@@ -595,7 +598,7 @@ struct JSRuntime
     JSThread::Map       threads;
 #endif /* JS_THREADSAFE */
 
-    uint32_t            debuggerMutations;
+    uint32              debuggerMutations;
 
     /*
      * Security callbacks set on the runtime are used by each context unless
@@ -614,7 +617,7 @@ struct JSRuntime
      * and for each JSObject::remove method call that frees a slot in the given
      * object. See js_NativeGet and js_NativeSet in jsobj.cpp.
      */
-    int32_t             propertyRemovals;
+    int32               propertyRemovals;
 
     /* Script filename table. */
     struct JSHashTable  *scriptFilenameTable;
@@ -639,7 +642,7 @@ struct JSRuntime
 
 #ifdef JS_THREADSAFE
     /* Number of threads with active requests and unhandled interrupts. */
-    volatile int32_t    interruptCounter;
+    volatile int32      interruptCounter;
 #else
     js::ThreadData      threadData;
 
@@ -652,6 +655,21 @@ struct JSRuntime
     void setTrustedPrincipals(JSPrincipals *p) { trustedPrincipals_ = p; }
     JSPrincipals *trustedPrincipals() const { return trustedPrincipals_; }
 
+    /*
+     * Object shape (property cache structural type) identifier generator.
+     *
+     * Type 0 stands for the empty scope, and must not be regenerated due to
+     * uint32 wrap-around. Since js_GenerateShape (in jsinterp.cpp) uses
+     * atomic pre-increment, the initial value for the first typed non-empty
+     * scope will be 1.
+     *
+     * If this counter overflows into SHAPE_OVERFLOW_BIT (in jsinterp.h), the
+     * cache is disabled, to avoid aliasing two different types. It stays
+     * disabled until a triggered GC at some later moment compresses live
+     * types, minimizing rt->shapeGen in the process.
+     */
+    volatile uint32     shapeGen;
+
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
 
@@ -660,24 +678,23 @@ struct JSRuntime
 
     JSWrapObjectCallback wrapObjectCallback;
     JSPreWrapCallback    preWrapObjectCallback;
-    js::PreserveWrapperCallback preserveWrapperCallback;
 
     /*
      * To ensure that cx->malloc does not cause a GC, we set this flag during
      * OOM reporting (in js_ReportOutOfMemory). If a GC is requested while
      * reporting the OOM, we ignore it.
      */
-    int32_t             inOOMReport;
+    int32               inOOMReport;
 
     JSRuntime();
     ~JSRuntime();
 
-    bool init(uint32_t maxbytes);
+    bool init(uint32 maxbytes);
 
     JSRuntime *thisFromCtor() { return this; }
 
     void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
-    void reduceGCTriggerBytes(uint32_t amount);
+    void reduceGCTriggerBytes(uint32 amount);
 
     /*
      * Call the system malloc while checking for GC memory pressure and
@@ -798,15 +815,15 @@ class AutoGCRooter;
 struct AutoResolving;
 
 static inline bool
-OptionsHasXML(uint32_t options)
+OptionsHasXML(uint32 options)
 {
     return !!(options & JSOPTION_XML);
 }
 
 static inline bool
-OptionsSameVersionFlags(uint32_t self, uint32_t other)
+OptionsSameVersionFlags(uint32 self, uint32 other)
 {
-    static const uint32_t mask = JSOPTION_XML;
+    static const uint32 mask = JSOPTION_XML;
     return !((self & mask) ^ (other & mask));
 }
 
@@ -827,7 +844,7 @@ static const uintN FULL_MASK    = 0x3FFF;
 static inline JSVersion
 VersionNumber(JSVersion version)
 {
-    return JSVersion(uint32_t(version) & VersionFlags::MASK);
+    return JSVersion(uint32(version) & VersionFlags::MASK);
 }
 
 static inline bool
@@ -847,15 +864,15 @@ static inline void
 VersionSetXML(JSVersion *version, bool enable)
 {
     if (enable)
-        *version = JSVersion(uint32_t(*version) | VersionFlags::HAS_XML);
+        *version = JSVersion(uint32(*version) | VersionFlags::HAS_XML);
     else
-        *version = JSVersion(uint32_t(*version) & ~VersionFlags::HAS_XML);
+        *version = JSVersion(uint32(*version) & ~VersionFlags::HAS_XML);
 }
 
 static inline JSVersion
 VersionExtractFlags(JSVersion version)
 {
-    return JSVersion(uint32_t(version) & ~VersionFlags::MASK);
+    return JSVersion(uint32(version) & ~VersionFlags::MASK);
 }
 
 static inline void
@@ -920,7 +937,7 @@ struct JSContext
     uintN               runOptions;            /* see jsapi.h for JSOPTION_* */
 
   public:
-    int32_t             reportGranularity;  /* see jsprobes.h */
+    int32               reportGranularity;  /* see jsprobes.h */
 
     /* Locale specific callbacks for string conversion. */
     JSLocaleCallbacks   *localeCallbacks;
@@ -1085,13 +1102,6 @@ struct JSContext
     inline js::LifoAlloc &typeLifoAlloc();
 
 #ifdef JS_THREADSAFE
-    /*
-     * AtomizeInline uses this flag to tell RunLastDitchGC and
-     * js_ReportOutOfMemory that they should temporarily unlock the atoms
-     * compartment.
-     */
-    bool                atomsCompartmentIsLocked;
-
     unsigned            outstandingRequests;/* number of JS_BeginRequest calls
                                                without the corresponding
                                                JS_EndRequest. */
@@ -1111,7 +1121,7 @@ struct JSContext
     uintN               resolveFlags;
 
     /* Random number generator state, used by jsmath.cpp. */
-    int64_t             rngSeed;
+    int64               rngSeed;
 
     /* Location to stash the iteration value between JSOP_MOREITER and JSOP_ITERNEXT. */
     js::Value           iterValue;
@@ -1258,8 +1268,6 @@ struct JSContext
      * Note: !cx->compartment is treated as trusted.
      */
     bool runningWithTrustedPrincipals() const;
-
-    JS_FRIEND_API(size_t) sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
     static inline JSContext *fromLinkField(JSCList *link) {
         JS_ASSERT(link);
@@ -1726,48 +1734,38 @@ class AutoLockAtomsCompartment {
       : cx(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-#ifdef JS_THREADSAFE
-        JS_ASSERT(!cx->atomsCompartmentIsLocked);
         JS_LOCK(cx, &cx->runtime->atomState.lock);
-        cx->atomsCompartmentIsLocked = true;
+#ifdef JS_THREADSAFE
+        cx->runtime->atomsCompartmentIsLocked = true;
 #endif
     }
-
     ~AutoLockAtomsCompartment() {
 #ifdef JS_THREADSAFE
-        JS_ASSERT(cx->atomsCompartmentIsLocked);
-        cx->atomsCompartmentIsLocked = false;
-        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
+        cx->runtime->atomsCompartmentIsLocked = false;
 #endif
+        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
     }
 };
 
-class AutoUnlockAtomsCompartmentWhenLocked {
+class AutoUnlockAtomsCompartment {
     JSContext *cx;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
-    AutoUnlockAtomsCompartmentWhenLocked(JSContext *cx
-                                         JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : cx(NULL)
+    AutoUnlockAtomsCompartment(JSContext *cx
+                                 JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : cx(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
- #ifdef JS_THREADSAFE
-        if (cx->atomsCompartmentIsLocked) {
-            this->cx = cx;
-            cx->atomsCompartmentIsLocked = false;
-            JS_UNLOCK(cx, &cx->runtime->atomState.lock);
-        }
-#endif
-    }
-
-    ~AutoUnlockAtomsCompartmentWhenLocked() {
 #ifdef JS_THREADSAFE
-        if (cx) {
-            JS_ASSERT(!cx->atomsCompartmentIsLocked);
-            JS_LOCK(cx, &cx->runtime->atomState.lock);
-            cx->atomsCompartmentIsLocked = true;
-        }
+        cx->runtime->atomsCompartmentIsLocked = false;
+#endif
+        JS_UNLOCK(cx, &cx->runtime->atomState.lock);
+    }
+    ~AutoUnlockAtomsCompartment() {
+        JS_LOCK(cx, &cx->runtime->atomState.lock);
+#ifdef JS_THREADSAFE
+        cx->runtime->atomsCompartmentIsLocked = true;
 #endif
     }
 };
@@ -2125,6 +2123,29 @@ enum FrameExpandKind {
     FRAME_EXPAND_NONE = 0,
     FRAME_EXPAND_ALL = 1
 };
+
+static JS_INLINE JSBool
+js_IsPropertyCacheDisabled(JSContext *cx)
+{
+    return cx->runtime->shapeGen >= js::SHAPE_OVERFLOW_BIT;
+}
+
+static JS_INLINE uint32
+js_RegenerateShapeForGC(JSRuntime *rt)
+{
+    JS_ASSERT(rt->gcRunning);
+    JS_ASSERT(rt->gcRegenShapes);
+
+    /*
+     * Under the GC, compared with js_GenerateShape, we don't need to use
+     * atomic increments but we still must make sure that after an overflow
+     * the shape stays such.
+     */
+    uint32 shape = rt->shapeGen;
+    shape = (shape + 1) | (shape & js::SHAPE_OVERFLOW_BIT);
+    rt->shapeGen = shape;
+    return shape;
+}
 
 namespace js {
 

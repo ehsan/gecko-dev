@@ -75,7 +75,6 @@
 #include "nsGkAtoms.h"
 #include "nsDebug.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/Element.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -572,8 +571,7 @@ nsPlaintextEditor::GetTextSelectionOffsets(nsISelection *aSelection,
   aSelection->GetFocusNode(getter_AddRefs(endNode));
   aSelection->GetFocusOffset(&endNodeOffset);
 
-  dom::Element *rootElement = GetRoot();
-  nsCOMPtr<nsIDOMNode> rootNode = do_QueryInterface(rootElement);
+  nsIDOMElement* rootNode = GetRoot();
   NS_ENSURE_TRUE(rootNode, NS_ERROR_NULL_POINTER);
 
   PRInt32 startOffset = -1;
@@ -587,7 +585,8 @@ nsPlaintextEditor::GetTextSelectionOffsets(nsISelection *aSelection,
   PRInt32 nodeCount = 0; // only needed for the assertions below
 #endif
   PRUint32 totalLength = 0;
-  iter->Init(rootElement);
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootNode);
+  iter->Init(rootContent);
   for (; !iter->IsDone() && (startOffset == -1 || endOffset == -1); iter->Next()) {
     nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(iter->GetCurrentNode());
     nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(currentNode);
@@ -1021,15 +1020,16 @@ nsPlaintextEditor::GetTextLength(PRInt32 *aCount)
   if (docEmpty)
     return NS_OK;
 
-  dom::Element *rootElement = GetRoot();
-  NS_ENSURE_TRUE(rootElement, NS_ERROR_NULL_POINTER);
+  nsIDOMElement* rootNode = GetRoot();
+  NS_ENSURE_TRUE(rootNode, NS_ERROR_NULL_POINTER);
 
   nsCOMPtr<nsIContentIterator> iter =
     do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRUint32 totalLength = 0;
-  iter->Init(rootElement);
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(rootNode);
+  iter->Init(rootContent);
   for (; !iter->IsDone(); iter->Next()) {
     nsCOMPtr<nsIDOMNode> currentNode = do_QueryInterface(iter->GetCurrentNode());
     nsCOMPtr<nsIDOMCharacterData> textNode = do_QueryInterface(currentNode);
@@ -1104,12 +1104,13 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
 
   // Ought to set a style sheet here ...
   // Probably should keep around an mPlaintextStyleSheet for this purpose.
-  dom::Element *rootElement = GetRoot();
+  nsIDOMElement *rootElement = GetRoot();
   NS_ENSURE_TRUE(rootElement, NS_ERROR_NULL_POINTER);
 
   // Get the current style for this root element:
+  NS_NAMED_LITERAL_STRING(styleName, "style");
   nsAutoString styleValue;
-  nsresult res = rootElement->GetAttr(kNameSpaceID_None, nsGkAtoms::style, styleValue);
+  nsresult res = rootElement->GetAttribute(styleName, styleValue);
   NS_ENSURE_SUCCESS(res, res);
 
   // We'll replace styles for these values:
@@ -1153,7 +1154,7 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   else
     styleValue.AppendLiteral("white-space: pre;");
 
-  return rootElement->SetAttr(kNameSpaceID_None, nsGkAtoms::style, styleValue, true);
+  return rootElement->SetAttribute(styleName, styleValue);
 }
 
 NS_IMETHODIMP 
@@ -1353,7 +1354,7 @@ nsPlaintextEditor::GetAndInitDocEncoder(const nsAString& aFormatType,
   // in which case we set the selection to encompass the root.
   else
   {
-    nsCOMPtr<nsIDOMElement> rootElement = do_QueryInterface(GetRoot());
+    nsIDOMElement *rootElement = GetRoot();
     NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);
     if (!nsTextEditUtils::IsBody(rootElement))
     {
@@ -1683,7 +1684,7 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
   if (NS_SUCCEEDED(mRules->DocumentIsEmpty(&bDocIsEmpty)) && bDocIsEmpty)
   {
     // get root node
-    nsCOMPtr<nsIDOMElement> rootElement = do_QueryInterface(GetRoot());
+    nsIDOMElement *rootElement = GetRoot();
     NS_ENSURE_TRUE(rootElement, NS_ERROR_FAILURE);
 
     // if it's empty don't select entire doc - that would select the bogus node

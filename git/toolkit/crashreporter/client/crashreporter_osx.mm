@@ -588,7 +588,7 @@ static bool RestartApplication()
 
 -(bool)setupPost
 {
-  NSURL* url = [NSURL URLWithString:[NSSTR(gSendURL) stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding]];
+  NSURL* url = [NSURL URLWithString:NSSTR(gSendURL)];
   if (!url) return false;
 
   mPost = [[HTTPMultipartUpload alloc] initWithURL: url];

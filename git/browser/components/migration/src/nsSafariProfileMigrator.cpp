@@ -59,6 +59,7 @@
 #include "nsIRDFService.h"
 #include "nsIServiceManager.h"
 #include "nsIStringBundle.h"
+#include "nsISupportsArray.h"
 #include "nsISupportsPrimitives.h"
 #include "nsSafariProfileMigrator.h"
 #include "nsToolkitCompsCID.h"
@@ -201,7 +202,7 @@ nsSafariProfileMigrator::GetSourceHasMultipleProfiles(bool* aResult)
 }
 
 NS_IMETHODIMP
-nsSafariProfileMigrator::GetSourceProfiles(nsIArray** aResult)
+nsSafariProfileMigrator::GetSourceProfiles(nsISupportsArray** aResult)
 {
   *aResult = nsnull;
   return NS_OK;

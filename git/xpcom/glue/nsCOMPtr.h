@@ -429,6 +429,46 @@ nsCOMPtr_base
   {
     public:
 
+      template <class T>
+      class
+        NS_FINAL_CLASS
+        NS_STACK_CLASS
+      nsDerivedSafe : public T
+          /*
+            No client should ever see or have to type the name of this class.  It is the
+            artifact that makes it a compile-time error to call |AddRef| and |Release|
+            on a |nsCOMPtr|.  DO NOT USE THIS TYPE DIRECTLY IN YOUR CODE.
+
+            See |nsCOMPtr::operator->| and |nsRefPtr::operator->|.
+          */
+        {
+          private:
+            NS_METHOD_(nsrefcnt) AddRef();
+            NS_METHOD_(nsrefcnt) Release();
+            //using T::AddRef;
+            //using T::Release;
+            /*
+             We could use |using| above, except that gcc 4.2 on Mac has a bug
+             which causes |using| be unable to make the function private in
+             templated derived classes (see bug 689397).
+            */
+
+            ~nsDerivedSafe(); // NOT TO BE IMPLEMENTED
+            /* 
+              This dtor is added to make this class compatible with GCC 4.6.
+              If the destructor for T is private, nsDerivedSafe's unimplemented destructor 
+              will be implicitly-declared by the compiler as deleted.
+              Therefore this explicit dtor exists to avoid that deletion. See bug 689301.
+            */
+
+          protected:
+            nsDerivedSafe(); // NOT TO BE IMPLEMENTED
+              /*
+                This ctor exists to avoid compile errors and warnings about nsDerivedSafe using the
+                default ctor but inheriting classes without an empty ctor.  See bug 209667.
+              */
+        };
+
       nsCOMPtr_base( nsISupports* rawPtr = 0 )
           : mRawPtr(rawPtr)
         {
@@ -767,17 +807,15 @@ class nsCOMPtr MOZ_FINAL
           return temp;
         }
 
-      template <typename I>
       void
-      forget( I** rhs NS_OUTPARAM )
+      forget( T** rhs NS_OUTPARAM )
           // Set the target of rhs to the value of mRawPtr and null out mRawPtr.
           // Useful to avoid unnecessary AddRef/Release pairs with "out"
-          // parameters where rhs bay be a T** or an I** where I is a base class
-          // of T.
+          // parameters.
         {
           NS_ASSERTION(rhs, "Null pointer passed to forget!");
-          *rhs = get();
-          mRawPtr = 0;
+          *rhs = 0;
+          swap(*rhs);
         }
 
       T*
@@ -803,11 +841,11 @@ class nsCOMPtr MOZ_FINAL
           return get();
         }
 
-      T*
+      nsCOMPtr_base::nsDerivedSafe<T>*
       operator->() const
         {
           NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
-          return get();
+          return reinterpret_cast<nsCOMPtr_base::nsDerivedSafe<T>*> (get());
         }
 
       nsCOMPtr<T>*
@@ -857,7 +895,7 @@ class nsCOMPtr MOZ_FINAL
     without hassles, through intermediary code that doesn't know the exact type.
   */
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsCOMPtr<nsISupports>
     : private nsCOMPtr_base
   {
@@ -1110,11 +1148,11 @@ class nsCOMPtr<nsISupports>
           return get();
         }
 
-      nsISupports*
+      nsDerivedSafe<nsISupports>*
       operator->() const
         {
           NS_PRECONDITION(mRawPtr != 0, "You can't dereference a NULL nsCOMPtr with operator->().");
-          return get();
+          return reinterpret_cast<nsCOMPtr_base::nsDerivedSafe<nsISupports>*> (get());
         }
 
       nsCOMPtr<nsISupports>*
@@ -1328,7 +1366,7 @@ class nsGetterAddRefs
   };
 
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsGetterAddRefs<nsISupports>
   {
     public:

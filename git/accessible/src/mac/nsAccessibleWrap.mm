@@ -41,44 +41,49 @@
 
 #import "nsRoleMap.h"
 
+#import "mozAccessibleWrapper.h"
 #import "mozAccessible.h"
 #import "mozActionElements.h"
 #import "mozTextAccessible.h"
 
 nsAccessibleWrap::
   nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell) :
-  nsAccessible(aContent, aShell), mNativeObject(nil),
-  mNativeInited(false)
+  nsAccessible(aContent, aShell), mNativeWrapper(nsnull)
 {
 }
 
 nsAccessibleWrap::~nsAccessibleWrap()
 {
+  if (mNativeWrapper) {
+    delete mNativeWrapper;
+    mNativeWrapper = nsnull;
+  }
 }
 
-mozAccessible* 
-nsAccessibleWrap::GetNativeObject()
+bool
+nsAccessibleWrap::Init () 
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-  
-  if (!mNativeInited && !mNativeObject && !IsDefunct() && !AncestorIsFlat())
-    mNativeObject = [[GetNativeType() alloc] initWithAccessible:this];
-  
-  mNativeInited = true;
-  
-  return mNativeObject;
-  
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+  if (!nsAccessible::Init())
+    return false;
+
+  if (!mNativeWrapper && !AncestorIsFlat()) {
+    // Create our native object using the class type specified in GetNativeType().
+    mNativeWrapper = new AccessibleWrapper (this, GetNativeType());
+    if (!mNativeWrapper)
+      return false;
+  }
+
+  return true;
 }
 
 NS_IMETHODIMP
 nsAccessibleWrap::GetNativeInterface (void **aOutInterface) 
 {
-  NS_ENSURE_ARG_POINTER(aOutInterface);
-
-  *aOutInterface = static_cast<void*>(GetNativeObject());
-    
-  return *aOutInterface ? NS_OK : NS_ERROR_FAILURE;
+  if (mNativeWrapper) {
+    *aOutInterface = (void**)mNativeWrapper->getNativeObject();
+    return NS_OK;
+  }
+  return NS_ERROR_FAILURE;
 }
 
 // overridden in subclasses to create the right kind of object. by default we create a generic
@@ -136,16 +141,11 @@ nsAccessibleWrap::GetNativeType ()
 void
 nsAccessibleWrap::Shutdown ()
 {
-  // this ensure we will not try to re-create the native object.
-  mNativeInited = true;
-
-  // we really intend to access the member directly.
-  if (mNativeObject) {
-    [mNativeObject expire];
-    [mNativeObject release];
-    mNativeObject = nil;
+  if (mNativeWrapper) {
+    delete mNativeWrapper;
+    mNativeWrapper = nsnull;
   }
-
+  
   nsAccessible::Shutdown();
 }
 
@@ -201,11 +201,49 @@ nsAccessibleWrap::InvalidateChildren()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  [GetNativeObject() invalidateChildren];
-
+  if (mNativeWrapper) {
+    mozAccessible *object = mNativeWrapper->getNativeObject();
+    [object invalidateChildren];
+  }
   nsAccessible::InvalidateChildren();
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+PRInt32
+nsAccessibleWrap::GetUnignoredChildCount(bool aDeepCount)
+{
+  // if we're flat, we have no children.
+  if (nsAccUtils::MustPrune(this))
+    return 0;
+
+  PRInt32 resultChildCount = 0;
+
+  PRInt32 childCount = GetChildCount();
+  for (PRInt32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsAccessibleWrap *childAcc =
+      static_cast<nsAccessibleWrap*>(GetChildAt(childIdx));
+
+    // if the current child is not ignored, count it.
+    if (!childAcc->IsIgnored())
+      ++resultChildCount;
+
+    // if it's flat, we don't care to inspect its children.
+    if (nsAccUtils::MustPrune(childAcc))
+      continue;
+
+    if (aDeepCount) {
+      // recursively count the unignored children of our children since it's a deep count.
+      resultChildCount += childAcc->GetUnignoredChildCount(true);
+    } else {
+      // no deep counting, but if the child is ignored, we want to substitute it for its
+      // children.
+      if (childAcc->IsIgnored()) 
+        resultChildCount += childAcc->GetUnignoredChildCount(false);
+    }
+  } 
+  
+  return resultChildCount;
 }
 
 // if we for some reason have no native accessible, we should be skipped over (and traversed)
@@ -213,12 +251,7 @@ nsAccessibleWrap::InvalidateChildren()
 bool 
 nsAccessibleWrap::IsIgnored() 
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-  
-  mozAccessible* nativeObject = GetNativeObject();
-  return (!nativeObject) || [nativeObject accessibilityIsIgnored];
-  
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
+  return (mNativeWrapper == nsnull) || mNativeWrapper->isIgnored();
 }
 
 void

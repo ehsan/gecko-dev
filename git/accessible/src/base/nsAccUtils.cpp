@@ -440,8 +440,7 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
     if (textAcc)
       return textAcc;
 
-    accessible = accessible->Parent();
-  } while (accessible);
+  } while (accessible = accessible->Parent());
 
   NS_NOTREACHED("We must reach document accessible implementing nsIAccessibleText!");
   return nsnull;

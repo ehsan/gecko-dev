@@ -1236,7 +1236,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
           UndoContinuedRow(aPresContext, contRow);
           contRow = nsnull;
           nsTableRowFrame* oldLastRowThisPage = lastRowThisPage;
-          lastRowThisPage = rowBefore;
+          lastRowThisPage = firstTruncatedRow;
           aStatus = NS_FRAME_NOT_COMPLETE;
 
           // Call SplitSpanningCells again with rowBefore as the last row on the page

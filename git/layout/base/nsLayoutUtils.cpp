@@ -3917,11 +3917,13 @@ nsLayoutUtils::IsReallyFixedPos(nsIFrame* aFrame)
 }
 
 nsLayoutUtils::SurfaceFromElementResult
-nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
+nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
                                   PRUint32 aSurfaceFlags)
 {
   SurfaceFromElementResult result;
   nsresult rv;
+
+  nsCOMPtr<nsINode> node = do_QueryInterface(aElement);
 
   bool forceCopy = (aSurfaceFlags & SFE_WANT_NEW_SURFACE) != 0;
   bool wantImageSurface = (aSurfaceFlags & SFE_WANT_IMAGE_SURFACE) != 0;
@@ -3932,8 +3934,11 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
   }
 
   // If it's a <canvas>, we may be able to just grab its internal surface
-  if (nsHTMLCanvasElement* canvas = nsHTMLCanvasElement::FromContent(aElement)) {
-    gfxIntSize size = canvas->GetSize();
+  nsCOMPtr<nsIDOMHTMLCanvasElement> domCanvas = do_QueryInterface(aElement);
+  if (node && domCanvas) {
+    nsHTMLCanvasElement *canvas = static_cast<nsHTMLCanvasElement*>(domCanvas.get());
+    nsIntSize nssize = canvas->GetSize();
+    gfxIntSize size(nssize.width, nssize.height);
 
     nsRefPtr<gfxASurface> surf;
 
@@ -3957,7 +3962,7 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
 
       nsRefPtr<gfxContext> ctx = new gfxContext(surf);
       // XXX shouldn't use the external interface, but maybe we can layerify this
-      rv = canvas->RenderContextsExternal(ctx, gfxPattern::FILTER_NEAREST);
+      rv = (static_cast<nsICanvasElementExternal*>(canvas))->RenderContextsExternal(ctx, gfxPattern::FILTER_NEAREST);
       if (NS_FAILED(rv))
         return result;
     }
@@ -3974,7 +3979,7 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
 
     result.mSurface = surf;
     result.mSize = size;
-    result.mPrincipal = aElement->NodePrincipal();
+    result.mPrincipal = node->NodePrincipal();
     result.mIsWriteOnly = canvas->IsWriteOnly();
 
     return result;
@@ -3982,9 +3987,12 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
 
 #ifdef MOZ_MEDIA
   // Maybe it's <video>?
-  if (nsHTMLVideoElement* video = nsHTMLVideoElement::FromContent(aElement)) {
-    PRUint16 readyState;
-    if (NS_SUCCEEDED(video->GetReadyState(&readyState)) &&
+  nsCOMPtr<nsIDOMHTMLVideoElement> ve = do_QueryInterface(aElement);
+  if (node && ve) {
+    nsHTMLVideoElement *video = static_cast<nsHTMLVideoElement*>(ve.get());
+
+    unsigned short readyState;
+    if (NS_SUCCEEDED(ve->GetReadyState(&readyState)) &&
         (readyState == nsIDOMHTMLMediaElement::HAVE_NOTHING ||
          readyState == nsIDOMHTMLMediaElement::HAVE_METADATA)) {
       result.mIsStillLoading = true;
@@ -4111,8 +4119,11 @@ nsLayoutUtils::SurfaceFromElement(dom::Element* aElement,
   result.mSurface = gfxsurf;
   result.mSize = gfxIntSize(imgWidth, imgHeight);
   result.mPrincipal = principal.forget();
-  // no images, including SVG images, can load content from another domain.
-  result.mIsWriteOnly = false;
+  // SVG images could have <foreignObject> and/or <image> elements that load
+  // content from another domain.  For safety, they make the canvas write-only.
+  // XXXdholbert We could probably be more permissive here if we check that our
+  // helper SVG document has no elements that could load remote content.
+  result.mIsWriteOnly = (imgContainer->GetType() == imgIContainer::TYPE_VECTOR);
   result.mImageRequest = imgRequest.forget();
 
   return result;

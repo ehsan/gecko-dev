@@ -62,7 +62,7 @@
 #include "nsBindingManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozAutoDocUpdate.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 
 #include "pldhash.h"
 #include "prprf.h"
@@ -387,7 +387,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
       }
 
       mozAutoSubtreeModified subtree(OwnerDoc(), this);
-      (new nsAsyncDOMEvent(this, mutation))->RunDOMEventWhenSafe();
+      (new nsPLDOMEvent(this, mutation))->RunDOMEventWhenSafe();
     }
   }
 

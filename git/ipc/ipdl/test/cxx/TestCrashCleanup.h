@@ -17,9 +17,6 @@ public:
     TestCrashCleanupParent();
     virtual ~TestCrashCleanupParent();
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return false; }
-
     void Main();
 
 protected:    

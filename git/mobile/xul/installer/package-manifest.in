@@ -59,7 +59,6 @@
 @BINPATH@/@MOZ_CHILD_PROCESS_NAME@
 #endif
 #ifdef XP_WIN32
-@BINPATH@/@DLL_PREFIX@gkmedias@DLL_SUFFIX@
 #if _MSC_VER == 1400
 @BINPATH@/Microsoft.VC80.CRT.manifest
 @BINPATH@/msvcm80.dll
@@ -83,7 +82,6 @@
 #ifdef ANDROID
 @BINPATH@/AndroidManifest.xml
 @BINPATH@/resources.arsc
-@BINPATH@/package-name.txt
 @BINPATH@/classes.dex
 @BINPATH@/@DLL_PREFIX@mozutils@DLL_SUFFIX@
 @BINPATH@/res/drawable
@@ -152,10 +150,6 @@
 @BINPATH@/components/docshell.xpt
 @BINPATH@/components/dom.xpt
 @BINPATH@/components/dom_base.xpt
-#ifdef MOZ_B2G_RIL
-@BINPATH@/components/dom_telephony.xpt
-@BINPATH@/components/dom_system_b2g.xpt
-#endif
 @BINPATH@/components/dom_battery.xpt
 @BINPATH@/components/dom_canvas.xpt
 @BINPATH@/components/dom_core.xpt
@@ -268,9 +262,6 @@
 #ifdef XP_MACOSX
 @BINPATH@/components/widget_cocoa.xpt
 #endif
-#ifdef ANDROID
-@BINPATH@/components/widget_android.xpt
-#endif
 @BINPATH@/components/windowds.xpt
 @BINPATH@/components/windowwatcher.xpt
 @BINPATH@/components/xpcom_base.xpt
@@ -286,6 +277,7 @@
 @BINPATH@/components/xuldoc.xpt
 @BINPATH@/components/xultmpl.xpt
 @BINPATH@/components/zipwriter.xpt
+@BINPATH@/components/openwebapps.xpt
 
 ; JavaScript components
 @BINPATH@/components/ConsoleAPI.manifest
@@ -339,6 +331,7 @@
 @BINPATH@/components/amContentHandler.js
 @BINPATH@/components/amWebInstallListener.js
 @BINPATH@/components/nsBlocklistService.js
+@BINPATH@/components/OpenWebapps.manifest
 
 #ifdef MOZ_UPDATER
 @BINPATH@/components/nsUpdateService.manifest
@@ -393,12 +386,6 @@
 @BINPATH@/components/messageWakeupService.manifest
 @BINPATH@/components/nsFilePicker.js
 @BINPATH@/components/nsFilePicker.manifest
-#ifdef MOZ_B2G_RIL
-@BINPATH@/components/nsTelephonyWorker.manifest
-@BINPATH@/components/nsTelephonyWorker.js
-@BINPATH@/components/Telephony.manifest
-@BINPATH@/components/Telephony.js
-#endif
 #ifdef XP_MACOSX
 @BINPATH@/components/libalerts_s.dylib
 #endif
@@ -487,8 +474,6 @@
 @BINPATH@/res/EditorOverride.css
 @BINPATH@/res/contenteditable.css
 @BINPATH@/res/designmode.css
-@BINPATH@/res/TopLevelImageDocument.css
-@BINPATH@/res/TopLevelVideoDocument.css
 @BINPATH@/res/table-add-column-after-active.gif
 @BINPATH@/res/table-add-column-after-hover.gif
 @BINPATH@/res/table-add-column-after.gif
@@ -622,6 +607,7 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/PromptService.js
 @BINPATH@/components/SessionStore.js
 @BINPATH@/components/Sidebar.js
+@BINPATH@/components/OpenWebapps.js
 #ifdef MOZ_SAFE_BROWSING
 @BINPATH@/components/SafeBrowsing.js
 #endif

@@ -75,6 +75,16 @@ struct PreserveRegsGuard
 static inline GlobalObject *
 GetGlobalForScopeChain(JSContext *cx)
 {
+    /*
+     * This is essentially GetScopeChain(cx)->getGlobal(), but without
+     * falling off trace.
+     *
+     * This use of cx->fp, possibly on trace, is deliberate:
+     * cx->fp->scopeChain->getGlobal() returns the same object whether we're on
+     * trace or not, since we do not trace calls across global objects.
+     */
+    VOUCH_DOES_NOT_REQUIRE_STACK();
+
     if (cx->hasfp())
         return cx->fp()->scopeChain().getGlobal();
 
@@ -100,7 +110,7 @@ class AutoNamespaceArray : protected AutoGCRooter {
         array.finish(context);
     }
 
-    uint32_t length() const { return array.length; }
+    uint32 length() const { return array.length; }
 
   public:
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -108,40 +118,17 @@ class AutoNamespaceArray : protected AutoGCRooter {
     JSXMLArray<JSObject> array;
 };
 
-template <typename T>
-class AutoPtr
-{
-    JSContext *cx;
-    T *value;
-
-    AutoPtr(const AutoPtr &other) MOZ_DELETE;
-
-  public:
-    explicit AutoPtr(JSContext *cx) : cx(cx), value(NULL) {}
-    ~AutoPtr() {
-        cx->delete_<T>(value);
-    }
-
-    void operator=(T *ptr) { value = ptr; }
-
-    typedef void ***** ConvertibleToBool;
-    operator ConvertibleToBool() const { return (ConvertibleToBool) value; }
-
-    const T *operator->() const { return value; }
-    T *operator->() { return value; }
-
-    T *get() { return value; }
-};
-
 #ifdef DEBUG
 class CompartmentChecker
 {
+  private:
     JSContext *context;
     JSCompartment *compartment;
 
   public:
     explicit CompartmentChecker(JSContext *cx) : context(cx), compartment(cx->compartment) {
         check(cx->hasfp() ? JS_GetGlobalForScopeChain(cx) : cx->globalObject);
+        VOUCH_DOES_NOT_REQUIRE_STACK();
     }
 
     /*
@@ -227,8 +214,7 @@ class CompartmentChecker
     }
 
     void check(StackFrame *fp) {
-        if (fp)
-            check(&fp->scopeChain());
+        check(&fp->scopeChain());
     }
 };
 
@@ -348,7 +334,7 @@ CallJSNativeConstructor(JSContext *cx, Native native, const CallArgs &args)
     JS_ASSERT_IF(native != FunctionProxyClass.construct &&
                  native != CallableObjectClass.construct &&
                  native != js::CallOrConstructBoundFunction &&
-                 (!callee.isFunction() || callee.toFunction()->u.n.clasp != &ObjectClass),
+                 (!callee.isFunction() || callee.getFunctionPrivate()->u.n.clasp != &ObjectClass),
                  !args.rval().isPrimitive() && callee != args.rval().toObject());
 
     return true;
@@ -484,6 +470,12 @@ JSContext::ensureGeneratorStackSpace()
     if (!ok)
         js_ReportOutOfMemory(this);
     return ok;
+}
+
+inline js::RegExpStatics *
+JSContext::regExpStatics()
+{
+    return js::GetGlobalForScopeChain(this)->getRegExpStatics();
 }
 
 inline void

@@ -401,6 +401,13 @@ nsXHREventTarget::SetOnloadend(nsIDOMEventListener* aOnLoadend)
 
 /////////////////////////////////////////////
 
+nsXMLHttpRequestUpload::~nsXMLHttpRequestUpload()
+{
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+}
+
 DOMCI_DATA(XMLHttpRequestUpload, nsXMLHttpRequestUpload)
 
 NS_INTERFACE_MAP_BEGIN(nsXMLHttpRequestUpload)
@@ -440,6 +447,10 @@ nsXMLHttpRequest::nsXMLHttpRequest()
 
 nsXMLHttpRequest::~nsXMLHttpRequest()
 {
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+
   if (mState & (XML_HTTP_REQUEST_STOPPED |
                 XML_HTTP_REQUEST_SENT |
                 XML_HTTP_REQUEST_LOADING)) {
@@ -701,18 +712,6 @@ nsXMLHttpRequest::GetChannel(nsIChannel **aChannel)
   return NS_OK;
 }
 
-static void LogMessage(const char* aWarning, nsPIDOMWindow* aWindow)
-{
-  nsCOMPtr<nsIDocument> doc;
-  if (aWindow) {
-    doc = do_QueryInterface(aWindow->GetExtantDocument());
-  }
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "DOM", doc,
-                                  nsContentUtils::eDOM_PROPERTIES,
-                                  aWarning);
-}
-
 /* readonly attribute nsIDOMDocument responseXML; */
 NS_IMETHODIMP
 nsXMLHttpRequest::GetResponseXML(nsIDOMDocument **aResponseXML)
@@ -729,11 +728,31 @@ nsXMLHttpRequest::GetResponseXML(nsIDOMDocument **aResponseXML)
   }
   if (mWarnAboutMultipartHtml) {
     mWarnAboutMultipartHtml = false;
-    LogMessage("HTMLMultipartXHRWarning", mOwner);
+    nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                    "HTMLMultipartXHRWarning",
+                                    nsnull,
+                                    0,
+                                    nsnull, // Response URL not kept around
+                                    EmptyString(),
+                                    0,
+                                    0,
+                                    nsIScriptError::warningFlag,
+                                    "DOM",
+                                    mOwner->WindowID());
   }
   if (mWarnAboutSyncHtml) {
     mWarnAboutSyncHtml = false;
-    LogMessage("HTMLSyncXHRWarning", mOwner);
+    nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                    "HTMLSyncXHRWarning",
+                                    nsnull,
+                                    0,
+                                    nsnull, // Response URL not kept around
+                                    EmptyString(),
+                                    0,
+                                    0,
+                                    nsIScriptError::warningFlag,
+                                    "DOM",
+                                    mOwner->WindowID());
   }
   return NS_OK;
 }
@@ -773,13 +792,6 @@ nsXMLHttpRequest::DetectCharset()
 
   if (NS_FAILED(rv) || mResponseCharset.IsEmpty()) {
     // MS documentation states UTF-8 is default for responseText
-    mResponseCharset.AssignLiteral("UTF-8");
-  }
-
-  if (mResponseType == XML_HTTP_RESPONSE_TYPE_JSON &&
-      !mResponseCharset.EqualsLiteral("UTF-8")) {
-    // The XHR spec says only UTF-8 is supported for responseType == "json"
-    LogMessage("JSONCharsetWarning", mOwner);
     mResponseCharset.AssignLiteral("UTF-8");
   }
 
@@ -920,11 +932,34 @@ nsXMLHttpRequest::CreateResponseParsedJSON(JSContext* aCx)
   if (!aCx) {
     return NS_ERROR_FAILURE;
   }
-  // The Unicode converter has already zapped the BOM if there was one
+
   if (!JS_ParseJSON(aCx,
                     (jschar*)mResponseText.get(),
                     mResponseText.Length(), &mResultJSON)) {
     return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsXMLHttpRequest::CreateResponseArrayBuffer(JSContext *aCx)
+{
+  if (!aCx){
+    return NS_ERROR_FAILURE;
+  }
+
+  PRInt32 dataLen = mResponseBody.Length();
+  RootResultArrayBuffer();
+  mResultArrayBuffer = js_CreateArrayBuffer(aCx, dataLen);
+  if (!mResultArrayBuffer) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (dataLen > 0) {
+    JSObject *abuf = js::ArrayBuffer::getArrayBuffer(mResultArrayBuffer);
+    NS_ASSERTION(abuf, "What happened?");
+    memcpy(JS_GetArrayBufferData(abuf), mResponseBody.BeginReading(), dataLen);
   }
 
   return NS_OK;
@@ -950,7 +985,7 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponseType(nsAString& aResponseType)
     aResponseType.AssignLiteral("text");
     break;
   case XML_HTTP_RESPONSE_TYPE_JSON:
-    aResponseType.AssignLiteral("json");
+    aResponseType.AssignLiteral("moz-json");
     break;
   case XML_HTTP_RESPONSE_TYPE_CHUNKED_TEXT:
     aResponseType.AssignLiteral("moz-chunked-text");
@@ -974,13 +1009,6 @@ NS_IMETHODIMP nsXMLHttpRequest::SetResponseType(const nsAString& aResponseType)
                   XML_HTTP_REQUEST_HEADERS_RECEIVED)))
     return NS_ERROR_DOM_INVALID_STATE_ERR;
 
-  // sync request is not allowed setting responseType in window context
-  if (mOwner &&
-      !(mState & (XML_HTTP_REQUEST_UNSENT | XML_HTTP_REQUEST_ASYNC))) {
-    LogMessage("ResponseTypeSyncXHRWarning", mOwner);
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-  }
-
   // Set the responseType attribute's value to the given value.
   if (aResponseType.IsEmpty()) {
     mResponseType = XML_HTTP_RESPONSE_TYPE_DEFAULT;
@@ -992,7 +1020,7 @@ NS_IMETHODIMP nsXMLHttpRequest::SetResponseType(const nsAString& aResponseType)
     mResponseType = XML_HTTP_RESPONSE_TYPE_DOCUMENT;
   } else if (aResponseType.EqualsLiteral("text")) {
     mResponseType = XML_HTTP_RESPONSE_TYPE_TEXT;
-  } else if (aResponseType.EqualsLiteral("json")) {
+  } else if (aResponseType.EqualsLiteral("moz-json")) {
     mResponseType = XML_HTTP_RESPONSE_TYPE_JSON;
   } else if (aResponseType.EqualsLiteral("moz-chunked-text")) {
     if (!(mState & XML_HTTP_REQUEST_ASYNC)) {
@@ -1048,9 +1076,7 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponse(JSContext *aCx, jsval *aResult)
         (mResponseType == XML_HTTP_RESPONSE_TYPE_CHUNKED_ARRAYBUFFER &&
          mInLoadProgressEvent)) {
       if (!mResultArrayBuffer) {
-         RootResultArrayBuffer();
-         rv = nsContentUtils::CreateArrayBuffer(aCx, mResponseBody,
-                                                &mResultArrayBuffer);
+         rv = CreateResponseArrayBuffer(aCx);
          NS_ENSURE_SUCCESS(rv, rv);
       }
       *aResult = OBJECT_TO_JSVAL(mResultArrayBuffer);
@@ -1083,15 +1109,9 @@ NS_IMETHODIMP nsXMLHttpRequest::GetResponse(JSContext *aCx, jsval *aResult)
     if (mState & XML_HTTP_REQUEST_DONE) {
       if (mResultJSON == JSVAL_VOID) {
         rv = CreateResponseParsedJSON(aCx);
+        NS_ENSURE_SUCCESS(rv, rv);
+
         mResponseText.Truncate();
-        if (NS_FAILED(rv)) {
-          // Per spec, errors aren't propagated. null is returned instead.
-          rv = NS_OK;
-          // It would be nice to log the error to the console. That's hard to
-          // do without calling window.onerror as a side effect, though.
-          JS_ClearPendingException(aCx);
-          mResultJSON = JSVAL_NULL;
-        }
       }
       *aResult = mResultJSON;
     } else {
@@ -1508,20 +1528,6 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
   if (method.LowerCaseEqualsLiteral("trace") ||
       method.LowerCaseEqualsLiteral("track")) {
     return NS_ERROR_INVALID_ARG;
-  }
-
-  // sync request is not allowed using withCredential or responseType
-  // in window context
-  if (!async && mOwner &&
-      (mState & XML_HTTP_REQUEST_AC_WITH_CREDENTIALS ||
-       mResponseType != XML_HTTP_RESPONSE_TYPE_DEFAULT)) {
-    if (mState & XML_HTTP_REQUEST_AC_WITH_CREDENTIALS) {
-      LogMessage("WithCredentialsSyncXHRWarning", mOwner);
-    }
-    if (mResponseType != XML_HTTP_RESPONSE_TYPE_DEFAULT) {
-      LogMessage("ResponseTypeSyncXHRWarning", mOwner);
-    }
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
 
   nsresult rv;
@@ -2485,16 +2491,6 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
                                               &haveCharset, &charsetStart,
                                               &charsetEnd);
         if (NS_SUCCEEDED(rv)) {
-          // special case: the extracted charset is quoted with single quotes
-          // -- for the purpose of preserving what was set we want to handle
-          // them as delimiters (although they aren't really)
-          if (specifiedCharset.Length() >= 2 &&
-              specifiedCharset.First() == '\'' &&
-              specifiedCharset.Last() == '\'') {
-            specifiedCharset = Substring(specifiedCharset, 1,
-                                         specifiedCharset.Length() - 2);
-          }
-
           // If the content-type the page set already has a charset parameter,
           // and it's the same charset, up to case, as |charset|, just send the
           // page-set content-type header.  Apparently at least
@@ -2691,8 +2687,8 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
     // can run script that would try to restart this request, and that could end
     // up doing our AsyncOpen on a null channel if the reentered AsyncOpen fails.
     ChangeState(XML_HTTP_REQUEST_SENT);
-    if ((!mUploadComplete &&
-         HasListenersFor(NS_LITERAL_STRING(UPLOADPROGRESS_STR))) ||
+    if (!mUploadComplete &&
+        HasListenersFor(NS_LITERAL_STRING(UPLOADPROGRESS_STR)) ||
         (mUpload && mUpload->HasListenersFor(NS_LITERAL_STRING(PROGRESS_STR)))) {
       StartProgressEventTimer();
     }
@@ -2925,14 +2921,7 @@ nsXMLHttpRequest::SetWithCredentials(bool aWithCredentials)
   if (XML_HTTP_REQUEST_SENT & mState) {
     return NS_ERROR_FAILURE;
   }
-
-  // sync request is not allowed setting withCredentials in window context
-  if (mOwner &&
-      !(mState & (XML_HTTP_REQUEST_UNSENT | XML_HTTP_REQUEST_ASYNC))) {
-    LogMessage("WithCredentialsSyncXHRWarning", mOwner);
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-  }
-
+  
   if (aWithCredentials) {
     mState |= XML_HTTP_REQUEST_AC_WITH_CREDENTIALS;
   }

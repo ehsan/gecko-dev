@@ -289,7 +289,7 @@ private:
  */
 class nsMainThreadSurfaceRef;
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 class nsAutoRefTraits<nsMainThreadSurfaceRef> {
 public:
   typedef gfxASurface* RawRef;

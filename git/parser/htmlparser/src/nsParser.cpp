@@ -71,6 +71,7 @@
 #include "nsIThreadPool.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsMimeTypes.h"
+#include "nsViewSourceHTML.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
 #include "nsParserConstants.h"
@@ -1375,8 +1376,9 @@ FindSuitableDTD(CParserContext& aParserContext)
   aParserContext.mAutoDetectStatus = ePrimaryDetect;
 
   // Quick check for view source.
-  NS_ABORT_IF_FALSE(aParserContext.mParserCommand != eViewSource,
-    "The old parser is not supposed to be used for View Source anymore.");
+  if (aParserContext.mParserCommand == eViewSource) {
+    return new CViewSourceHTML();
+  }
 
   // Now see if we're parsing HTML (which, as far as we're concerned, simply
   // means "not XML").

@@ -68,10 +68,8 @@ enum ParseNodeKind {
     PNK_BITOR,
     PNK_BITXOR,
     PNK_BITAND,
-    PNK_POS,
-    PNK_NEG,
-    PNK_ADD,
-    PNK_SUB,
+    PNK_PLUS,
+    PNK_MINUS,
     PNK_STAR,
     PNK_DIV,
     PNK_MOD,
@@ -80,8 +78,7 @@ enum ParseNodeKind {
     PNK_DOT,
     PNK_LB,
     PNK_RB,
-    PNK_STATEMENTLIST,
-    PNK_XMLCURLYEXPR,
+    PNK_LC,
     PNK_RC,
     PNK_LP,
     PNK_RP,
@@ -100,13 +97,12 @@ enum ParseNodeKind {
     PNK_CASE,
     PNK_DEFAULT,
     PNK_WHILE,
-    PNK_DOWHILE,
+    PNK_DO,
     PNK_FOR,
     PNK_BREAK,
     PNK_CONTINUE,
     PNK_IN,
     PNK_VAR,
-    PNK_CONST,
     PNK_WITH,
     PNK_RETURN,
     PNK_NEW,
@@ -120,7 +116,6 @@ enum ParseNodeKind {
     PNK_THROW,
     PNK_INSTANCEOF,
     PNK_DEBUGGER,
-    PNK_DEFXMLNS,
     PNK_XMLSTAGO,
     PNK_XMLETAGO,
     PNK_XMLPTAGC,
@@ -146,7 +141,6 @@ enum ParseNodeKind {
     PNK_LEXICALSCOPE,
     PNK_LET,
     PNK_SEQ,
-    PNK_FORIN,
     PNK_FORHEAD,
     PNK_ARGSBODY,
     PNK_UPVARS,
@@ -207,33 +201,30 @@ enum ParseNodeKind {
  *                            create the function object at parse (not emit)
  *                            time to specialize arg and var bytecodes early.
  *                          pn_body: PNK_UPVARS if the function's source body
- *                                     depends on outer names,
- *                                   PNK_ARGSBODY if formal parameters,
- *                                   PNK_STATEMENTLIST node for function body
- *                                     statements,
- *                                   PNK_RETURN for expression closure, or
- *                                   PNK_SEQ for expression closure with
- *                                     destructured formal parameters
+ *                                   depends on outer names, else PNK_ARGSBODY
+ *                                   if formal parameters, else PNK_LC node for
+ *                                   function body statements, else PNK_RETURN
+ *                                   for expression closure, else PNK_SEQ for
+ *                                   expression closure with destructured
+ *                                   formal parameters
  *                          pn_cookie: static level and var index for function
  *                          pn_dflags: PND_* definition/use flags (see below)
  *                          pn_blockid: block id number
- * PNK_ARGSBODY list        list of formal parameters followed by
- *                            PNK_STATEMENTLIST node for function body
- *                            statements as final element
+ * PNK_ARGSBODY list        list of formal parameters followed by PNK_LC node
+ *                            for function body statements as final element
  *                          pn_count: 1 + number of formal parameters
  * PNK_UPVARS   nameset     pn_names: lexical dependencies (js::Definitions)
  *                            defined in enclosing scopes, or ultimately not
  *                            defined (free variables, either global property
  *                            references or reference errors).
- *                          pn_tree: PNK_ARGSBODY or PNK_STATEMENTLIST node
+ *                          pn_tree: PNK_ARGSBODY or PNK_LC node
  *
  * <Statements>
- * PNK_STATEMENTLIST list   pn_head: list of pn_count statements
+ * PNK_LC       list        pn_head: list of pn_count statements
  * PNK_IF       ternary     pn_kid1: cond, pn_kid2: then, pn_kid3: else or null.
  *                            In body of a comprehension or desugared generator
  *                            expression, pn_kid2 is PNK_YIELD, PNK_ARRAYPUSH,
- *                            or (if the push was optimized away) empty
- *                            PNK_STATEMENTLIST.
+ *                            or (if the push was optimized away) empty PNK_LC.
  * PNK_SWITCH   binary      pn_left: discriminant
  *                          pn_right: list of PNK_CASE nodes, with at most one
  *                            PNK_DEFAULT node, or if there are let bindings
@@ -241,27 +232,27 @@ enum ParseNodeKind {
  *                            PNK_LEXICALSCOPE node that contains the list of
  *                            PNK_CASE nodes.
  * PNK_CASE,    binary      pn_left: case expr
- *                          pn_right: PNK_STATEMENTLIST node for this case's
- *                            statements
+ *                          pn_right: PNK_LC node for this case's statements
  * PNK_DEFAULT  binary      pn_left: null
- *                          pn_right: PNK_STATEMENTLIST node for this default's
- *                            statements
+ *                          pn_right: PNK_LC node for this default's statements
  *                          pn_val: constant value if lookup or table switch
  * PNK_WHILE    binary      pn_left: cond, pn_right: body
- * PNK_DOWHILE  binary      pn_left: body, pn_right: cond
- * PNK_FOR      binary      pn_left: either PNK_FORIN (for-in statement) or
- *                            PNK_FORHEAD (for(;;) statement)
+ * PNK_DO       binary      pn_left: body, pn_right: cond
+ * PNK_FOR      binary      pn_left: either
+ *                            for/in loop: a ternary PNK_IN node with
+ *                              pn_kid1:  PNK_VAR to left of 'in', or NULL
+ *                                its pn_xflags may have PNX_POPVAR
+ *                                and PNX_FORINVAR bits set
+ *                              pn_kid2: PNK_NAME or destructuring expr
+ *                                to left of 'in'; if pn_kid1, then this
+ *                                is a clone of pn_kid1->pn_head
+ *                              pn_kid3: object expr to right of 'in'
+ *                            for(;;) loop: a ternary PNK_FORHEAD node with
+ *                              pn_kid1:  init expr before first ';'
+ *                              pn_kid2:  cond expr before second ';'
+ *                              pn_kid3:  update expr after second ';'
+ *                              any kid may be null
  *                          pn_right: body
- * PNK_FORIN    ternary     pn_kid1:  PNK_VAR to left of 'in', or NULL
- *                            its pn_xflags may have PNX_POPVAR
- *                            and PNX_FORINVAR bits set
- *                          pn_kid2: PNK_NAME or destructuring expr
- *                            to left of 'in'; if pn_kid1, then this
- *                            is a clone of pn_kid1->pn_head
- *                          pn_kid3: object expr to right of 'in'
- * PNK_FORHEAD  ternary     pn_kid1:  init expr before first ';' or NULL
- *                          pn_kid2:  cond expr before second ';' or NULL
- *                          pn_kid3:  update expr after second ';' or NULL
  * PNK_THROW    unary       pn_op: JSOP_THROW, pn_kid: exception
  * PNK_TRY      ternary     pn_kid1: try block
  *                          pn_kid2: null or PNK_CATCHLIST list of
@@ -275,8 +266,8 @@ enum ParseNodeKind {
  * PNK_BREAK    name        pn_atom: label or null
  * PNK_CONTINUE name        pn_atom: label or null
  * PNK_WITH     binary      pn_left: head expr, pn_right: body
- * PNK_VAR,     list        pn_head: list of PNK_NAME or PNK_ASSIGN nodes
- * PNK_CONST                         each name node has either
+ * PNK_VAR      list        pn_head: list of PNK_NAME or PNK_ASSIGN nodes
+ *                                   each name node has either
  *                                     pn_used: false
  *                                     pn_atom: variable name
  *                                     pn_expr: initializer or null
@@ -329,20 +320,19 @@ enum ParseNodeKind {
  * PNK_LSH,     binary      pn_left: left-assoc SH expr, pn_right: ADD expr
  * PNK_RSH,
  * PNK_URSH
- * PNK_ADD      binary      pn_left: left-assoc ADD expr, pn_right: MUL expr
- *                          pn_xflags: if a left-associated binary PNK_ADD
+ * PNK_PLUS,    binary      pn_left: left-assoc ADD expr, pn_right: MUL expr
+ *                          pn_xflags: if a left-associated binary PNK_PLUS
  *                            tree has been flattened into a list (see above
  *                            under <Expressions>), pn_xflags will contain
  *                            PNX_STRCAT if at least one list element is a
  *                            string literal (PNK_STRING); if such a list has
  *                            any non-string, non-number term, pn_xflags will
  *                            contain PNX_CANTFOLD.
- * PNK_SUB      binary      pn_left: left-assoc SH expr, pn_right: ADD expr
+ *                          pn_
+ * PNK_MINUS                pn_op: JSOP_ADD, JSOP_SUB
  * PNK_STAR,    binary      pn_left: left-assoc MUL expr, pn_right: UNARY expr
  * PNK_DIV,                 pn_op: JSOP_MUL, JSOP_DIV, JSOP_MOD
  * PNK_MOD
- * PNK_POS,     unary       pn_kid: UNARY expr
- * PNK_NEG
  * PNK_TYPEOF,  unary       pn_kid: UNARY expr
  * PNK_VOID,
  * PNK_NOT,
@@ -393,7 +383,7 @@ enum ParseNodeKind {
  * PNK_XMLUNARY unary       pn_kid: PNK_AT, PNK_ANYNAME, or PNK_DBLCOLON node
  *                          pn_op: JSOP_XMLNAME, JSOP_BINDXMLNAME, or
  *                                 JSOP_SETXMLNAME
- * PNK_DEFXMLNS name        pn_kid: namespace expr
+ * PNK_DEFAULT  name        pn_atom: default XML namespace string literal
  * PNK_FILTER   binary      pn_left: container expr, pn_right: filter expr
  * PNK_DBLDOT   binary      pn_left: container expr, pn_right: selector expr
  * PNK_ANYNAME  nullary     pn_op: JSOP_ANYNAME
@@ -424,7 +414,7 @@ enum ParseNodeKind {
  * PNK_XMLPI    nullary     pn_pitarget: XML processing instruction target
  *                          pn_pidata: XML PI data, or null if no data
  * PNK_XMLTEXT  nullary     pn_atom: marked-up text, or null if empty string
- * PNK_XMLCURLYEXPR unary   {expr} in XML tag or content; pn_kid is expr
+ * PNK_LC       unary       {expr} in XML tag or content; pn_kid is expr
  *
  * So an XML tag with no {expr} and three attributes is a list with the form:
  *
@@ -439,7 +429,7 @@ enum ParseNodeKind {
  *    ((name1 {expr1}) (name2 {expr2} name3) {expr3})
  *
  * where () bracket a list with elements separated by spaces, and {expr} is a
- * PNK_XMLCURLYEXPR unary node with expr as its kid.
+ * PNK_LC unary node with expr as its kid.
  *
  * Thus, the attribute name/value pairs occupy successive odd and even list
  * locations, where pn_head is the PNK_XMLNAME node at list location 0.  The
@@ -478,13 +468,9 @@ enum ParseNodeArity {
 
 struct Definition;
 
-class LoopControlStatement;
-class BreakStatement;
-class ContinueStatement;
-
 struct ParseNode {
   private:
-    uint32_t            pn_type   : 16, /* PNK_* type */
+    uint32              pn_type   : 16, /* PNK_* type */
                         pn_op     : 8,  /* see JSOp enum and jsopcode.tbl */
                         pn_arity  : 5,  /* see ParseNodeArity enum */
                         pn_parens : 1,  /* this expr was enclosed in parens */
@@ -559,7 +545,7 @@ struct ParseNode {
     void setDefn(bool enabled)             { pn_defn = enabled; }
 
     TokenPos            pn_pos;         /* two 16-bit pairs here, for 64 bits */
-    int32_t             pn_offset;      /* first generated bytecode offset */
+    int32               pn_offset;      /* first generated bytecode offset */
     ParseNode           *pn_next;       /* intrinsic link in parent PN_LIST */
     ParseNode           *pn_link;       /* def/use link (alignment freebie);
                                            also links FunctionBox::methods
@@ -569,8 +555,8 @@ struct ParseNode {
         struct {                        /* list of next-linked nodes */
             ParseNode   *head;          /* first node in list */
             ParseNode   **tail;         /* ptr to ptr to last node in list */
-            uint32_t    count;          /* number of nodes in list */
-            uint32_t    xflags:12,      /* extra flags, see below */
+            uint32      count;          /* number of nodes in list */
+            uint32      xflags:12,      /* extra flags, see below */
                         blockid:20;     /* see name variant below */
         } list;
         struct {                        /* ternary: if, for(;;), ?: */
@@ -605,7 +591,7 @@ struct ParseNode {
             UpvarCookie cookie;         /* upvar cookie with absolute frame
                                            level (not relative skip), possibly
                                            in current frame */
-            uint32_t    dflags:12,      /* definition/use flags, see below */
+            uint32      dflags:12,      /* definition/use flags, see below */
                         blockid:20;     /* block number, for subset dominance
                                            computation */
         } name;
@@ -618,10 +604,6 @@ struct ParseNode {
             JSAtom           *data;     /* data (or null) in <?target data?> */
         } xmlpi;
         jsdouble        dval;           /* aligned numeric literal value */
-        class {
-            friend class LoopControlStatement;
-            PropertyName     *label;    /* target of break/continue statement */
-        } loopControl;
     } pn_u;
 
 #define pn_funbox       pn_u.name.funbox
@@ -728,11 +710,10 @@ struct ParseNode {
 #define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_FUNARG | PND_CLOSED)
 
 /* PN_LIST pn_xflags bits. */
-#define PNX_STRCAT      0x01            /* PNK_ADD list has string term */
-#define PNX_CANTFOLD    0x02            /* PNK_ADD list has unfoldable term */
-#define PNX_POPVAR      0x04            /* PNK_VAR or PNK_CONST last result
-                                           needs popping */
-#define PNX_FORINVAR    0x08            /* PNK_VAR is left kid of PNK_FORIN node
+#define PNX_STRCAT      0x01            /* PNK_PLUS list has string term */
+#define PNX_CANTFOLD    0x02            /* PNK_PLUS list has unfoldable term */
+#define PNX_POPVAR      0x04            /* PNK_VAR last result needs popping */
+#define PNX_FORINVAR    0x08            /* PNK_VAR is left kid of PNK_IN node,
                                            which is left kid of PNK_FOR */
 #define PNX_ENDCOMMA    0x10            /* array literal has comma at end */
 #define PNX_XMLROOT     0x20            /* top-most node in XML literal tree */
@@ -911,10 +892,6 @@ struct ParseNode {
 
     bool getConstantValue(JSContext *cx, bool strictChecks, Value *vp);
     inline bool isConstant();
-
-    /* Casting operations. */
-    inline BreakStatement &asBreakStatement();
-    inline ContinueStatement &asContinueStatement();
 };
 
 struct NullaryNode : public ParseNode {
@@ -1001,55 +978,6 @@ struct LexicalScopeNode : public ParseNode {
     }
 };
 
-class LoopControlStatement : public ParseNode {
-  protected:
-    LoopControlStatement(ParseNodeKind kind, PropertyName *label,
-                         const TokenPtr &begin, const TokenPtr &end)
-      : ParseNode(kind, JSOP_NOP, PN_NULLARY, TokenPos::make(begin, end))
-    {
-        JS_ASSERT(kind == PNK_BREAK || kind == PNK_CONTINUE);
-        pn_u.loopControl.label = label;
-    }
-
-  public:
-    /* Label associated with this break/continue statement, if any. */
-    PropertyName *label() const {
-        return pn_u.loopControl.label;
-    }
-};
-
-class BreakStatement : public LoopControlStatement {
-  public:
-    BreakStatement(PropertyName *label, const TokenPtr &begin, const TokenPtr &end)
-      : LoopControlStatement(PNK_BREAK, label, begin, end)
-    { }
-};
-
-inline BreakStatement &
-ParseNode::asBreakStatement()
-{
-    JS_ASSERT(isKind(PNK_BREAK));
-    JS_ASSERT(isOp(JSOP_NOP));
-    JS_ASSERT(pn_arity == PN_NULLARY);
-    return *static_cast<BreakStatement *>(this);
-}
-
-class ContinueStatement : public LoopControlStatement {
-  public:
-    ContinueStatement(PropertyName *label, TokenPtr &begin, TokenPtr &end)
-      : LoopControlStatement(PNK_CONTINUE, label, begin, end)
-    { }
-};
-
-inline ContinueStatement &
-ParseNode::asContinueStatement()
-{
-    JS_ASSERT(isKind(PNK_CONTINUE));
-    JS_ASSERT(isOp(JSOP_NOP));
-    JS_ASSERT(pn_arity == PN_NULLARY);
-    return *static_cast<ContinueStatement *>(this);
-}
-
 ParseNode *
 CloneLeftHandSide(ParseNode *opn, TreeContext *tc);
 
@@ -1057,8 +985,8 @@ CloneLeftHandSide(ParseNode *opn, TreeContext *tc);
  * js::Definition is a degenerate subtype of the PN_FUNC and PN_NAME variants
  * of js::ParseNode, allocated only for function, var, const, and let
  * declarations that define truly lexical bindings. This means that a child of
- * a PNK_VAR list may be a Definition as well as a ParseNode. The pn_defn bit
- * is set for all Definitions, clear otherwise.
+ * a PNK_VAR list may be a Definition instead of a ParseNode. The pn_defn
+ * bit is set for all Definitions, clear otherwise.
  *
  * In an upvars list, defn->resolve() is the outermost definition the
  * name may reference. If a with block or a function that calls eval encloses
@@ -1101,7 +1029,7 @@ CloneLeftHandSide(ParseNode *opn, TreeContext *tc);
  *               map x to dn via tc->decls;
  *               pn = dn;
  *           }
- *           insert pn into its parent PNK_VAR/PNK_CONST list;
+ *           insert pn into its parent PNK_VAR list;
  *       } else {
  *           pn = allocate a ParseNode for this reference to x;
  *           dn = lookup x in tc's lexical scope chain;
@@ -1312,10 +1240,10 @@ struct FunctionBox : public ObjectBox
                                                    neither definitions nor uses
                                                    of a binding */
     Bindings            bindings;               /* bindings for this function */
-    uint32_t            queued:1,
+    uint32              queued:1,
                         inLoop:1,               /* in a loop in parent function */
                         level:JSFB_LEVEL_BITS;
-    uint32_t            tcflags;
+    uint32              tcflags;
 
     JSFunction *function() const { return (JSFunction *) object; }
 
@@ -1332,6 +1260,18 @@ struct FunctionBox : public ObjectBox
      * ancestor?
      */
     bool scopeIsExtensible() const;
+
+    /*
+     * Unbrand an object being initialized or constructed if any method cannot
+     * be joined to one compiler-created null closure shared among N different
+     * closure environments.
+     *
+     * We despecialize from caching function objects, caching slots or shapes
+     * instead, because an unbranded object may still have joined methods (for
+     * which shape->isMethod), since PropertyCache::fill gives precedence to
+     * joined methods over branded methods.
+     */
+    bool shouldUnbrand(uintN methods, uintN slowMethods) const;
 };
 
 struct FunctionBoxQueue {
@@ -1345,7 +1285,7 @@ struct FunctionBoxQueue {
     FunctionBoxQueue()
       : vector(NULL), head(0), tail(0), lengthMask(0) { }
 
-    bool init(uint32_t count) {
+    bool init(uint32 count) {
         lengthMask = JS_BITMASK(JS_CEILING_LOG2W(count));
         vector = (FunctionBox **) OffTheBooks::malloc_(sizeof(FunctionBox) * length());
         return !!vector;

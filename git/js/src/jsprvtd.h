@@ -55,7 +55,6 @@
  */
 
 #include "jsapi.h"
-
 #include "jsutil.h"
 
 JS_BEGIN_EXTERN_C
@@ -71,8 +70,8 @@ static const uintN JS_GCTHING_ALIGN = 8;
 static const uintN JS_GCTHING_ZEROBITS = 3;
 
 /* Scalar typedefs. */
-typedef uint8_t     jsbytecode;
-typedef uint8_t     jssrcnote;
+typedef uint8       jsbytecode;
+typedef uint8       jssrcnote;
 typedef uintptr_t   jsatomid;
 
 /* Struct typedefs. */
@@ -118,6 +117,7 @@ class JSWrapper;
 namespace js {
 
 struct ArgumentsData;
+struct FlatClosureData;
 struct Class;
 
 class RegExpObject;
@@ -130,7 +130,6 @@ namespace detail {
 
 class RegExpPrivate;
 class RegExpPrivateCode;
-class RegExpPrivateCacheValue;
 
 } /* namespace detail */
 
@@ -218,11 +217,8 @@ class LifoAlloc;
 class PropertyCache;
 struct PropertyCacheEntry;
 
-class BaseShape;
-class UnownedBaseShape;
 struct Shape;
 struct EmptyShape;
-class ShapeKindArray;
 class Bindings;
 
 class MultiDeclRange;
@@ -235,22 +231,13 @@ typedef Vector<UpvarCookie, 8> UpvarCookies;
 
 class Breakpoint;
 class BreakpointSite;
+typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, RuntimeAllocPolicy>
+    BreakpointSiteMap;
 class Debugger;
 class WatchpointMap;
 
-typedef HashMap<JSAtom *,
-                detail::RegExpPrivateCacheValue,
-                DefaultHasher<JSAtom *>,
-                RuntimeAllocPolicy>
+typedef HashMap<JSAtom *, detail::RegExpPrivate *, DefaultHasher<JSAtom *>, RuntimeAllocPolicy>
     RegExpPrivateCache;
-
-/*
- * Env is the type of what ES5 calls "lexical environments" (runtime
- * activations of lexical scopes). This is currently just JSObject, and is
- * implemented by Call, Block, With, and DeclEnv objects, among others--but
- * environments and objects are really two different concepts.
- */
-typedef JSObject Env;
 
 typedef JSNative             Native;
 typedef JSPropertyOp         PropertyOp;

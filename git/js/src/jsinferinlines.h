@@ -321,10 +321,10 @@ TypeMonitorCall(JSContext *cx, const js::CallArgs &args, bool constructing)
 
     JSObject *callee = &args.callee();
     if (callee->isFunction()) {
-        JSFunction *fun = callee->toFunction();
+        JSFunction *fun = callee->getFunctionPrivate();
         if (fun->isInterpreted()) {
             JSScript *script = fun->script();
-            if (!script->ensureRanAnalysis(cx, fun->environment()))
+            if (!script->ensureRanAnalysis(cx, fun, callee->getParent()))
                 return;
             if (cx->typeInferenceEnabled())
                 TypeMonitorCallSlow(cx, callee, args, constructing);
@@ -460,9 +460,15 @@ UseNewTypeAtEntry(JSContext *cx, StackFrame *fp)
 /////////////////////////////////////////////////////////////////////
 
 inline
-TypeScript::TypeScript()
+TypeScript::TypeScript(JSFunction *fun)
+  : function(fun),
+    global((js::GlobalObject *) GLOBAL_MISSING_SCOPE)
 {
-    this->global = (js::GlobalObject *) GLOBAL_MISSING_SCOPE;
+}
+
+inline
+TypeScript::~TypeScript()
+{
 }
 
 /* static */ inline unsigned
@@ -522,17 +528,17 @@ TypeScript::StandardType(JSContext *cx, JSScript *script, JSProtoKey key)
 struct AllocationSiteKey {
     JSScript *script;
 
-    uint32_t offset : 24;
+    uint32 offset : 24;
     JSProtoKey kind : 8;
 
-    static const uint32_t OFFSET_LIMIT = (1 << 23);
+    static const uint32 OFFSET_LIMIT = (1 << 23);
 
     AllocationSiteKey() { PodZero(this); }
 
     typedef AllocationSiteKey Lookup;
 
-    static inline uint32_t hash(AllocationSiteKey key) {
-        return uint32_t(size_t(key.script->code + key.offset)) ^ key.kind;
+    static inline uint32 hash(AllocationSiteKey key) {
+        return (uint32) size_t(key.script->code + key.offset) ^ key.kind;
     }
 
     static inline bool match(const AllocationSiteKey &a, const AllocationSiteKey &b) {
@@ -544,7 +550,7 @@ struct AllocationSiteKey {
 TypeScript::InitObject(JSContext *cx, JSScript *script, const jsbytecode *pc, JSProtoKey kind)
 {
     /* :XXX: Limit script->length so we don't need to check the offset up front? */
-    uint32_t offset = pc - script->code;
+    uint32 offset = pc - script->code;
 
     if (!cx->typeInferenceEnabled() || !script->hasGlobal() || offset >= AllocationSiteKey::OFFSET_LIMIT)
         return GetTypeNewObject(cx, kind);
@@ -605,7 +611,7 @@ TypeScript::MonitorAssign(JSContext *cx, JSScript *script, jsbytecode *pc,
          * are only constructed for them when analyzed scripts depend on those
          * specific properties.
          */
-        uint32_t i;
+        uint32 i;
         if (js_IdIsIndex(id, &i))
             return;
         MarkTypeObjectUnknownProperties(cx, obj->type());
@@ -694,6 +700,8 @@ TypeScript::SetArgument(JSContext *cx, JSScript *script, unsigned arg, const js:
 void
 TypeScript::trace(JSTracer *trc)
 {
+    if (function)
+        gc::MarkObject(trc, function, "script_fun");
     if (hasScope() && global)
         gc::MarkObject(trc, global, "script_global");
 
@@ -783,12 +791,12 @@ HashSetCapacity(unsigned count)
 
 /* Compute the FNV hash for the low 32 bits of v. */
 template <class T, class KEY>
-static inline uint32_t
+static inline uint32
 HashKey(T v)
 {
-    uint32_t nv = KEY::keyBits(v);
+    uint32 nv = KEY::keyBits(v);
 
-    uint32_t hash = 84696351 ^ (nv & 0xff);
+    uint32 hash = 84696351 ^ (nv & 0xff);
     hash = (hash * 16777619) ^ ((nv >> 8) & 0xff);
     hash = (hash * 16777619) ^ ((nv >> 16) & 0xff);
     return (hash * 16777619) ^ ((nv >> 24) & 0xff);
@@ -943,7 +951,7 @@ TypeSet::hasType(Type type)
 }
 
 inline void
-TypeSet::setBaseObjectCount(uint32_t count)
+TypeSet::setBaseObjectCount(uint32 count)
 {
     JS_ASSERT(count <= TYPE_FLAG_OBJECT_COUNT_LIMIT);
     flags = (flags & ~TYPE_FLAG_OBJECT_COUNT_MASK)
@@ -984,7 +992,7 @@ TypeSet::addType(JSContext *cx, Type type)
             return;
         if (type.isAnyObject())
             goto unknownObject;
-        uint32_t objectCount = baseObjectCount();
+        uint32 objectCount = baseObjectCount();
         TypeObjectKey *object = type.objectKey();
         TypeObjectKey **pentry = HashSetInsert<TypeObjectKey *,TypeObjectKey,TypeObjectKey>
                                      (cx->compartment, objectSet, objectCount, object);
@@ -1060,7 +1068,7 @@ inline unsigned
 TypeSet::getObjectCount()
 {
     JS_ASSERT(!unknownObject());
-    uint32_t count = baseObjectCount();
+    uint32 count = baseObjectCount();
     if (count > SET_ARRAY_SIZE)
         return HashSetCapacity(count);
     return count;
@@ -1123,14 +1131,14 @@ inline TypeObject::TypeObject(JSObject *proto, bool function, bool unknown)
     InferSpew(ISpewOps, "newObject: %s", TypeObjectString(this));
 }
 
-inline uint32_t
+inline uint32
 TypeObject::basePropertyCount() const
 {
     return (flags & OBJECT_FLAG_PROPERTY_COUNT_MASK) >> OBJECT_FLAG_PROPERTY_COUNT_SHIFT;
 }
 
 inline void
-TypeObject::setBasePropertyCount(uint32_t count)
+TypeObject::setBasePropertyCount(uint32 count)
 {
     JS_ASSERT(count <= OBJECT_FLAG_PROPERTY_COUNT_LIMIT);
     flags = (flags & ~OBJECT_FLAG_PROPERTY_COUNT_MASK)
@@ -1145,7 +1153,7 @@ TypeObject::getProperty(JSContext *cx, jsid id, bool assign)
     JS_ASSERT_IF(!JSID_IS_EMPTY(id), id == MakeTypeId(cx, id));
     JS_ASSERT(!unknownProperties());
 
-    uint32_t propertyCount = basePropertyCount();
+    uint32 propertyCount = basePropertyCount();
     Property **pprop = HashSetInsert<jsid,Property,Property>
                            (cx->compartment, propertySet, propertyCount, id);
     if (!pprop) {
@@ -1189,7 +1197,7 @@ TypeObject::maybeGetProperty(JSContext *cx, jsid id)
 inline unsigned
 TypeObject::getPropertyCount()
 {
-    uint32_t count = basePropertyCount();
+    uint32 count = basePropertyCount();
     if (count > SET_ARRAY_SIZE)
         return HashSetCapacity(count);
     return count;
@@ -1260,7 +1268,7 @@ inline void
 TypeObject::writeBarrierPre(TypeObject *type)
 {
 #ifdef JSGC_INCREMENTAL
-    if (!type)
+    if (!type || type == &js::types::emptyTypeObject)
         return;
 
     JSCompartment *comp = type->compartment();
@@ -1272,17 +1280,6 @@ TypeObject::writeBarrierPre(TypeObject *type)
 inline void
 TypeObject::writeBarrierPost(TypeObject *type, void *addr)
 {
-}
-
-inline void
-TypeObject::readBarrier(TypeObject *type)
-{
-#ifdef JSGC_INCREMENTAL
-    JSCompartment *comp = type->compartment();
-    JS_ASSERT(comp->needsBarrier());
-
-    MarkTypeObjectUnbarriered(comp->barrierTracer(), type, "read barrier");
-#endif
 }
 
 inline void
@@ -1320,15 +1317,15 @@ Property::Property(const Property &o)
 } } /* namespace js::types */
 
 inline bool
-JSScript::ensureHasTypes(JSContext *cx)
+JSScript::ensureHasTypes(JSContext *cx, JSFunction *fun)
 {
-    return types || makeTypes(cx);
+    return types || makeTypes(cx, fun);
 }
 
 inline bool
-JSScript::ensureRanAnalysis(JSContext *cx, JSObject *scope)
+JSScript::ensureRanAnalysis(JSContext *cx, JSFunction *fun, JSObject *scope)
 {
-    if (!ensureHasTypes(cx))
+    if (!ensureHasTypes(cx, fun))
         return false;
     if (!types->hasScope() && !js::types::TypeScript::SetScope(cx, this, scope))
         return false;
@@ -1341,7 +1338,7 @@ JSScript::ensureRanAnalysis(JSContext *cx, JSObject *scope)
 inline bool
 JSScript::ensureRanInference(JSContext *cx)
 {
-    if (!ensureRanAnalysis(cx, NULL))
+    if (!ensureRanAnalysis(cx))
         return false;
     if (!analysis()->ranInference()) {
         js::types::AutoEnterTypeInference enter(cx);
@@ -1372,19 +1369,11 @@ JSScript::clearAnalysis()
 }
 
 inline void
-js::analyze::ScriptAnalysis::addPushedType(JSContext *cx, uint32_t offset, uint32_t which,
+js::analyze::ScriptAnalysis::addPushedType(JSContext *cx, uint32 offset, uint32 which,
                                            js::types::Type type)
 {
     js::types::TypeSet *pushed = pushedTypes(offset, which);
     pushed->addType(cx, type);
-}
-
-inline js::types::TypeObject *
-JSCompartment::getEmptyType(JSContext *cx)
-{
-    if (!emptyTypeObject)
-        emptyTypeObject = types.newTypeObject(cx, NULL, JSProto_Object, NULL, true);
-    return emptyTypeObject;
 }
 
 #endif // jsinferinlines_h___

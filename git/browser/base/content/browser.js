@@ -55,7 +55,6 @@
 #   David Dahl <ddahl@mozilla.com>
 #   Patrick Walton <pcwalton@mozilla.com>
 #   Mihai Sucan <mihai.sucan@gmail.com>
-#   Victor Porof <vporof@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -180,12 +179,6 @@ XPCOMUtils.defineLazyGetter(this, "InspectorUI", function() {
   return new tmp.InspectorUI(window);
 });
 
-XPCOMUtils.defineLazyGetter(this, "Tilt", function() {
-  let tmp = {};
-  Cu.import("resource:///modules/devtools/Tilt.jsm", tmp);
-  return new tmp.Tilt(window);
-});
-
 let gInitialPages = [
   "about:blank",
   "about:privatebrowsing",
@@ -207,7 +200,7 @@ XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
   if (WINTASKBAR_CONTRACTID in Cc &&
       Cc[WINTASKBAR_CONTRACTID].getService(Ci.nsIWinTaskbar).available) {
     let temp = {};
-    Cu.import("resource:///modules/WindowsPreviewPerTab.jsm", temp);
+    Cu.import("resource://gre/modules/WindowsPreviewPerTab.jsm", temp);
     let AeroPeek = temp.AeroPeek;
     return {
       onOpenWindow: function () {
@@ -2608,6 +2601,28 @@ function UpdateUrlbarSearchSplitterState()
     splitter.parentNode.removeChild(splitter);
 }
 
+var LocationBarHelpers = {
+  _timeoutID: null,
+
+  _searchBegin: function LocBar_searchBegin() {
+    function delayedBegin(self) {
+      self._timeoutID = null;
+      document.getElementById("urlbar-throbber").setAttribute("busy", "true");
+    }
+
+    this._timeoutID = setTimeout(delayedBegin, 500, this);
+  },
+
+  _searchComplete: function LocBar_searchComplete() {
+    // Did we finish the search before delayedBegin was invoked?
+    if (this._timeoutID) {
+      clearTimeout(this._timeoutID);
+      this._timeoutID = null;
+    }
+    document.getElementById("urlbar-throbber").removeAttribute("busy");
+  }
+};
+
 function UpdatePageProxyState()
 {
   if (gURLBar && gURLBar.value != gLastValidURLStr)
@@ -3011,10 +3026,9 @@ function getMarkupDocumentViewer()
 function FillInHTMLTooltip(tipElement)
 {
   var retVal = false;
-  // Don't show the tooltip if the tooltip node is a XUL element, a document or is disconnected.
+  // Don't show the tooltip if the tooltip node is a XUL element or a document.
   if (tipElement.namespaceURI == "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" ||
-      !tipElement.ownerDocument ||
-      tipElement.ownerDocument.compareDocumentPosition(tipElement) == document.DOCUMENT_POSITION_DISCONNECTED)
+      !tipElement.ownerDocument)
     return retVal;
 
   const XLinkNS = "http://www.w3.org/1999/xlink";
@@ -3042,10 +3056,10 @@ function FillInHTMLTooltip(tipElement)
   while (!titleText && !XLinkTitleText && !SVGTitleText && tipElement) {
     if (tipElement.nodeType == Node.ELEMENT_NODE) {
       titleText = tipElement.getAttribute("title");
-      if ((tipElement instanceof HTMLAnchorElement ||
-           tipElement instanceof HTMLAreaElement ||
-           tipElement instanceof HTMLLinkElement ||
-           tipElement instanceof SVGAElement) && tipElement.href) {
+      if ((tipElement instanceof HTMLAnchorElement && tipElement.href) ||
+          (tipElement instanceof HTMLAreaElement && tipElement.href) ||
+          (tipElement instanceof HTMLLinkElement && tipElement.href) ||
+          (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))) {
         XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
       }
       if (lookingForSVGTitle &&
@@ -3464,29 +3478,11 @@ const BrowserSearch = {
     if (!submission)
       return;
 
-    let newTab;
-    function newTabHandler(event) {
-      newTab = event.target;
-    }
-    gBrowser.tabContainer.addEventListener("TabOpen", newTabHandler);
-
     openLinkIn(submission.uri.spec,
                useNewTab ? "tab" : "current",
                { postData: submission.postData,
+                 inBackground: false,
                  relatedToCurrent: true });
-
-    gBrowser.tabContainer.removeEventListener("TabOpen", newTabHandler);
-    if (newTab && !newTab.selected) {
-      let tabSelected = false;
-      function tabSelectHandler() {
-        tabSelected = true;
-      }
-      newTab.addEventListener("TabSelect", tabSelectHandler);
-      setTimeout(function () {
-        newTab.removeEventListener("TabSelect", tabSelectHandler);
-        Services.telemetry.getHistogramById("FX_CONTEXT_SEARCH_AND_TAB_SELECT").add(tabSelected);
-      }, 5000);
-    }
   },
 
   /**
@@ -3954,13 +3950,6 @@ var FullScreen = {
       document.mozCancelFullScreen();
       return;
     }
-
-    // Ensure the sidebar is hidden.
-    if (!document.getElementById("sidebar-box").hidden)
-      toggleSidebar();
-
-    if (gFindBarInitialized)
-      gFindBar.close();
 
     this.showWarning(true);
 
@@ -5751,7 +5740,7 @@ function hrefAndLinkNodeForClickEvent(event)
  */
 function contentAreaClick(event, isPanelClick)
 {
-  if (!event.isTrusted || event.defaultPrevented || event.button == 2)
+  if (!event.isTrusted || event.getPreventDefault() || event.button == 2)
     return true;
 
   let [href, linkNode] = hrefAndLinkNodeForClickEvent(event);
@@ -7668,8 +7657,7 @@ var FeedHandler = {
     if (browserForLink == gBrowser.selectedBrowser) {
       // Batch updates to avoid updating the UI for multiple onLinkAdded events
       // fired within 100ms of each other.
-      if (this._updateFeedTimeout)
-        clearTimeout(this._updateFeedTimeout);
+      clearTimeout(this._updateFeedTimeout);
       this._updateFeedTimeout = setTimeout(this.updateFeeds.bind(this), 100);
     }
   }

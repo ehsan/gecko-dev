@@ -253,19 +253,19 @@ ListBase<LC>::getListObject(JSObject *obj)
 }
 
 template<class LC>
-js::Shape *
+uint32
 ListBase<LC>::getProtoShape(JSObject *obj)
 {
     JS_ASSERT(objIsList(obj));
-    return (js::Shape *) js::GetProxyExtra(obj, JSPROXYSLOT_PROTOSHAPE).toPrivate();
+    return js::GetProxyExtra(obj, JSPROXYSLOT_PROTOSHAPE).toPrivateUint32();
 }
 
 template<class LC>
 void
-ListBase<LC>::setProtoShape(JSObject *obj, js::Shape *shape)
+ListBase<LC>::setProtoShape(JSObject *obj, uint32 shape)
 {
     JS_ASSERT(objIsList(obj));
-    js::SetProxyExtra(obj, JSPROXYSLOT_PROTOSHAPE, PrivateValue(shape));
+    js::SetProxyExtra(obj, JSPROXYSLOT_PROTOSHAPE, PrivateUint32Value(shape));
 }
 
 template<class LC>
@@ -273,7 +273,7 @@ bool
 ListBase<LC>::instanceIsListObject(JSContext *cx, JSObject *obj, JSObject *callee)
 {
     if (XPCWrapper::IsSecurityWrapper(obj)) {
-        if (callee && JS_GetGlobalForObject(cx, obj) == JS_GetGlobalForObject(cx, callee)) {
+        if (callee && js::GetObjectGlobal(obj) == js::GetObjectGlobal(callee)) {
             obj = js::UnwrapObject(obj);
         } else {
             obj = XPCWrapper::Unwrap(cx, obj);
@@ -480,7 +480,7 @@ ListBase<LC>::create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *aLis
         return NULL;
 
     JSAutoEnterCompartment ac;
-    if (js::GetGlobalForObjectCrossCompartment(parent) != scope->GetGlobalJSObject()) {
+    if (js::GetObjectGlobal(parent) != scope->GetGlobalJSObject()) {
         if (!ac.enter(cx, parent))
             return NULL;
 
@@ -498,7 +498,7 @@ ListBase<LC>::create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *aLis
         return NULL;
 
     NS_ADDREF(aList);
-    setProtoShape(obj, NULL);
+    setProtoShape(obj, -1);
 
     aWrapperCache->SetWrapper(obj);
 
@@ -513,14 +513,14 @@ getExpandoObject(JSObject *obj)
     return v.isUndefined() ? NULL : v.toObjectOrNull();
 }
 
-static int32_t
+static int32
 IdToInt32(JSContext *cx, jsid id)
 {
     JSAutoRequest ar(cx);
 
     jsval idval;
     jsdouble array_index;
-    int32_t i;
+    jsint i;
     if (!::JS_IdToValue(cx, id, &idval) ||
         !::JS_ValueToNumber(cx, idval, &array_index) ||
         !::JS_DoubleIsInt32(array_index, &i)) {
@@ -530,7 +530,7 @@ IdToInt32(JSContext *cx, jsid id)
     return i;
 }
 
-static inline int32_t
+static inline int32
 GetArrayIndexFromId(JSContext *cx, jsid id)
 {
     if (NS_LIKELY(JSID_IS_INT(id)))
@@ -567,7 +567,7 @@ ListBase<LC>::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, 
 {
     if (set) {
         if (hasIndexSetter) {
-            int32_t index = GetArrayIndexFromId(cx, id);
+            int32 index = GetArrayIndexFromId(cx, id);
             if (index >= 0) {
                 FillPropertyDescriptor(desc, proxy, JSVAL_VOID, false);
                 return true;
@@ -580,7 +580,7 @@ ListBase<LC>::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, 
         }
     } else {
         if (hasIndexGetter) {
-            int32_t index = GetArrayIndexFromId(cx, id);
+            int32 index = GetArrayIndexFromId(cx, id);
             if (index >= 0) {
                 IndexGetterType result;
                 if (!getItemAt(getListObject(proxy), PRUint32(index), result))
@@ -686,7 +686,7 @@ bool
 ListBase<LC>::defineProperty(JSContext *cx, JSObject *proxy, jsid id, PropertyDescriptor *desc)
 {
     if (hasIndexSetter) {
-        int32_t index = GetArrayIndexFromId(cx, id);
+        int32 index = GetArrayIndexFromId(cx, id);
         if (index >= 0) {
             nsCOMPtr<nsISupports> ref;
             IndexSetterType value;
@@ -784,7 +784,7 @@ bool
 ListBase<LC>::hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp)
 {
     if (hasIndexGetter) {
-        int32_t index = GetArrayIndexFromId(cx, id);
+        int32 index = GetArrayIndexFromId(cx, id);
         if (index >= 0) {
             IndexGetterType result;
             *bp = getItemAt(getListObject(proxy), PRUint32(index), result);
@@ -855,7 +855,7 @@ ListBase<LC>::shouldCacheProtoShape(JSContext *cx, JSObject *proto, bool *should
         if (!JS_GetPropertyDescriptorById(cx, proto, id, JSRESOLVE_QUALIFIED, &desc))
             return false;
         if (desc.obj != proto || desc.getter || JSVAL_IS_PRIMITIVE(desc.value) ||
-            n >= js::GetObjectSlotSpan(proto) || js::GetObjectSlot(proto, n) != desc.value ||
+            n >= js::GetNumSlots(proto) || js::GetSlot(proto, n) != desc.value ||
             !JS_IsNativeFunction(JSVAL_TO_OBJECT(desc.value), sProtoMethods[n].native)) {
             *shouldCache = false;
             return true;
@@ -932,7 +932,7 @@ ListBase<LC>::nativeGet(JSContext *cx, JSObject *proxy, JSObject *proto, jsid id
             if (!vp)
                 return true;
 
-            *vp = js::GetObjectSlot(proto, n);
+            *vp = js::GetSlot(proto, n);
             JS_ASSERT(JS_IsNativeFunction(&vp->toObject(), sProtoMethods[n].native));
             return true;
         }
@@ -1021,7 +1021,7 @@ ListBase<LC>::get(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, V
     bool getFromExpandoObject = true;
 
     if (hasIndexGetter) {
-        int32_t index = GetArrayIndexFromId(cx, id);
+        int32 index = GetArrayIndexFromId(cx, id);
         if (index >= 0) {
             IndexGetterType result;
             if (getItemAt(getListObject(proxy), PRUint32(index), result))

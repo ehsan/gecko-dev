@@ -8,7 +8,6 @@ var testGenerator = testSteps();
 function runTest()
 {
   allowIndexedDB();
-  allowUnlimitedQuota();
 
   SimpleTest.waitForExplicitFinish();
   testGenerator.next();
@@ -16,8 +15,7 @@ function runTest()
 
 function finishTest()
 {
-  resetUnlimitedQuota();
-  resetIndexedDB();
+  disallowIndexedDB();
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
@@ -45,11 +43,6 @@ function continueToNextStep()
   SimpleTest.executeSoon(function() {
     testGenerator.next();
   });
-}
-
-function continueToNextStepSync()
-{
-  testGenerator.next();
 }
 
 function errorHandler(event)
@@ -80,12 +73,11 @@ ExpectError.prototype = {
     is(event.type, "error", "Got an error event");
     is(this._code, event.target.errorCode, "Expected error was thrown.");
     event.preventDefault();
-    event.stopPropagation();
     grabEventAndContinueHandler(event);
   }
 };
 
-function addPermission(type, allow, url)
+function addPermission(permission, url)
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
@@ -94,20 +86,15 @@ function addPermission(type, allow, url)
     uri = Components.classes["@mozilla.org/network/io-service;1"]
                     .getService(Components.interfaces.nsIIOService)
                     .newURI(url, null, null);
-  } else {
-    uri = SpecialPowers.getDocumentURIObject(window.document);
   }
-
-  let permission;
-  if (allow) {
-    permission = Components.interfaces.nsIPermissionManager.ALLOW_ACTION;
-  } else {
-    permission = Components.interfaces.nsIPermissionManager.DENY_ACTION;
+  else {
+    uri = SpecialPowers.getDocumentURIObject(window.document);
   }
 
   Components.classes["@mozilla.org/permissionmanager;1"]
             .getService(Components.interfaces.nsIPermissionManager)
-            .add(uri, type, permission);
+            .add(uri, permission,
+                 Components.interfaces.nsIPermissionManager.ALLOW_ACTION);
 }
 
 function removePermission(permission, url)
@@ -141,25 +128,20 @@ function setQuota(quota)
 
 function allowIndexedDB(url)
 {
-  addPermission("indexedDB", true, url);
+  addPermission("indexedDB", url);
 }
 
-function resetIndexedDB(url)
+function disallowIndexedDB(url)
 {
   removePermission("indexedDB", url);
 }
 
 function allowUnlimitedQuota(url)
 {
-  addPermission("indexedDB-unlimited", true, url);
+  addPermission("indexedDB-unlimited", url);
 }
 
-function denyUnlimitedQuota(url)
-{
-  addPermission("indexedDB-unlimited", false, url);
-}
-
-function resetUnlimitedQuota(url)
+function disallowUnlimitedQuota(url)
 {
   removePermission("indexedDB-unlimited", url);
 }

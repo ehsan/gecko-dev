@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -79,7 +79,9 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     virtual ~mozJSComponentLoader();
 
     // ModuleLoader
-    const mozilla::Module* LoadModule(mozilla::FileLocation &aFile);
+    const mozilla::Module* LoadModule(nsILocalFile* aFile);
+    const mozilla::Module* LoadModuleFromJAR(nsILocalFile* aJARFile,
+                                             const nsACString& aPath);
 
  protected:
     static mozJSComponentLoader* sSelf;
@@ -87,16 +89,20 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     nsresult ReallyInit();
     void UnloadModules();
 
+    nsresult FileKey(nsILocalFile* aFile, nsAString &aResult);
+    nsresult JarKey(nsILocalFile* aFile,
+                    const nsACString& aComponentPath,
+                    nsAString &aResult);
+
+    const mozilla::Module* LoadModuleImpl(nsILocalFile* aSourceFile,
+                                          nsAString &aKey,
+                                          nsIURI* aComponentURI);
+
     nsresult GlobalForLocation(nsILocalFile* aComponentFile,
                                nsIURI *aComponent,
                                JSObject **aGlobal,
                                char **location,
                                jsval *exception);
-
-    nsresult ImportInto(const nsACString & aLocation,
-                        JSObject * targetObj,
-                        JSContext * callercx,
-                        JSObject * *_retval);
 
     nsCOMPtr<nsIComponentManager> mCompMgr;
     nsCOMPtr<nsIJSRuntimeService> mRuntimeService;
@@ -156,11 +162,11 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     friend class ModuleEntry;
 
     // Modules are intentionally leaked, but still cleared.
-    static PLDHashOperator ClearModules(const nsACString& key, ModuleEntry*& entry, void* cx);
-    nsDataHashtable<nsCStringHashKey, ModuleEntry*> mModules;
+    static PLDHashOperator ClearModules(const nsAString& key, ModuleEntry*& entry, void* cx);
+    nsDataHashtable<nsStringHashKey, ModuleEntry*> mModules;
 
-    nsClassHashtable<nsCStringHashKey, ModuleEntry> mImports;
-    nsDataHashtable<nsCStringHashKey, ModuleEntry*> mInProgressImports;
+    nsClassHashtable<nsStringHashKey, ModuleEntry> mImports;
+    nsDataHashtable<nsStringHashKey, ModuleEntry*> mInProgressImports;
 
     bool mInitialized;
 };

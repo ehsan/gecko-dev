@@ -49,6 +49,10 @@
 const LPCWSTR kClassNameRoot = L"MozillaUIWindowClass";
 const LPCWSTR kClassNameTabContent = L"MozillaContentWindowClass";
 
+const LPCWSTR kJAWSModuleHandle = L"jhook";
+const LPCWSTR kWEModuleHandle = L"gwm32inc";
+const LPCWSTR kDolphinModuleHandle = L"dolwinhk";
+
 class nsWinUtils
 {
 public:
@@ -95,6 +99,11 @@ public:
    * Helper to hide window.
    */
   static void HideNativeWindow(HWND aWnd);
+
+  /**
+   * Return true if window emulation is enabled.
+   */
+  static bool IsWindowEmulationFor(LPCWSTR kModuleHandle);
 };
 
 #endif

@@ -217,37 +217,55 @@ multitouchHandler(int fd, FdHandler *data)
     }
 }
 
-static nsEventStatus
-sendKeyEventWithMsg(PRUint32 keyCode,
-                    PRUint32 msg,
-                    const timeval &time,
-                    PRUint32 flags)
+static void
+sendKeyEventWithMsg(PRUint32 keyCode, PRUint32 msg, const struct timeval &time)
 {
     nsKeyEvent event(true, msg, NULL);
     event.keyCode = keyCode;
     event.time = timevalToMS(time);
-    event.flags |= flags;
-    return nsWindow::DispatchInputEvent(event);
+    nsWindow::DispatchInputEvent(event);
 }
 
 static void
-sendKeyEvent(PRUint32 keyCode, bool down, const timeval &time)
+sendKeyEvent(PRUint32 keyCode, bool keyDown, const struct timeval &time)
 {
-    nsEventStatus status =
-        sendKeyEventWithMsg(keyCode, down ? NS_KEY_DOWN : NS_KEY_UP, time, 0);
-    if (down) {
-        sendKeyEventWithMsg(keyCode, NS_KEY_PRESS, time,
-                            status == nsEventStatus_eConsumeNoDefault ?
-                            NS_EVENT_FLAG_NO_DEFAULT : 0);
+    sendKeyEventWithMsg(keyCode, keyDown ? NS_KEY_DOWN : NS_KEY_UP, time);
+    if (keyDown) {
+        // Send a key press event right after the key down event.
+        sendKeyEventWithMsg(keyCode, NS_KEY_PRESS, time);
     }
 }
 
 static void
-sendSpecialKeyEvent(nsIAtom *command, const timeval &time)
+sendSpecialKeyEvent(nsIAtom *command, const struct timeval &time)
 {
     nsCommandEvent event(true, nsGkAtoms::onAppCommand, command, NULL);
     event.time = timevalToMS(time);
     nsWindow::DispatchInputEvent(event);
+}
+
+static int screenFd = -1;
+static bool sScreenOn = true;
+
+static void
+handlePowerKeyPressed()
+{
+    if (screenFd == -1) {
+        screenFd = open("/sys/power/state", O_RDWR);
+        if (screenFd < 0) {
+            LOG("Unable to open /sys/power/state.");
+            return;
+        }
+    }
+
+    // No idea why the screen-off string is "mem" rather than "off".
+    const char *state = sScreenOn ? "mem" : "on";
+    if (write(screenFd, state, strlen(state)) < 0) {
+        LOG("Unable to write to /sys/power/state.");
+        return;
+    }
+
+    sScreenOn = !sScreenOn;
 }
 
 static void
@@ -281,6 +299,13 @@ keyHandler(int fd, FdHandler *data)
             continue;
         }
 
+        if (!sScreenOn && e.code != KEY_POWER) {
+            LOG("Ignoring key event, because the screen is off. "
+                "type 0x%04x code 0x%04x value %d",
+                e.type, e.code, e.value);
+            continue;
+        }
+
         bool pressed = e.value == 1;
         const char* upOrDown = pressed ? "pressed" : "released";
         switch (e.code) {
@@ -299,7 +324,12 @@ keyHandler(int fd, FdHandler *data)
             sendKeyEvent(NS_VK_HOME, pressed, e.time);
             break;
         case KEY_POWER:
-            sendKeyEvent(NS_VK_SLEEP, pressed, e.time);
+            LOG("Power key %s", upOrDown);
+            // Ideally, we'd send a NS_VK_SLEEP event here and let the front-end
+            // sort out what to do.  But for now, let's just turn off the screen
+            // ourselves.
+            if (pressed)
+                handlePowerKeyPressed();
             break;
         case KEY_VOLUMEUP:
             if (pressed)

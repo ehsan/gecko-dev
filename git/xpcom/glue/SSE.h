@@ -160,7 +160,7 @@
   #define MOZILLA_PRESUME_SSE4_2 1
 #endif
 
-#ifdef HAVE_CPUID_H
+#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3)
   #define MOZILLA_SSE_HAVE_CPUID_DETECTION
 #endif
 

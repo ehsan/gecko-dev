@@ -108,8 +108,6 @@
 #include "mozilla/FunctionTimer.h"
 #include "mozilla/Preferences.h"
 
-#include "sampler.h"
-
 using namespace mozilla;
 
 const size_t gStackSize = 8192;
@@ -196,7 +194,7 @@ nsMemoryPressureObserver::Observe(nsISupports* aSubject, const char* aTopic,
                                   const PRUnichar* aData)
 {
   if (sGCOnMemoryPressure) {
-    nsJSContext::GarbageCollectNow(true);
+    nsJSContext::GarbageCollectNow();
     nsJSContext::CycleCollectNow();
   }
   return NS_OK;
@@ -718,7 +716,7 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   // we'll tell the user about this and we'll give the user the option
   // of stopping the execution of the script.
   nsCOMPtr<nsIPrompt> prompt = GetPromptFromContext(ctx);
-  NS_ENSURE_TRUE(prompt, JS_FALSE);
+  NS_ENSURE_TRUE(prompt, JS_TRUE);
 
   // Check if we should offer the option to debug
   JSStackFrame* fp = ::JS_GetScriptedCaller(cx, NULL);
@@ -931,6 +929,8 @@ static const char js_zeal_compartment_str[]   = JS_OPTIONS_DOT_STR "gczeal.compa
 #endif
 static const char js_methodjit_content_str[]  = JS_OPTIONS_DOT_STR "methodjit.content";
 static const char js_methodjit_chrome_str[]   = JS_OPTIONS_DOT_STR "methodjit.chrome";
+static const char js_profiling_content_str[]  = JS_OPTIONS_DOT_STR "jitprofiling.content";
+static const char js_profiling_chrome_str[]   = JS_OPTIONS_DOT_STR "jitprofiling.chrome";
 static const char js_methodjit_always_str[]   = JS_OPTIONS_DOT_STR "methodjit_always";
 static const char js_typeinfer_str[]          = JS_OPTIONS_DOT_STR "typeinference";
 static const char js_pccounts_content_str[]   = JS_OPTIONS_DOT_STR "pccounts.content";
@@ -961,6 +961,9 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   bool useMethodJIT = Preferences::GetBool(chromeWindow ?
                                                js_methodjit_chrome_str :
                                                js_methodjit_content_str);
+  bool useProfiling = Preferences::GetBool(chromeWindow ?
+                                               js_profiling_chrome_str :
+                                               js_profiling_content_str);
   bool usePCCounts = Preferences::GetBool(chromeWindow ?
                                             js_pccounts_chrome_str :
                                             js_pccounts_content_str);
@@ -973,6 +976,7 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     xr->GetInSafeMode(&safeMode);
     if (safeMode) {
       useMethodJIT = false;
+      useProfiling = false;
       usePCCounts = false;
       useTypeInference = false;
       useMethodJITAlways = true;
@@ -984,6 +988,11 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
     newDefaultJSOptions |= JSOPTION_METHODJIT;
   else
     newDefaultJSOptions &= ~JSOPTION_METHODJIT;
+
+  if (useProfiling)
+    newDefaultJSOptions |= JSOPTION_PROFILING;
+  else
+    newDefaultJSOptions &= ~JSOPTION_PROFILING;
 
   if (usePCCounts)
     newDefaultJSOptions |= JSOPTION_PCCOUNT;
@@ -1187,7 +1196,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
   NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
                            __LINE__, aURL, aLineNo);
 
-  SAMPLE_LABEL("JS", "EvaluateStringWithValue");
   NS_ABORT_IF_FALSE(aScopeObject,
     "Shouldn't call EvaluateStringWithValue with null scope object.");
 
@@ -1302,14 +1310,6 @@ nsJSContext::EvaluateStringWithValue(const nsAString& aScript,
     // tricky...
   }
   else {
-    // If there is an outer script running, propagate the error upwards.
-    // Otherwise we may lose, e.g., the fact that an inner script evaluation
-    // was killed for taking too long and allow the outer script evaluation to
-    // continue.
-    if (mExecuteDepth > 0 || JS_IsRunning(mContext)) {
-      rv = NS_ERROR_FAILURE;
-    }
-
     if (aIsUndefined) {
       *aIsUndefined = true;
     }
@@ -1398,7 +1398,6 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
                            __LINE__, aURL, aLineNo);
 
-  SAMPLE_LABEL("JS", "EvaluateString");
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
   if (!mScriptsEnabled) {
@@ -1509,14 +1508,6 @@ nsJSContext::EvaluateString(const nsAString& aScript,
     rv = JSValueToAString(mContext, val, aRetValue, aIsUndefined);
   }
   else {
-    // If there is an outer script running, propagate the error upwards.
-    // Otherwise we may lose, e.g., the fact that an inner script evaluation
-    // was killed for taking too long and allow the outer script evaluation to
-    // continue.
-    if (mExecuteDepth > 1 || JS_IsRunning(mContext)) {
-      rv = NS_ERROR_FAILURE;
-    }
-
     if (aIsUndefined) {
       *aIsUndefined = true;
     }
@@ -1547,7 +1538,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
                            const char *aURL,
                            PRUint32 aLineNo,
                            PRUint32 aVersion,
-                           nsScriptObjectHolder<JSScript>& aScriptObject)
+                           nsScriptObjectHolder &aScriptObject)
 {
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
 
@@ -1587,7 +1578,7 @@ nsJSContext::CompileScript(const PRUnichar* aText,
     if (script) {
       NS_ASSERTION(aScriptObject.getScriptTypeID()==JAVASCRIPT,
                    "Expecting JS script object holder");
-      rv = aScriptObject.set(script);
+      rv = aScriptObject.setScript(script);
     } else {
       rv = NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1654,14 +1645,6 @@ nsJSContext::ExecuteScript(JSScript* aScriptObject,
     rv = JSValueToAString(mContext, val, aRetValue, aIsUndefined);
   } else {
     ReportPendingException();
-
-    // If there is an outer script running, propagate the error upwards.
-    // Otherwise we may lose, e.g., the fact that an inner script evaluation
-    // was killed for taking too long and allow the outer script evaluation to
-    // continue.
-    if (mExecuteDepth > 1 || JS_IsRunning(mContext)) {
-      rv = NS_ERROR_FAILURE;
-    }
 
     if (aIsUndefined) {
       *aIsUndefined = true;
@@ -1745,7 +1728,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
                                  const nsAString& aBody,
                                  const char *aURL, PRUint32 aLineNo,
                                  PRUint32 aVersion,
-                                 nsScriptObjectHolder<JSObject>& aHandler)
+                                 nsScriptObjectHolder &aHandler)
 {
   NS_TIME_FUNCTION_MIN_FMT(1.0, "%s (line %d) (url: %s, line: %d)", MOZ_FUNCTION_NAME,
                            __LINE__, aURL, aLineNo);
@@ -1795,7 +1778,7 @@ nsJSContext::CompileEventHandler(nsIAtom *aName,
   JSObject *handler = ::JS_GetFunctionObject(fun);
   NS_ASSERTION(aHandler.getScriptTypeID()==JAVASCRIPT,
                "Expecting JS script object holder");
-  return aHandler.set(handler);
+  return aHandler.setObject(handler);
 }
 
 // XXX - note that CompileFunction doesn't yet play the nsScriptObjectHolder
@@ -1885,7 +1868,6 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, JSObject* aScope,
     NS_TIME_FUNCTION_FMT(1.0, "%s (line %d) (function: %s)", MOZ_FUNCTION_NAME, __LINE__, name);
   }
 #endif
-  SAMPLE_LABEL("JS", "CallEventHandler");
 
   JSAutoRequest ar(mContext);
   JSObject* target = nsnull;
@@ -1985,7 +1967,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, JSObject* aScope,
 nsresult
 nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, JSObject* aScope,
                                       JSObject* aHandler,
-                                      nsScriptObjectHolder<JSObject>& aBoundHandler)
+                                      nsScriptObjectHolder& aBoundHandler)
 {
   NS_ENSURE_ARG(aHandler);
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
@@ -2027,7 +2009,7 @@ nsJSContext::BindCompiledEventHandler(nsISupports* aTarget, JSObject* aScope,
     funobj = NULL;
   }
 
-  aBoundHandler.set(funobj);
+  aBoundHandler.setObject(funobj);
 
   return rv;
 }
@@ -2065,7 +2047,7 @@ nsJSContext::Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject)
         // stream, when control returns here from ::JS_XDRScript, we'll have
         // one last buffer of data to write to aStream.
 
-        uint32_t size;
+        uint32 size;
         const char* data = reinterpret_cast<const char*>
                                            (::JS_XDRMemGetData(xdr, &size));
         NS_ASSERTION(data, "no decoded JSXDRState data!");
@@ -2083,7 +2065,7 @@ nsJSContext::Serialize(nsIObjectOutputStream* aStream, JSScript* aScriptObject)
 
 nsresult
 nsJSContext::Deserialize(nsIObjectInputStream* aStream,
-                         nsScriptObjectHolder<JSScript>& aResult)
+                         nsScriptObjectHolder &aResult)
 {
     NS_TIME_FUNCTION_MIN(1.0);
 
@@ -2130,7 +2112,7 @@ nsJSContext::Deserialize(nsIObjectInputStream* aStream,
         // the JSXDRState.  So we steal it back, nulling xdr's buffer so it
         // doesn't get passed to ::JS_free by ::JS_XDRDestroy.
 
-        uint32_t junk;
+        uint32 junk;
         data = (char*) ::JS_XDRMemGetData(xdr, &junk);
         if (data)
             ::JS_XDRMemSetData(xdr, NULL, 0);
@@ -2148,7 +2130,13 @@ nsJSContext::Deserialize(nsIObjectInputStream* aStream,
     // code, which could happen for all sorts of reasons above.
     NS_ENSURE_SUCCESS(rv, rv);
 
-    return aResult.set(result);
+    return aResult.setScript(result);
+}
+
+void
+nsJSContext::SetDefaultLanguageVersion(PRUint32 aVersion)
+{
+  ::JS_SetVersion(mContext, (JSVersion)aVersion);
 }
 
 nsIScriptGlobalObject *
@@ -2771,10 +2759,11 @@ TraceMallocOpenLogFile(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 TraceMallocChangeLogFD(JSContext *cx, uintN argc, jsval *vp)
 {
+    int32 fd, oldfd;
+
     if (!CheckUniversalXPConnectForTraceMalloc(cx))
         return JS_FALSE;
 
-    int32_t fd, oldfd;
     if (argc == 0) {
         oldfd = -1;
     } else {
@@ -2793,10 +2782,11 @@ TraceMallocChangeLogFD(JSContext *cx, uintN argc, jsval *vp)
 static JSBool
 TraceMallocCloseLogFD(JSContext *cx, uintN argc, jsval *vp)
 {
+    int32 fd;
+
     if (!CheckUniversalXPConnectForTraceMalloc(cx))
         return JS_FALSE;
 
-    int32_t fd;
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     if (argc == 0)
         return JS_TRUE;
@@ -2960,24 +2950,13 @@ static JSFunctionSpec JProfFunctions[] = {
 
 #endif /* defined(MOZ_JPROF) */
 
-#ifdef MOZ_DMD
-
-// See https://wiki.mozilla.org/Performance/MemShrink/DMD for instructions on
-// how to use DMD.
-
-static JSBool
-DMDCheckJS(JSContext *cx, uintN argc, jsval *vp)
-{
-  mozilla::DMDCheckAndDump();
-  return JS_TRUE;
-}
-
-static JSFunctionSpec DMDFunctions[] = {
-    {"DMD",                        DMDCheckJS,                 0, 0},
+#ifdef MOZ_TRACEVIS
+static JSFunctionSpec EthogramFunctions[] = {
+    {"initEthogram",               js_InitEthogram,            0, 0},
+    {"shutdownEthogram",           js_ShutdownEthogram,        0, 0},
     {nsnull,                       nsnull,                     0, 0}
 };
-
-#endif /* defined(MOZ_DMD) */
+#endif
 
 nsresult
 nsJSContext::InitClasses(JSObject* aGlobalObj)
@@ -3002,9 +2981,9 @@ nsJSContext::InitClasses(JSObject* aGlobalObj)
   ::JS_DefineFunctions(mContext, aGlobalObj, JProfFunctions);
 #endif
 
-#ifdef MOZ_DMD
-  // Attempt to initialize DMD functions
-  ::JS_DefineFunctions(mContext, aGlobalObj, DMDFunctions);
+#ifdef MOZ_TRACEVIS
+  // Attempt to initialize Ethogram functions
+  ::JS_DefineFunctions(mContext, aGlobalObj, EthogramFunctions);
 #endif
 
   JSOptionChangedCallback(js_options_dot_str, this);
@@ -3131,10 +3110,7 @@ nsJSContext::ScriptEvaluated(bool aTerminated)
 
   JS_MaybeGC(mContext);
 
-  // Be careful to not reset the operation callback if some outer script is
-  // still running. This would allow a script to bypass the slow script check
-  // simply by invoking nested scripts (e.g., through a plugin).
-  if (aTerminated && mExecuteDepth == 0 && !JS_IsRunning(mContext)) {
+  if (aTerminated) {
     mOperationCallbackTime = 0;
     mModalStateTime = 0;
   }
@@ -3211,10 +3187,9 @@ nsJSContext::ScriptExecuted()
 
 //static
 void
-nsJSContext::GarbageCollectNow(bool shrinkingGC)
+nsJSContext::GarbageCollectNow()
 {
   NS_TIME_FUNCTION_MIN(1.0);
-  SAMPLE_LABEL("GC", "GarbageCollectNow");
 
   KillGCTimer();
 
@@ -3228,7 +3203,7 @@ nsJSContext::GarbageCollectNow(bool shrinkingGC)
   sLoadingInProgress = false;
 
   if (nsContentUtils::XPConnect()) {
-    nsContentUtils::XPConnect()->GarbageCollect(shrinkingGC);
+    nsContentUtils::XPConnect()->GarbageCollect();
   }
 }
 
@@ -3240,7 +3215,6 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener)
     return;
   }
 
-  SAMPLE_LABEL("GC", "CycleCollectNow");
   NS_TIME_FUNCTION_MIN(1.0);
 
   KillCCTimer();
@@ -3663,8 +3637,8 @@ ObjectPrincipalFinder(JSContext *cx, JSObject *obj)
 JSObject*
 NS_DOMReadStructuredClone(JSContext* cx,
                           JSStructuredCloneReader* reader,
-                          uint32_t tag,
-                          uint32_t data,
+                          uint32 tag,
+                          uint32 data,
                           void* closure)
 {
   // We don't currently support any extensions to structured cloning.
@@ -3685,7 +3659,7 @@ NS_DOMWriteStructuredClone(JSContext* cx,
 
 void
 NS_DOMStructuredCloneError(JSContext* cx,
-                           uint32_t errorid)
+                           uint32 errorid)
 {
   // We don't currently support any extensions to structured cloning.
   nsDOMClassInfo::ThrowJSException(cx, NS_ERROR_DOM_DATA_CLONE_ERR);

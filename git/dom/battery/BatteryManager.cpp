@@ -87,8 +87,15 @@ NS_IMPL_RELEASE_INHERITED(BatteryManager, nsDOMEventTargetWrapperCache)
 BatteryManager::BatteryManager()
   : mLevel(kDefaultLevel)
   , mCharging(kDefaultCharging)
-  , mRemainingTime(kDefaultRemainingTime)
+  , mRemainingTime(kUnknownRemainingTime)
 {
+}
+
+BatteryManager::~BatteryManager()
+{
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
 }
 
 void
@@ -100,10 +107,12 @@ BatteryManager::Init(nsPIDOMWindow *aWindow, nsIScriptContext* aScriptContext)
 
   hal::RegisterBatteryObserver(this);
 
-  hal::BatteryInformation batteryInfo;
-  hal::GetCurrentBatteryInformation(&batteryInfo);
+  hal::BatteryInformation* batteryInfo = new hal::BatteryInformation();
+  hal::GetCurrentBatteryInformation(batteryInfo);
 
-  UpdateFromBatteryInfo(batteryInfo);
+  UpdateFromBatteryInfo(*batteryInfo);
+
+  delete batteryInfo;
 }
 
 void
@@ -166,7 +175,7 @@ BatteryManager::DispatchTrustedEventToSelf(const nsAString& aEventName)
   nsresult rv = event->InitEvent(aEventName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = event->SetTrusted(true);
+  rv = event->SetTrusted(PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
@@ -182,14 +191,6 @@ BatteryManager::UpdateFromBatteryInfo(const hal::BatteryInformation& aBatteryInf
   mLevel = aBatteryInfo.level();
   mCharging = aBatteryInfo.charging();
   mRemainingTime = aBatteryInfo.remainingTime();
-
-  // Add some guards to make sure the values are coherent.
-  if (mLevel == 1.0 && mCharging == true &&
-      mRemainingTime != kDefaultRemainingTime) {
-    mRemainingTime = kDefaultRemainingTime;
-    NS_ERROR("Battery API: When charging and level at 1.0, remaining time "
-             "should be 0. Please fix your backend!");
-  }
 }
 
 void

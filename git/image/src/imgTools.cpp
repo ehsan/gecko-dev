@@ -131,22 +131,16 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
 
 NS_IMETHODIMP imgTools::EncodeImage(imgIContainer *aContainer,
                                     const nsACString& aMimeType,
-                                    const nsAString& aOutputOptions,
                                     nsIInputStream **aStream)
 {
-    return EncodeScaledImage(aContainer,
-                             aMimeType,
-                             0,
-                             0,
-                             aOutputOptions,
-                             aStream);
+    return EncodeScaledImage(aContainer, aMimeType, 0, 0, aStream);
 }
+
 
 NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
                                           const nsACString& aMimeType,
                                           PRInt32 aScaledWidth,
                                           PRInt32 aScaledHeight,
-                                          const nsAString& aOutputOptions,
                                           nsIInputStream **aStream)
 {
   nsresult rv;
@@ -221,13 +215,9 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
   }
 
   // Encode the bitmap
-  rv = encoder->InitFromData(bitmapData,
-                             bitmapDataLength,
-                             aScaledWidth,
-                             aScaledHeight,
-                             strideSize,
-                             imgIEncoder::INPUT_FORMAT_HOSTARGB,
-                             aOutputOptions);
+  rv = encoder->InitFromData(bitmapData, bitmapDataLength,
+                             aScaledWidth, aScaledHeight, strideSize,
+                             imgIEncoder::INPUT_FORMAT_HOSTARGB, EmptyString());
 
   NS_ENSURE_SUCCESS(rv, rv);
 

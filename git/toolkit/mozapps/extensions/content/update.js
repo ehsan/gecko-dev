@@ -42,11 +42,9 @@
 
 const PREF_UPDATE_EXTENSIONS_ENABLED            = "extensions.update.enabled";
 const PREF_XPINSTALL_ENABLED                    = "xpinstall.enabled";
-const PREF_EM_HOTFIX_ID                         = "extensions.hotfix.id";
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 
 var gUpdateWizard = {
   // When synchronizing app compatibility info this contains all installed
@@ -160,30 +158,17 @@ var gVersionInfoPage = {
                                   "nextButtonText", true,
                                   "cancelButtonText", false);
 
-    try {
-      var hotfixID = Services.prefs.getCharPref(PREF_EM_HOTFIX_ID);
-    }
-    catch (e) { }
-
     // Retrieve all add-ons in order to sync their app compatibility information
     AddonManager.getAllAddons(function(aAddons) {
       gUpdateWizard.addons = aAddons.filter(function(a) {
-        return a.type != "plugin" && a.id != hotfixID;
+        return a.type != "plugin";
       });
 
       gVersionInfoPage._totalCount = gUpdateWizard.addons.length;
 
-      // Ensure compatibility overrides are up to date before checking for
-      // individual addon updates.
-      let ids = [addon.id for each (addon in gUpdateWizard.addons)];
-      AddonRepository.repopulateCache(ids, function() {
-        AddonManagerPrivate.updateAddonRepositoryData(function() {
-
-          gUpdateWizard.addons.forEach(function(aAddon) {
-            aAddon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
-          }, this);
-        });
-      });
+      gUpdateWizard.addons.forEach(function(aAddon) {
+        aAddon.findUpdates(gVersionInfoPage, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+      }, this);
     });
   },
 

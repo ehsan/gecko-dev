@@ -43,7 +43,6 @@
 #include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 #include "nsMemory.h"
 
 #include "nsLocalFile.h"
@@ -143,36 +142,52 @@ public:
     nsresult Resolve(const WCHAR* in, WCHAR* out);
 
 private:
-    Mutex                  mLock;
-    nsRefPtr<IPersistFile> mPersistFile;
-    nsRefPtr<IShellLinkW>  mShellLink;
+    Mutex         mLock;
+    IPersistFile* mPersistFile;
+    // Win 95 and 98 don't have IShellLinkW
+    IShellLinkW*  mShellLink;
 };
 
-ShortcutResolver::ShortcutResolver() :
-    mLock("ShortcutResolver.mLock")
+ShortcutResolver::ShortcutResolver() : mLock("ShortcutResolver.mLock")
 {
-    CoInitialize(NULL);
+    mPersistFile = nsnull;
+    mShellLink  = nsnull;
 }
 
 ShortcutResolver::~ShortcutResolver()
 {
+    // Release the pointer to the IPersistFile interface.
+    if (mPersistFile)
+        mPersistFile->Release();
+
+    // Release the pointer to the IShellLink interface.
+    if (mShellLink)
+        mShellLink->Release();
+
     CoUninitialize();
 }
 
 nsresult
 ShortcutResolver::Init()
 {
-    // Get a pointer to the IPersistFile interface.
-    if (FAILED(CoCreateInstance(CLSID_ShellLink,
-                                NULL,
-                                CLSCTX_INPROC_SERVER,
-                                IID_IShellLinkW,
-                                getter_AddRefs(mShellLink))) ||
-        FAILED(mShellLink->QueryInterface(IID_IPersistFile,
-                                          getter_AddRefs(mPersistFile)))) {
-        mShellLink = nsnull;
-        return NS_ERROR_FAILURE;
+    CoInitialize(NULL);  // FIX: we should probably move somewhere higher up during startup
+
+    HRESULT hres; 
+    hres = CoCreateInstance(CLSID_ShellLink,
+                            NULL,
+                            CLSCTX_INPROC_SERVER,
+                            IID_IShellLinkW,
+                            (void**)&(mShellLink));
+    if (SUCCEEDED(hres))
+    {
+        // Get a pointer to the IPersistFile interface.
+        hres = mShellLink->QueryInterface(IID_IPersistFile,
+                                          (void**)&mPersistFile);
     }
+
+    if (mPersistFile == nsnull || mShellLink == nsnull)
+        return NS_ERROR_FAILURE;
+
     return NS_OK;
 }
 
@@ -180,14 +195,24 @@ ShortcutResolver::Init()
 nsresult
 ShortcutResolver::Resolve(const WCHAR* in, WCHAR* out)
 {
-    if (!mShellLink)
-        return NS_ERROR_FAILURE;
-
     MutexAutoLock lock(mLock);
 
-    if (FAILED(mPersistFile->Load(in, STGM_READ)) ||
-        FAILED(mShellLink->Resolve(nsnull, SLR_NO_UI)) ||
-        FAILED(mShellLink->GetPath(out, MAX_PATH, NULL, SLGP_UNCPRIORITY)))
+    // see if we can Load the path.
+    HRESULT hres = mPersistFile->Load(in, STGM_READ);
+
+    if (FAILED(hres))
+        return NS_ERROR_FAILURE;
+
+    // Resolve the link.
+    hres = mShellLink->Resolve(nsnull, SLR_NO_UI);
+
+    if (FAILED(hres))
+        return NS_ERROR_FAILURE;
+
+    // Get the path to the link target.
+    hres = mShellLink->GetPath(out, MAX_PATH, NULL, SLGP_UNCPRIORITY);
+
+    if (FAILED(hres))
         return NS_ERROR_FAILURE;
     return NS_OK;
 }
@@ -546,12 +571,11 @@ ReadDir(nsDir *dir, PRDirFlags flags, nsString& name)
 }
 
 static nsresult
-CloseDir(nsDir *&d)
+CloseDir(nsDir *d)
 {
     NS_ENSURE_ARG(d);
 
     BOOL isOk = FindClose(d->handle);
-    // PR_DELETE also nulls out the passed in pointer.
     PR_DELETE(d);
     return isOk ? NS_OK : ConvertWinError(GetLastError());
 }
@@ -609,6 +633,8 @@ class nsDirEnumerator : public nsISimpleEnumerator,
                     if (NS_FAILED(CloseDir(mDir)))
                         return NS_ERROR_FAILURE;
 
+                    mDir = nsnull;
+
                     *result = false;
                     return NS_OK;
                 }
@@ -665,6 +691,7 @@ class nsDirEnumerator : public nsISimpleEnumerator,
                 NS_ASSERTION(NS_SUCCEEDED(rv), "close failed");
                 if (NS_FAILED(rv))
                     return NS_ERROR_FAILURE;
+                mDir = nsnull;
             }
             return NS_OK;
         }

@@ -82,11 +82,8 @@ XPT_NotifyDoneLoading(XPTArena *arena);
 XPT_PUBLIC_API(void)
 XPT_ArenaFree(XPTArena *arena, void* block);
 
-/* A synonym of |nsMallocSizeOfFun|, because we don't #include nscore.h. */
-typedef size_t(*xptMallocSizeOfFun)(const void *p, size_t computedSize);
-
 XPT_PUBLIC_API(size_t)
-XPT_SizeOfArena(XPTArena *arena, xptMallocSizeOfFun mallocSizeOf);
+XPT_SizeOfArena(XPTArena *arena);
 
 /* --------------------------------------------------------- */
 

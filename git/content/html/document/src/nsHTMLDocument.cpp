@@ -111,6 +111,7 @@
 #include "nsJSUtils.h"
 #include "nsIDocumentCharsetInfo.h"
 #include "nsIDocumentEncoder.h" //for outputting selection
+#include "nsICharsetResolver.h"
 #include "nsICachingChannel.h"
 #include "nsIJSContextStack.h"
 #include "nsIContentViewer.h"
@@ -161,6 +162,7 @@ const PRInt32 kBackward = 1;
 
 //#define DEBUG_charset
 
+#define NS_USE_NEW_VIEW_SOURCE 1
 #define NS_USE_NEW_PLAIN_TEXT 1
 
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
@@ -208,10 +210,13 @@ MyPrefChangedCallback(const char*aPrefName, void* instance_data)
 static void
 ReportUseOfDeprecatedMethod(nsHTMLDocument* aDoc, const char* aWarning)
 {
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "DOM Events", aDoc,
-                                  nsContentUtils::eDOM_PROPERTIES,
-                                  aWarning);
+  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                  aWarning,
+                                  nsnull, 0,
+                                  nsnull,
+                                  EmptyString(), 0, 0,
+                                  nsIScriptError::warningFlag,
+                                  "DOM Events", aDoc);
 }
 
 static nsresult
@@ -652,7 +657,8 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   nsCAutoString contentType;
   aChannel->GetContentType(contentType);
 
-  bool viewSource = aCommand && !nsCRT::strcmp(aCommand, "view-source");
+  bool viewSource = aCommand && !nsCRT::strcmp(aCommand, "view-source") &&
+    NS_USE_NEW_VIEW_SOURCE;
   bool plainText = (contentType.EqualsLiteral(TEXT_PLAIN) ||
     contentType.EqualsLiteral(TEXT_CSS) ||
     contentType.EqualsLiteral(APPLICATION_JAVASCRIPT) ||
@@ -742,11 +748,7 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     if (loadAsHtml5) {
       mParser = nsHtml5Module::NewHtml5Parser();
       if (plainText) {
-        if (viewSource) {
-          mParser->MarkAsNotScriptCreated("view-source-plain");
-        } else {
-          mParser->MarkAsNotScriptCreated("plain-text");
-        }
+        mParser->MarkAsNotScriptCreated("plain-text");
       } else if (viewSource && !contentType.EqualsLiteral("text/html")) {
         mParser->MarkAsNotScriptCreated("view-source-xml");
       } else {
@@ -1291,9 +1293,11 @@ nsHTMLDocument::GetURL(nsAString& aURL)
 }
 
 nsIContent*
-nsHTMLDocument::GetBody()
+nsHTMLDocument::GetBody(nsresult *aResult)
 {
   Element* body = GetBodyElement();
+
+  *aResult = NS_OK;
 
   if (body) {
     // There is a body element, return that as the body.
@@ -1313,9 +1317,10 @@ nsHTMLDocument::GetBody(nsIDOMHTMLElement** aBody)
 {
   *aBody = nsnull;
 
-  nsIContent *body = GetBody();
+  nsresult rv;
+  nsIContent *body = GetBody(&rv);
 
-  return body ? CallQueryInterface(body, aBody) : NS_OK;
+  return body ? CallQueryInterface(body, aBody) : rv;
 }
 
 NS_IMETHODIMP
@@ -1739,8 +1744,7 @@ nsHTMLDocument::Open(const nsAString& aContentTypeOrUrl,
 
     nsCOMPtr<nsIScriptGlobalObject> newScope(do_QueryReferent(mScopeObject));
     if (oldScope && newScope != oldScope) {
-      rv = nsContentUtils::ReparentContentWrappersInScope(cx, oldScope, newScope);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsContentUtils::ReparentContentWrappersInScope(cx, oldScope, newScope);
     }
   }
 
@@ -1913,12 +1917,13 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
       (mParser && !mParser->IsInsertionPointDefined())) {
     if (mExternalScriptsBeingEvaluated) {
       // Instead of implying a call to document.open(), ignore the call.
-      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      "DOM Events", this,
-                                      nsContentUtils::eDOM_PROPERTIES,
+      nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                       "DocumentWriteIgnored",
                                       nsnull, 0,
-                                      mDocumentURI);
+                                      mDocumentURI,
+                                      EmptyString(), 0, 0,
+                                      nsIScriptError::warningFlag,
+                                      "DOM Events", this);
       return NS_OK;
     }
     mWriteState = eDocumentClosed;
@@ -1929,12 +1934,13 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
   if (!mParser) {
     if (mExternalScriptsBeingEvaluated) {
       // Instead of implying a call to document.open(), ignore the call.
-      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      "DOM Events", this,
-                                      nsContentUtils::eDOM_PROPERTIES,
+      nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                       "DocumentWriteIgnored",
                                       nsnull, 0,
-                                      mDocumentURI);
+                                      mDocumentURI,
+                                      EmptyString(), 0, 0,
+                                      nsIScriptError::warningFlag,
+                                      "DOM Events", this);
       return NS_OK;
     }
     nsCOMPtr<nsISupports> ignored;
@@ -1947,8 +1953,6 @@ nsHTMLDocument::WriteCommon(JSContext *cx,
     if (NS_FAILED(rv) || !mParser) {
       return rv;
     }
-    NS_ABORT_IF_FALSE(!JS_IsExceptionPending(cx),
-                      "Open() succeeded but JS exception is pending");
   }
 
   static NS_NAMED_LITERAL_STRING(new_line, "\n");

@@ -54,7 +54,7 @@ DIRS += test
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-ifneq (,$(filter mobile/xul b2g,$(MOZ_BUILD_APP)))
+ifeq ($(MOZ_BUILD_APP),mobile/xul)
 DIRS += android
 endif
 endif

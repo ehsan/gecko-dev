@@ -64,7 +64,7 @@
 #include "nsSMILAnimationController.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIDocumentEncoder.h"
-#include "nsIFrameRequestCallback.h"
+#include "nsIAnimationFrameListener.h"
 #include "nsEventStates.h"
 #include "nsIStructuredCloneContainer.h"
 #include "nsIBFCacheEntry.h"
@@ -124,9 +124,8 @@ class Element;
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID \
-{ 0x283ec27d, 0x5b23, 0x49b2, \
-  { 0x94, 0xd9, 0x9, 0xb5, 0xdb, 0x45, 0x30, 0x73 } }
-
+{ 0x3b78f6, 0x6dc5, 0x44c6, \
+  { 0xbc, 0x28, 0x60, 0x2a, 0xb2, 0x4f, 0xfb, 0x7b } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -753,30 +752,20 @@ public:
 
   /**
    * Asynchronously requests that the document make aElement the full-screen
-   * element, and move into full-screen mode. The current full-screen element
-   * (if any) is pushed onto the full-screen element stack, and it can be
-   * returned to full-screen status by calling RestorePreviousFullScreenState().
+   * element, and move into full-screen mode.
    */
   virtual void AsyncRequestFullScreen(Element* aElement) = 0;
 
   /**
-   * Restores the previous full-screen element to full-screen status. If there
-   * is no former full-screen element, this exits full-screen, moving the
-   * top-level browser window out of full-screen mode.
+   * Requests that the document, and all documents in its hierarchy exit
+   * from DOM full-screen mode.
    */
-  virtual void RestorePreviousFullScreenState() = 0;
+  virtual void CancelFullScreen() = 0;
 
   /**
    * Returns true if this document is in full-screen mode.
    */
   virtual bool IsFullScreenDoc() = 0;
-
-  /**
-   * Exits all documents from DOM full-screen mode, and moves the top-level
-   * browser window out of full-screen mode. If aRunAsync is true, this runs
-   * asynchronously.
-   */
-  static void ExitFullScreen(bool aRunAsync);
 
   //----------------------------------------------------------------------
 
@@ -1529,16 +1518,18 @@ public:
    */
   virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
 
-  nsresult ScheduleFrameRequestCallback(nsIFrameRequestCallback* aCallback,
-                                        PRInt32 *aHandle);
-  void CancelFrameRequestCallback(PRInt32 aHandle);
+  void ScheduleBeforePaintEvent(nsIAnimationFrameListener* aListener);
+  void BeforePaintEventFiring()
+  {
+    mHavePendingPaint = false;
+  }
 
-  typedef nsTArray< nsCOMPtr<nsIFrameRequestCallback> > FrameRequestCallbackList;
+  typedef nsTArray< nsCOMPtr<nsIAnimationFrameListener> > AnimationListenerList;
   /**
-   * Put this document's frame request callbacks into the provided
+   * Put this documents animation frame listeners into the provided
    * list, and forget about them.
    */
-  void TakeFrameRequestCallbacks(FrameRequestCallbackList& aCallbacks);
+  void TakeAnimationFrameListeners(AnimationListenerList& aListeners);
 
   // This returns true when the document tree is being teared down.
   bool InUnlinkOrDeletion() { return mInUnlinkOrDeletion; }
@@ -1600,20 +1591,6 @@ public:
   void WarnOnceAbout(DeprecatedOperations aOperation);
 
   virtual void PostVisibilityUpdateEvent() = 0;
-
-  void SetNeedLayoutFlush() {
-    mNeedLayoutFlush = true;
-    if (mDisplayDocument) {
-      mDisplayDocument->SetNeedLayoutFlush();
-    }
-  }
-
-  void SetNeedStyleFlush() {
-    mNeedStyleFlush = true;
-    if (mDisplayDocument) {
-      mDisplayDocument->SetNeedStyleFlush();
-    }
-  }
 
 private:
   PRUint64 mWarnedAbout;
@@ -1769,6 +1746,9 @@ protected:
   // True if document has ever had script handling object.
   bool mHasHadScriptHandlingObject;
 
+  // True if we're waiting for a before-paint event.
+  bool mHavePendingPaint;
+
   // True if we're an SVG document being used as an image.
   bool mIsBeingUsedAsImage;
 
@@ -1778,12 +1758,6 @@ protected:
 
   // True if this document has links whose state needs updating
   bool mHasLinksToUpdate;
-
-  // True if a layout flush might not be a no-op
-  bool mNeedLayoutFlush;
-
-  // True if a style flush might not be a no-op
-  bool mNeedStyleFlush;
 
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
@@ -1832,42 +1806,13 @@ protected:
    */
   PRUint32 mExternalScriptsBeingEvaluated;
 
-  /**
-   * The current frame request callback handle
-   */
-  PRInt32 mFrameRequestCallbackCounter;
-
   // Weak reference to mScriptGlobalObject QI:d to nsPIDOMWindow,
   // updated on every set of mSecriptGlobalObject.
   nsPIDOMWindow *mWindow;
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
 
-  struct FrameRequest {
-    FrameRequest(nsIFrameRequestCallback* aCallback,
-                 PRInt32 aHandle) :
-      mCallback(aCallback),
-      mHandle(aHandle)
-    {}
-
-    // Conversion operator so that we can append these to a
-    // FrameRequestCallbackList
-    operator nsIFrameRequestCallback* const () const { return mCallback; }
-
-    // Comparator operators to allow RemoveElementSorted with an
-    // integer argument on arrays of FrameRequest
-    bool operator==(PRInt32 aHandle) const {
-      return mHandle == aHandle;
-    }
-    bool operator<(PRInt32 aHandle) const {
-      return mHandle < aHandle;
-    }
-    
-    nsCOMPtr<nsIFrameRequestCallback> mCallback;
-    PRInt32 mHandle;
-  };
-
-  nsTArray<FrameRequest> mFrameRequestCallbacks;
+  AnimationListenerList mAnimationFrameListeners;
 
   // This object allows us to evict ourself from the back/forward cache.  The
   // pointer is non-null iff we're currently in the bfcache.

@@ -2059,7 +2059,8 @@ NotifyImportObservers(const char* aTopic,
                       PRInt64 aFolderId,
                       bool aIsInitialImport)
 {
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obs =
+    do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
   if (!obs)
     return;
 

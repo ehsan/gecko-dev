@@ -363,7 +363,7 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
 
   // Set the script global object on the superclass before doing
   // anything that might require it....
-  MediaDocument::SetScriptGlobalObject(aScriptGlobalObject);
+  nsHTMLDocument::SetScriptGlobalObject(aScriptGlobalObject);
 
   if (aScriptGlobalObject) {
     if (!GetRootElement()) {

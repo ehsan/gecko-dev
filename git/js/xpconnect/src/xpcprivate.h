@@ -566,7 +566,7 @@ public:
     virtual nsresult FinishCycleCollection();
     virtual nsCycleCollectionParticipant *ToParticipant(void *p);
     virtual bool NeedCollect();
-    virtual void Collect(bool shrinkingGC=false);
+    virtual void Collect();
 #ifdef DEBUG_CC
     virtual void PrintAllReferencesTo(void *p);
 #endif
@@ -815,8 +815,6 @@ public:
         return gNewDOMBindingsEnabled;
     }
 
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
-
 private:
     XPCJSRuntime(); // no implementation
     XPCJSRuntime(nsXPConnect* aXPConnect);
@@ -1036,6 +1034,9 @@ public:
     NS_IMETHOD GetJSContext(JSContext **aResult);
     NS_IMETHOD GetArgc(PRUint32 *aResult);
     NS_IMETHOD GetArgvPtr(jsval **aResult);
+    NS_IMETHOD GetRetValPtr(jsval **aResult);
+    NS_IMETHOD GetReturnValueWasSet(bool *aResult);
+    NS_IMETHOD SetReturnValueWasSet(bool aValue);
     NS_IMETHOD GetCalleeInterface(nsIInterfaceInfo **aResult);
     NS_IMETHOD GetCalleeClassInfo(nsIClassInfo **aResult);
     NS_IMETHOD GetPreviousCallContext(nsAXPCNativeCallContext **aResult);
@@ -1097,6 +1098,7 @@ public:
     inline uintN                        GetArgc() const ;
     inline jsval*                       GetArgv() const ;
     inline jsval*                       GetRetVal() const ;
+    inline JSBool                       GetReturnValueWasSet() const ;
 
     inline PRUint16                     GetMethodIndex() const ;
     inline void                         SetMethodIndex(PRUint16 index) ;
@@ -1213,6 +1215,7 @@ private:
     jsval*                          mArgv;
     jsval*                          mRetVal;
 
+    JSBool                          mReturnValueWasSet;
     PRUint16                        mMethodIndex;
 
 #define XPCCCX_STRING_CACHE_SIZE 2
@@ -1604,12 +1607,6 @@ public:
     void
     DebugDump(PRInt16 depth);
 
-    static size_t
-    SizeOfAllScopesIncludingThis(nsMallocSizeOfFun mallocSizeOf);
-
-    size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
-
     JSBool
     IsValid() const {return mRuntime != nsnull;}
 
@@ -1633,7 +1630,7 @@ public:
     {
         JS_ASSERT(js::GetObjectClass(obj)->flags & JSCLASS_XPCONNECT_GLOBAL);
 
-        const js::Value &v = js::GetObjectSlot(obj, JSCLASS_GLOBAL_SLOT_COUNT);
+        const js::Value &v = js::GetSlot(obj, JSCLASS_GLOBAL_SLOT_COUNT);
         return v.isUndefined()
                ? nsnull
                : static_cast<XPCWrappedNativeScope *>(v.toPrivate());
@@ -1815,8 +1812,6 @@ public:
 
     static void DestroyInstance(XPCNativeInterface* inst);
 
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
-
 protected:
     static XPCNativeInterface* NewInstance(XPCCallContext& ccx,
                                            nsIInterfaceInfo* aInfo);
@@ -1959,8 +1954,6 @@ public:
 
     static void DestroyInstance(XPCNativeSet* inst);
 
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
-
 protected:
     static XPCNativeSet* NewInstance(XPCCallContext& ccx,
                                      XPCNativeInterface** array,
@@ -1990,16 +1983,16 @@ private:
 class XPCNativeScriptableFlags
 {
 private:
-    uint32_t mFlags;
+    JSUint32 mFlags;
 
 public:
 
-    XPCNativeScriptableFlags(uint32_t flags = 0) : mFlags(flags) {}
+    XPCNativeScriptableFlags(JSUint32 flags = 0) : mFlags(flags) {}
 
-    uint32_t GetFlags() const {return mFlags & ~XPC_WN_SJSFLAGS_MARK_FLAG;}
-    void     SetFlags(uint32_t flags) {mFlags = flags;}
+    JSUint32 GetFlags() const {return mFlags & ~XPC_WN_SJSFLAGS_MARK_FLAG;}
+    void     SetFlags(JSUint32 flags) {mFlags = flags;}
 
-    operator uint32_t() const {return GetFlags();}
+    operator JSUint32() const {return GetFlags();}
 
     XPCNativeScriptableFlags(const XPCNativeScriptableFlags& r)
         {mFlags = r.GetFlags();}
@@ -2078,7 +2071,7 @@ public:
     JSClass*                        GetSlimJSClass()
         {if (mCanBeSlim) return GetJSClass(); return nsnull;}
 
-    XPCNativeScriptableShared(uint32_t aFlags, char* aName,
+    XPCNativeScriptableShared(JSUint32 aFlags, char* aName,
                               PRUint32 interfacesBitmap)
         : mFlags(aFlags),
           mCanBeSlim(false)
@@ -2252,7 +2245,7 @@ public:
     void**
     GetSecurityInfoAddr() {return &mSecurityInfo;}
 
-    uint32_t
+    JSUint32
     GetClassInfoFlags() const {return mClassInfoFlags;}
 
     QITableEntry*
@@ -2945,7 +2938,7 @@ private:
                                  uint16 methodIndex,
                                  uint8 paramIndex,
                                  nsXPTCMiniVariant* params,
-                                 uint32_t* result);
+                                 JSUint32* result);
 
     JSBool GetInterfaceTypeFromParam(JSContext* cx,
                                      const XPTMethodDescriptor* method,
@@ -2956,7 +2949,7 @@ private:
                                      nsID* result);
 
     void CleanupPointerArray(const nsXPTType& datum_type,
-                             uint32_t array_count,
+                             JSUint32 array_count,
                              void** arrayp);
 
     void CleanupPointerTypeObject(const nsXPTType& type,
@@ -3330,27 +3323,20 @@ public:
     static JSBool NativeArray2JS(XPCLazyCallContext& ccx,
                                  jsval* d, const void** s,
                                  const nsXPTType& type, const nsID* iid,
-                                 uint32_t count, nsresult* pErr);
+                                 JSUint32 count, nsresult* pErr);
 
     static JSBool JSArray2Native(XPCCallContext& ccx, void** d, jsval s,
-                                 uint32_t count, const nsXPTType& type,
-                                 const nsID* iid, nsresult* pErr);
-
-    static JSBool JSTypedArray2Native(XPCCallContext& ccx,
-                                      void** d,
-                                      JSObject* jsarray,
-                                      uint32_t count,
-                                      const nsXPTType& type,
-                                      nsresult* pErr);
+                                 JSUint32 count, const nsXPTType& type,
+                                 const nsID* iid, uintN* pErr);
 
     static JSBool NativeStringWithSize2JS(JSContext* cx,
                                           jsval* d, const void* s,
                                           const nsXPTType& type,
-                                          uint32_t count,
+                                          JSUint32 count,
                                           nsresult* pErr);
 
     static JSBool JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
-                                          uint32_t count, const nsXPTType& type,
+                                          JSUint32 count, const nsXPTType& type,
                                           uintN* pErr);
 
     static nsresult JSValToXPCException(XPCCallContext& ccx,
@@ -3761,7 +3747,7 @@ public:
         { gLock = nsnull; gThreads = nsnull; gTLSIndex = BAD_TLS_INDEX; }
 
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
-    uint32_t  IncrementWrappedNativeThreadsafetyReportDepth()
+    JSUint32  IncrementWrappedNativeThreadsafetyReportDepth()
         {return ++mWrappedNativeThreadsafetyReportDepth;}
     void      ClearWrappedNativeThreadsafetyReportDepth()
         {mWrappedNativeThreadsafetyReportDepth = 0;}
@@ -3790,7 +3776,7 @@ private:
     AutoMarkingPtr*      mAutoRoots;
 
 #ifdef XPC_CHECK_WRAPPER_THREADSAFETY
-    uint32_t             mWrappedNativeThreadsafetyReportDepth;
+    JSUint32             mWrappedNativeThreadsafetyReportDepth;
 #endif
     PRThread*            mThread;
 
@@ -3924,7 +3910,7 @@ xpc_PrintJSStack(JSContext* cx, JSBool showArgs, JSBool showLocals,
                  JSBool showThisProps);
 
 extern JSBool
-xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text);
+xpc_DumpEvalInJSStackFrame(JSContext* cx, JSUint32 frameno, const char* text);
 
 extern JSBool
 xpc_DumpJSObject(JSObject* obj);
@@ -3960,7 +3946,7 @@ private:
     nsCString mCategory;
     PRUint64 mOuterWindowID;
     PRUint64 mInnerWindowID;
-    PRInt64 mTimeStamp;
+    PRUint64 mTimeStamp;
 };
 
 /***************************************************************************/

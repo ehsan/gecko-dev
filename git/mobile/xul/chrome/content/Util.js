@@ -176,24 +176,6 @@ let Util = {
     else if (tabletPref == 1)
       return this._isTablet = true;
 
-#ifdef ANDROID
-    let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
-    let shellVersion = sysInfo.get("shellVersion") || "";
-    let matches = shellVersion.match(/\((\d+)\)$/);
-    if (matches) {
-      let sdkVersion = parseInt(matches[1]);
-      // Disable tablet mode on pre-honeycomb devices because of theme bugs (bug 705026)
-      if (sdkVersion < 11)
-        return this._isTablet = false;
-
-      // Always enable tablet mode on honeycomb devices.
-      if (sdkVersion < 14)
-        return this._isTablet = true;
-    }
-    // On Ice Cream Sandwich devices, switch modes based on screen size.
-    return this._isTablet = sysInfo.get("isTablet");
-#endif
-
     let dpi = this.displayDPI;
     if (dpi <= 96)
       return this._isTablet = (window.innerWidth > 1024);

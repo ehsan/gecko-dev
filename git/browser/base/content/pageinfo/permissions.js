@@ -226,7 +226,7 @@ function onIndexedDBClear()
   initIndexedDBRow();
 }
 
-function onIndexedDBUsageCallback(uri, usage, fileUsage)
+function onIndexedDBUsageCallback(uri, usage)
 {
   if (!uri.equals(gPermURI)) {
     throw new Error("Callback received for bad URI: " + uri);

@@ -51,7 +51,6 @@
 #include "nsIParser.h" // kCharsetFrom* macro definition
 #include "nsIDocumentCharsetInfo.h" 
 #include "nsNodeInfoManager.h"
-#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -131,7 +130,6 @@ const char* const MediaDocument::sFormatNames[4] =
 };
 
 MediaDocument::MediaDocument()
-    : mDocumentElementInserted(false)
 {
 }
 MediaDocument::~MediaDocument()
@@ -433,17 +431,6 @@ MediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
                                         getter_Copies(titleWithStatus));
     SetTitle(titleWithStatus);
   }
-}
-
-void 
-MediaDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aGlobalObject)
-{
-    nsHTMLDocument::SetScriptGlobalObject(aGlobalObject);
-    if (!mDocumentElementInserted && aGlobalObject) {
-        mDocumentElementInserted = true;
-        nsContentUtils::AddScriptRunner(
-            new nsDocElementCreatedNotificationRunner(this));        
-    }
 }
 
 } // namespace dom

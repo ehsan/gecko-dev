@@ -575,9 +575,7 @@ nsFormFillController::StartSearch(const nsAString &aSearchString, const nsAStrin
   } else {
     nsCOMPtr<nsIAutoCompleteResult> formHistoryResult;
 
-    // It appears that mFocusedInput is always null when we are focusing a XUL
-    // element. Scary :)
-    if (!mFocusedInput || nsContentUtils::IsAutocompleteEnabled(mFocusedInput)) {
+    if (mFocusedInput && nsContentUtils::IsAutocompleteEnabled(mFocusedInput)) {
       nsCOMPtr <nsIFormAutoComplete> formAutoComplete =
         do_GetService("@mozilla.org/satchel/form-autocomplete;1", &rv);
       NS_ENSURE_SUCCESS(rv, rv);

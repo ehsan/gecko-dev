@@ -89,23 +89,6 @@ HasRegExpMetaChars(const jschar *chars, size_t length)
     return false;
 }
 
-inline bool
-RegExpObject::startsWithAtomizedGreedyStar() const
-{
-    JSLinearString *source = getSource();
-
-    if (!source->isAtom())
-        return false;
-
-    if (source->length() < 3)
-        return false;
-
-    const jschar *chars = source->chars();
-    return chars[0] == detail::GreedyStarChars[0] &&
-           chars[1] == detail::GreedyStarChars[1] &&
-           chars[2] != '?';
-}
-
 inline size_t *
 RegExpObject::addressOfPrivateRefCount() const
 {
@@ -154,7 +137,7 @@ RegExpObject::purge(JSContext *cx)
 {
     if (RegExpPrivate *rep = getPrivate()) {
         rep->decref(cx);
-        setPrivate(NULL);
+        privateData = NULL;
     }
 }
 
@@ -171,27 +154,26 @@ inline bool
 RegExpObject::init(JSContext *cx, JSLinearString *source, RegExpFlag flags)
 {
     if (nativeEmpty()) {
-        if (isDelegate()) {
-            if (!assignInitialShape(cx))
-                return false;
-        } else {
-            Shape *shape = assignInitialShape(cx);
+        const js::Shape *shape = cx->compartment->initialRegExpShape;
+        if (!shape) {
+            shape = assignInitialShape(cx);
             if (!shape)
                 return false;
-            EmptyShape::insertInitialShape(cx, shape, getProto());
+            cx->compartment->initialRegExpShape = shape;
         }
+        setLastProperty(shape);
         JS_ASSERT(!nativeEmpty());
     }
 
     DebugOnly<JSAtomState *> atomState = &cx->runtime->atomState;
-    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->lastIndexAtom))->slot() == LAST_INDEX_SLOT);
-    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->sourceAtom))->slot() == SOURCE_SLOT);
-    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->globalAtom))->slot() == GLOBAL_FLAG_SLOT);
-    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->ignoreCaseAtom))->slot() ==
+    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->lastIndexAtom))->slot == LAST_INDEX_SLOT);
+    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->sourceAtom))->slot == SOURCE_SLOT);
+    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->globalAtom))->slot == GLOBAL_FLAG_SLOT);
+    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->ignoreCaseAtom))->slot ==
                                  IGNORE_CASE_FLAG_SLOT);
-    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->multilineAtom))->slot() ==
+    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->multilineAtom))->slot ==
                                  MULTILINE_FLAG_SLOT);
-    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->stickyAtom))->slot() == STICKY_FLAG_SLOT);
+    JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->stickyAtom))->slot == STICKY_FLAG_SLOT);
 
     JS_ASSERT(!getPrivate());
     zeroLastIndex();
@@ -275,7 +257,6 @@ detail::RegExpPrivate::getOrCreateCache(JSContext *cx)
 
 inline bool
 detail::RegExpPrivate::cacheLookup(JSContext *cx, JSAtom *atom, RegExpFlag flags,
-                                   RegExpPrivateCacheKind targetKind,
                                    AlreadyIncRefed<RegExpPrivate> *result)
 {
     RegExpPrivateCache *cache = getOrCreateCache(cx);
@@ -283,9 +264,8 @@ detail::RegExpPrivate::cacheLookup(JSContext *cx, JSAtom *atom, RegExpFlag flags
         return false;
 
     if (RegExpPrivateCache::Ptr p = cache->lookup(atom)) {
-        RegExpPrivateCacheValue &cacheValue = p->value;
-        if (cacheValue.kind() == targetKind && cacheValue.rep()->getFlags() == flags) {
-            NeedsIncRef<RegExpPrivate> cached(cacheValue.rep());
+        NeedsIncRef<RegExpPrivate> cached(p->value);
+        if (cached->getFlags() == flags) {
             cached->incref(cx);
             *result = AlreadyIncRefed<RegExpPrivate>(cached.get());
             return true;
@@ -297,8 +277,7 @@ detail::RegExpPrivate::cacheLookup(JSContext *cx, JSAtom *atom, RegExpFlag flags
 }
 
 inline bool
-detail::RegExpPrivate::cacheInsert(JSContext *cx, JSAtom *atom, RegExpPrivateCacheKind kind,
-                                   RegExpPrivate *priv)
+detail::RegExpPrivate::cacheInsert(JSContext *cx, JSAtom *atom, RegExpPrivate *priv)
 {
     JS_ASSERT(priv);
 
@@ -312,12 +291,11 @@ detail::RegExpPrivate::cacheInsert(JSContext *cx, JSAtom *atom, RegExpPrivateCac
         return false;
 
     if (RegExpPrivateCache::AddPtr addPtr = cache->lookupForAdd(atom)) {
-        /* We clobber existing entries with the same source (but different flags or kind). */
-        JS_ASSERT(addPtr->value.rep()->getFlags() != priv->getFlags() ||
-                  addPtr->value.kind() != kind);
-        addPtr->value.reset(priv, kind);
+        /* We clobber existing entries with the same source (but different flags). */
+        JS_ASSERT(addPtr->value->getFlags() != priv->getFlags());
+        addPtr->value = priv;
     } else {
-        if (!cache->add(addPtr, atom, RegExpPrivateCacheValue(priv, kind))) {
+        if (!cache->add(addPtr, atom, priv)) {
             js_ReportOutOfMemory(cx);
             return false;
         }
@@ -351,7 +329,7 @@ detail::RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag 
     JSAtom *sourceAtom = &source->asAtom();
 
     AlreadyIncRefed<RegExpPrivate> cached;
-    if (!cacheLookup(cx, sourceAtom, flags, RegExpPrivateCache_ExecCapable, &cached))
+    if (!cacheLookup(cx, sourceAtom, flags, &cached))
         return RetType(NULL);
 
     if (cached)
@@ -361,7 +339,7 @@ detail::RegExpPrivate::create(JSContext *cx, JSLinearString *source, RegExpFlag 
     if (!priv)
         return RetType(NULL);
 
-    if (!cacheInsert(cx, sourceAtom, RegExpPrivateCache_ExecCapable, priv))
+    if (!cacheInsert(cx, sourceAtom, priv))
         return RetType(NULL);
 
     return RetType(priv);
@@ -513,7 +491,7 @@ detail::RegExpPrivate::decref(JSContext *cx)
     RegExpPrivateCache *cache;
     if (source->isAtom() && (cache = cx->threadData()->getRegExpPrivateCache())) {
         RegExpPrivateCache::Ptr ptr = cache->lookup(&source->asAtom());
-        if (ptr && ptr->value.rep() == this)
+        if (ptr && ptr->value == this)
             cache->remove(ptr);
     }
 

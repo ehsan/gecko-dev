@@ -152,10 +152,6 @@ let UI = {
   // Used to keep track of the last opened tab.
   _lastOpenedTab: null,
 
-  // Variable: _originalSmoothScroll
-  // Used to keep track of the tab strip smooth scroll value.
-  _originalSmoothScroll: null,
-
   // ----------
   // Function: toString
   // Prints [UI] for debug use
@@ -199,8 +195,7 @@ let UI = {
       iQ("#exit-button").click(function() {
         self.exit();
         self.blurAll();
-      })
-      .attr("title", tabviewString("button.exitTabGroups"));
+      });
 
       // When you click on the background/empty part of TabView,
       // we create a new groupItem.
@@ -470,12 +465,11 @@ let UI = {
     if (item.isATabItem) {
       if (item.parent)
         GroupItems.setActiveGroupItem(item.parent);
-      if (!options || !options.dontSetActiveTabInGroup)
-        this._setActiveTab(item);
+      this._setActiveTab(item);
     } else {
       GroupItems.setActiveGroupItem(item);
       if (!options || !options.dontSetActiveTabInGroup) {
-        let activeTab = item.getActiveTab();
+        let activeTab = item.getActiveTab()
         if (activeTab)
           this._setActiveTab(activeTab);
       }
@@ -517,11 +511,6 @@ let UI = {
       return;
 
     this._isChangingVisibility = true;
-
-    // store tab strip smooth scroll value and disable it.
-    let tabStrip = gBrowser.tabContainer.mTabstrip;
-    this._originalSmoothScroll = tabStrip.smoothScroll;
-    tabStrip.smoothScroll = false;
 
     // initialize the direction of the page
     this._initPageDirection();
@@ -574,8 +563,7 @@ let UI = {
         TabItems.resumePainting();
       });
     } else {
-      if (!currentTab || !currentTab._tabViewTabItem)
-        self.clearActiveTab();
+      self.clearActiveTab();
       self._isChangingVisibility = false;
       dispatchEvent(event);
 
@@ -619,7 +607,6 @@ let UI = {
     gBrowser.selectedBrowser.focus();
 
     gBrowser.updateTitlebar();
-    gBrowser.tabContainer.mTabstrip.smoothScroll = this._originalSmoothScroll;
 #ifdef XP_MACOSX
     this.setTitlebarColors(false);
 #endif
@@ -797,7 +784,7 @@ let UI = {
               return;
           }
 
-          let groupItem = GroupItems.getActiveGroupItem();
+          var groupItem = GroupItems.getActiveGroupItem();
 
           // 1) Only go back to the TabView tab when there you close the last
           // tab of a groupItem.

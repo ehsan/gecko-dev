@@ -147,7 +147,6 @@ Context::Context(const egl::Config *config, const gl::Context *shareContext, boo
 
     mState.packAlignment = 4;
     mState.unpackAlignment = 4;
-    mState.packReverseRowOrder = false;
 
     mVertexDataManager = NULL;
     mIndexDataManager = NULL;
@@ -856,16 +855,6 @@ GLint Context::getUnpackAlignment() const
     return mState.unpackAlignment;
 }
 
-void Context::setPackReverseRowOrder(bool reverseRowOrder)
-{
-    mState.packReverseRowOrder = reverseRowOrder;
-}
-
-bool Context::getPackReverseRowOrder() const
-{
-    return mState.packReverseRowOrder;
-}
-
 GLuint Context::createBuffer()
 {
     return mResourceManager->createBuffer();
@@ -1284,7 +1273,6 @@ bool Context::getIntegerv(GLenum pname, GLint *params)
       case GL_RENDERBUFFER_BINDING:             *params = mState.renderbuffer.id();             break;
       case GL_CURRENT_PROGRAM:                  *params = mState.currentProgram;                break;
       case GL_PACK_ALIGNMENT:                   *params = mState.packAlignment;                 break;
-      case GL_PACK_REVERSE_ROW_ORDER_ANGLE:     *params = mState.packReverseRowOrder;           break;
       case GL_UNPACK_ALIGNMENT:                 *params = mState.unpackAlignment;               break;
       case GL_GENERATE_MIPMAP_HINT:             *params = mState.generateMipmapHint;            break;
       case GL_FRAGMENT_SHADER_DERIVATIVE_HINT_OES: *params = mState.fragmentShaderDerivativeHint; break;
@@ -1524,7 +1512,6 @@ bool Context::getQueryParameterInfo(GLenum pname, GLenum *type, unsigned int *nu
       case GL_RENDERBUFFER_BINDING:
       case GL_CURRENT_PROGRAM:
       case GL_PACK_ALIGNMENT:
-      case GL_PACK_REVERSE_ROW_ORDER_ANGLE:
       case GL_UNPACK_ALIGNMENT:
       case GL_GENERATE_MIPMAP_HINT:
       case GL_FRAGMENT_SHADER_DERIVATIVE_HINT_OES:
@@ -1668,11 +1655,15 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         return error(GL_INVALID_FRAMEBUFFER_OPERATION, false);
     }
 
+    IDirect3DSurface9 *renderTarget = NULL;
+    IDirect3DSurface9 *depthStencil = NULL;
+
     bool renderTargetChanged = false;
     unsigned int renderTargetSerial = framebufferObject->getRenderTargetSerial();
     if (renderTargetSerial != mAppliedRenderTargetSerial)
     {
-        IDirect3DSurface9 *renderTarget = framebufferObject->getRenderTarget();
+        renderTarget = framebufferObject->getRenderTarget();
+
         if (!renderTarget)
         {
             return false;   // Context must be lost
@@ -1681,10 +1672,8 @@ bool Context::applyRenderTarget(bool ignoreViewport)
         mAppliedRenderTargetSerial = renderTargetSerial;
         mScissorStateDirty = true; // Scissor area must be clamped to render target's size-- this is different for different render targets.
         renderTargetChanged = true;
-        renderTarget->Release();
     }
 
-    IDirect3DSurface9 *depthStencil = NULL;
     unsigned int depthbufferSerial = 0;
     unsigned int stencilbufferSerial = 0;
     if (framebufferObject->getDepthbufferType() != GL_NONE)
@@ -1722,14 +1711,17 @@ bool Context::applyRenderTarget(bool ignoreViewport)
 
     if (!mRenderTargetDescInitialized || renderTargetChanged)
     {
-        IDirect3DSurface9 *renderTarget = framebufferObject->getRenderTarget();
         if (!renderTarget)
         {
-            return false;   // Context must be lost
+            renderTarget = framebufferObject->getRenderTarget();
+
+            if (!renderTarget)
+            {
+                return false;   // Context must be lost
+            }
         }
         renderTarget->GetDesc(&mRenderTargetDesc);
         mRenderTargetDescInitialized = true;
-        renderTarget->Release();
     }
 
     D3DVIEWPORT9 viewport;
@@ -2243,6 +2235,7 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height,
     }
 
     IDirect3DSurface9 *renderTarget = framebuffer->getRenderTarget();
+
     if (!renderTarget)
     {
         return;   // Context must be lost, return silently
@@ -2251,44 +2244,22 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height,
     D3DSURFACE_DESC desc;
     renderTarget->GetDesc(&desc);
 
-    if (desc.MultiSampleType != D3DMULTISAMPLE_NONE)
+    IDirect3DSurface9 *systemSurface;
+    HRESULT result = mDevice->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &systemSurface, NULL);
+
+    if (FAILED(result))
     {
-        UNIMPLEMENTED();   // FIXME: Requires resolve using StretchRect into non-multisampled render target
-        renderTarget->Release();
+        ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
         return error(GL_OUT_OF_MEMORY);
     }
 
-    HRESULT result;
-    IDirect3DSurface9 *systemSurface = NULL;
-    bool directToPixels = getPackReverseRowOrder() && getPackAlignment() <= 4 && mDisplay->isD3d9ExDevice() &&
-                          x == 0 && y == 0 && width == desc.Width && height == desc.Height &&
-                          desc.Format == D3DFMT_A8R8G8B8 && format == GL_BGRA_EXT && type == GL_UNSIGNED_BYTE;
-    if (directToPixels)
+    if (desc.MultiSampleType != D3DMULTISAMPLE_NONE)
     {
-        // Use the pixels ptr as a shared handle to write directly into client's memory
-        result = mDevice->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format,
-                                                      D3DPOOL_SYSTEMMEM, &systemSurface, &pixels);
-        if (FAILED(result))
-        {
-            // Try again without the shared handle
-            directToPixels = false;
-        }
-    }
-
-    if (!directToPixels)
-    {
-        result = mDevice->CreateOffscreenPlainSurface(desc.Width, desc.Height, desc.Format,
-                                                      D3DPOOL_SYSTEMMEM, &systemSurface, NULL);
-        if (FAILED(result))
-        {
-            ASSERT(result == D3DERR_OUTOFVIDEOMEMORY || result == E_OUTOFMEMORY);
-            return error(GL_OUT_OF_MEMORY);
-        }
+        UNIMPLEMENTED();   // FIXME: Requires resolve using StretchRect into non-multisampled render target
+        return error(GL_OUT_OF_MEMORY);
     }
 
     result = mDevice->GetRenderTargetData(renderTarget, systemSurface);
-    renderTarget->Release();
-    renderTarget = NULL;
 
     if (FAILED(result))
     {
@@ -2304,12 +2275,6 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height,
             return;
         }
 
-    }
-
-    if (directToPixels)
-    {
-        systemSurface->Release();
-        return;
     }
 
     D3DLOCKED_RECT lock;
@@ -2329,21 +2294,10 @@ void Context::readPixels(GLint x, GLint y, GLsizei width, GLsizei height,
         return;   // No sensible error to generate
     }
 
+    unsigned char *source = ((unsigned char*)lock.pBits) + lock.Pitch * (rect.bottom - rect.top - 1);
     unsigned char *dest = (unsigned char*)pixels;
     unsigned short *dest16 = (unsigned short*)pixels;
-
-    unsigned char *source;
-    int inputPitch;
-    if (getPackReverseRowOrder())
-    {
-        source = (unsigned char*)lock.pBits;
-        inputPitch = lock.Pitch;
-    }
-    else
-    {
-        source = ((unsigned char*)lock.pBits) + lock.Pitch * (rect.bottom - rect.top - 1);
-        inputPitch = -lock.Pitch;
-    }
+    int inputPitch = -lock.Pitch;
 
     for (int j = 0; j < rect.bottom - rect.top; j++)
     {
@@ -2597,6 +2551,7 @@ void Context::clear(GLbitfield mask)
     int stencil = mState.stencilClearValue & 0x000000FF;
 
     IDirect3DSurface9 *renderTarget = framebufferObject->getRenderTarget();
+
     if (!renderTarget)
     {
         return;   // Context must be lost, return silently
@@ -2604,8 +2559,6 @@ void Context::clear(GLbitfield mask)
 
     D3DSURFACE_DESC desc;
     renderTarget->GetDesc(&desc);
-    renderTarget->Release();
-    renderTarget = NULL;
 
     bool alphaUnmasked = (dx2es::GetAlphaSize(desc.Format) == 0) || mState.colorMaskAlpha;
 
@@ -2795,7 +2748,7 @@ void Context::drawArrays(GLenum mode, GLint first, GLsizei count)
 
         if (mode == GL_LINE_LOOP)   // Draw the last segment separately
         {
-            drawClosingLine(0, count - 1, 0);
+            drawClosingLine(first, first + count - 1);
         }
     }
 }
@@ -2860,7 +2813,7 @@ void Context::drawElements(GLenum mode, GLsizei count, GLenum type, const void *
 
         if (mode == GL_LINE_LOOP)   // Draw the last segment separately
         {
-            drawClosingLine(count, type, indices, indexInfo.minIndex);
+            drawClosingLine(count, type, indices);
         }
     }
 }
@@ -2868,7 +2821,6 @@ void Context::drawElements(GLenum mode, GLsizei count, GLenum type, const void *
 // Implements glFlush when block is false, glFinish when block is true
 void Context::sync(bool block)
 {
-    egl::Display *display = getDisplay();
     IDirect3DQuery9 *eventQuery = NULL;
     HRESULT result;
 
@@ -2901,13 +2853,6 @@ void Context::sync(bool block)
         {
             // Keep polling, but allow other threads to do something useful first
             Sleep(0);
-            // explicitly check for device loss
-            // some drivers seem to return S_FALSE even if the device is lost
-            // instead of D3DERR_DEVICELOST like they should
-            if (display->testDeviceLost())
-            {
-                result = D3DERR_DEVICELOST;
-            }
         }
     }
     while(block && result == S_FALSE);
@@ -2920,7 +2865,7 @@ void Context::sync(bool block)
     }
 }
 
-void Context::drawClosingLine(unsigned int first, unsigned int last, int minIndex)
+void Context::drawClosingLine(unsigned int first, unsigned int last)
 {
     IDirect3DIndexBuffer9 *indexBuffer = NULL;
     bool succeeded = false;
@@ -2974,7 +2919,7 @@ void Context::drawClosingLine(unsigned int first, unsigned int last, int minInde
         mDevice->SetIndices(mClosingIB->getBuffer());
         mAppliedIBSerial = mClosingIB->getSerial();
 
-        mDevice->DrawIndexedPrimitive(D3DPT_LINELIST, -minIndex, minIndex, last, offset, 1);
+        mDevice->DrawIndexedPrimitive(D3DPT_LINELIST, 0, 0, last, offset, 1);
     }
     else
     {
@@ -2983,7 +2928,7 @@ void Context::drawClosingLine(unsigned int first, unsigned int last, int minInde
     }
 }
 
-void Context::drawClosingLine(GLsizei count, GLenum type, const void *indices, int minIndex)
+void Context::drawClosingLine(GLsizei count, GLenum type, const void *indices)
 {
     unsigned int first = 0;
     unsigned int last = 0;
@@ -3012,7 +2957,7 @@ void Context::drawClosingLine(GLsizei count, GLenum type, const void *indices, i
       default: UNREACHABLE();
     }
 
-    drawClosingLine(first, last, minIndex);
+    drawClosingLine(first, last);
 }
 
 void Context::recordInvalidEnum()
@@ -3503,8 +3448,6 @@ void Context::initExtensionString()
         mExtensionString += "GL_ANGLE_framebuffer_multisample ";
     }
 
-    mExtensionString += "GL_ANGLE_pack_reverse_row_order ";
-
     if (supportsDXT3Textures())
     {
         mExtensionString += "GL_ANGLE_texture_compression_dxt3 ";
@@ -3797,14 +3740,8 @@ void Context::blitFramebuffer(GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1
 
         if (blitRenderTarget)
         {
-            IDirect3DSurface9* readRenderTarget = readFramebuffer->getRenderTarget();
-            IDirect3DSurface9* drawRenderTarget = drawFramebuffer->getRenderTarget();
-
-            HRESULT result = mDevice->StretchRect(readRenderTarget, &sourceTrimmedRect, 
-                                                  drawRenderTarget, &destTrimmedRect, D3DTEXF_NONE);
-
-            readRenderTarget->Release();
-            drawRenderTarget->Release();
+            HRESULT result = mDevice->StretchRect(readFramebuffer->getRenderTarget(), &sourceTrimmedRect, 
+                                                 drawFramebuffer->getRenderTarget(), &destTrimmedRect, D3DTEXF_NONE);
 
             if (FAILED(result))
             {

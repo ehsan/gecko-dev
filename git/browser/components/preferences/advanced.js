@@ -68,8 +68,7 @@ var gAdvancedPane = {
 #ifdef MOZ_CRASHREPORTER
     this.initSubmitCrashes();
 #endif
-    this.updateActualCacheSize("disk");
-    this.updateActualCacheSize("offline");
+    this.updateActualCacheSize();
   },
 
   /**
@@ -203,22 +202,18 @@ var gAdvancedPane = {
                                            "", null);
   },
  
-  // Retrieves the amount of space currently used by disk or offline cache
-  updateActualCacheSize: function (device)
+  // Retrieves the amount of space currently used by disk cache
+  updateActualCacheSize: function ()
   {
     var visitor = {
       visitDevice: function (deviceID, deviceInfo)
       {
-        if (deviceID == device) {
-          var actualSizeLabel = document.getElementById(device == "disk" ?
-                                                        "actualDiskCacheSize" :
-                                                        "actualAppCacheSize");
+        if (deviceID == "disk") {
+          var actualSizeLabel = document.getElementById("actualCacheSize");
           var sizeStrings = DownloadUtils.convertByteUnits(deviceInfo.totalSize);
           var prefStrBundle = document.getElementById("bundlePreferences");
-          var sizeStr = prefStrBundle.getFormattedString(device == "disk" ?
-                                                         "actualDiskCacheSize" :
-                                                         "actualAppCacheSize",
-                                                         sizeStrings);
+          var sizeStr = prefStrBundle.getFormattedString("actualCacheSize",
+                                                          sizeStrings);
           actualSizeLabel.value = sizeStr;
         }
         // Do not enumerate entries
@@ -231,7 +226,6 @@ var gAdvancedPane = {
         return false;
       }
     };
-
     var cacheService =
       Components.classes["@mozilla.org/network/cache-service;1"]
                 .getService(Components.interfaces.nsICacheService);
@@ -280,23 +274,11 @@ var gAdvancedPane = {
   clearCache: function ()
   {
     var cacheService = Components.classes["@mozilla.org/network/cache-service;1"]
-                                 .getService(Components.interfaces.nsICacheService);
+                         	       .getService(Components.interfaces.nsICacheService);
     try {
       cacheService.evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
     } catch(ex) {}
-    this.updateActualCacheSize("disk");
-  },
-
-  /**
-   * Clears the application cache.
-   */
-  clearOfflineAppCache: function ()
-  {
-    Components.utils.import("resource:///modules/offlineAppCache.jsm");
-    OfflineAppCacheHelper.clear();
-
-    this.updateActualCacheSize("offline");
-    this.updateOfflineApps();
+    this.updateActualCacheSize();
   },
 
   readOfflineNotify: function()
@@ -450,7 +432,6 @@ var gAdvancedPane = {
 
     list.removeChild(item);
     gAdvancedPane.offlineAppSelected();
-    this.updateActualCacheSize("offline");
   },
 
   // UPDATE TAB
@@ -614,6 +595,18 @@ var gAdvancedPane = {
     prompter.showUpdateHistory(window);
   },
 #endif
+
+  /**
+   * The Extensions checkbox and button are disabled only if the enable Addon
+   * update preference is locked.
+   */
+  updateAddonUpdateUI: function ()
+  {
+    var enabledPref = document.getElementById("extensions.update.enabled");
+    var enableAddonUpdate = document.getElementById("enableAddonUpdate");
+
+    enableAddonUpdate.disabled = enabledPref.locked;
+  },
 
   // ENCRYPTION TAB
 

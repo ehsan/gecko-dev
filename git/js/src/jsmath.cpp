@@ -509,16 +509,16 @@ js_math_pow(JSContext *cx, uintN argc, Value *vp)
     return JS_TRUE;
 }
 
-static const int64_t RNG_MULTIPLIER = 0x5DEECE66DLL;
-static const int64_t RNG_ADDEND = 0xBLL;
-static const int64_t RNG_MASK = (1LL << 48) - 1;
+static const int64 RNG_MULTIPLIER = 0x5DEECE66DLL;
+static const int64 RNG_ADDEND = 0xBLL;
+static const int64 RNG_MASK = (1LL << 48) - 1;
 static const jsdouble RNG_DSCALE = jsdouble(1LL << 53);
 
 /*
  * Math.random() support, lifted from java.util.Random.java.
  */
 static inline void
-random_setSeed(JSContext *cx, int64_t seed)
+random_setSeed(JSContext *cx, int64 seed)
 {
     cx->rngSeed = (seed ^ RNG_MULTIPLIER) & RNG_MASK;
 }
@@ -534,14 +534,14 @@ js_InitRandom(JSContext *cx)
      */
     random_setSeed(cx,
                    (PRMJ_Now() / 1000) ^
-                   int64_t(cx) ^
-                   int64_t(cx->link.next));
+                   int64(cx) ^
+                   int64(cx->link.next));
 }
 
-static inline uint64_t
+static inline uint64
 random_next(JSContext *cx, int bits)
 {
-    uint64_t nextseed = cx->rngSeed * RNG_MULTIPLIER;
+    uint64 nextseed = cx->rngSeed * RNG_MULTIPLIER;
     nextseed += RNG_ADDEND;
     nextseed &= RNG_MASK;
     cx->rngSeed = nextseed;
@@ -703,7 +703,7 @@ js_IsMathFunction(Native native)
 JSObject *
 js_InitMathClass(JSContext *cx, JSObject *obj)
 {
-    JSObject *Math = NewObjectWithClassProto(cx, &MathClass, NULL, obj);
+    JSObject *Math = NewNonFunction<WithProto::Class>(cx, &MathClass, NULL, obj);
     if (!Math || !Math->setSingletonType(cx))
         return NULL;
 

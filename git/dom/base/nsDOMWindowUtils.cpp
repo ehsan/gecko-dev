@@ -60,7 +60,6 @@
 #include "nsGUIEvent.h"
 #include "nsIParser.h"
 #include "nsJSEnvironment.h"
-#include "nsJSUtils.h"
 
 #include "nsIViewManager.h"
 
@@ -84,9 +83,6 @@
 #include "nsIIOService.h"
 
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/indexedDB/FileInfo.h"
-#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
-#include "sampler.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -733,7 +729,6 @@ nsDOMWindowUtils::Focus(nsIDOMElement* aElement)
 NS_IMETHODIMP
 nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
 {
-  SAMPLE_LABEL("GC", "GarbageCollect");
   // Always permit this in debug builds.
 #ifndef DEBUG
   if (!IsUniversalXPConnectCapable()) {
@@ -874,18 +869,10 @@ nsDOMWindowUtils::NodesFromRect(float aX, float aY,
 }
 
 static already_AddRefed<gfxImageSurface>
-CanvasToImageSurface(nsIDOMHTMLCanvasElement* aCanvas)
+CanvasToImageSurface(nsIDOMHTMLCanvasElement *canvas)
 {
-  nsCOMPtr<nsINode> node = do_QueryInterface(aCanvas);
-  if (!node) {
-    return nsnull;
-  }
-
-  NS_ABORT_IF_FALSE(node->IsElement(),
-                    "An nsINode that implements nsIDOMHTMLCanvasElement should "
-                    "be an element.");
   nsLayoutUtils::SurfaceFromElementResult result =
-    nsLayoutUtils::SurfaceFromElement(node->AsElement(),
+    nsLayoutUtils::SurfaceFromElement(canvas,
                                       nsLayoutUtils::SFE_WANT_IMAGE_SURFACE);
   return static_cast<gfxImageSurface*>(result.mSurface.forget().get());
 }
@@ -1340,7 +1327,6 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
     nsIntRect widgetBounds;
     nsresult rv = widget->GetClientBounds(widgetBounds);
     NS_ENSURE_SUCCESS(rv, rv);
-    widgetBounds.MoveTo(0, 0);
 
     // There is no popup frame at the point and the point isn't in our widget,
     // we cannot process this request.
@@ -1455,20 +1441,44 @@ nsDOMWindowUtils::SendContentCommandEvent(const nsAString& aType,
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::GetClassName(const JS::Value& aObject, JSContext* aCx, char** aName)
+nsDOMWindowUtils::GetClassName(char **aName)
 {
   if (!nsContentUtils::IsCallerTrustedForRead()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  // Our argument must be a non-null object.
-  if (JSVAL_IS_PRIMITIVE(aObject)) {
-    return NS_ERROR_XPC_BAD_CONVERT_JS;
-  }
+  // get the xpconnect native call context
+  nsAXPCNativeCallContext *cc = nsnull;
+  nsContentUtils::XPConnect()->GetCurrentNativeCallContext(&cc);
+  if(!cc)
+    return NS_ERROR_FAILURE;
 
-  *aName = NS_strdup(JS_GET_CLASS(aCx, JSVAL_TO_OBJECT(aObject))->name);
-  NS_ABORT_IF_FALSE(*aName, "NS_strdup should be infallible.");
-  return NS_OK;
+  // Get JSContext of current call
+  JSContext* cx;
+  nsresult rv = cc->GetJSContext(&cx);
+  if(NS_FAILED(rv) || !cx)
+    return NS_ERROR_FAILURE;
+
+  // get argc and argv and verify arg count
+  PRUint32 argc;
+  rv = cc->GetArgc(&argc);
+  if(NS_FAILED(rv))
+    return NS_ERROR_FAILURE;
+
+  if(argc < 1)
+    return NS_ERROR_XPC_NOT_ENOUGH_ARGS;
+
+  jsval* argv;
+  rv = cc->GetArgvPtr(&argv);
+  if(NS_FAILED(rv) || !argv)
+    return NS_ERROR_FAILURE;
+
+  // Our argument must be a non-null object.
+  if(JSVAL_IS_PRIMITIVE(argv[0]))
+    return NS_ERROR_XPC_BAD_CONVERT_JS;
+
+  *aName = NS_strdup(JS_GET_CLASS(cx, JSVAL_TO_OBJECT(argv[0]))->name);
+  return *aName ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 NS_IMETHODIMP
@@ -1925,153 +1935,3 @@ nsDOMWindowUtils::CheckAndClearPaintedState(nsIDOMElement* aElement, bool* aResu
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMWindowUtils::GetFileId(nsIDOMBlob* aBlob, PRInt64* aResult)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  *aResult = aBlob->GetFileId();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName,
-                                    PRInt64 aId, PRInt32* aRefCnt,
-                                    PRInt32* aDBRefCnt, PRInt32* aSliceRefCnt,
-                                    bool* aResult)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  NS_ENSURE_TRUE(mWindow, NS_ERROR_FAILURE);
-
-  nsCString origin;
-  nsresult rv = indexedDB::IndexedDatabaseManager::GetASCIIOriginFromWindow(
-    mWindow, origin);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsRefPtr<indexedDB::IndexedDatabaseManager> mgr =
-    indexedDB::IndexedDatabaseManager::GetOrCreate();
-  NS_ENSURE_TRUE(mgr, NS_ERROR_FAILURE);
-
-  nsRefPtr<indexedDB::FileManager> fileManager =
-    mgr->GetOrCreateFileManager(origin, aDatabaseName);
-  NS_ENSURE_TRUE(fileManager, NS_ERROR_FAILURE);
-
-  nsRefPtr<indexedDB::FileInfo> fileInfo = fileManager->GetFileInfo(aId);
-  if (fileInfo) {
-    fileInfo->GetReferences(aRefCnt, aDBRefCnt, aSliceRefCnt);
-    *aRefCnt--;
-    *aResult = true;
-    return NS_OK;
-  }
-
-  *aRefCnt = *aDBRefCnt = *aSliceRefCnt = -1;
-  *aResult = false;
-  return NS_OK;
-}
-
-static inline JSContext *
-GetJSContext()
-{
-  nsCOMPtr<nsIXPConnect> xpc = nsContentUtils::XPConnect();
-
-  // get the xpconnect native call context
-  nsAXPCNativeCallContext *cc = nsnull;
-  xpc->GetCurrentNativeCallContext(&cc);
-  if(!cc)
-    return NULL;
-
-  // Get JSContext of current call
-  JSContext* cx;
-  nsresult rv = cc->GetJSContext(&cx);
-  if(NS_FAILED(rv) || !cx)
-    return NULL;
-
-  return cx;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::StartPCCountProfiling()
-{
-  JSContext *cx = GetJSContext();
-  if (!cx)
-    return NS_ERROR_FAILURE;
-
-  js::StartPCCountProfiling(cx);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::StopPCCountProfiling()
-{
-  JSContext *cx = GetJSContext();
-  if (!cx)
-    return NS_ERROR_FAILURE;
-
-  js::StopPCCountProfiling(cx);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::PurgePCCounts()
-{
-  JSContext *cx = GetJSContext();
-  if (!cx)
-    return NS_ERROR_FAILURE;
-
-  js::PurgePCCounts(cx);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetPCCountScriptCount(PRInt32 *result)
-{
-  JSContext *cx = GetJSContext();
-  if (!cx)
-    return NS_ERROR_FAILURE;
-
-  *result = js::GetPCCountScriptCount(cx);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetPCCountScriptSummary(PRInt32 script, nsAString& result)
-{
-  JSContext *cx = GetJSContext();
-  if (!cx)
-    return NS_ERROR_FAILURE;
-
-  JSString *text = js::GetPCCountScriptSummary(cx, script);
-  if (!text)
-    return NS_ERROR_FAILURE;
-
-  nsDependentJSString str;
-  if (!str.init(cx, text))
-    return NS_ERROR_FAILURE;
-
-  result = str;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetPCCountScriptContents(PRInt32 script, nsAString& result)
-{
-  JSContext *cx = GetJSContext();
-  if (!cx)
-    return NS_ERROR_FAILURE;
-
-  JSString *text = js::GetPCCountScriptContents(cx, script);
-  if (!text)
-    return NS_ERROR_FAILURE;
-
-  nsDependentJSString str;
-  if (!str.init(cx, text))
-    return NS_ERROR_FAILURE;
-
-  result = str;
-  return NS_OK;
-}

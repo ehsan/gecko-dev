@@ -63,6 +63,7 @@ class FileIOObject : public nsDOMEventTargetWrapperCache,
 {
 public:
   FileIOObject();
+  ~FileIOObject();
 
   NS_DECL_ISUPPORTS_INHERITED
 

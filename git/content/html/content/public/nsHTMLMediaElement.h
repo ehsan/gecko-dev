@@ -118,7 +118,6 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
-  virtual void DoneCreatingElement();
 
   /**
    * Call this to reevaluate whether we should start/stop due to our owner

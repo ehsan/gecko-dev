@@ -58,8 +58,6 @@
 #include "nsIAtom.h"
 #include "nsISupportsImpl.h"
 
-typedef struct _cairo_scaled_font cairo_scaled_font_t;
-
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -214,9 +212,6 @@ public:
         mSymbolFont(false),
         mIgnoreGDEF(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
-#ifdef MOZ_GRAPHITE
-        mCheckedForGraphiteTables(false),
-#endif
         mHasCmapTable(false),
         mCmapInitialized(false),
         mUVSOffset(0), mUVSData(nsnull),
@@ -248,16 +243,6 @@ public:
     bool IgnoreGDEF() const { return mIgnoreGDEF; }
 
     virtual bool IsSymbolFont();
-
-#ifdef MOZ_GRAPHITE
-    inline bool HasGraphiteTables() {
-        if (!mCheckedForGraphiteTables) {
-            CheckForGraphiteTables();
-            mCheckedForGraphiteTables = true;
-        }
-        return mHasGraphiteTables;
-    }
-#endif
 
     inline bool HasCmapTable() {
         if (!mCmapInitialized) {
@@ -333,10 +318,6 @@ public:
     PRUint16         mWeight;
     PRInt16          mStretch;
 
-#ifdef MOZ_GRAPHITE
-    bool             mHasGraphiteTables;
-    bool             mCheckedForGraphiteTables;
-#endif
     bool             mHasCmapTable;
     bool             mCmapInitialized;
     gfxSparseBitSet  mCharacterMap;
@@ -364,9 +345,6 @@ protected:
         mSymbolFont(false),
         mIgnoreGDEF(false),
         mWeight(500), mStretch(NS_FONT_STRETCH_NORMAL),
-#ifdef MOZ_GRAPHITE
-        mCheckedForGraphiteTables(false),
-#endif
         mHasCmapTable(false),
         mCmapInitialized(false),
         mUVSOffset(0), mUVSData(nsnull),
@@ -379,10 +357,6 @@ protected:
         NS_NOTREACHED("oops, somebody didn't override CreateFontInstance");
         return nsnull;
     }
-
-#ifdef MOZ_GRAPHITE
-    virtual void CheckForGraphiteTables();
-#endif
 
     gfxFontFamily *mFamily;
 
@@ -957,7 +931,6 @@ public:
 
 protected:
     nsAutoRefCnt mRefCnt;
-    cairo_scaled_font_t *mScaledFont;
 
     void NotifyReleased() {
         gfxFontCache *cache = gfxFontCache::GetCache();
@@ -972,8 +945,7 @@ protected:
     }
 
     gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
-            AntialiasOption anAAOption = kAntialiasDefault,
-            cairo_scaled_font_t *aScaledFont = nsnull);
+            AntialiasOption anAAOption = kAntialiasDefault);
 
 public:
     virtual ~gfxFont();
@@ -1031,13 +1003,6 @@ public:
     bool FontCanSupportHarfBuzz() {
         return mFontEntry->HasCmapTable();
     }
-
-#ifdef MOZ_GRAPHITE
-    // check whether this is an sfnt we can potentially use with Graphite
-    bool FontCanSupportGraphite() {
-        return mFontEntry->HasGraphiteTables();
-    }
-#endif
 
     // Access to raw font table data (needed for Harfbuzz):
     // returns a pointer to data owned by the fontEntry or the OS,
@@ -1287,9 +1252,6 @@ protected:
     // of the text run being shaped
     nsAutoPtr<gfxFontShaper>   mPlatformShaper;
     nsAutoPtr<gfxFontShaper>   mHarfBuzzShaper;
-#ifdef MOZ_GRAPHITE
-    nsAutoPtr<gfxFontShaper>   mGraphiteShaper;
-#endif
 
     // Create a default platform text shaper for this font.
     // (TODO: This should become pure virtual once all font backends have
@@ -1470,20 +1432,20 @@ public:
     // Public textrun API for general use
 
     bool IsClusterStart(PRUint32 aPos) {
-        NS_ASSERTION(aPos < mCharacterCount, "aPos out of range");
+        NS_ASSERTION(0 <= aPos && aPos < mCharacterCount, "aPos out of range");
         return mCharacterGlyphs[aPos].IsClusterStart();
     }
     bool IsLigatureGroupStart(PRUint32 aPos) {
-        NS_ASSERTION(aPos < mCharacterCount, "aPos out of range");
+        NS_ASSERTION(0 <= aPos && aPos < mCharacterCount, "aPos out of range");
         return mCharacterGlyphs[aPos].IsLigatureGroupStart();
     }
     bool CanBreakLineBefore(PRUint32 aPos) {
-        NS_ASSERTION(aPos < mCharacterCount, "aPos out of range");
+        NS_ASSERTION(0 <= aPos && aPos < mCharacterCount, "aPos out of range");
         return mCharacterGlyphs[aPos].CanBreakBefore() ==
             CompressedGlyph::FLAG_BREAK_TYPE_NORMAL;
     }
     bool CanHyphenateBefore(PRUint32 aPos) {
-        NS_ASSERTION(aPos < mCharacterCount, "aPos out of range");
+        NS_ASSERTION(0 <= aPos && aPos < mCharacterCount, "aPos out of range");
         return mCharacterGlyphs[aPos].CanBreakBefore() ==
             CompressedGlyph::FLAG_BREAK_TYPE_HYPHEN;
     }
@@ -2273,10 +2235,9 @@ private:
             return details;
         }
 
-        size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) {
-            return aMallocSizeOf(this, sizeof(DetailedGlyphStore)) +
-                mDetails.SizeOfExcludingThis(aMallocSizeOf) +
-                mOffsetToIndex.SizeOfExcludingThis(aMallocSizeOf);
+        PRUint32 SizeOf() {
+            return sizeof(DetailedGlyphStore) +
+                mDetails.SizeOf() + mOffsetToIndex.SizeOf();
         }
 
     private:

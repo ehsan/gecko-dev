@@ -280,14 +280,7 @@ template <class T>
 JS_ALWAYS_INLINE static void
 PodZero(T *t, size_t nelem)
 {
-    /*
-     * This function is often called with 'nelem' small; we use an
-     * inline loop instead of calling 'memset' with a non-constant
-     * length.  The compiler should inline the memset call with constant
-     * size, though.
-     */
-    for (size_t i = 0; i < nelem; ++i, ++t)
-        memset(t, 0, sizeof(T));
+    memset(t, 0, nelem * sizeof(T));
 }
 
 /*
@@ -385,9 +378,12 @@ inline __attribute__ ((unused)) void MUST_FLOW_THROUGH(const char *label) {}
 /* Avoid unused goto-label warnings. */
 # define MUST_FLOW_LABEL(label) goto label; label:
 
+inline JS_FORCES_STACK void VOUCH_DOES_NOT_REQUIRE_STACK() {}
+
 #else
 # define MUST_FLOW_THROUGH(label)            ((void) 0)
 # define MUST_FLOW_LABEL(label)
+# define VOUCH_DOES_NOT_REQUIRE_STACK()      ((void) 0)
 #endif
 
 /* Crash diagnostics */
@@ -413,12 +409,12 @@ inline __attribute__ ((unused)) void MUST_FLOW_THROUGH(const char *label) {}
 #ifdef JS_BASIC_STATS
 # include <stdio.h>
 typedef struct JSBasicStats {
-    uint32_t    num;
-    uint32_t    max;
+    uint32      num;
+    uint32      max;
     double      sum;
     double      sqsum;
-    uint32_t    logscale;           /* logarithmic scale: 0 (linear), 2, 10 */
-    uint32_t    hist[11];
+    uint32      logscale;           /* logarithmic scale: 0 (linear), 2, 10 */
+    uint32      hist[11];
 } JSBasicStats;
 # define JS_INIT_STATIC_BASIC_STATS  {0,0,0,0,0,{0,0,0,0,0,0,0,0,0,0,0}}
 # define JS_BASIC_STATS_INIT(bs)     memset((bs), 0, sizeof(JSBasicStats))
@@ -427,9 +423,9 @@ typedef struct JSBasicStats {
 # define JS_MeanAndStdDevBS(bs,sigma)                                         \
     JS_MeanAndStdDev((bs)->num, (bs)->sum, (bs)->sqsum, sigma)
 extern void
-JS_BasicStatsAccum(JSBasicStats *bs, uint32_t val);
+JS_BasicStatsAccum(JSBasicStats *bs, uint32 val);
 extern double
-JS_MeanAndStdDev(uint32_t num, double sum, double sqsum, double *sigma);
+JS_MeanAndStdDev(uint32 num, double sum, double sqsum, double *sigma);
 extern void
 JS_DumpBasicStats(JSBasicStats *bs, const char *title, FILE *fp);
 extern void
@@ -447,28 +443,6 @@ typedef size_t jsbitmap;
 #define JS_CLEAR_BIT(_map,_bit) ((_map)[(_bit)>>JS_BITS_PER_WORD_LOG2] &=     \
                                  ~((jsbitmap)1<<((_bit)&(JS_BITS_PER_WORD-1))))
 
-/* Wrapper for various macros to stop warnings coming from their expansions. */
-#if defined(__clang__)
-# define JS_SILENCE_UNUSED_VALUE_IN_EXPR(expr)                                \
-    JS_BEGIN_MACRO                                                            \
-        _Pragma("clang diagnostic push")                                      \
-        _Pragma("clang diagnostic ignored \"-Wunused-value\"")                \
-        expr;                                                                 \
-        _Pragma("clang diagnostic pop")                                       \
-    JS_END_MACRO
-#elif (__GNUC__ >= 5) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
-# define JS_SILENCE_UNUSED_VALUE_IN_EXPR(expr)                                \
-    JS_BEGIN_MACRO                                                            \
-        _Pragma("GCC diagnostic push")                                        \
-        _Pragma("GCC diagnostic ignored \"-Wunused-but-set-variable\"")       \
-        expr;                                                                 \
-        _Pragma("GCC diagnostic pop")                                         \
-    JS_END_MACRO
-#else
-# define JS_SILENCE_UNUSED_VALUE_IN_EXPR(expr)                                \
-    JS_BEGIN_MACRO                                                            \
-        expr;                                                                 \
-    JS_END_MACRO
-#endif
+#define VOUCH_HAVE_STACK                    VOUCH_DOES_NOT_REQUIRE_STACK
 
 #endif /* jsutil_h___ */

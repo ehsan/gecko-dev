@@ -56,9 +56,6 @@
 #include "gfxFT2FontList.h"
 #include <locale.h>
 #include "gfxHarfBuzzShaper.h"
-#ifdef MOZ_GRAPHITE
-#include "gfxGraphiteShaper.h"
-#endif
 #include "gfxUnicodeProperties.h"
 #include "gfxAtoms.h"
 #include "nsTArray.h"
@@ -435,20 +432,7 @@ gfxFT2Font::InitTextRun(gfxContext *aContext,
 {
     bool ok = false;
 
-#ifdef MOZ_GRAPHITE
-    if (FontCanSupportGraphite()) {
-        if (gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
-            if (!mGraphiteShaper) {
-                mGraphiteShaper = new gfxGraphiteShaper(this);
-            }
-            ok = mGraphiteShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength,
-                                              aRunScript);
-        }
-    }
-#endif
-
-    if (!ok && gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aRunScript)) {
+    if (gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aRunScript)) {
         if (!mHarfBuzzShaper) {
             gfxFT2LockedFace face(this);
             mFUnitsConvFactor = face.XScale();

@@ -91,8 +91,6 @@ public:
     CreateHTMLCheckboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
     CreateHTMLComboboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
-  already_AddRefed<nsAccessible>
-    CreateHTMLFileInputAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
     CreateHTMLGroupboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
   virtual already_AddRefed<nsAccessible>
@@ -424,8 +422,7 @@ static const char kRoleNames[][20] = {
   "flat equation",       //ROLE_FLAT_EQUATION
   "gridcell",            //ROLE_GRID_CELL
   "embedded object",     //ROLE_EMBEDDED_OBJECT
-  "note",                //ROLE_NOTE
-  "figure"               //ROLE_FIGURE
+  "note"                 //ROLE_NOTE
 };
 
 /**

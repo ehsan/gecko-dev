@@ -45,7 +45,6 @@
 
 #include "jsapi.h"
 #include "jsdbgapi.h"
-#include "jstypedarray.h"
 
 #include "nsJSUtils.h"
 #include "nsCOMPtr.h"
@@ -531,7 +530,7 @@ nsContentUtils::InitializeEventTable() {
 #include "nsEventNameList.h"
 #undef WINDOW_ONLY_EVENT
 #undef EVENT
-    { nsnull }
+    nsnull
   };
 
   sAtomEventTable = new nsDataHashtable<nsISupportsHashKey, EventNameMapping>;
@@ -579,7 +578,7 @@ nsContentUtils::InitializeTouchEventTable()
 #include "nsEventNameList.h"
 #undef TOUCH_EVENT
 #undef EVENT
-      { nsnull }
+      nsnull
     };
     // Subtract one from the length because of the trailing null
     for (PRUint32 i = 0; i < ArrayLength(touchEventArray) - 1; ++i) {
@@ -757,7 +756,7 @@ struct NormalizeNewlinesCharTraits<CharT*> {
 
 #else
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct NormalizeNewlinesCharTraits<char*> {
   public:
     typedef char value_type;
@@ -772,7 +771,7 @@ struct NormalizeNewlinesCharTraits<char*> {
     char* mCharPtr;
 };
 
-template <>
+NS_SPECIALIZE_TEMPLATE
 struct NormalizeNewlinesCharTraits<PRUnichar*> {
   public:
     typedef PRUnichar value_type;
@@ -2786,29 +2785,21 @@ nsresult nsContentUtils::FormatLocalizedString(PropertiesFile aFile,
 }
 
 /* static */ nsresult
-nsContentUtils::ReportToConsole(PRUint32 aErrorFlags,
-                                const char *aCategory,
-                                nsIDocument* aDocument,
-                                PropertiesFile aFile,
+nsContentUtils::ReportToConsole(PropertiesFile aFile,
                                 const char *aMessageName,
                                 const PRUnichar **aParams,
                                 PRUint32 aParamsLength,
                                 nsIURI* aURI,
                                 const nsAFlatString& aSourceLine,
                                 PRUint32 aLineNumber,
-                                PRUint32 aColumnNumber)
+                                PRUint32 aColumnNumber,
+                                PRUint32 aErrorFlags,
+                                const char *aCategory,
+                                PRUint64 aInnerWindowId)
 {
   NS_ASSERTION((aParams && aParamsLength) || (!aParams && !aParamsLength),
                "Supply either both parameters and their number or no"
                "parameters and 0.");
-
-  PRUint64 innerWindowID = 0;
-  if (aDocument) {
-    if (!aURI) {
-      aURI = aDocument->GetDocumentURI();
-    }
-    innerWindowID = aDocument->InnerWindowID();
-  }
 
   nsresult rv;
   if (!sConsoleService) { // only need to bother null-checking here
@@ -2839,11 +2830,38 @@ nsContentUtils::ReportToConsole(PRUint32 aErrorFlags,
                                      aSourceLine.get(),
                                      aLineNumber, aColumnNumber,
                                      aErrorFlags, aCategory,
-                                     innerWindowID);
+                                     aInnerWindowId);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIScriptError> logError = do_QueryInterface(errorObject);
   return sConsoleService->LogMessage(logError);
+}
+
+/* static */ nsresult
+nsContentUtils::ReportToConsole(PropertiesFile aFile,
+                                const char *aMessageName,
+                                const PRUnichar **aParams,
+                                PRUint32 aParamsLength,
+                                nsIURI* aURI,
+                                const nsAFlatString& aSourceLine,
+                                PRUint32 aLineNumber,
+                                PRUint32 aColumnNumber,
+                                PRUint32 aErrorFlags,
+                                const char *aCategory,
+                                nsIDocument* aDocument)
+{
+  nsIURI* uri = aURI;
+  PRUint64 innerWindowID = 0;
+  if (aDocument) {
+    if (!uri) {
+      uri = aDocument->GetDocumentURI();
+    }
+    innerWindowID = aDocument->InnerWindowID();
+  }
+
+  return ReportToConsole(aFile, aMessageName, aParams, aParamsLength, uri,
+                         aSourceLine, aLineNumber, aColumnNumber, aErrorFlags,
+                         aCategory, innerWindowID);
 }
 
 bool
@@ -5255,29 +5273,6 @@ nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
   }
 
   return rv;
-}
-
-nsresult
-nsContentUtils::CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
-                                  JSObject** aResult)
-{
-  if (!aCx) {
-    return NS_ERROR_FAILURE;
-  }
-
-  PRInt32 dataLen = aData.Length();
-  *aResult = js_CreateArrayBuffer(aCx, dataLen);
-  if (!*aResult) {
-    return NS_ERROR_FAILURE;
-  }
-
-  if (dataLen > 0) {
-    JSObject *abuf = js::ArrayBuffer::getArrayBuffer(*aResult);
-    NS_ASSERTION(abuf, "What happened?");
-    memcpy(JS_GetArrayBufferData(abuf), aData.BeginReading(), dataLen);
-  }
-
-  return NS_OK;
 }
 
 void

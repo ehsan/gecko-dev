@@ -177,7 +177,7 @@ nsSVGAltGlyphElement::IsAttributeMapped(const nsIAtom* name) const
     sTextContentElementsMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGAltGlyphElementBase::IsAttributeMapped(name);
 }
 

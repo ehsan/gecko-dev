@@ -14,7 +14,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is JavaScript heap tools.
+ * The Original Code is JavaScript shell workers.
  *
  * The Initial Developer of the Original Code is
  * Mozilla Corporation.
@@ -22,7 +22,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Jim Blandy <jimb@mozilla.com>
+ *   Jason Orendorff <jorendorff@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -49,8 +49,6 @@
 #include "jsobj.h"
 #include "jsprf.h"
 #include "jsutil.h"
-
-#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -288,7 +286,7 @@ HeapReverser::traverseEdge(void *cell, JSGCTraceKind kind) {
          * visited from the main loop.
          */
         Node n(kind);
-        uint32_t generation = map.generation();
+        uint32 generation = map.generation();
         if (!map.add(a, cell, Move(n)) ||
             !work.append(Child(cell, kind)))
             return false;
@@ -551,7 +549,32 @@ ReferenceFinder::findReferences(JSObject *target)
     return result;
 }
 
-/* See help(findReferences). */
+/*
+ * findReferences(thing)
+ *
+ * Walk the entire heap, looking for references to |thing|, and return a
+ * "references object" describing what we found.
+ *
+ * Each property of the references object describes one kind of reference. The
+ * property's name is the label supplied to MarkObject, JS_CALL_TRACER, or what
+ * have you, prefixed with "edge: " to avoid collisions with system properties
+ * (like "toString" and "__proto__"). The property's value is an array of things
+ * that refer to |thing| via that kind of reference. Ordinary references from
+ * one object to another are named after the property name (with the "edge: "
+ * prefix).
+ *
+ * Garbage collection roots appear as references from 'null'. We use the name
+ * given to the root (with the "edge: " prefix) as the name of the reference.
+ *
+ * Note that the references object does record references from objects that are
+ * only reachable via |thing| itself, not just the references reachable
+ * themselves from roots that keep |thing| from being collected. (We could make
+ * this distinction if it is useful.)
+ *
+ * If any references are found by the conservative scanner, the references
+ * object will have a property named "edge: machine stack"; the referrers will
+ * be 'null', because they are roots.
+ */
 JSBool
 FindReferences(JSContext *cx, uintN argc, jsval *vp)
 {

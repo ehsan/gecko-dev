@@ -363,12 +363,7 @@ SanitizeOpenTypeData(const PRUint8* aData, PRUint32 aLength,
     // limit output/expansion to 256MB
     ExpandingMemoryStream output(aIsCompressed ? aLength * 2 : aLength,
                                  1024 * 1024 * 256);
-#ifdef MOZ_GRAPHITE
-#define PRESERVE_GRAPHITE true
-#else
-#define PRESERVE_GRAPHITE false
-#endif
-    if (ots::Process(&output, aData, aLength, PRESERVE_GRAPHITE)) {
+    if (ots::Process(&output, aData, aLength)) {
         aSaneLength = output.Tell();
         return static_cast<PRUint8*>(output.forget());
     } else {

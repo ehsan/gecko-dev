@@ -104,7 +104,7 @@ var ScratchpadManager = {
     let enumerator = Services.wm.getEnumerator("devtools:scratchpad");
     while (enumerator.hasMoreElements()) {
       let win = enumerator.getNext();
-      if (!win.closed && win.Scratchpad.initialized) {
+      if (!win.closed) {
         this._scratchpads.push(win.Scratchpad.getState());
       }
     }

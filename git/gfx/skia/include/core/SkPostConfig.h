@@ -253,7 +253,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #ifndef SK_OVERRIDE
-#if defined(_MSC_VER)
+#if defined(SK_BUILD_FOR_WIN)
 #define SK_OVERRIDE override
 #elif defined(__clang__)
 // Some documentation suggests we should be using __attribute__((override)),

@@ -62,12 +62,11 @@ tier_base_dirs = \
 	config \
 	build \
 	probes \
-	mfbt \
 	$(NULL)
 
 ifndef LIBXUL_SDK
 ifeq (android,$(MOZ_WIDGET_TOOLKIT))
-tier_base_dirs += other-licenses/android other-licenses/skia-npapi
+tier_base_dirs += other-licenses/android
 endif
 
 tier_base_dirs += memory

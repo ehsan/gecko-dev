@@ -311,14 +311,8 @@ nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
   return false;
 }
 
-/* virtual */ size_t
-nsHTMLStyleSheet::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  return 0; // nsHTMLStyleSheets are charged to the DOM, not layout
-}
-
-/* virtual */ size_t
-nsHTMLStyleSheet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+/* virtual */ PRInt64
+nsHTMLStyleSheet::SizeOf() const
 {
   return 0; // nsHTMLStyleSheets are charged to the DOM, not layout
 }

@@ -41,14 +41,12 @@
 
 #include "nsIBrowserProfileMigrator.h"
 #include "nsIObserverService.h"
+#include "nsISupportsArray.h"
 #include "nsStringAPI.h"
 #include "nsINavHistoryService.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 
-class nsIPrefBranch;
-class nsINavBookmarksService;
-class nsIRDFResource;
 class nsIRDFDataSource;
 
 class nsSafariProfileMigrator : public nsIBrowserProfileMigrator,

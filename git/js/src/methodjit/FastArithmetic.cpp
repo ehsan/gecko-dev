@@ -95,8 +95,8 @@ mjit::Compiler::tryBinaryConstantFold(JSContext *cx, FrameState &frame, JSOp op,
      * is infallible.
      */
     if (needInt) {
-        JS_ALWAYS_TRUE(ToInt32(cx, L, &nL));
-        JS_ALWAYS_TRUE(ToInt32(cx, R, &nR));
+        JS_ALWAYS_TRUE(ValueToECMAInt32(cx, L, &nL));
+        JS_ALWAYS_TRUE(ValueToECMAInt32(cx, R, &nR));
     } else {
         JS_ALWAYS_TRUE(ToNumber(cx, L, &dL));
         JS_ALWAYS_TRUE(ToNumber(cx, R, &dR));
@@ -592,7 +592,7 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
     }
 
     /* Time to do the integer path. Figure out the immutable side. */
-    int32_t value = 0;
+    int32 value = 0;
     JSOp origOp = op;
     MaybeRegisterID reg;
     MaybeJump preOverflow;
@@ -732,7 +732,7 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
             stubcc.masm.neg32(reg.reg());
         } else {
             JS_ASSERT(op == JSOP_ADD || op == JSOP_SUB);
-            int32_t fixValue = (op == JSOP_ADD) ? -value : value;
+            int32 fixValue = (op == JSOP_ADD) ? -value : value;
             stubcc.masm.add32(Imm32(fixValue), regs.result);
         }
     }
@@ -974,7 +974,7 @@ mjit::Compiler::jsop_mod()
     /* Get RHS into anything but EDX - could avoid more spilling? */
     MaybeRegisterID temp;
     RegisterID rhsReg;
-    uint32_t mask = Registers::AvailRegs & ~Registers::maskReg(X86Registers::edx);
+    uint32 mask = Registers::AvailRegs & ~Registers::maskReg(X86Registers::edx);
     if (!rhs->isConstant()) {
         rhsReg = frame.tempRegInMaskForData(rhs, mask).reg();
         JS_ASSERT(rhsReg != X86Registers::edx);
@@ -1298,7 +1298,7 @@ mjit::Compiler::jsop_equality_int_string(JSOp op, BoolStub stub,
 }
 
 /*
- * Emit an OOL path for a possibly double LHS, and possibly int32_t or number RHS.
+ * Emit an OOL path for a possibly double LHS, and possibly int32 or number RHS.
  */
 void
 mjit::Compiler::emitLeftDoublePath(FrameEntry *lhs, FrameEntry *rhs, FrameState::BinaryAlloc &regs,
@@ -1565,7 +1565,7 @@ mjit::Compiler::jsop_relational_full(JSOp op, BoolStub stub, jsbytecode *target,
 
     /* Integer path - figure out the immutable side. */
     JSOp cmpOp = op;
-    int32_t value = 0;
+    int32 value = 0;
     RegisterID cmpReg;
     MaybeRegisterID reg;
     if (regs.lhsData.isSet()) {

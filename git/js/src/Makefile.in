@@ -204,10 +204,12 @@ INSTALLED_HEADERS = \
 		jsgcchunk.h \
 		jsgcstats.h \
 		jshash.h \
+		jsinttypes.h \
 		jslock.h \
 		json.h \
 		jsopcode.tbl \
 		jsopcode.h \
+		jsotypes.h \
 		jsproxy.h \
 		jsprf.h \
 		jspropertycache.h \
@@ -263,22 +265,30 @@ VPATH		+= \
 
 EXPORTS_NAMESPACES += js
 
-# If you add a header here, add it to js/src/jsapi-tests/testIntTypesABI.cpp so
-# that we ensure we don't over-expose our internal integer typedefs.  Note that
-# LegacyIntTypes.h below is deliberately exempted from this requirement.
 EXPORTS_js = \
 		HashTable.h \
-		LegacyIntTypes.h \
 		TemplateLib.h \
 		Utility.h \
 		Vector.h \
 		$(NULL)
 
 ###############################################
-# BEGIN include sources for low-level code shared with mfbt
+# BEGIN include sources for low-level code shared with Gecko
 #
-VPATH += $(srcdir)/../../mfbt
-include $(srcdir)/../../mfbt/exported_headers.mk
+VPATH		+= \
+		$(srcdir)/../../mfbt \
+		$(NULL)
+
+EXPORTS_NAMESPACES += mozilla
+
+EXPORTS_mozilla = \
+		Attributes.h	\
+		GuardObjects.h \
+		RangedPtr.h \
+		RefPtr.h \
+		Types.h	\
+		Util.h \
+		$(NULL)
 
 ifdef ENABLE_METHODJIT
 
@@ -687,6 +697,10 @@ distclean::
 	cat unallmakefiles | $(XARGS) rm -f
 	$(RM) $(DIST_GARBAGE)
 
+# our build system doesn't handle subdir srcs very gracefully today
+export::
+	$(MKDIR) -p nanojit
+
 DEFINES		+= -DEXPORT_JS_API
 
 # mfbt is always packed with us, so if we're building a shared object,
@@ -712,9 +726,6 @@ endif
 ifdef JS_VERSION
 DEFINES		+= -DJS_VERSION=$(JS_VERSION)
 endif
-
-# We do not want to have obsolete NSPR functionality in threadsafe builds.
-DEFINES   += -DNO_NSPR_10_SUPPORT
 
 ifneq ($(findstring -L,$(NSPR_LIBS)),)
 NSPR_STATIC_PATH = $(subst -L,,$(findstring -L,$(NSPR_LIBS)))
@@ -790,7 +801,6 @@ ifdef SOLARIS_SUNPRO_CXX
 ifeq ($(TARGET_CPU),sparc)
 # Sun Studio SPARC doesn't work well with gcc inline asm, use lock_SunOS_sparc*.il
 jslock.o: jslock.cpp Makefile.in lock_sparcv8plus.il lock_sparcv9.il
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 ifeq (sparcv9,$(findstring sparcv9,$(OS_TEST)))
 	$(CXX) -o $@ -c $(COMPILE_CFLAGS) $(srcdir)/lock_sparcv9.il $<
@@ -804,11 +814,9 @@ endif # SOLARIS_SUNPRO_CXX
 # This suppresses optimization for this single compilation unit.
 ifeq ($(OS_ARCH),AIX)
 jsatom.o: jsatom.cpp Makefile.in
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(CXX) -o $@ -c $(filter-out $(MOZ_OPTIMIZE_FLAGS), $(COMPILE_CFLAGS)) $<
 jsdtoa.o: jsdtoa.cpp Makefile.in
-	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(CXX) -o $@ -c $(filter-out $(MOZ_OPTIMIZE_FLAGS), $(COMPILE_CFLAGS)) $<
 endif

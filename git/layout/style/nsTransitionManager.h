@@ -85,10 +85,6 @@ public:
 #ifdef MOZ_XUL
   virtual void RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
-  virtual NS_MUST_OVERRIDE size_t
-    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   // nsARefreshObserver
   virtual void WillRefresh(mozilla::TimeStamp aTime);

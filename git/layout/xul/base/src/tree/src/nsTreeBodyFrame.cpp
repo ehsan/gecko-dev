@@ -63,7 +63,7 @@
 #include "nsStyleContext.h"
 #include "nsIBoxObject.h"
 #include "nsGUIEvent.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 #include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIPrivateDOMEvent.h"
@@ -2157,11 +2157,9 @@ nsTreeBodyFrame::GetImage(PRInt32 aRowIndex, nsTreeColumn* aCol, bool aUseContex
       // We either aren't done loading, or we're animating. Add our row as a listener for invalidations.
       nsCOMPtr<imgIDecoderObserver> obs;
       imgReq->GetDecoderObserver(getter_AddRefs(obs));
-
-      if (obs) {
-        static_cast<nsTreeImageListener*> (obs.get())->AddCell(aRowIndex, aCol);
-      }
-
+      nsCOMPtr<nsITreeImageListener> listener(do_QueryInterface(obs));
+      if (listener)
+        listener->AddCell(aRowIndex, aCol);
       return NS_OK;
     }
   }
@@ -4548,7 +4546,7 @@ nsTreeBodyFrame::FireRowCountChangedEvent(PRInt32 aIndex, PRInt32 aCount)
 
   privateEvent->SetTrusted(true);
 
-  nsRefPtr<nsAsyncDOMEvent> plevent = new nsAsyncDOMEvent(content, event);
+  nsRefPtr<nsPLDOMEvent> plevent = new nsPLDOMEvent(content, event);
   if (!plevent)
     return;
 
@@ -4635,7 +4633,7 @@ nsTreeBodyFrame::FireInvalidateEvent(PRInt32 aStartRowIdx, PRInt32 aEndRowIdx,
 
   privateEvent->SetTrusted(true);
 
-  nsRefPtr<nsAsyncDOMEvent> plevent = new nsAsyncDOMEvent(content, event);
+  nsRefPtr<nsPLDOMEvent> plevent = new nsPLDOMEvent(content, event);
   if (plevent)
     plevent->PostDOMEvent();
 }

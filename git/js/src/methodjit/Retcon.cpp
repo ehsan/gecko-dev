@@ -60,7 +60,25 @@ using namespace js::mjit;
 namespace js {
 namespace mjit {
 
-static inline JSRejoinState ScriptedRejoin(uint32_t pcOffset)
+AutoScriptRetrapper::~AutoScriptRetrapper()
+{
+    while (!traps.empty()) {
+        jsbytecode *pc = traps.back();
+        traps.popBack();
+        *pc = JSOP_TRAP;
+    }
+}
+
+bool
+AutoScriptRetrapper::untrap(jsbytecode *pc)
+{
+    if (!traps.append(pc))
+        return false;
+    *pc = JS_GetTrapOpcode(traps.allocPolicy().context(), script, pc);
+    return true;
+}
+
+static inline JSRejoinState ScriptedRejoin(uint32 pcOffset)
 {
     return REJOIN_SCRIPTED | (pcOffset << 1);
 }
@@ -83,7 +101,7 @@ SetRejoinState(StackFrame *fp, const CallSite &site, void **location)
 }
 
 static inline bool
-CallsiteMatches(uint8_t *codeStart, const CallSite &site, void *location)
+CallsiteMatches(uint8 *codeStart, const CallSite &site, void *location)
 {
     if (codeStart + site.codeOffset == location)
         return true;
@@ -99,10 +117,10 @@ CallsiteMatches(uint8_t *codeStart, const CallSite &site, void *location)
 void
 Recompiler::patchCall(JITScript *jit, StackFrame *fp, void **location)
 {
-    uint8_t* codeStart = (uint8_t *)jit->code.m_code.executableAddress();
+    uint8* codeStart = (uint8 *)jit->code.m_code.executableAddress();
 
     CallSite *callSites_ = jit->callSites();
-    for (uint32_t i = 0; i < jit->nCallSites; i++) {
+    for (uint32 i = 0; i < jit->nCallSites; i++) {
         if (CallsiteMatches(codeStart, callSites_[i], *location)) {
             JS_ASSERT(callSites_[i].inlineIndex == analyze::CrossScriptSSA::OUTER_FRAME);
             SetRejoinState(fp, callSites_[i], location);
@@ -158,7 +176,7 @@ Recompiler::patchNative(JSCompartment *compartment, JITScript *jit, StackFrame *
 #else
             void *interpoline = JS_FUNC_TO_DATA_PTR(void *, JaegerInterpoline);
 #endif
-            uint8_t *start = (uint8_t *)stub.jump.executableAddress();
+            uint8 *start = (uint8 *)stub.jump.executableAddress();
             JSC::RepatchBuffer repatch(JSC::JITCode(start - 32, 64));
 #ifdef JS_CPU_X64
             repatch.repatch(stub.jump, interpoline);
@@ -224,9 +242,9 @@ Recompiler::expandInlineFrameChain(StackFrame *outer, InlineFrame *inner)
 
     JaegerSpew(JSpew_Recompile, "Expanding inline frame\n");
 
-    StackFrame *fp = (StackFrame *) ((uint8_t *)outer + sizeof(Value) * inner->depth);
+    StackFrame *fp = (StackFrame *) ((uint8 *)outer + sizeof(Value) * inner->depth);
     fp->initInlineFrame(inner->fun, parent, inner->parentpc);
-    uint32_t pcOffset = inner->parentpc - parent->script()->code;
+    uint32 pcOffset = inner->parentpc - parent->script()->code;
 
     void **location = fp->addressOfNativeReturnAddress();
     *location = JS_FUNC_TO_DATA_PTR(void *, JaegerInterpolineScripted);
@@ -274,7 +292,7 @@ Recompiler::expandInlineFrames(JSCompartment *compartment,
      * as such IC stubs are not generated within inline frames.
      */
     void **frameAddr = f->returnAddressLocation();
-    uint8_t* codeStart = (uint8_t *)fp->jit()->code.m_code.executableAddress();
+    uint8* codeStart = (uint8 *)fp->jit()->code.m_code.executableAddress();
 
     InlineFrame *inner = &fp->jit()->inlineFrames()[inlined->inlineIndex];
     jsbytecode *innerpc = inner->fun->script()->code + inlined->pcOffset;
@@ -489,7 +507,7 @@ Recompiler::cleanup(JITScript *jit)
         JS_STATIC_ASSERT(offsetof(ic::CallICInfo, links) == 0);
         ic::CallICInfo *ic = (ic::CallICInfo *) jit->callers.next;
 
-        uint8_t *start = (uint8_t *)ic->funGuard.executableAddress();
+        uint8 *start = (uint8 *)ic->funGuard.executableAddress();
         JSC::RepatchBuffer repatch(JSC::JITCode(start - 32, 64));
 
         repatch.repatch(ic->funGuard, NULL);

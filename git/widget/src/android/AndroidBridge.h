@@ -52,6 +52,7 @@
 #include "nsIMutableArray.h"
 #include "nsIMIMEInfo.h"
 #include "nsColor.h"
+#include "nsIURIFixup.h"
 
 #include "nsIAndroidBridge.h"
 
@@ -144,6 +145,8 @@ public:
 
     void ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen, int aSelStart, int aSelLen);
 
+    void NotifyAppShellReady();
+
     void NotifyXreExit();
 
     void ScheduleRestart();
@@ -182,6 +185,8 @@ public:
     void EmptyClipboard();
 
     bool ClipboardHasText();
+
+    bool CanCreateFixupURI(const nsACString& aURIText);
 
     void ShowAlertNotification(const nsAString& aImageUrl,
                                const nsAString& aAlertTitle,
@@ -228,50 +233,30 @@ public:
 
     bool GetAccessibilityEnabled();
 
-    class AutoLocalJNIFrame {
-    public:
-        AutoLocalJNIFrame(int nEntries = 128)
-            : mEntries(nEntries)
-            , mJNIEnv(JNI())
-        {
-            Push();
+    struct AutoLocalJNIFrame {
+        AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
+            // Make sure there is enough space to store a local ref to the
+            // exception.  I am not completely sure this is needed, but does
+            // not hurt.
+            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries + 1);
         }
-
-        AutoLocalJNIFrame(JNIEnv* aJNIEnv, int nEntries = 128)
-            : mEntries(nEntries)
-            , mJNIEnv(aJNIEnv ? aJNIEnv : JNI())
-        {
-            Push();
-        }
-
         // Note! Calling Purge makes all previous local refs created in
         // the AutoLocalJNIFrame's scope INVALID; be sure that you locked down
         // any local refs that you need to keep around in global refs!
         void Purge() {
-            mJNIEnv->PopLocalFrame(NULL);
-            Push();
+            AndroidBridge::Bridge()->JNI()->PopLocalFrame(NULL);
+            AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
         }
-
         ~AutoLocalJNIFrame() {
-            jthrowable exception = mJNIEnv->ExceptionOccurred();
+            jthrowable exception =
+                AndroidBridge::Bridge()->JNI()->ExceptionOccurred();
             if (exception) {
-                mJNIEnv->ExceptionDescribe();
-                mJNIEnv->ExceptionClear();
+                AndroidBridge::Bridge()->JNI()->ExceptionDescribe();
+                AndroidBridge::Bridge()->JNI()->ExceptionClear();
             }
-
-            mJNIEnv->PopLocalFrame(NULL);
+            AndroidBridge::Bridge()->JNI()->PopLocalFrame(NULL);
         }
-
-    private:
-        void Push() {
-            // Make sure there is enough space to store a local ref to the
-            // exception.  I am not completely sure this is needed, but does
-            // not hurt.
-            mJNIEnv->PushLocalFrame(mEntries + 1);
-        }
-
         int mEntries;
-        JNIEnv* mJNIEnv;
     };
 
     /* See GLHelpers.java as to why this is needed */
@@ -335,8 +320,6 @@ public:
 
     PRUint16 GetNumberOfMessagesForText(const nsAString& aText);
     void SendMessage(const nsAString& aNumber, const nsAString& aText);
-
-    bool IsTablet();
 
 protected:
     static AndroidBridge *sBridge;
@@ -413,7 +396,6 @@ protected:
     jmethodID jPostToJavaThread;
     jmethodID jInitCamera;
     jmethodID jCloseCamera;
-    jmethodID jIsTablet;
     jmethodID jEnableBatteryNotifications;
     jmethodID jDisableBatteryNotifications;
     jmethodID jGetCurrentBatteryInformation;
@@ -433,6 +415,9 @@ protected:
     jclass jEGLDisplayImplClass;
     jclass jEGLContextClass;
     jclass jEGL10Class;
+
+    // Needed for canCreateFixupURI()
+    nsCOMPtr<nsIURIFixup> mURIFixup;
 
     // calls we've dlopened from libjnigraphics.so
     int (* AndroidBitmap_getInfo)(JNIEnv *env, jobject bitmap, void *info);

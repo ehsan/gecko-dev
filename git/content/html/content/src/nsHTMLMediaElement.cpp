@@ -398,7 +398,6 @@ NS_IMPL_URI_ATTR(nsHTMLMediaElement, Src, src)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Controls, controls)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Autoplay, autoplay)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Loop, loop)
-NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, DefaultMuted, muted)
 NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLMediaElement, Preload, preload, NULL)
 
 /* readonly attribute nsIDOMHTMLMediaElement mozAutoplayEnabled; */
@@ -1505,12 +1504,6 @@ bool nsHTMLMediaElement::ParseAttribute(PRInt32 aNamespaceID,
                                               aResult);
 }
 
-void nsHTMLMediaElement::DoneCreatingElement()
-{
-   if (HasAttr(kNameSpaceID_None, nsGkAtoms::muted))
-     mMuted = true; 
-}
-
 nsresult nsHTMLMediaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                      nsIAtom* aPrefix, const nsAString& aValue,
                                      bool aNotify)
@@ -1978,10 +1971,6 @@ nsresult nsHTMLMediaElement::FinishDecoderSetup(nsMediaDecoder* aDecoder)
 {
   NS_ASSERTION(mLoadingSrc, "mLoadingSrc set up");
 
-  nsCAutoString src;
-  GetCurrentSpec(src);
-  printf("*** nsHTMLElement::FinishDecoderSetup() mDecoder=%p stream=%p src=%s\n",
-         aDecoder, aDecoder->GetStream(), src.get());
   mDecoder = aDecoder;
   AddMediaElementToURITable();
 
@@ -2694,17 +2683,18 @@ nsHTMLMediaElement::CopyInnerTo(nsGenericElement* aDest) const
       dest->mMediaSize = mMediaSize;
     } else {
       nsIFrame* frame = GetPrimaryFrame();
-      Element* element;
+      nsCOMPtr<nsIDOMElement> elem;
       if (frame && frame->GetType() == nsGkAtoms::HTMLVideoFrame &&
           static_cast<nsVideoFrame*>(frame)->ShouldDisplayPoster()) {
-        nsIContent* content = static_cast<nsVideoFrame*>(frame)->GetPosterImage();
-        element = content ? content->AsElement() : NULL;
+        elem = do_QueryInterface(static_cast<nsVideoFrame*>(frame)->
+                                 GetPosterImage());
       } else {
-        element = const_cast<nsHTMLMediaElement*>(this);
+        elem = do_QueryInterface(
+          static_cast<nsGenericElement*>(const_cast<nsHTMLMediaElement*>(this)));
       }
 
       nsLayoutUtils::SurfaceFromElementResult res =
-        nsLayoutUtils::SurfaceFromElement(element,
+        nsLayoutUtils::SurfaceFromElement(elem,
                                           nsLayoutUtils::SFE_WANT_NEW_SURFACE);
       dest->mPrintSurface = res.mSurface;
       dest->mMediaSize = nsIntSize(res.mSize.width, res.mSize.height);

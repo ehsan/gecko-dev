@@ -170,8 +170,6 @@ public:
     NS_IMETHOD         Enable(bool aState);
     NS_IMETHOD         SetFocus(bool aRaise = false);
     NS_IMETHOD         GetScreenBounds(nsIntRect &aRect);
-    NS_IMETHOD         GetClientBounds(nsIntRect &aRect);
-    virtual nsIntPoint GetClientOffset();
     NS_IMETHOD         SetForegroundColor(const nscolor &aColor);
     NS_IMETHOD         SetBackgroundColor(const nscolor &aColor);
     NS_IMETHOD         SetCursor(nsCursor aCursor);
@@ -385,6 +383,7 @@ private:
     nsWindow          *GetContainerWindow();
     void               SetUrgencyHint(GtkWidget *top_window, bool state);
     void              *SetupPluginPort(void);
+    nsresult           SetWindowIconList(const nsTArray<nsCString> &aIconList);
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     bool               DispatchCommandEvent(nsIAtom* aCommand);

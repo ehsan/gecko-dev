@@ -179,11 +179,11 @@ PRUint32 nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
     return linkMask;
 
   nsAString::const_iterator current(start);
-  bool inString = !nsContentUtils::IsHTMLWhitespace(*current);
+  bool inString = !nsCRT::IsAsciiSpace(*current);
   nsAutoString subString;
   
   while (current != done) {
-    if (nsContentUtils::IsHTMLWhitespace(*current)) {
+    if (nsCRT::IsAsciiSpace(*current)) {
       if (inString) {
         ToLowerCase(Substring(start, current), subString);
         linkMask |= ToLinkMask(subString);

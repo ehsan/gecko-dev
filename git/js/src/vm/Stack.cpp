@@ -151,7 +151,7 @@ StackFrame::stealFrameAndSlots(Value *vp, StackFrame *otherfp,
         obj.setPrivate(this);
         otherfp->flags_ &= ~HAS_CALL_OBJ;
         if (js_IsNamedLambda(fun())) {
-            JSObject *env = obj.internalScopeChain();
+            JSObject *env = obj.getParent();
             JS_ASSERT(env->isDeclEnv());
             env->setPrivate(this);
         }
@@ -471,7 +471,7 @@ StackSpace::ensureSpaceSlow(JSContext *cx, MaybeReportError report, Value *from,
         } while (newCommit < request);
 
         /* The cast is safe because CAPACITY_BYTES is small. */
-        int32_t size = static_cast<int32_t>(newCommit - commitEnd_) * sizeof(Value);
+        int32 size = static_cast<int32>(newCommit - commitEnd_) * sizeof(Value);
 
         if (!VirtualAlloc(commitEnd_, size, MEM_COMMIT, PAGE_READWRITE)) {
             if (report)
@@ -498,7 +498,7 @@ StackSpace::tryBumpLimit(JSContext *cx, Value *from, uintN nvals, Value **limit)
 }
 
 size_t
-StackSpace::sizeOfCommitted()
+StackSpace::committedSize()
 {
 #ifdef XP_WIN
     return (commitEnd_ - base_) * sizeof(Value);
@@ -679,15 +679,15 @@ ContextStack::pushInvokeFrame(JSContext *cx, const CallArgs &args,
     JS_ASSERT(space().firstUnused() == args.end());
 
     JSObject &callee = args.callee();
-    JSFunction *fun = callee.toFunction();
+    JSFunction *fun = callee.getFunctionPrivate();
     JSScript *script = fun->script();
 
-    /*StackFrame::Flags*/ uint32_t flags = ToFrameFlags(initial);
+    /*StackFrame::Flags*/ uint32 flags = ToFrameFlags(initial);
     StackFrame *fp = getCallFrame(cx, REPORT_ERROR, args, fun, script, &flags);
     if (!fp)
         return false;
 
-    fp->initCallFrame(cx, *fun, script, args.length(), (StackFrame::Flags) flags);
+    fp->initCallFrame(cx, callee, fun, script, args.length(), (StackFrame::Flags) flags);
     ifg->regs_.prepareToRun(*fp, script);
 
     ifg->prevRegs_ = seg_->pushRegs(ifg->regs_);
@@ -1042,7 +1042,7 @@ StackIter::settleOnNewState()
              * (see SplatApplyArgs), there is no efficient way to know how to
              * find the callee. Thus, calls to apply are lost completely.
              */
-            JSOp op = JSOp(*pc_);
+            JSOp op = js_GetOpcode(cx_, fp_->script(), pc_);
             if (op == JSOP_CALL || op == JSOP_FUNCALL) {
                 uintN argc = GET_ARGC(pc_);
                 DebugOnly<uintN> spoff = sp_ - fp_->base();

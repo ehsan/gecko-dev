@@ -491,6 +491,11 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
         }
 
+        case SAVE_STATE: {
+            ReadCharactersField(jenv);
+            break;
+        }
+
         default:
             break;
     }
@@ -591,12 +596,7 @@ unsigned char *
 AndroidGeckoSoftwareLayerClient::LockBufferBits()
 {
     AndroidBridge::AutoLocalJNIFrame(1);
-    jobject bufferObject = LockBuffer();
-
-    if (bufferObject != nsnull)
-        return reinterpret_cast<unsigned char *>(JNI()->GetDirectBufferAddress(bufferObject));
-
-    return nsnull;
+    return reinterpret_cast<unsigned char *>(JNI()->GetDirectBufferAddress(LockBuffer()));
 }
 
 void

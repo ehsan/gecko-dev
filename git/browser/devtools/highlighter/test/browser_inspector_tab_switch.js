@@ -187,18 +187,10 @@ function inspectorFocusTab2()
   is(InspectorUI.store.length, 2, "Inspector.store.length is 2");
   isnot(InspectorUI.selection, div, "selection does not match the div element");
 
-  // Make sure keybindings still sork
-  EventUtils.synthesizeKey("VK_RETURN", { });
-
-  executeSoon(function() {
-    ok(InspectorUI.inspecting, "Inspector is highlighting");
-    InspectorUI.toggleInspection();
-
-    // Switch back to tab 1.
-    Services.obs.addObserver(inspectorSecondFocusTab1,
-      InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY, false);
-    gBrowser.selectedTab = tab1;
-  });
+  // Switch back to tab 1.
+  Services.obs.addObserver(inspectorSecondFocusTab1,
+    InspectorUI.INSPECTOR_NOTIFICATIONS.TREEPANELREADY, false);
+  gBrowser.selectedTab = tab1;
 }
 
 function inspectorSecondFocusTab1()
@@ -263,7 +255,6 @@ function inspectorTabUnload1(evt)
 function test()
 {
   waitForExplicitFinish();
-  ignoreAllUncaughtExceptions();
 
   tab1 = gBrowser.addTab();
   gBrowser.selectedTab = tab1;

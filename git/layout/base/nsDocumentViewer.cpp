@@ -1888,19 +1888,14 @@ DocumentViewerImpl::SetBounds(const nsIntRect& aBounds)
     // window frame.
     // Don't have the widget repaint. Layout will generate repaint requests
     // during reflow.
-    if (mAttachedToParent) {
-      if (aBounds.x != 0 || aBounds.y != 0) {
-        mWindow->ResizeClient(aBounds.x, aBounds.y,
-                              aBounds.width, aBounds.height,
-                              false);
-      } else {
-        mWindow->ResizeClient(aBounds.width, aBounds.height, false);
-      }
-    } else {
+    if (mAttachedToParent)
+      mWindow->ResizeClient(aBounds.x, aBounds.y,
+                            aBounds.width, aBounds.height,
+                            false);
+    else
       mWindow->Resize(aBounds.x, aBounds.y,
                       aBounds.width, aBounds.height,
                       false);
-    }
   } else if (mPresContext && mViewManager) {
     PRInt32 p2a = mPresContext->AppUnitsPerDevPixel();
     mViewManager->SetWindowDimensions(NSIntPixelsToAppUnits(mBounds.width, p2a),
@@ -2222,11 +2217,6 @@ DocumentViewerImpl::CreateStyleSet(nsIDocument* aDocument,
   sheet = nsLayoutStylesheetCache::FormsSheet();
   if (sheet) {
     styleSet->PrependStyleSheet(nsStyleSet::eAgentSheet, sheet);
-  }
-
-  sheet = nsLayoutStylesheetCache::FullScreenOverrideSheet();
-  if (sheet) {
-    styleSet->PrependStyleSheet(nsStyleSet::eOverrideSheet, sheet);
   }
 
   // Make sure to clone the quirk sheet so that it can be usefully

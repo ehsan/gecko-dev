@@ -69,7 +69,6 @@ InlineSpellChecker.prototype = {
     this.mDictionaryMenu = null;
     this.mDictionaryNames = [];
     this.mDictionaryItems = [];
-    this.mWordNode = null;
   },
 
   // for each UI event, you must call this function, it will compute the

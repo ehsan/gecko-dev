@@ -62,7 +62,7 @@
 #include "nsCRT.h"
 #include "nsGUIEvent.h"
 #include "nsIDOMEvent.h"
-#include "nsAsyncDOMEvent.h"
+#include "nsPLDOMEvent.h"
 #include "nsStyleConsts.h"
 #include "nsIPresShell.h"
 #include "prlog.h"
@@ -1680,24 +1680,19 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   bool inTransform = aBuilder->IsInTransform();
   if ((mState & NS_FRAME_MAY_BE_TRANSFORMED) &&
       disp->HasTransform()) {
-    if (nsDisplayTransform::ShouldPrerenderTransformedContent(aBuilder, this) ||
-        Preserves3DChildren()) {
+    // Transform dirtyRect into our frame's local coordinate space. Note that
+    // the new value is the bounds of the old value's transformed vertices, so
+    // the area covered by dirtyRect may increase here.
+    //
+    // Although we don't bother to check for and maintain the 1x1 size of the
+    // magic rect indicating a hit test point, in reality this is extremely
+    // unlikely to matter. The rect starts off with dimensions of 1x1 *app*
+    // units, and it would require a very large number of elements with
+    // transforms along a parent chain to noticably expand this by an entire
+    // device pixel.
+    if (Preserves3DChildren() || !nsDisplayTransform::UntransformRect(dirtyRect, this, nsPoint(0, 0), &dirtyRect)) {
+      // we have a singular transform - just grab the entire overflow rect
       dirtyRect = GetVisualOverflowRectRelativeToSelf();
-    } else {
-      // Transform dirtyRect into our frame's local coordinate space. Note that
-      // the new value is the bounds of the old value's transformed vertices, so
-      // the area covered by dirtyRect may increase here.
-      //
-      // Although we don't bother to check for and maintain the 1x1 size of the
-      // magic rect indicating a hit test point, in reality this is extremely
-      // unlikely to matter. The rect starts off with dimensions of 1x1 *app*
-      // units, and it would require a very large number of elements with
-      // transforms along a parent chain to noticably expand this by an entire
-      // device pixel.
-      if (!nsDisplayTransform::UntransformRect(dirtyRect, this, nsPoint(0, 0), &dirtyRect)) {
-        // we have a singular transform - just grab the entire overflow rect
-        dirtyRect = GetVisualOverflowRectRelativeToSelf();
-      }
     }
     inTransform = true;
   }
@@ -2133,10 +2128,10 @@ nsFrame::FireDOMEvent(const nsAString& aDOMEventName, nsIContent *aContent)
   nsIContent* target = aContent ? aContent : mContent;
 
   if (target) {
-    nsRefPtr<nsAsyncDOMEvent> event =
-      new nsAsyncDOMEvent(target, aDOMEventName, true, false);
+    nsRefPtr<nsPLDOMEvent> event =
+      new nsPLDOMEvent(target, aDOMEventName, true, false);
     if (NS_FAILED(event->PostDOMEvent()))
-      NS_WARNING("Failed to dispatch nsAsyncDOMEvent");
+      NS_WARNING("Failed to dispatch nsPLDOMEvent");
   }
 }
 
@@ -2444,14 +2439,14 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
 
 #ifdef XP_MACOSX
   if (me->isControl)
-    return NS_OK;//short circuit. hard coded for mac due to time restraints.
+    return NS_OK;//short ciruit. hard coded for mac due to time restraints.
   bool control = me->isMeta;
 #else
   bool control = me->isControl;
 #endif
 
   nsRefPtr<nsFrameSelection> fc = const_cast<nsFrameSelection*>(frameselection);
-  if (me->clickCount > 1)
+  if (me->clickCount >1 )
   {
     // These methods aren't const but can't actually delete anything,
     // so no need for nsWeakFrame.
@@ -2465,14 +2460,6 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
 
   if (!offsets.content)
     return NS_ERROR_FAILURE;
-
-  // On touchables devices, touch the screen is usually a pan action,
-  // so let reposition the caret if needed but do not select text
-  if (Preferences::GetBool("browser.ignoreNativeFrameTextSelection", false)) {
-    return fc->HandleClick(offsets.content, offsets.StartOffset(),
-                           offsets.EndOffset(), false, false,
-                           offsets.associateWithNext);
-  }
 
   // Let Ctrl/Cmd+mouse down do table selection instead of drag initiation
   nsCOMPtr<nsIContent>parentContent;
@@ -6452,17 +6439,13 @@ nsFrame::CreateAccessible()
 NS_DECLARE_FRAME_PROPERTY(OverflowAreasProperty,
                           nsIFrame::DestroyOverflowAreas)
 
-bool
+void
 nsIFrame::ClearOverflowRects()
 {
-  if (mOverflow.mType == NS_FRAME_OVERFLOW_NONE) {
-    return false;
-  }
   if (mOverflow.mType == NS_FRAME_OVERFLOW_LARGE) {
     Properties().Delete(OverflowAreasProperty());
   }
   mOverflow.mType = NS_FRAME_OVERFLOW_NONE;
-  return true;
 }
 
 /** Create or retrieve the previously stored overflow area, if the frame does 
@@ -6490,18 +6473,17 @@ nsIFrame::GetOverflowAreasProperty()
 /** Set the overflowArea rect, storing it as deltas or a separate rect
  * depending on its size in relation to the primary frame rect.
  */
-bool
+void
 nsIFrame::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
 {
   if (mOverflow.mType == NS_FRAME_OVERFLOW_LARGE) {
     nsOverflowAreas *overflow =
       static_cast<nsOverflowAreas*>(Properties().Get(OverflowAreasProperty()));
-    bool changed = *overflow != aOverflowAreas;
     *overflow = aOverflowAreas;
 
     // Don't bother with converting to the deltas form if we already
     // have a property.
-    return changed;
+    return;
   }
 
   const nsRect& vis = aOverflowAreas.VisualOverflow();
@@ -6523,7 +6505,6 @@ nsIFrame::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
       // so that our eventual SetRect/SetSize will know that it has to
       // reset our overflow areas.
       (l | t | r | b) != 0) {
-    VisualDeltas oldDeltas = mOverflow.mVisualDeltas;
     // It's a "small" overflow area so we store the deltas for each edge
     // directly in the frame, rather than allocating a separate rect.
     // If they're all zero, that's fine; we're setting things to
@@ -6532,18 +6513,12 @@ nsIFrame::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
     mOverflow.mVisualDeltas.mTop    = t;
     mOverflow.mVisualDeltas.mRight  = r;
     mOverflow.mVisualDeltas.mBottom = b;
-    // There was no scrollable overflow before, and there isn't now.
-    return oldDeltas != mOverflow.mVisualDeltas;
   } else {
-    bool changed = !aOverflowAreas.ScrollableOverflow().IsEqualEdges(nsRect(nsPoint(0, 0), GetSize())) ||
-      !aOverflowAreas.VisualOverflow().IsEqualEdges(GetVisualOverflowFromDeltas());
-
     // it's a large overflow area that we need to store as a property
     mOverflow.mType = NS_FRAME_OVERFLOW_LARGE;
     nsOverflowAreas* overflow = GetOverflowAreasProperty();
     NS_ASSERTION(overflow, "should have created areas");
     *overflow = aOverflowAreas;
-    return changed;
   }
 }
 
@@ -6554,7 +6529,7 @@ IsInlineFrame(nsIFrame *aFrame)
   return type == nsGkAtoms::inlineFrame;
 }
 
-bool
+void 
 nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
                                  nsSize aNewSize)
 {
@@ -6663,11 +6638,11 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
 
   bool visualOverflowChanged =
     !GetVisualOverflowRect().IsEqualInterior(aOverflowAreas.VisualOverflow());
-  bool anyOverflowChanged;
+
   if (aOverflowAreas != nsOverflowAreas(bounds, bounds)) {
-    anyOverflowChanged = SetOverflowAreas(aOverflowAreas);
+    SetOverflowAreas(aOverflowAreas);
   } else {
-    anyOverflowChanged = ClearOverflowRects();
+    ClearOverflowRects();
   }
 
   if (visualOverflowChanged) {
@@ -6712,8 +6687,6 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
                       nsDisplayItem::TYPE_TRANSFORM);
     }
   }
-
-  return anyOverflowChanged;
 }
 
 /* The overflow rects for leaf nodes in a preserve-3d hierarchy depends on

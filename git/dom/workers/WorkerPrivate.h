@@ -508,7 +508,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 
   // Touched on multiple threads, protected with mMutex.
   JSContext* mJSContext;
-  nsRefPtr<WorkerCrossThreadDispatcher> mCrossThreadDispatcher;
 
   // Things touched on worker thread only.
   nsTArray<ParentType*> mChildWorkers;
@@ -693,9 +692,6 @@ public:
   AssertIsOnWorkerThread() const
   { }
 #endif
-
-  WorkerCrossThreadDispatcher*
-  GetCrossThreadDispatcher();
 
 private:
   WorkerPrivate(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,

@@ -44,7 +44,6 @@
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Services.h"
 
 #ifdef DEBUG
 #define ASSERT_OWNING_THREAD()                                                 \
@@ -268,7 +267,7 @@ LazyIdleThread::ShutdownThread()
   if (mThread) {
     if (mShutdownMethod == AutomaticShutdown && NS_IsMainThread()) {
       nsCOMPtr<nsIObserverService> obs =
-        mozilla::services::GetObserverService();
+        do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
       NS_WARN_IF_FALSE(obs, "Failed to get observer service!");
 
       if (obs &&

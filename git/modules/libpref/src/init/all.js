@@ -92,12 +92,6 @@ pref("offline-apps.quota.max",        204800);
 // (in kilobytes)
 pref("offline-apps.quota.warn",        51200);
 
-// zlib compression level used for cache compression:
-// 0 => disable compression
-// 1 => best speed
-// 9 => best compression
-pref("browser.cache.compression_level", 5);
-
 // Whether or not indexedDB is enabled.
 pref("dom.indexedDB.enabled", true);
 // Space to allow indexedDB databases before prompting (in MB).
@@ -205,10 +199,6 @@ pref("gfx.color_management.enablev4", false);
 pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
-
-#ifdef MOZ_GRAPHITE
-pref("gfx.font_rendering.graphite.enabled", false);
-#endif
 
 // see gfx/thebes/gfxUnicodeProperties.h for definitions of script bits
 #ifdef XP_MACOSX
@@ -428,6 +418,10 @@ pref("capability.policy.default.Location.hash.set", "allAccess");
 pref("capability.policy.default.Location.href.set", "allAccess");
 pref("capability.policy.default.Location.replace.get", "allAccess");
 
+pref("capability.policy.default.Navigator.preference", "allAccess");
+pref("capability.policy.default.Navigator.preferenceinternal.get", "UniversalPreferencesRead");
+pref("capability.policy.default.Navigator.preferenceinternal.set", "UniversalPreferencesWrite");
+
 pref("capability.policy.default.Window.blur.get", "allAccess");
 pref("capability.policy.default.Window.close.get", "allAccess");
 pref("capability.policy.default.Window.closed.get", "allAccess");
@@ -634,6 +628,8 @@ pref("javascript.options.strict.debug",     true);
 pref("javascript.options.relimit",          true);
 pref("javascript.options.methodjit.content", true);
 pref("javascript.options.methodjit.chrome",  true);
+pref("javascript.options.jitprofiling.content", true);
+pref("javascript.options.jitprofiling.chrome",  true);
 pref("javascript.options.pccounts.content", false);
 pref("javascript.options.pccounts.chrome",  false);
 pref("javascript.options.methodjit_always", false);
@@ -796,13 +792,6 @@ pref("network.http.connection-retry-timeout", 250);
 // Disable IPv6 for backup connections to workaround problems about broken
 // IPv6 connectivity.
 pref("network.http.fast-fallback-to-IPv4", true);
-
-// Try and use SPDY when using SSL
-pref("network.http.spdy.enabled", false);
-pref("network.http.spdy.chunk-size", 4096);
-pref("network.http.spdy.timeout", 180);
-pref("network.http.spdy.coalesce-hostnames", true);
-pref("network.http.spdy.use-alternate-protocol", true);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -1169,7 +1158,6 @@ pref("intl.hyphenation-alias.uk-*", "uk");
 // (these prefs may soon be obsoleted by better BCP47-based tag matching, but for now...)
 pref("intl.hyphenation-alias.de", "de-1996");
 pref("intl.hyphenation-alias.de-*", "de-1996");
-pref("intl.hyphenation-alias.de-AT-1901", "de-1901");
 pref("intl.hyphenation-alias.de-DE-1901", "de-1901");
 pref("intl.hyphenation-alias.de-CH-*", "de-CH");
 
@@ -1447,6 +1435,12 @@ pref("browser.popups.showPopupBlocker", true);
 // See http://bugzilla.mozilla.org/show_bug.cgi?id=169483 for further details...
 pref("viewmanager.do_doublebuffering", true);
 
+// whether use prefs from system
+pref("config.use_system_prefs", false);
+
+// if the system has enabled accessibility
+pref("config.use_system_prefs.accessibility", false);
+
 // enable single finger gesture input (win7+ tablets)
 pref("gestures.enable_single_finger_input", true);
 
@@ -1474,12 +1468,16 @@ pref("dom.max_script_run_time", 10);
 
 // Hang monitor timeout after which we kill the browser, in seconds
 // (0 is disabled)
-// Disabled on all platforms per bug 705748 until the found issues are
-// resolved.
+// Temporarily disabled on mac due to bug 705154
+#ifdef XP_MACOSX
 pref("hangmonitor.timeout", 0);
-
-// If true, plugins will be click to play
-pref("plugins.click_to_play", false);
+#else
+#ifndef DEBUG
+pref("hangmonitor.timeout", 30);
+#else
+pref("hangmonitor.timeout", 0);
+#endif
+#endif
 
 #ifndef DEBUG
 // How long a plugin is allowed to process a synchronous IPC message
@@ -2722,6 +2720,7 @@ pref("print.print_paper_size", 0);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
 
+pref("font.allow_double_byte_special_chars", true);
 // font names
 
 pref("font.alias-list", "sans,sans-serif,serif,monospace");
@@ -2987,6 +2986,7 @@ pref("print.print_paper_size", 0);
 // around the content of the page for Print Preview only
 pref("print.print_extra_margin", 0); // twips
 
+pref("font.allow_double_byte_special_chars", true);
 // font names
 
 pref("font.alias-list", "sans,sans-serif,serif,monospace");
@@ -3331,8 +3331,6 @@ pref("layers.acceleration.force-enabled", false);
 
 pref("layers.acceleration.draw-fps", false);
 
-pref("layers.offmainthreadcomposition.enabled", false);
-
 #ifdef XP_WIN
 // Whether to disable the automatic detection and use of direct2d.
 #ifdef MOZ_E10S_COMPAT
@@ -3400,10 +3398,6 @@ pref("dom.event.handling-user-input-time-limit", 1000);
 //3D Transforms
 pref("layout.3d-transforms.enabled", true);
 
-pref("dom.vibrator.enabled", true);
-pref("dom.vibrator.max_vibrate_ms", 10000);
-pref("dom.vibrator.max_vibrate_list_len", 128);
-
 // Battery API
 pref("dom.battery.enabled", true);
 
@@ -3413,23 +3407,3 @@ pref("dom.sms.whitelist", "");
 
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
-
-// SPS Profiler
-pref("profiler.enabled", false);
-pref("profiler.interval", 10);
-pref("profiler.entries", 100000);
-
-#ifdef XP_WIN
-// On 32-bit Windows, fire a low-memory notification if we have less than this
-// many mb of virtual address space available.
-pref("memory.low_virtual_memory_threshold_mb", 128);
-
-// On Windows 32- or 64-bit, fire a low-memory notification if we have less
-// than this many mb of physical memory available on the whole machine.
-pref("memory.low_physical_mem_threshold_mb", 0);
-
-// On Windows 32- or 64-bit, don't fire a low-memory notification because of
-// low available physical memory more than once every
-// low_physical_memory_notification_interval_ms.
-pref("memory.low_physical_memory_notification_interval_ms", 10000);
-#endif

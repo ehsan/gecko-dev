@@ -253,9 +253,6 @@ nsIAtom** const kAttributesHTML[] = {
   &nsGkAtoms::min,
   &nsGkAtoms::mozdonotsend,
   &nsGkAtoms::multiple,
-#ifdef MOZ_MEDIA
-  &nsGkAtoms::muted,
-#endif
   &nsGkAtoms::name,
   &nsGkAtoms::nohref,
   &nsGkAtoms::noshade,

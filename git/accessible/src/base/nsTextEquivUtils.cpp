@@ -303,14 +303,16 @@ nsTextEquivUtils::AppendFromValue(nsAccessible *aAccessible,
 
   nsIContent *content = aAccessible->GetContent();
 
-  for (nsIContent* childContent = content->GetPreviousSibling(); childContent;
-       childContent = childContent->GetPreviousSibling()) {
+  nsCOMPtr<nsIContent> parent = content->GetParent();
+  PRInt32 indexOf = parent->IndexOf(content);
+
+  for (PRInt32 i = indexOf - 1; i >= 0; i--) {
     // check for preceding text...
-    if (!childContent->TextIsOnlyWhitespace()) {
-      for (nsIContent* siblingContent = content->GetNextSibling(); siblingContent;
-           siblingContent = siblingContent->GetNextSibling()) {
+    if (!parent->GetChildAt(i)->TextIsOnlyWhitespace()) {
+      PRUint32 childCount = parent->GetChildCount();
+      for (PRUint32 j = indexOf + 1; j < childCount; j++) {
         // .. and subsequent text
-        if (!siblingContent->TextIsOnlyWhitespace()) {
+        if (!parent->GetChildAt(j)->TextIsOnlyWhitespace()) {
           nsresult rv = aAccessible->GetValue(text);
           NS_ENSURE_SUCCESS(rv, rv);
 
@@ -330,8 +332,10 @@ nsresult
 nsTextEquivUtils::AppendFromDOMChildren(nsIContent *aContent,
                                         nsAString *aString)
 {
-  for (nsIContent* childContent = aContent->GetFirstChild(); childContent;
-       childContent = childContent->GetNextSibling()) {
+  PRUint32 childCount = aContent->GetChildCount();
+  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsCOMPtr<nsIContent> childContent = aContent->GetChildAt(childIdx);
+
     nsresult rv = AppendFromDOMNode(childContent, aString);
     NS_ENSURE_SUCCESS(rv, rv);
   }

@@ -343,7 +343,7 @@ nsXPConnect::NeedCollect()
 }
 
 void
-nsXPConnect::Collect(bool shrinkingGC)
+nsXPConnect::Collect()
 {
     // We're dividing JS objects into 2 categories:
     //
@@ -406,18 +406,15 @@ nsXPConnect::Collect(bool shrinkingGC)
     JS_ASSERT(!threadData.conservativeGC.requestThreshold);
     if (threadData.requestDepth == 1)
         threadData.conservativeGC.requestThreshold = 1;
-    if (shrinkingGC)
-        JS_ShrinkingGC(cx);
-    else
-        JS_GC(cx);
+    JS_GC(cx);
     if (threadData.requestDepth == 1)
         threadData.conservativeGC.requestThreshold = 0;
 }
 
 NS_IMETHODIMP
-nsXPConnect::GarbageCollect(bool shrinkingGC)
+nsXPConnect::GarbageCollect()
 {
-    Collect(shrinkingGC);
+    Collect();
     return NS_OK;
 }
 
@@ -554,7 +551,7 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
         JSRuntime* rt = JS_GetRuntime(mCycleCollectionContext->GetJSContext());
         if (!rt)
             NS_RUNTIMEABORT("Failed to get JS runtime!");
-        uint32_t gcNumber = JS_GetGCParameter(rt, JSGC_NUMBER);
+        uint32 gcNumber = JS_GetGCParameter(rt, JSGC_NUMBER);
         if (!gcNumber)
             NS_RUNTIMEABORT("Cannot cycle collect if GC has not run first!");
         gcHasRun = true;
@@ -765,14 +762,6 @@ struct TraversalTracer : public JSTracer
 static void
 NoteJSChild(JSTracer *trc, void *thing, JSGCTraceKind kind)
 {
-    /*
-     * This function needs to be careful to avoid stack overflow. Normally, when
-     * AddToCCKind is true, the recursion terminates immediately as we just add
-     * |thing| to the CC graph. So overflow is only possible when there are long
-     * chains of non-AddToCCKind GC things. Currently, this only can happen via
-     * shape parent pointers. The special JSTRACE_SHAPE case below handles
-     * parent pointers iteratively, rather than recursively, to avoid overflow.
-     */
     if (AddToCCKind(kind)) {
         TraversalTracer *tracer = static_cast<TraversalTracer*>(trc);
 
@@ -800,10 +789,6 @@ NoteJSChild(JSTracer *trc, void *thing, JSGCTraceKind kind)
         }
 #endif
         tracer->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT, thing);
-    } else if (kind == JSTRACE_SHAPE) {
-        do {
-            thing = JS_TraceShapeChildrenAcyclic(trc, thing);
-        } while (thing);
     } else if (kind != JSTRACE_STRING) {
         JS_TraceChildren(trc, thing, kind);
     }
@@ -842,11 +827,11 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     JSBool markJSObject = false;
     if (traceKind == JSTRACE_OBJECT) {
         obj = static_cast<JSObject*>(p);
-        clazz = js::GetObjectClass(obj);
+        clazz = obj->getClass();
 
         if (clazz == &XPC_WN_Tearoff_JSClass) {
             XPCWrappedNative *wrapper =
-                (XPCWrappedNative*)xpc_GetJSPrivate(js::GetObjectParent(obj));
+                (XPCWrappedNative*)xpc_GetJSPrivate(obj->getParent());
             dontTraverse = WrapperIsNotMainThreadOnly(wrapper);
         } else if (IS_WRAPPER_CLASS(clazz) && IS_WN_WRAPPER_OBJECT(obj)) {
             XPCWrappedNative *wrapper = (XPCWrappedNative*)xpc_GetJSPrivate(obj);
@@ -893,7 +878,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
                 JS_snprintf(name, sizeof(name), "JS Object (%s - %s)",
                             clazz->name, si->GetJSClass()->name);
             } else if (clazz == &js::FunctionClass) {
-                JSFunction* fun = JS_GetObjectFunction(obj);
+                JSFunction* fun = (JSFunction*) xpc_GetJSPrivate(obj);
                 JSString* str = JS_GetFunctionId(fun);
                 if (str) {
                     NS_ConvertUTF16toUTF8 fname(JS_GetInternedStringChars(str));
@@ -913,15 +898,23 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
                 "Script",
                 "Xml",
                 "Shape",
-                "BaseShape",
                 "TypeObject",
             };
             JS_STATIC_ASSERT(NS_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1);
             JS_snprintf(name, sizeof(name), "JS %s", trace_types[traceKind]);
         }
 
-        // Disable printing global for objects while we figure out ObjShrink fallout.
-        cb.DescribeGCedNode(isMarked, sizeof(JSObject), name);
+        if (traceKind == JSTRACE_OBJECT) {
+            JSObject *global = static_cast<JSObject*>(p), *parent;
+            while ((parent = global->getParent()))
+                global = parent;
+            char fullname[100];
+            JS_snprintf(fullname, sizeof(fullname),
+                        "%s (global=%p)", name, global);
+            cb.DescribeGCedNode(isMarked, sizeof(JSObject), fullname);
+        } else {
+            cb.DescribeGCedNode(isMarked, sizeof(JSObject), name);
+        }
     } else {
         cb.DescribeGCedNode(isMarked, sizeof(JSObject), "JS Object");
     }
@@ -1306,7 +1299,7 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
 
     // voodoo to fixup scoping and parenting...
 
-    JS_ASSERT(!js::GetObjectParent(globalJSObj));
+    JS_ASSERT(!globalJSObj->getParent());
 
     JSObject* oldGlobal = JS_GetGlobalObject(aJSContext);
     if (!oldGlobal || oldGlobal == tempGlobal)
@@ -1691,7 +1684,7 @@ nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
 
 static JSDHashOperator
 MoveableWrapperFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                      uint32_t number, void *arg)
+                      uint32 number, void *arg)
 {
     nsTArray<nsRefPtr<XPCWrappedNative> > *array =
         static_cast<nsTArray<nsRefPtr<XPCWrappedNative> > *>(arg);
@@ -2082,7 +2075,7 @@ nsXPConnect::RestoreWrappedNativePrototype(JSContext * aJSContext,
     if (NS_FAILED(rv))
         return UnexpectedFailure(rv);
 
-    if (!IS_PROTO_CLASS(js::GetObjectClass(protoJSObject)))
+    if (!IS_PROTO_CLASS(protoJSObject->getClass()))
         return UnexpectedFailure(NS_ERROR_INVALID_ARG);
 
     XPCWrappedNativeScope* scope =
@@ -2733,7 +2726,7 @@ nsXPConnect::GetSafeJSContext(JSContext * *aSafeJSContext)
 nsIPrincipal*
 nsXPConnect::GetPrincipal(JSObject* obj, bool allowShortCircuit) const
 {
-    NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(obj)),
+    NS_ASSERTION(IS_WRAPPER_CLASS(obj->getClass()),
                  "What kind of wrapper is this?");
 
     if (IS_WN_WRAPPER_OBJECT(obj)) {

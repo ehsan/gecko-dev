@@ -114,6 +114,7 @@ protected:
 
     nsRefPtr<IDWriteFontFace> mFontFace;
     cairo_font_face_t *mCairoFontFace;
+    cairo_scaled_font_t *mCairoScaledFont;
 
     gfxFont::Metrics          *mMetrics;
 

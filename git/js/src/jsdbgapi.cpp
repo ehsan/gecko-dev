@@ -108,7 +108,7 @@ JS_SetRuntimeDebugMode(JSRuntime *rt, JSBool debug)
 
 namespace js {
 
-JSTrapStatus
+void
 ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
 {
     JS_ASSERT(fp == cx->fp());
@@ -120,25 +120,7 @@ ScriptDebugPrologue(JSContext *cx, StackFrame *fp)
         if (JSInterpreterHook hook = cx->debugHooks->callHook)
             fp->setHookData(hook(cx, Jsvalify(fp), true, 0, cx->debugHooks->callHookData));
     }
-
-    Value rval;
-    JSTrapStatus status = Debugger::onEnterFrame(cx, &rval);
-    switch (status) {
-      case JSTRAP_CONTINUE:
-        break;
-      case JSTRAP_THROW:
-        cx->setPendingException(rval);
-        break;
-      case JSTRAP_ERROR:
-        cx->clearPendingException();
-        break;
-      case JSTRAP_RETURN:
-        fp->setReturnValue(rval);
-        break;
-      default:
-        JS_NOT_REACHED("bad Debugger::onEnterFrame JSTrapStatus value");
-    }
-    return status;
+    Debugger::onEnterFrame(cx);
 }
 
 bool
@@ -198,24 +180,29 @@ JS_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
 JS_PUBLIC_API(JSBool)
 JS_SetTrap(JSContext *cx, JSScript *script, jsbytecode *pc, JSTrapHandler handler, jsval closure)
 {
-    assertSameCompartment(cx, script, closure);
-
     if (!CheckDebugMode(cx))
         return false;
 
-    BreakpointSite *site = script->getOrCreateBreakpointSite(cx, pc, NULL);
+    BreakpointSite *site = script->compartment()->getOrCreateBreakpointSite(cx, script, pc, NULL);
     if (!site)
         return false;
     site->setTrap(cx, handler, closure);
     return true;
 }
 
+JS_PUBLIC_API(JSOp)
+JS_GetTrapOpcode(JSContext *cx, JSScript *script, jsbytecode *pc)
+{
+    BreakpointSite *site = script->compartment()->getBreakpointSite(pc);
+    return site ? site->realOpcode : JSOp(*pc);
+}
+
 JS_PUBLIC_API(void)
 JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
              JSTrapHandler *handlerp, jsval *closurep)
 {
-    if (BreakpointSite *site = script->getBreakpointSite(pc)) {
-        site->clearTrap(cx, handlerp, closurep);
+    if (BreakpointSite *site = script->compartment()->getBreakpointSite(pc)) {
+        site->clearTrap(cx, NULL, handlerp, closurep);
     } else {
         if (handlerp)
             *handlerp = NULL;
@@ -227,13 +214,13 @@ JS_ClearTrap(JSContext *cx, JSScript *script, jsbytecode *pc,
 JS_PUBLIC_API(void)
 JS_ClearScriptTraps(JSContext *cx, JSScript *script)
 {
-    script->clearTraps(cx);
+    script->compartment()->clearTraps(cx, script);
 }
 
 JS_PUBLIC_API(void)
 JS_ClearAllTrapsForCompartment(JSContext *cx)
 {
-    cx->compartment->clearTraps(cx);
+    cx->compartment->clearTraps(cx, NULL);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -488,12 +475,6 @@ JS_GetScriptPrincipals(JSContext *cx, JSScript *script)
     return script->principals;
 }
 
-JS_PUBLIC_API(JSPrincipals *)
-JS_GetScriptOriginPrincipals(JSContext *cx, JSScript *script)
-{
-    return script->originPrincipals;
-}
-
 /************************************************************************/
 
 /*
@@ -624,7 +605,7 @@ JS_GetFrameThis(JSContext *cx, JSStackFrame *fpArg, jsval *thisv)
 JS_PUBLIC_API(JSFunction *)
 JS_GetFrameFunction(JSContext *cx, JSStackFrame *fp)
 {
-    return Valueify(fp)->maybeScriptFunction();
+    return Valueify(fp)->maybeFun();
 }
 
 JS_PUBLIC_API(JSObject *)
@@ -635,19 +616,8 @@ JS_GetFrameFunctionObject(JSContext *cx, JSStackFrame *fpArg)
         return NULL;
 
     JS_ASSERT(fp->callee().isFunction());
+    JS_ASSERT(fp->callee().getPrivate() == fp->fun());
     return &fp->callee();
-}
-
-JS_PUBLIC_API(JSFunction *)
-JS_GetScriptFunction(JSContext *cx, JSScript *script)
-{
-    return script->function();
-}
-
-JS_PUBLIC_API(JSObject *)
-JS_GetParentOrScopeChain(JSContext *cx, JSObject *obj)
-{
-    return obj->scopeChain();
 }
 
 JS_PUBLIC_API(JSBool)
@@ -670,6 +640,7 @@ JS_GetValidFrameCalleeObject(JSContext *cx, JSStackFrame *fp, jsval *vp)
     if (!Valueify(fp)->getValidCalleeObject(cx, &v))
         return false;
     *vp = v.isObject() ? v : JSVAL_VOID;
+    *vp = v;
     return true;
 }
 
@@ -762,16 +733,16 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fpArg,
     if (!CheckDebugMode(cx))
         return false;
 
-    Env *env = JS_GetFrameScopeChain(cx, fpArg);
-    if (!env)
+    JSObject *scobj = JS_GetFrameScopeChain(cx, fpArg);
+    if (!scobj)
         return false;
 
-    js::AutoCompartment ac(cx, env);
+    js::AutoCompartment ac(cx, scobj);
     if (!ac.enter())
         return false;
 
     StackFrame *fp = Valueify(fpArg);
-    return EvaluateInEnv(cx, env, fp, chars, length, filename, lineno, rval);
+    return EvaluateInScope(cx, scobj, fp, chars, length, filename, lineno, rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -815,7 +786,7 @@ JS_PropertyIterator(JSObject *obj, JSScopeProperty **iteratorp)
         shape = shape->previous();
 
     if (!shape->previous()) {
-        JS_ASSERT(shape->isEmptyShape());
+        JS_ASSERT(JSID_IS_EMPTY(shape->propid));
         shape = NULL;
     }
 
@@ -828,7 +799,7 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
 {
     assertSameCompartment(cx, obj);
     Shape *shape = (Shape *) sprop;
-    pd->id = IdToJsval(shape->propid());
+    pd->id = IdToJsval(shape->propid);
 
     JSBool wasThrowing = cx->isExceptionPending();
     Value lastException = UndefinedValue();
@@ -836,7 +807,7 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
         lastException = cx->getPendingException();
     cx->clearPendingException();
 
-    if (!js_GetProperty(cx, obj, shape->propid(), &pd->value)) {
+    if (!js_GetProperty(cx, obj, shape->propid, &pd->value)) {
         if (!cx->isExceptionPending()) {
             pd->flags = JSPD_ERROR;
             pd->value = JSVAL_VOID;
@@ -856,21 +827,21 @@ JS_GetPropertyDesc(JSContext *cx, JSObject *obj, JSScopeProperty *sprop,
               |  (!shape->configurable() ? JSPD_PERMANENT : 0);
     pd->spare = 0;
     if (shape->getter() == GetCallArg) {
-        pd->slot = shape->shortid();
+        pd->slot = shape->shortid;
         pd->flags |= JSPD_ARGUMENT;
     } else if (shape->getter() == GetCallVar) {
-        pd->slot = shape->shortid();
+        pd->slot = shape->shortid;
         pd->flags |= JSPD_VARIABLE;
     } else {
         pd->slot = 0;
     }
     pd->alias = JSVAL_VOID;
 
-    if (obj->containsSlot(shape->slot())) {
+    if (obj->containsSlot(shape->slot)) {
         for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
             const Shape &aprop = r.front();
-            if (&aprop != shape && aprop.slot() == shape->slot()) {
-                pd->alias = IdToJsval(aprop.propid());
+            if (&aprop != shape && aprop.slot == shape->slot) {
+                pd->alias = IdToJsval(aprop.propid);
                 break;
             }
         }
@@ -898,11 +869,11 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
         return JS_TRUE;
     }
 
-    uint32_t n = obj->propertyCount();
+    uint32 n = obj->propertyCount();
     JSPropertyDesc *pd = (JSPropertyDesc *) cx->malloc_(size_t(n) * sizeof(JSPropertyDesc));
     if (!pd)
         return JS_FALSE;
-    uint32_t i = 0;
+    uint32 i = 0;
     for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
         if (!js_AddRoot(cx, &pd[i].id, NULL))
             goto bad;
@@ -931,7 +902,7 @@ JS_PUBLIC_API(void)
 JS_PutPropertyDescArray(JSContext *cx, JSPropertyDescArray *pda)
 {
     JSPropertyDesc *pd;
-    uint32_t i;
+    uint32 i;
 
     pd = pda->array;
     for (i = 0; i < pda->length; i++) {
@@ -1092,7 +1063,8 @@ JS_IsSystemObject(JSContext *cx, JSObject *obj)
 JS_PUBLIC_API(JSBool)
 JS_MakeSystemObject(JSContext *cx, JSObject *obj)
 {
-    return obj->setSystem(cx);
+    obj->setSystem();
+    return true;
 }
 
 /************************************************************************/
@@ -1498,15 +1470,15 @@ JS_DefineProfilingFunctions(JSContext *cx, JSObject *obj)
 JS_FRIEND_API(JSBool)
 js_StartCallgrind()
 {
-    JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_START_INSTRUMENTATION);
-    JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_ZERO_STATS);
+    CALLGRIND_START_INSTRUMENTATION;
+    CALLGRIND_ZERO_STATS;
     return true;
 }
 
 JS_FRIEND_API(JSBool)
 js_StopCallgrind()
 {
-    JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_STOP_INSTRUMENTATION);
+    CALLGRIND_STOP_INSTRUMENTATION;
     return true;
 }
 
@@ -1514,9 +1486,9 @@ JS_FRIEND_API(JSBool)
 js_DumpCallgrind(const char *outfile)
 {
     if (outfile) {
-        JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_DUMP_STATS_AT(outfile));
+        CALLGRIND_DUMP_STATS_AT(outfile);
     } else {
-        JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_DUMP_STATS);
+        CALLGRIND_DUMP_STATS;
     }
 
     return true;
@@ -1635,6 +1607,22 @@ js_ResumeVtune()
 
 #endif /* MOZ_VTUNE */
 
+#ifdef MOZ_TRACE_JSCALLS
+
+JS_PUBLIC_API(void)
+JS_SetFunctionCallback(JSContext *cx, JSFunctionCallback fcb)
+{
+    cx->functionCallback = fcb;
+}
+
+JS_PUBLIC_API(JSFunctionCallback)
+JS_GetFunctionCallback(JSContext *cx)
+{
+    return cx->functionCallback;
+}
+
+#endif /* MOZ_TRACE_JSCALLS */
+
 JS_PUBLIC_API(void)
 JS_DumpBytecode(JSContext *cx, JSScript *script)
 {
@@ -1672,28 +1660,32 @@ DumpBytecodeScriptCallback(JSContext *cx, void *data, void *thing,
                            JSGCTraceKind traceKind, size_t thingSize)
 {
     JS_ASSERT(traceKind == JSTRACE_SCRIPT);
+    JS_ASSERT(!data);
     JSScript *script = static_cast<JSScript *>(thing);
-    reinterpret_cast<Vector<JSScript *> *>(data)->append(script);
+    JS_DumpBytecode(cx, script);
 }
 
 JS_PUBLIC_API(void)
 JS_DumpCompartmentBytecode(JSContext *cx)
 {
-    Vector<JSScript *> scripts(cx);
-    IterateCells(cx, cx->compartment, gc::FINALIZE_SCRIPT, &scripts, DumpBytecodeScriptCallback);
+    IterateCells(cx, cx->compartment, gc::FINALIZE_SCRIPT, NULL, DumpBytecodeScriptCallback);
+}
 
-    for (size_t i = 0; i < scripts.length(); i++)
-        JS_DumpBytecode(cx, scripts[i]);
+static void
+DumpPCCountsScriptCallback(JSContext *cx, void *data, void *thing,
+                           JSGCTraceKind traceKind, size_t thingSize)
+{
+    JS_ASSERT(traceKind == JSTRACE_SCRIPT);
+    JS_ASSERT(!data);
+    JSScript *script = static_cast<JSScript *>(thing);
+    if (script->pcCounters)
+        JS_DumpPCCounts(cx, script);
 }
 
 JS_PUBLIC_API(void)
 JS_DumpCompartmentPCCounts(JSContext *cx)
 {
-    for (CellIter i(cx, cx->compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next()) {
-        JSScript *script = i.get<JSScript>();
-        if (script->pcCounters)
-            JS_DumpPCCounts(cx, script);
-    }
+    IterateCells(cx, cx->compartment, gc::FINALIZE_SCRIPT, NULL, DumpPCCountsScriptCallback);
 }
 
 JS_PUBLIC_API(JSObject *)

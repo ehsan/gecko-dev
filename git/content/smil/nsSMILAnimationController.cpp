@@ -852,9 +852,3 @@ nsSMILAnimationController::GetRefreshDriver()
   nsPresContext* context = shell->GetPresContext();
   return context ? context->RefreshDriver() : nsnull;
 }
-
-void
-nsSMILAnimationController::FlagDocumentNeedsFlush()
-{
-  mDocument->SetNeedStyleFlush();
-}

@@ -41,10 +41,15 @@ def test(mod, path, entity = None):
   # ignore anything but mobile, which is our local repo checkout name
   if mod not in ("netwerk", "dom", "toolkit", "security/manager",
                  "services/sync", "embedding/android",
-                 "mobile/xul"):
+                 "mobile"):
     return False
 
-  if mod != "mobile/xul":
+  # Ignore Lorentz strings, at least temporarily
+  if mod == "toolkit" and path == "chrome/mozapps/plugins/plugins.dtd":
+    if entity.startswith('reloadPlugin.'): return False
+    if entity.startswith('report.'): return False
+
+  if mod != "mobile":
     # we only have exceptions for mobile
     return True
   if not entity:

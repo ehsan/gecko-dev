@@ -151,14 +151,6 @@ nsHTMLSelectListAccessible::CurrentItem()
   return nsnull;
 }
 
-void
-nsHTMLSelectListAccessible::SetCurrentItem(nsAccessible* aItem)
-{
-  aItem->GetContent()->SetAttr(kNameSpaceID_None,
-                               nsGkAtoms::selected, NS_LITERAL_STRING("true"),
-                               true);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLSelectListAccessible: nsAccessible protected
 
@@ -179,8 +171,9 @@ void
 nsHTMLSelectListAccessible::CacheOptSiblings(nsIContent *aParentContent)
 {
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
-  for (nsIContent* childContent = aParentContent->GetFirstChild(); childContent;
-       childContent = childContent->GetNextSibling()) {
+  PRUint32 numChildren = aParentContent->GetChildCount();
+  for (PRUint32 count = 0; count < numChildren; count ++) {
+    nsIContent *childContent = aParentContent->GetChildAt(count);
     if (!childContent->IsHTML()) {
       continue;
     }
@@ -237,7 +230,7 @@ nsHTMLSelectOptionAccessible::GetNameInternal(nsAString& aName)
 
   // CASE #2 -- no label parameter, get the first child, 
   // use it if it is a text node
-  nsIContent* text = mContent->GetFirstChild();
+  nsIContent *text = mContent->GetChildAt(0);
   if (!text)
     return NS_OK;
 
@@ -352,12 +345,14 @@ void
 nsHTMLSelectOptionAccessible::GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                                          PRInt32 *aSetSize)
 {
+  nsIContent *parentContent = mContent->GetParent();
+
   PRInt32 posInSet = 0, setSize = 0;
   bool isContentFound = false;
 
-  nsIContent* parentContent = mContent->GetParent();
-  for (nsIContent* childContent = parentContent->GetFirstChild(); childContent;
-       childContent = childContent->GetNextSibling()) {
+  PRUint32 childCount = parentContent->GetChildCount();
+  for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
+    nsIContent *childContent = parentContent->GetChildAt(childIdx);
     if (childContent->NodeInfo()->Equals(mContent->NodeInfo())) {
       if (!isContentFound) {
         if (childContent == mContent)
@@ -694,13 +689,6 @@ nsHTMLComboboxAccessible::CurrentItem()
   return AreItemsOperable() ? mListAccessible->CurrentItem() : nsnull;
 }
 
-void
-nsHTMLComboboxAccessible::SetCurrentItem(nsAccessible* aItem)
-{
-  if (AreItemsOperable())
-    mListAccessible->SetCurrentItem(aItem);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLComboboxAccessible: protected
 
@@ -801,7 +789,7 @@ void nsHTMLComboboxListAccessible::GetBoundsRect(nsRect& aBounds, nsIFrame** aBo
   }
 
   // Get the first option.
-  nsIContent* content = mContent->GetFirstChild();
+  nsIContent* content = mContent->GetChildAt(0);
   if (!content) {
     return;
   }

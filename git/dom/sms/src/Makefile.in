@@ -44,7 +44,7 @@ VPATH            = \
 
 include $(DEPTH)/config/autoconf.mk
 
-ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+ifeq (Android,$(OS_TARGET))
 VPATH += $(srcdir)/android
 else
 VPATH += $(srcdir)/fallback

@@ -7,9 +7,6 @@
 
 const URI_EXTENSION_UPDATE_DIALOG = "chrome://mozapps/content/extensions/update.xul";
 
-const PREF_GETADDONS_BYIDS            = "extensions.getAddons.get.url";
-const PREF_MIN_PLATFORM_COMPAT        = "extensions.minCompatiblePlatformVersion";
-
 Services.prefs.setBoolPref(PREF_STRICT_COMPAT, true);
 
 /**
@@ -59,8 +56,7 @@ function install_test_addons(aCallback) {
    "browser_bug557956_6",
    "browser_bug557956_7",
    "browser_bug557956_8_1",
-   "browser_bug557956_9_1",
-   "browser_bug557956_10"].forEach(function(aName) {
+   "browser_bug557956_9_1"].forEach(function(aName) {
     AddonManager.getInstallForURL(TESTROOT + "addons/" + aName + ".xpi", function(aInstall) {
       installs.push(aInstall);
     }, "application/x-xpinstall");
@@ -95,8 +91,7 @@ function uninstall_test_addons(aCallback) {
                                "addon6@tests.mozilla.org",
                                "addon7@tests.mozilla.org",
                                "addon8@tests.mozilla.org",
-                               "addon9@tests.mozilla.org",
-                               "addon10@tests.mozilla.org"],
+                               "addon9@tests.mozilla.org"],
                                function(aAddons) {
     aAddons.forEach(function(aAddon) {
       if (aAddon)
@@ -177,8 +172,7 @@ add_test(function() {
     var inactiveAddonIds = [
       "addon2@tests.mozilla.org",
       "addon4@tests.mozilla.org",
-      "addon5@tests.mozilla.org",
-      "addon10@tests.mozilla.org"
+      "addon5@tests.mozilla.org"
     ];
 
     // Check that compatibility updates were applied.
@@ -266,8 +260,7 @@ add_test(function() {
     var inactiveAddonIds = [
       "addon2@tests.mozilla.org",
       "addon4@tests.mozilla.org",
-      "addon5@tests.mozilla.org",
-      "addon10@tests.mozilla.org"
+      "addon5@tests.mozilla.org"
     ];
 
     Services.prefs.setBoolPref("xpinstall.enabled", false);
@@ -350,8 +343,7 @@ add_test(function() {
                                  "addon6@tests.mozilla.org",
                                  "addon7@tests.mozilla.org",
                                  "addon8@tests.mozilla.org",
-                                 "addon9@tests.mozilla.org",
-                                 "addon10@tests.mozilla.org"],
+                                 "addon9@tests.mozilla.org"],
                                  function(aAddons) {
       aAddons.forEach(function(aAddon) {
         aAddon.userDisabled = true;
@@ -367,8 +359,7 @@ add_test(function() {
         "addon6@tests.mozilla.org",
         "addon7@tests.mozilla.org",
         "addon8@tests.mozilla.org",
-        "addon9@tests.mozilla.org",
-        "addon10@tests.mozilla.org"
+        "addon9@tests.mozilla.org"
       ];
 
       open_compatibility_window(inactiveAddonIds, function(aWindow) {
@@ -386,8 +377,7 @@ add_test(function() {
   install_test_addons(function() {
     AddonManager.getAddonsByIDs(["addon7@tests.mozilla.org",
                                  "addon8@tests.mozilla.org",
-                                 "addon9@tests.mozilla.org",
-                                 "addon10@tests.mozilla.org"],
+                                 "addon9@tests.mozilla.org"],
                                  function(aAddons) {
       aAddons.forEach(function(aAddon) {
         aAddon.uninstall();
@@ -406,66 +396,6 @@ add_test(function() {
           var items = get_list_names(doc.getElementById("mismatch.incompatible"));
           is(items.length, 1, "Should have seen 1 still incompatible items");
           is(items[0], "Addon3 1.0", "Should have seen addon3 still incompatible");
-
-          var button = doc.documentElement.getButton("next");
-          EventUtils.synthesizeMouse(button, 2, 2, { }, aWindow);
-
-          wait_for_page(aWindow, "noupdates", function(aWindow) {
-            var button = doc.documentElement.getButton("finish");
-            ok(!button.hidden, "Finish button should not be hidden");
-            ok(!button.disabled, "Finish button should not be disabled");
-
-            wait_for_window_close(aWindow, function() {
-              uninstall_test_addons(run_next_test);
-            });
-
-            EventUtils.synthesizeMouse(button, 2, 2, { }, aWindow);
-          });
-        });
-      });
-    });
-  });
-});
-
-// Tests that compatibility overrides are retreived and affect addon
-// compatibility.
-add_test(function() {
-  Services.prefs.setBoolPref(PREF_STRICT_COMPAT, false);
-  Services.prefs.setCharPref(PREF_MIN_PLATFORM_COMPAT, "0");
-  is(AddonManager.strictCompatibility, false, "Strict compatibility should be disabled");
-
-  // Use a blank update URL
-  Services.prefs.setCharPref(PREF_UPDATEURL, TESTROOT + "missing.rdf");
-
-  install_test_addons(function() {
-
-    AddonManager.getAddonsByIDs(["addon1@tests.mozilla.org",
-                                 "addon2@tests.mozilla.org",
-                                 "addon3@tests.mozilla.org",
-                                 "addon4@tests.mozilla.org",
-                                 "addon5@tests.mozilla.org",
-                                 "addon6@tests.mozilla.org",
-                                 "addon7@tests.mozilla.org",
-                                 "addon8@tests.mozilla.org",
-                                 "addon9@tests.mozilla.org",
-                                 "addon10@tests.mozilla.org"],
-                                 function(aAddons) {
-      aAddons.forEach(function(aAddon) {
-        if (aAddon.id == "addon10@tests.mozilla.org")
-          is(aAddon.isCompatible, true, "Addon10 should be compatible before compat overrides are refreshed");
-        else
-          aAddon.uninstall();
-      });
-
-      Services.prefs.setCharPref(PREF_GETADDONS_BYIDS, TESTROOT + "browser_bug557956.xml");
-      Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
-
-      open_compatibility_window([], function(aWindow) {
-        var doc = aWindow.document;
-        wait_for_page(aWindow, "mismatch", function(aWindow) {
-          var items = get_list_names(doc.getElementById("mismatch.incompatible"));
-          is(items.length, 1, "Should have seen 1 incompatible item");
-          is(items[0], "Addon10 1.0", "Should have seen addon10 as incompatible");
 
           var button = doc.documentElement.getButton("next");
           EventUtils.synthesizeMouse(button, 2, 2, { }, aWindow);

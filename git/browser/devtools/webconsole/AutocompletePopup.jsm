@@ -221,9 +221,6 @@ AutocompletePopup.prototype = {
    */
   clearItems: function AP_clearItems()
   {
-    // Reset the selectedIndex to -1 before clearing the list
-    this.selectedIndex = -1;
-
     while (this._list.hasChildNodes()) {
       this._list.removeChild(this._list.firstChild);
     }

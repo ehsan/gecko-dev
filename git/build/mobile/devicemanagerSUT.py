@@ -266,10 +266,6 @@ class DeviceManagerSUT(DeviceManager):
       destname = destname.replace('\\', '/')
 
     if (self.debug >= 3): print "in push file with: " + localname + ", and: " + destname
-    if (self.dirExists(destname)):
-      if (not destname.endswith('/')):
-        destname = destname + '/'
-      destname = destname + os.path.basename(localname)
     if (self.validateFile(destname, localname) == True):
       if (self.debug >= 3): print "files are validated"
       return True
@@ -356,10 +352,7 @@ class DeviceManagerSUT(DeviceManager):
       parts = root.split(localDir)
       for file in files:
         remoteRoot = remoteDir + '/' + parts[1]
-        if (remoteRoot.endswith('/')):
-          remoteName = remoteRoot + file
-        else:
-          remoteName = remoteRoot + '/' + file
+        remoteName = remoteRoot + '/' + file
         if (parts[1] == ""): remoteRoot = remoteDir
         if (self.pushFile(os.path.join(root, file), remoteName) == False):
           # retry once

@@ -242,7 +242,7 @@ toolbarbutton.bookmark-item > menupopup {
 }
 
 .bookmark-item[query][tagContainer] {
-  list-style-image: url("chrome://browser/skin/places/tag.png");
+  list-style-image: url("chrome://mozapps/skin/places/tagContainerIcon.png");
 }
 
 .bookmark-item[query][dayContainer] {
@@ -1106,7 +1106,8 @@ toolbar[mode="icons"] #zoom-in-button {
   height: 22px;
 }
 
-#page-proxy-favicon {
+#page-proxy-favicon,
+#urlbar-throbber {
   width: 16px;
   height: 16px;
   margin: 0px;
@@ -1124,6 +1125,10 @@ toolbar[mode="icons"] #zoom-in-button {
 
 #page-proxy-favicon[pageproxystate="invalid"] {
   opacity: 0.5;
+}
+
+#urlbar-throbber {
+  list-style-image: url("chrome://browser/skin/places/searching_16.png");
 }
 
 #wrapper-urlbar-container[place="palette"] {
@@ -1908,7 +1913,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 .tabbrowser-tab[selected="true"] {
-  color: #000;
   z-index: 1;
   position: relative;
 }
@@ -2641,7 +2645,7 @@ panel[dimmed="true"] {
 
 #addonbar-closebutton {
   padding: 0;
-  margin: 0 6px;
+  margin: 0 4px;
   list-style-image: url("chrome://global/skin/icons/close.png");
   border: none;
   -moz-image-region: rect(0, 16px, 16px, 0);
@@ -2685,7 +2689,7 @@ panel[dimmed="true"] {
 /* Highlighter */
 
 .highlighter-veil {
-  background-color: rgba(25, 25, 25, 0.5);
+  background-color: rgba(0, 0, 0, 0.5);
 }
 
 #highlighter-closebutton {

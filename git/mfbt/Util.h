@@ -40,7 +40,6 @@
 #ifndef mozilla_Util_h_
 #define mozilla_Util_h_
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Types.h"
 
 /*
@@ -60,7 +59,7 @@
 MOZ_BEGIN_EXTERN_C
 
 extern MFBT_API(void)
-JS_Assert(const char *s, const char *file, int ln);
+JS_Assert(const char *s, const char *file, JSIntn ln);
 
 MOZ_END_EXTERN_C
 
@@ -247,36 +246,36 @@ struct AlignedElem;
 template<>
 struct AlignedElem<1>
 {
-  MOZ_ALIGNED_DECL(uint8_t elem, 1);
+  MOZ_ALIGNED_DECL(uint8 elem, 1);
 };
 
 template<>
 struct AlignedElem<2>
 {
-  MOZ_ALIGNED_DECL(uint8_t elem, 2);
+  MOZ_ALIGNED_DECL(uint8 elem, 2);
 };
 
 template<>
 struct AlignedElem<4>
 {
-  MOZ_ALIGNED_DECL(uint8_t elem, 4);
+  MOZ_ALIGNED_DECL(uint8 elem, 4);
 };
 
 template<>
 struct AlignedElem<8>
 {
-  MOZ_ALIGNED_DECL(uint8_t elem, 8);
+  MOZ_ALIGNED_DECL(uint8 elem, 8);
 };
 
 template<>
 struct AlignedElem<16>
 {
-  MOZ_ALIGNED_DECL(uint8_t elem, 16);
+  MOZ_ALIGNED_DECL(uint8 elem, 16);
 };
 
 /*
  * This utility pales in comparison to Boost's aligned_storage. The utility
- * simply assumes that uint64_t is enough alignment for anyone. This may need
+ * simply assumes that uint64 is enough alignment for anyone. This may need
  * to be extended one day...
  *
  * As an important side effect, pulling the storage into this template is
@@ -289,7 +288,7 @@ struct AlignedStorage
 {
     union U {
         char bytes[nbytes];
-        uint64_t _;
+        uint64 _;
     } u;
 
     const void *addr() const { return u.bytes; }
@@ -301,7 +300,7 @@ struct AlignedStorage2
 {
     union U {
         char bytes[sizeof(T)];
-        uint64_t _;
+        uint64 _;
     } u;
 
     const T *addr() const { return (const T *)u.bytes; }

@@ -158,7 +158,7 @@ nsSVGGradientElement::IsAttributeMapped(const nsIAtom* name) const
     sGradientStopMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, ArrayLength(map)) ||
     nsSVGGradientElementBase::IsAttributeMapped(name);
 }
 

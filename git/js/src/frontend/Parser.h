@@ -69,11 +69,10 @@ struct Parser : private AutoGCRooter
     TokenStream         tokenStream;
     void                *tempPoolMark;  /* initial JSContext.tempLifoAlloc mark */
     JSPrincipals        *principals;    /* principals associated with source */
-    JSPrincipals        *originPrincipals;   /* see jsapi.h 'originPrincipals' comment */
     StackFrame          *const callerFrame;  /* scripted caller frame for eval and dbgapi */
     JSObject            *const callerVarObj; /* callerFrame's varObj */
     ParseNodeAllocator  allocator;
-    uint32_t            functionCount;  /* number of functions in current unit */
+    uint32              functionCount;  /* number of functions in current unit */
     ObjectBox           *traceListHead; /* list of parsed object for GC tracing */
     TreeContext         *tc;            /* innermost tree context (stack-allocated) */
 
@@ -83,8 +82,7 @@ struct Parser : private AutoGCRooter
     /* Perform constant-folding; must be true when interfacing with the emitter. */
     bool                foldConstants;
 
-    Parser(JSContext *cx, JSPrincipals *prin = NULL, JSPrincipals *originPrin = NULL,
-           StackFrame *cfp = NULL, bool fold = true);
+    Parser(JSContext *cx, JSPrincipals *prin = NULL, StackFrame *cfp = NULL, bool fold = true);
     ~Parser();
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -100,7 +98,7 @@ struct Parser : private AutoGCRooter
     bool init(const jschar *base, size_t length, const char *filename, uintN lineno,
               JSVersion version);
 
-    void setPrincipals(JSPrincipals *prin, JSPrincipals *originPrin);
+    void setPrincipals(JSPrincipals *prin);
 
     const char *getFilename() const { return tokenStream.getFilename(); }
     JSVersion versionWithFlags() const { return tokenStream.versionWithFlags(); }
@@ -159,13 +157,7 @@ struct Parser : private AutoGCRooter
     /* Public entry points for parsing. */
     ParseNode *statement();
     bool recognizeDirectivePrologue(ParseNode *pn, bool *isDirectivePrologueMember);
-
-    /*
-     * Parse a function body.  Pass StatementListBody if the body is a list of
-     * statements; pass ExpressionBody if the body is a single expression.
-     */
-    enum FunctionBodyType { StatementListBody, ExpressionBody };
-    ParseNode *functionBody(FunctionBodyType type);
+    ParseNode *functionBody();
 
   private:
     /*
@@ -196,7 +188,7 @@ struct Parser : private AutoGCRooter
     ParseNode *letStatement();
 #endif
     ParseNode *expressionStatement();
-    ParseNode *variables(ParseNodeKind kind, bool inLetHead);
+    ParseNode *variables(bool inLetHead);
     ParseNode *expr();
     ParseNode *assignExpr();
     ParseNode *condExpr1();

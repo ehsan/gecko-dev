@@ -1677,7 +1677,6 @@ nsPresContext::PostMediaFeatureValuesChangedEvent()
       NS_NewRunnableMethod(this, &nsPresContext::HandleMediaFeatureValuesChangedEvent);
     if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
       mPendingMediaFeatureValuesChanged = true;
-      mDocument->SetNeedStyleFlush();
     }
   }
 }
@@ -1887,7 +1886,6 @@ nsPresContext::RebuildUserFontSet()
   }
 
   mUserFontSetDirty = true;
-  mDocument->SetNeedStyleFlush();
 
   // Somebody has already asked for the user font set, so we need to
   // post an event to rebuild it.  Setting the user font set to be dirty

@@ -55,15 +55,16 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 
-#if defined(__OBJC__)
-@class mozAccessible;
-#endif
+struct AccessibleWrapper;
 
 class nsAccessibleWrap : public nsAccessible
 {
   public: // construction, destruction
     nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
     virtual ~nsAccessibleWrap();
+    
+    // creates the native accessible connected to this one.
+    virtual bool Init ();
     
     // get the native obj-c object (mozAccessible)
     NS_IMETHOD GetNativeInterface (void **aOutAccessible);
@@ -82,6 +83,8 @@ class nsAccessibleWrap : public nsAccessible
     // to the user. it also has no native accessible object represented for it.
     bool IsIgnored();
     
+    PRInt32 GetUnignoredChildCount(bool aDeepCount);
+    
     bool HasPopup () {
       return (NativeState() & mozilla::a11y::states::HASPOPUP);
     }
@@ -90,43 +93,17 @@ class nsAccessibleWrap : public nsAccessible
     void GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aChildrenArray);
     virtual already_AddRefed<nsIAccessible> GetUnignoredParent();
     
-protected:
+  protected:
 
-  virtual nsresult FirePlatformEvent(AccEvent* aEvent);
+    virtual nsresult FirePlatformEvent(AccEvent* aEvent);
 
   /**
    * Return true if the parent doesn't have children to expose to AT.
    */
   bool AncestorIsFlat();
 
-  /**
-   * Get the native object. Create it if needed.
-   */
-#if defined(__OBJC__)
-  mozAccessible* GetNativeObject();
-#else
-  id GetNativeObject();
-#endif
-
-private:
-
-  /**
-   * Our native object. Private because its creation is done lazily.
-   * Don't access it directly. Ever. Unless you are GetNativeObject() or Shutdown()
-   */
-#if defined(__OBJC__)
-  // if we are in Objective-C, we use the actual Obj-C class.
-  mozAccessible* mNativeObject;
-#else
-  id mNativeObject;
-#endif
-
-  /**
-   * We have created our native. This does not mean there is one.
-   * This can never go back to false.
-   * We need it because checking whether we need a native object cost time.
-   */
-  bool mNativeInited;  
+    // Wrapper around our native object.
+    AccessibleWrapper *mNativeWrapper;
 };
 
 // Define unsupported wrap classes here

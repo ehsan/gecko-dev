@@ -61,15 +61,6 @@ private:
   FILE *fp_;
 };
 
-class AutoCharArray {
-public:
-  AutoCharArray(size_t len) { ptr_ = new char[len]; }
-  ~AutoCharArray() { delete[] ptr_; }
-  operator char *() { return ptr_; }
-private:
-  char *ptr_;
-};
-
 static const char kNL[] = "\r\n";
 static const char kEquals[] = "=";
 static const char kWhitespace[] = " \t";
@@ -176,7 +167,7 @@ ReadStrings(const NS_tchar *path,
     return READ_ERROR;
 
   size_t flen = size_t(len);
-  AutoCharArray fileContents(flen + 1);
+  char *fileContents = new char[flen + 1];
   if (!fileContents)
     return MEM_ERROR;
 

@@ -50,6 +50,9 @@
 #include "nsWindow.h"
 #include "mozilla/Preferences.h"
 #include "nsThreadUtils.h"
+#include "nsIURIFixup.h"
+#include "nsCDefaultURIFixup.h"
+#include "nsComponentManagerUtils.h"
 
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
@@ -122,6 +125,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jEnableLocation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocation", "(Z)V");
     jReturnIMEQueryResult = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "returnIMEQueryResult", "(Ljava/lang/String;II)V");
     jScheduleRestart = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "scheduleRestart", "()V");
+    jNotifyAppShellReady = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onAppShellReady", "()V");
     jNotifyXreExit = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onXreExit", "()V");
     jGetHandlersForMimeType = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForMimeType", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
     jGetHandlersForURL = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getHandlersForURL", "(Ljava/lang/String;Ljava/lang/String;)[Ljava/lang/String;");
@@ -156,7 +160,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jPostToJavaThread = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "postToJavaThread", "(Z)V");
     jInitCamera = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "initCamera", "(Ljava/lang/String;III)[I");
     jCloseCamera = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "closeCamera", "()V");
-    jIsTablet = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "isTablet", "()Z");
     jEnableBatteryNotifications = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableBatteryNotifications", "()V");
     jDisableBatteryNotifications = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "disableBatteryNotifications", "()V");
     jGetCurrentBatteryInformation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getCurrentBatteryInformation", "()[D");
@@ -360,6 +363,15 @@ AndroidBridge::ReturnIMEQueryResult(const PRUnichar *aResult, PRUint32 aLen,
     args[2].i = aSelLen;
     mJNIEnv->CallStaticVoidMethodA(mGeckoAppShellClass,
                                    jReturnIMEQueryResult, args);
+}
+
+void
+AndroidBridge::NotifyAppShellReady()
+{
+    ALOG_BRIDGE("AndroidBridge::NotifyAppShellReady");
+    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jNotifyAppShellReady);
+
+    mURIFixup = do_GetService(NS_URIFIXUP_CONTRACTID);
 }
 
 void
@@ -574,6 +586,23 @@ AndroidBridge::ClipboardHasText()
     if (!jstrType)
         return false;
     return true;
+}
+
+bool
+AndroidBridge::CanCreateFixupURI(const nsACString& aURIText)
+{
+    ALOG_BRIDGE("AndroidBridge::CanCreateFixupURI");
+
+    if (!mURIFixup)
+        return false;
+
+    nsCOMPtr<nsIURI> targetURI;
+
+    mURIFixup->CreateFixupURI(aURIText,
+                              nsIURIFixup::FIXUP_FLAG_NONE,
+                              getter_AddRefs(targetURI));
+
+    return (targetURI != nsnull);
 }
 
 void
@@ -1462,12 +1491,6 @@ AndroidBridge::UnlockWindow(void* window)
     }
 
     return true;
-}
-
-bool
-AndroidBridge::IsTablet()
-{
-    return mJNIEnv->CallStaticBooleanMethod(mGeckoAppShellClass, jIsTablet);
 }
 
 /* Implementation file */

@@ -160,7 +160,8 @@ GetFirstMpathChild(nsIContent* aElem)
   for (nsIContent* child = aElem->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    if (child->IsSVG(nsGkAtoms::mpath)) {
+    if (child->Tag() == nsGkAtoms::mpath &&
+        child->GetNameSpaceID() == kNameSpaceID_SVG) {
       return static_cast<nsSVGMpathElement*>(child);
     }
   }
@@ -178,7 +179,7 @@ SVGMotionSMILAnimationFunction::
   NS_ABORT_IF_FALSE(mPathVertices.IsEmpty(),
                     "regenerating when we already have vertices");
 
-  if (!aContextElem->IsSVG()) {
+  if (aContextElem->GetNameSpaceID() != kNameSpaceID_SVG) {
     NS_ERROR("Uh oh, SVG animateMotion element targeting a non-SVG node");
     return;
   }

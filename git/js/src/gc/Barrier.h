@@ -271,8 +271,7 @@ typedef HeapPtr<JSFunction> HeapPtrFunction;
 typedef HeapPtr<JSString> HeapPtrString;
 typedef HeapPtr<JSScript> HeapPtrScript;
 typedef HeapPtr<Shape> HeapPtrShape;
-typedef HeapPtr<BaseShape> HeapPtrBaseShape;
-typedef HeapPtr<types::TypeObject> HeapPtrTypeObject;
+typedef HeapPtr<const Shape> HeapPtrConstShape;
 typedef HeapPtr<JSXML> HeapPtrXML;
 
 /* Useful for hashtables with a HeapPtr as key. */
@@ -331,16 +330,16 @@ class HeapValue
     JSObject *toObjectOrNull() const { return value.toObjectOrNull(); }
     void *toGCThing() const { return value.toGCThing(); }
     double toDouble() const { return value.toDouble(); }
-    int32_t toInt32() const { return value.toInt32(); }
+    int32 toInt32() const { return value.toInt32(); }
     JSString *toString() const { return value.toString(); }
     bool toBoolean() const { return value.toBoolean(); }
     double toNumber() const { return value.toNumber(); }
 
     JSGCTraceKind gcKind() const { return value.gcKind(); }
 
-    inline void boxNonDoubleFrom(JSValueType type, uint64_t *out);
+    inline void boxNonDoubleFrom(JSValueType type, uint64 *out);
 
-    uint64_t asRawBits() const { return value.asRawBits(); }
+    uint64 asRawBits() const { return value.asRawBits(); }
 
 #ifdef DEBUG
     JSWhyMagic whyMagic() const { return value.whyMagic(); }
@@ -378,7 +377,7 @@ class HeapValueArray
     operator HeapValue *() const { return array; }
 
     HeapValueArray operator +(int offset) const { return HeapValueArray(array + offset); }
-    HeapValueArray operator +(uint32_t offset) const { return HeapValueArray(array + offset); }
+    HeapValueArray operator +(uint32 offset) const { return HeapValueArray(array + offset); }
 };
 
 class HeapId

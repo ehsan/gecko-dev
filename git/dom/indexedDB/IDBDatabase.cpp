@@ -43,7 +43,6 @@
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
 #include "nsDOMClassInfo.h"
-#include "nsDOMLists.h"
 #include "nsEventDispatcher.h"
 #include "nsJSUtils.h"
 #include "nsProxyRelease.h"
@@ -64,6 +63,12 @@
 USING_INDEXEDDB_NAMESPACE
 
 namespace {
+
+PRUint32 gDatabaseInstanceCount = 0;
+mozilla::Mutex* gPromptHelpersMutex = nsnull;
+
+// Protected by gPromptHelpersMutex.
+nsTArray<nsRefPtr<CheckQuotaHelper> >* gPromptHelpers = nsnull;
 
 class CreateObjectStoreHelper : public AsyncConnectionHelper
 {
@@ -124,24 +129,24 @@ NS_STACK_CLASS
 class AutoRemoveObjectStore
 {
 public:
-  AutoRemoveObjectStore(DatabaseInfo* aInfo, const nsAString& aName)
-  : mInfo(aInfo), mName(aName)
+  AutoRemoveObjectStore(IDBDatabase* aDatabase, const nsAString& aName)
+  : mDatabase(aDatabase), mName(aName)
   { }
 
   ~AutoRemoveObjectStore()
   {
-    if (mInfo) {
-      mInfo->RemoveObjectStore(mName);
+    if (mDatabase) {
+      mDatabase->Info()->RemoveObjectStore(mName);
     }
   }
 
   void forget()
   {
-    mInfo = nsnull;
+    mDatabase = nsnull;
   }
 
 private:
-  DatabaseInfo* mInfo;
+  IDBDatabase* mDatabase;
   nsString mName;
 };
 
@@ -152,8 +157,7 @@ already_AddRefed<IDBDatabase>
 IDBDatabase::Create(nsIScriptContext* aScriptContext,
                     nsPIDOMWindow* aOwner,
                     already_AddRefed<DatabaseInfo> aDatabaseInfo,
-                    const nsACString& aASCIIOrigin,
-                    FileManager* aFileManager)
+                    const nsACString& aASCIIOrigin)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(!aASCIIOrigin.IsEmpty(), "Empty origin!");
@@ -171,7 +175,6 @@ IDBDatabase::Create(nsIScriptContext* aScriptContext,
   db->mFilePath = databaseInfo->filePath;
   databaseInfo.swap(db->mDatabaseInfo);
   db->mASCIIOrigin = aASCIIOrigin;
-  db->mFileManager = aFileManager;
 
   IndexedDatabaseManager* mgr = IndexedDatabaseManager::Get();
   NS_ASSERTION(mgr, "This should never be null!");
@@ -192,6 +195,11 @@ IDBDatabase::IDBDatabase()
   mRunningVersionChange(false)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  if (!gDatabaseInstanceCount++) {
+    NS_ASSERTION(!gPromptHelpersMutex, "Should be null!");
+    gPromptHelpersMutex = new mozilla::Mutex("IDBDatabase gPromptHelpersMutex");
+  }
 }
 
 IDBDatabase::~IDBDatabase()
@@ -206,20 +214,90 @@ IDBDatabase::~IDBDatabase()
       mgr->UnregisterDatabase(this);
     }
   }
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
+
+  if (!--gDatabaseInstanceCount) {
+    NS_ASSERTION(gPromptHelpersMutex, "Should not be null!");
+
+    delete gPromptHelpers;
+    gPromptHelpers = nsnull;
+
+    delete gPromptHelpersMutex;
+    gPromptHelpersMutex = nsnull;
+  }
+}
+
+bool
+IDBDatabase::IsQuotaDisabled()
+{
+  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(gPromptHelpersMutex, "This should never be null!");
+
+  MutexAutoLock lock(*gPromptHelpersMutex);
+
+  if (!gPromptHelpers) {
+    gPromptHelpers = new nsAutoTArray<nsRefPtr<CheckQuotaHelper>, 10>();
+  }
+
+  CheckQuotaHelper* foundHelper = nsnull;
+
+  PRUint32 count = gPromptHelpers->Length();
+  for (PRUint32 index = 0; index < count; index++) {
+    nsRefPtr<CheckQuotaHelper>& helper = gPromptHelpers->ElementAt(index);
+    if (helper->WindowSerial() == Owner()->GetSerial()) {
+      foundHelper = helper;
+      break;
+    }
+  }
+
+  if (!foundHelper) {
+    nsRefPtr<CheckQuotaHelper>* newHelper = gPromptHelpers->AppendElement();
+    if (!newHelper) {
+      NS_WARNING("Out of memory!");
+      return false;
+    }
+    *newHelper = new CheckQuotaHelper(this, *gPromptHelpersMutex);
+    foundHelper = *newHelper;
+
+    {
+      // Unlock before calling out to XPCOM.
+      MutexAutoUnlock unlock(*gPromptHelpersMutex);
+
+      nsresult rv = NS_DispatchToMainThread(foundHelper, NS_DISPATCH_NORMAL);
+      NS_ENSURE_SUCCESS(rv, false);
+    }
+  }
+
+  return foundHelper->PromptAndReturnQuotaIsDisabled();
 }
 
 void
 IDBDatabase::Invalidate()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(gPromptHelpersMutex, "This should never be null!");
 
   // Make sure we're closed too.
   Close();
 
-  // When the IndexedDatabaseManager needs to invalidate databases, all it has
-  // is an origin, so we call back into the manager to cancel any prompts for
-  // our owner.
-  IndexedDatabaseManager::CancelPromptsForWindow(Owner());
+  // Cancel any quota prompts that are currently being displayed.
+  {
+    MutexAutoLock lock(*gPromptHelpersMutex);
+
+    if (gPromptHelpers) {
+      PRUint32 count = gPromptHelpers->Length();
+      for (PRUint32 index = 0; index < count; index++) {
+        nsRefPtr<CheckQuotaHelper>& helper = gPromptHelpers->ElementAt(index);
+        if (helper->WindowSerial() == Owner()->GetSerial()) {
+          helper->Cancel();
+          break;
+        }
+      }
+    }
+  }
 
   mInvalidated = true;
 }
@@ -384,10 +462,13 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  DatabaseInfo* databaseInfo = transaction->DBInfo();
+  DatabaseInfo* databaseInfo = Info();
+
+  if (databaseInfo->ContainsStoreName(aName)) {
+    return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
+  }
 
   nsString keyPath;
-  keyPath.SetIsVoid(true);
   bool autoIncrement = false;
 
   if (!JSVAL_IS_VOID(aOptions) && !JSVAL_IS_NULL(aOptions)) {
@@ -433,37 +514,29 @@ IDBDatabase::CreateObjectStore(const nsAString& aName,
     autoIncrement = !!boolVal;
   }
 
-  if (databaseInfo->ContainsStoreName(aName)) {
-    return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
+  if (!IDBObjectStore::IsValidKeyPath(aCx, keyPath)) {
+    return NS_ERROR_DOM_SYNTAX_ERR;
   }
 
-  if (!keyPath.IsVoid()) {
-    if (keyPath.IsEmpty() && autoIncrement) {
-      return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-    }
-    if (!IDBObjectStore::IsValidKeyPath(aCx, keyPath)) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
-    }
-  }
-
-  nsRefPtr<ObjectStoreInfo> newInfo(new ObjectStoreInfo());
+  nsAutoPtr<ObjectStoreInfo> newInfo(new ObjectStoreInfo());
 
   newInfo->name = aName;
   newInfo->id = databaseInfo->nextObjectStoreId++;
   newInfo->keyPath = keyPath;
-  newInfo->nextAutoIncrementId = autoIncrement ? 1 : 0;
-  newInfo->comittedAutoIncrementId = newInfo->nextAutoIncrementId;
+  newInfo->autoIncrement = autoIncrement;
+  newInfo->databaseId = mDatabaseId;
 
-  if (!databaseInfo->PutObjectStore(newInfo)) {
+  if (!Info()->PutObjectStore(newInfo)) {
     NS_WARNING("Put failed!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
+  ObjectStoreInfo* objectStoreInfo = newInfo.forget();
 
   // Don't leave this in the hash if we fail below!
-  AutoRemoveObjectStore autoRemove(databaseInfo, aName);
+  AutoRemoveObjectStore autoRemove(this, aName);
 
   nsRefPtr<IDBObjectStore> objectStore =
-    transaction->GetOrCreateObjectStore(aName, newInfo);
+    transaction->GetOrCreateObjectStore(aName, objectStoreInfo);
   NS_ENSURE_TRUE(objectStore, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   nsRefPtr<CreateObjectStoreHelper> helper =
@@ -490,9 +563,9 @@ IDBDatabase::DeleteObjectStore(const nsAString& aName)
     return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
   }
 
-  DatabaseInfo* info = transaction->DBInfo();
-  ObjectStoreInfo* objectStoreInfo = info->GetObjectStore(aName);
-  if (!objectStoreInfo) {
+  DatabaseInfo* info = Info();
+  ObjectStoreInfo* objectStoreInfo;
+  if (!info->GetObjectStore(aName, &objectStoreInfo)) {
     return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
   }
 
@@ -501,8 +574,7 @@ IDBDatabase::DeleteObjectStore(const nsAString& aName)
   nsresult rv = helper->DispatchToTransactionPool();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  transaction->RemoveObjectStore(aName);
-
+  info->RemoveObjectStore(aName);
   return NS_OK;
 }
 
@@ -728,8 +800,8 @@ CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
   nsCOMPtr<mozIStorageStatement> stmt =
     mTransaction->GetCachedStatement(NS_LITERAL_CSTRING(
-    "INSERT INTO object_store (id, auto_increment, name, key_path) "
-    "VALUES (:id, :auto_increment, :name, :key_path)"
+    "INSERT INTO object_store (id, name, key_path, auto_increment) "
+    "VALUES (:id, :name, :key_path, :auto_increment)"
   ));
   NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -739,17 +811,15 @@ CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
                                        mObjectStore->Id());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("auto_increment"),
-                             mObjectStore->IsAutoIncrement() ? 1 : 0);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
   rv = stmt->BindStringByName(NS_LITERAL_CSTRING("name"), mObjectStore->Name());
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  rv = mObjectStore->HasKeyPath() ?
-    stmt->BindStringByName(NS_LITERAL_CSTRING("key_path"),
-                           mObjectStore->KeyPath()) :
-    stmt->BindNullByName(NS_LITERAL_CSTRING("key_path"));
+  rv = stmt->BindStringByName(NS_LITERAL_CSTRING("key_path"),
+                              mObjectStore->KeyPath());
+  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+  rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("auto_increment"),
+                             mObjectStore->IsAutoIncrement() ? 1 : 0);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   rv = stmt->Execute();

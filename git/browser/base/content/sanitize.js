@@ -204,13 +204,24 @@ Sanitizer.prototype = {
     offlineApps: {
       clear: function ()
       {
-        Components.utils.import("resource:///modules/offlineAppCache.jsm");
-        OfflineAppCacheHelper.clear();
+        const Cc = Components.classes;
+        const Ci = Components.interfaces;
+        var cacheService = Cc["@mozilla.org/network/cache-service;1"].
+                           getService(Ci.nsICacheService);
+        try {
+          // Offline app data is "timeless", and doesn't respect
+          // the setting of timespan, it always clears everything
+          cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
+        } catch(er) {}
+
+        var storageManagerService = Cc["@mozilla.org/dom/storagemanager;1"].
+                                    getService(Ci.nsIDOMStorageManager);
+        storageManagerService.clearOfflineApps();
       },
 
       get canClear()
       {
-        return true;
+          return true;
       }
     },
 

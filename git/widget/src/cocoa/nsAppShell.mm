@@ -183,7 +183,6 @@ bool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
 @end
 
 @implementation GeckoNSApplication
-
 - (void)sendEvent:(NSEvent *)anEvent
 {
   mozilla::HangMonitor::NotifyActivity();
@@ -194,19 +193,6 @@ bool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
   }
   [super sendEvent:anEvent];
 }
-
-- (NSEvent*)nextEventMatchingMask:(NSUInteger)mask
-                        untilDate:(NSDate*)expiration
-                           inMode:(NSString*)mode
-                          dequeue:(BOOL)flag
-{
-  if (expiration) {
-    mozilla::HangMonitor::Suspend();
-  }
-  return [super nextEventMatchingMask:mask
-          untilDate:expiration inMode:mode dequeue:flag];
-}
-
 @end
 
 

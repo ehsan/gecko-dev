@@ -92,7 +92,6 @@ EXPORTS		= \
 		nsTraceRefcntImpl.h \
 		nsWeakPtr.h \
 		nsInterfaceRequestorAgg.h \
-		dmd.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla
@@ -100,8 +99,6 @@ EXPORTS_NAMESPACES = mozilla
 EXPORTS_mozilla = \
 	FunctionTimer.h \
 	MapsMemoryReporter.h \
-	ClearOnShutdown.h \
-	AvailableMemoryTracker.h \
 	$(NULL)
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
@@ -109,15 +106,11 @@ CPPSRCS += nsCrashOnException.cpp
 endif
 
 ifeq ($(OS_ARCH),WINNT)
-
 ifdef MOZ_DEBUG
 CSRCS		+= pure_api.c
 EXPORTS		+= pure.h
 endif
-
-CPPSRCS += AvailableMemoryTracker.cpp
-
-endif #if OS_ARCH == WINNT
+endif
 
 SDK_XPIDLSRCS   = \
 		nsIDebug.idl               \

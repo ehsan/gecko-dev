@@ -44,7 +44,6 @@ include protocol PBrowser;
 include "mozilla/net/NeckoMessageUtils.h";
 
 using IPC::URI;
-using IPC::InputStream;
 
 namespace mozilla {
 namespace net {
@@ -59,7 +58,6 @@ parent:
   Close(PRUint16 code, nsCString reason);
   SendMsg(nsCString aMsg);
   SendBinaryMsg(nsCString aMsg);
-  SendBinaryStream(InputStream aStream, PRUint32 aLength);
 
   DeleteSelf();
 

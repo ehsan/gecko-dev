@@ -268,7 +268,7 @@ nsLayoutStatics::Initialize()
 
   NS_SealStaticAtomTable();
 
-  nsDOMMemoryMultiReporter::Init();
+  nsDOMMemoryReporter::Init();
 
   return NS_OK;
 }

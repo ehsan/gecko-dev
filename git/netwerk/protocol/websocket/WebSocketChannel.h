@@ -67,8 +67,7 @@
 
 namespace mozilla { namespace net {
 
-class OutboundMessage;
-class OutboundEnqueuer;
+class nsPostMessage;
 class nsWSAdmissionManager;
 class nsWSCompression;
 class CallOnMessageAvailable;
@@ -107,7 +106,6 @@ public:
   NS_IMETHOD Close(PRUint16 aCode, const nsACString & aReason);
   NS_IMETHOD SendMsg(const nsACString &aMsg);
   NS_IMETHOD SendBinaryMsg(const nsACString &aMsg);
-  NS_IMETHOD SendBinaryStream(nsIInputStream *aStream, PRUint32 length);
   NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo);
 
   WebSocketChannel();
@@ -133,19 +131,14 @@ protected:
   virtual ~WebSocketChannel();
 
 private:
-  friend class OutboundEnqueuer;
+  friend class nsPostMessage;
   friend class nsWSAdmissionManager;
   friend class CallOnMessageAvailable;
   friend class CallOnStop;
   friend class CallOnServerClose;
   friend class CallAcknowledge;
 
-  // Common send code for binary + text msgs
-  nsresult SendMsgCommon(const nsACString *aMsg, bool isBinary,
-                         PRUint32 length, nsIInputStream *aStream = NULL);
-
-  void EnqueueOutgoingMessage(nsDeque &aQueue, OutboundMessage *aMsg);
-
+  void SendMsgInternal(nsCString *aMsg, PRInt32 datalen);
   void PrimeNewOutgoingMessage();
   void GeneratePong(PRUint8 *payload, PRUint32 len);
   void GeneratePing();
@@ -170,6 +163,48 @@ private:
   PRUint32 UpdateReadBuffer(PRUint8 *buffer, PRUint32 count,
                             PRUint32 accumulatedFragments);
 
+  class OutboundMessage
+  {
+  public:
+    OutboundMessage (nsCString *str)
+      : mMsg(str), mIsControl(false), mBinaryLen(-1)
+    { MOZ_COUNT_CTOR(WebSocketOutboundMessage); }
+
+    OutboundMessage (nsCString *str, PRInt32 dataLen)
+      : mMsg(str), mIsControl(false), mBinaryLen(dataLen)
+    { MOZ_COUNT_CTOR(WebSocketOutboundMessage); }
+
+    OutboundMessage ()
+      : mMsg(nsnull), mIsControl(true), mBinaryLen(-1)
+    { MOZ_COUNT_CTOR(WebSocketOutboundMessage); }
+
+    ~OutboundMessage()
+    {
+      MOZ_COUNT_DTOR(WebSocketOutboundMessage);
+      delete mMsg;
+    }
+
+    bool IsControl()  { return mIsControl; }
+    const nsCString *Msg()  { return mMsg; }
+    PRInt32 BinaryLen() { return mBinaryLen; }
+    PRInt32 Length()
+    {
+      if (mBinaryLen >= 0)
+        return mBinaryLen;
+      return mMsg ? mMsg->Length() : 0;
+    }
+    PRUint8 *BeginWriting() {
+      return (PRUint8 *)(mMsg ? mMsg->BeginWriting() : nsnull);
+    }
+    PRUint8 *BeginReading() {
+      return (PRUint8 *)(mMsg ? mMsg->BeginReading() : nsnull);
+    }
+
+  private:
+    nsCString *mMsg;
+    bool       mIsControl;
+    PRInt32    mBinaryLen;
+  };
 
   nsCOMPtr<nsIEventTarget>                 mSocketThread;
   nsCOMPtr<nsIHttpChannelInternal>         mChannel;
@@ -199,7 +234,7 @@ private:
   const static PRInt32            kLingeringCloseTimeout =   1000;
   const static PRInt32            kLingeringCloseThreshold = 50;
 
-  PRInt32                         mMaxConcurrentConnections;
+  PRUint32                        mMaxConcurrentConnections;
 
   PRUint32                        mRecvdHttpOnStartRequest   : 1;
   PRUint32                        mRecvdHttpUpgradeTransport : 1;

@@ -16,6 +16,7 @@ function test()
     ok(true, "skip test for bug 687580: only applicable for Orion");
     return; // Testing for the fix requires direct Orion API access.
   }
+
   waitForExplicitFinish();
 
   const windowUrl = "data:application/vnd.mozilla.xul+xml,<?xml version='1.0'?>" +
@@ -70,7 +71,7 @@ function editorLoaded()
   let ds = Cc["@mozilla.org/widget/dragservice;1"].
            getService(Ci.nsIDragService);
 
-  let target = view._clientDiv;
+  let target = view._dragNode;
   let targetWin = target.ownerDocument.defaultView;
 
   let dataTransfer = null;
@@ -92,9 +93,7 @@ function editorLoaded()
     target.removeEventListener("drop", onDrop, false);
 
     let selection = editor.getSelection();
-    is(selection.end - selection.start,
-       initialSelection.end - initialSelection.start,
-       "selection is correct");
+    is(selection.start, selection.end, "selection is collapsed");
     is(editor.getText(0, 2), "l3", "drag and drop worked");
 
     let offset = editor.getCaretOffset();

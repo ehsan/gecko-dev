@@ -61,7 +61,7 @@ ShapeHasher::hash(const Lookup l)
 inline bool
 ShapeHasher::match(const Key k, const Lookup l)
 {
-    return k->matches(l);
+    return l->matches(k);
 }
 
 Shape *
@@ -95,6 +95,8 @@ PropertyTree::insertChild(JSContext *cx, Shape *parent, Shape *child)
     JS_ASSERT(!parent->inDictionary());
     JS_ASSERT(!child->parent);
     JS_ASSERT(!child->inDictionary());
+    JS_ASSERT(!JSID_IS_VOID(parent->propid));
+    JS_ASSERT(!JSID_IS_VOID(child->propid));
     JS_ASSERT(cx->compartment == compartment);
     JS_ASSERT(child->compartment() == parent->compartment());
 
@@ -134,6 +136,7 @@ void
 Shape::removeChild(Shape *child)
 {
     JS_ASSERT(!child->inDictionary());
+    JS_ASSERT(!JSID_IS_VOID(propid));
 
     KidsPointer *kidp = &kids;
 
@@ -176,6 +179,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent, const Shape &child)
     Shape *shape;
 
     JS_ASSERT(parent);
+    JS_ASSERT(!JSID_IS_VOID(parent->propid));
 
     /*
      * The property tree has extremely low fan-out below its root in
@@ -202,10 +206,8 @@ PropertyTree::getChild(JSContext *cx, Shape *parent, const Shape &child)
     if (!shape)
         return NULL;
 
-    UnownedBaseShape *base = child.base()->unowned();
-
-    new (shape) Shape(&child);
-    shape->base_.init(base);
+    new (shape) Shape(child.propid, child.getter(), child.setter(), child.slot, child.attrs,
+                      child.flags, child.shortid, js_GenerateShape(cx));
 
     if (!insertChild(cx, parent, shape))
         return NULL;
@@ -214,7 +216,7 @@ PropertyTree::getChild(JSContext *cx, Shape *parent, const Shape &child)
 }
 
 void
-Shape::finalize(JSContext *cx, bool background)
+Shape::finalize(JSContext *cx)
 {
     if (!inDictionary()) {
         if (parent && parent->isMarked())
@@ -223,6 +225,8 @@ Shape::finalize(JSContext *cx, bool background)
         if (kids.isHash())
             cx->delete_(kids.toHash());
     }
+
+    freeTable(cx);
 }
 
 #ifdef DEBUG
@@ -243,8 +247,6 @@ KidsPointer::checkConsistency(const Shape *aKid) const
 void
 Shape::dump(JSContext *cx, FILE *fp) const
 {
-    jsid propid = this->propid();
-
     JS_ASSERT(!JSID_IS_VOID(propid));
 
     if (JSID_IS_INT(propid)) {
@@ -257,7 +259,7 @@ Shape::dump(JSContext *cx, FILE *fp) const
             str = JSID_TO_ATOM(propid);
         } else {
             JS_ASSERT(JSID_IS_OBJECT(propid));
-            JSString *s = ToStringSlow(cx, IdToValue(propid));
+            JSString *s = js_ValueToString(cx, IdToValue(propid));
             fputs("object ", fp);
             str = s ? s->ensureLinear(cx) : NULL;
         }
@@ -267,11 +269,10 @@ Shape::dump(JSContext *cx, FILE *fp) const
             FileEscapedString(fp, str, '"');
     }
 
-    fprintf(fp, " g/s %p/%p slot %d attrs %x ",
-            JS_FUNC_TO_DATA_PTR(void *, base()->rawGetter),
-            JS_FUNC_TO_DATA_PTR(void *, base()->rawSetter),
-            hasSlot() ? slot() : -1, attrs);
-
+    fprintf(fp, " g/s %p/%p slot %u attrs %x ",
+            JS_FUNC_TO_DATA_PTR(void *, getter()),
+            JS_FUNC_TO_DATA_PTR(void *, setter()),
+            slot, attrs);
     if (attrs) {
         int first = 1;
         fputs("(", fp);
@@ -298,7 +299,7 @@ Shape::dump(JSContext *cx, FILE *fp) const
         fputs(") ", fp);
     }
 
-    fprintf(fp, "shortid %d\n", shortid());
+    fprintf(fp, "shortid %d\n", shortid);
 }
 
 void
@@ -306,8 +307,8 @@ Shape::dumpSubtree(JSContext *cx, int level, FILE *fp) const
 {
     if (!parent) {
         JS_ASSERT(level == 0);
-        JS_ASSERT(JSID_IS_EMPTY(propid_));
-        fprintf(fp, "class %s emptyShape\n", getObjectClass()->name);
+        JS_ASSERT(JSID_IS_EMPTY(propid));
+        fprintf(fp, "class %s emptyShape %u\n", clasp->name, shapeid);
     } else {
         fprintf(fp, "%*sid ", level, "");
         dump(cx, fp);
@@ -356,7 +357,6 @@ js::PropertyTree::dumpShapes(JSContext *cx)
 
         fprintf(dumpfp, "*** Compartment %p ***\n", (void *)c.get());
 
-        /*
         typedef JSCompartment::EmptyShapeSet HS;
         HS &h = c->emptyShapes;
         for (HS::Range r = h.all(); !r.empty(); r.popFront()) {
@@ -364,7 +364,6 @@ js::PropertyTree::dumpShapes(JSContext *cx)
             empty->dumpSubtree(cx, 0, dumpfp);
             putc('\n', dumpfp);
         }
-        */
     }
 }
 #endif

@@ -43,7 +43,6 @@
 
 #include "mozilla/storage.h"
 #include "nsDOMClassInfoID.h"
-#include "nsDOMLists.h"
 #include "nsEventDispatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsProxyRelease.h"
@@ -121,8 +120,6 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
 
   transaction->mDatabase = aDatabase;
   transaction->mMode = aMode;
-  
-  transaction->mDatabaseInfo = aDatabase->Info();
 
   if (!transaction->mObjectStoreNames.AppendElements(aObjectStoreNames)) {
     NS_ERROR("Out of memory!");
@@ -184,6 +181,10 @@ IDBTransaction::~IDBTransaction()
   NS_ASSERTION(!mConnection, "Should have called CommitOrRollback!");
   NS_ASSERTION(!mCreating, "Should have been cleared already!");
   NS_ASSERTION(mFiredCompleteOrAbort, "Should have fired event!");
+
+  if (mListenerManager) {
+    mListenerManager->Disconnect();
+  }
 }
 
 void
@@ -213,22 +214,6 @@ IDBTransaction::OnRequestFinished()
 }
 
 void
-IDBTransaction::RemoveObjectStore(const nsAString& aName)
-{
-  NS_ASSERTION(mMode == nsIIDBTransaction::VERSION_CHANGE,
-               "Only remove object stores on VERSION_CHANGE transactions");
-
-  mDatabaseInfo->RemoveObjectStore(aName);
-
-  for (PRUint32 i = 0; i < mCreatedObjectStores.Length(); i++) {
-    if (mCreatedObjectStores[i]->Name() == aName) {
-      mCreatedObjectStores.RemoveElementAt(i);
-      break;
-    }
-  }
-}
-
-void
 IDBTransaction::SetTransactionListener(IDBTransactionListener* aListener)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -244,8 +229,7 @@ IDBTransaction::CommitOrRollback()
   TransactionThreadPool* pool = TransactionThreadPool::GetOrCreate();
   NS_ENSURE_STATE(pool);
 
-  nsRefPtr<CommitHelper> helper(new CommitHelper(this, mListener,
-                                                 mCreatedObjectStores));
+  nsRefPtr<CommitHelper> helper(new CommitHelper(this, mListener));
 
   mCachedStatements.Enumerate(DoomCachedStatements, helper);
   NS_ASSERTION(!mCachedStatements.Count(), "Statements left!");
@@ -334,21 +318,8 @@ IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
       IDBFactory::GetConnection(mDatabase->FilePath());
     NS_ENSURE_TRUE(connection, NS_ERROR_FAILURE);
 
-    nsresult rv;
-
-    nsRefPtr<UpdateRefcountFunction> function;
     nsCString beginTransaction;
     if (mMode != nsIIDBTransaction::READ_ONLY) {
-      function = new UpdateRefcountFunction(Database()->Manager());
-      NS_ENSURE_TRUE(function, NS_ERROR_OUT_OF_MEMORY);
-
-      rv = function->Init();
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = connection->CreateFunction(
-        NS_LITERAL_CSTRING("update_refcount"), 2, function);
-      NS_ENSURE_SUCCESS(rv, rv);
-
       beginTransaction.AssignLiteral("BEGIN IMMEDIATE TRANSACTION;");
     }
     else {
@@ -356,19 +327,130 @@ IDBTransaction::GetOrCreateConnection(mozIStorageConnection** aResult)
     }
 
     nsCOMPtr<mozIStorageStatement> stmt;
-    rv = connection->CreateStatement(beginTransaction, getter_AddRefs(stmt));
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsresult rv = connection->CreateStatement(beginTransaction,
+                                              getter_AddRefs(stmt));
+    NS_ENSURE_SUCCESS(rv, false);
 
     rv = stmt->Execute();
-    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_SUCCESS(rv, false);
 
-    function.swap(mUpdateFileRefcountFunction);
     connection.swap(mConnection);
   }
 
   nsCOMPtr<mozIStorageConnection> result(mConnection);
   result.forget(aResult);
   return NS_OK;
+}
+
+already_AddRefed<mozIStorageStatement>
+IDBTransaction::AddStatement(bool aCreate,
+                             bool aOverwrite,
+                             bool aAutoIncrement)
+{
+#ifdef DEBUG
+  if (!aCreate) {
+    NS_ASSERTION(aOverwrite, "Bad param combo!");
+  }
+#endif
+
+  if (aAutoIncrement) {
+    if (aCreate) {
+      if (aOverwrite) {
+        return GetCachedStatement(
+          "INSERT OR FAIL INTO ai_object_data (object_store_id, id, data) "
+          "VALUES (:osid, :key_value, :data)"
+        );
+      }
+      return GetCachedStatement(
+        "INSERT INTO ai_object_data (object_store_id, data) "
+        "VALUES (:osid, :data)"
+      );
+    }
+    return GetCachedStatement(
+      "UPDATE ai_object_data "
+      "SET data = :data "
+      "WHERE object_store_id = :osid "
+      "AND id = :key_value"
+    );
+  }
+  if (aCreate) {
+    if (aOverwrite) {
+      return GetCachedStatement(
+        "INSERT OR FAIL INTO object_data (object_store_id, key_value, data) "
+        "VALUES (:osid, :key_value, :data)"
+      );
+    }
+    return GetCachedStatement(
+      "INSERT INTO object_data (object_store_id, key_value, data) "
+      "VALUES (:osid, :key_value, :data)"
+    );
+  }
+  return GetCachedStatement(
+    "UPDATE object_data "
+    "SET data = :data "
+    "WHERE object_store_id = :osid "
+    "AND key_value = :key_value"
+  );
+}
+
+already_AddRefed<mozIStorageStatement>
+IDBTransaction::IndexDataInsertStatement(bool aAutoIncrement,
+                                         bool aUnique)
+{
+  if (aAutoIncrement) {
+    if (aUnique) {
+      return GetCachedStatement(
+        "INSERT INTO ai_unique_index_data "
+          "(index_id, ai_object_data_id, value) "
+        "VALUES (:index_id, :object_data_id, :value)"
+      );
+    }
+    return GetCachedStatement(
+      "INSERT INTO ai_index_data "
+        "(index_id, ai_object_data_id, value) "
+      "VALUES (:index_id, :object_data_id, :value)"
+    );
+  }
+  if (aUnique) {
+    return GetCachedStatement(
+      "INSERT INTO unique_index_data "
+        "(index_id, object_data_id, object_data_key, value) "
+      "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
+    );
+  }
+  return GetCachedStatement(
+    "INSERT INTO index_data ("
+      "index_id, object_data_id, object_data_key, value) "
+    "VALUES (:index_id, :object_data_id, :object_data_key, :value)"
+  );
+}
+
+already_AddRefed<mozIStorageStatement>
+IDBTransaction::IndexDataDeleteStatement(bool aAutoIncrement,
+                                         bool aUnique)
+{
+  if (aAutoIncrement) {
+    if (aUnique) {
+      return GetCachedStatement(
+        "DELETE FROM ai_unique_index_data "
+        "WHERE ai_object_data_id = :object_data_id"
+      );
+    }
+    return GetCachedStatement(
+      "DELETE FROM ai_index_data "
+      "WHERE ai_object_data_id = :object_data_id"
+    );
+  }
+  if (aUnique) {
+    return GetCachedStatement(
+      "DELETE FROM unique_index_data "
+      "WHERE object_data_id = :object_data_id"
+    );
+  }
+  return GetCachedStatement(
+    "DELETE FROM index_data "
+    "WHERE object_data_id = :object_data_id"
+  );
 }
 
 already_AddRefed<mozIStorageStatement>
@@ -452,23 +534,15 @@ IDBTransaction::GetOrCreateObjectStore(const nsAString& aName,
     }
   }
 
-  retval = IDBObjectStore::Create(this, aObjectStoreInfo, mDatabaseInfo->id);
+  retval = IDBObjectStore::Create(this, aObjectStoreInfo);
+  NS_ENSURE_TRUE(retval, nsnull);
 
-  mCreatedObjectStores.AppendElement(retval);
+  if (!mCreatedObjectStores.AppendElement(retval)) {
+    NS_WARNING("Out of memory!");
+    return nsnull;
+  }
 
   return retval.forget();
-}
-
-void
-IDBTransaction::OnNewFileInfo(FileInfo* aFileInfo)
-{
-  mCreatedFileInfos.AppendElement(aFileInfo);
-}
-
-void
-IDBTransaction::ClearCreatedFileInfos()
-{
-  mCreatedFileInfos.Clear();
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(IDBTransaction)
@@ -549,7 +623,12 @@ IDBTransaction::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
   nsTArray<nsString>* arrayOfNames;
 
   if (mMode == IDBTransaction::VERSION_CHANGE) {
-    mDatabaseInfo->GetObjectStoreNames(stackArray);
+    DatabaseInfo* info = mDatabase->Info();
+
+    if (!info->GetObjectStoreNames(stackArray)) {
+      NS_ERROR("Out of memory!");
+      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    }
 
     arrayOfNames = &stackArray;
   }
@@ -581,7 +660,7 @@ IDBTransaction::ObjectStore(const nsAString& aName,
 
   if (mMode == nsIIDBTransaction::VERSION_CHANGE ||
       mObjectStoreNames.Contains(aName)) {
-    info = mDatabaseInfo->GetObjectStore(aName);
+    mDatabase->Info()->GetObjectStore(aName, &info);
   }
 
   if (!info) {
@@ -733,23 +812,14 @@ IDBTransaction::AfterProcessNextEvent(nsIThreadInternal* aThread,
   return NS_OK;
 }
 
-CommitHelper::CommitHelper(
-              IDBTransaction* aTransaction,
-              IDBTransactionListener* aListener,
-              const nsTArray<nsRefPtr<IDBObjectStore> >& aUpdatedObjectStores)
+CommitHelper::CommitHelper(IDBTransaction* aTransaction,
+                           IDBTransactionListener* aListener)
 : mTransaction(aTransaction),
   mListener(aListener),
-  mAborted(!!aTransaction->mAborted)
+  mAborted(!!aTransaction->mAborted),
+  mHaveMetadata(false)
 {
   mConnection.swap(aTransaction->mConnection);
-  mUpdateFileRefcountFunction.swap(aTransaction->mUpdateFileRefcountFunction);
-
-  for (PRUint32 i = 0; i < aUpdatedObjectStores.Length(); i++) {
-    ObjectStoreInfo* info = aUpdatedObjectStores[i]->Info();
-    if (info->comittedAutoIncrementId != info->nextAutoIncrementId) {
-      mAutoIncrementObjectStores.AppendElement(aUpdatedObjectStores[i]);
-    }
-  }
 }
 
 CommitHelper::~CommitHelper()
@@ -766,21 +836,21 @@ CommitHelper::Run()
 
     mTransaction->mReadyState = nsIIDBTransaction::DONE;
 
-    // Release file infos on the main thread, so they will eventually get
-    // destroyed on correct thread.
-    mTransaction->ClearCreatedFileInfos();
-    if (mUpdateFileRefcountFunction) {
-      mUpdateFileRefcountFunction->ClearFileInfoEntries();
-      mUpdateFileRefcountFunction = nsnull;
-    }
-
     nsCOMPtr<nsIDOMEvent> event;
     if (mAborted) {
-      if (mTransaction->Mode() == nsIIDBTransaction::VERSION_CHANGE) {
-        // This will make the database take a snapshot of it's DatabaseInfo
-        mTransaction->Database()->Close();
-        // Then remove the info from the hash as it contains invalid data.
-        DatabaseInfo::Remove(mTransaction->Database()->Id());
+      if (mHaveMetadata) {
+        NS_ASSERTION(mTransaction->Mode() == nsIIDBTransaction::VERSION_CHANGE,
+                     "Bad transaction type!");
+
+        DatabaseInfo* dbInfo = mTransaction->Database()->Info();
+
+        if (NS_FAILED(IDBFactory::UpdateDatabaseMetadata(dbInfo, mOldVersion,
+                                                         mOldObjectStores))) {
+          NS_WARNING("Failed to update database metadata!");
+        }
+        else {
+          NS_ASSERTION(mOldObjectStores.IsEmpty(), "Should have swapped!");
+        }
       }
 
       event = CreateGenericEvent(NS_LITERAL_STRING(ABORT_EVT_STR),
@@ -817,35 +887,32 @@ CommitHelper::Run()
   }
 
   if (mConnection) {
-    IndexedDatabaseManager::SetCurrentWindow(database->Owner());
-
-    if (!mAborted && mUpdateFileRefcountFunction &&
-        NS_FAILED(mUpdateFileRefcountFunction->UpdateDatabase(mConnection))) {
-      mAborted = true;
-    }
-
-    if (!mAborted && NS_FAILED(WriteAutoIncrementCounts())) {
-      mAborted = true;
-    }
+    IndexedDatabaseManager::SetCurrentDatabase(database);
 
     if (!mAborted) {
       NS_NAMED_LITERAL_CSTRING(release, "COMMIT TRANSACTION");
-      if (NS_SUCCEEDED(mConnection->ExecuteSimpleSQL(release))) {
-        if (mUpdateFileRefcountFunction) {
-          mUpdateFileRefcountFunction->UpdateFileInfos();
-        }
-        CommitAutoIncrementCounts();
-      }
-      else {
+      if (NS_FAILED(mConnection->ExecuteSimpleSQL(release))) {
         mAborted = true;
       }
     }
 
     if (mAborted) {
-      RevertAutoIncrementCounts();
       NS_NAMED_LITERAL_CSTRING(rollback, "ROLLBACK TRANSACTION");
       if (NS_FAILED(mConnection->ExecuteSimpleSQL(rollback))) {
         NS_WARNING("Failed to rollback transaction!");
+      }
+
+      if (mTransaction->Mode() == nsIIDBTransaction::VERSION_CHANGE) {
+        nsresult rv =
+          IDBFactory::LoadDatabaseInformation(mConnection,
+                                              mTransaction->Database()->Id(),
+                                              &mOldVersion, mOldObjectStores);
+        if (NS_SUCCEEDED(rv)) {
+          mHaveMetadata = true;
+        }
+        else {
+          NS_WARNING("Failed to get database information!");
+        }
       }
     }
   }
@@ -853,256 +920,11 @@ CommitHelper::Run()
   mDoomedObjects.Clear();
 
   if (mConnection) {
-    if (mUpdateFileRefcountFunction) {
-      nsresult rv = mConnection->RemoveFunction(
-        NS_LITERAL_CSTRING("update_refcount"));
-      if (NS_FAILED(rv)) {
-        NS_WARNING("Failed to remove function!");
-      }
-    }
-
     mConnection->Close();
     mConnection = nsnull;
 
-    IndexedDatabaseManager::SetCurrentWindow(nsnull);
+    IndexedDatabaseManager::SetCurrentDatabase(nsnull);
   }
-
-  return NS_OK;
-}
-
-nsresult
-CommitHelper::WriteAutoIncrementCounts()
-{
-  nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv;
-  for (PRUint32 i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
-    ObjectStoreInfo* info = mAutoIncrementObjectStores[i]->Info();
-    if (!stmt) {
-      rv = mConnection->CreateStatement(NS_LITERAL_CSTRING(
-        "UPDATE object_store SET auto_increment = :ai "
-        "WHERE id = :osid;"), getter_AddRefs(stmt));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    else {
-      stmt->Reset();
-    }
-
-    rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("osid"), info->id);
-    NS_ENSURE_SUCCESS(rv, rv);
-    
-    rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("ai"),
-                               info->nextAutoIncrementId);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = stmt->Execute();
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  
-  return NS_OK;
-}
-
-void
-CommitHelper::CommitAutoIncrementCounts()
-{
-  for (PRUint32 i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
-    ObjectStoreInfo* info = mAutoIncrementObjectStores[i]->Info();
-    info->comittedAutoIncrementId = info->nextAutoIncrementId;
-  }
-}
-
-void
-CommitHelper::RevertAutoIncrementCounts()
-{
-  for (PRUint32 i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
-    ObjectStoreInfo* info = mAutoIncrementObjectStores[i]->Info();
-    info->nextAutoIncrementId = info->comittedAutoIncrementId;
-  }
-}
-
-nsresult
-UpdateRefcountFunction::Init()
-{
-  NS_ENSURE_TRUE(mFileInfoEntries.Init(), NS_ERROR_OUT_OF_MEMORY);
-
-  return NS_OK;
-}
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(UpdateRefcountFunction, mozIStorageFunction)
-
-NS_IMETHODIMP
-UpdateRefcountFunction::OnFunctionCall(mozIStorageValueArray* aValues,
-                                       nsIVariant** _retval)
-{
-  *_retval = nsnull;
-
-  PRUint32 numEntries;
-  nsresult rv = aValues->GetNumEntries(&numEntries);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ASSERTION(numEntries == 2, "unexpected number of arguments");
-
-#ifdef DEBUG
-  PRInt32 type1 = mozIStorageValueArray::VALUE_TYPE_NULL;
-  aValues->GetTypeOfIndex(0, &type1);
-
-  PRInt32 type2 = mozIStorageValueArray::VALUE_TYPE_NULL;
-  aValues->GetTypeOfIndex(1, &type2);
-
-  NS_ASSERTION(!(type1 == mozIStorageValueArray::VALUE_TYPE_NULL &&
-                 type2 == mozIStorageValueArray::VALUE_TYPE_NULL),
-               "Shouldn't be called!");
-#endif
-
-  rv = ProcessValue(aValues, 0, eDecrement);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = ProcessValue(aValues, 1, eIncrement);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
-UpdateRefcountFunction::ProcessValue(mozIStorageValueArray* aValues,
-                                     PRInt32 aIndex,
-                                     UpdateType aUpdateType)
-{
-  PRInt32 type;
-  aValues->GetTypeOfIndex(aIndex, &type);
-  if (type == mozIStorageValueArray::VALUE_TYPE_NULL) {
-    return NS_OK;
-  }
-
-  nsString ids;
-  aValues->GetString(aIndex, ids);
-
-  nsTArray<PRInt64> fileIds;
-  nsresult rv = IDBObjectStore::ConvertFileIdsToArray(ids, fileIds);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  for (PRUint32 i = 0; i < fileIds.Length(); i++) {
-    PRInt64 id = fileIds.ElementAt(i);
-
-    FileInfoEntry* entry;
-    if (!mFileInfoEntries.Get(id, &entry)) {
-      nsRefPtr<FileInfo> fileInfo = mFileManager->GetFileInfo(id);
-      NS_ASSERTION(fileInfo, "Shouldn't be null!");
-
-      nsAutoPtr<FileInfoEntry> newEntry(new FileInfoEntry(fileInfo));
-      if (!mFileInfoEntries.Put(id, newEntry)) {
-        NS_WARNING("Out of memory?");
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      entry = newEntry.forget();
-    }
-
-    switch (aUpdateType) {
-      case eIncrement:
-        entry->mDelta++;
-        break;
-      case eDecrement:
-        entry->mDelta--;
-        break;
-      default:
-        NS_NOTREACHED("Unknown update type!");
-    }
-  }
-
-  return NS_OK;
-}
-
-PLDHashOperator
-UpdateRefcountFunction::DatabaseUpdateCallback(const PRUint64& aKey,
-                                               FileInfoEntry* aValue,
-                                               void* aUserArg)
-{
-  if (!aValue->mDelta) {
-    return PL_DHASH_NEXT;
-  }
-
-  DatabaseUpdateFunction* function =
-    static_cast<DatabaseUpdateFunction*>(aUserArg);
-
-  if (!function->Update(aKey, aValue->mDelta)) {
-    return PL_DHASH_STOP;
-  }
-
-  return PL_DHASH_NEXT;
-}
-
-PLDHashOperator
-UpdateRefcountFunction::FileInfoUpdateCallback(const PRUint64& aKey,
-                                               FileInfoEntry* aValue,
-                                               void* aUserArg)
-{
-  if (aValue->mDelta) {
-    aValue->mFileInfo->UpdateDBRefs(aValue->mDelta);
-  }
-
-  return PL_DHASH_NEXT;
-}
-
-bool
-UpdateRefcountFunction::DatabaseUpdateFunction::Update(PRInt64 aId,
-                                                       PRInt32 aDelta)
-{
-  nsresult rv = UpdateInternal(aId, aDelta);
-  if (NS_FAILED(rv)) {
-    mErrorCode = rv;
-    return false;
-  }
-
-  return true;
-}
-
-nsresult
-UpdateRefcountFunction::DatabaseUpdateFunction::UpdateInternal(PRInt64 aId,
-                                                               PRInt32 aDelta)
-{
-  nsresult rv;
-
-  if (!mUpdateStatement) {
-    rv = mConnection->CreateStatement(NS_LITERAL_CSTRING(
-      "UPDATE file SET refcount = refcount + :delta WHERE id = :id"
-    ), getter_AddRefs(mUpdateStatement));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  mozStorageStatementScoper updateScoper(mUpdateStatement);
-
-  rv = mUpdateStatement->BindInt32ByName(NS_LITERAL_CSTRING("delta"), aDelta);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mUpdateStatement->BindInt64ByName(NS_LITERAL_CSTRING("id"), aId);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mUpdateStatement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt32 rows;
-  rv = mConnection->GetAffectedRows(&rows);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (rows > 0) {
-    return NS_OK;
-  }
-
-  if (!mInsertStatement) {
-    rv = mConnection->CreateStatement(NS_LITERAL_CSTRING(
-      "INSERT INTO file (id, refcount) VALUES(:id, :delta)"
-    ), getter_AddRefs(mInsertStatement));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  mozStorageStatementScoper insertScoper(mInsertStatement);
-
-  rv = mInsertStatement->BindInt64ByName(NS_LITERAL_CSTRING("id"), aId);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mInsertStatement->BindInt32ByName(NS_LITERAL_CSTRING("delta"), aDelta);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = mInsertStatement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
 }

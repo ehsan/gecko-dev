@@ -146,13 +146,13 @@ nsStyleSet::nsStyleSet()
 }
 
 size_t
-nsStyleSet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+nsStyleSet::SizeOf() const
 {
-  size_t n = aMallocSizeOf(this, sizeof(nsStyleSet));
+  size_t n = sizeof(*this);
 
   for (int i = 0; i < eSheetTypeCount; i++) {
     if (mRuleProcessors[i]) {
-      n += mRuleProcessors[i]->SizeOfIncludingThis(aMallocSizeOf);
+      n += mRuleProcessors[i]->SizeOf();
     }
   }
 

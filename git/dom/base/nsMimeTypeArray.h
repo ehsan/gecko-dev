@@ -58,7 +58,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMIMETYPEARRAY
 
-  void Refresh();
+  nsresult Refresh();
 
   nsIDOMMimeType* GetItemAt(PRUint32 aIndex, nsresult* aResult);
   nsIDOMMimeType* GetNamedItem(const nsAString& aName, nsresult* aResult);

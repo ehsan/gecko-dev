@@ -185,9 +185,6 @@ private:
   MozSlice(JSContext* aCx, uintN aArgc, jsval* aVp)
   {
     JSObject* obj = JS_THIS_OBJECT(aCx, aVp);
-    if (!obj) {
-      return false;
-    }
 
     nsIDOMBlob* blob = GetInstancePrivate(aCx, obj, "mozSlice");
     if (!blob) {

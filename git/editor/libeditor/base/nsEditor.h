@@ -169,7 +169,6 @@ public:
 
 public:
 
-  virtual bool IsModifiableNode(nsINode *aNode);
   
   NS_IMETHOD InsertTextImpl(const nsAString& aStringToInsert, 
                                nsCOMPtr<nsIDOMNode> *aInOutNode, 
@@ -368,13 +367,18 @@ protected:
 
   // stub.  see comment in source.                     
   virtual bool IsBlockNode(nsIDOMNode *aNode);
-  virtual bool IsBlockNode(nsINode *aNode);
   
-  // helper for GetPriorNode and GetNextNode
-  nsIContent* FindNextLeafNode(nsINode  *aCurrentNode,
-                               bool      aGoForward,
-                               bool      bNoBlockCrossing,
-                               nsIContent *aActiveEditorRoot);
+  // helper for GetPriorNode
+  nsresult GetPriorNodeImpl(nsIDOMNode  *aCurrentNode, 
+                            bool         aEditableNode,
+                            nsCOMPtr<nsIDOMNode> *aResultNode,
+                            bool         bNoBlockCrossing = false);
+
+  // helper for GetNextNode
+  nsresult GetNextNodeImpl(nsIDOMNode  *aCurrentNode, 
+                           bool         aEditableNode,
+                           nsCOMPtr<nsIDOMNode> *aResultNode,
+                           bool         bNoBlockCrossing = false);
 
   // Get nsIWidget interface
   nsresult GetWidget(nsIWidget **aWidget);
@@ -475,22 +479,18 @@ public:
     * @param aResultNode    [OUT] the node that occurs before aCurrentNode in the tree,
     *                       skipping non-editable nodes if aEditableNode is true.
     *                       If there is no prior node, aResultNode will be nsnull.
-    * @param bNoBlockCrossing If true, don't move across "block" nodes, whatever that means.
-    * @param aActiveEditorRoot If non-null, only return descendants of aActiveEditorRoot.
     */
   nsresult GetPriorNode(nsIDOMNode  *aCurrentNode, 
                         bool         aEditableNode,
                         nsCOMPtr<nsIDOMNode> *aResultNode,
-                        bool         bNoBlockCrossing = false,
-                        nsIContent  *aActiveEditorRoot = nsnull);
+                        bool         bNoBlockCrossing = false);
 
   // and another version that takes a {parent,offset} pair rather than a node
   nsresult GetPriorNode(nsIDOMNode  *aParentNode, 
                         PRInt32      aOffset, 
                         bool         aEditableNode, 
                         nsCOMPtr<nsIDOMNode> *aResultNode,
-                        bool         bNoBlockCrossing = false,
-                        nsIContent  *aActiveEditorRoot = nsnull);
+                        bool         bNoBlockCrossing = false);
                        
   /** get the node immediately after to aCurrentNode
     * @param aCurrentNode   the node from which we start the search
@@ -502,31 +502,21 @@ public:
   nsresult GetNextNode(nsIDOMNode  *aCurrentNode, 
                        bool         aEditableNode,
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing = false,
-                       nsIContent  *aActiveEditorRoot = nsnull);
+                       bool         bNoBlockCrossing = false);
 
   // and another version that takes a {parent,offset} pair rather than a node
   nsresult GetNextNode(nsIDOMNode  *aParentNode, 
                        PRInt32      aOffset, 
                        bool         aEditableNode, 
                        nsCOMPtr<nsIDOMNode> *aResultNode,
-                       bool         bNoBlockCrossing = false,
-                       nsIContent  *aActiveEditorRoot = nsnull);
+                       bool         bNoBlockCrossing = false);
 
-  // Helper for GetNextNode and GetPriorNode
-  nsIContent* FindNode(nsINode *aCurrentNode,
-                       bool     aGoForward,
-                       bool     aEditableNode,
-                       bool     bNoBlockCrossing,
-                       nsIContent *aActiveEditorRoot);
   /**
    * Get the rightmost child of aCurrentNode;
    * return nsnull if aCurrentNode has no children.
    */
   already_AddRefed<nsIDOMNode> GetRightmostChild(nsIDOMNode *aCurrentNode, 
                                                  bool        bNoBlockCrossing = false);
-  nsIContent* GetRightmostChild(nsINode *aCurrentNode,
-                                bool     bNoBlockCrossing = false);
 
   /**
    * Get the leftmost child of aCurrentNode;
@@ -534,8 +524,6 @@ public:
    */
   already_AddRefed<nsIDOMNode> GetLeftmostChild(nsIDOMNode  *aCurrentNode, 
                                                 bool        bNoBlockCrossing = false);
-  nsIContent* GetLeftmostChild(nsINode *aCurrentNode,
-                               bool     bNoBlockCrossing = false);
 
   /** returns true if aNode is of the type implied by aTag */
   static inline bool NodeIsType(nsIDOMNode *aNode, nsIAtom *aTag)
@@ -558,24 +546,20 @@ public:
 
   /** returns true if aNode is our root node */
   bool IsRootNode(nsIDOMNode *inNode);
-  bool IsRootNode(nsINode *inNode);
 
   /** returns true if aNode is a descendant of our root node */
   bool IsDescendantOfBody(nsIDOMNode *inNode);
-  bool IsDescendantOfBody(nsINode *inNode);
 
   /** returns true if aNode is a container */
   virtual bool IsContainer(nsIDOMNode *aNode);
 
   /** returns true if aNode is an editable node */
   bool IsEditable(nsIDOMNode *aNode);
-  bool IsEditable(nsIContent *aNode);
 
-  virtual bool IsTextInDirtyFrameVisible(nsIContent *aNode);
+  virtual bool IsTextInDirtyFrameVisible(nsIDOMNode *aNode);
 
   /** returns true if aNode is a MozEditorBogus node */
   bool IsMozEditorBogusNode(nsIDOMNode *aNode);
-  bool IsMozEditorBogusNode(nsIContent *aNode);
 
   /** counts number of editable child nodes */
   nsresult CountEditableChildren(nsIDOMNode *aNode, PRUint32 &outCount);
@@ -596,7 +580,6 @@ public:
   virtual bool NodesSameType(nsIDOMNode *aNode1, nsIDOMNode *aNode2);
   static bool IsTextOrElementNode(nsIDOMNode *aNode);
   static bool IsTextNode(nsIDOMNode *aNode);
-  static bool IsTextNode(nsINode *aNode);
   
   static PRInt32 GetIndexOf(nsIDOMNode *aParent, nsIDOMNode *aChild);
   static nsCOMPtr<nsIDOMNode> GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset);
@@ -651,7 +634,7 @@ public:
   virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget() = 0;
 
   // Fast non-refcounting editor root element accessor
-  mozilla::dom::Element *GetRoot();
+  nsIDOMElement *GetRoot();
 
   // Accessor methods to flags
   bool IsPlaintextEditor() const
@@ -763,8 +746,8 @@ public:
 
 protected:
 
-  PRUint32        mModCount;     // number of modifications (for undo/redo stack)
-  PRUint32        mFlags;        // behavior flags. See nsIPlaintextEditor.idl for the flags we use.
+  PRUint32        mModCount;		// number of modifications (for undo/redo stack)
+  PRUint32        mFlags;		// behavior flags. See nsIPlaintextEditor.idl for the flags we use.
 
   nsWeakPtr       mSelConWeak;   // weak reference to the nsISelectionController
   PRInt32         mUpdateCount;
@@ -785,7 +768,7 @@ protected:
   nsSelectionState *mSelState;           // saved selection state for placeholder txn batching
   nsSelectionState  mSavedSel;           // cached selection for nsAutoSelectionReset
   nsRangeUpdater    mRangeUpdater;       // utility class object for maintaining preserved ranges
-  nsCOMPtr<mozilla::dom::Element> mRootElement;   // cached root node
+  nsCOMPtr<nsIDOMElement> mRootElement;    // cached root node
   PRInt32           mAction;             // the current editor action
   EDirection        mDirection;          // the current direction of editor action
   

@@ -9,6 +9,8 @@
 #include "jsnum.h"
 #include "jsstr.h"
 
+#include "jsobjinlines.h"
+
 #include "vm/String-inl.h"
 
 using namespace mozilla;
@@ -20,7 +22,7 @@ NewString(JSContext *cx, const jschar (&chars)[N])
 }
 
 static const struct TestPair {
-    uint32_t num;
+    uint32 num;
     const char *expected;
 } tests[] = {
     { 0, "0" },
@@ -54,7 +56,7 @@ static const struct TestPair {
 BEGIN_TEST(testIndexToString)
 {
     for (size_t i = 0, sz = ArrayLength(tests); i < sz; i++) {
-        uint32_t u = tests[i].num;
+        uint32 u = tests[i].num;
         JSString *str = js::IndexToString(cx, u);
         CHECK(str);
 
@@ -73,11 +75,11 @@ END_TEST(testIndexToString)
 BEGIN_TEST(testStringIsIndex)
 {
     for (size_t i = 0, sz = ArrayLength(tests); i < sz; i++) {
-        uint32_t u = tests[i].num;
+        uint32 u = tests[i].num;
         JSFlatString *str = js::IndexToString(cx, u);
         CHECK(str);
 
-        uint32_t n;
+        uint32 n;
         CHECK(str->isIndex(&n));
         CHECK(u == n);
     }
@@ -88,7 +90,7 @@ END_TEST(testStringIsIndex)
 
 BEGIN_TEST(testStringToPropertyName)
 {
-    uint32_t index;
+    uint32 index;
 
     static const jschar hiChars[] = { 'h', 'i' };
     JSFlatString *hiStr = NewString(cx, hiChars);

@@ -768,7 +768,7 @@ nsSVGElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 bool
 nsSVGElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~eCONTENT);
+  return !(aFlags & ~(eCONTENT | eSVG));
 }
 
 NS_IMETHODIMP
@@ -1230,7 +1230,7 @@ nsSVGElement::GetCtx() const
 {
   nsIContent* ancestor = GetFlattenedTreeParent();
 
-  while (ancestor && ancestor->IsSVG()) {
+  while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG) {
     nsIAtom* tag = ancestor->Tag();
     if (tag == nsGkAtoms::foreignObject) {
       return nsnull;

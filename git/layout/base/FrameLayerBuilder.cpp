@@ -50,7 +50,6 @@
 #include "nsRenderingContext.h"
 
 #include "mozilla/Preferences.h"
-#include "sampler.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -1377,11 +1376,10 @@ ContainerState::ProcessDisplayItems(const nsDisplayList& aList,
     // Assign the item to a layer
     if (layerState == LAYER_ACTIVE_FORCE ||
         layerState == LAYER_ACTIVE_EMPTY ||
-        (layerState == LAYER_ACTIVE &&
-         (aClip.mRoundedClipRects.IsEmpty() ||
-          // We can use the visible rect here only because the item has its own
-          // layer, like the comment below.
-          !aClip.IsRectClippedByRoundedCorner(item->GetVisibleRect())))) {
+        layerState == LAYER_ACTIVE && (aClip.mRoundedClipRects.IsEmpty() ||
+        // We can use the visible rect here only because the item has its own
+        // layer, like the comment below.
+        !aClip.IsRectClippedByRoundedCorner(item->GetVisibleRect()))) {
 
       // LAYER_ACTIVE_EMPTY means the layer is created just for its metadata.
       // We should never see an empty layer with any visible content!
@@ -1701,19 +1699,8 @@ ChooseScaleAndSetTransform(FrameLayerBuilder* aLayerBuilder,
     if (aContainerFrame->AreLayersMarkedActive(nsChangeHint_UpdateTransformLayer) &&
         aTransform &&
         (!aTransform->Is2D(&frameTransform) || frameTransform.HasNonTranslationOrFlip())) {
-      // Don't clamp the scale factor when the new desired scale factor matches the old one
-      // or it was previously unscaled.
-      bool clamp = true;
-      gfxMatrix oldFrameTransform2d;
-      if (aLayer->GetTransform().Is2D(&oldFrameTransform2d)) {
-        gfxSize oldScale = oldFrameTransform2d.ScaleFactors(true);
-        if (oldScale == scale || oldScale == gfxSize(1.0, 1.0))
-          clamp = false;
-      }
-      if (clamp) {
-        scale.width = gfxUtils::ClampToScaleFactor(scale.width);
-        scale.height = gfxUtils::ClampToScaleFactor(scale.height);
-      }
+      scale.width = gfxUtils::ClampToScaleFactor(scale.width);
+      scale.height = gfxUtils::ClampToScaleFactor(scale.height);
     } else {
       // XXX Do we need to move nearly-integer values to integers here?
     }
@@ -2016,8 +2003,6 @@ FrameLayerBuilder::DrawThebesLayer(ThebesLayer* aLayer,
                                    const nsIntRegion& aRegionToInvalidate,
                                    void* aCallbackData)
 {
-  SAMPLE_LABEL("gfx", "DrawThebesLayer");
-
   nsDisplayListBuilder* builder = static_cast<nsDisplayListBuilder*>
     (aCallbackData);
 

@@ -29,7 +29,6 @@
  *   Mihai Șucan <mihai.sucan@gmail.com>
  *   Michael Ratcliffe <mratcliffe@mozilla.com>
  *   Joe Walker <jwalker@mozilla.com>
- *   Sonny Piers <sonny.piers@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -90,12 +89,6 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
   var obj = {};
   Cu.import("resource://gre/modules/NetUtil.jsm", obj);
   return obj.NetUtil;
-});
-
-XPCOMUtils.defineLazyGetter(this, "template", function () {
-  var obj = {};
-  Cu.import("resource:///modules/devtools/Templater.jsm", obj);
-  return obj.template;
 });
 
 XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
@@ -290,9 +283,6 @@ const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
 
 // The indent of a console group in pixels.
 const GROUP_INDENT = 12;
-
-// The pref prefix for webconsole filters
-const PREFS_PREFIX = "devtools.webconsole.filter.";
 
 /**
  * Implements the nsIStreamListener and nsIRequestObserver interface. Used
@@ -1800,18 +1790,9 @@ HUD_SERVICE.prototype =
     if (!aHUDId){
       throw new Error(ERRORS.MISSING_ARGS);
     }
-    this.filterPrefs[aHUDId] = {
-      network: Services.prefs.getBoolPref(PREFS_PREFIX + "network"),
-      networkinfo: Services.prefs.getBoolPref(PREFS_PREFIX + "networkinfo"),
-      csserror: Services.prefs.getBoolPref(PREFS_PREFIX + "csserror"),
-      cssparser: Services.prefs.getBoolPref(PREFS_PREFIX + "cssparser"),
-      exception: Services.prefs.getBoolPref(PREFS_PREFIX + "exception"),
-      jswarn: Services.prefs.getBoolPref(PREFS_PREFIX + "jswarn"),
-      error: Services.prefs.getBoolPref(PREFS_PREFIX + "error"),
-      info: Services.prefs.getBoolPref(PREFS_PREFIX + "info"),
-      warn: Services.prefs.getBoolPref(PREFS_PREFIX + "warn"),
-      log: Services.prefs.getBoolPref(PREFS_PREFIX + "log"),
-    };
+    this.filterPrefs[aHUDId] = this.defaultFilterPrefs;
+    // init storage objects:
+    this.storage.createDisplay(aHUDId);
   },
 
   /**
@@ -1843,13 +1824,10 @@ HUD_SERVICE.prototype =
 
     // Remove the HUDBox and the consolePanel if the Web Console is inside a
     // floating panel.
-    if (hud.consolePanel && hud.consolePanel.parentNode) {
-      hud.consolePanel.parentNode.removeChild(hud.consolePanel);
-      hud.consolePanel.removeAttribute("hudId");
-      hud.consolePanel = null;
-    }
-
     hud.HUDBox.parentNode.removeChild(hud.HUDBox);
+    if (hud.consolePanel) {
+      hud.consolePanel.parentNode.removeChild(hud.consolePanel);
+    }
 
     if (hud.splitter.parentNode) {
       hud.splitter.parentNode.removeChild(hud.splitter);
@@ -1860,6 +1838,9 @@ HUD_SERVICE.prototype =
     }
 
     delete this.hudReferences[aHUDId];
+
+    // remove the related storage object
+    this.storage.removeDisplay(aHUDId);
 
     for (let windowID in this.windowIds) {
       if (this.windowIds[windowID] == aHUDId) {
@@ -1901,6 +1882,10 @@ HUD_SERVICE.prototype =
       return;
     }
 
+    this.storage = new ConsoleStorage();
+    this.defaultFilterPrefs = this.storage.defaultDisplayPrefs;
+    this.defaultGlobalConsolePrefs = this.storage.defaultGlobalConsolePrefs;
+
     // begin observing HTTP traffic
     this.startHTTPObservation();
 
@@ -1926,7 +1911,10 @@ HUD_SERVICE.prototype =
     this.openRequests = {};
     this.openResponseHeaders = {};
 
+    // delete the storage as it holds onto channels
+    delete this.storage;
     delete this.defaultFilterPrefs;
+    delete this.defaultGlobalConsolePrefs;
 
     delete this.lastFinishedRequestCallback;
 
@@ -3328,6 +3316,9 @@ HeadsUpDisplay.prototype = {
       }
 
       panel.removeEventListener("popuphidden", onPopupHidden, false);
+      if (panel.parentNode) {
+        panel.parentNode.removeChild(panel);
+      }
 
       let width = 0;
       try {
@@ -3339,12 +3330,24 @@ HeadsUpDisplay.prototype = {
         Services.prefs.setIntPref("devtools.webconsole.width", panel.clientWidth);
       }
 
-      // Are we destroying the HUD or repositioning it?
+      /*
+       * Removed because of bug 674562
+       * Services.prefs.setIntPref("devtools.webconsole.top", panel.panelBox.y);
+       * Services.prefs.setIntPref("devtools.webconsole.left", panel.panelBox.x);
+       */
+
+      // Make sure we are not going to close again, drop the hudId reference of
+      // the panel.
+      panel.removeAttribute("hudId");
+
       if (this.consoleWindowUnregisterOnHide) {
         HUDService.deactivateHUDForContext(this.tab, false);
-      } else {
+      }
+      else {
         this.consoleWindowUnregisterOnHide = true;
       }
+
+      this.consolePanel = null;
     }).bind(this);
 
     panel.addEventListener("popuphidden", onPopupHidden, false);
@@ -3482,14 +3485,13 @@ HeadsUpDisplay.prototype = {
 
     this.uiInOwnWindow = false;
     if (this.consolePanel) {
-      // must destroy the consolePanel
-      this.consoleWindowUnregisterOnHide = false;
-      this.consolePanel.hidePopup();
-      this.consolePanel.parentNode.removeChild(this.consolePanel);
-      this.consolePanel = null;   // remove this as we're not in panel anymore
       this.HUDBox.removeAttribute("flex");
       this.HUDBox.removeAttribute("height");
       this.HUDBox.style.height = height + "px";
+
+      // must destroy the consolePanel
+      this.consoleWindowUnregisterOnHide = false;
+      this.consolePanel.hidePopup();
     }
 
     if (this.jsterm) {
@@ -3936,7 +3938,7 @@ HeadsUpDisplay.prototype = {
     let menuPopup = this.makeXULNode("menupopup");
     toolbarButton.appendChild(menuPopup);
 
-    let someChecked = false;
+    let allChecked = true;
     for (let i = 0; i < aDescriptor.severities.length; i++) {
       let severity = aDescriptor.severities[i];
       let menuItem = this.makeXULNode("menuitem");
@@ -3950,8 +3952,8 @@ HeadsUpDisplay.prototype = {
 
       let checked = this.filterPrefs[prefKey];
       menuItem.setAttribute("checked", checked);
-      if (checked) {
-        someChecked = true;
+      if (!checked) {
+        allChecked = false;
       }
 
       menuItem.addEventListener("command", toggleFilter, false);
@@ -3959,7 +3961,7 @@ HeadsUpDisplay.prototype = {
       menuPopup.appendChild(menuItem);
     }
 
-    toolbarButton.setAttribute("checked", someChecked);
+    toolbarButton.setAttribute("checked", allChecked);
   },
 
   /**
@@ -5223,7 +5225,7 @@ JSTerm.prototype = {
         break;
 
       case Ci.nsIDOMKeyEvent.DOM_VK_RETURN:
-        if (this.autocompletePopup.isOpen && this.autocompletePopup.selectedIndex > -1) {
+        if (this.autocompletePopup.isOpen) {
           this.acceptProposedCompletion();
         }
         else {
@@ -5439,10 +5441,13 @@ JSTerm.prototype = {
         popup.hidePopup();
       }
 
-      if (items.length == 1) {
-          popup.selectedIndex = 0;
+      if (items.length > 0) {
+        popup.selectedIndex = 0;
+        if (items.length == 1) {
+          // onSelect is not fired when the popup is not open.
+          this.onAutocompleteSelect();
+        }
       }
-      this.onAutocompleteSelect();
     }
 
     let accepted = false;
@@ -6196,7 +6201,7 @@ HeadsUpDisplayUICommands = {
 
     if (hudRef && hud) {
       if (hudRef.consolePanel) {
-        hudRef.consolePanel.hidePopup();
+        HUDService.deactivateHUDForContext(gBrowser.selectedTab, false);
       }
       else {
         HUDService.storeHeight(hudId);
@@ -6324,6 +6329,175 @@ HeadsUpDisplayUICommands = {
     }
   },
 
+};
+
+//////////////////////////////////////////////////////////////////////////
+// ConsoleStorage
+//////////////////////////////////////////////////////////////////////////
+
+var prefs = Services.prefs;
+
+const GLOBAL_STORAGE_INDEX_ID = "GLOBAL_CONSOLE";
+const PREFS_PREFIX = "devtools.webconsole.filter.";
+const PREFS = { network: PREFS_PREFIX + "network",
+                networkinfo: PREFS_PREFIX + "networkinfo",
+                csserror: PREFS_PREFIX + "csserror",
+                cssparser: PREFS_PREFIX + "cssparser",
+                exception: PREFS_PREFIX + "exception",
+                jswarn: PREFS_PREFIX + "jswarn",
+                error: PREFS_PREFIX + "error",
+                info: PREFS_PREFIX + "info",
+                warn: PREFS_PREFIX + "warn",
+                log: PREFS_PREFIX + "log",
+              };
+
+function ConsoleStorage()
+{
+  this.sequencer = null;
+  this.consoleDisplays = {};
+  // each display will have an index that tracks each ConsoleEntry
+  this.displayIndexes = {};
+  this.globalStorageIndex = [];
+  this.globalDisplay = {};
+  this.createDisplay(GLOBAL_STORAGE_INDEX_ID);
+  // TODO: need to create a method that truncates the message
+  // see bug 570543
+
+  this.defaultDisplayPrefs = {
+    network: prefs.getBoolPref(PREFS.network),
+    networkinfo: prefs.getBoolPref(PREFS.networkinfo),
+    csserror: prefs.getBoolPref(PREFS.csserror),
+    cssparser: prefs.getBoolPref(PREFS.cssparser),
+    exception: prefs.getBoolPref(PREFS.exception),
+    jswarn: prefs.getBoolPref(PREFS.jswarn),
+    error: prefs.getBoolPref(PREFS.error),
+    info: prefs.getBoolPref(PREFS.info),
+    warn: prefs.getBoolPref(PREFS.warn),
+    log: prefs.getBoolPref(PREFS.log),
+  };
+}
+
+ConsoleStorage.prototype = {
+
+  sequenceId: function CS_sequencerId()
+  {
+    if (!this.sequencer) {
+      this.sequencer = this.createSequencer();
+    }
+    return this.sequencer.next();
+  },
+
+  createSequencer: function CS_createSequencer()
+  {
+    function sequencer(aInt) {
+      while(1) {
+        aInt++;
+        yield aInt;
+      }
+    }
+    return sequencer(-1);
+  },
+
+  globalStore: function CS_globalStore(aIndex)
+  {
+    return this.displayStore(GLOBAL_CONSOLE_DOM_NODE_ID);
+  },
+
+  displayStore: function CS_displayStore(aId)
+  {
+    var self = this;
+    var idx = -1;
+    var id = aId;
+    var aLength = self.displayIndexes[id].length;
+
+    function displayStoreGenerator(aInt, aLength)
+    {
+      // create a generator object to iterate through any of the display stores
+      // from any index-starting-point
+      while(1) {
+        // throw if we exceed the length of displayIndexes?
+        aInt++;
+        var indexIt = self.displayIndexes[id];
+        var index = indexIt[aInt];
+        if (aLength < aInt) {
+          // try to see if we have more entries:
+          var newLength = self.displayIndexes[id].length;
+          if (newLength > aLength) {
+            aLength = newLength;
+          }
+          else {
+            throw new StopIteration();
+          }
+        }
+        var entry = self.consoleDisplays[id][index];
+        yield entry;
+      }
+    }
+
+    return displayStoreGenerator(-1, aLength);
+  },
+
+  recordEntries: function CS_recordEntries(aHUDId, aConfigArray)
+  {
+    var len = aConfigArray.length;
+    for (var i = 0; i < len; i++){
+      this.recordEntry(aHUDId, aConfigArray[i]);
+    }
+  },
+
+
+  recordEntry: function CS_recordEntry(aHUDId, aConfig)
+  {
+    var id = this.sequenceId();
+
+    this.globalStorageIndex[id] = { hudId: aHUDId };
+
+    var displayStorage = this.consoleDisplays[aHUDId];
+
+    var displayIndex = this.displayIndexes[aHUDId];
+
+    if (displayStorage && displayIndex) {
+      var entry = new ConsoleEntry(aConfig, id);
+      displayIndex.push(entry.id);
+      displayStorage[entry.id] = entry;
+      return entry;
+    }
+    else {
+      throw new Error("Cannot get displayStorage or index object for id " + aHUDId);
+    }
+  },
+
+  getEntry: function CS_getEntry(aId)
+  {
+    var display = this.globalStorageIndex[aId];
+    var storName = display.hudId;
+    return this.consoleDisplays[storName][aId];
+  },
+
+  updateEntry: function CS_updateEntry(aUUID)
+  {
+    // update an individual entry
+    // TODO: see bug 568634
+  },
+
+  createDisplay: function CS_createdisplay(aId)
+  {
+    if (!this.consoleDisplays[aId]) {
+      this.consoleDisplays[aId] = {};
+      this.displayIndexes[aId] = [];
+    }
+  },
+
+  removeDisplay: function CS_removeDisplay(aId)
+  {
+    try {
+      delete this.consoleDisplays[aId];
+      delete this.displayIndexes[aId];
+    }
+    catch (ex) {
+      Cu.reportError("Could not remove console display for id " + aId);
+    }
+  }
 };
 
 /**
@@ -6857,38 +7031,14 @@ GcliTerm.prototype = {
 
     let output = aEvent.output.output;
     if (aEvent.output.command.returnType == "html" && typeof output == "string") {
-      output = this.document.createRange().createContextualFragment(
+      let frag = this.document.createRange().createContextualFragment(
           '<div xmlns="' + HTML_NS + '" xmlns:xul="' + XUL_NS + '">' +
-          output + '</div>').firstChild;
+          output + '</div>');
+
+      output = this.document.createElementNS(HTML_NS, "div");
+      output.appendChild(frag);
     }
-
-    // See https://github.com/mozilla/domtemplate/blob/master/README.md
-    // for docs on the template() function
-    let element = this.document.createRange().createContextualFragment(
-      '<richlistitem xmlns="' + XUL_NS + '" clipboardText="${clipboardText}"' +
-      '    timestamp="${timestamp}" id="${id}" class="hud-msg-node">' +
-      '  <label class="webconsole-timestamp" value="${timestampString}"/>' +
-      '  <vbox class="webconsole-msg-icon-container" style="${iconContainerStyle}">' +
-      '    <image class="webconsole-msg-icon"/>' +
-      '    <spacer flex="1"/>' +
-      '  </vbox>' +
-      '  <hbox flex="1" class="gcliterm-msg-body">${output}</hbox>' +
-      '  <hbox align="start"><label value="1" class="webconsole-msg-repeat"/></hbox>' +
-      '</richlistitem>').firstChild;
-
-    let hud = HUDService.getHudReferenceById(this.hudId);
-    let timestamp = ConsoleUtils.timestamp();
-    template(element, {
-      iconContainerStyle: "margin-left=" + (hud.groupDepth * GROUP_INDENT) + "px",
-      output: output,
-      timestamp: timestamp,
-      timestampString: ConsoleUtils.timestampString(timestamp),
-      clipboardText: output.innerText,
-      id: "console-msg-" + HUDService.sequenceId()
-    });
-
-    ConsoleUtils.setMessageType(element, CATEGORY_OUTPUT, SEVERITY_LOG);
-    ConsoleUtils.outputMessageNode(element, this.hudId);
+    this.writeOutput(output);
   },
 
   /**

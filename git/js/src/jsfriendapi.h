@@ -67,11 +67,8 @@ JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto);
 extern JS_FRIEND_API(JSObject *)
 JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
 
-extern JS_FRIEND_API(uint32_t)
+extern JS_FRIEND_API(uint32)
 JS_ObjectCountDynamicSlots(JSObject *obj);
-
-extern JS_FRIEND_API(void)
-JS_ShrinkingGC(JSContext *cx);
 
 extern JS_FRIEND_API(size_t)
 JS_GetE4XObjectsCreated(JSContext *cx);
@@ -85,13 +82,6 @@ JS_GetCustomIteratorCount(JSContext *cx);
 extern JS_FRIEND_API(JSBool)
 JS_NondeterministicGetWeakMapKeys(JSContext *cx, JSObject *obj, JSObject **ret);
 
-/*
- * Marks all the children of a shape except the parent, which avoids using
- * unbounded stack space. Returns the parent.
- */
-extern JS_FRIEND_API(void *)
-JS_TraceShapeChildrenAcyclic(JSTracer *trc, void *shape);
-
 enum {
     JS_TELEMETRY_GC_REASON,
     JS_TELEMETRY_GC_IS_COMPARTMENTAL,
@@ -102,7 +92,7 @@ enum {
 };
 
 typedef void
-(* JSAccumulateTelemetryDataCallback)(int id, uint32_t sample);
+(* JSAccumulateTelemetryDataCallback)(int id, JSUint32 sample);
 
 extern JS_FRIEND_API(void)
 JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback);
@@ -116,10 +106,11 @@ JS_SetGCFinishedCallback(JSRuntime *rt, JSGCFinishedCallback callback);
 /* Data for tracking analysis/inference memory usage. */
 typedef struct TypeInferenceMemoryStats
 {
-    int64_t scripts;
-    int64_t objects;
-    int64_t tables;
-    int64_t temporary;
+    int64 scripts;
+    int64 objects;
+    int64 tables;
+    int64 temporary;
+    int64 emptyShapes;
 } TypeInferenceMemoryStats;
 
 extern JS_FRIEND_API(void)
@@ -168,9 +159,6 @@ JS_END_EXTERN_C
 
 namespace js {
 
-typedef bool
-(* PreserveWrapperCallback)(JSContext *cx, JSObject *obj);
-
 #ifdef DEBUG
  /*
   * DEBUG-only method to dump the complete object graph of heap-allocated things.
@@ -207,12 +195,6 @@ class JS_FRIEND_API(AutoSwitchCompartment) {
 JS_FRIEND_API(JSBool) obj_defineGetter(JSContext *cx, uintN argc, js::Value *vp);
 JS_FRIEND_API(JSBool) obj_defineSetter(JSContext *cx, uintN argc, js::Value *vp);
 #endif
-
-extern JS_FRIEND_API(size_t)
-GetObjectDynamicSlotSize(JSObject *obj, JSMallocSizeOfFun mallocSizeOf);
-
-extern JS_FRIEND_API(size_t)
-GetCompartmentShapeTableSize(JSCompartment *c, JSMallocSizeOfFun mallocSizeOf);
 
 /*
  * Check whether it is OK to assign an undeclared property with name
@@ -259,34 +241,24 @@ struct TypeObject {
     JSObject    *proto;
 };
 
-struct BaseShape {
-    js::Class   *clasp;
-    JSObject    *parent;
-};
-
-struct Shape {
-    BaseShape   *base;
-    jsid        _1;
-    uint32_t    slotInfo;
-
-    static const uint32_t FIXED_SLOTS_SHIFT = 27;
-};
-
 struct Object {
-    Shape       *shape;
-    TypeObject  *type;
+    void        *_1;
+    js::Class   *clasp;
+    uint32      flags;
+    uint32      objShape;
+    void        *_2;
+    JSObject    *parent;
+    void        *privateData;
+    jsuword     capacity;
     js::Value   *slots;
-    js::Value   *_1;
+    TypeObject  *type;
 
-    size_t numFixedSlots() const { return shape->slotInfo >> Shape::FIXED_SLOTS_SHIFT; }
-    Value *fixedSlots() const {
-        return (Value *)((jsuword) this + sizeof(shadow::Object));
-    }
+    static const uint32 FIXED_SLOTS_SHIFT = 27;
 
     js::Value &slotRef(size_t slot) const {
-        size_t nfixed = numFixedSlots();
+        size_t nfixed = flags >> FIXED_SLOTS_SHIFT;
         if (slot < nfixed)
-            return fixedSlots()[slot];
+            return ((Value *)((jsuword) this + sizeof(shadow::Object)))[slot];
         return slots[slot - nfixed];
     }
 };
@@ -309,7 +281,7 @@ extern JS_FRIEND_DATA(js::Class) XMLClass;
 inline js::Class *
 GetObjectClass(const JSObject *obj)
 {
-    return reinterpret_cast<const shadow::Object*>(obj)->shape->base->clasp;
+    return reinterpret_cast<const shadow::Object*>(obj)->clasp;
 }
 
 inline JSClass *
@@ -318,48 +290,11 @@ GetObjectJSClass(const JSObject *obj)
     return js::Jsvalify(GetObjectClass(obj));
 }
 
-JS_FRIEND_API(bool)
-IsScopeObject(const JSObject *obj);
-
 inline JSObject *
 GetObjectParent(const JSObject *obj)
 {
-    JS_ASSERT(!IsScopeObject(obj));
-    return reinterpret_cast<const shadow::Object*>(obj)->shape->base->parent;
+    return reinterpret_cast<const shadow::Object*>(obj)->parent;
 }
-
-JS_FRIEND_API(JSObject *)
-GetObjectParentMaybeScope(const JSObject *obj);
-
-JS_FRIEND_API(JSObject *)
-GetGlobalForObjectCrossCompartment(JSObject *obj);
-
-JS_FRIEND_API(bool)
-IsOriginalScriptFunction(JSFunction *fun);
-
-JS_FRIEND_API(JSFunction *)
-DefineFunctionWithReserved(JSContext *cx, JSObject *obj, const char *name, JSNative call,
-                           uintN nargs, uintN attrs);
-
-JS_FRIEND_API(JSFunction *)
-NewFunctionWithReserved(JSContext *cx, JSNative call, uintN nargs, uintN flags,
-                        JSObject *parent, const char *name);
-
-JS_FRIEND_API(JSFunction *)
-NewFunctionByIdWithReserved(JSContext *cx, JSNative native, uintN nargs, uintN flags,
-                            JSObject *parent, jsid id);
-
-JS_FRIEND_API(JSObject *)
-InitClassWithReserved(JSContext *cx, JSObject *obj, JSObject *parent_proto,
-                      JSClass *clasp, JSNative constructor, uintN nargs,
-                      JSPropertySpec *ps, JSFunctionSpec *fs,
-                      JSPropertySpec *static_ps, JSFunctionSpec *static_fs);
-
-JS_FRIEND_API(const Value &)
-GetFunctionNativeReserved(JSObject *fun, size_t which);
-
-JS_FRIEND_API(void)
-SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val);
 
 inline JSObject *
 GetObjectProto(const JSObject *obj)
@@ -370,10 +305,24 @@ GetObjectProto(const JSObject *obj)
 inline void *
 GetObjectPrivate(const JSObject *obj)
 {
-    const shadow::Object *nobj = reinterpret_cast<const shadow::Object*>(obj);
-    void **addr = reinterpret_cast<void**>(&nobj->fixedSlots()[nobj->numFixedSlots()]);
-    return *addr;
+    return reinterpret_cast<const shadow::Object*>(obj)->privateData;
 }
+
+inline JSObject *
+GetObjectGlobal(JSObject *obj)
+{
+    while (JSObject *parent = GetObjectParent(obj))
+        obj = parent;
+    return obj;
+}
+
+#ifdef DEBUG
+extern JS_FRIEND_API(void) CheckReservedSlot(const JSObject *obj, size_t slot);
+extern JS_FRIEND_API(void) CheckSlot(const JSObject *obj, size_t slot);
+#else
+inline void CheckReservedSlot(const JSObject *obj, size_t slot) {}
+inline void CheckSlot(const JSObject *obj, size_t slot) {}
+#endif
 
 /*
  * Get a slot that is both reserved for object's clasp *and* is fixed (fits
@@ -382,32 +331,34 @@ GetObjectPrivate(const JSObject *obj)
 inline const Value &
 GetReservedSlot(const JSObject *obj, size_t slot)
 {
-    JS_ASSERT(slot < JSCLASS_RESERVED_SLOTS(GetObjectClass(obj)));
+    CheckReservedSlot(obj, slot);
     return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
 }
 
 inline void
 SetReservedSlot(JSObject *obj, size_t slot, const Value &value)
 {
-    JS_ASSERT(slot < JSCLASS_RESERVED_SLOTS(GetObjectClass(obj)));
+    CheckReservedSlot(obj, slot);
     reinterpret_cast<shadow::Object *>(obj)->slotRef(slot) = value;
 }
 
-JS_FRIEND_API(uint32_t)
-GetObjectSlotSpan(const JSObject *obj);
+inline uint32
+GetNumSlots(const JSObject *obj)
+{
+    return uint32(reinterpret_cast<const shadow::Object *>(obj)->capacity);
+}
 
 inline const Value &
-GetObjectSlot(const JSObject *obj, size_t slot)
+GetSlot(const JSObject *obj, size_t slot)
 {
-    JS_ASSERT(slot < GetObjectSlotSpan(obj));
+    CheckSlot(obj, slot);
     return reinterpret_cast<const shadow::Object *>(obj)->slotRef(slot);
 }
 
-inline Shape *
+inline uint32
 GetObjectShape(const JSObject *obj)
 {
-    shadow::Shape *shape = reinterpret_cast<const shadow::Object*>(obj)->shape;
-    return reinterpret_cast<Shape *>(shape);
+    return reinterpret_cast<const shadow::Object*>(obj)->objShape;
 }
 
 static inline js::PropertyOp
@@ -428,9 +379,6 @@ GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector *pr
 JS_FRIEND_API(bool)
 StringIsArrayIndex(JSLinearString *str, jsuint *indexp);
 
-JS_FRIEND_API(void)
-SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback);
-
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate
  * operand of JSOP_ITER, so don't change them without advancing jsxdrapi.h's
@@ -441,24 +389,6 @@ SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback);
 #define JSITER_KEYVALUE   0x4   /* destructuring for-in wants [key, value] */
 #define JSITER_OWNONLY    0x8   /* iterate over obj's own properties only */
 #define JSITER_HIDDEN     0x10  /* also enumerate non-enumerable properties */
-
-JS_FRIEND_API(void)
-StartPCCountProfiling(JSContext *cx);
-
-JS_FRIEND_API(void)
-StopPCCountProfiling(JSContext *cx);
-
-JS_FRIEND_API(void)
-PurgePCCounts(JSContext *cx);
-
-JS_FRIEND_API(size_t)
-GetPCCountScriptCount(JSContext *cx);
-
-JS_FRIEND_API(JSString *)
-GetPCCountScriptSummary(JSContext *cx, size_t script);
-
-JS_FRIEND_API(JSString *)
-GetPCCountScriptContents(JSContext *cx, size_t script);
 
 } /* namespace js */
 #endif

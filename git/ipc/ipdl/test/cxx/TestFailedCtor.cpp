@@ -110,8 +110,7 @@ TestFailedCtorChild::DeallocPTestFailedCtorSub(PTestFailedCtorSubChild* actor)
 void
 TestFailedCtorChild::ProcessingError(Result what)
 {
-    if (OtherProcess() != 0) // thread-mode
-        _exit(0);
+    _exit(0);
 }
 
 PTestFailedCtorSubsubChild*

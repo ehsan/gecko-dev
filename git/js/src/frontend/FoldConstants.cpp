@@ -52,25 +52,25 @@
 using namespace js;
 
 static ParseNode *
-ContainsVarOrConst(ParseNode *pn)
+ContainsStmt(ParseNode *pn, ParseNodeKind kind)
 {
     if (!pn)
         return NULL;
-    if (pn->isKind(PNK_VAR) || pn->isKind(PNK_CONST))
+    if (pn->isKind(kind))
         return pn;
     switch (pn->getArity()) {
       case PN_LIST:
         for (ParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-            if (ParseNode *pnt = ContainsVarOrConst(pn2))
+            if (ParseNode *pnt = ContainsStmt(pn2, kind))
                 return pnt;
         }
         break;
       case PN_TERNARY:
-        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_kid1))
+        if (ParseNode *pnt = ContainsStmt(pn->pn_kid1, kind))
             return pnt;
-        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_kid2))
+        if (ParseNode *pnt = ContainsStmt(pn->pn_kid2, kind))
             return pnt;
-        return ContainsVarOrConst(pn->pn_kid3);
+        return ContainsStmt(pn->pn_kid3, kind);
       case PN_BINARY:
         /*
          * Limit recursion if pn is a binary expression, which can't contain a
@@ -78,17 +78,17 @@ ContainsVarOrConst(ParseNode *pn)
          */
         if (!pn->isOp(JSOP_NOP))
             return NULL;
-        if (ParseNode *pnt = ContainsVarOrConst(pn->pn_left))
+        if (ParseNode *pnt = ContainsStmt(pn->pn_left, kind))
             return pnt;
-        return ContainsVarOrConst(pn->pn_right);
+        return ContainsStmt(pn->pn_right, kind);
       case PN_UNARY:
         if (!pn->isOp(JSOP_NOP))
             return NULL;
-        return ContainsVarOrConst(pn->pn_kid);
+        return ContainsStmt(pn->pn_kid, kind);
       case PN_NAME:
-        return ContainsVarOrConst(pn->maybeExpr());
+        return ContainsStmt(pn->maybeExpr(), kind);
       case PN_NAMESET:
-        return ContainsVarOrConst(pn->pn_tree);
+        return ContainsStmt(pn->pn_tree, kind);
       default:;
     }
     return NULL;
@@ -143,7 +143,7 @@ FoldBinaryNumeric(JSContext *cx, JSOp op, ParseNode *pn1, ParseNode *pn2,
                   ParseNode *pn, TreeContext *tc)
 {
     jsdouble d, d2;
-    int32_t i, j;
+    int32 i, j;
 
     JS_ASSERT(pn1->isKind(PNK_NUMBER) && pn2->isKind(PNK_NUMBER));
     d = pn1->pn_dval;
@@ -243,7 +243,7 @@ FoldXMLConstants(JSContext *cx, ParseNode *pn, TreeContext *tc)
      * js_ConcatStrings.
      */
     ParseNode *pn2;
-    uint32_t i, j;
+    uint32 i, j;
     for (pn2 = pn1, i = j = 0; pn2; pn2 = pn2->pn_next, i++) {
         /* The parser already rejected end-tags with attributes. */
         JS_ASSERT(kind != PNK_XMLETAGO || i == 0);
@@ -435,7 +435,7 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
     switch (pn->getArity()) {
       case PN_FUNC:
       {
-        uint32_t oldflags = tc->flags;
+        uint32 oldflags = tc->flags;
         FunctionBox *oldlist = tc->functionList;
 
         tc->flags = pn->pn_funbox->tcflags;
@@ -501,7 +501,7 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
         /* First kid may be null (for default case in switch). */
         if (pn1 && !FoldConstants(cx, pn1, tc, pn->isKind(PNK_WHILE)))
             return false;
-        if (!FoldConstants(cx, pn2, tc, pn->isKind(PNK_DOWHILE)))
+        if (!FoldConstants(cx, pn2, tc, pn->isKind(PNK_DO)))
             return false;
         break;
 
@@ -552,7 +552,7 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
 
     switch (pn->getKind()) {
       case PNK_IF:
-        if (ContainsVarOrConst(pn2) || ContainsVarOrConst(pn3))
+        if (ContainsStmt(pn2, PNK_VAR) || ContainsStmt(pn3, PNK_VAR))
             break;
         /* FALL THROUGH */
 
@@ -594,7 +594,7 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
              * NB: pn must be a PNK_IF as PNK_HOOK can never have a null kid
              * or an empty statement for a child.
              */
-            pn->setKind(PNK_STATEMENTLIST);
+            pn->setKind(PNK_LC);
             pn->setArity(PN_LIST);
             pn->makeEmpty();
         }
@@ -683,7 +683,9 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
       case PNK_ADDASSIGN:
         JS_ASSERT(pn->isOp(JSOP_ADD));
         /* FALL THROUGH */
-      case PNK_ADD:
+      case PNK_PLUS:
+        if (pn->isArity(PN_UNARY))
+            goto unary_plusminus;
         if (pn->isArity(PN_LIST)) {
             /*
              * Any string literal term with all others number or string means
@@ -765,7 +767,10 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
         /* Can't concatenate string literals, let's try numbers. */
         goto do_binary_op;
 
-      case PNK_SUB:
+      case PNK_MINUS:
+        if (pn->isArity(PN_UNARY))
+            goto unary_plusminus;
+        /* FALL THROUGH */
       case PNK_STAR:
       case PNK_LSH:
       case PNK_RSH:
@@ -814,8 +819,7 @@ js::FoldConstants(JSContext *cx, ParseNode *pn, TreeContext *tc, bool inCond)
       case PNK_VOID:
       case PNK_NOT:
       case PNK_BITNOT:
-      case PNK_POS:
-      case PNK_NEG:
+      unary_plusminus:
         if (pn1->isKind(PNK_NUMBER)) {
             jsdouble d;
 
