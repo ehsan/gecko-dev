@@ -79,6 +79,7 @@ public:
                                                       const gfxFontStyle *aStyle);
 
 protected:
+    gfxMatrix mCTM;
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 
 private:

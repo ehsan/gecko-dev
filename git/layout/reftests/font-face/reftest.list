@@ -2,7 +2,6 @@
 # can't use file:/// URLs because of cross-directory access restrictions
 # on file: URLs.
 
-# numerous tests are marked as failing on Linux due to bug 458169
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) != download-1.html download-1-notref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == download-2.html download-2-ref.html
 HTTP(..) != download-2.html about:blank
@@ -14,20 +13,20 @@ HTTP(..) == multiple-descriptor-1.html multiple-descriptor-1-ref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) != multiple-descriptor-1.html multiple-descriptor-1-notref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == src-list-1.html src-list-1-ref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == src-list-2.html src-list-2-ref.html
-fails HTTP(..) == src-list-format-1.html src-list-format-1-ref.html # bug 465452
-fails HTTP(..) == src-list-format-2.html src-list-format-2-ref.html # bug 465452
+fails HTTP(..) == src-list-format-1.html src-list-format-1-ref.html
+fails HTTP(..) == src-list-format-2.html src-list-format-2-ref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == src-list-format-3.html src-list-format-3-ref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == src-list-format-4.html src-list-format-1-ref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == src-list-format-5.html src-list-format-2-ref.html
-fails HTTP(..) == src-list-format-6.html src-list-format-3-ref.html # bug 465452
+fails HTTP(..) == src-list-format-6.html src-list-format-3-ref.html
 # FIXME: The behavior here is neither mandated nor specified by the spec, but
 # it really ought to be.
 HTTP(..) == order-1.html order-1-ref.html
-fails HTTP(..) == order-2.html order-2-ref.html # bug 465414
-fails HTTP(..) == order-3.html order-3-ref.html # bug 465414
-fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == multiple-in-family-1.html multiple-in-family-1-ref.html
-fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == multiple-in-family-1b.html multiple-in-family-1-ref.html
-fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) != multiple-in-family-1.html multiple-in-family-1-notref.html
+fails HTTP(..) == order-2.html order-2-ref.html
+fails HTTP(..) == order-3.html order-3-ref.html
+fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") random-if(MOZ_WIDGET_TOOLKIT=="windows") HTTP(..) == multiple-in-family-1.html multiple-in-family-1-ref.html
+fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") random-if(MOZ_WIDGET_TOOLKIT=="windows") HTTP(..) == multiple-in-family-1b.html multiple-in-family-1-ref.html
+fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") random-if(MOZ_WIDGET_TOOLKIT=="windows") HTTP(..) != multiple-in-family-1.html multiple-in-family-1-notref.html
 HTTP(..) == prop-order-over-rule-order-1a.html prop-order-over-rule-order-2a.html
 HTTP(..) == prop-order-over-rule-order-1b.html prop-order-over-rule-order-2b.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) != prop-order-over-rule-order-1a.html prop-order-over-rule-order-1b.html
@@ -49,8 +48,9 @@ HTTP(..) == disable-sheet-1.html disable-sheet-1-ref.html
 HTTP(..) == disable-sheet-4.html disable-sheet-4-ref.html
 skip-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == disable-sheet-5.html disable-sheet-4-ref.html
 fails-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == sheet-set-base-1.html sheet-set-base-1-ref.html
-skip-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == sheet-set-switch-1.html sheet-set-switch-1-ref.html
-skip-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == insert-rule-1.html insert-rule-1-ref.html
+random-if(MOZ_WIDGET_TOOLKIT=="cocoa") skip-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == sheet-set-switch-1.html sheet-set-switch-1-ref.html
+# insert-rule-1-ref is sometimes right on Windows, always wrong on Mac
+skip-if(MOZ_WIDGET_TOOLKIT=="gtk2") random-if(MOZ_WIDGET_TOOLKIT=="windows") HTTP(..) == insert-rule-1.html insert-rule-1-ref.html
 HTTP(..) == delete-rule-1.html delete-rule-1-ref.html
 skip-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == media-query-add-1.html media-query-add-1-ref.html
 skip-if(MOZ_WIDGET_TOOLKIT=="gtk2") HTTP(..) == media-query-remove-1.html media-query-remove-1-ref.html
