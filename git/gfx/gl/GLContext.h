@@ -505,7 +505,8 @@ public:
     GLContext(const ContextFormat& aFormat,
               bool aIsOffscreen = false,
               GLContext *aSharedContext = nsnull)
-      : mUserBoundDrawFBO(0),
+      : mFlushGuaranteesResolve(false),
+        mUserBoundDrawFBO(0),
         mUserBoundReadFBO(0),
         mInternalBoundDrawFBO(0),
         mInternalBoundReadFBO(0),
@@ -791,11 +792,23 @@ public:
     bool IsOffscreen() {
         return mIsOffscreen;
     }
+
+private:
+    bool mFlushGuaranteesResolve;
+
+public:
+    void SetFlushGuaranteesResolve(bool aFlushGuaranteesResolve) {
+        mFlushGuaranteesResolve = aFlushGuaranteesResolve;
+    }
     
     // Before reads from offscreen texture
     void GuaranteeResolve() {
-        BlitDirtyFBOs();
-        fFinish();
+        if (mFlushGuaranteesResolve) {
+            BlitDirtyFBOs();
+            fFlush();
+        } else {
+            fFinish();
+        }
     }
 
     /*
@@ -1281,6 +1294,12 @@ public:
         AfterGLReadCall();
 
         BindUserReadFBO(read);
+    }
+
+    void fFinish() {
+        BeforeGLReadCall();
+        raw_fFinish();
+        AfterGLReadCall();
     }
 
     // Draw/Read
@@ -2266,7 +2285,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fFinish() {
+    void raw_fFinish() {
         BEFORE_GL_CALL;
         mSymbols.fFinish();
         AFTER_GL_CALL;
