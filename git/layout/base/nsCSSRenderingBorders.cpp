@@ -97,8 +97,8 @@ static void ComputeBorderCornerDimensions(const gfxRect& aOuterRect,
                                           gfxCornerSizes *aDimsResult);
 
 // given a side index, get the previous and next side index
-#define NEXT_SIDE(_s) mozilla::css::Side(((_s) + 1) & 3)
-#define PREV_SIDE(_s) mozilla::css::Side(((_s) + 3) & 3)
+#define NEXT_SIDE(_s) (((_s) + 1) & 3)
+#define PREV_SIDE(_s) (((_s) + 3) & 3)
 
 // from the given base color and the background color, turn
 // color into a color for the given border pattern style
@@ -137,10 +137,10 @@ IsZeroSize(const gfxSize& sz) {
 
 static bool
 AllCornersZeroSize(const gfxCornerSizes& corners) {
-  return IsZeroSize(corners[NS_CORNER_TOP_LEFT]) &&
-    IsZeroSize(corners[NS_CORNER_TOP_RIGHT]) &&
-    IsZeroSize(corners[NS_CORNER_BOTTOM_RIGHT]) &&
-    IsZeroSize(corners[NS_CORNER_BOTTOM_LEFT]);
+  return IsZeroSize(corners[0]) &&
+    IsZeroSize(corners[1]) &&
+    IsZeroSize(corners[2]) &&
+    IsZeroSize(corners[3]);
 }
 
 typedef enum {
@@ -286,7 +286,7 @@ nsCSSBorderRenderer::AreBorderSideFinalStylesSame(PRUint8 aSides)
 }
 
 PRBool
-nsCSSBorderRenderer::IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCorner)
+nsCSSBorderRenderer::IsSolidCornerStyle(PRUint8 aStyle, gfxCorner::Corner aCorner)
 {
   switch (aStyle) {
     case NS_STYLE_BORDER_STYLE_DOTTED:
@@ -296,11 +296,11 @@ nsCSSBorderRenderer::IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCo
 
     case NS_STYLE_BORDER_STYLE_INSET:
     case NS_STYLE_BORDER_STYLE_OUTSET:
-      return (aCorner == NS_CORNER_TOP_LEFT || aCorner == NS_CORNER_BOTTOM_RIGHT);
+      return (aCorner == gfxCorner::TOP_LEFT || aCorner == gfxCorner::BOTTOM_RIGHT);
 
     case NS_STYLE_BORDER_STYLE_GROOVE:
     case NS_STYLE_BORDER_STYLE_RIDGE:
-      return mOneUnitBorder && (aCorner == NS_CORNER_TOP_LEFT || aCorner == NS_CORNER_BOTTOM_RIGHT);
+      return mOneUnitBorder && (aCorner == gfxCorner::TOP_LEFT || aCorner == gfxCorner::BOTTOM_RIGHT);
 
     case NS_STYLE_BORDER_STYLE_DOUBLE:
       return mOneUnitBorder;
@@ -311,7 +311,7 @@ nsCSSBorderRenderer::IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCo
 }
 
 BorderColorStyle
-nsCSSBorderRenderer::BorderColorStyleForSolidCorner(PRUint8 aStyle, mozilla::css::Corner aCorner)
+nsCSSBorderRenderer::BorderColorStyleForSolidCorner(PRUint8 aStyle, gfxCorner::Corner aCorner)
 {
   // note that this function assumes that the corner is already solid,
   // as per the earlier function
@@ -324,17 +324,17 @@ nsCSSBorderRenderer::BorderColorStyleForSolidCorner(PRUint8 aStyle, mozilla::css
 
     case NS_STYLE_BORDER_STYLE_INSET:
     case NS_STYLE_BORDER_STYLE_GROOVE:
-      if (aCorner == NS_CORNER_TOP_LEFT)
+      if (aCorner == gfxCorner::TOP_LEFT)
         return BorderColorStyleDark;
-      else if (aCorner == NS_CORNER_BOTTOM_RIGHT)
+      else if (aCorner == gfxCorner::BOTTOM_RIGHT)
         return BorderColorStyleLight;
       break;
 
     case NS_STYLE_BORDER_STYLE_OUTSET:
     case NS_STYLE_BORDER_STYLE_RIDGE:
-      if (aCorner == NS_CORNER_TOP_LEFT)
+      if (aCorner == gfxCorner::TOP_LEFT)
         return BorderColorStyleLight;
-      else if (aCorner == NS_CORNER_BOTTOM_RIGHT)
+      else if (aCorner == gfxCorner::BOTTOM_RIGHT)
         return BorderColorStyleDark;
       break;
   }
@@ -343,7 +343,7 @@ nsCSSBorderRenderer::BorderColorStyleForSolidCorner(PRUint8 aStyle, mozilla::css
 }
 
 void
-nsCSSBorderRenderer::DoCornerSubPath(mozilla::css::Corner aCorner)
+nsCSSBorderRenderer::DoCornerSubPath(PRUint8 aCorner)
 {
   gfxPoint offset(0.0, 0.0);
 
@@ -357,7 +357,7 @@ nsCSSBorderRenderer::DoCornerSubPath(mozilla::css::Corner aCorner)
 }
 
 void
-nsCSSBorderRenderer::DoSideClipWithoutCornersSubPath(mozilla::css::Side aSide)
+nsCSSBorderRenderer::DoSideClipWithoutCornersSubPath(PRUint8 aSide)
 {
   gfxPoint offset(0.0, 0.0);
 
@@ -382,8 +382,7 @@ nsCSSBorderRenderer::DoSideClipWithoutCornersSubPath(mozilla::css::Side aSide)
   // side.  This relies on the relationship between side indexing and
   // corner indexing; that is, 0 == SIDE_TOP and 0 == CORNER_TOP_LEFT,
   // with both proceeding clockwise.
-  gfxSize sideCornerSum = mBorderCornerDimensions[mozilla::css::Corner(aSide)]
-                        + mBorderCornerDimensions[mozilla::css::Corner(NEXT_SIDE(aSide))];
+  gfxSize sideCornerSum = mBorderCornerDimensions[aSide] + mBorderCornerDimensions[NEXT_SIDE(aSide)];
   gfxRect rect(mOuterRect.pos + offset,
                mOuterRect.size - sideCornerSum);
 
@@ -436,7 +435,7 @@ MaybeMoveToMidPoint(gfxPoint& aP0, gfxPoint& aP1, const gfxPoint& aMidPoint)
 }
 
 void
-nsCSSBorderRenderer::DoSideClipSubPath(mozilla::css::Side aSide)
+nsCSSBorderRenderer::DoSideClipSubPath(PRUint8 aSide)
 {
   // the clip proceeds clockwise from the top left corner;
   // so "start" in each case is the start of the region from that side.
@@ -460,40 +459,40 @@ nsCSSBorderRenderer::DoSideClipSubPath(mozilla::css::Side aSide)
   SideClipType startType = SIDE_CLIP_TRAPEZOID;
   SideClipType endType = SIDE_CLIP_TRAPEZOID;
 
-  if (!IsZeroSize(mBorderRadii[mozilla::css::Corner(aSide)]))
+  if (!IsZeroSize(mBorderRadii[aSide]))
     startType = SIDE_CLIP_TRAPEZOID_FULL;
   else if (startIsDashed && isDashed)
     startType = SIDE_CLIP_RECTANGLE;
 
-  if (!IsZeroSize(mBorderRadii[mozilla::css::Corner(NEXT_SIDE(aSide))]))
+  if (!IsZeroSize(mBorderRadii[NEXT_SIDE(aSide)]))
     endType = SIDE_CLIP_TRAPEZOID_FULL;
   else if (endIsDashed && isDashed)
     endType = SIDE_CLIP_RECTANGLE;
 
   gfxPoint midPoint = mInnerRect.pos + mInnerRect.size / 2.0;
 
-  start[0] = mOuterRect.CCWCorner(aSide);
-  start[1] = mInnerRect.CCWCorner(aSide);
+  start[0] = mOuterRect.Corner(aSide);
+  start[1] = mInnerRect.Corner(aSide);
 
-  end[0] = mOuterRect.CWCorner(aSide);
-  end[1] = mInnerRect.CWCorner(aSide);
+  end[0] = mOuterRect.Corner(NEXT_SIDE(aSide));
+  end[1] = mInnerRect.Corner(NEXT_SIDE(aSide));
 
   if (startType == SIDE_CLIP_TRAPEZOID_FULL) {
     MaybeMoveToMidPoint(start[0], start[1], midPoint);
   } else if (startType == SIDE_CLIP_RECTANGLE) {
     if (aSide == NS_SIDE_TOP || aSide == NS_SIDE_BOTTOM)
-      start[1] = gfxPoint(mOuterRect.CCWCorner(aSide).x, mInnerRect.CCWCorner(aSide).y);
+      start[1] = gfxPoint(mOuterRect.Corner(aSide).x, mInnerRect.Corner(aSide).y);
     else
-      start[1] = gfxPoint(mInnerRect.CCWCorner(aSide).x, mOuterRect.CCWCorner(aSide).y);
+      start[1] = gfxPoint(mInnerRect.Corner(aSide).x, mOuterRect.Corner(aSide).y);
   }
 
   if (endType == SIDE_CLIP_TRAPEZOID_FULL) {
     MaybeMoveToMidPoint(end[0], end[1], midPoint);
   } else if (endType == SIDE_CLIP_RECTANGLE) {
     if (aSide == NS_SIDE_TOP || aSide == NS_SIDE_BOTTOM)
-      end[0] = gfxPoint(mInnerRect.CWCorner(aSide).x, mOuterRect.CWCorner(aSide).y);
+      end[0] = gfxPoint(mInnerRect.Corner(NEXT_SIDE(aSide)).x, mOuterRect.Corner(NEXT_SIDE(aSide)).y);
     else
-      end[0] = gfxPoint(mOuterRect.CWCorner(aSide).x, mInnerRect.CWCorner(aSide).y);
+      end[0] = gfxPoint(mOuterRect.Corner(NEXT_SIDE(aSide)).x, mInnerRect.Corner(NEXT_SIDE(aSide)).y);
   }
 
   mContext->MoveTo(start[0]);
@@ -910,7 +909,7 @@ nsCSSBorderRenderer::DrawBorderSides(PRIntn aSides)
 }
 
 void
-nsCSSBorderRenderer::DrawDashedSide(mozilla::css::Side aSide)
+nsCSSBorderRenderer::DrawDashedSide(PRUint8 aSide)
 {
   gfxFloat dashWidth;
   gfxFloat dash[2];
@@ -955,8 +954,8 @@ nsCSSBorderRenderer::DrawDashedSide(mozilla::css::Side aSide)
 
   mContext->SetDash(dash, 2, 0.0);
 
-  gfxPoint start = mOuterRect.CCWCorner(aSide);
-  gfxPoint end = mOuterRect.CWCorner(aSide);
+  gfxPoint start = mOuterRect.Corner(aSide);
+  gfxPoint end = mOuterRect.Corner(NEXT_SIDE(aSide));
 
   if (aSide == NS_SIDE_TOP) {
     start.x += mBorderCornerDimensions[C_TL].width;
@@ -1082,14 +1081,14 @@ nsCSSBorderRenderer::DrawBorders()
      * a 1.0 unit border all around and no border radius.
      */
 
-    NS_FOR_CSS_CORNERS(corner) {
-      const mozilla::css::Side sides[2] = { mozilla::css::Side(corner), PREV_SIDE(corner) };
+    for (int corner = 0; corner < gfxCorner::NUM_CORNERS; corner++) {
+      const PRIntn sides[2] = { corner, PREV_SIDE(corner) };
 
       if (!IsZeroSize(mBorderRadii[corner]))
         continue;
 
       if (mBorderWidths[sides[0]] == 1.0 && mBorderWidths[sides[1]] == 1.0) {
-        if (corner == NS_CORNER_TOP_LEFT || corner == NS_CORNER_TOP_RIGHT)
+        if (corner == gfxCorner::TOP_LEFT || corner == gfxCorner::TOP_RIGHT)
           mBorderCornerDimensions[corner].width = 0.0;
         else
           mBorderCornerDimensions[corner].height = 0.0;
@@ -1097,7 +1096,7 @@ nsCSSBorderRenderer::DrawBorders()
     }
 
     // First, the corners
-    NS_FOR_CSS_CORNERS(corner) {
+    for (int corner = 0; corner < gfxCorner::NUM_CORNERS; corner++) {
       // if there's no corner, don't do all this work for it
       if (IsZeroSize(mBorderCornerDimensions[corner]))
         continue;
@@ -1151,7 +1150,7 @@ nsCSSBorderRenderer::DrawBorders()
         mContext->SetOperator(gfxContext::OPERATOR_ADD);
 
         for (int cornerSide = 0; cornerSide < 2; cornerSide++) {
-          mozilla::css::Side side = mozilla::css::Side(sides[cornerSide]);
+          PRUint8 side = sides[cornerSide];
           PRUint8 style = mBorderStyles[side];
 
           SF("corner: %d cornerSide: %d side: %d style: %d\n", corner, cornerSide, side, style);

@@ -597,8 +597,8 @@ const gXPInstallObserver = {
   {
     var brandBundle = document.getElementById("bundle_brand");
     switch (aTopic) {
-    case "addon-install-blocked":
-      var installInfo = aSubject.QueryInterface(Components.interfaces.amIWebInstallInfo);
+    case "xpinstall-install-blocked":
+      var installInfo = aSubject.QueryInterface(Components.interfaces.nsIXPIInstallInfo);
       var win = installInfo.originatingWindow;
       var shell = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                      .getInterface(Components.interfaces.nsIWebNavigation)
@@ -608,13 +608,7 @@ const gXPInstallObserver = {
         var host = installInfo.originatingURI.host;
         var brandShortName = brandBundle.getString("brandShortName");
         var notificationName, messageString, buttons;
-        var enabled = true;
-        try {
-          enabled = gPrefService.getBoolPref("xpinstall.enabled");
-        }
-        catch (e) {
-        }
-        if (!enabled) {
+        if (!gPrefService.getBoolPref("xpinstall.enabled")) {
           notificationName = "xpinstall-disabled"
           if (gPrefService.prefIsLocked("xpinstall.enabled")) {
             messageString = gNavigatorBundle.getString("xpinstallDisabledMessageLocked");
@@ -645,7 +639,9 @@ const gXPInstallObserver = {
             accessKey: gNavigatorBundle.getString("xpinstallPromptAllowButton.accesskey"),
             popup: null,
             callback: function() {
-              installInfo.install();
+              var mgr = Components.classes["@mozilla.org/xpinstall/install-manager;1"]
+                                  .createInstance(Components.interfaces.nsIXPInstallManager);
+              mgr.initManagerWithInstallInfo(installInfo);
               return false;
             }
           }];
@@ -1187,7 +1183,7 @@ function prepareForStartup() {
 
 function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   Services.obs.addObserver(gSessionHistoryObserver, "browser:purge-session-history", false);
-  Services.obs.addObserver(gXPInstallObserver, "addon-install-blocked", false);
+  Services.obs.addObserver(gXPInstallObserver, "xpinstall-install-blocked", false);
 
   BrowserOffline.init();
   OfflineApps.init();
@@ -1405,7 +1401,7 @@ function BrowserShutdown()
   }
 
   Services.obs.removeObserver(gSessionHistoryObserver, "browser:purge-session-history");
-  Services.obs.removeObserver(gXPInstallObserver, "addon-install-blocked");
+  Services.obs.removeObserver(gXPInstallObserver, "xpinstall-install-blocked");
   Services.obs.removeObserver(gPluginHandler.pluginCrashed, "plugin-crashed");
 
   try {
@@ -2200,15 +2196,15 @@ function losslessDecodeURI(aURI) {
                          encodeURIComponent);
     } catch (e) {}
 
-  // Encode invisible characters (line and paragraph separator,
-  // object replacement character) (bug 452979)
-  value = value.replace(/[\v\x0c\x1c\x1d\x1e\x1f\u2028\u2029\ufffc]/g,
+  // Encode invisible characters (soft hyphen, zero-width space, BOM,
+  // line and paragraph separator, word joiner, invisible times,
+  // invisible separator, object replacement character) (bug 452979)
+  value = value.replace(/[\v\x0c\x1c\x1d\x1e\x1f\u00ad\u200b\ufeff\u2028\u2029\u2060\u2062\u2063\ufffc]/g,
                         encodeURIComponent);
 
-  // Encode default ignorable characters. (bug 546013)
-  // This includes all bidirectional formatting characters.
+  // Encode bidirectional formatting characters.
   // (RFC 3987 sections 3.2 and 4.1 paragraph 6)
-  value = value.replace(/[\u00ad\u034f\u115f-\u1160\u17b4-\u17b5\u180b-\u180d\u200b-\u200f\u202a-\u202e\u2060-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufff8]|\ud834[\udd73-\udd7a]|[\udb40-\udb43][\udc00-\udfff]/g,
+  value = value.replace(/[\u200e\u200f\u202a\u202b\u202c\u202d\u202e]/g,
                         encodeURIComponent);
   return value;
 }
@@ -3359,6 +3355,8 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
 
   CombinedStopReload.init();
 
+  gHomeButton.updatePersonalToolbarStyle();
+
   // Update the urlbar
   if (gURLBar) {
     URLBarSetURI();
@@ -3382,12 +3380,11 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   // XXX Shouldn't have to do this, but I do
   if (!gCustomizeSheet)
     window.focus();
+
 }
 
 function BrowserToolboxCustomizeChange() {
   gHomeButton.updatePersonalToolbarStyle();
-
-  allTabs.readPref();
 }
 
 /**
@@ -5723,8 +5720,21 @@ var MailIntegration = {
 };
 
 function BrowserOpenAddonsMgr(aPane) {
-  // TODO need to implement switching to the relevant view - see bug 560449
-  switchToTabHavingURI("about:addons", true);
+  const EMTYPE = "Extension:Manager";
+  var theEM = Services.wm.getMostRecentWindow(EMTYPE);
+  if (theEM) {
+    theEM.focus();
+    if (aPane)
+      theEM.showView(aPane);
+    return;
+  }
+
+  const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
+  const EMFEATURES = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
+  if (aPane)
+    window.openDialog(EMURL, "", EMFEATURES, aPane);
+  else
+    window.openDialog(EMURL, "", EMFEATURES);
 }
 
 function AddKeywordForSearchField() {
@@ -6306,11 +6316,6 @@ var gPluginHandler = {
       link.href = gPluginHandler.crashReportHelpURL;
       let description = notification.ownerDocument.getAnonymousElementByAttribute(notification, "anonid", "messageText");
       description.appendChild(link);
-
-      // Remove the notfication when the page is reloaded.
-      doc.defaultView.top.addEventListener("unload", function() {
-        notificationBox.removeNotification(notification);
-      }, false);
     }
 
   }
@@ -7146,7 +7151,7 @@ let gPrivateBrowsingUI = {
     Services.obs.removeObserver(this, "private-browsing-transition-complete");
   },
 
-  get _disableUIOnToggle() {
+  get _disableUIOnToggle PBUI__disableUIOnTogle() {
     if (this._privateBrowsingService.autoStarted)
       return false;
 
@@ -7348,7 +7353,7 @@ let gPrivateBrowsingUI = {
       !this.privateBrowsingEnabled;
   },
 
-  get privateBrowsingEnabled() {
+  get privateBrowsingEnabled PBUI_get_privateBrowsingEnabled() {
     return this._privateBrowsingService.privateBrowsingEnabled;
   }
 };
@@ -7507,6 +7512,23 @@ var LightWeightThemeWebInstaller = {
   _isAllowed: function (node) {
     var pm = Services.perms;
 
+    var prefs = [["xpinstall.whitelist.add", pm.ALLOW_ACTION],
+                 ["xpinstall.whitelist.add.36", pm.ALLOW_ACTION],
+                 ["xpinstall.blacklist.add", pm.DENY_ACTION]];
+    prefs.forEach(function ([pref, permission]) {
+      try {
+        var hosts = gPrefService.getCharPref(pref);
+      } catch (e) {}
+
+      if (hosts) {
+        hosts.split(",").forEach(function (host) {
+          pm.add(makeURI("http://" + host), "install", permission);
+        });
+
+        gPrefService.setCharPref(pref, "");
+      }
+    });
+
     var uri = node.ownerDocument.documentURIObject;
     return pm.testPermission(uri, "install") == pm.ALLOW_ACTION;
   },
@@ -7517,18 +7539,7 @@ var LightWeightThemeWebInstaller = {
   }
 }
 
-/**
- * Switch to a tab that has a given URI, and focusses its browser window.
- * If a matching tab is in this window, it will be switched to. Otherwise, other
- * windows will be searched.
- *
- * @param aURI
- *        URI to search for
- * @param aOpenNew
- *        True to open a new tab and switch to it, if no existing tab is found
- * @return True if a tab was switched to (or opened), false otherwise
- */
-function switchToTabHavingURI(aURI, aOpenNew) {
+function switchToTabHavingURI(aURI) {
   function switchIfURIInWindow(aWindow) {
     if (!("gBrowser" in aWindow))
       return false;
@@ -7563,13 +7574,7 @@ function switchToTabHavingURI(aURI, aOpenNew) {
     if (switchIfURIInWindow(browserWin))
       return true;
   }
-
   // No opened tab has that url.
-  if (aOpenNew) {
-    gBrowser.selectedTab = gBrowser.addTab(aURI.spec);
-    return true;
-  }
-
   return false;
 }
 

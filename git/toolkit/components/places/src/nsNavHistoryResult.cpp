@@ -46,7 +46,6 @@
 #include "nsFaviconService.h"
 #include "nsITaggingService.h"
 #include "nsAnnotationService.h"
-#include "Helpers.h"
 
 #include "nsDebug.h"
 #include "nsNetUtil.h"
@@ -308,19 +307,17 @@ nsNavHistoryResultNode::GetTags(nsAString& aTags) {
   // Fetch the tags
   nsNavHistory *history = nsNavHistory::GetHistoryService();
   NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
-  mozIStorageStatement *stmt = history->GetStatementById(DB_GET_TAGS);
-  NS_ENSURE_STATE(stmt);
-  mozStorageStatementScoper scoper(stmt);
-
-  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("tags_folder"),
-                                      history->GetTagsFolder());
+  mozIStorageStatement *getTagsStatement = history->DBGetTags();
+  NS_ENSURE_STATE(getTagsStatement);
+  mozStorageStatementScoper scoper(getTagsStatement);
+  nsresult rv = getTagsStatement->BindInt64Parameter(0, history->GetTagsFolder());
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), mURI);
+  rv = getTagsStatement->BindUTF8StringParameter(1, mURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool hasTags = PR_FALSE;
-  if (NS_SUCCEEDED(stmt->ExecuteStep(&hasTags)) && hasTags) {
-    rv = stmt->GetString(0, mTags);
+  if (NS_SUCCEEDED(getTagsStatement->ExecuteStep(&hasTags)) && hasTags) {
+    rv = getTagsStatement->GetString(0, mTags);
     NS_ENSURE_SUCCESS(rv, rv);
     aTags.Assign(mTags);
   }
@@ -609,9 +606,9 @@ nsNavHistoryContainerResultNode::GetState(PRUint16* _state)
 {
   NS_ENSURE_ARG_POINTER(_state);
 
-  *_state = mExpanded ? (PRUint16)STATE_OPENED
-                      : mAsyncPendingStmt ? (PRUint16)STATE_LOADING
-                                          : (PRUint16)STATE_CLOSED;
+  *_state = mExpanded ? STATE_OPENED :
+            mAsyncPendingStmt ? STATE_LOADING :
+            STATE_CLOSED;
 
   return NS_OK;
 }
@@ -1967,11 +1964,10 @@ nsNavHistoryContainerResultNode::GetChildIndex(nsINavHistoryResultNode* aNode,
   if (!mExpanded)
     return NS_ERROR_NOT_AVAILABLE;
 
-  PRInt32 nodeIndex = FindChild(static_cast<nsNavHistoryResultNode*>(aNode));
-  if (nodeIndex == -1)
+  *_retval = FindChild(static_cast<nsNavHistoryResultNode*>(aNode));
+  if (*_retval == -1)
     return NS_ERROR_INVALID_ARG;
 
-  *_retval = nodeIndex;
   return NS_OK;
 }
 
@@ -2411,17 +2407,21 @@ nsNavHistoryQueryResultNode::GetHasChildren(PRBool* aHasChildren)
     NS_ENSURE_TRUE(history, NS_ERROR_OUT_OF_MEMORY);
     mozIStorageConnection *dbConn = history->GetStorageConnection();
 
-    nsCOMPtr<mozIStorageStatement> stmt;
-    nsresult rv = dbConn->CreateStatement(NS_LITERAL_CSTRING(
-      "SELECT id FROM moz_bookmarks WHERE parent = :tags_folder LIMIT 1"
-    ), getter_AddRefs(stmt));
+    nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
+    NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
+    PRInt64 tagsFolderId;
+    nsresult rv = bookmarks->GetTagsFolder(&tagsFolderId);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("tags_folder"),
-                               history->GetTagsFolder());
+    nsCOMPtr<mozIStorageStatement> hasTagsStatement;
+    rv = dbConn->CreateStatement(NS_LITERAL_CSTRING(
+        "SELECT id FROM moz_bookmarks WHERE parent = ?1 LIMIT 1"),
+      getter_AddRefs(hasTagsStatement));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = hasTagsStatement->BindInt64Parameter(0, tagsFolderId);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = stmt->ExecuteStep(aHasChildren);
+    rv = hasTagsStatement->ExecuteStep(aHasChildren);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;

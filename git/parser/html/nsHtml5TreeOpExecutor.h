@@ -267,7 +267,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
           break;
         }
       }
-      if (aChild->IsElement()) {
+      if (aChild->IsNodeOfType(nsINode::eELEMENT)) {
         mElementsSeenInThisAppendBatch.AppendElement(aChild);
       }
       mElementsSeenInThisAppendBatch.AppendElement(aParent);

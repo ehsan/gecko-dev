@@ -20,8 +20,6 @@ IPDLSRCS =					\
   PTestRPCRaces.ipdl				\
   PTestRPCShutdownRace.ipdl			\
   PTestSanity.ipdl				\
-  PTestSelfManage.ipdl				\
-  PTestSelfManageRoot.ipdl			\
   PTestShmem.ipdl				\
   PTestShutdown.ipdl				\
   PTestShutdownSub.ipdl				\

@@ -117,7 +117,7 @@ public:
      * AssertCurrentThreadOwns
      * @see prlock.h
      **/
-    void AssertCurrentThreadOwns () const
+    void AssertCurrentThreadOwns ()
     {
     }
 
@@ -125,7 +125,7 @@ public:
      * AssertNotCurrentThreadOwns
      * @see prlock.h
      **/
-    void AssertNotCurrentThreadOwns () const
+    void AssertNotCurrentThreadOwns ()
     {
     }
 
@@ -133,12 +133,12 @@ public:
     void Lock();
     void Unlock();
 
-    void AssertCurrentThreadOwns () const
+    void AssertCurrentThreadOwns ()
     {
         PR_ASSERT_CURRENT_THREAD_OWNS_LOCK(mLock);
     }
 
-    void AssertNotCurrentThreadOwns () const
+    void AssertNotCurrentThreadOwns ()
     {
         // FIXME bug 476536
     }

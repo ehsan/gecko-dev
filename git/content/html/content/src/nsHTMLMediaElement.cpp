@@ -2023,7 +2023,7 @@ void nsHTMLMediaElement::AddRemoveSelfReference()
       // Dispatch Release asynchronously so that we don't destroy this object
       // inside a call stack of method calls on this object
       nsCOMPtr<nsIRunnable> event =
-        NS_NewRunnableMethod(this, &nsHTMLMediaElement::DoRemoveSelfReference);
+        NS_NEW_RUNNABLE_METHOD(nsHTMLMediaElement, this, DoRemoveSelfReference);
       NS_DispatchToMainThread(event);
     }
   }
@@ -2049,7 +2049,7 @@ nsresult nsHTMLMediaElement::Observe(nsISupports* aSubject,
 PRBool
 nsHTMLMediaElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eMEDIA));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eMEDIA));
 }
 
 void nsHTMLMediaElement::NotifyAddedSource()

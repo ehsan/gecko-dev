@@ -26,7 +26,6 @@ extern std::string gDumpFile;
 extern StringTable gQueryParameters;
 extern std::string gHttpProxy;
 extern std::string gAuth;
-extern std::string gCACertificateFile;
 extern std::string gSendURL;
 extern std::string gURLParameter;
 

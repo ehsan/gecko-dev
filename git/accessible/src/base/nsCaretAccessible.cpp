@@ -35,13 +35,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsCaretAccessible.h"
-
+// NOTE: alphabetically ordered
 #include "nsAccessibilityService.h"
-#include "nsAccUtils.h"
-#include "nsCoreUtils.h"
+#include "nsCaretAccessible.h"
 #include "nsIAccessibleEvent.h"
-
 #include "nsCaret.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLAnchorElement.h"

@@ -39,7 +39,6 @@
 #include "nsContentUtils.h"
 #include "nsINode.h"
 #include "nsIContent.h"
-#include "Element.h"
 #include "nsIMutationObserver.h"
 #include "nsIDocument.h"
 #include "nsIDOMUserDataHandler.h"
@@ -60,8 +59,6 @@
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
-
-using namespace mozilla::dom;
 
 // This macro expects the ownerDocument of content_ to be in scope as
 // |nsIDocument* doc|
@@ -265,10 +262,10 @@ nsNodeUtils::LastRelease(nsINode* aNode)
     aNode->UnsetFlags(NODE_HAS_LISTENERMANAGER);
   }
 
-  if (aNode->IsElement()) {
+  if (aNode->IsNodeOfType(nsINode::eELEMENT)) {
     nsIDocument* ownerDoc = aNode->GetOwnerDoc();
     if (ownerDoc) {
-      ownerDoc->ClearBoxObjectFor(aNode->AsElement());
+      ownerDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
     }
   }
 
@@ -360,7 +357,6 @@ struct NS_STACK_CLASS nsHandlerData
   PRUint16 mOperation;
   nsCOMPtr<nsIDOMNode> mSource;
   nsCOMPtr<nsIDOMNode> mDest;
-  nsCxPusher mPusher;
 };
 
 static void
@@ -374,9 +370,6 @@ CallHandler(void *aObject, nsIAtom *aKey, void *aHandler, void *aData)
     static_cast<nsIVariant*>(node->GetProperty(DOM_USER_DATA, aKey));
   NS_ASSERTION(data, "Handler without data?");
 
-  if (!handlerData->mPusher.RePush(node)) {
-    return;
-  }
   nsAutoString key;
   aKey->ToString(key);
   handler->Handle(handlerData->mOperation, key, data, handlerData->mSource,
@@ -572,7 +565,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     nodeInfo = newNodeInfo;
   }
 
-  nsGenericElement *elem = aNode->IsElement() ?
+  nsGenericElement *elem = aNode->IsNodeOfType(nsINode::eELEMENT) ?
                            static_cast<nsGenericElement*>(aNode) :
                            nsnull;
 
@@ -600,10 +593,10 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   else if (nodeInfoManager) {
     nsIDocument* oldDoc = aNode->GetOwnerDoc();
     PRBool wasRegistered = PR_FALSE;
-    if (oldDoc && aNode->IsElement()) {
-      Element* element = aNode->AsElement();
-      oldDoc->ClearBoxObjectFor(element);
-      wasRegistered = oldDoc->UnregisterFreezableElement(element);
+    if (oldDoc && aNode->IsNodeOfType(nsINode::eELEMENT)) {
+      nsIContent* content = static_cast<nsIContent*>(aNode);
+      oldDoc->ClearBoxObjectFor(content);
+      wasRegistered = oldDoc->UnregisterFreezableElement(content);
     }
 
     aNode->mNodeInfo.swap(newNodeInfo);
@@ -613,7 +606,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
       // XXX what if oldDoc is null, we don't know if this should be
       // registered or not! Can that really happen?
       if (wasRegistered) {
-        newDoc->RegisterFreezableElement(aNode->AsElement());
+        newDoc->RegisterFreezableElement(static_cast<nsIContent*>(aNode));
       }
 
       nsPIDOMWindow* window = newDoc->GetInnerWindow();
@@ -726,8 +719,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   // cloning, so kids of the new node aren't confused about whether they're
   // in a document.
 #ifdef MOZ_XUL
-  if (aClone && !aParent && aNode->IsElement() &&
-      aNode->AsElement()->IsXUL()) {
+  if (aClone && !aParent && aNode->IsNodeOfType(nsINode::eELEMENT) && static_cast<nsIContent*>(aNode)->IsXUL()) {
     nsXULElement *xulElem = static_cast<nsXULElement*>(elem);
     if (!xulElem->mPrototype || xulElem->IsInDoc()) {
       clone->SetFlags(NODE_FORCE_XBL_BINDINGS);

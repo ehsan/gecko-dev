@@ -816,8 +816,12 @@ nsresult
 nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
                                         nsCSSPseudoElements::Type aPseudoType)
 {
+  if (!aData->mContent) {
+    return NS_OK;
+  }
+
   ElementTransitions *et =
-    GetElementTransitions(aData->mElement, aPseudoType, PR_FALSE);
+    GetElementTransitions(aData->mContent, aPseudoType, PR_FALSE);
   if (!et) {
     return NS_OK;
   }
@@ -831,7 +835,7 @@ nsTransitionManager::WalkTransitionRule(RuleProcessorData* aData,
     // We need to immediately restyle with animation
     // after doing this.
     if (et) {
-      mPresContext->PresShell()->RestyleForAnimation(aData->mElement);
+      mPresContext->PresShell()->RestyleForAnimation(aData->mContent);
     }
     return NS_OK;
   }

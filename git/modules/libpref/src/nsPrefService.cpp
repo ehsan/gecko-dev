@@ -139,15 +139,14 @@ nsresult nsPrefService::Init()
                                   static_cast<nsISupports *>(static_cast<void *>(this)),
                                   "pref-config-startup");    
 
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService)
-    return NS_ERROR_FAILURE;
-
-  rv = observerService->AddObserver(this, "profile-before-change", PR_TRUE);
-
-  if (NS_SUCCEEDED(rv))
-    rv = observerService->AddObserver(this, "profile-do-change", PR_TRUE);
+  nsCOMPtr<nsIObserverService> observerService = 
+           do_GetService("@mozilla.org/observer-service;1", &rv);
+  if (observerService) {
+    rv = observerService->AddObserver(this, "profile-before-change", PR_TRUE);
+    if (NS_SUCCEEDED(rv)) {
+      rv = observerService->AddObserver(this, "profile-do-change", PR_TRUE);
+    }
+  }
 
   return(rv);
 }
@@ -248,10 +247,12 @@ NS_IMETHODIMP nsPrefService::GetDefaultBranch(const char *aPrefRoot, nsIPrefBran
 
 nsresult nsPrefService::NotifyServiceObservers(const char *aTopic)
 {
+  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService = 
-    mozilla::services::GetObserverService();  
-  if (!observerService)
-    return NS_ERROR_FAILURE;
+    do_GetService("@mozilla.org/observer-service;1", &rv);
+  
+  if (NS_FAILED(rv) || !observerService)
+    return rv;
 
   nsISupports *subject = (nsISupports *)((nsIPrefService *)this);
   observerService->NotifyObservers(subject, aTopic, nsnull);
@@ -703,10 +704,11 @@ static nsresult pref_InitInitialObjects()
   NS_CreateServicesFromCategory(NS_PREFSERVICE_APPDEFAULTS_TOPIC_ID,
                                 nsnull, NS_PREFSERVICE_APPDEFAULTS_TOPIC_ID);
 
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService)
-    return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIObserverService> observerService = 
+    do_GetService("@mozilla.org/observer-service;1", &rv);
+  
+  if (NS_FAILED(rv) || !observerService)
+    return rv;
 
   observerService->NotifyObservers(nsnull, NS_PREFSERVICE_APPDEFAULTS_TOPIC_ID, nsnull);
 

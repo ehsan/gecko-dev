@@ -64,9 +64,7 @@ class nsCanvasFrame : public nsHTMLContainerFrame,
 {
 public:
   nsCanvasFrame(nsStyleContext* aContext)
-  : nsHTMLContainerFrame(aContext),
-    mDoPaintFocus(PR_FALSE),
-    mAddedScrollPositionListener(PR_FALSE),
+  : nsHTMLContainerFrame(aContext), mDoPaintFocus(PR_FALSE),
     mAbsoluteContainer(nsGkAtoms::absoluteList) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsCanvasFrame)

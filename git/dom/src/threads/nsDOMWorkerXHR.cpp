@@ -354,7 +354,7 @@ nsDOMWorkerXHR::~nsDOMWorkerXHR()
   if (mXHRProxy) {
     if (!NS_IsMainThread()) {
       nsCOMPtr<nsIRunnable> runnable =
-        NS_NewRunnableMethod(mXHRProxy, &nsDOMWorkerXHRProxy::Destroy);
+        NS_NEW_RUNNABLE_METHOD(nsDOMWorkerXHRProxy, mXHRProxy.get(), Destroy);
 
       if (runnable) {
         mXHRProxy = nsnull;

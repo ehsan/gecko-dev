@@ -153,7 +153,6 @@
 #endif
 #include "nsIController.h"
 #include "nsICommandParams.h"
-#include "mozilla/Services.h"
 
 #ifdef XP_MACOSX
 #import <ApplicationServices/ApplicationServices.h>
@@ -273,10 +272,10 @@ NS_IMPL_ISUPPORTS1(nsUITimerCallback, nsITimerCallback)
 NS_IMETHODIMP
 nsUITimerCallback::Notify(nsITimer* aTimer)
 {
+  nsresult rv;
   nsCOMPtr<nsIObserverService> obs =
-    mozilla::services::GetObserverService();
-  if (!obs)
-    return NS_ERROR_FAILURE;
+      do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
   if ((gMouseOrKeyboardEventCounter == mPreviousCount) || !aTimer) {
     gMouseOrKeyboardEventCounter = 0;
     obs->NotifyObservers(nsnull, "user-interaction-inactive", nsnull);
@@ -790,10 +789,10 @@ nsEventStateManager::nsEventStateManager()
 NS_IMETHODIMP
 nsEventStateManager::Init()
 {
+  nsresult rv;
   nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService)
-    return NS_ERROR_FAILURE;
+           do_GetService("@mozilla.org/observer-service;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   observerService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_TRUE);
 
@@ -833,7 +832,7 @@ nsEventStateManager::Init()
     prefBranch->AddObserver("dom.popup_allowed_events", this, PR_TRUE);
   }
 
-  return NS_OK;
+  return rv;
 }
 
 nsEventStateManager::~nsEventStateManager()
@@ -862,9 +861,11 @@ nsEventStateManager::~nsEventStateManager()
     // gets called from xpcom shutdown observer.  And we don't want to remove
     // from the service in that case.
 
+    nsresult rv;
+
     nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-    if (observerService) {
+             do_GetService("@mozilla.org/observer-service;1", &rv);
+    if (NS_SUCCEEDED(rv)) {
       observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
     }
   }
@@ -1046,7 +1047,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
        aEvent->eventStructType == NS_KEY_EVENT)) {
     if (gMouseOrKeyboardEventCounter == 0) {
       nsCOMPtr<nsIObserverService> obs =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
       if (obs) {
         obs->NotifyObservers(nsnull, "user-interaction-active", nsnull);
       }
@@ -2760,7 +2761,7 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
         // designMode.  In designMode, all contents are not focusable.
         if (newFocus && !newFocus->IsEditable()) {
           nsIDocument *doc = newFocus->GetCurrentDoc();
-          if (doc && newFocus == doc->GetRootElement()) {
+          if (doc && newFocus == doc->GetRootContent()) {
             nsIContent *bodyContent =
               nsLayoutUtils::GetEditableRootContentByContentEditable(doc);
             if (bodyContent) {
@@ -3616,7 +3617,7 @@ nsEventStateManager::GenerateMouseEnterExit(nsGUIEvent* aEvent)
         // We're always over the document root, even if we're only
         // over dead space in a page (whose frame is not associated with
         // any content) or in print preview dead space
-        targetElement = mDocument->GetRootElement();
+        targetElement = mDocument->GetRootContent();
       }
       if (targetElement) {
         NotifyMouseOver(aEvent, targetElement);
@@ -4281,7 +4282,7 @@ nsEventStateManager::ContentRemoved(nsIDocument* aDocument, nsIContent* aContent
 {
   // inform the focus manager that the content is being removed. If this
   // content is focused, the focus will be removed without firing events.
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
   if (fm)
     fm->ContentRemoved(aDocument, aContent);
 

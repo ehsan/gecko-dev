@@ -36,13 +36,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsHTMLFormControlAccessible.h"
-
+// NOTE: alphabetically ordered
 #include "nsAccessibilityAtoms.h"
-#include "nsAccUtils.h"
-#include "nsRelUtils.h"
-#include "nsTextEquivUtils.h"
-
+#include "nsHTMLFormControlAccessible.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMNSHTMLInputElement.h"
 #include "nsIDOMHTMLInputElement.h"

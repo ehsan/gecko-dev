@@ -44,8 +44,6 @@
 
 #include <Carbon/Carbon.h>
 
-class gfxContext;
-
 class THEBES_API gfxQuartzSurface : public gfxASurface {
 public:
     gfxQuartzSurface(const gfxSize& size, gfxImageFormat format, PRBool aForPrinting = PR_FALSE);
@@ -57,8 +55,6 @@ public:
     const gfxSize& GetSize() const { return mSize; }
 
     CGContextRef GetCGContext() { return mCGContext; }
-
-    CGContextRef GetCGContextWithClip(gfxContext *ctx);
 
     virtual PRInt32 GetDefaultContextFlags() const;
 

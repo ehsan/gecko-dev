@@ -39,11 +39,7 @@
 
 #include "nsHTMLTableAccessible.h"
 
-#include "nsAccessibilityService.h"
-#include "nsAccUtils.h"
 #include "nsDocAccessible.h"
-#include "nsRelUtils.h"
-#include "nsTextEquivUtils.h"
 
 #include "nsIDOMElement.h"
 #include "nsIDOMDocument.h"
@@ -52,6 +48,8 @@
 #include "nsISelection2.h"
 #include "nsISelectionPrivate.h"
 #include "nsINameSpaceManager.h"
+#include "nsIAccessibilityService.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLTableCellElement.h"
 #include "nsIDOMHTMLTableElement.h"
@@ -59,6 +57,7 @@
 #include "nsIDOMHTMLTableSectionElem.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
+#include "nsIServiceManager.h"
 #include "nsITableLayout.h"
 #include "nsITableCellLayout.h"
 #include "nsFrameSelection.h"
@@ -407,7 +406,7 @@ nsHTMLTableHeaderCellAccessible::GetRoleInternal(PRUint32 *aRole)
 
   for (PRInt32 idx = indexInParent - 1; idx >= 0; idx--) {
     nsIContent* sibling = parent->GetChildAt(idx);
-    if (sibling && sibling->IsElement()) {
+    if (sibling && sibling->IsNodeOfType(nsINode::eELEMENT)) {
       if (nsCoreUtils::IsHTMLTableHeader(sibling))
         *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
       else
@@ -420,7 +419,7 @@ nsHTMLTableHeaderCellAccessible::GetRoleInternal(PRUint32 *aRole)
   PRInt32 childCount = parent->GetChildCount();
   for (PRInt32 idx = indexInParent + 1; idx < childCount; idx++) {
     nsIContent* sibling = parent->GetChildAt(idx);
-    if (sibling && sibling->IsElement()) {
+    if (sibling && sibling->IsNodeOfType(nsINode::eELEMENT)) {
       if (nsCoreUtils::IsHTMLTableHeader(sibling))
         *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
       else
@@ -1503,7 +1502,7 @@ nsHTMLTableAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
     nsCOMPtr<nsIAccessibleDocument> docAccessible = GetDocAccessible();
     NS_ENSURE_TRUE(docAccessible, NS_ERROR_FAILURE);
 
-    nsRefPtr<nsAccessNode> docAccessNode = do_QueryObject(docAccessible);
+    nsRefPtr<nsAccessNode> docAccessNode = nsAccUtils::QueryAccessNode(docAccessible);
 
     nsIFrame *docFrame = docAccessNode->GetFrame();
     NS_ENSURE_TRUE(docFrame , NS_ERROR_FAILURE);

@@ -59,9 +59,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsINodeInfo.h"
 #include "nsIPrincipal.h"
-#include "Element.h"
-
-using namespace mozilla::dom;
 
 nsresult
 NS_NewXBLContentSink(nsIXMLContentSink** aResult,
@@ -894,10 +891,7 @@ nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
 
   AddAttributesToXULPrototype(aAtts, aAttsCount, prototype);
 
-  Element* result;
-  nsresult rv = nsXULElement::Create(prototype, mDocument, PR_FALSE, &result);
-  *aResult = result;
-  return rv;
+  return nsXULElement::Create(prototype, mDocument, PR_FALSE, aResult);
 #endif
 }
 

@@ -58,7 +58,6 @@
 #include "nsIObserver.h"
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
-#include "nsPIDOMWindow.h"
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
 #endif // MOZ_SMIL
@@ -73,6 +72,7 @@ class nsIStyleRule;
 class nsICSSStyleSheet;
 class nsIViewManager;
 class nsIScriptGlobalObject;
+class nsPIDOMWindow;
 class nsIDOMEvent;
 class nsIDOMEventTarget;
 class nsIDeviceContext;
@@ -111,13 +111,12 @@ class Loader;
 
 namespace dom {
 class Link;
-class Element;
 } // namespace dom
 } // namespace mozilla
 
 #define NS_IDOCUMENT_IID      \
-{ 0x56d981ce, 0x7f03, 0x4d90, \
-  { 0xb2, 0x40, 0x72, 0x08, 0xb6, 0x28, 0x73, 0x06 } }
+{ 0x4a0c9bfa, 0xef60, 0x4bb2, \
+  { 0x87, 0x5e, 0xac, 0xdb, 0xe8, 0xfe, 0xa1, 0xb5 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -471,34 +470,32 @@ public:
   virtual nsIContent *FindContentForSubDocument(nsIDocument *aDocument) const = 0;
 
   /**
-   * Return the root element for this document.
+   * Return the root content object for this document.
    */
-  mozilla::dom::Element *GetRootElement() const
+  nsIContent *GetRootContent() const
   {
-    return (mCachedRootElement &&
-            mCachedRootElement->GetNodeParent() == this) ?
-           reinterpret_cast<mozilla::dom::Element*>(mCachedRootElement.get()) :
-           GetRootElementInternal();
+    return (mCachedRootContent &&
+            mCachedRootContent->GetNodeParent() == this) ?
+           reinterpret_cast<nsIContent*>(mCachedRootContent.get()) :
+           GetRootContentInternal();
   }
-protected:
-  virtual mozilla::dom::Element *GetRootElementInternal() const = 0;
+  virtual nsIContent *GetRootContentInternal() const = 0;
 
-public:
   // Get the root <html> element, or return null if there isn't one (e.g.
   // if the root isn't <html>)
-  mozilla::dom::Element* GetHtmlElement();
+  nsIContent* GetHtmlContent();
   // Returns the first child of GetHtmlContent which has the given tag,
   // or nsnull if that doesn't exist.
-  mozilla::dom::Element* GetHtmlChildElement(nsIAtom* aTag);
+  nsIContent* GetHtmlChildContent(nsIAtom* aTag);
   // Get the canonical <body> element, or return null if there isn't one (e.g.
   // if the root isn't <html> or if the <body> isn't there)
-  mozilla::dom::Element* GetBodyElement() {
-    return GetHtmlChildElement(nsGkAtoms::body);
+  nsIContent* GetBodyContent() {
+    return GetHtmlChildContent(nsGkAtoms::body);
   }
   // Get the canonical <head> element, or return null if there isn't one (e.g.
   // if the root isn't <html> or if the <head> isn't there)
-  mozilla::dom::Element* GetHeadElement() {
-    return GetHtmlChildElement(nsGkAtoms::head);
+  nsIContent* GetHeadContent() {
+    return GetHtmlChildContent(nsGkAtoms::head);
   }
   
   /**
@@ -636,10 +633,7 @@ public:
   /**
    * Return the window containing the document (the outer window).
    */
-  nsPIDOMWindow *GetWindow()
-  {
-    return mWindow ? mWindow->GetOuterWindow() : GetWindowInternal();
-  }
+  virtual nsPIDOMWindow *GetWindow() = 0;
 
   /**
    * Return the inner window used as the script compilation scope for
@@ -1354,9 +1348,6 @@ protected:
 
   nsPropertyTable* GetExtraPropertyTable(PRUint16 aCategory);
 
-  // Never ever call this. Only call GetWindow!
-  virtual nsPIDOMWindow *GetWindowInternal() = 0;
-
   // Never ever call this. Only call GetInnerWindow!
   virtual nsPIDOMWindow *GetInnerWindowInternal() = 0;
 
@@ -1382,10 +1373,10 @@ protected:
   // This is just a weak pointer; the parent document owns its children.
   nsIDocument* mParentDocument;
 
-  // A reference to the element last returned from GetRootElement().
-  // This should be an Element, but that would force us to pull in
-  // Element.h and therefore nsIContent.h.
-  nsCOMPtr<nsINode> mCachedRootElement;
+  // A reference to the content last returned from GetRootContent().
+  // This should be an nsIContent, but that would force us to pull in
+  // nsIContent.h
+  nsCOMPtr<nsINode> mCachedRootContent;
 
   // We'd like these to be nsRefPtrs, but that'd require us to include
   // additional headers that we don't want to expose.

@@ -60,7 +60,6 @@
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #include "nsCRT.h"
-#include "mozilla/Services.h"
 
 #include "gfxASurface.h"
 #include "gfxXlibSurface.h"
@@ -113,7 +112,7 @@ nsDragService::nsDragService()
     // We have to destroy the hidden widget before the event loop stops
     // running.
     nsCOMPtr<nsIObserverService> obsServ =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
     obsServ->AddObserver(this, "quit-application", PR_FALSE);
 
     // our hidden source widget

@@ -1263,8 +1263,7 @@ nsObjectFrame::SetAbsoluteScreenPosition(nsIDOMElement* element,
 
 nsresult
 nsObjectFrame::PluginEventNotifier::Run() {
-  nsCOMPtr<nsIObserverService> obsSvc =
-    mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obsSvc = do_GetService("@mozilla.org/observer-service;1");
   obsSvc->NotifyObservers(nsnull, "plugin-changed-event", mEventType.get());
   return NS_OK;
 }
@@ -4397,26 +4396,21 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
       EventRecord synthCarbonEvent;
 #endif
       NPCocoaEvent synthCocoaEvent;
+
       void* event = anEvent.pluginEvent;
-      nsPoint pt =
-        nsLayoutUtils::GetEventCoordinatesRelativeTo(&anEvent, mObjectFrame) -
-        mObjectFrame->GetUsedBorderAndPadding().TopLeft();
-      nsPresContext* presContext = mObjectFrame->PresContext();
-      nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
-                      presContext->AppUnitsToDevPixels(pt.y));
-#ifndef NP_NO_CARBON
-      nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
-      Point carbonPt = { ptPx.y + geckoScreenCoords.y, ptPx.x + geckoScreenCoords.x };
-      if (eventModel == NPEventModelCarbon) {
-        if (event && anEvent.eventStructType == NS_MOUSE_EVENT) {
-          static_cast<EventRecord*>(event)->where = carbonPt;
-        }
-      }
-#endif
+
       if (!event) {
+        nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(&anEvent, mObjectFrame)
+          - mObjectFrame->GetUsedBorderAndPadding().TopLeft();
+        nsPresContext* presContext = mObjectFrame->PresContext();
+        nsIntPoint ptPx(presContext->AppUnitsToDevPixels(pt.x),
+                        presContext->AppUnitsToDevPixels(pt.y));
 
 #ifndef NP_NO_CARBON
         if (eventModel == NPEventModelCarbon) {
+          nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
+          Point carbonPt = { ptPx.y + geckoScreenCoords.y, ptPx.x + geckoScreenCoords.x };
+
           event = &synthCarbonEvent;
           InitializeEventRecord(&synthCarbonEvent, &carbonPt);
         } else
@@ -4433,8 +4427,12 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           if (eventModel == NPEventModelCarbon) {
             synthCarbonEvent.what = (anEvent.message == NS_FOCUS_CONTENT) ?
             NPEventType_GetFocusEvent : NPEventType_LoseFocusEvent;
-          }
+          } else
 #endif
+          {
+            synthCocoaEvent.type = NPCocoaEventFocusChanged;
+            synthCocoaEvent.data.focus.hasFocus = (anEvent.message == NS_FOCUS_CONTENT);
+          }
           break;
         case NS_MOUSE_MOVE:
           {

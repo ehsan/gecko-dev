@@ -60,7 +60,6 @@
 #include "nsICacheService.h"
 #include "nsIObserverService.h"
 #include "prclist.h"
-#include "mozilla/Services.h"
 
 // For calculating max history entries and max cachable contentviewers
 #include "nspr.h"
@@ -254,7 +253,7 @@ nsSHistory::Startup()
                           obs, PR_FALSE);
 
       nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
+        do_GetService("@mozilla.org/observer-service;1");
       if (obsSvc) {
         // Observe empty-cache notifications so tahat clearing the disk/memory
         // cache will also evict all content viewers.

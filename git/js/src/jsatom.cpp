@@ -562,12 +562,12 @@ js_pinned_atom_tracer(JSDHashTable *table, JSDHashEntryHdr *hdr,
 }
 
 void
-js_TraceAtomState(JSTracer *trc)
+js_TraceAtomState(JSTracer *trc, JSBool allAtoms)
 {
     JSRuntime *rt = trc->context->runtime;
     JSAtomState *state = &rt->atomState;
 
-    if (rt->gcKeepAtoms) {
+    if (allAtoms) {
         JS_DHashTableEnumerate(&state->doubleAtoms, js_locked_atom_tracer, trc);
         JS_DHashTableEnumerate(&state->stringAtoms, js_locked_atom_tracer, trc);
     } else {

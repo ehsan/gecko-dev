@@ -423,6 +423,7 @@ WrapFunction(JSContext *cx, JSObject *scope, JSObject *funobj, jsval *rval)
     }
 
     JS_GetReservedSlot(cx, funobj, XPCWrapper::eWrappedFunctionSlot, &funobjVal);
+    funobj = JSVAL_TO_OBJECT(funobjVal);
   }
 
   JSFunction *funWrapper =

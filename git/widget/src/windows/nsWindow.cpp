@@ -154,7 +154,6 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsString.h"
-#include "mozilla/Services.h"
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
@@ -205,8 +204,6 @@
 #include "npapi.h"
 
 #include "nsWindowDefs.h"
-
-#include "mozilla/FunctionTimer.h"
 
 #ifdef WINCE_WINDOWS_MOBILE
 #include "nsGfxCIID.h"
@@ -1088,18 +1085,6 @@ NS_METHOD nsWindow::Show(PRBool bState)
        mWindowType == eWindowType_popup))
   {
     splash->Close();
-  }
-#endif
-
-#ifdef NS_FUNCTION_TIMER
-  static bool firstShow = true;
-  if (firstShow &&
-      (mWindowType == eWindowType_toplevel ||
-       mWindowType == eWindowType_dialog ||
-       mWindowType == eWindowType_popup))
-  {
-    firstShow = false;
-    mozilla::FunctionTimer::LogMessage("First toplevel/dialog/popup showing");
   }
 #endif
 
@@ -3848,9 +3833,6 @@ nsWindow::IPCWindowProcHandler(UINT& msg, WPARAM& wParam, LPARAM& lParam)
     break;
     // Wheel events forwarded from the child.
     case WM_MOUSEWHEEL:
-    case WM_MOUSEHWHEEL:
-    case WM_HSCROLL:
-    case WM_VSCROLL:
     // Plugins taking or losing focus triggering focus app messages.
     case WM_SETFOCUS:
     case WM_KILLFOCUS:
@@ -4084,7 +4066,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         // Ask if it's ok to quit, and store the answer until we
         // get WM_ENDSESSION signaling the round is complete.
         nsCOMPtr<nsIObserverService> obsServ =
-          mozilla::services::GetObserverService();
+          do_GetService("@mozilla.org/observer-service;1");
         nsCOMPtr<nsISupportsPRBool> cancelQuit =
           do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
         cancelQuit->SetData(PR_FALSE);
@@ -4110,7 +4092,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         // require having a chance to pump some messages. Unfortunately
         // Windows won't let us do that. Bug 212316.
         nsCOMPtr<nsIObserverService> obsServ =
-          mozilla::services::GetObserverService();
+          do_GetService("@mozilla.org/observer-service;1");
         NS_NAMED_LITERAL_STRING(context, "shutdown-persist");
         obsServ->NotifyObservers(nsnull, "quit-application-granted", nsnull);
         obsServ->NotifyObservers(nsnull, "quit-application-forced", nsnull);
@@ -4999,10 +4981,11 @@ void nsWindow::GlobalMsgWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 #ifndef WINCE
 void nsWindow::PostSleepWakeNotification(const char* aNotification)
 {
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
   if (observerService)
+  {
     observerService->NotifyObservers(nsnull, aNotification, nsnull);
+  }
 }
 #endif
 

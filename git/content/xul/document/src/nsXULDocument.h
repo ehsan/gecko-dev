@@ -153,8 +153,8 @@ public:
                                 nsCOMArray<nsIContent>& aElements);
 
     NS_IMETHOD GetScriptGlobalObjectOwner(nsIScriptGlobalObjectOwner** aGlobalOwner);
-    NS_IMETHOD AddSubtreeToDocument(nsIContent* aContent);
-    NS_IMETHOD RemoveSubtreeFromDocument(nsIContent* aContent);
+    NS_IMETHOD AddSubtreeToDocument(nsIContent* aElement);
+    NS_IMETHOD RemoveSubtreeFromDocument(nsIContent* aElement);
     NS_IMETHOD SetTemplateBuilderFor(nsIContent* aContent,
                                      nsIXULTemplateBuilder* aBuilder);
     NS_IMETHOD GetTemplateBuilderFor(nsIContent* aContent,
@@ -235,10 +235,10 @@ protected:
                                                  nsCOMArray<nsIContent>& aElements);
 
     nsresult
-    AddElementToDocumentPre(mozilla::dom::Element* aElement);
+    AddElementToDocumentPre(nsIContent* aElement);
 
     nsresult
-    AddElementToDocumentPost(mozilla::dom::Element* aElement);
+    AddElementToDocumentPost(nsIContent* aElement);
 
     nsresult
     ExecuteOnBroadcastHandlerFor(nsIContent* aBroadcaster,
@@ -409,14 +409,13 @@ protected:
      * Note that the resulting content node is not bound to any tree
      */
     nsresult CreateElementFromPrototype(nsXULPrototypeElement* aPrototype,
-                                        mozilla::dom::Element** aResult);
+                                        nsIContent** aResult);
 
     /**
      * Create a hook-up element to which content nodes can be attached for
      * later resolution.
      */
-    nsresult CreateOverlayElement(nsXULPrototypeElement* aPrototype,
-                                  mozilla::dom::Element** aResult);
+    nsresult CreateOverlayElement(nsXULPrototypeElement* aPrototype, nsIContent** aResult);
 
     /**
      * Add attributes from the prototype to the element.
@@ -485,12 +484,12 @@ protected:
     {
     protected:
         nsXULDocument* mDocument;              // [WEAK]
-        nsCOMPtr<mozilla::dom::Element> mObservesElement; // [OWNER]
+        nsCOMPtr<nsIContent> mObservesElement; // [OWNER]
         PRBool mResolved;
 
     public:
         BroadcasterHookup(nsXULDocument* aDocument,
-                          mozilla::dom::Element* aObservesElement)
+                          nsIContent* aObservesElement)
             : mDocument(aDocument),
               mObservesElement(aObservesElement),
               mResolved(PR_FALSE)
@@ -550,14 +549,14 @@ protected:
     // values of the out params should not be relied on (though *aListener and
     // *aBroadcaster do need to be released if non-null, of course).
     nsresult
-    FindBroadcaster(mozilla::dom::Element* aElement,
+    FindBroadcaster(nsIContent* aElement,
                     nsIDOMElement** aListener,
                     nsString& aBroadcasterID,
                     nsString& aAttribute,
                     nsIDOMElement** aBroadcaster);
 
     nsresult
-    CheckBroadcasterHookup(mozilla::dom::Element* aElement,
+    CheckBroadcasterHookup(nsIContent* aElement,
                            PRBool* aNeedsHookup,
                            PRBool* aDidResolve);
 

@@ -78,9 +78,6 @@
 #include "nsCSSProps.h"
 #include "nsTArray.h"
 #include "nsContentUtils.h"
-#include "Element.h"
-
-using namespace mozilla::dom;
 
 #define NS_SET_IMAGE_REQUEST(method_, context_, request_)                   \
   if ((context_)->PresContext()->IsDynamic()) {                               \
@@ -230,7 +227,7 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
         // than font size, so rem is relative to the root element's font size.
         nsRefPtr<nsStyleContext> rootStyle;
         const nsStyleFont *rootStyleFont = aStyleFont;
-        Element* docElement = aPresContext->Document()->GetRootElement();
+        nsIContent* docElement = aPresContext->Document()->GetRootContent();
 
         rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
                                                               nsnull);
@@ -2312,7 +2309,7 @@ nsRuleNode::AdjustLogicalBoxProp(nsStyleContext* aContext,
                                  const nsCSSValue& aRTLSource,
                                  const nsCSSValue& aLTRLogicalValue,
                                  const nsCSSValue& aRTLLogicalValue,
-                                 mozilla::css::Side aSide,
+                                 PRUint8 aSide,
                                  nsCSSRect& aValueRect,
                                  PRBool& aCanStoreInRuleTree)
 {

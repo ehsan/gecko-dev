@@ -73,9 +73,6 @@
 #include "nsIDocShellTreeItem.h"
 #include "nsThreadUtils.h"
 #include "nsIScrollableFrame.h"
-#include "Element.h"
-
-using namespace mozilla::dom;
 
 #define AUTOMATIC_IMAGE_RESIZING_PREF "browser.enable_automatic_image_resizing"
 #define CLICK_IMAGE_RESIZING_PREF "browser.enable_click_image_resizing"
@@ -403,7 +400,7 @@ nsImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObjec
   nsHTMLDocument::SetScriptGlobalObject(aScriptGlobalObject);
 
   if (aScriptGlobalObject) {
-    if (!GetRootElement()) {
+    if (!GetRootContent()) {
       // Create synthetic document
 #ifdef DEBUG
       nsresult rv =
@@ -572,7 +569,7 @@ nsImageDocument::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
   aImage->GetWidth(&mImageWidth);
   aImage->GetHeight(&mImageHeight);
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &nsImageDocument::DefaultCheckOverflowing);
+    NS_NEW_RUNNABLE_METHOD(nsImageDocument, this, DefaultCheckOverflowing);
   nsContentUtils::AddScriptRunner(runnable);
   UpdateTitleAndCharset();
 
@@ -646,7 +643,7 @@ nsImageDocument::CreateSyntheticDocument()
   nsresult rv = nsMediaDocument::CreateSyntheticDocument();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  Element* body = GetBodyElement();
+  nsIContent* body = GetBodyContent();
   if (!body) {
     NS_WARNING("no body on image document!");
     return NS_ERROR_FAILURE;
@@ -695,14 +692,14 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
     nsPresContext *context = shell->GetPresContext();
     nsRect visibleArea = context->GetVisibleArea();
 
-    Element* body = GetBodyElement();
-    if (!body) {
+    nsIContent* content = GetBodyContent();
+    if (!content) {
       NS_WARNING("no body on image document!");
       return NS_ERROR_FAILURE;
     }
 
     nsRefPtr<nsStyleContext> styleContext =
-      context->StyleSet()->ResolveStyleFor(body, nsnull);
+      context->StyleSet()->ResolveStyleFor(content, nsnull);
 
     nsMargin m;
     if (styleContext->GetStyleMargin()->GetMargin(m))

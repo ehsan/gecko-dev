@@ -40,8 +40,6 @@
 
 #include "nsMaiInterfaceTable.h"
 
-#include "nsAccUtils.h"
-
 #include "nsArrayUtils.h"
 
 void

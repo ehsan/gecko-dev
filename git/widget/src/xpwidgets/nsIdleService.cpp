@@ -49,7 +49,6 @@
 #include "nsDebug.h"
 #include "nsCOMArray.h"
 #include "prinrval.h"
-#include "mozilla/Services.h"
 
 // observer topics used:
 #define OBSERVER_TOPIC_IDLE "idle"
@@ -81,7 +80,7 @@ nsIdleServiceDaily::Observe(nsISupports *,
 {
   // Notify anyone who cares.
   nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
 
   observerService->NotifyObservers(nsnull,
                                    OBSERVER_TOPIC_IDLE_DAILY,
