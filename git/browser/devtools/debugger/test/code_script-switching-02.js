@@ -5,9 +5,7 @@ function secondCall() {
   // This comment is useful: ☺
   eval("debugger;");
   function foo() {}
-  if (x) {
+  if (true) {
     foo();
   }
 }
-
-var x = true;

@@ -131,9 +131,7 @@ let LoopRoomsInternal = {
     }
 
     Task.spawn(function* () {
-      let deferredInitialization = Promise.defer();
-      MozLoopService.delayedInitialize(deferredInitialization);
-      yield deferredInitialization.promise;
+      yield MozLoopService.promiseRegisteredWithServers();
 
       if (!gDirty) {
         callback(null, [...this.rooms.values()]);

@@ -70,12 +70,8 @@ function isBrowserAppTab(browser) {
       browser.messageManager.removeMessageListener("Test:IsAppTab", listener);
       resolve(data.isAppTab);
     }
-    // It looks like same-process messages may be reordered by the message
-    // manager, so we need to wait one tick before sending the message.
-    executeSoon(function () {
-      browser.messageManager.addMessageListener("Test:IsAppTab", listener);
-      browser.messageManager.sendAsyncMessage("Test:GetIsAppTab");
-    });
+    browser.messageManager.addMessageListener("Test:IsAppTab", listener);
+    browser.messageManager.sendAsyncMessage("Test:GetIsAppTab");
   });
 }
 
