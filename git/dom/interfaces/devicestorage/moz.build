@@ -6,6 +6,7 @@
 XPIDL_SOURCES += [
     'nsIDOMDeviceStorage.idl',
     'nsIDOMDeviceStorageChangeEvent.idl',
+    'nsIDOMDeviceStorageCursor.idl',
     'nsIDOMNavigatorDeviceStorage.idl',
 ]
 

@@ -101,6 +101,9 @@ var BrowserUI = {
     ContextUI.init();
     StartUI.init();
     PanelUI.init();
+    if (Browser.getHomePage() === "about:start") {
+      StartUI.show();
+    }
     FlyoutPanelsUI.init();
     PageThumbs.init();
     SettingsCharm.init();

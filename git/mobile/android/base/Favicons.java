@@ -6,9 +6,8 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.util.GeckoJarReader;
-import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.gecko.util.GeckoJarReader;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpGet;
@@ -83,7 +82,7 @@ public class Favicons {
             putFaviconInMemCache(pageUrl, image);
 
         // We want to always run the listener on UI thread
-        ThreadUtils.postToUiThread(new Runnable() {
+        GeckoAppShell.getMainHandler().post(new Runnable() {
             @Override
             public void run() {
                 if (listener != null)
@@ -112,7 +111,7 @@ public class Favicons {
             return -1;
         }
 
-        LoadFaviconTask task = new LoadFaviconTask(ThreadUtils.getBackgroundHandler(), pageUrl, faviconUrl, persist, listener);
+        LoadFaviconTask task = new LoadFaviconTask(GeckoAppShell.getHandler(), pageUrl, faviconUrl, persist, listener);
 
         long taskId = task.getId();
         mLoadTasks.put(taskId, task);

@@ -8,7 +8,6 @@
 
 #include "nsIJSContextStack.h"
 
-#include "DOMFileRequest.h"
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsError.h"
@@ -20,7 +19,7 @@
 USING_FILE_NAMESPACE
 
 FileRequest::FileRequest(nsIDOMWindow* aWindow)
-  : DOMRequest(aWindow)
+: DOMRequest(aWindow), mIsFileRequest(true)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
@@ -38,13 +37,9 @@ FileRequest::Create(nsIDOMWindow* aOwner,
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  nsRefPtr<FileRequest> request;
-  if (aIsFileRequest) {
-    request = new DOMFileRequest(aOwner);
-  } else {
-    request = new FileRequest(aOwner);
-  }
+  nsRefPtr<FileRequest> request = new FileRequest(aOwner);
   request->mLockedFile = aLockedFile;
+  request->mIsFileRequest = aIsFileRequest;
 
   return request.forget();
 }
@@ -102,14 +97,31 @@ FileRequest::NotifyHelperCompleted(FileHelper* aFileHelper)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+FileRequest::GetLockedFile(nsIDOMLockedFile** aLockedFile)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  nsCOMPtr<nsIDOMLockedFile> lockedFile(mLockedFile);
+  lockedFile.forget(aLockedFile);
+  return NS_OK;
+}
+
 NS_IMPL_CYCLE_COLLECTION_INHERITED_1(FileRequest, DOMRequest,
                                      mLockedFile)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FileRequest)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIDOMFileRequest, mIsFileRequest)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(FileRequest, mIsFileRequest)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(DOMRequest, !mIsFileRequest)
 NS_INTERFACE_MAP_END_INHERITING(DOMRequest)
 
 NS_IMPL_ADDREF_INHERITED(FileRequest, DOMRequest)
 NS_IMPL_RELEASE_INHERITED(FileRequest, DOMRequest)
+
+DOMCI_DATA(FileRequest, FileRequest)
+
+NS_IMPL_EVENT_HANDLER(FileRequest, progress)
 
 void
 FileRequest::FireProgressEvent(uint64_t aLoaded, uint64_t aTotal)

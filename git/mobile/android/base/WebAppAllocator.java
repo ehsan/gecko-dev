@@ -10,7 +10,7 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.util.GeckoBackgroundThread;
 
 public class WebAppAllocator {
     private final String LOGTAG = "GeckoWebAppAllocator";
@@ -70,7 +70,7 @@ public class WebAppAllocator {
             if (!mPrefs.contains(appKey(i))) {
                 // found unused index i
                 final int foundIndex = i;
-                ThreadUtils.postToBackgroundThread(new Runnable() {
+                GeckoBackgroundThread.getHandler().post(new Runnable() {
                     @Override
                     public void run() {
                         int color = 0;
@@ -118,7 +118,7 @@ public class WebAppAllocator {
     }
 
     public synchronized void releaseIndex(final int index) {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
+        GeckoBackgroundThread.getHandler().post(new Runnable() {
             @Override
             public void run() {
                 mPrefs.edit()

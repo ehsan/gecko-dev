@@ -201,9 +201,6 @@ class MoveResolver
     bool hasCycles() const {
         return hasCycles_;
     }
-    void clearTempObjectPool() {
-        movePool_.clear();
-    }
 };
 
 } // namespace ion

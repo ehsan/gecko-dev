@@ -10,7 +10,6 @@
 #include "prprf.h"
 #include "nsString.h"
 #include "nsStreamUtils.h"
-#include "nsTArray.h"
 
 using namespace mozilla;
 using namespace mozilla::image;

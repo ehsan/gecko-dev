@@ -7,7 +7,6 @@
 #ifndef ParseNode_inl_h__
 #define ParseNode_inl_h__
 
-#include "frontend/Parser.h"
 #include "frontend/ParseNode.h"
 
 namespace js {

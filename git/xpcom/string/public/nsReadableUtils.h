@@ -14,8 +14,7 @@
 #ifndef nsAString_h___
 #include "nsAString.h"
 #endif
-
-template<class E> class nsTArray;
+#include "nsTArray.h"
 
 inline size_t Distance( const nsReadingIterator<PRUnichar>& start, const nsReadingIterator<PRUnichar>& end )
   {

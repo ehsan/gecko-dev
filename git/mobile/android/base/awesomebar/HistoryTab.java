@@ -9,7 +9,6 @@ import org.mozilla.gecko.AwesomeBar.ContextMenuSubject;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -356,7 +355,7 @@ public class HistoryTab extends AwesomeBarTab {
 
             if (mContentObserver == null) {
                 // Register an observer to update the history tab contents if they change.
-                mContentObserver = new ContentObserver(ThreadUtils.getBackgroundHandler()) {
+                mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
                     @Override
                     public void onChange(boolean selfChange) {
                         mQueryTask = new HistoryQueryTask();
@@ -369,7 +368,7 @@ public class HistoryTab extends AwesomeBarTab {
             final ExpandableListView historyList = (ExpandableListView)getView();
 
             // Hack: force this to the main thread, even though it should already be on it
-            ThreadUtils.postToUiThread(new Runnable() {
+            GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     historyList.setAdapter(mCursorAdapter);

@@ -6,15 +6,12 @@
 #define nsHttpActivityDistributor_h__
 
 #include "nsIHttpActivityObserver.h"
-#include "nsTArray.h"
-#include "nsProxyRelease.h"
+#include "nsCOMArray.h"
 #include "mozilla/Mutex.h"
-
 
 class nsHttpActivityDistributor : public nsIHttpActivityDistributor
 {
 public:
-    typedef nsTArray<nsMainThreadPtrHandle<nsIHttpActivityObserver> > ObserverArray;
     NS_DECL_ISUPPORTS
     NS_DECL_NSIHTTPACTIVITYOBSERVER
     NS_DECL_NSIHTTPACTIVITYDISTRIBUTOR
@@ -23,7 +20,7 @@ public:
     virtual ~nsHttpActivityDistributor();
 
 protected:
-    ObserverArray mObservers;
+    nsCOMArray<nsIHttpActivityObserver> mObservers;
     mozilla::Mutex mLock;
 };
 

@@ -529,7 +529,7 @@ Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
   : AllocPolicy(ap), mBegin((T *)storage.addr()), mLength(0),
     mCapacity(sInlineCapacity)
 #ifdef DEBUG
-  , mReserved(sInlineCapacity), entered(false)
+  , mReserved(0), entered(false)
 #endif
 {}
 
@@ -566,7 +566,7 @@ Vector<T, N, AllocPolicy>::Vector(MoveRef<Vector> rhs)
         rhs->mCapacity = sInlineCapacity;
         rhs->mLength = 0;
 #ifdef DEBUG
-        rhs->mReserved = sInlineCapacity;
+        rhs->mReserved = 0;
 #endif
     }
 }
@@ -806,7 +806,7 @@ Vector<T,N,AP>::clearAndFree()
     mBegin = (T *)storage.addr();
     mCapacity = sInlineCapacity;
 #ifdef DEBUG
-    mReserved = sInlineCapacity;
+    mReserved = 0;
 #endif
 }
 
@@ -996,7 +996,7 @@ Vector<T,N,AP>::extractRawBuffer()
         mLength = 0;
         mCapacity = sInlineCapacity;
 #ifdef DEBUG
-        mReserved = sInlineCapacity;
+        mReserved = 0;
 #endif
     }
     return ret;

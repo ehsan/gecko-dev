@@ -6,7 +6,6 @@
 #ifndef FRAMEPROPERTYTABLE_H_
 #define FRAMEPROPERTYTABLE_H_
 
-#include "nsTArray.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 

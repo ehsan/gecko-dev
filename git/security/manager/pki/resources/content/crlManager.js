@@ -33,7 +33,7 @@ function onLoad()
   crls = crlManager.getCrls();
   prefService = Components.classes["@mozilla.org/preferences-service;1"].getService(nsIPrefService);
   prefBranch = prefService.getBranch(null);
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var autoupdateEnabledString;
   var autoupdateErrCntString;
 
@@ -46,19 +46,19 @@ function onLoad()
     autoupdateEnabledString    = autoupdateEnabledBaseString + crlEntry.nameInDb;
     autoupdateErrCntString    = autoupdateErrCntBaseString + crlEntry.nameInDb;
     var enabled = false;
-    var enabledStr = bundle.getString("crlAutoupdateNotEnabled");
+    var enabledStr = bundle.GetStringFromName("crlAutoupdateNotEnabled");
     var status = "";
     try{
       enabled = prefBranch.getBoolPref(autoupdateEnabledString)
       if(enabled){
-        enabledStr = bundle.getString("crlAutoupdateEnabled");
+        enabledStr = bundle.GetStringFromName("crlAutoupdateEnabled");
       }
       var cnt;
       cnt = prefBranch.getIntPref(autoupdateErrCntString);
       if(cnt > 0){
-        status = bundle.getString("crlAutoupdateFailed");
+        status = bundle.GetStringFromName("crlAutoupdateFailed");
       } else {
-        status = bundle.getString("crlAutoupdateOk");
+        status = bundle.GetStringFromName("crlAutoupdateOk");
       }
     }catch(exception){}
     

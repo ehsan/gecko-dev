@@ -23,8 +23,8 @@ function onLoad()
     issuer = dialogParams.GetString(2);
 
     // added with bug 431819. reuse string from caps in order to avoid string changes
-    var capsBundle = document.getElementById("caps_bundle");
-    var rememberString = capsBundle.getString("CheckMessage");
+    var capsBundle = srGetStrBundle("chrome://global/locale/security/caps.properties");
+    var rememberString = capsBundle.GetStringFromName("CheckMessage");
     var rememberSetting = true;
 
     var pref = Components.classes['@mozilla.org/preferences-service;1']
@@ -44,9 +44,13 @@ function onLoad()
     rememberBox.label = rememberString;
     rememberBox.checked = rememberSetting;
 
-    var bundle = document.getElementById("pippki_bundle");
-    var message1 = bundle.getFormattedString("clientAuthMessage1", [org]);
-    var message2 = bundle.getFormattedString("clientAuthMessage2", [issuer]);
+    var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+    var message1 = bundle.formatStringFromName("clientAuthMessage1", 
+                                             [org],
+                                             1);
+    var message2 = bundle.formatStringFromName("clientAuthMessage2",
+                                             [issuer],
+                                             1);
     setText("hostname", cn);
     setText("organization", message1);
     setText("issuer", message2);

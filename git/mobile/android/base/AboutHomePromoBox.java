@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 
 import android.accounts.Account;
@@ -71,7 +70,7 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
                     showRandomPromo();
                 }
             };
-            AccountManager.get(mContext).addOnAccountsUpdatedListener(mAccountListener, ThreadUtils.getBackgroundHandler(), false);
+            AccountManager.get(mContext).addOnAccountsUpdatedListener(mAccountListener, GeckoAppShell.getHandler(), false);
         }
         @Override
         public boolean canShow() {
@@ -194,7 +193,7 @@ public class AboutHomePromoBox extends TextView implements View.OnClickListener 
     }
 
     private void getAvailableTypes(final GetTypesCallback callback) {
-        (new UiAsyncTask<Void, Void, ArrayList<Type>>(ThreadUtils.getBackgroundHandler()) {
+        (new UiAsyncTask<Void, Void, ArrayList<Type>>(GeckoAppShell.getHandler()) {
             @Override
             public ArrayList<Type> doInBackground(Void... params) {
                 // Run all of this on a background thread

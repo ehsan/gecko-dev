@@ -28,6 +28,7 @@ struct DefaultAdapterPathRequest
 struct SetPropertyRequest
 {
   BluetoothObjectType type;
+  nsString path;
   BluetoothNamedValue value;
 };
 
@@ -39,20 +40,24 @@ struct GetPropertyRequest
 
 struct StartDiscoveryRequest
 {
+  nsString path;
 };
 
 struct StopDiscoveryRequest
 {
+  nsString path;
 };
 
 struct PairRequest
 {
+  nsString path;
   nsString address;
   uint32_t timeoutMS;
 };
 
 struct UnpairRequest
 {
+  nsString path;
   nsString address;
 };
 
@@ -96,6 +101,7 @@ struct DevicePropertiesRequest
 struct ConnectRequest
 {
   nsString address;
+  nsString adapterPath;
   uint16_t profileId;
 };
 

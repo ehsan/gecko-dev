@@ -5,9 +5,10 @@
 #ifndef mozilla_dom_activities_Activity_h
 #define mozilla_dom_activities_Activity_h
 
-#include "DOMRequest.h"
-#include "mozilla/dom/BindingDeclarations.h"
+#include "nsIDOMActivity.h"
 #include "nsIActivityProxy.h"
+#include "DOMRequest.h"
+#include "nsIJSNativeInitializer.h"
 
 #define NS_DOMACTIVITY_CID                          \
  {0x1c5b0930, 0xc90c, 0x4e9c, {0xaf, 0x4e, 0xb0, 0xb7, 0xa6, 0x59, 0xb4, 0xed}}
@@ -17,40 +18,24 @@
 namespace mozilla {
 namespace dom {
 
-class Activity : public DOMRequest
+class Activity : public nsIDOMMozActivity
+               , public nsIJSNativeInitializer // In order to get a window for the DOMRequest
+               , public DOMRequest
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMMOZACTIVITY
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
+  NS_FORWARD_NSIDOMDOMREQUEST(DOMRequest::)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(Activity, DOMRequest)
 
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-
-  static bool PrefEnabled()
-  {
-#ifdef MOZ_SYS_MSG
-    return true;
-#else
-    return false;
-#endif
-  }
-
-  static already_AddRefed<Activity>
-  Constructor(const GlobalObject& aOwner,
-              nsIDOMMozActivityOptions* aOptions,
-              ErrorResult& aRv)
-  {
-    nsRefPtr<Activity> activity = new Activity();
-    aRv = activity->Initialize(aOwner.Get(), aOptions);
-    return activity.forget();
-  }
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
+                        JSObject* aObject, uint32_t aArgc, jsval* aArgv);
 
   Activity();
 
 protected:
-  nsresult Initialize(nsISupports* aOwner,
-                      nsIDOMMozActivityOptions* aOptions);
-
   nsCOMPtr<nsIActivityProxy> mProxy;
 
   ~Activity();

@@ -129,7 +129,6 @@ struct RuntimeSizes
     size_t temporary;
     size_t jaegerCode;
     size_t ionCode;
-    size_t asmJSCode;
     size_t regexpCode;
     size_t unusedCode;
     size_t regexpData;

@@ -14,8 +14,6 @@
 namespace js {
 namespace ion {
 
-class OutOfLineAsmJSLoadHeapOutOfBounds;
-
 class CodeGeneratorX86 : public CodeGeneratorX86Shared
 {
   private:
@@ -32,7 +30,7 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
                            const Register &elements, const LAllocation *index);
 
   public:
-    CodeGeneratorX86(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
+    CodeGeneratorX86(MIRGenerator *gen, LIRGraph *graph);
 
   public:
     bool visitBox(LBox *box);
@@ -51,17 +49,6 @@ class CodeGeneratorX86 : public CodeGeneratorX86Shared
     bool visitCompareBAndBranch(LCompareBAndBranch *lir);
     bool visitCompareV(LCompareV *lir);
     bool visitCompareVAndBranch(LCompareVAndBranch *lir);
-    bool visitUInt32ToDouble(LUInt32ToDouble *lir);
-    bool visitAsmJSLoadHeap(LAsmJSLoadHeap *ins);
-    bool visitAsmJSStoreHeap(LAsmJSStoreHeap *ins);
-    bool visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins);
-    bool visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins);
-    bool visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins);
-    bool visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins);
-
-    bool visitOutOfLineAsmJSLoadHeapOutOfBounds(OutOfLineAsmJSLoadHeapOutOfBounds *ool);
-
-    void postAsmJSCall(LAsmJSCall *lir);
 };
 
 typedef CodeGeneratorX86 CodeGeneratorSpecific;

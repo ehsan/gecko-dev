@@ -8,8 +8,6 @@
 #ifndef jsion_compileinfo_h__
 #define jsion_compileinfo_h__
 
-#include "Registers.h"
-
 namespace js {
 namespace ion {
 
@@ -38,21 +36,7 @@ class CompileInfo
         executionMode_(executionMode)
     {
         JS_ASSERT_IF(osrPc, JSOp(*osrPc) == JSOP_LOOPENTRY);
-        nimplicit_ = 1 /* scope chain */ + (fun ? 1 /* this */: 0);
-        nargs_ = fun ? fun->nargs : 0;
-        nlocals_ = script->nfixed;
-        nstack_ = script->nslots - script->nfixed;
-        nslots_ = nimplicit_ + nargs_ + nlocals_ + nstack_;
-    }
-
-    CompileInfo(unsigned nlocals)
-      : script_(NULL), fun_(NULL), osrPc_(NULL), constructing_(false)
-    {
-        nimplicit_ = 0;
-        nargs_ = 0;
-        nlocals_ = nlocals;
-        nstack_ = 1;  /* For FunctionCompiler::pushPhiInput/popPhiOutput */
-        nslots_ = nlocals_ + nstack_;
+        nslots_ = script->nslots + CountArgSlots(fun);
     }
 
     RawScript script() const {
@@ -106,17 +90,16 @@ class CompileInfo
     }
 
     unsigned nargs() const {
-        return nargs_;
+        return fun()->nargs;
     }
     unsigned nlocals() const {
-        return nlocals_;
+        return script()->nfixed;
     }
     unsigned ninvoke() const {
-        return nslots_ - nstack_;
+        return nlocals() + CountArgSlots(fun());
     }
 
     uint32_t scopeChainSlot() const {
-        JS_ASSERT(script());
         return 0;
     }
     uint32_t thisSlot() const {
@@ -124,14 +107,14 @@ class CompileInfo
         return 1;
     }
     uint32_t firstArgSlot() const {
-        return nimplicit_;
+        JS_ASSERT(fun());
+        return 2;
     }
     uint32_t argSlot(uint32_t i) const {
-        JS_ASSERT(i < nargs_);
-        return nimplicit_ + i;
+        return firstArgSlot() + i;
     }
     uint32_t firstLocalSlot() const {
-        return nimplicit_ + nargs_;
+        return CountArgSlots(fun());
     }
     uint32_t localSlot(uint32_t i) const {
         return firstLocalSlot() + i;
@@ -156,13 +139,9 @@ class CompileInfo
     }
 
   private:
-    unsigned nimplicit_;
-    unsigned nargs_;
-    unsigned nlocals_;
-    unsigned nstack_;
-    unsigned nslots_;
     JSScript *script_;
     JSFunction *fun_;
+    unsigned nslots_;
     jsbytecode *osrPc_;
     bool constructing_;
     ExecutionMode executionMode_;

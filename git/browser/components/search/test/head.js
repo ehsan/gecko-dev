@@ -41,13 +41,11 @@ function doOnloadOnce(aCallback) {
   function doOnloadOnceListener(aEvent) {
     info("doOnloadOnce: " + aEvent.originalTarget.location);
     removeDoOnloadOnceListener();
-    SimpleTest.executeSoon(function doOnloadOnceCallback() {
-      aCallback(aEvent);
-    });
+    aCallback(aEvent);
   }
   function removeDoOnloadOnceListener() {
-    gBrowser.removeEventListener("load", doOnloadOnceListener, true);
+    gBrowser.removeEventListener("DOMContentLoaded", doOnloadOnceListener);
   }
-  gBrowser.addEventListener("load", doOnloadOnceListener, true);
+  gBrowser.addEventListener("DOMContentLoaded", doOnloadOnceListener);
   registerCleanupFunction(removeDoOnloadOnceListener);
 }

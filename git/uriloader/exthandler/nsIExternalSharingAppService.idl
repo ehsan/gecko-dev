@@ -6,6 +6,7 @@
 
 %{C++
 #define NS_EXTERNALSHARINGAPPSERVICE_CONTRACTID    "@mozilla.org/uriloader/external-sharing-app-service;1"
+#define NS_IEXTERNALSHARINGAPPSERVICE_CLASSNAME "Mozilla Sharing App Service"
 %}
 
 

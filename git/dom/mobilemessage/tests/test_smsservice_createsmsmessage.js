@@ -18,10 +18,10 @@ function do_check_throws(f, result, stack) {
   do_throw("expected result " + result + ", none thrown", stack);
 }
 
-let gMobileMessageService = Cc["@mozilla.org/mobilemessage/mobilemessageservice;1"]
-                            .getService(Ci.nsIMobileMessageService);
+let gSmsService = Cc["@mozilla.org/sms/smsservice;1"]
+                    .getService(Ci.nsISmsService);
 function newMessage() {
-  return gMobileMessageService.createSmsMessage.apply(gMobileMessageService, arguments);
+  return gSmsService.createSmsMessage.apply(gSmsService, arguments);
 }
 
 function run_test() {

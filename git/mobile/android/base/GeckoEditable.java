@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.InputConnectionHandler;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.os.Build;
 import android.os.Handler;
@@ -234,7 +233,7 @@ final class GeckoEditable
 
         void poll() {
             if (DEBUG) {
-                ThreadUtils.assertOnGeckoThread();
+                GeckoApp.assertOnGeckoThread();
             }
             if (mActions.isEmpty()) {
                 throw new IllegalStateException("empty actions queue");
@@ -252,7 +251,7 @@ final class GeckoEditable
 
         Action peek() {
             if (DEBUG) {
-                ThreadUtils.assertOnGeckoThread();
+                GeckoApp.assertOnGeckoThread();
             }
             if (mActions.isEmpty()) {
                 throw new IllegalStateException("empty actions queue");
@@ -297,7 +296,7 @@ final class GeckoEditable
         LayerView v = GeckoApp.mAppContext.getLayerView();
         mListener = GeckoInputConnection.create(v, this);
 
-        mIcRunHandler = mIcPostHandler = ThreadUtils.getUiHandler();
+        mIcRunHandler = mIcPostHandler = GeckoApp.mAppContext.mMainHandler;
     }
 
     private boolean onIcThread() {
@@ -305,7 +304,7 @@ final class GeckoEditable
     }
 
     private void assertOnIcThread() {
-        ThreadUtils.assertOnThread(mIcRunHandler.getLooper().getThread());
+        GeckoApp.assertOnThread(mIcRunHandler.getLooper().getThread());
     }
 
     private void geckoPostToIc(Runnable runnable) {
@@ -599,7 +598,7 @@ final class GeckoEditable
     private void geckoActionReply() {
         if (DEBUG) {
             // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            GeckoApp.assertOnGeckoThread();
         }
         final Action action = mActionQueue.peek();
 
@@ -651,7 +650,7 @@ final class GeckoEditable
     public void notifyIME(final int type, final int state) {
         if (DEBUG) {
             // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            GeckoApp.assertOnGeckoThread();
             // NOTIFY_IME_REPLY_EVENT is logged separately, inside geckoActionReply()
             if (type != NOTIFY_IME_REPLY_EVENT) {
                 Log.d(LOGTAG, "notifyIME(" +
@@ -728,7 +727,7 @@ final class GeckoEditable
     public void onSelectionChange(final int start, final int end) {
         if (DEBUG) {
             // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            GeckoApp.assertOnGeckoThread();
             Log.d(LOGTAG, "onSelectionChange(" + start + ", " + end + ")");
         }
         if (start < 0 || start > mText.length() || end < 0 || end > mText.length()) {
@@ -778,7 +777,7 @@ final class GeckoEditable
                       final int unboundedOldEnd, final int unboundedNewEnd) {
         if (DEBUG) {
             // GeckoEditableListener methods should all be called from the Gecko thread
-            ThreadUtils.assertOnGeckoThread();
+            GeckoApp.assertOnGeckoThread();
             Log.d(LOGTAG, "onTextChange(\"" + text + "\", " + start + ", " +
                           unboundedOldEnd + ", " + unboundedNewEnd + ")");
         }

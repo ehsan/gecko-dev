@@ -154,7 +154,6 @@ enum {
   PREF_jit_hardening,
   PREF_mem_max,
   PREF_ion,
-  PREF_asmjs,
   PREF_mem_gc_allocation_threshold_mb,
 
 #ifdef JS_GC_ZEAL
@@ -175,7 +174,6 @@ const char* gPrefsToWatch[] = {
   JS_OPTIONS_DOT_STR "jit_hardening",
   JS_OPTIONS_DOT_STR "mem.max",
   JS_OPTIONS_DOT_STR "ion.content",
-  JS_OPTIONS_DOT_STR "experimental_asmjs",
   "dom.workers.mem.gc_allocation_threshold_mb"
 
 #ifdef JS_GC_ZEAL
@@ -229,9 +227,6 @@ PrefCallback(const char* aPrefName, void* aClosure)
     }
     if (Preferences::GetBool(gPrefsToWatch[PREF_ion])) {
       newOptions |= JSOPTION_ION;
-    }
-    if (Preferences::GetBool(gPrefsToWatch[PREF_asmjs])) {
-      newOptions |= JSOPTION_ASMJS;
     }
 
     RuntimeService::SetDefaultJSContextOptions(newOptions);

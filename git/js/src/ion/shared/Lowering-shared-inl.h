@@ -114,8 +114,8 @@ LIRGeneratorShared::defineBox(LInstructionHelper<BOX_PIECES, Ops, Temps> *lir, M
     return add(lir);
 }
 
-bool
-LIRGeneratorShared::defineReturn(LInstruction *lir, MDefinition *mir)
+template <size_t Defs, size_t Ops, size_t Temps> bool
+LIRGeneratorShared::defineReturn(LInstructionHelper<Defs, Ops, Temps> *lir, MDefinition *mir)
 {
     lir->setMir(mir);
 
@@ -314,12 +314,6 @@ LUse
 LIRGeneratorShared::useFixed(MDefinition *mir, FloatRegister reg)
 {
     return use(mir, LUse(reg));
-}
-
-LUse
-LIRGeneratorShared::useFixed(MDefinition *mir, AnyRegister reg)
-{
-    return reg.isFloat() ? use(mir, reg.fpu()) : use(mir, reg.gpr());
 }
 
 LDefinition

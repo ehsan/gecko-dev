@@ -2668,16 +2668,17 @@ nsGlobalWindow::GetIsTabModalPromptAllowed()
   return allowTabModal;
 }
 
-EventTarget*
+nsIDOMEventTarget*
 nsGlobalWindow::GetTargetForDOMEvent()
 {
-  return GetOuterWindowInternal();
+  return static_cast<nsIDOMEventTarget*>(GetOuterWindowInternal());
 }
 
-EventTarget*
+nsIDOMEventTarget*
 nsGlobalWindow::GetTargetForEventTargetChain()
 {
-  return IsInnerWindow() ? this : GetCurrentInnerWindowInternal();
+  return IsInnerWindow() ?
+    this : static_cast<nsIDOMEventTarget*>(GetCurrentInnerWindowInternal());
 }
 
 nsresult
@@ -4624,23 +4625,6 @@ nsGlobalWindow::GetLength(uint32_t* aLength)
 {
   *aLength = GetLength();
   return NS_OK;
-}
-
-already_AddRefed<nsIDOMWindow>
-nsGlobalWindow::GetChildWindow(jsid aName)
-{
-  const jschar *chars = JS_GetInternedStringChars(JSID_TO_STRING(aName));
-
-  nsCOMPtr<nsIDocShellTreeNode> dsn(do_QueryInterface(GetDocShell()));
-  NS_ENSURE_TRUE(dsn, nullptr);
-
-  nsCOMPtr<nsIDocShellTreeItem> child;
-  dsn->FindChildWithName(reinterpret_cast<const PRUnichar*>(chars),
-                         false, true, nullptr, nullptr,
-                         getter_AddRefs(child));
-
-  nsCOMPtr<nsIDOMWindow> child_win(do_GetInterface(child));
-  return child_win.forget();
 }
 
 bool

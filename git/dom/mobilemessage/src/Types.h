@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 namespace mobilemessage {
 
-// For MmsMessageData.state and SmsMessageData.deliveryState
+// For SmsMessageData.delivery.
 // Please keep the following files in sync with enum below:
 // embedding/android/GeckoSmsManager.java
 enum DeliveryState {
@@ -21,12 +21,11 @@ enum DeliveryState {
   eDeliveryState_Sending,
   eDeliveryState_Error,
   eDeliveryState_Unknown,
-  eDeliveryState_NotDownloaded,
   // This state should stay at the end.
   eDeliveryState_EndGuard
 };
 
-// For {Mms,Sms}MessageData.deliveryStatus.
+// For SmsMessageData.deliveryStatus.
 enum DeliveryStatus {
   eDeliveryStatus_NotApplicable = 0,
   eDeliveryStatus_Success,
@@ -36,7 +35,7 @@ enum DeliveryStatus {
   eDeliveryStatus_EndGuard
 };
 
-// For {Mms,Sms}FilterData.read.
+// For SmsFilterData.read
 enum ReadState {
   eReadState_Unknown = -1,
   eReadState_Unread,
@@ -45,7 +44,7 @@ enum ReadState {
   eReadState_EndGuard
 };
 
-// For {Mms,Sms}FilterData.messageClass.
+// For SmsFilterData.messageClass
 enum MessageClass {
   eMessageClass_Normal = 0,
   eMessageClass_Class0,

@@ -40,11 +40,10 @@ ExecutablePool::~ExecutablePool()
 }
 
 void
-ExecutableAllocator::sizeOfCode(size_t *jaeger, size_t *ion, size_t *asmJS, size_t *regexp, size_t *unused) const
+ExecutableAllocator::sizeOfCode(size_t *jaeger, size_t *ion, size_t *regexp, size_t *unused) const
 {
     *jaeger = 0;
     *ion    = 0;
-    *asmJS  = 0;
     *regexp = 0;
     *unused = 0;
 
@@ -53,10 +52,9 @@ ExecutableAllocator::sizeOfCode(size_t *jaeger, size_t *ion, size_t *asmJS, size
             ExecutablePool* pool = r.front();
             *jaeger += pool->m_jaegerCodeBytes;
             *ion    += pool->m_ionCodeBytes;
-            *asmJS  += pool->m_asmJSCodeBytes;
             *regexp += pool->m_regexpCodeBytes;
             *unused += pool->m_allocation.size - pool->m_jaegerCodeBytes - pool->m_ionCodeBytes
-                                               - pool->m_asmJSCodeBytes - pool->m_regexpCodeBytes;
+                                               - pool->m_regexpCodeBytes;
         }
     }
 }

@@ -12,7 +12,6 @@
 #include "nsError.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
-#include "nsIDocument.h"
 #include "nsIFile.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"

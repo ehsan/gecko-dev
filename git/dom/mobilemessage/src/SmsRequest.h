@@ -7,7 +7,7 @@
 #define mozilla_dom_mobilemessage_SmsRequest_h
 
 #include "nsIDOMSmsRequest.h"
-#include "nsIMobileMessageCallback.h"
+#include "nsISmsRequest.h"
 #include "nsDOMEventTargetHelper.h"
 
 class nsIDOMMozSmsMessage;
@@ -25,15 +25,15 @@ namespace mobilemessage {
 
 // We need this forwarder to avoid a QI to nsIClassInfo.
 // See: https://bugzilla.mozilla.org/show_bug.cgi?id=775997#c51 
-class SmsRequestForwarder : public nsIMobileMessageCallback
+class SmsRequestForwarder : public nsISmsRequest
 {
   friend class mobilemessage::SmsRequestChild;
 
 public:
   NS_DECL_ISUPPORTS
-  NS_FORWARD_NSIMOBILEMESSAGECALLBACK(mRealRequest->)
+  NS_FORWARD_NSISMSREQUEST(mRealRequest->)
 
-  SmsRequestForwarder(nsIMobileMessageCallback* aRealRequest) {
+  SmsRequestForwarder(nsISmsRequest* aRealRequest) {
     mRealRequest = aRealRequest;
   }
 
@@ -41,26 +41,25 @@ private:
   virtual
   ~SmsRequestForwarder() {}
 
-  nsIMobileMessageCallback* GetRealRequest() {
+  nsISmsRequest* GetRealRequest() {
     return mRealRequest;
   }
 
-  nsCOMPtr<nsIMobileMessageCallback> mRealRequest;
+  nsCOMPtr<nsISmsRequest> mRealRequest;
 };
 
 class SmsManager;
-class MobileMessageManager;
 
 class SmsRequest : public nsDOMEventTargetHelper
                  , public nsIDOMMozSmsRequest
-                 , public nsIMobileMessageCallback
+                 , public nsISmsRequest
 {
 public:
   friend class SmsCursor;
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDOMREQUEST
-  NS_DECL_NSIMOBILEMESSAGECALLBACK
+  NS_DECL_NSISMSREQUEST
   NS_DECL_NSIDOMMOZSMSREQUEST
 
   NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
@@ -69,7 +68,6 @@ public:
                                                          nsDOMEventTargetHelper)
 
   static already_AddRefed<nsIDOMMozSmsRequest> Create(SmsManager* aManager);
-  static already_AddRefed<nsIDOMMozSmsRequest> Create(MobileMessageManager* aManager);
 
   static already_AddRefed<SmsRequest> Create(mobilemessage::SmsRequestParent* requestParent);
   void Reset();
@@ -85,7 +83,6 @@ private:
   SmsRequest() MOZ_DELETE;
 
   SmsRequest(SmsManager* aManager);
-  SmsRequest(MobileMessageManager* aManager);
   SmsRequest(mobilemessage::SmsRequestParent* aParent);
   ~SmsRequest();
 

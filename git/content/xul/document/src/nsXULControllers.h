@@ -13,7 +13,6 @@
 #define nsXULControllers_h__
 
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
 #include "nsWeakPtr.h"
 #include "nsIControllers.h"
 #include "nsISecurityCheckedComponent.h"

@@ -73,14 +73,14 @@ function alertPromptService(title, message)
 
 function exportToFile(parent, cert)
 {
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   if (!cert)
     return;
 
   var nsIFilePicker = Components.interfaces.nsIFilePicker;
   var fp = Components.classes["@mozilla.org/filepicker;1"].
            createInstance(nsIFilePicker);
-  fp.init(parent, bundle.getString("SaveCertAs"),
+  fp.init(parent, bundle.GetStringFromName("SaveCertAs"),
           nsIFilePicker.modeSave);
   var filename = cert.commonName;
   if (!filename.length)
@@ -88,11 +88,11 @@ function exportToFile(parent, cert)
   // remove all whitespace from the default filename
   fp.defaultString = filename.replace(/\s*/g,'');
   fp.defaultExtension = "crt";
-  fp.appendFilter(bundle.getString("CertFormatBase64"), "*.crt; *.pem");
-  fp.appendFilter(bundle.getString("CertFormatBase64Chain"), "*.crt; *.pem");
-  fp.appendFilter(bundle.getString("CertFormatDER"), "*.der");
-  fp.appendFilter(bundle.getString("CertFormatPKCS7"), "*.p7c");
-  fp.appendFilter(bundle.getString("CertFormatPKCS7Chain"), "*.p7c");
+  fp.appendFilter(bundle.GetStringFromName("CertFormatBase64"), "*.crt; *.pem");
+  fp.appendFilter(bundle.GetStringFromName("CertFormatBase64Chain"), "*.crt; *.pem");
+  fp.appendFilter(bundle.GetStringFromName("CertFormatDER"), "*.der");
+  fp.appendFilter(bundle.GetStringFromName("CertFormatPKCS7"), "*.p7c");
+  fp.appendFilter(bundle.GetStringFromName("CertFormatPKCS7Chain"), "*.p7c");
   fp.appendFilters(nsIFilePicker.filterAll);
   var res = fp.show();
   if (res != nsIFilePicker.returnOK && res != nsIFilePicker.returnReplace)
@@ -136,14 +136,14 @@ function exportToFile(parent, cert)
   catch(e) {
     switch (e.result) {
       case Components.results.NS_ERROR_FILE_ACCESS_DENIED:
-        msg = bundle.getString("writeFileAccessDenied");
+        msg = bundle.GetStringFromName("writeFileAccessDenied");
         break;
       case Components.results.NS_ERROR_FILE_IS_LOCKED:
-        msg = bundle.getString("writeFileIsLocked");
+        msg = bundle.GetStringFromName("writeFileIsLocked");
         break;
       case Components.results.NS_ERROR_FILE_NO_DEVICE_SPACE:
       case Components.results.NS_ERROR_FILE_DISK_FULL:
-        msg = bundle.getString("writeFileNoDeviceSpace");
+        msg = bundle.GetStringFromName("writeFileNoDeviceSpace");
         break;
       default:
         msg = e.message;
@@ -152,9 +152,9 @@ function exportToFile(parent, cert)
   }
   if (written != content.length) {
     if (!msg.length)
-      msg = bundle.getString("writeFileUnknownError");
-    alertPromptService(bundle.getString("writeFileFailure"),
-                       bundle.getFormattedString("writeFileFailed",
-                       [fp.file.path, msg]));
+      msg = bundle.GetStringFromName("writeFileUnknownError");
+    alertPromptService(bundle.GetStringFromName("writeFileFailure"),
+                       bundle.formatStringFromName("writeFileFailed",
+                         [ fp.file.path, msg ], 2));
   }
 }

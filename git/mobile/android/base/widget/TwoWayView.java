@@ -213,8 +213,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
     private OnScrollListener mOnScrollListener;
     private int mLastScrollState;
 
-    private View mEmptyView;
-
     public interface OnScrollListener {
 
         /**
@@ -337,7 +335,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         mCheckStates = null;
 
         mRecycler = new RecycleBin();
-        mDataSetObserver = null;
+        mDataSetObserver = new AdapterDataSetObserver();
 
         mAreAllItemsSelectable = true;
 
@@ -725,7 +723,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
     @Override
     public void setAdapter(ListAdapter adapter) {
-        if (mAdapter != null && mDataSetObserver != null) {
+        if (mAdapter != null) {
             mAdapter.unregisterDataSetObserver(mDataSetObserver);
         }
 
@@ -750,9 +748,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
             mOldItemCount = mItemCount;
             mItemCount = adapter.getCount();
 
-            mDataSetObserver = new AdapterDataSetObserver();
             mAdapter.registerDataSetObserver(mDataSetObserver);
-
             mRecycler.setViewTypeCount(adapter.getViewTypeCount());
 
             mHasStableIds = adapter.hasStableIds();
@@ -776,10 +772,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
             mAreAllItemsSelectable = true;
 
             checkSelectionChanged();
-        }
-
-        if (mEmptyView != null) {
-            updateEmptyStatus();
         }
 
         requestLayout();
@@ -4380,10 +4372,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
             }
         }
 
-        public boolean shouldRecycleViewType(int viewType) {
-            return viewType >= 0;
-        }
-
         void clear() {
             if (mViewTypeCount == 1) {
                 final ArrayList<View> scrap = mCurrentScrap;
@@ -4483,26 +4471,10 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
             lp.scrappedFromPosition = position;
 
-            final int viewType = lp.viewType;
-            final boolean scrapHasTransientState = ViewCompat.hasTransientState(scrap);
-
-            // Don't put views that should be ignored into the scrap heap
-            if (!shouldRecycleViewType(viewType) || scrapHasTransientState) {
-                if (scrapHasTransientState) {
-                    if (mTransientStateViews == null) {
-                        mTransientStateViews = new SparseArrayCompat<View>();
-                    }
-
-                    mTransientStateViews.put(position, scrap);
-                }
-
-                return;
-            }
-
             if (mViewTypeCount == 1) {
                 mCurrentScrap.add(scrap);
             } else {
-                mScrapViews[viewType].add(scrap);
+                mScrapViews[lp.viewType].add(scrap);
             }
 
             if (mRecyclerListener != null) {
@@ -4526,7 +4498,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
                     activeViews[i] = null;
 
                     final boolean scrapHasTransientState = ViewCompat.hasTransientState(victim);
-                    if (!shouldRecycleViewType(whichScrap) || scrapHasTransientState) {
+                    if (scrapHasTransientState) {
                         if (scrapHasTransientState) {
                             removeDetachedView(victim, false);
 
@@ -4618,40 +4590,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    @Override
-    public void setEmptyView(View emptyView) {
-        super.setEmptyView(emptyView);
-        mEmptyView = emptyView;
-        updateEmptyStatus();
-    }
-
-    private void updateEmptyStatus() {
-        final boolean isEmpty = (mAdapter == null || mAdapter.isEmpty());
-        if (isEmpty) {
-            if (mEmptyView != null) {
-                mEmptyView.setVisibility(View.VISIBLE);
-                setVisibility(View.GONE);
-            } else {
-                // If the caller just removed our empty view, make sure the list
-                // view is visible
-                setVisibility(View.VISIBLE);
-            }
-
-            // We are now GONE, so pending layouts will not be dispatched.
-            // Force one here to make sure that the state of the list matches
-            // the state of the adapter.
-            if (mDataChanged) {
-                this.onLayout(false, getLeft(), getTop(), getRight(), getBottom());
-            }
-        } else {
-            if (mEmptyView != null) {
-                mEmptyView.setVisibility(View.GONE);
-            }
-
-            setVisibility(View.VISIBLE);
-        }
-    }
-
     private class AdapterDataSetObserver extends DataSetObserver {
         private Parcelable mInstanceState = null;
 
@@ -4669,10 +4607,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
                 mInstanceState = null;
             } else {
                 rememberSyncState();
-            }
-
-            if (mEmptyView != null) {
-                updateEmptyStatus();
             }
 
             requestLayout();
@@ -4699,10 +4633,6 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
             mNextSelectedRowId = INVALID_ROW_ID;
 
             mNeedSync = false;
-
-            if (mEmptyView != null) {
-                updateEmptyStatus();
-            }
 
             requestLayout();
         }

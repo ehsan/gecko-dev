@@ -2938,13 +2938,12 @@ nsRange::GetBoundingClientRect(nsIDOMClientRect** aResult)
   return NS_OK;
 }
 
-already_AddRefed<nsClientRect>
+already_AddRefed<nsIDOMClientRect>
 nsRange::GetBoundingClientRect()
 {
-  nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
-  if (!mStartParent) {
+  nsRefPtr<nsClientRect> rect = new nsClientRect();
+  if (!mStartParent)
     return rect.forget();
-  }
 
   nsLayoutUtils::RectAccumulator accumulator;
   CollectClientRects(&accumulator, this, mStartParent, mStartOffset, 
@@ -2959,16 +2958,16 @@ nsRange::GetBoundingClientRect()
 NS_IMETHODIMP
 nsRange::GetClientRects(nsIDOMClientRectList** aResult)
 {
-  *aResult = GetClientRects().get();
-  return NS_OK;
+  ErrorResult rv;
+  *aResult = GetClientRects(rv).get();
+  return rv.ErrorCode();
 }
 
 already_AddRefed<nsClientRectList>
-nsRange::GetClientRects()
+nsRange::GetClientRects(ErrorResult& rv)
 {
-  if (!mStartParent) {
+  if (!mStartParent)
     return nullptr;
-  }
 
   nsRefPtr<nsClientRectList> rectList =
     new nsClientRectList(static_cast<nsIDOMRange*>(this));
@@ -2977,6 +2976,11 @@ nsRange::GetClientRects()
 
   CollectClientRects(&builder, this, mStartParent, mStartOffset, 
     mEndParent, mEndOffset);
+
+  if (NS_FAILED(builder.mRV)) {
+    rv.Throw(builder.mRV);
+    return nullptr;
+  }
   return rectList.forget();
 }
 

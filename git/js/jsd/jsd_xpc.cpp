@@ -19,7 +19,6 @@
 #include "nsICategoryManager.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIThreadInternal.h"
-#include "nsTArray.h"
 #include "nsThreadUtils.h"
 #include "nsMemory.h"
 #include "jsdebug.h"

@@ -533,7 +533,7 @@ LockedFile::SetLocation(JSContext* aCx,
 NS_IMETHODIMP
 LockedFile::GetMetadata(const jsval& aParameters,
                         JSContext* aCx,
-                        nsISupports** _retval)
+                        nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -570,15 +570,14 @@ LockedFile::GetMetadata(const jsval& aParameters,
   nsresult rv = helper->Enqueue();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 LockedFile::ReadAsArrayBuffer(uint64_t aSize,
                               JSContext* aCx,
-                              nsISupports** _retval)
+                              nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -613,15 +612,14 @@ LockedFile::ReadAsArrayBuffer(uint64_t aSize,
 
   mLocation += aSize;
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 LockedFile::ReadAsText(uint64_t aSize,
                        const nsAString& aEncoding,
-                       nsISupports** _retval)
+                       nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -656,15 +654,14 @@ LockedFile::ReadAsText(uint64_t aSize,
 
   mLocation += aSize;
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 LockedFile::Write(const jsval& aValue,
                   JSContext* aCx,
-                  nsISupports** _retval)
+                  nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -674,7 +671,7 @@ LockedFile::Write(const jsval& aValue,
 NS_IMETHODIMP
 LockedFile::Append(const jsval& aValue,
                    JSContext* aCx,
-                   nsISupports** _retval)
+                   nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -684,7 +681,7 @@ LockedFile::Append(const jsval& aValue,
 NS_IMETHODIMP
 LockedFile::Truncate(uint64_t aSize,
                      uint8_t aOptionalArgCount,
-                     nsISupports** _retval)
+                     nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -727,13 +724,12 @@ LockedFile::Truncate(uint64_t aSize,
     mLocation = aSize;
   }
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-LockedFile::Flush(nsISupports** _retval)
+LockedFile::Flush(nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -758,8 +754,7 @@ LockedFile::Flush(nsISupports** _retval)
   nsresult rv = helper->Enqueue();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
@@ -842,7 +837,7 @@ LockedFile::OpenInputStream(bool aWholeFile, uint64_t aStart, uint64_t aLength,
 nsresult
 LockedFile::WriteOrAppend(const jsval& aValue,
                           JSContext* aCx,
-                          nsISupports** _retval,
+                          nsIDOMFileRequest** _retval,
                           bool aAppend)
 {
   if (!IsOpen()) {
@@ -891,8 +886,7 @@ LockedFile::WriteOrAppend(const jsval& aValue,
     mLocation += inputLength;
   }
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 

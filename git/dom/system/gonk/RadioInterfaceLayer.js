@@ -118,9 +118,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "gPowerManagerService",
                                    "@mozilla.org/power/powermanagerservice;1",
                                    "nsIPowerManagerService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageService",
-                                   "@mozilla.org/mobilemessage/mobilemessageservice;1",
-                                   "nsIMobileMessageService");
+XPCOMUtils.defineLazyServiceGetter(this, "gSmsService",
+                                   "@mozilla.org/sms/smsservice;1",
+                                   "nsISmsService");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gMobileMessageDatabaseService",
                                    "@mozilla.org/mobilemessage/rilmobilemessagedatabaseservice;1",
@@ -1486,15 +1486,15 @@ RadioInterfaceLayer.prototype = {
   },
 
   createSmsMessageFromRecord: function createSmsMessageFromRecord(aRecord) {
-    return gMobileMessageService.createSmsMessage(aRecord.id,
-                                                  aRecord.delivery,
-                                                  aRecord.deliveryStatus,
-                                                  aRecord.sender,
-                                                  aRecord.receiver,
-                                                  aRecord.body,
-                                                  aRecord.messageClass,
-                                                  aRecord.timestamp,
-                                                  aRecord.read);
+    return gSmsService.createSmsMessage(aRecord.id,
+                                        aRecord.delivery,
+                                        aRecord.deliveryStatus,
+                                        aRecord.sender,
+                                        aRecord.receiver,
+                                        aRecord.body,
+                                        aRecord.messageClass,
+                                        aRecord.timestamp,
+                                        aRecord.read);
   },
 
   portAddressedSmsApps: null,
@@ -1613,7 +1613,6 @@ RadioInterfaceLayer.prototype = {
     }
 
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
-                                                     null,
                                                      DOM_MOBILE_MESSAGE_DELIVERY_SENT,
                                                      options.sms.deliveryStatus,
                                                      function notifyResult(rv, record) {
@@ -1653,7 +1652,6 @@ RadioInterfaceLayer.prototype = {
     delete this._sentSmsEnvelopes[message.envelopeId];
 
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
-                                                     null,
                                                      options.sms.delivery,
                                                      message.deliveryStatus,
                                                      function notifyResult(rv, record) {
@@ -1675,15 +1673,14 @@ RadioInterfaceLayer.prototype = {
     }
     delete this._sentSmsEnvelopes[message.envelopeId];
 
-    let error = Ci.nsIMobileMessageCallback.UNKNOWN_ERROR;
+    let error = Ci.nsISmsRequest.UNKNOWN_ERROR;
     switch (message.errorMsg) {
       case RIL.ERROR_RADIO_NOT_AVAILABLE:
-        error = Ci.nsIMobileMessageCallback.NO_SIGNAL_ERROR;
+        error = Ci.nsISmsRequest.NO_SIGNAL_ERROR;
         break;
     }
 
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
-                                                     null,
                                                      DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
                                                      RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
                                                      function notifyResult(rv, record) {
@@ -2657,9 +2654,9 @@ RadioInterfaceLayer.prototype = {
       charsInLastSegment /= 2;
     }
 
-    let result = gMobileMessageService.createSmsSegmentInfo(options.segmentMaxSeq,
-                                                            options.segmentChars,
-                                                            options.segmentChars - charsInLastSegment);
+    let result = gSmsService.createSmsSegmentInfo(options.segmentMaxSeq,
+                                                  options.segmentChars,
+                                                  options.segmentChars - charsInLastSegment);
     return result;
   },
 
@@ -2680,12 +2677,16 @@ RadioInterfaceLayer.prototype = {
       options.segmentRef = this.nextSegmentRef;
     }
 
+    let timestamp = Date.now();
+    let deliveryStatus = options.requestStatusReport
+                       ? RIL.GECKO_SMS_DELIVERY_STATUS_PENDING
+                       : RIL.GECKO_SMS_DELIVERY_STATUS_NOT_APPLICABLE;
     let sendingMessage = {
       type: "sms",
       receiver: number,
       body: message,
-      deliveryStatusRequested: options.requestStatusReport,
-      timestamp: Date.now()
+      deliveryStatus: deliveryStatus,
+      timestamp: timestamp
     };
 
     let id = gMobileMessageDatabaseService.saveSendingMessage(sendingMessage,

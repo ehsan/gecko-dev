@@ -171,7 +171,7 @@ ArchiveReader::RequestReady(ArchiveRequest* aRequest)
   aRequest->ReaderReady(mData.fileList, mData.status);
 }
 
-already_AddRefed<ArchiveRequest>
+already_AddRefed<nsIDOMArchiveRequest>
 ArchiveReader::GetFilenames()
 {
   nsRefPtr<ArchiveRequest> request = GenerateArchiveRequest();
@@ -180,7 +180,7 @@ ArchiveReader::GetFilenames()
   return request.forget();
 }
 
-already_AddRefed<ArchiveRequest>
+already_AddRefed<nsIDOMArchiveRequest>
 ArchiveReader::GetFile(const nsAString& filename)
 {
   nsRefPtr<ArchiveRequest> request = GenerateArchiveRequest();
@@ -189,7 +189,7 @@ ArchiveReader::GetFile(const nsAString& filename)
   return request.forget();
 }
 
-already_AddRefed<ArchiveRequest>
+already_AddRefed<nsIDOMArchiveRequest>
 ArchiveReader::GetFiles()
 {
   nsRefPtr<ArchiveRequest> request = GenerateArchiveRequest();

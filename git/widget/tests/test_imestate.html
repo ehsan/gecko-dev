@@ -117,6 +117,8 @@ SimpleTest.waitForExplicitFinish();
 
 function hitEventLoop(aFunc, aTimes)
 {
+  SpecialPowers.getDOMWindowUtils(window).advanceTimeAndRefresh(100);
+
   if (--aTimes) {
     setTimeout(hitEventLoop, 0, aFunc, aTimes);
   } else {

@@ -277,7 +277,9 @@ nsPopupBoxObject::GetAnchorNode(nsIDOMElement** aAnchor)
 NS_IMETHODIMP
 nsPopupBoxObject::GetOuterScreenRect(nsIDOMClientRect** aRect)
 {
-  nsClientRect* rect = new nsClientRect(mContent);
+  nsClientRect* rect = new nsClientRect();
+  if (!rect)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(*aRect = rect);
 

@@ -161,9 +161,6 @@ class TempObjectPool
     void free(T *obj) {
         freed_.pushFront(obj);
     }
-    void clear() {
-        freed_.clear();
-    }
 };
 
 } // namespace ion

@@ -937,19 +937,15 @@ nsHTMLDocument::SetCompatibilityMode(nsCompatibility aMode)
 //
 // nsIDOMHTMLDocument interface implementation
 //
-already_AddRefed<nsIURI>
-nsHTMLDocument::GetDomainURI()
+void
+nsHTMLDocument::GetDomainURI(nsIURI **aURI)
 {
-  nsIPrincipal* principal = NodePrincipal();
+  nsIPrincipal *principal = NodePrincipal();
 
-  nsCOMPtr<nsIURI> uri;
-  principal->GetDomain(getter_AddRefs(uri));
-  if (uri) {
-    return uri.forget();
+  principal->GetDomain(aURI);
+  if (!*aURI) {
+    principal->GetURI(aURI);
   }
-
-  principal->GetURI(getter_AddRefs(uri));
-  return uri.forget();
 }
 
 
@@ -964,7 +960,8 @@ nsHTMLDocument::GetDomain(nsAString& aDomain)
 void
 nsHTMLDocument::GetDomain(nsAString& aDomain, ErrorResult& rv)
 {
-  nsCOMPtr<nsIURI> uri = GetDomainURI();
+  nsCOMPtr<nsIURI> uri;
+  GetDomainURI(getter_AddRefs(uri));
 
   if (!uri) {
     rv.Throw(NS_ERROR_FAILURE);
@@ -999,7 +996,8 @@ nsHTMLDocument::SetDomain(const nsAString& aDomain, ErrorResult& rv)
   }
 
   // Create new URI
-  nsCOMPtr<nsIURI> uri = GetDomainURI();
+  nsCOMPtr<nsIURI> uri;
+  GetDomainURI(getter_AddRefs(uri));
 
   if (!uri) {
     rv.Throw(NS_ERROR_FAILURE);

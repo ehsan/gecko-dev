@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko.gfx;
 
+import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.Tab;
@@ -13,7 +14,6 @@ import org.mozilla.gecko.ZoomConstraints;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONObject;
 
@@ -93,6 +93,7 @@ class JavaPanZoomController
     private final Axis mY;
     private final TouchEventHandler mTouchEventHandler;
     private final EventDispatcher mEventDispatcher;
+    private Thread mMainThread;
 
     /* The timer that handles flings or bounces. */
     private Timer mAnimationTimer;
@@ -112,6 +113,7 @@ class JavaPanZoomController
         mY = new AxisY(mSubscroller);
         mTouchEventHandler = new TouchEventHandler(view.getContext(), view, this);
 
+        mMainThread = GeckoApp.mAppContext.getMainLooper().getThread();
         checkMainThread();
 
         setState(PanZoomState.NOTHING);
@@ -159,8 +161,9 @@ class JavaPanZoomController
         return mTarget.getViewportMetrics();
     }
 
+    // for debugging bug 713011; it can be taken out once that is resolved.
     private void checkMainThread() {
-        if (!ThreadUtils.isOnUiThread()) {
+        if (mMainThread != Thread.currentThread()) {
             // log with full stack trace
             Log.e(LOGTAG, "Uh-oh, we're running on the wrong thread!", new Exception());
         }

@@ -27,6 +27,7 @@ const TEST_ORIGIN_URL = "http://mochi.test:8888";
 const installedPermsToTest = {
   "geolocation": "prompt",
   "alarms": "allow",
+  "fmradio": "allow",
   "desktop-notification": "allow",
   "audio-channel-normal": "allow"
 };
@@ -34,6 +35,7 @@ const installedPermsToTest = {
 const uninstalledPermsToTest = {
   "geolocation": "unknown",
   "alarms": "unknown",
+  "fmradio": "unknown",
   "desktop-notification": "unknown",
   "audio-channel-normal": "unknown"
 };

@@ -20,12 +20,14 @@ function onLoad()
 
   caName = cert.commonName; 
 
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
 
   if (!caName.length)
-    caName = bundle.getString("unnamedCA");
+    caName = bundle.GetStringFromName("unnamedCA");
 
-  var message2 = bundle.getFormattedString("newCAMessage1", [caName]);
+  var message2 = bundle.formatStringFromName("newCAMessage1",
+                                             [ caName ],
+                                              1);
   setText("message2", message2);
 }
 

@@ -17,7 +17,6 @@
 #include "nsStyleContext.h"
 #include "nsStyleStruct.h"
 #include "nsIWeakReferenceUtils.h"
-#include "nsIContent.h"
 
 namespace mozilla {
 namespace dom {

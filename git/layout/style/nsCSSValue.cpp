@@ -9,7 +9,6 @@
 #include "nsCSSValue.h"
 
 #include "imgIRequest.h"
-#include "nsIDocument.h"
 #include "nsIPrincipal.h"
 #include "nsCSSProps.h"
 #include "nsContentUtils.h"

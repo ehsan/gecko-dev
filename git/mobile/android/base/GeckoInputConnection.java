@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.InputConnectionHandler;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.R;
 import android.content.Context;
@@ -46,14 +45,14 @@ class GeckoInputConnection
 
     private static Handler sBackgroundHandler;
 
-    private class InputThreadUtils {
+    private class ThreadUtils {
         private Editable mUiEditable;
         private Object mUiEditableReturn;
         private Exception mUiEditableException;
         private final SynchronousQueue<Runnable> mIcRunnableSync;
         private final Runnable mIcSignalRunnable;
 
-        public InputThreadUtils() {
+        public ThreadUtils() {
             mIcRunnableSync = new SynchronousQueue<Runnable>();
             mIcSignalRunnable = new Runnable() {
                 @Override public void run() {
@@ -63,7 +62,7 @@ class GeckoInputConnection
 
         private void runOnIcThread(Handler icHandler, final Runnable runnable) {
             if (DEBUG) {
-                ThreadUtils.assertOnUiThread();
+                GeckoApp.assertOnUiThread();
                 Log.d(LOGTAG, "runOnIcThread() on thread " +
                               icHandler.getLooper().getThread().getName());
             }
@@ -93,7 +92,7 @@ class GeckoInputConnection
 
         public void endWaitForUiThread() {
             if (DEBUG) {
-                ThreadUtils.assertOnUiThread();
+                GeckoApp.assertOnUiThread();
                 Log.d(LOGTAG, "endWaitForUiThread()");
             }
             try {
@@ -104,7 +103,7 @@ class GeckoInputConnection
 
         public void waitForUiThread(Handler icHandler) {
             if (DEBUG) {
-                ThreadUtils.assertOnThread(icHandler.getLooper().getThread());
+                GeckoApp.assertOnThread(icHandler.getLooper().getThread());
                 Log.d(LOGTAG, "waitForUiThread() blocking on thread " +
                               icHandler.getLooper().getThread().getName());
             }
@@ -121,7 +120,7 @@ class GeckoInputConnection
         public Editable getEditableForUiThread(final Handler uiHandler,
                                                final Handler icHandler) {
             if (DEBUG) {
-                ThreadUtils.assertOnThread(uiHandler.getLooper().getThread());
+                GeckoApp.assertOnThread(uiHandler.getLooper().getThread());
             }
             if (icHandler.getLooper() == uiHandler.getLooper()) {
                 // IC thread is UI thread; safe to use Editable directly
@@ -137,7 +136,7 @@ class GeckoInputConnection
                                                final Method method,
                                                final Object[] args) throws Throwable {
                     if (DEBUG) {
-                        ThreadUtils.assertOnThread(uiHandler.getLooper().getThread());
+                        GeckoApp.assertOnThread(uiHandler.getLooper().getThread());
                         Log.d(LOGTAG, "UiEditable." + method.getName() + "() blocking");
                     }
                     synchronized (icHandler) {
@@ -178,7 +177,7 @@ class GeckoInputConnection
         }
     }
 
-    private final InputThreadUtils mThreadUtils = new InputThreadUtils();
+    private final ThreadUtils mThreadUtils = new ThreadUtils();
 
     // Managed only by notifyIMEEnabled; see comments in notifyIMEEnabled
     private int mIMEState;

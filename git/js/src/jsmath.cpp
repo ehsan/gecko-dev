@@ -193,8 +193,8 @@ js::math_atan(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 
-double
-js::ecmaAtan2(double x, double y)
+static inline double JS_FASTCALL
+math_atan2_kernel(double x, double y)
 {
 #if defined(_MSC_VER)
     /*
@@ -223,8 +223,8 @@ js::ecmaAtan2(double x, double y)
     return atan2(x, y);
 }
 
-JSBool
-js::math_atan2(JSContext *cx, unsigned argc, Value *vp)
+static JSBool
+math_atan2(JSContext *cx, unsigned argc, Value *vp)
 {
     double x, y, z;
 
@@ -234,7 +234,7 @@ js::math_atan2(JSContext *cx, unsigned argc, Value *vp)
     }
     if (!ToNumber(cx, vp[2], &x) || !ToNumber(cx, vp[3], &y))
         return JS_FALSE;
-    z = ecmaAtan2(x, y);
+    z = math_atan2_kernel(x, y);
     vp->setDouble(z);
     return JS_TRUE;
 }
@@ -476,9 +476,6 @@ js::ecmaPow(double x, double y)
      */
     if (!MOZ_DOUBLE_IS_FINITE(y) && (x == 1.0 || x == -1.0))
         return js_NaN;
-    /* pow(x, +-0) is always 1, even for x = NaN (MSVC gets this wrong). */
-    if (y == 0)
-        return 1;
     return pow(x, y);
 }
 #if defined(_MSC_VER)
