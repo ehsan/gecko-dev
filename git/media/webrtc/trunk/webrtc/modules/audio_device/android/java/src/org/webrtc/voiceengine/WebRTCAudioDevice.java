@@ -20,13 +20,10 @@ import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.util.Log;
 
-import org.mozilla.gecko.mozglue.WebRTCJNITarget;
-
 class WebRTCAudioDevice {
     private AudioTrack _audioTrack = null;
     private AudioRecord _audioRecord = null;
 
-    @WebRTCJNITarget
     private Context _context;
     private AudioManager _audioManager;
 
@@ -47,7 +44,6 @@ class WebRTCAudioDevice {
     private int _bufferedPlaySamples = 0;
     private int _playPosition = 0;
 
-    @WebRTCJNITarget
     WebRTCAudioDevice() {
         try {
             _playBuffer = ByteBuffer.allocateDirect(2 * 480); // Max 10 ms @ 48
@@ -63,7 +59,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int InitRecording(int audioSource, int sampleRate) {
         // get the minimum buffer size that can be used
         int minRecBufSize = AudioRecord.getMinBufferSize(
@@ -109,7 +104,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int StartRecording() {
         if (_isPlaying == false) {
             SetAudioMode(true);
@@ -129,7 +123,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int InitPlayback(int sampleRate) {
         // get the minimum buffer size that can be used
         int minPlayBufSize = AudioTrack.getMinBufferSize(
@@ -187,7 +180,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int StartPlayback() {
         if (_isRecording == false) {
             SetAudioMode(true);
@@ -207,7 +199,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int StopRecording() {
         _recLock.lock();
         try {
@@ -243,7 +234,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int StopPlayback() {
         _playLock.lock();
         try {
@@ -281,7 +271,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int PlayAudio(int lengthInBytes) {
 
         int bufferedSamples = 0;
@@ -342,7 +331,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int RecordAudio(int lengthInBytes) {
         _recLock.lock();
 
@@ -388,7 +376,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int SetPlayoutSpeaker(boolean loudspeakerOn) {
         // create audio manager if needed
         if (_audioManager == null && _context != null) {
@@ -438,7 +425,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int SetPlayoutVolume(int level) {
 
         // create audio manager if needed
@@ -459,7 +445,6 @@ class WebRTCAudioDevice {
     }
 
     @SuppressWarnings("unused")
-    @WebRTCJNITarget
     private int GetPlayoutVolume() {
 
         // create audio manager if needed

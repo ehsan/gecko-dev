@@ -11,9 +11,9 @@
 #endif
     oncommand="MultiplexHandler(event)"
 #ifdef OMIT_ACCESSKEYS
-#expand    onpopupshowing="CharsetMenu.build(event, '__ID_PREFIX__');"
+    onpopupshowing="CharsetMenu.build(event);"
 #else
-#expand    onpopupshowing="CharsetMenu.build(event, '__ID_PREFIX__', true);"
+    onpopupshowing="CharsetMenu.build(event, true);"
 #endif
     onpopupshown="UpdateMenus(event);">
   <menupopup>

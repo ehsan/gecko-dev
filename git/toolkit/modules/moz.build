@@ -52,7 +52,6 @@ EXTRA_PP_JS_MODULES += [
     'Troubleshoot.jsm',
     'UpdateChannel.jsm',
     'WindowDraggingUtils.jsm',
-    'WindowsPrefSync.jsm',
 ]
 
 if 'Android' != CONFIG['OS_TARGET']:

@@ -59,7 +59,6 @@ import android.widget.TabHost.TabSpec;
 import android.widget.TextView;
 
 import org.webrtc.videoengine.ViERenderer;
-import org.mozilla.gecko.mozglue.WebRTCJNITarget;
 
 import java.io.File;
 import java.io.IOException;
@@ -1047,7 +1046,6 @@ public class WebRTCDemo extends TabActivity implements IViEAndroidCallback,
         Log.d(TAG, "No setting selected");
     }
 
-    @WebRTCJNITarget
     public int updateStats(int inFrameRateI, int inBitRateI,
             int inPacketLoss, int inFrameRateO, int inBitRateO) {
         frameRateI = inFrameRateI;

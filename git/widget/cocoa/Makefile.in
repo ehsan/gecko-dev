@@ -30,4 +30,11 @@ endif
 export::
 	$(INSTALL) $(srcdir)/cursors $(DIST)/bin/res
 
-CXXFLAGS += $(TK_CFLAGS)
+LOCAL_INCLUDES	= \
+	$(TK_CFLAGS) \
+	-I$(srcdir)/../xpwidgets \
+	-I$(srcdir)/../shared \
+	-I$(topsrcdir)/layout/forms \
+	-I$(topsrcdir)/layout/generic \
+	-I$(topsrcdir)/layout/xul/base/src \
+	$(NULL)
