@@ -623,8 +623,7 @@ let LinkChecker = {
   _cache: {},
 
   get flags() {
-    return Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL |
-           Ci.nsIScriptSecurityManager.DONT_REPORT_ERRORS;
+    return Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL;
   },
 
   checkLoadURI: function LinkChecker_checkLoadURI(aURI) {
