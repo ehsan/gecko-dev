@@ -117,11 +117,6 @@
 #define PREF_AUTOCOMPLETE_FILTER_JAVASCRIPT     "urlbar.filter.javascript"
 #define PREF_AUTOCOMPLETE_ENABLED               "urlbar.autocomplete.enabled"
 #define PREF_AUTOCOMPLETE_MAX_RICH_RESULTS      "urlbar.maxRichResults"
-#define PREF_AUTOCOMPLETE_RESTRICT_HISTORY      "urlbar.restrict.history"
-#define PREF_AUTOCOMPLETE_RESTRICT_BOOKMARK     "urlbar.restrict.bookmark"
-#define PREF_AUTOCOMPLETE_RESTRICT_TAG          "urlbar.restrict.tag"
-#define PREF_AUTOCOMPLETE_MATCH_TITLE           "urlbar.match.title"
-#define PREF_AUTOCOMPLETE_MATCH_URL             "urlbar.match.url"
 #define PREF_AUTOCOMPLETE_SEARCH_CHUNK_SIZE     "urlbar.search.chunkSize"
 #define PREF_AUTOCOMPLETE_SEARCH_TIMEOUT        "urlbar.search.timeout"
 #define PREF_DB_CACHE_PERCENTAGE                "history_cache_percentage"
@@ -291,7 +286,6 @@ const PRInt32 nsNavHistory::kAutoCompleteIndex_FaviconURL = 2;
 const PRInt32 nsNavHistory::kAutoCompleteIndex_ParentId = 3;
 const PRInt32 nsNavHistory::kAutoCompleteIndex_BookmarkTitle = 4;
 const PRInt32 nsNavHistory::kAutoCompleteIndex_Tags = 5;
-const PRInt32 nsNavHistory::kAutoCompleteIndex_VisitCount = 6;
 
 static const char* gQuitApplicationMessage = "quit-application";
 static const char* gXpcomShutdown = "xpcom-shutdown";
@@ -337,18 +331,8 @@ nsNavHistory::nsNavHistory() : mBatchLevel(0),
                                mAutoCompleteOnlyTyped(PR_FALSE),
                                mAutoCompleteMatchBehavior(MATCH_BOUNDARY_ANYWHERE),
                                mAutoCompleteMaxResults(25),
-                               mAutoCompleteRestrictHistory(NS_LITERAL_STRING("^")),
-                               mAutoCompleteRestrictBookmark(NS_LITERAL_STRING("*")),
-                               mAutoCompleteRestrictTag(NS_LITERAL_STRING("+")),
-                               mAutoCompleteMatchTitle(NS_LITERAL_STRING("#")),
-                               mAutoCompleteMatchUrl(NS_LITERAL_STRING("@")),
                                mAutoCompleteSearchChunkSize(100),
                                mAutoCompleteSearchTimeout(100),
-                               mRestrictHistory(PR_FALSE),
-                               mRestrictBookmark(PR_FALSE),
-                               mRestrictTag(PR_FALSE),
-                               mMatchTitle(PR_FALSE),
-                               mMatchUrl(PR_FALSE),
                                mPreviousChunkOffset(-1),
                                mAutoCompleteFinishedSearch(PR_FALSE),
                                mExpireDaysMin(0),
@@ -488,11 +472,6 @@ nsNavHistory::Init()
     pbi->AddObserver(PREF_AUTOCOMPLETE_MATCH_BEHAVIOR, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_FILTER_JAVASCRIPT, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_MAX_RICH_RESULTS, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_RESTRICT_HISTORY, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_RESTRICT_BOOKMARK, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_RESTRICT_TAG, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_MATCH_TITLE, this, PR_FALSE);
-    pbi->AddObserver(PREF_AUTOCOMPLETE_MATCH_URL, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_SEARCH_CHUNK_SIZE, this, PR_FALSE);
     pbi->AddObserver(PREF_AUTOCOMPLETE_SEARCH_TIMEOUT, this, PR_FALSE);
     pbi->AddObserver(PREF_BROWSER_HISTORY_EXPIRE_DAYS_MAX, this, PR_FALSE);
@@ -1892,23 +1871,6 @@ nsNavHistory::LoadPrefs(PRBool aInitializing)
                           &mAutoCompleteSearchChunkSize);
   mPrefBranch->GetIntPref(PREF_AUTOCOMPLETE_SEARCH_TIMEOUT,
                           &mAutoCompleteSearchTimeout);
-  nsXPIDLCString prefStr;
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_HISTORY,
-                           getter_Copies(prefStr));
-  mAutoCompleteRestrictHistory = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_BOOKMARK,
-                           getter_Copies(prefStr));
-  mAutoCompleteRestrictBookmark = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_RESTRICT_TAG,
-                           getter_Copies(prefStr));
-  mAutoCompleteRestrictTag = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_MATCH_TITLE,
-                           getter_Copies(prefStr));
-  mAutoCompleteMatchTitle = NS_ConvertUTF8toUTF16(prefStr);
-  mPrefBranch->GetCharPref(PREF_AUTOCOMPLETE_MATCH_URL,
-                           getter_Copies(prefStr));
-  mAutoCompleteMatchUrl = NS_ConvertUTF8toUTF16(prefStr);
-
   if (!aInitializing && oldCompleteOnlyTyped != mAutoCompleteOnlyTyped) {
     // update the autocomplete statements if the option has changed.
     nsresult rv = CreateAutoCompleteQueries();

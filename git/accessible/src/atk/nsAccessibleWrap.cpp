@@ -869,9 +869,8 @@ getParentCB(AtkObject *aAtkObj)
         if (NS_FAILED(rv) || !accParent)
             return nsnull;
 
-        AtkObject *parent = nsAccessibleWrap::GetAtkObject(accParent);
-        if (parent)
-            atk_object_set_parent(aAtkObj, parent);
+        atk_object_set_parent(aAtkObj,
+                              nsAccessibleWrap::GetAtkObject(accParent));
     }
     return aAtkObj->accessible_parent;
 }

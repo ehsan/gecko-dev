@@ -93,6 +93,7 @@
 #include "nsDOMError.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
+#include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsNodeInfoManager.h"
 #include "nsIXBLService.h"
@@ -3431,14 +3432,10 @@ nsDocument::EndLoad()
   
   NS_DOCUMENT_NOTIFY_OBSERVERS(EndLoad, (this));
 
-  if (!mSynchronousDOMContentLoaded) {
-    nsRefPtr<nsIRunnable> ev =
-      new nsRunnableMethod<nsDocument>(this,
-                                       &nsDocument::DispatchContentLoadedEvents);
-    NS_DispatchToCurrentThread(ev);
-  } else {
-    DispatchContentLoadedEvents();
-  }
+  nsRefPtr<nsIRunnable> ev =
+    new nsRunnableMethod<nsDocument>(this,
+                                     &nsDocument::DispatchContentLoadedEvents);
+  NS_DispatchToCurrentThread(ev);
 }
 
 void

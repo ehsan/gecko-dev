@@ -1075,8 +1075,7 @@ function delayedStartup()
   gBrowser.addEventListener("command", BrowserOnCommand, false);
 
   tabPreviews.init();
-  if (gPrefService.getBoolPref("browser.ctrlTab.mostRecentlyUsed"))
-    ctrlTab.init();
+  ctrlTab.init();
 
   // Delayed initialization of the livemarks update timer.
   // Livemark updates don't need to start until after bookmark UI 
