@@ -1160,25 +1160,17 @@ DataConnectionHandler.prototype = {
      }
   },
 
-  _compareDataCallOptions: function(dataCall, newDataCall) {
-    return dataCall.apnProfile.apn == newDataCall.apn &&
-           dataCall.apnProfile.user == newDataCall.user &&
-           dataCall.apnProfile.password == newDataCall.password &&
-           dataCall.chappap == newDataCall.chappap &&
-           dataCall.pdptype == newDataCall.pdptype;
-  },
-
   _deliverDataCallMessage: function(name, args) {
     for (let i = 0; i < this._dataCalls.length; i++) {
       let datacall = this._dataCalls[i];
-      // Send message only to the DataCall that matches the data call options.
+      // Send message only to the DataCall that matches apn.
       // Currently, args always contain only one datacall info.
-      if (!this._compareDataCallOptions(datacall, args[0])) {
+      if (!args[0].apn || args[0].apn != datacall.apnProfile.apn) {
         continue;
       }
       // Do not deliver message to DataCall that contains cid but mistmaches
       // with the cid in the current message.
-      if (args[0].cid !== undefined && datacall.linkInfo.cid != null &&
+      if (args[0].cid && datacall.linkInfo.cid &&
           args[0].cid != datacall.linkInfo.cid) {
         continue;
       }
@@ -1494,17 +1486,9 @@ DataConnectionHandler.prototype = {
     // Notify data call error only for data APN
     let networkInterface = this.dataNetworkInterfaces.get("default");
     if (networkInterface && networkInterface.enabled) {
-      let dataCall = networkInterface.dataCall;
-      // If there is a cid, compare cid; otherwise it is probably an error on
-      // data call setup.
-      if (message.cid !== undefined) {
-        if (message.cid == dataCall.linkInfo.cid) {
-          gMobileConnectionService.notifyDataError(this.clientId, message);
-        }
-      } else {
-        if (this._compareDataCallOptions(dataCall, message)) {
-          gMobileConnectionService.notifyDataError(this.clientId, message);
-        }
+      let apnSetting = networkInterface.apnSetting;
+      if (message.apn == apnSetting.apn) {
+        gMobileConnectionService.notifyDataError(this.clientId, message);
       }
     }
 
@@ -3910,12 +3894,6 @@ DataCall.prototype = {
   // Array to hold RILNetworkInterfaces that requested this DataCall.
   requestedNetworkIfaces: null,
 
-  // Holds the pdp type sent to ril worker.
-  pdptype: null,
-
-  // Holds the authentication type sent to ril worker.
-  chappap: null,
-
   dataCallError: function(message) {
     if (DEBUG) this.debug("Data call error on APN: " + message.apn);
     this.state = RIL.GECKO_NETWORK_STATE_DISCONNECTED;
@@ -4034,18 +4012,10 @@ DataCall.prototype = {
   },
 
   canHandleApn: function(apnSetting) {
-    let isIdentical = this.apnProfile.apn == apnSetting.apn &&
-                      (this.apnProfile.user || '') == (apnSetting.user || '') &&
-                      (this.apnProfile.password || '') == (apnSetting.password || '') &&
-                      (this.apnProfile.authType || '') == (apnSetting.authtype || '');
-
-    if (RILQUIRKS_HAVE_IPV6) {
-      isIdentical = isIdentical &&
-                    (this.apnProfile.protocol || '') == (apnSetting.protocol || '') &&
-                    (this.apnProfile.roaming_protocol || '') == (apnSetting.roaming_protocol || '');
-    }
-
-    return isIdentical;
+    // TODO: compare authtype?
+    return (this.apnProfile.apn == apnSetting.apn &&
+            (this.apnProfile.user || '') == (apnSetting.user || '') &&
+            (this.apnProfile.password || '') == (apnSetting.password || ''));
   },
 
   reset: function() {
@@ -4057,9 +4027,6 @@ DataCall.prototype = {
     this.linkInfo.gateways = [];
 
     this.state = RIL.GECKO_NETWORK_STATE_UNKNOWN;
-
-    this.chappap = null;
-    this.pdptype = null;
   },
 
   connect: function(networkInterface) {
@@ -4112,7 +4079,7 @@ DataCall.prototype = {
 
     let radioTechType = dataInfo.type;
     let radioTechnology = RIL.GECKO_RADIO_TECH.indexOf(radioTechType);
-    let authType = RIL.RIL_DATACALL_AUTH_TO_GECKO.indexOf(this.apnProfile.authType);
+    let authType = RIL.RIL_DATACALL_AUTH_TO_GECKO.indexOf(this.apnProfile.authtype);
     // Use the default authType if the value in database is invalid.
     // For the case that user might not select the authentication type.
     if (authType == -1) {
@@ -4121,8 +4088,6 @@ DataCall.prototype = {
       }
       authType = RIL.RIL_DATACALL_AUTH_TO_GECKO.indexOf(RIL.GECKO_DATACALL_AUTH_DEFAULT);
     }
-    this.chappap = authType;
-
     let pdpType = RIL.GECKO_DATACALL_PDP_TYPE_IP;
     if (RILQUIRKS_HAVE_IPV6) {
       pdpType = !dataInfo.roaming
@@ -4136,7 +4101,6 @@ DataCall.prototype = {
         pdpType = RIL.GECKO_DATACALL_PDP_TYPE_DEFAULT;
       }
     }
-    this.pdptype = pdpType;
 
     let radioInterface = this.gRIL.getRadioInterface(this.clientId);
     radioInterface.sendWorkerMessage("setupDataCall", {
