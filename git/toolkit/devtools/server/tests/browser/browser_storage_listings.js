@@ -1,10 +1,13 @@
-/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
-/* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
-
-"use strict";
+const Cu = Components.utils;
+Cu.import("resource://gre/modules/Services.jsm");
+let tempScope = {};
+Cu.import("resource://gre/modules/devtools/dbg-client.jsm", tempScope);
+Cu.import("resource://gre/modules/devtools/dbg-server.jsm", tempScope);
+let {DebuggerServer, DebuggerClient} = tempScope;
+tempScope = null;
 
 const {StorageFront} = require("devtools/server/actors/storage");
+let {Task} = require("resource://gre/modules/Task.jsm");
 let gWindow = null;
 
 const storeMap = {
@@ -345,7 +348,7 @@ function finishTests(client) {
       forceCollections();
       DebuggerServer.destroy();
       forceCollections();
-      gWindow = null;
+      gWindow = DebuggerClient = DebuggerServer = null;
       finish();
     });
   }
@@ -637,14 +640,24 @@ let testIDBEntries = Task.async(function*(index, hosts, indexedDBActor) {
 
 function test() {
   addTab(MAIN_DOMAIN + "storage-listings.html").then(function(doc) {
-    initDebuggerServer();
+    try {
+      // Sometimes debugger server does not get destroyed correctly by previous
+      // tests.
+      DebuggerServer.destroy();
+    } catch (ex) { }
+    DebuggerServer.init(function () { return true; });
+    DebuggerServer.addBrowserActors();
 
     let createConnection = () => {
       let client = new DebuggerClient(DebuggerServer.connectPipe());
-      connectDebuggerClient(client).then(form => {
-        let front = StorageFront(client, form);
-        front.listStores().then(data => testStores(data))
-                          .then(() => finishTests(client));
+      client.connect(function onConnect() {
+        client.listTabs(function onListTabs(aResponse) {
+          let form = aResponse.tabs[aResponse.selected];
+          let front = StorageFront(client, form);
+
+          front.listStores().then(data => testStores(data))
+               .then(() => finishTests(client));
+        });
       });
     };
 

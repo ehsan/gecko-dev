@@ -32,6 +32,9 @@ describe("loop.panel", function() {
 
     navigator.mozLoop = {
       doNotDisturb: true,
+      get serverUrl() {
+        return "http://example.com";
+      },
       getStrings: function() {
         return JSON.stringify({textContent: "fakeText"});
       },
@@ -41,8 +44,7 @@ describe("loop.panel", function() {
       setLoopCharPref: sandbox.stub(),
       getLoopCharPref: sandbox.stub().returns("unseen"),
       copyString: sandbox.stub(),
-      noteCallUrlExpiry: sinon.spy(),
-      composeEmail: sinon.spy()
+      noteCallUrlExpiry: sinon.spy()
     };
 
     document.mozL10n.initialize(navigator.mozLoop);
@@ -341,6 +343,7 @@ describe("loop.panel", function() {
 
       it("should display a share button for email", function() {
         fakeClient.requestCallUrl = sandbox.stub();
+        var mailto = 'mailto:?subject=email-subject&body=http://example.com';
         var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
           notifications: notifications,
           client: fakeClient
@@ -348,8 +351,8 @@ describe("loop.panel", function() {
         view.setState({pending: false, callUrl: "http://example.com"});
 
         TestUtils.findRenderedDOMComponentWithClass(view, "btn-email");
-        TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-email"));
-        sinon.assert.calledOnce(navigator.mozLoop.composeEmail);
+        expect(view.getDOMNode().querySelector(".btn-email").dataset.mailto)
+              .to.equal(encodeURI(mailto));
       });
 
       it("should feature a copy button capable of copying the call url when clicked", function() {
@@ -405,6 +408,7 @@ describe("loop.panel", function() {
             callUrlExpiry: 6000
           });
 
+          view.getDOMNode().querySelector(".btn-email").dataset.mailto = "#";
           TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-email"));
 
           sinon.assert.calledOnce(navigator.mozLoop.noteCallUrlExpiry);

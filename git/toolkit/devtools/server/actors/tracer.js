@@ -106,6 +106,7 @@ TracerActor.prototype = {
   get dbg() {
     if (!this._dbg) {
       this._dbg = this._parent.makeDebugger();
+      this._dbg.onEnterFrame = this.onEnterFrame;
     }
     return this._dbg;
   },
@@ -187,7 +188,6 @@ TracerActor.prototype = {
     }
 
     if (this.idle) {
-      this.dbg.onEnterFrame = this.onEnterFrame;
       this.dbg.enabled = true;
       this._sequence = 0;
       this._startTime = Date.now();
@@ -244,7 +244,6 @@ TracerActor.prototype = {
     }
 
     if (this.idle) {
-      this._dbg.onEnterFrame = undefined;
       this.dbg.enabled = false;
     }
 
@@ -265,11 +264,11 @@ TracerActor.prototype = {
    *        The stack frame that was entered.
    */
   onEnterFrame: function(aFrame) {
-    if (aFrame.script && aFrame.script.url == "self-hosted") {
-      return;
-    }
-
     Task.spawn(function*() {
+      if (aFrame.script && aFrame.script.url == "self-hosted") {
+        return;
+      }
+
       // This function might request original (i.e. source-mapped) location,
       // which is asynchronous. We need to ensure that packets are sent out
       // in the correct order.

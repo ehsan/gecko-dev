@@ -681,11 +681,7 @@ NS_IMETHODIMP
 nsChromeRegistryChrome::GetStyleOverlays(nsIURI *aChromeURL,
                                          nsISimpleEnumerator **aResult)
 {
-  nsCOMPtr<nsIURI> chromeURLWithoutHash;
-  if (aChromeURL) {
-    aChromeURL->CloneIgnoringRef(getter_AddRefs(chromeURLWithoutHash));
-  }
-  const nsCOMArray<nsIURI>* parray = mStyleHash.GetArray(chromeURLWithoutHash);
+  const nsCOMArray<nsIURI>* parray = mStyleHash.GetArray(aChromeURL);
   if (!parray)
     return NS_NewEmptyEnumerator(aResult);
 
@@ -696,11 +692,7 @@ NS_IMETHODIMP
 nsChromeRegistryChrome::GetXULOverlays(nsIURI *aChromeURL,
                                        nsISimpleEnumerator **aResult)
 {
-  nsCOMPtr<nsIURI> chromeURLWithoutHash;
-  if (aChromeURL) {
-    aChromeURL->CloneIgnoringRef(getter_AddRefs(chromeURLWithoutHash));
-  }
-  const nsCOMArray<nsIURI>* parray = mOverlayHash.GetArray(chromeURLWithoutHash);
+  const nsCOMArray<nsIURI>* parray = mOverlayHash.GetArray(aChromeURL);
   if (!parray)
     return NS_NewEmptyEnumerator(aResult);
 
@@ -903,10 +895,7 @@ nsChromeRegistryChrome::ManifestOverlay(ManifestProcessingContext& cx, int linen
     return;
   }
 
-  nsCOMPtr<nsIURI> baseuriWithoutHash;
-  baseuri->CloneIgnoringRef(getter_AddRefs(baseuriWithoutHash));
-
-  mOverlayHash.Add(baseuriWithoutHash, overlayuri);
+  mOverlayHash.Add(baseuri, overlayuri);
 }
 
 void
@@ -931,10 +920,7 @@ nsChromeRegistryChrome::ManifestStyle(ManifestProcessingContext& cx, int lineno,
     return;
   }
 
-  nsCOMPtr<nsIURI> baseuriWithoutHash;
-  baseuri->CloneIgnoringRef(getter_AddRefs(baseuriWithoutHash));
-
-  mStyleHash.Add(baseuriWithoutHash, overlayuri);
+  mStyleHash.Add(baseuri, overlayuri);
 }
 
 void
