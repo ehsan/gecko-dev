@@ -51,7 +51,6 @@
 #   Dietrich Ayala <dietrich@mozilla.com>
 #   Gavin Sharp <gavin@gavinsharp.com>
 #   Justin Dolske <dolske@mozilla.com>
-#   Rob Campbell <rcampbell@mozilla.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -129,7 +128,6 @@ let gInitialPages = [
 ];
 
 #include browser-fullZoom.js
-#include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
 
@@ -1306,8 +1304,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   } catch (ex) {
     dump("nsSessionStore could not be initialized: " + ex + "\n");
   }
-
-  PlacesToolbarHelper.updateState();
 
   // bookmark-all-tabs command
   gBookmarkAllTabsHandler.init();
@@ -3310,10 +3306,8 @@ function BrowserCustomizeToolbar()
 
   if (gCustomizeSheet) {
     var sheetFrame = document.getElementById("customizeToolbarSheetIFrame");
-    var panel = document.getElementById("customizeToolbarSheetPopup");
     sheetFrame.hidden = false;
     sheetFrame.toolbox = gNavToolbox;
-    sheetFrame.panel = panel;
 
     // The document might not have been loaded yet, if this is the first time.
     // If it is already loaded, reload it so that the onload initialization code
@@ -3323,14 +3317,9 @@ function BrowserCustomizeToolbar()
     else
       sheetFrame.setAttribute("src", customizeURL);
 
-    // Open the panel, but make it invisible until the iframe has loaded so
-    // that the user doesn't see a white flash.
-    panel.style.visibility = "hidden";
-    gNavToolbox.addEventListener("beforecustomization", function () {
-      gNavToolbox.removeEventListener("beforecustomization", arguments.callee, false);
-      panel.style.removeProperty("visibility");
-    }, false);
-    panel.openPopup(gNavToolbox, "after_start", 0, 0);
+    document.getElementById("customizeToolbarSheetPopup")
+            .openPopup(gNavToolbox, "after_start", 0, 0);
+
     return sheetFrame.contentWindow;
   } else {
     return window.openDialog(customizeURL,
@@ -3365,8 +3354,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     updateEditUIVisibility();
 #endif
   }
-
-  PlacesToolbarHelper.updateState();
 
   UpdateUrlbarSearchSplitterState();
 
@@ -4266,13 +4253,8 @@ var XULBrowserWindow = {
 
     var uri = aRequest.QueryInterface(Ci.nsIChannel).URI;
 
-    // Set the URI now if it isn't already set, so that the user can tell which
-    // site is loading. Only do this if the content window has no opener, though
-    // (i.e. the load wasn't triggered by a content-controlled link), to
-    // minimize spoofing risk.
     if (gURLBar &&
         gURLBar.value == "" &&
-        !content.opener &&
         getWebNavigation().currentURI.spec == "about:blank")
       URLBarSetURI(uri);
 
@@ -5793,8 +5775,7 @@ function AddKeywordForSearchField() {
 
     type = el.type.toLowerCase();
 
-    if (((el instanceof HTMLInputElement && el.mozIsTextField(true)) ||
-        type == "hidden" || type == "textarea") ||
+    if ((type == "text" || type == "hidden" || type == "textarea") ||
         ((type == "checkbox" || type == "radio") && el.checked)) {
       formData.push(escapeNameValuePair(el.name, el.value, isURLEncoded));
     } else if (el instanceof HTMLSelectElement && el.selectedIndex >= 0) {

@@ -722,6 +722,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
                         JSString *source /* = NULL */,
                         unsigned staticLevel /* = 0 */)
 {
+    Compiler compiler(cx, principals, callerFrame);
     JSArenaPool codePool, notePool;
     TokenKind tt;
     JSParseNode *pn;
@@ -741,7 +742,6 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
     JS_ASSERT_IF(callerFrame, tcflags & TCF_COMPILE_N_GO);
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
-    Compiler compiler(cx, principals, callerFrame);
     if (!compiler.init(chars, length, file, filename, lineno))
         return NULL;
 
@@ -754,8 +754,6 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
     TokenStream &tokenStream = parser.tokenStream;
 
     JSCodeGenerator cg(&parser, &codePool, &notePool, tokenStream.getLineno());
-    if (!cg.init())
-        return NULL;
 
     MUST_FLOW_THROUGH("out");
 
@@ -1104,7 +1102,7 @@ ReportBadReturn(JSContext *cx, JSTreeContext *tc, uintN flags, uintN errnum,
 {
     const char *name;
 
-    JS_ASSERT(tc->inFunction());
+    JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
     if (tc->fun->atom) {
         name = js_AtomToPrintableString(cx, tc->fun->atom);
     } else {
@@ -1117,7 +1115,7 @@ ReportBadReturn(JSContext *cx, JSTreeContext *tc, uintN flags, uintN errnum,
 static JSBool
 CheckFinalReturn(JSContext *cx, JSTreeContext *tc, JSParseNode *pn)
 {
-    JS_ASSERT(tc->inFunction());
+    JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
     return HasFinalReturn(pn) == ENDS_IN_RETURN ||
            ReportBadReturn(cx, tc, JSREPORT_WARNING | JSREPORT_STRICT,
                            JSMSG_NO_RETURN_VALUE, JSMSG_ANON_NO_RETURN_VALUE);
@@ -1231,7 +1229,7 @@ Parser::functionBody()
     uintN oldflags, firstLine;
     JSParseNode *pn;
 
-    JS_ASSERT(tc->inFunction());
+    JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
     js_PushStatement(tc, &stmtInfo, STMT_BLOCK, -1);
     stmtInfo.flags = SIF_BODY_BLOCK;
 
@@ -1529,9 +1527,6 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
     TokenStream &tokenStream = parser.tokenStream;
 
     JSCodeGenerator funcg(&parser, &codePool, &notePool, tokenStream.getLineno());
-    if (!funcg.init())
-        return NULL;
-
     funcg.flags |= TCF_IN_FUNCTION;
     funcg.fun = fun;
     if (!GenerateBlockId(&funcg, funcg.bodyid))
@@ -1660,7 +1655,7 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom,
     if (atom == tc->parser->context->runtime->atomState.evalAtom)
         tc->flags |= TCF_FUN_PARAM_EVAL;
 
-    JS_ASSERT(tc->inFunction());
+    JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
 
     JSLocalKind localKind = js_LookupLocal(cx, tc->fun, atom, NULL);
     if (localKind != JSLOCAL_NONE) {
@@ -1700,12 +1695,12 @@ Parser::newFunction(JSTreeContext *tc, JSAtom *atom, uintN lambda)
      */
     while (tc->parent)
         tc = tc->parent;
-    parent = tc->inFunction() ? NULL : tc->scopeChain;
+    parent = (tc->flags & TCF_IN_FUNCTION) ? NULL : tc->scopeChain;
 
     fun = js_NewFunction(context, NULL, NULL, 0, JSFUN_INTERPRETED | lambda,
                          parent, atom);
 
-    if (fun && !tc->compileAndGo()) {
+    if (fun && !(tc->flags & TCF_COMPILE_N_GO)) {
         FUN_OBJECT(fun)->clearParent();
         FUN_OBJECT(fun)->clearProto();
     }
@@ -1996,14 +1991,6 @@ CanFlattenUpvar(JSDefinition *dn, JSFunctionBox *funbox, uint32 tcflags)
          */
         if (!afunbox || afunbox->node->isFunArg())
             return false;
-
-        /*
-         * Reaching up for dn across a generator also means we can't flatten,
-         * since the generator iterator does not run until later, in general.
-         * See bug 563034.
-         */
-        if (afunbox->tcflags & TCF_FUN_IS_GENERATOR)
-            return false;
     }
 
     /*
@@ -2094,23 +2081,23 @@ CanFlattenUpvar(JSDefinition *dn, JSFunctionBox *funbox, uint32 tcflags)
 static void
 FlagHeavyweights(JSDefinition *dn, JSFunctionBox *funbox, uint32& tcflags)
 {
+    JSFunctionBox *afunbox = funbox->parent;
     uintN dnLevel = dn->frameLevel();
 
-    while ((funbox = funbox->parent) != NULL) {
+    while (afunbox) {
         /*
-         * Notice that funbox->level is the static level of the definition or
-         * expression of the function parsed into funbox, not the static level
+         * Notice that afunbox->level is the static level of the definition or
+         * expression of the function parsed into afunbox, not the static level
          * of its body. Therefore we must add 1 to match dn's level to find the
-         * funbox whose body contains the dn definition.
+         * afunbox whose body contains the dn definition.
          */
-        if (funbox->level + 1U == dnLevel || (dnLevel == 0 && dn->isLet())) {
-            funbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
+        if (afunbox->level + 1U == dnLevel || (dnLevel == 0 && dn->isLet())) {
+            afunbox->tcflags |= TCF_FUN_HEAVYWEIGHT;
             break;
         }
-        funbox->tcflags |= TCF_FUN_ENTRAINS_SCOPES;
+        afunbox = afunbox->parent;
     }
-
-    if (!funbox && (tcflags & TCF_IN_FUNCTION))
+    if (!afunbox && (tcflags & TCF_IN_FUNCTION))
         tcflags |= TCF_FUN_HEAVYWEIGHT;
 }
 
@@ -2185,11 +2172,10 @@ Parser::setFunctionKinds(JSFunctionBox *funbox, uint32& tcflags)
 
         JSFunction *fun = (JSFunction *) funbox->object;
 
-        JS_ASSERT(FUN_KIND(fun) == JSFUN_INTERPRETED);
-
         FUN_METER(allfun);
         if (funbox->tcflags & TCF_FUN_HEAVYWEIGHT) {
             FUN_METER(heavy);
+            JS_ASSERT(FUN_KIND(fun) == JSFUN_INTERPRETED);
         } else if (pn->pn_type != TOK_UPVARS) {
             /*
              * No lexical dependencies => null closure, for best performance.
@@ -2261,8 +2247,7 @@ Parser::setFunctionKinds(JSFunctionBox *funbox, uint32& tcflags)
                 if (nupvars == 0) {
                     FUN_METER(onlyfreevar);
                     FUN_SET_KIND(fun, JSFUN_NULL_CLOSURE);
-                } else if (!mutation &&
-                           !(funbox->tcflags & (TCF_FUN_IS_GENERATOR | TCF_FUN_ENTRAINS_SCOPES))) {
+                } else if (!mutation && !(funbox->tcflags & TCF_FUN_IS_GENERATOR)) {
                     /*
                      * Algol-like functions can read upvars using the dynamic
                      * link (cx->fp/fp->down), optimized using the cx->display
@@ -2662,7 +2647,7 @@ Parser::functionDef(uintN lambda, bool namePermitted)
         if (topLevel) {
             pn->pn_dflags |= PND_TOPLEVEL;
 
-            if (tc->inFunction()) {
+            if (tc->flags & TCF_IN_FUNCTION) {
                 JSLocalKind localKind;
                 uintN index;
 
@@ -3198,7 +3183,7 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
      */
     uintN slot = JSSLOT_FREE(&js_BlockClass) + n;
     if (slot >= blockObj->numSlots() &&
-        !blockObj->growSlots(cx, slot + 1)) {
+        !js_GrowSlots(cx, blockObj, slot + 1)) {
         return JS_FALSE;
     }
     blockObj->scope()->freeslot = slot + 1;
@@ -3241,60 +3226,10 @@ OuterLet(JSTreeContext *tc, JSStmtInfo *stmt, JSAtom *atom)
     return false;
 }
 
-/*
- * If we are generating global or eval-called-from-global code, bind a "gvar"
- * here, as soon as possible. The JSOP_GETGVAR, etc., ops speed up interpreted
- * global variable access by memoizing name-to-slot mappings during execution
- * of the script prolog (via JSOP_DEFVAR/JSOP_DEFCONST). If the memoization
- * can't be done due to a pre-existing property of the same name as the var or
- * const but incompatible attributes/getter/setter/etc, these ops devolve to
- * JSOP_NAME, etc.
- *
- * For now, don't try to lookup eval frame variables at compile time. This is
- * sub-optimal: we could handle eval-called-from-global-code gvars since eval
- * gets its own script and frame. The eval-from-function-code case is harder,
- * since functions do not atomize gvars and then reserve their atom indexes as
- * stack frame slots.
- */
-static bool
-BindGvar(JSParseNode *pn, JSTreeContext *tc, bool inWith = false)
-{
-    JS_ASSERT(pn->pn_op == JSOP_NAME);
-    JS_ASSERT(!tc->inFunction());
-
-    if (tc->compiling() && !tc->parser->callerFrame) {
-        JSCodeGenerator *cg = (JSCodeGenerator *) tc;
-
-        /* Index pn->pn_atom so we can map fast global number to name. */
-        JSAtomListElement *ale = cg->atomList.add(tc->parser, pn->pn_atom);
-        if (!ale)
-            return false;
-
-        /* Defend against cg->ngvars 16-bit overflow. */
-        uintN slot = ALE_INDEX(ale);
-        if ((slot + 1) >> 16)
-            return true;
-
-        if ((uint16)(slot + 1) > cg->ngvars)
-            cg->ngvars = (uint16)(slot + 1);
-
-        if (!inWith) {
-            pn->pn_op = JSOP_GETGVAR;
-            pn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, slot);
-            pn->pn_dflags |= PND_BOUND | PND_GVAR;
-        }
-    }
-
-    return true;
-}
-
 static JSBool
 BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
 {
     JSParseNode *pn = data->pn;
-
-    /* Default best op for pn is JSOP_NAME; we'll try to improve below. */
-    pn->pn_op = JSOP_NAME;
 
     if (!CheckStrictBinding(cx, tc, atom, pn))
         return false;
@@ -3302,8 +3237,9 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     JSStmtInfo *stmt = js_LexicalLookup(tc, atom, NULL);
 
     if (stmt && stmt->type == STMT_WITH) {
+        pn->pn_op = JSOP_NAME;
         data->fresh = false;
-        return tc->inFunction() || BindGvar(pn, tc, true);
+        return JS_TRUE;
     }
 
     JSAtomListElement *ale = tc->decls.lookup(atom);
@@ -3438,8 +3374,43 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     if (data->op == JSOP_DEFCONST)
         pn->pn_dflags |= PND_CONST;
 
-    if (!tc->inFunction())
-        return BindGvar(pn, tc);
+    if (!(tc->flags & TCF_IN_FUNCTION)) {
+        /*
+         * If we are generating global or eval-called-from-global code, bind a
+         * "gvar" here, as soon as possible. The JSOP_GETGVAR, etc., ops speed
+         * up global variable access by memoizing name-to-slot mappings in the
+         * script prolog (via JSOP_DEFVAR/JSOP_DEFCONST). If the memoization
+         * can't be done due to a pre-existing property of the same name as the
+         * var or const but incompatible attributes/getter/setter/etc, these
+         * ops devolve to JSOP_NAME, etc.
+         *
+         * For now, don't try to lookup eval frame variables at compile time.
+         * Seems sub-optimal: why couldn't we find eval-called-from-a-function
+         * upvars early and possibly simplify jsemit.cpp:BindNameToSlot?
+         */
+        pn->pn_op = JSOP_NAME;
+        if ((tc->flags & TCF_COMPILING) && !tc->parser->callerFrame) {
+            JSCodeGenerator *cg = (JSCodeGenerator *) tc;
+
+            /* Index atom so we can map fast global number to name. */
+            ale = cg->atomList.add(tc->parser, atom);
+            if (!ale)
+                return JS_FALSE;
+
+            /* Defend against cg->ngvars 16-bit overflow. */
+            uintN slot = ALE_INDEX(ale);
+            if ((slot + 1) >> 16)
+                return JS_TRUE;
+
+            if ((uint16)(slot + 1) > cg->ngvars)
+                cg->ngvars = (uint16)(slot + 1);
+
+            pn->pn_op = JSOP_GETGVAR;
+            pn->pn_cookie = MAKE_UPVAR_COOKIE(tc->staticLevel, slot);
+            pn->pn_dflags |= PND_BOUND | PND_GVAR;
+        }
+        return JS_TRUE;
+    }
 
     if (atom == cx->runtime->atomState.argumentsAtom) {
         pn->pn_op = JSOP_ARGUMENTS;
@@ -3475,6 +3446,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
         /* Not an argument, must be a redeclared local var. */
         JS_ASSERT(localKind == JSLOCAL_VAR || localKind == JSLOCAL_CONST);
     }
+    pn->pn_op = JSOP_NAME;
     return JS_TRUE;
 }
 
@@ -4203,7 +4175,7 @@ Parser::returnOrYield(bool useAssignExpr)
     JSParseNode *pn, *pn2;
 
     tt = tokenStream.currentToken().type;
-    if (tt == TOK_RETURN && !tc->inFunction()) {
+    if (tt == TOK_RETURN && !(tc->flags & TCF_IN_FUNCTION)) {
         ReportCompileErrorNumber(context, &tokenStream, NULL, JSREPORT_ERROR,
                                  JSMSG_BAD_RETURN_OR_YIELD, js_return_str);
         return NULL;
@@ -5663,7 +5635,7 @@ Parser::statement()
 static void
 NoteArgumentsUse(JSTreeContext *tc)
 {
-    JS_ASSERT(tc->inFunction());
+    JS_ASSERT(tc->flags & TCF_IN_FUNCTION);
     tc->flags |= TCF_FUN_USES_ARGUMENTS;
     if (tc->funbox)
         tc->funbox->node->pn_dflags |= PND_FUNARG;
@@ -5833,7 +5805,7 @@ Parser::variables(bool inLetHead)
             /* The declarator's position must include the initializer. */
             pn2->pn_pos.end = init->pn_pos.end;
 
-            if (tc->inFunction() &&
+            if ((tc->flags & TCF_IN_FUNCTION) &&
                 atom == context->runtime->atomState.argumentsAtom) {
                 NoteArgumentsUse(tc);
                 if (!let)
@@ -6274,7 +6246,6 @@ Parser::unaryExpr()
         break;
 
       case TOK_DELETE:
-      {
         pn = UnaryNode::create(tc);
         if (!pn)
             return NULL;
@@ -6302,14 +6273,12 @@ Parser::unaryExpr()
                                        JSMSG_DEPRECATED_DELETE_OPERAND))
                 return NULL;
             pn2->pn_op = JSOP_DELNAME;
-            if (pn2->pn_atom == context->runtime->atomState.argumentsAtom)
-                tc->flags |= TCF_FUN_HEAVYWEIGHT;
             break;
           default:;
         }
         pn->pn_kid = pn2;
         break;
-      }
+
       case TOK_ERROR:
         return NULL;
 
@@ -8390,7 +8359,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                                  tokenStream.currentToken().t_reflags);
         if (!obj)
             return NULL;
-        if (!tc->compileAndGo()) {
+        if (!(tc->flags & TCF_COMPILE_N_GO)) {
             obj->clearParent();
             obj->clearProto();
         }

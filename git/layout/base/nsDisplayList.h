@@ -250,10 +250,6 @@ public:
    */
   void IgnorePaintSuppression() { mIsBackgroundOnly = PR_FALSE; }
   /**
-   * Call this if we're doing normal painting to the window.
-   */
-  void SetPaintingToWindow(PRBool aToWindow) { mIsPaintingToWindow = aToWindow; }
-  /**
    * Display the caret if needed.
    */
   nsresult DisplayCaret(nsIFrame* aFrame, const nsRect& aDirtyRect,
@@ -428,7 +424,6 @@ private:
   // under an nsDisplayTransform
   PRPackedBool                   mInTransform;
   PRPackedBool                   mSyncDecodeImages;
-  PRPackedBool                   mIsPaintingToWindow;
 };
 
 class nsDisplayItem;
@@ -861,22 +856,13 @@ public:
    * not be null.
    * 
    * ComputeVisibility must be called before Paint.
-   * 
-   * This must only be called on the root display list of the display list
-   * tree.
    */
   enum {
     PAINT_DEFAULT = 0,
     PAINT_USE_WIDGET_LAYERS = 0x01
   };
-  void PaintRoot(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-                 PRUint32 aFlags) const;
-  /**
-   * Like PaintRoot, but used for internal display sublists.
-   * aForFrame is the frame that the list is associated with.
-   */
-  void PaintForFrame(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
-                     nsIFrame* aForFrame, PRUint32 aFlags) const;
+  void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+             PRUint32 aFlags) const;
   /**
    * Get the bounds. Takes the union of the bounds of all children.
    */
@@ -953,7 +939,6 @@ public:
    * we construct layers belonging to aManager. The layers used to
    * construct the layer tree (along with the display items associated
    * with each layer) are returned in aLayers.
-   * The caller is responsible for setting the visible region on the layer.
    */
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                      LayerManager* aManager,
@@ -978,8 +963,6 @@ private:
   nsDisplayItemLink  mSentinel;
   nsDisplayItemLink* mTop;
 
-  // This is set by ComputeVisibility
-  nsRect mVisibleRect;
   // This is set to true by ComputeVisibility if the final visible region
   // is empty (i.e. everything that was visible is covered by some
   // opaque content in this list).

@@ -65,7 +65,8 @@
 #endif /* MOZ_X11 */
 
 #ifdef ACCESSIBILITY
-#include "nsAccessible.h"
+#include "nsIAccessNode.h"
+#include "nsIAccessible.h"
 #endif
 
 #include "nsGtkIMModule.h"
@@ -407,37 +408,12 @@ private:
 #endif
 
 #ifdef ACCESSIBILITY
-    nsRefPtr<nsAccessible> mRootAccessible;
-
-    /**
-     * Request to create the accessible for this window if it is top level.
-     */
+    nsCOMPtr<nsIAccessible> mRootAccessible;
     void                CreateRootAccessible();
-
-    /**
-     * Generate the NS_GETACCESSIBLE event to get accessible for this window
-     * and return it.
-     */
-    nsAccessible       *DispatchAccessibleEvent();
-
-    /**
-     * Dispatch accessible event for the top level window accessible.
-     *
-     * @param  aEventType  [in] the accessible event type to dispatch
-     */
-    void                DispatchEventToRootAccessible(PRUint32 aEventType);
-
-    /**
-     * Dispatch accessible window activate event for the top level window
-     * accessible.
-     */
+    void                GetRootAccessible(nsIAccessible** aAccessible);
     void                DispatchActivateEventAccessible();
-
-    /**
-     * Dispatch accessible window deactivate event for the top level window
-     * accessible.
-     */
     void                DispatchDeactivateEventAccessible();
+    NS_IMETHOD_(PRBool) DispatchAccessibleEvent(nsIAccessible** aAccessible);
 #endif
 
     // The cursor cache

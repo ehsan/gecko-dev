@@ -246,7 +246,7 @@ JSBool XPCDispObject::Dispatch(XPCCallContext& ccx, IDispatch * disp,
             *retval = val;
         }
     }
-    // Set the result and throw the error if one occurred
+    // Set the result and throw the error if one occured
     ccx.GetXPCContext()->SetLastResult(invokeResult);
 
     if(NS_FAILED(invokeResult))

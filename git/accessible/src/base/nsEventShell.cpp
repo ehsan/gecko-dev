@@ -52,7 +52,8 @@ nsEventShell::FireEvent(nsAccEvent *aEvent)
   if (!aEvent)
     return;
 
-  nsRefPtr<nsAccessible> acc = do_QueryObject(aEvent->GetAccessible());
+  nsRefPtr<nsAccessible> acc =
+    nsAccUtils::QueryObject<nsAccessible>(aEvent->GetAccessible());
   NS_ENSURE_TRUE(acc,);
 
   nsCOMPtr<nsIDOMNode> node;

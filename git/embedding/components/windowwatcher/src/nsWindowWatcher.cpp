@@ -1387,7 +1387,7 @@ nsWindowWatcher::URIfromURL(const char *aURL,
       nsCOMPtr<nsIDocument> doc;
       doc = do_QueryInterface(domDoc);
       if (doc) {
-        baseURI = doc->GetDocBaseURI();
+        baseURI = doc->GetBaseURI();
       }
     }
   }

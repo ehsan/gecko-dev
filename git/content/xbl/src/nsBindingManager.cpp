@@ -503,9 +503,13 @@ RemoveInsertionParentForNodeList(nsIDOMNodeList* aList, nsIContent* aParent)
 void
 nsBindingManager::RemoveInsertionParent(nsIContent* aParent)
 {
-  RemoveInsertionParentForNodeList(GetContentListFor(aParent), aParent);
+  nsCOMPtr<nsIDOMNodeList> contentlist;
+  GetContentListFor(aParent, getter_AddRefs(contentlist));
+  RemoveInsertionParentForNodeList(contentlist, aParent);
 
-  RemoveInsertionParentForNodeList(GetAnonymousNodesFor(aParent), aParent);
+  nsCOMPtr<nsIDOMNodeList> anonnodes;
+  GetAnonymousNodesFor(aParent, getter_AddRefs(anonnodes));
+  RemoveInsertionParentForNodeList(anonnodes, aParent);
 
   if (mInsertionParentTable.ops) {
     PL_DHashTableEnumerate(&mInsertionParentTable, RemoveInsertionParentCB,
@@ -760,13 +764,6 @@ nsBindingManager::GetAnonymousNodesFor(nsIContent* aContent,
   PRBool dummy;
   NS_IF_ADDREF(*aResult = GetAnonymousNodesInternal(aContent, &dummy));
   return NS_OK;
-}
-
-nsINodeList*
-nsBindingManager::GetAnonymousNodesFor(nsIContent* aContent)
-{
-  PRBool dummy;
-  return GetAnonymousNodesInternal(aContent, &dummy);
 }
 
 nsresult
@@ -1525,7 +1522,6 @@ nsBindingManager::FindInsertionPointAndIndex(nsIContent* aContainer,
 void
 nsBindingManager::ContentAppended(nsIDocument* aDocument,
                                   nsIContent* aContainer,
-                                  nsIContent* aFirstNewContent,
                                   PRInt32     aNewIndexInContainer)
 {
   if (aNewIndexInContainer != -1 &&

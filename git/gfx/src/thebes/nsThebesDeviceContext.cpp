@@ -88,9 +88,6 @@ static nsSystemFontsMac *gSystemFonts = nsnull;
 #elif defined(MOZ_WIDGET_QT)
 #include "nsSystemFontsQt.h"
 static nsSystemFontsQt *gSystemFonts = nsnull;
-#elif defined(ANDROID)
-#include "nsSystemFontsAndroid.h"
-static nsSystemFontsAndroid *gSystemFonts = nsnull;
 #else
 #error Need to declare gSystemFonts!
 #endif
@@ -832,8 +829,6 @@ nsThebesDeviceContext::GetSystemFont(nsSystemFontID aID, nsFont *aFont) const
         gSystemFonts = new nsSystemFontsMac();
 #elif defined(MOZ_WIDGET_QT)
         gSystemFonts = new nsSystemFontsQt();
-#elif defined(ANDROID)
-        gSystemFonts = new nsSystemFontsAndroid();
 #else
 #error Need to know how to create gSystemFonts, fix me!
 #endif

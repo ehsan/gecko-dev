@@ -57,7 +57,7 @@
 #include "nsIConsoleService.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsINameSpaceManager.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "txStringUtils.h"
 #include "txURIUtils.h"
 #include "nsIHTMLDocument.h"
@@ -265,7 +265,7 @@ txMozillaXMLOutput::endDocument(nsresult aResult)
             nsCOMPtr<nsIRefreshURI> refURI =
                 do_QueryInterface(win->GetDocShell());
             if (refURI) {
-                refURI->SetupRefreshURIFromHeader(mDocument->GetDocBaseURI(),
+                refURI->SetupRefreshURIFromHeader(mDocument->GetBaseURI(),
                                                   mRefreshString);
             }
         }
@@ -985,7 +985,7 @@ txTransformNotifier::ScriptEvaluated(nsresult aResult,
 }
 
 NS_IMETHODIMP 
-txTransformNotifier::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+txTransformNotifier::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                       PRBool aWasAlternate,
                                       nsresult aStatus)
 {

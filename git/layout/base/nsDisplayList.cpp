@@ -77,8 +77,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mPaintAllFrames(PR_FALSE),
       mAccurateVisibleRegions(PR_FALSE),
       mInTransform(PR_FALSE),
-      mSyncDecodeImages(PR_FALSE),
-      mIsPaintingToWindow(PR_FALSE) {
+      mSyncDecodeImages(PR_FALSE) {
   PL_InitArenaPool(&mPool, "displayListArena", 1024, sizeof(void*)-1);
 
   nsPresContext* pc = aReferenceFrame->PresContext();
@@ -197,10 +196,6 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
 
   state->mPresShell->UpdateCanvasBackground();
 
-  if (mIsPaintingToWindow) {
-    state->mPresShell->IncrementPaintCount();
-  }
-
   if (!mBuildCaret)
     return;
 
@@ -315,8 +310,6 @@ nsDisplayList::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                  nsRegion* aVisibleRegionBeforeMove) {
   NS_ASSERTION((aVisibleRegionBeforeMove != nsnull) == aBuilder->HasMovingFrames(),
                "Should have aVisibleRegionBeforeMove when there are moving frames");
-
-  mVisibleRect = aVisibleRegion->GetBounds();
 
   nsAutoTArray<nsDisplayItem*, 512> elements;
   FlattenTo(&elements);
@@ -701,39 +694,41 @@ void nsDisplayList::BuildLayers(nsDisplayListBuilder* aBuilder,
 }
 
 /**
- * We build a single layer by building a list of layers needed for
- * all the display items and building a container layer to hold them.
+ * We build a single layer by first building a list of layers needed for
+ * all the display items, and then if there's not just one layer in the
+ * list, we build a container layer to hold them.
  */
 already_AddRefed<Layer>
 nsDisplayList::BuildLayer(nsDisplayListBuilder* aBuilder,
                           LayerManager* aManager,
                           nsTArray<LayerItems>* aLayers) const {
-  // If there's only one layer, then in principle we can try to flatten
-  // things by returning that layer here. But that adds complexity to
-  // retained layer management so we don't do it. Layer backends can
-  // flatten internally.
-  nsRefPtr<ContainerLayer> container =
-    aManager->CreateContainerLayer();
-  if (!container)
-    return nsnull;
-
   BuildLayers(aBuilder, aManager, aLayers);
 
-  Layer* lastChild = nsnull;
-  for (PRUint32 i = 0; i < aLayers->Length(); ++i) {
-    Layer* child = aLayers->ElementAt(i).mLayer;
-    container->InsertAfter(child, lastChild);
-    lastChild = child;
+  nsRefPtr<Layer> layer;
+  if (aLayers->Length() == 1) {
+    // We can just return the one layer
+    layer = aLayers->ElementAt(0).mLayer;
+  } else {
+    // We need to group multiple layers together into a container
+    nsRefPtr<ContainerLayer> container =
+      aManager->CreateContainerLayer();
+    if (!container)
+      return nsnull;
+    
+    Layer* lastChild = nsnull;
+    nsIntRect visibleRect;
+    for (PRUint32 i = 0; i < aLayers->Length(); ++i) {
+      LayerItems* layerItems = &aLayers->ElementAt(i);
+      visibleRect.UnionRect(visibleRect, layerItems->mVisibleRect);
+      Layer* child = layerItems->mLayer;
+      container->InsertAfter(child, lastChild);
+      lastChild = child;
+    }
+    container->SetVisibleRegion(nsIntRegion(visibleRect));
+    layer = container.forget();
   }
-  container->SetIsOpaqueContent(mIsOpaque);
-  nsRefPtr<Layer> layer = container.forget();
+  layer->SetIsOpaqueContent(mIsOpaque);
   return layer.forget();
-}
-
-void nsDisplayList::PaintRoot(nsDisplayListBuilder* aBuilder,
-                              nsIRenderingContext* aCtx,
-                              PRUint32 aFlags) const {
-  PaintForFrame(aBuilder, aCtx, aBuilder->ReferenceFrame(), aFlags);
 }
 
 /**
@@ -741,10 +736,9 @@ void nsDisplayList::PaintRoot(nsDisplayListBuilder* aBuilder,
  * single layer representing the display list, and then making it the
  * root of the layer manager, drawing into the ThebesLayers.
  */
-void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
-                                  nsIRenderingContext* aCtx,
-                                  nsIFrame* aForFrame,
-                                  PRUint32 aFlags) const {
+void nsDisplayList::Paint(nsDisplayListBuilder* aBuilder,
+                          nsIRenderingContext* aCtx,
+                          PRUint32 aFlags) const {
   NS_ASSERTION(mDidComputeVisibility,
                "Must call ComputeVisibility before calling Paint");
 
@@ -778,10 +772,6 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   nsRefPtr<Layer> root = BuildLayer(aBuilder, layerManager, &layers);
   if (!root)
     return;
-
-  nsIntRect visible =
-    mVisibleRect.ToNearestPixels(aForFrame->PresContext()->AppUnitsPerDevPixel());
-  root->SetVisibleRegion(nsIntRegion(visible));
 
   layerManager->SetRoot(root);
   layerManager->EndConstruction();
@@ -1542,7 +1532,7 @@ nsDisplayOpacity::BuildLayer(nsDisplayListBuilder* aBuilder,
   if (!layer)
     return nsnull;
 
-  layer->SetOpacity(mFrame->GetStyleDisplay()->mOpacity);
+  layer->SetOpacity(mFrame->GetStyleDisplay()->mOpacity*layer->GetOpacity());
   return layer.forget();
 }
 
@@ -1862,8 +1852,7 @@ void nsDisplayTransform::Paint(nsDisplayListBuilder *aBuilder,
 
   /* Now, send the paint call down.
    */    
-  mStoredList.GetList()->
-      PaintForFrame(aBuilder, aCtx, mFrame, nsDisplayList::PAINT_DEFAULT);
+  mStoredList.GetList()->Paint(aBuilder, aCtx, nsDisplayList::PAINT_DEFAULT);
 
   /* The AutoSaveRestore object will clean things up. */
 }

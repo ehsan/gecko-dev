@@ -66,7 +66,7 @@
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"

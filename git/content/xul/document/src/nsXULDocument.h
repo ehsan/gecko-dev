@@ -176,7 +176,7 @@ public:
     NS_IMETHOD GetContentType(nsAString& aContentType);
 
     // nsICSSLoaderObserver
-    NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+    NS_IMETHOD StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                 PRBool aWasAlternate,
                                 nsresult aStatus);
 
@@ -304,7 +304,7 @@ protected:
      * An array of style sheets, that will be added (preserving order) to the
      * document after all of them are loaded (in DoneWalking).
      */
-    nsTArray<nsRefPtr<nsCSSStyleSheet> > mOverlaySheets;
+    nsCOMArray<nsICSSStyleSheet> mOverlaySheets;
 
     nsCOMPtr<nsIDOMXULCommandDispatcher>     mCommandDispatcher; // [OWNER] of the focus tracker
 

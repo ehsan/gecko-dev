@@ -80,7 +80,6 @@
 #include "nsIDOMNSUIEvent.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNamedNodeMap.h"
-#include "nsIFormControl.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLHtmlElement.h"
@@ -1815,27 +1814,27 @@ ChromeContextMenuListener::ContextMenu(nsIDOMEvent* aMouseEvent)
       }
     }
 
-    nsCOMPtr<nsIFormControl> formControl(do_QueryInterface(node));
-    if (formControl) {
-      if (formControl->GetType() == NS_FORM_TEXTAREA) {
-        flags |= nsIContextMenuListener::CONTEXT_TEXT;
-        flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
-        targetDOMnode = node;
-      } else {
-        nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(formControl));
-        if (inputElement) {
-          flags |= nsIContextMenuListener::CONTEXT_INPUT;
-          flags2 |= nsIContextMenuListener2::CONTEXT_INPUT;
+    nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(node));
+    if (inputElement) {
+      flags |= nsIContextMenuListener::CONTEXT_INPUT;
+      flags2 |= nsIContextMenuListener2::CONTEXT_INPUT;
 
-          if (menuListener2) {
-            if (formControl->IsSingleLineTextControl(PR_FALSE)) {
-              flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
-            }
-          }
-
-          targetDOMnode = node;
-        }
+      if (menuListener2) {
+        nsAutoString inputElemType;
+        inputElement->GetType(inputElemType);
+        if (inputElemType.LowerCaseEqualsLiteral("text") ||
+            inputElemType.LowerCaseEqualsLiteral("password"))
+          flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
       }
+
+      targetDOMnode = node;
+    }
+
+    nsCOMPtr<nsIDOMHTMLTextAreaElement> textElement(do_QueryInterface(node));
+    if (textElement) {
+      flags |= nsIContextMenuListener::CONTEXT_TEXT;
+      flags2 |= nsIContextMenuListener2::CONTEXT_TEXT;
+      targetDOMnode = node;
     }
 
     // always consume events for plugins and Java who may throw their

@@ -162,7 +162,7 @@ static const char kPrintingPromptService[] = "@mozilla.org/embedcomp/printingpro
 #include "nsRange.h"
 #include "nsCDefaultURIFixup.h"
 #include "nsIURIFixup.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

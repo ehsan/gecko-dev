@@ -128,6 +128,7 @@
 #include "nsIPresShell.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsIProgrammingLanguage.h"
+#include "nsIAuthPrompt.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsIScriptSecurityManager.h"
@@ -137,7 +138,6 @@
 #include "nsISelectionController.h"
 #include "nsISelection.h"
 #include "nsIPrompt.h"
-#include "nsIPromptService.h"
 #include "nsIWebNavigation.h"
 #include "nsIWebBrowser.h"
 #include "nsIWebBrowserChrome.h"
@@ -203,9 +203,7 @@
 #include "nsIPopupWindowManager.h"
 
 #include "nsIDragService.h"
-#include "mozilla/dom/Element.h"
-#include "nsISupportsPrimitives.h"
-#include "nsXPCOMCID.h"
+#include "Element.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds
@@ -229,7 +227,6 @@ static PRInt32              gRunningTimeoutDepth       = 0;
 static PRPackedBool         gMouseDown                 = PR_FALSE;
 static PRPackedBool         gDragServiceDisabled       = PR_FALSE;
 static FILE                *gDumpFile                  = nsnull;
-static PRUint64             gNextWindowID              = 0;
 
 #ifdef DEBUG
 static PRUint32             gSerialCounter             = 0;
@@ -655,9 +652,8 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mShowFocusRings(PR_TRUE),
 #endif
     mShowFocusRingForContent(PR_FALSE),
-    mFocusByKeyOccurred(PR_FALSE),
+    mFocusByKeyOccured(PR_FALSE),
     mHasAcceleration(PR_FALSE),
-    mNotifiedIDDestroyed(PR_FALSE),
     mTimeoutInsertionPoint(nsnull),
     mTimeoutPublicIdCounter(1),
     mTimeoutFiringDepth(0),
@@ -670,7 +666,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 #endif
     , mCleanedUp(PR_FALSE)
     , mCallCleanUpAfterModalDialogCloses(PR_FALSE)
-    , mWindowID(gNextWindowID++)
 {
   memset(mScriptGlobals, 0, sizeof(mScriptGlobals));
   nsLayoutStatics::AddRef();
@@ -1015,8 +1010,6 @@ nsGlobalWindow::ReallyClearScope(nsRunnable *aRunnable)
     NS_DispatchToMainThread(aRunnable);
     return;
   }
-
-  NotifyWindowIDDestroyed("inner-window-destroyed");
 
   PRUint32 lang_id;
   NS_STID_FOR_ID(lang_id) {
@@ -2204,8 +2197,6 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
 
     // Make sure that this is called before we null out the document.
     NotifyDOMWindowDestroyed(this);
-
-    NotifyWindowIDDestroyed("outer-window-destroyed");
 
     nsGlobalWindow *currentInner = GetCurrentInnerWindowInternal();
 
@@ -3573,25 +3564,6 @@ nsGlobalWindow::GetMozInnerScreenY(float* aScreenY)
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::GetMozPaintCount(PRUint64* aResult)
-{
-  FORWARD_TO_OUTER(GetMozPaintCount, (aResult), NS_ERROR_NOT_INITIALIZED);
-
-  *aResult = 0;
-
-  if (!mDocShell)
-    return NS_OK;
-
-  nsCOMPtr<nsIPresShell> presShell;
-  mDocShell->GetPresShell(getter_AddRefs(presShell));
-  if (!presShell)
-    return NS_OK;
-
-  *aResult = presShell->GetPaintCount();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsGlobalWindow::SetScreenX(PRInt32 aScreenX)
 {
   FORWARD_TO_OUTER(SetScreenX, (aScreenX), NS_ERROR_NOT_INITIALIZED);
@@ -4252,6 +4224,9 @@ nsGlobalWindow::Alert(const nsAString& aString)
 {
   FORWARD_TO_OUTER(Alert, (aString), NS_ERROR_NOT_INITIALIZED);
 
+  nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mDocShell));
+  NS_ENSURE_TRUE(prompter, NS_ERROR_FAILURE);
+
   // Reset popup state while opening a modal dialog, and firing events
   // about the dialog, to prevent the current state from being active
   // the whole time a modal dialog is open.
@@ -4276,17 +4251,16 @@ nsGlobalWindow::Alert(const nsAString& aString)
   nsAutoString final;
   nsContentUtils::StripNullChars(*str, final);
 
-  nsresult rv;
-  nsCOMPtr<nsIPromptService> promptSvc = do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return promptSvc->Alert(this, title.get(), final.get());
+  return prompter->Alert(title.get(), final.get());
 }
 
 NS_IMETHODIMP
 nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
 {
   FORWARD_TO_OUTER(Confirm, (aString, aReturn), NS_ERROR_NOT_INITIALIZED);
+
+  nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mDocShell));
+  NS_ENSURE_TRUE(prompter, NS_ERROR_FAILURE);
 
   // Reset popup state while opening a modal dialog, and firing events
   // about the dialog, to prevent the current state from being active
@@ -4307,23 +4281,41 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
   nsAutoString final;
   nsContentUtils::StripNullChars(aString, final);
 
-  nsresult rv;
-  nsCOMPtr<nsIPromptService> promptSvc = do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return promptSvc->Confirm(this, title.get(), final.get(), aReturn);
+  return prompter->Confirm(title.get(), final.get(),
+                           aReturn);
 }
 
 NS_IMETHODIMP
 nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
+                       const nsAString& aTitle, PRUint32 aSavePassword,
                        nsAString& aReturn)
 {
+  // We don't use "aTitle" because we ignore the 3rd (title) argument to
+  // prompt(). IE and Opera ignore it too. See Mozilla bug 334893.
   SetDOMStringToNull(aReturn);
+
+  // This code depends on aSavePassword being defaulted to
+  // nsIAuthPrompt::SAVE_PASSWORD_NEVER, which happens to have the
+  // value 0. If that ever changes, this code needs to deal!
+
+  PR_STATIC_ASSERT(nsIAuthPrompt::SAVE_PASSWORD_NEVER == 0);
+
+  nsresult rv;
+  nsCOMPtr<nsIWindowWatcher> wwatch =
+    do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIAuthPrompt> prompter;
+  wwatch->GetNewAuthPrompter(this, getter_AddRefs(prompter));
+  NS_ENSURE_TRUE(prompter, NS_ERROR_FAILURE);
 
   // Reset popup state while opening a modal dialog, and firing events
   // about the dialog, to prevent the current state from being active
   // the whole time a modal dialog is open.
   nsAutoPopupStatePusher popupStatePusher(openAbused, PR_TRUE);
+
+  PRBool b;
+  nsXPIDLString uniResult;
 
   // Before bringing up the window, unsuppress painting and flush
   // pending reflows.
@@ -4338,22 +4330,13 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
   nsContentUtils::StripNullChars(aMessage, fixedMessage);
   nsContentUtils::StripNullChars(aInitial, fixedInitial);
 
-  nsresult rv;
-  nsCOMPtr<nsIPromptService> promptSvc = do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
+  rv = prompter->Prompt(title.get(), fixedMessage.get(), nsnull,
+                        aSavePassword, fixedInitial.get(),
+                        getter_Copies(uniResult), &b);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Pass in the default value, if any.
-  PRUnichar *inoutValue = ToNewUnicode(fixedInitial);
-
-  PRBool ok, dummy;
-  rv = promptSvc->Prompt(this, title.get(), fixedMessage.get(),
-                         &inoutValue, nsnull, &dummy, &ok);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAdoptingString outValue(inoutValue);
-
-  if (ok && outValue) {
-    aReturn.Assign(outValue);
+  if (uniResult && b) {
+    aReturn.Assign(uniResult);
   }
 
   return rv;
@@ -5194,7 +5177,7 @@ nsGlobalWindow::FireAbuseEvents(PRBool aBlocked, PRBool aWindow,
   contextWindow->GetDocument(getter_AddRefs(domdoc));
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(domdoc));
   if (doc)
-    baseURL = doc->GetDocBaseURI();
+    baseURL = doc->GetBaseURI();
 
   // use the base URI to build what would have been the popup's URI
   nsCOMPtr<nsIIOService> ios(do_GetService(NS_IOSERVICE_CONTRACTID));
@@ -6000,42 +5983,6 @@ nsGlobalWindow::NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow) {
   }
 }
 
-class WindowDestroyedEvent : public nsRunnable
-{
-public:
-  WindowDestroyedEvent(PRUint64 aID, const char* aTopic) :
-    mID(aID), mTopic(aTopic) {}
-
-  NS_IMETHOD Run()
-  {
-    nsCOMPtr<nsIObserverService> observerService =
-      do_GetService("@mozilla.org/observer-service;1");
-    if (observerService) {
-      nsCOMPtr<nsISupportsPRUint64> wrapper =
-        do_CreateInstance(NS_SUPPORTS_PRUINT64_CONTRACTID);
-      if (wrapper) {
-        wrapper->SetData(mID);
-        observerService->NotifyObservers(wrapper, mTopic.get(), nsnull);
-      }
-    }
-    return NS_OK;
-  }
-
-private:
-  PRUint64 mID;
-  nsCString mTopic;
-};
-
-void
-nsGlobalWindow::NotifyWindowIDDestroyed(const char* aTopic)
-{
-  nsRefPtr<nsIRunnable> runnable = new WindowDestroyedEvent(mWindowID, aTopic);
-  nsresult rv = NS_DispatchToCurrentThread(runnable);
-  if (NS_SUCCEEDED(rv)) {
-    mNotifiedIDDestroyed = PR_TRUE;
-  }
-}
-
 void
 nsGlobalWindow::InitJavaProperties()
 {
@@ -6704,8 +6651,9 @@ nsGlobalWindow::RemoveGroupedEventListener(const nsAString & aType,
 
     mListenerManager->RemoveEventListenerByType(aListener, aType, flags,
                                                 aEvtGrp);
+    return NS_OK;
   }
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP
@@ -7001,7 +6949,7 @@ nsGlobalWindow::SetFocusedNode(nsIContent* aNode,
     // mShowFocusRingForContent, as we don't want this to be permanent for
     // the window.
     if (mFocusMethod == nsIFocusManager::FLAG_BYKEY) {
-      mFocusByKeyOccurred = PR_TRUE;
+      mFocusByKeyOccured = PR_TRUE;
     } else if (aFocusMethod & nsIFocusManager::FLAG_SHOWRING
 #ifdef MOZ_WIDGET_GTK2
              || mFocusedNode->IsXUL()
@@ -7028,7 +6976,7 @@ nsGlobalWindow::ShouldShowFocusRing()
 {
   FORWARD_TO_INNER(ShouldShowFocusRing, (), PR_FALSE);
 
-  return mShowFocusRings || mShowFocusRingForContent || mFocusByKeyOccurred;
+  return mShowFocusRings || mShowFocusRingForContent || mFocusByKeyOccured;
 }
 
 void
@@ -9038,7 +8986,7 @@ nsGlobalWindow::BuildURIfromBase(const char *aURL, nsIURI **aBuiltURI,
     sourceWindow->GetDocument(getter_AddRefs(domDoc));
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
     if (doc) {
-      baseURI = doc->GetDocBaseURI();
+      baseURI = doc->GetBaseURI();
       charset = doc->GetDocumentCharacterSet();
     }
   }

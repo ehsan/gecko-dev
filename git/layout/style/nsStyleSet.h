@@ -185,12 +185,12 @@ class nsStyleSet
 
   // Test if style is dependent on content state
   nsRestyleHint HasStateDependentStyle(nsPresContext* aPresContext,
-                                       mozilla::dom::Element* aElement,
-                                       PRInt32 aStateMask);
+                                       nsIContent*     aContent,
+                                       PRInt32         aStateMask);
 
   // Test if style is dependent on the presence of an attribute.
   nsRestyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,
-                                           mozilla::dom::Element* aElement,
+                                           nsIContent*    aContent,
                                            nsIAtom*       aAttribute,
                                            PRInt32        aModType,
                                            PRBool         aAttrHasChanged);

@@ -61,7 +61,7 @@
 #include "nsIEventStateManager.h"
 #include "nsStyleSet.h"
 #include "nsIStyleSheet.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIFrame.h"
 
 #include "nsILinkHandler.h"
@@ -802,10 +802,6 @@ DocumentViewerImpl::InitPresentationStuff(PRBool aDoInitialReflow)
                                                NS_GET_IID(nsIDOMFocusListener));
       NS_ASSERTION(NS_SUCCEEDED(rv), "failed to remove focus listener");
     }
-  }
-
-  if (aDoInitialReflow && mDocument) {
-    mDocument->ScrollToRef();
   }
 
   return NS_OK;
@@ -2121,7 +2117,7 @@ DocumentViewerImpl::CreateStyleSet(nsIDocument* aDocument,
   NS_ASSERTION(SameCOMIdentity(debugDocContainer, debugDocShell),
                "Unexpected containers");
 #endif
-  nsCSSStyleSheet* sheet = nsnull;
+  nsICSSStyleSheet* sheet = nsnull;
   if (nsContentUtils::IsInChromeDocshell(aDocument)) {
     sheet = nsLayoutStylesheetCache::UserChromeSheet();
   }
@@ -2139,7 +2135,7 @@ DocumentViewerImpl::CreateStyleSet(nsIDocument* aDocument,
   nsCOMPtr<nsIDocShell> ds(do_QueryReferent(mContainer));
   nsCOMPtr<nsIDOMEventTarget> chromeHandler;
   nsCOMPtr<nsIURI> uri;
-  nsRefPtr<nsCSSStyleSheet> csssheet;
+  nsCOMPtr<nsICSSStyleSheet> csssheet;
 
   if (ds) {
     ds->GetChromeEventHandler(getter_AddRefs(chromeHandler));
@@ -2188,11 +2184,12 @@ DocumentViewerImpl::CreateStyleSet(nsIDocument* aDocument,
 
   // Make sure to clone the quirk sheet so that it can be usefully
   // enabled/disabled as needed.
-  nsRefPtr<nsCSSStyleSheet> quirkClone;
-  nsCSSStyleSheet* quirkSheet;
+  nsCOMPtr<nsICSSStyleSheet> quirkClone;
   if (!nsLayoutStylesheetCache::UASheet() ||
-      !(quirkSheet = nsLayoutStylesheetCache::QuirkSheet()) ||
-      !(quirkClone = quirkSheet->Clone(nsnull, nsnull, nsnull, nsnull)) ||
+      !nsLayoutStylesheetCache::QuirkSheet() ||
+      NS_FAILED(nsLayoutStylesheetCache::QuirkSheet()->
+                Clone(nsnull, nsnull, nsnull, nsnull,
+                      getter_AddRefs(quirkClone))) ||
       !sheet) {
     delete styleSet;
     return NS_ERROR_OUT_OF_MEMORY;

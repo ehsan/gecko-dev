@@ -163,7 +163,7 @@ nsHttpResponseHead::Parse(char *block)
 }
 
 void
-nsHttpResponseHead::ParseStatusLine(const char *line)
+nsHttpResponseHead::ParseStatusLine(char *line)
 {
     //
     // Parse Status-Line:: HTTP-Version SP Status-Code SP Reason-Phrase CRLF
@@ -198,7 +198,7 @@ nsHttpResponseHead::ParseStatusLine(const char *line)
 }
 
 void
-nsHttpResponseHead::ParseHeaderLine(const char *line)
+nsHttpResponseHead::ParseHeaderLine(char *line)
 {
     nsHttpAtom hdr = {0};
     char *val;

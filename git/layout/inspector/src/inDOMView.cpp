@@ -815,22 +815,27 @@ inDOMView::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
 void
 inDOMView::ContentAppended(nsIDocument *aDocument,
                            nsIContent* aContainer,
-                           nsIContent* aFirstNewContent,
-                           PRInt32 /* unused */)
+                           PRInt32 aNewIndexInContainer)
 {
   if (!mTree) {
     return;
   }
 
-  for (nsIContent* cur = aFirstNewContent; cur; cur = cur->GetNextSibling()) {
-    // Our ContentInserted impl doesn't use the index
-    ContentInserted(aDocument, aContainer, cur, 0);
+  PRUint32 count = aContainer->GetChildCount();
+  NS_ASSERTION((PRUint32)aNewIndexInContainer < count,
+               "Bogus aNewIndexInContainer");
+
+  while ((PRUint32)aNewIndexInContainer < count) {
+    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
+
+    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
+    ++aNewIndexInContainer;
   }
 }
 
 void
 inDOMView::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
-                           nsIContent* aChild, PRInt32 /* unused */)
+                           nsIContent* aChild, PRInt32 aIndexInContainer)
 {
   if (!mTree)
     return;

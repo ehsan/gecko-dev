@@ -89,7 +89,7 @@ using namespace mozilla::places;
 // Microsecond timeout for "recent" events such as typed and bookmark following.
 // If you typed it more than this time ago, it's not recent.
 // This is 15 minutes           m    s/m  us/s
-#define RECENT_EVENT_THRESHOLD PRTime((PRInt64)15 * 60 * PR_USEC_PER_SEC)
+#define RECENT_EVENT_THRESHOLD ((PRInt64)15 * 60 * PR_USEC_PER_SEC)
 
 // The maximum number of things that we will store in the recent events list
 // before calling ExpireNonrecentEvents. This number should be big enough so it
@@ -687,9 +687,7 @@ nsNavHistory::InitDB()
     cachePercentage = 50;
   if (cachePercentage < 0)
     cachePercentage = 0;
-
-  static PRInt64 physMem = PR_GetPhysicalMemorySize();
-  PRInt64 cacheSize = physMem * cachePercentage / 100;
+  PRInt64 cacheSize = PR_GetPhysicalMemorySize() * cachePercentage / 100;
 
   // Compute number of cached pages, this will be our cache size.
   PRInt64 cachePages = cacheSize / pageSize;
@@ -6875,8 +6873,8 @@ nsNavHistory::RowToResult(mozIStorageValueArray* aRow,
                           nsNavHistoryQueryOptions* aOptions,
                           nsNavHistoryResultNode** aResult)
 {
-  NS_ASSERTION(aRow && aOptions && aResult, "Null pointer in RowToResult");
   *aResult = nsnull;
+  NS_ASSERTION(aRow && aOptions && aResult, "Null pointer in RowToResult");
 
   // URL
   nsCAutoString url;
@@ -6931,17 +6929,19 @@ nsNavHistory::RowToResult(mozIStorageValueArray* aRow,
     }
 
     rv = QueryRowToResult(itemId, url, title, accessCount, time, favicon, aResult);
-    NS_ENSURE_STATE(*aResult);
+
+    // If it's a simple folder node (i.e. a shortcut to another folder), apply
+    // our options for it. However, if the parent type was tag query, we do not
+    // apply them, because it would not yield any results.
+    if (*aResult && (*aResult)->IsFolder() &&
+         aOptions->ResultType() != 
+           nsINavHistoryQueryOptions::RESULTS_AS_TAG_QUERY)
+      (*aResult)->GetAsContainer()->mOptions = aOptions;
+
+    // RESULTS_AS_TAG_QUERY has date columns
     if (aOptions->ResultType() == nsNavHistoryQueryOptions::RESULTS_AS_TAG_QUERY) {
-      // RESULTS_AS_TAG_QUERY has date columns
       (*aResult)->mDateAdded = aRow->AsInt64(kGetInfoIndex_ItemDateAdded);
       (*aResult)->mLastModified = aRow->AsInt64(kGetInfoIndex_ItemLastModified);
-    }
-    else if ((*aResult)->IsFolder()) {
-      // If it's a simple folder node (i.e. a shortcut to another folder), apply
-      // our options for it. However, if the parent type was tag query, we do not
-      // apply them, because it would not yield any results.
-      (*aResult)->GetAsContainer()->mOptions = aOptions;
     }
 
     return rv;
@@ -7331,7 +7331,7 @@ nsNavHistory::AddPageWithVisits(nsIURI *aURI,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  NS_ASSERTION(placeId != 0, "Cannot add a visit to a nonexistent page");
+  NS_ASSERTION(placeId != 0, "Cannot add a visit to a not existant page");
 
   if (aFirstVisitDate != -1) {
     // Add the first visit
@@ -8087,7 +8087,7 @@ nsNavHistory::GetBundle()
 {
   if (!mBundle) {
     nsCOMPtr<nsIStringBundleService> bundleService =
-      mozilla::services::GetStringBundleService();
+      do_GetService(NS_STRINGBUNDLE_CONTRACTID);
     NS_ENSURE_TRUE(bundleService, nsnull);
     nsresult rv = bundleService->CreateBundle(
         "chrome://places/locale/places.properties",
@@ -8102,7 +8102,7 @@ nsNavHistory::GetDateFormatBundle()
 {
   if (!mDateFormatBundle) {
     nsCOMPtr<nsIStringBundleService> bundleService =
-      mozilla::services::GetStringBundleService();
+      do_GetService(NS_STRINGBUNDLE_CONTRACTID);
     NS_ENSURE_TRUE(bundleService, nsnull);
     nsresult rv = bundleService->CreateBundle(
         "chrome://global/locale/dateFormat.properties",

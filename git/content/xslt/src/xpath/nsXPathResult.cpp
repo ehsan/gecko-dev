@@ -258,7 +258,6 @@ nsXPathResult::AttributeChanged(nsIDocument* aDocument,
 void
 nsXPathResult::ContentAppended(nsIDocument* aDocument,
                                nsIContent* aContainer,
-                               nsIContent* aFirstNewContent,
                                PRInt32 aNewIndexInContainer)
 {
     Invalidate(aContainer);

@@ -39,8 +39,8 @@
 #include "nsX11ErrorHandler.h"
 
 #ifdef MOZ_IPC
-#include "mozilla/plugins/PluginProcessChild.h"
-using mozilla::plugins::PluginProcessChild;
+#include "mozilla/plugins/PluginThreadChild.h"
+using mozilla::plugins::PluginThreadChild;
 #endif
 
 #include "prenv.h"
@@ -157,7 +157,7 @@ X11Error(Display *display, XErrorEvent *event) {
       // This is assuming that X operations are performed on the plugin
       // thread.  If plugins are using X on another thread, then we'll need to
       // handle that differently.
-      PluginProcessChild::AppendNotesToCrashReport(notes);
+      PluginThreadChild::AppendNotesToCrashReport(notes);
     }
     break;
 #endif

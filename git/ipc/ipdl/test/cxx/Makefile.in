@@ -48,7 +48,7 @@ MODULE = ipdlunittest
 EXPORTS_NAMESPACES = mozilla/_ipdltest
 EXPORTS_mozilla/_ipdltest =  \
   IPDLUnitTests.h  \
-  IPDLUnitTestProcessChild.h  \
+  IPDLUnitTestThreadChild.h  \
   IPDLUnitTestTypes.h \
   $(NULL)
 
@@ -92,7 +92,7 @@ GENTESTER := $(srcdir)/genIPDLUnitTests.py
 CPPSRCS =  \
   IPDLUnitTests.cpp  \
   IPDLUnitTestSubprocess.cpp  \
-  IPDLUnitTestProcessChild.cpp  \
+  IPDLUnitTestThreadChild.cpp  \
   $(IPDLTESTSRCS)  \
   $(NULL)
 

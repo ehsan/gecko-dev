@@ -51,7 +51,6 @@
 #include "nsDisplayList.h"
 #include "nsIScrollableFrame.h"
 #include "nsStubMutationObserver.h"
-#include "nsThreadUtils.h"
 
 class nsIEditor;
 class nsISelectionController;
@@ -268,24 +267,6 @@ protected:
     nsTextControlFrame* mFrame;
   };
 
-  class ScrollOnFocusEvent;
-  friend class ScrollOnFocusEvent;
-
-  class ScrollOnFocusEvent : public nsRunnable {
-  public:
-    ScrollOnFocusEvent(nsTextControlFrame* aFrame) :
-      mFrame(aFrame) {}
-
-    NS_DECL_NSIRUNNABLE
-
-    void Revoke() {
-      mFrame = nsnull;
-    }
-
-  private:
-    nsTextControlFrame* mFrame;
-  };
-
   nsresult DOMPointToOffset(nsIDOMNode* aNode, PRInt32 aNodeOffset, PRInt32 *aResult);
   nsresult OffsetToDOMPoint(PRInt32 aOffset, nsIDOMNode** aResult, PRInt32* aPosition);
 
@@ -396,7 +377,6 @@ private:
   nsString mFocusedValue;
   nsString mCachedValue; // Caches non-hard-wrapped value on a multiline control.
   nsRefPtr<nsAnonDivObserver> mMutationObserver;
-  nsRevocableEventPtr<ScrollOnFocusEvent> mScrollEvent;
 };
 
 #endif

@@ -134,8 +134,6 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer)
   GLuint frameBuffer;
   RGBLayerProgram *rgbProgram =
     static_cast<LayerManagerOGL*>(mManager)->GetRGBLayerProgram();
-  ColorLayerProgram *colorProgram =
-    static_cast<LayerManagerOGL*>(mManager)->GetColorLayerProgram();
   YCbCrLayerProgram *yCbCrProgram =
     static_cast<LayerManagerOGL*>(mManager)->GetYCbCrLayerProgram();
 
@@ -176,13 +174,11 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer)
      */
     
     rgbProgram->Activate();
-    rgbProgram->PushRenderTargetOffset((GLfloat)GetVisibleRect().x, (GLfloat)GetVisibleRect().y);
-
-    colorProgram->Activate();
-    colorProgram->PushRenderTargetOffset((GLfloat)GetVisibleRect().x, (GLfloat)GetVisibleRect().y);
-
+    rgbProgram->PushRenderTargetOffset((GLfloat)GetVisibleRect().x,
+					 (GLfloat)GetVisibleRect().y);
     yCbCrProgram->Activate();
-    yCbCrProgram->PushRenderTargetOffset((GLfloat)GetVisibleRect().x, (GLfloat)GetVisibleRect().y);
+    yCbCrProgram->PushRenderTargetOffset((GLfloat)GetVisibleRect().x,
+					   (GLfloat)GetVisibleRect().y);
   } else {
     frameBuffer = aPreviousFrameBuffer;
   }
@@ -214,9 +210,6 @@ ContainerLayerOGL::RenderLayer(int aPreviousFrameBuffer)
     // Restore old shader program variables.
     yCbCrProgram->Activate();
     yCbCrProgram->PopRenderTargetOffset();
-
-    colorProgram->Activate();
-    colorProgram->PopRenderTargetOffset();
 
     rgbProgram->Activate();
     rgbProgram->PopRenderTargetOffset();

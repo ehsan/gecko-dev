@@ -239,6 +239,9 @@ public:
 
   virtual gfxContext* BeginDrawing(nsIntRegion* aRegionToDraw);
   virtual void EndDrawing();
+  virtual void CopyFrom(ThebesLayer* aSource,
+                        const nsIntRegion& aRegion,
+                        const nsIntPoint& aDelta);
 
 protected:
   BasicLayerManager* BasicManager()
@@ -271,6 +274,22 @@ BasicThebesLayer::EndDrawing()
                "Can only draw in drawing phase");
   NS_ASSERTION(BasicManager()->GetLastPainted() == this,
                "Not currently drawing this layer");
+}
+
+void
+BasicThebesLayer::CopyFrom(ThebesLayer* aSource,
+                           const nsIntRegion& aRegion,
+                           const nsIntPoint& aDelta)
+{
+  NS_ASSERTION(!BasicManager()->IsBeforeInTree(aSource, this),
+               "aSource must not be before this layer in tree");
+  NS_ASSERTION(BasicManager()->IsBeforeInTree(BasicManager()->GetLastPainted(), this),
+               "Cannot copy into a layer already painted");
+  NS_ASSERTION(BasicManager()->InDrawing(),
+               "Can only draw in drawing phase");
+  // Nothing to do here since we have no retained buffers. Our
+  // valid region is empty (since we haven't painted this layer yet),
+  // so no need to mark anything invalid.
 }
 
 class BasicImageLayer : public ImageLayer, BasicImplData {
@@ -341,41 +360,6 @@ BasicImageLayer::Paint(gfxContext* aContext)
   aContext->PixelSnappedRectangleAndSetPattern(
       gfxRect(0, 0, size.width, size.height), pat);
   aContext->Fill();
-}
-
-class BasicColorLayer : public ColorLayer, BasicImplData {
-public:
-  BasicColorLayer(BasicLayerManager* aLayerManager) :
-    ColorLayer(aLayerManager, static_cast<BasicImplData*>(this))
-  {
-    MOZ_COUNT_CTOR(BasicColorLayer);
-  }
-  virtual ~BasicColorLayer()
-  {
-    MOZ_COUNT_DTOR(BasicColorLayer);
-  }
-
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
-  {
-    NS_ASSERTION(BasicManager()->InConstruction(),
-                 "Can only set properties in construction phase");
-    mVisibleRegion = aRegion;
-  }
-
-  virtual void Paint(gfxContext* aContext);
-
-protected:
-  BasicLayerManager* BasicManager()
-  {
-    return static_cast<BasicLayerManager*>(mManager);
-  }
-};
-
-void
-BasicColorLayer::Paint(gfxContext* aContext)
-{
-  aContext->SetColor(mColor);
-  aContext->Paint();
 }
 
 BasicLayerManager::BasicLayerManager(gfxContext* aContext) :
@@ -616,14 +600,6 @@ BasicLayerManager::CreateImageLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
   nsRefPtr<ImageLayer> layer = new BasicImageLayer(this);
-  return layer.forget();
-}
-
-already_AddRefed<ColorLayer>
-BasicLayerManager::CreateColorLayer()
-{
-  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  nsRefPtr<ColorLayer> layer = new BasicColorLayer(this);
   return layer.forget();
 }
 

@@ -91,8 +91,6 @@
           }
         ]
       };
-      testAccessibleTree(getNode("tabbrowser").tabContainer, tabsAccTree);
-
       var tabboxAccTree = {
         role: ROLE_PANE,
         children: [
@@ -104,9 +102,8 @@
           }
         ]
       };
-
-      testAccessibleTree(getNode("tabbrowser").mTabBox.tabpanels,
-                         tabboxAccTree);
+      testAccessibleTree(getNode("tabbrowser").tabContainer, tabsAccTree);
+      testAccessibleTree(getNode("tabbrowser").mTabBox, tabboxAccTree);
 
       SimpleTest.finish()
     }
@@ -122,11 +119,6 @@
          href="https://bugzilla.mozilla.org/show_bug.cgi?id=540389"
          title=" WARNING: Bad accessible tree!: [tabbrowser tab] ">
         Mozilla Bug 540389
-      </a><br/>
-      <a target="_blank"
-         href="https://bugzilla.mozilla.org/show_bug.cgi?id=552944"
-         title="No relationship between tabs and associated property page in new tabbrowser construct">
-        Mozilla Bug 552944
       </a><br/>
       <p id="display"></p>
       <div id="content" style="display: none">

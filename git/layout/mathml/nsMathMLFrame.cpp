@@ -45,6 +45,7 @@
 #include "nsIDocument.h"
 #include "nsStyleSet.h"
 #include "nsIStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDOMCSSStyleSheet.h"
 #include "nsICSSRule.h"
 #include "nsICSSStyleRule.h"

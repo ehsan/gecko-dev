@@ -89,7 +89,7 @@
 #include "nsComputedDOMStyle.h"
 #include "nsSVGPathGeometryFrame.h"
 #include "prdtoa.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -235,7 +235,7 @@ NS_SMILEnabled()
 }
 #endif // MOZ_SMIL
 
-Element*
+nsIContent*
 nsSVGUtils::GetParentElement(nsIContent *aContent)
 {
   // XXXbz I _think_ this is right.  We want to be using the binding manager
@@ -250,13 +250,12 @@ nsSVGUtils::GetParentElement(nsIContent *aContent)
     // if we have a binding manager -- do we have an anonymous parent?
     nsIContent *result = bindingManager->GetInsertionParent(aContent);
     if (result) {
-      return result->AsElement();
+      return result;
     }
   }
 
   // otherewise use the explicit one, whether it's null or not...
-  nsIContent* parent = aContent->GetParent();
-  return parent ? parent->AsElement() : nsnull;
+  return aContent->GetParent();
 }
 
 float
@@ -623,7 +622,9 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
         nsRect r = viewportFrame->GetOverflowRect();
         // GetOverflowRect is relative to our border box, but we need it
         // relative to our content box.
-        r.MoveBy(viewportFrame->GetPosition() - viewportFrame->GetContentRect().TopLeft());
+        nsMargin bp = viewportFrame->GetUsedBorderAndPadding();
+        viewportFrame->ApplySkipSides(bp);
+        r.MoveBy(-bp.left, -bp.top);
         return r;
       }
       NS_ASSERTION(viewportFrame->GetType() == nsGkAtoms::svgInnerSVGFrame,
@@ -647,13 +648,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
     aFrame = aFrame->GetParent();
   }
 
-  nsRect r = rect.ToAppUnits(appUnitsPerDevPixel);
-  if (aFrame) {
-    NS_ASSERTION(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG,
-                 "outer SVG frame expected");
-    r.MoveBy(aFrame->GetContentRect().TopLeft() - aFrame->GetPosition());
-  }
-  return r;
+  return rect.ToAppUnits(appUnitsPerDevPixel);
 }
 
 void

@@ -136,7 +136,7 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
     if (!accessible)
       continue;
 
-    acc = do_QueryObject(accessible);
+    acc = nsAccUtils::QueryObject<nsAccessible>(accessible);
     mChildren.AppendElement(acc);
     acc->SetParent(this);
   }

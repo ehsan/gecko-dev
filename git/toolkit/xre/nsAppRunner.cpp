@@ -175,7 +175,11 @@
 
 // for X remote support
 #ifdef MOZ_ENABLE_XREMOTE
+#ifdef MOZ_WIDGET_PHOTON
+#include "PhRemoteClient.h"
+#else
 #include "XRemoteClient.h"
+#endif
 #include "nsIRemoteService.h"
 #endif
 
@@ -1244,8 +1248,7 @@ ScopedXPCOMStartup::SetWindowCreator(nsINativeAppSupport* native)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Inform the chrome registry about OS accessibility
-  nsCOMPtr<nsIToolkitChromeRegistry> cr =
-    mozilla::services::GetToolkitChromeRegistryService();
+  nsCOMPtr<nsIToolkitChromeRegistry> cr (do_GetService(NS_CHROMEREGISTRY_CONTRACTID));
   if (cr)
     cr->CheckForOSAccessibility();
 
@@ -1804,8 +1807,8 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   { //extra scoping is needed so we release these components before xpcom shutdown
-    nsCOMPtr<nsIStringBundleService> sbs =
-      mozilla::services::GetStringBundleService();
+    nsCOMPtr<nsIStringBundleService> sbs
+      (do_GetService(NS_STRINGBUNDLE_CONTRACTID));
     NS_ENSURE_TRUE(sbs, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIStringBundle> sb;
@@ -1878,8 +1881,8 @@ ProfileMissingDialog(nsINativeAppSupport* aNative)
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
   { //extra scoping is needed so we release these components before xpcom shutdown
-    nsCOMPtr<nsIStringBundleService> sbs =
-      mozilla::services::GetStringBundleService();
+    nsCOMPtr<nsIStringBundleService> sbs
+      (do_GetService(NS_STRINGBUNDLE_CONTRACTID));
     NS_ENSURE_TRUE(sbs, NS_ERROR_FAILURE);
   
     nsCOMPtr<nsIStringBundle> sb;
@@ -3077,8 +3080,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       NS_ENSURE_SUCCESS(rv, 1);
 
       {
-        nsCOMPtr<nsIChromeRegistry> chromeReg =
-          mozilla::services::GetChromeRegistryService();
+        nsCOMPtr<nsIChromeRegistry> chromeReg
+          (do_GetService("@mozilla.org/chrome/chrome-registry;1"));
         NS_ENSURE_TRUE(chromeReg, 1);
 
         chromeReg->CheckForNewChrome();

@@ -70,7 +70,7 @@
 #include "nsRuleData.h"
 #include "nsContentErrors.h"
 #include "nsRuleProcessorData.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -291,7 +291,7 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 }
 
 // Test if style is dependent on content state
-/* virtual */ nsRestyleHint
+nsRestyleHint
 nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
   if (aData->mIsHTMLContent &&
@@ -306,13 +306,13 @@ nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
   return nsRestyleHint(0);
 }
 
-/* virtual */ PRBool
+PRBool
 nsHTMLStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 {
   return PR_FALSE;
 }
 
-/* virtual */ nsRestyleHint
+nsRestyleHint
 nsHTMLStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 {
   // Do nothing on before-change checks
@@ -374,77 +374,88 @@ nsHTMLStyleSheet::RulesMatching(XULTreeRuleProcessorData* aData)
 #endif
 
   // nsIStyleSheet api
-/* virtual */ already_AddRefed<nsIURI>
-nsHTMLStyleSheet::GetSheetURI() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetSheetURI(nsIURI** aSheetURI) const
 {
-  NS_IF_ADDREF(mURL);
-  return mURL;
+  *aSheetURI = mURL;
+  NS_IF_ADDREF(*aSheetURI);
+  return NS_OK;
 }
 
-/* virtual */ already_AddRefed<nsIURI>
-nsHTMLStyleSheet::GetBaseURI() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetBaseURI(nsIURI** aBaseURI) const
 {
-  NS_IF_ADDREF(mURL);
-  return mURL;
+  *aBaseURI = mURL;
+  NS_IF_ADDREF(*aBaseURI);
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::GetTitle(nsString& aTitle) const
 {
   aTitle.Truncate();
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::GetType(nsString& aType) const
 {
   aType.AssignLiteral("text/html");
+  return NS_OK;
 }
 
-/* virtual */ PRBool
+NS_IMETHODIMP_(PRBool)
 nsHTMLStyleSheet::HasRules() const
 {
   return PR_TRUE; // We have rules at all reasonable times
 }
 
-/* virtual */ PRBool
-nsHTMLStyleSheet::IsApplicable() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetApplicable(PRBool& aApplicable) const
 {
-  return PR_TRUE;
+  aApplicable = PR_TRUE;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::SetEnabled(PRBool aEnabled)
 { // these can't be disabled
+  return NS_OK;
 }
 
-/* virtual */ PRBool
-nsHTMLStyleSheet::IsComplete() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetComplete(PRBool& aComplete) const
 {
-  return PR_TRUE;
+  aComplete = PR_TRUE;
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::SetComplete()
 {
+  return NS_OK;
 }
 
-/* virtual */ already_AddRefed<nsIStyleSheet>
-nsHTMLStyleSheet::GetParentSheet() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetParentSheet(nsIStyleSheet*& aParent) const
 {
-  return nsnull;
+  aParent = nsnull;
+  return NS_OK;
 }
 
-/* virtual */ already_AddRefed<nsIDocument>
-nsHTMLStyleSheet::GetOwningDocument() const
+NS_IMETHODIMP
+nsHTMLStyleSheet::GetOwningDocument(nsIDocument*& aDocument) const
 {
-  NS_IF_ADDREF(mDocument);
-  return mDocument;
+  aDocument = mDocument;
+  NS_IF_ADDREF(aDocument);
+  return NS_OK;
 }
 
-/* virtual */ void
+NS_IMETHODIMP
 nsHTMLStyleSheet::SetOwningDocument(nsIDocument* aDocument)
 {
   mDocument = aDocument; // not refcounted
+  return NS_OK;
 }
 
 nsresult
@@ -577,8 +588,7 @@ nsHTMLStyleSheet::DropMappedAttributes(nsMappedAttributes* aMapped)
 }
 
 #ifdef DEBUG
-/* virtual */ void
-nsHTMLStyleSheet::List(FILE* out, PRInt32 aIndent) const
+void nsHTMLStyleSheet::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
   for (PRInt32 index = aIndent; --index >= 0; ) fputs("  ", out);

@@ -363,8 +363,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
 
   // XXXldb Should we really be checking this rather than available height?
   // (Think about multi-column layout!)
-  PRBool isPaginated = aPresContext->IsPaginated() && 
-                       NS_UNCONSTRAINEDSIZE != aReflowState.availSize.height;
+  PRBool isPaginated = aPresContext->IsPaginated();
 
   PRBool haveRow = PR_FALSE;
   PRBool reflowAllKids = aReflowState.reflowState.ShouldReflowAllKids() ||
@@ -460,7 +459,7 @@ nsTableRowGroupFrame::ReflowChildren(nsPresContext*         aPresContext,
       if (isPaginated && aPageBreakBeforeEnd && !*aPageBreakBeforeEnd) {
         nsTableRowFrame* nextRow = rowFrame->GetNextRow();
         if (nextRow) {
-          *aPageBreakBeforeEnd = nsTableFrame::PageBreakAfter(kidFrame, nextRow);
+          *aPageBreakBeforeEnd = nsTableFrame::PageBreakAfter(*kidFrame, nextRow);
         }
       }
     } else {
@@ -1269,7 +1268,7 @@ nsTableRowGroupFrame::SplitRowGroup(nsPresContext*           aPresContext,
       prevRowFrame = rowFrame;
       // see if there is a page break after the row
       nsTableRowFrame* nextRow = rowFrame->GetNextRow();
-      if (nextRow && nsTableFrame::PageBreakAfter(rowFrame, nextRow)) {
+      if (nextRow && nsTableFrame::PageBreakAfter(*rowFrame, nextRow)) {
         PushChildren(aPresContext, nextRow, rowFrame);
         aStatus = NS_FRAME_NOT_COMPLETE;
         break;
@@ -1325,9 +1324,9 @@ nsTableRowGroupFrame::Reflow(nsPresContext*           aPresContext,
   // See if all the frames fit. Do not try to split anything if we're
   // not paginated ... we can't split across columns yet.
   if (aReflowState.mFlags.mTableIsSplittable &&
-      NS_UNCONSTRAINEDSIZE != aReflowState.availableHeight &&
       (NS_FRAME_NOT_COMPLETE == aStatus || splitDueToPageBreak || 
-       aDesiredSize.height > aReflowState.availableHeight)) {
+       (NS_UNCONSTRAINEDSIZE != aReflowState.availableHeight &&
+       aDesiredSize.height > aReflowState.availableHeight))) {
     // Nope, find a place to split the row group 
     PRBool specialReflow = (PRBool)aReflowState.mFlags.mSpecialHeightReflow;
     ((nsHTMLReflowState::ReflowStateFlags&)aReflowState.mFlags).mSpecialHeightReflow = PR_FALSE;
@@ -1570,25 +1569,7 @@ nsTableRowGroupFrame::GetType() const
   return nsGkAtoms::tableRowGroupFrame;
 }
 
-/** find page break before the first row **/
-PRBool 
-nsTableRowGroupFrame::HasInternalBreakBefore() const
-{
- nsIFrame* firstChild = mFrames.FirstChild(); 
-  if (!firstChild)
-    return PR_FALSE;
-  return firstChild->GetStyleDisplay()->mBreakBefore;
-}
 
-/** find page break after the last row **/
-PRBool 
-nsTableRowGroupFrame::HasInternalBreakAfter() const
-{
-  nsIFrame* lastChild = mFrames.LastChild(); 
-  if (!lastChild)
-    return PR_FALSE;
-  return lastChild->GetStyleDisplay()->mBreakAfter;
-}
 /* ----- global methods ----- */
 
 nsIFrame*

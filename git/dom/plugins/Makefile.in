@@ -83,7 +83,7 @@ EXPORTS_mozilla/plugins = \
   PluginStreamParent.h \
   PluginMessageUtils.h \
   PluginProcessParent.h \
-  PluginProcessChild.h \
+  PluginThreadChild.h \
   StreamNotifyChild.h \
   StreamNotifyParent.h \
   $(NULL)
@@ -103,7 +103,6 @@ CPPSRCS = \
   PluginInstanceParent.cpp \
   PluginModuleChild.cpp \
   PluginModuleParent.cpp \
-  PluginProcessChild.cpp \
   PluginProcessParent.cpp \
   PluginScriptableObjectChild.cpp \
   PluginScriptableObjectParent.cpp \
@@ -111,6 +110,7 @@ CPPSRCS = \
   BrowserStreamParent.cpp \
   PluginStreamChild.cpp \
   PluginStreamParent.cpp \
+  PluginThreadChild.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \

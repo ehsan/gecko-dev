@@ -1179,7 +1179,7 @@ UpdateService.prototype = {
 
     var status = readStatusFile(getUpdatesDir());
     // STATE_NONE status means that the update.status file is present but a
-    // background download error occurred.
+    // background download error occured.
     if (status == STATE_NONE) {
       LOG("UpdateService:_postUpdateProcessing - no status, no update");
       cleanupActiveUpdate();

@@ -1253,8 +1253,6 @@ nsCanvasRenderingContext2D::SetStrokeStyle(nsIVariant *aValue)
         nsCOMPtr<nsISupports> sup;
         rv = aValue->GetAsInterface(&iid, getter_AddRefs(sup));
         NS_ENSURE_SUCCESS(rv, rv);
-        if (iid)
-            NS_Free(iid);
 
         str.SetIsVoid(PR_TRUE);
         return SetStrokeStyle_multi(str, sup);
@@ -1971,7 +1969,7 @@ CreateFontStyleRule(const nsAString& aFont,
     nsIPrincipal* principal = aNode->NodePrincipal();
     nsIDocument* document = aNode->GetOwnerDoc();
     nsIURI* docURL = document->GetDocumentURI();
-    nsIURI* baseURL = document->GetDocBaseURI();
+    nsIURI* baseURL = document->GetBaseURI();
 
     nsresult rv = parser.ParseStyleAttribute(styleAttr, docURL, baseURL,
                                              principal, aResult);

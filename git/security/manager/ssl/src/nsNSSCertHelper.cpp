@@ -937,20 +937,16 @@ ProcessRDN(CERTRDN* rdn, nsAString &finalString, nsINSSComponent *nssComponent)
     PRIntn escapedValueCapacity = decodeItem->len * 3 + 3;
     nsAutoArrayPtr<char> escapedValue;
     escapedValue = new char[escapedValueCapacity];
-    if (!escapedValue) {
-      SECITEM_FreeItem(decodeItem, PR_TRUE);
+    if (!escapedValue)
       return NS_ERROR_OUT_OF_MEMORY;
-    }
 
     SECStatus status = CERT_RFC1485_EscapeAndQuote(
           escapedValue.get(),
           escapedValueCapacity, 
           (char*)decodeItem->data, 
           decodeItem->len);
-    if (SECSuccess != status) {
-      SECITEM_FreeItem(decodeItem, PR_TRUE);
+    if (SECSuccess != status)
       return NS_ERROR_FAILURE;
-    }
 
     avavalue = NS_ConvertUTF8toUTF16(escapedValue);
     

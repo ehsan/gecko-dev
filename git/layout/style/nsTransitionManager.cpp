@@ -54,12 +54,9 @@
 #include "nsCSSDataBlock.h"
 #include "nsEventDispatcher.h"
 #include "nsGUIEvent.h"
-#include "mozilla/dom/Element.h"
 
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
-
-namespace dom = mozilla::dom;
 
 /*****************************************************************************
  * Per-Element data                                                          *
@@ -164,7 +161,7 @@ private:
 
 struct ElementTransitions : public PRCList
 {
-  ElementTransitions(dom::Element *aElement, nsIAtom *aElementProperty,
+  ElementTransitions(nsIContent *aElement, nsIAtom *aElementProperty,
                      nsTransitionManager *aTransitionManager)
     : mElement(aElement)
     , mElementProperty(aElementProperty)
@@ -196,7 +193,7 @@ struct ElementTransitions : public PRCList
   // for which it is valid).
   nsRefPtr<ElementTransitionsStyleRule> mStyleRule;
 
-  dom::Element *mElement;
+  nsIContent *mElement;
 
   // the atom we use in mElement's prop table (must be a static atom,
   // i.e., in an atom list)
@@ -388,7 +385,7 @@ TransExtractComputedValue(nsCSSProperty aProperty,
 }
 
 already_AddRefed<nsIStyleRule>
-nsTransitionManager::StyleContextChanged(dom::Element *aElement,
+nsTransitionManager::StyleContextChanged(nsIContent *aElement,
                                          nsStyleContext *aOldStyleContext,
                                          nsStyleContext *aNewStyleContext)
 {
@@ -583,7 +580,7 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
 void
 nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
                        const nsTransition& aTransition,
-                       dom::Element *aElement,
+                       nsIContent *aElement,
                        ElementTransitions *&aElementTransitions,
                        nsStyleContext *aOldStyleContext,
                        nsStyleContext *aNewStyleContext,
@@ -748,7 +745,7 @@ nsTransitionManager::ConsiderStartingTransition(nsCSSProperty aProperty,
 }
 
 ElementTransitions*
-nsTransitionManager::GetElementTransitions(dom::Element *aElement,
+nsTransitionManager::GetElementTransitions(nsIContent *aElement,
                                            nsCSSPseudoElements::Type aPseudoType,
                                            PRBool aCreateIfNeeded)
 {
@@ -855,7 +852,7 @@ nsTransitionManager::RulesMatching(ElementRuleProcessorData* aData)
   NS_ABORT_IF_FALSE(aData->mPresContext == mPresContext,
                     "pres context mismatch");
   return WalkTransitionRule(aData,
-                            nsCSSPseudoElements::ePseudo_NotPseudoElement);
+			    nsCSSPseudoElements::ePseudo_NotPseudoElement);
 }
 
 NS_IMETHODIMP

@@ -180,8 +180,6 @@ JSThreadData::purge(JSContext *cx)
     js_DestroyScriptsToGC(cx, this);
 
     js_PurgeCachedNativeEnumerators(cx, this);
-
-    dtoaCache.s = NULL;
 }
 
 void
@@ -971,7 +969,7 @@ resolving_HashKey(JSDHashTable *table, const void *ptr)
     return (JSDHashNumber(uintptr_t(key->obj)) >> JSVAL_TAGBITS) ^ key->id;
 }
 
-static JSBool
+JS_PUBLIC_API(JSBool)
 resolving_MatchEntry(JSDHashTable *table,
                      const JSDHashEntryHdr *hdr,
                      const void *ptr)

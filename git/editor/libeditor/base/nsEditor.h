@@ -58,6 +58,7 @@
 #include "nsIEditActionListener.h"
 #include "nsIEditorObserver.h"
 #include "nsIDocumentStateListener.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIDOMElement.h"
 #include "nsSelectionState.h"
 #include "nsIEditorSpellCheck.h"
@@ -85,9 +86,8 @@ class RemoveStyleSheetTxn;
 class nsIFile;
 class nsISelectionController;
 class nsIDOMEventTarget;
-class nsCSSStyleSheet;
 
-#define kMOZEditorBogusNodeAttrAtom nsEditProperty::mozEditorBogusNode
+#define kMOZEditorBogusNodeAttr NS_LITERAL_STRING("_moz_editor_bogus_node")
 #define kMOZEditorBogusNodeValue NS_LITERAL_STRING("TRUE")
 
 /** implementation of an editor object.  it will be the controller/focal point 
@@ -260,11 +260,11 @@ protected:
 
   /** create a transaction for adding a style sheet
     */
-  NS_IMETHOD CreateTxnForAddStyleSheet(nsCSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForAddStyleSheet(nsICSSStyleSheet* aSheet, AddStyleSheetTxn* *aTxn);
 
   /** create a transaction for removing a style sheet
     */
-  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsCSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
+  NS_IMETHOD CreateTxnForRemoveStyleSheet(nsICSSStyleSheet* aSheet, RemoveStyleSheetTxn* *aTxn);
   
   NS_IMETHOD DeleteText(nsIDOMCharacterData *aElement,
                         PRUint32             aOffset,
@@ -646,9 +646,6 @@ public:
   {
     return (mFlags & nsIPlaintextEditor::eEditorDontEchoPassword) != 0;
   }
-
-  // Whether the editor has focus or not.
-  virtual PRBool HasFocus();
 
 protected:
 

@@ -123,7 +123,7 @@ nsAccUtils::GetDefaultLevel(nsAccessible *aAcc)
 PRInt32
 nsAccUtils::GetARIAOrDefaultLevel(nsIAccessible *aAcc)
 {
-  nsRefPtr<nsAccessible> acc = do_QueryObject(aAcc);
+  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryObject<nsAccessible>(aAcc);
   NS_ENSURE_TRUE(acc, 0);
 
   nsCOMPtr<nsIDOMNode> node;

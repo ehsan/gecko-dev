@@ -41,12 +41,14 @@
 <?xml-stylesheet href="chrome://mozapps/skin/extensions/extensions.css"?>
 
 <!DOCTYPE page [
+<!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
+%brandDTD;
 <!ENTITY % extensionsDTD SYSTEM "chrome://mozapps/locale/extensions/extensions.dtd">
 %extensionsDTD;
 ]>
 
 <page xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-      id="addons-page" title="&addons.windowTitle;">
+      id="addons-page" title="&addons.title;">
 
   <script type="application/javascript"
           src="chrome://mozapps/content/extensions/extensions.js"/>
@@ -172,26 +174,25 @@
             <hbox id="search-sorters" class="sort-controls" sortby="name"
                   ascending="true"/>
           </hbox>
-          <richlistbox id="search-list" class="list" flex="1">
-            <vbox flex="1">
-              <hbox class="search-filter">
-                <label value="&search.filter.label;"/>
-                <checkbox id="search-filter-local" checked="true" disabled="true"
-                          label="&search.filter.installed.label;"/>
-                <checkbox id="search-filter-remote"
-                          checked="false" disabled="true"
-                          label="&search.filter.available.label;"/>
-              </hbox>
-              <vbox id="search-list-empty" class="empty-list-notice"
-                    flex="1" hidden="true">
-                <spacer flex="1"/>
-                <label value="&listEmpty.search.label;"/>
-                <button label="&listEmpty.button.label;" class="addon-control"
-                        command="cmd_goToDiscoverPane"/>
-                <spacer flex="3"/>
-              </vbox>
+          <vbox class="list-container" flex="1">
+            <hbox class="search-filter">
+              <label value="&search.filter.label;"/>
+              <checkbox id="search-filter-local" checked="true" disabled="true"
+                        label="&search.filter.installed.label;"/>
+              <checkbox id="search-filter-remote"
+                        checked="false" disabled="true"
+                        label="&search.filter.available.label;"/>
+            </hbox>
+            <vbox id="search-list-empty" class="empty-list-notice"
+                  flex="1" hidden="true">
+              <spacer flex="1"/>
+              <label value="&listEmpty.search.label;"/>
+              <button label="&listEmpty.button.label;" class="addon-control"
+                      command="cmd_goToDiscoverPane"/>
+              <spacer flex="3"/>
             </vbox>
-          </richlistbox>
+            <richlistbox id="search-list" class="list"/>
+          </vbox>
         </vbox>
 
         <!-- list view -->
@@ -200,15 +201,17 @@
             <hbox id="list-sorters" class="sort-controls" sortby="name"
                   ascending="true"/>
           </hbox>
-          <vbox id="addon-list-empty" class="empty-list-notice"
-                flex="1" hidden="true">
-            <spacer flex="1"/>
-            <label value="&listEmpty.installed.label;"/>
-            <button label="&listEmpty.button.label;" class="addon-control"
-                    command="cmd_goToDiscoverPane"/>
-            <spacer flex="3"/>
+          <vbox class="list-container" flex="1">
+            <vbox id="addon-list-empty" class="empty-list-notice"
+                  flex="1" hidden="true">
+              <spacer flex="1"/>
+              <label value="&listEmpty.installed.label;"/>
+              <button label="&listEmpty.button.label;" class="addon-control"
+                      command="cmd_goToDiscoverPane"/>
+              <spacer flex="3"/>
+            </vbox>
+            <richlistbox id="addon-list" class="list"/>
           </vbox>
-          <richlistbox id="addon-list" class="list" flex="1"/>
         </vbox>
 
         <!-- detail view -->
@@ -263,19 +266,19 @@
                           tooltiptext="&cmd.contribute.tooltip;"/>
                   <spacer flex="1"/>
                   <button id="detail-uninstall" class="addon-control remove"
-                          label="&cmd.uninstallAddon.label;"
-                          accesskey="&cmd.uninstallAddon.accesskey;"
-                          tooltiptext="&cmd.uninstallAddon.tooltip;"
+                          label="&cmd.uninstall.label;"
+                          accesskey="&cmd.uninstall.accesskey;"
+                          tooltiptext="&cmd.uninstall.tooltip;"
                           command="cmd_uninstallItem"/>
                   <button id="detail-enable" class="addon-control enable"
-                          label="&cmd.enableAddon.label;"
-                          accesskey="&cmd.enableAddon.accesskey;"
-                          tooltiptext="&cmd.enableAddon.tooltip;"
+                          label="&cmd.enable.label;"
+                          accesskey="&cmd.enable.accesskey;"
+                          tooltiptext="&cmd.enable.tooltip;"
                           command="cmd_enableItem"/>
                   <button id="detail-disable" class="addon-control disable"
-                          label="&cmd.disableAddon.label;"
-                          accesskey="&cmd.disableAddon.accesskey;"
-                          tooltiptext="&cmd.disableAddon.tooltip;"
+                          label="&cmd.disable.label;"
+                          accesskey="&cmd.disable.accesskey;"
+                          tooltiptext="&cmd.disable.tooltip;"
                           command="cmd_disableItem"/>
                 </hbox>
               </vbox>

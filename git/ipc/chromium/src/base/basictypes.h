@@ -19,7 +19,7 @@
 #define NO_NSPR_10_SUPPORT_SAVE
 #endif
 
-#include "prtypes.h"
+#include "nspr/prtypes.h"
 
 #ifdef NO_NSPR_10_SUPPORT_SAVE
 #undef NO_NSPR_10_SUPPORT_SAVE
@@ -31,7 +31,7 @@
 #define _WIN32_SAVE
 #endif
 
-#include "obsolete/protypes.h"
+#include "nspr/obsolete/protypes.h"
 
 #define _INT32
 #define _UINT32

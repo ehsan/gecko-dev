@@ -48,14 +48,14 @@
 #endif /* !JS_THREADED_INTERP */
     {
         bool moreInterrupts = false;
-        JSInterruptHook hook = cx->debugHooks->interruptHook;
-        if (hook) {
+        JSTrapHandler handler = cx->debugHooks->interruptHandler;
+        if (handler) {
 #ifdef JS_TRACER
             if (TRACE_RECORDER(cx))
-                AbortRecording(cx, "interrupt hook");
+                AbortRecording(cx, "interrupt handler");
 #endif
-            switch (hook(cx, script, regs.pc, &rval,
-                         cx->debugHooks->interruptHookData)) {
+            switch (handler(cx, script, regs.pc, &rval,
+                            cx->debugHooks->interruptHandlerData)) {
               case JSTRAP_ERROR:
                 goto error;
               case JSTRAP_CONTINUE:
@@ -76,7 +76,6 @@
 #ifdef JS_TRACER
         if (TraceRecorder* tr = TRACE_RECORDER(cx)) {
             AbortableRecordingStatus status = tr->monitorRecording(op);
-            JS_ASSERT_IF(cx->throwing, status == ARECORD_ERROR);
             switch (status) {
               case ARECORD_CONTINUE:
                 moreInterrupts = true;
@@ -258,7 +257,13 @@ BEGIN_CASE(JSOP_STOP)
          */
         fp->putActivationObjects(cx);
 
-        DTrace::exitJSFun(cx, fp, fp->fun, fp->rval);
+#ifdef INCLUDE_MOZILLA_DTRACE
+        /* DTrace function return, inlines */
+        if (JAVASCRIPT_FUNCTION_RVAL_ENABLED())
+            jsdtrace_function_rval(cx, fp, fp->fun, &fp->rval);
+        if (JAVASCRIPT_FUNCTION_RETURN_ENABLED())
+            jsdtrace_function_return(cx, fp, fp->fun);
+#endif
 
         /* Restore context version only if callee hasn't set version. */
         if (JS_LIKELY(cx->version == currentVersion)) {
@@ -1811,13 +1816,9 @@ BEGIN_CASE(JSOP_SETMETHOD)
             LOAD_ATOM(0);
         id = ATOM_TO_JSID(atom);
         if (entry && JS_LIKELY(obj->map->ops->setProperty == js_SetProperty)) {
-            uintN defineHow;
-            if (op == JSOP_SETMETHOD)
-                defineHow = JSDNP_CACHE_RESULT | JSDNP_SET_METHOD;
-            else if (op == JSOP_SETNAME)
-                defineHow = JSDNP_CACHE_RESULT | JSDNP_UNQUALIFIED;
-            else
-                defineHow = JSDNP_CACHE_RESULT;
+            uintN defineHow = (op == JSOP_SETMETHOD)
+                              ? JSDNP_CACHE_RESULT | JSDNP_SET_METHOD
+                              : JSDNP_CACHE_RESULT;
             if (!js_SetPropertyHelper(cx, obj, id, defineHow, &rval))
                 goto error;
         } else {
@@ -1850,8 +1851,8 @@ BEGIN_CASE(JSOP_GETELEM)
             jsuint idx = jsuint(JSVAL_TO_INT(rval));
 
             if (idx < obj->getArrayLength() &&
-                idx < obj->getDenseArrayCapacity()) {
-                rval = obj->getDenseArrayElement(idx);
+                idx < js_DenseArrayCapacity(obj)) {
+                rval = obj->dslots[idx];
                 if (rval != JSVAL_HOLE)
                     goto end_getelem;
 
@@ -1872,7 +1873,7 @@ BEGIN_CASE(JSOP_GETELEM)
                     goto end_getelem;
                 }
 
-                rval = obj->getArgsElement(arg);
+                rval = GetArgsSlot(obj, arg);
                 if (rval != JSVAL_HOLE)
                     goto end_getelem;
                 rval = FETCH_OPND(-1);
@@ -1915,17 +1916,17 @@ BEGIN_CASE(JSOP_SETELEM)
         if (obj->isDenseArray() && JSID_IS_INT(id)) {
             jsuint length;
 
-            length = obj->getDenseArrayCapacity();
+            length = js_DenseArrayCapacity(obj);
             i = JSID_TO_INT(id);
             if ((jsuint)i < length) {
-                if (obj->getDenseArrayElement(i) == JSVAL_HOLE) {
+                if (obj->dslots[i] == JSVAL_HOLE) {
                     if (js_PrototypeHasIndexedProperties(cx, obj))
                         break;
                     if ((jsuint)i >= obj->getArrayLength())
-                        obj->setDenseArrayLength(i + 1);
-                    obj->incDenseArrayCountBy(1);
+                        obj->setArrayLength(i + 1);
+                    obj->incArrayCountBy(1);
                 }
-                obj->setDenseArrayElement(i, rval);
+                obj->dslots[i] = rval;
                 goto end_setelem;
             }
         }
@@ -2157,20 +2158,20 @@ BEGIN_CASE(JSOP_APPLY)
             inlineCallCount++;
             JS_RUNTIME_METER(rt, inlineCalls);
 
-            DTrace::enterJSFun(cx, fp, fun, fp->down, fp->argc, fp->argv);
+#ifdef INCLUDE_MOZILLA_DTRACE
+            /* DTrace function entry, inlines */
+            if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED())
+                jsdtrace_function_entry(cx, fp, fun);
+            if (JAVASCRIPT_FUNCTION_INFO_ENABLED())
+                jsdtrace_function_info(cx, fp, fp->down, fun);
+            if (JAVASCRIPT_FUNCTION_ARGS_ENABLED())
+                jsdtrace_function_args(cx, fp, fun, fp->argc, fp->argv);
+#endif
 
 #ifdef JS_TRACER
-            if (TraceRecorder *tr = TRACE_RECORDER(cx)) {
-                AbortableRecordingStatus status = tr->record_EnterFrame(inlineCallCount);
+            if (TRACE_RECORDER(cx)) {
+                TRACE_1(EnterFrame, inlineCallCount);
                 RESTORE_INTERP_VARS();
-                if (StatusAbortsRecorderIfActive(status)) {
-                    if (TRACE_RECORDER(cx)) {
-                        JS_ASSERT(TRACE_RECORDER(cx) == tr);
-                        AbortRecording(cx, "record_EnterFrame failed");
-                    }
-                    if (status == ARECORD_ERROR)
-                        goto error;
-                }
             } else if (fp->script == fp->down->script &&
                        *fp->down->regs->pc == JSOP_CALL &&
                        *fp->regs->pc == JSOP_TRACE) {
@@ -2191,13 +2192,30 @@ BEGIN_CASE(JSOP_APPLY)
         }
 
         if (fun->flags & JSFUN_FAST_NATIVE) {
-            DTrace::enterJSFun(cx, NULL, fun, fp, argc, vp + 2, &lval);
+#ifdef INCLUDE_MOZILLA_DTRACE
+            /* DTrace function entry, non-inlines */
+            if (VALUE_IS_FUNCTION(cx, lval)) {
+                if (JAVASCRIPT_FUNCTION_ENTRY_ENABLED())
+                    jsdtrace_function_entry(cx, NULL, fun);
+                if (JAVASCRIPT_FUNCTION_INFO_ENABLED())
+                    jsdtrace_function_info(cx, NULL, fp, fun);
+                if (JAVASCRIPT_FUNCTION_ARGS_ENABLED())
+                    jsdtrace_function_args(cx, fp, fun, argc, vp+2);
+            }
+#endif
 
             JS_ASSERT(fun->u.n.extra == 0);
             JS_ASSERT(JSVAL_IS_OBJECT(vp[1]) ||
                       PRIMITIVE_THIS_TEST(fun, vp[1]));
             ok = ((JSFastNative) fun->u.n.native)(cx, argc, vp);
-            DTrace::exitJSFun(cx, NULL, fun, *vp, &lval);
+#ifdef INCLUDE_MOZILLA_DTRACE
+            if (VALUE_IS_FUNCTION(cx, lval)) {
+                if (JAVASCRIPT_FUNCTION_RVAL_ENABLED())
+                    jsdtrace_function_rval(cx, NULL, fun, vp);
+                if (JAVASCRIPT_FUNCTION_RETURN_ENABLED())
+                    jsdtrace_function_return(cx, NULL, fun);
+            }
+#endif
             regs.sp = vp + 1;
             if (!ok) {
                 /*
@@ -2902,9 +2920,9 @@ BEGIN_CASE(JSOP_DEFFUN)
         attrs |= flags | JSPROP_SHARED;
         rval = JSVAL_VOID;
         if (flags == JSPROP_GETTER)
-            getter = CastAsPropertyOp(obj);
+            getter = js_CastAsPropertyOp(obj);
         else
-            setter = CastAsPropertyOp(obj);
+            setter = js_CastAsPropertyOp(obj);
     }
 
     /*
@@ -3002,10 +3020,10 @@ BEGIN_CASE(JSOP_DEFFUN_DBGFC)
 
             ok = parent->defineProperty(cx, id, rval,
                                         (flags & JSPROP_GETTER)
-                                        ? CastAsPropertyOp(obj)
+                                        ? js_CastAsPropertyOp(obj)
                                         : JS_PropertyStub,
                                         (flags & JSPROP_SETTER)
-                                        ? CastAsPropertyOp(obj)
+                                        ? js_CastAsPropertyOp(obj)
                                         : JS_PropertyStub,
                                         attrs);
         }
@@ -3228,12 +3246,12 @@ BEGIN_CASE(JSOP_SETTER)
         goto error;
 
     if (op == JSOP_GETTER) {
-        getter = CastAsPropertyOp(JSVAL_TO_OBJECT(rval));
+        getter = js_CastAsPropertyOp(JSVAL_TO_OBJECT(rval));
         setter = JS_PropertyStub;
         attrs = JSPROP_GETTER;
     } else {
         getter = JS_PropertyStub;
-        setter = CastAsPropertyOp(JSVAL_TO_OBJECT(rval));
+        setter = js_CastAsPropertyOp(JSVAL_TO_OBJECT(rval));
         attrs = JSPROP_SETTER;
     }
     attrs |= JSPROP_ENUMERATE | JSPROP_SHARED;
@@ -3333,8 +3351,9 @@ BEGIN_CASE(JSOP_INITMETHOD)
      * So check first.
      *
      * On a hit, if the cached sprop has a non-default setter, it must be
-     * __proto__. If sprop->parent != scope->lastProperty(), there is a
-     * repeated property name. The fast path does not handle these two cases.
+     * __proto__ or __parent__. If sprop->parent != scope->lastProperty(),
+     * there is a repeated property name. The fast path does not handle these
+     * two cases.
      */
     if (CX_OWNS_OBJECT_TITLE(cx, obj) &&
         JS_PROPERTY_CACHE(cx).testForInit(rt, regs.pc, obj, scope, &sprop, &entry) &&
@@ -3646,7 +3665,7 @@ END_CASE(JSOP_INSTANCEOF)
 #if JS_HAS_DEBUGGER_KEYWORD
 BEGIN_CASE(JSOP_DEBUGGER)
 {
-    JSDebuggerHandler handler = cx->debugHooks->debuggerHandler;
+    JSTrapHandler handler = cx->debugHooks->debuggerHandler;
     if (handler) {
         switch (handler(cx, script, regs.pc, &rval, cx->debugHooks->debuggerHandlerData)) {
         case JSTRAP_ERROR:

@@ -133,7 +133,7 @@ PlacesController.prototype = {
       return PlacesUIUtils.ptm.numberOfRedoItems > 0;
     case "cmd_cut":
     case "placesCmd_cut":
-      var nodes = this._view.selectedNodes;
+      var nodes = this._view.getSelectionNodes();
       // If selection includes history nodes there's no reason to allow cut.
       for (var i = 0; i < nodes.length; i++) {
         if (nodes[i].itemId == -1)
@@ -156,7 +156,7 @@ PlacesController.prototype = {
       return this._canInsert(true) && this._isClipboardDataPasteable();
     case "cmd_selectAll":
       if (this._view.selType != "single") {
-        let rootNode = this._view.result.root;
+        var rootNode = this._view.getResultNode();
         if (rootNode.containerOpen && rootNode.childCount > 0)
             return true;
       }
@@ -173,8 +173,8 @@ PlacesController.prototype = {
       return this._canInsert();
     case "placesCmd_new:separator":
       return this._canInsert() &&
-             !PlacesUtils.asQuery(this._view.result.root).queryOptions.excludeItems &&
-             this._view.result.sortingMode ==
+             !PlacesUtils.asQuery(this._view.getResultNode()).queryOptions.excludeItems &&
+             this._view.getResult().sortingMode ==
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_show:info":
       var selectedNode = this._view.selectedNode;
@@ -196,7 +196,7 @@ PlacesController.prototype = {
       return selectedNode &&
              PlacesUtils.nodeIsFolder(selectedNode) &&
              !PlacesUtils.nodeIsReadOnly(selectedNode) &&
-             this._view.result.sortingMode ==
+             this._view.getResult().sortingMode ==
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_createBookmark":
       var node = this._view.selectedNode;
@@ -322,11 +322,11 @@ PlacesController.prototype = {
    *          false otherwise.
    */
   _hasRemovableSelection: function PC__hasRemovableSelection(aIsMoveCommand) {
-    var ranges = this._view.removableSelectionRanges;
+    var ranges = this._view.getRemovableSelectionRanges();
     if (!ranges.length)
       return false;
 
-    var root = this._view.result.root;
+    var root = this._view.getResultNode();
 
     for (var j = 0; j < ranges.length; j++) {
       var nodes = ranges[j];
@@ -369,8 +369,8 @@ PlacesController.prototype = {
    * Determines whether or not the root node for the view is selected
    */
   rootNodeIsSelected: function PC_rootNodeIsSelected() {
-    var nodes = this._view.selectedNodes;
-    var root = this._view.result.root;
+    var nodes = this._view.getSelectionNodes();
+    var root = this._view.getResultNode();
     for (var i = 0; i < nodes.length; ++i) {
       if (nodes[i] == root)
         return true;      
@@ -451,8 +451,8 @@ PlacesController.prototype = {
    */
   _buildSelectionMetadata: function PC__buildSelectionMetadata() {
     var metadata = [];
-    var root = this._view.result.root;
-    var nodes = this._view.selectedNodes;
+    var root = this._view.getResultNode();
+    var nodes = this._view.getSelectionNodes();
     if (nodes.length == 0)
       nodes.push(root); // See the second note above
 
@@ -795,7 +795,7 @@ PlacesController.prototype = {
     if (node && PlacesUtils.nodeIsContainer(node))
       PlacesUIUtils.openContainerNodeInTabs(this._view.selectedNode, aEvent);
     else
-      PlacesUIUtils.openURINodesInTabs(this._view.selectedNodes, aEvent);
+      PlacesUIUtils.openURINodesInTabs(this._view.getSelectionNodes(), aEvent);
   },
 
   /**
@@ -866,7 +866,7 @@ PlacesController.prototype = {
   moveSelectedBookmarks: function PC_moveBookmarks() {
     window.openDialog("chrome://browser/content/places/moveBookmarks.xul",
                       "", "chrome, modal",
-                      this._view.selectedNodes);
+                      this._view.getSelectionNodes());
   },
 
   /**
@@ -991,7 +991,7 @@ PlacesController.prototype = {
    *          See |remove|.
    */
   _removeRowsFromBookmarks: function PC__removeRowsFromBookmarks(txnName) {
-    var ranges = this._view.removableSelectionRanges;
+    var ranges = this._view.getRemovableSelectionRanges();
     var transactions = [];
     var removedFolders = [];
 
@@ -1010,10 +1010,10 @@ PlacesController.prototype = {
   _removeRowsFromHistory: function PC__removeRowsFromHistory() {
     // Other containers are history queries, just delete from history
     // history deletes are not undoable.
-    var nodes = this._view.selectedNodes;
+    var nodes = this._view.getSelectionNodes();
     var URIs = [];
     var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
-    var root = this._view.result.root;
+    var root = this._view.getResultNode();
 
     for (var i = 0; i < nodes.length; ++i) {
       var node = nodes[i];
@@ -1088,7 +1088,7 @@ PlacesController.prototype = {
 
     NS_ASSERT(aTxnName !== undefined, "Must supply Transaction Name");
 
-    var root = this._view.result.root;
+    var root = this._view.getResultNode();
 
     if (PlacesUtils.nodeIsFolder(root)) 
       this._removeRowsFromBookmarks(aTxnName);
@@ -1115,13 +1115,13 @@ PlacesController.prototype = {
     let dt = aEvent.dataTransfer;
     let doCopy = ["copyLink", "copy", "link"].indexOf(dt.effectAllowed) != -1;
 
-    let result = this._view.result;
+    let result = this._view.getResult();
     let didSuppressNotifications = result.suppressNotifications;
     if (!didSuppressNotifications)
       result.suppressNotifications = true;
 
     try {
-      let nodes = this._view.draggableSelection;
+      let nodes = this._view.getDraggableSelection();
       for (let i = 0; i < nodes.length; ++i) {
         var node = nodes[i];
 
@@ -1157,14 +1157,14 @@ PlacesController.prototype = {
    * Copy Bookmarks and Folders to the clipboard
    */
   copy: function PC_copy() {
-    let result = this._view.result;
+    let result = this._view.getResult();
 
     let didSuppressNotifications = result.suppressNotifications;
     if (!didSuppressNotifications)
       result.suppressNotifications = true;
 
     try {
-      let nodes = this._view.selectedNodes;
+      let nodes = this._view.getSelectionNodes();
 
       let xferable =  Cc["@mozilla.org/widget/transferable;1"].
                       createInstance(Ci.nsITransferable);
@@ -1631,26 +1631,30 @@ function goUpdatePlacesCommands() {
 
 function doGetPlacesControllerForCommand(aCommand)
 {
-  let controller = top.document.commandDispatcher
-                      .getControllerForCommand(aCommand);
-  if (controller)
-    return controller;
-
-  // If building commands for a context menu, look for an element in the
-  // current popup.
-  let element = document.popupNode;
-  if (element) {
-    let view = PlacesUIUtils.getViewForNode(element);
-    if (view && view._contextMenuShown)
-      return view.viewElt.controllers.getControllerForCommand(aCommand);
+  var placesController = top.document.commandDispatcher
+                            .getControllerForCommand(aCommand);
+  if (!placesController) {
+    // If building commands for a context menu, look for an element in the
+    // current popup.
+    var element = document.popupNode;
+    while (element) {
+      var isContextMenuShown = ("_contextMenuShown" in element) && element._contextMenuShown;
+      // Check for the parent menupopup or the hbox used for toolbars
+      if ((element.localName == "menupopup" || element.localName == "hbox") &&
+          isContextMenuShown) {
+        placesController = element.controllers.getControllerForCommand(aCommand);
+        break;
+      }
+      element = element.parentNode;
+    }
   }
 
-  return null;
+  return placesController;
 }
 
 function goDoPlacesCommand(aCommand)
 {
-  let controller = doGetPlacesControllerForCommand(aCommand);
+  var controller = doGetPlacesControllerForCommand(aCommand);
   if (controller && controller.isCommandEnabled(aCommand))
     controller.doCommand(aCommand);
 }

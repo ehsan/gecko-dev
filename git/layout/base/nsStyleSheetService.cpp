@@ -42,7 +42,7 @@
 #include "nsStyleSheetService.h"
 #include "nsIStyleSheet.h"
 #include "nsCSSLoader.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIURI.h"
 #include "nsContentCID.h"
 #include "nsCOMPtr.h"
@@ -109,8 +109,9 @@ nsStyleSheetService::FindSheetByURI(const nsCOMArray<nsIStyleSheet> &sheets,
 {
   for (PRInt32 i = sheets.Count() - 1; i >= 0; i-- ) {
     PRBool bEqual;
-    nsCOMPtr<nsIURI> uri = sheets[i]->GetSheetURI();
-    if (uri
+    nsCOMPtr<nsIURI> uri;
+    if (NS_SUCCEEDED(sheets[i]->GetSheetURI(getter_AddRefs(uri)))
+        && uri
         && NS_SUCCEEDED(uri->Equals(sheetURI, &bEqual))
         && bEqual) {
       return i;
@@ -171,7 +172,7 @@ nsStyleSheetService::LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
   nsRefPtr<mozilla::css::Loader> loader = new mozilla::css::Loader();
   NS_ENSURE_TRUE(loader, NS_ERROR_OUT_OF_MEMORY);
 
-  nsRefPtr<nsCSSStyleSheet> sheet;
+  nsCOMPtr<nsICSSStyleSheet> sheet;
   // Allow UA sheets, but not user sheets, to use unsafe rules
   nsresult rv = loader->LoadSheetSync(aSheetURI, aSheetType == AGENT_SHEET,
                                       PR_TRUE, getter_AddRefs(sheet));

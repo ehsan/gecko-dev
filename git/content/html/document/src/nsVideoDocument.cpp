@@ -41,7 +41,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsHTMLMediaElement.h"
 #include "nsIDocShellTreeItem.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 

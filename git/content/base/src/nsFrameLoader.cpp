@@ -86,6 +86,7 @@
 #include "nsINameSpaceManager.h"
 
 #include "nsThreadUtils.h"
+#include "nsICSSStyleSheet.h"
 #include "nsIContentViewer.h"
 
 class nsAsyncDocShellDestroyer : public nsRunnable

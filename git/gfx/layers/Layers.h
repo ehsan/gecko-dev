@@ -45,7 +45,6 @@
 #include "nsISupportsImpl.h"
 #include "nsAutoPtr.h"
 #include "gfx3DMatrix.h"
-#include "gfxColor.h"
 
 class gfxContext;
 class nsPaintEvent;
@@ -57,7 +56,6 @@ class Layer;
 class ThebesLayer;
 class ContainerLayer;
 class ImageLayer;
-class ColorLayer;
 class ImageContainer;
 
 /*
@@ -166,11 +164,6 @@ public:
    * Create an ImageLayer for this manager's layer tree.
    */
   virtual already_AddRefed<ImageLayer> CreateImageLayer() = 0;
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Create a ColorLayer for this manager's layer tree.
-   */
-  virtual already_AddRefed<ColorLayer> CreateColorLayer() = 0;
 
   /**
    * Can be called anytime
@@ -371,6 +364,20 @@ public:
    */
   virtual void EndDrawing() = 0;
 
+  /**
+   * DRAWING PHASE ONLY
+   * Copy the aRegion contents from aSource into this layer, offsetting
+   * them by aDelta. The validity is also copied, so invalid areas in
+   * aSource will make corresponding areas of this layer invalid. You
+   * must not call this after BeginDrawing/EndDrawing on this layer.
+   * 
+   * aSource must be this layer or a layer after this layer in a
+   * preorder traversal of the layer tree.
+   */
+  virtual void CopyFrom(ThebesLayer* aSource,
+                        const nsIntRegion& aRegion,
+                        const nsIntPoint& aDelta) = 0;
+
 protected:
   ThebesLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData) {}
@@ -407,32 +414,6 @@ protected:
   {}
 
   Layer* mFirstChild;
-};
-
-/**
- * A Layer which just renders a solid color in its visible region.
- */
-class THEBES_API ColorLayer : public Layer {
-public:
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Set the color of the layer.
-   */
-  virtual void SetColor(const gfxRGBA& aColor)
-  {
-    mColor = aColor;
-  }
-
-  // This getter can be used anytime.
-  virtual const gfxRGBA& GetColor() { return mColor; }
-
-protected:
-  ColorLayer(LayerManager* aManager, void* aImplData)
-    : Layer(aManager, aImplData),
-      mColor(0.0, 0.0, 0.0, 0.0)
-  {}
-
-  gfxRGBA mColor;
 };
 
 }

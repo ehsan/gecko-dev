@@ -59,7 +59,7 @@
 #include "nsDOMDocumentType.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsCSSLoader.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
@@ -462,7 +462,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+nsXMLContentSink::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                    PRBool aWasAlternate,
                                    nsresult aStatus)
 {
@@ -751,7 +751,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
 
     nsCOMPtr<nsIURI> url;
     rv = NS_NewURI(getter_AddRefs(url), aHref, nsnull,
-                   mDocument->GetDocBaseURI());
+                   mDocument->GetBaseURI());
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Do security check
@@ -963,7 +963,7 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
 
   mDocElement = aContent;
   NS_ADDREF(mDocElement);
-  nsresult rv = mDocument->AppendChildTo(mDocElement, NotifyForDocElement());
+  nsresult rv = mDocument->AppendChildTo(mDocElement, PR_TRUE);
   if (NS_FAILED(rv)) {
     // If we return PR_FALSE here, the caller will bail out because it won't
     // find a parent content node to append to, which is fine.
@@ -1257,9 +1257,9 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
     // exit codes, error are not fatal here, just that the stylesheet won't apply
     nsCOMPtr<nsIURI> uri(do_QueryInterface(aCatalogData));
     if (uri) {
-      nsRefPtr<nsCSSStyleSheet> sheet;
+      nsCOMPtr<nsICSSStyleSheet> sheet;
       mCSSLoader->LoadSheetSync(uri, PR_TRUE, PR_TRUE, getter_AddRefs(sheet));
-
+      
 #ifdef NS_DEBUG
       nsCAutoString uriStr;
       uri->GetSpec(uriStr);

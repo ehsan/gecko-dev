@@ -139,12 +139,10 @@ GARBAGE_DIRS += system_wrappers
 endif
 
 ifdef WRAP_STL_INCLUDES
-ifdef GNU_CXX
+ifdef GCC_VERSION
 stl_compiler = gcc
 else
-ifdef _MSC_VER
 stl_compiler = msvc
-endif
 endif
 endif
 

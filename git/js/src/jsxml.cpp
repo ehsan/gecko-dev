@@ -5185,8 +5185,9 @@ js_TestXMLEquality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
                  HasSimpleContent(xml))) {
                 ok = js_EnterLocalRootScope(cx);
                 if (ok) {
-                    ok = (str = js_ValueToString(cx, OBJECT_TO_JSVAL(obj))) &&
-                         (vstr = js_ValueToString(cx, v));
+                    str = js_ValueToString(cx, OBJECT_TO_JSVAL(obj));
+                    vstr = js_ValueToString(cx, v);
+                    ok = str && vstr;
                     if (ok)
                         *bp = js_EqualStrings(str, vstr);
                     js_LeaveLocalRootScope(cx);
@@ -5199,8 +5200,9 @@ js_TestXMLEquality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
         ok = js_EnterLocalRootScope(cx);
         if (ok) {
             if (HasSimpleContent(xml)) {
-                ok = (str = js_ValueToString(cx, OBJECT_TO_JSVAL(obj))) &&
-                     (vstr = js_ValueToString(cx, v));
+                str = js_ValueToString(cx, OBJECT_TO_JSVAL(obj));
+                vstr = js_ValueToString(cx, v);
+                ok = str && vstr;
                 if (ok)
                     *bp = js_EqualStrings(str, vstr);
             } else if (JSVAL_IS_STRING(v) || JSVAL_IS_NUMBER(v)) {
@@ -7200,6 +7202,19 @@ js_GetXMLObject(JSContext *cx, JSXML *xml)
         JS_ASSERT(obj->getPrivate() == xml);
         return obj;
     }
+
+    /*
+     * A JSXML cannot be shared among threads unless it has an object.
+     * A JSXML cannot be given an object unless:
+     * (a) it has no parent; or
+     * (b) its parent has no object (therefore is thread-private); or
+     * (c) its parent's object is locked.
+     *
+     * Once given an object, a JSXML is immutable.
+     */
+    JS_ASSERT(!xml->parent ||
+              !xml->parent->object ||
+              JS_IS_OBJ_LOCKED(cx, xml->parent->object));
 
     obj = NewXMLObject(cx, xml);
     if (!obj)

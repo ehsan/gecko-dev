@@ -58,12 +58,12 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsStubDocumentObserver.h"
 #include "nsStyleSet.h"
-#include "nsCSSStyleSheet.h" // XXX for UA sheet loading hack, can this go away please?
+#include "nsICSSStyleSheet.h" // XXX for UA sheet loading hack, can this go away please?
 #include "nsIDOMCSSStyleSheet.h"  // for Pref-related rule management (bugs 22963,20760,31816)
 #include "nsINameSpaceManager.h"  // for Pref-related rule management (bugs 22963,20760,31816)
 #include "nsIServiceManager.h"
@@ -180,7 +180,8 @@
 #include "nsITimer.h"
 #ifdef ACCESSIBILITY
 #include "nsIAccessibilityService.h"
-#include "nsAccessible.h"
+#include "nsIAccessible.h"
+#include "nsIAccessibleEvent.h"
 #endif
 
 // For style data reconstruction
@@ -1035,8 +1036,8 @@ protected:
     }
   }
 
-  nsRefPtr<nsCSSStyleSheet> mPrefStyleSheet; // mStyleSet owns it but we
-                                             // maintain a ref, may be null
+  nsCOMPtr<nsICSSStyleSheet> mPrefStyleSheet; // mStyleSet owns it but we
+                                              // maintain a ref, may be null
 #ifdef DEBUG
   PRUint32                  mUpdateCount;
 #endif
@@ -2032,14 +2033,16 @@ nsresult PresShell::CreatePreferenceStyleSheet(void)
     result = NS_NewURI(getter_AddRefs(uri), "about:PreferenceStyleSheet", nsnull);
     if (NS_SUCCEEDED(result)) {
       NS_ASSERTION(uri, "null but no error");
-      mPrefStyleSheet->SetURIs(uri, uri, uri);
-      mPrefStyleSheet->SetComplete();
-      PRUint32 index;
-      result =
-        mPrefStyleSheet->InsertRuleInternal(NS_LITERAL_STRING("@namespace url(http://www.w3.org/1999/xhtml);"),
-                                            0, &index);
+      result = mPrefStyleSheet->SetURIs(uri, uri, uri);
       if (NS_SUCCEEDED(result)) {
-        mStyleSet->AppendStyleSheet(nsStyleSet::eUserSheet, mPrefStyleSheet);
+        mPrefStyleSheet->SetComplete();
+        PRUint32 index;
+        result =
+          mPrefStyleSheet->InsertRuleInternal(NS_LITERAL_STRING("@namespace url(http://www.w3.org/1999/xhtml);"),
+                                              0, &index);
+        if (NS_SUCCEEDED(result)) {
+          mStyleSet->AppendStyleSheet(nsStyleSet::eUserSheet, mPrefStyleSheet);
+        }
       }
     }
   }
@@ -3473,16 +3476,16 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
 }
 
 void
-nsIPresShell::PostRecreateFramesFor(Element* aElement)
+nsIPresShell::PostRecreateFramesFor(nsIContent* aContent)
 {
-  FrameConstructor()->PostRestyleEvent(aElement, eRestyle_Self,
+  FrameConstructor()->PostRestyleEvent(aContent, eRestyle_Self,
                                        nsChangeHint_ReconstructFrame);
 }
 
 void
-nsIPresShell::RestyleForAnimation(Element* aElement)
+nsIPresShell::RestyleForAnimation(nsIContent* aContent)
 {
-  FrameConstructor()->PostAnimationRestyleEvent(aElement, eRestyle_Self,
+  FrameConstructor()->PostAnimationRestyleEvent(aContent, eRestyle_Self,
                                                 NS_STYLE_HINT_NONE);
 }
 
@@ -3814,8 +3817,6 @@ PresShell::ScrollToAnchor()
   if (!mLastAnchorScrolledTo)
     return NS_OK;
 
-  NS_ASSERTION(mDidInitialReflow, "should have done initial reflow by now");
-
   nsIScrollableFrame* rootScroll = GetRootScrollFrameAsScrollable();
   if (!rootScroll ||
       mLastAnchorScrollPositionY != rootScroll->GetScrollPosition().y)
@@ -4012,8 +4013,6 @@ PresShell::ScrollContentIntoView(nsIContent* aContent,
   nsCOMPtr<nsIDocument> currentDoc = content->GetCurrentDoc();
   NS_ENSURE_STATE(currentDoc);
 
-  NS_ASSERTION(mDidInitialReflow, "should have done initial reflow by now");
-
   mContentToScrollTo = aContent;
   mContentScrollVPosition = aVPercent;
   mContentScrollHPosition = aHPercent;
@@ -4040,8 +4039,6 @@ PresShell::DoScrollContentIntoView(nsIContent* aContent,
                                    PRIntn      aVPercent,
                                    PRIntn      aHPercent)
 {
-  NS_ASSERTION(mDidInitialReflow, "should have done initial reflow by now");
-
   nsIFrame* frame = aContent->GetPrimaryFrame();
   if (!frame) {
     mContentToScrollTo = nsnull;
@@ -4695,11 +4692,13 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
   PRUint32 selectorFlags =
     container ? (container->GetFlags() & NODE_ALL_SELECTOR_FLAGS) : 0;
   if (selectorFlags != 0 && !aContent->IsRootOfAnonymousSubtree()) {
-    Element* element = container->AsElement();
-    if (aInfo->mAppend && !aContent->GetNextSibling())
-      mFrameConstructor->RestyleForAppend(element, aContent);
+    PRUint32 index;
+    if (aInfo->mAppend &&
+        container->GetChildAt((index = container->GetChildCount() - 1)) ==
+          aContent)
+      mFrameConstructor->RestyleForAppend(container, index);
     else
-      mFrameConstructor->RestyleForInsertOrChange(element, aContent);
+      mFrameConstructor->RestyleForInsertOrChange(container, aContent);
   }
 
   mFrameConstructor->CharacterDataChanged(aContent, aInfo);
@@ -4784,7 +4783,6 @@ PresShell::AttributeChanged(nsIDocument* aDocument,
 void
 PresShell::ContentAppended(nsIDocument *aDocument,
                            nsIContent* aContainer,
-                           nsIContent* aFirstNewContent,
                            PRInt32     aNewIndexInContainer)
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected ContentAppended");
@@ -4800,10 +4798,9 @@ PresShell::ContentAppended(nsIDocument *aDocument,
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
   // frame reconstruction.
-  mFrameConstructor->RestyleForAppend(aContainer->AsElement(), aFirstNewContent);
+  mFrameConstructor->RestyleForAppend(aContainer, aNewIndexInContainer);
 
-  mFrameConstructor->ContentAppended(aContainer, aFirstNewContent,
-                                     aNewIndexInContainer, PR_TRUE);
+  mFrameConstructor->ContentAppended(aContainer, aNewIndexInContainer, PR_TRUE);
   VERIFY_STYLE_TREE;
 }
 
@@ -4826,7 +4823,7 @@ PresShell::ContentInserted(nsIDocument* aDocument,
   // not cases when the frame constructor calls its own methods to force
   // frame reconstruction.
   if (aContainer)
-    mFrameConstructor->RestyleForInsertOrChange(aContainer->AsElement(), aChild);
+    mFrameConstructor->RestyleForInsertOrChange(aContainer, aChild);
 
   mFrameConstructor->ContentInserted(aContainer, aChild,
                                      aIndexInContainer, nsnull, PR_TRUE);
@@ -4857,8 +4854,7 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
   // not cases when the frame constructor calls its own methods to force
   // frame reconstruction.
   if (aContainer)
-    mFrameConstructor->RestyleForRemove(aContainer->AsElement(), aChild,
-                                        aContainer->GetChildAt(aIndexInContainer));
+    mFrameConstructor->RestyleForRemove(aContainer, aChild, aIndexInContainer);
 
   PRBool didReconstruct;
   mFrameConstructor->ContentRemoved(aContainer, aChild, aIndexInContainer,
@@ -4931,8 +4927,10 @@ PresShell::StyleSheetAdded(nsIDocument *aDocument,
 {
   // We only care when enabled sheets are added
   NS_PRECONDITION(aStyleSheet, "Must have a style sheet!");
+  PRBool applicable;
+  aStyleSheet->GetApplicable(applicable);
 
-  if (aStyleSheet->IsApplicable() && aStyleSheet->HasRules()) {
+  if (applicable && aStyleSheet->HasRules()) {
     mStylesHaveChanged = PR_TRUE;
   }
 }
@@ -4944,8 +4942,9 @@ PresShell::StyleSheetRemoved(nsIDocument *aDocument,
 {
   // We only care when enabled sheets are removed
   NS_PRECONDITION(aStyleSheet, "Must have a style sheet!");
-
-  if (aStyleSheet->IsApplicable() && aStyleSheet->HasRules()) {
+  PRBool applicable;
+  aStyleSheet->GetApplicable(applicable);
+  if (applicable && aStyleSheet->HasRules()) {
     mStylesHaveChanged = PR_TRUE;
   }
 }
@@ -5150,7 +5149,7 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
       if (aFlags & RENDER_USE_WIDGET_LAYERS) {
         flags |= nsDisplayList::PAINT_USE_WIDGET_LAYERS;
       }
-      list.PaintRoot(&builder, rc, flags);
+      list.Paint(&builder, rc, flags);
       // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
       list.DeleteAll();
 
@@ -5443,7 +5442,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
     aArea.MoveBy(-rangeInfo->mRootOffset.x, -rangeInfo->mRootOffset.y);
     nsRegion visible(aArea);
     rangeInfo->mList.ComputeVisibility(&rangeInfo->mBuilder, &visible, nsnull);
-    rangeInfo->mList.PaintRoot(&rangeInfo->mBuilder, rc, nsDisplayList::PAINT_DEFAULT);
+    rangeInfo->mList.Paint(&rangeInfo->mBuilder, rc, nsDisplayList::PAINT_DEFAULT);
     aArea.MoveBy(rangeInfo->mRootOffset.x, rangeInfo->mRootOffset.y);
   }
 
@@ -6333,10 +6332,8 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
 #ifdef ACCESSIBILITY
   if (aEvent->eventStructType == NS_ACCESSIBLE_EVENT)
   {
-    nsAccessibleEvent *accEvent = static_cast<nsAccessibleEvent*>(aEvent);
-    accEvent->mAccessible = nsnull;
-
-    nsCOMPtr<nsIAccessibilityService> accService =
+    static_cast<nsAccessibleEvent*>(aEvent)->accessible = nsnull;
+    nsCOMPtr<nsIAccessibilityService> accService = 
       do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
       nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
@@ -6345,12 +6342,14 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
         // preshell is being held onto for fastback.
         return NS_OK;
       }
-
+      nsIAccessible* acc;
       nsCOMPtr<nsIDOMNode> domNode(do_QueryInterface(mDocument));
       NS_ASSERTION(domNode, "No dom node for doc");
-
-      accEvent->mAccessible = accService->GetAccessibleInShell(domNode, this);
-
+      accService->GetAccessibleInShell(domNode, this, &acc);
+      // Addref this - it's not a COM Ptr
+      // We'll make sure the right number of Addref's occur before
+      // handing this back to the accessibility client
+      static_cast<nsAccessibleEvent*>(aEvent)->accessible = acc;
       // Ensure this is set in case a11y was activated before any
       // nsPresShells existed to observe "a11y-init-or-shutdown" topic
       gIsAccessibilityActive = PR_TRUE;

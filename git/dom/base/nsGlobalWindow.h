@@ -678,7 +678,6 @@ protected:
   already_AddRefed<nsPIWindowRoot> GetTopWindowRoot();
 
   static void NotifyDOMWindowDestroyed(nsGlobalWindow* aWindow);
-  void NotifyWindowIDDestroyed(const char* aTopic);
 
   // When adding new member variables, be careful not to create cycles
   // through JavaScript.  If there is any chance that a member variable
@@ -739,15 +738,12 @@ protected:
   // This will be reset when another element is focused
   PRPackedBool           mShowFocusRingForContent : 1;
 
-  // true if tab navigation has occurred for this window. Focus rings
+  // true if tab navigation has occured for this window. Focus rings
   // should be displayed.
-  PRPackedBool           mFocusByKeyOccurred : 1;
+  PRPackedBool           mFocusByKeyOccured : 1;
 
   // Indicates whether this window is getting acceleration change events
   PRPackedBool           mHasAcceleration  : 1;
-
-  // whether we've sent the destroy notification for our window id
-  PRPackedBool           mNotifiedIDDestroyed : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;
@@ -822,10 +818,6 @@ protected:
   nsDataHashtable<nsVoidPtrHashKey, void*> mCachedXBLPrototypeHandlers;
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
-
-  // A unique (as long as our 64-bit counter doesn't roll over) id for
-  // this window.
-  PRUint64 mWindowID;
 
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;

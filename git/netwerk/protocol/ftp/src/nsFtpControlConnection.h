@@ -59,7 +59,7 @@ public:
     /**
      * Called when a chunk of data arrives on the control connection.
      * @param data
-     *        The new data or null if an error occurred.
+     *        The new data or null if an error occured.
      * @param dataLen
      *        The data length in bytes.
      */

@@ -90,7 +90,6 @@ public:
 
   void SetMatrixUniform(GLint aLocation, const GLfloat *aValue);
   void SetInt(GLint aLocation, GLint aValue);
-  void SetColor(GLint aLocation, const gfxRGBA& aColor);
 
   void SetMatrixProj(GLfloat *aValue)
   {
@@ -138,20 +137,6 @@ public:
   }
 protected:
   GLint mLayerTextureLocation;
-};
-
-class ColorLayerProgram : public LayerProgram
-{
-public:
-  void UpdateLocations();
-
-  void SetLayerColor(const gfxRGBA& aColor)
-  {
-    SetColor(mRenderColorLocation, aColor);
-  }
-
-protected:
-  GLint mRenderColorLocation;
 };
 
 class YCbCrLayerProgram : public LayerProgram
@@ -226,8 +211,6 @@ public:
 
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
 
-  virtual already_AddRefed<ColorLayer> CreateColorLayer();
-
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
   virtual LayersBackend GetBackendType() { return LAYERS_OPENGL; }
@@ -240,7 +223,6 @@ public:
   void MakeCurrent();
 
   RGBLayerProgram *GetRGBLayerProgram() { return mRGBLayerProgram; }
-  ColorLayerProgram *GetColorLayerProgram() { return mColorLayerProgram; }
   YCbCrLayerProgram *GetYCbCrLayerProgram() { return mYCbCrLayerProgram; }
 
   typedef mozilla::gl::GLContext GLContext;
@@ -265,24 +247,18 @@ private:
   GLuint mFrameBuffer;
   /** RGB Layer Program */
   RGBLayerProgram *mRGBLayerProgram;
-  /** Color Layer Program */
-  ColorLayerProgram *mColorLayerProgram;
   /** YUV Layer Program */
   YCbCrLayerProgram *mYCbCrLayerProgram;
   /** Vertex Shader */
   GLuint mVertexShader;
   /** RGB fragment shader */
   GLuint mRGBShader;
-  /** Solid color shader */
-  GLuint mColorShader;
   /** YUV fragment shader */
   GLuint mYUVShader;
   /** Current root layer. */
   LayerOGL *mRootLayer;
   /** Vertex buffer */
   GLuint mVBO;
-  /** Texture target to use for FBOs */
-  GLenum mFBOTextureTarget;
 
   /**
    * Region we're clipping our current drawing to.
@@ -316,7 +292,7 @@ class LayerOGL
 public:
   LayerOGL(LayerManagerOGL *aManager);
 
-  enum LayerType { TYPE_THEBES, TYPE_CONTAINER, TYPE_IMAGE, TYPE_COLOR };
+  enum LayerType { TYPE_THEBES, TYPE_CONTAINER, TYPE_IMAGE };
   
   virtual LayerType GetType() = 0;
 

@@ -334,8 +334,6 @@ typedef HashMap<jsbytecode*,
                 DefaultHasher<jsbytecode*>,
                 SystemAllocPolicy> RecordAttemptMap;
 
-class Oracle;
-
 /*
  * Trace monitor. Every JSThread (if JS_THREADSAFE) or JSRuntime (if not
  * JS_THREADSAFE) has an associated trace monitor that keeps track of loop
@@ -397,7 +395,6 @@ struct TraceMonitor {
     nanojit::Assembler*     assembler;
     FrameInfoCache*         frameCache;
 
-    Oracle*                 oracle;
     TraceRecorder*          recorder;
 
     GlobalState             globalStates[MONITOR_N_GLOBAL_STATES];
@@ -556,17 +553,6 @@ struct JSThreadData {
     /* State used by dtoa.c. */
     DtoaState           *dtoaState;
 
-    /* 
-     * State used to cache some double-to-string conversions.  A stupid
-     * optimization aimed directly at v8-splay.js, which stupidly converts
-     * many doubles multiple times in a row.
-     */
-    struct {
-        jsdouble d;
-        jsint    base;
-        JSString *s;        // if s==NULL, d and base are not valid
-    } dtoaCache;
-
     /*
      * Cache of reusable JSNativeEnumerators mapped by shape identifiers (as
      * stored in scope->shape). This cache is nulled by the GC and protected
@@ -624,6 +610,11 @@ struct JSThread {
      * Protected by rt->gcLock.
      */
     bool                gcWaiting;
+
+    /*
+     * Deallocator task for this thread.
+     */
+    JSFreePointerListTask *deallocatorTask;
 
     /* Factored out of JSThread for !JS_THREADSAFE embedding in JSRuntime. */
     JSThreadData        data;
@@ -820,10 +811,6 @@ struct JSRuntime {
     size_t              gcMarkLaterCount;
 #endif
 
-#ifdef JS_THREADSAFE
-    JSBackgroundThread  gcHelperThread;
-#endif
-
     /*
      * The trace operation and its data argument to trace embedding-specific
      * GC roots.
@@ -832,9 +819,10 @@ struct JSRuntime {
     void                *gcExtraRootsData;
 
     /*
-     * Used to serialize cycle checks when setting __proto__ by requesting the
-     * GC handle the required cycle detection. If the GC hasn't been poked, it
-     * won't scan for garbage. This member is protected by rt->gcLock.
+     * Used to serialize cycle checks when setting __proto__ or __parent__ by
+     * requesting the GC handle the required cycle detection. If the GC hasn't
+     * been poked, it won't scan for garbage. This member is protected by
+     * rt->gcLock.
      */
     JSSetSlotRequest    *setSlotRequests;
 
@@ -864,7 +852,7 @@ struct JSRuntime {
 #ifdef JS_TRACER
     /* True if any debug hooks not supported by the JIT are enabled. */
     bool debuggerInhibitsJIT() const {
-        return (globalDebugHooks.interruptHook ||
+        return (globalDebugHooks.interruptHandler ||
                 globalDebugHooks.callHook ||
                 globalDebugHooks.objectHook);
     }
@@ -995,6 +983,10 @@ struct JSRuntime {
 
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
+
+#ifdef JS_THREADSAFE
+    JSBackgroundThread    *deallocatorThread;
+#endif
 
     JSEmptyScope          *emptyArgumentsScope;
     JSEmptyScope          *emptyBlockScope;
@@ -1188,27 +1180,9 @@ namespace js {
 class AutoGCRooter;
 }
 
-struct JSRegExpStatics {
-    JSContext   *cx;
-    JSString    *input;         /* input string to match (perl $_, GC root) */
-    JSBool      multiline;      /* whether input contains newlines (perl $*) */
-    JSSubString lastMatch;      /* last string matched (perl $&) */
-    JSSubString lastParen;      /* last paren matched (perl $+) */
-    JSSubString leftContext;    /* input to left of last match (perl $`) */
-    JSSubString rightContext;   /* input to right of last match (perl $') */
-    js::Vector<JSSubString> parens; /* last set of parens matched (perl $1, $2) */
-
-    JSRegExpStatics(JSContext *cx) : cx(cx), parens(cx) {}
-
-    bool copy(const JSRegExpStatics& other);
-    void clearRoots();
-    void clear();
-};
-
 struct JSContext
 {
-    explicit JSContext(JSRuntime *rt) :
-      runtime(rt), regExpStatics(this), busyArrays(this) {}
+    explicit JSContext(JSRuntime *rt) : runtime(rt), busyArrays(this) {}
 
     /*
      * If this flag is set, we were asked to call back the operation callback
@@ -1294,7 +1268,7 @@ struct JSContext
     /* Storage to root recently allocated GC things and script result. */
     JSWeakRoots         weakRoots;
 
-    /* Regular expression class statics. */
+    /* Regular expression class statics (XXX not shared globally). */
     JSRegExpStatics     regExpStatics;
 
     /* State for object and array toSource conversion. */
@@ -1440,6 +1414,8 @@ struct JSContext
     bool                 jitEnabled;
 #endif
 
+    JSClassProtoCache    classProtoCache;
+
     /* Caller must be holding runtime->gcLock. */
     void updateJITEnabled() {
 #ifdef JS_TRACER
@@ -1450,13 +1426,19 @@ struct JSContext
 #endif
     }
 
-    JSClassProtoCache    classProtoCache;
-
 #ifdef JS_THREADSAFE
-    /*
-     * The sweep task for this context.
-     */
-    js::BackgroundSweepTask *gcSweepTask;
+    inline void createDeallocatorTask() {
+        JS_ASSERT(!thread->deallocatorTask);
+        if (runtime->deallocatorThread && !runtime->deallocatorThread->busy())
+            thread->deallocatorTask = new JSFreePointerListTask();
+    }
+
+    inline void submitDeallocatorTask() {
+        if (thread->deallocatorTask) {
+            runtime->deallocatorThread->schedule(thread->deallocatorTask);
+            thread->deallocatorTask = NULL;
+        }
+    }
 #endif
 
     ptrdiff_t &getMallocCounter() {
@@ -1531,15 +1513,26 @@ struct JSContext
         return p;
     }
 
-    inline void free(void* p) {
 #ifdef JS_THREADSAFE
-        if (gcSweepTask) {
-            gcSweepTask->freeLater(p);
+    inline void free(void* p) {
+        if (!p)
             return;
+        if (thread) {
+            JSFreePointerListTask* task = thread->deallocatorTask;
+            if (task) {
+                task->add(p);
+                return;
+            }
         }
-#endif
         runtime->free(p);
     }
+#else
+    inline void free(void* p) {
+        if (!p)
+            return;
+        runtime->free(p);
+    }
+#endif
 
     /*
      * In the common case that we'd like to allocate the memory for an object
@@ -1684,17 +1677,17 @@ class AutoGCRooter {
     void operator=(AutoGCRooter &ida);
 };
 
-class AutoPreserveWeakRoots : private AutoGCRooter
+class AutoSaveRestoreWeakRoots : private AutoGCRooter
 {
   public:
-    explicit AutoPreserveWeakRoots(JSContext *cx
-                                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit AutoSaveRestoreWeakRoots(JSContext *cx
+                                      JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, WEAKROOTS), savedRoots(cx->weakRoots)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
-    ~AutoPreserveWeakRoots()
+    ~AutoSaveRestoreWeakRoots()
     {
         context->weakRoots = savedRoots;
     }

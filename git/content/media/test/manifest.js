@@ -37,9 +37,8 @@ var gPlayTests = [
   // file with list chunk
   { name:"r16000_u8_c1_list.wav", type:"audio/x-wav", duration:4.2 },
 
-  // Ogg stream without eof marker
+  // Ogg stream with eof marker
   { name:"bug461281.ogg", type:"application/ogg" },
-
   // oggz-chop stream
   { name:"bug482461.ogv", type:"video/ogg", duration:4.34 },
   // With first frame a "duplicate" (empty) frame.

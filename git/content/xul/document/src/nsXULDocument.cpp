@@ -113,7 +113,7 @@
 #include "nsContentUtils.h"
 #include "nsIParser.h"
 #include "nsIParserService.h"
-#include "nsCSSStyleSheet.h"
+#include "nsICSSStyleSheet.h"
 #include "nsCSSLoader.h"
 #include "nsIScriptError.h"
 #include "nsIStyleSheetLinkingElement.h"
@@ -127,7 +127,7 @@
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsURILoader.h"
-#include "mozilla/dom/Element.h"
+#include "Element.h"
 
 using namespace mozilla::dom;
 
@@ -580,7 +580,7 @@ nsXULDocument::EndLoad()
 
     if (isChrome) {
         nsCOMPtr<nsIXULOverlayProvider> reg =
-            mozilla::services::GetXULOverlayProviderService();
+            do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
 
         if (reg) {
             nsCOMPtr<nsISimpleEnumerator> overlays;
@@ -1089,20 +1089,20 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
 void
 nsXULDocument::ContentAppended(nsIDocument* aDocument,
                                nsIContent* aContainer,
-                               nsIContent* aFirstNewContent,
                                PRInt32 aNewIndexInContainer)
 {
     NS_ASSERTION(aDocument == this, "unexpected doc");
     
     // Update our element map
+    PRUint32 count = aContainer->GetChildCount();
+
     nsresult rv = NS_OK;
-    for (nsIContent* cur = aFirstNewContent; cur && NS_SUCCEEDED(rv);
-         cur = cur->GetNextSibling()) {
-        rv = AddSubtreeToDocument(cur);
+    for (PRUint32 i = aNewIndexInContainer; i < count && NS_SUCCEEDED(rv);
+         ++i) {
+        rv = AddSubtreeToDocument(aContainer->GetChildAt(i));
     }
 
-    nsXMLDocument::ContentAppended(aDocument, aContainer, aFirstNewContent,
-                                   aNewIndexInContainer);
+    nsXMLDocument::ContentAppended(aDocument, aContainer, aNewIndexInContainer);
 }
 
 void
@@ -2626,8 +2626,7 @@ nsXULDocument::AddChromeOverlays()
     /* overlays only apply to chrome, skip all content URIs */
     if (!IsChromeURI(docUri)) return NS_OK;
 
-    nsCOMPtr<nsIXULOverlayProvider> chromeReg =
-        mozilla::services::GetXULOverlayProviderService();
+    nsCOMPtr<nsIXULOverlayProvider> chromeReg(do_GetService(NS_CHROMEREGISTRY_CONTRACTID));
     // In embedding situations, the chrome registry may not provide overlays,
     // or even exist at all; that's OK.
     NS_ENSURE_TRUE(chromeReg, NS_OK);
@@ -3154,7 +3153,7 @@ nsXULDocument::DoneWalking()
     // XXXldb This is where we should really be setting the chromehidden
     // attribute.
 
-    PRUint32 count = mOverlaySheets.Length();
+    PRUint32 count = mOverlaySheets.Count();
     for (PRUint32 i = 0; i < count; ++i) {
         AddStyleSheet(mOverlaySheets[i]);
     }
@@ -3264,7 +3263,7 @@ nsXULDocument::DoneWalking()
 }
 
 NS_IMETHODIMP
-nsXULDocument::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
+nsXULDocument::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
                                 PRBool aWasAlternate,
                                 nsresult aStatus)
 {
@@ -3894,7 +3893,7 @@ nsXULDocument::AddPrototypeSheets()
     for (PRInt32 i = 0; i < sheets.Count(); i++) {
         nsCOMPtr<nsIURI> uri = sheets[i];
 
-        nsRefPtr<nsCSSStyleSheet> incompleteSheet;
+        nsCOMPtr<nsICSSStyleSheet> incompleteSheet;
         rv = CSSLoader()->LoadSheet(uri,
                                     mCurrentPrototype->DocumentPrincipal(),
                                     EmptyCString(), this,
@@ -3905,7 +3904,7 @@ nsXULDocument::AddPrototypeSheets()
         // from LoadSheet (and thus exit the loop).
         if (NS_SUCCEEDED(rv)) {
             ++mPendingSheets;
-            if (!mOverlaySheets.AppendElement(incompleteSheet)) {
+            if (!mOverlaySheets.AppendObject(incompleteSheet)) {
                 return NS_ERROR_OUT_OF_MEMORY;
             }
         }
@@ -4637,7 +4636,7 @@ nsXULDocument::IsDocumentRightToLeft()
     // otherwise, get the locale from the chrome registry and
     // look up the intl.uidirection.<locale> preference
     nsCOMPtr<nsIXULChromeRegistry> reg =
-        mozilla::services::GetXULChromeRegistryService();
+        do_GetService(NS_CHROMEREGISTRY_CONTRACTID);
     if (!reg)
         return PR_FALSE;
 

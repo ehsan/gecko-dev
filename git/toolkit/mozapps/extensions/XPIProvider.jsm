@@ -784,11 +784,8 @@ var XPIProvider = {
   installs: null,
   // The default skin for the application
   defaultSkin: "classic/1.0",
-  // The current skin used by the application
-  currentSkin: null,
-  // The selected skin to be used by the application when it is restarted. This
-  // will be the same as currentSkin when it is the skin to be used when the
-  // application is restarted
+  // The currently selected skin or the skin that will be switched to after a
+  // restart
   selectedSkin: null,
   // The name of the checkCompatibility preference for the current application
   // version
@@ -892,9 +889,8 @@ var XPIProvider = {
 
     this.defaultSkin = Prefs.getDefaultCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN,
                                                 "classic/1.0");
-    this.currentSkin = Prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN,
-                                         this.defaultSkin);
-    this.selectedSkin = this.currentSkin;
+    this.selectedSkin = Prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN,
+                                          this.defaultSkin);
 
     // Tell the Chrome Registry which Skin to select
     if (Prefs.getBoolPref(PREF_DSS_SWITCHPENDING, false)) {
@@ -904,7 +900,6 @@ var XPIProvider = {
                                    this.selectedSkin);
         Services.prefs.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
         LOG("Changed skin to " + this.selectedSkin);
-        this.currentSkin = this.selectedSkin;
       }
       catch (e) {
         ERROR(e);
@@ -924,7 +919,7 @@ var XPIProvider = {
         Services.appinfo instanceof Ci.nsICrashReporter) {
       // Annotate the crash report with relevant add-on information.
       try {
-        Services.appinfo.annotateCrashReport("Theme", this.currentSkin);
+        Services.appinfo.annotateCrashReport("Theme", this.selectedSkin);
       } catch (e) { }
       try {
         Services.appinfo.annotateCrashReport("EMCheckCompatibility",
@@ -1388,10 +1383,7 @@ var XPIProvider = {
 
       // If there is migration data then apply it.
       if (aMigrateData) {
-        // A theme's disabled state is determined by the selected theme
-        // preference which is read in loadManifestFromRDF
-        if (newAddon.type != "theme")
-          newAddon.userDisabled = aMigrateData.userDisabled;
+        newAddon.userDisabled = aMigrateData.userDisabled;
         if ("installDate" in aMigrateData)
           newAddon.installDate = aMigrateData.installDate;
         if ("targetApplications" in aMigrateData)
@@ -1841,19 +1833,8 @@ var XPIProvider = {
       Services.prefs.setBoolPref(PREF_DSS_SWITCHPENDING, true);
       Services.prefs.setCharPref(PREF_DSS_SKIN_TO_SELECT, newSkin);
     }
-    else if (newSkin == this.currentSkin) {
-      try {
-        Services.prefs.clearUserPref(PREF_DSS_SWITCHPENDING);
-      }
-      catch (e) { }
-      try {
-        Services.prefs.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
-      }
-      catch (e) { }
-    }
     else {
       Services.prefs.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, newSkin);
-      this.currentSkin = newSkin;
     }
     this.selectedSkin = newSkin;
 
@@ -1917,7 +1898,8 @@ var XPIProvider = {
     // If the theme we're enabling is the skin currently selected then it doesn't
     // require a restart to enable it.
     if (aAddon.type == "theme")
-      return aAddon.internalName != this.currentSkin;
+      return aAddon.internalName !=
+             Prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
 
     return !aAddon.bootstrap;
   },
@@ -1935,7 +1917,8 @@ var XPIProvider = {
     // a restart if enabling the other theme does too. If the selected skin doesn't
     // match the current skin then a restart is necessary.
     if (aAddon.type == "theme")
-      return this.selectedSkin != this.currentSkin;
+      return this.selectedSkin !=
+             Prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
 
     return !aAddon.bootstrap;
   },
@@ -1950,7 +1933,8 @@ var XPIProvider = {
   installRequiresRestart: function XPI_installRequiresRestart(aAddon) {
     // Themes not currently in use can be installed immediately
     if (aAddon.type == "theme")
-      return aAddon.internalName == this.currentSkin;
+      return aAddon.internalName ==
+             Prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
 
     return !aAddon.bootstrap;
   },
@@ -1965,7 +1949,8 @@ var XPIProvider = {
   uninstallRequiresRestart: function XPI_uninstallRequiresRestart(aAddon) {
     // Themes not currently in use can be uninstalled immediately
     if (aAddon.type == "theme")
-      return aAddon.internalName == this.currentSkin;
+      return aAddon.internalName ==
+             Prefs.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
 
     return !aAddon.bootstrap;
   },
@@ -2070,7 +2055,7 @@ var XPIProvider = {
       this.bootstrapScopes[aId][aMethod](params, aReason);
     }
     catch (e) {
-      WARN("Exception running bootstrap method " + aMethod + " on " +
+      WARN("Exception running bootstrap method " + aMethods + " on " +
            aId + ": " + e);
     }
   },
@@ -2323,8 +2308,8 @@ var XPIDatabase = {
                                         ":maxVersion)",
 
     clearVisibleAddons: "UPDATE addon SET visible=0 WHERE id=:id",
-    updateAddonActive: "UPDATE addon SET active=:active WHERE " +
-                       "internal_id=:internal_id",
+    deactivateThemes: "UPDATE addon SET active=:active WHERE " +
+                      "internal_id=:internal_id",
 
     getActiveAddons: "SELECT " + FIELDS_ADDON + " FROM addon WHERE active=1 AND " +
                      "type<>'theme' AND bootstrap=0",
@@ -3082,9 +3067,6 @@ var XPIDatabase = {
       return row;
     }
 
-    aAddon.active = (aAddon.visible && !aAddon.userDisabled &&
-                     !aAddon.appDisabled);
-
     if (aAddon.visible) {
       let stmt = this.getStatement("clearVisibleAddons");
       stmt.params.id = aAddon.id;
@@ -3103,7 +3085,8 @@ var XPIDatabase = {
      "bootstrap"].forEach(function(aProp) {
       stmt.params[aProp] = aAddon[aProp] ? 1 : 0;
     });
-    stmt.params.active = aAddon.active ? 1 : 0;
+    stmt.params.active = (aAddon.visible && !aAddon.userDisabled &&
+                          !aAddon.appDisabled) ? 1 : 0;
     stmt.execute();
     let internal_id = this.connection.lastInsertRowID;
 
@@ -3241,7 +3224,7 @@ var XPIDatabase = {
   updateAddonActive: function XPIDB_updateAddonActive(aAddon) {
     LOG("Updating add-on state");
 
-    stmt = this.getStatement("updateAddonActive");
+    stmt = this.getStatement("deactivateThemes");
     stmt.params.internal_id = aAddon._internal_id;
     stmt.params.active = aAddon.active ? 1 : 0;
     stmt.execute();
@@ -3732,7 +3715,7 @@ AddonInstall.prototype = {
         if (this.hash && hash != this.hash) {
           this.downloadFailed(AddonManager.ERROR_INCORRECT_HASH,
                               "Downloaded file hash (" + hash +
-                              ") did not match provided hash (" + this.hash + ")");
+                              ") did not match provded hash (" + this.hash + ")");
           return;
         }
         try {
@@ -3893,9 +3876,6 @@ AddonInstall.prototype = {
                                                  createWrapper(this.addon));
       }
       else {
-        // The install is completed so it should be removed from the active list
-        XPIProvider.removeActiveInstall(this);
-
         // TODO We can probably reduce the number of DB operations going on here
         // We probably also want to support rolling back failed upgrades etc.
         // See bug 553015.

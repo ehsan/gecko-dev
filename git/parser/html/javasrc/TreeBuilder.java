@@ -4880,8 +4880,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         checkAttributes(attributes, ns);
         // ]NOCPP]
         // Can't be called for custom elements
-        T elt = createElement(ns, elementName.name, attributes, fragment ? null
-                : form);
+        T elt = createElement(ns, elementName.name, attributes, form);
         StackNode<T> current = stack[currentPtr];
         if (current.fosterParenting) {
             fatal();
@@ -4902,7 +4901,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         checkAttributes(attributes, ns);
         // ]NOCPP]
         // Can't be called for custom elements
-        T elt = createElement(ns, name, attributes, fragment ? null : form);
+        T elt = createElement(ns, name, attributes, form);
         StackNode<T> current = stack[currentPtr];
         if (current.fosterParenting) {
             fatal();
@@ -4971,7 +4970,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         checkAttributes(attributes, ns);
         // ]NOCPP]
         // Can't be called for custom elements
-        T elt = createElement(ns, name, attributes, fragment ? null : form);
+        T elt = createElement(ns, name, attributes, form);
         StackNode<T> current = stack[currentPtr];
         appendElement(elt, current.node);
         elementPushed(ns, name, elt);

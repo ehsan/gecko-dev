@@ -57,6 +57,7 @@ XPIDLSRCS	= nsIDialogParamBlock.idl \
                   nsPIWindowWatcher.idl \
                   nsIAuthPromptWrapper.idl \
                   nsIPromptFactory.idl \
+                  nsINonBlockingAlertService.idl \
                   $(NULL)
 
 EXPORTS		= nsPromptUtils.h \

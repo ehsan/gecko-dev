@@ -49,7 +49,7 @@ GLContextProvider sGLContextProvider;
 class CGLLibrary
 {
 public:
-    CGLLibrary() : mInitialized(PR_FALSE), mOGLLibrary(nsnull) {}
+    CGLLibrary() : mInitialized(PR_FALSE) {}
 
     PRBool EnsureInitialized()
     {

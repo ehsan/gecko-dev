@@ -50,7 +50,6 @@
 #include "nsIDOMWindow.h"
 #include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
-#include "mozilla/Services.h"
 
 nsApplicationAccessible::nsApplicationAccessible() :
   nsAccessibleWrap(nsnull, nsnull)
@@ -84,7 +83,7 @@ nsApplicationAccessible::GetName(nsAString& aName)
   aName.Truncate();
 
   nsCOMPtr<nsIStringBundleService> bundleService =
-    mozilla::services::GetStringBundleService();
+    do_GetService(NS_STRINGBUNDLE_CONTRACTID);
 
   NS_ASSERTION(bundleService, "String bundle service must be present!");
   NS_ENSURE_STATE(bundleService);
@@ -325,7 +324,8 @@ nsApplicationAccessible::AddRootAccessible(nsIAccessible *aRootAccessible)
 {
   NS_ENSURE_ARG_POINTER(aRootAccessible);
 
-  nsRefPtr<nsAccessible> rootAcc = do_QueryObject(aRootAccessible);
+  nsRefPtr<nsAccessible> rootAcc =
+    nsAccUtils::QueryObject<nsAccessible>(aRootAccessible);
 
   if (!mChildren.AppendElement(rootAcc))
     return NS_ERROR_FAILURE;
