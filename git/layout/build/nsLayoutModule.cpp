@@ -89,6 +89,7 @@
 #include "nsBox.h"
 #include "nsIFrameTraversal.h"
 #include "nsLayoutCID.h"
+#include "nsILanguageAtomService.h"
 #include "nsStyleSheetService.h"
 #include "nsXULPopupManager.h"
 #include "nsFocusManager.h"
