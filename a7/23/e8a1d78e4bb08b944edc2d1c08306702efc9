@@ -1,0 +1,5 @@
+changeset 322560a0b141244c5ca51360f2911271e73cc0d3
+manifest eee94def8e1d7df990e0e62d4e9ad211306b1964
+author jlal@mozilla.com
+extra histedit_source:107fff662742111e3145f9688645957fbcf1c236,c0054c93897297997a7625031ab3a4a657926e16
+files testing/taskcluster/tasks/builds/mulet_linux.yml

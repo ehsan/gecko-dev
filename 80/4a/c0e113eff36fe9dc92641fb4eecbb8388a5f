@@ -1,0 +1,4 @@
+changeset d31eb86fe05c8bc2d84331ed0043ef13026c69c8
+manifest 3da1e19727b4efd585b090d587c87e349e76d865
+extra rebase_source:f7bc5450fadf4dbac23151f53348d70c25eed50e
+files toolkit/modules/GMPInstallManager.jsm
