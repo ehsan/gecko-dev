@@ -124,9 +124,7 @@ CFStringRef kOurTISPropertyUnicodeKeyLayoutData = NULL;
 CFStringRef kOurTISPropertyInputSourceID = NULL;
 CFStringRef kOurTISPropertyInputSourceLanguages = NULL;
 
-// these are defined in nsCocoaWindow.mm
-extern PRBool gCocoaWindowMethodsSwizzled;
-extern PRBool gConsumeRollupEvent;
+extern PRBool gCocoaWindowMethodsSwizzled; // Defined in nsCocoaWindow.mm
 
 PRBool gChildViewMethodsSwizzled = PR_FALSE;
 
@@ -3199,27 +3197,24 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 }
 
 
-// Returns true if the event should no longer be processed, false otherwise.
-// This does not return whether or not anything was rolled up.
 - (BOOL)maybeRollup:(NSEvent*)theEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  BOOL consumeEvent = NO;
-
+  PRBool retVal = PR_FALSE;
   if (gRollupWidget && gRollupListener) {
     NSWindow* currentPopup = static_cast<NSWindow*>(gRollupWidget->GetNativeData(NS_NATIVE_WINDOW));
     if (!nsCocoaUtils::IsEventOverWindow(theEvent, currentPopup)) {
-      // event is not over the rollup window, default is to roll up
-      PRBool shouldRollup = PR_TRUE;
-
-      // check to see if scroll events should roll up the popup
+      PRBool rollup = PR_TRUE;
       if ([theEvent type] == NSScrollWheel) {
-        gRollupListener->ShouldRollupOnMouseWheelEvent(&shouldRollup);
-        // always consume scroll events that aren't over the popup
-        consumeEvent = YES;
+        gRollupListener->ShouldRollupOnMouseWheelEvent(&rollup);
+        // We don't want the event passed on for scrollwheel events if we're
+        // not supposed to close the popup.  Otherwise the background window
+        // will scroll when a custom context menu or the autoscroll popup is
+        // open (and the mouse isn't over the popup) -- which doesn't seem right.
+        // This change resolves bmo bug 344367.
+        retVal = PR_TRUE;
       }
-
       // if we're dealing with menus, we probably have submenus and
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
@@ -3232,20 +3227,21 @@ static const PRInt32 sShadowInvalidationInterval = 100;
           nsIWidget* widget = widgetChain[i];
           NSWindow* currWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
           if (nsCocoaUtils::IsEventOverWindow(theEvent, currWindow)) {
-            shouldRollup = PR_FALSE;
+            rollup = PR_FALSE;
             break;
           }
-        }
-      }
+        } // foreach parent menu widget
+      } // if rollup listener knows about menus
 
-      if (shouldRollup) {
+      // if we've determined that we should still rollup, do it.
+      if (rollup) {
         gRollupListener->Rollup(nsnull);
-        consumeEvent = (BOOL)gConsumeRollupEvent;
+        retVal = PR_TRUE;
       }
     }
   }
 
-  return consumeEvent;
+  return retVal;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }

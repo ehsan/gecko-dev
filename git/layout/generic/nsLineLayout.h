@@ -160,6 +160,8 @@ protected:
 #define LL_INFIRSTLETTER               0x00002000
 #define LL_LASTFLAG                    LL_INFIRSTLETTER
 
+  PRUint16 mFlags;
+
   void SetFlag(PRUint32 aFlag, PRBool aValue)
   {
     NS_ASSERTION(aFlag<=LL_LASTFLAG, "bad flag");
@@ -380,13 +382,43 @@ protected:
 
   nsIContent* mLastOptionalBreakContent;
   nsIContent* mForceBreakContent;
+  PRInt32     mLastOptionalBreakContentOffset;
+  PRInt32     mForceBreakContentOffset;
+  gfxBreakPriority mLastOptionalBreakPriority;
   
   // XXX remove this when landing bug 154892 (splitting absolute positioned frames)
   friend class nsInlineFrame;
 
   nsBlockReflowState* mBlockRS;/* XXX hack! */
+  nscoord mMinLineHeight;
+  PRUint8 mTextAlign;
+
+  PRUint8 mPlacedFloats;
+  
+  // The amount of text indent that we applied to this line, needed for
+  // max-element-size calculation.
+  nscoord mTextIndent;
+
+  // This state varies during the reflow of a line but is line
+  // "global" state not span "local" state.
+  PRInt32 mLineNumber;
+  PRInt32 mTextJustificationNumSpaces;
+  PRInt32 mTextJustificationNumLetters;
 
   nsLineList::iterator mLineBox;
+
+  PRInt32 mTotalPlacedFrames;
+
+  nscoord mTopEdge;
+  nscoord mMaxTopBoxHeight;
+  nscoord mMaxBottomBoxHeight;
+
+  // Final computed line-height value after VerticalAlignFrames for
+  // the block has been called.
+  nscoord mFinalLineHeight;
+  
+  // Amount of trimmable whitespace width for the trailing text frame, if any
+  nscoord mTrimmableWidth;
 
   // Per-frame data recorded by the line-layout reflow logic. This
   // state is the state needed to post-process the line after reflow
@@ -507,48 +539,12 @@ protected:
   PerSpanData* mSpanFreeList;
   PerSpanData* mRootSpan;
   PerSpanData* mCurrentSpan;
-
-  gfxBreakPriority mLastOptionalBreakPriority;
-  PRInt32     mLastOptionalBreakContentOffset;
-  PRInt32     mForceBreakContentOffset;
-
-  nscoord mMinLineHeight;
-  
-  // The amount of text indent that we applied to this line, needed for
-  // max-element-size calculation.
-  nscoord mTextIndent;
-
-  // This state varies during the reflow of a line but is line
-  // "global" state not span "local" state.
-  PRInt32 mLineNumber;
-  PRInt32 mTextJustificationNumSpaces;
-  PRInt32 mTextJustificationNumLetters;
-
-  PRInt32 mTotalPlacedFrames;
-
-  nscoord mTopEdge;
-  nscoord mMaxTopBoxHeight;
-  nscoord mMaxBottomBoxHeight;
-
-  // Final computed line-height value after VerticalAlignFrames for
-  // the block has been called.
-  nscoord mFinalLineHeight;
-  
-  // Amount of trimmable whitespace width for the trailing text frame, if any
-  nscoord mTrimmableWidth;
-
   PRInt32 mSpanDepth;
 #ifdef DEBUG
   PRInt32 mSpansAllocated, mSpansFreed;
   PRInt32 mFramesAllocated, mFramesFreed;
 #endif
-  PLArenaPool mArena; // Per span and per frame data, 4 byte aligned
-
-  PRUint16 mFlags;
-
-  PRUint8 mTextAlign;
-
-  PRUint8 mPlacedFloats;
+  PLArenaPool mArena; // Per span and per frame data
 
   nsresult NewPerFrameData(PerFrameData** aResult);
 

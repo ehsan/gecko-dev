@@ -68,14 +68,7 @@
 #  define AUTOLOCK(v, l) mozilla::MutexAutoLock v(*l)
 #endif
 
-// def/undef these to run particular tests.
-#undef DD_TEST1
-#undef DD_TEST2
-#undef DD_TEST3
-
 //-----------------------------------------------------------------------------
-
-#ifdef DD_TEST1
 
 static void
 AllocLockRecurseUnlockFree(int i)
@@ -100,11 +93,7 @@ LengthNDepChain(int N)
     PASS();
 }
 
-#endif
-
 //-----------------------------------------------------------------------------
-
-#ifdef DD_TEST2
 
 // This test creates a single lock that is ordered < N resources, then
 // repeatedly exercises this order k times.
@@ -140,11 +129,8 @@ OneLockNDeps(const int N, const int K)
     PASS();
 }
 
-#endif
 
 //-----------------------------------------------------------------------------
-
-#ifdef DD_TEST3
 
 // This test creates N resources and adds the theoretical maximum number
 // of dependencies, O(N^2).  It then repeats that sequence of
@@ -184,8 +170,6 @@ MaxDepsNsq(const int N, const int K)
     PASS();
 }
 
-#endif
-
 //-----------------------------------------------------------------------------
 
 int
@@ -199,17 +183,17 @@ main(int argc, char** argv)
 
     // Uncomment these tests to run them.  Not expected to be common.
 
-#ifdef DD_TEST1
+#if 0
     if (NS_FAILED(LengthNDepChain(1 << 14))) // 16K
         rv = 1;
 #endif
 
-#ifdef DD_TEST2
+#if 0
     if (NS_FAILED(OneLockNDeps(1 << 14, 100))) // 16k
         rv = 1;
 #endif
 
-#ifdef DD_TEST3
+#if 0
     if (NS_FAILED(MaxDepsNsq(1 << 10, 10))) // 1k
         rv = 1;
 #endif

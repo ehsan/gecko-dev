@@ -232,9 +232,6 @@ private:
     (static_cast<nsSliderFrame*>(aData))->Notify();
   }
  
-  nsPoint mDestinationPoint;
-  nsRefPtr<nsSliderMediator> mMediator;
-
   float mRatio;
 
   nscoord mDragStart;
@@ -243,6 +240,8 @@ private:
   PRInt32 mCurPos;
 
   nscoord mChange;
+  nsPoint mDestinationPoint;
+  nsRefPtr<nsSliderMediator> mMediator;
 
   // true if an attribute change has been caused by the user manipulating the
   // slider. This allows notifications to tell how a slider's current position
