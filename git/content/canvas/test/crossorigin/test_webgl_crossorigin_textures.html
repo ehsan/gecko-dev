@@ -1,5 +1,6 @@
 <!DOCTYPE HTML>
 <title>WebGL cross-origin textures test</title>
+<script src="/MochiKit/MochiKit.js"></script>
 <script src="/tests/SimpleTest/SimpleTest.js"></script>
 <link rel="stylesheet" href="/tests/SimpleTest/test.css">
 <body>
@@ -63,7 +64,7 @@
     image.src = url;
   }
 
-  addLoadEvent(function () {
+  MochiKit.DOM.addLoadEvent(function () {
     var canvas = document.getElementById("canvas");
     gl = canvas.getContext("experimental-webgl");
     if (!gl) {

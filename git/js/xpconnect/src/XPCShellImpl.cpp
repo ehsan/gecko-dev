@@ -233,7 +233,7 @@ ReadLine(JSContext *cx, unsigned argc, jsval *vp)
     unsigned int buflen = strlen(buf);
     if (buflen == 0) {
         if (feof(gInFile)) {
-            args.rval().setNull();
+            JS_SET_RVAL(cx, vp, JSVAL_NULL);
             return true;
         }
     } else if (buf[buflen - 1] == '\n') {
@@ -245,7 +245,7 @@ ReadLine(JSContext *cx, unsigned argc, jsval *vp)
     if (!str)
         return false;
 
-    args.rval().setString(str);
+    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
     return true;
 }
 
@@ -355,20 +355,19 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 Version(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setInt32(JS_GetVersion(cx));
-    if (args.get(0).isInt32())
+    JSVersion origVersion = JS_GetVersion(cx);
+    JS_SET_RVAL(cx, vp, INT_TO_JSVAL(origVersion));
+    if (argc > 0 && JSVAL_IS_INT(JS_ARGV(cx, vp)[0]))
         JS_SetVersionForCompartment(js::GetContextCompartment(cx),
-                                    JSVersion(args[0].toInt32()));
+                                    JSVersion(JSVAL_TO_INT(JS_ARGV(cx, vp)[0])));
     return true;
 }
 
 static bool
 BuildDate(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     fprintf(gOutFile, "built on %s at %s\n", __DATE__, __TIME__);
-    args.rval().setUndefined();
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
 
@@ -390,7 +389,7 @@ static bool
 IgnoreReportedErrors(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() != 1 || !args[0].isBoolean()) {
+    if (argc != 1 || !args[0].isBoolean()) {
         JS_ReportError(cx, "Bad arguments");
         return false;
     }
@@ -419,13 +418,12 @@ DumpXPC(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 GC(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     JSRuntime *rt = JS_GetRuntime(cx);
     JS_GC(rt);
 #ifdef JS_GCMETER
     js_DumpGCStats(rt, stdout);
 #endif
-    args.rval().setUndefined();
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
 
@@ -480,7 +478,7 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
     JS::CallArgs args = CallArgsFromVp(argc, vp);
     ContextOptions oldOptions = ContextOptionsRef(cx);
 
-    for (unsigned i = 0; i < args.length(); ++i) {
+    for (unsigned i = 0; i < argc; ++i) {
         JSString *str = ToString(cx, args[i]);
         if (!str)
             return false;
@@ -537,19 +535,18 @@ Options(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 Parent(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() != 1) {
+    if (argc != 1) {
         JS_ReportError(cx, "Wrong number of arguments");
         return false;
     }
 
-    Value v = args[0];
+    jsval v = JS_ARGV(cx, vp)[0];
     if (JSVAL_IS_PRIMITIVE(v)) {
         JS_ReportError(cx, "Only objects have parents!");
         return false;
     }
 
-    args.rval().setObjectOrNull(JS_GetParent(&v.toObject()));
+    *vp = OBJECT_TO_JSVAL(JS_GetParent(JSVAL_TO_OBJECT(v)));
     return true;
 }
 

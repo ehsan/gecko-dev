@@ -542,14 +542,13 @@ ReferenceFinder::findReferences(HandleObject target)
 bool
 FindReferences(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() < 1) {
+    if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
                              "findReferences", "0", "s");
         return false;
     }
 
-    RootedValue target(cx, args[0]);
+    RootedValue target(cx, JS_ARGV(cx, vp)[0]);
     if (!target.isObject()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_UNEXPECTED_TYPE,
                              "argument", "not an object");
@@ -568,7 +567,7 @@ FindReferences(JSContext *cx, unsigned argc, jsval *vp)
     if (!references)
         return false;
 
-    args.rval().setObject(*references);
+    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(references));
     return true;
 }
 

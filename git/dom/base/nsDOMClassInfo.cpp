@@ -158,6 +158,7 @@
 #endif
 
 #include "nsIDOMGlobalObjectConstructor.h"
+#include "nsIDOMLockedFile.h"
 #include "nsDebug.h"
 
 #include "mozilla/dom/BindingUtils.h"
@@ -458,6 +459,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 #endif
 
+  NS_DEFINE_CLASSINFO_DATA(LockedFile, nsEventTargetSH,
+                           EVENTTARGET_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CSSFontFeatureValuesRule, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -1150,6 +1153,10 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
 #endif
+
+  DOM_CLASSINFO_MAP_BEGIN(LockedFile, nsIDOMLockedFile)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMLockedFile)
+  DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(CSSFontFeatureValuesRule, nsIDOMCSSFontFeatureValuesRule)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSFontFeatureValuesRule)

@@ -128,7 +128,7 @@ FileHandle::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
   return FileHandleBinding::Wrap(aCx, aScope, this);
 }
 
-already_AddRefed<LockedFile>
+already_AddRefed<nsIDOMLockedFile>
 FileHandle::Open(FileMode aMode, ErrorResult& aError)
 {
   MOZ_ASSERT(NS_IsMainThread());

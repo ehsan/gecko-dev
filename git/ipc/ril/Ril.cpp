@@ -79,18 +79,19 @@ private:
 bool
 PostToRIL(JSContext *aCx,
           unsigned aArgc,
-          JS::Value *aVp)
+          JS::Value *aArgv)
 {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
     NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
 
-    if (args.length() != 2) {
+    if (aArgc != 2) {
         JS_ReportError(aCx, "Expecting two arguments with the RIL message");
         return false;
     }
 
-    int clientId = args[0].toInt32();
-    JS::Value v = args[1];
+    JS::Value cv = JS_ARGV(aCx, aArgv)[0];
+    int clientId = cv.toInt32();
+
+    JS::Value v = JS_ARGV(aCx, aArgv)[1];
 
     JSAutoByteString abs;
     void *data;

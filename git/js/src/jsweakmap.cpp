@@ -402,12 +402,11 @@ WeakMap_finalize(FreeOp *fop, JSObject *obj)
 static bool
 WeakMap_construct(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     JSObject *obj = NewBuiltinClassInstance(cx, &WeakMapObject::class_);
     if (!obj)
         return false;
 
-    args.rval().setObject(*obj);
+    vp->setObject(*obj);
     return true;
 }
 

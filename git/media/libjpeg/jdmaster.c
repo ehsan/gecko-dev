@@ -4,7 +4,7 @@
  * This file was part of the Independent JPEG Group's software:
  * Copyright (C) 1991-1997, Thomas G. Lane.
  * Modified 2002-2009 by Guido Vollbeding.
- * libjpeg-turbo Modifications:
+ * Modifications:
  * Copyright (C) 2009-2011, D. R. Commander.
  * For conditions of distribution and use, see the accompanying README file.
  *

@@ -68,7 +68,6 @@ ToStringGuts(XPCCallContext& ccx)
 static bool
 XPC_WN_Shared_ToString(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
@@ -77,19 +76,18 @@ XPC_WN_Shared_ToString(JSContext *cx, unsigned argc, jsval *vp)
     if (!ccx.IsValid())
         return Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
     ccx.SetName(ccx.GetRuntime()->GetStringID(XPCJSRuntime::IDX_TO_STRING));
-    ccx.SetArgsAndResultPtr(args.length(), args.array(), vp);
+    ccx.SetArgsAndResultPtr(argc, JS_ARGV(cx, vp), vp);
     return ToStringGuts(ccx);
 }
 
 static bool
 XPC_WN_Shared_ToSource(JSContext *cx, unsigned argc, jsval *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
     static const char empty[] = "({})";
     JSString *str = JS_NewStringCopyN(cx, empty, sizeof(empty)-1);
     if (!str)
         return false;
-    args.rval().setString(str);
+    *vp = STRING_TO_JSVAL(str);
 
     return true;
 }
@@ -1268,8 +1266,8 @@ XPC_WN_CallMethod(JSContext *cx, unsigned argc, jsval *vp)
         return false;
 
     obj = FixUpThisIfBroken(obj, funobj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, args.length(),
-                       args.array(), vp);
+    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, argc,
+                       JS_ARGV(cx, vp), vp);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -1294,8 +1292,8 @@ XPC_WN_GetterSetter(JSContext *cx, unsigned argc, jsval *vp)
         return false;
 
     obj = FixUpThisIfBroken(obj, funobj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, args.length(),
-                       args.array(), vp);
+    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, argc,
+                       JS_ARGV(cx, vp), vp);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -1305,7 +1303,7 @@ XPC_WN_GetterSetter(JSContext *cx, unsigned argc, jsval *vp)
     if (!XPCNativeMember::GetCallInfo(funobj, &iface, &member))
         return Throw(NS_ERROR_XPC_CANT_GET_METHOD_INFO, cx);
 
-    if (args.length() != 0 && member->IsWritableAttribute()) {
+    if (argc && member->IsWritableAttribute()) {
         ccx.SetCallInfo(iface, member, true);
         bool retval = XPCWrappedNative::SetAttribute(ccx);
         if (retval)

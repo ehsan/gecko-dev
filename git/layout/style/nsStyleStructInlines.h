@@ -132,8 +132,7 @@ nsStyleDisplay::IsPositioned(const nsIFrame* aContextFrame) const
                "unexpected aContextFrame");
   return (IsAbsolutelyPositionedStyle() ||
           IsRelativelyPositionedStyle() ||
-          HasTransform(aContextFrame) ||
-          HasPerspectiveStyle()) &&
+          HasTransform(aContextFrame)) &&
          !aContextFrame->IsSVGText();
 }
 
