@@ -675,7 +675,7 @@ public class Tab {
     }
 
     void handleDocumentStart(boolean showProgress, String url) {
-        setState(showProgress ? STATE_LOADING : STATE_SUCCESS);
+        setState(shouldShowProgress(url) ? STATE_SUCCESS : STATE_LOADING);
         updateIdentityData(null);
         setReaderEnabled(false);
     }

@@ -496,8 +496,6 @@ MetroInput::OnPointerPressed(UI::Core::ICoreWindow* aSender,
     mRecognizerWantsEvents = true;
     mCancelable = true;
     mCanceledIds.Clear();
-  } else {
-    mCancelable = false;
   }
 
   InitTouchEventTouchList(touchEvent);
@@ -1143,7 +1141,7 @@ MetroInput::DeliverNextQueuedTouchEvent()
   // Test for chrome vs. content target. To do this we only use the first touch
   // point since that will be the input batch target. Cache this for touch events
   // since HitTestChrome has to send a dom event.
-  if (mCancelable && event->message == NS_TOUCH_START) {
+  if (mCancelable && event->message == NS_TOUCH_START && mTouches.Count() == 1) {
     nsRefPtr<Touch> touch = event->touches[0];
     LayoutDeviceIntPoint pt = LayoutDeviceIntPoint::FromUntyped(touch->mRefPoint);
     bool apzIntersect = mWidget->ApzHitTest(mozilla::ScreenIntPoint(pt.x, pt.y));
@@ -1155,17 +1153,6 @@ MetroInput::DeliverNextQueuedTouchEvent()
   if (mChromeHitTestCacheForTouch) {
     DUMP_TOUCH_IDS("DOM(1)", event);
     mWidget->DispatchEvent(event, status);
-    if (mCancelable) {
-      // Disable gesture based events (taps, swipes, rotation) if
-      // preventDefault is called on touchstart.
-      if (nsEventStatus_eConsumeNoDefault == status) {
-        mRecognizerWantsEvents = false;
-        mGestureRecognizer->CompleteGesture();
-      }
-      if (event->message == NS_TOUCH_MOVE) {
-        mCancelable = false;
-      }
-    }
     return;
   }
 

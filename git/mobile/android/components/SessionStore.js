@@ -178,6 +178,7 @@ SessionStore.prototype = {
 
               if (window.BrowserApp.tabs.length == 0) {
                 window.BrowserApp.addTab("about:home", {
+                  showProgress: false,
                   selected: true
                 });
               }
