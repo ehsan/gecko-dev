@@ -59,9 +59,9 @@ WebGLContext::BindBufferBase(WebGLenum target, WebGLuint index, WebGLBuffer* buf
         return;
     }
 
-    WebGLRefPtr<WebGLBuffer>* indexedBufferSlot = GetBufferSlotByTargetIndexed(target, index, "bindBufferBase");
+    WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTargetIndexed(target, index, "bindBufferBase");
 
-    if (!indexedBufferSlot) {
+    if (!bufferSlot) {
         return;
     }
 
@@ -74,11 +74,6 @@ WebGLContext::BindBufferBase(WebGLenum target, WebGLuint index, WebGLBuffer* buf
         }
     }
 
-    WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTarget(target, "bindBuffer");
-
-    MOZ_ASSERT(bufferSlot, "GetBufferSlotByTarget(Indexed) mismatch");
-
-    *indexedBufferSlot = buffer;
     *bufferSlot = buffer;
 
     MakeContextCurrent();
@@ -100,9 +95,9 @@ WebGLContext::BindBufferRange(WebGLenum target, WebGLuint index, WebGLBuffer* bu
     if (buffer && buffer->IsDeleted())
         return;
 
-    WebGLRefPtr<WebGLBuffer>* indexedBufferSlot = GetBufferSlotByTargetIndexed(target, index, "bindBufferBase");
+    WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTargetIndexed(target, index, "bindBufferBase");
 
-    if (!indexedBufferSlot) {
+    if (!bufferSlot) {
         return;
     }
 
@@ -115,11 +110,6 @@ WebGLContext::BindBufferRange(WebGLenum target, WebGLuint index, WebGLBuffer* bu
         }
     }
 
-    WebGLRefPtr<WebGLBuffer>* bufferSlot = GetBufferSlotByTarget(target, "bindBuffer");
-
-    MOZ_ASSERT(bufferSlot, "GetBufferSlotByTarget(Indexed) mismatch");
-
-    *indexedBufferSlot = buffer;
     *bufferSlot = buffer;
 
     MakeContextCurrent();

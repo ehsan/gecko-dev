@@ -190,7 +190,6 @@ using mozilla::scache::StartupCache;
 #include "nsICrashReporter.h"
 #define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
 #include "nsIPrefService.h"
-#include "mozilla/Preferences.h"
 #endif
 
 #include "base/command_line.h"
@@ -3756,13 +3755,6 @@ XREMain::XRE_mainRun()
   }
 
   mDirProvider.DoStartup();
-
-#ifdef MOZ_CRASHREPORTER
-  nsCString userAgentLocale;
-  if (NS_SUCCEEDED(Preferences::GetCString("general.useragent.locale", &userAgentLocale))) {
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("useragent_locale"), userAgentLocale);
-  }
-#endif
 
   appStartup->GetShuttingDown(&mShuttingDown);
 

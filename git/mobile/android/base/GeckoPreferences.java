@@ -76,7 +76,6 @@ public class GeckoPreferences
     private static String PREFS_GEO_REPORTING = "app.geo.reportdata";
     private static String PREFS_HEALTHREPORT_LINK = NON_PREF_PREFIX + "healthreport.link";
     private static String PREFS_DEVTOOLS_REMOTE_ENABLED = "devtools.debugger.remote-enabled";
-    private static String PREFS_DISPLAY_REFLOW_ON_ZOOM = "browser.zoom.reflowOnZoom";
 
     public static String PREFS_RESTORE_SESSION = NON_PREF_PREFIX + "restoreSession3";
 
@@ -291,12 +290,6 @@ public class GeckoPreferences
                 pref.setOnPreferenceChangeListener(this);
                 if (!AppConstants.MOZ_UPDATER &&
                     PREFS_UPDATER_AUTODOWNLOAD.equals(key)) {
-                    preferences.removePreference(pref);
-                    i--;
-                    continue;
-                } else if (AppConstants.RELEASE_BUILD &&
-                           PREFS_DISPLAY_REFLOW_ON_ZOOM.equals(key)) {
-                    // Remove UI for reflow on release builds.
                     preferences.removePreference(pref);
                     i--;
                     continue;
@@ -671,9 +664,7 @@ public class GeckoPreferences
 
     // Initialize preferences by requesting the preference values from Gecko
     private int getGeckoPreferences(final PreferenceGroup screen, ArrayList<String> prefs) {
-        JSONArray jsonPrefs = new JSONArray(prefs);
-
-        return PrefsHelper.getPrefs(jsonPrefs, new PrefsHelper.PrefHandlerBase() {
+        return PrefsHelper.getPrefs(prefs, new PrefsHelper.PrefHandlerBase() {
             private Preference getField(String prefName) {
                 return screen.findPreference(prefName);
             }

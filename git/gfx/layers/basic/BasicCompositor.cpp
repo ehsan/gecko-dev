@@ -9,7 +9,6 @@
 #include "mozilla/layers/YCbCrImageDataSerializer.h"
 #include "nsIWidget.h"
 #include "gfx2DGlue.h"
-#include "mozilla/gfx/2D.h"
 #include "gfxUtils.h"
 #include <algorithm>
 
@@ -28,46 +27,6 @@ public:
   virtual gfx::SourceSurface* GetSurface() = 0;
 };
 
-class DataTextureSourceBasic : public DataTextureSource
-                             , public TextureSourceBasic
-{
-public:
-
-  virtual TextureSourceBasic* AsSourceBasic() MOZ_OVERRIDE { return this; }
-
-  virtual gfx::SourceSurface* GetSurface() MOZ_OVERRIDE { return mSurface; }
-
-  SurfaceFormat GetFormat() const MOZ_OVERRIDE
-  {
-    return mSurface->GetFormat();
-  }
-
-  virtual IntSize GetSize() const MOZ_OVERRIDE
-  {
-    return mSurface->GetSize();
-  }
-
-  virtual bool Update(gfx::DataSourceSurface* aSurface,
-                      TextureFlags aFlags,
-                      nsIntRegion* aDestRegion = nullptr,
-                      gfx::IntPoint* aSrcOffset = nullptr) MOZ_OVERRIDE
-  {
-    // XXX - For this to work with IncrementalContentHost we will need to support
-    // the aDestRegion and aSrcOffset parameters properly;
-    mSurface = aSurface;
-    return true;
-  }
-
-  virtual void DeallocateDeviceData() MOZ_OVERRIDE
-  {
-    mSurface = nullptr;
-    SetUpdateSerial(0);
-  }
-
-public:
-  RefPtr<gfx::DataSourceSurface> mSurface;
-};
-
 /**
  * Texture source and host implementaion for software compositing.
  */
@@ -75,12 +34,6 @@ class DeprecatedTextureHostBasic : public DeprecatedTextureHost
                                  , public TextureSourceBasic
 {
 public:
-  DeprecatedTextureHostBasic()
-  : mCompositor(nullptr)
-  {}
-
-  SurfaceFormat GetFormat() const MOZ_OVERRIDE { return mFormat; }
-
   virtual IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
 
   virtual TextureSourceBasic* AsSourceBasic() MOZ_OVERRIDE { return this; }
@@ -135,7 +88,6 @@ protected:
   nsRefPtr<gfxImageSurface> mThebesImage;
   nsRefPtr<gfxASurface> mThebesSurface;
   IntSize mSize;
-  SurfaceFormat mFormat;
 };
 
 void
@@ -277,19 +229,6 @@ BasicCompositor::CreateRenderTargetFromSource(const IntRect &aRect,
 
   rt->mDrawTarget->CopySurface(snapshot, aRect, IntPoint(0, 0));
   return rt.forget();
-}
-
-TemporaryRef<DataTextureSource>
-BasicCompositor::CreateDataTextureSource(TextureFlags aFlags)
-{
-  RefPtr<DataTextureSource> result = new DataTextureSourceBasic();
-  return result.forget();
-}
-
-bool
-BasicCompositor::SupportsEffect(EffectTypes aEffect)
-{
-  return static_cast<EffectTypes>(aEffect) != EFFECT_YCBCR;
 }
 
 static void

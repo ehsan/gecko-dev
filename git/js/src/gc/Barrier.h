@@ -352,7 +352,6 @@ struct HeapPtrHasher
 
     static HashNumber hash(Lookup obj) { return DefaultHasher<T *>::hash(obj); }
     static bool match(const Key &k, Lookup l) { return k.get() == l; }
-    static void rekey(Key &k, const Key& newKey) { k.unsafeSet(newKey); }
 };
 
 /* Specialized hashing policy for HeapPtrs. */
@@ -367,7 +366,6 @@ struct EncapsulatedPtrHasher
 
     static HashNumber hash(Lookup obj) { return DefaultHasher<T *>::hash(obj); }
     static bool match(const Key &k, Lookup l) { return k.get() == l; }
-    static void rekey(Key &k, const Key& newKey) { k.unsafeSet(newKey); }
 };
 
 template <class T>
@@ -578,7 +576,6 @@ class EncapsulatedId
 
     jsid get() const { return value; }
     jsid *unsafeGet() { return &value; }
-    void unsafeSet(jsid newId) { value = newId; }
     operator jsid() const { return value; }
 
   protected:

@@ -12,7 +12,7 @@ import shutil
 import math
 import base64
 
-sys.path.insert(0, os.path.abspath(os.path.realpath(os.path.dirname(__file__))))
+sys.path.insert(0, os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0]))))
 
 from automation import Automation
 from remoteautomation import RemoteAutomation, fennecLogcatFilters
@@ -209,7 +209,7 @@ class RemoteOptions(MochitestOptions):
     def verifyOptions(self, options, mochitest):
         # since we are reusing verifyOptions, it will exit if App is not found
         temp = options.app
-        options.app = __file__
+        options.app = sys.argv[0]
         tempPort = options.httpPort
         tempSSL = options.sslPort
         tempIP = options.webServer

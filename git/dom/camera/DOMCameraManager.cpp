@@ -127,9 +127,9 @@ nsDOMCameraManager::GetCamera(const CameraSelector& aOptions,
   DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
 
   // Creating this object will trigger the onSuccess handler
-  nsRefPtr<nsDOMCameraControl> cameraControl =
+  nsCOMPtr<nsDOMCameraControl> cameraControl =
     new nsDOMCameraControl(cameraId, mCameraThread,
-                           onSuccess, onError.WasPassed() ? onError.Value() : nullptr, mWindow);
+                           onSuccess, onError.WasPassed() ? onError.Value() : nullptr, mWindowId);
 
   Register(cameraControl);
 }

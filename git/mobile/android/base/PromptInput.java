@@ -141,7 +141,6 @@ class PromptInput {
             "week",
             "time",
             "datetime-local",
-            "datetime",
             "month"
         };
 

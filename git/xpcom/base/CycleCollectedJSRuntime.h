@@ -9,7 +9,7 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "jsapi.h"
-#include "js/Class.h"
+#include "jsclass.h"
 
 #include "nsCycleCollector.h"
 #include "nsCycleCollectionParticipant.h"
