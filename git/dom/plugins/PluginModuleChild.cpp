@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_WIDGET_QT
-#include <QApplication>
+#include "nsQAppInstance.h"
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
@@ -68,9 +68,6 @@ using namespace mozilla::plugins;
 
 namespace {
 PluginModuleChild* gInstance = nsnull;
-#ifdef MOZ_WIDGET_QT
-static QApplication *gQApp = nsnull;
-#endif
 }
 
 
@@ -97,9 +94,7 @@ PluginModuleChild::~PluginModuleChild()
         PR_UnloadLibrary(mLibrary);
     }
 #ifdef MOZ_WIDGET_QT
-    if (gQApp)
-        delete gQApp;
-    gQApp = nsnull;
+    nsQAppInstance::Release();
 #endif
     gInstance = nsnull;
 }
@@ -460,8 +455,7 @@ PluginModuleChild::InitGraphics()
     }
 
 #elif defined(MOZ_WIDGET_QT)
-    if (!qApp)
-        gQApp = new QApplication(0, NULL);
+    nsQAppInstance::AddRef();
 #else
     // may not be necessary on all platforms
 #endif
@@ -1062,7 +1056,9 @@ _forceredraw(NPP aNPP)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
     ENSURE_PLUGIN_THREAD_VOID();
-    NS_WARNING("Not yet implemented!");
+
+    // We ignore calls to NPN_ForceRedraw. Such calls should
+    // never be necessary.
 }
 
 const char* NP_CALLBACK
@@ -1474,10 +1470,16 @@ _convertpoint(NPP instance,
 //-----------------------------------------------------------------------------
 
 bool
-PluginModuleChild::AnswerNP_Initialize(NPError* _retval)
+PluginModuleChild::AnswerNP_Initialize(NativeThreadId* tid, NPError* _retval)
 {
     PLUGIN_LOG_DEBUG_METHOD;
     AssertPluginThread();
+
+#ifdef MOZ_CRASHREPORTER
+    *tid = CrashReporter::CurrentThreadId();
+#else
+    *tid = 0;
+#endif
 
 #if defined(OS_LINUX)
     *_retval = mInitializeFunc(&sBrowserFuncs, &mFunctions);
