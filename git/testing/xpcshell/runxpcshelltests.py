@@ -482,7 +482,7 @@ class XPCShellTests(object):
     if name is None:
       name = "xpcshell"
     else:
-      assert isinstance(name, basestring)
+      assert isinstance(name, str)
 
     if filename is not None:
       fh = open(filename, 'wb')
@@ -637,7 +637,7 @@ class XPCShellTests(object):
         testdirs = []
 
     if xunitFilename is not None or xunitName is not None:
-        if not isinstance(testsRootDir, basestring):
+        if not isinstance(testsRootDir, str):
             raise Exception("testsRootDir must be a str when outputting xUnit.")
 
         if not os.path.isabs(testsRootDir):
