@@ -152,11 +152,4 @@ if (typeof Mozilla == 'undefined') {
 			name: name
 		});
 	};
-
-	Mozilla.UITour.getSyncConfiguration = function(callback) {
-		_sendEvent('getConfiguration', {
-			callbackID: _waitForCallback(callback),
-			configuration: "sync",
-		});
-	};
 })();

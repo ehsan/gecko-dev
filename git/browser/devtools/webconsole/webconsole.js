@@ -4078,16 +4078,12 @@ JSTerm.prototype = {
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
       this.clearCompletion();
-      aCallback && aCallback(this);
-      this.emit("autocomplete-updated");
       return false;
     }
 
     // Only complete if the selection is empty.
     if (inputNode.selectionStart != inputNode.selectionEnd) {
       this.clearCompletion();
-      aCallback && aCallback(this);
-      this.emit("autocomplete-updated");
       return false;
     }
 
@@ -4112,7 +4108,6 @@ JSTerm.prototype = {
     }
 
     aCallback && aCallback(this);
-    this.emit("autocomplete-updated");
     return accepted || popup.itemCount > 0;
   },
 
@@ -4211,6 +4206,7 @@ JSTerm.prototype = {
         aRequestId != this.lastCompletion.requestId) {
       return;
     }
+
     // Cache whatever came from the server if the last char is alphanumeric or '.'
     let cursor = inputNode.selectionStart;
     let inputUntilCursor = inputValue.substring(0, cursor);
@@ -4224,8 +4220,6 @@ JSTerm.prototype = {
     let lastPart = aMessage.matchProp;
     if (!matches.length) {
       this.clearCompletion();
-      aCallback && aCallback(this);
-      this.emit("autocomplete-updated");
       return;
     }
 
@@ -4270,8 +4264,8 @@ JSTerm.prototype = {
       popup.selectNextItem();
     }
 
-    aCallback && aCallback(this);
     this.emit("autocomplete-updated");
+    aCallback && aCallback(this);
   },
 
   onAutocompleteSelect: function JSTF_onAutocompleteSelect()

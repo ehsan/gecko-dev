@@ -5,19 +5,12 @@
 const TAB_STATE_NEEDS_RESTORE = 1;
 const TAB_STATE_RESTORING = 2;
 
-const ROOT = getRootDirectory(gTestPath);
-const FRAME_SCRIPTS = [
-  ROOT + "content.js",
-  ROOT + "content-forms.js"
-];
+const FRAME_SCRIPT = "chrome://mochitests/content/browser/browser/components/" +
+                     "sessionstore/test/content.js";
 
 let mm = Cc["@mozilla.org/globalmessagemanager;1"]
            .getService(Ci.nsIMessageListenerManager);
-
-for (let script of FRAME_SCRIPTS) {
-  mm.loadFrameScript(script, true);
-}
-
+mm.loadFrameScript(FRAME_SCRIPT, true);
 mm.addMessageListener("SessionStore:setupSyncHandler", onSetupSyncHandler);
 
 /**
@@ -31,9 +24,7 @@ function onSetupSyncHandler(msg) {
 }
 
 registerCleanupFunction(() => {
-  for (let script of FRAME_SCRIPTS) {
-    mm.removeDelayedFrameScript(script, true);
-  }
+  mm.removeDelayedFrameScript(FRAME_SCRIPT);
   mm.removeMessageListener("SessionStore:setupSyncHandler", onSetupSyncHandler);
 });
 
@@ -549,21 +540,4 @@ function promiseTabRestored(tab) {
 function sendMessage(browser, name, data = {}) {
   browser.messageManager.sendAsyncMessage(name, data);
   return promiseContentMessage(browser, name);
-}
-
-// This creates list of functions that we will map to their corresponding
-// ss-test:* messages names. Those will be sent to the frame script and
-// be used to read and modify form data.
-const FORM_HELPERS = [
-  "getTextContent",
-  "getInputValue", "setInputValue",
-  "getInputChecked", "setInputChecked",
-  "getSelectedIndex", "setSelectedIndex",
-  "getMultipleSelected", "setMultipleSelected",
-  "getFileNameArray", "setFileNameArray",
-];
-
-for (let name of FORM_HELPERS) {
-  let msg = "ss-test:" + name;
-  this[name] = (browser, data) => sendMessage(browser, msg, data);
 }

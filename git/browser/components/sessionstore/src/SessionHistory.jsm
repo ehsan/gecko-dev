@@ -13,6 +13,8 @@ const Ci = Components.interfaces;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "PrivacyLevel",
+  "resource:///modules/sessionstore/PrivacyLevel.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Utils",
   "resource:///modules/sessionstore/Utils.jsm");
 
@@ -20,12 +22,24 @@ function debug(msg) {
   Services.console.logStringMessage("SessionHistory: " + msg);
 }
 
+// The preference value that determines how much post data to save.
+XPCOMUtils.defineLazyGetter(this, "gPostData", function () {
+  const PREF = "browser.sessionstore.postdata";
+
+  // Observer that updates the cached value when the preference changes.
+  Services.prefs.addObserver(PREF, () => {
+    this.gPostData = Services.prefs.getIntPref(PREF);
+  }, false);
+
+  return Services.prefs.getIntPref(PREF);
+});
+
 /**
  * The external API exported by this module.
  */
 this.SessionHistory = Object.freeze({
-  collect: function (docShell) {
-    return SessionHistoryInternal.collect(docShell);
+  collect: function (docShell, includePrivateData) {
+    return SessionHistoryInternal.collect(docShell, includePrivateData);
   },
 
   restore: function (docShell, tabData) {
@@ -42,8 +56,10 @@ let SessionHistoryInternal = {
    *
    * @param docShell
    *        The docShell that owns the session history.
+   * @param includePrivateData (optional)
+   *        True to always include private data and skip any privacy checks.
    */
-  collect: function (docShell) {
+  collect: function (docShell, includePrivateData = false) {
     let data = {entries: []};
     let isPinned = docShell.isAppTab;
     let webNavigation = docShell.QueryInterface(Ci.nsIWebNavigation);
@@ -53,7 +69,7 @@ let SessionHistoryInternal = {
       try {
         for (let i = 0; i < history.count; i++) {
           let shEntry = history.getEntryAtIndex(i, false);
-          let entry = this.serializeEntry(shEntry, isPinned);
+          let entry = this.serializeEntry(shEntry, includePrivateData, isPinned);
           data.entries.push(entry);
         }
       } catch (ex) {
@@ -93,11 +109,13 @@ let SessionHistoryInternal = {
    *
    * @param shEntry
    *        nsISHEntry instance
+   * @param includePrivateData
+   *        Always return privacy sensitive data (use with care).
    * @param isPinned
    *        The tab is pinned and should be treated differently for privacy.
    * @return object
    */
-  serializeEntry: function (shEntry, isPinned) {
+  serializeEntry: function (shEntry, includePrivateData, isPinned) {
     let entry = { url: shEntry.URI.spec };
 
     // Save some bytes and don't include the title property
@@ -138,6 +156,17 @@ let SessionHistoryInternal = {
     if (x.value != 0 || y.value != 0)
       entry.scroll = x.value + "," + y.value;
 
+    // Collect post data for the current history entry.
+    try {
+      let postdata = this.serializePostData(shEntry, isPinned);
+      if (postdata) {
+        entry.postdata_b64 = postdata;
+      }
+    } catch (ex) {
+      // POSTDATA is tricky - especially since some extensions don't get it right
+      debug("Failed serializing post data: " + ex);
+    }
+
     // Collect owner data for the current history entry.
     try {
       let owner = this.serializeOwner(shEntry);
@@ -174,7 +203,7 @@ let SessionHistoryInternal = {
             break;
           }
 
-          children.push(this.serializeEntry(child, isPinned));
+          children.push(this.serializeEntry(child, includePrivateData, isPinned));
         }
       }
 
@@ -184,6 +213,40 @@ let SessionHistoryInternal = {
     }
 
     return entry;
+  },
+
+  /**
+   * Serialize post data contained in the given session history entry.
+   *
+   * @param shEntry
+   *        The session history entry.
+   * @param isPinned
+   *        Whether the docShell is owned by a pinned tab.
+   * @return The base64 encoded post data.
+   */
+  serializePostData: function (shEntry, isPinned) {
+    let isHttps = shEntry.URI.schemeIs("https");
+    if (!shEntry.postData || !gPostData ||
+        !PrivacyLevel.canSave({isHttps: isHttps, isPinned: isPinned})) {
+      return null;
+    }
+
+    shEntry.postData.QueryInterface(Ci.nsISeekableStream)
+                    .seek(Ci.nsISeekableStream.NS_SEEK_SET, 0);
+    let stream = Cc["@mozilla.org/binaryinputstream;1"]
+                   .createInstance(Ci.nsIBinaryInputStream);
+    stream.setInputStream(shEntry.postData);
+    let postBytes = stream.readByteArray(stream.available());
+    let postdata = String.fromCharCode.apply(null, postBytes);
+    if (gPostData != -1 &&
+        postdata.replace(/^(Content-.*\r\n)+(\r\n)*/, "").length > gPostData) {
+      return null;
+    }
+
+    // We can stop doing base64 encoding once our serialization into JSON
+    // is guaranteed to handle all chars in strings, including embedded
+    // nulls.
+    return btoa(postdata);
   },
 
   /**
@@ -310,6 +373,14 @@ let SessionHistoryInternal = {
       var scrollPos = (entry.scroll || "0,0").split(",");
       scrollPos = [parseInt(scrollPos[0]) || 0, parseInt(scrollPos[1]) || 0];
       shEntry.setScrollPosition(scrollPos[0], scrollPos[1]);
+    }
+
+    if (entry.postdata_b64) {
+      var postdata = atob(entry.postdata_b64);
+      var stream = Cc["@mozilla.org/io/string-input-stream;1"].
+                   createInstance(Ci.nsIStringInputStream);
+      stream.setData(postdata, postdata.length);
+      shEntry.postData = stream;
     }
 
     let childDocIdents = {};

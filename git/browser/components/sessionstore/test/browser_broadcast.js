@@ -138,7 +138,12 @@ add_task(function flush_on_tabclose_racy() {
 
 function promiseNewWindow() {
   let deferred = Promise.defer();
-  whenNewWindowLoaded({private: false}, deferred.resolve);
+
+  whenNewWindowLoaded({private: false}, function (win) {
+    win.messageManager.loadFrameScript(FRAME_SCRIPT, true);
+    deferred.resolve(win);
+  });
+
   return deferred.promise;
 }
 

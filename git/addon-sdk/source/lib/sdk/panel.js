@@ -19,8 +19,8 @@ const { isPrivateBrowsingSupported } = require('./self');
 const { isWindowPBSupported } = require('./private-browsing/utils');
 const { Class } = require("./core/heritage");
 const { merge } = require("./util/object");
-const { WorkerHost, detach, attach, destroy } = require("./content/utils");
-const { Worker } = require("./content/worker");
+const { WorkerHost, Worker, detach, attach, destroy,
+        requiresAddonGlobal } = require("./worker/utils");
 const { Disposable } = require("./core/disposable");
 const { contract: loaderContract } = require("./content/loader");
 const { contract } = require("./util/contract");
@@ -29,7 +29,7 @@ const { EventTarget } = require("./event/target");
 const domPanel = require("./panel/utils");
 const { events } = require("./panel/events");
 const systemEvents = require("./system/events");
-const { filter, pipe, stripListeners } = require("./event/utils");
+const { filter, pipe } = require("./event/utils");
 const { getNodeView, getActiveView } = require("./view/core");
 const { isNil, isObject } = require("./lang/type");
 const { getAttachEventType } = require("./content/utils");
@@ -117,6 +117,8 @@ const Panel = Class({
     }, panelContract(options));
     models.set(this, model);
 
+    // Setup listeners.
+    setListeners(this, options);
 
     // Setup view
     let view = domPanel.make();
@@ -128,9 +130,7 @@ const Panel = Class({
 
     setupAutoHide(this);
 
-    // Setup listeners.
-    setListeners(this, options);
-    let worker = new Worker(stripListeners(options));
+    let worker = new Worker(options);
     workers.set(this, worker);
 
     // pipe events from worker to a panel.

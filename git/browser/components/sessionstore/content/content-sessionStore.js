@@ -18,8 +18,6 @@ Cu.import("resource://gre/modules/Timer.jsm", this);
 
 XPCOMUtils.defineLazyModuleGetter(this, "DocShellCapabilities",
   "resource:///modules/sessionstore/DocShellCapabilities.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "FormData",
-  "resource:///modules/sessionstore/FormData.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PageStyle",
   "resource:///modules/sessionstore/PageStyle.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "ScrollPosition",
@@ -28,6 +26,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "SessionHistory",
   "resource:///modules/sessionstore/SessionHistory.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStorage",
   "resource:///modules/sessionstore/SessionStorage.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "TextAndScrollData",
+  "resource:///modules/sessionstore/TextAndScrollData.jsm");
 
 Cu.import("resource:///modules/sessionstore/FrameTree.jsm", this);
 let gFrameTree = new FrameTree(this);
@@ -74,9 +74,12 @@ function isSessionStorageEvent(event) {
  */
 let EventListener = {
 
+  DOM_EVENTS: [
+    "load", "pageshow", "change", "input"
+  ],
+
   init: function () {
-    addEventListener("load", this, true);
-    addEventListener("pageshow", this, true);
+    this.DOM_EVENTS.forEach(e => addEventListener(e, this, true));
   },
 
   handleEvent: function (event) {
@@ -102,6 +105,10 @@ let EventListener = {
       case "pageshow":
         if (event.persisted && event.target == content.document)
           sendAsyncMessage("SessionStore:pageshow");
+        break;
+      case "input":
+      case "change":
+        sendAsyncMessage("SessionStore:input");
         break;
       default:
         debug("received unknown event '" + event.type + "'");
@@ -132,6 +139,14 @@ let MessageListener = {
     switch (name) {
       case "SessionStore:collectSessionHistory":
         let history = SessionHistory.collect(docShell);
+        if ("index" in history) {
+          let tabIndex = history.index - 1;
+          // Don't include private data. It's only needed when duplicating
+          // tabs, which collects data synchronously.
+          TextAndScrollData.updateFrame(history.entries[tabIndex],
+                                        content,
+                                        docShell.isAppTab);
+        }
         sendAsyncMessage(name, {id: id, data: history});
         break;
       case "SessionStore:restoreHistory":
@@ -197,7 +212,15 @@ let SyncHandler = {
   },
 
   collectSessionHistory: function (includePrivateData) {
-    return SessionHistory.collect(docShell);
+    let history = SessionHistory.collect(docShell);
+    if ("index" in history) {
+      let tabIndex = history.index - 1;
+      TextAndScrollData.updateFrame(history.entries[tabIndex],
+                                    content,
+                                    docShell.isAppTab,
+                                    {includePrivateData: includePrivateData});
+    }
+    return history;
   },
 
   /**
@@ -281,51 +304,6 @@ let ScrollPositionListener = {
 
   collect: function () {
     return gFrameTree.map(ScrollPosition.collect);
-  }
-};
-
-/**
- * Listens for changes to input elements. Whenever the value of an input
- * element changes we will re-collect data for the current frame tree and send
- * a message to the parent process.
- *
- * Causes a SessionStore:update message to be sent that contains the form data
- * for all reachable frames.
- *
- * Example:
- *   {
- *     formdata: {url: "http://mozilla.org/", id: {input_id: "input value"}},
- *     children: [
- *       null,
- *       {url: "http://sub.mozilla.org/", id: {input_id: "input value 2"}}
- *     ]
- *   }
- */
-let FormDataListener = {
-  init: function () {
-    addEventListener("input", this, true);
-    addEventListener("change", this, true);
-    gFrameTree.addObserver(this);
-  },
-
-  handleEvent: function (event) {
-    let frame = event.target &&
-                event.target.ownerDocument &&
-                event.target.ownerDocument.defaultView;
-
-    // Don't collect form data for frames created at or after the load event
-    // as SessionStore can't restore form data for those.
-    if (frame && gFrameTree.contains(frame)) {
-      MessageQueue.push("formdata", () => this.collect());
-    }
-  },
-
-  onFrameTreeReset: function () {
-    MessageQueue.push("formdata", () => null);
-  },
-
-  collect: function () {
-    return gFrameTree.map(FormData.collect);
   }
 };
 
@@ -648,7 +626,6 @@ let MessageQueue = {
 
 EventListener.init();
 MessageListener.init();
-FormDataListener.init();
 SyncHandler.init();
 ProgressListener.init();
 PageStyleListener.init();
