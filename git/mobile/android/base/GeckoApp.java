@@ -142,6 +142,7 @@ public abstract class GeckoApp
     public static final String ACTION_LAUNCH_SETTINGS      = "org.mozilla.gecko.SETTINGS";
     public static final String ACTION_LOAD                 = "org.mozilla.gecko.LOAD";
     public static final String ACTION_INIT_PW              = "org.mozilla.gecko.INIT_PW";
+    public static final String ACTION_WEBAPP_PREFIX        = "org.mozilla.gecko.WEBAPP";
 
     public static final String EXTRA_STATE_BUNDLE          = "stateBundle";
 
@@ -1438,15 +1439,16 @@ public abstract class GeckoApp
      *
      * @param url External URL to load, or null to load the default URL
      */
-    protected void loadStartupTab(String url, int flags) {
+    protected void loadStartupTab(String url) {
         if (url == null) {
             if (!mShouldRestore) {
                 // Show about:home if we aren't restoring previous session and
                 // there's no external URL.
-                Tabs.getInstance().loadUrl(AboutPages.HOME, flags);
+                Tabs.getInstance().loadUrl(AboutPages.HOME, Tabs.LOADURL_NEW_TAB);
             }
         } else {
             // If given an external URL, load it
+            int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED | Tabs.LOADURL_EXTERNAL;
             Tabs.getInstance().loadUrl(url, flags);
         }
     }
@@ -1513,14 +1515,10 @@ public abstract class GeckoApp
             // Restore tabs before opening an external URL so that the new tab
             // is animated properly.
             Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
-            int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED | Tabs.LOADURL_EXTERNAL;
-            if (ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
-                flags |= Tabs.LOADURL_PINNED;
-            }
-            loadStartupTab(passedUri, flags);
+            loadStartupTab(passedUri);
         } else {
             if (!mIsRestoringActivity) {
-                loadStartupTab(null, Tabs.LOADURL_NEW_TAB);
+                loadStartupTab(null);
             }
 
             Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
@@ -1851,6 +1849,12 @@ public abstract class GeckoApp
             Tabs.getInstance().loadUrl(uri, Tabs.LOADURL_NEW_TAB |
                                             Tabs.LOADURL_USER_ENTERED |
                                             Tabs.LOADURL_EXTERNAL);
+        } else if (action != null && action.startsWith(ACTION_WEBAPP_PREFIX)) {
+            // A lightweight mechanism for loading a web page as a webapp
+            // without installing the app natively nor registering it in the DOM
+            // application registry.
+            String uri = getURIFromIntent(intent);
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createWebappLoadEvent(uri));
         } else if (ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
             String uri = getURIFromIntent(intent);
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBookmarkLoadEvent(uri));

@@ -39,7 +39,6 @@ TrackBuffer::TrackBuffer(MediaSourceDecoder* aParentDecoder, const nsACString& a
   : mParentDecoder(aParentDecoder)
   , mType(aType)
   , mLastStartTimestamp(0)
-  , mLastTimestampOffset(0)
   , mShutdown(false)
 {
   MOZ_COUNT_CTOR(TrackBuffer);
@@ -86,9 +85,9 @@ public:
     }
   }
 
-  bool NewDecoder(int64_t aTimestampOffset)
+  bool NewDecoder()
   {
-    nsRefPtr<SourceBufferDecoder> decoder = mOwner->NewDecoder(aTimestampOffset);
+    nsRefPtr<SourceBufferDecoder> decoder = mOwner->NewDecoder();
     if (!decoder) {
       return false;
     }
@@ -139,14 +138,14 @@ TrackBuffer::ContinueShutdown()
 }
 
 bool
-TrackBuffer::AppendData(const uint8_t* aData, uint32_t aLength, int64_t aTimestampOffset)
+TrackBuffer::AppendData(const uint8_t* aData, uint32_t aLength)
 {
   MOZ_ASSERT(NS_IsMainThread());
   DecodersToInitialize decoders(this);
   // TODO: Run more of the buffer append algorithm asynchronously.
   if (mParser->IsInitSegmentPresent(aData, aLength)) {
     MSE_DEBUG("TrackBuffer(%p)::AppendData: New initialization segment.", this);
-    if (!decoders.NewDecoder(aTimestampOffset)) {
+    if (!decoders.NewDecoder()) {
       return false;
     }
   } else if (!mParser->HasInitData()) {
@@ -156,19 +155,16 @@ TrackBuffer::AppendData(const uint8_t* aData, uint32_t aLength, int64_t aTimesta
 
   int64_t start, end;
   if (mParser->ParseStartAndEndTimestamps(aData, aLength, start, end)) {
-    start += aTimestampOffset;
-    end += aTimestampOffset;
     if (mParser->IsMediaSegmentPresent(aData, aLength) &&
         mLastEndTimestamp &&
         (!mParser->TimestampsFuzzyEqual(start, mLastEndTimestamp.value()) ||
-         mLastTimestampOffset != aTimestampOffset ||
          mDecoderPerSegment)) {
       MSE_DEBUG("TrackBuffer(%p)::AppendData: Data last=[%lld, %lld] overlaps [%lld, %lld]",
                 this, mLastStartTimestamp, mLastEndTimestamp.value(), start, end);
 
       // This data is earlier in the timeline than data we have already
       // processed, so we must create a new decoder to handle the decoding.
-      if (!decoders.NewDecoder(aTimestampOffset)) {
+      if (!decoders.NewDecoder()) {
         return false;
       }
       MSE_DEBUG("TrackBuffer(%p)::AppendData: Decoder marked as initialized.", this);
@@ -335,14 +331,14 @@ TrackBuffer::Buffered(dom::TimeRanges* aRanges)
 }
 
 already_AddRefed<SourceBufferDecoder>
-TrackBuffer::NewDecoder(int64_t aTimestampOffset)
+TrackBuffer::NewDecoder()
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mParentDecoder);
 
   DiscardDecoder();
 
-  nsRefPtr<SourceBufferDecoder> decoder = mParentDecoder->CreateSubDecoder(mType, aTimestampOffset);
+  nsRefPtr<SourceBufferDecoder> decoder = mParentDecoder->CreateSubDecoder(mType);
   if (!decoder) {
     return nullptr;
   }
@@ -352,7 +348,6 @@ TrackBuffer::NewDecoder(int64_t aTimestampOffset)
 
   mLastStartTimestamp = 0;
   mLastEndTimestamp.reset();
-  mLastTimestampOffset = aTimestampOffset;
 
   decoder->SetTaskQueue(mTaskQueue);
   return decoder.forget();

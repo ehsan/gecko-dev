@@ -222,12 +222,8 @@ class ICEntry
         // A non-op IC entry.
         Kind_NonOp,
 
-        // A fake IC entry for returning from a callVM for an op.
+        // A fake IC entry for returning from a callVM.
         Kind_CallVM,
-
-        // A fake IC entry for returning from a callVM not for an op (e.g., in
-        // the prologue).
-        Kind_NonOpCallVM,
 
         // A fake IC entry for returning from DebugTrapHandler.
         Kind_DebugTrap,
@@ -302,10 +298,6 @@ class ICEntry
     void setForDebugEpilogue() {
         MOZ_ASSERT(kind() == Kind_CallVM);
         setKind(Kind_DebugEpilogue);
-    }
-    void setForNonOpCallVM() {
-        MOZ_ASSERT(kind() == Kind_CallVM);
-        setKind(Kind_NonOpCallVM);
     }
 
     bool hasStub() const {

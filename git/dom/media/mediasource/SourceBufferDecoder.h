@@ -32,8 +32,7 @@ class SourceBufferDecoder MOZ_FINAL : public AbstractMediaDecoder
 public:
   // This class holds a weak pointer to MediaResource.  It's the responsibility
   // of the caller to manage the memory of the MediaResource object.
-  SourceBufferDecoder(MediaResource* aResource, AbstractMediaDecoder* aParentDecoder,
-                      int64_t aTimestampOffset /* microseconds */);
+  SourceBufferDecoder(MediaResource* aResource, AbstractMediaDecoder* aParentDecoder);
 
   NS_DECL_THREADSAFE_ISUPPORTS
 
@@ -42,7 +41,6 @@ public:
   virtual bool IsTransportSeekable() MOZ_FINAL MOZ_OVERRIDE;
   virtual bool OnDecodeThread() const MOZ_FINAL MOZ_OVERRIDE;
   virtual bool OnStateMachineThread() const MOZ_FINAL MOZ_OVERRIDE;
-  virtual int64_t GetTimestampOffset() const MOZ_FINAL MOZ_OVERRIDE { return mTimestampOffset; }
   virtual int64_t GetMediaDuration() MOZ_FINAL MOZ_OVERRIDE;
   virtual layers::ImageContainer* GetImageContainer() MOZ_FINAL MOZ_OVERRIDE;
   virtual MediaDecoderOwner* GetOwner() MOZ_FINAL MOZ_OVERRIDE;
@@ -131,7 +129,6 @@ private:
 
   AbstractMediaDecoder* mParentDecoder;
   nsRefPtr<MediaDecoderReader> mReader;
-  int64_t mTimestampOffset;
   int64_t mMediaDuration;
 
 #ifdef MOZ_EME

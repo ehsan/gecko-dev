@@ -28,7 +28,7 @@ public:
         if (!mMap.ops)
             return NS_ERROR_NOT_INITIALIZED;
 
-        PLDHashEntryHdr* hdr = PL_DHashTableAdd(&mMap, aElement);
+        PLDHashEntryHdr* hdr = PL_DHashTableOperate(&mMap, aElement, PL_DHASH_ADD);
         if (!hdr)
             return NS_ERROR_OUT_OF_MEMORY;
 
@@ -42,7 +42,7 @@ public:
         if (!mMap.ops)
             return false;
 
-        PLDHashEntryHdr* hdr = PL_DHashTableLookup(&mMap, aElement);
+        PLDHashEntryHdr* hdr = PL_DHashTableOperate(&mMap, aElement, PL_DHASH_LOOKUP);
         if (PL_DHASH_ENTRY_IS_FREE(hdr))
             return false;
 

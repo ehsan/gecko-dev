@@ -580,7 +580,7 @@ nsJPEGDecoder::ReadOrientationFromEXIF()
 void
 nsJPEGDecoder::NotifyDone()
 {
-  PostFrameStop(Opacity::OPAQUE);
+  PostFrameStop(FrameBlender::kFrameOpaque);
   PostDecodeDone();
 }
 

@@ -1241,19 +1241,11 @@
     // Getting ready
 
     function negotiate(available, requested, defaultLocale) {
-      var supportedLocale;
-      for (var i = 0; i < requested.length; ++i) {
-        var locale = requested[i];
-        if (available.indexOf(locale) !== -1) {
-          supportedLocale = locale;
-          break;
-        }
-      }
-      if (!supportedLocale ||
-          supportedLocale === defaultLocale) {
+      if (available.indexOf(requested[0]) === -1 ||
+          requested[0] === defaultLocale) {
         return [defaultLocale];
       } else {
-        return [supportedLocale, defaultLocale];
+        return [requested[0], defaultLocale];
       }
     }
 

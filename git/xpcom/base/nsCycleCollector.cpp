@@ -898,7 +898,8 @@ PtrInfo*
 CCGraph::FindNode(void* aPtr)
 {
   PtrToNodeEntry* e =
-    static_cast<PtrToNodeEntry*>(PL_DHashTableLookup(&mPtrToNodeMap, aPtr));
+    static_cast<PtrToNodeEntry*>(PL_DHashTableOperate(&mPtrToNodeMap, aPtr,
+                                                      PL_DHASH_LOOKUP));
   if (!PL_DHASH_ENTRY_IS_BUSY(e)) {
     return nullptr;
   }
@@ -910,7 +911,8 @@ CCGraph::AddNodeToMap(void* aPtr)
 {
   JS::AutoSuppressGCAnalysis suppress;
   PtrToNodeEntry* e =
-    static_cast<PtrToNodeEntry*>(PL_DHashTableAdd(&mPtrToNodeMap, aPtr));
+    static_cast<PtrToNodeEntry*>(PL_DHashTableOperate(&mPtrToNodeMap, aPtr,
+                                                      PL_DHASH_ADD));
   if (!e) {
     // Caller should track OOMs
     return nullptr;
@@ -921,7 +923,7 @@ CCGraph::AddNodeToMap(void* aPtr)
 void
 CCGraph::RemoveNodeFromMap(void* aPtr)
 {
-  PL_DHashTableRemove(&mPtrToNodeMap, aPtr);
+  PL_DHashTableOperate(&mPtrToNodeMap, aPtr, PL_DHASH_REMOVE);
 }
 
 

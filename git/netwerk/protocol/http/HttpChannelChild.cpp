@@ -1275,7 +1275,6 @@ propagateLoadInfo(nsILoadInfo *aLoadInfo,
 
     openArgs.securityFlags() = aLoadInfo->GetSecurityFlags();
     openArgs.contentPolicyType() = aLoadInfo->GetContentPolicyType();
-    openArgs.innerWindowID() = aLoadInfo->GetInnerWindowID();
     return;
   }
 
@@ -1286,7 +1285,6 @@ propagateLoadInfo(nsILoadInfo *aLoadInfo,
   openArgs.triggeringPrincipalInfo() = requestingPrincipalInfo;
   openArgs.securityFlags() = nsILoadInfo::SEC_NORMAL;
   openArgs.contentPolicyType() = nsIContentPolicy::TYPE_OTHER;
-  openArgs.innerWindowID() = 0;
 }
 
 NS_IMETHODIMP

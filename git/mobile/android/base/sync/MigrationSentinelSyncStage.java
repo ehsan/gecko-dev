@@ -232,8 +232,6 @@ public class MigrationSentinelSyncStage extends AbstractNonRepositorySyncStage {
 
     final long lastModified = session.config.getLastMigrationSentinelCheckTimestamp();
     if (!infoCollections.updateNeeded(META_COLLECTION, lastModified)) {
-      Logger.info(LOG_TAG, "No need to check fresh meta/fxa_credentials.");
-      session.advance();
       return;
     }
 

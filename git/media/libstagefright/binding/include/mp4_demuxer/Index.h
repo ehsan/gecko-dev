@@ -37,8 +37,7 @@ public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Index)
 
   Index(const stagefright::Vector<stagefright::MediaSource::Indice>& aIndex,
-        Stream* aSource, uint32_t aTrackId, Microseconds aTimestampOffset,
-        Monitor* aMonitor);
+        Stream* aSource, uint32_t aTrackId, Monitor* aMonitor);
 
   void UpdateMoofIndex(const nsTArray<mozilla::MediaByteRange>& aByteRanges);
   Microseconds GetEndCompositionIfBuffered(

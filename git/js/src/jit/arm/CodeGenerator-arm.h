@@ -214,6 +214,8 @@ class CodeGeneratorARM : public CodeGeneratorShared
     void visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins);
     void visitAsmJSPassStackArg(LAsmJSPassStackArg *ins);
 
+    void visitForkJoinGetSlice(LForkJoinGetSlice *ins);
+
     void visitMemoryBarrier(LMemoryBarrier *ins);
 
     void generateInvalidateEpilogue();
