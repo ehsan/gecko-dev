@@ -84,8 +84,7 @@ nsThebesFontMetrics::Init(const nsFont& aFont, nsIAtom* aLangGroup,
     }
 
     PRBool printerFont = mDeviceContext->IsPrinterSurface();
-    mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, aFont.stretch,
-                                  size, langGroup,
+    mFontStyle = new gfxFontStyle(aFont.style, aFont.weight, size, langGroup,
                                   aFont.sizeAdjust, aFont.systemFont,
                                   aFont.familyNameQuirks,
                                   printerFont);

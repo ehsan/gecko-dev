@@ -123,10 +123,10 @@ nsAutoString *gWorkingDirectory = nsnull;
 static JSBool
 GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
-#if !defined(XP_WIN) && !defined(XP_UNIX) || defined(WINCE)
+#if !defined(XP_WIN) && !defined(XP_UNIX)
     //XXX: your platform should really implement this
-    return JS_FALSE;
-#else
+    return JS_FALSE
+#endif
     JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
     JSScript *script = JS_GetFrameScript(cx, fp);
     const char *filename = JS_GetScriptFilename(cx, script);
@@ -196,7 +196,6 @@ GetLocationProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     }
 
     return JS_TRUE;
-#endif
 }
 
 static JSBool

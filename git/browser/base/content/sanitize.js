@@ -428,7 +428,7 @@ Sanitizer.showUI = function(aParentWindow)
 #endif
                 "chrome://browser/content/sanitize.xul",
                 "Sanitize",
-                "chrome,titlebar,dialog,centerscreen,modal",
+                "chrome,titlebar,centerscreen,modal",
                 null);
 };
 

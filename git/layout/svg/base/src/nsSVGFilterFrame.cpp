@@ -133,10 +133,6 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
     &filter->mLengthAttributes[nsSVGFilterElement::X], bbox, aTarget);
   filterArea.RoundOut();
 
-  // 0 disables rendering, < 0 is error
-  if (filterArea.Width() <= 0 || filterArea.Height() <= 0)
-    return;
-
   PRBool resultOverflows;
   gfxIntSize filterRes;
 

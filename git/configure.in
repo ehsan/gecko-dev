@@ -234,32 +234,29 @@ case "$target" in
 *wince)
 
     MOZ_ARG_WITH_STRING(wince-sdk,
-    [  --with-wince-sdk=WINCE_SDK_DIR
+    [  --with-wince-sdk=WINCE_SDK
                         The path to the windows mobile sdk],
-    WINCE_SDK_DIR=$withval)
+    WINCE_SDK=$withval)
 
     export WINCE=1
+    mk_add_options WINCE=1
 
     echo -----------------------------------------------------------------------------
     echo Building Windows CE Shunt Library and Tool Chain
     echo Using SDK in:
-    echo $WINCE_SDK_DIR
+    echo $WINCE_SDK
 
     ac_exeext=.exe
 
-    _pwdw=`pwd -W`
-    _pwd=`pwd`
-    make WINCE_SDK_DIR="$WINCE_SDK_DIR" TOPSRCDIR="$srcdir" OBJDIR="$_pwdw" -C $srcdir/build/wince/tools
+    
+    rm -f $srcdir/build/wince/shunt/include/windows.h
 
-    CC="$_pwd/dist/sdk/bin/arm-wince-gcc"
-    CXX="$_pwd/dist/sdk/bin/arm-wince-gcc"
-    CPP="$_pwd/dist/sdk/bin/arm-wince-gcc"
-    LD="$_pwd/dist/sdk/bin/arm-wince-link"
-    AR="$_pwd/dist/sdk/bin/arm-wince-lib"
-    AS="$_pwd/dist/sdk/bin/arm-wince-as"
-    RC="$_pwd/dist/sdk/bin/arm-wince-res"
-
-
+    echo -n "#define TOPSRCDIR \"" > $srcdir/build/wince/tools/topsrcdir.h
+    echo `cd "$_topsrcdir" && pwd -W | tr '\n' '\"'` >> $srcdir/build/wince/tools/topsrcdir.h
+    make -C $srcdir/build/wince/tools
+    
+    echo "#include \"$WINCE_SDK/windows.h\"" > $srcdir/build/wince/shunt/include/windows.h
+    echo "#define GetProcAddress GetProcAddressA" >> $srcdir/build/wince/shunt/include/windows.h
     echo -----------------------------------------------------------------------------
 
     ;;
@@ -1989,8 +1986,6 @@ case "$target" in
     USE_SHORT_LIBNAME=1
     MOZ_ENABLE_POSTSCRIPT=
     MOZ_USER_DIR="Mozilla"
-
-    MOZ_GFX_OPTIMIZE_MOBILE=1
 ;;
 
 
@@ -4042,16 +4037,6 @@ else
     LIBXUL_DIST="$MOZ_BUILD_ROOT/dist"
 fi
 AC_SUBST(LIBXUL_DIST)
-
-SYSTEM_LIBXUL=
-
-MOZ_ARG_WITH_BOOL(system-libxul,
-[  --with-system-libxul   Use system installed libxul SDK],
-    SYSTEM_LIBXUL=1)
-
-if test -n "$SYSTEM_LIBXUL" && test -z "$MOZ_ENABLE_LIBXUL"; then
-    AC_MSG_ERROR([--with-system-libxul needs --with-libxul-sdk])
-fi
 
 dnl ========================================================
 dnl = If NSPR was not detected in the system, 
@@ -6157,7 +6142,8 @@ if test $NS_OSSO; then
         AC_MSG_ERROR([DBus is required when building for OSSO])
     fi
     AC_DEFINE(NS_OSSO)
-    MOZ_GFX_OPTIMIZE_MOBILE=1
+    dnl XXX this should go somewhere else; it's not just for OSSO
+    AC_DEFINE(MOZ_GFX_OPTIMIZE_MOBILE)
 fi
 AC_SUBST(LIBOSSO_CFLAGS)
 AC_SUBST(LIBOSSO_LIBS)
@@ -6257,19 +6243,6 @@ if test -n "$MOZ_DEBUG"; then
         AC_MSG_ERROR([These compiler flags are invalid: $MOZ_DEBUG_FLAGS])
     fi
     CFLAGS=$_SAVE_CFLAGS
-fi
-
-dnl ========================================================
-dnl enable mobile optimizations
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(mobile-optimize,
-[  --enable-mobile-optimize   Enable mobile optimizations],
-    MOZ_GFX_OPTIMIZE_MOBILE=1)
-
-AC_SUBST(MOZ_GFX_OPTIMIZE_MOBILE)
-
-if test "$MOZ_GFX_OPTIMIZE_MOBILE"; then
-    AC_DEFINE(MOZ_GFX_OPTIMIZE_MOBILE)
 fi
 
 dnl ========================================================
@@ -6615,7 +6588,7 @@ MOZ_ARG_WITH_STRING(static-checking,
     DEHYDRA_PATH= )
 
 if test -n "$DEHYDRA_PATH"; then
-    if test ! -f "$DEHYDRA_PATH"; then
+    if ! test -f "$DEHYDRA_PATH"; then
         AC_MSG_ERROR([The dehydra plugin is not at the specified path.])
     fi
     AC_DEFINE(NS_STATIC_CHECKING)
@@ -7913,7 +7886,7 @@ AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
 AC_SUBST(MOZ_TIMELINE)
 AC_SUBST(WINCE)
-AC_SUBST(WINCE_SDK_DIR)
+AC_SUBST(WINCE_SDK)
 AC_SUBST(TARGET_DEVICE)
 
 AC_SUBST(MOZ_APP_NAME)
@@ -7960,7 +7933,6 @@ COMPILE_CXXFLAGS=`echo \
     $COMPILE_CXXFLAGS`
 
 AC_SUBST(SYSTEM_MAKEDEPEND)
-AC_SUBST(SYSTEM_LIBXUL)
 AC_SUBST(SYSTEM_JPEG)
 AC_SUBST(SYSTEM_PNG)
 AC_SUBST(SYSTEM_ZLIB)

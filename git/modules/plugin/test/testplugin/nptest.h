@@ -49,14 +49,14 @@ typedef enum  {
 typedef struct TestNPObject : NPObject {
   NPP npp;
   DrawMode drawMode;
-  PRUint32 drawColor; // 0xAARRGGBB
+  // 0xAARRGGBB
+  PRUint32 drawColor;
 } TestNPObject;
 
 typedef struct InstanceData {
   NPP npp;
   NPWindow window;
   TestNPObject* scriptableObject;
-  NPBool lastReportedPrivateModeState;
 } InstanceData;
 
 #endif // nptest_h_

@@ -512,6 +512,9 @@
 
                     <button type="image" id="infoBoxExpander"
                             class="expander-down"
+                            lessaccesskey="&detailsPane.less.accesskey;"
+                            moreaccesskey="&detailsPane.more.accesskey;"
+                            accesskey="&detailsPane.more.accesskey;"
                             oncommand="PlacesOrganizer.toggleAdditionalInfoFields();"
                             observes="paneElementsBroadcaster"/>
 

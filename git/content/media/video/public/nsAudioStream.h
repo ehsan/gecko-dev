@@ -51,7 +51,7 @@ class nsAudioStream
   {
     FORMAT_U8,
     FORMAT_S16_LE,
-    FORMAT_FLOAT32
+    FORMAT_FLOAT32_LE
   };
 
   // Initialize Audio Library. Some Audio backends require initializing the

@@ -66,11 +66,6 @@ config/doxygen.cfg
 config/tests/src-simple/Makefile
 probes/Makefile
 extensions/Makefile
-build/wince/tools/Makefile
-build/wince/shunt/Makefile
-build/wince/shunt/include/windows.h
-build/wince/shunt/include/ymath.h
-build/wince/shunt/include/sys/Makefile
 "
 
 if [ "$MOZ_MEMORY" ]; then

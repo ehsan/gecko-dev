@@ -94,7 +94,6 @@
 #include "nsPrintfCString.h"
 #include "nsIBlocklistService.h"
 #include "nsVersionComparator.h"
-#include "nsIPrivateBrowsingService.h"
 
 // Friggin' X11 has to "#define None". Lame!
 #ifdef None
@@ -1072,7 +1071,7 @@ nsresult PostPluginUnloadEvent(PRLibrary* aLibrary)
 void nsPluginTag::TryUnloadPlugin(PRBool aForceShutdown)
 {
   PRBool isXPCOM = PR_FALSE;
-  if (!(mFlags & NS_PLUGIN_FLAG_NPAPI))
+  if (!(mFlags & NS_PLUGIN_FLAG_OLDSCHOOL))
     isXPCOM = PR_TRUE;
 
   if (isXPCOM && !aForceShutdown) return;
@@ -2520,9 +2519,9 @@ nsPluginHostImpl::nsPluginHostImpl()
   }
 
   nsCOMPtr<nsIObserverService> obsService = do_GetService("@mozilla.org/observer-service;1");
-  if (obsService) {
+  if (obsService)
+  {
     obsService->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
-    obsService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
   }
 
 #ifdef PLUGIN_LOGGING
@@ -2689,7 +2688,7 @@ nsresult nsPluginHostImpl::ReloadPlugins(PRBool reloadPages)
     // if plugins are reloaded. This also fixes a crash on UNIX where the call
     // to shutdown would break the ProxyJNI connection to the JRE after a reload.
     // see bug 86591
-    if (!IsRunningPlugin(p) && (!p->mEntryPoint || p->HasFlag(NS_PLUGIN_FLAG_NPAPI))) {
+    if (!IsRunningPlugin(p) && (!p->mEntryPoint || p->HasFlag(NS_PLUGIN_FLAG_OLDSCHOOL))) {
       if (p == mPlugins)
         mPlugins = next;
       else
@@ -4530,11 +4529,11 @@ NS_IMETHODIMP nsPluginHostImpl::GetPluginFactory(const char *aMimeType, nsIPlugi
       }
 #endif
       else {
-        // Now lets try to get the entry point from an NPAPI plugin
+        // Now lets try to get the entry point from a 4.x plugin
         rv = CreateNPAPIPlugin(serviceManager, pluginTag, &plugin);
         if (NS_SUCCEEDED(rv))
           pluginTag->mEntryPoint = plugin;
-        pluginTag->Mark(NS_PLUGIN_FLAG_NPAPI);
+        pluginTag->Mark(NS_PLUGIN_FLAG_OLDSCHOOL);
         // no need to initialize, already done by CreatePlugin()
       }
     }
@@ -6143,16 +6142,6 @@ NS_IMETHODIMP nsPluginHostImpl::Observe(nsISupports *aSubject,
     UnloadUnusedLibraries();
     sInst->Release();
   }
-  if (!nsCRT::strcmp(NS_PRIVATE_BROWSING_SWITCH_TOPIC, aTopic)) {
-    // inform all active NPAPI plugins of changed private mode state
-    for (nsActivePlugin* ap = mActivePluginList.mFirst; ap; ap = ap->mNext) {
-      nsPluginTag* pt = ap->mPluginTag;
-      if (pt->HasFlag(NS_PLUGIN_FLAG_NPAPI)) {
-        nsNPAPIPluginInstance* pi = static_cast<nsNPAPIPluginInstance*>(ap->mInstance);
-        pi->PrivateModeStateChanged();
-      }
-    }
-  }
   if (!nsCRT::strcmp(NS_PREFBRANCH_PREFCHANGE_TOPIC_ID, aTopic)) {
     NS_ASSERTION(someData &&
                  nsDependentString(someData).EqualsLiteral("security.enable_java"),
@@ -6172,7 +6161,7 @@ NS_IMETHODIMP nsPluginHostImpl::Observe(nsISupports *aSubject,
       for (nsPluginTag* cur = mPlugins; cur; cur = cur->mNext) {
         if (cur->mIsJavaPlugin)
           cur->SetDisabled(!mJavaEnabled);
-      }
+      }            
     }
   }
   return NS_OK;
@@ -6308,6 +6297,7 @@ nsPluginHostImpl::ParsePostBufferToFixHeaders(
   const char *pEoh = 0;   // pointer to end of headers in inPostData
   const char *pEod = inPostData + inPostDataLen; // pointer to end of inPostData
   if (*inPostData == LF) {
+    // from 4.x spec http://developer.netscape.com/docs/manuals/communicator/plugin/pgfn2.htm#1007754
     // If no custom headers are required, simply add a blank
     // line ('\n') to the beginning of the file or buffer.
     // so *inPostData == '\n' is valid
@@ -6510,6 +6500,8 @@ nsPluginHostImpl::CreateTmpFileToPost(const char *postDataURL, char **pTmpFileNa
       if (NS_FAILED(rv) || (PRInt32)br <= 0)
         break;
       if (firstRead) {
+        // according to the 4.x spec
+        // http://developer.netscape.com/docs/manuals/communicator/plugin/pgfn2.htm#1007707
         //"For protocols in which the headers must be distinguished from the body,
         // such as HTTP, the buffer or file should contain the headers, followed by
         // a blank line, then the body. If no custom headers are required, simply

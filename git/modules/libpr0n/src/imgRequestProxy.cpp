@@ -196,7 +196,14 @@ NS_IMETHODIMP imgRequestProxy::IsPending(PRBool *_retval)
 /* readonly attribute nsresult status; */
 NS_IMETHODIMP imgRequestProxy::GetStatus(nsresult *aStatus)
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  // XXXbz this is wrong...  Canceling with a status should make that
+  // status the status of the request, generally.
+  if (!mOwner)
+    return NS_ERROR_FAILURE;
+
+  *aStatus = mOwner->GetNetworkStatus();
+
+  return NS_OK;
 }
 
 /* void cancel (in nsresult status); */
