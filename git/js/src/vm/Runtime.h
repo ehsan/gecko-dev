@@ -1015,16 +1015,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     int64_t             gcNextFullGCTime;
     int64_t             gcLastGCTime;
     int64_t             gcJitReleaseTime;
-  private:
-    JSGCMode            gcMode_;
-
-  public:
-    JSGCMode gcMode() const { return gcMode_; }
-    void setGCMode(JSGCMode mode) {
-        gcMode_ = mode;
-        gcMarker.setGCMode(mode);
-    }
-
+    JSGCMode            gcMode;
     size_t              gcAllocationThreshold;
     bool                gcHighFrequencyGC;
     uint64_t            gcHighFrequencyTimeThreshold;

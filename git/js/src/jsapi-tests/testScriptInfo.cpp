@@ -37,10 +37,7 @@ BEGIN_TEST(testScriptInfo)
 {
     unsigned startLine = 1000;
 
-    JS::CompileOptions options(cx);
-    options.setFileAndLine(__FILE__, startLine);
-    JS::RootedScript script(cx, JS_CompileScript(cx, global, code, strlen(code),
-                                                 options));
+    JS::RootedScript script(cx, JS_CompileScript(cx, global, code, strlen(code), __FILE__, startLine));
 
     CHECK(script);
 

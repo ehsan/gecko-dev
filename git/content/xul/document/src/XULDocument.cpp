@@ -780,7 +780,7 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
         return;
     }
 
-    static const PLDHashTableOps gOps = {
+    static PLDHashTableOps gOps = {
         PL_DHashAllocTable,
         PL_DHashFreeTable,
         PL_DHashVoidPtrKeyStub,

@@ -353,7 +353,7 @@ TelephonyProvider.prototype = {
     this._getClient(aClientId).sendWorkerMessage("enumerateCalls", null,
                                                  (function(response) {
       for (let call of response.calls) {
-        call.clientId = aClientId;
+        call.clienId = aClientId;
         call.state = this._convertRILCallState(call.state);
         call.isActive = this._matchActiveCall(call);
 

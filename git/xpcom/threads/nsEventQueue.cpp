@@ -21,9 +21,6 @@ GetLog()
   return sLog;
 }
 #endif
-#ifdef LOG
-#undef LOG
-#endif
 #define LOG(args) PR_LOG(GetLog(), PR_LOG_DEBUG, args)
 
 nsEventQueue::nsEventQueue()

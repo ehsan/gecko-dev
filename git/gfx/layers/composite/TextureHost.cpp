@@ -243,15 +243,6 @@ DeprecatedTextureHost::SwapTextures(const SurfaceDescriptor& aImage,
 }
 
 void
-DeprecatedTextureHost::OnActorDestroy()
-{
-  if (ISurfaceAllocator::IsShmem(mBuffer)) {
-    *mBuffer = SurfaceDescriptor();
-    mBuffer = nullptr;
-  }
-}
-
-void
 DeprecatedTextureHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   aTo += aPrefix;
@@ -513,13 +504,6 @@ ShmemTextureHost::DeallocateSharedData()
                "Shared memory would leak without a ISurfaceAllocator");
     mDeallocator->DeallocShmem(*mShmem);
   }
-}
-
-void
-ShmemTextureHost::OnActorDestroy()
-{
-  delete mShmem;
-  mShmem = nullptr;
 }
 
 uint8_t* ShmemTextureHost::GetBuffer()
