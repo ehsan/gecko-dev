@@ -110,6 +110,10 @@ public class Allocator {
         return findSlotForPrefix(PREFIX_PACKAGE_NAME, packageName);
     }
 
+    public synchronized int getIndexForOrigin(String origin) {
+        return findSlotForPrefix(PREFIX_ORIGIN, origin);
+    }
+
     protected int findSlotForPrefix(String prefix, String value) {
         for (int i = 0; i < MAX_WEB_APPS; ++i) {
             if (mPrefs.getString(prefix + i, "").equals(value)) {

@@ -198,12 +198,13 @@ this.WebappManager = {
     this.writeDefaultPrefs(file, localeManifest);
   },
 
-  launch: function({ apkPackageName }) {
-    debug("launch: " + apkPackageName);
+  launch: function({ manifestURL, origin }) {
+    debug("launchWebapp: " + manifestURL);
 
     sendMessageToJava({
-      type: "Webapps:Launch",
-      packageName: apkPackageName,
+      type: "Webapps:Open",
+      manifestURL: manifestURL,
+      origin: origin
     });
   },
 

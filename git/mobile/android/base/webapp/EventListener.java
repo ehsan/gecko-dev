@@ -45,7 +45,7 @@ public class EventListener implements NativeEventListener  {
             "Webapps:InstallApk",
             "Webapps:UninstallApk",
             "Webapps:Postinstall",
-            "Webapps:Launch",
+            "Webapps:Open",
             "Webapps:Uninstall",
             "Webapps:GetApkVersions");
     }
@@ -56,7 +56,7 @@ public class EventListener implements NativeEventListener  {
             "Webapps:InstallApk",
             "Webapps:UninstallApk",
             "Webapps:Postinstall",
-            "Webapps:Launch",
+            "Webapps:Open",
             "Webapps:Uninstall",
             "Webapps:GetApkVersions");
     }
@@ -70,8 +70,14 @@ public class EventListener implements NativeEventListener  {
                 uninstallApk(GeckoAppShell.getGeckoInterface().getActivity(), message);
             } else if (event.equals("Webapps:Postinstall")) {
                 postInstallWebapp(message.getString("apkPackageName"), message.getString("origin"));
-            } else if (event.equals("Webapps:Launch")) {
-                launchWebapp(message.getString("packageName"));
+            } else if (event.equals("Webapps:Open")) {
+                Intent intent = GeckoAppShell.getWebappIntent(message.getString("manifestURL"),
+                                                              message.getString("origin"),
+                                                              "", null);
+                if (intent == null) {
+                    return;
+                }
+                GeckoAppShell.getGeckoInterface().getActivity().startActivity(intent);
             } else if (event.equals("Webapps:GetApkVersions")) {
                 JSONObject obj = new JSONObject();
                 obj.put("versions", getApkVersions(GeckoAppShell.getGeckoInterface().getActivity(),
@@ -87,11 +93,6 @@ public class EventListener implements NativeEventListener  {
         Allocator allocator = Allocator.getInstance(GeckoAppShell.getContext());
         int index = allocator.findOrAllocatePackage(aPackageName);
         allocator.putOrigin(index, aOrigin);
-    }
-
-    private void launchWebapp(String aPackageName) {
-        Intent intent = GeckoAppShell.getContext().getPackageManager().getLaunchIntentForPackage(aPackageName);
-        GeckoAppShell.getGeckoInterface().getActivity().startActivity(intent);
     }
 
     public static void uninstallWebapp(final String packageName) {
