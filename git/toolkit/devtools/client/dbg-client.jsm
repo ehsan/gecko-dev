@@ -197,6 +197,7 @@ const UnsolicitedNotifications = {
   "addonListChanged": "addonListChanged",
   "tabNavigated": "tabNavigated",
   "pageError": "pageError",
+  "webappsEvent": "webappsEvent",
   "documentLoad": "documentLoad",
   "enteredFrame": "enteredFrame",
   "exitedFrame": "exitedFrame"
