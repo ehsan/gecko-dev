@@ -23,13 +23,10 @@
 #include "js/TemplateLib.h"
 #include "js/Utility.h"
 
-#if USE_ZLIB
 #include "zlib.h"
-#endif
 
 using namespace js;
 
-#if USE_ZLIB
 static void *
 zlib_alloc(void *cx, uInt items, uInt size)
 {
@@ -95,7 +92,6 @@ js::DecompressString(const unsigned char *inp, size_t inplen, unsigned char *out
     JS_ASSERT(ret == Z_OK);
     return true;
 }
-#endif
 
 #ifdef DEBUG
 /* For JS_OOM_POSSIBLY_FAIL in jsutil.h. */

@@ -1839,8 +1839,7 @@ var XPIDatabase = {
 
     for (let row in resultRows(stmt)) {
       text += "Extension" + (count++) + "=" + row.descriptor + "\r\n";
-      enabledAddons.push(encodeURIComponent(row.id) + ":" +
-                         encodeURIComponent(row.version));
+      enabledAddons.push(row.id + ":" + row.version);
     }
     fullCount += count;
 
@@ -1865,8 +1864,7 @@ var XPIDatabase = {
       count = 0;
       for (let row in resultRows(stmt)) {
         text += "Extension" + (count++) + "=" + row.descriptor + "\r\n";
-        enabledAddons.push(encodeURIComponent(row.id) + ":" +
-                           encodeURIComponent(row.version));
+        enabledAddons.push(row.id + ":" + row.version);
       }
       fullCount += count;
     }

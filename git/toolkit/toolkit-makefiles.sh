@@ -1584,8 +1584,6 @@ if [ "$MOZ_WEBM" ]; then
     media/libnestegg/include/Makefile
     media/libnestegg/src/Makefile
   "
-fi
-if [ "$MOZ_VP8" ]; then
   if [ ! "$MOZ_NATIVE_LIBVPX" ]; then
     add_makefiles "
       media/libvpx/Makefile

@@ -8,6 +8,7 @@ package org.mozilla.gecko;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.util.AttributeSet;
+import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -29,7 +30,6 @@ public class TabsPanel extends LinearLayout {
 
     public static interface PanelView {
         public ViewGroup getLayout();
-        public void setTabsPanel(TabsPanel panel);
         public void show();
         public void hide();
     }
@@ -39,7 +39,6 @@ public class TabsPanel extends LinearLayout {
     }
 
     private Context mContext;
-    private GeckoApp mActivity;
     private PanelView mPanel;
     private TabsPanelToolbar mToolbar;
     private TabsListContainer mListContainer;
@@ -58,7 +57,6 @@ public class TabsPanel extends LinearLayout {
     public TabsPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
         mContext = context;
-        mActivity = (GeckoApp) context;
 
         setOrientation(LinearLayout.VERTICAL);
         LayoutInflater.from(context).inflate(R.layout.tabs_panel, this);
@@ -81,8 +79,8 @@ public class TabsPanel extends LinearLayout {
         ImageButton addTab = (ImageButton) mToolbar.findViewById(R.id.add_tab);
         addTab.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
-                mActivity.addTab();
-                mActivity.autoHideTabs();
+                GeckoApp.mAppContext.addTab();
+                GeckoApp.mAppContext.autoHideTabs();
             }
         });
 
@@ -90,26 +88,27 @@ public class TabsPanel extends LinearLayout {
         mRemoteTabs.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
                 if (mRemoteTabs.getDrawable().getLevel() == REMOTE_TABS_SHOWN)
-                    mActivity.showLocalTabs();
+                    GeckoApp.mAppContext.showLocalTabs();
                 else
-                    mActivity.showRemoteTabs();
+                    GeckoApp.mAppContext.showRemoteTabs();
             }
         });
     }
 
     // Tabs List Container holds the ListView
     public static class TabsListContainer extends LinearLayout {
-        private Context mContext;
-
         public TabsListContainer(Context context, AttributeSet attrs) {
             super(context, attrs);
-            mContext = context;
         }
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             if (!GeckoApp.mAppContext.hasTabsSideBar()) {
-                int heightSpec = MeasureSpec.makeMeasureSpec(mContext.getResources().getDisplayMetrics().heightPixels, MeasureSpec.EXACTLY);
+                DisplayMetrics metrics = new DisplayMetrics();
+                GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+
+                int height = (int) (0.5 * metrics.heightPixels);
+                int heightSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY);
                 super.onMeasure(widthMeasureSpec, heightSpec);
             } else {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -157,18 +156,19 @@ public class TabsPanel extends LinearLayout {
             mRemoteTabs.setImageLevel(REMOTE_TABS_SHOWN);
         }
 
-        mPanel.setTabsPanel(this);
         mPanel.show();
         mListContainer.addView(mPanel.getLayout());
 
-        if (isSideBar()) {
+        if (GeckoApp.mAppContext.hasTabsSideBar()) {
             dispatchLayoutChange(getWidth(), getHeight());
         } else {
             int actionBarHeight = (int) (mContext.getResources().getDimension(R.dimen.browser_toolbar_height));
 
             // TabsListContainer takes time to resize on rotation.
             // It's better to add 50% of the screen-size and dispatch it as height.
-            int listHeight = (int) (0.5 * mContext.getResources().getDisplayMetrics().heightPixels);
+            DisplayMetrics metrics = new DisplayMetrics();
+            GeckoApp.mAppContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+            int listHeight = (int) (0.5 * metrics.heightPixels);
 
             int height = actionBarHeight + listHeight; 
             dispatchLayoutChange(getWidth(), height);
@@ -212,10 +212,6 @@ public class TabsPanel extends LinearLayout {
 
         if (mVisible)
             show(mCurrentPanel);
-    }
-
-    public void autoHidePanel() {
-        mActivity.autoHideTabs();
     }
 
     @Override

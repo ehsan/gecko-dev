@@ -43,7 +43,6 @@ class HTMLElement(object):
     def click(self):
         return self.marionette._send_message('clickElement', 'ok', element=self.id)
 
-    @property
     def text(self):
         return self.marionette._send_message('getElementText', 'value', element=self.id)
 

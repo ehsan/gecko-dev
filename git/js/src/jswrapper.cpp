@@ -418,6 +418,7 @@ ForceFrame::enter()
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
     : context(cx),
       origin(cx->compartment),
+      target(target),
       destination(target->compartment()),
       entered(false)
 {
@@ -434,7 +435,7 @@ AutoCompartment::enter()
 {
     JS_ASSERT(!entered);
     if (origin != destination) {
-        GlobalObject& scopeChain = *destination->maybeGlobal();
+        JSObject &scopeChain = target->global();
         JS_ASSERT(scopeChain.isNative());
 
         frame.construct();
@@ -692,12 +693,11 @@ CrossCompartmentWrapper::call(JSContext *cx, JSObject *wrapper_, unsigned argc, 
 {
     RootedObject wrapper(cx, wrapper_);
 
-    JSObject *wrapped = wrappedObject(wrapper);
-    AutoCompartment call(cx, wrapped);
+    AutoCompartment call(cx, wrappedObject(wrapper));
     if (!call.enter())
         return false;
 
-    vp[0] = ObjectValue(*wrapped);
+    vp[0] = ObjectValue(*call.target);
     if (!call.destination->wrap(cx, &vp[1]))
         return false;
     Value *argv = JS_ARGV(cx, vp);

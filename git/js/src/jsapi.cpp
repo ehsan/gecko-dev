@@ -1441,6 +1441,20 @@ JS_EnterCrossCompartmentCall(JSContext *cx, JSObject *target)
     return reinterpret_cast<JSCrossCompartmentCall *>(call);
 }
 
+namespace js {
+
+// Declared in jscompartment.h
+Class dummy_class = {
+    "jdummy",
+    JSCLASS_GLOBAL_FLAGS,
+    JS_PropertyStub,  JS_PropertyStub,
+    JS_PropertyStub,  JS_StrictPropertyStub,
+    JS_EnumerateStub, JS_ResolveStub,
+    JS_ConvertStub
+};
+
+} /*namespace js */
+
 JS_PUBLIC_API(JSCrossCompartmentCall *)
 JS_EnterCrossCompartmentCallScript(JSContext *cx, JSScript *target)
 {
@@ -2210,30 +2224,6 @@ JS_GetClassObject(JSContext *cx, JSObject *obj_, JSProtoKey key, JSObject **objp
     bool result = js_GetClassObject(cx, obj, key, &objp);
     *objp_ = objp;
     return result;
-}
-
-JS_PUBLIC_API(JSBool)
-JS_GetClassPrototype(JSContext *cx, JSProtoKey key, JSObject **objp_)
-{
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    RootedObject global(cx, cx->compartment->maybeGlobal());
-    if (!global)
-        return false;
-    RootedObject objp(cx);
-    bool result = js_GetClassPrototype(cx, global, key, &objp);
-    *objp_ = objp;
-    return result;
-}
-
-JS_PUBLIC_API(JSProtoKey)
-JS_IdentifyClassPrototype(JSContext *cx, JSObject *obj)
-{
-    AssertHeapIsIdle(cx);
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    JS_ASSERT(!IsCrossCompartmentWrapper(obj));
-    return js_IdentifyClassPrototype(obj);
 }
 
 JS_PUBLIC_API(JSObject *)

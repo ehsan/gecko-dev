@@ -5,7 +5,7 @@ The JS Shell Test Harness.
 See the adjacent README.txt for more details.
 """
 
-import os, sys, textwrap
+import os, sys
 from subprocess import list2cmdline, call
 
 from lib.results import NullTestOutput
@@ -29,36 +29,6 @@ def run_tests(options, tests, results):
 
     results.finish(completed)
 
-def get_cpu_count():
-    """
-    Guess at a reasonable parallelism count to set as the default for the
-    current machine and run.
-    """
-    # Python 2.6+
-    try:
-        import multiprocessing
-        return multiprocessing.cpu_count()
-    except (ImportError,NotImplementedError):
-        pass
-
-    # POSIX
-    try:
-        res = int(os.sysconf('SC_NPROCESSORS_ONLN'))
-        if res > 0:
-            return res
-    except (AttributeError,ValueError):
-        pass
-
-    # Windows
-    try:
-        res = int(os.environ['NUMBER_OF_PROCESSORS'])
-        if res > 0:
-            return res
-    except (KeyError, ValueError):
-        pass
-
-    return 1
-
 def parse_args():
     """
     Parse command line arguments.
@@ -69,17 +39,15 @@ def parse_args():
         excluded_paths :set<str>: Test paths specifically excluded by the CLI.
     """
     from optparse import OptionParser, OptionGroup
-    op = OptionParser(usage=textwrap.dedent("""
-        %prog [OPTIONS] JS_SHELL [TESTS]
-
-        Shell output format: [ pass | fail | timeout | skip ] progress | time
-        """).strip())
+    op = OptionParser(usage='%prog [OPTIONS] JS_SHELL [TESTS]')
     op.add_option('--xul-info', dest='xul_info_src',
                   help='config data for xulRuntime (avoids search for config/autoconf.mk)')
 
     harness_og = OptionGroup(op, "Harness Controls", "Control how tests are run.")
-    harness_og.add_option('-j', '--worker-count', type=int, default=max(1, get_cpu_count()),
-                          help='Number of tests to run in parallel (default %default)')
+    num_workers = 2
+    num_workers_help ='Number of tests to run in parallel (default %s)' % num_workers
+    harness_og.add_option('-j', '--worker-count', type=int,
+                          default=num_workers, help=num_workers_help)
     harness_og.add_option('-t', '--timeout', type=float, default=150.0,
                           help='Set maximum time a test is allows to run (in seconds).')
     harness_og.add_option('-a', '--args', dest='shell_args', default='',

@@ -104,9 +104,6 @@ endif
 
 ifdef MOZ_WEBM
 tier_platform_dirs += media/libnestegg
-endif
-
-ifdef MOZ_VP8
 ifndef MOZ_NATIVE_LIBVPX
 tier_platform_dirs += media/libvpx
 endif

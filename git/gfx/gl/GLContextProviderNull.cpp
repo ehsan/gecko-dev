@@ -22,6 +22,12 @@ GLContextProviderNull::CreateOffscreen(const gfxIntSize&,
     return nsnull;
 }
 
+already_AddRefed<GLContext>
+GLContextProviderNull::CreateForNativePixmapSurface(gfxASurface *)
+{
+    return nsnull;
+}
+
 GLContext *
 GLContextProviderNull::GetGlobalContext()
 {

@@ -30,7 +30,6 @@ public class RemoteTabs extends LinearLayout
     private static final String LOGTAG = "GeckoRemoteTabs";
 
     private Context mContext;
-    private TabsPanel mTabsPanel;
 
     private static ExpandableListView mList;
     
@@ -58,11 +57,6 @@ public class RemoteTabs extends LinearLayout
     }
 
     @Override
-    public void setTabsPanel(TabsPanel panel) {
-        mTabsPanel = panel;
-    }
-
-    @Override
     public void show() {
         TabsAccessor.getTabs(mContext, this);
     }
@@ -71,8 +65,8 @@ public class RemoteTabs extends LinearLayout
     public void hide() {
     }
 
-    void autoHidePanel() {
-        mTabsPanel.autoHidePanel();
+    void autoHideTabs() {
+        GeckoApp.mAppContext.autoHideTabs();
     }
 
     @Override
@@ -85,7 +79,7 @@ public class RemoteTabs extends LinearLayout
     public boolean onChildClick(ExpandableListView parent, View view, int groupPosition, int childPosition, long id) {
         HashMap <String, String> tab = mTabsList.get(groupPosition).get(childPosition);
         if (tab == null) {
-            autoHidePanel();
+            autoHideTabs();
             return true;
         }
 
@@ -101,7 +95,7 @@ public class RemoteTabs extends LinearLayout
 
         Log.d(LOGTAG, "Sending message to Gecko: " + SystemClock.uptimeMillis() + " - Tab:Add");
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Add", args.toString()));
-        autoHidePanel();
+        autoHideTabs();
         return true;
     }
 
@@ -109,7 +103,7 @@ public class RemoteTabs extends LinearLayout
     public void onQueryTabsComplete(List<TabsAccessor.RemoteTab> remoteTabsList) {
         ArrayList<TabsAccessor.RemoteTab> remoteTabs = new ArrayList<TabsAccessor.RemoteTab> (remoteTabsList);
         if (remoteTabs == null || remoteTabs.size() == 0) {
-            autoHidePanel();
+            autoHideTabs();
             return;
         }
         

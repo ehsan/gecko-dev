@@ -35,8 +35,6 @@ public:
   virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aGlobalObject);
 
 protected:
-  void BecomeInteractive();
-
   virtual nsresult CreateSyntheticDocument();
 
   friend class MediaDocumentStreamListener;

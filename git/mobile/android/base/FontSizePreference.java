@@ -192,7 +192,9 @@ class FontSizePreference extends DialogPreference {
      * width dynamically.
      */
     private void setPreviewFontViewWidth() {
-        final DisplayMetrics metrics = mContext.getResources().getDisplayMetrics();
+        final WindowManager wm = (WindowManager) mContext.getSystemService(Context.WINDOW_SERVICE);
+        final DisplayMetrics metrics = new DisplayMetrics();
+        wm.getDefaultDisplay().getMetrics(metrics);
         final float density = metrics.density;
 
         final float actualWidthDip = metrics.widthPixels / density;

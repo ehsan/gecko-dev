@@ -70,7 +70,7 @@ public:
                           nsIProtocolProxyCallback *callback)
         : mStatus(NS_OK)
         , mDispatched(false)
-        , mResolveFlags(aResolveFlags)
+        , mResolveFlags(0)
         , mPPS(pps)
         , mURI(uri)
         , mCallback(callback)

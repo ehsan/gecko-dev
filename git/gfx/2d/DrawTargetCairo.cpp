@@ -11,7 +11,6 @@
 #include "ScaledFontBase.h"
 
 #include "cairo.h"
-#include <string.h>
 
 #include "Blur.h"
 #include "Logging.h"

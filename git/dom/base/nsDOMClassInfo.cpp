@@ -440,8 +440,6 @@
 #include "nsDOMFile.h"
 #include "nsDOMFileReader.h"
 #include "nsIDOMFormData.h"
-#include "ArchiveReader.h"
-#include "ArchiveRequest.h"
 
 #include "nsIDOMDOMStringMap.h"
 
@@ -1406,10 +1404,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(FileReader, nsEventTargetSH,
                            EVENTTARGET_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(ArchiveReader, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(ArchiveRequest, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MozURLProperty, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MozBlobBuilder, nsDOMGenericSH,
@@ -1700,7 +1694,6 @@ static const nsContractIDMapData kConstructorMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_DATA(DOMParser, NS_DOMPARSER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(FileReader, NS_FILEREADER_CONTRACTID)
-  NS_DEFINE_CONSTRUCTOR_DATA(ArchiveReader, NS_ARCHIVEREADER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(FormData, NS_FORMDATA_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(XMLSerializer, NS_XMLSERIALIZER_CONTRACTID)
   NS_DEFINE_CONSTRUCTOR_DATA(WebSocket, NS_WEBSOCKET_CONTRACTID)
@@ -3991,15 +3984,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(FileReader, nsIDOMFileReader)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMFileReader)
     DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(ArchiveReader, nsIDOMArchiveReader)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMArchiveReader)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(ArchiveRequest, nsIDOMArchiveRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMArchiveRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMRequest)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MozURLProperty, nsIDOMMozURLProperty)

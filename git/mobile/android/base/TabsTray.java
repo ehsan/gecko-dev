@@ -34,7 +34,6 @@ public class TabsTray extends LinearLayout
     private static final String LOGTAG = "GeckoTabsTray";
 
     private Context mContext;
-    private TabsPanel mTabsPanel;
 
     private static ListView mList;
     private TabsAdapter mTabsAdapter;
@@ -106,11 +105,6 @@ public class TabsTray extends LinearLayout
     }
 
     @Override
-    public void setTabsPanel(TabsPanel panel) {
-        mTabsPanel = panel;
-    }
-
-    @Override
     public void show() {
         mWaitingForClose = false;
         Tabs.getInstance().refreshThumbnails();
@@ -125,8 +119,8 @@ public class TabsTray extends LinearLayout
         mTabsAdapter.clear();
     }
 
-    void autoHidePanel() {
-        mTabsPanel.autoHidePanel();
+    void autoHideTabs() {
+        GeckoApp.mAppContext.autoHideTabs();
     }
 
     // ViewHolder for a row in the list
@@ -366,7 +360,7 @@ public class TabsTray extends LinearLayout
                     TabRow tab = (TabRow)mView.getTag();
                     int tabId = tab.id;
                     Tabs.getInstance().selectTab(tabId);
-                    autoHidePanel();
+                    autoHideTabs();
                 }
             }
 

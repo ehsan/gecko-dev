@@ -6,7 +6,6 @@
 #include "RootAccessibleWrap.h"
 
 #include "Compatibility.h"
-#include "nsCoreUtils.h"
 #include "nsWinUtils.h"
 
 #include "nsIDOMEventTarget.h"

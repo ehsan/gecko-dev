@@ -4929,10 +4929,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                      args=md.makeCxxArgs(params=1,
                                          retsems='in', retcallsems='out',
                                          implicit=implicit))))
-        failif.addifstmts([
-            _protocolErrorBreakpoint('Handler for '+ md.name +' returned error code'),
-            StmtReturn(_Result.ProcessingError) 
-        ])
+        failif.addifstmt(StmtReturn(_Result.ProcessingError))
         return [ failif ]
 
     def makeDtorMethodDecl(self, md):

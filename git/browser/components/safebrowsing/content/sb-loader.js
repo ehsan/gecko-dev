@@ -2,14 +2,23 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#ifdef MOZ_SAFE_BROWSING
-var gSafeBrowsing = {
+var safebrowsing = {
+  startup: function() {
+    setTimeout(function() {
+      safebrowsing.deferredStartup();
+    }, 2000);
+    window.removeEventListener("load", safebrowsing.startup, false);
+  },
+
+  deferredStartup: function() {
+    this.appContext.initialize();
+  },
 
   setReportPhishingMenu: function() {
-
+      
     // A phishing page will have a specific about:blocked content documentURI
     var isPhishingPage = /^about:blocked\?e=phishingBlocked/.test(content.document.documentURI);
-
+    
     // Show/hide the appropriate menu item.
     document.getElementById("menu_HelpPopup_reportPhishingtoolmenu")
             .hidden = isPhishingPage;
@@ -30,6 +39,15 @@ var gSafeBrowsing = {
     else
       broadcaster.setAttribute("disabled", true);
   },
+  
+  /**
+   * Lazy init getter for appContext
+   */
+  get appContext() {
+    delete this.appContext;
+    return this.appContext = Cc["@mozilla.org/safebrowsing/application;1"]
+                            .getService().wrappedJSObject;
+  },
 
   /**
    * Used to report a phishing page or a false positive
@@ -37,12 +55,13 @@ var gSafeBrowsing = {
    * @return String the report phishing URL.
    */
   getReportURL: function(name) {
-    var reportUrl = SafeBrowsing.getReportURL(name);
+    var reportUrl = this.appContext.getReportURL(name);
 
-    var pageUrl = gBrowser.currentURI.asciiSpec;
+    var pageUrl = getBrowser().currentURI.asciiSpec;
     reportUrl += "&url=" + encodeURIComponent(pageUrl);
 
     return reportUrl;
   }
 }
-#endif
+
+window.addEventListener("load", safebrowsing.startup, false);

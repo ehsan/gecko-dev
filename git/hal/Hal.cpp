@@ -238,7 +238,6 @@ public:
     }
 
     GetCurrentInformationInternal(&mInfo);
-    mHasValidCache = true;
     return mInfo;
   }
 

@@ -14,7 +14,7 @@ class StackFrame;
 
 namespace frontend {
 
-struct Parser;
+class Parser;
 
 /*
  * For each function in the compilation unit given by sc and functionList,

@@ -598,6 +598,12 @@ GLContextProviderCGL::CreateOffscreen(const gfxIntSize& aSize,
     return nsnull;
 }
 
+already_AddRefed<GLContext>
+GLContextProviderCGL::CreateForNativePixmapSurface(gfxASurface *aSurface)
+{
+    return nsnull;
+}
+
 static nsRefPtr<GLContext> gGlobalContext;
 
 GLContext *

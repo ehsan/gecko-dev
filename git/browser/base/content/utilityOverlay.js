@@ -524,9 +524,10 @@ function openFeedbackPage()
 
 function buildHelpMenu()
 {
-  // Enable/disable the "Report Web Forgery" menu item.
-  if (typeof gSafeBrowsing != "undefined")
-    gSafeBrowsing.setReportPhishingMenu();
+  // Enable/disable the "Report Web Forgery" menu item.  safebrowsing object
+  // may not exist in OSX
+  if (typeof safebrowsing != "undefined")
+    safebrowsing.setReportPhishingMenu();
 }
 
 function isElementVisible(aElement)

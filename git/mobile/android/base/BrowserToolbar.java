@@ -58,7 +58,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private MenuPopup mMenuPopup;
     private List<View> mFocusOrder;
 
-    final private BrowserApp mActivity;
+    final private Context mContext;
     private LayoutInflater mInflater;
     private Handler mHandler;
     private int[] mPadding;
@@ -80,10 +80,9 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private static final int TABS_CONTRACTED = 1;
     private static final int TABS_EXPANDED = 2;
 
-    public BrowserToolbar(BrowserApp activity) {
-        // BrowserToolbar is attached to BrowserApp only.
-        mActivity = activity;
-        mInflater = LayoutInflater.from(activity);
+    public BrowserToolbar(Context context) {
+        mContext = context;
+        mInflater = LayoutInflater.from(context);
 
         sActionItems = new ArrayList<View>();
         Tabs.registerOnTabsChangedListener(this);
@@ -98,13 +97,13 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mAwesomeBar = (Button) mLayout.findViewById(R.id.awesome_bar);
         mAwesomeBar.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
-                mActivity.autoHideTabs();
+                GeckoApp.mAppContext.autoHideTabs();
                 onAwesomeBarSearch();
             }
         });
         mAwesomeBar.setOnCreateContextMenuListener(new View.OnCreateContextMenuListener() {
             public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
-                MenuInflater inflater = mActivity.getMenuInflater();
+                MenuInflater inflater = GeckoApp.mAppContext.getMenuInflater();
                 inflater.inflate(R.menu.titlebar_contextmenu, menu);
 
                 String clipboard = GeckoAppShell.getClipboardText();
@@ -179,7 +178,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             }
         });
 
-        mProgressSpinner = (AnimationDrawable) mActivity.getResources().getDrawable(R.drawable.progress_spinner);
+        mProgressSpinner = (AnimationDrawable) mContext.getResources().getDrawable(R.drawable.progress_spinner);
         
         mStop = (ImageButton) mLayout.findViewById(R.id.stop);
         mStop.setOnClickListener(new Button.OnClickListener() {
@@ -215,19 +214,19 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mMenu = (ImageButton) mLayout.findViewById(R.id.menu);
         mActionItemBar = (LinearLayout) mLayout.findViewById(R.id.menu_items);
-        mHasSoftMenuButton = !mActivity.hasPermanentMenuKey();
+        mHasSoftMenuButton = !GeckoApp.mAppContext.hasPermanentMenuKey();
 
         if (mHasSoftMenuButton) {
             mMenu.setVisibility(View.VISIBLE);
             mMenu.setOnClickListener(new Button.OnClickListener() {
                 public void onClick(View view) {
-                    mActivity.openOptionsMenu();
+                    GeckoApp.mAppContext.openOptionsMenu();
                 }
             });
         }
 
         if (Build.VERSION.SDK_INT >= 11) {
-            View panel = mActivity.getMenuPanel();
+            View panel = GeckoApp.mAppContext.getMenuPanel();
 
             // If panel is null, the app is starting up for the first time;
             //    add this to the popup only if we have a soft menu button.
@@ -235,11 +234,11 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             //    and we need to re-attach action-bar items.
 
             if (panel == null) {
-                mActivity.onCreatePanelMenu(Window.FEATURE_OPTIONS_PANEL, null);
-                panel = mActivity.getMenuPanel();
+                GeckoApp.mAppContext.onCreatePanelMenu(Window.FEATURE_OPTIONS_PANEL, null);
+                panel = GeckoApp.mAppContext.getMenuPanel();
 
                 if (mHasSoftMenuButton) {
-                    mMenuPopup = new MenuPopup(mActivity);
+                    mMenuPopup = new MenuPopup(mContext);
                     mMenuPopup.setPanelView(panel);
                 }
             }
@@ -305,23 +304,23 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     }
 
     private void onAwesomeBarSearch() {
-        mActivity.onSearchRequested();
+        GeckoApp.mAppContext.onSearchRequested();
     }
 
     private void addTab() {
-        mActivity.addTab();
+        GeckoApp.mAppContext.addTab();
     }
 
     private void toggleTabs() {
-        if (mActivity.areTabsShown()) {
-            if (mActivity.hasTabsSideBar())
-                mActivity.hideTabs();
+        if (GeckoApp.mAppContext.areTabsShown()) {
+            if (GeckoApp.mAppContext.hasTabsSideBar())
+                GeckoApp.mAppContext.hideTabs();
         } else {
             // hide the virtual keyboard
             InputMethodManager imm =
-                    (InputMethodManager) mActivity.getSystemService(Context.INPUT_METHOD_SERVICE);
+                    (InputMethodManager) mContext.getSystemService(Context.INPUT_METHOD_SERVICE);
             imm.hideSoftInputFromWindow(mTabs.getWindowToken(), 0);
-            mActivity.showLocalTabs();
+            GeckoApp.mAppContext.showLocalTabs();
         }
     }
 
@@ -338,18 +337,18 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         mTabsCount.setText(String.valueOf(count));
         mTabs.setContentDescription((count > 1) ?
-                                    mActivity.getString(R.string.num_tabs, count) :
-                                    mActivity.getString(R.string.one_tab));
+                                    mContext.getString(R.string.num_tabs, count) :
+                                    mContext.getString(R.string.one_tab));
         mCount = count;
         mHandler.postDelayed(new Runnable() {
             public void run() {
-                ((TextView) mTabsCount.getCurrentView()).setTextColor(mActivity.getResources().getColor(R.color.url_bar_text_highlight));
+                ((TextView) mTabsCount.getCurrentView()).setTextColor(mContext.getResources().getColor(R.color.url_bar_text_highlight));
             }
         }, mDuration);
 
         mHandler.postDelayed(new Runnable() {
             public void run() {
-                ((TextView) mTabsCount.getCurrentView()).setTextColor(mActivity.getResources().getColor(R.color.tabs_counter_color));
+                ((TextView) mTabsCount.getCurrentView()).setTextColor(mContext.getResources().getColor(R.color.tabs_counter_color));
             }
         }, 2 * mDuration);
     }
@@ -357,17 +356,17 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     public void updateTabCount(int count) {
         mTabsCount.setCurrentText(String.valueOf(count));
         mTabs.setContentDescription((count > 1) ?
-                                    mActivity.getString(R.string.num_tabs, count) :
-                                    mActivity.getString(R.string.one_tab));
+                                    mContext.getString(R.string.num_tabs, count) :
+                                    mContext.getString(R.string.one_tab));
         mCount = count;
-        updateTabs(mActivity.areTabsShown());
+        updateTabs(GeckoApp.mAppContext.areTabsShown());
     }
 
     public void updateTabs(boolean areTabsShown) {
         if (areTabsShown) {
             mTabs.getBackground().setLevel(TABS_EXPANDED);
 
-            if (!mActivity.hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
                 mTabs.setImageLevel(0);
                 mTabsCount.setVisibility(View.GONE);
                 mMenu.setImageLevel(TABS_EXPANDED);
@@ -379,7 +378,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             mTabs.setImageLevel(TABS_CONTRACTED);
             mTabs.getBackground().setLevel(TABS_CONTRACTED);
 
-            if (!mActivity.hasTabsSideBar()) {
+            if (!GeckoApp.mAppContext.hasTabsSideBar()) {
                 mTabsCount.setVisibility(View.VISIBLE);
                 mMenu.setImageLevel(TABS_CONTRACTED);
                 mMenu.getBackground().setLevel(TABS_CONTRACTED);
