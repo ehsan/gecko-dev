@@ -69,15 +69,8 @@
   -moz-margin-end: 6px;
 }
 
-#alertNotification[clickable="true"] {
-  cursor: pointer;
-}
-
-label {
-  cursor: inherit;
-}
-
 .alertText[clickable="true"] {
+  cursor: pointer;
   color: -moz-nativehyperlinktext;
   text-decoration: underline;
 }

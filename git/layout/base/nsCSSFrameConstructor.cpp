@@ -9142,33 +9142,6 @@ nsCSSFrameConstructor::ReinsertContent(nsIContent* aContainer,
   return res;
 }
 
-static void
-DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
-                       nsVoidArray&    aDestroyQueue,
-                       nsIFrame*       aRemovedFrame,
-                       nsIFrame*       aFrame);
-
-static void
-DoDeletingOverflowContainers(nsFrameManager* aFrameManager,
-                             nsVoidArray&    aDestroyQueue,
-                             nsIFrame*       aRemovedFrame,
-                             nsIFrame*       aFrame)
-{
-  // The invariant that "continuing frames should be found as part of the
-  // walk over the top-most frame's continuing frames" does not hold for
-  // out-of-flow overflow containers, so we need to walk them too.
-  // Note that DoDeletingFrameSubtree() skips the child lists where
-  // overflow containers live so we won't process them twice.
-  const PRBool orphanSubtree = aRemovedFrame == aFrame;
-  for (nsIFrame* next = aFrame->GetNextContinuation();
-       next && (next->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER);
-       next = next->GetNextContinuation()) {
-    DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
-                           orphanSubtree ? next : aRemovedFrame,
-                           next);
-  }
-}
-
 /**
  * Called when a frame subtree is about to be deleted. Two important
  * things happen:
@@ -9192,17 +9165,12 @@ DoDeletingOverflowContainers(nsFrameManager* aFrameManager,
  *            the same as aRemovedFrame, but as we recurse down the tree
  *            this changes
  */
-static void
+static nsresult
 DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
                        nsVoidArray&    aDestroyQueue,
                        nsIFrame*       aRemovedFrame,
                        nsIFrame*       aFrame)
 {
-#undef RECURSE
-#define RECURSE(top, child)                                                  \
-  DoDeletingFrameSubtree(aFrameManager, aDestroyQueue, (top), (child));      \
-  DoDeletingOverflowContainers(aFrameManager, aDestroyQueue, (top), (child));
-
   // Remove the mapping from the content object to its frame.
   nsIContent* content = aFrame->GetContent();
   if (content) {
@@ -9217,10 +9185,10 @@ DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
     // Walk aFrame's normal flow child frames looking for placeholder frames.
     nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
     for (; childFrame; childFrame = childFrame->GetNextSibling()) {
-      NS_ASSERTION(!(childFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW),
-                   "out-of-flow on wrong child list");
       if (NS_LIKELY(nsGkAtoms::placeholderFrame != childFrame->GetType())) {
-        RECURSE(aRemovedFrame, childFrame);
+        DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
+                               aRemovedFrame, childFrame);
+
       } else {
         nsIFrame* outOfFlowFrame =
           nsPlaceholderFrame::GetRealFrameForPlaceholder(childFrame);
@@ -9240,25 +9208,26 @@ DoDeletingFrameSubtree(nsFrameManager* aFrameManager,
                        "out-of-flow is already in the destroy queue");
           aDestroyQueue.AppendElement(outOfFlowFrame);
           // Recurse into the out-of-flow, it is now the aRemovedFrame.
-          RECURSE(outOfFlowFrame, outOfFlowFrame);
+          DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
+                                 outOfFlowFrame, outOfFlowFrame);
         }
         else {
           // Also recurse into the out-of-flow when it's a descendant of aRemovedFrame
           // since we don't walk those lists, see |childListName| increment below.
-          RECURSE(aRemovedFrame, outOfFlowFrame);
+          DoDeletingFrameSubtree(aFrameManager, aDestroyQueue,
+                                 aRemovedFrame, outOfFlowFrame);
         }
       }
     }
 
     // Move to next child list but skip lists with frames we should have
-    // a placeholder for or that contains only next-in-flow overflow containers
-    // (which we walk explicitly above).
+    // a placeholder for.
     do {
       childListName = aFrame->GetAdditionalChildListName(childListIndex++);
-    } while (IsOutOfFlowList(childListName) ||
-             childListName == nsGkAtoms::overflowContainersList ||
-             childListName == nsGkAtoms::excessOverflowContainersList);
+    } while (IsOutOfFlowList(childListName));
   } while (childListName);
+
+  return NS_OK;
 }
 
 /**
@@ -9292,10 +9261,6 @@ DeletingFrameSubtree(nsFrameManager* aFrameManager,
     // recursing over a subtree, because those continuing frames should be
     // found as part of the walk over the top-most frame's continuing frames.
     // Walking them again will make this an N^2/2 algorithm.
-    // The above is true for normal child next-in-flows but not overflow
-    // containers which we do walk because they *can* escape the subtree
-    // we're deleting.  We skip [excess]overflowContainersList where
-    // they live to avoid processing them more than once.
     aFrame = aFrame->GetNextContinuation();
   } while (aFrame);
 
