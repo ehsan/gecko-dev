@@ -2005,7 +2005,7 @@ bool
 GCRuntime::shouldCompact()
 {
 #ifdef JSGC_COMPACTING
-    return invocationKind == GC_SHRINK && isCompactingGCEnabled();
+    return invocationKind == GC_SHRINK && !compactingDisabled;
 #else
     return false;
 #endif
@@ -2024,12 +2024,6 @@ GCRuntime::enableCompactingGC()
 {
     MOZ_ASSERT(compactingDisabled > 0);
     --compactingDisabled;
-}
-
-bool
-GCRuntime::isCompactingGCEnabled()
-{
-    return rt->gc.compactingDisabled == 0;
 }
 
 AutoDisableCompactingGC::AutoDisableCompactingGC(JSRuntime *rt)

@@ -444,7 +444,6 @@ class GCRuntime
 #ifdef JSGC_COMPACTING
     void disableCompactingGC();
     void enableCompactingGC();
-    bool isCompactingGCEnabled();
 #endif
 
     void setGrayRootsTracer(JSTraceDataOp traceOp, void *data);

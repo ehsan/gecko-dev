@@ -351,11 +351,6 @@ public:
   {
     mAncestorHasTouchEventHandler = aValue;
   }
-  bool GetAncestorHasScrollEventHandler() { return mAncestorHasScrollEventHandler; }
-  void SetAncestorHasScrollEventHandler(bool aValue)
-  {
-    mAncestorHasScrollEventHandler = aValue;
-  }
 
   bool HaveScrollableDisplayPort() const { return mHaveScrollableDisplayPort; }
   void SetHaveScrollableDisplayPort() { mHaveScrollableDisplayPort = true; }
@@ -566,8 +561,7 @@ public:
         mPrevOffset(aBuilder->mCurrentOffsetToReferenceFrame),
         mPrevDirtyRect(aBuilder->mDirtyRect),
         mPrevIsAtRootOfPseudoStackingContext(aBuilder->mIsAtRootOfPseudoStackingContext),
-        mPrevAncestorHasTouchEventHandler(aBuilder->mAncestorHasTouchEventHandler),
-        mPrevAncestorHasScrollEventHandler(aBuilder->mAncestorHasScrollEventHandler)
+        mPrevAncestorHasTouchEventHandler(aBuilder->mAncestorHasTouchEventHandler)
     {
       if (aForChild->IsTransformed()) {
         aBuilder->mCurrentOffsetToReferenceFrame = nsPoint();
@@ -613,7 +607,6 @@ public:
       mBuilder->mDirtyRect = mPrevDirtyRect;
       mBuilder->mIsAtRootOfPseudoStackingContext = mPrevIsAtRootOfPseudoStackingContext;
       mBuilder->mAncestorHasTouchEventHandler = mPrevAncestorHasTouchEventHandler;
-      mBuilder->mAncestorHasScrollEventHandler = mPrevAncestorHasScrollEventHandler;
       mBuilder->mCurrentAnimatedGeometryRoot = mPrevAnimatedGeometryRoot;
     }
   private:
@@ -626,7 +619,6 @@ public:
     nsRect                mPrevDirtyRect;
     bool                  mPrevIsAtRootOfPseudoStackingContext;
     bool                  mPrevAncestorHasTouchEventHandler;
-    bool                  mPrevAncestorHasScrollEventHandler;
   };
 
   /**
@@ -876,7 +868,6 @@ private:
   bool                           mIsCompositingCheap;
   bool                           mContainsPluginItem;
   bool                           mAncestorHasTouchEventHandler;
-  bool                           mAncestorHasScrollEventHandler;
   // True when the first async-scrollable scroll frame for which we build a
   // display list has a display port. An async-scrollable scroll frame is one
   // which WantsAsyncScroll().

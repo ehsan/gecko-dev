@@ -1931,8 +1931,7 @@ RadioInterface.prototype = {
         break;
       case "emergencyCbModeChange":
         gMobileConnectionService.notifyEmergencyCallbackModeChanged(this.clientId,
-                                                                    message.active,
-                                                                    message.timeoutMs);
+                                                                    message);
         break;
       case "networkinfochanged":
         gMobileConnectionService.notifyNetworkInfoChanged(this.clientId,

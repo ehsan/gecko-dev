@@ -44,7 +44,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsFrameSelection.h"
 #include "nsGkAtoms.h"
-#include "nsHtml5Atoms.h"
 #include "nsCSSAnonBoxes.h"
 
 #include "nsFrameTraversal.h"
@@ -1911,7 +1910,7 @@ public:
 };
 
 static void
-CheckForApzAwareEventHandlers(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
+CheckForTouchEventHandler(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
 {
   nsIContent* content = aFrame->GetContent();
   if (!content) {
@@ -1924,12 +1923,6 @@ CheckForApzAwareEventHandlers(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
   if (elm->HasListenersFor(nsGkAtoms::ontouchstart) ||
       elm->HasListenersFor(nsGkAtoms::ontouchmove)) {
     aBuilder->SetAncestorHasTouchEventHandler(true);
-  }
-  if (elm->HasListenersFor(nsGkAtoms::onwheel) ||
-      elm->HasListenersFor(nsGkAtoms::onDOMMouseScroll) ||
-      elm->HasListenersFor(nsHtml5Atoms::onmousewheel))
-  {
-    aBuilder->SetAncestorHasScrollEventHandler(true);
   }
 }
 
@@ -2034,7 +2027,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     DisplayListClipState::AutoSaveRestore nestedClipState(aBuilder);
     nsDisplayListBuilder::AutoInTransformSetter
       inTransformSetter(aBuilder, inTransform);
-    CheckForApzAwareEventHandlers(aBuilder, this);
+    CheckForTouchEventHandler(aBuilder, this);
 
     nsRect clipPropClip;
     if (ApplyClipPropClipping(aBuilder, this, disp, &clipPropClip,
@@ -2381,7 +2374,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   nsDisplayListBuilder::AutoBuildingDisplayList
     buildingForChild(aBuilder, child, dirty, pseudoStackingContext);
   DisplayListClipState::AutoClipMultiple clipState(aBuilder);
-  CheckForApzAwareEventHandlers(aBuilder, child);
+  CheckForTouchEventHandler(aBuilder, child);
 
   if (savedOutOfFlowData) {
     clipState.SetClipForContainingBlockDescendants(

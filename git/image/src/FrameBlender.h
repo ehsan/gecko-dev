@@ -55,10 +55,9 @@ public:
   uint32_t GetNumFrames() const;
 
   /*
-   * Returns the frame's adjusted timeout. If the animation loops and the
-   * timeout falls in between a certain range then the timeout is adjusted so
-   * that it's never 0. If the animation does not loop then no adjustments are
-   * made.
+   * Returns the frame's adjusted timeout. If the animation loops and the timeout
+   * falls in between a certain range then the timeout is adjusted so that
+   * it's never 0. If the animation does not loop then no adjustments are made.
    */
   int32_t GetTimeoutForFrame(uint32_t aFrameNum);
 
@@ -131,7 +130,9 @@ private:
      */
     RawAccessFrameRef compositingPrevFrame;
 
-    Anim() : lastCompositedFrameIndex(-1) { }
+    Anim() :
+      lastCompositedFrameIndex(-1)
+    {}
   };
 
   /** Clears an area of <aFrame> with transparent black.
@@ -139,20 +140,19 @@ private:
    * @param aFrameData Target Frame data
    * @param aFrameRect The rectangle of the data pointed ot by aFrameData
    *
-   * @note Does also clears the transparency mask
+   * @note Does also clears the transparancy mask
    */
   static void ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect);
 
   //! @overload
-  static void ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect,
-                         const nsIntRect& aRectToClear);
+  static void ClearFrame(uint8_t* aFrameData, const nsIntRect& aFrameRect, const nsIntRect &aRectToClear);
 
-  //! Copy one frame's image and mask into another
-  static bool CopyFrameImage(const uint8_t* aDataSrc, const nsIntRect& aRectSrc,
-                             uint8_t* aDataDest, const nsIntRect& aRectDest);
+  //! Copy one frames's image and mask into another
+  static bool CopyFrameImage(const uint8_t *aDataSrc, const nsIntRect& aRectSrc,
+                             uint8_t *aDataDest, const nsIntRect& aRectDest);
 
   /**
-   * Draws one frame's image to into another, at the position specified by
+   * Draws one frames's image to into another, at the position specified by
    * aSrcRect.
    *
    * @aSrcData the raw data of the current frame being drawn
@@ -164,13 +164,11 @@ private:
    * @aDstPixels the raw data of the composition frame where the current frame
    *             is drawn into (32-bit ARGB)
    * @aDstRect the size of the composition frame
-   * @aBlendMethod the blend method for how to blend src on the composition
-   * frame.
+   * @aBlendMethod the blend method for how to blend src on the composition frame.
    */
-  static nsresult DrawFrameTo(const uint8_t* aSrcData,
-                              const nsIntRect& aSrcRect,
+  static nsresult DrawFrameTo(const uint8_t *aSrcData, const nsIntRect& aSrcRect,
                               uint32_t aSrcPaletteLength, bool aSrcHasAlpha,
-                              uint8_t* aDstPixels, const nsIntRect& aDstRect,
+                              uint8_t *aDstPixels, const nsIntRect& aDstRect,
                               FrameBlendMethod aBlendMethod);
 
 private: // data

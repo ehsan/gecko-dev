@@ -8,7 +8,7 @@
  * Copyright © 2013 Deutsche Telekom, Inc.
  */
 
-[JSImplementation="@mozilla.org/nfc/NFCPeer;1", AvailableIn="PrivilegedApps"]
+[JSImplementation="@mozilla.org/nfc/NFCPeer;1", AvailableIn="CertifiedApps"]
 interface MozNFCPeer {
   /**
    * Send NDEF data to peer device.
@@ -19,7 +19,7 @@ interface MozNFCPeer {
   /**
    * Send file to peer device.
    */
-  [Throws, CheckPermissions="nfc-share", AvailableIn="CertifiedApps"]
+  [Throws, CheckPermissions="nfc-share"]
   Promise<void> sendFile(Blob blob);
 };
 

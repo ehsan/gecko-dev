@@ -82,7 +82,7 @@ JitOptions::JitOptions()
     SET_DEFAULT(disableRangeAnalysis, false);
 
     // Toggles whether sink code motion is globally disabled.
-    SET_DEFAULT(disableSink, true);
+    SET_DEFAULT(disableSink, false);
 
     // Toggles whether Loop Unrolling is globally disabled.
     SET_DEFAULT(disableLoopUnrolling, true);

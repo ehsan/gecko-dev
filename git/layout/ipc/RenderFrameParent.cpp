@@ -530,17 +530,17 @@ RenderFrameParent::ZoomToRect(uint32_t aPresShellId, ViewID aViewId,
 }
 
 void
-RenderFrameParent::ContentReceivedInputBlock(const ScrollableLayerGuid& aGuid,
-                                             uint64_t aInputBlockId,
-                                             bool aPreventDefault)
+RenderFrameParent::ContentReceivedTouch(const ScrollableLayerGuid& aGuid,
+                                        uint64_t aInputBlockId,
+                                        bool aPreventDefault)
 {
   if (aGuid.mLayersId != mLayersId) {
     // Guard against bad data from hijacked child processes
-    NS_ERROR("Unexpected layers id in ContentReceivedInputBlock; dropping message...");
+    NS_ERROR("Unexpected layers id in ContentReceivedTouch; dropping message...");
     return;
   }
   if (GetApzcTreeManager()) {
-    GetApzcTreeManager()->ContentReceivedInputBlock(aInputBlockId, aPreventDefault);
+    GetApzcTreeManager()->ContentReceivedTouch(aInputBlockId, aPreventDefault);
   }
 }
 
