@@ -64,12 +64,11 @@
 #else
 #include "gfxWindowsFonts.h"
 #include "gfxGDIFontList.h"
-#ifdef CAIRO_HAS_DWRITE_FONT
+#include "gfxDWriteFontList.h"
 #include "gfxDWriteFontList.h"
 #include "gfxDWriteFonts.h"
 #include "gfxDWriteCommon.h"
 #include <dwrite.h>
-#endif
 #endif
 
 #ifdef CAIRO_HAS_D2D_SURFACE

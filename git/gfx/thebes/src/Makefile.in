@@ -64,16 +64,13 @@ CPPSRCS	+= gfxFT2Fonts.cpp \
 	   $(NULL)
 EXTRA_DSO_LDOPTS += ddraw.lib
 else
-ifdef MOZ_ENABLE_DWRITE_FONT
-CPPSRCS	+= gfxDWriteFonts.cpp \
+CPPSRCS	+= gfxWindowsFonts.cpp \
+	   gfxDWriteFonts.cpp \
 	   gfxDWriteTextAnalysis.cpp \
 	   gfxDWriteCommon.cpp \
 	   gfxD2DSurface.cpp \
-	   gfxDWriteFontList.cpp \
-	   $(NULL)
-endif
-CPPSRCS	+= gfxWindowsFonts.cpp \
 	   gfxGDIFontList.cpp \
+	   gfxDWriteFontList.cpp \
 	   $(NULL)
 endif
 
