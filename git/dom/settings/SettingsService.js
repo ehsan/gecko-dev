@@ -38,30 +38,6 @@ function SettingsServiceLock(aSettingsService)
 
 SettingsServiceLock.prototype = {
 
-  callHandle: function callHandle(aCallback, aName, aValue) {
-    try {
-      aCallback ? aCallback.handle(aName, aValue) : null;
-    } catch (e) {
-      dump("settings 'handle' callback threw an exception, dropping: " + e + "\n");
-    }
-  },
-
-  callAbort: function callAbort(aCallback, aMessage) {
-    try {
-      aCallback ? aCallback.handleAbort(aMessage) : null;
-    } catch (e) {
-      dump("settings 'abort' callback threw an exception, dropping: " + e + "\n");
-    }
-  },
-
-  callError: function callError(aCallback, aMessage) {
-    try {
-      aCallback ? aCallback.handleError(aMessage) : null;
-    } catch (e) {
-      dump("settings 'error' callback threw an exception, dropping: " + e + "\n");
-    }
-  },
-
   process: function process() {
     debug("process!");
     let lock = this;
@@ -99,7 +75,8 @@ SettingsServiceLock.prototype = {
             setReq.onsuccess = function() {
               lock._isBusy = false;
               lock._open = true;
-              lock.callHandle(callback, name, value);
+              if (callback)
+                callback.handle(name, value);
               Services.obs.notifyObservers(lock, "mozsettings-changed", JSON.stringify({
                 key: name,
                 value: value,
@@ -111,14 +88,14 @@ SettingsServiceLock.prototype = {
 
             setReq.onerror = function(event) {
               lock._isBusy = false;
-              lock.callError(callback, event.target.errorMessage);
+              callback ? callback.handleError(event.target.errorMessage) : null;
               lock.process();
             };
           }
 
           checkKeyRequest.onerror = function(event) {
             lock._isBusy = false;
-            lock.callError(callback, event.target.errorMessage);
+            callback ? callback.handleError(event.target.errorMessage) : null;
             lock.process();
           };
           break;
@@ -139,18 +116,16 @@ SettingsServiceLock.prototype = {
                 let value = result.userValue !== undefined
                             ? result.userValue
                             : result.defaultValue;
-                lock.callHandle(callback, name, value);
+                callback.handle(name, value);
               } else {
-                lock.callHandle(callback, name, null);
+                callback.handle(name, null);
               }
             } else {
               if (DEBUG) debug("no callback defined!");
             }
             this._open = false;
           }.bind(lock);
-          getReq.onerror = function error(event) {
-            lock.callError(callback, event.target.errorMessage);
-          };
+          getReq.onerror = function error(event) { callback ? callback.handleError(event.target.errorMessage) : null; };
           break;
       }
     }
@@ -170,7 +145,7 @@ SettingsServiceLock.prototype = {
               if (event.target.error) {
                 message = event.target.error.name + ': ' + event.target.error.message;
               }
-              this.callAbort(aCallback, message);
+              aCallback.handleAbort(message);
             };
           }
         }
