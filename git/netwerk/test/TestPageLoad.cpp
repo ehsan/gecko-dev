@@ -216,7 +216,7 @@ MyNotifications::GetInterface(const nsIID &iid, void **result)
 
 NS_IMETHODIMP
 MyNotifications::OnStatus(nsIRequest *req, nsISupports *ctx,
-                          nsresult status, const char16_t *statusText)
+                          nsresult status, const PRUnichar *statusText)
 {
     //printf("status: %x\n", status);
     return NS_OK;

@@ -244,7 +244,7 @@ PathExpr::toString(nsAString& dest)
                 dest.AppendLiteral("//");
                 break;
             case RELATIVE_OP:
-                dest.Append(char16_t('/'));
+                dest.Append(PRUnichar('/'));
                 break;
         }
         mItems[i].expr->toString(dest);

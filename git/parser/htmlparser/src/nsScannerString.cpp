@@ -12,8 +12,8 @@
    * nsScannerBufferList
    */
 
-#define MAX_CAPACITY ((UINT32_MAX / sizeof(char16_t)) - \
-                      (sizeof(Buffer) + sizeof(char16_t)))
+#define MAX_CAPACITY ((UINT32_MAX / sizeof(PRUnichar)) - \
+                      (sizeof(Buffer) + sizeof(PRUnichar)))
 
 nsScannerBufferList::Buffer*
 nsScannerBufferList::AllocBufferFromString( const nsAString& aString )
@@ -25,7 +25,7 @@ nsScannerBufferList::AllocBufferFromString( const nsAString& aString )
       {
         nsAString::const_iterator source;
         aString.BeginReading(source);
-        nsCharTraits<char16_t>::copy(buf->DataStart(), source.get(), len);
+        nsCharTraits<PRUnichar>::copy(buf->DataStart(), source.get(), len);
       }
     return buf;
   }
@@ -36,7 +36,7 @@ nsScannerBufferList::AllocBuffer( uint32_t capacity )
     if (capacity > MAX_CAPACITY)
       return nullptr;
 
-    void* ptr = malloc(sizeof(Buffer) + (capacity + 1) * sizeof(char16_t));
+    void* ptr = malloc(sizeof(Buffer) + (capacity + 1) * sizeof(PRUnichar));
     if (!ptr)
       return nullptr;
 
@@ -47,7 +47,7 @@ nsScannerBufferList::AllocBuffer( uint32_t capacity )
 
     // XXX null terminate.  this shouldn't be required, but we do it because
     // nsScanner erroneously thinks it can dereference DataEnd :-(
-    *buf->mDataEnd = char16_t(0);
+    *buf->mDataEnd = PRUnichar(0);
     return buf;
   }
 
@@ -80,7 +80,7 @@ nsScannerBufferList::SplitBuffer( const Position& pos )
     Buffer* new_buffer = AllocBuffer(len);
     if (new_buffer)
       {
-        nsCharTraits<char16_t>::copy(new_buffer->DataStart(),
+        nsCharTraits<PRUnichar>::copy(new_buffer->DataStart(),
                                       bufferToSplit->DataStart() + splitOffset,
                                       len);
         InsertAfter(new_buffer, bufferToSplit);
@@ -147,7 +147,7 @@ nsScannerSubstring::~nsScannerSubstring()
   }
 
 int32_t
-nsScannerSubstring::CountChar( char16_t c ) const
+nsScannerSubstring::CountChar( PRUnichar c ) const
   {
       /*
         re-write this to use a counting sink
@@ -160,7 +160,7 @@ nsScannerSubstring::CountChar( char16_t c ) const
     for ( BeginReading(iter); ; )
       {
         int32_t lengthToExamineInThisFragment = iter.size_forward();
-        const char16_t* fromBegin = iter.get();
+        const PRUnichar* fromBegin = iter.get();
         result += size_type(NS_COUNT(fromBegin, fromBegin+lengthToExamineInThisFragment, c));
         if ( !(lengthToExamine -= lengthToExamineInThisFragment) )
           return result;
@@ -373,12 +373,12 @@ nsScannerString::UngetReadable( const nsAString& aReadable, const nsScannerItera
   }
 
 void
-nsScannerString::ReplaceCharacter(nsScannerIterator& aPosition, char16_t aChar)
+nsScannerString::ReplaceCharacter(nsScannerIterator& aPosition, PRUnichar aChar)
   {
     // XXX Casting a const to non-const. Unless the base class
     // provides support for writing iterators, this is the best
     // that can be done.
-    char16_t* pos = const_cast<char16_t*>(aPosition.get());
+    PRUnichar* pos = const_cast<PRUnichar*>(aPosition.get());
     *pos = aChar;
 
     mIsDirty = true;
@@ -514,7 +514,7 @@ AppendUnicodeTo( const nsScannerIterator& aSrcStart,
   }
 
 bool
-FindCharInReadable( char16_t aChar,
+FindCharInReadable( PRUnichar aChar,
                     nsScannerIterator& aSearchStart,
                     const nsScannerIterator& aSearchEnd )
   {
@@ -526,7 +526,7 @@ FindCharInReadable( char16_t aChar,
         else
           fragmentLength = aSearchStart.size_forward();
 
-        const char16_t* charFoundAt = nsCharTraits<char16_t>::find(aSearchStart.get(), fragmentLength, aChar);
+        const PRUnichar* charFoundAt = nsCharTraits<PRUnichar>::find(aSearchStart.get(), fragmentLength, aChar);
         if ( charFoundAt ) {
           aSearchStart.advance( charFoundAt - aSearchStart.get() );
           return true;

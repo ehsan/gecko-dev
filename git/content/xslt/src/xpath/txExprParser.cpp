@@ -50,7 +50,7 @@ txExprParser::createAVT(const nsSubstring& aAttrValue,
             // Parse literal section
             literalString.Truncate();
             while (iter != end) {
-                char16_t q = *iter;
+                PRUnichar q = *iter;
                 if (q == '{' || q == '}') {
                     // Store what we've found so far and set a new |start| to
                     // skip the (first) brace
@@ -96,7 +96,7 @@ txExprParser::createAVT(const nsSubstring& aAttrValue,
                     break;
                 }
                 else if (*iter == '\'' || *iter == '"') {
-                    char16_t q = *iter;
+                    PRUnichar q = *iter;
                     while (++iter != end && *iter != q) {} /* do nothing */
                     if (iter == end) {
                         break;

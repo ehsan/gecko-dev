@@ -25,7 +25,7 @@ public:
     };
 
     virtual bool ShapeText(gfxContext      *aContext,
-                           const char16_t *aText,
+                           const PRUnichar *aText,
                            uint32_t         aOffset,
                            uint32_t         aLength,
                            int32_t          aScript,
@@ -50,7 +50,7 @@ protected:
                               gfxShapedText   *aShapedText,
                               uint32_t         aOffset,
                               uint32_t         aLength,
-                              const char16_t *aText,
+                              const PRUnichar *aText,
                               hb_buffer_t     *aBuffer);
 
     // retrieve glyph positions, applying advance adjustments and attachments

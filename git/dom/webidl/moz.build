@@ -515,13 +515,18 @@ if CONFIG['MOZ_B2G_BT']:
 
 if CONFIG['MOZ_B2G_RIL']:
     WEBIDL_FILES += [
+        'CFStateChangeEvent.webidl',
+        'DataErrorEvent.webidl',
         'IccCardLockError.webidl',
         'MozCellBroadcast.webidl',
         'MozCellBroadcastEvent.webidl',
+        'MozEmergencyCbModeEvent.webidl',
         'MozIcc.webidl',
         'MozMobileConnectionArray.webidl',
+        'MozOtaStatusEvent.webidl',
         'MozVoicemail.webidl',
         'MozVoicemailEvent.webidl',
+        'USSDReceivedEvent.webidl',
     ]
 
 if CONFIG['MOZ_NFC']:
@@ -553,8 +558,6 @@ if CONFIG['MOZ_B2G_FM']:
 GENERATED_EVENTS_WEBIDL_FILES = [
     'BlobEvent.webidl',
     'CallGroupErrorEvent.webidl',
-    'CFStateChangeEvent.webidl',
-    'DataErrorEvent.webidl',
     'DataStoreChangeEvent.webidl',
     'DeviceLightEvent.webidl',
     'DeviceProximityEvent.webidl',
@@ -563,15 +566,12 @@ GENERATED_EVENTS_WEBIDL_FILES = [
     'IccChangeEvent.webidl',
     'MediaStreamEvent.webidl',
     'MozContactChangeEvent.webidl',
-    'MozEmergencyCbModeEvent.webidl',
     'MozInterAppMessageEvent.webidl',
-    'MozOtaStatusEvent.webidl',
     'MozStkCommandEvent.webidl',
     'RTCDataChannelEvent.webidl',
     'RTCPeerConnectionIceEvent.webidl',
     'TrackEvent.webidl',
     'UserProximityEvent.webidl',
-    'USSDReceivedEvent.webidl',
 ]
 
 if CONFIG['MOZ_GAMEPAD']:

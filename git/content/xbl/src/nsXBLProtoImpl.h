@@ -115,7 +115,7 @@ public:
 
 nsresult
 NS_NewXBLProtoImpl(nsXBLPrototypeBinding* aBinding,
-                   const char16_t* aClassName,
+                   const PRUnichar* aClassName,
                    nsXBLProtoImpl** aResult);
 
 #endif // nsXBLProtoImpl_h__

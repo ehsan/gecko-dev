@@ -73,7 +73,7 @@ public: // new functions
 
 protected:
     virtual bool ShapeText(gfxContext      *aContext,
-                           const char16_t *aText,
+                           const PRUnichar *aText,
                            uint32_t         aOffset,
                            uint32_t         aLength,
                            int32_t          aScript,
@@ -82,7 +82,7 @@ protected:
 
     void FillGlyphDataForChar(uint32_t ch, CachedGlyphData *gd);
 
-    void AddRange(const char16_t *aText,
+    void AddRange(const PRUnichar *aText,
                   uint32_t         aOffset,
                   uint32_t         aLength,
                   gfxShapedText   *aShapedText);

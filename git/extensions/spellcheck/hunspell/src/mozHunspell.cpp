@@ -143,7 +143,7 @@ mozHunspell::~mozHunspell()
 }
 
 /* attribute wstring dictionary; */
-NS_IMETHODIMP mozHunspell::GetDictionary(char16_t **aDictionary)
+NS_IMETHODIMP mozHunspell::GetDictionary(PRUnichar **aDictionary)
 {
   NS_ENSURE_ARG_POINTER(aDictionary);
 
@@ -154,7 +154,7 @@ NS_IMETHODIMP mozHunspell::GetDictionary(char16_t **aDictionary)
 /* set the Dictionary.
  * This also Loads the dictionary and initializes the converter using the dictionaries converter
  */
-NS_IMETHODIMP mozHunspell::SetDictionary(const char16_t *aDictionary)
+NS_IMETHODIMP mozHunspell::SetDictionary(const PRUnichar *aDictionary)
 {
   NS_ENSURE_ARG_POINTER(aDictionary);
 
@@ -249,7 +249,7 @@ NS_IMETHODIMP mozHunspell::SetDictionary(const char16_t *aDictionary)
 }
 
 /* readonly attribute wstring language; */
-NS_IMETHODIMP mozHunspell::GetLanguage(char16_t **aLanguage)
+NS_IMETHODIMP mozHunspell::GetLanguage(PRUnichar **aLanguage)
 {
   NS_ENSURE_ARG_POINTER(aLanguage);
 
@@ -279,13 +279,13 @@ NS_IMETHODIMP mozHunspell::GetProvidesWordUtils(bool *aProvidesWordUtils)
 }
 
 /* readonly attribute wstring name; */
-NS_IMETHODIMP mozHunspell::GetName(char16_t * *aName)
+NS_IMETHODIMP mozHunspell::GetName(PRUnichar * *aName)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* readonly attribute wstring copyright; */
-NS_IMETHODIMP mozHunspell::GetCopyright(char16_t * *aCopyright)
+NS_IMETHODIMP mozHunspell::GetCopyright(PRUnichar * *aCopyright)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -306,7 +306,7 @@ NS_IMETHODIMP mozHunspell::SetPersonalDictionary(mozIPersonalDictionary * aPerso
 
 struct AppendNewStruct
 {
-  char16_t **dics;
+  PRUnichar **dics;
   uint32_t count;
   bool failed;
 };
@@ -326,14 +326,14 @@ AppendNewString(const nsAString& aString, nsIFile* aFile, void* aClosure)
 }
 
 /* void GetDictionaryList ([array, size_is (count)] out wstring dictionaries, out uint32_t count); */
-NS_IMETHODIMP mozHunspell::GetDictionaryList(char16_t ***aDictionaries,
+NS_IMETHODIMP mozHunspell::GetDictionaryList(PRUnichar ***aDictionaries,
                                             uint32_t *aCount)
 {
   if (!aDictionaries || !aCount)
     return NS_ERROR_NULL_POINTER;
 
   AppendNewStruct ans = {
-    (char16_t**) NS_Alloc(sizeof(char16_t*) * mDictionaries.Count()),
+    (PRUnichar**) NS_Alloc(sizeof(PRUnichar*) * mDictionaries.Count()),
     0,
     false
   };
@@ -503,7 +503,7 @@ mozHunspell::LoadDictionariesFromDir(nsIFile* aDir)
   return NS_OK;
 }
 
-nsresult mozHunspell::ConvertCharset(const char16_t* aStr, char ** aDst)
+nsresult mozHunspell::ConvertCharset(const PRUnichar* aStr, char ** aDst)
 {
   NS_ENSURE_ARG_POINTER(aDst);
   NS_ENSURE_TRUE(mEncoder, NS_ERROR_NULL_POINTER);
@@ -524,7 +524,7 @@ nsresult mozHunspell::ConvertCharset(const char16_t* aStr, char ** aDst)
 }
 
 /* boolean Check (in wstring word); */
-NS_IMETHODIMP mozHunspell::Check(const char16_t *aWord, bool *aResult)
+NS_IMETHODIMP mozHunspell::Check(const PRUnichar *aWord, bool *aResult)
 {
   NS_ENSURE_ARG_POINTER(aWord);
   NS_ENSURE_ARG_POINTER(aResult);
@@ -544,7 +544,7 @@ NS_IMETHODIMP mozHunspell::Check(const char16_t *aWord, bool *aResult)
 }
 
 /* void Suggest (in wstring word, [array, size_is (count)] out wstring suggestions, out uint32_t count); */
-NS_IMETHODIMP mozHunspell::Suggest(const char16_t *aWord, char16_t ***aSuggestions, uint32_t *aSuggestionCount)
+NS_IMETHODIMP mozHunspell::Suggest(const PRUnichar *aWord, PRUnichar ***aSuggestions, uint32_t *aSuggestionCount)
 {
   NS_ENSURE_ARG_POINTER(aSuggestions);
   NS_ENSURE_ARG_POINTER(aSuggestionCount);
@@ -561,7 +561,7 @@ NS_IMETHODIMP mozHunspell::Suggest(const char16_t *aWord, char16_t ***aSuggestio
   *aSuggestionCount = mHunspell->suggest(&wlst, charsetWord);
 
   if (*aSuggestionCount) {
-    *aSuggestions  = (char16_t **)nsMemory::Alloc(*aSuggestionCount * sizeof(char16_t *));
+    *aSuggestions  = (PRUnichar **)nsMemory::Alloc(*aSuggestionCount * sizeof(PRUnichar *));
     if (*aSuggestions) {
       uint32_t index = 0;
       for (index = 0; index < *aSuggestionCount && NS_SUCCEEDED(rv); ++index) {
@@ -571,7 +571,7 @@ NS_IMETHODIMP mozHunspell::Suggest(const char16_t *aWord, char16_t ***aSuggestio
         rv = mDecoder->GetMaxLength(wlst[index], inLength, &outLength);
         if (NS_SUCCEEDED(rv))
         {
-          (*aSuggestions)[index] = (char16_t *) nsMemory::Alloc(sizeof(char16_t) * (outLength+1));
+          (*aSuggestions)[index] = (PRUnichar *) nsMemory::Alloc(sizeof(PRUnichar) * (outLength+1));
           if ((*aSuggestions)[index])
           {
             rv = mDecoder->Convert(wlst[index], &inLength, (*aSuggestions)[index], &outLength);
@@ -584,7 +584,7 @@ NS_IMETHODIMP mozHunspell::Suggest(const char16_t *aWord, char16_t ***aSuggestio
       }
 
       if (NS_FAILED(rv))
-        NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(index, *aSuggestions); // free the char16_t strings up to the point at which the error occurred
+        NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(index, *aSuggestions); // free the PRUnichar strings up to the point at which the error occurred
     }
     else // if (*aSuggestions)
       rv = NS_ERROR_OUT_OF_MEMORY;
@@ -596,7 +596,7 @@ NS_IMETHODIMP mozHunspell::Suggest(const char16_t *aWord, char16_t ***aSuggestio
 
 NS_IMETHODIMP
 mozHunspell::Observe(nsISupports* aSubj, const char *aTopic,
-                    const char16_t *aData)
+                    const PRUnichar *aData)
 {
   NS_ASSERTION(!strcmp(aTopic, "profile-do-change")
                || !strcmp(aTopic, "profile-after-change"),

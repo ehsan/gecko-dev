@@ -110,8 +110,8 @@ GetUnitTypeForString(const nsAString& unitStr)
 static void
 GetValueString(nsAString &aValueAsString, float aValue, uint16_t aUnitType)
 {
-  char16_t buf[24];
-  nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(char16_t),
+  PRUnichar buf[24];
+  nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
                             MOZ_UTF16("%g"),
                             (double)aValue);
   aValueAsString.Assign(buf);
@@ -126,9 +126,9 @@ GetValueFromString(const nsAString& aString,
                    float& aValue,
                    uint16_t* aUnitType)
 {
-  RangedPtr<const char16_t> iter =
+  RangedPtr<const PRUnichar> iter =
     SVGContentUtils::GetStartRangedPtr(aString);
-  const RangedPtr<const char16_t> end =
+  const RangedPtr<const PRUnichar> end =
     SVGContentUtils::GetEndRangedPtr(aString);
 
   if (!SVGContentUtils::ParseNumber(iter, end, aValue)) {

@@ -31,7 +31,7 @@ public:
 
 protected:
   mozEnglishWordUtils::myspCapitalization captype(const nsString &word);
-  bool ucIsAlpha(char16_t aChar);
+  bool ucIsAlpha(PRUnichar aChar);
 
   nsString mLanguage;
   nsString mCharset;

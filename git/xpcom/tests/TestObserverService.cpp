@@ -51,7 +51,7 @@ NS_IMPL_ISUPPORTS2( TestObserver, nsIObserver, nsISupportsWeakReference )
 NS_IMETHODIMP
 TestObserver::Observe( nsISupports     *aSubject,
                        const char *aTopic,
-                       const char16_t *someData ) {
+                       const PRUnichar *someData ) {
     nsCString topic( aTopic );
     nsString data( someData );
     	/*

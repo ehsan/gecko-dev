@@ -548,7 +548,7 @@ public:
    * GetPasswordCharacter() returns a unicode character which should be used
    * for a masked character in password editor.  E.g., '*'.
    */
-  static char16_t GetPasswordCharacter();
+  static PRUnichar GetPasswordCharacter();
 
   /**
    * If the latest character in password field shouldn't be hidden by the

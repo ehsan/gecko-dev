@@ -131,19 +131,19 @@ enum ShapingType {
 
 int32_t ScriptShapingType(int32_t aScriptCode);
 
-// A simple iterator for a string of char16_t codepoints that advances
+// A simple iterator for a string of PRUnichar codepoints that advances
 // by Unicode grapheme clusters
 class ClusterIterator
 {
 public:
-    ClusterIterator(const char16_t* aText, uint32_t aLength)
+    ClusterIterator(const PRUnichar* aText, uint32_t aLength)
         : mPos(aText), mLimit(aText + aLength)
 #ifdef DEBUG
         , mText(aText)
 #endif
     { }
 
-    operator const char16_t* () const {
+    operator const PRUnichar* () const {
         return mPos;
     }
 
@@ -154,10 +154,10 @@ public:
     void Next();
 
 private:
-    const char16_t* mPos;
-    const char16_t* mLimit;
+    const PRUnichar* mPos;
+    const PRUnichar* mLimit;
 #ifdef DEBUG
-    const char16_t* mText;
+    const PRUnichar* mText;
 #endif
 };
 

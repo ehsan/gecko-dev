@@ -10,16 +10,16 @@ nsHtml5Atom::nsHtml5Atom(const nsAString& aString)
   mLength = aString.Length();
   nsRefPtr<nsStringBuffer> buf = nsStringBuffer::FromString(aString);
   if (buf) {
-    mString = static_cast<char16_t*>(buf->Data());
+    mString = static_cast<PRUnichar*>(buf->Data());
   } else {
-    buf = nsStringBuffer::Alloc((mLength + 1) * sizeof(char16_t));
-    mString = static_cast<char16_t*>(buf->Data());
+    buf = nsStringBuffer::Alloc((mLength + 1) * sizeof(PRUnichar));
+    mString = static_cast<PRUnichar*>(buf->Data());
     CopyUnicodeTo(aString, 0, mString, mLength);
-    mString[mLength] = char16_t(0);
+    mString[mLength] = PRUnichar(0);
   }
 
-  NS_ASSERTION(mString[mLength] == char16_t(0), "null terminated");
-  NS_ASSERTION(buf && buf->StorageSize() >= (mLength+1) * sizeof(char16_t),
+  NS_ASSERTION(mString[mLength] == PRUnichar(0), "null terminated");
+  NS_ASSERTION(buf && buf->StorageSize() >= (mLength+1) * sizeof(PRUnichar),
                "enough storage");
   NS_ASSERTION(Equals(aString), "correct data");
 

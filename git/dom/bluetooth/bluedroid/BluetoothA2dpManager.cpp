@@ -177,7 +177,7 @@ private:
 NS_IMETHODIMP
 BluetoothA2dpManager::Observe(nsISupports* aSubject,
                               const char* aTopic,
-                              const char16_t* aData)
+                              const PRUnichar* aData)
 {
   MOZ_ASSERT(sBluetoothA2dpManager);
 

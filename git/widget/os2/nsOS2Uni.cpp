@@ -104,7 +104,7 @@ void OS2Uni::FreeUconvObjects()
     WideCharToMultiByte
  **********************************************************/
 nsresult
-WideCharToMultiByte(int aCodePage, const char16_t* aSrc,
+WideCharToMultiByte(int aCodePage, const PRUnichar* aSrc,
                     int32_t aSrcLength, nsAutoCharBuffer& aResult,
                     int32_t& aResultLength)
 {
@@ -141,7 +141,7 @@ MultiByteToWideChar(int aCodePage, const char* aSrc,
   }
   if (!aResult.SetLength(aResultLength + 1))
     return NS_ERROR_OUT_OF_MEMORY;
-  char16_t* str = aResult.Elements();
+  PRUnichar* str = aResult.Elements();
 
   rv = uco->Convert(aSrc, &aSrcLength, str, &aResultLength);
   aResult[aResultLength] = '\0';

@@ -246,7 +246,7 @@ nsresult txPatternParser::createKeyPattern(txExprLexer& aLexer,
     if (aLexer.nextToken()->mType != Token::R_PAREN)
         return NS_ERROR_XPATH_PARSE_FAILURE;
 
-    const char16_t* colon;
+    const PRUnichar* colon;
     if (!XMLUtils::isValidQName(PromiseFlatString(key), &colon))
         return NS_ERROR_XPATH_PARSE_FAILURE;
     nsCOMPtr<nsIAtom> prefix, localName;

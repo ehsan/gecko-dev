@@ -139,7 +139,7 @@ PreallocatedProcessManagerImpl::Init()
 NS_IMETHODIMP
 PreallocatedProcessManagerImpl::Observe(nsISupports* aSubject,
                                         const char* aTopic,
-                                        const char16_t* aData)
+                                        const PRUnichar* aData)
 {
   if (!strcmp("ipc:content-shutdown", aTopic)) {
     ObserveProcessShutdown(aSubject);

@@ -70,9 +70,9 @@ class nsXMLContentSerializer : public nsIContentSerializer {
  protected:
 
   /**
-   * Appends a char16_t character and increments the column position
+   * Appends a PRUnichar character and increments the column position
    */
-  void AppendToString(const char16_t aChar,
+  void AppendToString(const PRUnichar aChar,
                       nsAString& aOutputStr);
 
   /**

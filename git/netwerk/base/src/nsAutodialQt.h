@@ -17,7 +17,7 @@ public:
     nsresult Init();
 
     // Dial the default RAS dialup connection.
-    nsresult DialDefault(const char16_t* hostName);
+    nsresult DialDefault(const PRUnichar* hostName);
 
     // Should we try to dial on network error?
     bool ShouldDialOnNetworkError();

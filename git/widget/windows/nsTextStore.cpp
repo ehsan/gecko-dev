@@ -1794,7 +1794,7 @@ nsTextStore::GetText(LONG acpStart,
   }
   if (length) {
     if (pchPlain && cchPlainReq) {
-      const char16_t* startChar =
+      const PRUnichar* startChar =
         currentContent.Text().BeginReading() + acpStart;
       memcpy(pchPlain, startChar, length * sizeof(*pchPlain));
       pchPlain[length] = 0;

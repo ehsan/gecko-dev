@@ -912,7 +912,7 @@ nsSocketTransportService::UpdatePrefs()
 NS_IMETHODIMP
 nsSocketTransportService::Observe(nsISupports *subject,
                                   const char *topic,
-                                  const char16_t *data)
+                                  const PRUnichar *data)
 {
     if (!strcmp(topic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
         UpdatePrefs();

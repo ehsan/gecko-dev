@@ -147,7 +147,7 @@ Variant_base::GetAsChar(char *)
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsWChar(char16_t *)
+Variant_base::GetAsWChar(PRUnichar *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
@@ -175,7 +175,7 @@ Variant_base::GetAsString(char **)
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsWString(char16_t **)
+Variant_base::GetAsWString(PRUnichar **)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
@@ -213,7 +213,7 @@ Variant_base::GetAsStringWithSize(uint32_t *,
 inline
 NS_IMETHODIMP
 Variant_base::GetAsWStringWithSize(uint32_t *,
-                                   char16_t **)
+                                   PRUnichar **)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }

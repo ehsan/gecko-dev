@@ -1172,7 +1172,7 @@ gfxDWriteFontList::DelayedInitFontList()
 static void
 RemoveCharsetFromFontSubstitute(nsAString &aName)
 {
-    int32_t comma = aName.FindChar(char16_t(','));
+    int32_t comma = aName.FindChar(PRUnichar(','));
     if (comma >= 0)
         aName.Truncate(comma);
 }
@@ -1211,8 +1211,8 @@ gfxDWriteFontList::GetFontSubstitutes()
             continue;
         }
 
-        nsAutoString substituteName((char16_t*) aliasName);
-        nsAutoString actualFontName((char16_t*) actualName);
+        nsAutoString substituteName((PRUnichar*) aliasName);
+        nsAutoString actualFontName((PRUnichar*) actualName);
         RemoveCharsetFromFontSubstitute(substituteName);
         BuildKeyNameFromFontName(substituteName);
         RemoveCharsetFromFontSubstitute(actualFontName);
@@ -1247,14 +1247,14 @@ gfxDWriteFontList::GetDirectWriteSubstitutes()
 {
     for (uint32_t i = 0; i < ArrayLength(sDirectWriteSubs); ++i) {
         const FontSubstitution& sub(sDirectWriteSubs[i]);
-        nsAutoString substituteName((char16_t*)sub.aliasName);
+        nsAutoString substituteName((PRUnichar*)sub.aliasName);
         BuildKeyNameFromFontName(substituteName);
         if (nullptr != mFontFamilies.GetWeak(substituteName)) {
             // don't do the substitution if user actually has a usable font
             // with this name installed
             continue;
         }
-        nsAutoString actualFontName((char16_t*)sub.actualName);
+        nsAutoString actualFontName((PRUnichar*)sub.actualName);
         BuildKeyNameFromFontName(actualFontName);
         gfxFontFamily *ff;
         if (nullptr != (ff = mFontFamilies.GetWeak(actualFontName))) {

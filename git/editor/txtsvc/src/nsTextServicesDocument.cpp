@@ -3639,7 +3639,7 @@ nsTextServicesDocument::FindWordBounds(nsTArray<OffsetEntry*> *aOffsetTable,
   // Now we use the word breaker to find the beginning and end
   // of the word from our calculated string offset.
 
-  const char16_t *str = aBlockStr->get();
+  const PRUnichar *str = aBlockStr->get();
   uint32_t strLen = aBlockStr->Length();
 
   nsIWordBreaker* wordBreaker = nsContentUtils::WordBreaker();

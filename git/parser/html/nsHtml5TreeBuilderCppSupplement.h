@@ -266,14 +266,14 @@ nsHtml5TreeBuilder::appendChildrenToNewParent(nsIContent** aOldParent, nsIConten
 }
 
 void
-nsHtml5TreeBuilder::insertFosterParentedCharacters(char16_t* aBuffer, int32_t aStart, int32_t aLength, nsIContent** aTable, nsIContent** aStackParent)
+nsHtml5TreeBuilder::insertFosterParentedCharacters(PRUnichar* aBuffer, int32_t aStart, int32_t aLength, nsIContent** aTable, nsIContent** aStackParent)
 {
   NS_PRECONDITION(aBuffer, "Null buffer");
   NS_PRECONDITION(aTable, "Null table");
   NS_PRECONDITION(aStackParent, "Null stack parent");
 
-  char16_t* bufferCopy = new char16_t[aLength];
-  memcpy(bufferCopy, aBuffer, aLength * sizeof(char16_t));
+  PRUnichar* bufferCopy = new PRUnichar[aLength];
+  memcpy(bufferCopy, aBuffer, aLength * sizeof(PRUnichar));
   
   nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
   NS_ASSERTION(treeOp, "Tree op allocation failed.");
@@ -293,13 +293,13 @@ nsHtml5TreeBuilder::insertFosterParentedChild(nsIContent** aChild, nsIContent** 
 }
 
 void
-nsHtml5TreeBuilder::appendCharacters(nsIContent** aParent, char16_t* aBuffer, int32_t aStart, int32_t aLength)
+nsHtml5TreeBuilder::appendCharacters(nsIContent** aParent, PRUnichar* aBuffer, int32_t aStart, int32_t aLength)
 {
   NS_PRECONDITION(aBuffer, "Null buffer");
   NS_PRECONDITION(aParent, "Null parent");
 
-  char16_t* bufferCopy = new char16_t[aLength];
-  memcpy(bufferCopy, aBuffer, aLength * sizeof(char16_t));
+  PRUnichar* bufferCopy = new PRUnichar[aLength];
+  memcpy(bufferCopy, aBuffer, aLength * sizeof(PRUnichar));
   
   nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
   NS_ASSERTION(treeOp, "Tree op allocation failed.");
@@ -318,7 +318,7 @@ nsHtml5TreeBuilder::appendIsindexPrompt(nsIContent** aParent)
 }
 
 void
-nsHtml5TreeBuilder::appendComment(nsIContent** aParent, char16_t* aBuffer, int32_t aStart, int32_t aLength)
+nsHtml5TreeBuilder::appendComment(nsIContent** aParent, PRUnichar* aBuffer, int32_t aStart, int32_t aLength)
 {
   NS_PRECONDITION(aBuffer, "Null buffer");
   NS_PRECONDITION(aParent, "Null parent");
@@ -326,8 +326,8 @@ nsHtml5TreeBuilder::appendComment(nsIContent** aParent, char16_t* aBuffer, int32
     return;
   }
 
-  char16_t* bufferCopy = new char16_t[aLength];
-  memcpy(bufferCopy, aBuffer, aLength * sizeof(char16_t));
+  PRUnichar* bufferCopy = new PRUnichar[aLength];
+  memcpy(bufferCopy, aBuffer, aLength * sizeof(PRUnichar));
   
   nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
   NS_ASSERTION(treeOp, "Tree op allocation failed.");
@@ -335,12 +335,12 @@ nsHtml5TreeBuilder::appendComment(nsIContent** aParent, char16_t* aBuffer, int32
 }
 
 void
-nsHtml5TreeBuilder::appendCommentToDocument(char16_t* aBuffer, int32_t aStart, int32_t aLength)
+nsHtml5TreeBuilder::appendCommentToDocument(PRUnichar* aBuffer, int32_t aStart, int32_t aLength)
 {
   NS_PRECONDITION(aBuffer, "Null buffer");
 
-  char16_t* bufferCopy = new char16_t[aLength];
-  memcpy(bufferCopy, aBuffer, aLength * sizeof(char16_t));
+  PRUnichar* bufferCopy = new PRUnichar[aLength];
+  memcpy(bufferCopy, aBuffer, aLength * sizeof(PRUnichar));
   
   nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
   NS_ASSERTION(treeOp, "Tree op allocation failed.");
@@ -555,16 +555,16 @@ nsHtml5TreeBuilder::elementPopped(int32_t aNamespace, nsIAtom* aName, nsIContent
 }
 
 void
-nsHtml5TreeBuilder::accumulateCharacters(const char16_t* aBuf, int32_t aStart, int32_t aLength)
+nsHtml5TreeBuilder::accumulateCharacters(const PRUnichar* aBuf, int32_t aStart, int32_t aLength)
 {
   int32_t newFillLen = charBufferLen + aLength;
   if (newFillLen > charBuffer.length) {
     int32_t newAllocLength = newFillLen + (newFillLen >> 1);
-    jArray<char16_t,int32_t> newBuf = jArray<char16_t,int32_t>::newJArray(newAllocLength);
-    memcpy(newBuf, charBuffer, sizeof(char16_t) * charBufferLen);
+    jArray<PRUnichar,int32_t> newBuf = jArray<PRUnichar,int32_t>::newJArray(newAllocLength);
+    memcpy(newBuf, charBuffer, sizeof(PRUnichar) * charBufferLen);
     charBuffer = newBuf;
   }
-  memcpy(charBuffer + charBufferLen, aBuf + aStart, sizeof(char16_t) * aLength);
+  memcpy(charBuffer + charBufferLen, aBuf + aStart, sizeof(PRUnichar) * aLength);
   charBufferLen = newFillLen;
 }
 

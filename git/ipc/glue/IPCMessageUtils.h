@@ -265,7 +265,7 @@ struct ParamTraits<nsAString>
 
     uint32_t length = aParam.Length();
     WriteParam(aMsg, length);
-    aMsg->WriteBytes(aParam.BeginReading(), length * sizeof(char16_t));
+    aMsg->WriteBytes(aParam.BeginReading(), length * sizeof(PRUnichar));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
@@ -281,9 +281,9 @@ struct ParamTraits<nsAString>
 
     uint32_t length;
     if (ReadParam(aMsg, aIter, &length)) {
-      const char16_t* buf;
+      const PRUnichar* buf;
       if (aMsg->ReadBytes(aIter, reinterpret_cast<const char**>(&buf),
-                       length * sizeof(char16_t))) {
+                       length * sizeof(PRUnichar))) {
         aResult->Assign(buf, length);
         return true;
       }

@@ -142,7 +142,7 @@ NS_IMPL_ISUPPORTS1(WidgetShutdownObserver, nsIObserver)
 NS_IMETHODIMP
 WidgetShutdownObserver::Observe(nsISupports *aSubject,
                                 const char *aTopic,
-                                const char16_t *aData)
+                                const PRUnichar *aData)
 {
   if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0 &&
       mWidget) {
@@ -1766,7 +1766,7 @@ NS_IMPL_ISUPPORTS1(Debug_PrefObserver, nsIObserver)
 
 NS_IMETHODIMP
 Debug_PrefObserver::Observe(nsISupports* subject, const char* topic,
-                            const char16_t* data)
+                            const PRUnichar* data)
 {
   NS_ConvertUTF16toUTF8 prefName(data);
 

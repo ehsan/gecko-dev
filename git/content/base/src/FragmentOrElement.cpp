@@ -1737,7 +1737,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
       classes.AppendLiteral(" class='");
       nsAutoString classString;
       classAttrValue->ToString(classString);
-      classString.ReplaceChar(char16_t('\n'), char16_t(' '));
+      classString.ReplaceChar(PRUnichar('\n'), PRUnichar(' '));
       classes.Append(classString);
       classes.AppendLiteral("'");
     }
@@ -1866,7 +1866,7 @@ FragmentOrElement::TextLength() const
 }
 
 nsresult
-FragmentOrElement::SetText(const char16_t* aBuffer, uint32_t aLength,
+FragmentOrElement::SetText(const PRUnichar* aBuffer, uint32_t aLength,
                           bool aNotify)
 {
   NS_ERROR("called FragmentOrElement::SetText");
@@ -1875,7 +1875,7 @@ FragmentOrElement::SetText(const char16_t* aBuffer, uint32_t aLength,
 }
 
 nsresult
-FragmentOrElement::AppendText(const char16_t* aBuffer, uint32_t aLength,
+FragmentOrElement::AppendText(const PRUnichar* aBuffer, uint32_t aLength,
                              bool aNotify)
 {
   NS_ERROR("called FragmentOrElement::AppendText");
@@ -2114,8 +2114,8 @@ private:
 
   void EncodeAttrString(const nsAutoString& aValue, nsAString& aOut)
   {
-    const char16_t* c = aValue.BeginReading();
-    const char16_t* end = aValue.EndReading();
+    const PRUnichar* c = aValue.BeginReading();
+    const PRUnichar* end = aValue.EndReading();
     while (c < end) {
       switch (*c) {
       case '"':
@@ -2139,9 +2139,9 @@ private:
   {
     uint32_t len = aValue->GetLength();
     if (aValue->Is2b()) {
-      const char16_t* data = aValue->Get2b();
+      const PRUnichar* data = aValue->Get2b();
       for (uint32_t i = 0; i < len; ++i) {
-        const char16_t c = data[i];
+        const PRUnichar c = data[i];
         switch (c) {
           case '<':
             aOut.AppendLiteral("&lt;");
@@ -2200,9 +2200,9 @@ AppendEncodedCharacters(const nsTextFragment* aText, StringBuilder& aBuilder)
   uint32_t extraSpaceNeeded = 0;
   uint32_t len = aText->GetLength();
   if (aText->Is2b()) {
-    const char16_t* data = aText->Get2b();
+    const PRUnichar* data = aText->Get2b();
     for (uint32_t i = 0; i < len; ++i) {
-      const char16_t c = data[i];
+      const PRUnichar c = data[i];
       switch (c) {
         case '<':
           extraSpaceNeeded += ArrayLength("&lt;") - 2;
@@ -2253,8 +2253,8 @@ AppendEncodedCharacters(const nsTextFragment* aText, StringBuilder& aBuilder)
 static void
 AppendEncodedAttributeValue(nsAutoString* aValue, StringBuilder& aBuilder)
 {
-  const char16_t* c = aValue->BeginReading();
-  const char16_t* end = aValue->EndReading();
+  const PRUnichar* c = aValue->BeginReading();
+  const PRUnichar* end = aValue->EndReading();
 
   uint32_t extraSpaceNeeded = 0;
   while (c < end) {
@@ -2360,7 +2360,7 @@ StartElement(Element* aContent, StringBuilder& aBuilder)
           (fc->NodeType() == nsIDOMNode::TEXT_NODE ||
            fc->NodeType() == nsIDOMNode::CDATA_SECTION_NODE)) {
         const nsTextFragment* text = fc->GetText();
-        if (text && text->GetLength() && text->CharAt(0) == char16_t('\n')) {
+        if (text && text->GetLength() && text->CharAt(0) == PRUnichar('\n')) {
           aBuilder.Append("\n");
         }
       }
@@ -2618,15 +2618,15 @@ ContainsMarkup(const nsAString& aStr)
 {
   // Note: we can't use FindCharInSet because null is one of the characters we
   // want to search for.
-  const char16_t* start = aStr.BeginReading();
-  const char16_t* end = aStr.EndReading();
+  const PRUnichar* start = aStr.BeginReading();
+  const PRUnichar* end = aStr.EndReading();
 
   while (start != end) {
-    char16_t c = *start;
-    if (c == char16_t('<') ||
-        c == char16_t('&') ||
-        c == char16_t('\r') ||
-        c == char16_t('\0')) {
+    PRUnichar c = *start;
+    if (c == PRUnichar('<') ||
+        c == PRUnichar('&') ||
+        c == PRUnichar('\r') ||
+        c == PRUnichar('\0')) {
       return true;
     }
     ++start;

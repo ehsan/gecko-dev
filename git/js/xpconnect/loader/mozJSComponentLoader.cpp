@@ -121,7 +121,7 @@ Dump(JSContext *cx, unsigned argc, Value *vp)
     if (!chars)
         return false;
 
-    NS_ConvertUTF16toUTF8 utf8str(reinterpret_cast<const char16_t*>(chars));
+    NS_ConvertUTF16toUTF8 utf8str(reinterpret_cast<const PRUnichar*>(chars));
 #ifdef ANDROID
     __android_log_print(ANDROID_LOG_INFO, "Gecko", "%s", utf8str.get());
 #endif
@@ -1385,7 +1385,7 @@ mozJSComponentLoader::Unload(const nsACString & aLocation)
 
 NS_IMETHODIMP
 mozJSComponentLoader::Observe(nsISupports *subject, const char *topic,
-                              const char16_t *data)
+                              const PRUnichar *data)
 {
     if (!strcmp(topic, "xpcom-shutdown-loaders")) {
         UnloadModules();

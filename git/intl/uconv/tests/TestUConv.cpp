@@ -100,7 +100,7 @@ private:
    */
   nsresult TestTempBug();
 
-  nsresult Encode(char16_t ** aSrc, char16_t * aSrcEnd, char ** aDest, 
+  nsresult Encode(PRUnichar ** aSrc, PRUnichar * aSrcEnd, char ** aDest, 
     char * aDestEnd, const nsAFlatCString& aCharset);
 
   /**
@@ -110,7 +110,7 @@ private:
    *
    * This wraps an encoder Convert() call.
    */
-  nsresult ConvertEncode(char16_t ** aSrc, char16_t * aSrcEnd, char ** aDest, 
+  nsresult ConvertEncode(PRUnichar ** aSrc, PRUnichar * aSrcEnd, char ** aDest, 
     char * aDestEnd, nsIUnicodeEncoder * aEncoder);
 
   /**
@@ -421,13 +421,13 @@ nsresult nsTestUConv::TestTempBug()
   nsresult res = NS_OK;
 
   NS_NAMED_LITERAL_CSTRING(charset, "ISO-2022-JP");
-  char16_t src[] = {0x0043, 0x004e, 0x0045, 0x0054, 0x0020, 0x004A, 0x0061, 
+  PRUnichar src[] = {0x0043, 0x004e, 0x0045, 0x0054, 0x0020, 0x004A, 0x0061, 
     0x0070, 0x0061, 0x006E, 0x0020, 0x7DE8, 0x96C6, 0x5C40};
-  char16_t * srcEnd = src + ARRAY_SIZE(src);
+  PRUnichar * srcEnd = src + ARRAY_SIZE(src);
   char dest[BIG_BUFFER_SIZE];
   char * destEnd = dest + BIG_BUFFER_SIZE;
 
-  char16_t * p = src;
+  PRUnichar * p = src;
   char * q = dest;
   res = Encode(&p, srcEnd, &q, destEnd, charset);
 
@@ -435,7 +435,7 @@ nsresult nsTestUConv::TestTempBug()
   return res;
 }
 
-nsresult nsTestUConv::Encode(char16_t ** aSrc, char16_t * aSrcEnd, 
+nsresult nsTestUConv::Encode(PRUnichar ** aSrc, PRUnichar * aSrcEnd, 
                              char ** aDest, char * aDestEnd, 
                              const nsAFlatCString& aCharset)
 {
@@ -473,11 +473,11 @@ nsresult nsTestUConv::Encode(char16_t ** aSrc, char16_t * aSrcEnd,
   return res;
 }
 
-nsresult nsTestUConv::ConvertEncode(char16_t ** aSrc, char16_t * aSrcEnd, 
+nsresult nsTestUConv::ConvertEncode(PRUnichar ** aSrc, PRUnichar * aSrcEnd, 
                                     char ** aDest, char * aDestEnd, 
                                     nsIUnicodeEncoder * aEncoder)
 {
-  char16_t * src = (*aSrc);
+  PRUnichar * src = (*aSrc);
   char * dest = (*aDest);
   int32_t srcLen = aSrcEnd - src;
   int32_t destLen = aDestEnd - dest;

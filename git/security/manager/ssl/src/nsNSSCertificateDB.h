@@ -53,7 +53,7 @@ private:
   void getCertNames(CERTCertList *certList,
                     uint32_t      type, 
                     uint32_t     *_count,
-                    char16_t  ***_certNameList,
+                    PRUnichar  ***_certNameList,
                     const nsNSSShutDownPreventionLock &proofOfLock);
 
   CERTDERCerts *getCertsFromPackage(PLArenaPool *arena, uint8_t *data, 

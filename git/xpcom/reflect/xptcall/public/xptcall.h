@@ -32,7 +32,7 @@ struct nsXPTCMiniVariant
         double    d;
         bool      b;
         char      c;
-        char16_t wc;
+        PRUnichar wc;
         void*     p;
 
         // Types below here are unknown to the assembly implementations, and

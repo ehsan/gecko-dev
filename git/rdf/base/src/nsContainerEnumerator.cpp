@@ -154,7 +154,7 @@ ContainerEnumeratorImpl::HasMoreElements(bool* aResult)
         if (! nextValLiteral)
              continue;
 
-         const char16_t *nextValStr;
+         const PRUnichar *nextValStr;
          nextValLiteral->GetValueConst(&nextValStr);
 		 
          nsresult err;

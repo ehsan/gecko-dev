@@ -87,7 +87,7 @@ nsObserverList::FillObserverArray(nsCOMArray<nsIObserver> &aArray)
 void
 nsObserverList::NotifyObservers(nsISupports *aSubject,
                                 const char *aTopic,
-                                const char16_t *someData)
+                                const PRUnichar *someData)
 {
     nsCOMArray<nsIObserver> observers;
     FillObserverArray(observers);

@@ -309,7 +309,7 @@ MarkWindowList(nsISimpleEnumerator* aWindowList, bool aCleanupJS,
 
 nsresult
 nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
-                                 const char16_t* aData)
+                                 const PRUnichar* aData)
 {
   if (!strcmp(aTopic, "xpcom-shutdown")) {
     Element::ClearContentUnbinder();

@@ -51,7 +51,7 @@ nsDirIndex::SetLocation(const char* aLocation) {
 }
 
 NS_IMETHODIMP
-nsDirIndex::GetDescription(char16_t* *aDescription) {
+nsDirIndex::GetDescription(PRUnichar* *aDescription) {
   *aDescription = ToNewUnicode(mDescription);
   if (!*aDescription)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -60,7 +60,7 @@ nsDirIndex::GetDescription(char16_t* *aDescription) {
 }
 
 NS_IMETHODIMP
-nsDirIndex::SetDescription(const char16_t* aDescription) {
+nsDirIndex::SetDescription(const PRUnichar* aDescription) {
   mDescription.Assign(aDescription);
   return NS_OK;
 }

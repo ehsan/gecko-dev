@@ -247,8 +247,8 @@ public:
    * @param aValue The value for which the parse error occured.
    */
   nsresult
-  ReportParseError(const char16_t*           aAttribute,
-                   const char16_t*           aValue);
+  ReportParseError(const PRUnichar*           aAttribute,
+                   const PRUnichar*           aValue);
 
   /*
    * Helper to call ReportErrorToConsole when certain tags
@@ -271,7 +271,7 @@ public:
    */
   nsresult
   ReportErrorToConsole(const char*       aErrorMsgId,
-                       const char16_t** aParams = nullptr,
+                       const PRUnichar** aParams = nullptr,
                        uint32_t          aParamCount = 0);
 
   // helper method to reflow a child frame. We are inline frames, and we don't

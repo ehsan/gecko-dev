@@ -22,8 +22,8 @@ static uint16_t GetUnitTypeForString(const nsAString& unitStr);
 void
 SVGLength::GetValueAsString(nsAString &aValue) const
 {
-  char16_t buf[24];
-  nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(char16_t),
+  PRUnichar buf[24];
+  nsTextFormatter::snprintf(buf, sizeof(buf)/sizeof(PRUnichar),
                             MOZ_UTF16("%g"),
                             (double)mValue);
   aValue.Assign(buf);
@@ -36,9 +36,9 @@ SVGLength::GetValueAsString(nsAString &aValue) const
 bool
 SVGLength::SetValueFromString(const nsAString &aString)
 {
-  RangedPtr<const char16_t> iter =
+  RangedPtr<const PRUnichar> iter =
     SVGContentUtils::GetStartRangedPtr(aString);
-  const RangedPtr<const char16_t> end =
+  const RangedPtr<const PRUnichar> end =
     SVGContentUtils::GetEndRangedPtr(aString);
 
   float value;

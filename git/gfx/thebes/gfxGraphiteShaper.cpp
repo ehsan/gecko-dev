@@ -83,7 +83,7 @@ AddFeature(const uint32_t& aTag, uint32_t& aValue, void *aUserArg)
 
 bool
 gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
-                             const char16_t *aText,
+                             const PRUnichar *aText,
                              uint32_t         aOffset,
                              uint32_t         aLength,
                              int32_t          aScript,
@@ -183,7 +183,7 @@ gfxGraphiteShaper::SetGlyphsFromSegment(gfxContext      *aContext,
                                         gfxShapedText   *aShapedText,
                                         uint32_t         aOffset,
                                         uint32_t         aLength,
-                                        const char16_t *aText,
+                                        const PRUnichar *aText,
                                         gr_segment      *aSegment)
 {
     int32_t dev2appUnits = aShapedText->GetAppUnitsPerDevUnit();

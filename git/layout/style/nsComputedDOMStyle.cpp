@@ -244,7 +244,7 @@ nsComputedDOMStyle::nsComputedDOMStyle(dom::Element* aElement,
   mContent = aElement;
 
   if (!DOMStringIsNull(aPseudoElt) && !aPseudoElt.IsEmpty() &&
-      aPseudoElt.First() == char16_t(':')) {
+      aPseudoElt.First() == PRUnichar(':')) {
     // deal with two-colon forms of aPseudoElt
     nsAString::const_iterator start, end;
     aPseudoElt.BeginReading(start);
@@ -252,7 +252,7 @@ nsComputedDOMStyle::nsComputedDOMStyle(dom::Element* aElement,
     NS_ASSERTION(start != end, "aPseudoElt is not empty!");
     ++start;
     bool haveTwoColons = true;
-    if (start == end || *start != char16_t(':')) {
+    if (start == end || *start != PRUnichar(':')) {
       --start;
       haveTwoColons = false;
     }
@@ -1107,7 +1107,7 @@ nsComputedDOMStyle::DoGetContent()
               str);
           }
 
-          str.Append(char16_t(')'));
+          str.Append(PRUnichar(')'));
           val->SetString(str, nsIDOMCSSPrimitiveValue::CSS_COUNTER);
         }
         break;

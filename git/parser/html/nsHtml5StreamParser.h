@@ -193,7 +193,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * case if aEncoding names a supported rough ASCII superset and sets
      * the mCharset and mCharsetSource to the UTF-8 default otherwise.
      */
-    void SetEncodingFromExpat(const char16_t* aEncoding);
+    void SetEncodingFromExpat(const PRUnichar* aEncoding);
 
     /**
      * Sets the URL for View Source title in case this parser ends up being

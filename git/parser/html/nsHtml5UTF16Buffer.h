@@ -57,13 +57,13 @@ class nsHtml5Portability;
 class nsHtml5UTF16Buffer
 {
   private:
-    char16_t* buffer;
+    PRUnichar* buffer;
     int32_t start;
     int32_t end;
   public:
     int32_t getStart();
     void setStart(int32_t start);
-    char16_t* getBuffer();
+    PRUnichar* getBuffer();
     int32_t getEnd();
     bool hasMore();
     void adjust(bool lastWasCR);

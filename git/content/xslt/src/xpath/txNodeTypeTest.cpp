@@ -72,11 +72,11 @@ txNodeTypeTest::toString(nsAString& aDest)
             if (mNodeName) {
                 nsAutoString str;
                 mNodeName->ToString(str);
-                aDest.Append(char16_t('\''));
+                aDest.Append(PRUnichar('\''));
                 aDest.Append(str);
-                aDest.Append(char16_t('\''));
+                aDest.Append(PRUnichar('\''));
             }
-            aDest.Append(char16_t(')'));
+            aDest.Append(PRUnichar(')'));
             break;
         case NODE_TYPE:
             aDest.Append(NS_LITERAL_STRING("node()"));

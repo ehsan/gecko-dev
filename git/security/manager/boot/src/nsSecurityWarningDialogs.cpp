@@ -65,8 +65,8 @@ nsSecurityWarningDialogs::ConfirmPostToInsecureFromSecure(nsIInterfaceRequestor 
 
 nsresult
 nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *prefName,
-                            const char16_t *messageName, 
-                            const char16_t *showAgainName, 
+                            const PRUnichar *messageName, 
+                            const PRUnichar *showAgainName, 
                             const uint32_t aBucket,
                             bool* _result)
 {
@@ -120,7 +120,7 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   if (!windowTitle || !message || !cont) return NS_ERROR_FAILURE;
       
   // Replace # characters with newlines to lay out the dialog.
-  char16_t* msgchars = message.BeginWriting();
+  PRUnichar* msgchars = message.BeginWriting();
   
   uint32_t i = 0;
   for (i = 0; msgchars[i] != '\0'; i++) {

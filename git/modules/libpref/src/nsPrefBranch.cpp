@@ -671,7 +671,7 @@ NS_IMETHODIMP nsPrefBranch::RemoveObserver(const char *aDomain, nsIObserver *aOb
   return rv;
 }
 
-NS_IMETHODIMP nsPrefBranch::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *someData)
+NS_IMETHODIMP nsPrefBranch::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
   // watch for xpcom shutdown and free our observers to eliminate any cyclic references
   if (!nsCRT::strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
@@ -738,7 +738,7 @@ nsPrefBranch::RemoveExpiredCallback(PrefCallback *aCallback)
   mObservers.Remove(aCallback);
 }
 
-nsresult nsPrefBranch::GetDefaultFromPropertiesFile(const char *aPrefName, char16_t **return_buf)
+nsresult nsPrefBranch::GetDefaultFromPropertiesFile(const char *aPrefName, PRUnichar **return_buf)
 {
   nsresult rv;
 
@@ -828,7 +828,7 @@ nsresult nsPrefLocalizedString::Init()
 }
 
 NS_IMETHODIMP
-nsPrefLocalizedString::GetData(char16_t **_retval)
+nsPrefLocalizedString::GetData(PRUnichar **_retval)
 {
   nsAutoString data;
 
@@ -844,7 +844,7 @@ nsPrefLocalizedString::GetData(char16_t **_retval)
 }
 
 NS_IMETHODIMP
-nsPrefLocalizedString::SetData(const char16_t *aData)
+nsPrefLocalizedString::SetData(const PRUnichar *aData)
 {
   if (!aData)
     return SetData(EmptyString());
@@ -853,7 +853,7 @@ nsPrefLocalizedString::SetData(const char16_t *aData)
 
 NS_IMETHODIMP
 nsPrefLocalizedString::SetDataWithLength(uint32_t aLength,
-                                         const char16_t *aData)
+                                         const PRUnichar *aData)
 {
   if (!aData)
     return SetData(EmptyString());

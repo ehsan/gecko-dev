@@ -121,7 +121,7 @@ nsresult nsDateTimeFormatOS2::FormatTMTime(nsILocale* locale,
       UniStrcat( uFmtT, (UniChar*)L"");
   }
 
-  char16_t buffer[NSDATETIME_FORMAT_BUFFER_LEN] = {0};
+  PRUnichar buffer[NSDATETIME_FORMAT_BUFFER_LEN] = {0};
   if ((dateFormatSelector != kDateFormatNone) && (timeFormatSelector != kTimeFormatNone)) {
     UniStrcat( uFmtD, (UniChar*)L" ");
   }

@@ -427,7 +427,7 @@ NS_IMETHODIMP
 nsHTMLDNSPrefetch::nsDeferrals::OnStatusChange(nsIWebProgress* aWebProgress,
                                                nsIRequest* aRequest,
                                                nsresult aStatus,
-                                               const char16_t* aMessage)
+                                               const PRUnichar* aMessage)
 {
   return NS_OK;
 }
@@ -445,7 +445,7 @@ nsHTMLDNSPrefetch::nsDeferrals::OnSecurityChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 nsHTMLDNSPrefetch::nsDeferrals::Observe(nsISupports *subject,
                                         const char *topic,
-                                        const char16_t *data)
+                                        const PRUnichar *data)
 {
   if (!strcmp(topic, "xpcom-shutdown"))
     Flush();

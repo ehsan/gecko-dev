@@ -33,7 +33,7 @@ typedef nsresult (*nsDOMConstructorFunc)(nsISupports** aNewObject);
 struct nsDOMClassInfoData
 {
   const char *mName;
-  const char16_t *mNameUTF16;
+  const PRUnichar *mNameUTF16;
   union {
     nsDOMClassInfoConstructorFnc mConstructorFptr;
     nsDOMClassInfoExternalConstructorFnc mExternalConstructorFptr;

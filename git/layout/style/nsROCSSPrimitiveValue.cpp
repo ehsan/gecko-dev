@@ -128,13 +128,13 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
       {
         tmpStr.AppendLiteral("attr(");
         tmpStr.Append(mValue.mString);
-        tmpStr.Append(char16_t(')'));
+        tmpStr.Append(PRUnichar(')'));
         break;
       }
     case CSS_PERCENTAGE :
       {
         nsStyleUtil::AppendCSSNumber(mValue.mFloat * 100, tmpStr);
-        tmpStr.Append(char16_t('%'));
+        tmpStr.Append(PRUnichar('%'));
         break;
       }
     case CSS_NUMBER :

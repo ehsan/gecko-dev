@@ -187,7 +187,7 @@ NS_IMPL_ISUPPORTS1(FinalizationWitnessService, nsIFinalizationWitnessService)
  */
 NS_IMETHODIMP
 FinalizationWitnessService::Make(const char* aTopic,
-                                 const char16_t* aValue,
+                                 const PRUnichar* aValue,
                                  JSContext* aCx,
                                  JS::Value *aRetval) {
   MOZ_ASSERT(aRetval);

@@ -55,20 +55,20 @@ public:
 
 protected:
     // pseudo-constants
-    char16_t* mText;
+    PRUnichar* mText;
     int32_t mTextLength;
     int32_t mTextSize;
     bool mConstrainSize;
 
-    nsresult AddAttributes(const char16_t** aAttributes,
+    nsresult AddAttributes(const PRUnichar** aAttributes,
                            const uint32_t aAttrLen,
                            nsXULPrototypeElement* aElement);
 
-    nsresult OpenRoot(const char16_t** aAttributes,
+    nsresult OpenRoot(const PRUnichar** aAttributes,
                       const uint32_t aAttrLen,
                       nsINodeInfo *aNodeInfo);
 
-    nsresult OpenTag(const char16_t** aAttributes,
+    nsresult OpenTag(const PRUnichar** aAttributes,
                      const uint32_t aAttrLen,
                      const uint32_t aLineNumber,
                      nsINodeInfo *aNodeInfo);
@@ -79,19 +79,19 @@ protected:
     // eInDocumentElement then we didn't create a prototype script (e.g. the
     // script had an unknown type), and the caller should create a prototype
     // element.
-    nsresult OpenScript(const char16_t** aAttributes,
+    nsresult OpenScript(const PRUnichar** aAttributes,
                         const uint32_t aLineNumber);
 
-    static bool IsDataInBuffer(char16_t* aBuffer, int32_t aLength);
+    static bool IsDataInBuffer(PRUnichar* aBuffer, int32_t aLength);
 
     // Text management
     nsresult FlushText(bool aCreateTextNode = true);
-    nsresult AddText(const char16_t* aText, int32_t aLength);
+    nsresult AddText(const PRUnichar* aText, int32_t aLength);
 
 
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;
 
-    nsresult NormalizeAttributeString(const char16_t *aExpatName,
+    nsresult NormalizeAttributeString(const PRUnichar *aExpatName,
                                       nsAttrName &aName);
     nsresult CreateElement(nsINodeInfo *aNodeInfo,
                            nsXULPrototypeElement** aResult);

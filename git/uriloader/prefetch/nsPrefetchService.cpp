@@ -802,7 +802,7 @@ NS_IMETHODIMP
 nsPrefetchService::OnStatusChange(nsIWebProgress* aWebProgress,
                                   nsIRequest* aRequest,
                                   nsresult aStatus,
-                                  const char16_t* aMessage)
+                                  const PRUnichar* aMessage)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -824,7 +824,7 @@ nsPrefetchService::OnSecurityChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 nsPrefetchService::Observe(nsISupports     *aSubject,
                            const char      *aTopic,
-                           const char16_t *aData)
+                           const PRUnichar *aData)
 {
     LOG(("nsPrefetchService::Observe [topic=%s]\n", aTopic));
 

@@ -29,7 +29,7 @@ public:
                     nsIPrintSettings* aPS,
                     bool aIsPrintPreview);
     NS_IMETHOD BeginDocument(const nsAString& aTitle,
-                             char16_t* aPrintToFileName,
+                             PRUnichar* aPrintToFileName,
                              int32_t aStartPage,
                              int32_t aEndPage);
     NS_IMETHOD EndDocument();

@@ -42,10 +42,10 @@ IsSVGWhitespace(char aChar)
 }
 
 inline bool
-IsSVGWhitespace(char16_t aChar)
+IsSVGWhitespace(PRUnichar aChar)
 {
-  return aChar == char16_t('\x20') || aChar == char16_t('\x9') ||
-         aChar == char16_t('\xD')  || aChar == char16_t('\xA');
+  return aChar == PRUnichar('\x20') || aChar == PRUnichar('\x9') ||
+         aChar == PRUnichar('\xD')  || aChar == PRUnichar('\xA');
 }
 
 /**
@@ -99,7 +99,7 @@ public:
    */
   static nsresult ReportToConsole(nsIDocument* doc,
                                   const char* aWarning,
-                                  const char16_t **aParams,
+                                  const PRUnichar **aParams,
                                   uint32_t aParamsLength);
 
   static mozilla::gfx::Matrix GetCTM(nsSVGElement *aElement, bool aScreenCTM);
@@ -139,16 +139,16 @@ public:
                       float aViewboxWidth, float aViewboxHeight,
                       const SVGPreserveAspectRatio &aPreserveAspectRatio);
 
-  static mozilla::RangedPtr<const char16_t>
+  static mozilla::RangedPtr<const PRUnichar>
   GetStartRangedPtr(const nsAString& aString);
 
-  static mozilla::RangedPtr<const char16_t>
+  static mozilla::RangedPtr<const PRUnichar>
   GetEndRangedPtr(const nsAString& aString);
 
   /**
    * True if 'aCh' is a decimal digit.
    */
-  static inline bool IsDigit(char16_t aCh)
+  static inline bool IsDigit(PRUnichar aCh)
   {
     return aCh >= '0' && aCh <= '9';
   }
@@ -156,7 +156,7 @@ public:
  /**
   * Assuming that 'aCh' is a decimal digit, return its numeric value.
   */
-  static inline uint32_t DecimalDigitValue(char16_t aCh)
+  static inline uint32_t DecimalDigitValue(PRUnichar aCh)
   {
     MOZ_ASSERT(IsDigit(aCh), "Digit expected");
     return aCh - '0';
@@ -170,8 +170,8 @@ public:
    *         at aEnd, or if we reach aEnd right after the sign character).
    */
   static inline bool
-  ParseOptionalSign(mozilla::RangedPtr<const char16_t>& aIter,
-                    const mozilla::RangedPtr<const char16_t>& aEnd,
+  ParseOptionalSign(mozilla::RangedPtr<const PRUnichar>& aIter,
+                    const mozilla::RangedPtr<const PRUnichar>& aEnd,
                     int32_t& aSignMultiplier)
   {
     if (aIter == aEnd) {
@@ -179,7 +179,7 @@ public:
     }
     aSignMultiplier = *aIter == '-' ? -1 : 1;
 
-    mozilla::RangedPtr<const char16_t> iter(aIter);
+    mozilla::RangedPtr<const PRUnichar> iter(aIter);
 
     if (*iter == '-' || *iter == '+') {
       ++iter;
@@ -200,8 +200,8 @@ public:
    */
   template<class floatType>
   static bool
-  ParseNumber(mozilla::RangedPtr<const char16_t>& aIter,
-              const mozilla::RangedPtr<const char16_t>& aEnd,
+  ParseNumber(mozilla::RangedPtr<const PRUnichar>& aIter,
+              const mozilla::RangedPtr<const PRUnichar>& aEnd,
               floatType& aValue);
 
   /**
@@ -221,8 +221,8 @@ public:
    * If parsing succeeds, aIter is updated so that it points to the character
    * after the end of the number, otherwise it is left unchanged
    */
-  static bool ParseInteger(mozilla::RangedPtr<const char16_t>& aIter,
-                           const mozilla::RangedPtr<const char16_t>& aEnd,
+  static bool ParseInteger(mozilla::RangedPtr<const PRUnichar>& aIter,
+                           const mozilla::RangedPtr<const PRUnichar>& aEnd,
                            int32_t& aValue);
 
   /**

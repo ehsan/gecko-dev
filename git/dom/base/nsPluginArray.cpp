@@ -253,7 +253,7 @@ nsPluginArray::GetSupportedNames(nsTArray< nsString >& aRetval)
 
 NS_IMETHODIMP
 nsPluginArray::Observe(nsISupports *aSubject, const char *aTopic,
-                       const char16_t *aData) {
+                       const PRUnichar *aData) {
   if (!nsCRT::strcmp(aTopic, "plugin-info-updated")) {
     Refresh(false);
   }

@@ -123,7 +123,7 @@ NS_IMPL_ISUPPORTS1(PrivateBrowsingObserver, nsIObserver)
 NS_IMETHODIMP
 PrivateBrowsingObserver::Observe(nsISupports     *aSubject,
                                  const char      *aTopic,
-                                 const char16_t *aData)
+                                 const PRUnichar *aData)
 {
   if (!nsCRT::strcmp(aTopic, "last-pb-context-exited")) {
     mOwner->ResetStoredData();

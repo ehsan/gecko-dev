@@ -374,7 +374,7 @@ NS_IMPL_ISUPPORTS1(LayoutShutdownObserver, nsIObserver)
 NS_IMETHODIMP
 LayoutShutdownObserver::Observe(nsISupports *aSubject,
                                 const char *aTopic,
-                                const char16_t *someData)
+                                const PRUnichar *someData)
 {
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
     Shutdown();

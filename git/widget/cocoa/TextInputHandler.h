@@ -292,7 +292,7 @@ protected:
    *                              this is a result of ::LMGetKbdType().
    */
   void InitKeyPressEvent(NSEvent *aNativeKeyEvent,
-                         char16_t aInsertChar,
+                         PRUnichar aInsertChar,
                          WidgetKeyboardEvent& aKeyEvent,
                          UInt32 aKbType);
 
@@ -635,7 +635,7 @@ protected:
    *                              if aChar is a non-printable ASCII character,
    *                              FALSE.
    */
-  static bool IsPrintableChar(char16_t aChar);
+  static bool IsPrintableChar(PRUnichar aChar);
 
   /**
    * IsNormalCharInputtingEvent() checks whether aKeyEvent causes text input.

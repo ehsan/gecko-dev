@@ -32,7 +32,7 @@ public:
   virtual bool GetFontImpl(FontID aID, nsString& aFontName,
                            gfxFontStyle& aFontStyle,
                            float aDevPixPerCSSPixel);
-  virtual char16_t GetPasswordCharacterImpl();
+  virtual PRUnichar GetPasswordCharacterImpl();
 };
 
 #endif

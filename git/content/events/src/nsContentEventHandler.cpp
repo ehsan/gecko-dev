@@ -369,7 +369,7 @@ static nsresult GenerateFlatTextContent(nsRange* aRange,
       else
         AppendString(aString, content);
     } else if (IsContentBR(content))
-        aString.Append(char16_t('\n'));
+        aString.Append(PRUnichar('\n'));
   }
   ConvertToNativeNewlines(aString);
   return NS_OK;

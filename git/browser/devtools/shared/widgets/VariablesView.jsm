@@ -2078,6 +2078,7 @@ Scope.prototype = {
   _enumItems: null,
   _nonEnumItems: null,
   _fetched: false,
+  _retrieved: false,
   _committed: false,
   _isLocked: false,
   _isExpanded: false,

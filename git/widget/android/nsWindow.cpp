@@ -88,7 +88,7 @@ class ContentCreationNotifier MOZ_FINAL : public nsIObserver
 
     NS_IMETHOD Observe(nsISupports* aSubject,
                        const char* aTopic,
-                       const char16_t* aData)
+                       const PRUnichar* aData)
     {
         if (!strcmp(aTopic, "ipc:content-created")) {
             nsCOMPtr<nsIObserver> cpo = do_QueryInterface(aSubject);
@@ -1575,7 +1575,7 @@ nsWindow::InitKeyEvent(WidgetKeyboardEvent& event, AndroidGeckoEvent& key,
     if (event.mKeyNameIndex == KEY_NAME_INDEX_USE_STRING) {
         int keyValue = key.DOMPrintableKeyValue();
         if (keyValue) {
-            event.mKeyValue = static_cast<char16_t>(keyValue);
+            event.mKeyValue = static_cast<PRUnichar>(keyValue);
         }
     }
     uint32_t domKeyCode = ConvertAndroidKeyCodeToDOMKeyCode(key.KeyCode());

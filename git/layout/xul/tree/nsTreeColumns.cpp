@@ -194,7 +194,7 @@ nsTreeColumn::GetId(nsAString& aId)
 }
 
 NS_IMETHODIMP
-nsTreeColumn::GetIdConst(const char16_t** aIdConst)
+nsTreeColumn::GetIdConst(const PRUnichar** aIdConst)
 {
   *aIdConst = mId.get();
   return NS_OK;

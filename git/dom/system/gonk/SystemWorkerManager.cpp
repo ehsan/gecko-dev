@@ -443,7 +443,7 @@ NS_IMPL_ISUPPORTS3(SystemWorkerManager,
 
 NS_IMETHODIMP
 SystemWorkerManager::Observe(nsISupports *aSubject, const char *aTopic,
-                             const char16_t *aData)
+                             const PRUnichar *aData)
 {
   if (!strcmp(aTopic, WORKERS_SHUTDOWN_TOPIC)) {
     Shutdown();

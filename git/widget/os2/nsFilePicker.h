@@ -55,7 +55,7 @@ protected:
   void GetFilterListArray(nsString& aFilterList);
   static void GetFileSystemCharset(nsCString & fileSystemCharset);
   char * ConvertToFileSystemCharset(const nsAString& inString);
-  char16_t * ConvertFromFileSystemCharset(const char *inString);
+  PRUnichar * ConvertFromFileSystemCharset(const char *inString);
 
   HWND                   mWnd;
   nsString               mTitle;

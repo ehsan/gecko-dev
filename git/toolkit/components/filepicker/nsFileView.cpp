@@ -239,7 +239,7 @@ protected:
   int16_t mSortType;
   int32_t mTotalRows;
 
-  nsTArray<char16_t*> mCurrentFilters;
+  nsTArray<PRUnichar*> mCurrentFilters;
 
   bool mShowHiddenFiles;
   bool mDirectoryFilter;
@@ -485,7 +485,7 @@ nsFileView::SetFilter(const nsAString& aFilterString)
     while (iter != end && (*iter != ';' && *iter != ' '))
       ++iter;
 
-    char16_t* filter = ToNewUnicode(Substring(start, iter));
+    PRUnichar* filter = ToNewUnicode(Substring(start, iter));
     if (!filter)
       return NS_ERROR_OUT_OF_MEMORY;
 
@@ -721,7 +721,7 @@ nsFileView::GetCellText(int32_t aRow, nsITreeColumn* aCol,
     return NS_OK;
   }
 
-  const char16_t* colID;
+  const PRUnichar* colID;
   aCol->GetIdConst(&colID);
   if (NS_LITERAL_STRING("FilenameColumn").Equals(colID)) {
     curFile->GetLeafName(aCellText);
@@ -809,19 +809,19 @@ nsFileView::SetCellText(int32_t aRow, nsITreeColumn* aCol,
 }
 
 NS_IMETHODIMP
-nsFileView::PerformAction(const char16_t* aAction)
+nsFileView::PerformAction(const PRUnichar* aAction)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFileView::PerformActionOnRow(const char16_t* aAction, int32_t aRow)
+nsFileView::PerformActionOnRow(const PRUnichar* aAction, int32_t aRow)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsFileView::PerformActionOnCell(const char16_t* aAction, int32_t aRow,
+nsFileView::PerformActionOnCell(const PRUnichar* aAction, int32_t aRow,
                                 nsITreeColumn* aCol)
 {
   return NS_OK;

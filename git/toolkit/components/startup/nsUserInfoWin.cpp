@@ -42,7 +42,7 @@ nsUserInfo::GetUsername(char **aUsername)
 }
 
 NS_IMETHODIMP
-nsUserInfo::GetFullname(char16_t **aFullname)
+nsUserInfo::GetFullname(PRUnichar **aFullname)
 {
   NS_ENSURE_ARG_POINTER(aFullname);
   *aFullname = nullptr;
