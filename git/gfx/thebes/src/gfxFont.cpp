@@ -130,26 +130,17 @@ gfxFontEntry *gfxFontFamily::FindFontForStyle(const gfxFontStyle& aFontStyle, PR
     gfxFontEntry *matchFE;
     const PRInt8 absDistance = abs(weightDistance);
     direction = (weightDistance >= 0) ? 1 : -1;
-    PRInt8 i, wghtSteps = 0;
-
-    // account for synthetic bold in lighter case
-    // if lighter is applied with an inherited bold weight,
-    // and no actual bold faces exist, synthetic bold is used
-    // so the matched weight above is actually one step down already
-    if (weightDistance < 0 && baseWeight > 5 && matchBaseWeight < 6) {
-        wghtSteps = 1; // if no faces [600, 900] then synthetic bold at 700
-    }
-
-    for (i = matchBaseWeight; i < 10 && i > 0; i += direction) {
+    PRInt8 i, k;
+    for (i = matchBaseWeight, k = 0; i < 10 && i > 0; i += direction) {
         if (weightList[i]) {
             matchFE = weightList[i];
-            wghtSteps++;
+            k++;
         }
-        if (wghtSteps > absDistance)
+        if (k > absDistance)
             break;
     }
 
-    if (weightDistance > 0 && wghtSteps <= absDistance) {
+    if (weightDistance > 0 && k <= absDistance) {
         aNeedsBold = PR_TRUE;
     }
 

@@ -1753,6 +1753,10 @@ nsGenericElement::nsDOMSlots::nsDOMSlots(PtrBits aFlags)
 
 nsGenericElement::nsDOMSlots::~nsDOMSlots()
 {
+  if (mStyle) {
+    mStyle->DropReference();
+  }
+
   if (mAttributeMap) {
     mAttributeMap->DropReference();
   }
@@ -4053,12 +4057,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericElement)
   {
     nsDOMSlots *slots = tmp->GetExistingDOMSlots();
     if (slots) {
-      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mStyle");
-      cb.NoteXPCOMChild(slots->mStyle.get());
-
-      NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "slots mAttributeMap");
       cb.NoteXPCOMChild(slots->mAttributeMap.get());
-
       if (tmp->IsNodeOfType(nsINode::eXUL))
         cb.NoteXPCOMChild(slots->mControllers);
       cb.NoteXPCOMChild(

@@ -4141,6 +4141,8 @@ nsDocShell::InitWindow(nativeWindow parentNativeWindow,
                        nsIWidget * parentWidget, PRInt32 x, PRInt32 y,
                        PRInt32 cx, PRInt32 cy)
 {
+    NS_ENSURE_ARG(parentWidget);        // DocShells must get a widget for a parent
+
     SetParentWidget(parentWidget);
     SetPositionAndSize(x, y, cx, cy, PR_FALSE);
 
@@ -6339,11 +6341,22 @@ nsDocShell::CaptureState()
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Capture the current content viewer bounds.
-    if (mContentViewer) {
-        nsIntRect bounds;
-        mContentViewer->GetBounds(bounds);
-        rv = mOSHE->SetViewerBounds(bounds);
-        NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIPresShell> shell;
+    nsDocShell::GetPresShell(getter_AddRefs(shell));
+    if (shell) {
+        nsIViewManager *vm = shell->GetViewManager();
+        if (vm) {
+            nsIView *rootView = nsnull;
+            vm->GetRootView(rootView);
+            if (rootView) {
+                nsIWidget *widget = rootView->GetWidget();
+                if (widget) {
+                    nsIntRect bounds(0, 0, 0, 0);
+                    widget->GetBounds(bounds);
+                    rv = mOSHE->SetViewerBounds(bounds);
+                }
+            }
+        }
     }
 
     // Capture the docshell hierarchy.
@@ -6677,7 +6690,10 @@ nsDocShell::RestoreFromHistory()
                 rootViewSibling = oldRootView->GetNextSibling();
                 rootViewParent = oldRootView->GetParent();
 
-                mContentViewer->GetBounds(newBounds);
+                nsIWidget *widget = oldRootView->GetWidget();
+                if (widget) {
+                    widget->GetBounds(newBounds);
+                }
             }
         }
     }
@@ -6922,12 +6938,15 @@ nsDocShell::RestoreFromHistory()
     // cached viewer size (skipping the resize if they are equal).
 
     if (newRootView) {
-        if (!newBounds.IsEmpty() && newBounds != oldBounds) {
+        nsIWidget *widget = newRootView->GetWidget();
+        if (widget && !newBounds.IsEmpty() && newBounds != oldBounds) {
 #ifdef DEBUG_PAGE_CACHE
             printf("resize widget(%d, %d, %d, %d)\n", newBounds.x,
                    newBounds.y, newBounds.width, newBounds.height);
 #endif
-            mContentViewer->SetBounds(newBounds);
+
+            widget->Resize(newBounds.x, newBounds.y, newBounds.width,
+                           newBounds.height, PR_FALSE);
         }
     }
 

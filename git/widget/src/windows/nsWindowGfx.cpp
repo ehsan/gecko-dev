@@ -73,6 +73,10 @@ extern "C" {
 #include "pixman.h"
 }
 
+#ifdef DEBUG_vladimir
+#include "nsFunctionTimer.h"
+#endif
+
 /**************************************************************
  **************************************************************
  **
@@ -324,6 +328,13 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #endif
   }
 
+#ifdef DEBUG_vladimir
+  nsFunctionTimer ft("OnPaint [%d %d %d %d]",
+                     ps.rcPaint.left, ps.rcPaint.top, 
+                     ps.rcPaint.right - ps.rcPaint.left,
+                     ps.rcPaint.bottom - ps.rcPaint.top);
+#endif
+
   nsCOMPtr<nsIRegion> paintRgnWin;
   if (paintRgn) {
     paintRgnWin = nsWindowGfx::ConvertHRGNToRegion(paintRgn);
@@ -478,9 +489,17 @@ DDRAW_FAILED:
       return PR_FALSE;
     }
 
+#ifdef DEBUG_vladimir
+    ft.Mark("Init");
+#endif
+
     event.renderingContext = rc;
     result = DispatchWindowEvent(&event, eventStatus);
     event.renderingContext = nsnull;
+
+#ifdef DEBUG_vladimir
+    ft.Mark("Dispatch");
+#endif
 
 #ifdef MOZ_XUL
     if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
@@ -612,6 +631,14 @@ DDRAW_FAILED:
                       DIB_RGB_COLORS,
                       SRCCOPY);
       }
+
+#ifdef DEBUG_vladimir
+      ft.Mark("Blit");
+#endif
+    } else {
+#ifdef DEBUG_vladimir
+      ft.Mark("Discard!");
+#endif
     }
   }
 
@@ -665,6 +692,12 @@ PRBool nsWindow::OnPaintImageDDraw16()
 
   HRGN paintRgn = ::CreateRectRgn(ps.rcPaint.left, ps.rcPaint.top, 
                                   ps.rcPaint.right, ps.rcPaint.bottom);
+#ifdef DEBUG_vladimir
+  nsFunctionTimer ft("OnPaint [%d %d %d %d]",
+                     ps.rcPaint.left, ps.rcPaint.top, 
+                     ps.rcPaint.right - ps.rcPaint.left,
+                     ps.rcPaint.bottom - ps.rcPaint.top);
+#endif
 
   nsCOMPtr<nsIRegion> paintRgnWin;
   if (paintRgn) {
@@ -754,9 +787,16 @@ PRBool nsWindow::OnPaintImageDDraw16()
     goto cleanup;
   }
   
+#ifdef DEBUG_vladimir
+  ft.Mark("Init");
+#endif
   event.renderingContext = rc;
   result = DispatchWindowEvent(&event, eventStatus);
   event.renderingContext = nsnull;
+  
+#ifdef DEBUG_vladimir
+  ft.Mark("Dispatch");
+#endif
   
   if (!result) {
     printf("result is null from dispatch\n");
@@ -772,6 +812,9 @@ PRBool nsWindow::OnPaintImageDDraw16()
     goto cleanup;
   }
   
+#ifdef DEBUG_vladimir
+  ft.Mark("Locked");
+#endif
   // Convert RGB24 -> RGB565
   pixman_image_t *srcPixmanImage = pixman_image_create_bits(PIXMAN_x8r8g8b8,
                                                             surfaceSize.width,
@@ -785,6 +828,10 @@ PRBool nsWindow::OnPaintImageDDraw16()
                                                             (uint32_t*) gDDSDSecondary.lpSurface,
                                                             gDDSDSecondary.dwWidth * 2);
  
+#ifdef DEBUG_vladimir
+  ft.Mark("created pixman images");
+#endif
+
   pixman_image_composite(PIXMAN_OP_SRC,
                          srcPixmanImage,
                          NULL,
@@ -798,6 +845,10 @@ PRBool nsWindow::OnPaintImageDDraw16()
   pixman_image_unref(dstPixmanImage);
   pixman_image_unref(srcPixmanImage);
 
+#ifdef DEBUG_vladimir
+  ft.Mark("composite");
+#endif
+  
   hr = glpDDSecondary->Unlock(0);
   if (FAILED(hr)) {
 #ifdef DEBUG
@@ -805,6 +856,10 @@ PRBool nsWindow::OnPaintImageDDraw16()
 #endif
     goto cleanup;
   }
+
+#ifdef DEBUG_vladimir
+  ft.Mark("unlock");
+#endif
 
   hr = glpDDClipper->SetHWnd(0, mWnd);
   if (FAILED(hr)) {
@@ -814,9 +869,17 @@ PRBool nsWindow::OnPaintImageDDraw16()
     goto cleanup;
   }
 
+#ifdef DEBUG_vladimir
+  ft.Mark("sethwnd");
+#endif
+
   // translate the paint region to screen coordinates
   renderArea = ps.rcPaint;
   MapWindowPoints(mWnd, 0, (LPPOINT)&renderArea, 2);
+
+#ifdef DEBUG_vladimir
+  ft.Mark("preblt");
+#endif
 
   // set the rect to be 0,0 based
   ps.rcPaint.right = surfaceSize.width;
@@ -834,6 +897,10 @@ PRBool nsWindow::OnPaintImageDDraw16()
 #endif
     goto cleanup;
   }
+
+#ifdef DEBUG_vladimir
+  ft.Mark("Blit");
+#endif
 
 cleanup:
  

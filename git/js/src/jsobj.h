@@ -141,11 +141,6 @@ struct JSObjectMap {
         }                                                                     \
     JS_END_MACRO
 
-/*
- * The following macro has been copied to jsd/jsd_val.c. If making changes to
- * OBJ_TO_OUTER_OBJECT, please update jsd/jsd_val.c as well.
- */
-
 #define OBJ_TO_OUTER_OBJECT(cx,obj)                                           \
     JS_BEGIN_MACRO                                                            \
         JSClass *clasp_ = OBJ_GET_CLASS(cx, obj);                             \
@@ -608,14 +603,12 @@ js_CheckForStringIndex(jsid id);
 extern void
 js_PurgeScopeChainHelper(JSContext *cx, JSObject *obj, jsid id);
 
-#ifdef __cplusplus /* Aargh, libgjs, bug 492720. */
 static JS_INLINE void
 js_PurgeScopeChain(JSContext *cx, JSObject *obj, jsid id)
 {
     if (OBJ_IS_DELEGATE(cx, obj))
         js_PurgeScopeChainHelper(cx, obj, id);
 }
-#endif
 
 /*
  * Find or create a property named by id in obj's scope, with the given getter

@@ -165,26 +165,14 @@ nsSplashScreenWin::ThreadProc(LPVOID splashScreen)
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
     int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-    LONG horizPad = (screenWidth  - sp->mWidth) / 2;
-    LONG vertPad  = (screenHeight - sp->mHeight) / 2;
-    RECT r = { horizPad,
-	       vertPad,
-	       horizPad + sp->mWidth,
-	       vertPad  + sp->mHeight };
-
-    DWORD winStyle = (WS_POPUP | WS_BORDER);
-    DWORD winStyleEx = WS_EX_NOACTIVATE;
-
-    if(!::AdjustWindowRectEx(&r, winStyle, FALSE, winStyleEx))
-      return 0;
-
-    HWND dlg = CreateWindowEx(
-	 winStyleEx,
+    HWND dlg = CreateWindowEx
+        (WS_EX_NOACTIVATE /* | WS_EX_TOPMOST | WS_EX_TOOLWINDOW*/,
          TEXT("MozillaSplashScreen"),
          TEXT("Starting up..."),
-	 winStyle,
-	 r.left, r.top,
-         (r.right - r.left), (r.bottom - r.top),
+         WS_POPUP | WS_BORDER,
+         (screenWidth - sp->mWidth) / 2,
+         (screenHeight - sp->mHeight) / 2,
+         sp->mWidth, sp->mHeight,
          HWND_DESKTOP,
          NULL,
          GetModuleHandle(0),

@@ -1857,7 +1857,6 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       aState.ReconstructMarginAbove(line);
     }
 
-    PRBool reflowedPrevLine = !needToRecoverState;
     if (needToRecoverState) {
       needToRecoverState = PR_FALSE;
 
@@ -2002,15 +2001,6 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       }
 
       needToRecoverState = PR_TRUE;
-
-      if (reflowedPrevLine && !line->IsBlock() &&
-          aState.mPresContext->HasPendingInterrupt()) {
-        // Need to make sure to pull overflows from any prev-in-flows
-        for (nsIFrame* inlineKid = line->mFirstChild; inlineKid;
-             inlineKid = inlineKid->GetFirstChild(nsnull)) {
-          inlineKid->PullOverflowsFromPrevInFlow();
-        }
-      }
     }
 
     // Record if we need to clear floats before reflowing the next

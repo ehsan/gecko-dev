@@ -397,9 +397,6 @@ function getNodePrettyName(aNode)
     if (aNode.nodeType == nsIDOMNode.ELEMENT_NODE && aNode.hasAttribute("id"))
       return " '" + aNode.getAttribute("id") + "' ";
 
-    if (aNode.nodeType == nsIDOMNode.DOCUMENT_NODE)
-      return " 'document node' ";
-
     return " '" + aNode.localName + " node' ";
   } catch (e) {
     return "no node info";

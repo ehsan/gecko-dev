@@ -508,7 +508,9 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
       if (argc > 2) {
         // The third (optional) parameter is the defaultSelected value
         JSBool defaultSelected;
-        JS_ValueToBoolean(aContext, argv[2], &defaultSelected);
+        if (!JS_ValueToBoolean(aContext, argv[2], &defaultSelected)) {
+            return NS_ERROR_FAILURE;
+        }
         if (defaultSelected) {
           result = SetAttr(kNameSpaceID_None, nsGkAtoms::selected,
                            EmptyString(), PR_FALSE);
@@ -518,7 +520,9 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
         // XXX This is *untested* behavior.  Should work though.
         if (argc > 3) {
           JSBool selected;
-          JS_ValueToBoolean(aContext, argv[3], &selected);
+          if (!JS_ValueToBoolean(aContext, argv[3], &selected)) {
+            return NS_ERROR_FAILURE;
+          }
 
           return SetSelected(selected);
         }

@@ -123,8 +123,6 @@ public:
 
   virtual PRBool CanContinueTextRun() const;
 
-  virtual void PullOverflowsFromPrevInFlow();
-
   // Take all of the frames away from this frame. The caller is
   // presumed to keep them alive.
   void StealAllFrames() {
@@ -223,8 +221,6 @@ public:
                     nsHTMLReflowMetrics& aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
-
-  virtual void PullOverflowsFromPrevInFlow();
 
   // Take frames starting at aFrame until the end of the frame-list
   // away from this frame. The caller is presumed to keep them alive.

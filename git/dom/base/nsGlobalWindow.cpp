@@ -139,7 +139,7 @@
 #include "nsIWebBrowserFind.h"  // For window.find()
 #include "nsIWebContentHandlerRegistrar.h"
 #include "nsIWindowMediator.h"  // For window.find()
-#include "nsComputedDOMStyle.h"
+#include "nsIComputedDOMStyle.h"
 #include "nsIEntropyCollector.h"
 #include "nsDOMCID.h"
 #include "nsDOMError.h"
@@ -207,6 +207,7 @@
 static PRLogModuleInfo* gDOMLeakPRLog;
 #endif
 
+nsIFactory *nsGlobalWindow::sComputedDOMStyleFactory   = nsnull;
 nsIDOMStorageList *nsGlobalWindow::sGlobalStorageList  = nsnull;
 
 static nsIEntropyCollector *gEntropyCollector          = nsnull;
@@ -802,6 +803,7 @@ nsGlobalWindow::~nsGlobalWindow()
 void
 nsGlobalWindow::ShutDown()
 {
+  NS_IF_RELEASE(sComputedDOMStyleFactory);
   NS_IF_RELEASE(sGlobalStorageList);
 
   if (gDumpFile && gDumpFile != stdout) {
@@ -1429,6 +1431,11 @@ public:
                     nsLocation *aLocation,
                     nsIXPConnectJSObjectHolder *aOuterProto);
 
+  // Get the contents of focus memory when the state was saved
+  // (if the focus was inside of this window).
+  nsIDOMElement* GetFocusedElement() { return mFocusedElement; }
+  nsIDOMWindowInternal* GetFocusedWindow() { return mFocusedWindow; }
+
   nsGlobalWindow* GetInnerWindow() { return mInnerWindow; }
   nsISupports* GetInnerWindowHolder(PRUint32 aScriptTypeID)
   { return mInnerWindowHolders[NS_STID_INDEX(aScriptTypeID)]; }
@@ -1459,6 +1466,8 @@ protected:
   nsCOMPtr<nsISupports> mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
   nsRefPtr<nsNavigator> mNavigator;
   nsRefPtr<nsLocation> mLocation;
+  nsCOMPtr<nsIDOMElement> mFocusedElement;
+  nsCOMPtr<nsIDOMWindowInternal> mFocusedWindow;
   nsCOMPtr<nsIXPConnectJSObjectHolder> mOuterProto;
 };
 
@@ -1480,6 +1489,33 @@ WindowStateHolder::WindowStateHolder(nsGlobalWindow *aWindow,
   PRUint32 lang_ndx;
   NS_STID_FOR_INDEX(lang_ndx) {
     mInnerWindowHolders[lang_ndx] = aHolders[lang_ndx];
+  }
+
+  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+  if (fm) {
+    // We want to save the focused element/window only if they are inside of
+    // this window.
+
+    nsCOMPtr<nsIDOMWindow> window;
+    fm->GetFocusedWindow(getter_AddRefs(window));
+    nsCOMPtr<nsPIDOMWindow> focusedWindow = do_QueryInterface(window);
+
+    // The outer window is used for focus purposes, so make sure that's what
+    // we're looking for.
+    nsPIDOMWindow *targetWindow = aWindow->GetOuterWindow();
+
+    while (focusedWindow) {
+      if (focusedWindow == targetWindow) {
+        mFocusedWindow = do_QueryInterface(window);
+        fm->GetFocusedElement(getter_AddRefs(mFocusedElement));
+        break;
+      }
+
+      focusedWindow =
+        static_cast<nsGlobalWindow*>
+                   (static_cast<nsPIDOMWindow*>
+                               (focusedWindow))->GetPrivateParent();
+    }
   }
 
   aWindow->SuspendTimeouts();
@@ -6735,6 +6771,12 @@ nsGlobalWindow::DispatchAsyncHashchange()
 {
   FORWARD_TO_INNER(DispatchAsyncHashchange, (), NS_OK);
 
+  nsIDocument::ReadyState readyState = mDoc->GetReadyStateEnum();
+
+  // We only queue up the event if the ready state is currently "complete"
+  if (readyState != nsIDocument::READYSTATE_COMPLETE)
+      return NS_OK;
+
   nsCOMPtr<nsIRunnable> event =
     NS_NEW_RUNNABLE_METHOD(nsGlobalWindow, this, FireHashchange);
    
@@ -6857,14 +6899,27 @@ nsGlobalWindow::GetComputedStyle(nsIDOMElement* aElt,
     return NS_OK;
   }
 
-  nsRefPtr<nsComputedDOMStyle> compStyle;
-  nsresult rv = NS_NewComputedDOMStyle(aElt, aPseudoElt, presShell,
-                                       getter_AddRefs(compStyle));
+  nsresult rv = NS_OK;
+  nsCOMPtr<nsIComputedDOMStyle> compStyle;
+
+  if (!sComputedDOMStyleFactory) {
+    rv = CallGetClassObject("@mozilla.org/DOM/Level2/CSS/computedStyleDeclaration;1",
+                            &sComputedDOMStyleFactory);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  rv =
+    sComputedDOMStyleFactory->CreateInstance(nsnull,
+                                             NS_GET_IID(nsIComputedDOMStyle),
+                                             getter_AddRefs(compStyle));
+
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *aReturn = compStyle.forget().get();
+  rv = compStyle->Init(aElt, aPseudoElt, presShell);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  return compStyle->QueryInterface(NS_GET_IID(nsIDOMCSSStyleDeclaration),
+                                   (void **) aReturn);
 }
 
 //*****************************************************************************
@@ -8481,8 +8536,17 @@ nsGlobalWindow::RestoreWindowState(nsISupports *aState)
   printf("restoring window state, state = %p\n", (void*)holder);
 #endif
 
-  // And we're ready to go!
   nsGlobalWindow *inner = GetCurrentInnerWindowInternal();
+
+  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+  nsIDOMElement *focusedElement = holder->GetFocusedElement();
+  nsIDOMWindowInternal *focusedWindow = holder->GetFocusedWindow();
+  if (fm && focusedElement)
+    fm->SetFocus(focusedElement, nsIFocusManager::FLAG_NOSCROLL);
+  else if (focusedWindow)
+    focusedWindow->Focus();
+
+  // And we're ready to go!
   inner->Thaw();
 
   holder->DidRestoreWindow();
@@ -8834,7 +8898,7 @@ nsGlobalChromeWindow::SetCursor(const nsAString& aCursor)
     vm->GetRootView(rootView);
     NS_ENSURE_TRUE(rootView, NS_ERROR_FAILURE);
 
-    nsIWidget* widget = rootView->GetNearestWidget(nsnull);
+    nsIWidget* widget = rootView->GetWidget();
     NS_ENSURE_TRUE(widget, NS_ERROR_FAILURE);
 
     // Call esm and set cursor.

@@ -282,13 +282,15 @@ nsresult
 TableBackgroundPainter::PaintTableFrame(nsTableFrame*         aTableFrame,
                                         nsTableRowGroupFrame* aFirstRowGroup,
                                         nsTableRowGroupFrame* aLastRowGroup,
-                                        const nsMargin&       aDeflate)
+                                        nsMargin*             aDeflate)
 {
   NS_PRECONDITION(aTableFrame, "null frame");
   TableBackgroundData tableData;
   tableData.SetFull(aTableFrame);
   tableData.mRect.MoveTo(0,0); //using table's coords
-  tableData.mRect.Deflate(aDeflate);
+  if (aDeflate) {
+    tableData.mRect.Deflate(*aDeflate);
+  }
   if (mIsBorderCollapse && tableData.ShouldSetBCBorder()) {
     if (aFirstRowGroup && aLastRowGroup && mNumCols > 0) {
       //only handle non-degenerate tables; we need a more robust BC model
@@ -352,9 +354,8 @@ TableBackgroundPainter::TranslateContext(nscoord aDX,
 }
 
 nsresult
-TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
-                                   const nsMargin& aDeflate,
-                                   PRBool          aPaintTableBackground)
+TableBackgroundPainter::PaintTable(nsTableFrame* aTableFrame,
+                                   nsMargin*     aDeflate)
 {
   NS_PRECONDITION(aTableFrame, "null table frame");
 
@@ -362,17 +363,13 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
   aTableFrame->OrderRowGroups(rowGroups);
 
   if (rowGroups.Length() < 1) { //degenerate case
-    if (aPaintTableBackground) {
-      PaintTableFrame(aTableFrame, nsnull, nsnull, nsMargin(0,0,0,0));
-    }
+    PaintTableFrame(aTableFrame, nsnull, nsnull, nsnull);
     /* No cells; nothing else to paint */
     return NS_OK;
   }
 
-  if (aPaintTableBackground) {
-    PaintTableFrame(aTableFrame, rowGroups[0], rowGroups[rowGroups.Length() - 1],
-                    aDeflate);
-  }
+  PaintTableFrame(aTableFrame, rowGroups[0], rowGroups[rowGroups.Length() - 1],
+                  aDeflate);
 
   /*Set up column background/border data*/
   if (mNumCols > 0) {

@@ -48,9 +48,6 @@
 #include "sqlite3.h"
 #include "nsIVariant.h"
 #include "mozStorage.h"
-#include "jsapi.h"
-
-class mozIStorageStatement;
 
 namespace mozilla {
 namespace storage {
@@ -83,15 +80,6 @@ nsresult convertResultCode(int aSQLiteResultCode);
  *        The sqlite3_stmt object to check.
  */
 void checkAndLogStatementPerformance(sqlite3_stmt *aStatement);
-
-/**
- *
- */
-bool
-bindJSValue(JSContext *aCtx,
-            mozIStorageStatement *aStatement,
-            int aIdx,
-            jsval aValue);
 
 /**
  * Used to convert an nsIVariant to the proper SQLite type.

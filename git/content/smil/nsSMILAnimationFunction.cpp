@@ -607,11 +607,13 @@ nsSMILAnimationFunction::ScaleIntervalProgress(double& aProgress,
   if (!HasAttr(nsGkAtoms::keySplines))
     return;
 
-  NS_ASSERTION(aIntervalIndex < (PRUint32)mKeySplines.Length(),
+  NS_ASSERTION(aIntervalIndex >= 0 &&
+               aIntervalIndex < (PRUint32)mKeySplines.Length(),
                "Invalid interval index.");
   NS_ASSERTION(aNumIntervals >= 1, "Invalid number of intervals.");
 
-  if (aIntervalIndex >= (PRUint32)mKeySplines.Length() ||
+  if (aIntervalIndex < 0 ||
+      aIntervalIndex >= (PRUint32)mKeySplines.Length() ||
       aNumIntervals < 1)
     return;
 

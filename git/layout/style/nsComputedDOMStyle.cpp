@@ -77,7 +77,6 @@
 #include "nsCSSKeywords.h"
 #include "nsStyleCoord.h"
 #include "nsDisplayList.h"
-#include "nsDOMCSSDeclaration.h"
 
 #if defined(DEBUG_bzbarsky) || defined(DEBUG_caillon)
 #define DEBUG_ComputedDOMStyle
@@ -91,34 +90,27 @@
 static nsComputedDOMStyle *sCachedComputedDOMStyle;
 
 nsresult
-NS_NewComputedDOMStyle(nsIDOMElement *aElement, const nsAString &aPseudoElt,
-                       nsIPresShell *aPresShell,
-                       nsComputedDOMStyle **aComputedStyle)
+NS_NewComputedDOMStyle(nsIComputedDOMStyle** aComputedStyle)
 {
   NS_ENSURE_ARG_POINTER(aComputedStyle);
 
-  nsRefPtr<nsComputedDOMStyle> computedStyle;
   if (sCachedComputedDOMStyle) {
     // There's an unused nsComputedDOMStyle cached, use it.
     // But before we use it, re-initialize the object.
 
     // Oh yeah baby, placement new!
-    computedStyle = new (sCachedComputedDOMStyle) nsComputedDOMStyle();
+    *aComputedStyle = new (sCachedComputedDOMStyle) nsComputedDOMStyle();
 
     sCachedComputedDOMStyle = nsnull;
   } else {
     // No nsComputedDOMStyle cached, create a new one.
 
-    computedStyle = new nsComputedDOMStyle();
-    NS_ENSURE_TRUE(computedStyle, NS_ERROR_OUT_OF_MEMORY);
+    *aComputedStyle = new nsComputedDOMStyle();
+    NS_ENSURE_TRUE(*aComputedStyle, NS_ERROR_OUT_OF_MEMORY);
   }
 
-  nsresult rv = computedStyle->Init(aElement, aPseudoElt, aPresShell);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ADDREF(*aComputedStyle);
 
-  *aComputedStyle = nsnull;
-  computedStyle.swap(*aComputedStyle);
-  
   return NS_OK;
 }
 
@@ -139,7 +131,6 @@ nsComputedDOMStyle::nsComputedDOMStyle()
 
 nsComputedDOMStyle::~nsComputedDOMStyle()
 {
-  ClearWrapper();
 }
 
 void
@@ -155,30 +146,19 @@ nsComputedDOMStyle::Shutdown()
 
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsComputedDOMStyle)
-NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsComputedDOMStyle)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_ROOT_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsComputedDOMStyle)
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsComputedDOMStyle)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsComputedDOMStyle)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 // QueryInterface implementation for nsComputedDOMStyle
-NS_INTERFACE_TABLE_HEAD(nsComputedDOMStyle)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsComputedDOMStyle)
-    NS_INTERFACE_TABLE_ENTRY(nsComputedDOMStyle, nsICSSDeclaration)
-    NS_INTERFACE_TABLE_ENTRY(nsComputedDOMStyle,
-                             nsIDOMCSSStyleDeclaration)
-    NS_INTERFACE_TABLE_ENTRY(nsComputedDOMStyle, nsISupports)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsComputedDOMStyle)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsComputedDOMStyle)
+  NS_INTERFACE_MAP_ENTRY(nsIComputedDOMStyle)
+  NS_INTERFACE_MAP_ENTRY(nsICSSDeclaration)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMCSSStyleDeclaration)
   NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMCSS2Properties, &mInner)
   NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMNSCSS2Properties, &mInner)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIComputedDOMStyle)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ComputedCSSStyleDeclaration)
 NS_INTERFACE_MAP_END
 

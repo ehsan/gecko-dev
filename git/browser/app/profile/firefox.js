@@ -358,8 +358,7 @@ pref("browser.tabs.closeButtons", 1);
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
 
-pref("browser.allTabs.previews", false);
-pref("browser.ctrlTab.previews", false);
+pref("browser.ctrlTab.previews", true);
 pref("browser.ctrlTab.recentlyUsedLimit", 7);
 
 // Default bookmark sorting
@@ -384,11 +383,6 @@ pref("javascript.options.showInConsole",          true);
 pref("general.warnOnAboutConfig",                 false);
 #else
 pref("javascript.options.showInConsole",          false);
-#endif
-
-#ifdef WINCE
-// Set the threshold higher to avoid some slow script warnings
-pref("dom.max_script_run_time",                   20);
 #endif
 
 // Make the status bar reliably present and unaffected by pages
@@ -867,7 +861,6 @@ pref("browser.urlbar.delay", 1000);
 
 // disable safe browsing, due to perf hit
 pref("browser.safebrowsing.enabled", false);
-pref("browser.safebrowsing.malware.enabled", false);
 
 // don't check for default browser
 pref("browser.shell.checkDefaultBrowser", false);

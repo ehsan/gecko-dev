@@ -72,6 +72,7 @@ endif
 
 CPPSRCS		= \
 		nsThebesDeviceContext.cpp \
+		nsThebesImage.cpp \
 		nsThebesRegion.cpp \
 		nsThebesGfxFactory.cpp \
 		nsThebesRenderingContext.cpp \
@@ -127,6 +128,7 @@ LOCAL_INCLUDES	= \
 		$(NULL)
 
 EXTRA_DSO_LDOPTS += \
+		../shared/$(LIB_PREFIX)gfxshared_s.$(LIB_SUFFIX) \
 		$(LIBS_DIR) \
 		$(EXTRA_DSO_LIBS) \
 		$(DEPTH)/modules/libutil/src/$(LIB_PREFIX)mozutil_s.$(LIB_SUFFIX) \

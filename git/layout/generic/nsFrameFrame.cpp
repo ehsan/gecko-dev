@@ -274,11 +274,6 @@ nsSubDocumentFrame::Init(nsIContent*     aContent,
     view->CreateWidget(kCChildCID);
   }
 
-  // Set the primary frame now so that
-  // DocumentViewerImpl::FindContainerView called by ShowViewer below
-  // can find it if necessary.
-  PresContext()->FrameManager()->SetPrimaryFrameFor(aContent, this);
-
   ShowViewer();
   return NS_OK;
 }
@@ -1016,11 +1011,6 @@ nsSubDocumentFrame::CreateViewAndWidget(nsContentType aContentType)
   }
   mInnerView = innerView;
   viewMan->InsertChild(outerView, innerView, nsnull, PR_TRUE);
-
-  if (aContentType == eContentTypeContentFrame) {
-    // No widget needed.
-    return NS_OK;
-  }
 
   return innerView->CreateWidget(kCChildCID, nsnull, nsnull, PR_TRUE, PR_TRUE,
                                  aContentType);

@@ -115,9 +115,9 @@ nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
     imageRequest->GetImage(getter_AddRefs(imgContainer));
 
   if (imgContainer) {
-    PRBool animated;
-    imgContainer->GetAnimated(&animated);
-    if (animated)
+    PRUint32 numFrames;
+    imgContainer->GetNumFrames(&numFrames);
+    if (numFrames > 1)
       *aState |= nsIAccessibleStates::STATE_ANIMATED;
   }
 

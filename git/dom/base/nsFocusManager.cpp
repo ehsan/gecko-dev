@@ -934,7 +934,7 @@ nsFocusManager::EnsureCurrentWidgetFocused()
       nsIViewManager* vm = presShell->GetViewManager();
       if (vm) {
         nsCOMPtr<nsIWidget> widget;
-        vm->GetRootWidget(getter_AddRefs(widget));
+        vm->GetWidget(getter_AddRefs(widget));
         if (widget)
           widget->SetFocus(PR_TRUE);
       }
@@ -1345,7 +1345,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
         nsIViewManager* vm = presShell->GetViewManager();
         if (vm) {
           nsCOMPtr<nsIWidget> widget;
-          vm->GetRootWidget(getter_AddRefs(widget));
+          vm->GetWidget(getter_AddRefs(widget));
           if (widget)
             widget->SetFocus(PR_TRUE);
         }
@@ -1492,7 +1492,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
   nsIViewManager* vm = presShell->GetViewManager();
   if (vm) {
     nsCOMPtr<nsIWidget> widget;
-    vm->GetRootWidget(getter_AddRefs(widget));
+    vm->GetWidget(getter_AddRefs(widget));
     if (widget)
       widget->SetFocus(PR_TRUE);
   }
@@ -1534,7 +1534,9 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
       nsIFrame* contentFrame = presShell->GetPrimaryFrameFor(aContent);
       nsIObjectFrame* objectFrame = do_QueryFrame(contentFrame);
       if (objectFrame) {
-        nsIWidget* widget = objectFrame->GetWidget();
+        nsIView* view = contentFrame->GetViewExternal();
+        NS_ASSERTION(view, "Object frames must have views");
+        nsCOMPtr<nsIWidget> widget = view->GetWidget();
         if (widget)
           widget->SetFocus(PR_TRUE);
       }
@@ -1660,7 +1662,7 @@ nsFocusManager::RaiseWindow(nsPIDOMWindow* aWindow)
   nsIViewManager* vm = presShell->GetViewManager();
   if (vm) {
     nsCOMPtr<nsIWidget> widget;
-    vm->GetRootWidget(getter_AddRefs(widget));
+    vm->GetWidget(getter_AddRefs(widget));
     if (widget)
       widget->SetFocus(PR_TRUE);
   }

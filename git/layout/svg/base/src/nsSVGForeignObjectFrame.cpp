@@ -237,8 +237,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   gfx->Multiply(matrix);
 
   nsresult rv = nsLayoutUtils::PaintFrame(ctx, kid, nsRegion(kid->GetRect()),
-                                          NS_RGBA(0,0,0,0),
-                                          nsLayoutUtils::PAINT_IN_TRANSFORM);
+                                          NS_RGBA(0,0,0,0));
 
   gfx->Restore();
 

@@ -154,7 +154,7 @@ NS_IMETHODIMP nsImageLoader::OnStartContainer(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsImageLoader::OnStopFrame(imgIRequest *aRequest,
-                                         PRUint32 aFrame)
+                                         gfxIImageFrame *aFrame)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
@@ -182,6 +182,7 @@ NS_IMETHODIMP nsImageLoader::OnStopFrame(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
+                                          gfxIImageFrame *newframe,
                                           nsIntRect *dirtyRect)
 {
   if (!mFrame)

@@ -61,10 +61,12 @@
 #include "nsFrameManager.h"
 #include "nsBlockFrame.h"
 #include "nsBidiPresUtils.h"
+#include "gfxIImageFrame.h"
 #include "imgIContainer.h"
 #include "gfxRect.h"
 #include "gfxContext.h"
 #include "gfxFont.h"
+#include "nsIImage.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCSSRendering.h"
 #include "nsContentUtils.h"
@@ -315,16 +317,6 @@ nsLayoutUtils::IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame*
   }
 
   return PR_FALSE;
-}
-
-// static
-PRBool
-nsLayoutUtils::IsAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
-                                       nsIFrame* aCommonAncestor)
-{
-  if (aFrame == aAncestorFrame)
-    return PR_TRUE;
-  return IsProperAncestorFrameCrossDoc(aAncestorFrame, aFrame, aCommonAncestor);
 }
 
 // static
@@ -1048,17 +1040,14 @@ GetNextPage(nsIFrame* aPageContentFrame)
 
 nsresult
 nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
-                          const nsRegion& aDirtyRegion, nscolor aBackstop,
-                          PRUint32 aFlags)
+                          const nsRegion& aDirtyRegion, nscolor aBackstop)
 {
   nsAutoDisableGetUsedXAssertions disableAssert;
 
   nsDisplayListBuilder builder(aFrame, PR_FALSE, PR_TRUE);
   nsDisplayList list;
   nsRect dirtyRect = aDirtyRegion.GetBounds();
-  if (aFlags & PAINT_IN_TRANSFORM) {
-    builder.SetInTransform(PR_TRUE);
-  }
+
   nsresult rv;
 
   builder.EnterPresShell(aFrame, dirtyRect);
@@ -2743,13 +2732,14 @@ MapToFloatUserPixels(const gfxSize& aSize,
 
 static nsresult
 DrawImageInternal(nsIRenderingContext* aRenderingContext,
-                  imgIContainer*       aImage,
+                  nsIImage*            aImage,
                   gfxPattern::GraphicsFilter aGraphicsFilter,
                   const nsRect&        aDest,
                   const nsRect&        aFill,
                   const nsPoint&       aAnchor,
                   const nsRect&        aDirty,
-                  const nsIntSize&     aImageSize)
+                  const nsIntSize&     aImageSize,
+                  const nsIntRect&     aInnerRect)
 {
   if (aDest.IsEmpty() || aFill.IsEmpty())
     return NS_OK;
@@ -2849,18 +2839,22 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
   if (finalFillRect.IsEmpty())
     return NS_OK;
 
-  aImage->Draw(ctx, aGraphicsFilter, transform, finalFillRect, intSubimage);
+  nsIntMargin padding(aInnerRect.x, aInnerRect.y,
+                      imageSize.width - aInnerRect.XMost(),
+                      imageSize.height - aInnerRect.YMost());
+  aImage->Draw(ctx, aGraphicsFilter, transform, finalFillRect, padding, intSubimage);
   return NS_OK;
 }
 
 /* Workhorse for DrawSingleUnscaledImage.  */
 static nsresult
 DrawSingleUnscaledImageInternal(nsIRenderingContext* aRenderingContext,
-                                imgIContainer*       aImage,
+                                nsIImage*            aImage,
                                 const nsPoint&       aDest,
                                 const nsRect&        aDirty,
                                 const nsRect*        aSourceArea,
-                                const nsIntSize&     aImageSize)
+                                const nsIntSize&     aImageSize,
+                                const nsIntRect&     aInnerRect)
 {
   if (aImageSize.width == 0 || aImageSize.height == 0)
     return NS_OK;
@@ -2883,18 +2877,19 @@ DrawSingleUnscaledImageInternal(nsIRenderingContext* aRenderingContext,
   // translation but we don't want to actually tile the image.
   fill.IntersectRect(fill, dest);
   return DrawImageInternal(aRenderingContext, aImage, gfxPattern::FILTER_NEAREST,
-                           dest, fill, aDest, aDirty, aImageSize);
+                           dest, fill, aDest, aDirty, aImageSize, aInnerRect);
 }
 
 /* Workhorse for DrawSingleImage.  */
 static nsresult
 DrawSingleImageInternal(nsIRenderingContext* aRenderingContext,
-                        imgIContainer*       aImage,
+                        nsIImage*            aImage,
                         gfxPattern::GraphicsFilter aGraphicsFilter,
                         const nsRect&        aDest,
                         const nsRect&        aDirty,
                         const nsRect*        aSourceArea,
-                        const nsIntSize&     aImageSize)
+                        const nsIntSize&     aImageSize,
+                        const nsIntRect&     aInnerRect)
 {
   if (aImageSize.width == 0 || aImageSize.height == 0)
     return NS_OK;
@@ -2916,7 +2911,7 @@ DrawSingleImageInternal(nsIRenderingContext* aRenderingContext,
   nsRect fill;
   fill.IntersectRect(aDest, dest);
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter, dest, fill,
-                           fill.TopLeft(), aDirty, aImageSize);
+                           fill.TopLeft(), aDirty, aImageSize, aInnerRect);
 }
 
 /* The exposed Draw*Image functions just do interface conversion and call the
@@ -2931,13 +2926,38 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          const nsPoint&       aAnchor,
                          const nsRect&        aDirty)
 {
+  nsCOMPtr<gfxIImageFrame> imgFrame;
+  aImage->GetCurrentFrame(getter_AddRefs(imgFrame));
+  if (!imgFrame) return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+  if (!img) return NS_ERROR_FAILURE;
+
+  nsIntRect innerRect;
+  imgFrame->GetRect(innerRect);
+
   nsIntSize imageSize;
   aImage->GetWidth(&imageSize.width);
   aImage->GetHeight(&imageSize.height);
 
+  return DrawImageInternal(aRenderingContext, img, aGraphicsFilter,
+                           aDest, aFill, aAnchor, aDirty,
+                           imageSize, innerRect);
+}
+
+/* static */ nsresult
+nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
+                         nsIImage*            aImage,
+                         gfxPattern::GraphicsFilter aGraphicsFilter,
+                         const nsRect&        aDest,
+                         const nsRect&        aFill,
+                         const nsPoint&       aAnchor,
+                         const nsRect&        aDirty)
+{
+  nsIntSize imageSize(aImage->GetWidth(), aImage->GetHeight());
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,
-                           imageSize);
+                           imageSize, nsIntRect(nsIntPoint(0,0), imageSize));
 }
 
 /* static */ nsresult
@@ -2947,13 +2967,23 @@ nsLayoutUtils::DrawSingleUnscaledImage(nsIRenderingContext* aRenderingContext,
                                        const nsRect&        aDirty,
                                        const nsRect*        aSourceArea)
 {
+  nsCOMPtr<gfxIImageFrame> imgFrame;
+  aImage->GetCurrentFrame(getter_AddRefs(imgFrame));
+  if (!imgFrame) return NS_ERROR_FAILURE;
+ 
+  nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+  if (!img) return NS_ERROR_FAILURE;
+ 
+  nsIntRect innerRect;
+  imgFrame->GetRect(innerRect);
+
   nsIntSize imageSize;
   aImage->GetWidth(&imageSize.width);
   aImage->GetHeight(&imageSize.height);
 
-  return DrawSingleUnscaledImageInternal(aRenderingContext, aImage,
+  return DrawSingleUnscaledImageInternal(aRenderingContext, img,
                                          aDest, aDirty, aSourceArea,
-                                         imageSize);
+                                         imageSize, innerRect);
 }
  
 /* static */ nsresult
@@ -2964,14 +2994,40 @@ nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                const nsRect&        aDirty,
                                const nsRect*        aSourceArea)
 {
+  nsCOMPtr<gfxIImageFrame> imgFrame;
+  aImage->GetCurrentFrame(getter_AddRefs(imgFrame));
+  if (!imgFrame) return NS_ERROR_FAILURE;
+ 
+  nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+  if (!img) return NS_ERROR_FAILURE;
+ 
+  nsIntRect innerRect;
+  imgFrame->GetRect(innerRect);
+
   nsIntSize imageSize;
   aImage->GetWidth(&imageSize.width);
   aImage->GetHeight(&imageSize.height);
 
+  return DrawSingleImageInternal(aRenderingContext, img, aGraphicsFilter,
+                                 aDest, aDirty, aSourceArea,
+                                 imageSize, innerRect);
+}
+
+/* static */ nsresult
+nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
+                               nsIImage*            aImage,
+                               gfxPattern::GraphicsFilter aGraphicsFilter,
+                               const nsRect&        aDest,
+                               const nsRect&        aDirty,
+                               const nsRect*        aSourceArea)
+{
+  nsIntSize imageSize(aImage->GetWidth(), aImage->GetHeight());
   return DrawSingleImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                                  aDest, aDirty, aSourceArea,
-                                 imageSize);
+                                 imageSize,
+                                 nsIntRect(nsIntPoint(0, 0), imageSize));
 }
+
 
 /* static */ nsRect
 nsLayoutUtils::GetWholeImageDestination(const nsIntSize& aWholeImageSize,
@@ -3330,6 +3386,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
 #endif
 
   // Finally, check if it's a normal image
+  nsCOMPtr<imgIContainer> imgContainer;
   nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(aElement);
 
   if (!imageLoader)
@@ -3368,28 +3425,34 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
       return result;
   }
 
-  nsCOMPtr<imgIContainer> imgContainer;
   rv = imgRequest->GetImage(getter_AddRefs(imgContainer));
   if (NS_FAILED(rv) || !imgContainer)
     return result;
 
-  nsRefPtr<gfxASurface> framesurf;
-  rv = imgContainer->GetCurrentFrame(getter_AddRefs(framesurf));
+  nsCOMPtr<gfxIImageFrame> frame;
+  rv = imgContainer->GetCurrentFrame(getter_AddRefs(frame));
   if (NS_FAILED(rv))
+    return result;
+
+  nsCOMPtr<nsIImage> img(do_GetInterface(frame));
+  if (!img)
     return result;
 
   PRInt32 imgWidth, imgHeight;
-  rv = imgContainer->GetWidth(&imgWidth);
-  rv |= imgContainer->GetHeight(&imgHeight);
+  rv = frame->GetWidth(&imgWidth);
+  rv |= frame->GetHeight(&imgHeight);
   if (NS_FAILED(rv))
     return result;
 
-  if (wantImageSurface && framesurf->GetType() != gfxASurface::SurfaceTypeImage) {
+  nsRefPtr<gfxPattern> gfxpattern;
+  img->GetPattern(getter_AddRefs(gfxpattern));
+  nsRefPtr<gfxASurface> gfxsurf = gfxpattern->GetSurface();
+
+  if (wantImageSurface && gfxsurf->GetType() != gfxASurface::SurfaceTypeImage) {
     forceCopy = PR_TRUE;
   }
 
-  nsRefPtr<gfxASurface> gfxsurf = framesurf;
-  if (forceCopy) {
+  if (forceCopy || !gfxsurf) {
     if (wantImageSurface) {
       gfxsurf = new gfxImageSurface (gfxIntSize(imgWidth, imgHeight), gfxASurface::ImageFormatARGB32);
     } else {
@@ -3400,7 +3463,7 @@ nsLayoutUtils::SurfaceFromElement(nsIDOMElement *aElement,
     nsRefPtr<gfxContext> ctx = new gfxContext(gfxsurf);
 
     ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    ctx->SetSource(framesurf);
+    ctx->SetPattern(gfxpattern);
     ctx->Paint();
   }
 

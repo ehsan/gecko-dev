@@ -1889,7 +1889,8 @@ Tracing(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
       case JSTYPE_NUMBER:
       case JSTYPE_BOOLEAN: {
         JSBool bval;
-        JS_ValueToBoolean(cx, argv[0], &bval);
+        if (!JS_ValueToBoolean(cx, argv[0], &bval))
+            goto bad_argument;
         file = bval ? stderr : NULL;
         break;
       }
@@ -2794,10 +2795,8 @@ sandbox_enumerate(JSContext *cx, JSObject *obj)
     jsval v;
     JSBool b;
 
-    if (!JS_GetProperty(cx, obj, "lazy", &v))
+    if (!JS_GetProperty(cx, obj, "lazy", &v) || !JS_ValueToBoolean(cx, v, &b))
         return JS_FALSE;
-
-    JS_ValueToBoolean(cx, v, &b);
     return !b || JS_EnumerateStandardClasses(cx, obj);
 }
 
@@ -2808,10 +2807,8 @@ sandbox_resolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
     jsval v;
     JSBool b, resolved;
 
-    if (!JS_GetProperty(cx, obj, "lazy", &v))
+    if (!JS_GetProperty(cx, obj, "lazy", &v) || !JS_ValueToBoolean(cx, v, &b))
         return JS_FALSE;
-
-    JS_ValueToBoolean(cx, v, &b);
     if (b && (flags & JSRESOLVE_ASSIGNING) == 0) {
         if (!JS_ResolveStandardClass(cx, obj, id, &resolved))
             return JS_FALSE;
@@ -4072,9 +4069,9 @@ its_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
     str = JS_GetStringBytes(JSVAL_TO_STRING(id));
     if (!strcmp(str, "noisy"))
-        JS_ValueToBoolean(cx, *vp, &its_noisy);
+        return JS_ValueToBoolean(cx, *vp, &its_noisy);
     else if (!strcmp(str, "enum_fail"))
-        JS_ValueToBoolean(cx, *vp, &its_enum_fail);
+        return JS_ValueToBoolean(cx, *vp, &its_enum_fail);
 
     return JS_TRUE;
 }

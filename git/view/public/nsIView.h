@@ -43,7 +43,6 @@
 #include "nsRect.h"
 #include "nsPoint.h"
 #include "nsNativeWidget.h"
-#include "nsIWidget.h"
 #include "nsWidgetInitData.h"
 
 class nsIViewManager;
@@ -323,17 +322,6 @@ public:
   void DisownWidget() {
     mVFlags |= NS_VIEW_DISOWNS_WIDGET;
   }
-
-  /**
-   * Make aWidget direct its events to this view.
-   * The caller must call DetachWidgetEventHandler before this view
-   * is destroyed.
-   */
-  EVENT_CALLBACK AttachWidgetEventHandler(nsIWidget* aWidget);
-  /**
-   * Stop aWidget directing its events to this view.
-   */
-  void DetachWidgetEventHandler(nsIWidget* aWidget);
 
   /**
    * If called, will make the view invalidate its frame instead of BitBlitting

@@ -429,7 +429,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     XPCMarkableJSVal newParentVal_markable(&newParentVal);
     AutoMarkingJSVal newParentVal_automarker(ccx, &newParentVal_markable);
     JSBool chromeOnly = JS_FALSE;
-    JSBool crossDoubleWrapped = JS_FALSE;
 
     if(sciWrapper.GetFlags().WantPreCreate())
     {
@@ -502,21 +501,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
             return NS_OK;
         }
     }
-    else
-    {
-        if(nsXPCWrappedJSClass::IsWrappedJS(Object))
-        {
-            nsCOMPtr<nsIXPConnectWrappedJS> wrappedjs(do_QueryInterface(Object));
-            JSObject *obj;
-            wrappedjs->GetJSObject(&obj);
-            if((STOBJ_IS_SYSTEM(obj) ||
-                STOBJ_IS_SYSTEM(JS_GetGlobalForObject(ccx, obj))) &&
-               !STOBJ_IS_SYSTEM(Scope->GetGlobalJSObject()))
-            {
-                crossDoubleWrapped = JS_TRUE;
-            }
-        }
-    }
 
     AutoMarkingWrappedNativeProtoPtr proto(ccx);
 
@@ -584,8 +568,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
     if(chromeOnly)
         wrapper->SetNeedsChromeWrapper();
-    if(crossDoubleWrapped)
-        wrapper->SetIsDoubleWrapper();
 
     return FinishCreate(ccx, Scope, Interface, cache, wrapper, resultWrapper);
 }
@@ -848,7 +830,7 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mSet(aProto->GetSet()),
       mFlatJSObject((JSObject*)JSVAL_ONE), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
-      mWrapperWord(0)
+      mWrapper(nsnull)
 {
     mIdentity = aIdentity.get();
 
@@ -867,7 +849,7 @@ XPCWrappedNative::XPCWrappedNative(already_AddRefed<nsISupports> aIdentity,
       mSet(aSet),
       mFlatJSObject((JSObject*)JSVAL_ONE), // non-null to pass IsValid() test
       mScriptableInfo(nsnull),
-      mWrapperWord(0)
+      mWrapper(nsnull)
 {
     mIdentity = aIdentity.get();
 
@@ -3805,16 +3787,6 @@ ConstructSlimWrapper(XPCCallContext &ccx, nsISupports *p, nsWrapperCache *cache,
         }
     }
 
-    // The PreCreate hook could have forced the creation of a wrapper, need
-    // to check for that here and return early.
-    JSObject* wrapper = cache->GetWrapper();
-    if(wrapper)
-    {
-        *rval = OBJECT_TO_JSVAL(wrapper);
-
-        return JS_TRUE;
-    }
-
     AutoMarkingWrappedNativeProtoPtr xpcproto(ccx);
     JSBool isGlobal = JS_FALSE;
     xpcproto = XPCWrappedNativeProto::GetNewOrUsed(ccx, xpcScope, classInfo,
@@ -3830,9 +3802,9 @@ ConstructSlimWrapper(XPCCallContext &ccx, nsISupports *p, nsWrapperCache *cache,
     if(!jsclazz->addProperty)
         return JS_FALSE;
 
-    wrapper = xpc_NewSystemInheritingJSObject(ccx, jsclazz,
-                                              xpcproto->GetJSProtoObject(),
-                                              parent);
+    JSObject* wrapper =
+        xpc_NewSystemInheritingJSObject(ccx, jsclazz,
+                                        xpcproto->GetJSProtoObject(), parent);
     if(!JS_SetPrivate(ccx, wrapper, identityObj) ||
        !JS_SetReservedSlot(ccx, wrapper, 0, PRIVATE_TO_JSVAL(xpcproto.get())))
         return JS_FALSE;
