@@ -141,7 +141,7 @@ IsRunningInWindowsMetro()
     return false;
   }
 
-  typedef BOOL (WINAPI* IsImmersiveProcessFunc)(HANDLE aProcess);
+  typedef BOOL (WINAPI* IsImmersiveProcessFunc)(HANDLE process);
   IsImmersiveProcessFunc IsImmersiveProcessPtr =
     (IsImmersiveProcessFunc)GetProcAddress(user32DLL,
                                            "IsImmersiveProcess");

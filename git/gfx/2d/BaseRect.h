@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <ostream>
 
 #include "mozilla/Assertions.h"
 #include "mozilla/FloatingPoint.h"
@@ -482,11 +481,6 @@ struct BaseRect {
     rect.x = std::min(rect.XMost(), aRect.XMost()) - rect.width;
     rect.y = std::min(rect.YMost(), aRect.YMost()) - rect.height;
     return rect;
-  }
-
-  friend std::ostream& operator<<(std::ostream& stream, const Sub& aRect) {
-    return stream << '(' << aRect.x << ',' << aRect.y << ','
-                  << aRect.width << ',' << aRect.height << ')';
   }
 
 private:

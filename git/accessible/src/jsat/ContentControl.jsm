@@ -221,26 +221,9 @@ this.ContentControl.prototype = {
       return;
     }
 
-    // recursively find a descendant that is activatable.
-    let getActivatableDescendant = (aAccessible) => {
-      if (aAccessible.actionCount > 0) {
-        return aAccessible;
-      }
-
-      for (let acc = aAccessible.firstChild; acc; acc = acc.nextSibling) {
-        let activatable = getActivatableDescendant(acc);
-        if (activatable) {
-          return activatable;
-        }
-      }
-
-      return null;
-    };
-
     let vc = this.vc;
     if (!this.sendToChild(vc, aMessage)) {
-      let position = vc.position;
-      activateAccessible(getActivatableDescendant(position) || position);
+      activateAccessible(vc.position);
     }
   },
 

@@ -10,7 +10,9 @@
 
 "use strict";
 
-const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cr = Components.results;
 
 const PREF_EM_UPDATE_INTERVAL = "extensions.update.interval";
 
@@ -20,33 +22,29 @@ const CANT_READ_ARCHIVE = -207;
 const USER_CANCELLED    = -210;
 const DOWNLOAD_ERROR    = -228;
 const UNSUPPORTED_TYPE  = -244;
-const SUCCESS           = 0;
+const SUCCESS = 0;
 
 const MSG_INSTALL_ENABLED  = "WebInstallerIsInstallEnabled";
 const MSG_INSTALL_ADDONS   = "WebInstallerInstallAddonsFromWebpage";
 const MSG_INSTALL_CALLBACK = "WebInstallerInstallCallback";
 
-const CHILD_SCRIPT = "resource://gre/modules/addons/Content.js";
+const CHILD_SCRIPT =
+  "chrome://mozapps/content/extensions/extensions-content.js";
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
-let gSingleton = null;
-
-let gParentMM = null;
-
+var gSingleton = null;
 
 function amManager() {
-  Cu.import("resource://gre/modules/AddonManager.jsm");
+  Components.utils.import("resource://gre/modules/AddonManager.jsm");
 
-  let globalMM = Cc["@mozilla.org/globalmessagemanager;1"]
-                 .getService(Ci.nsIMessageListenerManager);
-  globalMM.loadFrameScript(CHILD_SCRIPT, true);
+  var messageManager = Cc["@mozilla.org/globalmessagemanager;1"].
+                       getService(Ci.nsIMessageListenerManager);
 
-  gParentMM = Cc["@mozilla.org/parentprocessmessagemanager;1"]
-                 .getService(Ci.nsIMessageListenerManager);
-  gParentMM.addMessageListener(MSG_INSTALL_ENABLED, this);
-  gParentMM.addMessageListener(MSG_INSTALL_ADDONS, this);
+  messageManager.addMessageListener(MSG_INSTALL_ENABLED, this);
+  messageManager.addMessageListener(MSG_INSTALL_ADDONS, this);
+  messageManager.loadFrameScript(CHILD_SCRIPT, true);
 }
 
 amManager.prototype = {
@@ -161,34 +159,41 @@ amManager.prototype = {
    * activity, and sends back callbacks.
    */
   receiveMessage: function AMC_receiveMessage(aMessage) {
-    let payload = aMessage.data;
-    let referer = Services.io.newURI(payload.referer, null, null);
-
+    var payload = aMessage.json;
+    var referer = Services.io.newURI(payload.referer, null, null);
     switch (aMessage.name) {
       case MSG_INSTALL_ENABLED:
         return this.isInstallEnabled(payload.mimetype, referer);
 
       case MSG_INSTALL_ADDONS:
-        let callback = null;
-        if (payload.callbackID != -1) {
+        var callback = null;
+        if (payload.callbackId != -1) {
           callback = {
             onInstallEnded: function ITP_callback(url, status) {
-              gParentMM.broadcastAsyncMessage(MSG_INSTALL_CALLBACK, {
-                callbackID: payload.callbackID,
-                url: url,
-                status: status
-              });
+              // Doing it this way, instead of aMessage.target.messageManager,
+              // ensures it works in Firefox and not only Fennec. See bug
+              // 578172. TODO: Clean up this code once that bug is fixed
+              var flo = aMessage.target.QueryInterface(Ci.nsIFrameLoaderOwner);
+              var returnMessageManager = flo.frameLoader.messageManager;
+              returnMessageManager.sendAsyncMessage(MSG_INSTALL_CALLBACK,
+                { installerId: payload.installerId,
+                  callbackId: payload.callbackId, url: url, status: status }
+              );
             },
           };
         }
-
-        // Should reimplement this properly with Window IDs when possible,
-        // see bug 596109.
-        let window = aMessage.objects.win;
-
+        var window = null;
+        if (aMessage.target.getAttribute("remote") == "true") {
+          // Fallback for multiprocess (e10s) mode. Should reimplement this
+          // properly with Window IDs when possible, see bug 596109.
+          window = aMessage.target.ownerDocument.defaultView;
+        } else {
+          // Normal approach for single-process mode
+          window = aMessage.target.contentWindow;
+        }
         return this.installAddonsFromWebpage(payload.mimetype,
           window, referer, payload.uris, payload.hashes, payload.names,
-          payload.icons, callback);
+          payload.icons, callback, payload.uris.length);
     }
   },
 
@@ -198,7 +203,7 @@ amManager.prototype = {
       if (aOuter != null)
         throw Components.Exception("Component does not support aggregation",
                                    Cr.NS_ERROR_NO_AGGREGATION);
-
+  
       if (!gSingleton)
         gSingleton = new amManager();
       return gSingleton.QueryInterface(aIid);
@@ -207,8 +212,7 @@ amManager.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.amIAddonManager,
                                          Ci.amIWebInstaller,
                                          Ci.nsITimerCallback,
-                                         Ci.nsIObserver,
-                                         Ci.nsIMessageListener])
+                                         Ci.nsIObserver])
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([amManager]);

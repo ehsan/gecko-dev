@@ -154,20 +154,20 @@ static uint8_t sDumpAboutMemorySignum;         // SIGRTMIN
 static uint8_t sDumpAboutMemoryAfterMMUSignum; // SIGRTMIN + 1
 static uint8_t sGCAndCCDumpSignum;             // SIGRTMIN + 2
 
-void doMemoryReport(const uint8_t aRecvSig)
+void doMemoryReport(const uint8_t recvSig)
 {
   // Dump our memory reports (but run this on the main thread!).
-  bool doMMUFirst = aRecvSig == sDumpAboutMemoryAfterMMUSignum;
-  LOG("SignalWatcher(sig %d) dispatching memory report runnable.", aRecvSig);
+  bool doMMUFirst = recvSig == sDumpAboutMemoryAfterMMUSignum;
+  LOG("SignalWatcher(sig %d) dispatching memory report runnable.", recvSig);
   nsRefPtr<DumpMemoryInfoToTempDirRunnable> runnable =
     new DumpMemoryInfoToTempDirRunnable(/* identifier = */ EmptyString(),
                                         doMMUFirst);
   NS_DispatchToMainThread(runnable);
 }
 
-void doGCCCDump(const uint8_t aRecvSig)
+void doGCCCDump(const uint8_t recvSig)
 {
-  LOG("SignalWatcher(sig %d) dispatching GC/CC log runnable.", aRecvSig);
+  LOG("SignalWatcher(sig %d) dispatching GC/CC log runnable.", recvSig);
   // Dump GC and CC logs (from the main thread).
   nsRefPtr<GCAndCCLogDumpRunnable> runnable =
     new GCAndCCLogDumpRunnable(

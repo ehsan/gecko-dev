@@ -22,46 +22,64 @@ struct AnyRegister {
     static const uint32_t Total = Registers::Total + FloatRegisters::Total;
     static const uint32_t Invalid = UINT_MAX;
 
-  private:
-    Code code_;
+    union {
+        Registers::Code gpr_;
+        FloatRegisters::Code fpu_;
+    };
+    bool isFloat_;
 
-  public:
     AnyRegister()
     { }
     explicit AnyRegister(Register gpr) {
-        code_ = gpr.code();
+        gpr_ = gpr.code();
+        isFloat_ = false;
     }
     explicit AnyRegister(FloatRegister fpu) {
-        code_ = fpu.code() + Registers::Total;
+        fpu_ = fpu.code();
+        isFloat_ = true;
     }
     static AnyRegister FromCode(uint32_t i) {
         JS_ASSERT(i < Total);
         AnyRegister r;
-        r.code_ = i;
+        if (i < Registers::Total) {
+            r.gpr_ = Register::Code(i);
+            r.isFloat_ = false;
+        } else {
+            r.fpu_ = FloatRegister::Code(i - Registers::Total);
+            r.isFloat_ = true;
+        }
         return r;
     }
     bool isFloat() const {
-        return code_ >= Registers::Total;
+        return isFloat_;
     }
     Register gpr() const {
         JS_ASSERT(!isFloat());
-        return Register::FromCode(code_);
+        return Register::FromCode(gpr_);
     }
     FloatRegister fpu() const {
         JS_ASSERT(isFloat());
-        return FloatRegister::FromCode(code_ - Registers::Total);
+        return FloatRegister::FromCode(fpu_);
     }
-    bool operator ==(AnyRegister other) const {
-        return code_ == other.code_;
+    bool operator ==(const AnyRegister &other) const {
+        return isFloat()
+               ? (other.isFloat() && fpu_ == other.fpu_)
+               : (!other.isFloat() && gpr_ == other.gpr_);
     }
-    bool operator !=(AnyRegister other) const {
-        return code_ != other.code_;
+    bool operator !=(const AnyRegister &other) const {
+        return isFloat()
+               ? (!other.isFloat() || fpu_ != other.fpu_)
+               : (other.isFloat() || gpr_ != other.gpr_);
     }
     const char *name() const {
-        return isFloat() ? fpu().name() : gpr().name();
+        return isFloat()
+               ? FloatRegister::FromCode(fpu_).name()
+               : Register::FromCode(gpr_).name();
     }
     const Code code() const {
-        return code_;
+        return isFloat()
+               ? fpu_ + Registers::Total
+               : gpr_;
     }
     bool volatile_() const {
         return isFloat() ? fpu().volatile_() : gpr().volatile_();
@@ -145,7 +163,7 @@ class TypedOrValueRegister
         return *data.value.addr();
     }
 
-    AnyRegister dataTyped() const {
+    const AnyRegister &dataTyped() const {
         JS_ASSERT(hasTyped());
         return *data.typed.addr();
     }
@@ -522,7 +540,7 @@ class RegisterSet {
     void add(FloatRegister reg) {
         fpu_.add(reg);
     }
-    void add(AnyRegister any) {
+    void add(const AnyRegister &any) {
         if (any.isFloat())
             add(any.fpu());
         else
@@ -550,7 +568,7 @@ class RegisterSet {
     void addUnchecked(FloatRegister reg) {
         fpu_.addUnchecked(reg);
     }
-    void addUnchecked(AnyRegister any) {
+    void addUnchecked(const AnyRegister &any) {
         if (any.isFloat())
             addUnchecked(any.fpu());
         else
@@ -574,7 +592,7 @@ class RegisterSet {
 #error "Bad architecture"
 #endif
     }
-    void take(AnyRegister reg) {
+    void take(const AnyRegister &reg) {
         if (reg.isFloat())
             fpu_.take(reg.fpu());
         else

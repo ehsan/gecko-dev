@@ -1869,7 +1869,6 @@ public:
       , mStream(nullptr)
       , mTexID(0)
       , mSize(0,0)
-      , mHasAlpha(false)
       , mIsGLAlphaPremult(false)
     { }
 
@@ -1885,9 +1884,6 @@ public:
 
     // The size of the canvas content
     nsIntSize mSize;
-
-    // Whether the canvas drawingbuffer has an alpha channel.
-    bool mHasAlpha;
 
     // Whether mGLContext contains data that is alpha-premultiplied.
     bool mIsGLAlphaPremult;

@@ -358,9 +358,6 @@ Finder.prototype = {
     let body = (doc instanceof Ci.nsIDOMHTMLDocument && doc.body) ?
                doc.body : doc.documentElement;
 
-    if (!body)
-      return;
-
     let searchRange = doc.createRange();
     searchRange.selectNodeContents(body);
 

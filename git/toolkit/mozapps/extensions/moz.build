@@ -9,6 +9,7 @@ TEST_DIRS += ['test']
 
 XPIDL_SOURCES += [
     'amIAddonManager.idl',
+    'amIInstallTrigger.idl',
     'amIWebInstaller.idl',
     'amIWebInstallListener.idl',
 ]
@@ -18,7 +19,6 @@ XPIDL_MODULE = 'extensions'
 EXTRA_COMPONENTS += [
     'addonManager.js',
     'amContentHandler.js',
-    'amInstallTrigger.js',
     'amWebInstallListener.js',
 ]
 

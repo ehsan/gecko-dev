@@ -662,7 +662,7 @@ class ABIArgIter
 typedef js::Vector<MIRType, 8> MIRTypeVector;
 typedef ABIArgIter<MIRTypeVector> ABIArgMIRTypeIter;
 
-typedef js::Vector<VarType, 8, LifoAllocPolicy<Fallible> > VarTypeVector;
+typedef js::Vector<VarType, 8, LifoAllocPolicy> VarTypeVector;
 typedef ABIArgIter<VarTypeVector> ABIArgTypeIter;
 
 class Signature
@@ -3596,10 +3596,10 @@ CheckStoreArray(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition
             return f.failf(lhs, "%s is not a subtype of double? or floatish", rhsType.toChars());
         break;
       case ArrayBufferView::TYPE_FLOAT64:
-        if (rhsType.isMaybeFloat())
+        if (rhsType.isFloat())
             rhsDef = f.unary<MToDouble>(rhsDef);
         else if (!rhsType.isMaybeDouble())
-            return f.failf(lhs, "%s is not a subtype of float? or double?", rhsType.toChars());
+            return f.failf(lhs, "%s is not a subtype of float or double?", rhsType.toChars());
         break;
       default:
         MOZ_ASSUME_UNREACHABLE("Unexpected view type");

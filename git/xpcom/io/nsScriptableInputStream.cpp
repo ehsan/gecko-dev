@@ -11,55 +11,39 @@ NS_IMPL_ISUPPORTS(nsScriptableInputStream, nsIScriptableInputStream)
 
 // nsIScriptableInputStream methods
 NS_IMETHODIMP
-nsScriptableInputStream::Close()
-{
-  if (!mInputStream) {
-    return NS_ERROR_NOT_INITIALIZED;
-  }
+nsScriptableInputStream::Close(void) {
+  if (!mInputStream) return NS_ERROR_NOT_INITIALIZED;
   return mInputStream->Close();
 }
 
 NS_IMETHODIMP
-nsScriptableInputStream::Init(nsIInputStream* aInputStream)
-{
-  if (!aInputStream) {
-    return NS_ERROR_NULL_POINTER;
-  }
+nsScriptableInputStream::Init(nsIInputStream *aInputStream) {
+  if (!aInputStream) return NS_ERROR_NULL_POINTER;
   mInputStream = aInputStream;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScriptableInputStream::Available(uint64_t* aResult)
-{
-  if (!mInputStream) {
-    return NS_ERROR_NOT_INITIALIZED;
-  }
-  return mInputStream->Available(aResult);
+nsScriptableInputStream::Available(uint64_t *_retval) {
+  if (!mInputStream) return NS_ERROR_NOT_INITIALIZED;
+  return mInputStream->Available(_retval);
 }
 
 NS_IMETHODIMP
-nsScriptableInputStream::Read(uint32_t aCount, char** aResult)
-{
+nsScriptableInputStream::Read(uint32_t aCount, char **_retval) {
   nsresult rv = NS_OK;
   uint64_t count64 = 0;
-  char* buffer = nullptr;
+  char *buffer = nullptr;
 
-  if (!mInputStream) {
-    return NS_ERROR_NOT_INITIALIZED;
-  }
+  if (!mInputStream) return NS_ERROR_NOT_INITIALIZED;
 
   rv = mInputStream->Available(&count64);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  if (NS_FAILED(rv)) return rv;
 
   // bug716556 - Ensure count+1 doesn't overflow
   uint32_t count = XPCOM_MIN((uint32_t)XPCOM_MIN<uint64_t>(count64, aCount), UINT32_MAX - 1);
-  buffer = (char*)moz_malloc(count + 1);  // make room for '\0'
-  if (!buffer) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  buffer = (char*)moz_malloc(count+1); // make room for '\0'
+  if (!buffer) return NS_ERROR_OUT_OF_MEMORY;
 
   rv = ReadHelper(buffer, count);
   if (NS_FAILED(rv)) {
@@ -68,26 +52,25 @@ nsScriptableInputStream::Read(uint32_t aCount, char** aResult)
   }
 
   buffer[count] = '\0';
-  *aResult = buffer;
+  *_retval = buffer;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScriptableInputStream::ReadBytes(uint32_t aCount, nsACString& aResult)
-{
+nsScriptableInputStream::ReadBytes(uint32_t aCount, nsACString &_retval) {
   if (!mInputStream) {
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  aResult.SetLength(aCount);
-  if (aResult.Length() != aCount) {
+  _retval.SetLength(aCount);
+  if (_retval.Length() != aCount) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  char* ptr = aResult.BeginWriting();
+  char *ptr = _retval.BeginWriting();
   nsresult rv = ReadHelper(ptr, aCount);
   if (NS_FAILED(rv)) {
-    aResult.Truncate();
+    _retval.Truncate();
   }
   return rv;
 }
@@ -120,17 +103,11 @@ nsScriptableInputStream::ReadHelper(char* aBuffer, uint32_t aCount)
 }
 
 nsresult
-nsScriptableInputStream::Create(nsISupports* aOuter, REFNSIID aIID,
-                                void** aResult)
-{
-  if (aOuter) {
-    return NS_ERROR_NO_AGGREGATION;
-  }
+nsScriptableInputStream::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult) {
+  if (aOuter) return NS_ERROR_NO_AGGREGATION;
 
-  nsScriptableInputStream* sis = new nsScriptableInputStream();
-  if (!sis) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  nsScriptableInputStream *sis = new nsScriptableInputStream();
+  if (!sis) return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(sis);
   nsresult rv = sis->QueryInterface(aIID, aResult);

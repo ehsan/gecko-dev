@@ -172,7 +172,7 @@ SVGIFrameElement::GetSrcdoc(DOMString& srcdoc)
   GetAttr(kNameSpaceID_None, nsGkAtoms::srcdoc, srcdoc);
 }
 
-nsDOMSettableTokenList*
+already_AddRefed<nsDOMSettableTokenList>
 SVGIFrameElement::Sandbox()
 {
   return GetTokenList(nsGkAtoms::sandbox);

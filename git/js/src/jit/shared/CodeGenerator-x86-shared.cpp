@@ -1487,7 +1487,8 @@ CodeGeneratorX86Shared::visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool)
 }
 
 bool
-CodeGeneratorX86Shared::emitTableSwitchDispatch(MTableSwitch *mir, Register index, Register base)
+CodeGeneratorX86Shared::emitTableSwitchDispatch(MTableSwitch *mir, const Register &index,
+                                                const Register &base)
 {
     Label *defaultcase = mir->getDefault()->lir()->label();
 

@@ -1713,7 +1713,7 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsIURI** aU
 nsGenericHTMLElement::IsScrollGrabAllowed(JSContext*, JSObject*)
 {
   // Only allow scroll grabbing in chrome and certified apps.
-  nsIPrincipal* prin = nsContentUtils::SubjectPrincipal();
+  nsIPrincipal* prin = nsContentUtils::GetSubjectPrincipal();
   return nsContentUtils::IsSystemPrincipal(prin) ||
     prin->GetAppStatus() == nsIPrincipal::APP_STATUS_CERTIFIED;
 }

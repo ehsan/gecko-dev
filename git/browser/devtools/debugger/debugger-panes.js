@@ -944,9 +944,7 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
    */
   _onCmdAddBreakpoint: function(e) {
     let url = DebuggerView.Sources.selectedValue;
-    let line = (e && e.sourceEvent.target.tagName == 'menuitem' ?
-                DebuggerView.clickedLine + 1 :
-                DebuggerView.editor.getCursor().line + 1);
+    let line = DebuggerView.editor.getCursor().line + 1;
     let location = { url: url, line: line };
     let breakpointItem = this.getBreakpoint(location);
 
@@ -963,11 +961,9 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   /**
    * Called when the add conditional breakpoint key sequence was pressed.
    */
-  _onCmdAddConditionalBreakpoint: function(e) {
+  _onCmdAddConditionalBreakpoint: function() {
     let url =  DebuggerView.Sources.selectedValue;
-    let line = (e && e.sourceEvent.target.tagName == 'menuitem' ?
-                DebuggerView.clickedLine + 1 :
-                DebuggerView.editor.getCursor().line + 1);
+    let line = DebuggerView.editor.getCursor().line + 1;
     let location = { url: url, line: line };
     let breakpointItem = this.getBreakpoint(location);
 

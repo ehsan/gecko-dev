@@ -4,8 +4,6 @@
 
 // Test the functionality of the BreakpointStore object.
 
-const { BreakpointStore, ThreadActor } = devtools.require("devtools/server/actors/script");
-
 function run_test()
 {
   Cu.import("resource://gre/modules/jsdebugger.jsm");

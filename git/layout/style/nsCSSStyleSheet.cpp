@@ -1615,7 +1615,7 @@ nsCSSStyleSheet::DidDirty()
 nsresult
 nsCSSStyleSheet::SubjectSubsumesInnerPrincipal()
 {
-  nsCOMPtr<nsIPrincipal> subjectPrincipal = nsContentUtils::SubjectPrincipal();
+  nsCOMPtr<nsIPrincipal> subjectPrincipal = nsContentUtils::GetSubjectPrincipal();
   if (subjectPrincipal->Subsumes(mInner->mPrincipal)) {
     return NS_OK;
   }

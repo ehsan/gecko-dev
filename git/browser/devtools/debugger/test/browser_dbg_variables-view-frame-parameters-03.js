@@ -61,7 +61,7 @@ function testGlobalScope() {
 
   is(globalScope.get("InstallTrigger").target.querySelector(".name").getAttribute("value"), "InstallTrigger",
     "Should have the right property name for 'InstallTrigger'.");
-  is(globalScope.get("InstallTrigger").target.querySelector(".value").getAttribute("value"), "InstallTriggerImpl",
+  is(globalScope.get("InstallTrigger").target.querySelector(".value").getAttribute("value"), "Object",
     "Should have the right property value for 'InstallTrigger'.");
 
   is(globalScope.get("SpecialPowers").target.querySelector(".name").getAttribute("value"), "SpecialPowers",
@@ -115,7 +115,7 @@ function testWindowVariable() {
 
   is(windowVar.get("InstallTrigger").target.querySelector(".name").getAttribute("value"), "InstallTrigger",
     "Should have the right property name for 'InstallTrigger'.");
-  is(windowVar.get("InstallTrigger").target.querySelector(".value").getAttribute("value"), "InstallTriggerImpl",
+  is(windowVar.get("InstallTrigger").target.querySelector(".value").getAttribute("value"), "Object",
     "Should have the right property value for 'InstallTrigger'.");
 
   is(windowVar.get("SpecialPowers").target.querySelector(".name").getAttribute("value"), "SpecialPowers",

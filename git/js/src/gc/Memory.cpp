@@ -38,32 +38,19 @@ SystemPageAllocator::mapAlignedPages(size_t size, size_t alignment)
     JS_ASSERT(size % pageSize == 0);
     JS_ASSERT(alignment % allocGranularity == 0);
 
-    void *p = VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-
     /* Special case: If we want allocation alignment, no further work is needed. */
-    if (alignment == allocGranularity)
-        return p;
-
-    if (uintptr_t(p) % alignment != 0) {
-        unmapPages(p, size);
-        p = mapAlignedPagesSlow(size, alignment);
+    if (alignment == allocGranularity) {
+        return VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     }
 
-    JS_ASSERT(uintptr_t(p) % alignment == 0);
-    return p;
-}
-
-void *
-SystemPageAllocator::mapAlignedPagesSlow(size_t size, size_t alignment)
-{
     /*
      * Windows requires that there be a 1:1 mapping between VM allocation
      * and deallocation operations.  Therefore, take care here to acquire the
      * final result via one mapping operation.  This means unmapping any
      * preliminary result that is not correctly aligned.
      */
-    void *p;
-    do {
+    void *p = nullptr;
+    while (!p) {
         /*
          * Over-allocate in order to map a memory region that is definitely
          * large enough, then deallocate and allocate again the correct size,
@@ -81,8 +68,9 @@ SystemPageAllocator::mapAlignedPagesSlow(size_t size, size_t alignment)
         p = VirtualAlloc(chunkStart, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 
         /* Failure here indicates a race with another thread, so try again. */
-    } while (!p);
+    }
 
+    JS_ASSERT(uintptr_t(p) % alignment == 0);
     return p;
 }
 
@@ -263,28 +251,13 @@ SystemPageAllocator::mapAlignedPages(size_t size, size_t alignment)
     int prot = PROT_READ | PROT_WRITE;
     int flags = MAP_PRIVATE | MAP_ANON;
 
-    void *p = MapMemory(size, prot, flags, -1, 0);
-    if (p == MAP_FAILED)
-        return nullptr;
-
     /* Special case: If we want page alignment, no further work is needed. */
-    if (alignment == allocGranularity)
-        return p;
-
-    if (uintptr_t(p) % alignment != 0) {
-        unmapPages(p, size);
-        p = mapAlignedPagesSlow(size, alignment);
+    if (alignment == allocGranularity) {
+        void *region = MapMemory(size, prot, flags, -1, 0);
+        if (region == MAP_FAILED)
+            return nullptr;
+        return region;
     }
-
-    JS_ASSERT(uintptr_t(p) % alignment == 0);
-    return p;
-}
-
-void *
-SystemPageAllocator::mapAlignedPagesSlow(size_t size, size_t alignment)
-{
-    int prot = PROT_READ | PROT_WRITE;
-    int flags = MAP_PRIVATE | MAP_ANON;
 
     /* Overallocate and unmap the region's edges. */
     size_t reqSize = Min(size + 2 * alignment, 2 * size);
@@ -303,6 +276,7 @@ SystemPageAllocator::mapAlignedPagesSlow(size_t size, size_t alignment)
     if (uintptr_t(end) != regionEnd)
         JS_ALWAYS_TRUE(0 == munmap(end, regionEnd - uintptr_t(end)));
 
+    JS_ASSERT(uintptr_t(front) % alignment == 0);
     return front;
 }
 

@@ -363,7 +363,7 @@ ComputedTimingFunction::GetValue(double aPortion) const
 } /* end sub-namespace css */
 
 bool
-ElementAnimation::IsRunningAt(TimeStamp aTime) const
+StyleAnimation::IsRunningAt(TimeStamp aTime) const
 {
   if (IsPaused() || mIterationDuration.ToMilliseconds() <= 0.0 ||
       mStartTime.IsNull()) {
@@ -375,7 +375,7 @@ ElementAnimation::IsRunningAt(TimeStamp aTime) const
 }
 
 bool
-ElementAnimation::HasAnimationOfProperty(nsCSSProperty aProperty) const
+StyleAnimation::HasAnimationOfProperty(nsCSSProperty aProperty) const
 {
   for (uint32_t propIdx = 0, propEnd = mProperties.Length();
        propIdx != propEnd; ++propIdx) {

@@ -38,76 +38,79 @@ const int netCharType[256] =
      ((C >= 'a' && C <= 'f') ? C - 'a' + 10 : 0)))
 
 
-#define IS_OK(C) (netCharType[((unsigned int)(C))] & (aFlags))
+#define IS_OK(C) (netCharType[((unsigned int) (C))] & (flags))
 #define HEX_ESCAPE '%'
 
 //----------------------------------------------------------------------------------------
-static char*
-nsEscapeCount(const char* aStr, nsEscapeMask aFlags, size_t* aOutLen)
+static char* nsEscapeCount(
+  const char * str,
+  nsEscapeMask flags,
+  size_t* out_len)
 //----------------------------------------------------------------------------------------
 {
-  if (!aStr) {
+  if (!str)
     return 0;
-  }
 
-  size_t len = 0;
-  size_t charsToEscape = 0;
+  size_t i, len = 0, charsToEscape = 0;
   static const char hexChars[] = "0123456789ABCDEF";
 
-  const unsigned char* src = (const unsigned char*)aStr;
-  while (*src) {
+  const unsigned char* src = (const unsigned char *) str;
+  while (*src)
+  {
     len++;
-    if (!IS_OK(*src++)) {
+    if (!IS_OK(*src++))
       charsToEscape++;
-    }
   }
 
   // calculate how much memory should be allocated
   // original length + 2 bytes for each escaped character + terminating '\0'
   // do the sum in steps to check for overflow
   size_t dstSize = len + 1 + charsToEscape;
-  if (dstSize <= len) {
+  if (dstSize <= len)
     return 0;
-  }
   dstSize += charsToEscape;
-  if (dstSize < len) {
+  if (dstSize < len)
     return 0;
-  }
 
   // fail if we need more than 4GB
   // size_t is likely to be long unsigned int but nsMemory::Alloc(size_t)
   // calls NS_Alloc_P(size_t) which calls PR_Malloc(uint32_t), so there is
   // no chance to allocate more than 4GB using nsMemory::Alloc()
-  if (dstSize > UINT32_MAX) {
+  if (dstSize > UINT32_MAX)
     return 0;
-  }
 
-  char* result = (char*)nsMemory::Alloc(dstSize);
-  if (!result) {
+  char* result = (char *)nsMemory::Alloc(dstSize);
+  if (!result)
     return 0;
-  }
 
-  unsigned char* dst = (unsigned char*)result;
-  src = (const unsigned char*)aStr;
-  if (aFlags == url_XPAlphas) {
-    for (size_t i = 0; i < len; ++i) {
+  unsigned char* dst = (unsigned char *) result;
+  src = (const unsigned char *) str;
+  if (flags == url_XPAlphas)
+  {
+    for (i = 0; i < len; i++)
+    {
       unsigned char c = *src++;
-      if (IS_OK(c)) {
+      if (IS_OK(c))
         *dst++ = c;
-      } else if (c == ' ') {
-        *dst++ = '+';  /* convert spaces to pluses */
-      } else {
+      else if (c == ' ')
+        *dst++ = '+'; /* convert spaces to pluses */
+      else
+      {
         *dst++ = HEX_ESCAPE;
         *dst++ = hexChars[c >> 4];  /* high nibble */
         *dst++ = hexChars[c & 0x0f];  /* low nibble */
       }
     }
-  } else {
-    for (size_t i = 0; i < len; ++i) {
+  }
+  else
+  {
+    for (i = 0; i < len; i++)
+    {
       unsigned char c = *src++;
-      if (IS_OK(c)) {
+      if (IS_OK(c))
         *dst++ = c;
-      } else {
+      else
+      {
         *dst++ = HEX_ESCAPE;
         *dst++ = hexChars[c >> 4];  /* high nibble */
         *dst++ = hexChars[c & 0x0f];  /* low nibble */
@@ -116,39 +119,34 @@ nsEscapeCount(const char* aStr, nsEscapeMask aFlags, size_t* aOutLen)
   }
 
   *dst = '\0';     /* tack on eos */
-  if (aOutLen) {
-    *aOutLen = dst - (unsigned char*)result;
-  }
+  if(out_len)
+    *out_len = dst - (unsigned char *) result;
   return result;
 }
 
 //----------------------------------------------------------------------------------------
-char*
-nsEscape(const char* aStr, nsEscapeMask aFlags)
+char* nsEscape(const char * str, nsEscapeMask flags)
 //----------------------------------------------------------------------------------------
 {
-  if (!aStr) {
+  if(!str)
     return nullptr;
-  }
-  return nsEscapeCount(aStr, aFlags, nullptr);
+  return nsEscapeCount(str, flags, nullptr);
 }
 
 //----------------------------------------------------------------------------------------
-char*
-nsUnescape(char* aStr)
+char* nsUnescape(char * str)
 //----------------------------------------------------------------------------------------
 {
-  nsUnescapeCount(aStr);
-  return aStr;
+  nsUnescapeCount(str);
+  return str;
 }
 
 //----------------------------------------------------------------------------------------
-int32_t
-nsUnescapeCount(char* aStr)
+int32_t nsUnescapeCount(char * str)
 //----------------------------------------------------------------------------------------
 {
-  char* src = aStr;
-  char* dst = aStr;
+  char *src = str;
+  char *dst = str;
   static const char hexChars[] = "0123456789ABCDEFabcdef";
 
   char c1[] = " ";
@@ -163,24 +161,27 @@ nsUnescapeCount(char* aStr)
     return 0;
   }
 
-  while (*src) {
-    c1[0] = *(src + 1);
-    if (*(src + 1) == '\0') {
+  while (*src)
+  {
+    c1[0] = *(src+1);
+    if (*(src+1) == '\0')
       c2[0] = '\0';
-    } else {
-      c2[0] = *(src + 2);
-    }
+    else
+      c2[0] = *(src+2);
 
     if (*src != HEX_ESCAPE || PL_strpbrk(pc1, hexChars) == 0 ||
-        PL_strpbrk(pc2, hexChars) == 0) {
+        PL_strpbrk(pc2, hexChars) == 0 )
       *dst++ = *src++;
-    } else {
+    else
+    {
       src++; /* walk over escape */
-      if (*src) {
+      if (*src)
+      {
         *dst = UNHEX(*src) << 4;
         src++;
       }
-      if (*src) {
+      if (*src)
+      {
         *dst = (*dst + UNHEX(*src));
         src++;
       }
@@ -189,67 +190,79 @@ nsUnescapeCount(char* aStr)
   }
 
   *dst = 0;
-  return (int)(dst - aStr);
+  return (int)(dst - str);
 
 } /* NET_UnEscapeCnt */
 
 
-char*
-nsEscapeHTML(const char* aString)
+char *
+nsEscapeHTML(const char * string)
 {
-  char* rv = nullptr;
+  char *rv = nullptr;
   /* XXX Hardcoded max entity len. The +1 is for the trailing null. */
-  uint32_t len = strlen(aString);
-  if (len >= (UINT32_MAX / 6)) {
+  uint32_t len = strlen(string);
+  if (len >= (UINT32_MAX / 6))
     return nullptr;
-  }
 
-  rv = (char*)NS_Alloc((6 * len) + 1);
-  char* ptr = rv;
+  rv = (char *)NS_Alloc( (6 * len) + 1 );
+  char *ptr = rv;
 
-  if (rv) {
-    for (; *aString != '\0'; ++aString) {
-      if (*aString == '<') {
+  if(rv)
+  {
+    for(; *string != '\0'; string++)
+    {
+      if(*string == '<')
+      {
         *ptr++ = '&';
         *ptr++ = 'l';
         *ptr++ = 't';
         *ptr++ = ';';
-      } else if (*aString == '>') {
+      }
+      else if(*string == '>')
+      {
         *ptr++ = '&';
         *ptr++ = 'g';
         *ptr++ = 't';
         *ptr++ = ';';
-      } else if (*aString == '&') {
+      }
+      else if(*string == '&')
+      {
         *ptr++ = '&';
         *ptr++ = 'a';
         *ptr++ = 'm';
         *ptr++ = 'p';
         *ptr++ = ';';
-      } else if (*aString == '"') {
+      }
+      else if (*string == '"')
+      {
         *ptr++ = '&';
         *ptr++ = 'q';
         *ptr++ = 'u';
         *ptr++ = 'o';
         *ptr++ = 't';
         *ptr++ = ';';
-      } else if (*aString == '\'') {
+      }
+      else if (*string == '\'')
+      {
         *ptr++ = '&';
         *ptr++ = '#';
         *ptr++ = '3';
         *ptr++ = '9';
         *ptr++ = ';';
-      } else {
-        *ptr++ = *aString;
+      }
+      else
+      {
+        *ptr++ = *string;
       }
     }
     *ptr = '\0';
   }
 
-  return rv;
+  return(rv);
 }
 
-char16_t*
-nsEscapeHTML2(const char16_t* aSourceBuffer, int32_t aSourceBufferLen)
+char16_t *
+nsEscapeHTML2(const char16_t *aSourceBuffer, int32_t aSourceBufferLen)
 {
   // Calculate the length, if the caller didn't.
   if (aSourceBufferLen < 0) {
@@ -258,29 +271,28 @@ nsEscapeHTML2(const char16_t* aSourceBuffer, int32_t aSourceBufferLen)
 
   /* XXX Hardcoded max entity len. */
   if (uint32_t(aSourceBufferLen) >=
-      ((UINT32_MAX - sizeof(char16_t)) / (6 * sizeof(char16_t)))) {
+      ((UINT32_MAX - sizeof(char16_t)) / (6 * sizeof(char16_t))) )
     return nullptr;
-  }
 
-  char16_t* resultBuffer = (char16_t*)nsMemory::Alloc(
-    aSourceBufferLen * 6 * sizeof(char16_t) + sizeof(char16_t('\0')));
-  char16_t* ptr = resultBuffer;
+  char16_t *resultBuffer = (char16_t *)nsMemory::Alloc(aSourceBufferLen *
+    6 * sizeof(char16_t) + sizeof(char16_t('\0')));
+  char16_t *ptr = resultBuffer;
 
   if (resultBuffer) {
     int32_t i;
 
-    for (i = 0; i < aSourceBufferLen; ++i) {
-      if (aSourceBuffer[i] == '<') {
+    for(i = 0; i < aSourceBufferLen; i++) {
+      if(aSourceBuffer[i] == '<') {
         *ptr++ = '&';
         *ptr++ = 'l';
         *ptr++ = 't';
         *ptr++ = ';';
-      } else if (aSourceBuffer[i] == '>') {
+      } else if(aSourceBuffer[i] == '>') {
         *ptr++ = '&';
         *ptr++ = 'g';
         *ptr++ = 't';
         *ptr++ = ';';
-      } else if (aSourceBuffer[i] == '&') {
+      } else if(aSourceBuffer[i] == '&') {
         *ptr++ = '&';
         *ptr++ = 'a';
         *ptr++ = 'm';
@@ -325,7 +337,7 @@ const int EscapeChars[256] =
      0    /* 8x  DEL               */
 };
 
-#define NO_NEED_ESC(C) (EscapeChars[((unsigned int)(C))] & (aFlags))
+#define NO_NEED_ESC(C) (EscapeChars[((unsigned int) (C))] & (flags))
 
 //----------------------------------------------------------------------------------------
 
@@ -355,32 +367,34 @@ const int EscapeChars[256] =
    esc_Forced        =  1024
 */
 
-bool
-NS_EscapeURL(const char* aPart, int32_t aPartLen, uint32_t aFlags,
-             nsACString& aResult)
+bool NS_EscapeURL(const char *part,
+                  int32_t partLen,
+                  uint32_t flags,
+                  nsACString &result)
 {
-  if (!aPart) {
+  if (!part) {
     NS_NOTREACHED("null pointer");
     return false;
   }
 
+  int i = 0;
   static const char hexChars[] = "0123456789ABCDEF";
-  if (aPartLen < 0) {
-    aPartLen = strlen(aPart);
-  }
-  bool forced = !!(aFlags & esc_Forced);
-  bool ignoreNonAscii = !!(aFlags & esc_OnlyASCII);
-  bool ignoreAscii = !!(aFlags & esc_OnlyNonASCII);
-  bool writing = !!(aFlags & esc_AlwaysCopy);
-  bool colon = !!(aFlags & esc_Colon);
+  if (partLen < 0)
+    partLen = strlen(part);
+  bool forced = !!(flags & esc_Forced);
+  bool ignoreNonAscii = !!(flags & esc_OnlyASCII);
+  bool ignoreAscii = !!(flags & esc_OnlyNonASCII);
+  bool writing = !!(flags & esc_AlwaysCopy);
+  bool colon = !!(flags & esc_Colon);
 
-  const unsigned char* src = (const unsigned char*)aPart;
+  const unsigned char* src = (const unsigned char *) part;
 
   char tempBuffer[100];
   unsigned int tempBufferPos = 0;
 
   bool previousIsNonASCII = false;
-  for (int i = 0; i < aPartLen; ++i) {
+  for (i = 0; i < partLen; i++)
+  {
     unsigned char c = *src++;
 
     // if the char has not to be escaped or whatever follows % is
@@ -395,7 +409,7 @@ NS_EscapeURL(const char* aPart, int32_t aPartLen, uint32_t aFlags,
     // ignoreAscii is not honored for control characters (C0 and DEL)
     //
     // And, we should escape the '|' character when it occurs after any
-    // non-ASCII character as it may be aPart of a multi-byte character.
+    // non-ASCII character as it may be part of a multi-byte character.
     //
     // 0x20..0x7e are the valid ASCII characters. We also escape spaces
     // (0x20) since they are not legal in URLs.
@@ -403,13 +417,16 @@ NS_EscapeURL(const char* aPart, int32_t aPartLen, uint32_t aFlags,
          || (c > 0x7f && ignoreNonAscii)
          || (c > 0x20 && c < 0x7f && ignoreAscii))
         && !(c == ':' && colon)
-        && !(previousIsNonASCII && c == '|' && !ignoreNonAscii)) {
-      if (writing) {
+        && !(previousIsNonASCII && c == '|' && !ignoreNonAscii))
+    {
+      if (writing)
         tempBuffer[tempBufferPos++] = c;
-      }
-    } else { /* do the escape magic */
-      if (!writing) {
-        aResult.Append(aPart, i);
+    }
+    else /* do the escape magic */
+    {
+      if (!writing)
+      {
+        result.Append(part, i);
         writing = true;
       }
       tempBuffer[tempBufferPos++] = HEX_ESCAPE;
@@ -417,10 +434,11 @@ NS_EscapeURL(const char* aPart, int32_t aPartLen, uint32_t aFlags,
       tempBuffer[tempBufferPos++] = hexChars[c & 0x0f]; /* low nibble */
     }
 
-    if (tempBufferPos >= sizeof(tempBuffer) - 4) {
+    if (tempBufferPos >= sizeof(tempBuffer) - 4)
+    {
       NS_ASSERTION(writing, "should be writing");
       tempBuffer[tempBufferPos] = '\0';
-      aResult += tempBuffer;
+      result += tempBuffer;
       tempBufferPos = 0;
     }
 
@@ -428,41 +446,38 @@ NS_EscapeURL(const char* aPart, int32_t aPartLen, uint32_t aFlags,
   }
   if (writing) {
     tempBuffer[tempBufferPos] = '\0';
-    aResult += tempBuffer;
+    result += tempBuffer;
   }
   return writing;
 }
 
 #define ISHEX(c) memchr(hexChars, c, sizeof(hexChars)-1)
 
-bool
-NS_UnescapeURL(const char* aStr, int32_t aLen, uint32_t aFlags,
-               nsACString& aResult)
+bool NS_UnescapeURL(const char *str, int32_t len, uint32_t flags, nsACString &result)
 {
-  if (!aStr) {
+  if (!str) {
     NS_NOTREACHED("null pointer");
     return false;
   }
 
-  if (aLen < 0) {
-    aLen = strlen(aStr);
-  }
+  if (len < 0)
+    len = strlen(str);
 
-  bool ignoreNonAscii = !!(aFlags & esc_OnlyASCII);
-  bool ignoreAscii = !!(aFlags & esc_OnlyNonASCII);
-  bool writing = !!(aFlags & esc_AlwaysCopy);
-  bool skipControl = !!(aFlags & esc_SkipControl);
+  bool ignoreNonAscii = !!(flags & esc_OnlyASCII);
+  bool ignoreAscii = !!(flags & esc_OnlyNonASCII);
+  bool writing = !!(flags & esc_AlwaysCopy);
+  bool skipControl = !!(flags & esc_SkipControl);
 
   static const char hexChars[] = "0123456789ABCDEFabcdef";
 
-  const char* last = aStr;
-  const char* p = aStr;
+  const char *last = str;
+  const char *p = str;
 
-  for (int i = 0; i < aLen; ++i, ++p) {
-    //printf("%c [i=%d of aLen=%d]\n", *p, i, aLen);
-    if (*p == HEX_ESCAPE && i < aLen - 2) {
-      unsigned char* p1 = (unsigned char*)p + 1;
-      unsigned char* p2 = (unsigned char*)p + 2;
+  for (int i=0; i<len; ++i, ++p) {
+    //printf("%c [i=%d of len=%d]\n", *p, i, len);
+    if (*p == HEX_ESCAPE && i < len-2) {
+      unsigned char *p1 = ((unsigned char *) p) + 1;
+      unsigned char *p2 = ((unsigned char *) p) + 2;
       if (ISHEX(*p1) && ISHEX(*p2) &&
           ((*p1 < '8' && !ignoreAscii) || (*p1 >= '8' && !ignoreNonAscii)) &&
           !(skipControl &&
@@ -471,21 +486,20 @@ NS_UnescapeURL(const char* aStr, int32_t aLen, uint32_t aFlags,
         writing = true;
         if (p > last) {
           //printf("- p=%p, last=%p\n", p, last);
-          aResult.Append(last, p - last);
+          result.Append(last, p - last);
           last = p;
         }
         char u = (UNHEX(*p1) << 4) + UNHEX(*p2);
         //printf("- u=%c\n", u);
-        aResult.Append(u);
+        result.Append(u);
         i += 2;
         p += 2;
         last += 3;
       }
     }
   }
-  if (writing && last < aStr + aLen) {
-    aResult.Append(last, aStr + aLen - last);
-  }
+  if (writing && last < str + len)
+    result.Append(last, str + len - last);
 
   return writing;
 }

@@ -244,7 +244,7 @@ template void MacroAssembler::guardType(const ValueOperand &value, types::Type t
                                         Register scratch, Label *miss);
 
 void
-MacroAssembler::branchNurseryPtr(Condition cond, const Address &ptr1, ImmMaybeNurseryPtr ptr2,
+MacroAssembler::branchNurseryPtr(Condition cond, const Address &ptr1, const ImmMaybeNurseryPtr &ptr2,
                                  Label *label)
 {
 #ifdef JSGC_GENERATIONAL
@@ -255,7 +255,7 @@ MacroAssembler::branchNurseryPtr(Condition cond, const Address &ptr1, ImmMaybeNu
 }
 
 void
-MacroAssembler::moveNurseryPtr(ImmMaybeNurseryPtr ptr, Register reg)
+MacroAssembler::moveNurseryPtr(const ImmMaybeNurseryPtr &ptr, Register reg)
 {
 #ifdef JSGC_GENERATIONAL
     if (ptr.value && gc::IsInsideNursery(GetIonContext()->cx->runtime(), (void *)ptr.value))
@@ -294,13 +294,13 @@ StoreToTypedFloatArray(MacroAssembler &masm, int arrayType, const S &value, cons
 }
 
 void
-MacroAssembler::storeToTypedFloatArray(int arrayType, FloatRegister value,
+MacroAssembler::storeToTypedFloatArray(int arrayType, const FloatRegister &value,
                                        const BaseIndex &dest)
 {
     StoreToTypedFloatArray(*this, arrayType, value, dest);
 }
 void
-MacroAssembler::storeToTypedFloatArray(int arrayType, FloatRegister value,
+MacroAssembler::storeToTypedFloatArray(int arrayType, const FloatRegister &value,
                                        const Address &dest)
 {
     StoreToTypedFloatArray(*this, arrayType, value, dest);
@@ -1204,6 +1204,14 @@ MacroAssembler::handleFailure(ExecutionMode executionMode)
 }
 
 #ifdef DEBUG
+static inline bool
+IsCompilingAsmJS()
+{
+    // asm.js compilation pushes an IonContext with a null JSCompartment.
+    IonContext *ictx = MaybeGetIonContext();
+    return ictx && ictx->compartment == nullptr;
+}
+
 static void
 AssumeUnreachable_(const char *output) {
     MOZ_ReportAssertionFailure(output, __FILE__, __LINE__);

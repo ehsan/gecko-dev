@@ -98,15 +98,15 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSFunction *target)
         return inlineMathFunction(callInfo, MMathFunction::ExpM1);
     if (native == js::math_cosh)
         return inlineMathFunction(callInfo, MMathFunction::CosH);
-    if (native == js::math_sinh)
+    if (native == js::math_sin)
         return inlineMathFunction(callInfo, MMathFunction::SinH);
-    if (native == js::math_tanh)
+    if (native == js::math_tan)
         return inlineMathFunction(callInfo, MMathFunction::TanH);
     if (native == js::math_acosh)
         return inlineMathFunction(callInfo, MMathFunction::ACosH);
-    if (native == js::math_asinh)
+    if (native == js::math_asin)
         return inlineMathFunction(callInfo, MMathFunction::ASinH);
-    if (native == js::math_atanh)
+    if (native == js::math_atan)
         return inlineMathFunction(callInfo, MMathFunction::ATanH);
     if (native == js::math_sign)
         return inlineMathFunction(callInfo, MMathFunction::Sign);

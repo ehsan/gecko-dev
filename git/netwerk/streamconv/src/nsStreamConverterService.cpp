@@ -32,6 +32,7 @@
 #include "nsCOMArray.h"
 #include "nsTArray.h"
 #include "nsServiceManagerUtils.h"
+#include "nsHashtable.h"
 #include "nsISimpleEnumerator.h"
 
 ///////////////////////////////////////////////////////////////////

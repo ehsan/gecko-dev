@@ -32,9 +32,8 @@
 
 class nsSegmentedBuffer;
 
-class nsStorageStream MOZ_FINAL
-  : public nsIStorageStream
-  , public nsIOutputStream
+class nsStorageStream MOZ_FINAL : public nsIStorageStream,
+                                  public nsIOutputStream
 {
 public:
   nsStorageStream();
@@ -60,14 +59,8 @@ private:
   uint32_t           mLogicalLength;     // Number of bytes written to stream
 
   NS_METHOD Seek(int32_t aPosition);
-  uint32_t SegNum(uint32_t aPosition)
-  {
-    return aPosition >> mSegmentSizeLog2;
-  }
-  uint32_t SegOffset(uint32_t aPosition)
-  {
-    return aPosition & (mSegmentSize - 1);
-  }
+  uint32_t SegNum(uint32_t aPosition)    {return aPosition >> mSegmentSizeLog2;}
+  uint32_t SegOffset(uint32_t aPosition) {return aPosition & (mSegmentSize - 1);}
 };
 
 #endif //  _nsStorageStream_h_

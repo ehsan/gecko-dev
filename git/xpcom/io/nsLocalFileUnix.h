@@ -79,22 +79,20 @@
 #endif
 
 
-class nsLocalFile MOZ_FINAL
+class nsLocalFile MOZ_FINAL :
 #ifdef MOZ_WIDGET_COCOA
-  : public nsILocalFileMac
+  public nsILocalFileMac,
 #else
-  : public nsILocalFile
+  public nsILocalFile,
 #endif
-  , public nsIHashable
+  public nsIHashable
 {
 public:
   NS_DEFINE_STATIC_CID_ACCESSOR(NS_LOCAL_FILE_CID)
 
   nsLocalFile();
 
-  static nsresult nsLocalFileConstructor(nsISupports* aOuter,
-                                         const nsIID& aIID,
-                                         void** aInstancePtr);
+  static nsresult nsLocalFileConstructor(nsISupports* outer, const nsIID& aIID, void* *aInstancePtr);
 
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIFILE
@@ -109,10 +107,8 @@ public:
   static void GlobalShutdown();
 
 private:
-  nsLocalFile(const nsLocalFile& aOther);
-  ~nsLocalFile()
-  {
-  }
+  nsLocalFile(const nsLocalFile& other);
+  ~nsLocalFile() {}
 
 protected:
   // This stat cache holds the *last stat* - it does not invalidate.
@@ -120,19 +116,19 @@ protected:
   struct STAT  mCachedStat;
   nsCString    mPath;
 
-  void LocateNativeLeafName(nsACString::const_iterator&,
-                            nsACString::const_iterator&);
+  void LocateNativeLeafName(nsACString::const_iterator &,
+                            nsACString::const_iterator &);
 
-  nsresult CopyDirectoryTo(nsIFile* aNewParent);
-  nsresult CreateAllAncestors(uint32_t aPermissions);
-  nsresult GetNativeTargetPathName(nsIFile* aNewParent,
-                                   const nsACString& aNewName,
-                                   nsACString& aResult);
+  nsresult CopyDirectoryTo(nsIFile *newParent);
+  nsresult CreateAllAncestors(uint32_t permissions);
+  nsresult GetNativeTargetPathName(nsIFile *newParent,
+                                   const nsACString &newName,
+                                   nsACString &_retval);
 
   bool FillStatCache();
 
-  nsresult CreateAndKeepOpen(uint32_t aType, int aFlags,
-                             uint32_t aPermissions, PRFileDesc** aResult);
+  nsresult CreateAndKeepOpen(uint32_t type, int flags,
+                             uint32_t permissions, PRFileDesc **_retval);
 };
 
 #endif /* _nsLocalFileUNIX_H_ */

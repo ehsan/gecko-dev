@@ -48,7 +48,7 @@ nsElementFrameLoaderOwner::GetContentDocument()
   nsIDocument *doc = win->GetDoc();
 
   // Return null for cross-origin contentDocument.
-  if (!nsContentUtils::SubjectPrincipal()->
+  if (!nsContentUtils::GetSubjectPrincipal()->
         SubsumesConsideringDomain(doc->NodePrincipal())) {
     return nullptr;
   }

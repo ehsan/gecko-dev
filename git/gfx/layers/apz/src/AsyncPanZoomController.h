@@ -265,12 +265,12 @@ public:
   /**
    * Populates the provided object (if non-null) with the scrollable guid of this apzc.
    */
-  void GetGuid(ScrollableLayerGuid* aGuidOut) const;
+  void GetGuid(ScrollableLayerGuid* aGuidOut);
 
   /**
    * Returns the scrollable guid of this apzc.
    */
-  ScrollableLayerGuid GetGuid() const;
+  ScrollableLayerGuid GetGuid();
 
   /**
    * Returns true if this APZC instance is for the layer identified by the guid.
@@ -483,7 +483,7 @@ protected:
    * Gets the current frame metrics. This is *not* the Gecko copy stored in the
    * layers code.
    */
-  const FrameMetrics& GetFrameMetrics() const;
+  const FrameMetrics& GetFrameMetrics();
 
   /**
    * Sets the timer for content response to a series of touch events, if it
@@ -746,7 +746,7 @@ private:
   // Stores information about the current touch block.
   TouchBlockState mTouchBlockState;
 
-  nsRefPtr<AsyncPanZoomAnimation> mAnimation;
+  RefPtr<AsyncPanZoomAnimation> mAnimation;
 
   friend class Axis;
 
