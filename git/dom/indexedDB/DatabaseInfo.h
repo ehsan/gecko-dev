@@ -121,7 +121,6 @@ struct IndexInfo
   PRInt64 id;
   nsString name;
   nsString keyPath;
-  nsTArray<nsString> keyPathArray;
   bool unique;
   bool multiEntry;
 };
@@ -149,7 +148,6 @@ public:
   nsString name;
   PRInt64 id;
   nsString keyPath;
-  nsTArray<nsString> keyPathArray;
 
   // Main-thread only members. This must *not* be touced on the database thread
   nsTArray<IndexInfo> indexes;

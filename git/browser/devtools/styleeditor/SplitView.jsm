@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Cedric Vivier <cedricv@neonux.com> (original author)
- *   Paul Rouget <paul@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -233,6 +232,9 @@ SplitView.prototype = {
    *         string and will be hidden.
    *     - object data
    *         Object to pass to the callbacks above.
+   *     - boolean disableAnimations
+   *         If true there is no animation or scrolling when this item is
+   *         appended. Set this when batch appending (eg. initial population).
    *     - number ordinal
    *         Items with a lower ordinal are displayed before those with a
    *         higher ordinal.
@@ -245,6 +247,10 @@ SplitView.prototype = {
     binding._details = aDetails;
     aSummary.setUserData(BINDING_USERDATA, binding, null);
 
+    if (!binding.disableAnimations) {
+      aSummary.classList.add("splitview-slide");
+      aSummary.classList.add("splitview-flash");
+    }
     this._nav.appendChild(aSummary);
 
     aSummary.addEventListener("click", function onSummaryClick(aEvent) {
@@ -259,6 +265,11 @@ SplitView.prototype = {
       this._root.ownerDocument.defaultView.setTimeout(function () {
         binding.onCreate(aSummary, aDetails, binding.data);
       }, 0);
+    }
+
+    if (!binding.disableAnimations) {
+      scheduleAnimation(aSummary, "splitview-slide", "splitview-flash");
+      aSummary.scrollIntoView();
     }
   },
 
@@ -451,3 +462,28 @@ SplitView.prototype = {
     }
   }
 };
+
+//
+// private helpers
+
+/**
+ * Schedule one or multiple CSS animation(s) on an element.
+ *
+ * @param DOMElement aElement
+ * @param string ...
+ *        One or multiple animation class name(s).
+ */
+function scheduleAnimation(aElement)
+{
+  let classes = Array.prototype.slice.call(arguments, 1);
+  for each (let klass in classes) {
+    aElement.classList.add(klass);
+  }
+
+  let window = aElement.ownerDocument.defaultView;
+  window.mozRequestAnimationFrame(function triggerAnimation() {
+    for each (let klass in classes) {
+      aElement.classList.remove(klass);
+    }
+  });
+}

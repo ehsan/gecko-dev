@@ -56,7 +56,6 @@
 #include "nsXPCOM.h"
 #include "nsXPCOMPrivate.h"
 #include "test_quota.h"
-#include "xpcprivate.h"
 
 #include "AsyncConnectionHelper.h"
 #include "CheckQuotaHelper.h"
