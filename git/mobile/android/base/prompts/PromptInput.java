@@ -42,6 +42,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 public class PromptInput {
+    private final JSONObject mJSONInput;
+
     protected final String mLabel;
     protected final String mType;
     protected final String mId;
@@ -327,6 +329,7 @@ public class PromptInput {
     }
 
     public PromptInput(JSONObject obj) {
+        mJSONInput = obj;
         mLabel = obj.optString("label");
         mType = obj.optString("type");
         String id = obj.optString("id");
@@ -348,8 +351,6 @@ public class PromptInput {
             return new MenulistInput(obj);
         } else if (LabelInput.INPUT_TYPE.equals(type)) {
             return new LabelInput(obj);
-        } else if (IconGridInput.INPUT_TYPE.equals(type)) {
-            return new IconGridInput(obj);
         } else {
             for (String dtType : DateTimeInput.INPUT_TYPES) {
                 if (dtType.equals(type)) {
@@ -370,9 +371,5 @@ public class PromptInput {
 
     public String getValue() {
         return "";
-    }
-
-    public boolean getScrollable() {
-        return false;
     }
 }

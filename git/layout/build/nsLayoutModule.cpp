@@ -230,7 +230,6 @@ static void Shutdown();
 #include "mozilla/dom/power/PowerManagerService.h"
 #include "mozilla/dom/alarm/AlarmHalService.h"
 #include "mozilla/dom/time/TimeService.h"
-#include "StreamingProtocolService.h"
 
 #include "mozilla/dom/telephony/TelephonyFactory.h"
 #include "nsITelephonyProvider.h"
@@ -252,7 +251,6 @@ using mozilla::dom::TCPSocketChild;
 using mozilla::dom::TCPSocketParent;
 using mozilla::dom::TCPServerSocketChild;
 using mozilla::dom::time::TimeService;
-using mozilla::net::StreamingProtocolControllerService;
 
 // Transformiix
 /* 5d5d92cd-6bf8-11d9-bf4a-000a95dc234c */
@@ -330,9 +328,6 @@ NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIAlarmHalService,
                                          AlarmHalService::GetInstance)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITimeService,
                                          TimeService::GetInstance)
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsIStreamingProtocolControllerService,
-                                         StreamingProtocolControllerService::GetInstance)
-
 #ifdef MOZ_GAMEPAD
 using mozilla::dom::GamepadServiceTest;
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(GamepadServiceTest,
@@ -809,7 +804,6 @@ NS_DEFINE_NAMED_CID(TCPSOCKETCHILD_CID);
 NS_DEFINE_NAMED_CID(TCPSOCKETPARENT_CID);
 NS_DEFINE_NAMED_CID(TCPSERVERSOCKETCHILD_CID);
 NS_DEFINE_NAMED_CID(NS_TIMESERVICE_CID);
-NS_DEFINE_NAMED_CID(NS_MEDIASTREAMCONTROLLERSERVICE_CID);
 #ifdef MOZ_WIDGET_GONK
 NS_DEFINE_NAMED_CID(GONK_GPS_GEOLOCATION_PROVIDER_CID);
 #endif
@@ -1099,7 +1093,6 @@ static const mozilla::Module::CIDEntry kLayoutCIDs[] = {
   { &kTCPSOCKETPARENT_CID, false, nullptr, TCPSocketParentConstructor },
   { &kTCPSERVERSOCKETCHILD_CID, false, nullptr, TCPServerSocketChildConstructor },
   { &kNS_TIMESERVICE_CID, false, nullptr, nsITimeServiceConstructor },
-  { &kNS_MEDIASTREAMCONTROLLERSERVICE_CID, false, NULL, nsIStreamingProtocolControllerServiceConstructor },
 #ifdef MOZ_WIDGET_GONK
   { &kGONK_GPS_GEOLOCATION_PROVIDER_CID, false, nullptr, nsIGeolocationProviderConstructor },
 #endif
@@ -1256,7 +1249,6 @@ static const mozilla::Module::ContractIDEntry kLayoutContracts[] = {
   { "@mozilla.org/tcp-socket-parent;1", &kTCPSOCKETPARENT_CID },
   { "@mozilla.org/tcp-server-socket-child;1", &kTCPSERVERSOCKETCHILD_CID },
   { TIMESERVICE_CONTRACTID, &kNS_TIMESERVICE_CID },
-  { MEDIASTREAMCONTROLLERSERVICE_CONTRACTID, &kNS_MEDIASTREAMCONTROLLERSERVICE_CID },
 #ifdef MOZ_WIDGET_GONK
   { GONK_GPS_GEOLOCATION_PROVIDER_CONTRACTID, &kGONK_GPS_GEOLOCATION_PROVIDER_CID },
 #endif
