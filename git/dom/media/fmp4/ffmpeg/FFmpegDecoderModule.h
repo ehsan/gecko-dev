@@ -63,11 +63,6 @@ public:
     return FFmpegH264Decoder<V>::GetCodecId(aMimeType) != AV_CODEC_ID_NONE;
   }
 
-  virtual bool DecoderNeedsAVCC(const mp4_demuxer::VideoDecoderConfig& aConfig) MOZ_OVERRIDE
-  {
-    return true;
-  }
-
 };
 
 } // namespace mozilla

@@ -683,8 +683,7 @@ class MochitestOptions(optparse.OptionParser):
             for f in ['/usr/bin/gst-launch-0.10', '/usr/bin/pactl']:
                 if not os.path.isfile(f):
                     self.error(
-                        'Missing binary %s required for '
-                        '--use-test-media-devices' % f)
+                        'Missing binary %s required for --use-test-media-devices')
 
         if options.nested_oop:
             if not options.e10s:
