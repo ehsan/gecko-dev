@@ -354,6 +354,10 @@ js_PopInterpFrame(JSContext* cx, TracerState* state)
 
     fp->putActivationObjects(cx);
     
+    /* Update display table. */
+    if (fp->script->staticLevel < JS_DISPLAY_SIZE)
+        cx->display[fp->script->staticLevel] = fp->displaySave;
+
     /* Pop the frame and its memory. */
     cx->stack().popInlineFrame(cx, fp, fp->down);
 
