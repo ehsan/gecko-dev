@@ -16,7 +16,7 @@ function test() {
       }
     };
     Services.obs.addObserver(observer, "last-pb-context-exited", false);
-    newWin.gPrivateBrowsingUI.privateWindow = true;
+    setPrivateWindow(newWin, true);
     SimpleTest.is(notificationCount, 0, "last-pb-context-exited should not be fired yet");
     newWin.gPrivateBrowsingUI.privateWindow = false;
     newWin.close();

@@ -177,6 +177,7 @@ nsHttpHandler::nsHttpHandler()
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
     , mSpdyPingThreshold(PR_SecondsToInterval(44))
     , mSpdyPingTimeout(PR_SecondsToInterval(8))
+    , mConnectTimeout(90000)
 {
 #if defined(PR_LOGGING)
     gHttpLog = PR_NewLogModule("nsHttp");
@@ -246,6 +247,8 @@ nsHttpHandler::Init()
 
     mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
 
+    mCompatFirefox.AssignLiteral("Firefox/" MOZILLA_UAVERSION);
+
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");
 
@@ -261,21 +264,6 @@ nsHttpHandler::Init()
     } else {
         mAppVersion.AssignLiteral(MOZ_APP_UA_VERSION);
     }
-
-#if DEBUG
-    // dump user agent prefs
-    LOG(("> legacy-app-name = %s\n", mLegacyAppName.get()));
-    LOG(("> legacy-app-version = %s\n", mLegacyAppVersion.get()));
-    LOG(("> platform = %s\n", mPlatform.get()));
-    LOG(("> oscpu = %s\n", mOscpu.get()));
-    LOG(("> misc = %s\n", mMisc.get()));
-    LOG(("> product = %s\n", mProduct.get()));
-    LOG(("> product-sub = %s\n", mProductSub.get()));
-    LOG(("> app-name = %s\n", mAppName.get()));
-    LOG(("> app-version = %s\n", mAppVersion.get()));
-    LOG(("> compat-firefox = %s\n", mCompatFirefox.get()));
-    LOG(("> user-agent = %s\n", UserAgent().get()));
-#endif
 
     mSessionStartTime = NowInSeconds();
 
@@ -294,6 +282,21 @@ nsHttpHandler::Init()
         appInfo->GetPlatformBuildID(mProductSub);
     if (mProductSub.Length() > 8)
         mProductSub.SetLength(8);
+
+#if DEBUG
+    // dump user agent prefs
+    LOG(("> legacy-app-name = %s\n", mLegacyAppName.get()));
+    LOG(("> legacy-app-version = %s\n", mLegacyAppVersion.get()));
+    LOG(("> platform = %s\n", mPlatform.get()));
+    LOG(("> oscpu = %s\n", mOscpu.get()));
+    LOG(("> misc = %s\n", mMisc.get()));
+    LOG(("> product = %s\n", mProduct.get()));
+    LOG(("> product-sub = %s\n", mProductSub.get()));
+    LOG(("> app-name = %s\n", mAppName.get()));
+    LOG(("> app-version = %s\n", mAppVersion.get()));
+    LOG(("> compat-firefox = %s\n", mCompatFirefox.get()));
+    LOG(("> user-agent = %s\n", UserAgent().get()));
+#endif
 
     // Startup the http category
     // Bring alive the objects in the http-protocol-startup category
@@ -414,51 +417,6 @@ nsHttpHandler::IsAcceptableEncoding(const char *enc)
         enc += 2;
     
     return nsHttp::FindToken(mAcceptEncodings.get(), enc, HTTP_LWS ",") != nsnull;
-}
-
-nsresult
-nsHttpHandler::GetCacheSession(nsCacheStoragePolicy storagePolicy,
-                               nsICacheSession **result)
-{
-    nsresult rv;
-
-    // Skip cache if disabled in preferences
-    if (!mUseCache)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    // We want to get the pointer to the cache service each time we're called,
-    // because it's possible for some add-ons (such as Google Gears) to swap
-    // in new cache services on the fly, and we want to pick them up as
-    // appropriate.
-    nsCOMPtr<nsICacheService> serv = do_GetService(NS_CACHESERVICE_CONTRACTID,
-                                                   &rv);
-    if (NS_FAILED(rv)) return rv;
-
-    const char *sessionName = "HTTP";
-    switch (storagePolicy) {
-    case nsICache::STORE_IN_MEMORY:
-        sessionName = "HTTP-memory-only";
-        break;
-    case nsICache::STORE_OFFLINE:
-        sessionName = "HTTP-offline";
-        break;
-    default:
-        break;
-    }
-
-    nsCOMPtr<nsICacheSession> cacheSession;
-    rv = serv->CreateSession(sessionName,
-                             storagePolicy,
-                             nsICache::STREAM_BASED,
-                             getter_AddRefs(cacheSession));
-    if (NS_FAILED(rv)) return rv;
-
-    rv = cacheSession->SetDoomEntriesIfExpired(false);
-    if (NS_FAILED(rv)) return rv;
-
-    NS_ADDREF(*result = cacheSession);
-
-    return NS_OK;
 }
 
 bool
@@ -640,17 +598,19 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += '/';
     mUserAgent += mProductSub;
 
-    // "Firefox/x.y.z" compatibility token
-    if (!mCompatFirefox.IsEmpty()) {
+    bool isFirefox = mAppName.EqualsLiteral("Firefox");
+    if (isFirefox || mCompatFirefoxEnabled) {
+        // "Firefox/x.y" (compatibility) app token
         mUserAgent += ' ';
         mUserAgent += mCompatFirefox;
     }
-
-    // App portion
-    mUserAgent += ' ';
-    mUserAgent += mAppName;
-    mUserAgent += '/';
-    mUserAgent += mAppVersion;
+    if (!isFirefox) {
+        // App portion
+        mUserAgent += ' ';
+        mUserAgent += mAppName;
+        mUserAgent += '/';
+        mUserAgent += mAppVersion;
+    }
 }
 
 #ifdef XP_WIN
@@ -819,11 +779,7 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     if (PREF_CHANGED(UA_PREF("compatMode.firefox"))) {
         rv = prefs->GetBoolPref(UA_PREF("compatMode.firefox"), &cVar);
-        if (NS_SUCCEEDED(rv) && cVar) {
-            mCompatFirefox.AssignLiteral("Firefox/" MOZ_UA_FIREFOX_VERSION);
-        } else {
-            mCompatFirefox.Truncate();
-        }
+        mCompatFirefoxEnabled = (NS_SUCCEEDED(rv) && cVar);
         mUserAgentIsDirty = true;
     }
 
@@ -1213,6 +1169,15 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         if (NS_SUCCEEDED(rv))
             mSpdyPingTimeout =
                 PR_SecondsToInterval((PRUint16) clamped(val, 0, 0x7fffffff));
+    }
+
+    // The maximum amount of time to wait for socket transport to be
+    // established
+    if (PREF_CHANGED(HTTP_PREF("connection-timeout"))) {
+        rv = prefs->GetIntPref(HTTP_PREF("connection-timeout"), &val);
+        if (NS_SUCCEEDED(rv))
+            // the pref is in seconds, but the variable is in milliseconds
+            mConnectTimeout = clamped(val, 1, 0xffff) * PR_MSEC_PER_SEC;
     }
 
     // on transition of network.http.diagnostics to true print

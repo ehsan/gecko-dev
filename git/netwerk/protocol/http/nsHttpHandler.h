@@ -95,6 +95,7 @@ public:
     PRUint32       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
+    PRUint32       ConnectTimeout()  { return mConnectTimeout; }
 
     bool           PromptTempRedirect()      { return mPromptTempRedirect; }
 
@@ -102,7 +103,7 @@ public:
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
-    nsresult GetCacheSession(nsCacheStoragePolicy, nsICacheSession **);
+    bool UseCache() const { return mUseCache; }
     PRUint32 GenerateUniqueID() { return ++mLastUniqueID; }
     PRUint32 SessionStartTime() { return mSessionStartTime; }
 
@@ -342,6 +343,7 @@ private:
     nsXPIDLCString mAppName;
     nsXPIDLCString mAppVersion;
     nsCString      mCompatFirefox;
+    bool           mCompatFirefoxEnabled;
     nsXPIDLCString mCompatDevice;
 
     nsCString      mUserAgent;
@@ -377,6 +379,10 @@ private:
     PRUint32       mSpdySendingChunkSize;
     PRIntervalTime mSpdyPingThreshold;
     PRIntervalTime mSpdyPingTimeout;
+
+    // The maximum amount of time to wait for socket transport to be
+    // established. In milliseconds.
+    PRUint32       mConnectTimeout;
 };
 
 //-----------------------------------------------------------------------------

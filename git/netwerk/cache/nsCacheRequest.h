@@ -147,7 +147,7 @@ private:
     nsCOMPtr<nsIThread>        mThread;
     Mutex                      mLock;
     CondVar                    mCondVar;
-    nsCOMPtr<nsILocalFile>     mProfileDir;
+    nsCOMPtr<nsIFile>          mProfileDir;
 };
 
 #endif // _nsCacheRequest_h_
