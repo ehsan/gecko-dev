@@ -6,85 +6,105 @@
  * <https://bugzilla.mozilla.org/show_bug.cgi?id=564387>
  */
 function test() {
-  waitForExplicitFinish();
 
-  gBrowser.loadURI("http://mochi.test:8888/browser/browser/base/content/test/bug564387.html");
+  // --- Testing support library ---
 
-  registerCleanupFunction(function () {
-    gBrowser.addTab();
-    gBrowser.removeCurrentTab();
-  });
+  // Import the toolkit test support library in the scope of the current test.
+  // This operation also defines the common constants Cc, Ci, Cu, Cr and Cm.
+  Components.classes["@mozilla.org/moz/jssubscript-loader;1"].
+   getService(Components.interfaces.mozIJSSubScriptLoader).loadSubScript(
+   "chrome://mochitests/content/browser/toolkit/content/tests/browser/common/_loadAll.js",
+   this);
 
-  gBrowser.addEventListener("pageshow", function pageShown(event) {
-    if (event.target.location == "about:blank")
-      return;
-    gBrowser.removeEventListener("pageshow", pageShown);
+  // --- Test implementation ---
 
-    executeSoon(function () {
-      document.addEventListener("popupshown", contextMenuOpened);
+  const kBaseUrl =
+        "http://mochi.test:8888/browser/browser/base/content/test/";
 
+  function pageShown(event) {
+    if (event.target.location != "about:blank")
+      testRunner.continueTest();
+  }
+
+  function saveVideoAs_TestGenerator() {
+    // Load Test page
+    gBrowser.addEventListener("pageshow", pageShown, false);
+    gBrowser.loadURI(kBaseUrl + "bug564387.html");
+    yield;
+    gBrowser.removeEventListener("pageshow", pageShown, false);
+
+    // Ensure that the window is focused.
+    SimpleTest.waitForFocus(testRunner.continueTest);
+    yield;
+
+    try {
+      // get the video element
       var video1 = gBrowser.contentDocument.getElementById("video1");
+
+      // Synthesize the right click on the context menu, and
+      // wait for it to be shown
+      document.addEventListener("popupshown", testRunner.continueTest, false);
       EventUtils.synthesizeMouseAtCenter(video1,
                                          { type: "contextmenu", button: 2 },
                                          gBrowser.contentWindow);
-    });
-  });
+      yield;
 
-  function contextMenuOpened(event) {
-    event.currentTarget.removeEventListener("popupshown", contextMenuOpened);
+      // Create the folder the video will be saved into.
+      var destDir = createTemporarySaveDirectory();
+      try {
+        // Call the appropriate save function defined in contentAreaUtils.js.
+        mockFilePickerSettings.destDir = destDir;
+        mockFilePickerSettings.filterIndex = 1; // kSaveAsType_URL
 
-    // Create the folder the video will be saved into.
-    var destDir = createTemporarySaveDirectory();
+        // register mock file picker object
+        mockFilePickerRegisterer.register();
+        try {
+          // register mock download progress listener
+          mockTransferForContinuingRegisterer.register();
+          try {
+            // Select "Save Video As" option from context menu
+            var saveVideoCommand = document.getElementById("context-savevideo");
+            saveVideoCommand.doCommand();
 
-    mockFilePickerSettings.destDir = destDir;
-    mockFilePickerSettings.filterIndex = 1; // kSaveAsType_URL
-    mockFilePickerRegisterer.register();
+            // Unregister the popupshown listener
+            document.removeEventListener("popupshown",
+                                         testRunner.continueTest, false);
+            // Close the context menu
+            document.getElementById("placesContext").hidePopup();
 
-    mockTransferCallback = onTransferComplete;
-    mockTransferRegisterer.register();
+            // Wait for the download to finish, and exit if it wasn't successful.
+            var downloadSuccess = yield;
+            if (!downloadSuccess)
+              throw "Unexpected failure in downloading Video file!";
+          }
+          finally {
+            // unregister download progress listener
+            mockTransferForContinuingRegisterer.unregister();
+          }
+        }
+        finally {
+          // unregister mock file picker object
+          mockFilePickerRegisterer.unregister();
+        }
 
-    registerCleanupFunction(function () {
-      mockTransferRegisterer.unregister();
-      mockFilePickerRegisterer.unregister();
-      destDir.remove(true);
-    });
+        // Read the name of the saved file.
+        var fileName = mockFilePickerResults.selectedFile.leafName;
 
-    // Select "Save Video As" option from context menu
-    var saveVideoCommand = document.getElementById("context-savevideo");
-    saveVideoCommand.doCommand();
-
-    event.target.hidePopup();
+        is(fileName, "Bug564387-expectedName.ogv",
+                     "Video File Name is correctly retrieved from Content-Disposition http header");
+      }
+      finally {
+        // Clean up the saved file.
+        destDir.remove(true);
+      }
+    }
+    finally {
+      // Replace the current tab with a clean one.
+      gBrowser.addTab().linkedBrowser.stop();
+      gBrowser.removeCurrentTab();
+    }
   }
 
-  function onTransferComplete(downloadSuccess) {
-    ok(downloadSuccess, "Video file should have been downloaded successfully");
-
-    // Read the name of the saved file.
-    var fileName = mockFilePickerResults.selectedFile.leafName;
-
-    is(fileName, "Bug564387-expectedName.ogv",
-       "Video file name is correctly retrieved from Content-Disposition http header");
-
-    finish();
-  }
-}
-
-Cc["@mozilla.org/moz/jssubscript-loader;1"]
-  .getService(Ci.mozIJSSubScriptLoader)
-  .loadSubScript("chrome://mochitests/content/browser/toolkit/content/tests/browser/common/mockTransfer.js",
-                 this);
-
-Cc["@mozilla.org/moz/jssubscript-loader;1"]
-  .getService(Ci.mozIJSSubScriptLoader)
-  .loadSubScript("chrome://mochitests/content/browser/toolkit/content/tests/browser/common/mockFilePicker.js",
-                 this);
-
-function createTemporarySaveDirectory() {
-  var saveDir = Cc["@mozilla.org/file/directory_service;1"]
-                  .getService(Ci.nsIProperties)
-                  .get("TmpD", Ci.nsIFile);
-  saveDir.append("testsavedir");
-  if (!saveDir.exists())
-    saveDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
-  return saveDir;
+  // --- Run the test ---
+  testRunner.runTest(saveVideoAs_TestGenerator);
 }

@@ -69,6 +69,7 @@
 #include "nsCRT.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentPolicyUtils.h"
+#include "nsITimelineService.h"
 #include "nsIHttpChannel.h"
 #include "nsIScriptError.h"
 #include "nsMimeTypes.h"
@@ -815,6 +816,11 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
 
   mSheet->SetPrincipal(principal);
 
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_OUTDENT();
+  NS_TIMELINE_MARK_CHANNEL("SheetLoadData::OnStreamComplete(%s)", channel);
+#endif // MOZ_TIMELINE
+
   // If it's an HTTP channel, we want to make sure this is not an
   // error document we got.
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
@@ -1434,6 +1440,11 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
       channelPolicy->SetLoadType(nsIContentPolicy::TYPE_STYLESHEET);
     }
   }
+
+#ifdef MOZ_TIMELINE
+  NS_TIMELINE_MARK_URI("Loading style sheet: %s", aLoadData->mURI);
+  NS_TIMELINE_INDENT();
+#endif
 
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),

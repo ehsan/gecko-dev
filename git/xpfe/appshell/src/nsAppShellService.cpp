@@ -57,6 +57,7 @@
 
 #include "nsIEnumerator.h"
 #include "nsCRT.h"
+#include "nsITimelineService.h"
 #include "prprf.h"    
 
 #include "nsWidgetsCID.h"

@@ -205,6 +205,8 @@ NS_NewListControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 nsIFrame*
+NS_NewIsIndexFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+nsIFrame*
 NS_NewProgressFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 // Table frame factories

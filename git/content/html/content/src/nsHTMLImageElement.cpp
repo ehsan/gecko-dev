@@ -236,7 +236,7 @@ static const nsAttrValue::EnumTable kCrossOriginTable[] = {
 // Default crossOrigin mode is CORS_NONE.
 static const nsAttrValue::EnumTable* kCrossOriginDefault = &kCrossOriginTable[0];
 
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLImageElement, CrossOrigin, crossorigin, kCrossOriginDefault->tag)
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLImageElement, CrossOrigin, crossOrigin, kCrossOriginDefault->tag)
 
 NS_IMETHODIMP
 nsHTMLImageElement::GetDraggable(PRBool* aDraggable)
@@ -351,7 +351,7 @@ nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
     if (aAttribute == nsGkAtoms::align) {
       return ParseAlignValue(aValue, aResult);
     }
-    if (aAttribute == nsGkAtoms::crossorigin) {
+    if (aAttribute == nsGkAtoms::crossOrigin) {
       return aResult.ParseEnumValue(aValue, kCrossOriginTable, PR_FALSE);
     }
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
@@ -655,7 +655,7 @@ nsHTMLImageElement::GetCORSMode()
 {
   nsImageLoadingContent::CORSMode ret = nsImageLoadingContent::CORS_NONE;
 
-  const nsAttrValue* value = GetParsedAttr(nsGkAtoms::crossorigin);
+  const nsAttrValue* value = GetParsedAttr(nsGkAtoms::crossOrigin);
   if (value && value->Type() == nsAttrValue::eEnum) {
     ret = (nsImageLoadingContent::CORSMode) value->GetEnumValue();
   }

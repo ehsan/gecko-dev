@@ -2585,12 +2585,7 @@ nsHTMLDocument::DeferredContentEditableCountChange(nsIContent *aElement)
         NS_ENSURE_SUCCESS(rv, );
 
         rv = range->SelectNode(node);
-        if (NS_FAILED(rv)) {
-          // The node might be detached from the document at this point,
-          // which would cause this call to fail.  In this case, we can
-          // safely ignore the contenteditable count change.
-          return;
-        }
+        NS_ENSURE_SUCCESS(rv, );
 
         nsCOMPtr<nsIInlineSpellChecker> spellChecker;
         rv = editor->GetInlineSpellChecker(PR_FALSE,

@@ -75,6 +75,7 @@
 
 #include "nsXPIDLString.h"
 #include "prproces.h"
+#include "nsITimelineService.h"
 
 #include "mozilla/Mutex.h"
 #include "SpecialSystemDirectory.h"
@@ -1736,6 +1737,8 @@ nsLocalFile::Load(PRLibrary * *_retval)
     if (! isFile)
         return NS_ERROR_FILE_IS_DIRECTORY;
 
+    NS_TIMELINE_START_TIMER("PR_LoadLibraryWithFlags");
+
 #ifdef NS_BUILD_REFCNT_LOGGING
     nsTraceRefcntImpl::SetActivityIsLegal(PR_FALSE);
 #endif
@@ -1748,6 +1751,10 @@ nsLocalFile::Load(PRLibrary * *_retval)
 #ifdef NS_BUILD_REFCNT_LOGGING
     nsTraceRefcntImpl::SetActivityIsLegal(PR_TRUE);
 #endif
+
+    NS_TIMELINE_STOP_TIMER("PR_LoadLibraryWithFlags");
+    NS_TIMELINE_MARK_TIMER1("PR_LoadLibraryWithFlags",
+                            NS_ConvertUTF16toUTF8(mResolvedPath).get());
 
     if (*_retval)
         return NS_OK;

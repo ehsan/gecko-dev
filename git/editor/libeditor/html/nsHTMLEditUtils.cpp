@@ -393,9 +393,7 @@ nsHTMLEditUtils::IsMailCite(nsIDOMNode *node)
 {
   NS_PRECONDITION(node, "null parent passed to nsHTMLEditUtils::IsMailCite");
   nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(node);
-  if (!elem) {
-    return PR_FALSE;
-  }
+  NS_ENSURE_TRUE(elem, PR_FALSE);
   nsAutoString attrName (NS_LITERAL_STRING("type")); 
   
   // don't ask me why, but our html mailcites are id'd by "type=cite"...

@@ -86,6 +86,7 @@
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
+#include "nsPrintfCString.h"
 #include "nsLayoutErrors.h"
 #include "nsLayoutUtils.h"
 #include "nsAutoPtr.h"
@@ -1056,7 +1057,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     oldContext->AddRef();
 
 #ifdef ACCESSIBILITY
-    PRBool wasFrameVisible = nsIPresShell::IsAccessibilityActive() ?
+    PRBool wasFrameVisible = mPresShell->IsAccessibilityActive() ?
       oldContext->GetStyleVisibility()->IsVisible() : PR_FALSE;
 #endif
 
@@ -1428,8 +1429,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // Notify a11y for primary frame only if it's a root frame of visibility
       // changes or its parent frame was hidden while it stays visible and
       // it is not inside a {ib} split or is the first frame of {ib} split.
-      if (nsIPresShell::IsAccessibilityActive() &&
-          !aFrame->GetPrevContinuation() &&
+      if (mPresShell->IsAccessibilityActive() && !aFrame->GetPrevContinuation() &&
           !nsLayoutUtils::FrameIsNonFirstInIBSplit(aFrame)) {
         if (aDesiredA11yNotifications == eSendAllNotifications) {
           PRBool isFrameVisible = newContext->GetStyleVisibility()->IsVisible();

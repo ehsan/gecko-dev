@@ -82,6 +82,8 @@ public:
   nsXULMenuitemAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsIAccessible
+  NS_IMETHOD GetKeyboardShortcut(nsAString& _retval);
+  NS_IMETHOD GetDefaultKeyBinding(nsAString& aKeyBinding);
   NS_IMETHOD DoAction(PRUint8 index);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
@@ -96,10 +98,6 @@ public:
                                           PRInt32 *aSetSize);
 
   virtual PRBool GetAllowsAnonChildAccessibles();
-
-  // ActionAccessible
-  virtual KeyBinding AccessKey() const;
-  virtual KeyBinding KeyboardShortcut() const;
 };
 
 /**

@@ -22,6 +22,9 @@
     COMPONENT(CONSOLESERVICE, nsConsoleServiceConstructor)
     COMPONENT(EXCEPTIONSERVICE, nsExceptionServiceConstructor)
     COMPONENT(ATOMSERVICE, nsAtomServiceConstructor)
+#ifdef MOZ_TIMELINE
+    COMPONENT(TIMELINESERVICE, nsTimelineServiceConstructor)
+#endif
     COMPONENT(OBSERVERSERVICE, nsObserverService::Create)
 
     COMPONENT(XPCOMPROXY, nsProxyObjectManager::Create)

@@ -71,6 +71,7 @@ CPPSRCS		= \
 		nsSupportsArray.cpp \
 		nsSupportsArrayEnumerator.cpp \
 		nsSupportsPrimitives.cpp \
+		nsTimelineService.cpp \
 		nsUnicharBuffer.cpp \
 		nsVariant.cpp \
 		$(NULL)
@@ -106,6 +107,7 @@ EXPORTS		= \
 		nsStaticAtom.h \
 		nsSupportsArray.h \
 		nsSupportsPrimitives.h \
+		nsTime.h \
 		nsVariant.h \
 		nsStringEnumerator.h \
 		nsHashPropertyBag.h \
@@ -132,6 +134,7 @@ XPIDLSRCS	= \
 		nsIStringEnumerator.idl \
 		nsISupportsArray.idl \
 		nsISupportsIterators.idl \
+		nsITimelineService.idl \
 		$(NULL)
 
 SDK_XPIDLSRCS   = \

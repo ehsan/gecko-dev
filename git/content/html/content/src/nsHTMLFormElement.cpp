@@ -328,11 +328,12 @@ DOMCI_NODE_DATA(HTMLFormElement, nsHTMLFormElement)
 
 // QueryInterface implementation for nsHTMLFormElement
 NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLFormElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLFormElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLFormElement,
                                    nsIDOMHTMLFormElement,
                                    nsIForm,
                                    nsIWebProgressListener,
-                                   nsIRadioGroupContainer)
+                                   nsIRadioGroupContainer,
+                                   nsIRadioGroupContainer_MOZILLA_2_0_BRANCH)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLFormElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFormElement)

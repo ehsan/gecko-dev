@@ -133,6 +133,13 @@ nsApplicationAccessible::Description(nsString &aDescription)
   aDescription.Truncate();
 }
 
+NS_IMETHODIMP
+nsApplicationAccessible::GetKeyboardShortcut(nsAString &aKeyboardShortcut)
+{
+  aKeyboardShortcut.Truncate();
+  return NS_OK;
+}
+
 PRUint64
 nsApplicationAccessible::State()
 {
@@ -375,12 +382,6 @@ nsApplicationAccessible::InvalidateChildren()
 {
   // Do nothing because application children are kept updated by AppendChild()
   // and RemoveChild() method calls.
-}
-
-KeyBinding
-nsApplicationAccessible::AccessKey() const
-{
-  return KeyBinding();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

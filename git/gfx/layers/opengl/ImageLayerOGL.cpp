@@ -947,9 +947,6 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
     colorProgram->Activate();
     colorProgram->SetTextureUnit(0);
-    colorProgram->SetLayerTransform(GetEffectiveTransform());
-    colorProgram->SetLayerOpacity(GetEffectiveOpacity());
-    colorProgram->SetRenderOffset(aOffset);
 
     mTexImage->BeginTileIteration();
     do {

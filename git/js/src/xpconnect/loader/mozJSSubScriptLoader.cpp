@@ -385,7 +385,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
     JSVersion version = cx->findVersion();
     nsCAutoString cachePath;
     cachePath.AppendPrintf("jssubloader/%d", version);
-    PathifyURI(uri, cachePath);
+    NS_PathifyURI(uri, cachePath);
 
     if (cache)
         rv = ReadCachedScript(cache, cachePath, cx, &scriptObj);

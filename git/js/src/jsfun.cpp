@@ -1679,12 +1679,8 @@ fun_trace(JSTracer *trc, JSObject *obj)
     if (fun->atom)
         MarkString(trc, fun->atom, "atom");
 
-    if (fun->isInterpreted() && fun->script()) {
-        if (fun->script()->compartment != obj->compartment())
-            JS_Assert("compartment mismatch", __FILE__, __LINE__);
-
+    if (fun->isInterpreted() && fun->script())
         js_TraceScript(trc, fun->script());
-    }
 }
 
 static void

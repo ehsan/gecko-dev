@@ -202,7 +202,7 @@ protected:
   // the granulepos of the packets in mUnstamped can be inferred, and they
   // can be pushed over to mPackets. Used by PageIn() implementations in
   // subclasses.
-  nsresult PacketOutUntilGranulepos(PRBool& aFoundGranulepos);
+  PRBool PacketOutUntilGranulepos();
 
   // Temporary buffer in which to store packets while we're reading packets
   // in order to capture granulepos.

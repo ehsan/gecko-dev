@@ -110,6 +110,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "nsAtomService.h"
 #include "nsAtomTable.h"
 #include "nsTraceRefcnt.h"
+#include "nsTimelineService.h"
 
 #include "nsHashPropertyBag.h"
 
@@ -208,6 +209,10 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsScriptableBase64Encoder)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsVariant)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsRecyclingAllocatorImpl)
+
+#ifdef MOZ_TIMELINE
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsTimelineService)
+#endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsHashPropertyBag, Init)
 

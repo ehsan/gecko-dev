@@ -53,6 +53,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIXULWindow.h"
 #include "nsToolkit.h"
+#include "nsPrintfCString.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMElement.h"

@@ -303,27 +303,15 @@ SpecialPowers.prototype = {
   },
 
   addSystemEventListener: function(target, type, listener, useCapture) {
-    Cc["@mozilla.org/eventlistenerservice;1"].
-      getService(Ci.nsIEventListenerService).
+    Components.classes["@mozilla.org/eventlistenerservice;1"].
+      getService(Components.interfaces.nsIEventListenerService).
       addSystemEventListener(target, type, listener, useCapture);
   },
   removeSystemEventListener: function(target, type, listener, useCapture) {
-    Cc["@mozilla.org/eventlistenerservice;1"].
-      getService(Ci.nsIEventListenerService).
+    Components.classes["@mozilla.org/eventlistenerservice;1"].
+      getService(Components.interfaces.nsIEventListenerService).
       removeSystemEventListener(target, type, listener, useCapture);
-  },
-
-  setLogFile: function(path) {
-    this._mfl = new MozillaFileLogger(path);
-  },
-
-  log: function(data) {
-    this._mfl.log(data);
-  },
-
-  closeLogFile: function() {
-    this._mfl.close();
-  },
+  }
 };
 
 // Expose everything but internal APIs (starting with underscores) to

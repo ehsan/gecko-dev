@@ -59,7 +59,7 @@ const MEM_HISTOGRAMS = {
   "explicit/layout/all": "MEMORY_LAYOUT_ALL",
   "explicit/images/content/used/uncompressed":
     "MEMORY_IMAGES_CONTENT_USED_UNCOMPRESSED",
-  "heap-allocated": "MEMORY_HEAP_ALLOCATED",
+  "heap-used": "MEMORY_HEAP_USED",
   "page-faults-hard": "PAGE_FAULTS_HARD"
 };
 

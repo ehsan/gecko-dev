@@ -1235,14 +1235,11 @@ nsHTMLEditRules::WillInsert(nsISelection *aSelection, PRBool *aCancel)
   // Adjust selection to prevent insertion after a moz-BR.
   // this next only works for collapsed selections right now,
   // because selection is a pain to work with when not collapsed.
-  // (no good way to extend start or end of selection), so we ignore
-  // those types of selections.
+  // (no good way to extend start or end of selection)
   PRBool bCollapsed;
   res = aSelection->GetIsCollapsed(&bCollapsed);
   NS_ENSURE_SUCCESS(res, res);
-  if (!bCollapsed) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(bCollapsed, NS_OK);
 
   // if we are after a mozBR in the same block, then move selection
   // to be before it
@@ -3505,9 +3502,7 @@ nsHTMLEditRules::DidMakeBasicBlock(nsISelection *aSelection,
   PRBool isCollapsed;
   nsresult res = aSelection->GetIsCollapsed(&isCollapsed);
   NS_ENSURE_SUCCESS(res, res);
-  if (!isCollapsed) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(isCollapsed, NS_OK);
 
   nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset;
@@ -7538,9 +7533,7 @@ nsHTMLEditRules::PinSelectionToNewBlock(nsISelection *aSelection)
   PRBool bCollapsed;
   nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
   NS_ENSURE_SUCCESS(res, res);
-  if (!bCollapsed) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(bCollapsed, res);
 
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode, temp;
@@ -7612,9 +7605,7 @@ nsHTMLEditRules::CheckInterlinePosition(nsISelection *aSelection)
   PRBool bCollapsed;
   nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
   NS_ENSURE_SUCCESS(res, res);
-  if (!bCollapsed) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(bCollapsed, res);
 
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode, node;
@@ -7658,9 +7649,7 @@ nsHTMLEditRules::AdjustSelection(nsISelection *aSelection, nsIEditor::EDirection
   PRBool bCollapsed;
   nsresult res = aSelection->GetIsCollapsed(&bCollapsed);
   NS_ENSURE_SUCCESS(res, res);
-  if (!bCollapsed) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(bCollapsed, res);
 
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode, temp;
@@ -8422,9 +8411,7 @@ nsHTMLEditRules::DidCreateNode(const nsAString& aTag,
                                PRInt32 aPosition, 
                                nsresult aResult)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   // assumption that Join keeps the righthand node
   nsresult res = mUtilRange->SelectNode(aNode);
   NS_ENSURE_SUCCESS(res, res);
@@ -8446,9 +8433,7 @@ nsHTMLEditRules::DidInsertNode(nsIDOMNode *aNode,
                                PRInt32 aPosition, 
                                nsresult aResult)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   nsresult res = mUtilRange->SelectNode(aNode);
   NS_ENSURE_SUCCESS(res, res);
   res = UpdateDocChangeRange(mUtilRange);
@@ -8459,9 +8444,7 @@ nsHTMLEditRules::DidInsertNode(nsIDOMNode *aNode,
 NS_IMETHODIMP 
 nsHTMLEditRules::WillDeleteNode(nsIDOMNode *aChild)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   nsresult res = mUtilRange->SelectNode(aChild);
   NS_ENSURE_SUCCESS(res, res);
   res = UpdateDocChangeRange(mUtilRange);
@@ -8489,9 +8472,7 @@ nsHTMLEditRules::DidSplitNode(nsIDOMNode *aExistingRightNode,
                               nsIDOMNode *aNewLeftNode, 
                               nsresult aResult)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   nsresult res = mUtilRange->SetStart(aNewLeftNode, 0);
   NS_ENSURE_SUCCESS(res, res);
   res = mUtilRange->SetEnd(aExistingRightNode, 0);
@@ -8504,9 +8485,7 @@ nsHTMLEditRules::DidSplitNode(nsIDOMNode *aExistingRightNode,
 NS_IMETHODIMP 
 nsHTMLEditRules::WillJoinNodes(nsIDOMNode *aLeftNode, nsIDOMNode *aRightNode, nsIDOMNode *aParent)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   // remember split point
   nsresult res = nsEditor::GetLengthOfDOMNode(aLeftNode, mJoinOffset);
   return res;  
@@ -8519,9 +8498,7 @@ nsHTMLEditRules::DidJoinNodes(nsIDOMNode  *aLeftNode,
                               nsIDOMNode *aParent, 
                               nsresult aResult)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   // assumption that Join keeps the righthand node
   nsresult res = mUtilRange->SetStart(aRightNode, mJoinOffset);
   NS_ENSURE_SUCCESS(res, res);
@@ -8545,9 +8522,7 @@ nsHTMLEditRules::DidInsertText(nsIDOMCharacterData *aTextNode,
                                   const nsAString &aString, 
                                   nsresult aResult)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   PRInt32 length = aString.Length();
   nsCOMPtr<nsIDOMNode> theNode = do_QueryInterface(aTextNode);
   nsresult res = mUtilRange->SetStart(theNode, aOffset);
@@ -8572,9 +8547,7 @@ nsHTMLEditRules::DidDeleteText(nsIDOMCharacterData *aTextNode,
                                   PRInt32 aLength, 
                                   nsresult aResult)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   nsCOMPtr<nsIDOMNode> theNode = do_QueryInterface(aTextNode);
   nsresult res = mUtilRange->SetStart(theNode, aOffset);
   NS_ENSURE_SUCCESS(res, res);
@@ -8587,9 +8560,7 @@ nsHTMLEditRules::DidDeleteText(nsIDOMCharacterData *aTextNode,
 NS_IMETHODIMP
 nsHTMLEditRules::WillDeleteRange(nsIDOMRange *aRange)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   // get the (collapsed) selection location
   return UpdateDocChangeRange(aRange);
 }
@@ -8603,9 +8574,7 @@ nsHTMLEditRules::DidDeleteRange(nsIDOMRange *aRange)
 NS_IMETHODIMP
 nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection)
 {
-  if (!mListenerEnabled) {
-    return NS_OK;
-  }
+  NS_ENSURE_TRUE(mListenerEnabled, NS_OK);
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode;
   PRInt32 selOffset;
