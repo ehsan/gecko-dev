@@ -50,7 +50,9 @@ function isTiltEnabled() {
 }
 
 function isWebGLSupported() {
-  return TiltGL.isWebGLSupported() && TiltGL.create3DContext(createCanvas());
+  return TiltGL.isWebGLSupported() &&
+         TiltGL.create3DContext(
+           document.createElementNS("http://www.w3.org/1999/xhtml", "canvas"));
 }
 
 function isApprox(num1, num2) {
@@ -71,7 +73,9 @@ function isApproxVec(vec1, vec2) {
 
 
 function createCanvas() {
-  return document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+  return gBrowser.parentNode
+                 .ownerDocument
+                 .createElementNS("http://www.w3.org/1999/xhtml", "canvas");
 }
 
 
@@ -109,7 +113,7 @@ function createTilt(callbacks, close) {
 
     executeSoon(function() {
       if ("function" === typeof callbacks.onTiltOpen) {
-        callbacks.onTiltOpen(Tilt.visualizers[Tilt.currentWindowId]);
+        callbacks.onTiltOpen();
       }
       if (close) {
         Services.obs.addObserver(onTiltClose, TILT_DESTROYED, false);

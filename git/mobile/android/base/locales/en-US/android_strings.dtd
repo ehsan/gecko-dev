@@ -43,8 +43,8 @@
 
 <!ENTITY new_tab "New Tab">
 
-<!ENTITY settings "Settings">
-<!ENTITY settings_title "Settings">
+<!ENTITY preferences "Preferences">
+<!ENTITY preferences_title "Preferences">
 <!ENTITY pref_category_general "General">
 <!ENTITY pref_category_privacy "Privacy &amp; Security">
 <!ENTITY pref_category_content "Content">

@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Mihai Sucan <mihai.sucan@gmail.com> (original author)
- *   Kenny Heaton <kennyheaton@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -552,14 +551,6 @@ SourceEditor.prototype = {
   canRedo: function SE_canRedo()
   {
     return this._undoStack.canRedo();
-  },
-
-  /**
-   * Reset the Undo stack
-   */
-  resetUndo: function SE_resetUndo()
-  {
-    this._undoStack.reset();
   },
 
   /**

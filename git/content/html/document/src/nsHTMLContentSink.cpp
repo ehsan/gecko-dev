@@ -2453,9 +2453,11 @@ HTMLContentSink::AddDocTypeDecl(const nsIParserNode& aNode)
     }
 
     // Indicate that there is no internal subset (not just an empty one)
+    nsAutoString voidString;
+    voidString.SetIsVoid(true);
     rv = NS_NewDOMDocumentType(getter_AddRefs(docType),
                                mDocument->NodeInfoManager(), nameAtom,
-                               publicId, systemId, NullString());
+                               publicId, systemId, voidString);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (oldDocType) {
