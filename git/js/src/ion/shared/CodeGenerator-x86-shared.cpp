@@ -12,7 +12,6 @@
 #include "ion/shared/CodeGenerator-x86-shared.h"
 #include "ion/shared/CodeGenerator-shared-inl.h"
 #include "ion/IonFrames.h"
-#include "ion/MoveEmitter.h"
 #include "ion/IonCompartment.h"
 #include "ion/ParallelFunctions.h"
 
@@ -293,7 +292,7 @@ CodeGeneratorX86Shared::bailout(const T &binder, LSnapshot *snapshot)
       case SequentialExecution:
         break;
       default:
-        JS_NOT_REACHED("No such execution mode");
+        MOZ_ASSUME_UNREACHABLE("No such execution mode");
     }
 
     if (!encode(snapshot))
@@ -939,7 +938,7 @@ CodeGeneratorX86Shared::visitBitOpI(LBitOpI *ins)
                 masm.andl(ToOperand(rhs), ToRegister(lhs));
             break;
         default:
-            JS_NOT_REACHED("unexpected binary opcode");
+            MOZ_ASSUME_UNREACHABLE("unexpected binary opcode");
     }
 
     return true;
@@ -973,7 +972,7 @@ CodeGeneratorX86Shared::visitShiftI(LShiftI *ins)
             }
             break;
           default:
-            JS_NOT_REACHED("Unexpected shift op");
+            MOZ_ASSUME_UNREACHABLE("Unexpected shift op");
         }
     } else {
         JS_ASSERT(ToRegister(rhs) == ecx);
@@ -994,7 +993,7 @@ CodeGeneratorX86Shared::visitShiftI(LShiftI *ins)
             }
             break;
           default:
-            JS_NOT_REACHED("Unexpected shift op");
+            MOZ_ASSUME_UNREACHABLE("Unexpected shift op");
         }
     }
 
@@ -1033,43 +1032,6 @@ CodeGeneratorX86Shared::toMoveOperand(const LAllocation *a) const
     if (a->isFloatReg())
         return MoveOperand(ToFloatRegister(a));
     return MoveOperand(StackPointer, ToStackOffset(a));
-}
-
-bool
-CodeGeneratorX86Shared::visitMoveGroup(LMoveGroup *group)
-{
-    if (!group->numMoves())
-        return true;
-
-    MoveResolver &resolver = masm.moveResolver();
-
-    for (size_t i = 0; i < group->numMoves(); i++) {
-        const LMove &move = group->getMove(i);
-
-        const LAllocation *from = move.from();
-        const LAllocation *to = move.to();
-
-        // No bogus moves.
-        JS_ASSERT(*from != *to);
-        JS_ASSERT(!from->isConstant());
-        JS_ASSERT(from->isDouble() == to->isDouble());
-
-        MoveResolver::Move::Kind kind = from->isDouble()
-                                        ? MoveResolver::Move::DOUBLE
-                                        : MoveResolver::Move::GENERAL;
-
-        if (!resolver.addMove(toMoveOperand(from), toMoveOperand(to), kind))
-            return false;
-    }
-
-    if (!resolver.resolve())
-        return false;
-
-    MoveEmitter emitter(masm);
-    emitter.emit(resolver);
-    emitter.finish();
-
-    return true;
 }
 
 class OutOfLineTableSwitch : public OutOfLineCodeBase<CodeGeneratorX86Shared>
@@ -1176,8 +1138,7 @@ CodeGeneratorX86Shared::visitMathD(LMathD *math)
         masm.divsd(rhs, lhs);
         break;
       default:
-        JS_NOT_REACHED("unexpected opcode");
-        return false;
+        MOZ_ASSUME_UNREACHABLE("unexpected opcode");
     }
     return true;
 }
