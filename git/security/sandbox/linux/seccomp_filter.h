@@ -27,7 +27,6 @@
 /* Architecture-specific infrequently used syscalls */
 #if defined(__arm__)
 #define SECCOMP_WHITELIST_ARCH_LOW \
-  ALLOW_SYSCALL(_newselect), \
   ALLOW_SYSCALL(_llseek), \
   ALLOW_SYSCALL(getuid32), \
   ALLOW_SYSCALL(geteuid32), \
@@ -35,15 +34,13 @@
   ALLOW_SYSCALL(fcntl64),
 #elif defined(__i386__)
 #define SECCOMP_WHITELIST_ARCH_LOW \
-  ALLOW_SYSCALL(_newselect), \
   ALLOW_SYSCALL(_llseek), \
   ALLOW_SYSCALL(getuid32), \
   ALLOW_SYSCALL(geteuid32), \
   ALLOW_SYSCALL(sigreturn), \
   ALLOW_SYSCALL(fcntl64),
 #else
-#define SECCOMP_WHITELIST_ARCH_LOW \
-  ALLOW_SYSCALL(select),
+#define SECCOMP_WHITELIST_ARCH_LOW
 #endif
 
 /* Architecture-specific very infrequently used syscalls */
@@ -83,8 +80,7 @@
   ALLOW_SYSCALL(lstat64), \
   ALLOW_SYSCALL(socketpair), \
   ALLOW_SYSCALL(sendmsg), \
-  ALLOW_SYSCALL(sigprocmask), \
-  DENY_SYSCALL(socket, EACCES),
+  ALLOW_SYSCALL(sigprocmask),
 #elif defined(__i386__)
 #define SECCOMP_WHITELIST_ARCH_TOREMOVE \
   ALLOW_SYSCALL(fstat64), \
@@ -94,8 +90,7 @@
 #else
 #define SECCOMP_WHITELIST_ARCH_TOREMOVE \
   ALLOW_SYSCALL(socketpair), \
-  ALLOW_SYSCALL(sendmsg), \
-  DENY_SYSCALL(socket, EACCES),
+  ALLOW_SYSCALL(sendmsg),
 #endif
 
 /* Architecture-specific syscalls for desktop linux */
@@ -119,11 +114,9 @@
 
 #define SECCOMP_WHITELIST_B2G_MED \
   ALLOW_SYSCALL(getpid), \
-  ALLOW_SYSCALL(rt_sigreturn),
+  ALLOW_SYSCALL(rt_sigreturn), \
 
 #define SECCOMP_WHITELIST_B2G_LOW \
-  ALLOW_SYSCALL(sendto), \
-  ALLOW_SYSCALL(recvfrom), \
   ALLOW_SYSCALL(getdents64), \
   ALLOW_SYSCALL(sched_setscheduler),
 

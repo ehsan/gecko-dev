@@ -1851,12 +1851,9 @@ nsMathMLChar::PaintForeground(nsPresContext* aPresContext,
     case DRAW_NORMAL:
     case DRAW_VARIANT:
       // draw a single glyph (base size or size variant)
-      // XXXfredw verify if mGlyphs[0] is non-null to workaround bug 973322.
-      if (mGlyphs[0]) {
-        mGlyphs[0]->Draw(thebesContext, gfxPoint(0.0, mUnscaledAscent),
-                         DrawMode::GLYPH_FILL, 0, mGlyphs[0]->GetLength(),
-                         nullptr, nullptr, nullptr);
-      }
+      mGlyphs[0]->Draw(thebesContext, gfxPoint(0.0, mUnscaledAscent),
+                       DrawMode::GLYPH_FILL, 0, mGlyphs[0]->GetLength(),
+                       nullptr, nullptr, nullptr);
       break;
     case DRAW_PARTS: {
       // paint by parts

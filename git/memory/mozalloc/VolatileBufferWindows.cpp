@@ -10,7 +10,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/mozalloc.h"
 
-#include <windows.h>
+#include <Windows.h>
 
 #ifdef MOZ_MEMORY
 extern "C" int posix_memalign(void** memptr, size_t alignment, size_t size);

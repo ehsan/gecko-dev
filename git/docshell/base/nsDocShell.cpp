@@ -4279,18 +4279,6 @@ nsDocShell::LoadURI(const char16_t * aURI,
                     nsIInputStream * aPostStream,
                     nsIInputStream * aHeaderStream)
 {
-    return LoadURIWithBase(aURI, aLoadFlags, aReferringURI, aPostStream,
-                           aHeaderStream, nullptr);
-}
-
-NS_IMETHODIMP
-nsDocShell::LoadURIWithBase(const char16_t * aURI,
-                            uint32_t aLoadFlags,
-                            nsIURI * aReferringURI,
-                            nsIInputStream * aPostStream,
-                            nsIInputStream * aHeaderStream,
-                            nsIURI * aBaseURI)
-{
     NS_ASSERTION((aLoadFlags & 0xf) == 0, "Unexpected flags");
     
     if (!IsNavigationAllowed()) {
@@ -4383,7 +4371,6 @@ nsDocShell::LoadURIWithBase(const char16_t * aURI,
     loadInfo->SetPostDataStream(postStream);
     loadInfo->SetReferrer(aReferringURI);
     loadInfo->SetHeadersStream(aHeaderStream);
-    loadInfo->SetBaseURI(aBaseURI);
 
     rv = LoadURI(uri, loadInfo, extraFlags, true);
 
@@ -9779,12 +9766,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
                 }
             }
             return rv;
-        }
-        if (aBaseURI) {
-            nsCOMPtr<nsIViewSourceChannel> vsc = do_QueryInterface(channel);
-            if (vsc) {
-                vsc->SetBaseURI(aBaseURI);
-            }
         }
     }
     else {

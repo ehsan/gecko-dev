@@ -40,11 +40,9 @@ CanvasLayerComposite::~CanvasLayerComposite()
   CleanupResources();
 }
 
-bool
-CanvasLayerComposite::SetCompositableHost(CompositableHost* aHost)
-{
+void
+CanvasLayerComposite::SetCompositableHost(CompositableHost* aHost) {
   mImageHost = aHost;
-  return true;
 }
 
 Layer*

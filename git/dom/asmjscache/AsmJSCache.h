@@ -47,13 +47,7 @@ struct Metadata
     uint32_t mFastHash;
     uint32_t mNumChars;
     uint32_t mFullHash;
-    unsigned mModuleIndex;
-
-    void clear() {
-      mFastHash = -1;
-      mNumChars = -1;
-      mFullHash = -1;
-    }
+    uint32_t mModuleIndex;
   };
 
   Entry mEntries[kNumEntries];

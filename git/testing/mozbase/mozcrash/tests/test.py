@@ -86,7 +86,6 @@ class TestCrash(unittest.TestCase):
         Test that dump_save_path works.
         """
         open(os.path.join(self.tempdir, "test.dmp"), "w").write("foo")
-        open(os.path.join(self.tempdir, "test.extra"), "w").write("bar")
         save_path = os.path.join(self.tempdir, "saved")
         os.mkdir(save_path)
         self.stdouts.append(["this is some output"])
@@ -96,14 +95,12 @@ class TestCrash(unittest.TestCase):
                                                 dump_save_path=save_path,
                                                 quiet=True))
         self.assert_(os.path.isfile(os.path.join(save_path, "test.dmp")))
-        self.assert_(os.path.isfile(os.path.join(save_path, "test.extra")))
 
     def test_save_path_not_present(self):
         """
         Test that dump_save_path works when the directory doesn't exist.
         """
         open(os.path.join(self.tempdir, "test.dmp"), "w").write("foo")
-        open(os.path.join(self.tempdir, "test.extra"), "w").write("bar")
         save_path = os.path.join(self.tempdir, "saved")
         self.stdouts.append(["this is some output"])
         self.assert_(mozcrash.check_for_crashes(self.tempdir,
@@ -112,7 +109,6 @@ class TestCrash(unittest.TestCase):
                                                 dump_save_path=save_path,
                                                 quiet=True))
         self.assert_(os.path.isfile(os.path.join(save_path, "test.dmp")))
-        self.assert_(os.path.isfile(os.path.join(save_path, "test.extra")))
 
     def test_save_path_isfile(self):
         """
@@ -120,7 +116,6 @@ class TestCrash(unittest.TestCase):
         but a file with the same name exists.
         """
         open(os.path.join(self.tempdir, "test.dmp"), "w").write("foo")
-        open(os.path.join(self.tempdir, "test.extra"), "w").write("bar")
         save_path = os.path.join(self.tempdir, "saved")
         open(save_path, "w").write("junk")
         self.stdouts.append(["this is some output"])
@@ -130,14 +125,12 @@ class TestCrash(unittest.TestCase):
                                                 dump_save_path=save_path,
                                                 quiet=True))
         self.assert_(os.path.isfile(os.path.join(save_path, "test.dmp")))
-        self.assert_(os.path.isfile(os.path.join(save_path, "test.extra")))
 
     def test_save_path_envvar(self):
         """
         Test that the MINDUMP_SAVE_PATH environment variable works.
         """
         open(os.path.join(self.tempdir, "test.dmp"), "w").write("foo")
-        open(os.path.join(self.tempdir, "test.extra"), "w").write("bar")
         save_path = os.path.join(self.tempdir, "saved")
         os.mkdir(save_path)
         self.stdouts.append(["this is some output"])
@@ -148,7 +141,6 @@ class TestCrash(unittest.TestCase):
                                                 quiet=True))
         del os.environ['MINIDUMP_SAVE_PATH']
         self.assert_(os.path.isfile(os.path.join(save_path, "test.dmp")))
-        self.assert_(os.path.isfile(os.path.join(save_path, "test.extra")))
 
     def test_symbol_path_url(self):
         """

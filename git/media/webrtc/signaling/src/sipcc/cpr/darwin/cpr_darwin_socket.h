@@ -30,6 +30,9 @@
 /**
  * Set public CPR header file options
  */
+#ifdef CPR_USE_SOCKETPAIR
+#undef CPR_USE_SOCKETPAIR
+#endif
 #define SUPPORT_CONNECT_CONST const
 
 /**

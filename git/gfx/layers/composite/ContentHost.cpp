@@ -510,7 +510,7 @@ DeprecatedContentHostBase::Dump(FILE* aFile,
 
 #endif
 
-bool
+void
 ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
                                         const nsIntRegion& aUpdated,
                                         const nsIntRegion& aOldValidRegionBack,
@@ -520,8 +520,8 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
 
   if (!mTextureHost) {
     mInitialised = false;
-    return true; // FIXME should we return false? Returning true for now
-  }              // to preserve existing behavior of NOT causing IPC errors.
+    return;
+  }
 
   // updated is in screen coordinates. Convert it to buffer coordinates.
   nsIntRegion destRegion(aUpdated);
@@ -535,14 +535,12 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
   destRegion.MoveBy((destBounds.x >= size.width) ? -size.width : 0,
                     (destBounds.y >= size.height) ? -size.height : 0);
 
-  // We can get arbitrary bad regions from an untrusted client,
-  // which we need to be resilient to. See bug 967330.
-  if((destBounds.x % size.width) + destBounds.width > size.width ||
-     (destBounds.y % size.height) + destBounds.height > size.height)
-  {
-    NS_ERROR("updated region lies across rotation boundaries!");
-    return false;
-  }
+  // There's code to make sure that updated regions don't cross rotation
+  // boundaries, so assert here that this is the case
+  MOZ_ASSERT((destBounds.x % size.width) + destBounds.width <= size.width,
+               "updated region lies across rotation boundaries!");
+  MOZ_ASSERT((destBounds.y % size.height) + destBounds.height <= size.height,
+               "updated region lies across rotation boundaries!");
 
   mTextureHost->Updated(&destRegion);
   if (mTextureHostOnWhite) {
@@ -552,8 +550,6 @@ ContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
 
   mBufferRect = aData.rect();
   mBufferRotation = aData.rotation();
-
-  return true;
 }
 
 DeprecatedContentHostSingleBuffered::~DeprecatedContentHostSingleBuffered()
@@ -598,7 +594,7 @@ DeprecatedContentHostSingleBuffered::DestroyTextures()
   // don't touch mDeprecatedTextureHost, we might need it for compositing
 }
 
-bool
+void
 DeprecatedContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
                                         const nsIntRegion& aUpdated,
                                         const nsIntRegion& aOldValidRegionBack,
@@ -608,7 +604,7 @@ DeprecatedContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
 
   if (!mDeprecatedTextureHost && !mNewFrontHost) {
     mInitialised = false;
-    return true;
+    return;
   }
 
   if (mNewFrontHost) {
@@ -636,14 +632,12 @@ DeprecatedContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
   destRegion.MoveBy((destBounds.x >= size.width) ? -size.width : 0,
                     (destBounds.y >= size.height) ? -size.height : 0);
 
-  // We can get arbitrary bad regions from an untrusted client,
-  // which we need to be resilient to. See bug 967330.
-  if((destBounds.x % size.width) + destBounds.width > size.width ||
-     (destBounds.y % size.height) + destBounds.height > size.height)
-  {
-    NS_ERROR("updated region lies across rotation boundaries!");
-    return false;
-  }
+  // There's code to make sure that updated regions don't cross rotation
+  // boundaries, so assert here that this is the case
+  MOZ_ASSERT((destBounds.x % size.width) + destBounds.width <= size.width,
+               "updated region lies across rotation boundaries!");
+  MOZ_ASSERT((destBounds.y % size.height) + destBounds.height <= size.height,
+               "updated region lies across rotation boundaries!");
 
   mDeprecatedTextureHost->Update(*mDeprecatedTextureHost->LockSurfaceDescriptor(), &destRegion);
   if (mDeprecatedTextureHostOnWhite) {
@@ -653,11 +647,9 @@ DeprecatedContentHostSingleBuffered::UpdateThebes(const ThebesBufferData& aData,
 
   mBufferRect = aData.rect();
   mBufferRotation = aData.rotation();
-
-  return true;
 }
 
-bool
+void
 ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
                                         const nsIntRegion& aUpdated,
                                         const nsIntRegion& aOldValidRegionBack,
@@ -667,7 +659,7 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
     mInitialised = false;
 
     *aUpdatedRegionBack = aUpdated;
-    return true;
+    return;
   }
 
   // We don't need to calculate an update region because we assume that if we
@@ -692,8 +684,6 @@ ContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
   // empty, and that the first time Swap() is called we don't have a
   // valid front buffer that we're going to return to content.
   mValidRegionForNextBackBuffer = aOldValidRegionBack;
-
-  return true;
 }
 
 DeprecatedContentHostDoubleBuffered::~DeprecatedContentHostDoubleBuffered()
@@ -769,7 +759,7 @@ DeprecatedContentHostDoubleBuffered::DestroyTextures()
   // don't touch mDeprecatedTextureHost, we might need it for compositing
 }
 
-bool
+void
 DeprecatedContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
                                         const nsIntRegion& aUpdated,
                                         const nsIntRegion& aOldValidRegionBack,
@@ -779,7 +769,7 @@ DeprecatedContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
     mInitialised = false;
 
     *aUpdatedRegionBack = aUpdated;
-    return true;
+    return;
   }
 
   if (mNewFrontHost) {
@@ -823,8 +813,6 @@ DeprecatedContentHostDoubleBuffered::UpdateThebes(const ThebesBufferData& aData,
   // empty, and that the first time Swap() is called we don't have a
   // valid front buffer that we're going to return to content.
   mValidRegionForNextBackBuffer = aOldValidRegionBack;
-
-  return true;
 }
 
 void

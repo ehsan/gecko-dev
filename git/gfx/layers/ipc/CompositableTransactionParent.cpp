@@ -170,13 +170,10 @@ CompositableParentManager::ReceiveCompositableUpdate(const CompositableOperation
       RenderTraceInvalidateStart(thebes, "FF00FF", op.updatedRegion().GetBounds());
 
       nsIntRegion frontUpdatedRegion;
-      if (!compositable->UpdateThebes(bufferData,
-                                      op.updatedRegion(),
-                                      thebes->GetValidRegion(),
-                                      &frontUpdatedRegion))
-      {
-        return false;
-      }
+      compositable->UpdateThebes(bufferData,
+                                 op.updatedRegion(),
+                                 thebes->GetValidRegion(),
+                                 &frontUpdatedRegion);
       replyv.push_back(
         OpContentBufferSwap(compositableParent, nullptr, frontUpdatedRegion));
 

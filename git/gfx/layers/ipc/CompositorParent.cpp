@@ -330,7 +330,6 @@ CompositorParent::RecvFlushRendering()
   // and do it immediately instead.
   if (mCurrentCompositeTask) {
     mCurrentCompositeTask->Cancel();
-    mCurrentCompositeTask = nullptr;
     ForceComposeToTarget(nullptr);
   }
   return true;

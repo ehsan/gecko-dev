@@ -67,5 +67,9 @@ typedef unsigned short u_short;
 
 #define SUPPORT_CONNECT_CONST const
 
+#ifdef CPR_USE_SOCKETPAIR
+#undef CPR_USE_SOCKETPAIR
+#endif
+
 #define MAX_RETRY_FOR_EAGAIN 10
 #endif

@@ -1464,16 +1464,6 @@ nsSHistory::GetSessionHistory(nsISHistory** aSessionHistory)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSHistory::LoadURIWithBase(const char16_t* aURI,
-                            uint32_t aLoadFlags,
-                            nsIURI* aReferringURI,
-                            nsIInputStream* aPostStream,
-                            nsIInputStream* aExtraHeaderStream,
-                            nsIURI* aBaseURI)
-{
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsSHistory::LoadURI(const char16_t* aURI,

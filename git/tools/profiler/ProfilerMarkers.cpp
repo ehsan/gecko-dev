@@ -115,9 +115,9 @@ IOMarkerPayload::IOMarkerPayload(const char* aSource,
                                  const mozilla::TimeStamp& aEndTime,
                                  ProfilerBacktrace* aStack)
   : ProfilerMarkerPayload(aStartTime, aEndTime, aStack),
-    mSource(aSource)
+    mSource(aSource),
+    mFilename(strdup(aFilename))
 {
-  mFilename = aFilename ? strdup(aFilename) : nullptr;
   MOZ_ASSERT(aSource);
 }
 

@@ -166,9 +166,6 @@ cprTranslateErrno (void)
     case WSAECONNREFUSED:
     	err = CPR_ECONNREFUSED;
     	break;
-    case WSAEOPNOTSUPP:
-    	err = CPR_EOPNOTSUPP;
-    	break;
     }
     return err;
 }

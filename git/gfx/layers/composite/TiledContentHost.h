@@ -180,13 +180,12 @@ public:
   }
 
 
-  virtual bool UpdateThebes(const ThebesBufferData& aData,
+  virtual void UpdateThebes(const ThebesBufferData& aData,
                             const nsIntRegion& aUpdated,
                             const nsIntRegion& aOldValidRegionBack,
                             nsIntRegion* aUpdatedRegionBack)
   {
-    NS_ERROR("N/A for tiled layers");
-    return false;
+    MOZ_ASSERT(false, "N/A for tiled layers");
   }
 
   const nsIntRegion& GetValidLowPrecisionRegion() const

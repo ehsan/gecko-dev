@@ -409,13 +409,6 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
 
         atom = fun->displayAtom();
         flagsword = (fun->nargs() << 16) | fun->flags();
-
-        // The environment of any function which is not reused will always be
-        // null, it is later defined when a function is cloned or reused to
-        // mirror the scope chain.
-        JS_ASSERT_IF(fun->hasSingletonType() &&
-                     !((lazy && lazy->hasBeenCloned()) || (script && script->hasBeenCloned())),
-                     fun->environment() == nullptr);
     }
 
     if (!xdr->codeUint32(&firstword))
@@ -428,9 +421,8 @@ js::XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope, Han
             if (!proto)
                 return false;
         }
-
         fun = NewFunctionWithProto(cx, NullPtr(), nullptr, 0, JSFunction::INTERPRETED,
-                                   /* parent = */ NullPtr(), NullPtr(), proto,
+                                   NullPtr(), NullPtr(), proto,
                                    JSFunction::FinalizeKind, TenuredObject);
         if (!fun)
             return false;

@@ -173,12 +173,11 @@ function viewPartialSourceForSelection(selection)
 
   // all our content is held by the data:URI and URIs are internally stored as utf-8 (see nsIURI.idl)
   var loadFlags = Components.interfaces.nsIWebNavigation.LOAD_FLAGS_NONE;
-  getWebNavigation().loadURIWithBase((isHTML ?
-                                      "view-source:data:text/html;charset=utf-8," :
-                                      "view-source:data:application/xml;charset=utf-8,")
-                                     + encodeURIComponent(tmpNode.innerHTML),
-                                     loadFlags, null, null, null,
-                                     Services.io.newURI(doc.baseURI, null, null));
+  getWebNavigation().loadURI((isHTML ?
+                              "view-source:data:text/html;charset=utf-8," :
+                              "view-source:data:application/xml;charset=utf-8,")
+                             + encodeURIComponent(tmpNode.innerHTML),
+                             loadFlags, null, null, null);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
