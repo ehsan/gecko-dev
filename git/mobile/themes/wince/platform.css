@@ -106,9 +106,7 @@ toolbarbutton:not(.show-text) .toolbarbutton-text {
   display: none !important;
 }
 
-toolbarbutton:not(.show-text) .toolbarbutton-icon,
-toolbarbutton:not([image]) .toolbarbutton-icon,
-toolbarbutton[image=''] .toolbarbutton-icon {
+toolbarbutton:not(.show-text) .toolbarbutton-icon {
   -moz-margin-end: 0;
 }
 

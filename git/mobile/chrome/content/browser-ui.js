@@ -232,10 +232,10 @@ var BrowserUI = {
     // If we have a dialog push it on the stack and set the attr for CSS
     if (aDialog) {
       this._dialogs.push(aDialog);
-      document.getElementById("toolbar-main").setAttribute("dialog", "true");
+      document.getElementById("toolbar-main").setAttribute("dialog", "true")
     }
   },
-
+  
   popDialog : function popDialog() {
     // Passing null means we pop the topmost dialog
     if (this._dialogs.length)
@@ -243,7 +243,7 @@ var BrowserUI = {
 
     // If no more dialogs are being displayed, remove the attr for CSS
     if (!this._dialogs.length)
-      document.getElementById("toolbar-main").removeAttribute("dialog");
+      document.getElementById("toolbar-main").removeAttribute("dialog")
   },
 
   switchPane : function(id) {
@@ -323,9 +323,7 @@ var BrowserUI = {
     this._favicon.addEventListener("error", this, false);
     this._autocompleteNavbuttons = document.getElementById("autocomplete_navbuttons");
 
-    let urlbarEditArea = document.getElementById("urlbar-editarea");
-    urlbarEditArea.addEventListener("click", this, false);
-    urlbarEditArea.addEventListener("mousedown", this, false);
+    document.getElementById("urlbar-editarea").addEventListener("click", this, false);
 
     document.getElementById("tabs").addEventListener("TabSelect", this, true);
 
@@ -582,14 +580,6 @@ var BrowserUI = {
           this._editToolbar(false);
         }
         break;
-      case "mousedown":
-        if (aEvent.detail == 2 &&
-            aEvent.button == 0 &&
-            gPrefService.getBoolPref("browser.urlbar.doubleClickSelectsAll")) {
-          this._edit.editor.selectAll();
-          aEvent.preventDefault();
-        }
-        break;
       // Favicon events
       case "error":
         this._favicon.src = "chrome://browser/skin/images/default-favicon.png";
@@ -842,7 +832,7 @@ var FolderPicker = {
     this._panel.height = window.innerHeight;
     this._panel.hidden = false;
     BrowserUI.pushDialog(this);
-
+    
     this._control = aControl;
 
     let folders = document.getElementById("folder-items");
