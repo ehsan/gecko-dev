@@ -3,8 +3,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#ifndef mozilla_dom_HTMLMediaElement_h
-#define mozilla_dom_HTMLMediaElement_h
+#if !defined(nsHTMLMediaElement_h__)
+#define nsHTMLMediaElement_h__
 
 #include "nsIDOMHTMLMediaElement.h"
 #include "nsGenericHTMLElement.h"
@@ -27,8 +27,6 @@
 #include "DecoderTraits.h"
 #include "MediaMetadataManager.h"
 #include "AudioChannelAgent.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
 
 // Define to output information on decoding and painting framerate
 /* #define DEBUG_FRAME_RATE 1 */
@@ -41,15 +39,10 @@ class MediaResource;
 class MediaDecoder;
 }
 
-namespace mozilla {
-namespace dom {
-
-class MediaError;
-
-class HTMLMediaElement : public nsGenericHTMLElement,
-                         public nsIObserver,
-                         public MediaDecoderOwner,
-                         public nsIAudioChannelAgentCallback
+class nsHTMLMediaElement : public nsGenericHTMLElement,
+                           public nsIObserver,
+                           public mozilla::MediaDecoderOwner,
+                           public nsIAudioChannelAgentCallback
 {
 public:
   typedef mozilla::TimeStamp TimeStamp;
@@ -59,13 +52,16 @@ public:
   typedef mozilla::MediaResource MediaResource;
   typedef mozilla::MediaDecoderOwner MediaDecoderOwner;
   typedef mozilla::MetadataTags MetadataTags;
+  typedef mozilla::AudioStream AudioStream;
+  typedef mozilla::MediaDecoder MediaDecoder;
+  typedef mozilla::DOMMediaStream DOMMediaStream;
 
-  CORSMode GetCORSMode() {
+  mozilla::CORSMode GetCORSMode() {
     return mCORSMode;
   }
 
-  HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual ~HTMLMediaElement();
+  nsHTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  virtual ~nsHTMLMediaElement();
 
   /**
    * This is used when the browser is constructing a video element to play
@@ -86,13 +82,13 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(HTMLMediaElement,
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLMediaElement,
                                            nsGenericHTMLElement)
 
   virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult);
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   // SetAttr override.  C++ is stupid, so have to override both
   // overloaded methods.
   nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
@@ -198,7 +194,7 @@ public:
   // Called by the media decoder and the video frame to get the
   // ImageContainer containing the video data.
   virtual VideoFrameContainer* GetVideoFrameContainer() MOZ_FINAL MOZ_OVERRIDE;
-  layers::ImageContainer* GetImageContainer();
+  ImageContainer* GetImageContainer();
 
   // Called by the video frame to get the print surface, if this is
   // a static document and we're not actually playing video
@@ -259,7 +255,7 @@ public:
 
   // Returns the CanPlayStatus indicating if we can handle the
   // full MIME type including the optional codecs parameter.
-  static CanPlayStatus GetCanPlay(const nsAString& aType);
+  static mozilla::CanPlayStatus GetCanPlay(const nsAString& aType);
 
   /**
    * Called when a child source element is added to this media element. This
@@ -300,7 +296,7 @@ public:
    */
   bool GetPlayedOrSeeked() const { return mHasPlayedOrSeeked; }
 
-  nsresult CopyInnerTo(Element* aDest);
+  nsresult CopyInnerTo(mozilla::dom::Element* aDest);
 
   /**
    * Sets the Accept header on the HTTP channel to the required
@@ -322,192 +318,10 @@ public:
    */
   virtual void FireTimeUpdate(bool aPeriodic) MOZ_FINAL MOZ_OVERRIDE;
 
-  MediaStream* GetSrcMediaStream() const
+  MediaStream* GetSrcMediaStream()
   {
     NS_ASSERTION(mSrcStream, "Don't call this when not playing a stream");
     return mSrcStream->GetStream();
-  }
-
-  // WebIDL
-
-  MediaError* GetError() const
-  {
-    return mError;
-  }
-
-  // XPCOM GetSrc() is OK
-  void SetSrc(const nsAString& aSrc, ErrorResult& aRv)
-  {
-    SetHTMLAttr(nsGkAtoms::src, aSrc, aRv);
-  }
-
-  // XPCOM GetCurrentSrc() is OK
-
-  // XPCOM GetCrossorigin() is OK
-  void SetCrossOrigin(const nsAString& aValue, ErrorResult& aRv)
-  {
-    SetHTMLAttr(nsGkAtoms::crossorigin, aValue, aRv);
-  }
-
-  uint16_t NetworkState() const
-  {
-    return mNetworkState;
-  }
-
-  // XPCOM GetPreload() is OK
-  void SetPreload(const nsAString& aValue, ErrorResult& aRv)
-  {
-    SetHTMLAttr(nsGkAtoms::preload, aValue, aRv);
-  }
-
-  already_AddRefed<TimeRanges> Buffered() const;
-
-  // XPCOM Load() is OK
-
-  // XPCOM CanPlayType() is OK
-
-  uint16_t ReadyState() const
-  {
-    return mReadyState;
-  }
-
-  bool Seeking() const;
-
-  double CurrentTime() const;
-
-  void SetCurrentTime(double aCurrentTime, ErrorResult& aRv);
-
-  double Duration() const;
-
-  bool Paused() const
-  {
-    return mPaused;
-  }
-
-  double DefaultPlaybackRate() const
-  {
-    return mDefaultPlaybackRate;
-  }
-
-  void SetDefaultPlaybackRate(double aDefaultPlaybackRate, ErrorResult& aRv);
-
-  double PlaybackRate() const
-  {
-    return mPlaybackRate;
-  }
-
-  void SetPlaybackRate(double aPlaybackRate, ErrorResult& aRv);
-
-  already_AddRefed<TimeRanges> Played();
-
-  already_AddRefed<TimeRanges> Seekable() const;
-
-  bool Ended();
-
-  bool Autoplay() const
-  {
-    return GetBoolAttr(nsGkAtoms::autoplay);
-  }
-
-  void SetAutoplay(bool aValue, ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::autoplay, aValue, aRv);
-  }
-
-  bool Loop() const
-  {
-    return GetBoolAttr(nsGkAtoms::loop);
-  }
-
-  void SetLoop(bool aValue, ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::loop, aValue, aRv);
-  }
-
-  void Play(ErrorResult& aRv);
-
-  void Pause(ErrorResult& aRv);
-
-  bool Controls() const
-  {
-    return GetBoolAttr(nsGkAtoms::controls);
-  }
-
-  void SetControls(bool aValue, ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::controls, aValue, aRv);
-  }
-
-  double Volume() const
-  {
-    return mVolume;
-  }
-
-  void SetVolume(double aVolume, ErrorResult& aRv);
-
-  bool Muted() const
-  {
-    return mMuted;
-  }
-
-  // XPCOM SetMuted() is OK
-
-  bool DefaultMuted() const
-  {
-    return GetBoolAttr(nsGkAtoms::muted);
-  }
-
-  void SetDefaultMuted(bool aMuted, ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::muted, aMuted, aRv);
-  }
-
-  already_AddRefed<DOMMediaStream> GetMozSrcObject() const;
-
-  void SetMozSrcObject(DOMMediaStream& aValue);
-
-  double InitialTime();
-
-  bool MozPreservesPitch() const
-  {
-    return mPreservesPitch;
-  }
-
-  // XPCOM MozPreservesPitch() is OK
-
-  bool MozAutoplayEnabled() const
-  {
-    return mAutoplayEnabled;
-  }
-
-  already_AddRefed<DOMMediaStream> MozCaptureStream(ErrorResult& aRv);
-
-  already_AddRefed<DOMMediaStream> MozCaptureStreamUntilEnded(ErrorResult& aRv);
-
-  bool MozAudioCaptured() const
-  {
-    return mAudioCaptured;
-  }
-
-  uint32_t GetMozChannels(ErrorResult& aRv) const;
-
-  uint32_t GetMozSampleRate(ErrorResult& aRv) const;
-
-  uint32_t GetMozFrameBufferLength(ErrorResult& aRv) const;
-
-  void SetMozFrameBufferLength(uint32_t aValue, ErrorResult& aRv);
-
-  JSObject* MozGetMetadata(JSContext* aCx, ErrorResult& aRv);
-
-  void MozLoadFrom(HTMLMediaElement& aOther, ErrorResult& aRv);
-
-  double MozFragmentEnd();
-
-  // XPCOM GetMozAudioChannelType() is OK
-
-  void SetMozAudioChannelType(const nsAString& aValue, ErrorResult& aRv)
-  {
-    SetHTMLAttr(nsGkAtoms::mozaudiochannel, aValue, aRv);
   }
 
 protected:
@@ -520,13 +334,13 @@ protected:
   class WakeLockBoolWrapper {
   public:
     WakeLockBoolWrapper(bool val = false) : mValue(val), mOuter(NULL), mWakeLock(NULL) {}
-    void SetOuter(HTMLMediaElement* outer) { mOuter = outer; }
-    operator bool() const { return mValue; }
+    void SetOuter(nsHTMLMediaElement* outer) { mOuter = outer; }
+    operator bool() { return mValue; }
     WakeLockBoolWrapper& operator=(bool val);
     bool operator !() const { return !mValue; }
   private:
     bool mValue;
-    HTMLMediaElement* mOuter;
+    nsHTMLMediaElement* mOuter;
     nsCOMPtr<nsIDOMMozWakeLock> mWakeLock;
   };
 
@@ -601,7 +415,7 @@ protected:
    * Call this to find a media element with the same NodePrincipal and mLoadingSrc
    * set to aURI, and with a decoder on which Load() has been called.
    */
-  HTMLMediaElement* LookupMediaElementURITable(nsIURI* aURI);
+  nsHTMLMediaElement* LookupMediaElementURITable(nsIURI* aURI);
 
   /**
    * Shutdown and clear mDecoder and maintain associated invariants.
@@ -781,9 +595,9 @@ protected:
    */
   void SuspendOrResumeElement(bool aPauseElement, bool aSuspendEvents);
 
-  // Get the HTMLMediaElement object if the decoder is being used from an
+  // Get the nsHTMLMediaElement object if the decoder is being used from an
   // HTML media element, and null otherwise.
-  virtual HTMLMediaElement* GetMediaElement() MOZ_FINAL MOZ_OVERRIDE
+  virtual nsHTMLMediaElement* GetMediaElement() MOZ_FINAL MOZ_OVERRIDE
   {
     return this;
   }
@@ -840,7 +654,7 @@ protected:
   nsCOMPtr<nsIChannel> mChannel;
 
   // Error attribute
-  nsRefPtr<MediaError> mError;
+  nsCOMPtr<nsIDOMMediaError> mError;
 
   // The current media load ID. This is incremented every time we start a
   // new load. Async events note the ID when they're first sent, and only fire
@@ -957,7 +771,7 @@ protected:
   nsAutoPtr<AudioStream> mAudioStream;
 
   // Range of time played.
-  TimeRanges mPlayed;
+  mozilla::dom::TimeRanges mPlayed;
 
   // Stores the time at the start of the current 'played' range.
   double mCurrentPlayRangeStart;
@@ -1066,7 +880,7 @@ protected:
   bool mMediaSecurityVerified;
 
   // The CORS mode when loading the media element
-  CORSMode mCORSMode;
+  mozilla::CORSMode mCORSMode;
 
   // True if the media has an audio track
   bool mHasAudio;
@@ -1075,7 +889,7 @@ protected:
   bool mDownloadSuspendedByCache;
 
   // Audio Channel Type.
-  AudioChannelType mAudioChannelType;
+  mozilla::dom::AudioChannelType mAudioChannelType;
 
   // The audiochannel has been suspended.
   bool mChannelSuspended;
@@ -1087,7 +901,4 @@ protected:
   nsCOMPtr<nsIAudioChannelAgent> mAudioChannelAgent;
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_HTMLMediaElement_h
+#endif

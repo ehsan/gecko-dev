@@ -115,9 +115,6 @@ PromiseWorker.prototype = {
      * Messages may also contain a field |id| to help
      * with debugging.
      *
-     * Messages may also optionally contain a field |durationMs|, holding
-     * the duration of the function call in milliseconds.
-     *
      * @param {*} msg The message received from the worker.
      */
     worker.onmessage = function onmessage(msg) {
@@ -130,8 +127,7 @@ PromiseWorker.prototype = {
                         " got " + data.id + ": " + JSON.stringify(msg.data));
       }
       if ("ok" in data) {
-        // Pass the data to the listeners.
-        deferred.resolve(data);
+        deferred.resolve(data.ok);
       } else if ("StopIteration" in data) {
         // We have received a StopIteration error
         deferred.reject(StopIteration);

@@ -6858,7 +6858,7 @@ TypeCompartment::maybePurgeAnalysis(JSContext *cx, bool force)
 }
 
 static void
-SizeOfScriptTypeInferenceData(RawScript script, JS::TypeInferenceSizes *sizes,
+SizeOfScriptTypeInferenceData(RawScript script, TypeInferenceSizes *sizes,
                               JSMallocSizeOfFun mallocSizeOf)
 {
     TypeScript *typeScript = script->types;
@@ -6887,7 +6887,7 @@ Zone::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *typePool)
 }
 
 void
-JSCompartment::sizeOfTypeInferenceData(JS::TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf)
+JSCompartment::sizeOfTypeInferenceData(TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf)
 {
     sizes->analysisPool += analysisLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 

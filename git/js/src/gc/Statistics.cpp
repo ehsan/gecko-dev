@@ -241,14 +241,14 @@ class gcstats::StatisticsSerializer
  * larger-numbered reasons to pile up in the last telemetry bucket, or switch
  * to GC_REASON_3 and bump the max value.
  */
-JS_STATIC_ASSERT(JS::gcreason::NUM_TELEMETRY_REASONS >= JS::gcreason::NUM_REASONS);
+JS_STATIC_ASSERT(gcreason::NUM_TELEMETRY_REASONS >= gcreason::NUM_REASONS);
 
 static const char *
-ExplainReason(JS::gcreason::Reason reason)
+ExplainReason(gcreason::Reason reason)
 {
     switch (reason) {
 #define SWITCH_REASON(name)                     \
-        case JS::gcreason::name:                    \
+        case gcreason::name:                    \
           return #name;
         GCREASONS(SWITCH_REASON)
 
@@ -571,7 +571,7 @@ Statistics::endGC()
 
 void
 Statistics::beginSlice(int collectedCount, int zoneCount, int compartmentCount,
-                       JS::gcreason::Reason reason)
+                       gcreason::Reason reason)
 {
     this->collectedCount = collectedCount;
     this->zoneCount = zoneCount;
@@ -590,9 +590,8 @@ Statistics::beginSlice(int collectedCount, int zoneCount, int compartmentCount,
     // Slice callbacks should only fire for the outermost level
     if (++gcDepth == 1) {
         bool wasFullGC = collectedCount == zoneCount;
-        if (JS::GCSliceCallback cb = runtime->gcSliceCallback)
-            (*cb)(runtime, first ? JS::GC_CYCLE_BEGIN : JS::GC_SLICE_BEGIN,
-                  JS::GCDescription(!wasFullGC));
+        if (GCSliceCallback cb = runtime->gcSliceCallback)
+            (*cb)(runtime, first ? GC_CYCLE_BEGIN : GC_SLICE_BEGIN, GCDescription(!wasFullGC));
     }
 }
 
@@ -614,9 +613,8 @@ Statistics::endSlice()
     // Slice callbacks should only fire for the outermost level
     if (--gcDepth == 0) {
         bool wasFullGC = collectedCount == zoneCount;
-        if (JS::GCSliceCallback cb = runtime->gcSliceCallback)
-            (*cb)(runtime, last ? JS::GC_CYCLE_END : JS::GC_SLICE_END,
-                  JS::GCDescription(!wasFullGC));
+        if (GCSliceCallback cb = runtime->gcSliceCallback)
+            (*cb)(runtime, last ? GC_CYCLE_END : GC_SLICE_END, GCDescription(!wasFullGC));
     }
 
     /* Do this after the slice callback since it uses these values. */

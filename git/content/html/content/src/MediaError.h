@@ -8,7 +8,7 @@
 #define mozilla_dom_MediaError_h
 
 #include "nsIDOMMediaError.h"
-#include "mozilla/dom/HTMLMediaElement.h"
+#include "nsHTMLMediaElement.h"
 #include "nsWrapperCache.h"
 #include "nsISupports.h"
 #include "mozilla/Attributes.h"
@@ -20,7 +20,7 @@ class MediaError MOZ_FINAL : public nsIDOMMediaError,
                              public nsWrapperCache
 {
 public:
-  MediaError(HTMLMediaElement* aParent, uint16_t aCode);
+  MediaError(nsHTMLMediaElement* aParent, uint16_t aCode);
 
   // nsISupports
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -29,7 +29,7 @@ public:
   // nsIDOMMediaError
   NS_DECL_NSIDOMMEDIAERROR
 
-  HTMLMediaElement* GetParentObject() const
+  nsHTMLMediaElement* GetParentObject() const
   {
     return mParent;
   }
@@ -42,7 +42,7 @@ public:
   }
 
 private:
-  nsRefPtr<HTMLMediaElement> mParent;
+  nsRefPtr<nsHTMLMediaElement> mParent;
 
   // Error code
   const uint16_t mCode;

@@ -4142,12 +4142,12 @@ WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
   AssertIsOnWorkerThread();
 
   JSRuntime *rt = JS_GetRuntime(aCx);
-  JS::PrepareForFullGC(rt);
+  js::PrepareForFullGC(rt);
   if (aShrinking) {
-    JS::ShrinkingGC(rt, JS::gcreason::DOM_WORKER);
+    js::ShrinkingGC(rt, js::gcreason::DOM_WORKER);
   }
   else {
-    JS::GCForReason(rt, JS::gcreason::DOM_WORKER);
+    js::GCForReason(rt, js::gcreason::DOM_WORKER);
   }
 
   if (aCollectChildren) {

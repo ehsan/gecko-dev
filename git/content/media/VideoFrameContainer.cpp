@@ -6,7 +6,7 @@
 
 #include "VideoFrameContainer.h"
 
-#include "mozilla/dom/HTMLMediaElement.h"
+#include "nsHTMLMediaElement.h"
 #include "nsIFrame.h"
 #include "nsDisplayList.h"
 #include "nsSVGEffects.h"
@@ -16,7 +16,7 @@ using namespace mozilla::layers;
 
 namespace mozilla {
 
-VideoFrameContainer::VideoFrameContainer(dom::HTMLMediaElement* aElement,
+VideoFrameContainer::VideoFrameContainer(nsHTMLMediaElement* aElement,
                                          already_AddRefed<ImageContainer> aContainer)
   : mElement(aElement),
     mImageContainer(aContainer), mMutex("nsVideoFrameContainer"),

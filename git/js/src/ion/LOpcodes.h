@@ -36,6 +36,7 @@
     _(InitProp)                     \
     _(CheckOverRecursed)            \
     _(ParCheckOverRecursed)         \
+    _(RecompileCheck)               \
     _(DefVar)                       \
     _(DefFun)                       \
     _(CallKnown)                    \

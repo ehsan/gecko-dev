@@ -7,13 +7,11 @@
 #define MediaDecoderOwner_h_
 #include "AbstractMediaDecoder.h"
 
+class nsHTMLMediaElement;
+
 namespace mozilla {
 
 class VideoFrameContainer;
-
-namespace dom {
-class HTMLMediaElement;
-}
 
 class MediaDecoderOwner
 {
@@ -36,9 +34,9 @@ public:
    */
   virtual void FireTimeUpdate(bool aPeriodic) = 0;
 
-  // Get the HTMLMediaElement object if the decoder is being used from an
+  // Get the nsHTMLMediaElement object if the decoder is being used from an
   // HTML media element, and null otherwise.
-  virtual dom::HTMLMediaElement* GetMediaElement()
+  virtual nsHTMLMediaElement* GetMediaElement()
   {
     return nullptr;
   }

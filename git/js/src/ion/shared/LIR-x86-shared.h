@@ -188,6 +188,16 @@ class LGuardShape : public LInstructionHelper<0, 1, 0>
     }
 };
 
+class LRecompileCheck : public LInstructionHelper<0, 0, 0>
+{
+  public:
+    LIR_HEADER(RecompileCheck)
+
+    const MRecompileCheck *mir() const {
+        return mir_->toRecompileCheck();
+    }
+};
+
 class LInterruptCheck : public LInstructionHelper<0, 0, 0>
 {
   public:

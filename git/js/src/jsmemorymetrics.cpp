@@ -27,11 +27,6 @@ using mozilla::DebugOnly;
 
 using namespace js;
 
-using JS::RuntimeStats;
-using JS::ObjectPrivateVisitor;
-using JS::ZoneStats;
-using JS::CompartmentStats;
-
 JS_FRIEND_API(size_t)
 js::MemoryReportingSundriesThreshold()
 {
@@ -175,7 +170,7 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
         else
             cStats->gcHeapObjectsOrdinary += thingSize;
 
-        JS::ObjectsExtraSizes objectsExtra;
+        ObjectsExtraSizes objectsExtra;
         obj->sizeOfExcludingThis(rtStats->mallocSizeOf_, &objectsExtra);
         cStats->objectsExtra.add(objectsExtra);
 
@@ -197,9 +192,9 @@ StatsCellCallback(JSRuntime *rt, void *data, void *thing, JSGCTraceKind traceKin
 
         // If we can't grow hugeStrings, let's just call this string non-huge.
         // We're probably about to OOM anyway.
-        if (strSize >= JS::HugeStringInfo::MinSize() && zStats->hugeStrings.growBy(1)) {
+        if (strSize >= HugeStringInfo::MinSize() && zStats->hugeStrings.growBy(1)) {
             zStats->gcHeapStringsNormal += thingSize;
-            JS::HugeStringInfo &info = zStats->hugeStrings.back();
+            HugeStringInfo &info = zStats->hugeStrings.back();
             info.length = str->length();
             info.size = strSize;
             PutEscapedString(info.buffer, sizeof(info.buffer), &str->asLinear(), 0);

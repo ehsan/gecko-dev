@@ -491,7 +491,7 @@ NewGCThing(JSContext *cx, AllocKind kind, size_t thingSize, InitialHeap heap)
 #endif
 
     if (allowGC)
-        MaybeCheckStackRoots(cx);
+        MaybeCheckStackRoots(cx, /* relax = */ false);
 
     JS::Zone *zone = cx->zone();
     T *t = static_cast<T *>(zone->allocator.arenas.allocateFromFreeList(kind, thingSize));

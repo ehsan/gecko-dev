@@ -10,7 +10,6 @@
 #include "nsIImageLoadingContent.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDocumentInlines.h"
-#include "nsDOMTokenList.h"
 #include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMKeyEvent.h"
@@ -119,13 +118,6 @@ protected:
 
   void ResetZoomLevel();
   float GetZoomLevel();
-
-  enum eModeClasses {
-    eNone,
-    eShrinkToFit,
-    eOverflowing
-  };
-  void SetModeClass(eModeClasses mode);
 
   nsresult OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage);
   nsresult OnStopRequest(imgIRequest *aRequest, nsresult aStatus);
@@ -429,7 +421,8 @@ ImageDocument::ShrinkToFit()
   // origin now that we're showing a shrunk-to-window version.
   (void) ScrollImageTo(0, 0, false);
 
-  SetModeClass(eShrinkToFit);
+  imageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
+                        NS_LITERAL_STRING("cursor: -moz-zoom-in"), true);
   
   mImageIsResized = true;
   
@@ -481,10 +474,11 @@ ImageDocument::RestoreImage()
   imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::height, true);
   
   if (mImageIsOverflowing) {
-    SetModeClass(eOverflowing);
+    imageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
+                          NS_LITERAL_STRING("cursor: -moz-zoom-out"), true);
   }
   else {
-    SetModeClass(eNone);
+    imageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::style, true);
   }
   
   mImageIsResized = false;
@@ -520,15 +514,13 @@ ImageDocument::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDa
     return OnStartContainer(aRequest, image);
   }
 
-  nsDOMTokenList* classList = mImageContent->AsElement()->GetClassList();
-  mozilla::ErrorResult rv;
   if (aType == imgINotificationObserver::DECODE_COMPLETE) {
     if (mImageContent) {
       // Update the background-color of the image only after the
       // image has been decoded to prevent flashes of just the
       // background-color.
-      classList->Add(NS_LITERAL_STRING("decoded"), rv);
-      NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
+      mImageContent->SetAttr(kNameSpaceID_None, nsGkAtoms::_class,
+                             NS_LITERAL_STRING("decoded"), true);
     }
   }
 
@@ -536,8 +528,8 @@ ImageDocument::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDa
     // mImageContent can be null if the document is already destroyed
     if (mImageContent) {
       // Remove any decoded-related styling when the image is unloaded.
-      classList->Remove(NS_LITERAL_STRING("decoded"), rv);
-      NS_ENSURE_SUCCESS(rv.ErrorCode(), rv.ErrorCode());
+      mImageContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::_class,
+                               true);
     }
   }
 
@@ -550,25 +542,6 @@ ImageDocument::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aDa
   }
 
   return NS_OK;
-}
-
-void
-ImageDocument::SetModeClass(eModeClasses mode)
-{
-  nsDOMTokenList* classList = mImageContent->AsElement()->GetClassList();
-  mozilla::ErrorResult rv;
-
-  if (mode == eShrinkToFit) {
-    classList->Add(NS_LITERAL_STRING("shrinkToFit"), rv);
-  } else {
-    classList->Remove(NS_LITERAL_STRING("shrinkToFit"), rv);
-  }
-
-  if (mode == eOverflowing) {
-    classList->Add(NS_LITERAL_STRING("overflowing"), rv);
-  } else {
-    classList->Remove(NS_LITERAL_STRING("overflowing"), rv);
-  }
 }
 
 nsresult

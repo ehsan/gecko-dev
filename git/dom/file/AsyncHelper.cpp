@@ -23,9 +23,11 @@ AsyncHelper::AsyncWork(nsIRequestObserver* aObserver, nsISupports* aCtxt)
 
   if (aObserver) {
     // build proxy for observer events
-    rv = NS_NewRequestObserverProxy(getter_AddRefs(mObserver), aObserver, aCtxt);
+    rv = NS_NewRequestObserverProxy(getter_AddRefs(mObserver), aObserver);
     NS_ENSURE_SUCCESS(rv, rv);
   }
+
+  mCtxt = aCtxt;
 
   FileService* service = FileService::GetOrCreate();
   NS_ENSURE_TRUE(service, NS_ERROR_FAILURE);
@@ -44,13 +46,13 @@ AsyncHelper::Run()
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
   if (mObserver) {
-    mObserver->OnStartRequest(this, nullptr);
+    mObserver->OnStartRequest(this, mCtxt);
   }
 
   mStatus = DoStreamWork(mStream);
 
   if (mObserver) {
-    mObserver->OnStopRequest(this, nullptr, mStatus);
+    mObserver->OnStopRequest(this, mCtxt, mStatus);
   }
 
   return NS_OK;

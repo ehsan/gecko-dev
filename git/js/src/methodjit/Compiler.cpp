@@ -1316,7 +1316,7 @@ mjit::Compiler::markUndefinedLocals()
     uint32_t depth = ssa.getFrame(a->inlineIndex).depth;
     for (uint32_t i = script_->nfixed; i < script_->nslots; i++) {
         Address local(JSFrameReg, sizeof(StackFrame) + (depth + i) * sizeof(Value));
-        masm.storeValue(JS::ObjectValueCrashOnTouch(), local);
+        masm.storeValue(ObjectValueCrashOnTouch(), local);
     }
 #endif
 }

@@ -39,6 +39,7 @@ private:
     nsCOMPtr<nsIOutputStream>      mSink;
 
     nsCOMPtr<nsIRequestObserver>   mObserver;
+    nsCOMPtr<nsISupports>          mObserverContext;
 
     nsCOMPtr<nsIEventTarget>       mTarget;
 

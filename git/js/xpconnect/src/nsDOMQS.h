@@ -12,7 +12,7 @@
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLOptionElement.h"
 #include "HTMLOptGroupElement.h"
-#include "mozilla/dom/HTMLVideoElement.h"
+#include "nsHTMLVideoElement.h"
 #include "nsHTMLDocument.h"
 #include "nsICSSDeclaration.h"
 #include "nsSVGElement.h"
@@ -175,7 +175,7 @@ DEFINE_UNWRAP_CAST_HTML(form, nsHTMLFormElement)
 DEFINE_UNWRAP_CAST_HTML(img, mozilla::dom::HTMLImageElement)
 DEFINE_UNWRAP_CAST_HTML(optgroup, mozilla::dom::HTMLOptGroupElement)
 DEFINE_UNWRAP_CAST_HTML(option, mozilla::dom::HTMLOptionElement)
-DEFINE_UNWRAP_CAST_HTML(video, mozilla::dom::HTMLVideoElement)
+DEFINE_UNWRAP_CAST_HTML(video, nsHTMLVideoElement)
 
 inline nsISupports*
 ToSupports(nsContentList *p)

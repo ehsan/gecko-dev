@@ -147,7 +147,7 @@
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsIDOMElementReplaceEvent.h"
 #ifdef MOZ_MEDIA
-#include "mozilla/dom/HTMLMediaElement.h"
+#include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
 #ifdef MOZ_WEBRTC
 #include "IPeerConnection.h"
@@ -3979,7 +3979,7 @@ NotifyActivityChanged(nsIContent *aContent, void *aUnused)
 #ifdef MOZ_MEDIA
   nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
   if (domMediaElem) {
-    HTMLMediaElement* mediaElem = static_cast<HTMLMediaElement*>(aContent);
+    nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
     mediaElem->NotifyOwnerDocumentActivityChanged();
   }
 #endif
@@ -8955,7 +8955,7 @@ NotifyAudioAvailableListener(nsIContent *aContent, void *aUnused)
 #ifdef MOZ_MEDIA
   nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aContent));
   if (domMediaElem) {
-    HTMLMediaElement* mediaElem = static_cast<HTMLMediaElement*>(aContent);
+    nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aContent);
     mediaElem->NotifyAudioAvailableListener();
   }
 #endif

@@ -21,7 +21,6 @@
 
 #ifdef __APPLE__
 #include "devtools/sharkctl.h"
-#include "devtools/Instruments.h"
 #endif
 
 using namespace js;
@@ -52,37 +51,15 @@ JS_UnsafeGetLastProfilingError()
     return gLastError;
 }
 
-#ifdef __APPLE__
-static bool
-StartOSXProfiling(const char *profileName = NULL)
-{
-    bool ok = true;
-    const char* profiler = NULL;
-#ifdef MOZ_SHARK
-    ok = Shark::Start();
-    profiler = "Shark";
-#endif
-#ifdef MOZ_INSTRUMENTS
-    ok = Instruments::Start();
-    profiler = "Instruments";
-#endif
-    if (!ok) {
-        if (profileName)
-            UnsafeError("Failed to start %s for %s", profiler, profileName);
-        else
-            UnsafeError("Failed to start %s", profiler);
-        return false;
-    }
-    return true;
-}
-#endif
-
 JS_PUBLIC_API(JSBool)
 JS_StartProfiling(const char *profileName)
 {
     JSBool ok = JS_TRUE;
-#ifdef __APPLE__
-    ok = StartOSXProfiling(profileName);
+#if defined(MOZ_SHARK) && defined(__APPLE__)
+    if (!Shark::Start()) {
+        UnsafeError("Failed to start Shark for %s", profileName);
+        ok = JS_FALSE;
+    }
 #endif
 #ifdef __linux__
     if (!js_StartPerf())
@@ -95,13 +72,8 @@ JS_PUBLIC_API(JSBool)
 JS_StopProfiling(const char *profileName)
 {
     JSBool ok = JS_TRUE;
-#ifdef __APPLE__
-#ifdef MOZ_SHARK
+#if defined(MOZ_SHARK) && defined(__APPLE__)
     Shark::Stop();
-#endif
-#ifdef MOZ_INSTRUMENTS
-    Instruments::Stop(profileName);
-#endif
 #endif
 #ifdef __linux__
     if (!js_StopPerf())
@@ -120,21 +92,11 @@ ControlProfilers(bool toState)
     JSBool ok = JS_TRUE;
 
     if (! Probes::ProfilingActive && toState) {
-#ifdef __APPLE__
-#if defined(MOZ_SHARK) || defined(MOZ_INSTRUMENTS)
-        const char* profiler;
-#ifdef MOZ_SHARK
-        ok = Shark::Start();
-        profiler = "Shark";
-#endif
-#ifdef MOZ_INSTRUMENTS
-        ok = Instruments::Resume();
-        profiler = "Instruments";
-#endif
-        if (!ok) {
-            UnsafeError("Failed to start %s", profiler);
+#if defined(MOZ_SHARK) && defined(__APPLE__)
+        if (!Shark::Start()) {
+            UnsafeError("Failed to start Shark");
+            ok = JS_FALSE;
         }
-#endif
 #endif
 #ifdef MOZ_CALLGRIND
         if (! js_StartCallgrind()) {
@@ -143,13 +105,8 @@ ControlProfilers(bool toState)
         }
 #endif
     } else if (Probes::ProfilingActive && ! toState) {
-#ifdef __APPLE__
-#ifdef MOZ_SHARK
+#if defined(MOZ_SHARK) && defined(__APPLE__)
         Shark::Stop();
-#endif
-#ifdef MOZ_INSTRUMENTS
-        Instruments::Pause();
-#endif
 #endif
 #ifdef MOZ_CALLGRIND
         if (! js_StopCallgrind()) {
@@ -306,7 +263,7 @@ DumpProfile(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-#if defined(MOZ_SHARK) || defined(MOZ_INSTRUMENTS)
+#ifdef MOZ_SHARK
 
 static JSBool
 IgnoreAndReturnTrue(JSContext *cx, unsigned argc, jsval *vp)
@@ -355,7 +312,7 @@ static JSFunctionSpec profiling_functions[] = {
     JS_FN("pauseProfilers",  PauseProfilers,      1,0),
     JS_FN("resumeProfilers", ResumeProfilers,     1,0),
     JS_FN("dumpProfile",     DumpProfile,         2,0),
-#if defined(MOZ_SHARK) || defined(MOZ_INSTRUMENTS)
+#ifdef MOZ_SHARK
     /* Keep users of the old shark API happy. */
     JS_FN("connectShark",    IgnoreAndReturnTrue, 0,0),
     JS_FN("disconnectShark", IgnoreAndReturnTrue, 0,0),
