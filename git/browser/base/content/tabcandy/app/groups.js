@@ -385,17 +385,10 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       
     var self = this;
     
-    var wasAlreadyInThisGroup = false;
-    var oldIndex = $.inArray(item, this._children);
-    if(oldIndex != -1) {
-      this._children.splice(oldIndex, 1); 
-      wasAlreadyInThisGroup = true;
-    }
-
     // TODO: You should be allowed to drop in the white space at the bottom and have it go to the end
     // (right now it can match the thumbnail above it and go there)
     function findInsertionPoint(dropPos){
-      if(self.shouldStack(self._children.length + 1))
+      if(self._isStacked)
         return 0;
         
       var best = {dist: Infinity, item: null};
@@ -429,6 +422,13 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       return 0;      
     }
     
+    var wasAlreadyInThisGroup = false;
+    var oldIndex = $.inArray(item, this._children);
+    if(oldIndex != -1) {
+      this._children.splice(oldIndex, 1); 
+      wasAlreadyInThisGroup = true;
+    }
+
     // Insert the tab into the right position.
     var index = findInsertionPoint(dropPos);
     this._children.splice( index, 0, item );
@@ -451,12 +451,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     }
     
     if(!options.dontArrange)
-      // If this is a brand new tab don't animate it in from
-      // nowhere in particular (i.e., from [0,0])
-      if( item.bounds.left == 0 && item.bounds.top == 0 )    
-        this.arrange({animate:false});
-      else
-        this.arrange();
+      this.arrange();
     
     if( this._nextNewTabCallback ){
       this._nextNewTabCallback.apply(this, [item])
@@ -520,13 +515,6 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
   },
     
   // ----------  
-  shouldStack: function(count) {
-    var bb = this.getContentBounds();
-    var result = !(count == 1 || (bb.width * bb.height) / count > 7000);          
-    return result;
-  },
-
-  // ----------  
   arrange: function(options) {
     if(this.expanded)
       return;
@@ -536,7 +524,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       return;
 
     var bb = this.getContentBounds();
-    if(!this.shouldStack(count)) {
+    if((bb.width * bb.height) / count > 7000) {
       this._children.forEach(function(child){
           child.removeClass("stacked")
       });
@@ -771,7 +759,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
       $(this.container).resizable({
         handles: "se",
         aspectRatio: false,
-        minWidth: 90,
+        minWidth: 60,
         minHeight: 90,
         resize: function(){
           self.reloadBounds();
@@ -791,9 +779,8 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
   // ----------
   newTab: function() {
     Groups.setActiveGroup(this);          
-    Utils.log("Name", this.getTitle())
-    Utils.log("Active", Groups.getActiveGroup().getTitle())
     var newTab = Tabs.open("about:blank");
+     UI.navBar.hide();
     
     var self = this;
     var doNextTab = function(tab){
@@ -801,28 +788,27 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
 
       $(tab.container).css({opacity: 0});
       anim = $("<div class='newTabAnimatee'/>").css({
-        top: group.$ntb.offset().top,
-        left: group.$ntb.offset().left,
-        width: group.$ntb.width(),
-        height: group.$ntb.height()
-      })
+        top: tab.bounds.top+5,
+        left: tab.bounds.left+5,
+        width: tab.bounds.width-10,
+        height: tab.bounds.height-10,
+        zIndex: 999,
+        opacity: 0
+      })      
       .appendTo("body")
       .animate({
-        top: tab.bounds.top,
-        left: tab.bounds.left,
-        width: tab.bounds.width,
-        height: tab.bounds.height,
-        zIndex: 999
-      },200)
+        opacity: 1.0
+      },500)
       .animate({
         top: 0,
         left: 0,
         width: window.innerWidth,
         height: window.innerHeight
-      }, 250, function(){
+      }, 270, function(){
         $(tab.container).css({opacity: 1});
         newTab.focus();
         UI.tabBar.show(false);
+        UI.navBar.show();
         UI.navBar.urlBar.focus();
         anim.remove();
         // We need a timeout here so that there is a chance for the
@@ -841,10 +827,7 @@ window.Group.prototype = $.extend(new Item(), new Subscribable(), {
     // We need to fix this--immediate response to a users
     // actions is necessary for a good user experience.
     
-    // Should be doNextTab being passed in. Putting "..." for debugging.
-    self.onNextNewTab(function(){
-      Utils.log('...')
-    }); 
+    self.onNextNewTab(doNextTab); 
   },
 
   // ----------
@@ -1104,10 +1087,7 @@ window.Groups = {
   unregister: function(group) {
     var index = $.inArray(group, this.groups);
     if(index != -1)
-      this.groups.splice(index, 1);  
-    
-    if(group == this._activeGroup)
-      this._activeGroup = null;   
+      this.groups.splice(index, 1);     
   },
   
   // ----------
@@ -1161,20 +1141,12 @@ window.Groups = {
   
   // ----------
   newTab: function(tabItem) {
-    try{
-    
-    //var group = this.getActiveGroup() ? this.getActiveGroup() : this.getNewTabGroup();
     var group = this.getActiveGroup();
     if( group == null )
       group = this.getNewTabGroup();
     
-    Utils.log("new tab in: ", group.getTitle())
     var $el = $(tabItem.container);
-    if(group) 
-      group.add($el);
-    }catch(e){
-      Utils.log(e)
-    }
+    if(group) group.add($el);
   },
   
   // ----------
