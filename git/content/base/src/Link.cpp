@@ -596,10 +596,9 @@ Link::SetSearchParams(URLSearchParams& aSearchParams)
 }
 
 void
-Link::URLSearchParamsUpdated(URLSearchParams* aSearchParams)
+Link::URLSearchParamsUpdated()
 {
   MOZ_ASSERT(mSearchParams);
-  MOZ_ASSERT(mSearchParams == aSearchParams);
 
   nsString search;
   mSearchParams->Serialize(search);

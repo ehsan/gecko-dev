@@ -670,7 +670,7 @@ var WifiManager = (function() {
         // 2. current network if no SSID is provided, it's not guaranteed that
         //    current network matches requested SSID.
         if ((!ssid && network.status === "CURRENT") ||
-            (ssid && network.ssid && ssid === dequote(network.ssid))) {
+            (ssid && ssid === dequote(network.ssid))) {
           return callback(net);
         }
       }
@@ -1764,7 +1764,6 @@ function WifiWorker() {
                     "WifiManager:importCert",
                     "WifiManager:getImportedCerts",
                     "WifiManager:deleteCert",
-                    "WifiManager:setWifiEnabled",
                     "child-process-shutdown"];
 
   messages.forEach((function(msgName) {
@@ -2029,8 +2028,8 @@ function WifiWorker() {
     WifiManager.getNetworkId(connectionInfo.ssid, function(netId) {
       // Trying to get netId from current network.
       if (!netId &&
-          self.currentNetwork && self.currentNetwork.ssid &&
-          dequote(self.currentNetwork.ssid) == connectionInfo.ssid &&
+          self.currentNetwork &&
+          self.currentNetwork.ssid == dequote(connectionInfo.ssid) &&
           typeof self.currentNetwork.netId !== "undefined") {
         netId = self.currentNetwork.netId;
       }
@@ -2715,9 +2714,6 @@ WifiWorker.prototype = {
     }
 
     switch (aMessage.name) {
-      case "WifiManager:setWifiEnabled":
-        this.setWifiEnabled(msg);
-        break;
       case "WifiManager:getNetworks":
         this.getNetworks(msg);
         break;
@@ -2913,47 +2909,7 @@ WifiWorker.prototype = {
       WifiManager.start();
   },
 
-  /**
-   * Compatibility flags for detecting if Gaia is controlling wifi by settings
-   * or API, once API is called, gecko will no longer accept wifi enable
-   * control from settings.
-   * This is used to deal with compatibility issue while Gaia adopted to use
-   * API but gecko doesn't remove the settings code in time.
-   * TODO: Remove this flag in Bug 1050147
-   */
-  ignoreWifiEnabledFromSettings: false,
-  setWifiEnabled: function(msg) {
-    const message = "WifiManager:setWifiEnabled:Return";
-    let self = this;
-    let enabled = msg.data;
-
-    self.ignoreWifiEnabledFromSettings = true;
-    // No change.
-    if (enabled === WifiManager.enabled) {
-      this._sendMessage(message, true, true, msg);
-    }
-
-    // Can't enable wifi while hotspot mode is enabled.
-    if (enabled && (this.tetheringSettings[SETTINGS_WIFI_TETHERING_ENABLED] ||
-        WifiManager.isWifiTetheringEnabled(WifiManager.tetheringState))) {
-      self._sendMessage(message, false, "Can't enable Wifi while hotspot mode is enabled", msg);
-    }
-
-    // Reply error to pending requests.
-    if (!enabled) {
-      this._clearPendingRequest();
-    }
-
-    WifiManager.setWifiEnabled(enabled, function(ok) {
-      if (ok === 0 || ok === "no change") {
-        self._sendMessage(message, true, true, msg);
-      } else {
-        self._sendMessage(message, false, "Set power saving mode failed", msg);
-      }
-    });
-  },
-
-  _setWifiEnabled: function(enabled, callback) {
+  setWifiEnabled: function(enabled, callback) {
     // Reply error to pending requests.
     if (!enabled) {
       this._clearPendingRequest();
@@ -2964,7 +2920,6 @@ WifiWorker.prototype = {
 
   // requestDone() must be called to before callback complete(or error)
   // so next queue in the request quene can be executed.
-  // TODO: Remove command queue in Bug 1050147
   queueRequest: function(data, callback) {
     if (!callback) {
         throw "Try to enqueue a request without callback";
@@ -3407,11 +3362,10 @@ WifiWorker.prototype = {
   shutdown: function() {
     debug("shutting down ...");
     this.queueRequest({command: "setWifiEnabled", value: false}, function(data) {
-      this._setWifiEnabled(false, this._setWifiEnabledCallback.bind(this));
+      this.setWifiEnabled(false, this._setWifiEnabledCallback.bind(this));
     }.bind(this));
   },
 
-  // TODO: Remove command queue in Bug 1050147.
   requestProcessing: false,   // Hold while dequeue and execution a request.
                               // Released upon the request is fully executed,
                               // i.e, mostly after callback is done.
@@ -3483,10 +3437,6 @@ WifiWorker.prototype = {
   },
 
   handleWifiEnabled: function(enabled) {
-    if (this.ignoreWifiEnabledFromSettings) {
-      return;
-    }
-
     // Make sure Wifi hotspot is idle before switching to Wifi mode.
     if (enabled) {
       this.queueRequest({command: "setWifiApEnabled", value: false}, function(data) {
@@ -3501,7 +3451,7 @@ WifiWorker.prototype = {
     }
 
     this.queueRequest({command: "setWifiEnabled", value: enabled}, function(data) {
-      this._setWifiEnabled(enabled, this._setWifiEnabledCallback.bind(this));
+      this.setWifiEnabled(enabled, this._setWifiEnabledCallback.bind(this));
     }.bind(this));
 
     if (!enabled) {
@@ -3522,7 +3472,7 @@ WifiWorker.prototype = {
       this.queueRequest({command: "setWifiEnabled", value: false}, function(data) {
         if (WifiManager.isWifiEnabled(WifiManager.state)) {
           this.disconnectedByWifiTethering = true;
-          this._setWifiEnabled(false, this._setWifiEnabledCallback.bind(this));
+          this.setWifiEnabled(false, this._setWifiEnabledCallback.bind(this));
         } else {
           this.requestDone();
         }
@@ -3536,7 +3486,7 @@ WifiWorker.prototype = {
     if (!enabled) {
       this.queueRequest({command: "setWifiEnabled", value: true}, function(data) {
         if (this.disconnectedByWifiTethering) {
-          this._setWifiEnabled(true, this._setWifiEnabledCallback.bind(this));
+          this.setWifiEnabled(true, this._setWifiEnabledCallback.bind(this));
         } else {
           this.requestDone();
         }
@@ -3573,7 +3523,6 @@ WifiWorker.prototype = {
 
   handle: function handle(aName, aResult) {
     switch(aName) {
-      // TODO: Remove function call in Bug 1050147.
       case SETTINGS_WIFI_ENABLED:
         this.handleWifiEnabled(aResult)
         break;

@@ -855,7 +855,7 @@ public:
   {
     MOZ_ASSERT(IsEmpty(), "Failed to call CCGraph::Clear");
     PL_DHashTableInit(&mPtrToNodeMap, &PtrNodeOps, nullptr,
-                      sizeof(PtrToNodeEntry), 16384);
+                      sizeof(PtrToNodeEntry), 32768);
   }
 
   void Clear()

@@ -761,19 +761,19 @@ RDFServiceImpl::Init()
         return NS_ERROR_OUT_OF_MEMORY;
 
     PL_DHashTableInit(&mResources, &gResourceTableOps, nullptr,
-                      sizeof(ResourceHashEntry));
+                      sizeof(ResourceHashEntry), PL_DHASH_MIN_SIZE);
 
     PL_DHashTableInit(&mLiterals, &gLiteralTableOps, nullptr,
-                      sizeof(LiteralHashEntry));
+                      sizeof(LiteralHashEntry), PL_DHASH_MIN_SIZE);
 
     PL_DHashTableInit(&mInts, &gIntTableOps, nullptr,
-                      sizeof(IntHashEntry));
+                      sizeof(IntHashEntry), PL_DHASH_MIN_SIZE);
 
     PL_DHashTableInit(&mDates, &gDateTableOps, nullptr,
-                      sizeof(DateHashEntry));
+                      sizeof(DateHashEntry), PL_DHASH_MIN_SIZE);
 
     PL_DHashTableInit(&mBlobs, &gBlobTableOps, nullptr,
-                      sizeof(BlobHashEntry));
+                      sizeof(BlobHashEntry), PL_DHASH_MIN_SIZE);
 
     mDefaultResourceFactory = do_GetClassObject(kRDFDefaultResourceCID, &rv);
     NS_ASSERTION(NS_SUCCEEDED(rv), "unable to get default resource factory");

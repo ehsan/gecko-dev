@@ -250,7 +250,7 @@ public:
    */
   class MOZ_STACK_CLASS AutoDisableRefresh {
   public:
-    explicit AutoDisableRefresh(nsViewManager* aVM) {
+    AutoDisableRefresh(nsViewManager* aVM) {
       if (aVM) {
         mRootVM = aVM->IncrementDisableRefreshCount();
       }

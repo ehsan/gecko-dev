@@ -306,11 +306,11 @@ nsComponentManagerImpl::Create(nsISupports* aOuter, REFNSIID aIID,
   return gComponentManager->QueryInterface(aIID, aResult);
 }
 
-static const int CONTRACTID_HASHTABLE_INITIAL_LENGTH = 1024;
+static const int CONTRACTID_HASHTABLE_INITIAL_SIZE = 2048;
 
 nsComponentManagerImpl::nsComponentManagerImpl()
-  : mFactories(CONTRACTID_HASHTABLE_INITIAL_LENGTH)
-  , mContractIDs(CONTRACTID_HASHTABLE_INITIAL_LENGTH)
+  : mFactories(CONTRACTID_HASHTABLE_INITIAL_SIZE)
+  , mContractIDs(CONTRACTID_HASHTABLE_INITIAL_SIZE)
   , mLock("nsComponentManagerImpl.mLock")
   , mStatus(NOT_INITIALIZED)
 {

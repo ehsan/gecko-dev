@@ -10,7 +10,7 @@
 using namespace mozilla;
 
 gfxFontFeatureValueSet::gfxFontFeatureValueSet()
-    : mFontFeatureValues(8)
+    : mFontFeatureValues(10)
 {
 }
 

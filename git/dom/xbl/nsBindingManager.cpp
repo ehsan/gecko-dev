@@ -490,7 +490,7 @@ nsBindingManager::PutXBLDocumentInfo(nsXBLDocumentInfo* aDocumentInfo)
   NS_PRECONDITION(aDocumentInfo, "Must have a non-null documentinfo!");
 
   if (!mDocumentTable) {
-    mDocumentTable = new nsRefPtrHashtable<nsURIHashKey,nsXBLDocumentInfo>();
+    mDocumentTable = new nsRefPtrHashtable<nsURIHashKey,nsXBLDocumentInfo>(16);
   }
 
   mDocumentTable->Put(aDocumentInfo->DocumentURI(), aDocumentInfo);
@@ -521,8 +521,7 @@ nsBindingManager::PutLoadingDocListener(nsIURI* aURL, nsIStreamListener* aListen
   NS_PRECONDITION(aListener, "Must have a non-null listener!");
 
   if (!mLoadingDocTable) {
-    mLoadingDocTable =
-      new nsInterfaceHashtable<nsURIHashKey,nsIStreamListener>();
+    mLoadingDocTable = new nsInterfaceHashtable<nsURIHashKey,nsIStreamListener>(16);
   }
   mLoadingDocTable->Put(aURL, aListener);
 

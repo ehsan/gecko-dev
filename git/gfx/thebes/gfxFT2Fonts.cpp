@@ -162,7 +162,7 @@ gfxFT2Font::gfxFT2Font(cairo_scaled_font_t *aCairoFont,
                        const gfxFontStyle *aFontStyle,
                        bool aNeedsBold)
     : gfxFT2FontBase(aCairoFont, aFontEntry, aFontStyle)
-    , mCharGlyphCache(32)
+    , mCharGlyphCache(64)
 {
     NS_ASSERTION(mFontEntry, "Unable to find font entry for font.  Something is whack.");
     mApplySyntheticBold = aNeedsBold;

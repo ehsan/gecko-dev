@@ -957,7 +957,7 @@ CrashStore.prototype = Object.freeze({
 
     let crash = this._data.crashes.get(id);
     crash.type = type;
-    crash.crashDate = date;
+    crash.date = date;
 
     return crash;
   },

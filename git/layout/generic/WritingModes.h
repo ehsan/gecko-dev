@@ -220,7 +220,7 @@ public:
   /**
    * Construct writing mode based on a style context
    */
-  explicit WritingMode(const nsStyleVisibility* aStyleVisibility)
+  WritingMode(const nsStyleVisibility* aStyleVisibility)
   {
     NS_ASSERTION(aStyleVisibility, "we need an nsStyleVisibility here");
 
@@ -301,7 +301,7 @@ private:
    * Constructing a WritingMode with an arbitrary value is a private operation
    * currently only used by the Unknown() static method.
    */
-  explicit WritingMode(uint8_t aValue)
+  WritingMode(uint8_t aValue)
     : mWritingMode(aValue)
   { }
 
@@ -365,7 +365,7 @@ private:
  */
 class LogicalPoint {
 public:
-  explicit LogicalPoint(WritingMode aWritingMode)
+  LogicalPoint(WritingMode aWritingMode)
     :
 #ifdef DEBUG
       mWritingMode(aWritingMode),
@@ -569,7 +569,7 @@ private:
  */
 class LogicalSize {
 public:
-  explicit LogicalSize(WritingMode aWritingMode)
+  LogicalSize(WritingMode aWritingMode)
     :
 #ifdef DEBUG
       mWritingMode(aWritingMode),
@@ -734,7 +734,7 @@ private:
  */
 class LogicalMargin {
 public:
-  explicit LogicalMargin(WritingMode aWritingMode)
+  LogicalMargin(WritingMode aWritingMode)
     :
 #ifdef DEBUG
       mWritingMode(aWritingMode),
@@ -1020,7 +1020,7 @@ private:
  */
 class LogicalRect {
 public:
-  explicit LogicalRect(WritingMode aWritingMode)
+  LogicalRect(WritingMode aWritingMode)
     :
 #ifdef DEBUG
       mWritingMode(aWritingMode),

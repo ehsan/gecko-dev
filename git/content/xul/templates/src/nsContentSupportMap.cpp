@@ -9,7 +9,8 @@
 void
 nsContentSupportMap::Init()
 {
-    PL_DHashTableInit(&mMap, PL_DHashGetStubOps(), nullptr, sizeof(Entry));
+    PL_DHashTableInit(&mMap, PL_DHashGetStubOps(), nullptr,
+                      sizeof(Entry), PL_DHASH_MIN_SIZE);
 }
 
 void
@@ -25,7 +26,7 @@ nsContentSupportMap::Remove(nsIContent* aElement)
     if (!mMap.ops)
         return NS_ERROR_NOT_INITIALIZED;
 
-    nsIContent* child = aElement;
+    nsIContent* child = aElement;    
     do {
         PL_DHashTableOperate(&mMap, child, PL_DHASH_REMOVE);
         child = child->GetNextNode(aElement);
