@@ -504,8 +504,7 @@ class MochitestUtilsMixin(object):
 
     # Note that all tests under options.subsuite need to be browser chrome tests.
     if options.browserChrome or options.chrome or options.subsuite or \
-       options.a11y or options.webapprtChrome or options.jetpackPackage or \
-       options.jetpackAddon:
+       options.a11y or options.webapprtChrome:
       self.makeTestConfig(options)
     else:
       if options.autorun:
@@ -564,10 +563,6 @@ class MochitestUtilsMixin(object):
   def getTestFlavor(self, options):
     if options.browserChrome:
       return "browser-chrome"
-    elif options.jetpackPackage:
-      return "jetpack-package"
-    elif options.jetpackAddon:
-      return "jetpack-addon"
     elif options.chrome:
       return "chrome"
     elif options.a11y:
@@ -583,11 +578,6 @@ class MochitestUtilsMixin(object):
     if options.browserChrome:
       allow_js_css = True
       testPattern = re.compile(r"browser_.+\.js")
-    elif options.jetpackPackage:
-      allow_js_css = True
-      testPattern = re.compile(r"test-.+\.js")
-    elif options.jetpackAddon:
-      testPattern = re.compile(r".+\.xpi")
     elif options.chrome or options.a11y:
       testPattern = re.compile(r"(browser|test)_.+\.(xul|html|js|xhtml)")
     elif options.webapprtContent:
@@ -621,10 +611,6 @@ class MochitestUtilsMixin(object):
           self.testRoot = 'metro'
         else:
           self.testRoot = 'browser'
-      elif options.jetpackPackage:
-        self.testRoot = 'jetpack-package'
-      elif options.jetpackAddon:
-        self.testRoot = 'jetpack-addon'
       elif options.a11y:
         self.testRoot = 'a11y'
       elif options.webapprtChrome:
@@ -643,7 +629,7 @@ class MochitestUtilsMixin(object):
       testURL = "/".join([testHost, self.TEST_PATH, os.path.dirname(testPath)])
     if options.chrome or options.a11y:
       testURL = "/".join([testHost, self.CHROME_PATH])
-    elif options.browserChrome or options.jetpackPackage or options.jetpackAddon:
+    elif options.browserChrome:
       testURL = "about:blank"
     return testURL
 
@@ -810,16 +796,6 @@ overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-t
 overlay chrome://browser/content/shell.xhtml chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://navigator/content/navigator.xul chrome://mochikit/content/browser-test-overlay.xul
 overlay chrome://webapprt/content/webapp.xul chrome://mochikit/content/browser-test-overlay.xul
-"""
-
-    if options.jetpackPackage:
-      chrome += """
-overlay chrome://browser/content/browser.xul chrome://mochikit/content/jetpack-package-overlay.xul
-"""
-
-    if options.jetpackAddon:
-      chrome += """
-overlay chrome://browser/content/browser.xul chrome://mochikit/content/jetpack-addon-overlay.xul
 """
 
     self.installChromeJar(chrome, options)
