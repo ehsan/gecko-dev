@@ -15,11 +15,6 @@ const { data } = require('sdk/self');
 const { open, focus, close } = require('sdk/window/helpers');
 const { setTimeout } = require('sdk/timers');
 const { getMostRecentBrowserWindow } = require('sdk/window/utils');
-const { partial } = require('sdk/lang/functional');
-
-const openBrowserWindow = partial(open, null, {features: {toolbar: true}});
-const openPrivateBrowserWindow = partial(open, null,
-  {features: {toolbar: true, private: true}});
 
 function getWidget(buttonId, window = getMostRecentBrowserWindow()) {
   const { CustomizableUI } = Cu.import('resource:///modules/CustomizableUI.jsm', {});
@@ -300,7 +295,7 @@ exports['test button global state updated on multiple windows'] = function(asser
 
   let nodes = [getWidget(button.id).node];
 
-  openBrowserWindow().then(window => {
+  open(null, { features: { toolbar: true }}).then(window => {
     nodes.push(getWidget(button.id, window).node);
 
     button.label = 'New label';
@@ -345,7 +340,7 @@ exports['test button window state'] = function(assert, done) {
   let mainWindow = browserWindows.activeWindow;
   let nodes = [getWidget(button.id).node];
 
-  openBrowserWindow().then(focus).then(window => {
+  open(null, { features: { toolbar: true }}).then(focus).then(window => {
     nodes.push(getWidget(button.id, window).node);
 
     let { activeWindow } = browserWindows;
@@ -581,7 +576,7 @@ exports['test button click'] = function(assert, done) {
   let mainWindow = browserWindows.activeWindow;
   let chromeWindow = getMostRecentBrowserWindow();
 
-  openBrowserWindow().then(focus).then(window => {
+  open(null, { features: { toolbar: true }}).then(focus).then(window => {
     button.state(mainWindow, { label: 'nothing' });
     button.state(mainWindow.tabs.activeTab, { label: 'foo'})
     button.state(browserWindows.activeWindow, { label: 'bar' });
@@ -733,7 +728,7 @@ exports['test button are not in private windows'] = function(assert, done) {
     icon: './icon.png'
   });
 
-  openPrivateBrowserWindow().then(window => {
+  open(null, { features: { toolbar: true, private: true }}).then(window => {
     assert.ok(isPrivate(window),
       'the new window is private');
 

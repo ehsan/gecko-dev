@@ -7459,7 +7459,7 @@ let Reader = {
           if (success) {
             sendMessageToJava({
               type: "Reader:Removed",
-              url: aData
+              url: url
             });
           }
         }.bind(this));

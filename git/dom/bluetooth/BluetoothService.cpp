@@ -34,6 +34,7 @@
 #include "nsISystemMessagesInternal.h"
 #include "nsITimer.h"
 #include "nsServiceManagerUtils.h"
+#include "nsThreadUtils.h"
 #include "nsXPCOM.h"
 
 #if defined(MOZ_WIDGET_GONK)
@@ -131,53 +132,46 @@ GetAllBluetoothActors(InfallibleTArray<BluetoothParent*>& aActors)
 
 } // anonymous namespace
 
-BluetoothService::ToggleBtAck::ToggleBtAck(bool aEnabled)
-  : mEnabled(aEnabled)
+class BluetoothService::ToggleBtAck : public nsRunnable
 {
-  MOZ_ASSERT(!NS_IsMainThread());
-}
-
-NS_METHOD
-BluetoothService::ToggleBtAck::Run()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // This is requested in Bug 836516. With settings this property, WLAN
-  // firmware could be aware of Bluetooth has been turned on/off, so that the
-  // mecahnism of handling coexistence of WIFI and Bluetooth could be started.
-  //
-  // In the future, we may have our own way instead of setting a system
-  // property to let firmware developers be able to sense that Bluetooth has
-  // been toggled.
-#if defined(MOZ_WIDGET_GONK)
-  if (property_set(PROP_BLUETOOTH_ENABLED, mEnabled ? "true" : "false") != 0) {
-    BT_WARNING("Failed to set bluetooth enabled property");
+public:
+  ToggleBtAck(bool aEnabled)
+    : mEnabled(aEnabled)
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
   }
-#endif
 
-  NS_ENSURE_TRUE(sBluetoothService, NS_OK);
+  NS_IMETHOD Run()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
 
-  if (sInShutdown) {
-    sBluetoothService = nullptr;
+    NS_ENSURE_TRUE(sBluetoothService, NS_OK);
+
+    if (sInShutdown) {
+      sBluetoothService = nullptr;
+      return NS_OK;
+    }
+
+    // Update mEnabled of BluetoothService object since
+    // StartInternal/StopInternal have been already done.
+    sBluetoothService->SetEnabled(mEnabled);
+    sToggleInProgress = false;
+
+    nsAutoString signalName;
+    signalName = mEnabled ? NS_LITERAL_STRING("Enabled")
+                          : NS_LITERAL_STRING("Disabled");
+    BluetoothSignal signal(signalName, NS_LITERAL_STRING(KEY_MANAGER), true);
+    sBluetoothService->DistributeSignal(signal);
+
+    // Event 'AdapterAdded' has to be fired after firing 'Enabled'
+    sBluetoothService->TryFiringAdapterAdded();
+
     return NS_OK;
   }
 
-  // Update mEnabled of BluetoothService object since
-  // StartInternal/StopInternal have been already done.
-  sBluetoothService->SetEnabled(mEnabled);
-  sToggleInProgress = false;
-
-  nsAutoString signalName;
-  signalName = mEnabled ? NS_LITERAL_STRING("Enabled")
-                        : NS_LITERAL_STRING("Disabled");
-  BluetoothSignal signal(signalName, NS_LITERAL_STRING(KEY_MANAGER), true);
-  sBluetoothService->DistributeSignal(signal);
-
-  // Event 'AdapterAdded' has to be fired after firing 'Enabled'
-  sBluetoothService->TryFiringAdapterAdded();
-
-  return NS_OK;
-}
+private:
+  bool mEnabled;
+};
 
 class BluetoothService::ToggleBtTask : public nsRunnable
 {
@@ -206,10 +200,6 @@ public:
      */
     if (!mIsStartup && mEnabled == sBluetoothService->IsEnabledInternal()) {
       BT_WARNING("Bluetooth has already been enabled/disabled before.");
-      nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(mEnabled);
-      if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
-        BT_WARNING("Failed to dispatch to main thread!");
-      }
     } else {
       // Switch on/off bluetooth
       if (mEnabled) {
@@ -223,6 +213,24 @@ public:
           mEnabled = !mEnabled;
         }
       }
+    }
+
+    // This is requested in Bug 836516. With settings this property, WLAN
+    // firmware could be aware of Bluetooth has been turned on/off, so that the
+    // mecahnism of handling coexistence of WIFI and Bluetooth could be started.
+    //
+    // In the future, we may have our own way instead of setting a system
+    // property to let firmware developers be able to sense that Bluetooth has
+    // been toggled.
+#if defined(MOZ_WIDGET_GONK)
+    if (property_set(PROP_BLUETOOTH_ENABLED, mEnabled ? "true" : "false") != 0) {
+      BT_WARNING("Failed to set bluetooth enabled property");
+    }
+#endif
+
+    nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(mEnabled);
+    if (NS_FAILED(NS_DispatchToMainThread(ackTask))) {
+      BT_WARNING("Failed to dispatch to main thread!");
     }
 
     return NS_OK;

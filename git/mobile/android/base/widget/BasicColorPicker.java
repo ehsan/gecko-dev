@@ -122,7 +122,7 @@ public class BasicColorPicker extends ListView {
 
             Drawable d = v.getBackground();
             d.setColorFilter(getItem(position), PorterDuff.Mode.MULTIPLY);
-            v.setBackgroundDrawable(d);
+            v.setBackground(d);
 
             Drawable check = null;
             CheckedTextView checked = ((CheckedTextView) v);

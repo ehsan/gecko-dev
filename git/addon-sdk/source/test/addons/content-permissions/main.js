@@ -8,7 +8,6 @@ const tabs = require("sdk/tabs");
 const { startServerAsync } = require("sdk/test/httpd");
 
 const serverPort = 8099;
-const TEST_TAB_URL = "about:mozilla";
 
 exports.testCrossDomainIframe = function(assert, done) {
   let server = startServerAsync(serverPort);
@@ -17,7 +16,7 @@ exports.testCrossDomainIframe = function(assert, done) {
   });
 
   let pageMod = PageMod({
-    include: TEST_TAB_URL,
+    include: "about:*",
     contentScript: "new " + function ContentScriptScope() {
       self.on("message", function (url) {
         let iframe = document.createElement("iframe");
@@ -38,12 +37,12 @@ exports.testCrossDomainIframe = function(assert, done) {
         });
       });
 
-      w.postMessage("http://localhost:" + serverPort + "/iframe");
+      w.postMessage("http://localhost:8099/iframe");
     }
   });
 
   tabs.open({
-    url: TEST_TAB_URL,
+    url: "about:home",
     inBackground: true
   });
 };
@@ -55,7 +54,7 @@ exports.testCrossDomainXHR = function(assert, done) {
   });
 
   let pageMod = PageMod({
-    include: TEST_TAB_URL,
+    include: "about:*",
     contentScript: "new " + function ContentScriptScope() {
       self.on("message", function (url) {
         let request = new XMLHttpRequest();
@@ -76,12 +75,12 @@ exports.testCrossDomainXHR = function(assert, done) {
         });
       });
 
-      w.postMessage("http://localhost:" + serverPort + "/xhr");
+      w.postMessage("http://localhost:8099/xhr");
     }
   });
 
   tabs.open({
-    url: TEST_TAB_URL,
+    url: "about:home",
     inBackground: true
   });
 };

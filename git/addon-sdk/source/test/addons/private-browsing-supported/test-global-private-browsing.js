@@ -138,13 +138,13 @@ exports.testWindowIteratorDoesNotIgnorePrivateWindows = function(assert, done) {
       assert.ok(windows(null, { includePrivate: true }).indexOf(window) > -1,
                 "window is in windows()");
 
-      return close(window).then(function() {
+      close(window).then(function() {
         pb.once('stop', function() {
           done();
         });
         pb.deactivate();
       });
-    }).then(null, assert.fail);
+    });
   });
   pb.activate();
 };

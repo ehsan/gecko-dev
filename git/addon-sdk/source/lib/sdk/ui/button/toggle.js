@@ -29,13 +29,10 @@ const { EventTarget } = require('../../event/target');
 
 const view = require('./view');
 const { toggleButtonContract, toggleStateContract } = require('./contract');
-const { properties, render, state, register, unregister,
-  setStateFor, getStateFor, getDerivedStateFor } = require('../state');
+const { properties, render, state, register, unregister } = require('../state');
 const { events: stateEvents } = require('../state/events');
 const { events: viewEvents } = require('./view/events');
 const events = require('../../event/utils');
-
-const { getActiveTab } = require('../../tabs/utils');
 
 const { id: addonID } = require('../../self');
 const { identify } = require('../id');
@@ -108,15 +105,13 @@ on(toggleButtonStateEvents, 'data', ({target, window, state}) => {
   view.setChecked(id, window, state.checked);
 });
 
-on(clickEvents, 'data', ({target: id, window, checked }) => {
+on(clickEvents, 'data', ({target: id, window}) => {
   let button = buttons.get(id);
-  let windowState = getStateFor(button, window);
+  let state = button.state('tab');
 
-  let newWindowState = merge({}, windowState, { checked: checked });
+  state = merge({}, state, { checked: !state.checked });
 
-  setStateFor(button, window, newWindowState);
-
-  let state = getDerivedStateFor(button, getActiveTab(window));
+  button.state('tab', state);
 
   emit(button, 'click', state);
 

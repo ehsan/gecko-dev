@@ -374,11 +374,11 @@ a {
 /* Replace these values with CSS variables as available */
 .theme-dark .jsterm-input-container {
   background-color: #252c33; /* tabToolbarBackgroundColor */
-  border-color: #14171a; /* mainBackgroundColor */
+  border-color: #131c26; /* mainBackgroundColor */
 }
 
 .theme-dark .jsterm-input-node {
-  color: #a9bacb; /* textColor */
+  color: #8fa1b2; /* textColor */
 }
 
 .theme-dark .jsterm-complete-node {
@@ -386,7 +386,7 @@ a {
 }
 
 .theme-dark .navigation-marker .url {
-  background: #14171a; /* mainBackgroundColor */
+  background: #131c26; /* mainBackgroundColor */
 }
 
 .theme-dark .inlined-variables-view iframe {

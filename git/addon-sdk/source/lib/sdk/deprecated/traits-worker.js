@@ -26,7 +26,10 @@ const observers = require('../system/events');
 const { Cortex } = require('./cortex');
 const { sandbox, evaluate, load } = require("../loader/sandbox");
 const { merge } = require('../util/object');
-const { getInnerId } = require("../window/utils");
+const xulApp = require("../system/xul-app");
+const { getInnerId } = require("../window/utils")
+const USE_JS_PROXIES = !xulApp.versionInRange(xulApp.platformVersion,
+                                              "17.0a2", "*");
 const { getTabForWindow } = require('../tabs/helpers');
 const { getTabForContentWindow } = require('../tabs/utils');
 

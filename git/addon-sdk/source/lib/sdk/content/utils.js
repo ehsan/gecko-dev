@@ -35,8 +35,8 @@ function getAttachEventType(model) {
   let when = model.contentScriptWhen;
   return requiresAddonGlobal(model) ? 'document-element-inserted' :
          when === 'start' ? 'document-element-inserted' :
-         when === 'ready' ? 'DOMContentLoaded' :
          when === 'end' ? 'load' :
+         when === 'ready' ? 'DOMContentLoaded' :
          null;
 }
 exports.getAttachEventType = getAttachEventType;

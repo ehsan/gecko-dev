@@ -7,7 +7,6 @@ module.metadata = {
   "stability": "stable"
 };
 
-const { Ci } = require('chrome');
 const { setMode, getMode, on: onStateChange, isPermanentPrivateBrowsing } = require('./private-browsing/utils');
 const { isWindowPrivate } = require('./window/utils');
 const { emit, on, once, off } = require('./event/core');
@@ -64,12 +63,6 @@ exports.isPrivate = function(thing) {
     let window = getOwnerWindow(thing);
     if (window)
       return isWindowPrivate(window);
-
-    try {
-      let { isChannelPrivate } = thing.QueryInterface(Ci.nsIPrivateBrowsingChannel);
-      if (isChannelPrivate)
-        return true;
-    } catch(e) {}
   }
 
   // check if the post pwpb, global pb service is enabled.
