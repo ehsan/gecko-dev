@@ -11,6 +11,7 @@
 #include "nsHashtable.h"
 #include "nsIURI.h"
 #include "nsIURL.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIChannel.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
@@ -100,8 +101,7 @@ nsXBLJSClass::nsXBLJSClass(const nsAFlatCString& aClassName,
     JSCLASS_NEW_RESOLVE |
     // Our one reserved slot holds the relevant nsXBLPrototypeBinding
     JSCLASS_HAS_RESERVED_SLOTS(1);
-  addProperty = getProperty = ::JS_PropertyStub;
-  delProperty = ::JS_DeletePropertyStub;
+  addProperty = delProperty = getProperty = ::JS_PropertyStub;
   setProperty = ::JS_StrictPropertyStub;
   enumerate = XBLEnumerate;
   resolve = JS_ResolveStub;

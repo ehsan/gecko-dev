@@ -77,7 +77,6 @@ using mozilla::MutexAutoLock;
 using mozilla::TimeDuration;
 using mozilla::TimeStamp;
 using mozilla::dom::workers::exceptions::ThrowDOMExceptionForNSResult;
-using mozilla::SafeAutoJSContext;
 
 USING_WORKERS_NAMESPACE
 using namespace mozilla::dom::workers::events;
@@ -628,8 +627,7 @@ public:
   {
     AssertIsOnMainThread();
 
-    SafeAutoJSContext cx;
-    JSAutoRequest ar(cx);
+    RuntimeService::AutoSafeJSContext cx;
 
     mFinishedWorker->Finish(cx);
 
@@ -1602,7 +1600,7 @@ WorkerRunnable::Run()
 {
   JSContext* cx;
   JSObject* targetCompartmentObject;
-  nsCxPusher pusher;
+  nsIThreadJSContextStack* contextStack = nullptr;
 
   nsRefPtr<WorkerPrivate> kungFuDeathGrip;
 
@@ -1618,7 +1616,14 @@ WorkerRunnable::Run()
 
     if (!mWorkerPrivate->GetParent()) {
       AssertIsOnMainThread();
-      pusher.Push(cx);
+
+      contextStack = nsContentUtils::ThreadJSContextStack();
+      NS_ASSERTION(contextStack, "This should never be null!");
+
+      if (NS_FAILED(contextStack->Push(cx))) {
+        NS_WARNING("Failed to push context!");
+        contextStack = nullptr;
+      }
     }
   }
 
@@ -1632,7 +1637,19 @@ WorkerRunnable::Run()
   }
 
   bool result = WorkerRun(cx, mWorkerPrivate);
+
   PostRun(cx, mWorkerPrivate, result);
+
+  if (contextStack) {
+    JSContext* otherCx;
+    if (NS_FAILED(contextStack->Pop(&otherCx))) {
+      NS_WARNING("Failed to pop context!");
+    }
+    else if (otherCx != cx) {
+      NS_WARNING("Popped a different context!");
+    }
+  }
+
   return result ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -1757,7 +1774,8 @@ public:
       MutexAutoLock lock(mMutex);
 
       if (!mWorkerPrivate ||
-          !mWorkerPrivate->BlockAndCollectRuntimeStats(&rtStats)) {
+          !mWorkerPrivate->BlockAndCollectRuntimeStats(/* aIsQuick = */ false,
+                                                       &rtStats)) {
         // Returning NS_OK here will effectively report 0 memory.
         return NS_OK;
       }
@@ -1765,6 +1783,24 @@ public:
 
     return xpc::ReportJSRuntimeExplicitTreeStats(rtStats, mRtPath,
                                                  aCallback, aClosure);
+  }
+
+  NS_IMETHOD
+  GetExplicitNonHeap(int64_t* aAmount)
+  {
+    AssertIsOnMainThread();
+
+    {
+      MutexAutoLock lock(mMutex);
+
+      if (!mWorkerPrivate ||
+          !mWorkerPrivate->BlockAndCollectRuntimeStats(/* aIsQuick = */ true,
+                                                       aAmount)) {
+        *aAmount = 0;
+      }
+    }
+
+    return NS_OK;
   }
 
 private:
@@ -2367,7 +2403,7 @@ WorkerPrivateParent<Derived>::ParentJSContext() const
 
     if (!mScriptContext) {
       NS_ASSERTION(!mParentJSContext, "Shouldn't have a parent context!");
-      return nsContentUtils::GetSafeJSContext();
+      return RuntimeService::AutoSafeJSContext::GetSafeContext();
     }
 
     NS_ASSERTION(mParentJSContext == mScriptContext->GetNativeContext(),
@@ -2904,11 +2940,11 @@ WorkerPrivate::ScheduleDeletion(bool aWasPending)
 }
 
 bool
-WorkerPrivate::BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats)
+WorkerPrivate::BlockAndCollectRuntimeStats(bool aIsQuick, void* aData)
 {
   AssertIsOnMainThread();
   mMutex.AssertCurrentThreadOwns();
-  NS_ASSERTION(aRtStats, "Null RuntimeStats!");
+  NS_ASSERTION(aData, "Null data!");
 
   NS_ASSERTION(!mMemoryReporterRunning, "How can we get reentered here?!");
 
@@ -2937,7 +2973,16 @@ WorkerPrivate::BlockAndCollectRuntimeStats(JS::RuntimeStats* aRtStats)
   if (mMemoryReporter) {
     // Don't hold the lock while doing the actual report.
     MutexAutoUnlock unlock(mMutex);
-    succeeded = JS::CollectRuntimeStats(rt, aRtStats, nullptr);
+
+    if (aIsQuick) {
+      *static_cast<int64_t*>(aData) =
+        JS::GetExplicitNonHeapForRuntime(rt, JsWorkerMallocSizeOf);
+      succeeded = true;
+    } else {
+      succeeded =
+        JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(aData),
+                                nullptr);
+    }
   }
 
   NS_ASSERTION(mMemoryReporterRunning, "This isn't possible!");

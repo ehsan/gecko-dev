@@ -294,7 +294,7 @@
             </scrollbox>
           </vbox>
           <!-- Autocompletion interface -->
-          <box id="start-autocomplete" observes="bcast_windowState"/>
+          <box id="start-autocomplete"/>
         </hbox>
       </vbox> <!-- end tray -->
 
@@ -335,7 +335,7 @@
       </hbox>
     </appbar>
 
-    <vbox id="panel-container" hidden="true" class="window-width window-height meta" observes="bcast_windowState">
+    <vbox id="panel-container" hidden="true" class="window-width window-height meta">
       <hbox id="panel-header">
         <toolbarbutton id="panel-close-button" command="cmd_panel"/>
 
@@ -350,18 +350,18 @@
         </menulist>
       </hbox>
 
-      <deck id="panel-items" selectedIndex="0" flex="1" >
+      <deck id="panel-items" selectedIndex="0" flex="1">
         <scrollbox id="bookmarks-container" flex="1">
-          <richgrid id="bookmarks-list" class="canSnapTiles" seltype="single" flex="1"/>
+          <richgrid id="bookmarks-list" seltype="single" flex="1"/>
         </scrollbox>
         <scrollbox id="history-container" flex="1">
-          <richgrid id="history-list" class="canSnapTiles" seltype="single" flex="1"/>
+          <richgrid id="history-list" seltype="single" flex="1"/>
         </scrollbox>
         <scrollbox id="downloads-container" flex="1">
-          <richgrid id="downloads-list" class="canSnapTiles" seltype="single" flex="1"/>
+          <richgrid id="downloads-list" seltype="single" flex="1"/>
         </scrollbox>
         <scrollbox id="remotetabs-container" flex="1">
-          <richgrid id="remotetabs-list" class="canSnapTiles" seltype="single" flex="1"/>
+          <richgrid id="remotetabs-list" seltype="single" flex="1"/>
         </scrollbox>
         <vbox id="console-container" flex="1">
           <vbox id="console-header" class="panel-list">
@@ -461,15 +461,8 @@
         </hbox>
       </settings>
       <setting pref="signon.rememberSignons" title="&optionsHeader.privacy.passwords.label;" type="bool"/>
-      <settings id="prefs-dnt" label="&doNotTrack.title;">
-        <description>&doNotTrack.desc;</description>
-        <setting id="prefs-dnt-value" pref="privacy.donottrackheader.value" onpreferencechanged="PreferencesPanelView.onDNTPreferenceChanged()" type="radio" >
-          <radiogroup id="prefs-dnt-options">
-            <radio id="prefs-dnt-notrack" label="&doNotTrack.options.trackingNotOkay;" value="1"/>
-            <radio id="prefs-dnt-nopref" label="&doNotTrack.options.noPreference;" value="-1"/>
-            <radio id="prefs-dnt-oktrack" label="&doNotTrack.options.trackingOkay;" value="0"/>
-          </radiogroup>
-        </setting>
+      <settings id="prefs-donottrack" label="&optionsHeader.privacy.doNotTrack.title;">
+        <setting pref="privacy.donottrackheader.enabled" title="&optionsHeader.privacy.doNotTrack.label;" type="bool"/>
       </settings>
     </flyoutpanel>
 

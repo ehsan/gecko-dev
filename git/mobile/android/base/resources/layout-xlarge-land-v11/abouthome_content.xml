@@ -3,13 +3,8 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<org.mozilla.gecko.widget.AboutHomeView
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:gecko="http://schemas.android.com/apk/res-auto"
-		android:id="@+id/abouthome_content"
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent"
-        android:background="@color/background_normal">
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+       xmlns:gecko="http://schemas.android.com/apk/res-auto">
 
     <LinearLayout android:orientation="horizontal"
                   android:layout_width="fill_parent"
@@ -110,4 +105,4 @@
 
     </LinearLayout>
 
-</org.mozilla.gecko.widget.AboutHomeView>
+</merge>

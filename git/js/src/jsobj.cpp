@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=79:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -81,7 +82,7 @@ Class js::ObjectClass = {
     js_Object_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     JS_PropertyStub,         /* addProperty */
-    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* delProperty */
     JS_PropertyStub,         /* getProperty */
     JS_StrictPropertyStub,   /* setProperty */
     JS_EnumerateStub,
@@ -907,8 +908,8 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
      * redefining it or we had invoked its setter to change its value).
      */
     if (callDelProperty) {
-        JSBool succeeded;
-        if (!CallJSDeletePropertyOp(cx, obj2->getClass()->delProperty, obj2, id, &succeeded))
+        RootedValue dummy(cx, UndefinedValue());
+        if (!CallJSPropertyOp(cx, obj2->getClass()->delProperty, obj2, id, &dummy))
             return false;
     }
 
@@ -1616,26 +1617,27 @@ JSObject::nonNativeSetElement(JSContext *cx, HandleObject obj,
 }
 
 /* static */ bool
-JSObject::deleteByValue(JSContext *cx, HandleObject obj, const Value &property, JSBool *succeeded)
+JSObject::deleteByValue(JSContext *cx, HandleObject obj,
+                        const Value &property, MutableHandleValue rval, bool strict)
 {
     uint32_t index;
     if (IsDefinitelyIndex(property, &index))
-        return deleteElement(cx, obj, index, succeeded);
+        return deleteElement(cx, obj, index, rval, strict);
 
     RootedValue propval(cx, property);
     Rooted<SpecialId> sid(cx);
     if (ValueIsSpecial(obj, &propval, &sid, cx))
-        return deleteSpecial(cx, obj, sid, succeeded);
+        return deleteSpecial(cx, obj, sid, rval, strict);
 
     JSAtom *name = ToAtom<CanGC>(cx, propval);
     if (!name)
         return false;
 
     if (name->isIndex(&index))
-        return deleteElement(cx, obj, index, succeeded);
+        return deleteElement(cx, obj, index, rval, strict);
 
     Rooted<PropertyName*> propname(cx, name->asPropertyName());
-    return deleteProperty(cx, obj, propname, succeeded);
+    return deleteProperty(cx, obj, propname, rval, strict);
 }
 
 JS_FRIEND_API(bool)
@@ -1773,12 +1775,6 @@ bool
 JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
                               TradeGutsReserved &reserved)
 {
-    /*
-     * Avoid GC in here to avoid confusing the tracing code with our
-     * intermediate state.
-     */
-    AutoSuppressGC suppress(cx);
-
     RootedObject a(cx, aArg);
     RootedObject b(cx, bArg);
     JS_ASSERT(a->compartment() == b->compartment());
@@ -1789,6 +1785,19 @@ JSObject::ReserveForTradeGuts(JSContext *cx, JSObject *aArg, JSObject *bArg,
      * numbers of fixed slots, we reserve all space ahead of time so that the
      * swaps can be performed infallibly.
      */
+
+#ifdef JSGC_INCREMENTAL
+    /*
+     * We need a write barrier here. If |a| was marked and |b| was not, then
+     * after the swap, |b|'s guts would never be marked. The write barrier
+     * solves this.
+     */
+    JS::Zone *zone = a->zone();
+    if (zone->needsBarrier()) {
+        MarkChildren(zone->barrierTracer(), a);
+        MarkChildren(zone->barrierTracer(), b);
+    }
+#endif
 
     /*
      * Swap prototypes and classes on the two objects, so that TradeGuts can
@@ -2008,24 +2017,6 @@ JSObject::TradeGuts(JSContext *cx, JSObject *a, JSObject *b, TradeGutsReserved &
         a->lastProperty()->listp = &a->shape_;
     if (b->inDictionaryMode())
         b->lastProperty()->listp = &b->shape_;
-
-#ifdef JSGC_INCREMENTAL
-    /*
-     * We need a write barrier here. If |a| was marked and |b| was not, then
-     * after the swap, |b|'s guts would never be marked. The write barrier
-     * solves this.
-     *
-     * Normally write barriers happen before the write. However, that's not
-     * necessary here because nothing is being destroyed. We're just swapping.
-     * We don't do the barrier before TradeGuts because ReserveForTradeGuts
-     * makes changes to the objects that might confuse the tracing code.
-     */
-    JS::Zone *zone = a->zone();
-    if (zone->needsBarrier()) {
-        MarkChildren(zone->barrierTracer(), a);
-        MarkChildren(zone->barrierTracer(), b);
-    }
-#endif
 }
 
 /* Use this method with extreme caution. It trades the guts of two objects. */
@@ -2111,8 +2102,8 @@ JSObject *
 js::DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey key, HandleAtom atom,
                                   JSObject *protoProto, Class *clasp,
                                   Native constructor, unsigned nargs,
-                                  const JSPropertySpec *ps, const JSFunctionSpec *fs,
-                                  const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs,
+                                  JSPropertySpec *ps, JSFunctionSpec *fs,
+                                  JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
                                   JSObject **ctorp, AllocKind ctorKind)
 {
     /*
@@ -2234,8 +2225,8 @@ js::DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey ke
 
 bad:
     if (named) {
-        JSBool succeeded;
-        JSObject::deleteByValue(cx, obj, StringValue(atom), &succeeded);
+        RootedValue rval(cx);
+        JSObject::deleteByValue(cx, obj, StringValue(atom), &rval, false);
     }
     if (cached)
         ClearClassObject(obj, key);
@@ -2276,8 +2267,8 @@ js::MarkStandardClassInitializedNoProto(JSObject *obj, js::Class *clasp)
 JSObject *
 js_InitClass(JSContext *cx, HandleObject obj, JSObject *protoProto_,
              Class *clasp, Native constructor, unsigned nargs,
-             const JSPropertySpec *ps, const JSFunctionSpec *fs,
-             const JSPropertySpec *static_ps, const JSFunctionSpec *static_fs,
+             JSPropertySpec *ps, JSFunctionSpec *fs,
+             JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
              JSObject **ctorp, AllocKind ctorKind)
 {
     RootedObject protoProto(cx, protoProto_);
@@ -2376,28 +2367,6 @@ JSObject::setSlotSpan(JSContext *cx, HandleObject obj, uint32_t span)
     return true;
 }
 
-static HeapSlot *
-AllocateSlots(JSContext *cx, JSObject *obj, uint32_t nslots)
-{
-#ifdef JSGC_GENERATIONAL
-    return cx->runtime->gcNursery.allocateSlots(cx, obj, nslots);
-#else
-    return cx->pod_malloc<HeapSlot>(nslots);
-#endif
-}
-
-static HeapSlot *
-ReallocateSlots(JSContext *cx, JSObject *obj, HeapSlot *oldSlots,
-                uint32_t oldCount, uint32_t newCount)
-{
-#ifdef JSGC_GENERATIONAL
-    return cx->runtime->gcNursery.reallocateSlots(cx, obj, oldSlots, oldCount, newCount);
-#else
-    return (HeapSlot *)cx->realloc_(oldSlots, oldCount * sizeof(HeapSlot),
-                                    newCount * sizeof(HeapSlot));
-#endif
-}
-
 /* static */ bool
 JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t newCount)
 {
@@ -2436,14 +2405,15 @@ JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t
     }
 
     if (!oldCount) {
-        obj->slots = AllocateSlots(cx, obj, newCount);
+        obj->slots = cx->pod_malloc<HeapSlot>(newCount);
         if (!obj->slots)
             return false;
         Debug_SetSlotRangeToCrashOnTouch(obj->slots, newCount);
         return true;
     }
 
-    HeapSlot *newslots = ReallocateSlots(cx, obj, obj->slots, oldCount, newCount);
+    HeapSlot *newslots = (HeapSlot*) cx->realloc_(obj->slots, oldCount * sizeof(HeapSlot),
+                                                  newCount * sizeof(HeapSlot));
     if (!newslots)
         return false;  /* Leave slots at its old size. */
 
@@ -2457,15 +2427,6 @@ JSObject::growSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32_t
         types::MarkObjectStateChange(cx, obj);
 
     return true;
-}
-
-static void
-FreeSlots(JSContext *cx, HeapSlot *slots)
-{
-#ifdef JSGC_GENERATIONAL
-    if (!cx->runtime->gcNursery.isInside(slots))
-#endif
-        js_free(slots);
 }
 
 /* static */ void
@@ -2483,14 +2444,14 @@ JSObject::shrinkSlots(JSContext *cx, HandleObject obj, uint32_t oldCount, uint32
         return;
 
     if (newCount == 0) {
-        FreeSlots(cx, obj->slots);
+        js_free(obj->slots);
         obj->slots = NULL;
         return;
     }
 
     JS_ASSERT(newCount >= SLOT_CAPACITY_MIN);
 
-    HeapSlot *newslots = ReallocateSlots(cx, obj, obj->slots, oldCount, newCount);
+    HeapSlot *newslots = (HeapSlot *) cx->realloc_(obj->slots, newCount * sizeof(HeapSlot));
     if (!newslots)
         return;  /* Leave slots at its old size. */
 
@@ -2693,43 +2654,27 @@ JSObject::maybeDensifySparseElements(JSContext *cx, HandleObject obj)
     return ED_OK;
 }
 
-ObjectElements *
-AllocateElements(JSObject::MaybeContext maybecx, JSObject *obj, uint32_t nelems)
+bool
+JSObject::growElements(JSContext *cx, unsigned newcap)
 {
-    if (JSContext *cx = maybecx.context) {
-#ifdef JSGC_GENERATIONAL
-        return cx->runtime->gcNursery.allocateElements(cx, obj, nelems);
-#else
-        return static_cast<js::ObjectElements *>(cx->malloc_(nelems * sizeof(HeapValue)));
-#endif
+    if (!growElements(&cx->zone()->allocator, newcap)) {
+        JS_ReportOutOfMemory(cx);
+        return false;
     }
 
-    Allocator *alloc = maybecx.allocator;
-    return static_cast<js::ObjectElements *>(alloc->malloc_(nelems * sizeof(HeapValue)));
-}
-
-ObjectElements *
-ReallocateElements(JSObject::MaybeContext maybecx, JSObject *obj, ObjectElements *oldHeader,
-                   uint32_t oldCount, uint32_t newCount)
-{
-    if (JSContext *cx = maybecx.context) {
-#ifdef JSGC_GENERATIONAL
-        return cx->runtime->gcNursery.reallocateElements(cx, obj, oldHeader, oldCount, newCount);
-#else
-        return static_cast<js::ObjectElements *>(cx->realloc_(oldHeader,
-                                                              oldCount * sizeof(HeapValue),
-                                                              newCount * sizeof(HeapSlot)));
-#endif
-    }
-
-    Allocator *alloc = maybecx.allocator;
-    return static_cast<js::ObjectElements *>(alloc->realloc_(oldHeader, oldCount * sizeof(HeapSlot),
-                                                             newCount * sizeof(HeapSlot)));
+    return true;
 }
 
 bool
-JSObject::growElements(MaybeContext cx, unsigned newcap)
+JSObject::growElements(js::Allocator *alloc, unsigned newcap)
 {
+    /*
+     * This version of |growElements()|, which takes a
+     * |js::Allocator*| as opposed to a |JSContext*|, is intended to
+     * run either during sequential or parallel execution.  As per
+     * convention, since it does not take a JSContext*, it does not
+     * report an error on out of memory but simply returns false.
+     */
     JS_ASSERT(isExtensible());
 
     /*
@@ -2761,18 +2706,20 @@ JSObject::growElements(MaybeContext cx, unsigned newcap)
     }
 
     uint32_t initlen = getDenseInitializedLength();
-    uint32_t oldAllocated = oldcap + ObjectElements::VALUES_PER_HEADER;
     uint32_t newAllocated = actualCapacity + ObjectElements::VALUES_PER_HEADER;
 
     ObjectElements *newheader;
     if (hasDynamicElements()) {
-        newheader = ReallocateElements(cx, this, getElementsHeader(), oldAllocated, newAllocated);
+        uint32_t oldAllocated = oldcap + ObjectElements::VALUES_PER_HEADER;
+        newheader = (ObjectElements *)
+            alloc->realloc_(getElementsHeader(), oldAllocated * sizeof(Value),
+                            newAllocated * sizeof(Value));
         if (!newheader)
-            return false; /* Leave elements as its old size. */
+            return false;  /* Leave elements as its old size. */
     } else {
-        newheader = AllocateElements(cx, this, newAllocated);
+        newheader = (ObjectElements *) alloc->malloc_(newAllocated * sizeof(Value));
         if (!newheader)
-            return false; /* Leave elements as its old size. */
+            return false;  /* Ditto. */
         js_memcpy(newheader, getElementsHeader(),
                   (ObjectElements::VALUES_PER_HEADER + initlen) * sizeof(Value));
     }
@@ -2797,11 +2744,10 @@ JSObject::shrinkElements(JSContext *cx, unsigned newcap)
 
     newcap = Max(newcap, SLOT_CAPACITY_MIN);
 
-    uint32_t oldAllocated = oldcap + ObjectElements::VALUES_PER_HEADER;
     uint32_t newAllocated = newcap + ObjectElements::VALUES_PER_HEADER;
 
-    ObjectElements *newheader = ReallocateElements(cx, this, getElementsHeader(),
-                                                   oldAllocated, newAllocated);
+    ObjectElements *newheader = (ObjectElements *)
+        cx->realloc_(getElementsHeader(), newAllocated * sizeof(Value));
     if (!newheader)
         return;  /* Leave elements at its old size. */
 
@@ -4421,8 +4367,10 @@ baseops::SetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, u
 }
 
 JSBool
-baseops::DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded)
+baseops::DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue rval, JSBool strict)
 {
+    rval.setBoolean(true);
+
     RootedObject proto(cx);
     RootedShape shape(cx);
     if (!baseops::LookupProperty<CanGC>(cx, obj, id, &proto, &shape))
@@ -4430,17 +4378,17 @@ baseops::DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *suc
     if (!shape || proto != obj) {
         /*
          * If no property, or the property comes from a prototype, call the
-         * class's delProperty hook, passing succeeded as the result parameter.
+         * class's delProperty hook, passing rval as the result parameter.
          */
-        return CallJSDeletePropertyOp(cx, obj->getClass()->delProperty, obj, id, succeeded);
+        return CallJSPropertyOp(cx, obj->getClass()->delProperty, obj, id, rval);
     }
 
     GCPoke(cx->runtime);
 
     if (IsImplicitDenseElement(shape)) {
-        if (!CallJSDeletePropertyOp(cx, obj->getClass()->delProperty, obj, id, succeeded))
+        if (!CallJSPropertyOp(cx, obj->getClass()->delProperty, obj, id, rval))
             return false;
-        if (!succeeded)
+        if (rval.isFalse())
             return true;
 
         JSObject::setDenseElementHole(cx, obj, JSID_TO_INT(id));
@@ -4448,7 +4396,9 @@ baseops::DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *suc
     }
 
     if (!shape->configurable()) {
-        *succeeded = false;
+        if (strict)
+            return obj->reportNotConfigurable(cx, id);
+        rval.setBoolean(false);
         return true;
     }
 
@@ -4456,9 +4406,9 @@ baseops::DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *suc
     if (!shape->getUserId(cx, &userid))
         return false;
 
-    if (!CallJSDeletePropertyOp(cx, obj->getClass()->delProperty, obj, userid, succeeded))
+    if (!CallJSPropertyOp(cx, obj->getClass()->delProperty, obj, userid, rval))
         return false;
-    if (!succeeded)
+    if (rval.isFalse())
         return true;
 
     return obj->removeProperty(cx, id) && js_SuppressDeletedProperty(cx, obj, id);
@@ -4466,26 +4416,28 @@ baseops::DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *suc
 
 JSBool
 baseops::DeleteProperty(JSContext *cx, HandleObject obj, HandlePropertyName name,
-                        JSBool *succeeded)
+                        MutableHandleValue rval, JSBool strict)
 {
     Rooted<jsid> id(cx, NameToId(name));
-    return baseops::DeleteGeneric(cx, obj, id, succeeded);
+    return baseops::DeleteGeneric(cx, obj, id, rval, strict);
 }
 
 JSBool
-baseops::DeleteElement(JSContext *cx, HandleObject obj, uint32_t index, JSBool *succeeded)
+baseops::DeleteElement(JSContext *cx, HandleObject obj, uint32_t index,
+                       MutableHandleValue rval, JSBool strict)
 {
     RootedId id(cx);
     if (!IndexToId(cx, index, &id))
         return false;
-    return baseops::DeleteGeneric(cx, obj, id, succeeded);
+    return baseops::DeleteGeneric(cx, obj, id, rval, strict);
 }
 
 JSBool
-baseops::DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSBool *succeeded)
+baseops::DeleteSpecial(JSContext *cx, HandleObject obj, HandleSpecialId sid,
+                       MutableHandleValue rval, JSBool strict)
 {
     Rooted<jsid> id(cx, SPECIALID_TO_JSID(sid));
-    return baseops::DeleteGeneric(cx, obj, id, succeeded);
+    return baseops::DeleteGeneric(cx, obj, id, rval, strict);
 }
 
 bool

@@ -11,6 +11,7 @@ include $(DEPTH)/config/autoconf.mk
 
 modules := \
   log4moz.js \
+  preferences.js \
   storageservice.js \
   stringbundle.js \
   tokenserverclient.js \

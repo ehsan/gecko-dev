@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -95,7 +96,6 @@ class JSObject;
 namespace js {
 
 class Bindings;
-class Nursery;
 
 /* Limit on the number of slotful properties in an object. */
 static const uint32_t SHAPE_INVALID_SLOT = JS_BIT(24) - 1;
@@ -462,7 +462,6 @@ class Shape : public js::gc::Cell
     friend class ::JSObject;
     friend class ::JSFunction;
     friend class js::Bindings;
-    friend class js::Nursery;
     friend class js::ObjectImpl;
     friend class js::PropertyTree;
     friend class js::StaticBlockObject;
@@ -1100,8 +1099,8 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
 }
 
 /*
- * Keep this function in sync with search. It neither hashifies the start
- * shape nor increments linear search count.
+ * Keep this function in sync with search. It should return false whenever
+ * search would transition to a ShapeTable.
  */
 inline Shape *
 Shape::searchNoHashify(Shape *start, jsid id)

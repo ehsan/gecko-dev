@@ -13,10 +13,3 @@ XPIDL_MODULE = 'xpcom_xpti'
 
 MODULE = 'xpcom'
 
-EXPORTS += [
-    'xptinfo.h',
-]
-
-EXPORTS.mozilla += [
-    'XPTInterfaceInfoManager.h',
-]

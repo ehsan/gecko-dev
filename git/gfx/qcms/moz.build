@@ -6,8 +6,3 @@
 
 MODULE = 'qcms'
 
-EXPORTS += [
-    'qcms.h',
-    'qcmstypes.h',
-]
-

@@ -35,7 +35,7 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
+  NS_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper::)
 
   nsISupports* GetParentObject() const;
 

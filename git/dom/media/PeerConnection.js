@@ -272,7 +272,7 @@ PeerConnection.prototype = {
 
     // Nothing starts until ICE gathering completes.
     this._queueOrRun({
-      func: this._getPC().initialize,
+      func: this._pc.initialize,
       args: [this._observer, win, rtcConfig, Services.tm.currentThread],
       wait: true
     });
@@ -283,13 +283,6 @@ PeerConnection.prototype = {
 
     // Add a reference to the PeerConnection to global list.
     _globalPCList.addPC(this);
-  },
-
-  _getPC: function() {
-    if (!this._pc) {
-      throw new Components.Exception("PeerConnection is gone (did you turn on Offline mode?)");
-    }
-    return this._pc;
   },
 
   /**
@@ -474,7 +467,7 @@ PeerConnection.prototype = {
     this._onCreateOfferFailure = onError;
 
     this._queueOrRun({
-      func: this._getPC().createOffer,
+      func: this._pc.createOffer,
       args: [constraints],
       wait: true
     });
@@ -500,7 +493,7 @@ PeerConnection.prototype = {
 
     // TODO: Implement provisional answer.
 
-    this._getPC().createAnswer(constraints);
+    this._pc.createAnswer(constraints);
   },
 
   createAnswer: function(onSuccess, onError, constraints, provisional) {
@@ -543,7 +536,7 @@ PeerConnection.prototype = {
     }
 
     this._queueOrRun({
-      func: this._getPC().setLocalDescription,
+      func: this._pc.setLocalDescription,
       args: [type, desc.sdp],
       wait: true,
       type: desc.type
@@ -572,7 +565,7 @@ PeerConnection.prototype = {
     }
 
     this._queueOrRun({
-      func: this._getPC().setRemoteDescription,
+      func: this._pc.setRemoteDescription,
       args: [type, desc.sdp],
       wait: true,
       type: desc.type
@@ -596,7 +589,7 @@ PeerConnection.prototype = {
     this._onAddIceCandidateError = onError;
 
     this._queueOrRun({
-      func: this._getPC().addIceCandidate,
+      func: this._pc.addIceCandidate,
       args: [cand.candidate, cand.sdpMid || "", cand.sdpMLineIndex],
       wait: true
     });
@@ -605,7 +598,7 @@ PeerConnection.prototype = {
   addStream: function(stream, constraints) {
     // TODO: Implement constraints.
     this._queueOrRun({
-      func: this._getPC().addStream,
+      func: this._pc.addStream,
       args: [stream],
       wait: false
     });
@@ -618,7 +611,7 @@ PeerConnection.prototype = {
 
   close: function() {
     this._queueOrRun({
-      func: this._getPC().close,
+      func: this._pc.close,
       args: [false],
       wait: false
     });
@@ -627,17 +620,17 @@ PeerConnection.prototype = {
 
   get localStreams() {
     this._checkClosed();
-    return this._getPC().localStreams;
+    return this._pc.localStreams;
   },
 
   get remoteStreams() {
     this._checkClosed();
-    return this._getPC().remoteStreams;
+    return this._pc.remoteStreams;
   },
 
   get localDescription() {
     this._checkClosed();
-    let sdp = this._getPC().localDescription;
+    let sdp = this._pc.localDescription;
     if (sdp.length == 0) {
       return null;
     }
@@ -649,7 +642,7 @@ PeerConnection.prototype = {
 
   get remoteDescription() {
     this._checkClosed();
-    let sdp = this._getPC().remoteDescription;
+    let sdp = this._pc.remoteDescription;
     if (sdp.length == 0) {
       return null;
     }
@@ -667,7 +660,7 @@ PeerConnection.prototype = {
     }
 
     var state="undefined";
-    switch (this._getPC().readyState) {
+    switch (this._pc.readyState) {
       case Ci.IPeerConnection.kNew:
         state = "new";
         break;
@@ -714,7 +707,7 @@ PeerConnection.prototype = {
     }
 
     // Synchronous since it doesn't block.
-    let channel = this._getPC().createDataChannel(
+    let channel = this._pc.createDataChannel(
       label, protocol, type, dict.outOfOrderAllowed, dict.maxRetransmitTime,
       dict.maxRetransmitNum, dict.preset ? true : false,
       dict.stream != undefined ? dict.stream : 0xFFFF
@@ -727,19 +720,21 @@ PeerConnection.prototype = {
       numstreams = 16;
     }
     this._queueOrRun({
-      func: this._getPC().connectDataConnection,
+      func: this._pc.connectDataConnection,
       args: [localport, remoteport, numstreams],
       wait: false
     });
   }
 };
 
-function RTCError(code, message) {
-  this.name = this.reasonName[Math.min(code, this.reasonName.length - 1)];
-  this.message = (typeof message === "string")? message : this.name;
-  this.__exposedProps__ = { name: "rw", message: "rw" };
+// This is a separate object because we don't want to expose it to DOM.
+function PeerConnectionObserver(dompc) {
+  this._dompc = dompc;
 }
-RTCError.prototype = {
+PeerConnectionObserver.prototype = {
+  QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver,
+                                         Ci.nsISupportsWeakReference]),
+
   // These strings must match those defined in the WebRTC spec.
   reasonName: [
     "NO_ERROR", // Should never happen -- only used for testing
@@ -752,120 +747,69 @@ RTCError.prototype = {
     "INCOMPATIBLE_CONSTRAINTS",
     "INCOMPATIBLE_MEDIASTREAMTRACK",
     "INTERNAL_ERROR"
-  ]
-};
+  ],
 
-// This is a separate object because we don't want to expose it to DOM.
-function PeerConnectionObserver(dompc) {
-  this._dompc = dompc;
-}
-PeerConnectionObserver.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.IPeerConnectionObserver,
-                                         Ci.nsISupportsWeakReference]),
+  callErrorCallback: function(callback, code, message) {
+    if (code > Ci.IPeerConnection.kMaxErrorType) {
+      code = Ci.IPeerConnection.kInternalError;
+    }
 
-  callCB: function(callback, arg) {
+    if (typeof message !== "string") {
+      message = this.reasonName[code];
+    }
+
     if (callback) {
       try {
-        callback.onCallback(arg);
-      } catch(e) {
-        // A content script (user-provided) callback threw an error. We don't
-        // want this to take down peerconnection, but we still want the user
-        // to see it, so we catch it, report it, and move on.
-        //
-        // We do stack parsing in two different places for different reasons:
-
-        var msg;
-        if (e.result == Cr.NS_ERROR_XPC_JS_THREW_JS_OBJECT) {
-          // TODO(jib@mozilla.com): Revisit once bug 862153 is fixed.
-          //
-          // The actual content script frame is unavailable due to bug 862153,
-          // so users see file and line # into this file, which is not helpful.
-          //
-          // 1) Fix up the error message itself to differentiate between the
-          //    22 places we call callCB() in this file, using plain JS stack.
-          //
-          // Tweak the existing NS_ERROR_XPC_JS_THREW_JS_OBJECT message:
-          // -'Error: x' when calling method: [RTCPeerConCallback::onCallback]
-          // +'Error: x' when calling method: [RTCPeerConCallback::onCreateOfferError]
-
-          let caller = Error().stack.split("\n")[1].split("@")[0];
-          // caller ~= "PeerConnectionObserver.prototype.onCreateOfferError"
-
-          msg = e.message.replace("::onCallback", "::" + caller.split(".")[2]);
-        } else {
-          msg = e.message;
-        }
-
-        // Log error message to web console and window.onerror, if present.
-        //
-        // 2) nsIScriptError doesn't understand the nsIStackFrame format, so
-        //    do the translation by extracting file and line from XPCOM stack:
-        //
-        // e.location ~= "JS frame :: file://.js :: RTCPCCb::onCallback :: line 1"
-
-        let stack = e.location.toString().split(" :: ");
-        let file = stack[1];
-        let line = parseInt(stack[3].split(" ")[1]);
-
-        let scriptErrorClass = Cc["@mozilla.org/scripterror;1"];
-        let scriptError = scriptErrorClass.createInstance(Ci.nsIScriptError);
-        scriptError.initWithWindowID(msg, file, null, line, 0,
-                                     Ci.nsIScriptError.exceptionFlag,
-                                     "content javascript",
-                                     this._dompc._winID);
-        let console = Cc["@mozilla.org/consoleservice;1"].
-            getService(Ci.nsIConsoleService);
-        console.logMessage(scriptError);
-
-        // Safely call onerror directly if present (necessary for testing)
-        try {
-          if (typeof this._dompc._win.onerror === "function") {
-            this._dompc._win.onerror(msg, file, line);
-          }
-        } catch(e) {
-          // If onerror itself throws, service it.
-          try {
-            let scriptError = scriptErrorClass.createInstance(Ci.nsIScriptError);
-            scriptError.initWithWindowID(e.message, e.fileName, null,
-                                         e.lineNumber, 0,
-                                         Ci.nsIScriptError.exceptionFlag,
-                                         "content javascript",
-                                         this._dompc._winID);
-            console.logMessage(scriptError);
-          } catch(e) {}
-        }
-      }
+        callback.onCallback({
+          name: this.reasonName[code], message: message,
+          __exposedProps__: { name: "rw", message: "rw" }
+        });
+      } catch(e) {}
     }
   },
 
   onCreateOfferSuccess: function(offer) {
-    this.callCB(this._dompc._onCreateOfferSuccess,
-                { type: "offer", sdp: offer,
-                __exposedProps__: { type: "rw", sdp: "rw" } });
+    if (this._dompc._onCreateOfferSuccess) {
+      try {
+        this._dompc._onCreateOfferSuccess.onCallback({
+          type: "offer", sdp: offer,
+          __exposedProps__: { type: "rw", sdp: "rw" }
+        });
+      } catch(e) {}
+    }
     this._dompc._executeNext();
   },
 
   onCreateOfferError: function(code, message) {
-    this.callCB(this._dompc._onCreateOfferFailure, new RTCError(code, message));
+    this.callErrorCallback (this._dompc._onCreateOfferFailure, code, message);
     this._dompc._executeNext();
   },
 
   onCreateAnswerSuccess: function(answer) {
-    this.callCB (this._dompc._onCreateAnswerSuccess,
-                 { type: "answer", sdp: answer,
-                 __exposedProps__: { type: "rw", sdp: "rw" } });
+    if (this._dompc._onCreateAnswerSuccess) {
+      try {
+        this._dompc._onCreateAnswerSuccess.onCallback({
+          type: "answer", sdp: answer,
+          __exposedProps__: { type: "rw", sdp: "rw" }
+        });
+      } catch(e) {}
+    }
     this._dompc._executeNext();
   },
 
   onCreateAnswerError: function(code, message) {
-    this.callCB(this._dompc._onCreateAnswerFailure, new RTCError(code, message));
+    this.callErrorCallback (this._dompc._onCreateAnswerFailure, code, message);
     this._dompc._executeNext();
   },
 
   onSetLocalDescriptionSuccess: function() {
     this._dompc._localType = this._dompc._pendingType;
     this._dompc._pendingType = null;
-    this.callCB(this._dompc._onSetLocalDescriptionSuccess);
+    if (this._dompc._onSetLocalDescriptionSuccess) {
+      try {
+        this._dompc._onSetLocalDescriptionSuccess.onCallback();
+      } catch(e) {}
+    }
 
     // Until we support generating trickle ICE candidates,
     // we go ahead and trigger a call of onicecandidate here.
@@ -881,33 +825,39 @@ PeerConnectionObserver.prototype = {
   onSetRemoteDescriptionSuccess: function() {
     this._dompc._remoteType = this._dompc._pendingType;
     this._dompc._pendingType = null;
-    this.callCB(this._dompc._onSetRemoteDescriptionSuccess);
+    if (this._dompc._onSetRemoteDescriptionSuccess) {
+      try {
+        this._dompc._onSetRemoteDescriptionSuccess.onCallback();
+      } catch(e) {}
+    }
     this._dompc._executeNext();
   },
 
   onSetLocalDescriptionError: function(code, message) {
     this._dompc._pendingType = null;
-    this.callCB(this._dompc._onSetLocalDescriptionFailure,
-                new RTCError(code, message));
+    this.callErrorCallback (this._dompc._onSetLocalDescriptionFailure, code,
+                            message);
     this._dompc._executeNext();
   },
 
   onSetRemoteDescriptionError: function(code, message) {
     this._dompc._pendingType = null;
-    this.callCB(this._dompc._onSetRemoteDescriptionFailure,
-                new RTCError(code, message));
+    this.callErrorCallback (this._dompc._onSetRemoteDescriptionFailure, code,
+                            message);
     this._dompc._executeNext();
   },
 
   onAddIceCandidateSuccess: function() {
     this._dompc._pendingType = null;
-    this.callCB(this._dompc._onAddIceCandidateSuccess);
+    if (this._dompc._onAddIceCandidateSuccess) {
+      this._dompc._onAddIceCandidateSuccess.onCallback();
+    }
     this._dompc._executeNext();
   },
 
   onAddIceCandidateError: function(code, message) {
     this._dompc._pendingType = null;
-    this.callCB(this._dompc._onAddIceCandidateError, new RTCError(code, message));
+    this.callErrorCallback (this._dompc._onAddIceCandidateError, code, message);
     this._dompc._executeNext();
   },
 
@@ -916,24 +866,42 @@ PeerConnectionObserver.prototype = {
       return;
     }
 
+    let self = this;
+    let iceCb = function() {};
+    let iceGatherCb = function() {};
+    if (this._dompc.onicechange) {
+      iceCb = function(args) {
+        try {
+          self._dompc.onicechange(args);
+        } catch(e) {}
+      };
+    }
+    if (this._dompc.ongatheringchange) {
+      iceGatherCb = function(args) {
+        try {
+          self._dompc.ongatheringchange(args);
+        } catch(e) {}
+      };
+    }
+
     switch (this._dompc._pc.iceState) {
       case Ci.IPeerConnection.kIceGathering:
-        this.callCB(this._dompc.ongatheringchange, "gathering");
+        iceGatherCb("gathering");
         break;
       case Ci.IPeerConnection.kIceWaiting:
-        this.callCB(this._dompc.onicechange, "starting");
+        iceCb("starting");
         this._dompc._executeNext();
         break;
       case Ci.IPeerConnection.kIceChecking:
-        this.callCB(this._dompc.onicechange, "checking");
+        iceCb("checking");
         break;
       case Ci.IPeerConnection.kIceConnected:
         // ICE gathering complete.
-        this.callCB(this._dompc.onicechange, "connected");
-        this.callCB(this._dompc.ongatheringchange, "complete");
+        iceCb("connected");
+        iceGatherCb("complete");
         break;
       case Ci.IPeerConnection.kIceFailed:
-        this.callCB(this._dompc.onicechange, "failed");
+        iceCb("failed");
         break;
       default:
         // Unknown state!
@@ -942,33 +910,63 @@ PeerConnectionObserver.prototype = {
   },
 
   onAddStream: function(stream, type) {
-    this.callCB(this._dompc.onaddstream,
-                { stream: stream, type: type,
-                __exposedProps__: { stream: "r", type: "r" } });
+    if (this._dompc.onaddstream) {
+      try {
+        this._dompc.onaddstream.onCallback({
+          stream: stream, type: type,
+          __exposedProps__: { stream: "r", type: "r" }
+        });
+      } catch(e) {}
+    }
   },
 
   onRemoveStream: function(stream, type) {
-    this.callCB(this._dompc.onremovestream,
-                { stream: stream, type: type,
-                __exposedProps__: { stream: "r", type: "r" } });
+    if (this._dompc.onremovestream) {
+      try {
+        this._dompc.onremovestream.onCallback({
+          stream: stream, type: type,
+          __exposedProps__: { stream: "r", type: "r" }
+        });
+      } catch(e) {}
+    }
   },
 
   foundIceCandidate: function(cand) {
-    this.callCB(this._dompc.onicecandidate,
-                {candidate: cand, __exposedProps__: { candidate: "rw" } });
+    if (this._dompc.onicecandidate) {
+      try {
+        this._dompc.onicecandidate.onCallback({
+          candidate: cand,
+          __exposedProps__: { candidate: "rw" }
+        });
+      } catch(e) {}
+    }
   },
 
   notifyDataChannel: function(channel) {
-    this.callCB(this._dompc.ondatachannel,
-                { channel: channel, __exposedProps__: { channel: "r" } });
+    if (this._dompc.ondatachannel) {
+      try {
+        this._dompc.ondatachannel.onCallback({
+          channel: channel,
+          __exposedProps__: { channel: "r" }
+        });
+      } catch(e) {}
+    }
   },
 
   notifyConnection: function() {
-    this.callCB (this._dompc.onconnection);
+    if (this._dompc.onconnection) {
+      try {
+        this._dompc.onconnection.onCallback();
+      } catch(e) {}
+    }
   },
 
   notifyClosedConnection: function() {
-    this.callCB (this._dompc.onclosedconnection);
+    if (this._dompc.onclosedconnection) {
+      try {
+        this._dompc.onclosedconnection.onCallback();
+      } catch(e) {}
+    }
   }
 };
 

@@ -728,15 +728,10 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
     // told us to do so.
 
     // inspect the connection headers for keep-alive info provided the
-    // transaction completed successfully. In the case of a non-sensical close
-    // and keep-alive favor the close out of conservatism.
-
-    bool explicitKeepAlive = false;
-    bool explicitClose = responseHead->HasHeaderValue(nsHttp::Connection, "close") ||
-        responseHead->HasHeaderValue(nsHttp::Proxy_Connection, "close");
-    if (!explicitClose)
-        explicitKeepAlive = responseHead->HasHeaderValue(nsHttp::Connection, "keep-alive") ||
-            responseHead->HasHeaderValue(nsHttp::Proxy_Connection, "keep-alive");
+    // transaction completed successfully.
+    const char *val = responseHead->PeekHeader(nsHttp::Connection);
+    if (!val)
+        val = responseHead->PeekHeader(nsHttp::Proxy_Connection);
 
     // reset to default (the server may have changed since we last checked)
     mSupportsPipelining = false;
@@ -744,7 +739,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
     if ((responseHead->Version() < NS_HTTP_VERSION_1_1) ||
         (requestHead->Version() < NS_HTTP_VERSION_1_1)) {
         // HTTP/1.0 connections are by default NOT persistent
-        if (explicitKeepAlive)
+        if (val && !PL_strcasecmp(val, "keep-alive"))
             mKeepAlive = true;
         else
             mKeepAlive = false;
@@ -755,7 +750,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
     }
     else {
         // HTTP/1.1 connections are by default persistent
-        if (explicitClose) {
+        if (val && !PL_strcasecmp(val, "close")) {
             mKeepAlive = false;
 
             // persistent connections are required for pipelining to work - if
@@ -813,7 +808,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
     // specified then we use our advertized timeout value.
     bool foundKeepAliveMax = false;
     if (mKeepAlive) {
-        const char *val = responseHead->PeekHeader(nsHttp::Keep_Alive);
+        val = responseHead->PeekHeader(nsHttp::Keep_Alive);
 
         if (!mUsingSpdyVersion) {
             const char *cp = PL_strcasestr(val, "timeout=");
@@ -1252,7 +1247,7 @@ nsHttpConnection::OnSocketWritable()
         else {
             if (!mReportedSpdy) {
                 mReportedSpdy = true;
-                gHttpHandler->ConnMgr()->ReportSpdyConnection(this, mEverUsedSpdy);
+                gHttpHandler->ConnMgr()->ReportSpdyConnection(this, mUsingSpdyVersion);
             }
 
             LOG(("  writing transaction request stream\n"));

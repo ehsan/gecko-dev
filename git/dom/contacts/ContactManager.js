@@ -20,15 +20,9 @@ XPCOMUtils.defineLazyGetter(Services, "DOMRequest", function() {
   return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
 });
 
-XPCOMUtils.defineLazyServiceGetter(this, "pm",
-                                   "@mozilla.org/permissionmanager;1",
-                                   "nsIPermissionManager");
-
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
-
-const CONTACTS_SENDMORE_MINIMUM = 5;
 
 function stringOrBust(aObj) {
   if (typeof aObj != "string") {
@@ -388,6 +382,8 @@ ContactManager.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
   _oncontactchange: null,
 
+  _cursorData: {},
+
   set oncontactchange(aCallback) {
     if (DEBUG) debug("set oncontactchange");
     let allowCallback = function() {
@@ -456,10 +452,7 @@ ContactManager.prototype = {
         }
         break;
       case "Contacts:GetAll:Next":
-        let data = this.getRequest(msg.cursorId);
-        if (!data) {
-          break;
-        }
+        let data = this._cursorData[msg.cursorId];
         let result = contacts ? this._convertContacts(contacts) : [null];
         if (data.waitingForNext) {
           if (DEBUG) debug("cursor waiting for contact, sending");
@@ -566,15 +559,6 @@ ContactManager.prototype = {
         access = "unknown";
       }
 
-    // Shortcut for ALLOW_ACTION so we avoid a parent roundtrip
-    let type = "contacts-" + access;
-    let permValue =
-      pm.testExactPermissionFromPrincipal(this._window.document.nodePrincipal, type);
-    if (permValue == Ci.nsIPermissionManager.ALLOW_ACTION) {
-      aAllowCallback();
-      return;
-    }
-
     let requestID = this.getRequestId({
       request: aRequest,
       allow: function() {
@@ -665,6 +649,7 @@ ContactManager.prototype = {
   },
 
   createCursor: function CM_createCursor(aRequest) {
+    let id = this._getRandomId();
     let data = {
       cursor: Services.DOMRequest.createCursor(this._window, function() {
         this.handleContinue(id);
@@ -672,8 +657,8 @@ ContactManager.prototype = {
       cachedContacts: [],
       waitingForNext: true,
     };
-    let id = this.getRequestId(data);
     if (DEBUG) debug("saved cursor id: " + id);
+    this._cursorData[id] = data;
     return [id, data.cursor];
   },
 
@@ -694,14 +679,11 @@ ContactManager.prototype = {
 
   handleContinue: function CM_handleContinue(aCursorId) {
     if (DEBUG) debug("handleContinue: " + aCursorId);
-    let data = this.getRequest(aCursorId);
+    let data = this._cursorData[aCursorId];
     if (data.cachedContacts.length > 0) {
       if (DEBUG) debug("contact in cache");
       let contact = data.cachedContacts.shift();
       this.nextTick(this._fireSuccessOrDone.bind(this, data.cursor, contact));
-      if (data.cachedContacts.length < CONTACTS_SENDMORE_MINIMUM) {
-        cpmm.sendAsyncMessage("Contacts:GetAll:SendNow", { cursorId: aCursorId });
-      }
     } else {
       if (DEBUG) debug("waiting for contact");
       data.waitingForNext = true;

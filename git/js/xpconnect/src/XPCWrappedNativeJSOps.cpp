@@ -77,7 +77,7 @@ ToStringGuts(XPCCallContext& ccx)
 static JSBool
 XPC_WN_Shared_ToString(JSContext *cx, unsigned argc, jsval *vp)
 {
-    RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    JSObject *obj = JS_THIS_OBJECT(cx, vp);
     if (!obj)
         return false;
 
@@ -93,7 +93,7 @@ XPC_WN_Shared_ToString(JSContext *cx, unsigned argc, jsval *vp)
 #  define FMT_STR(str)
 #  define PARAM_ADDR(w)
 #endif
-        char *sz = JS_smprintf("[object %s" FMT_ADDR FMT_STR(" (native") FMT_ADDR FMT_STR(")") "]", si->GetJSClass()->name PARAM_ADDR(obj.get()) PARAM_ADDR(xpc_GetJSPrivate(obj)));
+        char *sz = JS_smprintf("[object %s" FMT_ADDR FMT_STR(" (native") FMT_ADDR FMT_STR(")") "]", si->GetJSClass()->name PARAM_ADDR(obj) PARAM_ADDR(xpc_GetJSPrivate(obj)));
         if (!sz)
             return false;
 
@@ -473,7 +473,7 @@ DefinePropertyIfFound(XPCCallContext& ccx,
 static JSBool
 XPC_WN_OnlyIWrite_AddPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp)
 {
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), id);
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, id);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -494,13 +494,6 @@ XPC_WN_OnlyIWrite_SetPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId 
 static JSBool
 XPC_WN_CannotModifyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id,
                                 JSMutableHandleValue vp)
-{
-    return Throw(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN, cx);
-}
-
-static JSBool
-XPC_WN_CantDeletePropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                              JSBool *succeeded)
 {
     return Throw(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN, cx);
 }
@@ -701,7 +694,7 @@ static JSBool
 XPC_WN_NoHelper_Resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 {
     MORPH_SLIM_WRAPPER(cx, obj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), id);
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, id);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -722,9 +715,9 @@ XPC_WN_NoHelper_Resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 }
 
 static JSObject *
-XPC_WN_OuterObject(JSContext *cx, JSHandleObject objArg)
+XPC_WN_OuterObject(JSContext *cx, JSHandleObject obj_)
 {
-    JSObject *obj = objArg;
+    JSObject *obj = obj_;
 
     XPCWrappedNative *wrapper =
         static_cast<XPCWrappedNative *>(js::GetObjectPrivate(obj));
@@ -766,7 +759,7 @@ XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
 
     /* Mandatory non-null function pointer members. */
     XPC_WN_OnlyIWrite_AddPropertyStub, // addProperty
-    XPC_WN_CantDeletePropertyStub,     // delProperty
+    XPC_WN_CannotModifyPropertyStub,   // delProperty
     JS_PropertyStub,                   // getProperty
     XPC_WN_OnlyIWrite_SetPropertyStub, // setProperty
 
@@ -850,21 +843,6 @@ XPC_WN_MaybeResolvingStrictPropertyStub(JSContext *cx, JSHandleObject obj, JSHan
     return XPC_WN_MaybeResolvingPropertyStub(cx, obj, id, vp);
 }
 
-static JSBool
-XPC_WN_MaybeResolvingDeletePropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded)
-{
-    MORPH_SLIM_WRAPPER(cx, obj);
-    XPCCallContext ccx(JS_CALLER, cx, obj);
-    XPCWrappedNative* wrapper = ccx.GetWrapper();
-    THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
-
-    if (ccx.GetResolvingWrapper() == wrapper) {
-        *succeeded = true;
-        return true;
-    }
-    return Throw(NS_ERROR_XPC_CANT_MODIFY_PROP_ON_WN, cx);
-}
-
 // macro fun!
 #define PRE_HELPER_STUB_NO_SLIM                                               \
     XPCWrappedNative* wrapper =                                               \
@@ -913,10 +891,10 @@ XPC_WN_Helper_AddProperty(JSContext *cx, JSHandleObject obj, JSHandleId id,
 
 static JSBool
 XPC_WN_Helper_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id,
-                          JSBool *succeeded)
+                          JSMutableHandleValue vp)
 {
     PRE_HELPER_STUB
-    DelProperty(wrapper, cx, obj, id, &retval);
+    DelProperty(wrapper, cx, obj, id, vp.address(), &retval);
     POST_HELPER_STUB
 }
 
@@ -962,7 +940,7 @@ XPC_WN_Helper_Call(JSContext *cx, unsigned argc, jsval *vp)
     // N.B. we want obj to be the callee, not JS_THIS(cx, vp)
     RootedObject obj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
 
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), JSID_VOIDHANDLE,
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, JSID_VOID,
                        argc, JS_ARGV(cx, vp), vp);
     if (!ccx.IsValid())
         return false;
@@ -982,7 +960,7 @@ XPC_WN_Helper_Construct(JSContext *cx, unsigned argc, jsval *vp)
     if (!obj)
         return false;
 
-    XPCCallContext ccx(JS_CALLER, cx, obj, NullPtr(), JSID_VOIDHANDLE,
+    XPCCallContext ccx(JS_CALLER, cx, obj, nullptr, JSID_VOID,
                        argc, JS_ARGV(cx, vp), vp);
     if (!ccx.IsValid())
         return false;
@@ -1333,15 +1311,15 @@ XPCNativeScriptableShared::PopulateJSClass()
         addProperty = XPC_WN_CannotModifyPropertyStub;
     mJSClass.base.addProperty = addProperty;
 
-    JSDeletePropertyOp delProperty;
+    JSPropertyOp delProperty;
     if (mFlags.WantDelProperty())
         delProperty = XPC_WN_Helper_DelProperty;
     else if (mFlags.UseJSStubForDelProperty())
-        delProperty = JS_DeletePropertyStub;
+        delProperty = JS_PropertyStub;
     else if (mFlags.AllowPropModsDuringResolve())
-        delProperty = XPC_WN_MaybeResolvingDeletePropertyStub;
+        delProperty = XPC_WN_MaybeResolvingPropertyStub;
     else
-        delProperty = XPC_WN_CantDeletePropertyStub;
+        delProperty = XPC_WN_CannotModifyPropertyStub;
     mJSClass.base.delProperty = delProperty;
 
     if (mFlags.WantGetProperty())
@@ -1472,8 +1450,7 @@ XPC_WN_CallMethod(JSContext *cx, unsigned argc, jsval *vp)
         return Throw(NS_ERROR_XPC_BAD_OP_ON_WN_PROTO, cx);
 
     obj = FixUpThisIfBroken(obj, funobj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, argc,
-                       JS_ARGV(cx, vp), vp);
+    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOID, argc, JS_ARGV(cx, vp), vp);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -1512,8 +1489,7 @@ XPC_WN_GetterSetter(JSContext *cx, unsigned argc, jsval *vp)
 
 
     obj = FixUpThisIfBroken(obj, funobj);
-    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOIDHANDLE, argc,
-                       JS_ARGV(cx, vp), vp);
+    XPCCallContext ccx(JS_CALLER, cx, obj, funobj, JSID_VOID, argc, JS_ARGV(cx, vp), vp);
     XPCWrappedNative* wrapper = ccx.GetWrapper();
     THROW_AND_RETURN_IF_BAD_WRAPPER(cx, wrapper);
 
@@ -1634,7 +1610,7 @@ js::Class XPC_WN_ModsAllowed_WithCall_Proto_JSClass = {
 
     /* Mandatory non-null function pointer members. */
     JS_PropertyStub,                // addProperty;
-    JS_DeletePropertyStub,          // delProperty;
+    JS_PropertyStub,                // delProperty;
     JS_PropertyStub,                // getProperty;
     JS_StrictPropertyStub,          // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
@@ -1659,7 +1635,7 @@ js::Class XPC_WN_ModsAllowed_NoCall_Proto_JSClass = {
 
     /* Mandatory non-null function pointer members. */
     JS_PropertyStub,                // addProperty;
-    JS_DeletePropertyStub,          // delProperty;
+    JS_PropertyStub,                // delProperty;
     JS_PropertyStub,                // getProperty;
     JS_StrictPropertyStub,          // setProperty;
     XPC_WN_Shared_Proto_Enumerate,  // enumerate;
@@ -1748,7 +1724,7 @@ js::Class XPC_WN_NoMods_WithCall_Proto_JSClass = {
 
     /* Mandatory non-null function pointer members. */
     XPC_WN_OnlyIWrite_Proto_AddPropertyStub,   // addProperty;
-    XPC_WN_CantDeletePropertyStub,             // delProperty;
+     XPC_WN_CannotModifyPropertyStub,          // delProperty;
     JS_PropertyStub,                           // getProperty;
     XPC_WN_OnlyIWrite_Proto_SetPropertyStub,   // setProperty;
     XPC_WN_Shared_Proto_Enumerate,             // enumerate;
@@ -1773,7 +1749,7 @@ js::Class XPC_WN_NoMods_NoCall_Proto_JSClass = {
 
     /* Mandatory non-null function pointer members. */
     XPC_WN_OnlyIWrite_Proto_AddPropertyStub,   // addProperty;
-    XPC_WN_CantDeletePropertyStub,             // delProperty;
+    XPC_WN_CannotModifyPropertyStub,           // delProperty;
     JS_PropertyStub,                           // getProperty;
     XPC_WN_OnlyIWrite_Proto_SetPropertyStub,   // setProperty;
     XPC_WN_Shared_Proto_Enumerate,             // enumerate;
@@ -1854,7 +1830,7 @@ js::Class XPC_WN_Tearoff_JSClass = {
     WRAPPER_SLOTS,                             // flags;
 
     XPC_WN_OnlyIWrite_AddPropertyStub,         // addProperty;
-    XPC_WN_CantDeletePropertyStub,             // delProperty;
+    XPC_WN_CannotModifyPropertyStub,           // delProperty;
     JS_PropertyStub,                           // getProperty;
     XPC_WN_OnlyIWrite_SetPropertyStub,         // setProperty;
     XPC_WN_TearOff_Enumerate,                  // enumerate;

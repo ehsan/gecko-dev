@@ -18,7 +18,6 @@ namespace mozilla {
 namespace dom {
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CallbackObject)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::CallbackObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -185,7 +184,7 @@ CallbackObject::CallSetup::~CallSetup()
 
 already_AddRefed<nsISupports>
 CallbackObjectHolderBase::ToXPCOMCallback(CallbackObject* aCallback,
-                                          const nsIID& aIID) const
+                                          const nsIID& aIID)
 {
   if (!aCallback) {
     return nullptr;

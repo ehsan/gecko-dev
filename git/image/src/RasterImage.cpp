@@ -1669,9 +1669,7 @@ RasterImage::AddSourceData(const char *aBuffer, uint32_t aCount)
   // write the data directly to the decoder. (If we haven't gotten the size,
   // we'll queue up the data and write it out when we do.)
   if (!StoringSourceData() && mHasSize) {
-    mDecoder->SetSynchronous(true);
     rv = WriteToDecoder(aBuffer, aCount);
-    mDecoder->SetSynchronous(false);
     CONTAINER_ENSURE_SUCCESS(rv);
 
     // We're not storing source data, so this data is probably coming straight
@@ -1760,13 +1758,6 @@ RasterImage::DoImageDataComplete()
 
   {
     MutexAutoLock lock(mDecodingMutex);
-
-    // If we're not storing any source data, then there's nothing more we can do
-    // once we've tried decoding for size.
-    if (!StoringSourceData() && mDecoder) {
-      nsresult rv = ShutdownDecoder(eShutdownIntent_Done);
-      CONTAINER_ENSURE_SUCCESS(rv);
-    }
 
     // If DecodeUntilSizeAvailable didn't finish the decode, let the decode worker
     // finish decoding this image.
@@ -2605,7 +2596,6 @@ nsresult
 RasterImage::ShutdownDecoder(eShutdownIntent aIntent)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  mDecodingMutex.AssertCurrentThreadOwns();
 
   // Ensure that our intent is valid
   NS_ABORT_IF_FALSE((aIntent >= 0) && (aIntent < eShutdownIntent_AllCount),
@@ -2683,6 +2673,9 @@ RasterImage::WriteToDecoder(const char *aBuffer, uint32_t aCount)
   mInDecoder = true;
   mDecoder->Write(aBuffer, aCount);
   mInDecoder = false;
+
+  if (!mDecoder)
+    return NS_ERROR_FAILURE;
 
   CONTAINER_ENSURE_SUCCESS(mDecoder->GetDecoderError());
 
@@ -3285,6 +3278,7 @@ RasterImage::IsDecodeFinished()
   // Precondition
   mDecodingMutex.AssertCurrentThreadOwns();
   NS_ABORT_IF_FALSE(mDecoder, "Can't call IsDecodeFinished() without decoder!");
+  MOZ_ASSERT(mDecodeRequest);
 
   // The decode is complete if we got what we wanted.
   if (mDecoder->IsSizeDecode()) {
@@ -3294,12 +3288,11 @@ RasterImage::IsDecodeFinished()
   } else if (mDecoder->GetDecodeDone()) {
     return true;
   }
-
+  
   // If the decoder returned because it needed a new frame and we haven't
   // written to it since then, the decoder may be storing data that it hasn't
   // decoded yet.
-  if (mDecoder->NeedsNewFrame() ||
-      (mDecodeRequest && mDecodeRequest->mAllocatedNewFrame)) {
+  if (mDecoder->NeedsNewFrame() || mDecodeRequest->mAllocatedNewFrame) {
     return false;
   }
 
@@ -3516,7 +3509,8 @@ RasterImage::DecodePool::Singleton()
 }
 
 RasterImage::DecodePool::DecodePool()
- : mThreadPoolMutex("Thread Pool")
+  : mThreadPoolMutex("Thread Pool")
+  , mShuttingDown(false)
 {
   if (gMultithreadedDecoding) {
     mThreadPool = do_CreateInstance(NS_THREADPOOL_CONTRACTID);
@@ -3553,6 +3547,7 @@ RasterImage::DecodePool::Observe(nsISupports *subject, const char *topic,
     MutexAutoLock threadPoolLock(mThreadPoolMutex);
     threadPool = mThreadPool;
     mThreadPool = nullptr;
+    mShuttingDown = true;
   }
 
   if (threadPool) {
@@ -3584,9 +3579,10 @@ RasterImage::DecodePool::RequestDecode(RasterImage* aImg)
 
     aImg->mDecodeRequest->mRequestStatus = DecodeRequest::REQUEST_PENDING;
     nsRefPtr<DecodeJob> job = new DecodeJob(aImg->mDecodeRequest, aImg);
-
     MutexAutoLock threadPoolLock(mThreadPoolMutex);
-    if (!gMultithreadedDecoding || !mThreadPool) {
+    if (mShuttingDown) {
+      // Just drop the job on the floor; we won't need it.
+    } else if (!gMultithreadedDecoding || !mThreadPool) {
       NS_DispatchToMainThread(job);
     } else {
       mThreadPool->Dispatch(job, nsIEventTarget::DISPATCH_NORMAL);

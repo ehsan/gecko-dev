@@ -6,8 +6,3 @@
 
 MODULE = 'storage'
 
-EXPORTS.mozilla.storage += [
-    'Variant.h',
-    'Variant_inl.h',
-]
-

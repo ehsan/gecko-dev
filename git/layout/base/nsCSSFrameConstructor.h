@@ -1582,9 +1582,6 @@ private:
   // block
   // @param aContentParent is the parent the block would have if it
   // were in-flow
-  // @param aPositionedFrameForAbsPosContainer if non-null, then the new
-  // block should be an abs-pos container and aPositionedFrameForAbsPosContainer
-  // is the frame whose style is making this block an abs-pos container.
   // @param aPendingBinding the pending binding  from this block's frame
   // construction item.
   void ConstructBlock(nsFrameConstructorState& aState,
@@ -1595,7 +1592,7 @@ private:
                       nsStyleContext*          aStyleContext,
                       nsIFrame**               aNewFrame,
                       nsFrameItems&            aFrameItems,
-                      nsIFrame*                aPositionedFrameForAbsPosContainer,
+                      bool                     aAbsPosContainer,
                       PendingBinding*          aPendingBinding);
 
   nsIFrame* ConstructInline(nsFrameConstructorState& aState,
@@ -1878,8 +1875,6 @@ private:
   nsIFrame*           mPageSequenceFrame;
   nsQuoteList         mQuoteList;
   nsCounterManager    mCounterManager;
-  // Current ProcessChildren depth.
-  uint16_t            mCurrentDepth;
   uint16_t            mUpdateCount;
   bool                mQuotesDirty : 1;
   bool                mCountersDirty : 1;

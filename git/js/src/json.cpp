@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -44,7 +45,7 @@ Class js::JSONClass = {
     js_JSON_str,
     JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
     JS_PropertyStub,        /* addProperty */
-    JS_DeletePropertyStub,  /* delProperty */
+    JS_PropertyStub,        /* delProperty */
     JS_PropertyStub,        /* getProperty */
     JS_StrictPropertyStub,  /* setProperty */
     JS_EnumerateStub,
@@ -775,8 +776,7 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
                 if (newElement.isUndefined()) {
                     /* Step 2a(iii)(2). */
-                    JSBool succeeded;
-                    if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &succeeded))
+                    if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &newElement, false))
                         return false;
                 } else {
                     /* Step 2a(iii)(3). */
@@ -804,8 +804,7 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
                 if (newElement.isUndefined()) {
                     /* Step 2b(ii)(2). */
-                    JSBool succeeded;
-                    if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &succeeded))
+                    if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &newElement, false))
                         return false;
                 } else {
                     /* Step 2b(ii)(3). */
@@ -879,7 +878,7 @@ json_toSource(JSContext *cx, unsigned argc, Value *vp)
 }
 #endif
 
-static const JSFunctionSpec json_static_methods[] = {
+static JSFunctionSpec json_static_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  json_toSource,      0, 0),
 #endif

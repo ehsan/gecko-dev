@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -178,11 +179,8 @@ ComparePolicy::adjustInputs(MInstruction *def)
         MInstruction *replace;
 
         // See BinaryArithPolicy::adjustInputs for an explanation of the following
-        if (in->type() == MIRType_Object || in->type() == MIRType_String ||
-            in->type() == MIRType_Undefined)
-        {
+        if (in->type() == MIRType_Object || in->type() == MIRType_String)
             in = boxAt(def, in);
-        }
 
         switch (type) {
           case MIRType_Double:
@@ -399,8 +397,6 @@ ObjectPolicy<Op>::staticAdjustInputs(MInstruction *ins)
 
 template bool ObjectPolicy<0>::staticAdjustInputs(MInstruction *ins);
 template bool ObjectPolicy<1>::staticAdjustInputs(MInstruction *ins);
-template bool ObjectPolicy<2>::staticAdjustInputs(MInstruction *ins);
-template bool ObjectPolicy<3>::staticAdjustInputs(MInstruction *ins);
 
 bool
 CallPolicy::adjustInputs(MInstruction *ins)

@@ -95,7 +95,7 @@ void
 nsDOMFileReader::RootResultArrayBuffer()
 {
   nsContentUtils::PreserveWrapper(
-    static_cast<EventTarget*>(
+    static_cast<nsIDOMEventTarget*>(
       static_cast<nsDOMEventTargetHelper*>(this)), this);
 }
 
@@ -104,7 +104,7 @@ nsDOMFileReader::RootResultArrayBuffer()
 nsDOMFileReader::nsDOMFileReader()
   : mFileData(nullptr),
     mDataLen(0), mDataFormat(FILE_AS_BINARY),
-    mResultArrayBuffer(nullptr)
+    mResultArrayBuffer(nullptr)     
 {
   nsLayoutStatics::AddRef();
   SetDOMStringToNull(mResult);
@@ -118,25 +118,20 @@ nsDOMFileReader::~nsDOMFileReader()
   nsLayoutStatics::Release();
 }
 
-
-/**
- * This Init method is called from the factory constructor.
- */
 nsresult
 nsDOMFileReader::Init()
 {
-  nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
-  nsCOMPtr<nsIPrincipal> principal;
-  if (secMan) {
-    secMan->GetSystemPrincipal(getter_AddRefs(principal));
-  }
-  NS_ENSURE_STATE(principal);
-  mPrincipal.swap(principal);
+  nsDOMEventTargetHelper::Init();
 
-  // Instead of grabbing some random global from the context stack,
-  // let's use the default one (junk drawer) for now.
-  // We should move away from this Init...
-  BindToOwner(xpc::GetNativeForGlobal(xpc::GetJunkScope()));
+  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
+  nsCOMPtr<nsIPrincipal> subjectPrincipal;
+  if (secMan) {
+    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+  NS_ENSURE_STATE(subjectPrincipal);
+  mPrincipal.swap(subjectPrincipal);
+
   return NS_OK;
 }
 

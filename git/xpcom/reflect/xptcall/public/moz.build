@@ -6,9 +6,3 @@
 
 MODULE = 'xpcom'
 
-EXPORTS += [
-    'xptcall.h',
-    'xptcstubsdecl.inc',
-    'xptcstubsdef.inc',
-]
-

@@ -16,9 +16,9 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
-#include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsIJSRuntimeService.h"
+#include "nsIJSContextStack.h"
 #include "nsIXPConnect.h"
 #include "nsIDOMElement.h"
 #include "prmem.h"
@@ -56,6 +56,10 @@ static int32_t sWrapperCount;
 // The JSRuntime. Used to unroot JSObjects when no JSContext is
 // reachable.
 static JSRuntime *sJSRuntime;
+
+// The JS context stack, we use this to push a plugin's JSContext onto
+// while executing JS on the context.
+static nsIJSContextStack *sContextStack;
 
 static nsTArray<NPObject*>* sDelayedReleases;
 
@@ -111,7 +115,7 @@ static JSBool
 NPObjWrapper_AddProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
 static JSBool
-NPObjWrapper_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded);
+NPObjWrapper_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp);
 
 static JSBool
 NPObjWrapper_SetProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict,
@@ -184,7 +188,7 @@ NPObjectMember_Trace(JSTracer *trc, JSObject *obj);
 static JSClass sNPObjectMemberClass =
   {
     "NPObject Ambiguous Member class", JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
-    JS_PropertyStub, JS_DeletePropertyStub,
+    JS_PropertyStub, JS_PropertyStub,
     JS_PropertyStub, JS_StrictPropertyStub, JS_EnumerateStub,
     JS_ResolveStub, NPObjectMember_Convert,
     NPObjectMember_Finalize, nullptr, NPObjectMember_Call,
@@ -229,6 +233,8 @@ OnWrapperCreated()
     // Register our GC callback to perform delayed destruction of finalized
     // NPObjects. Leave this callback around and don't ever unregister it.
     rtsvc->RegisterGCCallback(DelayedReleaseGCCallback);
+
+    CallGetService("@mozilla.org/js/xpc/ContextStack;1", &sContextStack);
   }
 }
 
@@ -260,8 +266,50 @@ OnWrapperDestroyed()
 
     // No more need for this.
     sJSRuntime = nullptr;
+
+    NS_IF_RELEASE(sContextStack);
   }
 }
+
+struct AutoCXPusher
+{
+  AutoCXPusher(JSContext *cx)
+  {
+    // Precondition explaining why we don't need to worry about errors
+    // in OnWrapperCreated.
+    NS_PRECONDITION(sWrapperCount > 0,
+                    "must have live wrappers when using AutoCXPusher");
+
+    // Call OnWrapperCreated and OnWrapperDestroyed to ensure that the
+    // last OnWrapperDestroyed doesn't happen while we're on the stack
+    // and null out sContextStack.
+    OnWrapperCreated();
+
+    sContextStack->Push(cx);
+  }
+
+  ~AutoCXPusher()
+  {
+    JSContext *cx = nullptr;
+    sContextStack->Pop(&cx);
+
+    JSContext *currentCx = nullptr;
+    sContextStack->Peek(&currentCx);
+
+    if (!currentCx) {
+      // No JS is running, tell the context we're done executing
+      // script.
+
+      nsIScriptContext *scx = GetScriptContextFromJSContext(cx);
+
+      if (scx) {
+        scx->ScriptEvaluated(true);
+      }
+    }
+
+    OnWrapperDestroyed();
+  }
+};
 
 namespace mozilla {
 namespace plugins {
@@ -566,8 +614,7 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
+  AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
@@ -603,8 +650,7 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
   JS::Value fv;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
+  AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
@@ -715,8 +761,7 @@ nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier id)
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
   JSBool found, ok = JS_FALSE;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
+  AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
@@ -748,8 +793,7 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
+  AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
@@ -781,8 +825,7 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
   JSBool ok = JS_FALSE;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
+  AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
@@ -820,8 +863,7 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier id)
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
   JSBool ok = JS_FALSE;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
+  AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JS::Value deleted = JSVAL_FALSE;
@@ -874,8 +916,7 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
+  AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
@@ -1156,7 +1197,7 @@ NPObjWrapper_AddProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMut
 }
 
 static JSBool
-NPObjWrapper_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool *succeeded)
+NPObjWrapper_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSMutableHandleValue vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
 
@@ -1176,14 +1217,12 @@ NPObjWrapper_DelProperty(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBoo
     if (!ReportExceptionIfPending(cx))
       return JS_FALSE;
 
-    if (!hasProperty) {
-      *succeeded = true;
+    if (!hasProperty)
       return JS_TRUE;
-    }
   }
 
   if (!npobj->_class->removeProperty(npobj, identifier))
-    *succeeded = false;
+    vp.set(JSVAL_FALSE);
 
   return ReportExceptionIfPending(cx);
 }
@@ -1926,7 +1965,22 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
 
   // Use the safe JSContext here as we're not always able to find the
   // JSContext associated with the NPP any more.
-  SafeAutoJSContext cx;
+
+  nsCOMPtr<nsIThreadJSContextStack> stack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  if (!stack) {
+    NS_ERROR("No context stack available!");
+
+    return;
+  }
+
+  JSContext* cx = stack->GetSafeJSContext();
+  if (!cx) {
+    NS_ERROR("No safe JS context available!");
+
+    return;
+  }
+
   JSAutoRequest ar(cx);
 
   if (sNPObjWrappers.ops) {

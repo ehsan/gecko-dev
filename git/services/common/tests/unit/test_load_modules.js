@@ -5,6 +5,7 @@ const modules = [
   "async.js",
   "bagheeraclient.js",
   "log4moz.js",
+  "preferences.js",
   "rest.js",
   "storageservice.js",
   "stringbundle.js",

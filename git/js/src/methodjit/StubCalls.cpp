@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1356,11 +1357,8 @@ stubs::DelName(VMFrame &f, PropertyName *name_)
     f.regs.sp++;
     f.regs.sp[-1] = BooleanValue(true);
     if (prop) {
-        JSBool succeeded;
-        if (!JSObject::deleteProperty(f.cx, obj, name, &succeeded))
+        if (!JSObject::deleteProperty(f.cx, obj, name, MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1]), false))
             THROW();
-        MutableHandleValue rval = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1]);
-        rval.setBoolean(succeeded);
     }
 }
 
@@ -1376,15 +1374,11 @@ stubs::DelProp(VMFrame &f, PropertyName *name_)
     if (!obj)
         THROW();
 
-    JSBool succeeded;
-    if (!JSObject::deleteProperty(cx, obj, name, &succeeded))
+    RootedValue rval(cx);
+    if (!JSObject::deleteProperty(cx, obj, name, &rval, strict))
         THROW();
-    if (strict && !succeeded) {
-        obj->reportNotConfigurable(cx, NameToId(name));
-        THROW();
-    }
 
-    f.regs.sp[-1] = BooleanValue(succeeded);
+    f.regs.sp[-1] = rval;
 }
 
 template void JS_FASTCALL stubs::DelProp<true>(VMFrame &f, PropertyName *name);
@@ -1402,22 +1396,10 @@ stubs::DelElem(VMFrame &f)
         THROW();
 
     const Value &propval = f.regs.sp[-1];
-    JSBool succeeded;
-    if (!JSObject::deleteByValue(cx, obj, propval, &succeeded))
-        THROW();
-    if (strict && !succeeded) {
-        // XXX This observably calls ToString(propval).  We should convert to
-        //     PropertyKey and use that to delete, and to report an error if
-        //     necessary -- but this code's all dying soon, so who cares?
-        RootedId id(cx);
-        if (!ValueToId<CanGC>(cx, propval, &id))
-            THROW();
-        obj->reportNotConfigurable(cx, id);
-        THROW();
-    }
-
     MutableHandleValue rval = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-2]);
-    rval.setBoolean(succeeded);
+
+    if (!JSObject::deleteByValue(cx, obj, propval, rval, strict))
+        THROW();
 }
 
 void JS_FASTCALL

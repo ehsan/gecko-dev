@@ -6,8 +6,3 @@
 
 MODULE = 'dom'
 
-EXPORTS += [
-    'nsGeoPosition.h',
-    'nsGeoPositionIPCSerialiser.h',
-]
-

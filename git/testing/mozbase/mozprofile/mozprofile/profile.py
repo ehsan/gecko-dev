@@ -11,7 +11,6 @@ import types
 import uuid
 from addons import AddonManager
 from permissions import Permissions
-from prefs import Preferences
 from shutil import copytree, rmtree
 from webapps import WebappCollection
 
@@ -135,8 +134,9 @@ class Profile(object):
         return c
 
     def create_new_profile(self):
-        """Create a new clean temporary profile which is a simple empty folder"""
-        return tempfile.mkdtemp(suffix='.mozrunner')
+        """Create a new clean profile in tmp which is a simple empty folder"""
+        profile = tempfile.mkdtemp(suffix='.mozrunner')
+        return profile
 
 
     ### methods for preferences
@@ -153,15 +153,18 @@ class Profile(object):
             # note what files we've touched
             self.written_prefs.add(filename)
 
-            # opening delimeter
-            f.write('\n%s\n' % self.delimeters[0])
+
+            if isinstance(preferences, dict):
+                # order doesn't matter
+                preferences = preferences.items()
 
             # write the preferences
-            Preferences.write(f, preferences)
-
-            # closing delimeter
+            f.write('\n%s\n' % self.delimeters[0])
+            _prefs = [(json.dumps(k), json.dumps(v) )
+                      for k, v in preferences]
+            for _pref in _prefs:
+                f.write('user_pref(%s, %s);\n' % _pref)
             f.write('%s\n' % self.delimeters[1])
-
         f.close()
 
     def pop_preferences(self, filename):

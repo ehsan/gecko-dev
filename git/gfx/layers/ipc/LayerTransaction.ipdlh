@@ -235,7 +235,7 @@ struct OpRaiseToTopChild  { PLayer container; PLayer childLayer; };
 
 // Paint (buffer update)
 struct OpPaintTiledLayerBuffer {
-  PCompositable compositable;
+  PLayer layer;
   // Bug 747811
   // FIXME: We need to support sharing tile across process.
   uintptr_t tiledLayerBuffer;
@@ -277,8 +277,6 @@ union CompositableOperation {
 
   OpPaintTexture;
   OpPaintTextureRegion;
-
-  OpPaintTiledLayerBuffer;
 };
 
 // A unit of a changeset; a set of these comprise a changeset
@@ -302,6 +300,7 @@ union Edit {
   OpAttachCompositable;
   OpAttachAsyncCompositable;
 
+  OpPaintTiledLayerBuffer;
   CompositableOperation;
 };
 

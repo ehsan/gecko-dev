@@ -33,8 +33,6 @@ class SourceSurface;
 }
 
 namespace dom {
-class TextMetrics;
-
 extern const mozilla::gfx::Float SIGMA_MAX;
 
 template<typename T> class Optional;
@@ -254,7 +252,7 @@ public:
   void StrokeText(const nsAString& text, double x, double y,
                   const mozilla::dom::Optional<double>& maxWidth,
                   mozilla::ErrorResult& error);
-  TextMetrics*
+  already_AddRefed<nsIDOMTextMetrics>
     MeasureText(const nsAString& rawText, mozilla::ErrorResult& error);
 
   void DrawImage(const HTMLImageOrCanvasOrVideoElement& image,

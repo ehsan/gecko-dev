@@ -66,7 +66,6 @@ public class testHistory extends PixelTest {
         mAsserter.isnot(mFirstChild, null, "Got history item");
         mSolo.clickOnView(mFirstChild);
         contentEventExpecter.blockForEvent();
-        contentEventExpecter.unregisterListener();
         verifyUrl(url3);
     }
 

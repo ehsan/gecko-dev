@@ -77,7 +77,7 @@ BluetoothServiceChildProcess::RegisterBluetoothSignalHandler(
                                               const nsAString& aNodeName,
                                               BluetoothSignalObserver* aHandler)
 {
-  if (gBluetoothChild && !IsSignalRegistered(aNodeName)) {
+  if (gBluetoothChild) {
     gBluetoothChild->SendRegisterSignalHandler(nsString(aNodeName));
   }
   BluetoothService::RegisterBluetoothSignalHandler(aNodeName, aHandler);
@@ -88,10 +88,10 @@ BluetoothServiceChildProcess::UnregisterBluetoothSignalHandler(
                                               const nsAString& aNodeName,
                                               BluetoothSignalObserver* aHandler)
 {
-  BluetoothService::UnregisterBluetoothSignalHandler(aNodeName, aHandler);
-  if (gBluetoothChild && !IsSignalRegistered(aNodeName)) {
+  if (gBluetoothChild) {
     gBluetoothChild->SendUnregisterSignalHandler(nsString(aNodeName));
   }
+  BluetoothService::UnregisterBluetoothSignalHandler(aNodeName, aHandler);
 }
 
 nsresult
@@ -359,13 +359,6 @@ BluetoothServiceChildProcess::StopInternal()
 {
   MOZ_NOT_REACHED("This should never be called!");
   return NS_ERROR_FAILURE;
-}
-
-bool
-BluetoothServiceChildProcess::IsEnabledInternal()
-{
-  MOZ_NOT_REACHED("This should never be called!");
-  return false;
 }
 
 bool

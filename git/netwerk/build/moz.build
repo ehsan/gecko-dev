@@ -6,7 +6,3 @@
 
 MODULE = 'necko'
 
-EXPORTS += [
-    'nsNetCID.h',
-]
-

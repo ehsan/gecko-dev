@@ -6,12 +6,3 @@
 
 MODULE = 'xpconnect'
 
-EXPORTS += [
-    'BackstagePass.h',
-    'GeneratedEvents.h',
-    'XPCJSMemoryReporter.h',
-    'qsObjectHelper.h',
-    'xpcObjectHelper.h',
-    'xpcpublic.h',
-]
-

@@ -20,7 +20,6 @@
 #include "nsICacheVisitor.h"
 #include "nsDiskCacheDevice.h"
 #include "nsDiskCacheDeviceSQL.h"
-#include "nsCacheUtils.h"
 
 #include "nsIObserverService.h"
 #include "nsIPrefService.h"
@@ -1255,7 +1254,7 @@ nsCacheService::Shutdown()
     }
 
     if (cacheIOThread)
-        nsShutdownThread::BlockingShutdown(cacheIOThread);
+        cacheIOThread->Shutdown();
 
     if (shouldSanitize) {
         nsresult rv = parentDir->AppendNative(NS_LITERAL_CSTRING("Cache"));

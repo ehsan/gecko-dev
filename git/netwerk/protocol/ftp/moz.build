@@ -12,12 +12,3 @@ XPIDL_MODULE = 'necko_ftp'
 
 MODULE = 'necko'
 
-EXPORTS += [
-    'ftpCore.h',
-]
-
-EXPORTS.mozilla.net += [
-    'FTPChannelChild.h',
-    'FTPChannelParent.h',
-]
-

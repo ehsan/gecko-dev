@@ -43,7 +43,6 @@
 
 using namespace mozilla;
 using namespace xpc;
-using namespace JS;
 
 /***************************************************************************/
 
@@ -1641,7 +1640,7 @@ ReportZoneStats(const JS::ZoneStats &zStats,
                       zStats.gcHeapIonCodes,
                       "Memory on the garbage-collected JavaScript "
                       "heap that holds references to executable code pools "
-                      "used by the IonMonkey JIT.");
+                      "used by IonMonkey.");
 
     ZCREPORT_BYTES(pathPrefix + NS_LITERAL_CSTRING("type-objects"),
                    zStats.typeObjects,
@@ -1860,20 +1859,18 @@ ReportCompartmentStats(const JS::CompartmentStats &cStats,
                    "Memory used by the JaegerMonkey JIT for compilation data: "
                    "JITScripts, native maps, and inline cache structs.");
 
-    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline/data"),
+    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline-data"),
                    cStats.baselineData,
                    "Memory used by the Baseline JIT for compilation data: "
                    "BaselineScripts.");
 
-    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline/stubs/fallback"),
-                   cStats.baselineStubsFallback,
-                   "Memory used by the Baseline JIT for fallback IC stubs "
-                   "(excluding code).");
+    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline-fallback-stubs"),
+                   cStats.baselineFallbackStubs,
+                   "Memory used by Baseline fallback IC stubs (excluding code).");
 
-    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline/stubs/optimized"),
-                   cStats.baselineStubsOptimized,
-                   "Memory used by the Baseline JIT for optimized IC stubs "
-                   "(excluding code).");
+    ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("baseline-optimized-stubs"),
+                   cStats.baselineOptimizedStubs,
+                   "Memory used by Baseline optimized IC stubs (excluding code).");
 
     ZCREPORT_BYTES(cJSPathPrefix + NS_LITERAL_CSTRING("ion-data"),
                    cStats.ionData,
@@ -2153,6 +2150,14 @@ class JSCompartmentsMultiReporter MOZ_FINAL : public nsIMemoryMultiReporter
 
         return NS_OK;
     }
+
+    NS_IMETHOD
+    GetExplicitNonHeap(int64_t *n)
+    {
+        // This reporter does neither "explicit" nor NONHEAP measurements.
+        *n = 0;
+        return NS_OK;
+    }
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(JSCompartmentsMultiReporter
@@ -2233,8 +2238,7 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
         JSCompartment *comp = js::GetAnyCompartmentInZone(zone);
         xpc::ZoneStatsExtras *extras = new xpc::ZoneStatsExtras;
         extras->pathPrefix.AssignLiteral("explicit/js-non-window/zones/");
-        RootedObject global(cx, JS_GetGlobalForCompartmentOrNull(cx, comp));
-        if (global) {
+        if (JSObject *global = JS_GetGlobalForCompartmentOrNull(cx, comp)) {
             // Need to enter the compartment, otherwise GetNativeOfWrapper()
             // might crash.
             JSAutoCompartment ac(cx, global);
@@ -2264,8 +2268,7 @@ class XPCJSRuntimeStats : public JS::RuntimeStats
         nsXPConnect *xpc = nsXPConnect::GetXPConnect();
         JSContext *cx = xpc->GetSafeJSContext();
         bool needZone = true;
-        RootedObject global(cx, JS_GetGlobalForCompartmentOrNull(cx, c));
-        if (global) {
+        if (JSObject *global = JS_GetGlobalForCompartmentOrNull(cx, c)) {
             // Need to enter the compartment, otherwise GetNativeOfWrapper()
             // might crash.
             JSAutoCompartment ac(cx, global);
@@ -2422,6 +2425,14 @@ JSMemoryMultiReporter::CollectReports(WindowPaths *windowPaths,
     return NS_OK;
 }
 
+nsresult
+JSMemoryMultiReporter::GetExplicitNonHeap(int64_t *n)
+{
+    JSRuntime *rt = nsXPConnect::GetRuntimeInstance()->GetJSRuntime();
+    *reinterpret_cast<int64_t*>(n) = JS::GetExplicitNonHeapForRuntime(rt, JsMallocSizeOf);
+    return NS_OK;
+}
+
 } // namespace xpc
 
 #ifdef MOZ_CRASHREPORTER
@@ -2498,14 +2509,13 @@ CompartmentNameCallback(JSRuntime *rt, JSCompartment *comp,
 bool XPCJSRuntime::gXBLScopesEnabled;
 
 static bool
-PreserveWrapper(JSContext *cx, JSObject *objArg)
+PreserveWrapper(JSContext *cx, JSObject *obj)
 {
     MOZ_ASSERT(cx);
-    MOZ_ASSERT(objArg);
-    MOZ_ASSERT(js::GetObjectClass(objArg)->ext.isWrappedNative ||
-               mozilla::dom::IsDOMObject(objArg));
+    MOZ_ASSERT(obj);
+    MOZ_ASSERT(js::GetObjectClass(obj)->ext.isWrappedNative ||
+               mozilla::dom::IsDOMObject(obj));
 
-    RootedObject obj(cx, objArg);
     XPCCallContext ccx(NATIVE_CALLER, cx);
     if (!ccx.IsValid())
         return false;
@@ -2816,9 +2826,8 @@ XPCJSRuntime::OnJSContextNew(JSContext *cx)
             // Scope the JSAutoRequest so it goes out of scope before calling
             // mozilla::dom::binding::DefineStaticJSVals.
             JSAutoRequest ar(cx);
-            RootedString str(cx);
             for (unsigned i = 0; i < IDX_TOTAL_COUNT; i++) {
-                str = JS_InternString(cx, mStrings[i]);
+                JSString* str = JS_InternString(cx, mStrings[i]);
                 if (!str || !JS_ValueToId(cx, STRING_TO_JSVAL(str), &mStrIDs[i])) {
                     mStrIDs[0] = JSID_VOID;
                     return false;
@@ -3010,12 +3019,12 @@ JSObject *
 XPCJSRuntime::GetJunkScope()
 {
     if (!mJunkScope) {
+        JS::Value v;
         SafeAutoJSContext cx;
         SandboxOptions options(cx);
         options.sandboxName.AssignASCII("XPConnect Junk Compartment");
         JSAutoRequest ac(cx);
-        RootedValue v(cx);
-        nsresult rv = xpc_CreateSandboxObject(cx, v.address(),
+        nsresult rv = xpc_CreateSandboxObject(cx, &v,
                                               nsContentUtils::GetSystemPrincipal(),
                                               options);
 

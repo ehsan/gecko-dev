@@ -14,6 +14,13 @@ LIBRARY_NAME	= prefetch_s
 LIBXUL_LIBRARY	= 1
 FAIL_ON_WARNINGS = 1
 
+EXPORTS_NAMESPACES = mozilla/docshell
+
+EXPORTS_mozilla/docshell += \
+  OfflineCacheUpdateParent.h \
+  OfflineCacheUpdateChild.h  \
+  $(NULL)
+
 CPPSRCS = \
 		nsPrefetchService.cpp \
 		nsOfflineCacheUpdate.cpp \
@@ -21,6 +28,10 @@ CPPSRCS = \
 		OfflineCacheUpdateGlue.cpp \
 		OfflineCacheUpdateChild.cpp \
 		OfflineCacheUpdateParent.cpp \
+		$(NULL)
+
+EXPORTS = \
+		nsCPrefetchService.h \
 		$(NULL)
 
 LOCAL_INCLUDES = \

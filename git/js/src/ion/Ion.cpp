@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -1287,8 +1288,7 @@ static const size_t BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 1 << 12;
 
 template <typename CompileContext>
 static AbortReason
-IonCompile(JSContext *cx, JSScript *script,
-           AbstractFramePtr fp, jsbytecode *osrPc, bool constructing,
+IonCompile(JSContext *cx, JSScript *script, JSFunction *fun, jsbytecode *osrPc, bool constructing,
            CompileContext &compileContext)
 {
 #if JS_TRACE_LOGGING
@@ -1297,9 +1297,6 @@ IonCompile(JSContext *cx, JSScript *script,
                         TraceLogging::ION_COMPILE_STOP,
                         script);
 #endif
-
-    if (!script->ensureRanAnalysis(cx))
-        return AbortReason_Alloc;
 
     LifoAlloc *alloc = cx->new_<LifoAlloc>(BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
     if (!alloc)
@@ -1320,10 +1317,14 @@ IonCompile(JSContext *cx, JSScript *script,
 
     MIRGraph *graph = alloc->new_<MIRGraph>(temp);
     ExecutionMode executionMode = compileContext.executionMode();
-    CompileInfo *info = alloc->new_<CompileInfo>(script, script->function(), osrPc, constructing,
+    CompileInfo *info = alloc->new_<CompileInfo>(script, fun, osrPc, constructing,
                                                  executionMode);
     if (!info)
         return AbortReason_Alloc;
+
+    TypeInferenceOracle oracle;
+    if (!oracle.init(cx, script, /* inlinedCall = */ false))
+        return AbortReason_Disable;
 
     BaselineInspector inspector(cx, script);
 
@@ -1335,7 +1336,7 @@ IonCompile(JSContext *cx, JSScript *script,
 
     AutoTempAllocatorRooter root(cx, temp);
 
-    IonBuilder *builder = alloc->new_<IonBuilder>(cx, temp, graph, &inspector, info, fp);
+    IonBuilder *builder = alloc->new_<IonBuilder>(cx, temp, graph, &oracle, &inspector, info);
     if (!builder)
         return AbortReason_Alloc;
 
@@ -1519,8 +1520,7 @@ CanIonCompileScript(JSContext *cx, HandleScript script)
 
 template <typename CompileContext>
 static MethodStatus
-Compile(JSContext *cx, HandleScript script,
-        AbstractFramePtr fp, jsbytecode *osrPc, bool constructing,
+Compile(JSContext *cx, HandleScript script, HandleFunction fun, jsbytecode *osrPc, bool constructing,
         CompileContext &compileContext)
 {
     JS_ASSERT(ion::IsEnabled(cx));
@@ -1571,7 +1571,7 @@ Compile(JSContext *cx, HandleScript script,
         }
     }
 
-    AbortReason reason = IonCompile(cx, script, fp, osrPc, constructing, compileContext);
+    AbortReason reason = IonCompile(cx, script, fun, osrPc, constructing, compileContext);
     if (reason == AbortReason_Disable)
         return Method_CantCompile;
 
@@ -1614,9 +1614,10 @@ ion::CanEnterAtBranch(JSContext *cx, JSScript *script, AbstractFramePtr fp,
     }
 
     // Attempt compilation. Returns Method_Compiled if already compiled.
+    RootedFunction fun(cx, fp.isFunctionFrame() ? fp.fun() : NULL);
     SequentialCompileContext compileContext;
     RootedScript rscript(cx, script);
-    MethodStatus status = Compile(cx, rscript, fp, pc, isConstructing, compileContext);
+    MethodStatus status = Compile(cx, rscript, fun, pc, isConstructing, compileContext);
     if (status != Method_Compiled) {
         if (status == Method_CantCompile)
             ForbidCompilation(cx, script);
@@ -1677,9 +1678,10 @@ ion::CanEnter(JSContext *cx, JSScript *script, AbstractFramePtr fp, bool isConst
     }
 
     // Attempt compilation. Returns Method_Compiled if already compiled.
+    RootedFunction fun(cx, fp.isFunctionFrame() ? fp.fun() : NULL);
     SequentialCompileContext compileContext;
     RootedScript rscript(cx, script);
-    MethodStatus status = Compile(cx, rscript, fp, NULL, isConstructing, compileContext);
+    MethodStatus status = Compile(cx, rscript, fun, NULL, isConstructing, compileContext);
     if (status != Method_Compiled) {
         if (status == Method_CantCompile)
             ForbidCompilation(cx, script);
@@ -1707,7 +1709,8 @@ ion::CompileFunctionForBaseline(JSContext *cx, HandleScript script, AbstractFram
 
     // Attempt compilation. Returns Method_Compiled if already compiled.
     SequentialCompileContext compileContext;
-    MethodStatus status = Compile(cx, script, fp, NULL, isConstructing, compileContext);
+    RootedFunction fun(cx, fp.fun());
+    MethodStatus status = Compile(cx, script, fun, NULL, isConstructing, compileContext);
     if (status != Method_Compiled) {
         if (status == Method_CantCompile)
             ForbidCompilation(cx, script);
@@ -1798,7 +1801,7 @@ ParallelCompileContext::compileTransitively()
         }
 
         // Attempt compilation. Returns Method_Compiled if already compiled.
-        MethodStatus status = Compile(cx_, script, AbstractFramePtr(), NULL, false, *this);
+        MethodStatus status = Compile(cx_, script, fun, NULL, false, *this);
         if (status != Method_Compiled) {
             if (status == Method_CantCompile)
                 ForbidCompilation(cx_, script, ParallelExecution);

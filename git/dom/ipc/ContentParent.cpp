@@ -29,7 +29,7 @@
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/PMemoryReportRequestParent.h"
 #include "mozilla/dom/power/PowerManagerService.h"
-#include "mozilla/dom/DOMStorageIPC.h"
+#include "mozilla/dom/StorageParent.h"
 #include "mozilla/dom/bluetooth/PBluetoothParent.h"
 #include "mozilla/dom/devicestorage/DeviceStorageRequestParent.h"
 #include "SmsParent.h"
@@ -1531,7 +1531,10 @@ ContentParent::Observe(nsISupports* aSubject,
         CopyUTF16toUTF8(aData, creason);
         DeviceStorageFile* file = static_cast<DeviceStorageFile*>(aSubject);
 
-        unused << SendFilePathUpdate(file->mStorageType, file->mPath, creason);
+        nsString path;
+        file->mFile->GetPath(path);
+
+        unused << SendFilePathUpdate(file->mStorageType, path, creason);
     }
 #ifdef MOZ_WIDGET_GONK
     else if(!strcmp(aTopic, NS_VOLUME_STATE_CHANGED)) {
@@ -1966,16 +1969,15 @@ ContentParent::DeallocPSms(PSmsParent* aSms)
 }
 
 PStorageParent*
-ContentParent::AllocPStorage()
+ContentParent::AllocPStorage(const StorageConstructData& aData)
 {
-    return new DOMStorageDBParent();
+    return new StorageParent(aData);
 }
 
 bool
 ContentParent::DeallocPStorage(PStorageParent* aActor)
 {
-    DOMStorageDBParent* child = static_cast<DOMStorageDBParent*>(aActor);
-    child->ReleaseIPDLReference();
+    delete aActor;
     return true;
 }
 
@@ -2346,11 +2348,15 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg,
 }
 
 bool
-ContentParent::RecvFilePathUpdateNotify(const nsString& aType,
-                                        const nsString& aFilePath,
-                                        const nsCString& aReason)
+ContentParent::RecvFilePathUpdateNotify(const nsString& aType, const nsString& aFilePath, const nsCString& aReason)
 {
-    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(aType, aFilePath);
+    nsCOMPtr<nsIFile> file;
+    nsresult rv = NS_NewLocalFile(aFilePath, false, getter_AddRefs(file));
+    if (NS_FAILED(rv)) {
+        // ignore
+        return true;
+    }
+    nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(aType, file);
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (!obs) {

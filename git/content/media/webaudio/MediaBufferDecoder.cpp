@@ -97,7 +97,7 @@ private:
   // GetReentrantMonitor correctly.
   ReentrantMonitor mReentrantMonitor;
   nsCOMPtr<nsIThread> mDecodeThread;
-  nsRefPtr<MediaResource> mResource;
+  nsAutoPtr<MediaResource> mResource;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS0(BufferDecoder)
@@ -389,7 +389,7 @@ MediaDecodeTask::CreateReader()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsRefPtr<BufferMediaResource> resource =
+  BufferMediaResource* resource =
     new BufferMediaResource(static_cast<uint8_t*> (mBuffer),
                             mLength, mPrincipal, mContentType);
 
@@ -418,9 +418,9 @@ MediaDecodeTask::Decode()
 {
   MOZ_ASSERT(!NS_IsMainThread());
 
-  mBufferDecoder->BeginDecoding(NS_GetCurrentThread());
-
   mDecoderReader->OnDecodeThreadStart();
+
+  mBufferDecoder->BeginDecoding(NS_GetCurrentThread());
 
   VideoInfo videoInfo;
   nsAutoPtr<MetadataTags> tags;
@@ -591,7 +591,7 @@ WebAudioDecodeJob::FinalizeBufferData()
   MOZ_ASSERT(mOutput);
   MOZ_ASSERT(mChannels == mChannelBuffers.Length());
 
-  AutoPushJSContext cx(mContext->GetJSContext());
+  AutoPushJSContext cx(GetJSContext());
   if (!cx) {
     return false;
   }
@@ -603,6 +603,20 @@ WebAudioDecodeJob::FinalizeBufferData()
   return true;
 }
 
+JSContext*
+WebAudioDecodeJob::GetJSContext() const
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  nsCOMPtr<nsIScriptGlobalObject> scriptGlobal =
+    do_QueryInterface(mContext->GetParentObject());
+  nsIScriptContext* scriptContext = scriptGlobal->GetContext();
+  if (!scriptContext) {
+    return nullptr;
+  }
+  return scriptContext->GetNativeContext();
+}
+
 bool
 WebAudioDecodeJob::AllocateBuffer()
 {
@@ -610,7 +624,7 @@ WebAudioDecodeJob::AllocateBuffer()
   MOZ_ASSERT(NS_IsMainThread());
 
   // First, get a JSContext
-  AutoPushJSContext cx(mContext->GetJSContext());
+  AutoPushJSContext cx(GetJSContext());
   if (!cx) {
     return false;
   }

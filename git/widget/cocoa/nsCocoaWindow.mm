@@ -1344,7 +1344,7 @@ nsresult nsCocoaWindow::DoResize(double aX, double aY,
   int32_t height = NSToIntRound(aHeight * scale);
   ConstrainSize(&width, &height);
 
-  nsIntRect newBounds(NSToIntRound(aX), NSToIntRound(aY),
+  nsIntRect newBounds(aX, aY,
                       NSToIntRound(width / scale),
                       NSToIntRound(height / scale));
 
@@ -2901,8 +2901,6 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   } else {
     [borderView setNeedsDisplayInRect:rect];
   }
-
-  [[self mainChildView] maybeDrawInTitlebar];
 }
 
 - (NSRect)titlebarRect

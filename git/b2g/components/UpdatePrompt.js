@@ -415,7 +415,7 @@ UpdatePrompt.prototype = {
         // for the user to press Later or Install Now. In this situation we
         // don't want to clear this._update, becuase handleApplyPromptResult
         // needs it.
-        if (this._applyPromptTimer == null && !this._waitingForIdle) {
+        if (this._applyPromptTimer == null) {
           this._update = null;
         }
         break;

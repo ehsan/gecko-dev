@@ -8,10 +8,3 @@ TOOL_DIRS += ['app']
 
 MODULE = 'ipdlunittest'
 
-EXPORTS.mozilla._ipdltest += [
-    'IPDLUnitTestProcessChild.h',
-    'IPDLUnitTestTypes.h',
-    'IPDLUnitTestUtils.h',
-    'IPDLUnitTests.h',
-]
-

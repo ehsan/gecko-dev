@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
+/* vim: set ts=4 sw=4 et tw=99: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -1744,34 +1744,6 @@ inline
 Property::Property(const Property &o)
   : id(o.id.get()), types(o.types)
 {
-}
-
-inline bool
-HasOperationOverflowed(JSScript *script, jsbytecode *pc)
-{
-    types::TypeResult *result = script->types->dynamicList;
-    while (result) {
-        if (result->offset == uint32_t(pc - script->code)) {
-            if (result->type == types::Type::DoubleType())
-                return true;
-        }
-        result = result->next;
-    }
-    return false;
-}
-
-inline bool
-IterationValuesMustBeStrings(JSScript *script)
-{
-    // Return true if no custom non-string-producing iterators have been used
-    // in a 'for in' loop within the script.
-    types::TypeResult *result = script->types->dynamicList;
-    while (result) {
-        if (result->offset == UINT32_MAX)
-            return false;
-        result = result->next;
-    }
-    return true;
 }
 
 } } /* namespace js::types */

@@ -68,7 +68,7 @@ static inline nsresult RUN_ON_THREAD(nsIEventTarget *thread, runnable_args_base 
   return RUN_ON_THREAD(thread, static_cast<nsIRunnable *>(runnable), flags);
 }
 
-#ifdef DEBUG
+#ifdef MOZ_DEBUG
 #define ASSERT_ON_THREAD(t) do {                \
     if (t) {                                    \
       bool on;                                    \

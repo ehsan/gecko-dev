@@ -6,8 +6,3 @@
 
 MODULE = 'libpixman'
 
-EXPORTS += [
-    'pixman-version.h',
-    'pixman.h',
-]
-

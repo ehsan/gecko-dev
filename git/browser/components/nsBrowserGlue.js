@@ -32,9 +32,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "BookmarkHTMLUtils",
                                   "resource://gre/modules/BookmarkHTMLUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "BookmarkJSONUtils",
-                                  "resource://gre/modules/BookmarkJSONUtils.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "webappsUI",
                                   "resource:///modules/webappsUI.jsm");
 
@@ -61,10 +58,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
 
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
-                                  "resource://gre/modules/PlacesBackups.jsm");
-
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -935,10 +928,10 @@ BrowserGlue.prototype = {
       // from bookmarks.html, we will try to restore from JSON
       if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
         // get latest JSON backup
-        var bookmarksBackupFile = PlacesBackups.getMostRecent("json");
+        var bookmarksBackupFile = PlacesUtils.backups.getMostRecent("json");
         if (bookmarksBackupFile) {
           // restore from JSON backup
-          yield BookmarkJSONUtils.importFromFile(bookmarksBackupFile, true);
+          PlacesUtils.restoreBookmarksFromJSONFile(bookmarksBackupFile);
           importBookmarks = false;
         }
         else {
@@ -1038,8 +1031,6 @@ BrowserGlue.prototype = {
         this._idleService.addIdleObserver(this, BOOKMARKS_BACKUP_IDLE_TIME);
         this._isIdleObserver = true;
       }
-
-      Services.obs.notifyObservers(null, "places-browser-init-complete", "");
     }.bind(this));
   },
 
@@ -1106,12 +1097,12 @@ BrowserGlue.prototype = {
    * @return true if bookmarks should be backed up, false if not.
    */
   _shouldBackupBookmarks: function BG__shouldBackupBookmarks() {
-    let lastBackupFile = PlacesBackups.getMostRecent();
+    let lastBackupFile = PlacesUtils.backups.getMostRecent();
 
     // Should backup bookmarks if there are no backups or the maximum interval between
     // backups elapsed.
     return (!lastBackupFile ||
-            new Date() - PlacesBackups.getDateForFile(lastBackupFile) > BOOKMARKS_BACKUP_INTERVAL);
+            new Date() - PlacesUtils.backups.getDateForFile(lastBackupFile) > BOOKMARKS_BACKUP_INTERVAL);
   },
 
   /**
@@ -1127,7 +1118,7 @@ BrowserGlue.prototype = {
       }
       catch(ex) { /* Use default. */ }
 
-      yield PlacesBackups.create(maxBackups); // Don't force creation.
+      yield PlacesUtils.backups.create(maxBackups); // Don't force creation.
     });
   },
 

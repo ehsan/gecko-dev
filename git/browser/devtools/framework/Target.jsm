@@ -275,31 +275,25 @@ TabTarget.prototype = {
 
     this._setupRemoteListeners();
 
-    let attachTab = () => {
-      this._client.attachTab(this._form.actor, (aResponse, aTabClient) => {
-        if (!aTabClient) {
-          this._remote.reject("Unable to attach to the tab");
-          return;
-        }
-        this.threadActor = aResponse.threadActor;
-        this._remote.resolve(null);
-      });
-    };
-
-    if (this.isLocalTab) {
+    if (this.isRemote) {
+      // In the remote debugging case, the protocol connection will have been
+      // already initialized in the connection screen code.
+      this._remote.resolve(null);
+    } else {
       this._client.connect((aType, aTraits) => {
         this._client.listTabs(aResponse => {
           this._form = aResponse.tabs[aResponse.selected];
-          attachTab();
+
+          this._client.attachTab(this._form.actor, (aResponse, aTabClient) => {
+            if (!aTabClient) {
+              this._remote.reject("Unable to attach to the tab");
+              return;
+            }
+            this.threadActor = aResponse.threadActor;
+            this._remote.resolve(null);
+          });
         });
       });
-    } else if (!this.chrome) {
-      // In the remote debugging case, the protocol connection will have been
-      // already initialized in the connection screen code.
-      attachTab();
-    } else {
-      // Remote chrome debugging doesn't need anything at this point.
-      this._remote.resolve(null);
     }
 
     return this._remote.promise;
@@ -326,18 +320,15 @@ TabTarget.prototype = {
       let event = Object.create(null);
       event.url = aPacket.url;
       event.title = aPacket.title;
-      event.nativeConsoleAPI = aPacket.nativeConsoleAPI;
       // Send any stored event payload (DOMWindow or nsIRequest) for backwards
       // compatibility with non-remotable tools.
+      event._navPayload = this._navPayload;
       if (aPacket.state == "start") {
-        event._navPayload = this._navRequest;
         this.emit("will-navigate", event);
-        this._navRequest = null;
       } else {
-        event._navPayload = this._navWindow;
         this.emit("navigate", event);
-        this._navWindow = null;
       }
+      this._navPayload = null;
     }.bind(this);
     this.client.addListener("tabNavigated", this._onTabNavigated);
   },
@@ -476,7 +467,7 @@ TabWebProgressListener.prototype = {
       // Emit the event if the target is not remoted or store the payload for
       // later emission otherwise.
       if (this.target._client) {
-        this.target._navRequest = request;
+        this.target._navPayload = request;
       } else {
         this.target.emit("will-navigate", request);
       }
@@ -494,7 +485,7 @@ TabWebProgressListener.prototype = {
       // Emit the event if the target is not remoted or store the payload for
       // later emission otherwise.
       if (this.target._client) {
-        this.target._navWindow = window;
+        this.target._navPayload = window;
       } else {
         this.target.emit("navigate", window);
       }
@@ -509,8 +500,6 @@ TabWebProgressListener.prototype = {
       this.target.tab.linkedBrowser.removeProgressListener(this);
     }
     this.target._webProgressListener = null;
-    this.target._navRequest = null;
-    this.target._navWindow = null;
     this.target = null;
   }
 };

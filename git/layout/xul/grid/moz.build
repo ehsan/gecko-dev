@@ -6,15 +6,3 @@
 
 MODULE = 'layout'
 
-EXPORTS += [
-    'nsGrid.h',
-    'nsGridCell.h',
-    'nsGridLayout2.h',
-    'nsGridRow.h',
-    'nsGridRowGroupLayout.h',
-    'nsGridRowLayout.h',
-    'nsGridRowLeafFrame.h',
-    'nsGridRowLeafLayout.h',
-    'nsIGridPart.h',
-]
-

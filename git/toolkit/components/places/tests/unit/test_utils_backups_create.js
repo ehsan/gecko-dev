@@ -33,7 +33,7 @@ function run_test() {
   dates.sort();
 
   // Get and cleanup the backups folder.
-  var bookmarksBackupDir = PlacesBackups.folder;
+  var bookmarksBackupDir = PlacesUtils.backups.folder;
 
   // Fake backups are created backwards to ensure we won't consider file
   // creation time.
@@ -58,7 +58,7 @@ function run_test() {
   }
 
   Task.spawn(function() {
-    yield PlacesBackups.create(Math.floor(dates.length/2));
+    yield PlacesUtils.backups.create(Math.floor(dates.length/2));
     // Add today's backup.
     dates.push(dateObj.toLocaleFormat("%Y-%m-%d"));
 
@@ -84,7 +84,7 @@ function run_test() {
     bookmarksBackupDir.remove(true);
     do_check_false(bookmarksBackupDir.exists());
     // Recreate the folder.
-    PlacesBackups.folder;
+    PlacesUtils.backups.folder;
 
     do_test_finished();
   });

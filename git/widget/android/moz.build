@@ -12,9 +12,3 @@ XPIDL_MODULE = 'widget_android'
 
 MODULE = 'widget'
 
-EXPORTS += [
-    'AndroidBridge.h',
-    'AndroidJNIWrapper.h',
-    'AndroidJavaWrappers.h',
-]
-

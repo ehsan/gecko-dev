@@ -17,7 +17,7 @@
   <script type="text/javascript" src="netmonitor-controller.js"/>
   <script type="text/javascript" src="netmonitor-view.js"/>
 
-  <box id="body" flex="1" class="devtools-responsive-container">
+  <hbox id="body" flex="1">
     <vbox id="network-table" flex="1">
       <toolbar id="requests-menu-toolbar"
                class="devtools-toolbar"
@@ -46,7 +46,7 @@
                class="plain requests-menu-header requests-menu-waterfall"
                value="&netmonitorUI.toolbar.waterfall;"
                crop="end"/>
-        <spacer id="toolbar-spacer" flex="1"/>
+        <spacer flex="1"/>
         <toolbarbutton id="details-pane-toggle"
                        class="devtools-toolbarbutton"
                        tooltiptext="&netmonitorUI.panesButton.tooltip;"
@@ -262,6 +262,6 @@
         </tabpanel>
       </tabpanels>
     </tabbox>
-  </box>
+  </hbox>
 
 </window>

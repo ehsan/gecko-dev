@@ -35,11 +35,6 @@ interface AudioContext {
     [Creator]
     AudioBufferSourceNode createBufferSource();
 
-    [Creator, Throws]
-    ScriptProcessorNode createScriptProcessor(optional unsigned long bufferSize = 0,
-                                              optional unsigned long numberOfInputChannels = 2,
-                                              optional unsigned long numberOfOutputChannels = 2);
-
     [Creator]
     AnalyserNode createAnalyser();
     [Creator]
@@ -71,10 +66,10 @@ partial interface AudioContext {
     DelayNode createDelayNode(optional double maxDelayTime = 1);
 
     // Same as createScriptProcessor()
-    [Creator, Throws]
-    ScriptProcessorNode createJavaScriptNode(optional unsigned long bufferSize = 0,
-                                             optional unsigned long numberOfInputChannels = 2,
-                                             optional unsigned long numberOfOutputChannels = 2);
+    // [Creator]
+    // ScriptProcessorNode createJavaScriptNode(unsigned long bufferSize,
+    //                                          optional unsigned long numberOfInputChannels = 2,
+    //                                          optional unsigned long numberOfOutputChannels = 2);
 };
 
 

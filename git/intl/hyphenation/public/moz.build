@@ -6,8 +6,3 @@
 
 MODULE = 'hyphenation'
 
-EXPORTS += [
-    'nsHyphenationManager.h',
-    'nsHyphenator.h',
-]
-

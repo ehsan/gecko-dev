@@ -25,10 +25,6 @@ let gGestureSupport = {
    *        True to add/init listeners and false to remove/uninit
    */
   init: function GS_init(aAddListener) {
-    // Bug 863514 - Make gesture support work in electrolysis
-    if (gMultiProcessBrowser)
-      return;
-
     const gestureEvents = ["SwipeGestureStart",
       "SwipeGestureUpdate", "SwipeGestureEnd", "SwipeGesture",
       "MagnifyGestureStart", "MagnifyGestureUpdate", "MagnifyGesture",
@@ -196,17 +192,15 @@ let gGestureSupport = {
                                           aEvent.DIRECTION_LEFT;
 
     let isVerticalSwipe = false;
-    if (gHistorySwipeAnimation.active) {
-      if (aEvent.direction == aEvent.DIRECTION_UP) {
-        isVerticalSwipe = true;
-        // Force a synchronous scroll to the top of the page.
-        content.scrollTo(content.scrollX, 0);
-      }
-      else if (aEvent.direction == aEvent.DIRECTION_DOWN) {
-        isVerticalSwipe = true;
-        // Force a synchronous scroll to the bottom of the page.
-        content.scrollTo(content.scrollX, content.scrollMaxY);
-      }
+    if (aEvent.direction == aEvent.DIRECTION_UP) {
+      isVerticalSwipe = true;
+      // Force a synchronous scroll to the top of the page.
+      content.scrollTo(content.scrollX, 0);
+    }
+    else if (aEvent.direction == aEvent.DIRECTION_DOWN) {
+      isVerticalSwipe = true;
+      // Force a synchronous scroll to the bottom of the page.
+      content.scrollTo(content.scrollX, content.scrollMaxY);
     }
 
     gHistorySwipeAnimation.startAnimation(isVerticalSwipe);
@@ -505,10 +499,6 @@ let gGestureSupport = {
    * image
    */
   restoreRotationState: function() {
-    // Bug 863514 - Make gesture support work in electrolysis
-    if (gMultiProcessBrowser)
-      return;
-
     if (!(content.document instanceof ImageDocument))
       return;
 

@@ -6,7 +6,3 @@
 
 MODULE = 'ucvtw2'
 
-EXPORTS += [
-    'nsUCvTW2CID.h',
-]
-

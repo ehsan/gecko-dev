@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -37,7 +38,7 @@ static const char *ChannelNames[] =
 };
 
 static bool
-FilterContainsLocation(HandleScript function)
+FilterContainsLocation(const char *filename, const size_t line = size_t(-1))
 {
     static const char *filter = getenv("IONFILTER");
 
@@ -45,12 +46,6 @@ FilterContainsLocation(HandleScript function)
     if (!filter || !filter[0])
         return true;
 
-    // Disable asm.js output when filter is set.
-    if (!function)
-        return false;
-
-    const char *filename = function->filename();
-    const size_t line = function->lineno;
     static size_t filelen = strlen(filename);
     const char *index = strstr(filter, filename);
     while (index) {
@@ -139,7 +134,7 @@ IonSpewer::beginFunction(MIRGraph *graph, HandleScript function)
     if (!inited_)
         return;
 
-    if (!FilterContainsLocation(function)) {
+    if (!FilterContainsLocation(function->filename(), function->lineno)) {
         JS_ASSERT(!this->graph);
         // filter out logs during the compilation.
         filteredOutCompilations++;

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -302,12 +303,12 @@ LIRGeneratorARM::newLGetPropertyCacheT(MGetPropertyCache *ins)
 }
 
 bool
-LIRGeneratorARM::visitGuardShapeOrType(MGuardShapeOrType *ins)
+LIRGeneratorARM::visitGuardShape(MGuardShape *ins)
 {
     JS_ASSERT(ins->obj()->type() == MIRType_Object);
 
     LDefinition tempObj = temp(LDefinition::OBJECT);
-    LGuardShapeOrType *guard = new LGuardShapeOrType(useRegister(ins->obj()), tempObj);
+    LGuardShape *guard = new LGuardShape(useRegister(ins->obj()), tempObj);
     if (!assignSnapshot(guard, ins->bailoutKind()))
         return false;
     if (!add(guard, ins))
@@ -436,15 +437,6 @@ bool
 LIRGeneratorARM::visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins)
 {
     return define(new LAsmJSLoadFuncPtr(useRegister(ins->index()), temp()), ins);
-}
-
-bool
-LIRGeneratorARM::lowerTruncateDToInt32(MTruncateToInt32 *ins)
-{
-    MDefinition *opd = ins->input();
-    JS_ASSERT(opd->type() == MIRType_Double);
-
-    return define(new LTruncateDToInt32(useRegister(opd), LDefinition::BogusTemp()), ins);
 }
 
 //__aeabi_uidiv

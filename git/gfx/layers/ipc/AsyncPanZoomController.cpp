@@ -1473,7 +1473,6 @@ void AsyncPanZoomController::SetState(PanZoomState aState) {
 }
 
 void AsyncPanZoomController::TimeoutTouchListeners() {
-  mTouchListenerTimeoutTask = nullptr;
   ContentReceivedTouch(false);
 }
 

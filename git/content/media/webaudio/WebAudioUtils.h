@@ -9,7 +9,6 @@
 
 #include <cmath>
 #include "AudioParamTimeline.h"
-#include "MediaSegment.h"
 
 namespace mozilla {
 
@@ -61,14 +60,6 @@ struct WebAudioUtils {
   }
 
   /**
-   * Converts a decibel value to a linear value.
-   */
-  static float ConvertDecibelsToLinear(float aDecibels)
-  {
-    return std::pow(10.0f, 0.05f * aDecibels);
-  }
-
-  /**
    * Converts a decibel to a linear value.
    */
   static float ConvertDecibelToLinear(float aDecibel)
@@ -82,19 +73,6 @@ struct WebAudioUtils {
       aDouble = 0.0;
     }
   }
-
-  static double DiscreteTimeConstantForSampleRate(double timeConstant, double sampleRate)
-  {
-    return 1.0 - std::exp(-1.0 / (sampleRate * timeConstant));
-  }
-
-  /**
-   * Convert a stream position into the time coordinate of the destination
-   * stream.
-   */
-  static double StreamPositionToDestinationTime(TrackTicks aSourcePosition,
-                                                AudioNodeStream* aSource,
-                                                AudioNodeStream* aDestination);
 };
 
 }

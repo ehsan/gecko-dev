@@ -199,13 +199,6 @@ struct BidiParagraphData {
     }
   }
 
-  void ResetForNewBlock()
-  {
-    for (BidiParagraphData* bpd = this; bpd; bpd = bpd->mSubParagraph) {
-      bpd->mPrevFrame = nullptr;
-    }
-  }
-
   void AppendFrame(nsIFrame* aFrame,
                    nsBlockInFlowLineIterator* aLineIter,
                    nsIContent* aContent = nullptr)
@@ -610,7 +603,8 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
        block = static_cast<nsBlockFrame*>(block->GetNextContinuation())) {
     block->RemoveStateBits(NS_BLOCK_NEEDS_BIDI_RESOLUTION);
     nsBlockInFlowLineIterator lineIter(block, block->begin_lines());
-    bpd.ResetForNewBlock();
+    bpd.mPrevFrame = nullptr;
+    bpd.GetSubParagraph()->mPrevFrame = nullptr;
     TraverseFrames(aBlockFrame, &lineIter, block->GetFirstPrincipalChild(), &bpd);
     // XXX what about overflow lines?
   }
@@ -926,10 +920,6 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
   if (!aCurrentFrame)
     return;
 
-#ifdef DEBUG
-  nsBlockFrame* initialLineContainer = aLineIter->GetContainer();
-#endif
-
   nsIFrame* childFrame = aCurrentFrame;
   do {
     /*
@@ -1175,8 +1165,6 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
     }
     childFrame = nextSibling;
   } while (childFrame);
-
-  MOZ_ASSERT(initialLineContainer == aLineIter->GetContainer());
 }
 
 void

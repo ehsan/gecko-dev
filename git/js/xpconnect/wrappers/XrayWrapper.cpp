@@ -42,7 +42,7 @@ namespace XrayUtils {
 JSClass HolderClass = {
     "NativePropertyHolder",
     JSCLASS_HAS_RESERVED_SLOTS(2),
-    JS_PropertyStub,        JS_DeletePropertyStub, holder_get,      holder_set,
+    JS_PropertyStub,        JS_PropertyStub, holder_get,      holder_set,
     JS_EnumerateStub,       JS_ResolveStub,  JS_ConvertStub
 };
 }
@@ -320,7 +320,7 @@ ExpandoObjectFinalize(JSFreeOp *fop, JSObject *obj)
 JSClass ExpandoObjectClass = {
     "XrayExpandoObject",
     JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_EXPANDO_COUNT),
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, ExpandoObjectFinalize
 };
 
@@ -362,11 +362,11 @@ XrayTraits::expandoObjectMatchesConsumer(JSContext *cx,
 JSObject *
 XrayTraits::getExpandoObjectInternal(JSContext *cx, HandleObject target,
                                      nsIPrincipal *origin,
-                                     JSObject *exclusiveGlobalArg)
+                                     JSObject *exclusiveGlobal_)
 {
     // The expando object lives in the compartment of the target, so all our
     // work needs to happen there.
-    RootedObject exclusiveGlobal(cx, exclusiveGlobalArg);
+    RootedObject exclusiveGlobal(cx, exclusiveGlobal_);
     JSAutoCompartment ac(cx, target);
     if (!JS_WrapObject(cx, exclusiveGlobal.address()))
         return NULL;
@@ -477,10 +477,10 @@ XrayTraits::cloneExpandoChain(JSContext *cx, HandleObject dst, HandleObject src)
 }
 
 namespace XrayUtils {
-bool CloneExpandoChain(JSContext *cx, JSObject *dstArg, JSObject *srcArg)
+bool CloneExpandoChain(JSContext *cx, JSObject *dst_, JSObject *src_)
 {
-    RootedObject dst(cx, dstArg);
-    RootedObject src(cx, srcArg);
+    RootedObject dst(cx, dst_);
+    RootedObject src(cx, src_);
     return GetXrayTraits(src)->cloneExpandoChain(cx, dst, src);
 }
 }
@@ -756,8 +756,7 @@ XPCWrappedNativeXrayTraits::resolveNativeProperty(JSContext *cx, HandleObject wr
     desc->obj = NULL;
 
     // This will do verification and the method lookup for us.
-    RootedObject target(cx, getTargetObject(wrapper));
-    XPCCallContext ccx(JS_CALLER, cx, target, NullPtr(), id);
+    XPCCallContext ccx(JS_CALLER, cx, getTargetObject(wrapper), nullptr, id);
 
     // There are no native numeric properties, so we can shortcut here. We will
     // not find the property. However we want to support non shadowing dom
@@ -1116,8 +1115,8 @@ XPCWrappedNativeXrayTraits::call(JSContext *cx, HandleObject wrapper,
     // Run the resolve hook of the wrapped native.
     XPCWrappedNative *wn = getWN(wrapper);
     if (NATIVE_HAS_FLAG(wn, WantCall)) {
-        XPCCallContext ccx(JS_CALLER, cx, wrapper, NullPtr(), JSID_VOIDHANDLE, args.length(),
-                           args.array(), args.rval().address());
+        XPCCallContext ccx(JS_CALLER, cx, wrapper, nullptr, JSID_VOID, args.length(), args.array(),
+                           args.rval().address());
         if (!ccx.IsValid())
             return false;
         bool ok = true;
@@ -1141,8 +1140,8 @@ XPCWrappedNativeXrayTraits::construct(JSContext *cx, HandleObject wrapper,
     // Run the resolve hook of the wrapped native.
     XPCWrappedNative *wn = getWN(wrapper);
     if (NATIVE_HAS_FLAG(wn, WantConstruct)) {
-        XPCCallContext ccx(JS_CALLER, cx, wrapper, NullPtr(), JSID_VOIDHANDLE, args.length(),
-                           args.array(), args.rval().address());
+        XPCCallContext ccx(JS_CALLER, cx, wrapper, nullptr, JSID_VOID, args.length(), args.array(),
+                           args.rval().address());
         if (!ccx.IsValid())
             return false;
         bool ok = true;

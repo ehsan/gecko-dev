@@ -8,11 +8,3 @@ TEST_DIRS += ['test']
 
 MODULE = 'layout'
 
-EXPORTS += [
-    'nsIComboboxControlFrame.h',
-    'nsIFormControlFrame.h',
-    'nsIListControlFrame.h',
-    'nsISelectControlFrame.h',
-    'nsITextControlFrame.h',
-]
-

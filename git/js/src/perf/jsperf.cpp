@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -91,7 +91,7 @@ pm_canMeasureSomething(JSContext* cx, unsigned /*unused*/, jsval* vp)
 }
 
 const uint8_t PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT;
-static const JSFunctionSpec pm_fns[] = {
+static JSFunctionSpec pm_fns[] = {
     JS_FN("start",               pm_start,               0, PM_FATTRS),
     JS_FN("stop",                pm_stop,                0, PM_FATTRS),
     JS_FN("reset",               pm_reset,               0, PM_FATTRS),
@@ -105,7 +105,7 @@ const uint8_t PM_PATTRS =
 #define GETTER(name)                            \
     { #name, 0, PM_PATTRS, JSOP_WRAPPER(pm_get_##name), JSOP_NULLWRAPPER }
 
-static const JSPropertySpec pm_props[] = {
+static JSPropertySpec pm_props[] = {
     GETTER(cpu_cycles),
     GETTER(instructions),
     GETTER(cache_references),
@@ -156,7 +156,7 @@ static void pm_finalize(JSFreeOp* fop, JSObject* obj);
 
 static JSClass pm_class = {
     "PerfMeasurement", JSCLASS_HAS_PRIVATE,
-    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, pm_finalize
 };
 

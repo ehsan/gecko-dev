@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -222,34 +223,10 @@ ion::ParallelAbort(JSScript *script)
 void
 ion::ParCallToUncompiledScript(JSFunction *func)
 {
-    static const int max_bound_function_unrolling = 5;
-
     JS_ASSERT(InParallelSection());
 
 #ifdef DEBUG
-    if (func->hasScript()) {
-        JSScript *script = func->nonLazyScript();
-        Spew(SpewBailouts, "Call to uncompiled script: %p:%s:%d",
-             script, script->filename(), script->lineno);
-    } else if (func->isBoundFunction()) {
-        int depth = 0;
-        JSFunction *target = func->getBoundFunctionTarget()->toFunction();
-        while (depth < max_bound_function_unrolling) {
-            if (target->hasScript())
-                break;
-            if (target->isBoundFunction())
-                target = target->getBoundFunctionTarget()->toFunction();
-            depth--;
-        }
-        if (target->hasScript()) {
-            JSScript *script = target->nonLazyScript();
-            Spew(SpewBailouts, "Call to bound function leading (depth: %d) to script: %p:%s:%d",
-                 depth, script, script->filename(), script->lineno);
-        } else {
-            Spew(SpewBailouts, "Call to bound function (excessive depth: %d)", depth);
-        }
-    } else {
-        JS_NOT_REACHED("ParCall'ed functions must have scripts or be ES6 bound functions.");
-    }
+    RawScript script = func->nonLazyScript();
+    Spew(SpewBailouts, "Call to uncompiled script: %p:%s:%d", script, script->filename(), script->lineno);
 #endif
 }

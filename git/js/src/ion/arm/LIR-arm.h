@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,7 +8,7 @@
 #ifndef jsion_lir_arm_h__
 #define jsion_lir_arm_h__
 
-#include "ion/LIR.h"
+#include "ion/TypeOracle.h"
 
 namespace js {
 namespace ion {
@@ -263,17 +264,17 @@ class LTableSwitchV : public LInstructionHelper<0, BOX_PIECES, 2>
 };
 
 // Guard against an object's shape.
-class LGuardShapeOrType : public LInstructionHelper<0, 1, 1>
+class LGuardShape : public LInstructionHelper<0, 1, 1>
 {
   public:
-    LIR_HEADER(GuardShapeOrType);
+    LIR_HEADER(GuardShape);
 
-    LGuardShapeOrType(const LAllocation &in, const LDefinition &temp) {
+    LGuardShape(const LAllocation &in, const LDefinition &temp) {
         setOperand(0, in);
         setTemp(0, temp);
     }
-    const MGuardShapeOrType *mir() const {
-        return mir_->toGuardShapeOrType();
+    const MGuardShape *mir() const {
+        return mir_->toGuardShape();
     }
     const LAllocation *tempInt() {
         return getTemp(0)->output();

@@ -48,21 +48,21 @@ class WrapperFactory {
 
     // Prepare a given object for wrapping in a new compartment.
     static JSObject *PrepareForWrapping(JSContext *cx,
-                                        JS::HandleObject scope,
-                                        JS::HandleObject obj,
+                                        JSObject *scope,
+                                        JSObject *obj,
                                         unsigned flags);
 
     // Rewrap an object that is about to cross compartment boundaries.
     static JSObject *Rewrap(JSContext *cx,
-                            JS::HandleObject existing,
-                            JS::HandleObject obj,
-                            JS::HandleObject wrappedProto,
-                            JS::HandleObject parent,
+                            JSObject *existing,
+                            JSObject *obj,
+                            JSObject *wrappedProto,
+                            JSObject *parent,
                             unsigned flags);
 
     // Wrap an object for same-compartment access.
     static JSObject *WrapForSameCompartment(JSContext *cx,
-                                            JS::HandleObject obj);
+                                            JSObject *obj);
 
     // Wrap wrapped object into a waiver wrapper and then re-wrap it.
     static bool WaiveXrayAndWrap(JSContext *cx, jsval *vp);

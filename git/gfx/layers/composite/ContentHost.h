@@ -39,8 +39,8 @@ public:
 #endif
 
 protected:
-  ContentHost(const TextureInfo& aTextureInfo)
-    : CompositableHost(aTextureInfo)
+  ContentHost(const TextureInfo& aTextureInfo, Compositor* aCompositor)
+    : CompositableHost(aTextureInfo, aCompositor)
   {}
 };
 
@@ -61,7 +61,7 @@ public:
   typedef ThebesLayerBuffer::ContentType ContentType;
   typedef ThebesLayerBuffer::PaintState PaintState;
 
-  ContentHostBase(const TextureInfo& aTextureInfo);
+  ContentHostBase(const TextureInfo& aTextureInfo, Compositor* aCompositor);
   ~ContentHostBase();
 
   virtual void Composite(EffectChain& aEffectChain,
@@ -125,7 +125,6 @@ protected:
   // the old one which might still be used for compositing. So we store it
   // here and move it to mTextureHost once we do the first buffer swap.
   RefPtr<TextureHost> mNewFrontHost;
-  RefPtr<TextureHost> mNewFrontHostOnWhite;
   bool mPaintWillResample;
   bool mInitialised;
 };
@@ -136,8 +135,9 @@ protected:
 class ContentHostDoubleBuffered : public ContentHostBase
 {
 public:
-  ContentHostDoubleBuffered(const TextureInfo& aTextureInfo)
-    : ContentHostBase(aTextureInfo)
+  ContentHostDoubleBuffered(const TextureInfo& aTextureInfo,
+                            Compositor* aCompositor)
+    : ContentHostBase(aTextureInfo, aCompositor)
   {}
 
   ~ContentHostDoubleBuffered();
@@ -164,7 +164,6 @@ protected:
   // only swap it with the front buffer (mTextureHost) when we are told by the
   // content thread.
   RefPtr<TextureHost> mBackHost;
-  RefPtr<TextureHost> mBackHostOnWhite;
 };
 
 /**
@@ -174,8 +173,9 @@ protected:
 class ContentHostSingleBuffered : public ContentHostBase
 {
 public:
-  ContentHostSingleBuffered(const TextureInfo& aTextureInfo)
-    : ContentHostBase(aTextureInfo)
+  ContentHostSingleBuffered(const TextureInfo& aTextureInfo,
+                            Compositor* aCompositor)
+    : ContentHostBase(aTextureInfo, aCompositor)
   {}
   virtual ~ContentHostSingleBuffered();
 

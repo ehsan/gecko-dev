@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -209,7 +210,7 @@ ArgumentsObject::createUnexpected(JSContext *cx, AbstractFramePtr frame)
 }
 
 static JSBool
-args_delProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded)
+args_delProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
 {
     ArgumentsObject &argsobj = obj->asArguments();
     if (JSID_IS_INT(id)) {
@@ -221,7 +222,6 @@ args_delProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool *succeeded
     } else if (JSID_IS_ATOM(id, cx->names().callee)) {
         argsobj.asNormalArguments().clearCallee();
     }
-    *succeeded = true;
     return true;
 }
 
@@ -289,8 +289,8 @@ ArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHa
      * of setting it in case the user has changed the prototype to an object
      * that has a setter for this id.
      */
-    JSBool succeeded;
-    return baseops::DeleteGeneric(cx, obj, id, &succeeded) &&
+    RootedValue value(cx);
+    return baseops::DeleteGeneric(cx, obj, id, &value, false) &&
            baseops::DefineGeneric(cx, obj, id, vp, NULL, NULL, attrs);
 }
 
@@ -408,8 +408,8 @@ StrictArgSetter(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Mut
      * args_delProperty to clear the corresponding reserved slot so the GC can
      * collect its value.
      */
-    JSBool succeeded;
-    return baseops::DeleteGeneric(cx, argsobj, id, &succeeded) &&
+    RootedValue value(cx);
+    return baseops::DeleteGeneric(cx, argsobj, id, &value, strict) &&
            baseops::DefineGeneric(cx, argsobj, id, vp, NULL, NULL, attrs);
 }
 

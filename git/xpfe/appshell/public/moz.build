@@ -15,7 +15,3 @@ XPIDL_SOURCES += [
 
 MODULE = 'appshell'
 
-EXPORTS += [
-    'nsAppShellCID.h',
-]
-

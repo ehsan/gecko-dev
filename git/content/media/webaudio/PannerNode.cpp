@@ -18,10 +18,9 @@ using namespace std;
 class PannerNodeEngine : public AudioNodeEngine
 {
 public:
-  explicit PannerNodeEngine(AudioNode* aNode)
-    : AudioNodeEngine(aNode)
+  PannerNodeEngine()
     // Please keep these default values consistent with PannerNode::PannerNode below.
-    , mPanningModel(PanningModelTypeValues::HRTF)
+    : mPanningModel(PanningModelTypeValues::HRTF)
     , mPanningModelFunction(&PannerNodeEngine::HRTFPanningFunction)
     , mDistanceModel(DistanceModelTypeValues::Inverse)
     , mDistanceModelFunction(&PannerNodeEngine::InverseGainFunction)
@@ -173,7 +172,7 @@ PannerNode::PannerNode(AudioContext* aContext)
   , mConeOuterAngle(360.)
   , mConeOuterGain(0.)
 {
-  mStream = aContext->Graph()->CreateAudioNodeStream(new PannerNodeEngine(this),
+  mStream = aContext->Graph()->CreateAudioNodeStream(new PannerNodeEngine(),
                                                      MediaStreamGraph::INTERNAL_STREAM);
   // We should register once we have set up our stream and engine.
   Context()->Listener()->RegisterPannerNode(this);
@@ -184,6 +183,7 @@ PannerNode::~PannerNode()
   if (Context()) {
     Context()->UnregisterPannerNode(this);
   }
+  DestroyMediaStream();
 }
 
 JSObject*

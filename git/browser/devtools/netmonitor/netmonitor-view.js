@@ -7,7 +7,6 @@
 
 const EPSILON = 0.001;
 const REQUESTS_REFRESH_RATE = 50; // ms
-const REQUESTS_HEADERS_SAFE_BOUNDS = 30; // px
 const REQUESTS_WATERFALL_SAFE_BOUNDS = 100; // px
 const REQUESTS_WATERFALL_BACKGROUND_PATTERN = [5, 250, 1000, 2000]; // ms
 const DEFAULT_HTTP_VERSION = "HTTP/1.1";
@@ -103,7 +102,6 @@ let NetMonitorView = {
     this._expandPaneString = L10N.getStr("expandDetailsPane");
 
     this._detailsPane.setAttribute("width", Prefs.networkDetailsWidth);
-    this._detailsPane.setAttribute("height", Prefs.networkDetailsHeight);
     this.toggleDetailsPane({ visible: false });
   },
 
@@ -114,7 +112,6 @@ let NetMonitorView = {
     dumpn("Destroying the NetMonitorView panes");
 
     Prefs.networkDetailsWidth = this._detailsPane.getAttribute("width");
-    Prefs.networkDetailsHeight = this._detailsPane.getAttribute("height");
 
     this._detailsPane = null;
     this._detailsPaneToggleButton = null;
@@ -508,8 +505,7 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
         break;
       }
       case "contentSize": {
-        let kb = aValue / 1024;
-        let size = L10N.numberWithDecimals(kb, CONTENT_SIZE_DECIMALS);
+        let size = (aValue / 1024).toFixed(CONTENT_SIZE_DECIMALS);
         let node = $(".requests-menu-size", aItem.target);
         let text = L10N.getFormatStr("networkMenu.sizeKB", size);
         node.setAttribute("value", text);
@@ -526,7 +522,7 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
       }
       case "totalTime": {
         let node = $(".requests-menu-timings-total", aItem.target);
-        let text = L10N.getFormatStr("networkMenu.totalMS", aValue); // integer
+        let text = L10N.getFormatStr("networkMenu.totalMS", aValue);
         node.setAttribute("value", text);
         node.setAttribute("tooltiptext", text);
         break;
@@ -544,8 +540,7 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
    */
   _createWaterfallView: function NVRM__createWaterfallView(aItem, aTimings) {
     let { target, attachment } = aItem;
-    let sections = ["dns", "connect", "send", "wait", "receive"];
-    // Skipping "blocked" because it doesn't work yet.
+    let sections = ["blocked", "dns", "connect", "send", "wait", "receive"];
 
     let timingsNode = $(".requests-menu-timings", target);
     let startCapNode = $(".requests-menu-timings-cap.start", timingsNode);
@@ -595,27 +590,6 @@ create({ constructor: RequestsMenuView, proto: MenuContainer.prototype }, {
     // the window is resized, this needs to be invalidated.
     if (aReset) {
       this._cachedWaterfallWidth = 0;
-
-      let table = $("#network-table");
-      let toolbar = $("#requests-menu-toolbar");
-      let columns = [
-        [".requests-menu-waterfall", "waterfall-overflows"],
-        [".requests-menu-size", "size-overflows"],
-        [".requests-menu-type", "type-overflows"],
-        [".requests-menu-domain", "domain-overflows"]
-      ];
-
-      // Flush headers.
-      columns.forEach(([, attribute]) => table.removeAttribute(attribute));
-      let availableWidth = toolbar.getBoundingClientRect().width;
-
-      // Hide overflowing columns.
-      columns.forEach(([className, attribute]) => {
-        let bounds = $(".requests-menu-header" + className).getBoundingClientRect();
-        if (bounds.right > availableWidth - REQUESTS_HEADERS_SAFE_BOUNDS) {
-          table.setAttribute(attribute, "");
-        }
-      });
     }
 
     // Determine the scaling to be applied to all the waterfalls so that
@@ -905,10 +879,9 @@ create({ constructor: NetworkDetailsView, proto: MenuContainer.prototype }, {
    *        The message received from the server.
    */
   _addHeaders: function NVND__addHeaders(aName, aResponse) {
-    let kb = aResponse.headersSize / 1024;
-    let size = L10N.numberWithDecimals(kb, HEADERS_SIZE_DECIMALS);
-    let text = L10N.getFormatStr("networkMenu.sizeKB", size);
-    let headersScope = this._headers.addScope(aName + " (" + text + ")");
+    let kb = (aResponse.headersSize / 1024).toFixed(HEADERS_SIZE_DECIMALS);
+    let size = L10N.getFormatStr("networkMenu.sizeKB", kb);
+    let headersScope = this._headers.addScope(aName + " (" + size + ")");
     headersScope.expanded = true;
 
     for (let header of aResponse.headers) {

@@ -57,29 +57,9 @@ const DELIVERY_STATUS_SUCCESS = "success";
 const DELIVERY_STATUS_PENDING = "pending";
 const DELIVERY_STATUS_ERROR   = "error";
 
-const PREF_SEND_RETRY_COUNT =
-  Services.prefs.getIntPref("dom.mms.sendRetryCount");
 
-const PREF_SEND_RETRY_INTERVAL =
-  Services.prefs.getIntPref("dom.mms.sendRetryInterval");
-
-const PREF_RETRIEVAL_RETRY_COUNT =
-  Services.prefs.getIntPref("dom.mms.retrievalRetryCount");
-
-const PREF_RETRIEVAL_RETRY_INTERVALS = (function () {
-  let intervals =
-    Services.prefs.getCharPref("dom.mms.retrievalRetryIntervals").split(",");
-  for (let i = 0; i < PREF_RETRIEVAL_RETRY_COUNT; ++i) {
-    intervals[i] = parseInt(intervals[i], 10);
-    // If one of the intervals isn't valid (e.g., 0 or NaN),
-    // assign a 10-minute interval to it as a default.
-    if (!intervals[i]) {
-      intervals[i] = 600000;
-    }
-  }
-  intervals.length = PREF_RETRIEVAL_RETRY_COUNT;
-  return intervals;
-})();
+const MAX_RETRY_COUNT = Services.prefs.getIntPref("dom.mms.retrievalRetryCount");
+const DELAY_TIME_TO_RETRY = Services.prefs.getIntPref("dom.mms.retrievalRetryInterval");
 
 XPCOMUtils.defineLazyServiceGetter(this, "gpps",
                                    "@mozilla.org/network/protocol-proxy-service;1",
@@ -179,18 +159,16 @@ XPCOMUtils.defineLazyGetter(this, "gMmsConnection", function () {
               "available later.");
         this.clearMmsProxySettings();
       }
-      this.connected = gRIL.getDataCallStateByType("mms") ==
-        Ci.nsINetworkInterface.NETWORK_STATE_CONNECTED;
     },
 
     /**
-     * Return the roaming status of voice call.
+     * Return the roaming status of data connection.
      *
-     * @return true if voice call is roaming.
+     * @return true if data connection is roaming.
      */
-    isVoiceRoaming: function isVoiceRoaming() {
-      let isRoaming = gRIL.rilContext.voice.roaming;
-      debug("isVoiceRoaming = " + isRoaming);
+    isDataConnRoaming: function isDataConnRoaming() {
+      let isRoaming = gRIL.rilContext.data.roaming;
+      debug("isDataConnRoaming = " + isRoaming);
       return isRoaming;
     },
 
@@ -628,14 +606,14 @@ RetrieveTransaction.prototype = {
     let that = this;
     this.retrieve((function retryCallback(mmsStatus, msg) {
       if (MMS.MMS_PDU_STATUS_DEFERRED == mmsStatus &&
-          that.retryCount < PREF_RETRIEVAL_RETRY_COUNT) {
+          that.retryCount < MAX_RETRY_COUNT) {
+        that.retryCount++;
         let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
         timer.initWithCallback((function (){
                                  this.retrieve(retryCallback);
                                }).bind(that),
-                               PREF_RETRIEVAL_RETRY_INTERVALS[that.retryCount],
+                               DELAY_TIME_TO_RETRY,
                                Ci.nsITimer.TYPE_ONE_SHOT);
-        that.retryCount++;
         return;
       }
       if (callback) {
@@ -834,12 +812,12 @@ SendTransaction.prototype = {
     let retryCallback = (function (mmsStatus, msg) {
       if ((MMS.MMS_PDU_ERROR_TRANSIENT_FAILURE == mmsStatus ||
             MMS.MMS_PDU_ERROR_PERMANENT_FAILURE == mmsStatus) &&
-          this.retryCount < PREF_SEND_RETRY_COUNT) {
+          this.retryCount < MAX_RETRY_COUNT) {
         this.retryCount++;
 
         let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
         timer.initWithCallback(this.send.bind(this, retryCallback),
-                               PREF_SEND_RETRY_INTERVAL,
+                               DELAY_TIME_TO_RETRY,
                                Ci.nsITimer.TYPE_ONE_SHOT);
         return;
       }
@@ -1186,14 +1164,9 @@ MmsService.prototype = {
       retrievalMode = Services.prefs.getCharPref(PREF_RETRIEVAL_MODE);
     } catch (e) {}
 
-    // In roaming environment, we send notify response only in
-    // automatic retrieval mode.
-    if ((retrievalMode !== RETRIEVAL_MODE_AUTOMATIC) &&
-        gMmsConnection.isVoiceRoaming()) {
-      return;
-    }
-
-    if (RETRIEVAL_MODE_MANUAL === retrievalMode ||
+    let isRoaming = gMmsConnection.isDataConnRoaming();
+    if ((retrievalMode === RETRIEVAL_MODE_AUTOMATIC_HOME && isRoaming) ||
+        RETRIEVAL_MODE_MANUAL === retrievalMode ||
         RETRIEVAL_MODE_NEVER === retrievalMode) {
       let mmsStatus = RETRIEVAL_MODE_NEVER === retrievalMode
                     ? MMS.MMS_PDU_STATUS_REJECTED

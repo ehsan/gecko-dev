@@ -6,7 +6,3 @@
 
 MODULE = 'dmd'
 
-EXPORTS += [
-    'DMD.h',
-]
-

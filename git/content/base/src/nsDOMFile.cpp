@@ -631,6 +631,13 @@ class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
     return NS_OK;
   }
 
+  NS_IMETHOD GetExplicitNonHeap(int64_t *aResult)
+  {
+    // All of this reporter's memory is on the heap.
+    *aResult = 0;
+    return NS_OK;
+  }
+
   NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCallback,
                             nsISupports *aClosure)
   {

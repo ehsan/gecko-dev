@@ -17,8 +17,6 @@ class nsDOMEvent;
 namespace mozilla {
 namespace dom {
 
-class EventListener;
-
 // IID for the dom::EventTarget interface
 #define NS_EVENTTARGET_IID \
 { 0x0a5aed21, 0x0bab, 0x48b3, \
@@ -34,15 +32,21 @@ public:
   using nsIDOMEventTarget::AddEventListener;
   using nsIDOMEventTarget::RemoveEventListener;
   using nsIDOMEventTarget::DispatchEvent;
-  virtual void AddEventListener(const nsAString& aType,
-                                nsIDOMEventListener* aCallback,
-                                bool aCapture,
-                                const Nullable<bool>& aWantsUntrusted,
-                                ErrorResult& aRv) = 0;
-  virtual void RemoveEventListener(const nsAString& aType,
-                                   nsIDOMEventListener* aCallback,
-                                   bool aCapture,
-                                   ErrorResult& aRv);
+  void AddEventListener(const nsAString& aType,
+                        nsIDOMEventListener* aCallback, // XXX nullable
+                        bool aCapture, const Nullable<bool>& aWantsUntrusted,
+                        mozilla::ErrorResult& aRv)
+  {
+    aRv = AddEventListener(aType, aCallback, aCapture,
+                           !aWantsUntrusted.IsNull() && aWantsUntrusted.Value(),
+                           aWantsUntrusted.IsNull() ? 1 : 2);
+  }
+  void RemoveEventListener(const nsAString& aType,
+                           nsIDOMEventListener* aCallback,
+                           bool aCapture, mozilla::ErrorResult& aRv)
+  {
+    aRv = RemoveEventListener(aType, aCallback, aCapture);
+  }
   bool DispatchEvent(nsDOMEvent& aEvent, ErrorResult& aRv);
 };
 

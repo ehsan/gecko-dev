@@ -26,9 +26,8 @@ NS_IMPL_RELEASE_INHERITED(GainNode, AudioNode)
 class GainNodeEngine : public AudioNodeEngine
 {
 public:
-  GainNodeEngine(AudioNode* aNode, AudioDestinationNode* aDestination)
-    : AudioNodeEngine(aNode)
-    , mSource(nullptr)
+  explicit GainNodeEngine(AudioDestinationNode* aDestination)
+    : mSource(nullptr)
     , mDestination(static_cast<AudioNodeStream*> (aDestination->Stream()))
     // Keep the default value in sync with the default value in GainNode::GainNode.
     , mGain(1.f)
@@ -98,9 +97,14 @@ GainNode::GainNode(AudioContext* aContext)
   : AudioNode(aContext)
   , mGain(new AudioParam(this, SendGainToStream, 1.0f))
 {
-  GainNodeEngine* engine = new GainNodeEngine(this, aContext->Destination());
+  GainNodeEngine* engine = new GainNodeEngine(aContext->Destination());
   mStream = aContext->Graph()->CreateAudioNodeStream(engine, MediaStreamGraph::INTERNAL_STREAM);
   engine->SetSourceStream(static_cast<AudioNodeStream*> (mStream.get()));
+}
+
+GainNode::~GainNode()
+{
+  DestroyMediaStream();
 }
 
 JSObject*

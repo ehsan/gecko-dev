@@ -17,7 +17,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
-Cu.import("resource://gre/modules/Preferences.jsm");
+Cu.import("resource://gre/modules/services-common/preferences.js");
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
 const prefs = new Preferences("services.push.");
@@ -1295,22 +1295,26 @@ PushService.prototype = {
    */
   _getNetworkState: function() {
     debug("getNetworkState()");
-    try {
-      var nm = Cc["@mozilla.org/network/manager;1"].getService(Ci.nsINetworkManager);
-      if (nm.active && nm.active.type == Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE) {
-        var mcp = Cc["@mozilla.org/ril/content-helper;1"].getService(Ci.nsIMobileConnectionProvider);
-        if (mcp.iccInfo) {
-          debug("Running on mobile data");
-          return {
-            mcc: mcp.iccInfo.mcc,
-            mnc: mcp.iccInfo.mnc,
-            ip:  nm.active.ip
-          }
+
+    var networkManager = Cc["@mozilla.org/network/manager;1"]
+                           .getService(Ci.nsINetworkManager);
+    if (networkManager.active &&
+        networkManager.active.type ==
+                      Ci.nsINetworkInterface.NETWORK_TYPE_MOBILE) {
+      debug("Running on mobile data");
+      var mcp = Cc["@mozilla.org/ril/content-helper;1"]
+                  .getService(Ci.nsIMobileConnectionProvider);
+      if (mcp.iccInfo) {
+        return {
+          mcc: mcp.iccInfo.mcc,
+          mnc: mcp.iccInfo.mnc,
+          ip: networkManager.active.ip
         }
       }
-    } catch (e) {}
-
-    debug("Running on wifi");
+    }
+    else {
+      debug("Running on wifi");
+    }
 
     return {
       mcc: 0,

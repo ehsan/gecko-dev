@@ -7,7 +7,6 @@
 
 #include "mozilla/dom/HTMLInputElement.h"
 #include "mozilla/dom/HTMLInputElementBinding.h"
-#include "nsAsyncDOMEvent.h"
 #include "nsAttrValueInlines.h"
 
 #include "nsIDOMHTMLInputElement.h"
@@ -57,6 +56,7 @@
 #include "nsLayoutUtils.h"
 
 #include "nsIDOMMutationEvent.h"
+#include "nsIDOMEventTarget.h"
 #include "nsMutationEvent.h"
 #include "nsEventListenerManager.h"
 
@@ -1224,9 +1224,11 @@ HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
       aResultValue = static_cast<double>(milliseconds);
       return true;
     default:
-      MOZ_ASSERT(false, "Unrecognized input type");
       return false;
   }
+
+  MOZ_NOT_REACHED();
+  return false;
 }
 
 double
@@ -1426,7 +1428,7 @@ HTMLInputElement::ConvertNumberToString(double aValue,
         return true;
       }
     default:
-      MOZ_ASSERT(false, "Unrecognized input type");
+      MOZ_NOT_REACHED();
       return false;
   }
 }
@@ -1485,7 +1487,7 @@ HTMLInputElement::GetValueAsDate(JSContext* aCx, ErrorResult& aRv)
     }
   }
 
-  MOZ_ASSERT(false, "Unrecognized input type");
+  MOZ_NOT_REACHED();
   aRv.Throw(NS_ERROR_UNEXPECTED);
   return JS::NullValue();
 }
@@ -2713,7 +2715,6 @@ HTMLInputElement::CancelRangeThumbDrag(bool aIsForUserEvent)
 {
   MOZ_ASSERT(mIsDraggingRange);
 
-  mIsDraggingRange = false;
   if (nsIPresShell::GetCapturingContent() == this) {
     nsIPresShell::SetCapturingContent(nullptr, 0); // cancel capture
   }
@@ -2730,10 +2731,8 @@ HTMLInputElement::CancelRangeThumbDrag(bool aIsForUserEvent)
     if (frame) {
       frame->UpdateForValueChange();
     }
-    nsRefPtr<nsAsyncDOMEvent> event =
-      new nsAsyncDOMEvent(this, NS_LITERAL_STRING("input"), true, false);
-    event->RunDOMEventWhenSafe();
   }
+  mIsDraggingRange = false;
 }
 
 void
@@ -2784,7 +2783,7 @@ IsLTR(Element* aElement)
 }
 
 bool
-HTMLInputElement::ShouldPreventDOMActivateDispatch(EventTarget* aOriginalTarget)
+HTMLInputElement::ShouldPreventDOMActivateDispatch(nsIDOMEventTarget* aOriginalTarget)
 {
   /*
    * For the moment, there is only one situation where we actually want to
@@ -6073,7 +6072,7 @@ HTMLInputElement::GetStepScaleFactor() const
     case NS_FORM_INPUT_TIME:
       return kStepScaleFactorTime;
     default:
-      MOZ_ASSERT(false, "Unrecognized input type");
+      MOZ_NOT_REACHED();
       return MOZ_DOUBLE_NaN();
   }
 }
@@ -6091,7 +6090,7 @@ HTMLInputElement::GetDefaultStep() const
     case NS_FORM_INPUT_TIME:
       return kDefaultStepTime;
     default:
-      MOZ_ASSERT(false, "Unrecognized input type");
+      MOZ_NOT_REACHED();
       return MOZ_DOUBLE_NaN();
   }
 }

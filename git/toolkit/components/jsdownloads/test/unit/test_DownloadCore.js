@@ -302,9 +302,7 @@ add_task(function test_download_cancel_immediately()
   // been made, and the internal HTTP handler might be waiting to process it.
   // Thus, we process any pending events now, to avoid that the request is
   // processed during the tests that follow, interfering with them.
-  for (let i = 0; i < 5; i++) {
-    yield promiseExecuteSoon();
-  }
+  yield promiseExecuteSoon();
 });
 
 /**
@@ -391,9 +389,7 @@ add_task(function test_download_cancel_immediately_restart_immediately()
   // been made, and the internal HTTP handler might be waiting to process it.
   // Thus, we process any pending events now, to avoid that the request is
   // processed during the tests that follow, interfering with them.
-  for (let i = 0; i < 5; i++) {
-    yield promiseExecuteSoon();
-  }
+  yield promiseExecuteSoon();
 
   // Ensure the next request is now allowed to complete, regardless of whether
   // the canceled request was received by the server or not.
@@ -610,26 +606,19 @@ add_task(function test_download_error_target()
 
   // Create a file without write access permissions before downloading.
   download.target.file.create(Ci.nsIFile.NORMAL_FILE_TYPE, 0);
-  try {
-    try {
-      yield download.start();
-      do_throw("The download should have failed.");
-    } catch (ex if ex instanceof Downloads.Error && ex.becauseTargetFailed) {
-      // A specific error object is thrown when writing to the target fails.
-    }
 
-    do_check_true(download.stopped);
-    do_check_false(download.canceled);
-    do_check_true(download.error !== null);
-    do_check_true(download.error.becauseTargetFailed);
-    do_check_false(download.error.becauseSourceFailed);
-  } finally {
-    // Restore the default permissions to allow deleting the file on Windows.
-    if (download.target.file.exists()) {
-      download.target.file.permissions = FileUtils.PERMS_FILE;
-      download.target.file.remove(false);
-    }
+  try {
+    yield download.start();
+    do_throw("The download should have failed.");
+  } catch (ex if ex instanceof Downloads.Error && ex.becauseTargetFailed) {
+    // A specific error object is thrown when writing to the target fails.
   }
+
+  do_check_true(download.stopped);
+  do_check_false(download.canceled);
+  do_check_true(download.error !== null);
+  do_check_true(download.error.becauseTargetFailed);
+  do_check_false(download.error.becauseSourceFailed);
 });
 
 /**
@@ -649,18 +638,10 @@ add_task(function test_download_error_restart()
     do_throw("The download should have failed.");
   } catch (ex if ex instanceof Downloads.Error && ex.becauseTargetFailed) {
     // A specific error object is thrown when writing to the target fails.
-  } finally {
-    // Restore the default permissions to allow deleting the file on Windows.
-    if (download.target.file.exists()) {
-      download.target.file.permissions = FileUtils.PERMS_FILE;
+  }
 
-      // Also for Windows, rename the file before deleting.  This makes the
-      // current file name available immediately for a new file, while deleting
-      // in place prevents creation of a file with the same name for some time.
-      let fileToRemove = download.target.file.clone();
-      fileToRemove.moveTo(null, fileToRemove.leafName + ".delete.tmp");
-      fileToRemove.remove(false);
-    }
+  if (download.target.file.exists()) {
+    download.target.file.remove(false);
   }
 
   // Restart the download and wait for completion.

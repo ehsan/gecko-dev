@@ -1,5 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+ * vim: set ts=8 sw=4 et tw=78:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -92,7 +93,6 @@
 #include "jsobjinlines.h"
 
 #include "gc/FindSCCs-inl.h"
-#include "gc/Nursery-inl.h"
 #include "vm/ScopeObject-inl.h"
 #include "vm/String-inl.h"
 
@@ -778,7 +778,8 @@ Chunk::allocateArena(Zone *zone, AllocKind thingKind)
     JS_ASSERT(hasAvailableArenas());
 
     JSRuntime *rt = zone->rt;
-    if (!rt->isHeapMinorCollecting() && rt->gcBytes >= rt->gcMaxBytes)
+    JS_ASSERT(rt->gcBytes <= rt->gcMaxBytes);
+    if (rt->gcMaxBytes - rt->gcBytes < ArenaSize)
         return NULL;
 
     ArenaHeader *aheader = JS_LIKELY(info.numArenasFreeCommitted > 0)
@@ -974,9 +975,6 @@ js_InitGC(JSRuntime *rt, uint32_t maxbytes)
 #endif
 
 #ifdef JSGC_GENERATIONAL
-    if (!rt->gcNursery.enable())
-        return false;
-
     if (!rt->gcStoreBuffer.enable())
         return false;
 #endif
@@ -1205,11 +1203,11 @@ ArenaLists::parallelAllocate(Zone *zone, AllocKind thingKind, size_t thingSize)
     if (t)
         return t;
 
-    return allocateFromArenaInline(zone, thingKind);
+    return allocateFromArena(zone, thingKind);
 }
 
 inline void *
-ArenaLists::allocateFromArenaInline(Zone *zone, AllocKind thingKind)
+ArenaLists::allocateFromArena(Zone *zone, AllocKind thingKind)
 {
     /*
      * Parallel JS Note:
@@ -1325,12 +1323,6 @@ ArenaLists::allocateFromArenaInline(Zone *zone, AllocKind thingKind)
     return freeLists[thingKind].allocateFromNewArena(arenaAddr,
                                                      Arena::firstThingOffset(thingKind),
                                                      Arena::thingSize(thingKind));
-}
-
-void *
-ArenaLists::allocateFromArena(JS::Zone *zone, AllocKind thingKind)
-{
-    return allocateFromArenaInline(zone, thingKind);
 }
 
 void
@@ -1546,7 +1538,7 @@ ArenaLists::refillFreeList(JSContext *cx, AllocKind thingKind)
          * always try to allocate twice.
          */
         for (bool secondAttempt = false; ; secondAttempt = true) {
-            void *thing = zone->allocator.arenas.allocateFromArenaInline(zone, thingKind);
+            void *thing = zone->allocator.arenas.allocateFromArena(zone, thingKind);
             if (JS_LIKELY(!!thing))
                 return thing;
             if (secondAttempt)
@@ -4023,7 +4015,7 @@ AutoTraceSession::AutoTraceSession(JSRuntime *rt, js::HeapState heapState)
 {
     JS_ASSERT(!rt->noGCOrAllocationCheck);
     JS_ASSERT(!rt->isHeapBusy());
-    JS_ASSERT(heapState != Idle);
+    JS_ASSERT(heapState == Collecting || heapState == Tracing);
     rt->heapState = heapState;
 }
 
@@ -4034,7 +4026,7 @@ AutoTraceSession::~AutoTraceSession()
 }
 
 AutoGCSession::AutoGCSession(JSRuntime *rt)
-  : AutoTraceSession(rt, MajorCollecting)
+  : AutoTraceSession(rt, Collecting)
 {
     runtime->gcIsNeeded = false;
     runtime->gcInterFrameGC = true;
@@ -4481,29 +4473,6 @@ ShouldCleanUpEverything(JSRuntime *rt, JS::gcreason::Reason reason, JSGCInvocati
            gckind == GC_SHRINK;
 }
 
-#ifdef JSGC_GENERATIONAL
-class AutoDisableStoreBuffer
-{
-    JSRuntime *runtime;
-    bool prior;
-
-  public:
-    AutoDisableStoreBuffer(JSRuntime *rt) : runtime(rt) {
-        prior = rt->gcStoreBuffer.isEnabled();
-        rt->gcStoreBuffer.disable();
-    }
-    ~AutoDisableStoreBuffer() {
-        if (prior)
-            runtime->gcStoreBuffer.enable();
-    }
-};
-#else
-struct AutoDisableStoreBuffer
-{
-    AutoDisableStoreBuffer(JSRuntime *) {}
-};
-#endif
-
 static void
 Collect(JSRuntime *rt, bool incremental, int64_t budget,
         JSGCInvocationKind gckind, JS::gcreason::Reason reason)
@@ -4557,14 +4526,6 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
         }
     } av(rt, isShutdown);
 #endif
-
-    MinorGC(rt, reason);
-
-    /*
-     * Marking can trigger many incidental post barriers, some of them for
-     * objects which are not going to be live after the GC.
-     */
-    AutoDisableStoreBuffer adsb(rt);
 
     RecordNativeStackTopForGC(rt);
 
@@ -4689,14 +4650,6 @@ JS::ShrinkGCBuffers(JSRuntime *rt)
         ExpireChunksAndArenas(rt, true);
     else
         rt->gcHelperThread.startBackgroundShrink();
-}
-
-void
-js::MinorGC(JSRuntime *rt, JS::gcreason::Reason reason)
-{
-#ifdef JSGC_GENERATIONAL
-    rt->gcNursery.collect(rt, reason);
-#endif
 }
 
 void
@@ -5112,11 +5065,3 @@ AutoSuppressGC::AutoSuppressGC(JSCompartment *comp)
 {
     suppressGC_++;
 }
-
-#ifdef DEBUG
-AutoDisableProxyCheck::AutoDisableProxyCheck(JSRuntime *rt)
-  : count(rt->gcDisableStrictProxyCheckingCount)
-{
-    count++;
-}
-#endif

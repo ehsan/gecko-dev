@@ -34,12 +34,6 @@ CompositableHost::AddMaskEffect(EffectChain& aEffects,
                                 bool aIs3D)
 {
   RefPtr<TextureSource> source = GetTextureHost();
-
-  if (!source) {
-    NS_WARNING("Using compositable with no texture host as mask layer");
-    return false;
-  }
-
   RefPtr<EffectMask> effect = new EffectMask(source,
                                              source->GetSize(),
                                              aTransform);
@@ -49,24 +43,24 @@ CompositableHost::AddMaskEffect(EffectChain& aEffects,
 }
 
 /* static */ TemporaryRef<CompositableHost>
-CompositableHost::Create(const TextureInfo& aTextureInfo)
+CompositableHost::Create(const TextureInfo& aTextureInfo, Compositor* aCompositor)
 {
   RefPtr<CompositableHost> result;
   switch (aTextureInfo.mCompositableType) {
   case BUFFER_IMAGE_BUFFERED:
-    result = new ImageHostBuffered(aTextureInfo);
+    result = new ImageHostBuffered(aTextureInfo, aCompositor);
     return result;
   case BUFFER_IMAGE_SINGLE:
-    result = new ImageHostSingle(aTextureInfo);
+    result = new ImageHostSingle(aTextureInfo, aCompositor);
     return result;
   case BUFFER_TILED:
-    result = new TiledContentHost(aTextureInfo);
+    result = new TiledContentHost(aTextureInfo, aCompositor);
     return result;
   case BUFFER_CONTENT:
-    result = new ContentHostSingleBuffered(aTextureInfo);
+    result = new ContentHostSingleBuffered(aTextureInfo, aCompositor);
     return result;
   case BUFFER_CONTENT_DIRECT:
-    result = new ContentHostDoubleBuffered(aTextureInfo);
+    result = new ContentHostDoubleBuffered(aTextureInfo, aCompositor);
     return result;
   default:
     MOZ_NOT_REACHED("Unknown CompositableType");

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=8 sts=4 et sw=4 tw=99:
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99:
+ *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -387,8 +388,8 @@ BaselineScript::pcMappingReader(size_t indexEntry)
     return CompactBufferReader(dataStart, dataEnd);
 }
 
-ICEntry *
-BaselineScript::maybeICEntryFromReturnOffset(CodeOffsetLabel returnOffset)
+ICEntry &
+BaselineScript::icEntryFromReturnOffset(CodeOffsetLabel returnOffset)
 {
     size_t bottom = 0;
     size_t top = numICEntries();
@@ -401,21 +402,8 @@ BaselineScript::maybeICEntryFromReturnOffset(CodeOffsetLabel returnOffset)
             top = mid;
         mid = (bottom + top) / 2;
     }
-    if (mid >= numICEntries())
-        return NULL;
-
-    if (icEntry(mid).returnOffset().offset() != returnOffset.offset())
-        return NULL;
-
-    return &icEntry(mid);
-}
-
-ICEntry &
-BaselineScript::icEntryFromReturnOffset(CodeOffsetLabel returnOffset)
-{
-    ICEntry *result = maybeICEntryFromReturnOffset(returnOffset);
-    JS_ASSERT(result);
-    return *result;
+    JS_ASSERT(icEntry(mid).returnOffset().offset() == returnOffset.offset());
+    return icEntry(mid);
 }
 
 uint8_t *
@@ -480,20 +468,10 @@ BaselineScript::icEntryFromPCOffset(uint32_t pcOffset, ICEntry *prevLookedUpEntr
     return icEntryFromPCOffset(pcOffset);
 }
 
-ICEntry *
-BaselineScript::maybeICEntryFromReturnAddress(uint8_t *returnAddr)
-{
-    JS_ASSERT(returnAddr > method_->raw());
-    JS_ASSERT(returnAddr < method_->raw() + method_->instructionsSize());
-    CodeOffsetLabel offset(returnAddr - method_->raw());
-    return maybeICEntryFromReturnOffset(offset);
-}
-
 ICEntry &
 BaselineScript::icEntryFromReturnAddress(uint8_t *returnAddr)
 {
     JS_ASSERT(returnAddr > method_->raw());
-    JS_ASSERT(returnAddr < method_->raw() + method_->instructionsSize());
     CodeOffsetLabel offset(returnAddr - method_->raw());
     return icEntryFromReturnOffset(offset);
 }
@@ -601,60 +579,6 @@ BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotI
 
     JS_NOT_REACHED("Invalid pc");
     return NULL;
-}
-
-jsbytecode *
-BaselineScript::pcForReturnOffset(JSScript *script, uint32_t nativeOffset)
-{
-    JS_ASSERT(script->baselineScript() == this);
-    JS_ASSERT(nativeOffset < method_->instructionsSize());
-
-    // Look for the first PCMappingIndexEntry with native offset > the native offset we are
-    // interested in.
-    uint32_t i = 1;
-    for (; i < numPCMappingIndexEntries(); i++) {
-        if (pcMappingIndexEntry(i).nativeOffset > nativeOffset)
-            break;
-    }
-
-    // Go back an entry to search forward from.
-    JS_ASSERT(i > 0);
-    i--;
-
-    PCMappingIndexEntry &entry = pcMappingIndexEntry(i);
-    JS_ASSERT(nativeOffset >= entry.nativeOffset);
-
-    CompactBufferReader reader(pcMappingReader(i));
-    jsbytecode *curPC = script->code + entry.pcOffset;
-    uint32_t curNativeOffset = entry.nativeOffset;
-
-    JS_ASSERT(curPC >= script->code);
-    JS_ASSERT(curNativeOffset <= nativeOffset);
-
-    while (true) {
-        // If the high bit is set, the native offset relative to the
-        // previous pc != 0 and comes next.
-        uint8_t b = reader.readByte();
-        if (b & 0x80)
-            curNativeOffset += reader.readUnsigned();
-
-        if (curNativeOffset == nativeOffset)
-            return curPC;
-
-        curPC += GetBytecodeLength(curPC);
-    }
-
-    JS_NOT_REACHED("Invalid pc");
-    return NULL;
-}
-
-jsbytecode *
-BaselineScript::pcForReturnAddress(JSScript *script, uint8_t *nativeAddress)
-{
-    JS_ASSERT(script->baselineScript() == this);
-    JS_ASSERT(nativeAddress >= method_->raw());
-    JS_ASSERT(nativeAddress < method_->raw() + method_->instructionsSize());
-    return pcForReturnOffset(script, uint32_t(nativeAddress - method_->raw()));
 }
 
 void

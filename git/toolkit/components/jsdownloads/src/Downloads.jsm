@@ -81,9 +81,7 @@ this.Downloads = {
       download.target.file = aProperties.target.file;
 
       // Support for different aProperties.saver values isn't implemented yet.
-      download.saver = aProperties.saver.type == "legacy"
-                       ? new DownloadLegacySaver()
-                       : new DownloadCopySaver();
+      download.saver = new DownloadCopySaver();
       download.saver.download = download;
 
       // This explicitly makes this function a generator for Task.jsm, so that
