@@ -1323,7 +1323,7 @@ SetHasContainerLayer(nsIFrame* aFrame)
   }
 }
 
-already_AddRefed<ContainerLayer>
+already_AddRefed<Layer>
 FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
                                           LayerManager* aManager,
                                           nsIFrame* aContainerFrame,

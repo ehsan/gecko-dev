@@ -352,7 +352,6 @@ protected:
 
     PRPackedBool mInvalidated;
     PRPackedBool mResetLayer;
-    PRPackedBool mVerbose;
 
     WebGLuint mActiveTexture;
     WebGLenum mSynthesizedGLError;
@@ -485,11 +484,8 @@ protected:
 
 public:
     // console logging helpers
-    static void LogMessage(const char *fmt, ...);
+    static void LogMessage (const char *fmt, ...);
     static void LogMessage(const char *fmt, va_list ap);
-    // if display is false, this won't actually do anything
-    static void LogMessage(bool display, const char *fmt, ...);
-    void LogMessageIfVerbose(const char *fmt, ...);
 
     friend class WebGLTexture;
 };
@@ -983,29 +979,25 @@ public:
                 if (DoesMinFilterRequireMipmap())
                 {
                     if (!IsMipmapTexture2DComplete()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter requiring a mipmap, "
-                             "and is not mipmap complete (as defined in section 3.7.10).", msg_rendering_as_black);
+                        mContext->LogMessage("%s is a 2D texture, with a minification filter requiring a mipmap, "
+                                   "and is not mipmap complete (as defined in section 3.7.10).", msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!ImageInfoAt(0, 0).IsPowerOfTwo()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter requiring a mipmap, "
-                             "and either its width or height is not a power of two.", msg_rendering_as_black);
+                        mContext->LogMessage("%s is a 2D texture, with a minification filter requiring a mipmap, "
+                                   "and either its width or height is not a power of two.", msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     }
                 }
                 else // no mipmap required
                 {
                     if (!ImageInfoAt(0, 0).IsPositive()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture and its width or height is equal to zero.",
-                             msg_rendering_as_black);
+                        mContext->LogMessage("%s is a 2D texture and its width or height is equal to zero.",
+                                   msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!AreBothWrapModesClampToEdge() && !ImageInfoAt(0, 0).IsPowerOfTwo()) {
-                        mContext->LogMessageIfVerbose
-                            ("%s is a 2D texture, with a minification filter not requiring a mipmap, "
-                             "with its width or height not a power of two, and with a wrap mode "
-                             "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
+                        mContext->LogMessage("%s is a 2D texture, with a minification filter not requiring a mipmap, "
+                                   "with its width or height not a power of two, and with a wrap mode "
+                                   "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     }
                 }
@@ -1019,12 +1011,12 @@ public:
                 if (DoesMinFilterRequireMipmap())
                 {
                     if (!IsMipmapCubeComplete()) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
+                        mContext->LogMessage("%s is a cube map texture, with a minification filter requiring a mipmap, "
                                    "and is not mipmap cube complete (as defined in section 3.7.10).",
                                    msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!areAllLevel0ImagesPOT) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter requiring a mipmap, "
+                        mContext->LogMessage("%s is a cube map texture, with a minification filter requiring a mipmap, "
                                    "and either the width or the height of some level 0 image is not a power of two.",
                                    msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
@@ -1033,12 +1025,12 @@ public:
                 else // no mipmap required
                 {
                     if (!IsCubeComplete()) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
+                        mContext->LogMessage("%s is a cube map texture, with a minification filter not requiring a mipmap, "
                                    "and is not cube complete (as defined in section 3.7.10).",
                                    msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;
                     } else if (!AreBothWrapModesClampToEdge() && !areAllLevel0ImagesPOT) {
-                        mContext->LogMessageIfVerbose("%s is a cube map texture, with a minification filter not requiring a mipmap, "
+                        mContext->LogMessage("%s is a cube map texture, with a minification filter not requiring a mipmap, "
                                    "with some level 0 image having width or height not a power of two, and with a wrap mode "
                                    "different from CLAMP_TO_EDGE.", msg_rendering_as_black);
                         mFakeBlackStatus = DoNeedFakeBlack;

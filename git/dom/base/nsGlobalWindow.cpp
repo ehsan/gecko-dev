@@ -168,8 +168,6 @@
 #include "nsAutoPtr.h"
 #include "nsContentUtils.h"
 #include "nsCSSProps.h"
-#include "nsFileDataProtocolHandler.h"
-#include "nsIDOMFile.h"
 #include "nsIURIFixup.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsCDefaultURIFixup.h"
@@ -1588,8 +1586,7 @@ NS_IMPL_ISUPPORTS1(WindowStateHolder, WindowStateHolder)
 
 nsresult
 nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
-                               nsISupports* aState,
-                               PRBool aForceReuseInnerWindow)
+                               nsISupports* aState)
 {
   NS_TIME_FUNCTION;
 
@@ -1613,8 +1610,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       return NS_ERROR_NOT_AVAILABLE;
     }
 
-    return GetOuterWindowInternal()->SetNewDocument(aDocument, aState,
-                                                    aForceReuseInnerWindow);
+    return GetOuterWindowInternal()->SetNewDocument(aDocument, aState);
   }
 
   NS_PRECONDITION(IsOuterWindow(), "Must only be called on outer windows");
@@ -1632,15 +1628,6 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
                GetCurrentInnerWindow()->GetExtantDocument() == mDocument,
                "Uh, mDocument doesn't match the current inner window "
                "document!");
-
-  PRBool wouldReuseInnerWindow = WouldReuseInnerWindow(aDocument);
-  if (aForceReuseInnerWindow &&
-      !wouldReuseInnerWindow &&
-      mDoc &&
-      mDoc->NodePrincipal() != aDocument->NodePrincipal()) {
-    NS_ERROR("Attempted forced inner window reuse while changing principal");
-    return NS_ERROR_UNEXPECTED;
-  }
 
   nsresult rv = NS_OK;
 
@@ -1681,7 +1668,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
   nsContentUtils::AddScriptRunner(
     NS_NewRunnableMethod(this, &nsGlobalWindow::ClearStatus));
 
-  PRBool reUseInnerWindow = aForceReuseInnerWindow || wouldReuseInnerWindow;
+  PRBool reUseInnerWindow = WouldReuseInnerWindow(aDocument);
 
   // Remember the old document's principal.
   nsIPrincipal *oldPrincipal = nsnull;
@@ -2956,35 +2943,6 @@ nsGlobalWindow::GetApplicationCache(nsIDOMOfflineResourceList **aApplicationCach
   }
 
   NS_IF_ADDREF(*aApplicationCache = mApplicationCache);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::CreateBlobURL(nsIDOMFile* aFile, nsAString& aURL)
-{
-  FORWARD_TO_INNER(CreateBlobURL, (aFile, aURL), NS_ERROR_UNEXPECTED);
-
-  NS_ENSURE_STATE(mDoc);
-
-  nsresult rv = aFile->GetInternalUrl(aURL);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mDoc->RegisterFileDataUri(NS_LossyConvertUTF16toASCII(aURL));
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::RevokeBlobURL(const nsAString& aURL)
-{
-  FORWARD_TO_INNER(RevokeBlobURL, (aURL), NS_ERROR_UNEXPECTED);
-
-  NS_ENSURE_STATE(mDoc);
-
-  NS_LossyConvertUTF16toASCII asciiurl(aURL);
-  mDoc->UnregisterFileDataUri(asciiurl);
-  nsFileDataProtocolHandler::RemoveFileDataEntry(asciiurl);
 
   return NS_OK;
 }
@@ -9825,8 +9783,7 @@ nsGlobalModalWindow::SetReturnValue(nsIVariant *aRetVal)
 
 nsresult
 nsGlobalModalWindow::SetNewDocument(nsIDocument *aDocument,
-                                    nsISupports *aState,
-                                    PRBool aForceReuseInnerWindow)
+                                    nsISupports *aState)
 {
   // If we're loading a new document into a modal dialog, clear the
   // return value that was set, if any, by the current document.
@@ -9834,8 +9791,7 @@ nsGlobalModalWindow::SetNewDocument(nsIDocument *aDocument,
     mReturnValue = nsnull;
   }
 
-  return nsGlobalWindow::SetNewDocument(aDocument, aState,
-                                        aForceReuseInnerWindow);
+  return nsGlobalWindow::SetNewDocument(aDocument, aState);
 }
 
 //*****************************************************************************

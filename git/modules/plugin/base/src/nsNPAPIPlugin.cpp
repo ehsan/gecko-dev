@@ -310,7 +310,7 @@ static PRBool GMA9XXGraphics()
 #endif
 
 PRBool
-nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
+nsNPAPIPlugin::RunPluginOOP(const char* aFilePath, const nsPluginTag *aPluginTag)
 {
   if (PR_GetEnv("MOZ_DISABLE_OOP_PLUGINS")) {
     return PR_FALSE;
@@ -366,7 +366,7 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
   // of "dom.ipc.plugins.enabled"
   // The "filename.dll" part can contain shell wildcard pattern
 
-  nsCAutoString prefFile(aPluginTag->mFullPath.get());
+  nsCAutoString prefFile(aFilePath);
   PRInt32 slashPos = prefFile.RFindCharInSet("/\\");
   if (kNotFound == slashPos)
     return PR_FALSE;
@@ -422,27 +422,29 @@ nsNPAPIPlugin::RunPluginOOP(const nsPluginTag *aPluginTag)
 #endif // MOZ_IPC
 
 inline PluginLibrary*
-GetNewPluginLibrary(nsPluginTag *aPluginTag)
+GetNewPluginLibrary(const char* aFilePath,
+                    PRLibrary* aLibrary)
 {
-  if (!aPluginTag) {
-    return nsnull;
-  }
-
 #ifdef MOZ_IPC
-  if (nsNPAPIPlugin::RunPluginOOP(aPluginTag)) {
-    return PluginModuleParent::LoadModule(aPluginTag->mFullPath.get());
+  nsRefPtr<nsPluginHost> host = dont_AddRef(nsPluginHost::GetInst());
+  nsPluginTag* tag = host->FindTagForLibrary(aLibrary);
+  if (tag) {
+    if (aFilePath && nsNPAPIPlugin::RunPluginOOP(aFilePath, tag)) {
+      return PluginModuleParent::LoadModule(aFilePath);
+    }
   }
 #endif
-  return new PluginPRLibrary(aPluginTag->mFullPath.get(), aPluginTag->mLibrary);
+  return new PluginPRLibrary(aFilePath, aLibrary);
 }
 
 // Creates an nsNPAPIPlugin object. One nsNPAPIPlugin object exists per plugin (not instance).
 nsresult
-nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult)
+nsNPAPIPlugin::CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
+                            nsIPlugin** aResult)
 {
   *aResult = nsnull;
 
-  if (!aPluginTag) {
+  if (!aFilePath || !aLibrary) {
     return NS_ERROR_FAILURE;
   }
 
@@ -452,7 +454,7 @@ nsNPAPIPlugin::CreatePlugin(nsPluginTag *aPluginTag, nsIPlugin** aResult)
   if (!plugin)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  PluginLibrary* pluginLib = GetNewPluginLibrary(aPluginTag);
+  PluginLibrary* pluginLib = GetNewPluginLibrary(aFilePath, aLibrary);
   if (!pluginLib) {
     return NS_ERROR_FAILURE;
   }

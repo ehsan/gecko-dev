@@ -222,7 +222,7 @@ public:
         return InitWithPrefix("gl", PR_TRUE);
     }
 
-    PRBool MakeCurrent(PRBool aForce = PR_FALSE)
+    PRBool MakeCurrent()
     {
         PRBool succeeded
           = sOSMesaLibrary.fMakeCurrent(mContext, mThebesSurface->Data(),

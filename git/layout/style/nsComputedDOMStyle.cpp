@@ -1437,41 +1437,13 @@ nsComputedDOMStyle::DoGetBackgroundColor(nsIDOMCSSValue** aValue)
   return NS_OK;
 }
 
-
-static void
-SetValueToCalc(nsStyleCoord::Calc *aCalc, nsROCSSPrimitiveValue *aValue)
-{
-  nsRefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue();
-  nsAutoString tmp, result;
-
-  result.AppendLiteral("-moz-calc(");
-
-  val->SetAppUnits(aCalc->mLength);
-  val->GetCssText(tmp);
-  result.Append(tmp);
-
-  if (aCalc->mHasPercent) {
-    result.AppendLiteral(" + ");
-
-    val->SetPercent(aCalc->mPercent);
-    val->GetCssText(tmp);
-    result.Append(tmp);
-  }
-
-  result.AppendLiteral(")");
-
-  aValue->SetString(result); // not really SetString
-}
-
 static void
 AppendCSSGradientLength(const nsStyleCoord& aValue,
                         nsROCSSPrimitiveValue* aPrimitive,
                         nsAString& aString)
 {
   nsAutoString tokenString;
-  if (aValue.IsCalcUnit())
-    SetValueToCalc(aValue.GetCalcValue(), aPrimitive);
-  else if (aValue.GetUnit() == eStyleUnit_Coord)
+  if (aValue.GetUnit() == eStyleUnit_Coord)
     aPrimitive->SetAppUnits(aValue.GetCoordValue());
   else
     aPrimitive->SetPercent(aValue.GetPercentValue());
@@ -1747,28 +1719,16 @@ nsComputedDOMStyle::DoGetBackgroundPosition(nsIDOMCSSValue** aValue)
 
     const nsStyleBackground::Position &pos = bg->mLayers[i].mPosition;
 
-    if (pos.mXPosition.mLength == 0) {
-      valX->SetPercent(pos.mXPosition.mPercent);
-    } else if (pos.mXPosition.mPercent == 0.0f) {
-      valX->SetAppUnits(pos.mXPosition.mLength);
+    if (pos.mXIsPercent) {
+      valX->SetPercent(pos.mXPosition.mFloat);
     } else {
-      nsStyleCoord::Calc calc;
-      calc.mPercent = pos.mXPosition.mPercent;
-      calc.mLength  = pos.mXPosition.mLength;
-      calc.mHasPercent = PR_TRUE;
-      SetValueToCalc(&calc, valX);
+      valX->SetAppUnits(pos.mXPosition.mCoord);
     }
 
-    if (pos.mYPosition.mLength == 0) {
-      valY->SetPercent(pos.mYPosition.mPercent);
-    } else if (pos.mYPosition.mPercent == 0.0f) {
-      valY->SetAppUnits(pos.mYPosition.mLength);
+    if (pos.mYIsPercent) {
+      valY->SetPercent(pos.mYPosition.mFloat);
     } else {
-      nsStyleCoord::Calc calc;
-      calc.mPercent = pos.mYPosition.mPercent;
-      calc.mLength  = pos.mYPosition.mLength;
-      calc.mHasPercent = PR_TRUE;
-      SetValueToCalc(&calc, valY);
+      valY->SetAppUnits(pos.mYPosition.mCoord);
     }
   }
 
@@ -1836,48 +1796,22 @@ nsComputedDOMStyle::DoGetMozBackgroundSize(nsIDOMCSSValue** aValue)
 
         if (size.mWidthType == nsStyleBackground::Size::eAuto) {
           valX->SetIdent(eCSSKeyword_auto);
+        } else if (size.mWidthType == nsStyleBackground::Size::ePercentage) {
+          valX->SetPercent(size.mWidth.mFloat);
         } else {
-          NS_ABORT_IF_FALSE(size.mWidthType ==
-                              nsStyleBackground::Size::eLengthPercentage,
+          NS_ABORT_IF_FALSE(size.mWidthType == nsStyleBackground::Size::eLength,
                             "bad mWidthType");
-          if (size.mWidth.mLength == 0 &&
-              // negative values must have come from calc()
-              size.mWidth.mPercent > 0.0f) {
-            valX->SetPercent(size.mWidth.mPercent);
-          } else if (size.mWidth.mPercent == 0.0f &&
-                     // negative values must have come from calc()
-                     size.mWidth.mLength > 0) {
-            valX->SetAppUnits(size.mWidth.mLength);
-          } else {
-            nsStyleCoord::Calc calc;
-            calc.mPercent = size.mWidth.mPercent;
-            calc.mLength  = size.mWidth.mLength;
-            calc.mHasPercent = PR_TRUE;
-            SetValueToCalc(&calc, valX);
-          }
+          valX->SetAppUnits(size.mWidth.mCoord);
         }
 
         if (size.mHeightType == nsStyleBackground::Size::eAuto) {
           valY->SetIdent(eCSSKeyword_auto);
+        } else if (size.mHeightType == nsStyleBackground::Size::ePercentage) {
+          valY->SetPercent(size.mHeight.mFloat);
         } else {
-          NS_ABORT_IF_FALSE(size.mHeightType ==
-                              nsStyleBackground::Size::eLengthPercentage,
+          NS_ABORT_IF_FALSE(size.mHeightType == nsStyleBackground::Size::eLength,
                             "bad mHeightType");
-          if (size.mHeight.mLength == 0 &&
-              // negative values must have come from calc()
-              size.mHeight.mPercent > 0.0f) {
-            valY->SetPercent(size.mHeight.mPercent);
-          } else if (size.mHeight.mPercent == 0.0f &&
-                     // negative values must have come from calc()
-                     size.mHeight.mLength > 0) {
-            valY->SetAppUnits(size.mHeight.mLength);
-          } else {
-            nsStyleCoord::Calc calc;
-            calc.mPercent = size.mHeight.mPercent;
-            calc.mLength  = size.mHeight.mLength;
-            calc.mHasPercent = PR_TRUE;
-            SetValueToCalc(&calc, valY);
-          }
+          valY->SetAppUnits(size.mHeight.mCoord);
         }
         break;
       }
@@ -3949,7 +3883,24 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
         aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
       } else {
         nsStyleCoord::Calc *calc = aCoord.GetCalcValue();
-        SetValueToCalc(calc, aValue);
+        nsRefPtr<nsROCSSPrimitiveValue> val = new nsROCSSPrimitiveValue();
+        nsAutoString tmp, result;
+
+        result.AppendLiteral("-moz-calc(");
+
+        val->SetAppUnits(calc->mLength);
+        val->GetCssText(tmp);
+        result.Append(tmp);
+
+        result.AppendLiteral(" + ");
+
+        val->SetPercent(calc->mPercent);
+        val->GetCssText(tmp);
+        result.Append(tmp);
+
+        result.AppendLiteral(")");
+
+        aValue->SetString(result); // not really SetString
       }
       break;
     default:

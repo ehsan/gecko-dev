@@ -350,10 +350,6 @@ function hideSearch(event){
   let newEvent = document.createEvent("Events");
   newEvent.initEvent("tabviewsearchdisabled", false, false);
   dispatchEvent(newEvent);
-
-  // Return focus to the tab window
-  UI.blurAll();
-  gTabViewFrame.contentWindow.focus();
 }
 
 function performSearch() {

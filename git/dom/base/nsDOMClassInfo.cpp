@@ -1633,9 +1633,6 @@ jsid nsDOMClassInfo::sOnended_id         = JSID_VOID;
 jsid nsDOMClassInfo::sOnratechange_id    = JSID_VOID;
 jsid nsDOMClassInfo::sOndurationchange_id= JSID_VOID;
 jsid nsDOMClassInfo::sOnvolumechange_id  = JSID_VOID;
-jsid nsDOMClassInfo::sOnmessage_id       = JSID_VOID;
-jsid nsDOMClassInfo::sOnbeforescriptexecute_id = JSID_VOID;
-jsid nsDOMClassInfo::sOnafterscriptexecute_id = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 JSPropertyOp nsDOMClassInfo::sXPCNativeWrapperGetPropertyOp = nsnull;
@@ -1859,9 +1856,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sOnratechange_id,    cx, "onratechange");
   SET_JSID_TO_STRING(sOndurationchange_id,cx, "ondurationchange");
   SET_JSID_TO_STRING(sOnvolumechange_id,  cx, "onvolumechange");
-  SET_JSID_TO_STRING(sOnmessage_id,       cx, "onmessage");
-  SET_JSID_TO_STRING(sOnbeforescriptexecute_id, cx, "onbeforescriptexecute");
-  SET_JSID_TO_STRING(sOnafterscriptexecute_id, cx, "onafterscriptexecute");
 #endif // MOZ_MEDIA
 
   return NS_OK;
@@ -4934,9 +4928,6 @@ nsDOMClassInfo::ShutDown()
   sOnratechange_id    = JSID_VOID;
   sOndurationchange_id= JSID_VOID;
   sOnvolumechange_id  = JSID_VOID;
-  sOnmessage_id       = JSID_VOID;
-  sOnbeforescriptexecute_id = JSID_VOID;
-  sOnafterscriptexecute_id = JSID_VOID;
 
   NS_IF_RELEASE(sXPConnect);
   NS_IF_RELEASE(sSecMan);
@@ -7742,11 +7733,9 @@ nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
 
   switch (aFirstChar) {
   case 'a' :
-    return (id == sOnabort_id ||
-            id == sOnafterscriptexecute_id);
+    return id == sOnabort_id;
   case 'b' :
     return (id == sOnbeforeunload_id ||
-            id == sOnbeforescriptexecute_id ||
             id == sOnblur_id);
   case 'c' :
     return (id == sOnchange_id       ||
@@ -7788,8 +7777,7 @@ nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
             id == sOnmouseout_id     ||
             id == sOnmouseover_id    ||
             id == sOnmouseup_id      ||
-            id == sOnmousedown_id    ||
-            id == sOnmessage_id);
+            id == sOnmousedown_id);
   case 'p' :
     return (id == sOnpaint_id        ||
             id == sOnpageshow_id     ||

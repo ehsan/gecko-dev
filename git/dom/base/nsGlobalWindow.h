@@ -348,8 +348,7 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aForceReuseInnerWindow);
+                                              nsISupports *aState);
   void DispatchDOMWindowCreated();
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
@@ -918,8 +917,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aForceReuseInnerWindow);
+                                              nsISupports *aState);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;

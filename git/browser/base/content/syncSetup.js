@@ -71,6 +71,7 @@ var gSyncSetup = {
   _remoteSites: [Weave.Service.serverURL, "https://api-secure.recaptcha.net"],
 
   status: {
+    username: false,
     password: false,
     email: false,
     server: false
@@ -220,7 +221,7 @@ var gSyncSetup = {
       case NEW_ACCOUNT_PP_PAGE:
         return this._haveSyncKeyBackup && this.checkPassphrase();
       case EXISTING_ACCOUNT_LOGIN_PAGE:
-        let hasUser = document.getElementById("existingAccountName").value != "";
+        let hasUser = document.getElementById("existingUsername").value != "";
         let hasPass = document.getElementById("existingPassword").value != "";
         if (hasUser && hasPass) {
           if (this._usingMainServers)
@@ -237,42 +238,29 @@ var gSyncSetup = {
     return true;
   },
 
-  onEmailChange: function () {
-    let value = document.getElementById("weaveEmail").value;
-    if (!value) {
-      this.status.email = false;
-      this.checkFields();
-      return;
-    }
-    // Do this async to avoid blocking the widget while we go to the server.
-    window.setTimeout(function() {
-      gSyncSetup.checkAccount(value);
-    }, 0);
-  },
-
-  checkAccount: function(value) {
-    let re = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-    let feedback = document.getElementById("emailFeedbackRow");
-    let valid = re.test(value);
-
-    let str = "";
-    if (!valid) {
-      str = "invalidEmail.label";
-    } else {
-      let availCheck = Weave.Service.checkAccount(value);
-      valid = availCheck == "available";
-      if (!valid) {
-        if (availCheck == "notAvailable")
-          str = "usernameNotAvailable.label";
-        else
-          str = availCheck;
-      }
+  onUsernameChange: function () {
+    let feedback = document.getElementById("usernameFeedbackRow");
+    let val = document.getElementById("weaveUsername").value;
+    let availCheck = "", str = "";
+    let available = true;
+    if (val) {
+      availCheck = Weave.Service.checkUsername(val);
+      available = availCheck == "available";
     }
 
-    this._setFeedbackMessage(feedback, valid, str);
-    this.status.email = valid;
-    if (valid)
-      Weave.Service.account = value;
+    if (!available) {
+      if (availCheck == "notAvailable")
+        str = "usernameNotAvailable.label";
+      else
+        str = availCheck;
+    }
+
+    this._setFeedbackMessage(feedback, available, str);
+
+    this.status.username = val && available;
+    if (available)
+      Weave.Service.username = val;
+
     this.checkFields();
   },
 
@@ -296,19 +284,22 @@ var gSyncSetup = {
     this.checkFields();
   },
 
-  onPassphraseChange: function () {
-    // Ignore if there's no actual change from the generated one.
-    let el = document.getElementById("weavePassphrase");
-    if (gSyncUtils.normalizePassphrase(el.value) == Weave.Service.passphrase) {
-      el = document.getElementById("generatePassphraseButton");
-      el.hidden = true;
-      this._haveCustomSyncKey = false;
-      return;
-    }
+  onEmailChange: function () {
+    //XXXzpao Not sure about this regex. Look into it in followup (bug 583650)
+    let re = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    this.status.email = re.test(document.getElementById("weaveEmail").value);
 
+    this._setFeedbackMessage(document.getElementById("emailFeedbackRow"),
+                             this.status.email,
+                             "invalidEmail.label");
+
+    this.checkFields();
+  },
+
+  onPassphraseChange: function () {
     this._haveSyncKeyBackup = true;
     this._haveCustomSyncKey = true;
-    el = document.getElementById("generatePassphraseButton");
+    let el = document.getElementById("generatePassphraseButton");
     el.hidden = false;
     this.checkFields();
   },
@@ -429,16 +420,17 @@ var gSyncSetup = {
         label.value = this._stringBundle.GetStringFromName("verifying.label");
         feedback.hidden = false;
 
+        let username = document.getElementById("weaveUsername").value;
         let password = document.getElementById("weavePassword").value;
         let email    = document.getElementById("weaveEmail").value;
         let challenge = getField("challenge");
         let response = getField("response");
 
-        let error = Weave.Service.createAccount(email, password,
+        let error = Weave.Service.createAccount(username, password, email,
                                                 challenge, response);
 
         if (error == null) {
-          Weave.Service.account = email;
+          Weave.Service.username = username;
           Weave.Service.password = password;
           this._handleNoScript(false);
           this.wizard.pageIndex = SETUP_SUCCESS_PAGE;
@@ -457,7 +449,7 @@ var gSyncSetup = {
         this.captchaBrowser.loadURI(Weave.Service.miscAPI + "captcha_html");
         break;
       case EXISTING_ACCOUNT_LOGIN_PAGE:
-        Weave.Service.account = document.getElementById("existingAccountName").value;
+        Weave.Service.username = document.getElementById("existingUsername").value;
         Weave.Service.password = document.getElementById("existingPassword").value;
         Weave.Service.passphrase = document.getElementById("existingPassphrase").value;
         // verifyLogin() will likely return false because we probably don't
@@ -630,9 +622,9 @@ var gSyncSetup = {
         this._setFeedbackMessage(feedback, true);
     }
 
-    // Recheck account against the new server.
+    // recheck username against the new server
     if (valid)
-      this.onEmailChange();
+      this.onUsernameChange();
 
     this.status.server = valid;
     this.checkFields();
@@ -654,7 +646,7 @@ var gSyncSetup = {
     if (uri && checkRemote) {
       function isValid(uri) {
         Weave.Service.serverURL = uri.spec;
-        let check = Weave.Service.checkAccount("a");
+        let check = Weave.Service.checkUsername("a");
         return (check == "available" || check == "notAvailable");
       }
 
@@ -729,7 +721,7 @@ var gSyncSetup = {
         document.getElementById("historyCount").value =
           PluralForm.get(daysOfHistory,
                          this._stringBundle.GetStringFromName("historyDaysCount.label"))
-                             .replace("%S", daysOfHistory);
+                             .replace("#1", daysOfHistory);
 
         // bookmarks
         let bookmarks = 0;
@@ -744,14 +736,14 @@ var gSyncSetup = {
         document.getElementById("bookmarkCount").value =
           PluralForm.get(bookmarks,
                          this._stringBundle.GetStringFromName("bookmarksCount.label"))
-                             .replace("%S", bookmarks);
+                             .replace("#1", bookmarks);
 
         // passwords
         let logins = Weave.Svc.Login.getAllLogins({});
         document.getElementById("passwordCount").value =
           PluralForm.get(logins.length,
                          this._stringBundle.GetStringFromName("passwordsCount.label"))
-                             .replace("%S", logins.length);
+                             .replace("#1", logins.length);
         this._case1Setup = true;
         break;
       case 2:
@@ -779,7 +771,7 @@ var gSyncSetup = {
           let label =
             PluralForm.get(count - 5,
                            this._stringBundle.GetStringFromName("additionalClientCount.label"))
-                               .replace("%S", count - 5);
+                               .replace("#1", count - 5);
           appendNode(label);
         }
         this._case2Setup = true;

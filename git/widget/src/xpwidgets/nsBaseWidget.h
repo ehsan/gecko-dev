@@ -146,7 +146,6 @@ public:
   NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
   NS_IMETHOD              SetAcceleratedRendering(PRBool aEnabled);
   virtual PRBool          GetAcceleratedRendering();
-  virtual PRBool          GetShouldAccelerate();
   NS_IMETHOD              GetToggledKeyState(PRUint32 aKeyCode, PRBool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMEFocusChange(PRBool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
   NS_IMETHOD              OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -242,8 +241,6 @@ protected:
     nsCOMPtr<nsIWidget> widget = do_CreateInstance(kCPopUpCID);
     return widget.forget();
   }
-
-  BasicLayerManager* CreateBasicLayerManager();
 
 protected: 
   void*             mClientData;

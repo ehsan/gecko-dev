@@ -2357,5 +2357,5 @@ CHECK_FROZEN_VARIABLES = $(foreach var,$(FREEZE_VARIABLES), \
 libs export libs::
 	$(CHECK_FROZEN_VARIABLES)
 
-default all::
+default::
 	if test -d $(DIST)/bin ; then touch $(DIST)/bin/.purgecaches ; fi

@@ -56,10 +56,6 @@
 #include "nsExternalHelperAppService.h"
 #include "nsCExternalHandlerService.h"
 #include "nsFrameMessageManager.h"
-#include "nsIAlertsService.h"
-#include "nsToolkitCompsCID.h"
-
-#include "mozilla/dom/ExternalHelperAppParent.h"
 
 #ifdef ANDROID
 #include "AndroidBridge.h"
@@ -371,13 +367,6 @@ ContentParent::Observe(nsISupports* aSubject,
       if (!SendSetOffline(!strcmp(offline, "true") ? true : false))
           return NS_ERROR_NOT_AVAILABLE;
     }
-    // listening for alert notifications
-    else if (!strcmp(aTopic, "alertfinished") ||
-             !strcmp(aTopic, "alertclickcallback") ) {
-        if (!SendNotifyAlertsObserver(nsDependentCString(aTopic),
-                                      nsDependentString(aData)))
-            return NS_ERROR_NOT_AVAILABLE;
-    }
     return NS_OK;
 }
 
@@ -422,27 +411,6 @@ bool
 ContentParent::DeallocPNecko(PNeckoParent* necko)
 {
     delete necko;
-    return true;
-}
-
-PExternalHelperAppParent*
-ContentParent::AllocPExternalHelperApp(const IPC::URI& uri,
-                                       const nsCString& aMimeContentType,
-                                       const nsCString& aContentDisposition,
-                                       const bool& aForceSave,
-                                       const PRInt64& aContentLength)
-{
-    ExternalHelperAppParent *parent = new ExternalHelperAppParent(uri, aContentLength);
-    parent->AddRef();
-    parent->Init(this, aMimeContentType, aContentDisposition, aForceSave);
-    return parent;
-}
-
-bool
-ContentParent::DeallocPExternalHelperApp(PExternalHelperAppParent* aService)
-{
-    ExternalHelperAppParent *parent = static_cast<ExternalHelperAppParent *>(aService);
-    parent->Release();
     return true;
 }
 
@@ -590,19 +558,6 @@ ContentParent::RecvNotifyIME(const int& aType, const int& aStatus)
 #endif
 }
 
-bool
-ContentParent::RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
-                                         const nsString& aText, const PRBool& aTextClickable,
-                                         const nsString& aCookie, const nsString& aName)
-{
-    nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_ALERTSERVICE_CONTRACTID));
-    if (sysAlerts) {
-        sysAlerts->ShowAlertNotification(aImageUrl, aTitle, aText, aTextClickable,
-                                         aCookie, this, aName);
-    }
-
-    return true;
-}
 
 bool
 ContentParent::RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,

@@ -52,19 +52,26 @@
 namespace mozilla {
 namespace layers {
 
-DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nsnull;
+DeviceManagerD3D9 *LayerManagerD3D9::mDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
   : mIs3DEnabled(PR_FALSE)
 {
-  mWidget = aWidget;
-  mCurrentCallbackInfo.Callback = NULL;
-  mCurrentCallbackInfo.CallbackData = NULL;
+    mWidget = aWidget;
+    mCurrentCallbackInfo.Callback = NULL;
+    mCurrentCallbackInfo.CallbackData = NULL;
 }
 
 LayerManagerD3D9::~LayerManagerD3D9()
 {
-  Destroy();
+  /* Important to release this first since it also holds a reference to the
+   * device manager
+   */
+  mSwapChain = nsnull;
+
+  if (mDeviceManager && mDeviceManager->Release() == 0) {
+    mDeviceManager = nsnull;
+  }
 }
 
 PRBool
@@ -74,17 +81,17 @@ LayerManagerD3D9::Initialize()
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID); 
   prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled); 
 
-  if (!mDefaultDeviceManager) {
+  if (!mDeviceManager) {
     mDeviceManager = new DeviceManagerD3D9;
+    mDeviceManager->AddRef();
 
     if (!mDeviceManager->Init()) {
+      mDeviceManager->Release();
       mDeviceManager = nsnull;
       return PR_FALSE;
     }
-
-    mDefaultDeviceManager = mDeviceManager;
   } else {
-    mDeviceManager = mDefaultDeviceManager;
+    mDeviceManager->AddRef();
   }
 
   mSwapChain = mDeviceManager->
@@ -101,22 +108,6 @@ void
 LayerManagerD3D9::SetClippingRegion(const nsIntRegion &aClippingRegion)
 {
   mClippingRegion = aClippingRegion;
-}
-
-void
-LayerManagerD3D9::Destroy()
-{
-  if (!IsDestroyed()) {
-    if (mRoot) {
-      static_cast<LayerD3D9*>(mRoot->ImplData())->LayerManagerDestroyed();
-    }
-    /* Important to release this first since it also holds a reference to the
-     * device manager
-     */
-    mSwapChain = nsnull;
-    mDeviceManager = nsnull;
-  }
-  LayerManager::Destroy();
 }
 
 void

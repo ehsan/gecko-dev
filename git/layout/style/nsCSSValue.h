@@ -49,7 +49,6 @@
 #include "nsString.h"
 #include "nsStringBuffer.h"
 #include "nsTArray.h"
-#include "mozilla/mozalloc.h"
 
 class imgIRequest;
 class nsIDocument;
@@ -529,11 +528,6 @@ struct nsCSSValue::Array {
     return new (aItemCount) Array(aItemCount);
   }
 
-  static Array* Create(const mozilla::fallible_t& aFallible,
-                       size_t aItemCount) {
-    return new (aFallible, aItemCount) Array(aItemCount);
-  }
-
   nsCSSValue& operator[](size_t aIndex) {
     NS_ABORT_IF_FALSE(aIndex < mCount, "out of range");
     return mArray[aIndex];
@@ -592,13 +586,6 @@ private:
   void* operator new(size_t aSelfSize, size_t aItemCount) CPP_THROW_NEW {
     NS_ABORT_IF_FALSE(aItemCount > 0, "cannot have a 0 item count");
     return ::operator new(aSelfSize + sizeof(nsCSSValue) * (aItemCount - 1));
-  }
-
-  void* operator new(size_t aSelfSize, const mozilla::fallible_t& aFallible,
-                     size_t aItemCount) CPP_THROW_NEW {
-    NS_ABORT_IF_FALSE(aItemCount > 0, "cannot have a 0 item count");
-    return ::operator new(aSelfSize + sizeof(nsCSSValue) * (aItemCount - 1),
-                          aFallible);
   }
 
   void operator delete(void* aPtr) { ::operator delete(aPtr); }

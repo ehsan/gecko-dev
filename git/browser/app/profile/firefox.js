@@ -73,8 +73,6 @@ pref("extensions.blocklist.level", 2);
 pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
 pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
-pref("extensions.update.autoUpdateDefault", true);
-
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/%APP%/dictionaries/");
 
@@ -90,11 +88,6 @@ pref("app.update.timer", 600000);
 
 // Enables some extra Application Update Logging (can reduce performance)
 pref("app.update.log", false);
-
-// The number of general background check failures to allow before notifying the
-// user of the failure. User initiated update checks always notify the user of
-// the failure.
-pref("app.update.backgroundMaxErrors", 10);
 
 // When |app.update.cert.requireBuiltIn| is true or not specified the
 // final certificate and all certificates the connection is redirected to before

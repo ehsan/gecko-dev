@@ -1174,8 +1174,9 @@ nsIDOMHTMLMapElement *
 nsHTMLDocument::GetImageMap(const nsAString& aMapName)
 {
   if (!mImageMaps) {
-    mImageMaps = new nsContentList(this, kNameSpaceID_XHTML, nsGkAtoms::map, nsGkAtoms::map);
+    mImageMaps = new nsContentList(this, nsGkAtoms::map, kNameSpaceID_XHTML);
   }
+  NS_ASSERTION(mImageMaps, "Infallible malloc failed.");
 
   nsIDOMHTMLMapElement* firstMatch = nsnull;
   nsAutoString name;
@@ -1549,7 +1550,12 @@ nsHTMLDocument::GetBody(nsresult *aResult)
   // The document is most likely a frameset document so look for the
   // outer most frameset element
   nsRefPtr<nsContentList> nodeList =
-    NS_GetContentList(this, kNameSpaceID_XHTML, nsGkAtoms::frameset);
+    NS_GetContentList(this, nsGkAtoms::frameset, kNameSpaceID_XHTML);
+  if (!nodeList) {
+    *aResult = NS_ERROR_OUT_OF_MEMORY;
+
+    return nsnull;
+  }
 
   return nodeList->GetNodeAt(0);
 }
@@ -1607,7 +1613,10 @@ NS_IMETHODIMP
 nsHTMLDocument::GetImages(nsIDOMHTMLCollection** aImages)
 {
   if (!mImages) {
-    mImages = new nsContentList(this, kNameSpaceID_XHTML, nsGkAtoms::img, nsGkAtoms::img);
+    mImages = new nsContentList(this, nsGkAtoms::img, kNameSpaceID_XHTML);
+    if (!mImages) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   *aImages = mImages;
@@ -1620,7 +1629,10 @@ NS_IMETHODIMP
 nsHTMLDocument::GetApplets(nsIDOMHTMLCollection** aApplets)
 {
   if (!mApplets) {
-    mApplets = new nsContentList(this, kNameSpaceID_XHTML, nsGkAtoms::applet, nsGkAtoms::applet);
+    mApplets = new nsContentList(this, nsGkAtoms::applet, kNameSpaceID_XHTML);
+    if (!mApplets) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   *aApplets = mApplets;
@@ -1666,6 +1678,9 @@ nsHTMLDocument::GetLinks(nsIDOMHTMLCollection** aLinks)
 {
   if (!mLinks) {
     mLinks = new nsContentList(this, MatchLinks, nsnull, nsnull);
+    if (!mLinks) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   *aLinks = mLinks;
@@ -1703,6 +1718,9 @@ nsHTMLDocument::GetAnchors(nsIDOMHTMLCollection** aAnchors)
 {
   if (!mAnchors) {
     mAnchors = new nsContentList(this, MatchAnchors, nsnull, nsnull);
+    if (!mAnchors) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   *aAnchors = mAnchors;
@@ -1932,8 +1950,7 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     mWillReparent = PR_TRUE;
 #endif
 
-    // Should this pass PR_TRUE for aForceReuseInnerWindow?
-    rv = window->SetNewDocument(this, nsnull, PR_FALSE);
+    rv = window->SetNewDocument(this, nsnull);
     NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG
@@ -2499,7 +2516,10 @@ NS_IMETHODIMP
 nsHTMLDocument::GetEmbeds(nsIDOMHTMLCollection** aEmbeds)
 {
   if (!mEmbeds) {
-    mEmbeds = new nsContentList(this, kNameSpaceID_XHTML, nsGkAtoms::embed, nsGkAtoms::embed);
+    mEmbeds = new nsContentList(this, nsGkAtoms::embed, kNameSpaceID_XHTML);
+    if (!mEmbeds) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
   *aEmbeds = mEmbeds;
@@ -2789,9 +2809,8 @@ nsHTMLDocument::GetForms(nsIDOMHTMLCollection** aForms)
 nsContentList*
 nsHTMLDocument::GetForms()
 {
-  if (!mForms) {
-    mForms = new nsContentList(this, kNameSpaceID_XHTML, nsGkAtoms::form, nsGkAtoms::form);
-  }
+  if (!mForms)
+    mForms = new nsContentList(this, nsGkAtoms::form, kNameSpaceID_XHTML);
 
   return mForms;
 }

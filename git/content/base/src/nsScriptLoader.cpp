@@ -670,35 +670,15 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest)
   }
 
   FireScriptAvailable(NS_OK, aRequest);
-
-  nsCOMPtr<nsINode> scriptElem = do_QueryInterface(aRequest->mElement);
-  PRBool runScript = PR_TRUE;
-  nsContentUtils::DispatchTrustedEvent(scriptElem->GetOwnerDoc(),
-                                       scriptElem,
-                                       NS_LITERAL_STRING("beforescriptexecute"),
-                                       PR_TRUE, PR_TRUE, &runScript);
-
-  nsresult rv = NS_OK;
-  if (runScript) {
-    aRequest->mElement->BeginEvaluating();
-    if (doc) {
-      doc->BeginEvaluatingExternalScript();
-    }
-    rv = EvaluateScript(aRequest, *script);
-    if (doc) {
-      doc->EndEvaluatingExternalScript();
-    }
-    aRequest->mElement->EndEvaluating();
-
-    nsContentUtils::DispatchTrustedEvent(scriptElem->GetOwnerDoc(),
-                                         scriptElem,
-                                         NS_LITERAL_STRING("afterscriptexecute"),
-                                         PR_TRUE, PR_FALSE);
+  aRequest->mElement->BeginEvaluating();
+  if (doc) {
+    doc->BeginEvaluatingExternalScript();
   }
-  else {
-    rv = NS_ERROR_ABORT;
+  nsresult rv = EvaluateScript(aRequest, *script);
+  if (doc) {
+    doc->EndEvaluatingExternalScript();
   }
-
+  aRequest->mElement->EndEvaluating();
   FireScriptEvaluated(rv, aRequest);
 
   return rv;

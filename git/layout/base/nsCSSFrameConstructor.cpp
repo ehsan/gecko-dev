@@ -2341,7 +2341,7 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
                                   display->mBinding->mOriginPrincipal,
                                   PR_FALSE, getter_AddRefs(binding),
                                   &resolveStyle);
-    if (NS_FAILED(rv) && rv != NS_ERROR_XBL_BLOCKED)
+    if (NS_FAILED(rv))
       return NS_OK; // Binding will load asynchronously.
 
     if (binding) {
@@ -5095,7 +5095,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
                                            PR_FALSE,
                                            getter_AddRefs(newPendingBinding->mBinding),
                                            &resolveStyle);
-    if (NS_FAILED(rv) && rv != NS_ERROR_XBL_BLOCKED)
+    if (NS_FAILED(rv))
       return;
 
     if (newPendingBinding->mBinding) {

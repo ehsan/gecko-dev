@@ -778,7 +778,7 @@ static void SetGradientCoord(const nsCSSValue& aValue, nsPresContext* aPresConte
 {
   // OK to pass bad aParentCoord since we're not passing SETCOORD_INHERIT
   if (!SetCoord(aValue, aResult, nsStyleCoord(),
-                SETCOORD_LPO | SETCOORD_BOX_POSITION | SETCOORD_STORE_CALC,
+                SETCOORD_LPO | SETCOORD_BOX_POSITION,
                 aContext, aPresContext, aCanStoreInRuleTree)) {
     NS_NOTREACHED("unexpected unit for gradient anchor point");
     aResult.SetNoneValue();
@@ -4318,7 +4318,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
                     parentDisplay->mTransformOrigin[0],
                     parentDisplay->mTransformOrigin[1],
                     SETCOORD_LPH | SETCOORD_INITIAL_HALF |
-                    SETCOORD_BOX_POSITION | SETCOORD_STORE_CALC,
+                    SETCOORD_BOX_POSITION,
                     aContext, mPresContext, canStoreInRuleTree);
     NS_ASSERTION(result, "Malformed -moz-transform-origin parse!");
   }
@@ -4461,13 +4461,16 @@ struct BackgroundPositionAxis {
   nsCSSValue nsCSSValuePairList::*specified;
   nsStyleBackground::Position::PositionCoord
     nsStyleBackground::Position::*result;
+  PRPackedBool nsStyleBackground::Position::*isPercent;
 };
 
 static const BackgroundPositionAxis gBGPosAxes[] = {
   { &nsCSSValuePairList::mXValue,
-    &nsStyleBackground::Position::mXPosition },
+    &nsStyleBackground::Position::mXPosition,
+    &nsStyleBackground::Position::mXIsPercent },
   { &nsCSSValuePairList::mYValue,
-    &nsStyleBackground::Position::mYPosition }
+    &nsStyleBackground::Position::mYPosition,
+    &nsStyleBackground::Position::mYIsPercent }
 };
 
 NS_SPECIALIZE_TEMPLATE
@@ -4484,27 +4487,19 @@ struct BackgroundItemComputer<nsCSSValuePairList, nsStyleBackground::Position>
          axis != axis_end; ++axis) {
       const nsCSSValue &specified = aSpecifiedValue->*(axis->specified);
       if (eCSSUnit_Percent == specified.GetUnit()) {
-        (position.*(axis->result)).mLength = 0;
-        (position.*(axis->result)).mPercent = specified.GetPercentValue();
+        (position.*(axis->result)).mFloat = specified.GetPercentValue();
+        position.*(axis->isPercent) = PR_TRUE;
       }
       else if (specified.IsLengthUnit()) {
-        (position.*(axis->result)).mLength =
+        (position.*(axis->result)).mCoord =
           CalcLength(specified, aStyleContext, aStyleContext->PresContext(),
                      aCanStoreInRuleTree);
-        (position.*(axis->result)).mPercent = 0.0f;
-      }
-      else if (specified.IsCalcUnit()) {
-        LengthPercentPairCalcOps ops(aStyleContext,
-                                     aStyleContext->PresContext(),
-                                     aCanStoreInRuleTree);
-        nsRuleNode::ComputedCalc vals = ComputeCalc(specified, ops);
-        (position.*(axis->result)).mLength = vals.mLength;
-        (position.*(axis->result)).mPercent = vals.mPercent;
+        position.*(axis->isPercent) = PR_FALSE;
       }
       else if (eCSSUnit_Enumerated == specified.GetUnit()) {
-        (position.*(axis->result)).mLength = 0;
-        (position.*(axis->result)).mPercent =
+        (position.*(axis->result)).mFloat =
           GetFloatFromBoxPosition(specified.GetIntValue());
+        position.*(axis->isPercent) = PR_TRUE;
       } else {
         NS_NOTREACHED("unexpected unit");
       }
@@ -4574,25 +4569,15 @@ struct BackgroundItemComputer<nsCSSValuePairList, nsStyleBackground::Size>
         size.*(axis->type) = size.mWidthType;
       }
       else if (eCSSUnit_Percent == specified.GetUnit()) {
-        (size.*(axis->result)).mLength = 0;
-        (size.*(axis->result)).mPercent = specified.GetPercentValue();
-        size.*(axis->type) = nsStyleBackground::Size::eLengthPercentage;
+        (size.*(axis->result)).mFloat = specified.GetPercentValue();
+        size.*(axis->type) = nsStyleBackground::Size::ePercentage;
       }
-      else if (specified.IsLengthUnit()) {
-        (size.*(axis->result)).mLength =
+      else {
+        NS_ABORT_IF_FALSE(specified.IsLengthUnit(), "unexpected unit");
+        (size.*(axis->result)).mCoord =
           CalcLength(specified, aStyleContext, aStyleContext->PresContext(),
                      aCanStoreInRuleTree);
-        (size.*(axis->result)).mPercent = 0.0f;
-        size.*(axis->type) = nsStyleBackground::Size::eLengthPercentage;
-      } else {
-        NS_ABORT_IF_FALSE(specified.IsCalcUnit(), "unexpected unit");
-        LengthPercentPairCalcOps ops(aStyleContext,
-                                     aStyleContext->PresContext(),
-                                     aCanStoreInRuleTree);
-        nsRuleNode::ComputedCalc vals = ComputeCalc(specified, ops);
-        (size.*(axis->result)).mLength = vals.mLength;
-        (size.*(axis->result)).mPercent = vals.mPercent;
-        size.*(axis->type) = nsStyleBackground::Size::eLengthPercentage;
+        size.*(axis->type) = nsStyleBackground::Size::eLength;
       }
     }
 
