@@ -58,7 +58,6 @@
 #include "nsIMemoryReporter.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsContentUtils.h"
-#include "nsWrapperCache.h"
 
 #include "GLContextProvider.h"
 #include "Layers.h"
@@ -538,10 +537,6 @@ public:
 
     // nsICanvasRenderingContextInternal
     NS_IMETHOD SetCanvasElement(nsHTMLCanvasElement* aParentCanvas);
-    nsHTMLCanvasElement* HTMLCanvasElement() {
-        return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
-    }
-
     NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
     NS_IMETHOD InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, PRInt32 width, PRInt32 height)
         { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -703,6 +698,9 @@ protected:
     nsresult BufferSubData_array(WebGLenum target, PRInt32 offset, JSObject* data);
 
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
+    nsHTMLCanvasElement *HTMLCanvasElement() {
+        return static_cast<nsHTMLCanvasElement*>(mCanvasElement.get());
+    }
 
     nsRefPtr<gl::GLContext> gl;
 
@@ -765,7 +763,7 @@ protected:
         WebGL_MOZ_WEBGL_lose_context,
         WebGLExtensionID_Max
     };
-    nsAutoTArray<nsRefPtr<WebGLExtension>, WebGLExtensionID_Max> mEnabledExtensions;
+    nsRefPtr<WebGLExtension> mEnabledExtensions[WebGLExtensionID_Max];
     bool IsExtensionEnabled(WebGLExtensionID ext) const {
         NS_ABORT_IF_FALSE(ext >= 0 && ext < WebGLExtensionID_Max, "bogus index!");
         return mEnabledExtensions[ext] != nsnull;
@@ -998,8 +996,6 @@ public:
         return mContext == other &&
             mContextGeneration == other->Generation();
     }
-
-    WebGLContext *Context() const { return mContext; }
 
 protected:
     WebGLContext *mContext;
@@ -2545,17 +2541,14 @@ protected:
 class WebGLExtension
     : public nsIWebGLExtension
     , public WebGLContextBoundObject
-    , public nsWrapperCache
 {
 public:
     WebGLExtension(WebGLContext *baseContext)
         : WebGLContextBoundObject(baseContext)
     {}
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(WebGLExtension)
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLEXTENSION
-
     virtual ~WebGLExtension() {}
 };
 

@@ -34,17 +34,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
 #include "nsSVGClipPathFrame.h"
 
-// Keep others in (case-insensitive) order:
-#include "gfxContext.h"
-#include "nsGkAtoms.h"
+#include "nsIDOMDocument.h"
+#include "nsIDocument.h"
 #include "nsIDOMSVGClipPathElement.h"
 #include "nsRenderingContext.h"
-#include "nsSVGClipPathElement.h"
-#include "nsSVGEffects.h"
+#include "nsGkAtoms.h"
 #include "nsSVGUtils.h"
+#include "nsSVGEffects.h"
+#include "nsSVGClipPathElement.h"
+#include "gfxContext.h"
 
 //----------------------------------------------------------------------
 // Implementation

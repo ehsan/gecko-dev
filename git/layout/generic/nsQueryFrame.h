@@ -142,6 +142,7 @@ public:
     nsListControlFrame_id,
     nsListItemFrame_id,
     nsMathMLContainerFrame_id,
+    nsMathMLForeignFrameWrapper_id,
     nsMathMLFrame_id,
     nsMathMLmactionFrame_id,
     nsMathMLmathBlockFrame_id,

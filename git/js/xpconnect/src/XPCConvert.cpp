@@ -1485,7 +1485,7 @@ XPCConvert::JSErrorToXPCException(XPCCallContext& ccx,
         if (report && report->ucmessage) {
             bestMessage = (const PRUnichar *)report->ucmessage;
         } else if (message) {
-            CopyASCIItoUTF16(message, bestMessage);
+            bestMessage.AssignWithConversion(message);
         } else {
             bestMessage.AssignLiteral("JavaScript Error");
         }

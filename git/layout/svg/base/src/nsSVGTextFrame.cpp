@@ -36,20 +36,21 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
-#include "nsSVGTextFrame.h"
-
-// Keep others in (case-insensitive) order:
-#include "nsGkAtoms.h"
-#include "nsIDOMSVGRect.h"
 #include "nsIDOMSVGTextElement.h"
+#include "nsSVGTextFrame.h"
+#include "SVGLengthList.h"
+#include "nsIDOMSVGLength.h"
+#include "nsIDOMSVGAnimatedNumber.h"
 #include "nsISVGGlyphFragmentNode.h"
 #include "nsSVGGlyphFrame.h"
-#include "nsSVGGraphicElement.h"
-#include "nsSVGPathElement.h"
+#include "nsSVGOuterSVGFrame.h"
+#include "nsIDOMSVGRect.h"
+#include "nsSVGRect.h"
+#include "nsGkAtoms.h"
 #include "nsSVGTextPathFrame.h"
+#include "nsSVGPathElement.h"
 #include "nsSVGUtils.h"
-#include "SVGLengthList.h"
+#include "nsSVGGraphicElement.h"
 
 using namespace mozilla;
 

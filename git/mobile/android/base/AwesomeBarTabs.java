@@ -62,7 +62,6 @@ import android.widget.AdapterView;
 import android.widget.ExpandableListView;
 import android.widget.FilterQueryProvider;
 import android.widget.ImageView;
-import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.SimpleCursorAdapter;
 import android.widget.SimpleExpandableListAdapter;
@@ -205,7 +204,8 @@ public class AwesomeBarTabs extends TabHost {
         private LayoutInflater mInflater;
         private Resources mResources;
         private LinkedList<Pair<Integer, String>> mParentStack;
-        private LinearLayout mBookmarksTitleView;
+        private RefreshBookmarkCursorTask mRefreshTask = null;
+        private TextView mBookmarksTitleView;
 
         public BookmarksListAdapter(Context context, int layout, Cursor c, String[] from, int[] to) {
             super(context, layout, c, from, to);
@@ -224,12 +224,12 @@ public class AwesomeBarTabs extends TabHost {
 
         public void refreshCurrentFolder() {
             // Cancel any pre-existing async refresh tasks
-            if (mBookmarksQueryTask != null)
-                mBookmarksQueryTask.cancel(false);
+            if (mRefreshTask != null)
+                mRefreshTask.cancel(false);
 
             Pair<Integer, String> folderPair = mParentStack.getFirst();
-            mBookmarksQueryTask = new BookmarksQueryTask(folderPair.first, folderPair.second);
-            mBookmarksQueryTask.execute();
+            mRefreshTask = new RefreshBookmarkCursorTask(folderPair.first, folderPair.second);
+            mRefreshTask.execute();
         }
 
         // Returns false if there is no parent folder to move to
@@ -307,12 +307,35 @@ public class AwesomeBarTabs extends TabHost {
             return convertView;
         }
 
-        public LinearLayout getHeaderView() {
-            return mBookmarksTitleView;
+        public void setBookmarksTitleView(TextView titleView) {
+            mBookmarksTitleView = titleView;
         }
 
-        public void setHeaderView(LinearLayout titleView) {
-            mBookmarksTitleView = titleView;
+        private class RefreshBookmarkCursorTask extends AsyncTask<Void, Void, Cursor> {
+            private int mFolderId;
+            private String mFolderTitle;
+
+            public RefreshBookmarkCursorTask(int folderId, String folderTitle) {
+                mFolderId = folderId;
+                mFolderTitle = folderTitle;
+            }
+
+            protected Cursor doInBackground(Void... params) {
+                return BrowserDB.getBookmarksInFolder(mContentResolver, mFolderId);
+            }
+
+            protected void onPostExecute(Cursor cursor) {
+                mRefreshTask = null;
+                mBookmarksAdapter.changeCursor(cursor);
+
+                // Hide the header text if we're at the root folder
+                if (mFolderId == Bookmarks.FIXED_ROOT_ID) {
+                    mBookmarksTitleView.setVisibility(View.GONE);
+                } else {
+                    mBookmarksTitleView.setText(mFolderTitle);
+                    mBookmarksTitleView.setVisibility(View.VISIBLE);
+                }
+            }
         }
     }
 
@@ -327,73 +350,47 @@ public class AwesomeBarTabs extends TabHost {
 
         return mBookmarksAdapter.moveToParentFolder();
     }
-     
+
     private class BookmarksQueryTask extends AsyncTask<Void, Void, Cursor> {
-        private int mFolderId;
-        private String mFolderTitle;
-
-        public BookmarksQueryTask() {
-            mFolderId = Bookmarks.FIXED_ROOT_ID;
-            mFolderTitle = "";
-        }
-
-        public BookmarksQueryTask(int folderId, String folderTitle) {
-            mFolderId = folderId;
-            mFolderTitle = folderTitle;
-        }
-
-        @Override
         protected Cursor doInBackground(Void... arg0) {
-            return BrowserDB.getBookmarksInFolder(mContentResolver, mFolderId);
+            return BrowserDB.getBookmarksInFolder(mContentResolver, Bookmarks.FIXED_ROOT_ID);
         }
 
-        @Override
         protected void onPostExecute(Cursor cursor) {
-            ListView list = (ListView) findViewById(R.id.bookmarks_list);
-            list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            // Load the list using a custom adapter so we can create the bitmaps
+            mBookmarksAdapter = new BookmarksListAdapter(
+                mContext,
+                R.layout.awesomebar_row,
+                cursor,
+                new String[] { URLColumns.TITLE,
+                               URLColumns.URL,
+                               URLColumns.FAVICON },
+                new int[] { R.id.title, R.id.url, R.id.favicon }
+            );
+
+            mBookmarksAdapter.setViewBinder(new AwesomeCursorViewBinder());
+
+            ListView bookmarksList = (ListView) findViewById(R.id.bookmarks_list);
+            bookmarksList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                    handleBookmarkItemClick(parent, view, position, id);
+                    handleBookmarkItemClick(position);
                 }
             });
-            
-            // We need to add the header before we set the adapter, hence make it null
-            list.setAdapter(null);
 
-            if (mBookmarksAdapter == null) {
-                // Load the list using a custom adapter so we can create the bitmaps
-                mBookmarksAdapter = new BookmarksListAdapter(
-                    mContext,
-                    R.layout.awesomebar_row,
-                    cursor,
-                    new String[] { URLColumns.TITLE,
-                                   URLColumns.URL,
-                                   URLColumns.FAVICON },
-                    new int[] { R.id.title, R.id.url, R.id.favicon }
-                );
+            // We need to add the header before we set the adapter
+            LayoutInflater inflater =
+                    (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            View headerView = inflater.inflate(R.layout.awesomebar_folder_header_row, null);
 
-                mBookmarksAdapter.setViewBinder(new AwesomeCursorViewBinder());
-            } else {
-                mBookmarksAdapter.changeCursor(cursor);
-            }
+            // Hide the header title view to begin with
+            TextView titleView = (TextView) headerView.findViewById(R.id.title);
+            titleView.setVisibility(View.GONE);
+            mBookmarksAdapter.setBookmarksTitleView(titleView);
 
-            LinearLayout headerView = mBookmarksAdapter.getHeaderView();
-            if (headerView == null) {
-                headerView = (LinearLayout) LayoutInflater.from(mContext).inflate(R.layout.awesomebar_header_row, null);
-                mBookmarksAdapter.setHeaderView(headerView);
-            }
+            bookmarksList.addHeaderView(headerView, null, true);
 
-            // Add/Remove header based on the root folder
-            if (mFolderId == Bookmarks.FIXED_ROOT_ID) {
-                if (list.getHeaderViewsCount() == 1)
-                    list.removeHeaderView(headerView);
-            } else {
-                if (list.getHeaderViewsCount() == 0)
-                    list.addHeaderView(headerView, null, true);
+            bookmarksList.setAdapter(mBookmarksAdapter);
 
-                ((TextView) headerView.findViewById(R.id.title)).setText(mFolderTitle);
-            }
-
-            list.setAdapter(mBookmarksAdapter);
             mBookmarksQueryTask = null;
         }
     }
@@ -866,24 +863,20 @@ public class AwesomeBarTabs extends TabHost {
         imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
-    private void handleBookmarkItemClick(AdapterView<?> parent, View view, int position, long id) {
-        int headerCount = ((ListView) parent).getHeaderViewsCount();
+    private void handleBookmarkItemClick(int position) {
         // If we tap on the header view, there's nothing to do
-        if (headerCount == 1 && position == 0)
+        if (position == 0)
             return;
 
         Cursor cursor = mBookmarksAdapter.getCursor();
         // The header view takes up a spot in the list
-        if (headerCount == 1)
-            position--;
-
-        cursor.moveToPosition(position);
+        cursor.moveToPosition(position - 1);
 
         int type = cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks.TYPE));
         if (type == Bookmarks.TYPE_FOLDER) {
             // If we're clicking on a folder, update mBookmarksAdapter to move to that folder
             int folderId = cursor.getInt(cursor.getColumnIndexOrThrow(Bookmarks._ID));
-            String folderTitle = mBookmarksAdapter.getFolderTitle(position);
+            String folderTitle = mBookmarksAdapter.getFolderTitle(position - 1);
 
             mBookmarksAdapter.moveToChildFolder(folderId, folderTitle);
             return;

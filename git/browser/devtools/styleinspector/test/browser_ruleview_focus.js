@@ -5,9 +5,6 @@
 // Test that focus doesn't leave the style editor when adding a property
 // (bug 719916)
 
-let tempScope = {};
-Cu.import("resource:///modules/devtools/CssRuleView.jsm", tempScope);
-let inplaceEditor = tempScope._getInplaceEditorForSpan;
 let doc;
 let stylePanel;
 
@@ -30,9 +27,9 @@ function waitForRuleView(aCallback)
 function waitForEditorFocus(aParent, aCallback)
 {
   aParent.addEventListener("focus", function onFocus(evt) {
-    if (inplaceEditor(evt.target)) {
+    if (evt.target.inplaceEditor) {
       aParent.removeEventListener("focus", onFocus, true);
-      let editor = inplaceEditor(evt.target);
+      let editor = evt.target.inplaceEditor;
       executeSoon(function() {
         aCallback(editor);
       });

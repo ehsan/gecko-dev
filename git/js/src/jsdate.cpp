@@ -2654,7 +2654,8 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
         return NULL;
     SetDateToNaN(cx, dateProto);
 
-    JSFunction *ctor = global->createConstructor(cx, js_Date, CLASS_ATOM(cx, Date), MAXARGS);
+    JSFunction *ctor = global->createConstructor(cx, js_Date, &DateClass,
+                                                 CLASS_ATOM(cx, Date), MAXARGS);
     if (!ctor)
         return NULL;
 

@@ -2429,7 +2429,7 @@ TriggerCompartmentGC(JSCompartment *comp, gcreason::Reason reason)
         return;
     }
 
-    if (comp == rt->atomsCompartment) {
+    if (rt->gcMode == JSGC_MODE_GLOBAL || comp == rt->atomsCompartment) {
         /* We can't do a compartmental GC of the default compartment. */
         TriggerGC(rt, reason);
         return;
@@ -2479,7 +2479,7 @@ MaybeGC(JSContext *cx)
     }
 
     if (comp->gcMallocAndFreeBytes > comp->gcTriggerMallocAndFreeBytes) {
-        GCSlice(cx, comp, GC_NORMAL, gcreason::MAYBEGC);
+        GCSlice(cx, rt->gcMode == JSGC_MODE_GLOBAL ? NULL : comp, GC_NORMAL, gcreason::MAYBEGC);
         return;
     }
 
@@ -3724,9 +3724,6 @@ Collect(JSContext *cx, JSCompartment *comp, int64_t budget,
 #endif
 
     RecordNativeStackTopForGC(rt);
-
-    if (rt->gcMode == JSGC_MODE_GLOBAL)
-        comp = NULL;
 
     /* This is a heuristic to avoid resets. */
     if (rt->gcIncrementalState != NO_INCREMENTAL && !rt->gcIncrementalCompartment)

@@ -76,6 +76,7 @@ public:
 
   float GetConfidence(void);
   void      Reset(bool aIsPreferredLanguage);
+  void      SetOpion(){}
   bool GotEnoughData() {return mTotalRel > ENOUGH_REL_THRESHOLD;}
 
 protected:

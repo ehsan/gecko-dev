@@ -3,7 +3,6 @@ DOM_SRCDIRS = \
   dom/battery \
   dom/power \
   dom/network/src \
-  dom/settings \
   dom/sms/src \
   dom/contacts \
   dom/src/events \

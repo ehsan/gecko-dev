@@ -12,7 +12,6 @@ found in the LICENSE file.
 <script src="../../resources/desktop-gl-constants.js" type="text/javascript"></script>
 <script src="../../resources/js-test-pre.js"></script>
 <script src="../resources/webgl-test.js"></script>
-<script src="../resources/webgl-test-utils.js"></script>
 </head>
 <body>
 <div id="description"></div>
@@ -40,13 +39,12 @@ function shouldReturnString(_a)
   if (exception)
     testFailed(_a + ' should return a string. Threw exception ' + exception);
   else if (typeof _av == "string")
-    testPassed(_a + ' returns a string');
+    testPassed(_a + ' returns a string: "' + _av + '"');
   else
     testFailed(_a + ' should return a string.  Returns: "' + _av + '"');
 }
 
-var wtu = WebGLTestUtils;
-var gl = wtu.create3DContext("canvas");
+var gl = create3DContext(document.getElementById("canvas"));
 if (!gl) {
   testFailed("context does not exist");
 } else {
@@ -73,18 +71,9 @@ if (!gl) {
   gl.linkProgram(prog);
   shouldReturnString("gl.getProgramInfoLog(prog)");
 
-  // Make sure different numbers of extensions doesn't result in
-  // different test output.
   var exts = gl.getSupportedExtensions();
-  var allPassed = true;
   for (i in exts) {
-    if (typeof i != "string") {
-      shouldReturnString("gl.getSupportedExtensions()[" + i + "]");
-      allPassed = false;
-    }
-  }
-  if (allPassed) {
-    testPassed('getSupportedExtensions() returns an array of strings');
+    shouldReturnString("gl.getSupportedExtensions()[" + i + "]");
   }
 
   shouldReturnString("gl.getParameter(gl.VENDOR)");

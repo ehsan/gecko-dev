@@ -71,8 +71,6 @@ function showList() {
 }
 
 var Addons = {
-  _restartCount: 0,
-
   _createItem: function _createItem(aAddon) {
     let outer = document.createElement("div");
     outer.setAttribute("addonID", aAddon.id);
@@ -304,8 +302,6 @@ var Addons = {
     if (!addon)
       return;
 
-    let listItem = this._getElementForAddon(addon.id);
-
     let opType;
     if (addon.type == "search") {
       addon.engine.hidden = !aValue;
@@ -333,7 +329,9 @@ var Addons = {
       if ((addon.pendingOperations & AddonManager.PENDING_ENABLE) ||
           (addon.pendingOperations & AddonManager.PENDING_DISABLE)) {
         this.showRestart();
-      } else if (listItem && /needs-(enable|disable)/.test(listItem.getAttribute("opType"))) {
+      } else if (addon == detailItem.addon &&
+            detailItem.getAttribute("opType") == "needs-disable" ||
+            detailItem.getAttribute("opType") == "needs-enable") {
         this.hideRestart();
       }
     }
@@ -347,6 +345,7 @@ var Addons = {
     }
 
     // Sync to the list item
+    let listItem = this._getElementForAddon(addon.id);
     if (listItem) {
       listItem.setAttribute("isDisabled", !aValue);
       if (opType)
@@ -367,29 +366,28 @@ var Addons = {
   uninstall: function uninstall() {
     let list = document.getElementById("addons-list");
     let detailItem = document.querySelector("#addons-details > .addon-item");
-
-    let addon = detailItem.addon;
-    if (!addon)
+    if (!detailItem.addon)
       return;
 
-    let listItem = this._getElementForAddon(addon.id);
+    let listItem = this._getElementForAddon(detailItem.addon.id);
 
-    if (addon.type == "search") {
+    if (detailItem.addon.type == "search") {
       // Make sure the engine isn't hidden before removing it, to make sure it's
       // visible if the user later re-adds it (works around bug 341833)
-      addon.engine.hidden = false;
-      Services.search.removeEngine(addon.engine);
+      detailItem.addon.engine.hidden = false;
+      Services.search.removeEngine(detailItem.addon.engine);
       // the search-engine-modified observer will take care of updating the list
       history.back();
     } else {
-      addon.uninstall();
-      if (addon.pendingOperations & AddonManager.PENDING_UNINSTALL) {
+      detailItem.addon.uninstall();
+      let opType = this._getOpTypeForOperations(detailItem.addon.pendingOperations);
+
+      if (detailItem.addon.pendingOperations & AddonManager.PENDING_UNINSTALL) {
         this.showRestart();
 
         // A disabled addon doesn't need a restart so it has no pending ops and
         // can't be cancelled
-        let opType = this._getOpTypeForOperations(addon.pendingOperations);
-        if (!addon.isActive && opType == "")
+        if (!detailItem.addon.isActive && opType == "")
           opType = "needs-uninstall";
 
         detailItem.setAttribute("opType", opType);
@@ -403,29 +401,25 @@ var Addons = {
 
   cancelUninstall: function ev_cancelUninstall() {
     let detailItem = document.querySelector("#addons-details > .addon-item");
-    let addon = detailItem.addon;
-    if (!addon)
+    if (!detailItem.addon)
       return;
 
-    addon.cancelUninstall();
+    detailItem.addon.cancelUninstall();
     this.hideRestart();
 
-    let opType = this._getOpTypeForOperations(addon.pendingOperations);
+    let opType = this._getOpTypeForOperations(detailItem.addon.pendingOperations);
     detailItem.setAttribute("opType", opType);
 
-    let listItem = this._getElementForAddon(addon.id);
+    let listItem = this._getElementForAddon(detailItem.addon.id);
     listItem.setAttribute("opType", opType);
   },
 
-  showRestart: function showRestart() {
-    this._restartCount++;
-    gChromeWin.XPInstallObserver.showRestartPrompt();
+  showRestart: function showRestart(aMode) {
+    // TODO (bug 704406)
   },
 
-  hideRestart: function hideRestart() {
-    this._restartCount--;
-    if (this._restartCount == 0)
-      gChromeWin.XPInstallObserver.hideRestartPrompt();
+  hideRestart: function hideRestart(aMode) {
+    // TODO (bug 704406)
   },
 
   onEnabled: function(aAddon) {

@@ -330,6 +330,16 @@ FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString* bytes)
     return bytes->encode(cx, fun->atom) ? bytes->ptr() : Probes::nullName;
 }
 
+static const char *
+FunctionClassname(const JSFunction *fun)
+{
+    if (!fun || fun->isInterpreted())
+        return Probes::nullName;
+    if (fun->getConstructorClass())
+        return fun->getConstructorClass()->name;
+    return Probes::nullName;
+}
+
 /*
  * These functions call the DTrace macros for the JavaScript USDT probes.
  * Originally this code was inlined in the JavaScript code; however since
@@ -341,7 +351,7 @@ void
 Probes::DTraceEnterJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
 {
     JSAutoByteString funNameBytes;
-    JAVASCRIPT_FUNCTION_ENTRY(ScriptFilename(script), Probes::nullName,
+    JAVASCRIPT_FUNCTION_ENTRY(ScriptFilename(script), FunctionClassname(fun),
                               FunctionName(cx, fun, &funNameBytes));
 }
 
@@ -349,7 +359,7 @@ void
 Probes::DTraceExitJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
 {
     JSAutoByteString funNameBytes;
-    JAVASCRIPT_FUNCTION_RETURN(ScriptFilename(script), Probes::nullName,
+    JAVASCRIPT_FUNCTION_RETURN(ScriptFilename(script), FunctionClassname(fun),
                                FunctionName(cx, fun, &funNameBytes));
 }
 #endif

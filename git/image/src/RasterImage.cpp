@@ -3001,6 +3001,9 @@ RasterImage::DecodeWorker::DecodeSomeOfImage(
   NS_ABORT_IF_FALSE(aImg->mInitialized,
                     "Worker active for uninitialized container!");
 
+  if (aDecodeType == DECODE_TYPE_UNTIL_SIZE && aImg->mHasSize)
+    return NS_OK;
+
   // If an error is flagged, it probably happened while we were waiting
   // in the event queue.
   if (aImg->mError)
@@ -3029,14 +3032,8 @@ RasterImage::DecodeWorker::DecodeSomeOfImage(
   TimeStamp start = TimeStamp::Now();
   TimeStamp deadline = start + TimeDuration::FromMilliseconds(gMaxMSBeforeYield);
 
-  // We keep decoding chunks until:
-  //  * we don't have any data left to decode,
-  //  * the decode completes,
-  //  * we're an UNTIL_SIZE decode and we get the size, or
-  //  * we run out of time.
-  while (aImg->mSourceData.Length() > aImg->mBytesDecoded &&
-         !aImg->IsDecodeFinished() &&
-         !(aDecodeType == DECODE_TYPE_UNTIL_SIZE && aImg->mHasSize)) {
+  // Decode some chunks of data.
+  do {
     chunkCount++;
     nsresult rv = aImg->DecodeSomeData(maxBytes);
     if (NS_FAILED(rv)) {
@@ -3044,11 +3041,18 @@ RasterImage::DecodeWorker::DecodeSomeOfImage(
       return rv;
     }
 
-    // Yield if we've been decoding for too long. We check this _after_ decoding
-    // a chunk to ensure that we don't yield without doing any decoding.
-    if (TimeStamp::Now() >= deadline)
+    // We keep decoding chunks until either:
+    //  * we're an UNTIL_SIZE decode and we get the size,
+    //  * we don't have any data left to decode,
+    //  * the decode completes, or
+    //  * we run out of time.
+
+    if (aDecodeType == DECODE_TYPE_UNTIL_SIZE && aImg->mHasSize)
       break;
-  }
+
+  } while (aImg->mSourceData.Length() > aImg->mBytesDecoded &&
+           !aImg->IsDecodeFinished() &&
+           TimeStamp::Now() < deadline);
 
   aImg->mDecodeRequest.mDecodeTime += (TimeStamp::Now() - start);
 

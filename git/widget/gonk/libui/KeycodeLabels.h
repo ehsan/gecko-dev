@@ -17,7 +17,7 @@
 #ifndef _UI_KEYCODE_LABELS_H
 #define _UI_KEYCODE_LABELS_H
 
-#include "android_keycodes.h"
+#include <android/keycodes.h>
 
 struct KeycodeLabel {
     const char *literal;

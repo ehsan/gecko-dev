@@ -70,6 +70,7 @@ import org.mozilla.gecko.gfx.InputConnectionHandler;
 
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.SynchronousQueue;
 
 public class GeckoInputConnection
     extends BaseInputConnection
@@ -89,20 +90,23 @@ public class GeckoInputConnection
     private static final int NOTIFY_IME_CANCELCOMPOSITION = 2;
     private static final int NOTIFY_IME_FOCUSCHANGE = 3;
 
-    private static final int NO_COMPOSITION_STRING = -1;
-
+    private static final CharacterStyle COMPOSING_SPAN = new UnderlineSpan();
     private static final Timer mIMETimer = new Timer("GeckoInputConnection Timer");
     private static int mIMEState;
     private static String mIMETypeHint;
     private static String mIMEActionHint;
 
     // Is a composition active?
-    private int mCompositionStart = NO_COMPOSITION_STRING;
+    private boolean mComposing;
+    private int mCompositionStart = -1;
     private Editable mEditable;
     private Editable.Factory mEditableFactory;
     private boolean mBatchMode;
     private ExtractedTextRequest mUpdateRequest;
     private final ExtractedText mUpdateExtract = new ExtractedText();
+    private int mSelectionStart;
+    private int mSelectionLength;
+    private final SynchronousQueue<String> mQueryResult = new SynchronousQueue<String>();
 
     public static GeckoInputConnection create(View targetView) {
         if (DEBUG)
@@ -142,7 +146,7 @@ public class GeckoInputConnection
     public boolean commitText(CharSequence text, int newCursorPosition) {
         replaceText(text, newCursorPosition, false);
 
-        if (hasCompositionString()) {
+        if (mComposing) {
             if (DEBUG) Log.d(LOGTAG, ". . . commitText: endComposition");
             endComposition();
         }
@@ -151,7 +155,7 @@ public class GeckoInputConnection
 
     @Override
     public boolean finishComposingText() {
-        if (hasCompositionString()) {
+        if (mComposing) {
             if (DEBUG) Log.d(LOGTAG, ". . . finishComposingText: endComposition");
             endComposition();
         }
@@ -369,8 +373,7 @@ public class GeckoInputConnection
             if (!(text instanceof Spannable)) {
                 sp = new SpannableStringBuilder(text);
                 text = sp;
-                // Underline the active composition string.
-                sp.setSpan(new UnderlineSpan(), 0, sp.length(),
+                sp.setSpan(COMPOSING_SPAN, 0, sp.length(),
                         Spanned.SPAN_EXCLUSIVE_EXCLUSIVE | Spanned.SPAN_COMPOSING);
             } else {
                 sp = (Spannable) text;
@@ -417,7 +420,7 @@ public class GeckoInputConnection
 
     @Override
     public boolean setComposingRegion(int start, int end) {
-        if (hasCompositionString()) {
+        if (mComposing) {
             if (DEBUG) Log.d(LOGTAG, ". . . setComposingRegion: endComposition");
             endComposition();
         }
@@ -450,7 +453,7 @@ public class GeckoInputConnection
         // In that case we are not updated when a composition
         // is destroyed, and Bad Things happen
 
-        if (!hasCompositionString())
+        if (!mComposing)
             return false;
 
         String text = getComposingText();
@@ -552,14 +555,15 @@ public class GeckoInputConnection
     }
 
     public void reset() {
-        mCompositionStart = NO_COMPOSITION_STRING;
+        mComposing = false;
+        mCompositionStart = -1;
         mBatchMode = false;
         mUpdateRequest = null;
     }
 
     // TextWatcher
     public void onTextChanged(CharSequence s, int start, int before, int count) {
-        if (hasCompositionString() && mCompositionStart != start) {
+        if (mComposing && mCompositionStart != start) {
             // Changed range is different from the composition, need to reset the composition
             endComposition();
         }
@@ -575,10 +579,11 @@ public class GeckoInputConnection
             return;
         }
 
-        if (!hasCompositionString()) {
+        if (!mComposing) {
             if (DEBUG) Log.d(LOGTAG, ". . . onTextChanged: IME_COMPOSITION_BEGIN");
             GeckoAppShell.sendEventToGecko(
                 GeckoEvent.createIMEEvent(GeckoEvent.IME_COMPOSITION_BEGIN, 0, 0));
+            mComposing = true;
             mCompositionStart = start;
 
             if (DEBUG) {
@@ -613,7 +618,8 @@ public class GeckoInputConnection
         if (DEBUG) Log.d(LOGTAG, "IME: endComposition: IME_COMPOSITION_END");
         GeckoAppShell.sendEventToGecko(
             GeckoEvent.createIMEEvent(GeckoEvent.IME_COMPOSITION_END, 0, 0));
-        mCompositionStart = NO_COMPOSITION_STRING;
+        mComposing = false;
+        mCompositionStart = -1;
     }
 
     private void sendTextToGecko(CharSequence text, int caretPos) {
@@ -949,6 +955,15 @@ public class GeckoInputConnection
             notifyTextChange(imm, text, start, end, newEnd);
     }
 
+    public void returnIMEQueryResult(String result, int selectionStart, int selectionLength) {
+        mSelectionStart = selectionStart;
+        mSelectionLength = selectionLength;
+        try {
+            mQueryResult.put(result);
+        } catch (InterruptedException e) {
+        }
+    }
+
     /* Delay updating IME states (see bug 573800) */
     private static final class IMEStateUpdater extends TimerTask {
         private static IMEStateUpdater instance;
@@ -1009,10 +1024,6 @@ public class GeckoInputConnection
         mEditable = mEditableFactory.newEditable(contents);
         mEditable.setSpan(this, 0, contents.length(), Spanned.SPAN_INCLUSIVE_INCLUSIVE);
         Selection.setSelection(mEditable, contents.length());
-    }
-
-    private boolean hasCompositionString() {
-        return mCompositionStart != NO_COMPOSITION_STRING;
     }
 }
 

@@ -16,7 +16,14 @@ static JSBool test_prop_get( JSContext *cx, JSObject *obj, jsid id, jsval *vp )
 }
 
 static JSBool
-PTest(JSContext* cx, unsigned argc, jsval *vp);
+PTest(JSContext* cx, unsigned argc, jsval *vp)
+{
+    JSObject *obj = JS_NewObjectForConstructor(cx, vp);
+    if (!obj)
+        return JS_FALSE;
+    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
+    return JS_TRUE;
+}
 
 static JSClass ptestClass = {
     "PTest",
@@ -31,15 +38,6 @@ static JSClass ptestClass = {
     JS_ConvertStub
 };
 
-static JSBool
-PTest(JSContext* cx, unsigned argc, jsval *vp)
-{
-    JSObject *obj = JS_NewObjectForConstructor(cx, &ptestClass, vp);
-    if (!obj)
-        return JS_FALSE;
-    JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
-    return JS_TRUE;
-}
 static JSBool test_fn(JSContext *cx, unsigned argc, jsval *vp)
 {
     called_test_fn++;

@@ -532,7 +532,6 @@ DOMCI_CLASS(MozCSSKeyframesRule)
 
 DOMCI_CLASS(MediaQueryList)
 DOMCI_CLASS(CustomEvent)
-DOMCI_CLASS(MozSettingsEvent)
 
 #ifdef MOZ_B2G_RIL
 DOMCI_CLASS(Telephony)

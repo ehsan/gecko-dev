@@ -124,7 +124,7 @@ let libnetutils = (function () {
 
     let makeRequestWrapper = function (c_fn) {
       return function (ifname) {
-        let ret = c_fn(ifname,
+        let ret = c_fn(data.ifname,
                        ints.addressOfElement(0),
                        ints.addressOfElement(1),
                        ints.addressOfElement(2),

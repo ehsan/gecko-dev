@@ -127,7 +127,6 @@
       <handler event="keypress"><![CDATA[
         var win = this.findbar._currentWindow ||
                   this.findbar.browser.contentWindow;
-        var controller = this.findbar._getSelectionController(win);
 
         var shouldHandle = !event.altKey && !event.ctrlKey &&
                            !event.metaKey && !event.shiftKey;
@@ -141,23 +140,22 @@
             break;
           case KeyEvent.DOM_VK_PAGE_UP:
             if (shouldHandle) {
-              controller.scrollPage(false);
+              win.scrollByPages(-1);
               event.preventDefault();
             }
             break;
           case KeyEvent.DOM_VK_PAGE_DOWN:
             if (shouldHandle) {
-              controller.scrollPage(true);
+              win.scrollByPages(1);
               event.preventDefault();
             }
             break;
           case KeyEvent.DOM_VK_UP:
-            controller.scrollLine(false);
+            win.scrollByLines(-1);
             event.preventDefault();
             break;
           case KeyEvent.DOM_VK_DOWN:
             win.scrollByLines(1);
-            controller.scrollLine(true);
             event.preventDefault();
             break;
         }

@@ -49,13 +49,10 @@
 #define XPCOM_TRANSLATE_NSGM_ENTRY_POINT 1
 
 #if defined(MOZ_WIDGET_QT)
-#include <QApplication>
-#include <QStringList>
+#include <QtGui/QApplication>
 #include "nsQAppInstance.h"
-#if (QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
-#include <QInputContextFactory>
-#include <QInputContext>
-#endif
+#include <QtGui/QInputContextFactory>
+#include <QtGui/QInputContext>
 #endif // MOZ_WIDGET_QT
 
 #include "mozilla/dom/ContentParent.h"

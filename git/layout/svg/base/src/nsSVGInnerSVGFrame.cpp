@@ -36,16 +36,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
 #include "nsSVGInnerSVGFrame.h"
 
-// Keep others in (case-insensitive) order:
-#include "gfxContext.h"
+#include "nsRenderingContext.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
-#include "nsRenderingContext.h"
-#include "nsSVGContainerFrame.h"
+#include "nsIDOMSVGAnimatedRect.h"
 #include "nsSVGSVGElement.h"
+#include "nsSVGContainerFrame.h"
+#include "gfxContext.h"
 
 nsIFrame*
 NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)

@@ -47,12 +47,8 @@
 #ifdef MOZ_WIDGET_QT
 #include <QWidget>
 #include <QKeyEvent>
-#if defined(MOZ_X11)
-#if defined(Q_WS_X11)
+#ifdef MOZ_X11
 #include <QX11Info>
-#else
-#include "gfxQtPlatform.h"
-#endif
 #endif
 #undef slots
 #endif
@@ -2435,7 +2431,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 #ifdef MOZ_WIDGET_GTK2
         Window root = GDK_ROOT_WINDOW();
 #elif defined(MOZ_WIDGET_QT)
-        Window root = RootWindowOfScreen(DefaultScreenOfDisplay(mozilla::DefaultXDisplay()));
+        Window root = QX11Info::appRootWindow();
 #else
         Window root = None; // Could XQueryTree, but this is not important.
 #endif
@@ -2551,13 +2547,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
           event.time = anEvent.time;
 
           QWidget* qWidget = static_cast<QWidget*>(widget->GetNativeData(NS_NATIVE_WINDOW));
-
           if (qWidget)
-#if defined(Q_WS_X11)
             event.root = qWidget->x11Info().appRootWindow();
-#else
-            event.root = RootWindowOfScreen(DefaultScreenOfDisplay(gfxQtPlatform::GetXDisplay(qWidget)));
-#endif
 
           // deduce keycode from the information in the attached QKeyEvent
           const QKeyEvent* qtEvent = static_cast<const QKeyEvent*>(anEvent.pluginEvent);
@@ -3074,9 +3065,9 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
     gdk_x11_screen_get_xscreen(gdk_visual_get_screen(gdkVisual));
 #endif
 #ifdef MOZ_WIDGET_QT
-  Display* dpy = mozilla::DefaultXDisplay();
-  Screen* screen = DefaultScreenOfDisplay(dpy);
-  Visual* visual = DefaultVisualOfScreen(screen);
+  Display* dpy = QX11Info().display();
+  Screen* screen = ScreenOfDisplay(dpy, QX11Info().screen());
+  Visual* visual = static_cast<Visual*>(QX11Info().visual());
 #endif
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
                 rendererFlags, screen, visual, nsnull);

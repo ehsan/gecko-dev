@@ -34,11 +34,13 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Keep in (case-insensitive) order:
+#include "nsSVGGFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsIDOMSVGUseElement.h"
-#include "nsSVGGFrame.h"
+#include "nsIDOMSVGTransformable.h"
+#include "nsSVGElement.h"
 #include "nsSVGUseElement.h"
+#include "gfxMatrix.h"
 
 typedef nsSVGGFrame nsSVGUseFrameBase;
 

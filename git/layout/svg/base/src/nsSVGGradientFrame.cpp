@@ -37,17 +37,17 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
+#include "nsIDOMSVGAnimatedNumber.h"
+#include "nsIDOMSVGAnimTransformList.h"
+#include "SVGAnimatedTransformList.h"
+#include "nsSVGEffects.h"
+#include "nsIDOMSVGStopElement.h"
+#include "nsSVGGradientElement.h"
+#include "nsSVGGeometryFrame.h"
 #include "nsSVGGradientFrame.h"
-
-// Keep others in (case-insensitive) order:
+#include "gfxContext.h"
 #include "gfxPattern.h"
 #include "nsContentUtils.h"
-#include "nsIDOMSVGAnimatedNumber.h"
-#include "nsIDOMSVGStopElement.h"
-#include "nsSVGEffects.h"
-#include "nsSVGGradientElement.h"
-#include "SVGAnimatedTransformList.h"
 
 using mozilla::SVGAnimatedTransformList;
 

@@ -27,7 +27,8 @@ var texture;
 description("Tests 'is' calls against non-bound and deleted objects");
 
 wtu = WebGLTestUtils;
-gl = wtu.create3DContext("canvas");
+canvas = document.getElementById("canvas");
+gl = wtu.create3DContext(canvas);
 shouldGenerateGLError = wtu.shouldGenerateGLError;
 
 shouldGenerateGLError(gl, gl.NO_ERROR, "buffer = gl.createBuffer()");

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <QApplication>
+#include <QtGui/QApplication>
 #include "nsQAppInstance.h"
 #include <QtOpenGL/QGLWidget>
 #include <QThread>

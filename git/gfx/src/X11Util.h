@@ -45,8 +45,10 @@
 #if defined(MOZ_WIDGET_GTK2)
 #  include <gdk/gdkx.h>
 #elif defined(MOZ_WIDGET_QT)
-#include "gfxQtPlatform.h"
+// X11/X.h has #define CursorShape 0, but Qt's qnamespace.h defines
+//   enum CursorShape { ... }.  Good times!
 #undef CursorShape
+#  include <QX11Info>
 #  include <X11/Xlib.h>
 #else
 #  error Unknown toolkit
@@ -66,7 +68,7 @@ DefaultXDisplay()
 #if defined(MOZ_WIDGET_GTK2)
   return GDK_DISPLAY();
 #elif defined(MOZ_WIDGET_QT)
-  return gfxQtPlatform::GetXDisplay();
+  return QX11Info::display();
 #endif
 }
 

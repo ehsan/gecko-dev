@@ -35,14 +35,11 @@ var fShaderDB = {};
  *   succeed.
  * linkSuccess: true of link should succeed
  * passMsg: msg to describe success condition.
- * render: if true render to unit quad. Green = success
  *
  */
 function runOneTest(gl, info) {
   var passMsg = info.passMsg
-  debug("test: " + passMsg);
-
-  var console = document.getElementById("console");
+  log(passMsg);
 
   if (info.vShaderSource === undefined) {
     if (info.vShaderId) {
@@ -61,13 +58,8 @@ function runOneTest(gl, info) {
     }
   }
 
-  var vLabel = (info.vShaderSource == defaultVertexShader ? "default" : "test") + " vertex shader";
-  var fLabel = (info.fShaderSource == defaultFragmentShader ? "default" : "test") + " fragment shader";
-
   var vSource = info.vShaderPrep ? info.vShaderPrep(info.vShaderSource) :
     info.vShaderSource;
-
-  wtu.addShaderSource(console, vLabel, vSource);
 
   // Reuse identical shaders so we test shared shader.
   var vShader = vShaderDB[vSource];
@@ -93,8 +85,6 @@ function runOneTest(gl, info) {
 
   var fSource = info.fShaderPrep ? info.fShaderPrep(info.fShaderSource) :
     info.fShaderSource;
-
-  wtu.addShaderSource(console, fLabel, fSource);
 
   // Reuse identical shaders so we test shared shader.
   var fShader = fShaderDB[fSource];
@@ -124,8 +114,6 @@ function runOneTest(gl, info) {
     var program = gl.createProgram();
     gl.attachShader(program, vShader);
     gl.attachShader(program, fShader);
-    gl.bindAttribLocation(program, 0, "vPosition");
-    gl.bindAttribLocation(program, 1, "texCoord0");
     gl.linkProgram(program);
     var linked = (gl.getProgramParameter(program, gl.LINK_STATUS) != 0);
     if (!linked) {
@@ -142,30 +130,13 @@ function runOneTest(gl, info) {
       return;
     }
   }
-
-  if (!info.render) {
-    testPassed(passMsg);
-    return;
-  }
-
-  gl.useProgram(program);
-  wtu.setupUnitQuad(gl);
-  wtu.drawQuad(gl);
-
-  var div = document.createElement("div");
-  div.className = "testimages";
-  wtu.insertImage(div, "result", wtu.makeImage(gl.canvas));
-  div.appendChild(document.createElement('br'));
-  console.appendChild(div);
-  wtu.checkCanvas(gl, [0, 255, 0, 255], "should be green", 0);
+  testPassed(passMsg);
 }
 
 function runTests(shaderInfos) {
   var wtu = WebGLTestUtils;
   var canvas = document.createElement('canvas');
-  canvas.width = 32;
-  canvas.height = 32;
-  var gl = wtu.create3DContext(canvas);
+  var gl = wtu.create3DContext();
   if (!gl) {
     testFailed("context does not exist");
     finishTest();
@@ -248,7 +219,7 @@ function getSuccess(msg) {
   testFailed("bad test description. Must have 'fail' or 'success'");
 }
 
-function setupTest() {
+function runTest() {
   var vShaderElem = document.getElementById('vertexShader');
   var vShaderSource = defaultVertexShader;
   var vShaderSuccess = true;
@@ -287,34 +258,13 @@ function setupTest() {
     linkSuccess: linkSuccess,
     passMsg: passMsg
   };
-
-  return info;
-}
-
-function runTest() {
-  var info = setupTest();
-  description(info.passMsg);
+  description(passMsg);
   runTests([info]);
-}
-
-function runRenderTests(tests) {
-  for (var ii = 0; ii < tests.length; ++ii) {
-    tests[ii].render = true
-  }
-  runTests(tests);
-}
-
-function runRenderTest() {
-  var info = setupTest();
-  description(info.passMsg);
-  runRenderTests([info]);
 }
 
 return {
   runTest: runTest,
   runTests: runTests,
-  runRenderTest: runRenderTest,
-  runRenderTests: runRenderTests,
   loadExternalShaders: loadExternalShaders,
 
   none: false,

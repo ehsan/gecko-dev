@@ -18,13 +18,13 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "utils_Log.h"
-#include "android_keycodes.h"
+#include <android/keycodes.h>
 #include "Keyboard.h"
 #include "KeyCharacterMap.h"
+#include <utils/Log.h>
 #include <utils/Errors.h>
-#include "Tokenizer.h"
-#include "Timers.h"
+#include <utils/Tokenizer.h>
+#include <utils/Timers.h>
 
 // Enables debug output for the parser.
 #define DEBUG_PARSER 0

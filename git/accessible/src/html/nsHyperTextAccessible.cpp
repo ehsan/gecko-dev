@@ -780,6 +780,7 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
   }
 
   // Ask layout for the new node and offset, after moving the appropriate amount
+  nsPeekOffsetStruct pos;
 
   nsresult rv;
   PRInt32 contentOffset = aFromOffset;
@@ -793,9 +794,9 @@ nsHyperTextAccessible::GetRelativeOffset(nsIPresShell *aPresShell,
     }
   }
 
-  nsPeekOffsetStruct pos(aAmount, aDirection, contentOffset,
-                         0, kIsJumpLinesOk, kIsScrollViewAStop, kIsKeyboardSelect, kIsVisualBidi,
-                         wordMovementType);
+  pos.SetData(aAmount, aDirection, contentOffset,
+              0, kIsJumpLinesOk, kIsScrollViewAStop, kIsKeyboardSelect, kIsVisualBidi,
+              wordMovementType);
   rv = aFromFrame->PeekOffset(&pos);
   if (NS_FAILED(rv)) {
     if (aDirection == eDirPrevious) {
