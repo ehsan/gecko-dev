@@ -414,14 +414,14 @@ guard_both_jsvals_are_string(jsval& a, jsval& b)
     return interp_guard_both_jsvals_are_string(a, b);
 }
 
-static inline void 
-trace_start(JSContext* cx, jsbytecode* pc) 
-{
-}
-
+/*
+ * Unsupported opcodes trigger a trace stop condition and cause the trace
+ * recorder to abandon the current trace.
+ */
 static inline void
-trace_stop(JSContext* cx, const char* op)
+trace_stop(const char* op)
 {
+    /* If we are not tracing, this is a no-op. */
 }
 
 #endif /* jstracerinlines_h___ */

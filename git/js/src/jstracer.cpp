@@ -40,8 +40,14 @@
 
 #include "jsinterp.cpp"
 
+JSBool
+js_InitTracer(JSRuntime *rt)
+{
+    return JS_TRUE;
+}
+
 uint32
-js_AllocateLoopTableSlot(JSRuntime* rt)
+js_AllocateLoopTableSlot(JSRuntime *rt)
 {
     uint32 slot = JS_ATOMIC_INCREMENT(&rt->loopTableSlotGen);
     JS_ASSERT(slot != 0);
@@ -49,7 +55,7 @@ js_AllocateLoopTableSlot(JSRuntime* rt)
 }
 
 void
-js_FreeLoopTableSlot(JSRuntime* rt, uint32 slot)
+js_FreeLoopTableSlot(JSRuntime *rt, uint32 slot)
 {
 }
 
@@ -64,9 +70,9 @@ js_FreeLoopTableSlot(JSRuntime* rt, uint32 slot)
  * JS_ZERO.
  */
 JSBool
-js_GrowLoopTable(JSContext* cx, uint32 index)
+js_GrowLoopTable(JSContext *cx, uint32 index)
 {
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
+    JSTraceMonitor *tm = &JS_TRACE_MONITOR(cx);
     uint32 oldSize = tm->loopTableSize;
 
     if (index >= oldSize) {
@@ -87,28 +93,4 @@ js_GrowLoopTable(JSContext* cx, uint32 index)
         tm->loopTableSize = newSize;
     }
     return JS_TRUE;
-}
-
-JSObject*
-js_GetRecorder(JSContext* cx) 
-{
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    if (tm->recorder)
-        return tm->recorder;
-    JSScript* script = JS_CompileFile(cx, JS_GetGlobalObject(cx), "recorder.js");
-    JS_ASSERT(script != NULL);
-    jsval result;
-    JSBool ok = JS_ExecuteScript(cx, JS_GetGlobalObject(cx), script, &result);
-    JS_ASSERT(ok && JSVAL_IS_OBJECT(result));
-    return tm->recorder = JSVAL_TO_OBJECT(result);
-}
-
-jsval
-js_CallRecorder(JSContext* cx, const char* fn, uintN argc, jsval* argv)
-{
-    jsval rval;
-    JSBool ok;
-    ok = JS_CallFunctionName(cx, js_GetRecorder(cx), fn, argc, argv, &rval);
-    JS_ASSERT(ok);
-    return rval;
 }

@@ -57,25 +57,13 @@
 struct JSTraceMonitor {
     jsval               *loopTable;
     uint32              loopTableSize;
-    JSObject            *recorder;
 };
 
 #define TRACE_THRESHOLD 10
 
+JSBool js_InitTracer(JSRuntime *rt);
 uint32 js_AllocateLoopTableSlot(JSRuntime *rt);
 void   js_FreeLoopTableSlot(JSRuntime *rt, uint32 slot);
 JSBool js_GrowLoopTable(JSContext *cx, uint32 index);
-jsval  js_CallRecorder(JSContext* cx, const char* fn, uintN argc, jsval* argv);
-
-/*
- * The recorder needs to keep track of native machine addresses. We speculate 
- * that these addresses can be wrapped into a 31-bit integer, which is true
- * for most 32-bit machines.
- */
-static inline jsval
-native_pointer_to_jsval(void* p) {
-    JS_ASSERT(INT_FITS_IN_JSVAL((int)p));
-    return INT_TO_JSVAL((int)p);
-}
 
 #endif /* jstracer_h___ */
