@@ -41,9 +41,8 @@
 #include "nsHtml5NamedCharacters.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
-#include "nsIUnicodeDecoder.h"
 
-class nsHtml5StreamParser;
+class nsHtml5Parser;
 
 class nsHtml5Tokenizer;
 class nsHtml5TreeBuilder;

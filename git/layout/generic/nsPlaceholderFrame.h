@@ -85,8 +85,6 @@ nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
  */
 class nsPlaceholderFrame : public nsFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   /**
    * Create a new placeholder frame
    */

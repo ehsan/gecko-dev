@@ -50,10 +50,8 @@
 #include "nsHtml5PendingNotification.h"
 #include "nsHtml5StateSnapshot.h"
 #include "nsHtml5StackNode.h"
-#include "nsHtml5TreeOpExecutor.h"
-#include "nsHtml5StreamParser.h"
 
-class nsHtml5StreamParser;
+class nsHtml5Parser;
 
 class nsHtml5Tokenizer;
 class nsHtml5MetaScanner;
@@ -64,6 +62,7 @@ class nsHtml5UTF16Buffer;
 class nsHtml5StateSnapshot;
 class nsHtml5Portability;
 
+typedef nsIContent* nsIContentPtr;
 
 class nsHtml5TreeBuilder
 {
@@ -76,6 +75,7 @@ class nsHtml5TreeBuilder
   protected:
     nsHtml5Tokenizer* tokenizer;
   private:
+    nsHtml5Parser* parser;
     PRBool scriptingEnabled;
     PRBool needToDropLF;
     PRBool fragment;
@@ -183,6 +183,7 @@ class nsHtml5TreeBuilder
     nsIContent* createHtmlElementSetAsRoot(nsHtml5HtmlAttributes* attributes);
     void detachFromParent(nsIContent* element);
     PRBool hasChildren(nsIContent* element);
+    nsIContent* shallowClone(nsIContent* element);
     void appendElement(nsIContent* child, nsIContent* newParent);
     void appendChildrenToNewParent(nsIContent* oldParent, nsIContent* newParent);
     void insertFosterParentedChild(nsIContent* child, nsIContent* table, nsIContent* stackParent);

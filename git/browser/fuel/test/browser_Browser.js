@@ -79,9 +79,7 @@ function test() {
 
     let browser = gBrowser.getBrowserAtIndex(gPageB.index);
     browser.addProgressListener({
-      onStateChange: function (webProgress, request, stateFlags, status) {
-        info("onStateChange: " + stateFlags);
-
+      onStateChange: function(webProgress, request, stateFlags, status) {
         const complete = Ci.nsIWebProgressListener.STATE_IS_WINDOW +
                          Ci.nsIWebProgressListener.STATE_IS_NETWORK +
                          Ci.nsIWebProgressListener.STATE_STOP;
@@ -91,13 +89,18 @@ function test() {
         }
       },
 
-      onLocationChange: function () 0,
-      onProgressChange: function () 0,
-      onStatusChange: function () 0,
-      onSecurityChange: function () 0,
-      QueryInterface: XPCOMUtils.generateQI([Ci.nsISupportsWeakReference,
-                                             Ci.nsIWebProgressListener,
-                                             Ci.nsISupports])
+      onLocationChange: function() { return 0; },
+      onProgressChange: function() { return 0; },
+      onStatusChange: function() { return 0; },
+      onSecurityChange: function() { return 0; },
+      QueryInterface: function(iid) {
+        if (iid.equals(Ci.nsISupportsWeakReference) ||
+           iid.equals(Ci.nsIWebProgressListener) ||
+           iid.equals(Ci.nsISupports))
+           return this;
+
+        throw Components.results.NS_ERROR_NO_INTERFACE;
+      }
     });
 
     // test loading new content with a frame into a tab
@@ -108,7 +111,6 @@ function test() {
 
   function onPageBLoadWithFrames(event) {
     gPageLoadCount++;
-    info("onPageBLoadWithFrames: " + gPageLoadCount);
   }
 
   function onPageBLoadComplete() {

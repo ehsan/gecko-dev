@@ -316,9 +316,7 @@ function findChildShell(aDocument, aDocShell, aSoughtURI) {
 
 const gPopupBlockerObserver = {
   _reportButton: null,
-
-  get _pm ()
-    Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager),
+  _kIPM: Components.interfaces.nsIPermissionManager,
 
   onUpdatePageReport: function (aEvent)
   {
@@ -386,10 +384,12 @@ const gPopupBlockerObserver = {
 
   toggleAllowPopupsForSite: function (aEvent)
   {
-    var pm = this._pm;
+    var currentURI = gBrowser.selectedBrowser.webNavigation.currentURI;
+    var pm = Components.classes["@mozilla.org/permissionmanager;1"]
+                       .getService(this._kIPM);
     var shouldBlock = aEvent.target.getAttribute("block") == "true";
-    var perm = shouldBlock ? pm.DENY_ACTION : pm.ALLOW_ACTION;
-    pm.add(gBrowser.currentURI, "popup", perm);
+    var perm = shouldBlock ? this._kIPM.DENY_ACTION : this._kIPM.ALLOW_ACTION;
+    pm.add(currentURI, "popup", perm);
 
     gBrowser.getNotificationBox().removeCurrentNotification();
   },
@@ -405,13 +405,13 @@ const gPopupBlockerObserver = {
     //          also back out the fix for bug 343772 where
     //          nsGlobalWindow::CheckOpenAllow() was changed to also
     //          check if the top window's location is whitelisted.
-    var uri = gBrowser.currentURI;
+    var uri = gBrowser.selectedBrowser.webNavigation.currentURI;
     var blockedPopupAllowSite = document.getElementById("blockedPopupAllowSite");
     try {
       blockedPopupAllowSite.removeAttribute("hidden");
 
-      var pm = this._pm;
-      if (pm.testPermission(uri, "popup") == pm.ALLOW_ACTION) {
+      var pm = Cc["@mozilla.org/permissionmanager;1"].getService(this._kIPM);
+      if (pm.testPermission(uri, "popup") == this._kIPM.ALLOW_ACTION) {
         // Offer an item to block popups for this site, if a whitelist entry exists
         // already for it.
         let blockString = gNavigatorBundle.getFormattedString("popupBlock", [uri.host]);
@@ -513,7 +513,8 @@ const gPopupBlockerObserver = {
   {
     var host = "";
     try {
-      host = gBrowser.currentURI.host;
+      var uri = gBrowser.selectedBrowser.webNavigation.currentURI;
+      host = uri.host;
     }
     catch (e) { }
 
@@ -941,9 +942,9 @@ function BrowserStartup() {
       // the original tab in the other window.
 
       // Stop the about:blank load
-      gBrowser.stop();
+      gBrowser.selectedBrowser.stop();
       // make sure it has a docshell
-      gBrowser.docShell;
+      gBrowser.selectedBrowser.docShell;
 
       gBrowser.swapBrowsersAndCloseOther(gBrowser.selectedTab, uriToLoad);
     }
@@ -1356,10 +1357,6 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 
   // initialize the private browsing UI
   gPrivateBrowsingUI.init();
-
-  gBrowser.mPanelContainer.addEventListener("InstallBrowserTheme", LightWeightThemeWebInstaller, false, true);
-  gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
-  gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
 }
 
 function BrowserShutdown()
@@ -1802,7 +1799,7 @@ function BrowserOpenTab()
                       "chrome,all,dialog=no", "about:blank");
     return;
   }
-  gBrowser.loadOneTab("about:blank", {inBackground: false});
+  gBrowser.loadOneTab("about:blank", null, null, null, false, false);
   if (gURLBar)
     gURLBar.focus();
 }
@@ -1825,12 +1822,7 @@ function delayedOpenWindow(chrome, flags, href, postData)
    the URI kicked off before becoming the active content area. */
 function delayedOpenTab(aUrl, aReferrer, aCharset, aPostData, aAllowThirdPartyFixup)
 {
-  gBrowser.loadOneTab(aUrl, {
-                      referrerURI: aReferrer,
-                      charset: aCharset,
-                      postData: aPostData,
-                      inBackground: false,
-                      allowThirdPartyFixup: aAllowThirdPartyFixup});
+  gBrowser.loadOneTab(aUrl, aReferrer, aCharset, aPostData, false, aAllowThirdPartyFixup);
 }
 
 var gLastOpenDirectory = {
@@ -2282,7 +2274,7 @@ function SetPageProxyState(aState)
     gLastValidURLStr = gURLBar.value;
     gURLBar.addEventListener("input", UpdatePageProxyState, false);
 
-    PageProxySetIcon(gBrowser.selectedBrowser.mIconURL);
+    PageProxySetIcon(gBrowser.mCurrentBrowser.mIconURL);
   } else if (aState == "invalid") {
     gURLBar.removeEventListener("input", UpdatePageProxyState, false);
     PageProxyClearIcon();
@@ -3028,7 +3020,7 @@ const BrowserSearch = {
       browser.hiddenEngines = engines;
     else {
       browser.engines = engines;
-      if (browser == gBrowser.selectedBrowser)
+      if (browser == gBrowser.mCurrentBrowser)
         this.updateSearchButton();
     }
   },
@@ -3047,7 +3039,7 @@ const BrowserSearch = {
     if (!searchBar || !searchBar.searchButton)
       return;
 
-    var engines = gBrowser.selectedBrowser.engines;
+    var engines = gBrowser.mCurrentBrowser.engines;
     if (engines && engines.length > 0)
       searchBar.searchButton.setAttribute("addengines", "true");
     else
@@ -3131,9 +3123,8 @@ const BrowserSearch = {
       return;
   
     if (useNewTab) {
-      gBrowser.loadOneTab(submission.uri.spec, {
-                          postData: submission.postData,
-                          relatedToCurrent: true});
+      gBrowser.loadOneTab(submission.uri.spec, null, null,
+                          submission.postData, null, false);
     } else
       loadURI(submission.uri.spec, null, submission.postData, false);
   },
@@ -3985,8 +3976,8 @@ var XULBrowserWindow = {
         if (aWebProgress.DOMWindow == content) {
           if (aRequest)
             this.endDocumentLoad(aRequest, aStatus);
-          if (!gBrowser.mTabbedMode && !gBrowser.selectedBrowser.mIconURL)
-            gBrowser.useDefaultIcon(gBrowser.selectedTab);
+          if (!gBrowser.mTabbedMode && !gBrowser.mCurrentBrowser.mIconURL)
+            gBrowser.useDefaultIcon(gBrowser.mCurrentTab);
         }
       }
 
@@ -4124,7 +4115,7 @@ var XULBrowserWindow = {
       }
 
       if (!gBrowser.mTabbedMode && aWebProgress.isLoadingDocument)
-        gBrowser.setIcon(gBrowser.selectedTab, null);
+        gBrowser.setIcon(gBrowser.mCurrentTab, null);
 
       if (gURLBar) {
         // Strip off "wyciwyg://" and passwords for the location bar
@@ -4287,10 +4278,10 @@ var XULBrowserWindow = {
 
   startDocumentLoad: function (aRequest) {
     // clear out feed data
-    gBrowser.selectedBrowser.feeds = null;
+    gBrowser.mCurrentBrowser.feeds = null;
 
     // clear out search-engine data
-    gBrowser.selectedBrowser.engines = null;    
+    gBrowser.mCurrentBrowser.engines = null;    
 
     var uri = aRequest.QueryInterface(Ci.nsIChannel).URI;
     var observerService = Cc["@mozilla.org/observer-service;1"]
@@ -4453,9 +4444,8 @@ nsBrowserAccess.prototype =
         // If this is an external load, we need to load a blank tab first,
         // because loadflags can't be passed to loadOneTab.
         let loadBlankFirst = !aURI || isExternal;
-        let tab = win.gBrowser.loadOneTab(loadBlankFirst ? "about:blank" : aURI.spec, {
-                                          referrerURI: referrer,
-                                          inBackground: loadInBackground});
+        let tab = win.gBrowser.loadOneTab(loadBlankFirst ? "about:blank" : aURI.spec,
+                                          referrer, null, null, loadInBackground, false);
         let browser = win.gBrowser.getBrowserForTab(tab);
 
         if (loadBlankFirst && aURI)
@@ -5400,21 +5390,17 @@ var OfflineApps = {
   _getBrowserForContentWindow: function(aBrowserWindow, aContentWindow) {
     // This depends on pseudo APIs of browser.js and tabbrowser.xml
     aContentWindow = aContentWindow.top;
-    var browsers = aBrowserWindow.gBrowser.browsers;
+    var browsers = aBrowserWindow.getBrowser().browsers;
     for (var i = 0; i < browsers.length; ++i) {
       if (browsers[i].contentWindow == aContentWindow)
         return browsers[i];
     }
-    return null;
   },
 
   _getManifestURI: function(aWindow) {
-    if (!aWindow.document.documentElement)
-      return null;
-
+    if (!aWindow.document.documentElement) return null;
     var attr = aWindow.document.documentElement.getAttribute("manifest");
-    if (!attr)
-      return null;
+    if (!attr) return null;
 
     try {
       var contentURI = makeURI(aWindow.location.href, null, null);
@@ -5428,9 +5414,9 @@ var OfflineApps = {
   // the best browser in which to warn the user about space usage
   _getBrowserForCacheUpdate: function(aCacheUpdate) {
     // Prefer the current browser
-    var uri = this._getManifestURI(content);
+    var uri = this._getManifestURI(gBrowser.mCurrentBrowser.contentWindow);
     if (uri && uri.equals(aCacheUpdate.manifestURI)) {
-      return gBrowser.selectedBrowser;
+      return gBrowser.mCurrentBrowser;
     }
 
     var browsers = gBrowser.browsers;
@@ -5865,7 +5851,7 @@ function getPluginInfo(pluginElement)
     // only attempt if a pluginsPage is defined.
     if (pluginsPage) {
       var doc = pluginElement.ownerDocument;
-      var docShell = findChildShell(doc, gBrowser.docShell, null);
+      var docShell = findChildShell(doc, gBrowser.selectedBrowser.docShell, null);
       try {
         pluginsPage = makeURI(pluginsPage, doc.characterSet, docShell.currentURI).spec;
       } catch (ex) { 
@@ -6019,7 +6005,7 @@ function blocklistInfo()
   var formatter = Components.classes["@mozilla.org/toolkit/URLFormatterService;1"]
                             .getService(Components.interfaces.nsIURLFormatter);
   var url = formatter.formatURLPref("extensions.blocklist.detailsURL");
-  gBrowser.loadOneTab(url, {inBackground: false});
+  gBrowser.loadOneTab(url, null, null, null, false, false);
   return true;
 }
 
@@ -6170,7 +6156,7 @@ var FeedHandler = {
     if (!this._feedMenupopup)
       this._feedMenupopup = document.getElementById("subscribeToPageMenupopup");
 
-    var feeds = gBrowser.selectedBrowser.feeds;
+    var feeds = gBrowser.mCurrentBrowser.feeds;
     if (!feeds || feeds.length == 0) {
       if (feedButton) {
         feedButton.collapsed = true;
@@ -6213,7 +6199,7 @@ var FeedHandler = {
 
     browserForLink.feeds.push({ href: link.href, title: link.title });
 
-    if (browserForLink == gBrowser.selectedBrowser) {
+    if (browserForLink == gBrowser.mCurrentBrowser) {
       var feedButton = document.getElementById("feed-button");
       if (feedButton)
         feedButton.collapsed = false;
@@ -6232,9 +6218,9 @@ function undoCloseTab(aIndex) {
   var blankTabToRemove = null;
   if (gBrowser.tabContainer.childNodes.length == 1 &&
       !gPrefService.getBoolPref("browser.tabs.autoHide") &&
-      gBrowser.sessionHistory.count < 2 &&
-      gBrowser.currentURI.spec == "about:blank" &&
-      !gBrowser.contentDocument.body.hasChildNodes() &&
+      gBrowser.selectedBrowser.sessionHistory.count < 2 &&
+      gBrowser.selectedBrowser.currentURI.spec == "about:blank" &&
+      !gBrowser.selectedBrowser.contentDocument.body.hasChildNodes() &&
       !gBrowser.selectedTab.hasAttribute("busy"))
     blankTabToRemove = gBrowser.selectedTab;
 
@@ -7060,141 +7046,3 @@ let gURLBarEmptyText = {
     return gURLBar.getAttribute(type + "emptytext");
   }
 };
-
-var LightWeightThemeWebInstaller = {
-  handleEvent: function (event) {
-    switch (event.type) {
-      case "InstallBrowserTheme":
-        this._install(event);
-        break;
-      case "PreviewBrowserTheme":
-        this._preview(event);
-        break;
-      case "ResetBrowserThemePreview":
-        this._resetPreview(event);
-        break;
-    }
-  },
-
-  get _manager () {
-    var temp = {};
-    Cu.import("resource://gre/modules/LightweightThemeManager.jsm", temp);
-    delete this._manager;
-    return this._manager = temp.LightweightThemeManager;
-  },
-
-  _install: function (event) {
-    var node = event.target;
-    var data = this._getThemeFromNode(node);
-    if (!data)
-      return;
-
-    if (this._isAllowed(node)) {
-      this._manager.currentTheme = data;
-      return;
-    }
-
-    var allowButtonText =
-      gNavigatorBundle.getString("lwthemeInstallRequest.allowButton");
-    var allowButtonAccesskey =
-      gNavigatorBundle.getString("lwthemeInstallRequest.allowButton.accesskey");
-    var message =
-      gNavigatorBundle.getFormattedString("lwthemeInstallRequest.message",
-                                          [node.ownerDocument.location.host]);
-    var buttons = [{
-      label: allowButtonText,
-      accessKey: allowButtonAccesskey,
-      callback: function () {
-        LightWeightThemeWebInstaller._manager.currentTheme = data;
-      }
-    }];
-    var notificationBox = gBrowser.getNotificationBox();
-    notificationBox.appendNotification(message, "lwtheme-install-request", "",
-                                       notificationBox.PRIORITY_INFO_MEDIUM,
-                                       buttons);
-  },
-
-  _preview: function (event) {
-    if (!this._isAllowed(event.target))
-      return;
-
-    var data = this._getThemeFromNode(event.target);
-    if (!data)
-      return;
-
-    this._manager.previewTheme(data);
-  },
-
-  _resetPreview: function (event) {
-    if (!this._isAllowed(event.target))
-      return;
-
-    this._manager.resetPreview();
-  },
-
-  _isAllowed: function (node) {
-    var pm = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
-
-    var prefs = [["xpinstall.whitelist.add", pm.ALLOW_ACTION],
-                 ["xpinstall.whitelist.add.36", pm.ALLOW_ACTION],
-                 ["xpinstall.blacklist.add", pm.DENY_ACTION]];
-    prefs.forEach(function ([pref, permission]) {
-      try {
-        var hosts = gPrefService.getCharPref(pref);
-      } catch (e) {}
-
-      if (hosts) {
-        hosts.split(",").forEach(function (host) {
-          pm.add(makeURI("http://" + host), "install", permission);
-        });
-
-        gPrefService.setCharPref(pref, "");
-      }
-    });
-
-    var uri = node.ownerDocument.documentURIObject;
-    return pm.testPermission(uri, "install") == pm.ALLOW_ACTION;
-  },
-
-  _getThemeFromNode: function (node) {
-    const MANDATORY = ["id", "name", "headerURL"];
-    const OPTIONAL = ["footerURL", "textcolor", "accentcolor", "iconURL",
-                      "previewURL", "author", "description", "homepageURL"];
-
-    try {
-      var data = JSON.parse(node.getAttribute("data-browsertheme"));
-    } catch (e) {
-      return null;
-    }
-
-    if (!data || typeof data != "object")
-      return null;
-
-    for (let prop in data) {
-      if (!data[prop] ||
-          typeof data[prop] != "string" ||
-          MANDATORY.indexOf(prop) == -1 && OPTIONAL.indexOf(prop) == -1) {
-        delete data[prop];
-        continue;
-      }
-
-      if (/URL$/.test(prop)) {
-        try {
-          data[prop] = makeURLAbsolute(node.baseURI, data[prop]);
-
-          if (/^https?:/.test(data[prop]))
-            continue;
-        } catch (e) {}
-
-        delete data[prop];
-      }
-    }
-
-    for (let i = 0; i < MANDATORY.length; i++) {
-      if (!(MANDATORY[i] in data)) 
-        return null;
-    }
-
-    return data;
-  }
-}

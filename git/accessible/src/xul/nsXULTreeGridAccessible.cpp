@@ -1234,10 +1234,6 @@ nsXULTreeGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
   mParent->GetParent(getter_AddRefs(accessible));
   nsCOMPtr<nsIAccessibleTable> tableAccessible = do_QueryInterface(accessible);
 
-  // XXX - temp fix for crash bug 516047
-  if (!tableAccessible)
-    return NS_ERROR_FAILURE;
-    
   PRInt32 colIdx = GetColumnIndex();
 
   PRInt32 cellIdx = -1;
@@ -1332,7 +1328,7 @@ nsXULTreeGridCellAccessible::CellInvalidated()
     mTreeView->GetCellValue(mRow, mColumn, textEquiv);
     if (mCachedTextEquiv != textEquiv) {
       PRBool isEnabled = textEquiv.EqualsLiteral("true");
-      nsCOMPtr<nsIAccessibleEvent> accEvent =
+      nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
         new nsAccStateChangeEvent(this, nsIAccessibleStates::STATE_CHECKED,
                                   PR_FALSE, isEnabled);
       if (accEvent)

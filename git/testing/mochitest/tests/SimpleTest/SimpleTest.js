@@ -8,10 +8,6 @@
  *  * Support the Test.Simple API used by MochiKit, to be able to test MochiKit
  * itself against IE 5.5
  *
- * NOTE: Pay attention to cross-browser compatibility in this file. For
- * instance, do not use const or JS > 1.5 features which are not yet
- * implemented everywhere.
- *
 **/
 
 if (typeof(SimpleTest) == "undefined") {
@@ -262,7 +258,7 @@ SimpleTest.waitForFocus = function (callback, targetWindow) {
             SimpleTest.waitForFocus_focused &&
             !SimpleTest.waitForFocus_started) {
             SimpleTest.waitForFocus_started = true;
-            setTimeout(callback, 0, targetWindow);
+            setTimeout(callback, 0);
         }
     }
 
@@ -553,7 +549,7 @@ var todo_is = SimpleTest.todo_is;
 var todo_isnot = SimpleTest.todo_isnot;
 var isDeeply = SimpleTest.isDeeply;
 
-var gOldOnError = window.onerror;
+const gOldOnError = window.onerror;
 window.onerror = function simpletestOnerror(errorMsg, url, lineNumber) {
   var funcIdentifier = "[SimpleTest/SimpleTest.js, window.onerror] ";
 

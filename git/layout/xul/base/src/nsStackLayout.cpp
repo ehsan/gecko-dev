@@ -54,11 +54,6 @@
 
 nsIBoxLayout* nsStackLayout::gInstance = nsnull;
 
-#define SPECIFIED_LEFT (1 << NS_SIDE_LEFT)
-#define SPECIFIED_RIGHT (1 << NS_SIDE_RIGHT)
-#define SPECIFIED_TOP (1 << NS_SIDE_TOP)
-#define SPECIFIED_BOTTOM (1 << NS_SIDE_BOTTOM)
-
 nsresult
 NS_NewStackLayout( nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout)
 {
@@ -100,10 +95,7 @@ nsStackLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aState)
       nsSize pref = child->GetPrefSize(aState);
 
       AddMargin(child, pref);
-      nsMargin offset;
-      GetOffset(aState, child, offset);
-      pref.width += offset.LeftRight();
-      pref.height += offset.TopBottom();
+      AddOffset(aState, child, pref);
       AddLargestSize(prefSize, pref);
     }
 
@@ -126,10 +118,7 @@ nsStackLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aState)
       nsSize min = child->GetMinSize(aState);
 
       AddMargin(child, min);
-      nsMargin offset;
-      GetOffset(aState, child, offset);
-      min.width += offset.LeftRight();
-      min.height += offset.TopBottom();
+      AddOffset(aState, child, min);
       AddLargestSize(minSize, min);
     }
 
@@ -155,10 +144,7 @@ nsStackLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aState)
       max = nsBox::BoundsCheckMinMax(min, max);
 
       AddMargin(child, max);
-      nsMargin offset;
-      GetOffset(aState, child, offset);
-      max.width += offset.LeftRight();
-      max.height += offset.TopBottom();
+      AddOffset(aState, child, max);
       AddSmallestSize(maxSize, max);
     }
 
@@ -191,21 +177,33 @@ nsStackLayout::GetAscent(nsIBox* aBox, nsBoxLayoutState& aState)
   return vAscent;
 }
 
-PRUint8
-nsStackLayout::GetOffset(nsBoxLayoutState& aState, nsIBox* aChild, nsMargin& aOffset)
+PRBool
+nsStackLayout::AddOffset(nsBoxLayoutState& aState, nsIBox* aChild, nsSize& aSize)
 {
-  aOffset = nsMargin(0, 0, 0, 0);
-
-  // get the left, right, top and bottom offsets
-
+  nsSize offset(0,0);
+  
+  // get the left and top offsets
+  
   // As an optimization, we cache the fact that we are not positioned to avoid
-  // wasting time fetching attributes.
+  // wasting time fetching attributes and checking style data.
   if (aChild->IsBoxFrame() &&
       (aChild->GetStateBits() & NS_STATE_STACK_NOT_POSITIONED))
-    return 0;
+    return PR_FALSE;
+  
+  PRBool offsetSpecified = PR_FALSE;
+  const nsStylePosition* pos = aChild->GetStylePosition();
+  if (eStyleUnit_Coord == pos->mOffset.GetLeftUnit()) {
+     offset.width = pos->mOffset.GetLeft().GetCoordValue();
+     offsetSpecified = PR_TRUE;
+  }
 
-  PRUint8 offsetSpecified = 0;
+  if (eStyleUnit_Coord == pos->mOffset.GetTopUnit()) {
+     offset.height = pos->mOffset.GetTop().GetCoordValue();
+     offsetSpecified = PR_TRUE;
+  }
+
   nsIContent* content = aChild->GetContent();
+
   if (content) {
     nsAutoString value;
     PRInt32 error;
@@ -213,42 +211,28 @@ nsStackLayout::GetOffset(nsBoxLayoutState& aState, nsIBox* aChild, nsMargin& aOf
     content->GetAttr(kNameSpaceID_None, nsGkAtoms::left, value);
     if (!value.IsEmpty()) {
       value.Trim("%");
-      aOffset.left =
+      offset.width =
         nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
-      offsetSpecified |= SPECIFIED_LEFT;
-    }
-
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::right, value);
-    if (!value.IsEmpty()) {
-      value.Trim("%");
-      aOffset.right =
-        nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
-      offsetSpecified |= SPECIFIED_RIGHT;
+      offsetSpecified = PR_TRUE;
     }
 
     content->GetAttr(kNameSpaceID_None, nsGkAtoms::top, value);
     if (!value.IsEmpty()) {
       value.Trim("%");
-      aOffset.top =
+      offset.height =
         nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
-      offsetSpecified |= SPECIFIED_TOP;
-    }
-
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::bottom, value);
-    if (!value.IsEmpty()) {
-      value.Trim("%");
-      aOffset.bottom =
-        nsPresContext::CSSPixelsToAppUnits(value.ToInteger(&error));
-      offsetSpecified |= SPECIFIED_BOTTOM;
+      offsetSpecified = PR_TRUE;
     }
   }
+
+  aSize += offset;
 
   if (!offsetSpecified && aChild->IsBoxFrame()) {
     // If no offset was specified at all, then we cache this fact to avoid requerying
     // CSS or the content model.
     aChild->AddStateBits(NS_STATE_STACK_NOT_POSITIONED);
   }
-
+  
   return offsetSpecified;
 }
 
@@ -288,51 +272,20 @@ nsStackLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
           child->GetMargin(margin);
 
           // obtain our offset from the top left border of the stack's content box.
-          nsMargin offset;
-          PRUint8 offsetSpecified = GetOffset(aState, child, offset);
+          nsSize offset(0,0);
+          PRBool offsetSpecified = AddOffset(aState, child, offset);
 
-          // Set the position and size based on which offsets have been specified:
-          //   left only - offset from left edge, preferred width
-          //   right only - offset from right edge, preferred width
-          //   left and right - offset from left and right edges, width in between this
-          //   neither - no offset, full width of stack
-          // Vertical direction is similar.
-          //
-          // Margins on the child are also included in the edge offsets
+          // Correct the child's x/y position by adding in both the margins
+          // and the left/top offset.
+          childRect.x = clientRect.x + offset.width + margin.left;
+          childRect.y = clientRect.y + offset.height + margin.top;
+          
+          // If we have an offset, we don't stretch the child.  Just use
+          // its preferred size.
           if (offsetSpecified) {
-            if (offsetSpecified & SPECIFIED_LEFT) {
-              childRect.x = clientRect.x + offset.left + margin.left;
-              if (offsetSpecified & SPECIFIED_RIGHT) {
-                nsSize min = child->GetMinSize(aState);
-                nsSize max = child->GetMaxSize(aState);
-                nscoord width = clientRect.width - offset.LeftRight() - margin.LeftRight();
-                childRect.width = NS_MAX(min.width, NS_MIN(max.width, width));
-              }
-              else {
-                childRect.width = child->GetPrefSize(aState).width;
-              }
-            }
-            else if (offsetSpecified & SPECIFIED_RIGHT) {
-              childRect.width = child->GetPrefSize(aState).width;
-              childRect.x = clientRect.XMost() - offset.right - margin.right - childRect.width;
-            }
-
-            if (offsetSpecified & SPECIFIED_TOP) {
-              childRect.y = clientRect.y + offset.top + margin.top;
-              if (offsetSpecified & SPECIFIED_BOTTOM) {
-                nsSize min = child->GetMinSize(aState);
-                nsSize max = child->GetMaxSize(aState);
-                nscoord height = clientRect.height - offset.TopBottom() - margin.TopBottom();
-                childRect.height = NS_MAX(min.height, NS_MIN(max.height, height));
-              }
-              else {
-                childRect.height = child->GetPrefSize(aState).height;
-              }
-            }
-            else if (offsetSpecified & SPECIFIED_BOTTOM) {
-              childRect.height = child->GetPrefSize(aState).height;
-              childRect.y = clientRect.YMost() - offset.bottom - margin.bottom - childRect.height;
-            }
+            nsSize pref = child->GetPrefSize(aState);
+            childRect.width = pref.width;
+            childRect.height = pref.height;
           }
 
           // Now place the child.
@@ -348,13 +301,13 @@ nsStackLayout::Layout(nsIBox* aBox, nsBoxLayoutState& aState)
 
           if (child->GetStyleXUL()->mStretchStack) {
             // Did the child push back on us and get bigger?
-            if (offset.LeftRight() + childRect.width > clientRect.width) {
-              clientRect.width = childRect.width + offset.LeftRight();
+            if (offset.width + childRect.width > clientRect.width) {
+              clientRect.width = childRect.width + offset.width;
               grow = PR_TRUE;
             }
 
-            if (offset.TopBottom() + childRect.height > clientRect.height) {
-              clientRect.height = childRect.height + offset.TopBottom();
+            if (offset.height + childRect.height > clientRect.height) {
+              clientRect.height = childRect.height + offset.height;
               grow = PR_TRUE;
             }
           }

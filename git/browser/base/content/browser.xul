@@ -296,7 +296,6 @@
     <toolbar type="menubar" id="toolbar-menubar" class="chromeclass-menubar" customizable="true"
              defaultset="menubar-items"
              mode="icons" iconsize="small" defaulticonsize="small"
-             lockiconsize="true"
 #ifdef XP_WIN
              toolbarname="&menubarCmd.label;"
              accesskey="&menubarCmd.accesskey;"
@@ -452,7 +451,7 @@
                onclick="BookmarksEventHandler.onClick(event);"
                oncommand="BookmarksEventHandler.onCommand(event);"
                onpopupshowing="BookmarksEventHandler.onPopupShowing(event);"
-               tooltip="bhTooltip" popupsinherittooltip="true"/>
+               tooltip="bhTooltip"/>
       </toolbaritem>
 
         <toolbarbutton id="downloads-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
@@ -550,7 +549,6 @@
 
     <toolbar id="PersonalToolbar"
              mode="icons" iconsize="small" defaulticonsize="small"
-             lockiconsize="true"
              class="chromeclass-directories"
              context="toolbar-context-menu"
              defaultset="personal-bookmarks"

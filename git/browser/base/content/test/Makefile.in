@@ -86,7 +86,6 @@ _BROWSER_FILES = \
                  browser_bug405137.js \
                  browser_bug409481.js \
                  browser_bug413915.js \
-                 browser_bug417483.js \
                  browser_bug419612.js \
                  browser_bug420160.js \
                  browser_bug424101.js \
@@ -138,10 +137,9 @@ _BROWSER_FILES = \
                  browser_bug304198.js \
                  browser_drag.js \
                  browser_relatedTabs.js \
-                 browser_contextSearchTabPosition.js \
     $(NULL)
 
-ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifeq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 _BROWSER_FILES += browser_bug462289.js
 else
 _BROWSER_FILES += browser_customize.js

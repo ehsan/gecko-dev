@@ -878,11 +878,6 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
     onlyXML = true;
 #endif
 
-    CG_SWITCH_TO_PROLOG(&cg);
-    if (js_Emit1(cx, &cg, JSOP_TRACE) < 0)
-        goto out;
-    CG_SWITCH_TO_MAIN(&cg);
-
     for (;;) {
         jsc.tokenStream.flags |= TSF_OPERAND;
         tt = js_PeekToken(cx, &jsc.tokenStream);
@@ -940,7 +935,7 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
      * local references to skip the globals.
      */
     scriptGlobals = cg.ngvars + cg.regexpList.length;
-    if (scriptGlobals != 0 || cg.hasSharps()) {
+    if (scriptGlobals != 0) {
         jsbytecode *code, *end;
         JSOp op;
         const JSCodeSpec *cs;
@@ -956,20 +951,16 @@ JSCompiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *cal
             len = (cs->length > 0)
                   ? (uintN) cs->length
                   : js_GetVariableBytecodeLength(code);
-            if ((cs->format & JOF_SHARPSLOT) ||
-                JOF_TYPE(cs->format) == JOF_LOCAL ||
+            if (JOF_TYPE(cs->format) == JOF_LOCAL ||
                 (JOF_TYPE(cs->format) == JOF_SLOTATOM)) {
                 /*
                  * JSOP_GETARGPROP also has JOF_SLOTATOM type, but it may be
                  * emitted only for a function.
                  */
-                JS_ASSERT_IF(!(cs->format & JOF_SHARPSLOT),
-                             (JOF_TYPE(cs->format) == JOF_SLOTATOM) ==
-                             (op == JSOP_GETLOCALPROP));
+                JS_ASSERT((JOF_TYPE(cs->format) == JOF_SLOTATOM) ==
+                          (op == JSOP_GETLOCALPROP));
                 slot = GET_SLOTNO(code);
                 slot += scriptGlobals;
-                if (!(cs->format & JOF_SHARPSLOT))
-                    slot += cg.sharpSlots();
                 if (slot >= SLOTNO_LIMIT)
                     goto too_many_slots;
                 SET_SLOTNO(code, slot);
@@ -1316,7 +1307,6 @@ LinkUseToDef(JSParseNode *pn, JSDefinition *dn, JSTreeContext *tc)
     JS_ASSERT(pn != dn->dn_uses);
     pn->pn_link = dn->dn_uses;
     dn->dn_uses = pn;
-    dn->pn_dflags |= pn->pn_dflags & PND_USE2DEF_FLAGS;
     pn->pn_used = true;
     pn->pn_lexdef = dn;
 }
@@ -2342,10 +2332,20 @@ LeaveFunction(JSParseNode *fn, JSTreeContext *funtc, JSTreeContext *tc,
 
                 /*
                  * If this named function expression uses its own name other
-                 * than to call itself, flag this function specially.
+                 * than to call itself, flag this function as using arguments,
+                 * as if it had used arguments.callee instead of its own name.
+                 *
+                 * This abuses the plain sense of TCF_FUN_USES_ARGUMENTS, but
+                 * we are out of tcflags bits at the moment. If it deoptimizes
+                 * code unfairly (see JSCompiler::setFunctionKinds, where this
+                 * flag is interpreted in its broader sense, not only to mean
+                 * "this function might leak arguments.callee"), we can perhaps
+                 * try to work harder to add a TCF_FUN_LEAKS_ITSELF flag and
+                 * use that more precisely, both here and for unnamed function
+                 * expressions.
                  */
                 if (dn->isFunArg())
-                    fn->pn_funbox->tcflags |= TCF_FUN_USES_OWN_NAME;
+                    fn->pn_funbox->tcflags |= TCF_FUN_USES_ARGUMENTS;
                 foundCallee = 1;
                 continue;
             }
@@ -3051,11 +3051,18 @@ BindLet(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
     pn->pn_dflags |= PND_LET | PND_BOUND;
 
     /*
-     * Define the let binding's property before storing pn in a reserved slot,
-     * since block_reserveSlots depends on OBJ_SCOPE(blockObj)->entryCount.
+     * Use JSPROP_ENUMERATE to aid the disassembler. Define the let binding's
+     * property before storing pn in a reserved slot, since block_reserveSlots
+     * depends on OBJ_SCOPE(blockObj)->entryCount.
      */
-    if (!js_DefineBlockVariable(cx, blockObj, ATOM_TO_JSID(atom), n))
+    if (!js_DefineNativeProperty(cx, blockObj, ATOM_TO_JSID(atom), JSVAL_VOID,
+                                 NULL, NULL,
+                                 JSPROP_ENUMERATE |
+                                 JSPROP_PERMANENT |
+                                 JSPROP_SHARED,
+                                 SPROP_HAS_SHORTID, (int16) n, NULL)) {
         return JS_FALSE;
+    }
 
     /*
      * Store pn temporarily in what would be reserved slots in a cloned block
@@ -3514,7 +3521,8 @@ HashFindPropValKey(JSDHashTable *table, const void *key)
 
     ASSERT_VALID_PROPERTY_KEY(pnkey);
     return (pnkey->pn_type == TOK_NUMBER)
-           ? (JSDHashNumber) JS_HASH_DOUBLE(pnkey->pn_dval)
+           ? (JSDHashNumber) (JSDOUBLE_HI32(pnkey->pn_dval) ^
+                              JSDOUBLE_LO32(pnkey->pn_dval))
            : ATOM_HASH(pnkey->pn_atom);
 }
 
@@ -4310,6 +4318,7 @@ RebindLets(JSParseNode *pn, JSTreeContext *tc)
                     JSDefinition *dn = ALE_DEFN(ale);
                     dn->pn_type = TOK_NAME;
                     dn->pn_op = JSOP_NOP;
+                    dn->pn_dflags |= pn->pn_dflags & PND_USE2DEF_FLAGS;
                 }
                 LinkUseToDef(pn, ALE_DEFN(ale), tc);
             }
@@ -5401,9 +5410,6 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
                                         JSMSG_BAD_DEFAULT_XML_NAMESPACE);
             return NULL;
         }
-
-        /* Is this an E4X dagger I see before me? */
-        tc->flags |= TCF_FUN_HEAVYWEIGHT;
         pn2 = Expr(cx, ts, tc);
         if (!pn2)
             return NULL;
@@ -5471,20 +5477,6 @@ Statement(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc)
         pn->pn_type = TOK_SEMI;
         pn->pn_pos = pn2->pn_pos;
         pn->pn_kid = pn2;
-
-        /*
-         * Specialize JSOP_SETPROP into JSOP_SETMETHOD to defer or avoid null
-         * closure cloning. Do this here rather than in AssignExpr as only now
-         * do we know that the uncloned (unjoined in ES3 terms) function object
-         * result of the assignment expression can't escape.
-         */
-        if (PN_TYPE(pn2) == TOK_ASSIGN && PN_OP(pn2) == JSOP_NOP &&
-            PN_OP(pn2->pn_left) == JSOP_SETPROP &&
-            PN_OP(pn2->pn_right) == JSOP_LAMBDA &&
-            !(pn2->pn_right->pn_funbox->tcflags
-              & (TCF_FUN_USES_ARGUMENTS | TCF_FUN_USES_OWN_NAME))) {
-            pn2->pn_left->pn_op = JSOP_SETMETHOD;
-        }
         break;
     }
 
@@ -6644,18 +6636,6 @@ GeneratorExpr(JSParseNode *pn, JSParseNode *kid, JSTreeContext *tc)
             return NULL;
 
         /*
-         * We have to dance around a bit to propagate sharp variables from tc
-         * to gentc before setting TCF_HAS_SHARPS implicitly by propagating all
-         * of tc's TCF_FUN_FLAGS flags. As below, we have to be conservative by
-         * leaving TCF_HAS_SHARPS set in tc if we do propagate to gentc.
-         */
-        if (tc->flags & TCF_HAS_SHARPS) {
-            gentc.flags |= TCF_IN_FUNCTION;
-            if (!gentc.ensureSharpSlots())
-                return NULL;
-        }
-
-        /*
          * We assume conservatively that any deoptimization flag in tc->flags
          * besides TCF_FUN_PARAM_ARGUMENTS can come from the kid. So we
          * propagate these flags into genfn. For code simplicity we also do
@@ -6763,7 +6743,7 @@ CheckForImmediatelyAppliedLambda(JSParseNode *pn)
 
         JSFunctionBox *funbox = pn->pn_funbox;
         JS_ASSERT(((JSFunction *) funbox->object)->flags & JSFUN_LAMBDA);
-        if (!(funbox->tcflags & (TCF_FUN_USES_ARGUMENTS | TCF_FUN_USES_OWN_NAME)))
+        if (!(funbox->tcflags & TCF_FUN_USES_ARGUMENTS))
             pn->pn_dflags &= ~PND_FUNARG;
     }
     return pn;
@@ -6883,7 +6863,7 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             if (!pn3)
                 return NULL;
             tt = PN_TYPE(pn3);
-            if (tt == TOK_NAME && !pn3->pn_parens) {
+            if (tt == TOK_NAME) {
                 pn3->pn_type = TOK_STRING;
                 pn3->pn_arity = PN_NULLARY;
                 pn3->pn_op = JSOP_QNAMEPART;
@@ -8017,8 +7997,7 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         pn->pn_kid = PrimaryExpr(cx, ts, tc, tt, JS_FALSE);
         if (!pn->pn_kid)
             return NULL;
-        if (!tc->ensureSharpSlots())
-            return NULL;
+        tc->flags |= TCF_HAS_SHARPS;
         break;
 
       case TOK_USESHARP:
@@ -8026,9 +8005,8 @@ PrimaryExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
         pn = NewParseNode(PN_NULLARY, tc);
         if (!pn)
             return NULL;
-        if (!tc->ensureSharpSlots())
-            return NULL;
         pn->pn_num = (jsint) CURRENT_TOKEN(ts).t_dval;
+        tc->flags |= TCF_HAS_SHARPS;
         break;
 #endif /* JS_HAS_SHARP_VARS */
 
@@ -8421,7 +8399,7 @@ FoldBinaryNumeric(JSContext *cx, JSOp op, JSParseNode *pn1, JSParseNode *pn2,
 #endif
             if (d == 0 || JSDOUBLE_IS_NaN(d))
                 d = *cx->runtime->jsNaN;
-            else if (JSDOUBLE_IS_NEG(d) != JSDOUBLE_IS_NEG(d2))
+            else if ((JSDOUBLE_HI32(d) ^ JSDOUBLE_HI32(d2)) >> 31)
                 d = *cx->runtime->jsNegativeInfinity;
             else
                 d = *cx->runtime->jsPositiveInfinity;
@@ -9036,7 +9014,16 @@ js_FoldConstants(JSContext *cx, JSParseNode *pn, JSTreeContext *tc, bool inCond)
                 break;
 
               case JSOP_NEG:
+#ifdef HPUX
+                /*
+                 * Negation of a zero doesn't produce a negative
+                 * zero on HPUX. Perform the operation by bit
+                 * twiddling.
+                 */
+                JSDOUBLE_HI32(d) ^= JSDOUBLE_HI32_SIGNBIT;
+#else
                 d = -d;
+#endif
                 break;
 
               case JSOP_POS:

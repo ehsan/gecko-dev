@@ -250,7 +250,7 @@ protected:
      * @param aAccessibleForChangeNode, the accessible for that node, or nsnull if none exists
      * @param aIsInserting, is aChangeNode being created or shown (vs. removed or hidden)
      */
-    already_AddRefed<nsIAccessibleEvent>
+    already_AddRefed<nsIAccessibleTextChangeEvent>
     CreateTextChangeEventForNode(nsIAccessible *aContainerAccessible,
                                  nsIDOMNode *aChangeNode,
                                  nsIAccessible *aAccessibleForNode,

@@ -129,11 +129,9 @@ void nsFramesetDrag::UnSet()
 /*******************************************************************************
  * nsHTMLFramesetBorderFrame
  ******************************************************************************/
-class nsHTMLFramesetBorderFrame : public nsLeafFrame
-{
-public:
-  NS_DECL_FRAMEARENA_HELPERS
+class nsHTMLFramesetBorderFrame : public nsLeafFrame {
 
+public:
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -181,11 +179,9 @@ protected:
 /*******************************************************************************
  * nsHTMLFramesetBlankFrame
  ******************************************************************************/
-class nsHTMLFramesetBlankFrame : public nsLeafFrame
-{
-public:
-  NS_DECL_FRAMEARENA_HELPERS
+class nsHTMLFramesetBlankFrame : public nsLeafFrame {
 
+public:
 #ifdef DEBUG
   NS_IMETHOD List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
@@ -318,6 +314,19 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
   nsPresContext* presContext = PresContext();
   nsIPresShell* shell = presContext->PresShell();
 
+  // create the view. a view is needed since it needs to be a mouse grabber
+  nsIViewManager* viewMan = shell->GetViewManager();
+
+  nsIView *parView = GetAncestorWithView()->GetView();
+  nsRect boundBox(0, 0, 0, 0); 
+  nsIView* view = viewMan->CreateView(boundBox, parView);
+  if (!view)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  // XXX Put it last in document order until we can do better
+  viewMan->InsertChild(parView, view, nsnull, PR_TRUE);
+  SetView(view);
+  
   nsFrameborder  frameborder = GetFrameBorder();
   PRInt32 borderWidth = GetBorderWidth(presContext, PR_FALSE);
   nscolor borderColor = GetBorderColor();
@@ -359,6 +368,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
     return NS_ERROR_OUT_OF_MEMORY;
 
   // create the children frames; skip content which isn't <frameset> or <frame>
+  nsIFrame* lastChild = nsnull;
   mChildCount = 0; // number of <frame> or <frameset> children
   nsIFrame* frame;
 
@@ -419,8 +429,12 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
       if (NS_FAILED(result))
         return result;
 
-      mFrames.AppendFrame(nsnull, frame);
-
+      if (lastChild)
+        lastChild->SetNextSibling(frame);
+      else
+        mFrames.SetFrames(frame);
+      
+      lastChild = frame;
       mChildCount++;
     }
   }
@@ -447,8 +461,12 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
       return result;
     }
    
-    mFrames.AppendFrame(nsnull, blankFrame);
-
+    if (lastChild)
+      lastChild->SetNextSibling(blankFrame);
+    else
+      mFrames.SetFrames(blankFrame);
+    
+    lastChild = blankFrame;
     mChildTypes[mChildCount] = BLANK;
     mChildBorderColors[mChildCount].Set(NO_COLOR);
     mChildCount++;
@@ -793,6 +811,28 @@ NS_METHOD nsHTMLFramesetFrame::HandleEvent(nsPresContext* aPresContext,
   return NS_OK;
 }
 
+#if 0
+PRBool 
+nsHTMLFramesetFrame::IsGrabbingMouse()
+{
+  PRBool result = PR_FALSE;
+  nsIView* view = GetView();
+  if (view) {
+    nsIViewManager* viewMan = view->GetViewManager();
+    if (viewMan) {
+      nsIView* grabber;
+      viewMan->GetMouseEventGrabber(grabber);
+      if (grabber == view) {
+        // the nsFramesetBorderFrame has captured NS_MOUSE_DOWN
+        result = PR_TRUE;
+      }
+      NS_RELEASE(viewMan);
+    }
+  }
+  return result;
+}
+#endif
+
 NS_IMETHODIMP
 nsHTMLFramesetFrame::GetCursor(const nsPoint&    aPoint,
                                nsIFrame::Cursor& aCursor)
@@ -1031,6 +1071,7 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
   nsPoint offset(0,0);
   nsSize size, lastSize;
   nsIFrame* child = mFrames.FirstChild();
+  nsIFrame* lastChild = mFrames.LastChild();
 
   for (PRInt32 childX = 0; childX < mNonBorderChildCount; childX++) {
     nsIntPoint cellIndex;
@@ -1053,7 +1094,8 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
         if (NS_LIKELY(borderFrame != nsnull)) {
           borderFrame->Init(mContent, this, nsnull);
           mChildCount++;
-          mFrames.AppendFrame(nsnull, borderFrame);
+          lastChild->SetNextSibling(borderFrame);
+          lastChild = borderFrame;
           mHorBorders[cellIndex.y-1] = borderFrame;
           // set the neighbors for determining drag boundaries
           borderFrame->mPrevNeighbor = lastRow;
@@ -1089,7 +1131,8 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
             if (NS_LIKELY(borderFrame != nsnull)) {
               borderFrame->Init(mContent, this, nsnull);
               mChildCount++;
-              mFrames.AppendFrame(nsnull, borderFrame);
+              lastChild->SetNextSibling(borderFrame);
+              lastChild = borderFrame;
               mVerBorders[cellIndex.x-1] = borderFrame;
               // set the neighbors for determining drag boundaries
               borderFrame->mPrevNeighbor = lastCol;
@@ -1434,23 +1477,28 @@ nsHTMLFramesetFrame::StartMouseDrag(nsPresContext*            aPresContext,
   IndexOf(aBorder, index);
   NS_ASSERTION((nsnull != aBorder) && (index >= 0), "invalid dragger");
 #endif
+  nsIView* view = GetView();
+  if (view) {
+    nsIViewManager* viewMan = view->GetViewManager();
+    if (viewMan) {
+      PRBool ignore;
+      viewMan->GrabMouseEvents(view, ignore);
+      mDragger = aBorder;
 
-  nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
+      mFirstDragPoint = aEvent->refPoint;
 
-  mDragger = aBorder;
+      // Store the original frame sizes
+      if (mDragger->mVertical) {
+        mPrevNeighborOrigSize = mColSizes[mDragger->mPrevNeighbor];
+	mNextNeighborOrigSize = mColSizes[mDragger->mNextNeighbor];
+      } else {
+        mPrevNeighborOrigSize = mRowSizes[mDragger->mPrevNeighbor];
+	mNextNeighborOrigSize = mRowSizes[mDragger->mNextNeighbor];
+      }
 
-  mFirstDragPoint = aEvent->refPoint;
-
-  // Store the original frame sizes
-  if (mDragger->mVertical) {
-    mPrevNeighborOrigSize = mColSizes[mDragger->mPrevNeighbor];
-    mNextNeighborOrigSize = mColSizes[mDragger->mNextNeighbor];
-  } else {
-    mPrevNeighborOrigSize = mRowSizes[mDragger->mPrevNeighbor];
-    mNextNeighborOrigSize = mRowSizes[mDragger->mNextNeighbor];
+      gDragInProgress = PR_TRUE;
+    }
   }
-
-  gDragInProgress = PR_TRUE;
 }
   
 
@@ -1458,13 +1506,6 @@ void
 nsHTMLFramesetFrame::MouseDrag(nsPresContext* aPresContext, 
                                nsGUIEvent*     aEvent)
 {
-  // if the capture ended, reset the drag state
-  if (nsIPresShell::GetCapturingContent() != GetContent()) {
-    mDragger = nsnull;
-    gDragInProgress = PR_FALSE;
-    return;
-  }
-
   PRInt32 change; // measured positive from left-to-right or top-to-bottom
   nsWeakFrame weakFrame(this);
   if (mDragger->mVertical) {
@@ -1538,10 +1579,17 @@ nsHTMLFramesetFrame::MouseDrag(nsPresContext* aPresContext,
 void
 nsHTMLFramesetFrame::EndMouseDrag(nsPresContext* aPresContext)
 {
-  nsIPresShell::SetCapturingContent(nsnull, 0);
-  mDragger = nsnull;
+  nsIView* view = GetView();
+  if (view) {
+    nsIViewManager* viewMan = view->GetViewManager();
+    if (viewMan) {
+      mDragger = nsnull;
+      PRBool ignore;
+      viewMan->GrabMouseEvents(nsnull, ignore);
+    }
+  }
   gDragInProgress = PR_FALSE;
-}
+}  
 
 nsIFrame*
 NS_NewHTMLFramesetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -1554,8 +1602,6 @@ NS_NewHTMLFramesetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
   return new (aPresShell) nsHTMLFramesetFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsHTMLFramesetFrame)
 
 /*******************************************************************************
  * nsHTMLFramesetBorderFrame
@@ -1577,8 +1623,6 @@ nsHTMLFramesetBorderFrame::~nsHTMLFramesetBorderFrame()
 {
   //printf("nsHTMLFramesetBorderFrame destructor %p \n", this);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsHTMLFramesetBorderFrame)
 
 nscoord nsHTMLFramesetBorderFrame::GetIntrinsicWidth()
 {
@@ -1791,8 +1835,6 @@ NS_IMETHODIMP nsHTMLFramesetBorderFrame::GetFrameName(nsAString& aResult) const
 /*******************************************************************************
  * nsHTMLFramesetBlankFrame
  ******************************************************************************/
-
-NS_IMPL_FRAMEARENA_HELPERS(nsHTMLFramesetBlankFrame)
 
 nsHTMLFramesetBlankFrame::~nsHTMLFramesetBlankFrame()
 {

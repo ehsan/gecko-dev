@@ -40,18 +40,10 @@
 #include <string.h>
 #include <ctype.h>
 #include "plstr.h"
-#include "nsDebug.h"
 
 #include "ParseFTPList.h"
 
 /* ==================================================================== */
-
-static inline int ParsingFailed(struct list_state *state)
-{
-  if (state->parsed_one || state->lstyle) /* junk if we fail to parse */
-    return '?';      /* this time but had previously parsed successfully */
-  return '"';        /* its part of a comment or error message */
-}
 
 int ParseFTPList(const char *line, struct list_state *state,
                  struct list_result *result )
@@ -130,9 +122,6 @@ int ParseFTPList(const char *line, struct list_state *state,
         }
       }
     }    
-
-    if (!numtoks)
-      return ParsingFailed(state);
 
     linelen_sans_wsp = &(tokens[numtoks-1][toklen[numtoks-1]]) - tokens[0];
     if (numtoks == (sizeof(tokens)/sizeof(tokens[0])) )
@@ -367,16 +356,11 @@ int ParseFTPList(const char *line, struct list_state *state,
               pos++;
               p++;
             }
-            if (lstyle && pos < (toklen[0]-1))
+            if (lstyle && pos < (toklen[0]-1) && *p == ']')
             {
-              /* ']' was found and there is at least one character after it */
-              NS_ASSERTION(*p == ']', "unexpected state");
               pos++;
               p++;
               tokmarker = pos; /* length of leading "[DIR1.DIR2.etc]" */
-            } else {
-              /* not a CMU style listing */
-              lstyle = 0;
             }
           }
           while (lstyle && pos < toklen[0] && *p != ';')
@@ -403,7 +387,7 @@ int ParseFTPList(const char *line, struct list_state *state,
           pos -= tokmarker;      /* => fnlength sans "[DIR1.DIR2.etc]" */
           p = &(tokens[0][tokmarker]); /* offset of basename */
 
-          if (!lstyle || pos == 0 || pos > 80) /* VMS filenames can't be longer than that */
+          if (!lstyle || pos > 80) /* VMS filenames can't be longer than that */
           {
             lstyle = 0;
           }
@@ -1700,7 +1684,9 @@ int ParseFTPList(const char *line, struct list_state *state,
 
   } /* if (linelen > 0) */
 
-  return ParsingFailed(state);
+  if (state->parsed_one || state->lstyle) /* junk if we fail to parse */
+    return '?';      /* this time but had previously parsed successfully */
+  return '"';        /* its part of a comment or error message */
 }
 
 /* ==================================================================== */
@@ -1719,7 +1705,7 @@ static int do_it(FILE *outfile,
   char *p;
   int rc;
 
-  rc = ParseFTPList( line, state, &result );
+  rc = ParseFTPLIST( line, state, &result );
 
   if (!outfile)
   {

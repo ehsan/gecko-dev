@@ -107,9 +107,7 @@ nsIFrame*
 NS_NewTextBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
     return new (aPresShell) nsTextBoxFrame (aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsTextBoxFrame)
+} // NS_NewTextFrame
 
 
 NS_IMETHODIMP
@@ -571,15 +569,18 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
                                     const nsRect&    aDirtyRect) {
   nsPoint shadowOffset(aShadowDetails->mXOffset,
                        aShadowDetails->mYOffset);
-  nscoord blurRadius = NS_MAX(aShadowDetails->mRadius, 0);
+  nscoord blurRadius = PR_MAX(aShadowDetails->mRadius, 0);
 
   nsRect shadowRect(aTextRect);
   shadowRect.MoveBy(shadowOffset);
 
+  gfxRect shadowRectGFX(shadowRect.x, shadowRect.y, shadowRect.width, shadowRect.height);
+  gfxRect dirtyRectGFX(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);
+
   nsContextBoxBlur contextBoxBlur;
-  gfxContext* shadowContext = contextBoxBlur.Init(shadowRect, blurRadius,
+  gfxContext* shadowContext = contextBoxBlur.Init(shadowRectGFX, blurRadius,
                                                   PresContext()->AppUnitsPerDevPixel(),
-                                                  aCtx, aDirtyRect);
+                                                  aCtx, dirtyRectGFX);
 
   if (!shadowContext)
     return;
@@ -594,8 +595,7 @@ void nsTextBoxFrame::PaintOneShadow(gfxContext*      aCtx,
   nsCOMPtr<nsIRenderingContext> renderingContext = nsnull;
   nsIDeviceContext* devCtx = PresContext()->DeviceContext();
   devCtx->CreateRenderingContextInstance(*getter_AddRefs(renderingContext));
-  if (!renderingContext)
-    return;
+  if (!renderingContext) return;
   renderingContext->Init(devCtx, shadowContext);
 
   aCtx->Save();

@@ -64,10 +64,6 @@ namespace nanojit
     {}
 
     CodeAlloc::~CodeAlloc() {
-        reset();
-    }
-
-    void CodeAlloc::reset() {
         // give all memory back to gcheap.  Assumption is that all
         // code is done being used by now.
         for (CodeList* b = heapblocks; b != 0; ) {
@@ -79,14 +75,11 @@ namespace nanojit
             totalAllocated -= bytesPerAlloc;
             b = next;
         }
-        NanoAssert(!totalAllocated);
-        heapblocks = availblocks = 0;
     }
 
     CodeList* CodeAlloc::firstBlock(CodeList* term) {
-        // use uintptr_t, rather than char*, to avoid "increases required alignment" warning
-        uintptr_t end = (uintptr_t)alignUp(term, bytesPerPage);
-        return (CodeList*) (end - (uintptr_t)bytesPerAlloc);
+        char* end = (char*)alignUp(term, bytesPerPage);
+        return (CodeList*) (end - bytesPerAlloc);
     }
 
     int round(size_t x) {
@@ -167,7 +160,7 @@ namespace nanojit
             CodeList *coalescedBlock = blk->higher;
 
             if ( coalescedBlock->size() >= minAllocSize ) {
-                // Unlink coalescedBlock from the available block chain.
+                // Unlink higher from the available block chain.
                 if ( availblocks == coalescedBlock ) {
                     removeBlock(availblocks);
                 }
@@ -184,7 +177,7 @@ namespace nanojit
                 }
             }
 
-            // combine blk->higher into blk (destroy coalescedBlock)
+            // combine blk->higher into blk (destroy blk->higher)
             blk->higher = higher;
             higher->lower = blk;
         }
@@ -300,20 +293,12 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
     }
 
 #elif defined AVMPLUS_UNIX
-    #ifdef ANDROID
-    void CodeAlloc::flushICache(CodeList* &blocks) {
-        for (CodeList *b = blocks; b != 0; b = b->next) {
-			cacheflush((int)b->start(), (int)b->start()+b->size(), 0);
-        }
-    }
-	#else
     // fixme: __clear_cache is a libgcc feature, test for libgcc or gcc
     void CodeAlloc::flushICache(CodeList* &blocks) {
         for (CodeList *b = blocks; b != 0; b = b->next) {
             __clear_cache((char*)b->start(), (char*)b->start()+b->size());
         }
     }
-	#endif
 #endif // AVMPLUS_MAC && NANOJIT_PPC
 
     void CodeAlloc::addBlock(CodeList* &blocks, CodeList* b) {

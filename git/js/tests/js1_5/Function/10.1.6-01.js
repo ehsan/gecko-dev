@@ -57,6 +57,6 @@ for (p in f)
 {
   actual += p + ',';
 }
-expect = '';
+expect = 'prototype,';
  
 reportCompare(expect, actual, summary);

@@ -1,5 +1,3 @@
-// |trace-test| TMFLAGS: full,fragprofile,treevis; valgrind
-
 function testRegExpTest() {
     var r = /abc/;
     var flag = false;

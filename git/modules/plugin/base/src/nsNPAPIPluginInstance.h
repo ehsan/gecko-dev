@@ -92,7 +92,9 @@ public:
 
 #ifdef XP_MACOSX
   void SetDrawingModel(NPDrawingModel aModel);
+  NPDrawingModel GetDrawingModel();
   void SetEventModel(NPEventModel aModel);
+  NPEventModel GetEventModel();
 #endif
 
   nsresult NewNotifyStream(nsIPluginStreamListener** listener, 
@@ -125,12 +127,15 @@ public:
 protected:
   nsresult InitializePlugin();
 
+  // Calls NPP_GetValue
+  nsresult GetValueInternal(NPPVariable variable, void* value);
+
   nsresult GetTagType(nsPluginTagType *result);
   nsresult GetAttributes(PRUint16& n, const char*const*& names,
                          const char*const*& values);
   nsresult GetParameters(PRUint16& n, const char*const*& names,
                          const char*const*& values);
-  nsresult GetMode(PRInt32 *result);
+  nsresult GetMode(nsPluginMode *result);
 
   // A pointer to the plugin's callback functions. This information
   // is actually stored in the plugin class (<b>nsPluginClass</b>),
@@ -172,7 +177,7 @@ private:
   nsTArray<nsNPAPITimer*> mTimers;
 
   // non-null during a HandleEvent call
-  void* mCurrentPluginEvent;
+  nsPluginEvent* mCurrentPluginEvent;
 };
 
 #endif // nsNPAPIPluginInstance_h_

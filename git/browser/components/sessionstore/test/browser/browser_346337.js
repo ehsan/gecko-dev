@@ -89,7 +89,7 @@ function test() {
   }
   
   // test setup
-  let tabbrowser = gBrowser;
+  let tabbrowser = getBrowser();
   waitForExplicitFinish();
   
   // make sure we don't save form data at all (except for tab duplication)

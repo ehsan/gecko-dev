@@ -203,8 +203,9 @@ public:
 
   /**
    * Set accessible parent.
+   * XXX: shouldn't be virtual, bug 496783
    */
-  void SetParent(nsIAccessible *aParent);
+  virtual void SetParent(nsIAccessible *aParent);
 
   /**
    * Set first accessible child.

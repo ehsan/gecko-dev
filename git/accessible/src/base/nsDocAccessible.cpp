@@ -383,7 +383,8 @@ NS_IMETHODIMP nsDocAccessible::TakeFocus()
 
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
   if (fm) {
-    nsCOMPtr<nsIDOMDocument> domDocument(do_QueryInterface(mDOMNode));
+    nsCOMPtr<nsIDOMDocument> domDocument;
+    mDOMNode->GetOwnerDocument(getter_AddRefs(domDocument));
     nsCOMPtr<nsIDocument> document(do_QueryInterface(domDocument));
     if (document) {
       // focus the document
@@ -945,7 +946,7 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
         nsCOMPtr<nsIDocShellTreeItem> sameTypeRootOfFocus;
         focusedTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(sameTypeRootOfFocus));
         if (sameTypeRoot == sameTypeRootOfFocus) {
-          nsCOMPtr<nsIAccessibleEvent> accEvent =
+          nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
             new nsAccStateChangeEvent(this, nsIAccessibleStates::STATE_BUSY, PR_FALSE, PR_FALSE);
           FireAccessibleEvent(accEvent);
           FireAnchorJumpEvent();
@@ -959,7 +960,7 @@ nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
     if (!isFinished) {
       // Fire state change event to set STATE_BUSY when document is loading. For
       // example, Window-Eyes expects to get it.
-      nsCOMPtr<nsIAccessibleEvent> accEvent =
+      nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
         new nsAccStateChangeEvent(this, nsIAccessibleStates::STATE_BUSY,
                                   PR_FALSE, PR_TRUE);
       FireAccessibleEvent(accEvent);
@@ -1053,7 +1054,7 @@ NS_IMETHODIMP nsDocAccessible::Observe(nsISupports *aSubject, const char *aTopic
 {
   if (!nsCRT::strcmp(aTopic,"obs_documentCreated")) {    
     // State editable will now be set, readonly is now clear
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event =
       new nsAccStateChangeEvent(this, nsIAccessibleStates::EXT_STATE_EDITABLE,
                                 PR_TRUE, PR_TRUE);
     FireAccessibleEvent(event);
@@ -1145,30 +1146,24 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   // layout change, that event can use the last known user input state
   nsAccEvent::PrepareForEvent(targetNode);
 
-  // Universal boolean properties that don't require a role. Fire the state
-  // change when disabled or aria-disabled attribute is set.
+  // Universal boolean properties that don't require a role.
   if (aAttribute == nsAccessibilityAtoms::disabled ||
       aAttribute == nsAccessibilityAtoms::aria_disabled) {
-
-    // Note. Checking the XUL or HTML namespace would not seem to gain us
-    // anything, because disabled attribute really is going to mean the same
-    // thing in any namespace.
-
-    // Note. We use the attribute instead of the disabled state bit because
-    // ARIA's aria-disabled does not affect the disabled state bit.
-
-    nsCOMPtr<nsIAccessibleEvent> enabledChangeEvent =
+    // Fire the state change whether disabled attribute is
+    // set for XUL, HTML or ARIA namespace.
+    // Checking the namespace would not seem to gain us anything, because
+    // disabled really is going to mean the same thing in any namespace.
+    // We use the attribute instead of the disabled state bit because
+    // ARIA's aria-disabled does not affect the disabled state bit
+    nsCOMPtr<nsIAccessibleStateChangeEvent> enabledChangeEvent =
       new nsAccStateChangeEvent(targetNode,
                                 nsIAccessibleStates::EXT_STATE_ENABLED,
                                 PR_TRUE);
-
     FireDelayedAccessibleEvent(enabledChangeEvent);
-
-    nsCOMPtr<nsIAccessibleEvent> sensitiveChangeEvent =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> sensitiveChangeEvent =
       new nsAccStateChangeEvent(targetNode,
                                 nsIAccessibleStates::EXT_STATE_SENSITIVE,
                                 PR_TRUE);
-
     FireDelayedAccessibleEvent(sensitiveChangeEvent);
     return;
   }
@@ -1240,7 +1235,7 @@ nsDocAccessible::AttributeChangedImpl(nsIContent* aContent, PRInt32 aNameSpaceID
   }
 
   if (aAttribute == nsAccessibilityAtoms::contenteditable) {
-    nsCOMPtr<nsIAccessibleEvent> editableChangeEvent =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> editableChangeEvent =
       new nsAccStateChangeEvent(targetNode,
                                 nsIAccessibleStates::EXT_STATE_EDITABLE,
                                 PR_TRUE);
@@ -1257,7 +1252,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     return;
 
   if (aAttribute == nsAccessibilityAtoms::aria_required) {
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event =
       new nsAccStateChangeEvent(targetNode,
                                 nsIAccessibleStates::STATE_REQUIRED,
                                 PR_FALSE);
@@ -1266,7 +1261,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
   }
 
   if (aAttribute == nsAccessibilityAtoms::aria_invalid) {
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event =
       new nsAccStateChangeEvent(targetNode,
                                 nsIAccessibleStates::STATE_INVALID,
                                 PR_FALSE);
@@ -1300,7 +1295,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     const PRUint32 kState = (aAttribute == nsAccessibilityAtoms::aria_checked) ?
                             nsIAccessibleStates::STATE_CHECKED : 
                             nsIAccessibleStates::STATE_PRESSED;
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event =
       new nsAccStateChangeEvent(targetNode, kState, PR_FALSE);
     FireDelayedAccessibleEvent(event);
     if (targetNode == gLastFocusedNode) {
@@ -1315,7 +1310,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
         PRBool isMixed  =
           (nsAccUtils::State(accessible) & nsIAccessibleStates::STATE_MIXED) != 0;
         if (wasMixed != isMixed) {
-          nsCOMPtr<nsIAccessibleEvent> event =
+          nsCOMPtr<nsIAccessibleStateChangeEvent> event =
             new nsAccStateChangeEvent(targetNode,
                                       nsIAccessibleStates::STATE_MIXED,
                                       PR_FALSE, isMixed);
@@ -1327,7 +1322,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
   }
 
   if (aAttribute == nsAccessibilityAtoms::aria_expanded) {
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event =
       new nsAccStateChangeEvent(targetNode,
                                 nsIAccessibleStates::STATE_EXPANDED,
                                 PR_FALSE);
@@ -1336,7 +1331,7 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
   }
 
   if (aAttribute == nsAccessibilityAtoms::aria_readonly) {
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event =
       new nsAccStateChangeEvent(targetNode,
                                 nsIAccessibleStates::STATE_READONLY,
                                 PR_FALSE);
@@ -1521,7 +1516,7 @@ nsDocAccessible::FireTextChangeEventForText(nsIContent *aContent,
     if (NS_FAILED(rv))
       return;
 
-    nsCOMPtr<nsIAccessibleEvent> event =
+    nsCOMPtr<nsIAccessibleTextChangeEvent> event =
       new nsAccTextChangeEvent(accessible, offset,
                                renderedEndOffset - renderedStartOffset,
                                aIsInserted, PR_FALSE);
@@ -1531,7 +1526,7 @@ nsDocAccessible::FireTextChangeEventForText(nsIContent *aContent,
   }
 }
 
-already_AddRefed<nsIAccessibleEvent>
+already_AddRefed<nsIAccessibleTextChangeEvent>
 nsDocAccessible::CreateTextChangeEventForNode(nsIAccessible *aContainerAccessible,
                                               nsIDOMNode *aChangeNode,
                                               nsIAccessible *aAccessibleForChangeNode,
@@ -1601,7 +1596,7 @@ nsDocAccessible::CreateTextChangeEventForNode(nsIAccessible *aContainerAccessibl
     return nsnull;
   }
 
-  nsIAccessibleEvent *event =
+  nsIAccessibleTextChangeEvent *event =
     new nsAccTextChangeEvent(aContainerAccessible, offset, length, aIsInserting, aIsAsynch);
   NS_IF_ADDREF(event);
 
@@ -1764,7 +1759,7 @@ nsDocAccessible::FlushPendingEvents()
       // wait to fire this here, instead of in InvalidateCacheSubtree(), where we wouldn't be able to calculate
       // the offset, length and text for the text change.
       if (domNode && domNode != mDOMNode) {
-        nsCOMPtr<nsIAccessibleEvent> textChangeEvent =
+        nsCOMPtr<nsIAccessibleTextChangeEvent> textChangeEvent =
           CreateTextChangeEventForNode(containerAccessible, domNode, accessible, PR_TRUE, PR_TRUE);
         if (textChangeEvent) {
           nsAccEvent::PrepareForEvent(textChangeEvent, isFromUserInput);
@@ -1806,7 +1801,7 @@ nsDocAccessible::FlushPendingEvents()
           GetAccService()->GetAccessibleFor(gLastFocusedNode, getter_AddRefs(accForFocus));
           nsAccUtils::FireAccEvent(nsIAccessibleEvent::EVENT_ALERT, accForFocus);
 #endif
-          nsCOMPtr<nsIAccessibleEvent> caretMoveEvent =
+          nsCOMPtr<nsIAccessibleCaretMoveEvent> caretMoveEvent =
             new nsAccCaretMoveEvent(accessible, caretOffset);
           if (!caretMoveEvent)
             break; // Out of memory, break out to release kung fu death grip
@@ -2124,7 +2119,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
       // XXX Collate events when a range is deleted
       // XXX We need a way to ignore SplitNode and JoinNode() when they
       // do not affect the text within the hypertext
-      nsCOMPtr<nsIAccessibleEvent> textChangeEvent =
+      nsCOMPtr<nsIAccessibleTextChangeEvent> textChangeEvent =
         CreateTextChangeEventForNode(containerAccessible, childNode, childAccessible,
                                      PR_FALSE, isAsynch);
       if (textChangeEvent) {

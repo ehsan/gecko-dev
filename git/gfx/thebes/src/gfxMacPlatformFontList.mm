@@ -195,11 +195,6 @@ MacOSFontEntry::ReadCMAP()
     PRPackedBool  unicodeFont, symbolFont; // currently ignored
     nsresult rv = gfxFontUtils::ReadCMAP(cmap, buffer.Length(),
                                          mCharacterMap, unicodeFont, symbolFont);
-                                         
-    if (NS_FAILED(rv)) {
-        mCharacterMap.reset();
-        return rv;
-    }
 
     // for complex scripts, check for the presence of mort/morx
     PRBool checkedForMorphTable = PR_FALSE, hasMorphTable = PR_FALSE;
@@ -695,13 +690,27 @@ public:
 };
 
 gfxFontEntry* 
-gfxMacPlatformFontList::MakePlatformFont(const gfxFontEntry *aProxyEntry,
-                                         const PRUint8 *aFontData,
-                                         PRUint32 aLength)
+gfxMacPlatformFontList::MakePlatformFont(const gfxFontEntry *aProxyEntry, 
+                                     const PRUint8 *aFontData, PRUint32 aLength)
 {
     OSStatus err;
     
-    NS_ASSERTION(aFontData, "MakePlatformFont called with null data");
+    NS_ASSERTION(aFontData && aLength != 0, 
+                 "MakePlatformFont called with null data ptr");
+                 
+    // do simple validation check on font data before 
+    // attempting to activate it
+    if (!gfxFontUtils::ValidateSFNTHeaders(aFontData, aLength)) {
+#if DEBUG
+        char warnBuf[1024];
+        const gfxProxyFontEntry *proxyEntry = 
+            static_cast<const gfxProxyFontEntry*> (aProxyEntry);
+        sprintf(warnBuf, "downloaded font error, invalid font data for (%s)",
+                NS_ConvertUTF16toUTF8(proxyEntry->mFamily->Name()).get());
+        NS_WARNING(warnBuf);
+#endif    
+        return nsnull;
+    }
 
     ATSFontRef fontRef;
     ATSFontContainerRef containerRef;
@@ -711,7 +720,7 @@ gfxMacPlatformFontList::MakePlatformFont(const gfxFontEntry *aProxyEntry,
     const PRUint32 kMaxRetries = 3;
     PRUint32 retryCount = 0;
     while (retryCount++ < kMaxRetries) {
-        err = ::ATSFontActivateFromMemory(const_cast<PRUint8*>(aFontData), aLength,
+        err = ::ATSFontActivateFromMemory(const_cast<PRUint8*>(aFontData), aLength, 
                                           kPrivateATSFontContextPrivate,
                                           kATSFontFormatUnspecified,
                                           NULL, 
@@ -803,8 +812,8 @@ gfxMacPlatformFontList::MakePlatformFont(const gfxFontEntry *aProxyEntry,
             return nsnull;
         }
 
-        // if succeeded and font cmap is good, return the new font
-        if (newFontEntry->mIsValid && NS_SUCCEEDED(newFontEntry->ReadCMAP()))
+        // if we succeeded (which should always be the case), return the new font
+        if (newFontEntry->mIsValid)
             return newFontEntry;
 
         // if something is funky about this font, delete immediately

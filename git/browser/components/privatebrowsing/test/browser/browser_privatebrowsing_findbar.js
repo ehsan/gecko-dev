@@ -40,7 +40,9 @@
 
 function test() {
   // initialization
-  gPrefService.setBoolPref("browser.privatebrowsing.keep_current_session", true);
+  let prefBranch = Cc["@mozilla.org/preferences-service;1"].
+                   getService(Ci.nsIPrefBranch);
+  prefBranch.setBoolPref("browser.privatebrowsing.keep_current_session", true);
   let pb = Cc["@mozilla.org/privatebrowsing;1"].
            getService(Ci.nsIPrivateBrowsingService);
 
@@ -77,6 +79,6 @@ function test() {
     "leaving the private browsing mode should only leave 1 item in the undo list of the findbar control");
 
   // cleanup
-  gPrefService.clearUserPref("browser.privatebrowsing.keep_current_session");
+  prefBranch.clearUserPref("browser.privatebrowsing.keep_current_session");
   gFindBar.close();
 }

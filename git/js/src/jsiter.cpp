@@ -99,7 +99,7 @@ js_CloseNativeIterator(JSContext *cx, JSObject *iterobj)
         return;
 
     /* Protect against failure to fully initialize obj. */
-    iterable = iterobj->getParent();
+    iterable = STOBJ_GET_PARENT(iterobj);
     if (iterable) {
 #if JS_HAS_XML_SUPPORT
         uintN flags = JSVAL_TO_INT(STOBJ_GET_SLOT(iterobj, JSSLOT_ITER_FLAGS));
@@ -113,33 +113,13 @@ js_CloseNativeIterator(JSContext *cx, JSObject *iterobj)
     STOBJ_SET_SLOT(iterobj, JSSLOT_ITER_STATE, JSVAL_NULL);
 }
 
-static void
-iterator_trace(JSTracer *trc, JSObject *obj)
-{
-    /*
-     * The GC marks iter_state during the normal slot scanning if
-     * JSVAL_IS_TRACEABLE(iter_state) is true duplicating the efforts of
-     * js_MarkEnumeratorState. But this is rare so we optimize for code
-     * simplicity.
-     */
-    JSObject *iterable = obj->getParent();
-    if (!iterable) {
-        /* for (x in null) creates an iterator object with a null parent. */
-        return;
-    }
-    jsval iter_state = obj->fslots[JSSLOT_ITER_STATE];
-    js_MarkEnumeratorState(trc, iterable, iter_state);
-}
-
 JSClass js_IteratorClass = {
     "Iterator",
     JSCLASS_HAS_RESERVED_SLOTS(2) | /* slots for state and flags */
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator) |
-    JSCLASS_MARK_IS_TRACE,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Iterator),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
-    NULL,             NULL,            NULL,            NULL,
-    NULL,             NULL,            JS_CLASS_TRACE(iterator_trace), NULL
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
 static JSBool
@@ -394,7 +374,7 @@ js_ValueToIterator(JSContext *cx, uintN flags, jsval *vp)
         *vp = OBJECT_TO_JSVAL(iterobj);
     } else {
         atom = cx->runtime->atomState.iteratorAtom;
-        if (!js_GetMethod(cx, obj, ATOM_TO_JSID(atom), JSGET_NO_METHOD_BARRIER, vp))
+        if (!js_GetMethod(cx, obj, ATOM_TO_JSID(atom), false, vp))
             goto bad;
         if (JSVAL_IS_VOID(*vp)) {
           default_iter:
@@ -751,7 +731,7 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
 
     /* These two references can be shared with fp until it goes away. */
     gen->frame.varobj = fp->varobj;
-    gen->frame.thisv = fp->thisv;
+    gen->frame.thisp = fp->thisp;
 
     /* Copy call-invariant script and function references. */
     gen->frame.script = fp->script;
@@ -783,9 +763,12 @@ js_NewGenerator(JSContext *cx, JSStackFrame *fp)
     gen->savedRegs.pc = fp->regs->pc;
     gen->frame.regs = &gen->savedRegs;
 
+    /* Copy remaining state (XXX sharp* and xml* should be local vars). */
+    gen->frame.sharpDepth = 0;
+    gen->frame.sharpArray = NULL;
     gen->frame.flags = (fp->flags & ~JSFRAME_ROOTED_ARGV) | JSFRAME_GENERATOR;
     gen->frame.dormantNext = NULL;
-
+    gen->frame.xmlNamespace = NULL;
     /* JSOP_GENERATOR appears in the prologue, outside all blocks.  */
     JS_ASSERT(!fp->blockChain);
     gen->frame.blockChain = NULL;

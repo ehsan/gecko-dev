@@ -120,7 +120,6 @@ public:
   nsresult          Paint();
   void              ForceUpdateNativeMenuAt(const nsAString& indexString);
   void              ForceNativeMenuReload(); // used for testing
-  static char       GetLocalizedAccelKey(char *shortcutID);
 
 protected:
   void              ConstructNativeMenus();

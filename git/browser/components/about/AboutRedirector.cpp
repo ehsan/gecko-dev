@@ -81,7 +81,7 @@ static RedirEntry kRedirMap[] = {
   { "privatebrowsing", "chrome://browser/content/aboutPrivateBrowsing.xhtml",
     nsIAboutModule::ALLOW_SCRIPT },
   { "rights",
-#ifdef MOZ_OFFICIAL_BRANDING
+#ifdef OFFICIAL_BUILD
     "chrome://global/content/aboutRights.xhtml",
 #else
     "chrome://global/content/aboutRights-unbranded.xhtml",
@@ -92,9 +92,7 @@ static RedirEntry kRedirMap[] = {
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
     nsIAboutModule::ALLOW_SCRIPT },
   { "sessionrestore", "chrome://browser/content/aboutSessionRestore.xhtml",
-    nsIAboutModule::ALLOW_SCRIPT },
-  { "support", "chrome://browser/content/aboutSupport.xhtml",
-    nsIAboutModule::ALLOW_SCRIPT },
+    nsIAboutModule::ALLOW_SCRIPT }
 };
 static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);
 

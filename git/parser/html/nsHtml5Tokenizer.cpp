@@ -43,7 +43,6 @@
 #include "nsHtml5NamedCharacters.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
-#include "nsIUnicodeDecoder.h"
 
 #include "nsHtml5TreeBuilder.h"
 #include "nsHtml5MetaScanner.h"
@@ -382,7 +381,6 @@ nsHtml5Tokenizer::attributeNameComplete()
 void 
 nsHtml5Tokenizer::addAttributeWithoutValue()
 {
-
   if (!!attributeName) {
     attributes->addAttribute(attributeName, nsHtml5Portability::newEmptyString());
   }
@@ -755,7 +753,6 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             case '&': {
               clearLongStrBuf();
               state = NS_HTML5TOKENIZER_ATTRIBUTE_VALUE_UNQUOTED;
-
               reconsume = PR_TRUE;
               goto stateloop;
             }
@@ -781,7 +778,6 @@ nsHtml5Tokenizer::stateLoop(PRInt32 state, PRUnichar c, PRInt32 pos, PRUnichar* 
             default: {
               clearLongStrBufAndAppendCurrentC(c);
               state = NS_HTML5TOKENIZER_ATTRIBUTE_VALUE_UNQUOTED;
-
               goto stateloop;
             }
           }
@@ -3335,7 +3331,7 @@ nsHtml5Tokenizer::isInDataState()
 }
 
 void 
-nsHtml5Tokenizer::setEncodingDeclarationHandler(nsHtml5StreamParser* encodingDeclarationHandler)
+nsHtml5Tokenizer::setEncodingDeclarationHandler(nsHtml5Parser* encodingDeclarationHandler)
 {
   this->encodingDeclarationHandler = encodingDeclarationHandler;
 }

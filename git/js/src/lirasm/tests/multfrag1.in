@@ -8,17 +8,17 @@ c = int 67
 sti c ptr 2
 zero = int 0
 sti zero ptr 3
-ss = icall puts cdecl ptr
+ss = call puts cdecl ptr
 ret ss
 .end
 
 .begin b
-rr = icall a fastcall
+rr = call a fastcall
 ret rr
 .end
 
 .begin main
-ans = icall b fastcall
+ans = call b fastcall
 five = int 5
 res = add five ans
 ret res

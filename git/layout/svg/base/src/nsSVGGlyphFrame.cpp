@@ -190,8 +190,6 @@ NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGGlyphFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGGlyphFrame)
-
 //----------------------------------------------------------------------
 // nsQueryFrame methods
 
@@ -1219,7 +1217,7 @@ nsSVGGlyphFrame::GetFirstGlyphFragment()
 NS_IMETHODIMP_(nsISVGGlyphFragmentLeaf *)
 nsSVGGlyphFrame::GetNextGlyphFragment()
 {
-  nsIFrame* sibling = GetNextSibling();
+  nsIFrame* sibling = mNextSibling;
   while (sibling) {
     nsISVGGlyphFragmentNode *node = do_QueryFrame(sibling);
     if (node)
@@ -1229,8 +1227,8 @@ nsSVGGlyphFrame::GetNextGlyphFragment()
 
   // no more siblings. go back up the tree.
   
-  NS_ASSERTION(GetParent(), "null parent");
-  nsISVGGlyphFragmentNode *node = do_QueryFrame(GetParent());
+  NS_ASSERTION(mParent, "null parent");
+  nsISVGGlyphFragmentNode *node = do_QueryFrame(mParent);
   return node ? node->GetNextGlyphFragment() : nsnull;
 }
 
@@ -1353,8 +1351,8 @@ nsSVGGlyphFrame::EnsureTextRun(float *aDrawScale, float *aMetricsScale,
       textRunSize = PRECISE_SIZE;
     } else {
       textRunSize = size*contextScale;
-      textRunSize = NS_MAX(textRunSize, double(CLAMP_MIN_SIZE));
-      textRunSize = NS_MIN(textRunSize, double(CLAMP_MAX_SIZE));
+      textRunSize = PR_MAX(textRunSize, CLAMP_MIN_SIZE);
+      textRunSize = PR_MIN(textRunSize, CLAMP_MAX_SIZE);
     }
 
     const nsFont& font = fontData->mFont;

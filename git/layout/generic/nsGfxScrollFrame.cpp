@@ -90,8 +90,6 @@ NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool
   return new (aPresShell) nsHTMLScrollFrame(aPresShell, aContext, aIsRoot);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsHTMLScrollFrame)
-
 nsHTMLScrollFrame::nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot)
   : nsHTMLContainerFrame(aContext),
     mInner(this, aIsRoot, PR_FALSE)
@@ -156,7 +154,6 @@ void
 nsHTMLScrollFrame::Destroy()
 {
   mInner.Destroy();
-  mScrolledAreaEventDispatcher.Revoke();
   nsHTMLContainerFrame::Destroy();
 }
 
@@ -247,7 +244,8 @@ nsHTMLScrollFrame::InvalidateInternal(const nsRect& aDamageRect,
         // We don't need to propagate this any further up, though. Anyone who
         // cares about scrolled-out-of-view invalidates had better be listening
         // to our window directly.
-        PresContext()->NotifyInvalidation(damage, aFlags);
+        PresContext()->NotifyInvalidation(damage,
+            (aFlags & INVALIDATE_CROSS_DOC) != 0);
       }
       return;
     } else if (aForChild == mInner.mHScrollbarBox) {
@@ -418,13 +416,13 @@ nsHTMLScrollFrame::TryLayout(ScrollReflowState* aState,
   // XXXldb Can we depend more on ComputeSize here?
   nsSize desiredInsideBorderSize;
   desiredInsideBorderSize.width = vScrollbarDesiredWidth +
-    NS_MAX(aKidMetrics->width, hScrollbarMinWidth);
+    PR_MAX(aKidMetrics->width, hScrollbarMinWidth);
   desiredInsideBorderSize.height = hScrollbarDesiredHeight +
-    NS_MAX(aKidMetrics->height, vScrollbarMinHeight);
+    PR_MAX(aKidMetrics->height, vScrollbarMinHeight);
   aState->mInsideBorderSize =
     ComputeInsideBorderSize(aState, desiredInsideBorderSize);
-  nsSize scrollPortSize = nsSize(NS_MAX(0, aState->mInsideBorderSize.width - vScrollbarDesiredWidth),
-                                 NS_MAX(0, aState->mInsideBorderSize.height - hScrollbarDesiredHeight));
+  nsSize scrollPortSize = nsSize(PR_MAX(0, aState->mInsideBorderSize.width - vScrollbarDesiredWidth),
+                                 PR_MAX(0, aState->mInsideBorderSize.height - hScrollbarDesiredHeight));
                                                                                 
   if (!aForce) {
     nsRect scrolledRect = mInner.GetScrolledRect(scrollPortSize);
@@ -488,7 +486,7 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
                                        nsHTMLReflowMetrics* aMetrics,
                                        PRBool aFirstPass)
 {
-  // these could be NS_UNCONSTRAINEDSIZE ... NS_MIN arithmetic should
+  // these could be NS_UNCONSTRAINEDSIZE ... PR_MIN arithmetic should
   // be OK
   nscoord paddingLR = aState->mReflowState.mComputedPadding.LeftRight();
 
@@ -506,16 +504,16 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
     nsSize hScrollbarPrefSize = 
       mInner.mHScrollbarBox->GetPrefSize(const_cast<nsBoxLayoutState&>(aState->mBoxState));
     if (computedHeight != NS_UNCONSTRAINEDSIZE)
-      computedHeight = NS_MAX(0, computedHeight - hScrollbarPrefSize.height);
-    computedMinHeight = NS_MAX(0, computedMinHeight - hScrollbarPrefSize.height);
+      computedHeight = PR_MAX(0, computedHeight - hScrollbarPrefSize.height);
+    computedMinHeight = PR_MAX(0, computedMinHeight - hScrollbarPrefSize.height);
     if (computedMaxHeight != NS_UNCONSTRAINEDSIZE)
-      computedMaxHeight = NS_MAX(0, computedMaxHeight - hScrollbarPrefSize.height);
+      computedMaxHeight = PR_MAX(0, computedMaxHeight - hScrollbarPrefSize.height);
   }
 
   if (aAssumeVScroll) {
     nsSize vScrollbarPrefSize = 
       mInner.mVScrollbarBox->GetPrefSize(const_cast<nsBoxLayoutState&>(aState->mBoxState));
-    availWidth = NS_MAX(0, availWidth - vScrollbarPrefSize.width);
+    availWidth = PR_MAX(0, availWidth - vScrollbarPrefSize.width);
   }
 
   // We're forcing the padding on our scrolled frame, so let it know what that
@@ -893,69 +891,11 @@ nsHTMLScrollFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
 
-  if (mInner.mIsRoot && oldScrolledAreaBounds != newScrolledAreaBounds) {
-    PostScrolledAreaEvent(newScrolledAreaBounds);
-  }
-
   aStatus = NS_FRAME_COMPLETE;
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   mInner.PostOverflowEvent();
   return rv;
 }
-
-
-////////////////////////////////////////////////////////////////////////////////
-// ScrolledArea change event dispatch
-
-NS_IMETHODIMP
-nsHTMLScrollFrame::ScrolledAreaEventDispatcher::Run()
-{
-  if (mScrollFrame)
-    mScrollFrame->FireScrolledAreaEvent(mScrolledArea);
-  return NS_OK;
-}
-
-void
-nsHTMLScrollFrame::FireScrolledAreaEvent(nsRect &aScrolledArea)
-{
-  mScrolledAreaEventDispatcher.Forget();
-
-  nsScrollAreaEvent event(PR_TRUE, NS_SCROLLEDAREACHANGED, nsnull);
-  nsPresContext *prescontext = PresContext();
-  nsIContent* content = GetContent();
-
-  event.mArea = aScrolledArea;
-
-  nsIDocument *doc = content->GetCurrentDoc();
-  if (doc) {
-    nsEventDispatcher::Dispatch(doc, prescontext, &event, nsnull);
-  }
-}
-
-void
-nsHTMLScrollFrame::PostScrolledAreaEvent(nsRect &aScrolledArea)
-{
-  if (mScrolledAreaEventDispatcher.IsPending()) {
-    mScrolledAreaEventDispatcher.get()->mScrolledArea = aScrolledArea;
-    return;
-  }
-
-  nsRefPtr<ScrolledAreaEventDispatcher> dp = new ScrolledAreaEventDispatcher(this);
-  if (!dp) {
-    NS_WARNING("OOM while posting NS_SCROLLEDAREACHANGED");
-    return;
-  }
-
-  dp->mScrolledArea = aScrolledArea;
-
-  if (NS_FAILED(NS_DispatchToCurrentThread(dp))) {
-    NS_WARNING("Failed to dispatch ScrolledAreaEventDispatcher");
-  } else {
-    mScrolledAreaEventDispatcher = dp;
-  }  
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 #ifdef NS_DEBUG
 NS_IMETHODIMP
@@ -1004,8 +944,6 @@ NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool 
 {
   return new (aPresShell) nsXULScrollFrame(aPresShell, aContext, aIsRoot);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsXULScrollFrame)
 
 nsXULScrollFrame::nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot)
   : nsBoxFrame(aShell, aContext, aIsRoot),
@@ -1833,6 +1771,10 @@ nsGfxScrollFrameInner::ScrollPositionDidChange(nsIScrollableView* aScrollable, n
 
   PostScrollEvent();
 
+  // Notify that the display has changed
+  mOuter->InvalidateWithFlags(nsRect(nsPoint(0, 0), mOuter->GetSize()),
+                              nsIFrame::INVALIDATE_NOTIFY_ONLY);
+
   return NS_OK;
 }
 
@@ -2115,8 +2057,8 @@ nsXULScrollFrame::LayoutScrollArea(nsBoxLayoutState& aState, const nsRect& aRect
 
   if (childRect.width < aRect.width || childRect.height < aRect.height)
   {
-    childRect.width = NS_MAX(childRect.width, aRect.width);
-    childRect.height = NS_MAX(childRect.height, aRect.height);
+    childRect.width = PR_MAX(childRect.width, aRect.width);
+    childRect.height = PR_MAX(childRect.height, aRect.height);
 
     // remove overflow area when we update the bounds,
     // because we've already accounted for it
@@ -2478,7 +2420,7 @@ nsGfxScrollFrameInner::ReflowFinished()
       nscoord pageincrement = nscoord(scrollArea.height - fontHeight);
       nscoord pageincrementMin = nscoord(float(scrollArea.height) * 0.8);
       FinishReflowForScrollbar(vScroll, minY, maxY, curPosY,
-                               NS_MAX(pageincrement,pageincrementMin),
+                               PR_MAX(pageincrement,pageincrementMin),
                                fontHeight);
     }
     if (hScroll) {
@@ -2551,9 +2493,9 @@ static void AdjustScrollbarRect(nsIView* aView, nsPresContext* aPresContext,
     return;
 
   if (aVertical)
-    aRect.height = NS_MAX(0, resizerRect.y - aRect.y);
+    aRect.height = PR_MAX(0, resizerRect.y - aRect.y);
   else
-    aRect.width = NS_MAX(0, resizerRect.x - aRect.x);
+    aRect.width = PR_MAX(0, resizerRect.x - aRect.x);
 }
 
 void
@@ -2695,7 +2637,7 @@ nsGfxScrollFrameInner::GetScrolledRect(const nsSize& aScrollPortSize) const
     // When the scrolled frame is RTL, this means moving it in our left-based
     // coordinate system, so we need to compensate for its extra width here by
     // effectively repositioning the frame.
-    nscoord extraWidth = NS_MAX(0, mScrolledFrame->GetSize().width - aScrollPortSize.width);
+    nscoord extraWidth = PR_MAX(0, mScrolledFrame->GetSize().width - aScrollPortSize.width);
     x2 += extraWidth;
   }
 

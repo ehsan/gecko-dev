@@ -131,7 +131,7 @@ GetContainingBlockFor(nsIFrame* aFrame) {
 }
 
 nsComputedDOMStyle::nsComputedDOMStyle()
-  : mDocumentWeak(nsnull), mOuterFrame(nsnull),
+  : mInner(this), mDocumentWeak(nsnull), mOuterFrame(nsnull),
     mInnerFrame(nsnull), mPresShell(nsnull), mAppUnitsPerInch(0)
 {
 }
@@ -180,10 +180,8 @@ NS_INTERFACE_TABLE_HEAD(nsComputedDOMStyle)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsComputedDOMStyle)
-  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMCSS2Properties,
-                                    new CSS2PropertiesTearoff(this))
-  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMNSCSS2Properties,
-                                    new CSS2PropertiesTearoff(this))
+  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMCSS2Properties, &mInner)
+  NS_INTERFACE_MAP_ENTRY_AGGREGATED(nsIDOMNSCSS2Properties, &mInner)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ComputedCSSStyleDeclaration)
 NS_INTERFACE_MAP_END
 
@@ -2554,17 +2552,6 @@ nsComputedDOMStyle::GetTextTransform(nsIDOMCSSValue** aValue)
 }
 
 nsresult
-nsComputedDOMStyle::GetMozTabSize(nsIDOMCSSValue** aValue)
-{
-  nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-
-  val->SetNumber(GetStyleText()->mTabSize);
-    
-  return CallQueryInterface(val, aValue);
-}
-
-nsresult
 nsComputedDOMStyle::GetLetterSpacing(nsIDOMCSSValue** aValue)
 {
   nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
@@ -3786,7 +3773,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
         if (aPercentageBaseGetter &&
             (this->*aPercentageBaseGetter)(percentageBase)) {
           nscoord val = nscoord(aCoord.GetPercentValue() * percentageBase);
-          aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
+          aValue->SetAppUnits(PR_MAX(aMinAppUnits, PR_MIN(val, aMaxAppUnits)));
         } else {
           aValue->SetPercent(aCoord.GetPercentValue());
         }
@@ -3800,7 +3787,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
     case eStyleUnit_Coord:
       {
         nscoord val = aCoord.GetCoordValue();
-        aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
+        aValue->SetAppUnits(PR_MAX(aMinAppUnits, PR_MIN(val, aMaxAppUnits)));
       }
       break;
       
@@ -4749,7 +4736,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_topLeft,    OutlineRadiusTopLeft),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_topRight,   OutlineRadiusTopRight),
     COMPUTED_STYLE_MAP_ENTRY(stack_sizing,                  StackSizing),
-    COMPUTED_STYLE_MAP_ENTRY(_moz_tab_size,                 MozTabSize),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_transform,         MozTransform),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_transform_origin,  MozTransformOrigin),
     COMPUTED_STYLE_MAP_ENTRY(user_focus,                    UserFocus),

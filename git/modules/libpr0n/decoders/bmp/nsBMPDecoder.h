@@ -20,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -170,7 +169,6 @@ private:
     nsCOMPtr<imgIDecoderObserver> mObserver;
 
     nsCOMPtr<imgIContainer> mImage;
-    PRUint32 mFlags;
 
     PRUint32 mPos;
 
@@ -194,7 +192,6 @@ private:
 
     ERLEState mState;   ///< Maintains the current state of the RLE decoding
     PRUint32 mStateData;///< Decoding information that is needed depending on mState
-    PRBool mError;      ///< Did we hit an error?
 
     /** Set mBFH from the raw data in mRawBuf, converting from little-endian
      * data to native data as necessary */

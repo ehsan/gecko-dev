@@ -52,8 +52,6 @@ NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsSVGMaskFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGMaskFrame)
-
 already_AddRefed<gfxPattern>
 nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
                                  nsIFrame* aParent,

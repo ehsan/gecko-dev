@@ -515,14 +515,15 @@ public:
 /* static */
 FontEntry* 
 FontEntry::LoadFont(const gfxProxyFontEntry &aProxyEntry, 
-                    const PRUint8 *aFontData, 
-                    PRUint32 aLength)
-{
+                    nsISupports *aLoader,const PRUint8 *aFontData, 
+                    PRUint32 aLength) {
     // if calls aren't available, bail
     if (!TTLoadEmbeddedFontPtr || !TTDeleteEmbeddedFontPtr)
         return nsnull;
 
-    PRBool isCFF = gfxFontUtils::IsCffFont(aFontData);
+    PRBool isCFF;
+    if (!gfxFontUtils::ValidateSFNTHeaders(aFontData, aLength, &isCFF))
+        return nsnull;
         
     nsresult rv;
     HANDLE fontRef = nsnull;
@@ -657,8 +658,6 @@ FontEntry::CreateFontEntry(const nsAString& aName, gfxWindowsFontType aFontType,
     FontEntry *fe;
 
     fe = new FontEntry(aName, aFontType, aItalic, aWeight, aUserFontData);
-    if (!fe)
-        return nsnull;
 
     if (!aLogFont) {
         aLogFont = &logFont;
@@ -675,33 +674,20 @@ FontEntry::CreateFontEntry(const nsAString& aName, gfxWindowsFontType aFontType,
 
     if (font) {
         AutoPushPopFont fontCleanup(hdc, font);
-        nsresult rv;
 
-        rv = ::ReadCMAP(hdc, fe);
+        // ReadCMAP may change the values of mUnicodeFont and mSymbolFont
+        if (NS_FAILED(::ReadCMAP(hdc, fe))) {
+            // Type1 fonts aren't necessarily Unicode but
+            // this is the best guess we can make here
+            if (fe->IsType1())
+                fe->mUnicodeFont = PR_TRUE;
+            else
+                fe->mUnicodeFont = PR_FALSE;
 
-        if (NS_FAILED(rv)) {
+            // For fonts where we failed to read the character map,
+            // we can take a slow path to look up glyphs character by character
+            fe->mUnknownCMAP = PR_TRUE;
 
-            // ReadCMAP can fail but only handle failure cases when the font
-            // did *not* have a cmap that appears to be malformed.  Uniscribe
-            // can crash with corrupt cmaps.
-            if (rv == NS_ERROR_GFX_CMAP_MALFORMED) {
-                delete fe;
-                return nsnull;
-            } else {
-
-                // ReadCMAP may change the values of mUnicodeFont and mSymbolFont
-    
-                // Type1 fonts aren't necessarily Unicode but
-                // this is the best guess we can make here
-                if (fe->IsType1())
-                    fe->mUnicodeFont = PR_TRUE;
-                else
-                    fe->mUnicodeFont = PR_FALSE;
-    
-                // For fonts where we failed to read the character map,
-                // we can take a slow path to look up glyphs character by character
-                fe->mUnknownCMAP = PR_TRUE;
-            }
         } 
     }
 

@@ -51,7 +51,6 @@ class nsIDOMEvent;
 class nsRegion;
 class nsDisplayListBuilder;
 class nsIFontMetrics;
-class nsClientRectList;
 
 #include "prtypes.h"
 #include "nsStyleContext.h"
@@ -63,7 +62,6 @@ class nsClientRectList;
 #include "nsIPresShell.h"
 #include "nsIPrincipal.h"
 #include "gfxPattern.h"
-#include "imgIContainer.h"
 
 class nsBlockFrame;
 class nsTextFragment;
@@ -155,7 +153,7 @@ public:
    */
   static PRInt32 CompareTreePosition(nsIContent* aContent1,
                                      nsIContent* aContent2,
-                                     const nsIContent* aCommonAncestor = nsnull)
+                                     nsIContent* aCommonAncestor = nsnull)
   {
     return DoCompareTreePosition(aContent1, aContent2, -1, 1, aCommonAncestor);
   }
@@ -170,7 +168,7 @@ public:
                                        nsIContent* aContent2,
                                        PRInt32 aIf1Ancestor,
                                        PRInt32 aIf2Ancestor,
-                                       const nsIContent* aCommonAncestor = nsnull);
+                                       nsIContent* aCommonAncestor = nsnull);
 
   /**
    * CompareTreePosition determines whether aFrame1 comes before or
@@ -478,11 +476,7 @@ public:
   static nsRect RoundGfxRectToAppRect(const gfxRect &aRect, float aFactor);
 
 
-  enum {
-    PAINT_IN_TRANSFORM = 0x01,
-    PAINT_SYNC_DECODE_IMAGES = 0x02
-  };
-
+  enum { PAINT_IN_TRANSFORM = 0x01 };
   /**
    * Given aFrame, the root frame of a stacking context, paint it and its
    * descendants to aRenderingContext. 
@@ -494,8 +488,7 @@ public:
    * @param aBackstop paint the dirty area with this color before drawing
    * the actual content; pass NS_RGBA(0,0,0,0) to draw no background
    * @param aFlags if PAINT_IN_TRANSFORM is set, then we assume
-   * this is inside a transform or SVG foreignObject. If
-   * PAINT_SYNC_DECODE_IMAGES is set, we force synchronous decode on all images.
+   * this is inside a transform or SVG foreignObject.
    */
   static nsresult PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFrame,
                              const nsRegion& aDirtyRegion, nscolor aBackstop,
@@ -600,27 +593,6 @@ public:
   public:
     virtual void AddRect(const nsRect& aRect) = 0;
   };
-
-  struct RectAccumulator : public RectCallback {
-    nsRect       mResultRect;
-    nsRect       mFirstRect;
-    PRPackedBool mSeenFirstRect;
-
-    RectAccumulator();
-
-    virtual void AddRect(const nsRect& aRect);
-  };
-
-  struct RectListBuilder : public RectCallback {
-    nsClientRectList* mRectList;
-    nsresult          mRV;
-
-    RectListBuilder(nsClientRectList* aList);
-     virtual void AddRect(const nsRect& aRect);
-  };
-
-  static nsIFrame* GetContainingBlockForClientRect(nsIFrame* aFrame);
-
   /**
    * Collect all CSS border-boxes associated with aFrame and its
    * continuations, "drilling down" through outer table frames and
@@ -908,7 +880,6 @@ public:
    *   @param aAnchor           A point in aFill which we will ensure is
    *                            pixel-aligned in the output.
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
   static nsresult DrawImage(nsIRenderingContext* aRenderingContext,
                             imgIContainer*       aImage,
@@ -916,8 +887,7 @@ public:
                             const nsRect&        aDest,
                             const nsRect&        aFill,
                             const nsPoint&       aAnchor,
-                            const nsRect&        aDirty,
-                            PRUint32             aImageFlags);
+                            const nsRect&        aDirty);
 
   /**
    * Draw a whole image without scaling or tiling.
@@ -928,7 +898,6 @@ public:
    *   @param aImage            The image.
    *   @param aDest             The top-left where the image should be drawn
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn at aDest. It's
    *                            in appunits. For best results it should
@@ -938,7 +907,6 @@ public:
                                           imgIContainer*       aImage,
                                           const nsPoint&       aDest,
                                           const nsRect&        aDirty,
-                                          PRUint32             aImageFlags,
                                           const nsRect*        aSourceArea = nsnull);
 
   /**
@@ -954,14 +922,12 @@ public:
    *                            the image and drawn in aDest. It's
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
   static nsresult DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                   imgIContainer*       aImage,
                                   gfxPattern::GraphicsFilter aGraphicsFilter,
                                   const nsRect&        aDest,
                                   const nsRect&        aDirty,
-                                  PRUint32             aImageFlags,
                                   const nsRect*        aSourceArea = nsnull);
 
   /**
@@ -1103,10 +1069,7 @@ public:
     /* Always create a new surface for the result */
     SFE_WANT_NEW_SURFACE   = 1 << 0,
     /* When creating a new surface, create an image surface */
-    SFE_WANT_IMAGE_SURFACE = 1 << 1,
-    /* Whether to extract the first frame (as opposed to the
-       current frame) in the case that the element is an image. */
-    SFE_WANT_FIRST_FRAME = 1 << 2
+    SFE_WANT_IMAGE_SURFACE = 1 << 1
   };
 
   struct SurfaceFromElementResult {

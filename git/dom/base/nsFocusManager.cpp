@@ -900,7 +900,7 @@ nsFocusManager::WindowHidden(nsIDOMWindow* aWindow)
   // ensures that the focused window isn't in a chain of frames that doesn't
   // exist any more.
   if (window != mFocusedWindow) {
-    nsCOMPtr<nsIWebNavigation> webnav(do_GetInterface(mFocusedWindow));
+    nsCOMPtr<nsIWebNavigation> webnav(do_GetInterface(window));
     nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(webnav);
     if (dsti) {
       nsCOMPtr<nsIDocShellTreeItem> parentDsti;
@@ -957,7 +957,7 @@ nsFocusManager::EnsureCurrentWidgetFocused()
         nsCOMPtr<nsIWidget> widget;
         vm->GetRootWidget(getter_AddRefs(widget));
         if (widget)
-          widget->SetFocus(PR_FALSE);
+          widget->SetFocus(PR_TRUE);
       }
     }
   }
@@ -1371,7 +1371,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
           nsCOMPtr<nsIWidget> widget;
           vm->GetRootWidget(getter_AddRefs(widget));
           if (widget)
-            widget->SetFocus(PR_FALSE);
+            widget->SetFocus(PR_TRUE);
         }
       }
     }
@@ -1454,7 +1454,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
   if (!aWindow)
     return;
 
-  if (aContent && (aContent == mFirstFocusEvent || aContent == mFirstBlurEvent))
+  if (aContent && aContent == mFirstFocusEvent)
     return;
 
   // Keep a reference to the presShell since dispatching the DOM event may
@@ -1518,7 +1518,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     nsCOMPtr<nsIWidget> widget;
     vm->GetRootWidget(getter_AddRefs(widget));
     if (widget)
-      widget->SetFocus(PR_FALSE);
+      widget->SetFocus(PR_TRUE);
   }
 
   // if switching to a new document, first fire the focus event on the
@@ -1560,7 +1560,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
       if (objectFrame) {
         nsIWidget* widget = objectFrame->GetWidget();
         if (widget)
-          widget->SetFocus(PR_FALSE);
+          widget->SetFocus(PR_TRUE);
       }
 
       nsIMEStateManager::OnChangeFocus(presContext, aContent);

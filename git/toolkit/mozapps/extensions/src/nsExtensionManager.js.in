@@ -53,7 +53,6 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm");
 
 const PREF_EM_CHECK_COMPATIBILITY     = "extensions.checkCompatibility";
 const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
@@ -62,8 +61,6 @@ const PREF_EM_ENABLED_ITEMS           = "extensions.enabledItems";
 const PREF_UPDATE_COUNT               = "extensions.update.count";
 const PREF_UPDATE_DEFAULT_URL         = "extensions.update.url";
 const PREF_EM_NEW_ADDONS_LIST         = "extensions.newAddons";
-const PREF_EM_DISABLED_ADDONS_LIST    = "extensions.disabledAddons";
-const PREF_EM_SHOW_MISMATCH_UI        = "extensions.showMismatchUI";
 const PREF_EM_IGNOREMTIMECHANGES      = "extensions.ignoreMTimeChanges";
 const PREF_EM_DISABLEDOBSOLETE        = "extensions.disabledObsolete";
 const PREF_EM_EXTENSION_FORMAT        = "extensions.%UUID%.";
@@ -73,7 +70,6 @@ const PREF_EM_ITEM_UPDATE_URL         = "extensions.%UUID%.update.url";
 const PREF_EM_DSS_ENABLED             = "extensions.dss.enabled";
 const PREF_DSS_SWITCHPENDING          = "extensions.dss.switchPending";
 const PREF_DSS_SKIN_TO_SELECT         = "extensions.lastSelectedSkin";
-const PREF_LWTHEME_TO_SELECT          = "extensions.lwThemeToSelect";
 const PREF_GENERAL_SKINS_SELECTEDSKIN = "general.skins.selectedSkin";
 const PREF_EM_LOGGING_ENABLED         = "extensions.logging.enabled";
 const PREF_EM_UPDATE_INTERVAL         = "extensions.update.interval";
@@ -143,10 +139,6 @@ const URI_DOWNLOADS_PROPERTIES        = "chrome://mozapps/locale/downloads/downl
 const URI_EXTENSION_UPDATE_DIALOG     = "chrome://mozapps/content/extensions/update.xul";
 const URI_EXTENSION_LIST_DIALOG       = "chrome://mozapps/content/extensions/list.xul";
 
-const URI_EXTENSION_MANAGER           = "chrome://mozapps/content/extensions/extensions.xul";
-const FEATURES_EXTENSION_MANAGER      = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
-const FEATURES_EXTENSION_UPDATES      = "chrome,centerscreen,extra-chrome,dialog,resizable,modal";
-
 /**
  * Constants that internal code can use to indicate the reason for an add-on
  * update check. external code uses other constants in nsIExtensionManager.idl.
@@ -204,7 +196,6 @@ var gFirstRun             = false;
 var gAllowFlush           = true;
 var gDSNeedsFlush         = false;
 var gManifestNeedsFlush   = false;
-var gDefaultTheme         = "classic/1.0";
 
 /**
  * Valid GUIDs fit this pattern.
@@ -2170,18 +2161,11 @@ function ExtensionManager() {
     gXPCOMABI = UNKNOWN_XPCOM_ABI;
   }
   gPref = Cc["@mozilla.org/preferences-service;1"].
-          getService(Ci.nsIPrefBranch2).
-          QueryInterface(Ci.nsIPrefService);
-  var defaults = gPref.getDefaultBranch("");
-  try {
-    gDefaultTheme = defaults.getCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
-  } catch(e) {}
+          getService(Ci.nsIPrefBranch2);
 
   gOS = Cc["@mozilla.org/observer-service;1"].
         getService(Ci.nsIObserverService);
   gOS.addObserver(this, "xpcom-shutdown", false);
-  gOS.addObserver(this, "lightweight-theme-preview-requested", false);
-  gOS.addObserver(this, "lightweight-theme-change-requested", false);
 
   gConsole = Cc["@mozilla.org/consoleservice;1"].
              getService(Ci.nsIConsoleService);
@@ -2292,57 +2276,6 @@ ExtensionManager.prototype = {
     case "offline-requested":
       this._confirmCancelDownloadsOnOffline(subject);
       break;
-    case "lightweight-theme-preview-requested":
-      if (gPref.prefHasUserValue(PREF_GENERAL_SKINS_SELECTEDSKIN)) {
-        let cancel = subject.QueryInterface(Ci.nsISupportsPRBool);
-        cancel.data = true;
-      }
-      break;
-    case "lightweight-theme-change-requested":
-      let theme = JSON.parse(data);
-      if (!theme)
-        return;
-
-      if (gPref.prefHasUserValue(PREF_GENERAL_SKINS_SELECTEDSKIN)) {
-        if (getPref("getBoolPref", PREF_EM_DSS_ENABLED, false)) {
-          gPref.clearUserPref(PREF_GENERAL_SKINS_SELECTEDSKIN);
-          return;
-        }
-
-        let cancel = subject.QueryInterface(Ci.nsISupportsPRBool);
-        cancel.data = true;
-        gPref.setBoolPref(PREF_DSS_SWITCHPENDING, true);
-        gPref.setCharPref(PREF_DSS_SKIN_TO_SELECT, gDefaultTheme);
-        gPref.setCharPref(PREF_LWTHEME_TO_SELECT, theme.id);
-
-        // Open the UI so the user can see that a restart is necessary
-        var wm = Cc["@mozilla.org/appshell/window-mediator;1"].
-                 getService(Ci.nsIWindowMediator);
-        var win = wm.getMostRecentWindow("Extension:Manager");
-
-        if (win) {
-          win.showView("themes");
-          return;
-        }
-
-        var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-                 getService(Ci.nsIWindowWatcher);
-        var param = Cc["@mozilla.org/supports-array;1"].
-                    createInstance(Ci.nsISupportsArray);
-        var arg = Cc["@mozilla.org/supports-string;1"].
-                  createInstance(Ci.nsISupportsString);
-        arg.data = "themes";
-        param.AppendElement(arg);
-        ww.openWindow(null, URI_EXTENSION_MANAGER, null, FEATURES_EXTENSION_MANAGER, param);
-        return;
-      }
-      else {
-        // Cancel any pending theme change and allow the lightweight theme
-        // change to go ahead
-        gPref.clearUserPref(PREF_DSS_SWITCHPENDING);
-        gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
-      }
-      break;
     case "xpcom-shutdown":
       this._shutdown();
       break;
@@ -2420,22 +2353,6 @@ ExtensionManager.prototype = {
         gPref.setCharPref(PREF_GENERAL_SKINS_SELECTEDSKIN, toSelect);
         gPref.clearUserPref(PREF_DSS_SWITCHPENDING);
         gPref.clearUserPref(PREF_DSS_SKIN_TO_SELECT);
-
-        // If we've changed to a non-default theme make sure there is no
-        // lightweight theme selected
-        if (toSelect != gDefaultTheme) {
-          gPref.clearUserPref(PREF_LWTHEME_TO_SELECT);
-          LightweightThemeManager.currentTheme = null;
-        }
-      }
-
-      if (gPref.prefHasUserValue(PREF_LWTHEME_TO_SELECT)) {
-        var id = gPref.getCharPref(PREF_LWTHEME_TO_SELECT);
-        if (id)
-          LightweightThemeManager.currentTheme = LightweightThemeManager.getUsedTheme(id);
-        else
-          LightweightThemeManager.currentTheme = null;
-        gPref.clearUserPref(PREF_LWTHEME_TO_SELECT);
       }
     }
     catch (e) {
@@ -2470,6 +2387,9 @@ ExtensionManager.prototype = {
     if (!getPref("getBoolPref", PREF_UPDATE_NOTIFYUSER, false))
       return;
 
+    const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
+    const EMFEATURES = "chrome,centerscreen,extra-chrome,dialog,resizable,modal";
+
     var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
              getService(Ci.nsIWindowWatcher);
     var param = Cc["@mozilla.org/supports-array;1"].
@@ -2478,7 +2398,7 @@ ExtensionManager.prototype = {
               createInstance(Ci.nsISupportsString);
     arg.data = "updates-only";
     param.AppendElement(arg);
-    ww.openWindow(null, URI_EXTENSION_MANAGER, null, FEATURES_EXTENSION_UPDATES, param);
+    ww.openWindow(null, EMURL, null, EMFEATURES, param);
   },
 
   /**
@@ -2505,8 +2425,6 @@ ExtensionManager.prototype = {
     }
 
     gOS.removeObserver(this, "xpcom-shutdown");
-    gOS.removeObserver(this, "lightweight-theme-preview-requested");
-    gOS.removeObserver(this, "lightweight-theme-change-requested");
 
     // Release strongly held services.
     gOS = null;
@@ -2618,7 +2536,21 @@ ExtensionManager.prototype = {
       ERROR("Error flushing caches: " + e);
     }
 
+    if (!needsRestart)
+      this._startTimers();
+
     return needsRestart;
+  },
+
+  /**
+   * Begins all background update check timers
+   */
+  _startTimers: function EM__startTimers() {
+    // Register a background update check timer
+    var tm = Cc["@mozilla.org/updates/timer-manager;1"].
+             getService(Ci.nsIUpdateTimerManager);
+    var interval = getPref("getIntPref", PREF_EM_UPDATE_INTERVAL, 86400);
+    tm.registerTimer("addon-background-update-timer", this, interval);
   },
 
   /**
@@ -2919,12 +2851,10 @@ ExtensionManager.prototype = {
               zipReader.QueryInterface(Ci.nsIJAR);
               var principal = zipReader.getCertificatePrincipal(null);
               if (principal && principal.hasCertificate) {
-                if (verifyZipSigning(zipReader, principal)) {
-                  x509 = principal.certificate;
-                  if (x509 instanceof Ci.nsIX509Cert && x509.commonName.length > 0)
-                    prettyName = x509.commonName;
-                  else
-                    prettyName = principal.prettyName;
+                if (principal.hasCertificate && verifyZipSigning(zipReader, principal)) {
+                  // XXX Bug 372980 This string could be empty. This needs
+                  // better UI to present principal.value.certificate's subject.
+                  prettyName = principal.prettyName;
                 }
                 else {
                   // The xpi isn't correctly signed, don't offer to install.
@@ -3317,7 +3247,6 @@ ExtensionManager.prototype = {
     ds.endUpdateBatch();
 
     var badItems = [];
-    var disabledAddons = [];
     var allAppManaged = true;
     elements = ctr.GetElements();
     while (elements.hasMoreElements()) {
@@ -3371,7 +3300,6 @@ ExtensionManager.prototype = {
       }
       else if (!ds.getItemProperty(id, "appDisabled")) {
         properties.appDisabled = EM_L("true");
-        disabledAddons.push(id);
       }
 
       ds.setItemProperties(id, properties);
@@ -3409,21 +3337,10 @@ ExtensionManager.prototype = {
     // Update the manifests to reflect the items that were disabled / enabled.
     this._updateManifests(true);
 
-    // Determine if we should check for compatibility updates when upgrading if
-    // we have add-ons that aren't managed by the application.
-    if (!allAppManaged && !gFirstRun && disabledAddons.length > 0) {
-      // Should we show a UI or just pass the list via a pref?
-      if (getPref("getBoolPref", PREF_EM_SHOW_MISMATCH_UI, true)) {
-        this._showMismatchWindow(inactiveItemIDs);
-      }
-      else {
-        // Remember the list of add-ons that were disabled this time around
-        gPref.setCharPref(PREF_EM_DISABLED_ADDONS_LIST, disabledAddons.join(","));
-      }
-    } else {
-      // Clear the disabled addons list
-      gPref.clearUserPref(PREF_EM_DISABLED_ADDONS_LIST);
-    }
+    // Always check for compatibility updates when upgrading if we have add-ons
+    // that aren't managed by the application.
+    if (!allAppManaged)
+      this._showMismatchWindow(inactiveItemIDs);
 
     // Finish any pending upgrades from the compatibility update to avoid an
     // additional restart.
@@ -5392,7 +5309,7 @@ ExtensionManager.prototype = {
 
   removeInstallListenerAt: function EM_removeInstallListenerAt(index) {
     if (index < 0 || index >= this._installListeners.length)
-      throw Cr.NS_ERROR_INVALID_ARG;
+      throw Cr.NS_ERROR_INVALID_ARGUMENT;
 
     this._installListeners[index] = null;
     while (this._installListeners[this._installListeners.length - 1] === null)
@@ -5456,11 +5373,7 @@ ExtensionManager.prototype = {
   classDescription: "Extension Manager",
   contractID: "@mozilla.org/extensions/manager;1",
   classID: Components.ID("{8A115FAA-7DCB-4e8f-979B-5F53472F51CF}"),
-  _xpcom_categories: [{ category: "profile-after-change" },
-                      { category: "update-timer",
-                        value: "@mozilla.org/extensions/manager;1," +
-                               "getService,addon-background-update-timer," +
-                               PREF_EM_UPDATE_INTERVAL + ",86400" }],
+  _xpcom_categories: [{ category: "profile-after-change" }],
   _xpcom_factory: {
     createInstance: function(outer, iid) {
       if (outer != null)
@@ -5591,6 +5504,9 @@ BackgroundUpdateCheckListener.prototype = {
       gPref.setBoolPref(PREF_UPDATE_NOTIFYUSER, false);
     }
     else {
+      const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
+      const EMFEATURES = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
+
       var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
                getService(Ci.nsIWindowWatcher);
       var param = Cc["@mozilla.org/supports-array;1"].
@@ -5599,7 +5515,7 @@ BackgroundUpdateCheckListener.prototype = {
                 createInstance(Ci.nsISupportsString);
       arg.data = "updates";
       param.AppendElement(arg);
-      ww.openWindow(null, URI_EXTENSION_MANAGER, null, FEATURES_EXTENSION_MANAGER, param);
+      ww.openWindow(null, EMURL, null, EMFEATURES, param);
     }
   },
   
@@ -7351,9 +7267,9 @@ ExtensionsDataSource.prototype = {
                        "aboutURL", "iconURL", "internalName", "updateKey"];
 
     // Items installed into restricted Install Locations can also be locked
-    // (can't be removed or disabled)
+    // (can't be removed or disabled), and hidden (not shown in the UI)
     if (installLocation.restricted)
-      singleProps = singleProps.concat(["locked"]);
+      singleProps = singleProps.concat(["locked", "hidden"]);
     if (installLocation.name == KEY_APP_GLOBAL)
       singleProps = singleProps.concat(["appManaged"]);
     for (var i = 0; i < singleProps.length; ++i) {
@@ -7960,6 +7876,18 @@ ExtensionsDataSource.prototype = {
     var id = stripPrefix(item.Value, PREFIX_ITEM_URI);
     var locationKey = this.getItemProperty(id, "installLocation");
     if (locationKey != KEY_APP_GLOBAL)
+      return EM_L("false");
+    return null;
+  },
+
+  /**
+   * Get the em:hidden property. This prevents extensions from hiding
+   * extensions installed into locations other than restricted locations.
+   */
+  _rdfGet_hidden: function EMDS__rdfGet_hidden(item, property) {
+    var id = stripPrefix(item.Value, PREFIX_ITEM_URI);
+    var installLocation = InstallLocations.get(this.getInstallLocationKey(id));
+    if (!installLocation || !installLocation.restricted)
       return EM_L("false");
     return null;
   },

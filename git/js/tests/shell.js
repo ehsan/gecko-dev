@@ -274,31 +274,18 @@ function escapeString (str)
 }
 
 /*
- * assertEq(actual, expected [, message])
- *   Throw if the two arguments are not the same.  The sameness of two values
- *   is determined as follows.  If both values are zero, they are the same iff
- *   their signs are the same.  Otherwise, if both values are NaN, they are the
- *   same.  Otherwise, they are the same if they compare equal using ===.
- * see https://bugzilla.mozilla.org/show_bug.cgi?id=480199 and
- *     https://bugzilla.mozilla.org/show_bug.cgi?id=515285
+ * assertEq(actual, expected)
+ *           Throw if the two arguments are not ===
+ * see https://bugzilla.mozilla.org/show_bug.cgi?id=480199
  */
 if (typeof assertEq == 'undefined')
 {
   var assertEq =
-    function (actual, expected, message)
+    function (actual, expected)
     {
-      function SameValue(v1, v2)
+      if (actual !== expected)
       {
-        if (v1 === 0 && v2 === 0)
-          return 1 / v1 === 1 / v2;
-        if (v1 !== v1 && v2 !== v2)
-          return true;
-        return v1 === v2;
-      }
-      if (!SameValue(actual, expected))
-      {
-        throw new TypeError('Assertion failed: got "' + actual + '", expected "' + expected +
-                            (message ? ": " + message : ""));
+        throw new TypeError('Assertion failed: got "' + actual + '", expected "' + expected);
       }
     };
 }

@@ -41,14 +41,19 @@ nsChildView::nsChildView() : nsWindow()
 }
 
 
-nsresult nsChildView::Create(nsIWidget *aParent,
-                             nsNativeWidget aNativeParent,
-                             const nsRect &aRect,
-                             EVENT_CALLBACK aHandleEventFunction,
-                             nsIDeviceContext *aContext,
-                             nsIAppShell *aAppShell,
-                             nsIToolkit *aToolkit,
-                             nsWidgetInitData *aInitData)
+//-------------------------------------------------------------------------
+//
+// Utility method for implementing both Create(nsIWidget ...) and
+// Create(nsNativeWidget...)
+//-------------------------------------------------------------------------
+nsresult nsChildView::StandardWindowCreate(nsIWidget *aParent,
+                                        const nsRect &aRect,
+                                        EVENT_CALLBACK aHandleEventFunction,
+                                        nsIDeviceContext *aContext,
+                                        nsIAppShell *aAppShell,
+                                        nsIToolkit *aToolkit,
+                                        nsWidgetInitData *aInitData,
+                                        nsNativeWidget aNativeParent)
 {
 
 	NS_ASSERTION(aInitData->mWindowType == eWindowType_child

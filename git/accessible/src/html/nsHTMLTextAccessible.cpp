@@ -232,10 +232,9 @@ nsresult
 nsHTMLLIAccessible::Shutdown()
 {
   if (mBulletAccessible) {
-    // Ensure that pointer to this is nulled out.
+    // Ensure that weak pointer to this is nulled out
     mBulletAccessible->Shutdown();
   }
-
   nsresult rv = nsLinkableAccessible::Shutdown();
   mBulletAccessible = nsnull;
   return rv;
@@ -284,7 +283,7 @@ void nsHTMLLIAccessible::CacheChildren()
 
   if (mBulletAccessible) {
     mBulletAccessible->SetNextSibling(mFirstChild);
-    mBulletAccessible->SetParent(this);
+    mBulletAccessible->SetParent(this); // Set weak parent;
     SetFirstChild(mBulletAccessible);
     ++ mAccChildCount;
   }
@@ -295,7 +294,8 @@ void nsHTMLLIAccessible::CacheChildren()
 nsHTMLListBulletAccessible::
   nsHTMLListBulletAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell,
                              const nsAString& aBulletText) :
-    nsLeafAccessible(aDomNode, aShell), mBulletText(aBulletText)
+    nsLeafAccessible(aDomNode, aShell), mWeakParent(nsnull),
+    mBulletText(aBulletText)
 {
   mBulletText += ' '; // Otherwise bullets are jammed up against list text
 }
@@ -312,6 +312,8 @@ nsresult
 nsHTMLListBulletAccessible::Shutdown()
 {
   mBulletText.Truncate();
+  mWeakParent = nsnull;
+
   return nsLeafAccessible::Shutdown();
 }
 
@@ -341,12 +343,17 @@ nsHTMLListBulletAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraS
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLListBulletAccessible::GetParent(nsIAccessible **aParent)
+void
+nsHTMLListBulletAccessible::SetParent(nsIAccessible *aParent)
 {
-  NS_ENSURE_ARG_POINTER(aParent);
+  mParent = nsnull;
+  mWeakParent = aParent;
+}
 
-  NS_IF_ADDREF(*aParent = mParent);
+NS_IMETHODIMP
+nsHTMLListBulletAccessible::GetParent(nsIAccessible **aParentAccessible)
+{
+  NS_IF_ADDREF(*aParentAccessible = mWeakParent);
   return NS_OK;
 }
 

@@ -447,9 +447,13 @@ function run_test() {
 
     let dbConnection = cps.DBConnection;
 
-    let prefCount = dbConnection.createStatement("SELECT COUNT(*) AS count FROM prefs");
+    let prefCount = Cc["@mozilla.org/storage/statement-wrapper;1"].
+                    createInstance(Ci.mozIStorageStatementWrapper);
+    prefCount.initialize(dbConnection.createStatement("SELECT COUNT(*) AS count FROM prefs"));
 
-    let groupCount = dbConnection.createStatement("SELECT COUNT(*) AS count FROM groups");
+    let groupCount = Cc["@mozilla.org/storage/statement-wrapper;1"].
+                     createInstance(Ci.mozIStorageStatementWrapper);
+    groupCount.initialize(dbConnection.createStatement("SELECT COUNT(*) AS count FROM groups"));
 
     // Add some prefs for multiple domains.
     cps.setPref(uri1, "test.removeAllGroups", 1);
@@ -460,10 +464,10 @@ function run_test() {
     cps.setPref(null, "test.removeAllGroups", 1);
 
     // Make sure there are some prefs and groups in the database.
-    prefCount.executeStep();
+    prefCount.step();
     do_check_true(prefCount.row.count > 0);
     prefCount.reset();
-    groupCount.executeStep();
+    groupCount.step();
     do_check_true(groupCount.row.count > 0);
     groupCount.reset();
 
@@ -473,14 +477,16 @@ function run_test() {
 
     // Make sure there are no longer any groups in the database and the only pref
     // is the global one.
-    prefCount.executeStep();
+    prefCount.step();
     do_check_true(prefCount.row.count == 1);
     prefCount.reset();
-    groupCount.executeStep();
+    groupCount.step();
     do_check_true(groupCount.row.count == 0);
     groupCount.reset();
-    let globalPref = dbConnection.createStatement("SELECT groupID FROM prefs");
-    globalPref.executeStep();
+    let globalPref = Cc["@mozilla.org/storage/statement-wrapper;1"].
+                     createInstance(Ci.mozIStorageStatementWrapper);
+    globalPref.initialize(dbConnection.createStatement("SELECT groupID FROM prefs"));
+    globalPref.step();
     do_check_true(globalPref.row.groupID == null);
     globalPref.reset();
   }

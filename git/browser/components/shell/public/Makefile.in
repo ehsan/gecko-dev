@@ -51,7 +51,7 @@ ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
 XPIDLSRCS += nsIWindowsShellService.idl
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 XPIDLSRCS += nsIMacShellService.idl
 endif
 

@@ -55,7 +55,6 @@
 #include "nsHTMLReflowMetrics.h"
 #include "gfxMatrix.h"
 #include "nsFrameList.h"
-#include "nsAlgorithm.h"
 
 /**
  * New rules of reflow:
@@ -108,10 +107,9 @@ struct CharacterDataChangeInfo;
 
 typedef class nsIFrame nsIBox;
 
-// f34d7229-f179-40d9-a952-8fcfa9bc3647
 #define NS_IFRAME_IID \
-  { 0xf34d7229, 0xf179, 0x40d9, \
-    { 0xa9, 0x52, 0x8f, 0xcf, 0xa9, 0xbc, 0x36, 0x47 } }
+  { 0x7e9018b5, 0x5405, 0x4e2b, \
+    { 0x87, 0x67, 0xe2, 0xb4, 0xb1, 0x3e, 0xc1, 0x69 } }
 
 /**
  * Indication of how the frame can be split. This is used when doing runaround
@@ -492,7 +490,7 @@ typedef PRBool nsDidReflowStatus;
 class nsIFrame : public nsQueryFrame
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsIFrame)
+  NS_DECLARE_FRAME_ACCESSOR(nsIFrame)
 
   nsPresContext* PresContext() const {
     return GetStyleContext()->GetRuleNode()->GetPresContext();
@@ -872,10 +870,16 @@ public:
   nsIFrame* GetFirstChild(nsIAtom* aListName) const {
     return GetChildList(aListName).FirstChild();
   }
-  // XXXmats this method should also go away then
-  nsIFrame* GetLastChild(nsIAtom* aListName) const {
-    return GetChildList(aListName).LastChild();
-  }
+
+  /**
+   * Get the last child frame from the specified child list.
+   *
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
+   * @return  the child frame, or NULL if there is no such child
+   * @see     #GetAdditionalListName()
+   */
+  virtual nsIFrame* GetLastChild(nsIAtom* aListName) const;
 
   /**
    * Child frames are linked together in a singly-linked list
@@ -1045,8 +1049,8 @@ public:
     PRInt32 secondaryOffset;
     // Helpers for places that need the ends of the offsets and expect them in
     // numerical order, as opposed to wanting the primary and secondary offsets
-    PRInt32 StartOffset() { return NS_MIN(offset, secondaryOffset); }
-    PRInt32 EndOffset() { return NS_MAX(offset, secondaryOffset); }
+    PRInt32 StartOffset() { return PR_MIN(offset, secondaryOffset); }
+    PRInt32 EndOffset() { return PR_MAX(offset, secondaryOffset); }
     // This boolean indicates whether the associated content is before or after
     // the offset; the most visible use is to allow the caret to know which line
     // to display on.
@@ -1729,6 +1733,14 @@ public:
   virtual PRBool IsLeaf() const;
 
   /**
+   * Does this frame want to capture the mouse when the user clicks in
+   * it or its children? If so, return the view which should be
+   * targeted for mouse capture. The view need not be this frame's view,
+   * it could be the view on a child.
+   */
+  virtual nsIView* GetMouseCapturer() const { return nsnull; }
+
+  /**
    * @param aFlags see InvalidateInternal below
    */
   void InvalidateWithFlags(const nsRect& aDamageRect, PRUint32 aFlags);
@@ -1765,19 +1777,15 @@ public:
    *   could cause frames to be deleted (including |this|).
    * @param aFlags INVALIDATE_CROSS_DOC: true if the invalidation
    *   originated in a subdocument
-   * @param aFlags INVALIDATE_REASON_SCROLL_BLIT: set if the invalidation
-   * was really just the scroll machinery copying pixels from one
-   * part of the window to another
-   * @param aFlags INVALIDATE_REASON_SCROLL_REPAINT: set if the invalidation
-   * was triggered by scrolling
+   * @param aFlags INVALIDATE_NOTIFY_ONLY: set when this invalidation should
+   * cause MozAfterPaint listeners to be notified, but should not actually
+   * invalidate anything. This is used to notify about scrolling, where the
+   * screen has already been updated.
    */
   enum {
-  	INVALIDATE_IMMEDIATE = 0x01,
-  	INVALIDATE_CROSS_DOC = 0x02,
-  	INVALIDATE_REASON_SCROLL_BLIT = 0x04,
-  	INVALIDATE_REASON_SCROLL_REPAINT = 0x08,
-    INVALIDATE_REASON_MASK = INVALIDATE_REASON_SCROLL_BLIT |
-                             INVALIDATE_REASON_SCROLL_REPAINT
+  	INVALIDATE_IMMEDIATE = 0x1,
+  	INVALIDATE_CROSS_DOC = 0x2,
+  	INVALIDATE_NOTIFY_ONLY = 0x4
   };
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aOffsetX, nscoord aOffsetY,
@@ -1945,6 +1953,14 @@ public:
 
   /** EndSelection related calls
    */
+
+  /**
+   *  Call to turn on/off mouseCapture at the view level. Needed by the ESM so
+   *  it must be in the public interface.
+   *  @param aPresContext presContext associated with the frame
+   *  @param aGrabMouseEvents PR_TRUE to enable capture, PR_FALSE to disable
+   */
+  NS_IMETHOD CaptureMouse(nsPresContext* aPresContext, PRBool aGrabMouseEvents) = 0;
 
   /**
    *  called to find the previous/next character, word, or line  returns the actual 
@@ -2327,9 +2343,7 @@ protected:
   nsIContent*      mContent;
   nsStyleContext*  mStyleContext;
   nsIFrame*        mParent;
-private:
   nsIFrame*        mNextSibling;  // singly-linked list of frames
-protected:
   nsFrameState     mState;
 
   // When there is an overflow area only slightly larger than mRect,
@@ -2537,10 +2551,37 @@ private:
 };
 
 inline void
-nsFrameList::Enumerator::Next()
-{
+nsFrameList::Enumerator::Next() {
   NS_ASSERTION(!AtEnd(), "Should have checked AtEnd()!");
   mFrame = mFrame->GetNextSibling();
 }
 
+inline nsFrameList::Slice
+nsFrameList::InsertFrames(nsIFrame* aParent, nsIFrame* aPrevSibling,
+                          nsFrameList& aFrameList) {
+  NS_PRECONDITION(!aFrameList.IsEmpty(), "Unexpected empty list");
+  nsIFrame* firstNewFrame = aFrameList.FirstChild();
+  nsIFrame* nextSibling =
+    aPrevSibling ? aPrevSibling->GetNextSibling() : FirstChild();
+  InsertFrames(aParent, aPrevSibling, firstNewFrame);
+  aFrameList.Clear();
+  return Slice(*this, firstNewFrame, nextSibling);
+}
+
+inline void
+nsFrameList::AppendFrame(nsIFrame* aParent, nsIFrame* aFrame)
+{
+  NS_PRECONDITION(aFrame && !aFrame->GetNextSibling(),
+                  "Shouldn't be appending more than one frame");
+  AppendFrames(aParent, aFrame);
+}
+
+inline void
+nsFrameList::InsertFrame(nsIFrame* aParent,
+                         nsIFrame* aPrevSibling,
+                         nsIFrame* aNewFrame) {
+  NS_PRECONDITION(aNewFrame && !aNewFrame->GetNextSibling(),
+                  "Shouldn't be inserting more than one frame");
+  InsertFrames(aParent, aPrevSibling, aNewFrame);
+}
 #endif /* nsIFrame_h___ */

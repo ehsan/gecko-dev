@@ -44,6 +44,9 @@ relativesrcdir  = toolkit/content/tests/widgets
 include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
+# disabled, see bug 506038
+#		test_tooltip.xul \
+
 _TEST_FILES = 	test_bug360220.xul \
 		test_bug359754.xul \
 		test_bug365773.xul \
@@ -70,7 +73,7 @@ _TEST_FILES = 	test_bug360220.xul \
 		popup_trigger.js \
 		window_popup_button.xul \
 		window_popup_attribute.xul \
-		test_tooltip.xul \
+		window_tooltip.xul \
 		test_progressmeter.xul \
 		test_props.xul \
 		test_statusbar.xul \
@@ -100,7 +103,6 @@ _TEST_FILES = 	test_bug360220.xul \
 		test_position.xul \
 		test_menu.xul \
 		test_menu_hide.xul \
-		test_mousecapture.xul \
 		test_focus.xul \
 		test_focus_anons.xul \
 		test_tabindex.xul \
@@ -132,7 +134,7 @@ _TEST_FILES = 	test_bug360220.xul \
 		videomask.css \
 		$(NULL)
 
-ifneq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifeq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 _TEST_FILES += test_menubar.xul \
                window_menubar.xul
 endif

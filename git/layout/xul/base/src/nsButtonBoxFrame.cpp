@@ -62,9 +62,7 @@ nsIFrame*
 NS_NewButtonBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsButtonBoxFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsButtonBoxFrame)
+} // NS_NewXULButtonFrame
 
 NS_IMETHODIMP
 nsButtonBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,

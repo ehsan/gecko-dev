@@ -67,21 +67,19 @@ LightweightThemeConsumer.prototype = {
 
   _update: function (aData) {
     if (!aData)
-      aData = { headerURL: "", footerURL: "", textcolor: "", accentcolor: "" };
+      aData = { headerURL: "", footerURL: "", textColor: "", dominantColor: "" };
 
     var root = this._doc.documentElement;
     var active = !!aData.headerURL;
 
     if (active) {
-      root.style.color = aData.textcolor || "black";
-      root.style.backgroundColor = aData.accentcolor || "white";
+      root.style.color = aData.textColor || "black";
       let [r, g, b] = _parseRGB(this._doc.defaultView.getComputedStyle(root, "").color);
       let brightness = (r + g + b) / 3;
       root.setAttribute("lwthemetextcolor", brightness <= 127 ? "dark" : "bright");
       root.setAttribute("lwtheme", "true");
     } else {
       root.style.color = "";
-      root.style.backgroundColor = "";
       root.removeAttribute("lwthemetextcolor");
       root.removeAttribute("lwtheme");
     }
@@ -103,9 +101,9 @@ LightweightThemeConsumer.prototype = {
         root.setAttribute("originalinactivetitlebarcolor",
                           root.getAttribute("inactivetitlebarcolor"));
       }
-      root.setAttribute("activetitlebarcolor", (active && aData.accentcolor)
+      root.setAttribute("activetitlebarcolor", aData.dominantColor
                           || root.getAttribute("originalactivetitlebarcolor"));
-      root.setAttribute("inactivetitlebarcolor", (active && aData.accentcolor)
+      root.setAttribute("inactivetitlebarcolor", aData.dominantColor
                           || root.getAttribute("originalinactivetitlebarcolor"));
     }
   }

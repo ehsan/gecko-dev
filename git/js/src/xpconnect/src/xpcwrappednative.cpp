@@ -509,9 +509,9 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
             nsCOMPtr<nsIXPConnectWrappedJS> wrappedjs(do_QueryInterface(Object));
             JSObject *obj;
             wrappedjs->GetJSObject(&obj);
-            if((obj->isSystem() ||
-                JS_GetGlobalForObject(ccx, obj)->isSystem()) &&
-               !Scope->GetGlobalJSObject()->isSystem())
+            if((STOBJ_IS_SYSTEM(obj) ||
+                STOBJ_IS_SYSTEM(JS_GetGlobalForObject(ccx, obj))) &&
+               !STOBJ_IS_SYSTEM(Scope->GetGlobalJSObject()))
             {
                 crossDoubleWrapped = JS_TRUE;
             }

@@ -68,6 +68,7 @@ namespace nanojit
     {
         LIns*           entry[ NJ_MAX_STACK_ENTRY ];    /* maps to 4B contiguous locations relative to the frame pointer */
         uint32_t        tos;                            /* current top of stack entry */
+        uint32_t        highwatermark;                  /* max tos hit */
         uint32_t        lowwatermark;                   /* we pre-allocate entries from 0 upto this index-1; so dynamic entries are added above this index */
     };
 
@@ -100,7 +101,13 @@ namespace nanojit
     enum AssmError
     {
          None = 0
+        ,OutOMem
         ,StackFull
+        ,RegionFull
+        ,MaxLength
+        ,MaxExit
+        ,MaxXJump
+        ,UnknownPrim
         ,UnknownBranch
     };
 
@@ -151,30 +158,29 @@ namespace nanojit
             static char  outlineEOL[512];  // string to be added to the end of the line
             static char* outputAlign(char* s, int col);
 
-            void outputForEOL(const char* format, ...);
-            void output(const char* s);
-            void outputf(const char* format, ...);
-            void output_asm(const char* s);
+            void FASTCALL outputForEOL(const char* format, ...);
+            void FASTCALL output(const char* s);
+            void FASTCALL outputf(const char* format, ...);
+            void FASTCALL output_asm(const char* s);
 
             bool outputAddr, vpad[3];  // if outputAddr=true then next asm instr. will include address in output
-            void printActivationState(const char* what);
+            void printActivationState();
 
             StringList* _outputCache;
+            LabelMap*   _labelMap;
 
             // Log controller object.  Contains what-stuff-should-we-print
             // bits, and a sink function for debug printing
             LogControl* _logc;
-            size_t codeBytes;
-            size_t exitBytes;
             #endif
 
             Assembler(CodeAlloc& codeAlloc, Allocator& alloc, AvmCore* core, LogControl* logc);
             ~Assembler() {}
 
-            void        endAssembly(Fragment* frag);
-            void        assemble(Fragment* frag);
-            void        beginAssembly(Fragment *frag);
-
+            void        assemble(Fragment* frag, NInsList& loopJumps);
+            void        endAssembly(Fragment* frag, NInsList& loopJumps);
+            void        beginAssembly(Fragment *frag, RegAllocMap* map);
+            void        copyRegisters(RegAlloc* copyTo);
             void        releaseRegisters();
             void        patch(GuardRecord *lr);
             void        patch(SideExit *exit);
@@ -183,7 +189,6 @@ namespace nanojit
 #endif
             AssmError   error()    { return _err; }
             void        setError(AssmError e) { _err = e; }
-
             void        reset();
 
             debug_only ( void       pageValidate(); )
@@ -193,11 +198,13 @@ namespace nanojit
             debug_only( void        registerConsistencyCheck(); )
 
             Stats       _stats;
+            int hasLoop;
             CodeList*   codeList;                   // finished blocks of code.
 
         private:
 
-            void        gen(LirFilter* toCompile);
+            void        gen(LirFilter* toCompile, NInsList& loopJumps, LabelStateMap& labels,
+                            NInsMap& patches);
             NIns*       genPrologue();
             NIns*       genEpilogue();
 
@@ -207,33 +214,25 @@ namespace nanojit
 
             Register    registerAlloc(RegisterMask allow);
             void        registerResetAll();
-            void        evictAllActiveRegs();
-            void        evictSomeActiveRegs(RegisterMask regs);
+            void        evictRegs(RegisterMask regs);
             void        evictScratchRegs();
             void        intersectRegisterState(RegAlloc& saved);
             void        unionRegisterState(RegAlloc& saved);
             void        assignSaved(RegAlloc &saved, RegisterMask skip);
-            LInsp       findVictim(RegisterMask allow);
+            LInsp       findVictim(RegAlloc& regs, RegisterMask allow);
 
             Register    getBaseReg(LIns *i, int &d, RegisterMask allow);
             int         findMemFor(LIns* i);
             Register    findRegFor(LIns* i, RegisterMask allow);
-            void        findRegFor2(RegisterMask allow, LIns* ia, Reservation* &resva, LIns *ib, Reservation* &resvb);
-            void        findRegFor2b(RegisterMask allow, LIns* ia, Register &ra, LIns *ib, Register &rb);
+            void        findRegFor2(RegisterMask allow, LIns* ia, Reservation* &ra, LIns *ib, Reservation* &rb);
             Register    findSpecificRegFor(LIns* i, Register w);
             Register    prepResultReg(LIns *i, RegisterMask allow);
             void        freeRsrcOf(LIns *i, bool pop);
-            void        evictIfActive(Register r);
-            void        evict(Register r, LIns* vic);
+            void        evict(Register r);
             RegisterMask hint(LIns*i, RegisterMask allow);
 
-            void        codeAlloc(NIns *&start, NIns *&end, NIns *&eip
-                                  verbose_only(, size_t &nBytes));
+            void        codeAlloc(NIns *&start, NIns *&end, NIns *&eip);
             bool        canRemat(LIns*);
-
-            bool isKnownReg(Register r) {
-                return r != UnknownReg;
-            }
 
             Reservation* getresv(LIns *x) {
                 Reservation* r = x->resv();
@@ -242,10 +241,8 @@ namespace nanojit
 
             Allocator&          alloc;
             CodeAlloc&          _codeAlloc;
-            Fragment*           _thisfrag;
-            RegAllocMap         _branchStateMap;
-            NInsMap             _patches;
-            LabelStateMap       _labels;
+            DWB(Fragment*)      _thisfrag;
+            RegAllocMap*        _branchStateMap;
 
             NIns        *codeStart, *codeEnd;       // current block we're adding code to
             NIns        *exitStart, *exitEnd;       // current block for exit stubs
@@ -259,7 +256,8 @@ namespace nanojit
 
             bool        _inExit, vpad2[3];
 
-            verbose_only( void asm_inc_m32(uint32_t*); )
+            void        asm_cmp(LIns *cond);
+            void        asm_fcmp(LIns *cond);
             void        asm_setcc(Register res, LIns *cond);
             NIns *      asm_jmpcc(bool brOnFalse, LIns *cond, NIns *target);
             void        asm_mmq(Register rd, int dd, Register rs, int ds);
@@ -270,11 +268,12 @@ namespace nanojit
             void        asm_store64(LIns *val, int d, LIns *base);
             void        asm_restore(LInsp, Reservation*, Register);
             void        asm_load(int d, Register r);
-            void        asm_spilli(LInsp i, bool pop);
+            void        asm_spilli(LInsp i, Reservation *resv, bool pop);
             void        asm_spill(Register rr, int d, bool pop, bool quad);
             void        asm_load64(LInsp i);
-            void        asm_ret(LInsp p);
+            void        asm_pusharg(LInsp p);
             void        asm_quad(LInsp i);
+            void        asm_loop(LInsp i, NInsList& loopJumps);
             void        asm_fcond(LInsp i);
             void        asm_cond(LInsp i);
             void        asm_arith(LInsp i);
@@ -283,16 +282,17 @@ namespace nanojit
             void        asm_cmov(LInsp i);
             void        asm_param(LInsp i);
             void        asm_int(LInsp i);
+            void        asm_short(LInsp i);
             void        asm_qlo(LInsp i);
             void        asm_qhi(LInsp i);
             void        asm_fneg(LInsp ins);
             void        asm_fop(LInsp ins);
             void        asm_i2f(LInsp ins);
             void        asm_u2f(LInsp ins);
-            void        asm_promote(LIns *ins);
             Register    asm_prep_fcall(Reservation *rR, LInsp ins);
             void        asm_nongp_copy(Register r, Register s);
             void        asm_call(LInsp);
+            void        asm_arg(ArgSize, LInsp, Register);
             Register    asm_binop_rhs_reg(LInsp ins);
             NIns*       asm_branch(bool branchOnFalse, LInsp cond, NIns* targ);
             void        asm_switch(LIns* ins, NIns* target);
@@ -304,10 +304,9 @@ namespace nanojit
 
             // platform specific implementation (see NativeXXX.cpp file)
             void        nInit(AvmCore *);
-            void        nBeginAssembly();
-            Register    nRegisterAllocFromSet(RegisterMask set);
+            Register    nRegisterAllocFromSet(int32_t set);
             void        nRegisterResetAll(RegAlloc& a);
-            static void nPatchBranch(NIns* branch, NIns* location);
+            NIns*        nPatchBranch(NIns* branch, NIns* location);
             void        nFragExit(LIns* guard);
 
             // platform specific methods
@@ -316,7 +315,6 @@ namespace nanojit
             DECLARE_PLATFORM_ASSEMBLER()
 
         private:
-#ifdef NANOJIT_IA32
             debug_only( int32_t _fpuStkDepth; )
             debug_only( int32_t _sv_fpuStkDepth; )
 
@@ -327,19 +325,12 @@ namespace nanojit
             inline void fpu_pop() {
                 debug_only( --_fpuStkDepth; /*char foo[8]= "FPUSTK0"; foo[6]-=_fpuStkDepth; output_asm(foo);*/ NanoAssert(_fpuStkDepth<=0); )
             }
-#endif
             avmplus::Config &config;
     };
 
     inline int32_t disp(Reservation* r)
     {
-        // even on 64bit cpu's, we allocate stack area in 4byte chunks
-        return stack_direction(4 * int32_t(r->arIndex));
-    }
-    inline int32_t disp(LIns* ins)
-    {
-        // even on 64bit cpu's, we allocate stack area in 4byte chunks
-        return stack_direction(4 * int32_t(ins->getArIndex()));
+        return stack_direction((int32_t)STACK_GRANULARITY) * int32_t(r->arIndex) + NJ_STACK_OFFSET;
     }
 }
 #endif // __nanojit_Assembler__

@@ -55,8 +55,6 @@ protected:
   nsSVGGenericContainerFrame(nsStyleContext* aContext) : nsSVGGenericContainerFrameBase(aContext) {}
   
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,

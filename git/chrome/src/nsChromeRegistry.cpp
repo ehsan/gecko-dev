@@ -554,10 +554,6 @@ nsChromeRegistry::Init()
     }
   }
 
-  nsCOMPtr<nsIObserverService> obsService (do_GetService("@mozilla.org/observer-service;1"));
-  if (obsService)
-    obsService->AddObserver(this, "command-line-startup", PR_TRUE);
-
   CheckForNewChrome();
 
   mInitialized = PR_TRUE;
@@ -1657,7 +1653,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
                                          info.dwMinorVersion);
   }
 #elif defined(XP_MACOSX)
-  SInt32 majorVersion, minorVersion;
+  long majorVersion, minorVersion;
   if ((Gestalt(gestaltSystemVersionMajor, &majorVersion) == noErr) &&
       (Gestalt(gestaltSystemVersionMinor, &minorVersion) == noErr)) {
     nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),

@@ -692,7 +692,6 @@
         <body>
           <![CDATA[
             var browser = this.getBrowserForTab(aTab);
-            var docURIObject = browser.contentDocument.documentURIObject; 
             if (browser.contentDocument instanceof ImageDocument) {
               if (this.mPrefs.getBoolPref("browser.chrome.site_icons")) {
                 try {
@@ -712,8 +711,8 @@
             }
             // Use documentURIObject in the check for shouldLoadFavIcon so that we
             // do the right thing with about:-style error pages.  Bug 453442
-            else if (this.shouldLoadFavIcon(docURIObject)) {
-              var url = docURIObject.prePath + "/favicon.ico";
+            else if (this.shouldLoadFavIcon(browser.contentDocument.documentURIObject)) {
+              var url = browser.currentURI.prePath + "/favicon.ico";
               if (!this.isFailedIcon(url))
                 this.setIcon(aTab, url);
             }
@@ -871,6 +870,7 @@
             const nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
             if (this.mCurrentTab.hasAttribute("busy") && !this.mIsBusy) {
               this.mIsBusy = true;
+              webProgress = this.mCurrentBrowser.webProgress;
               for (i = 0; i < this.mProgressListeners.length; i++) {
                 p = this.mProgressListeners[i];
                 if (p)
@@ -887,6 +887,7 @@
             // we need to fire a stop to all progress listeners.
             if (!this.mCurrentTab.hasAttribute("busy") && this.mIsBusy) {
               this.mIsBusy = false;
+              webProgress = this.mCurrentBrowser.webProgress;
               for (i = 0; i < this.mProgressListeners.length; i++) {
                 p = this.mProgressListeners[i];
                 if (p)
@@ -1082,29 +1083,11 @@
         <parameter name="aAllowThirdPartyFixup"/>
         <body>
           <![CDATA[
-            var aRelatedToCurrent;
-            if (arguments.length == 2 &&
-                typeof arguments[1] == "object" &&
-                !(arguments[1] instanceof Ci.nsIURI)) {
-              let params = arguments[1];
-              aReferrerURI          = params.referrerURI;
-              aCharset              = params.charset;
-              aPostData             = params.postData;
-              aLoadInBackground     = params.inBackground;
-              aAllowThirdPartyFixup = params.allowThirdPartyFixup;
-              aRelatedToCurrent     = params.relatedToCurrent;
-            }
-
             var bgLoad = (aLoadInBackground != null) ? aLoadInBackground :
                          this.mPrefs.getBoolPref("browser.tabs.loadInBackground");
             var owner = bgLoad ? null : this.selectedTab;
-            var tab = this.addTab(aURI, {
-                                  referrerURI: aReferrerURI,
-                                  charset: aCharset,
-                                  postData: aPostData,
-                                  ownerTab: owner,
-                                  allowThirdPartyFixup: aAllowThirdPartyFixup,
-                                  relatedToCurrent: aRelatedToCurrent});
+            var tab = this.addTab(aURI, aReferrerURI, aCharset, aPostData, owner,
+                                  aAllowThirdPartyFixup);
             if (!bgLoad)
               this.selectedTab = tab;
 
@@ -1144,7 +1127,7 @@
             }
           }
           else
-            firstTabAdded = this.addTab(aURIs[0], {ownerTab: owner});
+            firstTabAdded = this.addTab(aURIs[0], null, null, null, owner, false);
 
           var tabNum = this.mTabContainer.selectedIndex;
           for (let i = 1; i < aURIs.length; ++i) {
@@ -1173,19 +1156,6 @@
         <parameter name="aAllowThirdPartyFixup"/>
         <body>
           <![CDATA[
-            var aRelatedToCurrent;
-            if (arguments.length == 2 &&
-                typeof arguments[1] == "object" &&
-                !(arguments[1] instanceof Ci.nsIURI)) {
-              let params = arguments[1];
-              aReferrerURI          = params.referrerURI;
-              aCharset              = params.charset;
-              aPostData             = params.postData;
-              aOwner                = params.ownerTab;
-              aAllowThirdPartyFixup = params.allowThirdPartyFixup;
-              aRelatedToCurrent     = params.relatedToCurrent;
-            }
-
             this._browsers = null; // invalidate cache
 
             if (!this.mTabbedMode)
@@ -1330,8 +1300,7 @@
             // aReferrerURI is null or undefined if the tab is opened from
             // an external application or bookmark, i.e. somewhere other
             // than the current tab.
-            if ((aRelatedToCurrent == null ? aReferrerURI : aRelatedToCurrent) &&
-                this.mPrefs.getBoolPref("browser.tabs.insertRelatedAfterCurrent")) {
+            if (aReferrerURI && this.mPrefs.getBoolPref("browser.tabs.insertRelatedAfterCurrent")) {
               let newTabPos = (this._lastRelatedTab ||
                                this.selectedTab)._tPos + 1;
               this.moveTabTo(t, newTabPos);
@@ -2159,7 +2128,7 @@
               if (document.getBindingParent(aEvent.originalTarget).localName != "tab" || dropEffect == "copy") {
                 // We're adding a new tab.
                 newIndex = this.getNewIndex(aEvent);
-                newTab = this.loadOneTab(getShortcutOrURI(url), {inBackground: bgLoad});
+                newTab = this.loadOneTab(getShortcutOrURI(url), null, null, null, bgLoad, false);
                 this.moveTabTo(newTab, newIndex);
               }
               else {

@@ -50,8 +50,6 @@
 
 #include "gfxASurface.h"
 
-@class CellDrawView;
-
 class nsNativeThemeCocoa : private nsNativeTheme,
                            public nsITheme
 {
@@ -135,13 +133,12 @@ protected:
                           nsIFrame *aFrame);
   void DrawStatusBar(CGContextRef cgContext, const HIRect& inBoxRect,
                      nsIFrame *aFrame);
-  void DrawResizer(CGContextRef cgContext, const HIRect& aRect, nsIFrame *aFrame);
 
   // Scrollbars
   void DrawScrollbar(CGContextRef aCGContext, const HIRect& aBoxRect, nsIFrame *aFrame);
   void GetScrollbarPressStates (nsIFrame *aFrame, PRInt32 aButtonStates[]);
   void GetScrollbarDrawInfo (HIThemeTrackDrawInfo& aTdi, nsIFrame *aFrame, 
-                             const CGSize& aSize, PRBool aShouldGetButtonStates);
+                             const HIRect& aRect, PRBool aShouldGetButtonStates);
   nsIFrame* GetParentScrollbarFrame(nsIFrame *aFrame);
 
 private:
@@ -151,7 +148,6 @@ private:
   NSSearchFieldCell* mSearchFieldCell;
   NSPopUpButtonCell* mDropdownCell;
   NSComboBoxCell* mComboBoxCell;
-  CellDrawView* mCellDrawView;
 };
 
 #endif // nsNativeThemeCocoa_h_

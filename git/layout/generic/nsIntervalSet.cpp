@@ -39,7 +39,6 @@
 /* a set of ranges on a number-line */
 
 #include "nsIntervalSet.h"
-#include "nsAlgorithm.h"
 #include NEW_H
 
 nsIntervalSet::nsIntervalSet(IntervalSetAlloc aAlloc, IntervalSetFree aFree,
@@ -89,8 +88,8 @@ void nsIntervalSet::IncludeInterval(coord_type aBegin, coord_type aEnd)
 
     Interval *subsumed = newInterval->mNext;
     while (subsumed && subsumed->mBegin <= aEnd) {
-        newInterval->mBegin = NS_MIN(newInterval->mBegin, subsumed->mBegin);
-        newInterval->mEnd = NS_MAX(newInterval->mEnd, subsumed->mEnd);
+        newInterval->mBegin = PR_MIN(newInterval->mBegin, subsumed->mBegin);
+        newInterval->mEnd = PR_MAX(newInterval->mEnd, subsumed->mEnd);
         newInterval->mNext = subsumed->mNext;
         FreeInterval(subsumed);
         subsumed = newInterval->mNext;

@@ -163,7 +163,8 @@ namespace nanojit
     static inline size_t murmurhash(const void *key, size_t len) {
         const uint64_t m = 0xc6a4a7935bd1e995;
         const int r = 47;
-        uint64_t h = 0;
+
+        uint64_t h = seed ^ (len * m);
 
         const uint64_t *data = (const uint64_t*)key;
         const uint64_t *end = data + (len/8);
@@ -279,7 +280,6 @@ namespace nanojit
             , nbuckets(nbuckets)
             , buckets(new (a) Seq<Node>*[nbuckets])
         {
-            NanoAssert(nbuckets > 0);
             clear();
         }
 

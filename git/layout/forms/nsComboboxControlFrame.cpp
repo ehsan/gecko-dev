@@ -172,8 +172,6 @@ NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, P
   return it;
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsComboboxControlFrame)
-
 //-----------------------------------------------------------
 // Reflow Debugging Macros
 // These let us "see" how many reflow counts are happening
@@ -458,7 +456,7 @@ nsComboboxControlFrame::ReflowDropdown(nsPresContext*  aPresContext,
   nscoord forcedWidth = aReflowState.ComputedWidth() +
     aReflowState.mComputedBorderPadding.LeftRight() -
     kidReflowState.mComputedBorderPadding.LeftRight();
-  kidReflowState.SetComputedWidth(NS_MAX(kidReflowState.ComputedWidth(),
+  kidReflowState.SetComputedWidth(PR_MAX(kidReflowState.ComputedWidth(),
                                          forcedWidth));
 
   // ensure we start off hidden
@@ -583,7 +581,7 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsIRenderingContext* aRenderingContext
                                                      scrollbarWidth,
                                                      nscoord_MAX);
   
-    displayWidth = NS_MAX(dropdownContentWidth, displayWidth);
+    displayWidth = PR_MAX(dropdownContentWidth, displayWidth);
   }
 
   // add room for the dropmarker button if there is one
@@ -1054,8 +1052,6 @@ nsComboboxControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 // need to revisit this.
 class nsComboboxDisplayFrame : public nsBlockFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsComboboxDisplayFrame (nsStyleContext* aContext,
                           nsComboboxControlFrame* aComboBox)
     : nsBlockFrame(aContext),
@@ -1084,8 +1080,6 @@ public:
 protected:
   nsComboboxControlFrame* mComboBox;
 };
-
-NS_IMPL_FRAMEARENA_HELPERS(nsComboboxDisplayFrame)
 
 nsIAtom*
 nsComboboxDisplayFrame::GetType() const
@@ -1197,7 +1191,7 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
     return nsnull;
   }
 
-  nsFrameList textList(mTextFrame, mTextFrame);
+  nsFrameList textList(mTextFrame);
   mDisplayFrame->SetInitialChildList(nsnull, textList);
   return mDisplayFrame;
 }

@@ -60,7 +60,7 @@ public:
   
   NS_DECL_NSIDOMCLIENTRECT
 
-  void SetLayoutRect(const nsRect& aLayoutRect);
+  void SetLayoutRect(const nsRect& aLayoutRect, nsPresContext* aPresContext);
 
 protected:
   float mX, mY, mWidth, mHeight;

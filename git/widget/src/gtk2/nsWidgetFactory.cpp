@@ -68,7 +68,9 @@
 #include "nsImageToPixbuf.h"
 #include "nsPrintDialogGTK.h"
 
-#if defined(MOZ_X11)
+#if defined(NS_OSSO)
+#include "nsIdleServiceOSSO.h"
+#elif defined(MOZ_X11)
 #include "nsIdleServiceGTK.h"
 #endif
 
@@ -138,7 +140,9 @@ nsNativeThemeGTKConstructor(nsISupports *aOuter, REFNSIID aIID,
 }
 #endif
 
-#if defined(MOZ_X11)
+#if defined(NS_OSSO)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsIdleServiceOSSO)
+#elif defined(MOZ_X11)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIdleServiceGTK)
 #endif
 
@@ -335,7 +339,12 @@ static const nsModuleComponentInfo components[] =
     NS_IMAGE_TO_PIXBUF_CID,
     "@mozilla.org/widget/image-to-gdk-pixbuf;1",
     nsImageToPixbufConstructor },
-#if defined(MOZ_X11)
+#if defined(NS_OSSO)
+  { "User Idle Service",
+    NS_IDLE_SERVICE_CID,
+    "@mozilla.org/widget/idleservice;1",
+    nsIdleServiceOSSOConstructor },  
+#elif defined(MOZ_X11)
 { "User Idle Service",
     NS_IDLE_SERVICE_CID,
     "@mozilla.org/widget/idleservice;1",

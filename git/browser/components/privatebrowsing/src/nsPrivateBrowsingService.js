@@ -81,7 +81,6 @@ function PrivateBrowsingService() {
   this._obs.addObserver(this, "profile-after-change", true);
   this._obs.addObserver(this, "quit-application-granted", true);
   this._obs.addObserver(this, "private-browsing", true);
-  this._obs.addObserver(this, "command-line-startup", true);
 }
 
 PrivateBrowsingService.prototype = {
@@ -187,7 +186,7 @@ PrivateBrowsingService.prototype = {
       while (viewSrcWindowsEnum.hasMoreElements()) {
         let win = viewSrcWindowsEnum.getNext();
         if (this._inPrivateBrowsing) {
-          let plainURL = win.gBrowser.currentURI.spec;
+          let plainURL = win.getBrowser().currentURI.spec;
           if (plainURL.indexOf("view-source:") == 0) {
             plainURL = plainURL.substr(12);
             this._viewSrcURLs.push(plainURL);
@@ -345,11 +344,6 @@ PrivateBrowsingService.prototype = {
           consoleService.logStringMessage(null); // trigger the listeners
           consoleService.reset();
         }
-        break;
-      case "command-line-startup":
-        this._obs.removeObserver(this, "command-line-startup");
-        aSubject.QueryInterface(Ci.nsICommandLine);
-        this.handle(aSubject);
         break;
     }
   },

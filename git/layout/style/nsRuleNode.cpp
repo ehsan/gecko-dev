@@ -876,8 +876,7 @@ nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
     mRule(aRule),
     mDependentBits((PRUint32(aLevel) << NS_RULE_NODE_LEVEL_SHIFT) |
                    (aIsImportant ? NS_RULE_NODE_IS_IMPORTANT : 0)),
-    mNoneBits(0),
-    mRefCnt(0)
+    mNoneBits(0)
 {
   mChildren.asVoid = nsnull;
   MOZ_COUNT_CTOR(nsRuleNode);
@@ -885,13 +884,6 @@ nsRuleNode::nsRuleNode(nsPresContext* aContext, nsRuleNode* aParent,
 
   NS_ASSERTION(IsRoot() || GetLevel() == aLevel, "not enough bits");
   NS_ASSERTION(IsRoot() || IsImportantRule() == aIsImportant, "yikes");
-  /* If IsRoot(), then aContext->StyleSet() is typically null at this
-     point.  In any case, we don't want to treat the root rulenode as
-     unused.  */
-  if (!IsRoot()) {
-    mParent->AddRef();
-    aContext->StyleSet()->RuleNodeUnused();
-  }
 }
 
 nsRuleNode::~nsRuleNode()
@@ -2042,7 +2034,7 @@ nsRuleNode::SetDefaultOnRoot(const nsStyleStructID aSID, nsStyleContext* aContex
           mPresContext->GetCachedIntPref(kPresContext_MinimumFontSize);
 
         if (minimumFontSize > 0 && !mPresContext->IsChrome()) {
-          fontData->mFont.size = NS_MAX(fontData->mSize, minimumFontSize);
+          fontData->mFont.size = PR_MAX(fontData->mSize, minimumFontSize);
         }
         else {
           fontData->mFont.size = fontData->mSize;
@@ -2510,12 +2502,12 @@ ComputeScriptLevelSize(const nsStyleFont* aFont, const nsStyleFont* aParentFont,
   // Compute the size we would have had if minscriptsize had never been
   // applied, also prevent overflow (bug 413274)
   *aUnconstrainedSize =
-    NSToCoordRound(NS_MIN(aParentFont->mScriptUnconstrainedSize*scriptLevelScale,
-                          double(nscoord_MAX)));
+    NSToCoordRound(PR_MIN(aParentFont->mScriptUnconstrainedSize*scriptLevelScale,
+                          nscoord_MAX));
   // Compute the size we could get via scriptlevel change
   nscoord scriptLevelSize =
-    NSToCoordRound(NS_MIN(aParentFont->mSize*scriptLevelScale,
-                          double(nscoord_MAX)));
+    NSToCoordRound(PR_MIN(aParentFont->mSize*scriptLevelScale,
+                          nscoord_MAX));
   if (scriptLevelScale <= 1.0) {
     if (aParentFont->mSize <= minScriptSize) {
       // We can't decrease the font size at all, so just stick to no change
@@ -2524,12 +2516,12 @@ ComputeScriptLevelSize(const nsStyleFont* aFont, const nsStyleFont* aParentFont,
       return aParentFont->mSize;
     }
     // We can decrease, so apply constraint #1
-    return NS_MAX(minScriptSize, scriptLevelSize);
+    return PR_MAX(minScriptSize, scriptLevelSize);
   } else {
     // scriptminsize can only make sizes larger than the unconstrained size
     NS_ASSERTION(*aUnconstrainedSize <= scriptLevelSize, "How can this ever happen?");
     // Apply constraint #2
-    return NS_MIN(scriptLevelSize, NS_MAX(*aUnconstrainedSize, minScriptSize));
+    return PR_MIN(scriptLevelSize, PR_MAX(*aUnconstrainedSize, minScriptSize));
   }
 }
 #endif
@@ -2732,7 +2724,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
       case eSystemFont_List:
         // Assumption: system defined font is proportional
         systemFont.size = 
-          NS_MAX(defaultVariableFont->size - aPresContext->PointsToAppUnits(2), 0);
+          PR_MAX(defaultVariableFont->size - aPresContext->PointsToAppUnits(2), 0);
         break;
     }
 #endif
@@ -3222,12 +3214,7 @@ nsRuleNode::ComputeTextData(void* aStartStruct,
 {
   COMPUTE_START_INHERITED(Text, (), text, parentText, Text, textData)
 
-  // tab-size: integer, inherit
-  SetDiscrete(textData.mTabSize, text->mTabSize, canStoreInRuleTree,
-              SETDSC_INTEGER, parentText->mTabSize,
-              NS_STYLE_TABSIZE_INITIAL, 0, 0, 0, 0);
-  
-  // letter-spacing: normal, length, inherit
+    // letter-spacing: normal, length, inherit
   SetCoord(textData.mLetterSpacing, text->mLetterSpacing, parentText->mLetterSpacing,
            SETCOORD_LH | SETCOORD_NORMAL | SETCOORD_INITIAL_NORMAL,
            aContext, mPresContext, canStoreInRuleTree);
@@ -5655,7 +5642,7 @@ nsRuleNode::ComputeColumnData(void* aStartStruct,
   } else if (eCSSUnit_Integer == columnData.mColumnCount.GetUnit()) {
     column->mColumnCount = columnData.mColumnCount.GetIntValue();
     // Max 1000 columns - wallpaper for bug 345583.
-    column->mColumnCount = NS_MIN(column->mColumnCount, 1000U);
+    column->mColumnCount = PR_MIN(column->mColumnCount, 1000);
   } else if (eCSSUnit_Inherit == columnData.mColumnCount.GetUnit()) {
     canStoreInRuleTree = PR_FALSE;
     column->mColumnCount = parent->mColumnCount;
@@ -6205,32 +6192,22 @@ nsRuleNode::Sweep()
   // Call sweep on the children, since some may not be marked, and
   // remove any deleted children from the child lists.
   if (HaveChildren()) {
-    PRUint32 childrenDestroyed;
     if (ChildrenAreHashed()) {
       PLDHashTable *children = ChildrenHash();
-      PRUint32 oldChildCount = children->entryCount;
       PL_DHashTableEnumerate(children, SweepRuleNodeChildren, nsnull);
-      childrenDestroyed = children->entryCount - oldChildCount;
     } else {
-      childrenDestroyed = 0;
       for (nsRuleNode **children = ChildrenListPtr(); *children; ) {
         nsRuleNode *next = (*children)->mNextSibling;
         if ((*children)->Sweep()) {
           // This rule node was destroyed, so implicitly advance by
           // making *children point to the next entry.
           *children = next;
-          ++childrenDestroyed;
         } else {
           // Advance.
           children = &(*children)->mNextSibling;
         }
       }
     }
-    mRefCnt -= childrenDestroyed;
-    NS_POSTCONDITION(IsRoot() || mRefCnt > 0,
-                     "We didn't get swept, so we'd better have style contexts "
-                     "pointing to us or to one of our descendants, which means "
-                     "we'd better have a nonzero mRefCnt here!");
   }
   return PR_FALSE;
 }

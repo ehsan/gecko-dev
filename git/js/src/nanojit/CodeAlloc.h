@@ -42,9 +42,12 @@
 
 namespace nanojit
 {
-    /** return true if ptr is in the range [start, end] */
+    // Temporary tracemonkey hack until namespaces are sorted out.
+    using namespace MMgc;
+
+    /** return true if ptr is in the range [start, end) */
     inline bool containsPtr(const NIns* start, const NIns* end, const NIns* ptr) {
-        return ptr >= start && ptr <= end;
+        return ptr >= start && ptr < end;
     }
 
     /**
@@ -148,9 +151,6 @@ namespace nanojit
     public:
         CodeAlloc();
         ~CodeAlloc();
-
-        /** return all the memory allocated through this allocator to the gcheap. */
-        void reset();
 
         /** allocate some memory for code, return pointers to the region. */
         void alloc(NIns* &start, NIns* &end);

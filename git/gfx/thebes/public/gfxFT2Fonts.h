@@ -86,14 +86,12 @@ public:
     }
 
     static FontEntry* 
-    CreateFontEntry(const gfxProxyFontEntry &aProxyEntry,
+    CreateFontEntry(const gfxProxyFontEntry &aProxyEntry, nsISupports *aLoader,
                     const PRUint8 *aFontData, PRUint32 aLength);
-
+    
     static FontEntry* 
-    CreateFontEntryFromFace(FT_Face aFace, const PRUint8 *aFontData = nsnull);
-        // aFontData is NS_Malloc'ed data that aFace depends on, to be freed
-        // after the face is destroyed; null if there is no such buffer
-
+    CreateFontEntryFromFace(FT_Face aFace);
+    
     cairo_font_face_t *CairoFontFace();
     nsresult ReadCMAP();
 

@@ -112,6 +112,7 @@
 #include "nsLayoutUtils.h"
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
+#include "nsIFocusController.h"
 
 class nsINodeInfo;
 class nsIDOMNodeList;
@@ -2160,11 +2161,7 @@ nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
                                               attr->GetStringValue(),
                                             GetOwnerDoc(), baseURI);
 
-  // We may have to re-resolve all our cached hrefs when the document's base
-  // URI changes.  The base URI depends on the owner document, but it's the
-  // current document that keeps track of links.  If the two documents don't
-  // match, we shouldn't cache.
-  if (isURIAttr && GetOwnerDoc() == GetCurrentDoc()) {
+  if (isURIAttr) {
     const_cast<nsAttrValue*>(attr)->CacheURIValue(*aURI);
   }
   return PR_TRUE;
@@ -2269,7 +2266,7 @@ nsGenericHTMLFormElement::nsGenericHTMLFormElement(nsINodeInfo *aNodeInfo)
 
 nsGenericHTMLFormElement::~nsGenericHTMLFormElement()
 {
-  // Check that this element is not still the default content
+  // Check that this element is still not the default content
   // of its parent form.
   NS_ASSERTION(!mForm || mForm->GetDefaultSubmitElement() != this,
                "Content being destroyed is the default content");
@@ -2659,7 +2656,10 @@ nsGenericHTMLFormElement::IntrinsicState() const
     }
   }
   
-  if (mForm && mForm->IsDefaultSubmitElement(this)) {
+  if (mForm &&
+      // XXXbz Need the cast to make VC++6 happy.
+      static_cast<const nsIFormControl*>
+                 (mForm->GetDefaultSubmitElement()) == this) {
       NS_ASSERTION(IsSubmitControl(),
                    "Default submit element that isn't a submit control.");
       // We are the default submit element (:default)

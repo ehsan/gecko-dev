@@ -545,14 +545,12 @@ NS_IMETHODIMP nsScrollPortView::CanScroll(PRBool aHorizontal,
  * Given aBlitRegion in appunits, create and return an nsRegion in
  * device pixels that represents the device pixels that are wholly
  * contained in aBlitRegion. Whatever appunit area was removed in that
- * process is added to aRepaintRegion. An appunits version of the result
- * is placed in aAppunitsBlitRegion.
+ * process is added to aRepaintRegion.
  */
 static nsRegion
 ConvertToInnerPixelRegion(const nsRegion& aBlitRegion,
                           nscoord aAppUnitsPerPixel,
-                          nsRegion* aRepaintRegion,
-                          nsRegion* aAppunitsBlitRegion)
+                          nsRegion* aRepaintRegion)
 {
   // Basically we compute the inverse of aBlitRegion,
   // expand each of its rectangles out to device pixel boundaries, then
@@ -582,7 +580,6 @@ ConvertToInnerPixelRegion(const nsRegion& aBlitRegion,
   result.Sub(nsRect(boundingBoxPixels.x, boundingBoxPixels.y,
                     boundingBoxPixels.width, boundingBoxPixels.height),
              outsidePixels);
-  aAppunitsBlitRegion->Sub(boundingBox, outsideAppUnits);
   return result;
 }
 
@@ -681,10 +678,9 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
     /* If we should invalidate our wrapped view, we should do so at this
      * point.
      */
-    if (aScrolledView->NeedsInvalidateFrameOnScroll()) {
-      mViewManager->GetViewObserver()->InvalidateFrameForScrolledView(aScrolledView);
-    }
-
+    if (aScrolledView->NeedsInvalidateFrameOnScroll())
+      GetViewManager()->GetViewObserver()->InvalidateFrameForView(aScrolledView);
+    
     nsPoint nearestWidgetOffset;
     nsIWidget *nearestWidget = GetNearestWidget(&nearestWidgetOffset);
     if (!nearestWidget ||
@@ -700,7 +696,7 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
                          GetPosition() - topLeft, aP2A, PR_FALSE);
       // We should call this after fixing up the widget positions to be
       // consistent with the view hierarchy.
-      mViewManager->GetViewObserver()->InvalidateFrameForScrolledView(aScrolledView);
+      mViewManager->UpdateView(this, NS_VMREFRESH_DEFERRED);
     } else {
       nsRegion blitRegion;
       nsRegion repaintRegion;
@@ -714,18 +710,15 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
       mViewManager->WillBitBlit(this, aTwipsDelta);
 
       // innerPixRegion is in device pixels
-      nsRegion innerBlitRegion;
-      nsRegion innerBlitPixRegion =
-        ConvertToInnerPixelRegion(blitRegion, aP2A, &repaintRegion,
-                                  &innerBlitRegion);
+      nsRegion innerPixRegion =
+        ConvertToInnerPixelRegion(blitRegion, aP2A, &repaintRegion);
       nsTArray<nsIntRect> blitRects;
-      SortBlitRectsForCopy(innerBlitPixRegion, aPixDelta, &blitRects);
+      SortBlitRectsForCopy(innerPixRegion, aPixDelta, &blitRects);
 
       nearestWidget->Scroll(aPixDelta, blitRects, aConfigurations);
       AdjustChildWidgets(aScrolledView, nearestWidgetOffset, aP2A, PR_TRUE);
       repaintRegion.MoveBy(-nearestWidgetOffset);
-      innerBlitRegion.MoveBy(-nearestWidgetOffset);
-      mViewManager->UpdateViewAfterScroll(this, innerBlitRegion, repaintRegion);
+      mViewManager->UpdateViewAfterScroll(this, repaintRegion);
     }
   }
 }

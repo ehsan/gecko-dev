@@ -55,7 +55,7 @@ function test() {
           dialog.addEventListener("load", function () {
             dialog.removeEventListener("load", arguments.callee, false);
 
-            let browser = gBrowser.selectedBrowser;
+            let browser = gBrowser.getBrowserForTab(gBrowser.selectedTab);
             browser.addEventListener("load", function() {
               browser.removeEventListener("load", arguments.callee, true);
 

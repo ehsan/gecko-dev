@@ -198,10 +198,7 @@ struct nsCSSRendering {
      * When this flag is passed, the element's nsDisplayBorder will be
      * painted immediately on top of this background.
      */
-    PAINTBG_WILL_PAINT_BORDER = 0x01,
-    /**
-     * When this flag is passed, images are synchronously decoded. */
-    PAINTBG_SYNC_DECODE_IMAGES = 0x02
+    PAINT_WILL_PAINT_BORDER = 0x01
   };
   static void PaintBackground(nsPresContext* aPresContext,
                               nsIRenderingContext& aRenderingContext,
@@ -403,9 +400,9 @@ public:
    * should prepare the destination context as if you were going to draw
    * directly on it instead of any temporary surface created in this class.
    */
-  gfxContext* Init(const nsRect& aRect, nscoord aBlurRadius,
+  gfxContext* Init(const gfxRect& aRect, nscoord aBlurRadius,
                    PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
-                   const nsRect& aDirtyRect);
+                   const gfxRect& aDirtyRect);
 
   /**
    * Does the actual blurring and mask applying. Users of this object *must*

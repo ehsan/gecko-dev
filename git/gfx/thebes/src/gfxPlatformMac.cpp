@@ -187,16 +187,10 @@ gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
 
 gfxFontEntry* 
 gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                 nsISupports *aLoader,
                                  const PRUint8 *aFontData, PRUint32 aLength)
 {
-    // Ownership of aFontData is passed in here.
-    // After activating the font via ATS, we can discard the data.
-    gfxFontEntry *fe =
-        gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry,
-                                                                  aFontData,
-                                                                  aLength);
-    NS_Free((void*)aFontData);
-    return fe;
+    return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry, aFontData, aLength);
 }
 
 PRBool
@@ -207,8 +201,7 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
                  "strange font format hint set");
 
     // accept supported formats
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_WOFF     |
-                        gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
         return PR_TRUE;

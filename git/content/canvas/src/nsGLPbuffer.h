@@ -58,7 +58,6 @@
 #endif
 
 #if defined(XP_UNIX) && defined(MOZ_X11)
-#define GLX_GLXEXT_LEGACY
 #include "GL/glx.h"
 #endif
 

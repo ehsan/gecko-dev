@@ -323,7 +323,11 @@ bool MinidumpGenerator::WriteStack(breakpad_thread_state_data_t state,
                                    MDMemoryDescriptor *stack_location) {
   breakpad_thread_state_t *machine_state =
     reinterpret_cast<breakpad_thread_state_t *>(state);
-  mach_vm_address_t start_addr = REGISTER_FROM_THREADSTATE(machine_state, r1);
+#if TARGET_CPU_PPC
+  mach_vm_address_t start_addr = machine_state->r1;
+#else
+  mach_vm_address_t start_addr = machine_state->__r1;
+#endif
   return WriteStackFromStartAddress(start_addr, stack_location);
 }
 
@@ -332,7 +336,11 @@ MinidumpGenerator::CurrentPCForStack(breakpad_thread_state_data_t state) {
   breakpad_thread_state_t *machine_state =
     reinterpret_cast<breakpad_thread_state_t *>(state);
 
-  return REGISTER_FROM_THREADSTATE(machine_state, srr0);
+#if TARGET_CPU_PPC
+  return machine_state->srr0;
+#else
+  return machine_state->__srr0;
+#endif
 }
 
 bool MinidumpGenerator::WriteContext(breakpad_thread_state_data_t state,
@@ -348,8 +356,13 @@ bool MinidumpGenerator::WriteContext(breakpad_thread_state_data_t state,
   MinidumpContext *context_ptr = context.get();
   context_ptr->context_flags = MD_CONTEXT_PPC_BASE;
 
-#define AddReg(a) context_ptr->a = REGISTER_FROM_THREADSTATE(machine_state, a)
-#define AddGPR(a) context_ptr->gpr[a] = REGISTER_FROM_THREADSTATE(machine_state, r ## a)
+#if TARGET_CPU_PPC64
+#define AddReg(a) context_ptr->a = machine_state->__ ## a
+#define AddGPR(a) context_ptr->gpr[a] = machine_state->__r ## a
+#else
+#define AddReg(a) context_ptr->a = machine_state->a
+#define AddGPR(a) context_ptr->gpr[a] = machine_state->r ## a
+#endif
  
   AddReg(srr0);
   AddReg(cr);

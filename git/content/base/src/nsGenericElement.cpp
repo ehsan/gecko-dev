@@ -1084,29 +1084,6 @@ nsNSElementTearoff::GetClassList(nsIDOMDOMTokenList** aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
-{
-  // If there is already an active capture, ignore this request. This would
-  // occur if a splitter, frame resizer, etc had already captured and we don't
-  // want to override those.
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
-  if (node)
-    return NS_OK;
-
-  nsIPresShell::SetCapturingContent(mContent, aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::ReleaseCapture()
-{
-  if (nsIPresShell::GetCapturingContent() == mContent) {
-    nsIPresShell::SetCapturingContent(nsnull, 0);
-  }
-  return NS_OK;
-}
-
 //----------------------------------------------------------------------
 
 
@@ -1434,6 +1411,18 @@ nsNSElementTearoff::GetClientWidth(PRInt32* aLength)
   return NS_OK;
 }
 
+static nsIFrame*
+GetContainingBlockForClientRect(nsIFrame* aFrame)
+{
+  // get the nearest enclosing SVG foreign object frame or the root frame
+  while (aFrame->GetParent() &&
+         !aFrame->IsFrameOfType(nsIFrame::eSVGForeignObject)) {
+    aFrame = aFrame->GetParent();
+  }
+
+  return aFrame;
+}
+
 NS_IMETHODIMP
 nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
@@ -1450,11 +1439,33 @@ nsNSElementTearoff::GetBoundingClientRect(nsIDOMClientRect** aResult)
     return NS_OK;
   }
 
+  nsPresContext* presContext = frame->PresContext();
   nsRect r = nsLayoutUtils::GetAllInFlowRectsUnion(frame,
-          nsLayoutUtils::GetContainingBlockForClientRect(frame));
-  rect->SetLayoutRect(r);
+          GetContainingBlockForClientRect(frame));
+  rect->SetLayoutRect(r, presContext);
   return NS_OK;
 }
+
+struct RectListBuilder : public nsLayoutUtils::RectCallback {
+  nsPresContext*    mPresContext;
+  nsClientRectList* mRectList;
+  nsresult          mRV;
+
+  RectListBuilder(nsPresContext* aPresContext, nsClientRectList* aList) 
+    : mPresContext(aPresContext), mRectList(aList),
+      mRV(NS_OK) {}
+
+  virtual void AddRect(const nsRect& aRect) {
+    nsRefPtr<nsClientRect> rect = new nsClientRect();
+    if (!rect) {
+      mRV = NS_ERROR_OUT_OF_MEMORY;
+      return;
+    }
+    
+    rect->SetLayoutRect(aRect, mPresContext);
+    mRectList->Append(rect);
+  }
+};
 
 NS_IMETHODIMP
 nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
@@ -1472,9 +1483,9 @@ nsNSElementTearoff::GetClientRects(nsIDOMClientRectList** aResult)
     return NS_OK;
   }
 
-  nsLayoutUtils::RectListBuilder builder(rectList);
+  RectListBuilder builder(frame->PresContext(), rectList);
   nsLayoutUtils::GetAllInFlowRects(frame,
-          nsLayoutUtils::GetContainingBlockForClientRect(frame), &builder);
+          GetContainingBlockForClientRect(frame), &builder);
   if (NS_FAILED(builder.mRV))
     return builder.mRV;
   *aResult = rectList.forget().get();
@@ -2683,6 +2694,10 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     // anonymous content that the document is changing.
     document->BindingManager()->ChangeDocumentFor(this, document, nsnull);
 
+    if (HasAttr(kNameSpaceID_XLink, nsGkAtoms::href)) {
+      document->ForgetLink(this);
+    }
+
     document->ClearBoxObjectFor(this);
   }
 
@@ -2945,7 +2960,7 @@ nsICSSStyleRule*
 nsGenericElement::GetSMILOverrideStyleRule()
 {
   nsGenericElement::nsDOMSlots *slots = GetExistingDOMSlots();
-  return slots ? slots->mSMILOverrideStyleRule.get() : nsnull;
+  return slots ? slots->mSMILOverrideStyleRule : nsnull;
 }
 
 nsresult
@@ -4247,9 +4262,7 @@ nsGenericElement::AddScriptEventListener(nsIAtom* aEventName,
   GetEventListenerManagerForAttr(getter_AddRefs(manager),
                                  getter_AddRefs(target),
                                  &defer);
-  if (!manager) {
-    return NS_OK;
-  }
+  NS_ENSURE_STATE(manager);
 
   defer = defer && aDefer; // only defer if everyone agrees...
   PRUint32 lang = GetScriptTypeID();
@@ -4293,6 +4306,20 @@ nsGenericElement::SetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
   NS_ENSURE_ARG_POINTER(aName);
   NS_ASSERTION(aNamespaceID != kNameSpaceID_Unknown,
                "Don't call SetAttr with unknown namespace");
+
+  nsIDocument* doc = GetCurrentDoc();
+  if (kNameSpaceID_XLink == aNamespaceID && nsGkAtoms::href == aName) {
+    // XLink URI(s) might be changing. Drop the link from the map. If it
+    // is still style relevant it will be re-added by
+    // nsStyleUtil::IsLink. Make sure to keep the style system
+    // consistent so this remains true! In particular if the style system
+    // were to get smarter and not restyling an XLink element if the href
+    // doesn't change in a "significant" way, we'd need to do the same
+    // significance check here.
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+  }
 
   nsAutoString oldValue;
   PRBool modification = PR_FALSE;
@@ -4606,6 +4633,12 @@ nsGenericElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (aNotify) {
     nsNodeUtils::AttributeWillChange(this, aNameSpaceID, aName,
                                      nsIDOMMutationEvent::REMOVAL);
+  }
+
+  if (document && kNameSpaceID_XLink == aNameSpaceID &&
+      nsGkAtoms::href == aName) {
+    // XLink URI might be changing.
+    document->ForgetLink(this);
   }
 
   // When notifying, make sure to keep track of states whose value
@@ -5033,8 +5066,7 @@ nsGenericElement::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
           nsIFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(this);
-            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE |
-                               nsIFocusManager::FLAG_NOSCROLL);
+            fm->SetFocus(elem, nsIFocusManager::FLAG_BYMOUSE);
           }
 
           aVisitor.mPresContext->EventStateManager()->

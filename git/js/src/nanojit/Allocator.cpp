@@ -39,8 +39,6 @@
 
 #include "nanojit.h"
 
-#ifdef FEATURE_NANOJIT
-
 namespace nanojit
 {
     Allocator::Allocator()
@@ -92,5 +90,3 @@ namespace nanojit
         current_limit = (char*)mem + chunkbytes;
     }
 }
-
-#endif // FEATURE_NANOJIT

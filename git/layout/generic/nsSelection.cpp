@@ -99,7 +99,6 @@ static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 #include "nsITimer.h"
 #include "nsIServiceManager.h"
 #include "nsFrameManager.h"
-#include "nsIScrollableFrame.h"
 // notifications
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
@@ -415,7 +414,7 @@ public:
        mTimer->Cancel();
   }
 
-  nsresult Start(nsPresContext *aPresContext, nsPoint &aPoint)
+  nsresult Start(nsPresContext *aPresContext, nsIView *aView, nsPoint &aPoint)
   {
     mPoint = aPoint;
 
@@ -423,7 +422,36 @@ public:
     // stopped by the selection if the prescontext is destroyed.
     mPresContext = aPresContext;
 
-    mContent = nsIPresShell::GetCapturingContent();
+    // Store the content from the nearest capturing frame. If this returns null
+    // the capturing frame is the root.
+    nsIFrame* clientFrame = static_cast<nsIFrame*>(aView->GetClientData());
+    NS_ASSERTION(clientFrame, "Missing client frame");
+
+    nsIFrame* capturingFrame = nsFrame::GetNearestCapturingFrame(clientFrame);
+    NS_ASSERTION(!capturingFrame || capturingFrame->GetMouseCapturer(),
+                 "Capturing frame should have a mouse capturer" );
+
+    NS_ASSERTION(!capturingFrame || mPresContext == capturingFrame->PresContext(),
+                 "Shouldn't have different pres contexts");
+
+    NS_ASSERTION(capturingFrame != mPresContext->PresShell()->FrameManager()->GetRootFrame(),
+                 "Capturing frame should not be the root frame");
+
+    if (capturingFrame)
+    {
+      mContent = capturingFrame->GetContent();
+      NS_ASSERTION(mContent, "Need content");
+
+      NS_ASSERTION(mContent != mPresContext->PresShell()->FrameManager()->GetRootFrame()->GetContent(),
+                 "We didn't want the root content!");
+
+      NS_ASSERTION(capturingFrame == nsFrame::GetNearestCapturingFrame(
+                   mPresContext->PresShell()->GetPrimaryFrameFor(mContent)),
+                   "Mapping of frame to content failed.");
+    }
+
+    // Check that if there was no capturing frame the content is null.
+    NS_ASSERTION(capturingFrame || !mContent, "Content not cleared correctly.");
 
     if (!mTimer)
     {
@@ -466,27 +494,46 @@ public:
   {
     if (mSelection && mPresContext)
     {
-      nsWeakFrame frame = mPresContext->PresShell()->GetPrimaryFrameFor(mContent);
+      // If the content is null the capturing frame must be the root frame.
+      nsIFrame* capturingFrame;
+      if (mContent)
+      {
+        nsIFrame* contentFrame = mPresContext->PresShell()->GetPrimaryFrameFor(mContent);
+        if (contentFrame)
+        {
+          capturingFrame = nsFrame::GetNearestCapturingFrame(contentFrame);
+        }
+        else 
+        {
+          capturingFrame = nsnull;
+        }
+        NS_ASSERTION(!capturingFrame || capturingFrame->GetMouseCapturer(),
+                     "Capturing frame should have a mouse capturer" );
+      }
+      else
+      {
+        capturingFrame = mPresContext->PresShell()->FrameManager()->GetRootFrame();
+      }
+
+      // Clear the content reference now that the frame has been found.
       mContent = nsnull;
 
-      mFrameSelection->HandleDrag(frame, mPoint);
-
-      if (!frame.IsAlive())
+      // This could happen for a frame with style changed to display:none or a frame
+      // that was destroyed.
+      if (!capturingFrame) {
+        NS_WARNING("Frame destroyed or set to display:none before scroll timer fired.");
         return NS_OK;
-
-      nsIFrame* checkFrame = frame;
-      nsIScrollableFrame *scrollFrame = nsnull;
-      while (checkFrame) {
-        scrollFrame = do_QueryFrame(checkFrame);
-        if (scrollFrame) {
-          break;
-        }
-        checkFrame = checkFrame->GetParent();
       }
-      nsIView* capturingView = scrollFrame ? scrollFrame->GetScrollableView()->View() : nsnull;
 
-      nsPoint pnt;
-      mSelection->DoAutoScrollView(mPresContext, capturingView,
+      nsIView* captureView = capturingFrame->GetMouseCapturer();
+    
+      nsWeakFrame viewFrame = static_cast<nsIFrame*>(captureView->GetClientData());
+      NS_ASSERTION(viewFrame.GetFrame(), "View must have a client frame");
+      
+      mFrameSelection->HandleDrag(viewFrame, mPoint);
+
+      mSelection->DoAutoScrollView(mPresContext,
+                                   viewFrame.IsAlive() ? captureView : nsnull,
                                    mPoint, PR_TRUE);
     }
     return NS_OK;
@@ -1589,7 +1636,7 @@ void nsFrameSelection::BidiLevelFromMove(nsIPresShell* aPresShell,
     case nsIDOMKeyEvent::DOM_VK_UP:
     case nsIDOMKeyEvent::DOM_VK_DOWN:
       GetPrevNextBidiLevels(aContext, aNode, aContentOffset, &firstFrame, &secondFrame, &firstLevel, &secondLevel);
-      aPresShell->SetCaretBidiLevel(NS_MIN(firstLevel, secondLevel));
+      aPresShell->SetCaretBidiLevel(PR_MIN(firstLevel, secondLevel));
       break;
       */
 
@@ -2749,10 +2796,10 @@ nsFrameSelection::UnselectCells(nsIContent *aTableContent,
   if (!tableLayout)
     return NS_ERROR_FAILURE;
 
-  PRInt32 minRowIndex = NS_MIN(aStartRowIndex, aEndRowIndex);
-  PRInt32 maxRowIndex = NS_MAX(aStartRowIndex, aEndRowIndex);
-  PRInt32 minColIndex = NS_MIN(aStartColumnIndex, aEndColumnIndex);
-  PRInt32 maxColIndex = NS_MAX(aStartColumnIndex, aEndColumnIndex);
+  PRInt32 minRowIndex = PR_MIN(aStartRowIndex, aEndRowIndex);
+  PRInt32 maxRowIndex = PR_MAX(aStartRowIndex, aEndRowIndex);
+  PRInt32 minColIndex = PR_MIN(aStartColumnIndex, aEndColumnIndex);
+  PRInt32 maxColIndex = PR_MAX(aStartColumnIndex, aEndColumnIndex);
 
   // Strong reference because we sometimes remove the range
   nsCOMPtr<nsIRange> range = GetFirstCellRange();
@@ -3763,7 +3810,16 @@ nsTypedSelection::AddItem(nsIRange *aItem, PRInt32 *aOutIndex)
     // All ranges end before the given range. We can insert our range at
     // the end of the array, knowing there are no overlaps (handled below)
     startIndex = mRanges.Length();
-    endIndex = startIndex;
+    endIndex = endIndex;
+  }
+
+  if (startIndex == endIndex) {
+    // The new range doesn't overlap any existing ranges
+    if (!mRanges.InsertElementAt(startIndex, RangeData(aItem)))
+      return NS_ERROR_OUT_OF_MEMORY;
+    if (aOutIndex)
+      *aOutIndex = startIndex;
+    return NS_OK;
   }
 
   // If the range is already contained in mRanges, silently succeed
@@ -3772,15 +3828,6 @@ nsTypedSelection::AddItem(nsIRange *aItem, PRInt32 *aOutIndex)
                                         aItem->GetEndParent(),
                                         aItem->EndOffset(), startIndex);
   if (sameRange) {
-    if (aOutIndex)
-      *aOutIndex = startIndex;
-    return NS_OK;
-  }
-
-  if (startIndex == endIndex) {
-    // The new range doesn't overlap any existing ranges
-    if (!mRanges.InsertElementAt(startIndex, RangeData(aItem)))
-      return NS_ERROR_OUT_OF_MEMORY;
     if (aOutIndex)
       *aOutIndex = startIndex;
     return NS_OK;
@@ -3822,7 +3869,6 @@ nsTypedSelection::AddItem(nsIRange *aItem, PRInt32 *aOutIndex)
   if (!mRanges.InsertElementsAt(startIndex, temp))
     return NS_ERROR_OUT_OF_MEMORY;
 
-  *aOutIndex = startIndex + insertionPoint;
   return NS_OK;
 }
 
@@ -3896,42 +3942,6 @@ nsTypedSelection::GetType(PRInt16 *aType)
   *aType = mType;
 
   return NS_OK;
-}
-
-// RangeMatches*Point
-//
-//    Compares the range beginning or ending point, and returns true if it
-//    exactly matches the given DOM point.
-
-static inline PRBool
-RangeMatchesBeginPoint(nsIRange* aRange, nsINode* aNode, PRInt32 aOffset)
-{
-  return aRange->GetStartParent() == aNode && aRange->StartOffset() == aOffset;
-}
-
-static inline PRBool
-RangeMatchesEndPoint(nsIRange* aRange, nsINode* aNode, PRInt32 aOffset)
-{
-  return aRange->GetEndParent() == aNode && aRange->EndOffset() == aOffset;
-}
-
-// nsTypedSelection::EqualsRangeAtPoint
-//
-//    Utility method for checking equivalence of two ranges.
-
-PRBool
-nsTypedSelection::EqualsRangeAtPoint(
-    nsINode* aBeginNode, PRInt32 aBeginOffset,
-    nsINode* aEndNode, PRInt32 aEndOffset,
-    PRInt32 aRangeIndex)
-{
-  if (aRangeIndex >=0 && aRangeIndex < (PRInt32) mRanges.Length()) {
-    nsIRange* range = mRanges[aRangeIndex].mRange;
-    if (RangeMatchesBeginPoint(range, aBeginNode, aBeginOffset) &&
-        RangeMatchesEndPoint(range, aEndNode, aEndOffset))
-      return PR_TRUE;
-  }
-  return PR_FALSE;
 }
 
 // nsTypedSelection::GetRangesForInterval
@@ -4062,98 +4072,85 @@ nsTypedSelection::GetIndicesForInterval(nsINode* aBeginNode,
   if (mRanges.Length() == 0)
     return;
 
-  PRBool intervalIsCollapsed = aBeginNode == aEndNode &&
-    aBeginOffset == aEndOffset;
-
   // Ranges that end before the given interval and begin after the given
   // interval can be discarded
   PRInt32 endsBeforeIndex =
     FindInsertionPoint(&mRanges, aEndNode, aEndOffset, &CompareToRangeStart);
-
-  if (endsBeforeIndex == 0) {
-    nsIRange* endRange = mRanges[endsBeforeIndex].mRange;
-
-    // If the interval is strictly before the range at index 0, we can optimize
-    // by returning now - all ranges start after the given interval
-    if (!RangeMatchesBeginPoint(endRange, aEndNode, aEndOffset))
-      return;
-
-    // We now know that the start point of mRanges[0].mRange equals the end of
-    // the interval. Thus, when aAllowadjacent is true, the caller is always
-    // interested in this range. However, when excluding adjacencies, we must
-    // remember to include the range when both it and the given interval are
-    // collapsed to the same point
-    if (!aAllowAdjacent && !(endRange->Collapsed() && intervalIsCollapsed))
-      return;
-  }
+  if (endsBeforeIndex == 0)
+    return; // optimization: all ranges are after us
   *aEndIndex = endsBeforeIndex;
 
   PRInt32 beginsAfterIndex =
     FindInsertionPoint(&mRanges, aBeginNode, aBeginOffset, &CompareToRangeEnd);
   if (beginsAfterIndex == (PRInt32) mRanges.Length())
-    return; // optimization: all ranges are strictly before us
+    return; // optimization: all ranges are before us
 
   if (aAllowAdjacent) {
-    // At this point, one of the following holds:
-    //   endsBeforeIndex == mRanges.Length(),
-    //   endsBeforeIndex points to a range whose start point does not equal the
-    //     given interval's start point
-    //   endsBeforeIndex points to a range whose start point equals the given
-    //     interval's start point
-    // In the final case, there can be two such ranges, a collapsed range, and
-    // an adjacent range (they will appear in mRanges in that order). For this
-    // final case, we need to increment endsBeforeIndex, until one of the
-    // first two possibilites hold
-    while (endsBeforeIndex < (PRInt32) mRanges.Length()) {
-      nsIRange* endRange = mRanges[endsBeforeIndex].mRange;
-      if (!RangeMatchesBeginPoint(endRange, aEndNode, aEndOffset))
-        break;
-      endsBeforeIndex++;
+    // If there is a range that starts on aEndNode, aEndOffset, then
+    // endsBeforeIndex will point to it (there can be only 1 such range),
+    // so increment endsBeforeIndex to encompass that range
+    if (endsBeforeIndex < mRanges.Length()) {
+      nsINode* endNode = mRanges[endsBeforeIndex].mRange->GetStartParent();
+      PRInt32 endOffset = mRanges[endsBeforeIndex].mRange->StartOffset();
+      if (endNode == aEndNode && endOffset == aEndOffset)
+        endsBeforeIndex++;
     }
 
-    // Likewise, one of the following holds:
-    //   beginsAfterIndex == 0,
-    //   beginsAfterIndex points to a range whose end point does not equal
-    //     the given interval's end point
-    //   beginsOnOrAfter points to a range whose end point equals the given
-    //     interval's end point
-    // In the final case, there can be two such ranges, an adjacent range, and
-    // a collapsed range (they will appear in mRanges in that order). For this
-    // final case, we only need to take action if both those ranges exist, and
-    // we are pointing to the collapsed range - we need to point to the
-    // adjacent range
-    nsIRange* beginRange = mRanges[beginsAfterIndex].mRange;
-    if (beginsAfterIndex > 0 && beginRange->Collapsed() &&
-        RangeMatchesEndPoint(beginRange, aBeginNode, aBeginOffset)) {
-      beginRange = mRanges[beginsAfterIndex - 1].mRange;
-      if (RangeMatchesEndPoint(beginRange, aBeginNode, aBeginOffset))
-        beginsAfterIndex--;
-    }
+    // Likewise, if there is a range that ends on aStartNode, aStartOffset
+    // then beginsAfterIndex will already point to it, and doesn't need
+    // altered
   } else {
-    // See above for the possibilities at this point. The only case where we
-    // need to take action is when the range at beginsAfterIndex ends on
-    // the given interval's start point, but that range isn't collapsed (a
-    // collapsed range should be included in the returned results).
-    nsIRange* beginRange = mRanges[beginsAfterIndex].mRange;
-    if (RangeMatchesEndPoint(beginRange, aBeginNode, aBeginOffset) &&
-        !beginRange->Collapsed())
+    // If there is a range that ends on aStartNode, aStartOffset then
+    // beginsAfterIndex will point to it, so increment it to exclude the range
+    nsINode* startNode = mRanges[beginsAfterIndex].mRange->GetEndParent();
+    PRInt32 startOffset = mRanges[beginsAfterIndex].mRange->EndOffset();
+    if (startNode == aBeginNode && startOffset == aBeginOffset)
       beginsAfterIndex++;
 
-    // Again, see above for the meaning of endsBeforeIndex at this point.
-    // In particular, endsBeforeIndex may point to a collaped range which
-    // represents the point at the end of the interval - this range should be
-    // included
-    if (endsBeforeIndex < (PRInt32) mRanges.Length()) {
-      nsIRange* endRange = mRanges[endsBeforeIndex].mRange;
-      if (RangeMatchesBeginPoint(endRange, aEndNode, aEndOffset) &&
-          endRange->Collapsed())
-        endsBeforeIndex++;
-     }
+    // Likewise, if there is a range that starts on aEndNode, aEndOffset
+    // then endsBeforeIndex will already point to it, and doesn't need
+    // altered
   }
 
   *aStartIndex = beginsAfterIndex;
   *aEndIndex = endsBeforeIndex;
   return;
+}
+
+// RangeMatches*Point
+//
+//    Compares the range beginning or ending point, and returns true if it
+//    exactly matches the given DOM point.
+
+static inline PRBool
+RangeMatchesBeginPoint(nsIRange* aRange, nsINode* aNode, PRInt32 aOffset)
+{
+  return aRange->GetStartParent() == aNode && aRange->StartOffset() == aOffset;
+}
+
+static inline PRBool
+RangeMatchesEndPoint(nsIRange* aRange, nsINode* aNode, PRInt32 aOffset)
+{
+  return aRange->GetEndParent() == aNode && aRange->EndOffset() == aOffset;
+}
+
+// nsTypedSelection::EqualsRangeAtPoint
+//
+//    Utility method for checking equivalence of two ranges.
+
+PRBool
+nsTypedSelection::EqualsRangeAtPoint(
+    nsINode* aBeginNode, PRInt32 aBeginOffset,
+    nsINode* aEndNode, PRInt32 aEndOffset,
+    PRInt32 aRangeIndex)
+{
+  if (aRangeIndex >=0 && aRangeIndex < mRanges.Length()) {
+    nsIRange* range = mRanges[aRangeIndex].mRange;
+    if (RangeMatchesBeginPoint(range, aBeginNode, aBeginOffset)
+        && RangeMatchesEndPoint(range, aEndNode, aEndOffset))
+      return PR_TRUE;
+  }
+  return PR_FALSE;
 }
 
 //utility method to get the primary frame of node or use the offset to get frame of child node
@@ -4477,8 +4474,8 @@ nsTypedSelection::LookUpSelection(nsIContent *aContent, PRInt32 aContentOffset,
       if (startOffset < (aContentOffset + aContentLength)  &&
           endOffset > aContentOffset) {
         // this range is totally inside the requested content range
-        start = NS_MAX(0, startOffset - aContentOffset);
-        end = NS_MIN(aContentLength, endOffset - aContentOffset);
+        start = PR_MAX(0, startOffset - aContentOffset);
+        end = PR_MIN(aContentLength, endOffset - aContentOffset);
       }
       // otherwise, range is inside the requested node, but does not intersect
       // the requested content range, so ignore it
@@ -4486,7 +4483,7 @@ nsTypedSelection::LookUpSelection(nsIContent *aContent, PRInt32 aContentOffset,
       if (startOffset < (aContentOffset + aContentLength)) {
         // the beginning of the range is inside the requested node, but the
         // end is outside, select everything from there to the end
-        start = NS_MAX(0, startOffset - aContentOffset);
+        start = PR_MAX(0, startOffset - aContentOffset);
         end = aContentLength;
       }
     } else if (endNode == aContent) {
@@ -4494,7 +4491,7 @@ nsTypedSelection::LookUpSelection(nsIContent *aContent, PRInt32 aContentOffset,
         // the end of the range is inside the requested node, but the beginning
         // is outside, select everything from the beginning to there
         start = 0;
-        end = NS_MIN(aContentLength, endOffset - aContentOffset);
+        end = PR_MIN(aContentLength, endOffset - aContentOffset);
       }
     } else {
       // this range does not begin or end in the requested node, but since
@@ -5008,7 +5005,7 @@ nsTypedSelection::DoAutoScrollView(nsPresContext *aPresContext,
     NS_ENSURE_SUCCESS(result, result);
 
     nsPoint svPoint = globalPoint - globalOffset;
-    mAutoScrollTimer->Start(aPresContext, svPoint);
+    mAutoScrollTimer->Start(aPresContext, aView, svPoint);
   }
 
   return NS_OK;
@@ -6414,7 +6411,7 @@ nsTypedSelection::SelectionLanguageChange(PRBool aLangRTL)
     //  (if the new language corresponds to the orientation of that character) and this level plus 1
     //  (if the new language corresponds to the opposite orientation)
     if ((level != levelBefore) && (level != levelAfter))
-      level = NS_MIN(levelBefore, levelAfter);
+      level = PR_MIN(levelBefore, levelAfter);
     if ((level & 1) == aLangRTL)
       mFrameSelection->SetCaretBidiLevel(level);
     else

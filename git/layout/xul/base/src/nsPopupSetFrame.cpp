@@ -67,8 +67,6 @@ NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPopupSetFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsPopupSetFrame)
-
 NS_IMETHODIMP
 nsPopupSetFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aParent,
@@ -317,8 +315,8 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
   if (HasView()) {
     fprintf(out, " [view=%p]", static_cast<void*>(GetView()));
   }
-  if (GetNextSibling()) {
-    fprintf(out, " next=%p", static_cast<void*>(GetNextSibling()));
+  if (nsnull != mNextSibling) {
+    fprintf(out, " next=%p", static_cast<void*>(mNextSibling));
   }
   if (nsnull != GetPrevContinuation()) {
     fprintf(out, " prev-continuation=%p", static_cast<void*>(GetPrevContinuation()));

@@ -40,7 +40,6 @@
 #include "nsHtml5NamedCharacters.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
-#include "nsIUnicodeDecoder.h"
 
 #include "nsHtml5Tokenizer.h"
 #include "nsHtml5TreeBuilder.h"
@@ -156,12 +155,6 @@ nsHtml5AttributeName::~nsHtml5AttributeName()
   MOZ_COUNT_DTOR(nsHtml5AttributeName);
   nsHtml5Portability::releaseLocal(local[0]);
   delete[] local;
-}
-
-nsHtml5AttributeName* 
-nsHtml5AttributeName::cloneAttributeName()
-{
-  return this;
 }
 
 PRInt32 

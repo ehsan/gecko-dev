@@ -125,6 +125,9 @@ NS_DECL_CLASSINFO(nsStringInputStream)
 
 #include "nsIOUtil.h"
 
+#ifdef GC_LEAK_DETECTOR
+#include "nsLeakDetector.h"
+#endif
 #include "nsRecyclingAllocator.h"
 
 #include "SpecialSystemDirectory.h"
@@ -638,6 +641,11 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     rv = compMgr->RegisterService(kComponentManagerCID, static_cast<nsIComponentManager*>(compMgr));
     if (NS_FAILED(rv)) return rv;
 
+#ifdef GC_LEAK_DETECTOR
+    rv = NS_InitLeakDetector();
+    if (NS_FAILED(rv)) return rv;
+#endif
+
     rv = nsCycleCollector_startup();
     if (NS_FAILED(rv)) return rv;
 
@@ -696,6 +704,9 @@ NS_InitXPCOM3(nsIServiceManager* *result,
     // add any services listed in the "xpcom-directory-providers" category
     // to the directory service.
     nsDirectoryService::gService->RegisterCategoryProviders();
+
+    // Initialize memory flusher
+    nsMemoryImpl::InitFlusher();
 
     // Notify observers of xpcom autoregistration start
     NS_CreateServicesFromCategory(NS_XPCOM_STARTUP_CATEGORY, 
@@ -904,6 +915,11 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
 #endif
     
     NS_LogTerm();
+
+#ifdef GC_LEAK_DETECTOR
+    // Shutdown the Leak detector.
+    NS_ShutdownLeakDetector();
+#endif
 
     return NS_OK;
 }

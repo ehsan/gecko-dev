@@ -40,34 +40,63 @@
 #ifndef __nanojit_h__
 #define __nanojit_h__
 
+#include <stddef.h>
 #include "avmplus.h"
 
 #ifdef FEATURE_NANOJIT
 
-#if defined AVMPLUS_IA32
-    #define NANOJIT_IA32
-#elif defined AVMPLUS_ARM
-    #define NANOJIT_ARM
-#elif defined AVMPLUS_PPC
-    #define NANOJIT_PPC
-#elif defined AVMPLUS_SPARC
-    #define NANOJIT_SPARC
-#elif defined AVMPLUS_AMD64
-    #define NANOJIT_X64
-#else
-    #error "unknown nanojit architecture"
-#endif
-
-#ifdef AVMPLUS_64BIT
+#ifdef AVMPLUS_IA32
+#define NANOJIT_IA32
+#elif AVMPLUS_ARM
+#define NANOJIT_ARM
+#elif AVMPLUS_PPC
+#define NANOJIT_PPC
+#elif AVMPLUS_SPARC
+#define NANOJIT_SPARC
+#elif AVMPLUS_AMD64
+#define NANOJIT_AMD64
 #define NANOJIT_64BIT
+#else
+#error "unknown nanojit architecture"
 #endif
 
-#if defined NANOJIT_64BIT
-    #define IF_64BIT(...) __VA_ARGS__
-    #define UNLESS_64BIT(...)
+/*
+    If we're using MMGC, using operator delete on a GCFinalizedObject is problematic:
+    in particular, calling it from inside a dtor is risky because the dtor for the sub-object
+    might already have been called, wrecking its vtable and ending up in the wrong version
+    of operator delete (the global version rather than the class-specific one). Calling GC::Free
+    directly is fine (since it ignores the vtable), so we macro-ize to make the distinction.
+
+    macro-ization of operator new isn't strictly necessary, but is done to bottleneck both
+    sides of the new/delete pair to forestall future needs.
+*/
+#ifdef MMGC_API
+
+    // separate overloads because GCObject and GCFinalizedObjects have different dtors
+    // (GCFinalizedObject's is virtual, GCObject's is not)
+    inline void mmgc_delete(GCObject* o)
+    {
+        GC* g = GC::GetGC(o);
+        if (g->Collecting())
+            g->Free(o);
+        else
+            delete o;
+    }
+
+    inline void mmgc_delete(GCFinalizedObject* o)
+    {
+        GC* g = GC::GetGC(o);
+        if (g->Collecting())
+            g->Free(o);
+        else
+            delete o;
+    }
+
+    #define NJ_NEW(gc, cls)            new (gc) cls
+    #define NJ_DELETE(obj)            do { mmgc_delete(obj); } while (0)
 #else
-    #define IF_64BIT(...)
-    #define UNLESS_64BIT(...) __VA_ARGS__
+    #define NJ_NEW(gc, cls)            new (gc) cls
+    #define NJ_DELETE(obj)            do { delete obj; } while (0)
 #endif
 
 // Embed no-op macros that let Valgrind work with the JIT.
@@ -87,7 +116,10 @@ namespace nanojit
      * START AVM bridging definitions
      * -------------------------------------------
      */
+    class Fragment;
     typedef avmplus::AvmCore AvmCore;
+    typedef avmplus::OSDep OSDep;
+    typedef avmplus::GCSortedMap<const void*,Fragment*,avmplus::LIST_GCObjects> FragmentMap;
 
     const uint32_t MAXARGS = 8;
 
@@ -136,12 +168,8 @@ namespace nanojit
 }
 
 #ifdef AVMPLUS_VERBOSE
-#ifndef NJ_VERBOSE_DISABLED
-	#define NJ_VERBOSE 1
-#endif
-#ifndef NJ_PROFILE_DISABLED
-	#define NJ_PROFILE 1
-#endif
+#define NJ_VERBOSE 1
+#define NJ_PROFILE 1
 #endif
 
 #ifdef MOZ_NO_VARADIC_MACROS
@@ -160,7 +188,7 @@ namespace nanojit
 #endif /*NJ_VERBOSE*/
 
 #ifdef _DEBUG
-    #define debug_only(x)           x
+    #define debug_only(x)            x
 #else
     #define debug_only(x)
 #endif /* DEBUG */
@@ -234,11 +262,11 @@ namespace nanojit {
            and below, so that callers can use bits 16 and above for
            themselves. */
         // TODO: add entries for the writer pipeline
-        LC_FragProfile = 1<<7, // collect per-frag usage counts
-        LC_Activation  = 1<<6, // enable printActivationState
-        LC_Liveness    = 1<<5, // (show LIR liveness analysis)
-        LC_ReadLIR     = 1<<4, // As read from LirBuffer
-        LC_AfterSF     = 1<<3, // After StackFilter
+        LC_Activation  = 1<<7, // enable printActivationState
+        LC_Liveness    = 1<<6, // (show LIR liveness analysis)
+        LC_ReadLIR     = 1<<5, // As read from LirBuffer
+        LC_AfterSF_SP  = 1<<4, // After StackFilter(sp)
+        LC_AfterSF_RP  = 1<<3, // After StackFilter(rp)
         LC_RegAlloc    = 1<<2, // stuff to do with reg alloc
         LC_Assembly    = 1<<1, // final assembly
         LC_NoCodeAddrs = 1<<0  // (don't show code addresses on asm output)

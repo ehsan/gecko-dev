@@ -40,25 +40,16 @@
 DEPTH		= ..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
-
-VPATH		= $(srcdir)
-VPATH		+= $(srcdir)/../nanojit
+VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
 PROGRAM         = lirasm$(BIN_SUFFIX)
-CPPSRCS		    = lirasm.cpp \
-		Assembler.cpp  \
-		Allocator.cpp  \
-		CodeAlloc.cpp  \
-		Containers.cpp \
-		Fragmento.cpp  \
-		LIR.cpp        \
-		RegAlloc.cpp   \
-		avmplus.cpp    \
-		Native$(NANOJIT_ARCH).cpp \
-		$(NULL)
+CPPSRCS		    = lirasm.cpp
 
+DEFINES         += -DEXPORT_JS_API
+
+LIBS      = $(NSPR_LIBS) $(EDITLINE_LIBS) $(DEPTH)/$(LIB_PREFIX)js_static.$(LIB_SUFFIX)
 
 LOCAL_INCLUDES += -I$(topsrcdir) -I..
 
@@ -70,6 +61,12 @@ WIN32_EXE_LDFLAGS += -ENTRY:mainACRTStartup
 endif
 CFLAGS += -EHsc
 CXXFLAGS += -EHsc
+endif
+
+ifdef MOZ_SHARK
+CFLAGS += -F/System/Library/PrivateFrameworks
+CXXFLAGS += -F/System/Library/PrivateFrameworks
+LDFLAGS += -F/System/Library/PrivateFrameworks -framework CHUD
 endif
 
 check::

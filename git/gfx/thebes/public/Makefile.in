@@ -92,7 +92,7 @@ EXPORTS +=	gfxPangoFonts.h
 EXPORTS +=	gfxPDFSurface.h
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter $(MOZ_WIDGET_TOOLKIT),mac cocoa))
 EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzSurface.h \
 		gfxQuartzImageSurface.h \

@@ -33,20 +33,8 @@ function Tester(aTests, aDumper, aCallback) {
   this.callback = aCallback;
   this._cs = Cc["@mozilla.org/consoleservice;1"].
              getService(Ci.nsIConsoleService);
-
-  var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
-                     getService(Ci.mozIJSSubScriptLoader);
-  scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/EventUtils.js", this.EventUtils);
-  // Avoid polluting this scope with packed.js contents.
-  var simpleTestScope = {};
-  scriptLoader.loadSubScript("chrome://mochikit/content/MochiKit/packed.js", simpleTestScope);
-  scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/SimpleTest.js", simpleTestScope);
-  this.SimpleTest = simpleTestScope.SimpleTest;
 }
 Tester.prototype = {
-  EventUtils: {},
-  SimpleTest: {},
-
   checker: null,
   currentTestIndex: -1,
   get currentTest() {
@@ -114,10 +102,6 @@ Tester.prototype = {
 
     // Load the tests into a testscope
     this.currentTest.scope = new testScope(this, this.currentTest);
-
-    // Import utils in the test scope.
-    this.currentTest.scope.EventUtils = this.EventUtils;
-    this.currentTest.scope.SimpleTest = this.SimpleTest;
 
     var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
                        getService(Ci.mozIJSSubScriptLoader);
@@ -191,6 +175,10 @@ function testMessage(aName) {
 // Need to be careful adding properties to this object, since its properties
 // cannot conflict with global variables used in tests.
 function testScope(aTester, aTest) {
+  var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
+                     getService(Ci.mozIJSSubScriptLoader);
+  scriptLoader.loadSubScript("chrome://mochikit/content/tests/SimpleTest/EventUtils.js", this.EventUtils);
+
   this.__tester = aTester;
   this.__browserTest = aTest;
 
@@ -231,10 +219,6 @@ function testScope(aTester, aTest) {
     self.__done = false;
   };
 
-  this.waitForFocus = function (callback, targetWindow) {
-    self.SimpleTest.waitForFocus(callback, targetWindow);
-  };
-
   this.finish = function test_finish() {
     self.__done = true;
     if (self.__waitTimer) {
@@ -252,6 +236,5 @@ testScope.prototype = {
   __done: true,
   __waitTimer: null,
 
-  EventUtils: {},
-  SimpleTest: {}
+  EventUtils: {}
 };

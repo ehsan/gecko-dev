@@ -128,6 +128,10 @@ public:
   NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
       nsIView* aTargetView, nsEventStatus* aStatus);
 
+  NS_IMETHOD  GrabMouseEvents(nsIView *aView, PRBool &aResult);
+
+  NS_IMETHOD  GetMouseEventGrabber(nsIView *&aView);
+
   NS_IMETHOD  InsertChild(nsIView *parent, nsIView *child, nsIView *sibling,
                           PRBool above);
 
@@ -301,10 +305,14 @@ private:
 
 public: // NOT in nsIViewManager, so private to the view module
   nsView* GetRootView() const { return mRootView; }
+  nsView* GetMouseEventGrabber() const {
+    return RootViewManager()->mMouseGrabber;
+  }
   nsViewManager* RootViewManager() const { return mRootViewManager; }
   PRBool IsRootVM() const { return this == RootViewManager(); }
 
-  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent);
+  nsEventStatus HandleEvent(nsView* aView, nsPoint aPoint, nsGUIEvent* aEvent,
+                            PRBool aCaptured);
 
   /**
    * Called to inform the view manager that a view is about to bit-blit.
@@ -338,12 +346,9 @@ public: // NOT in nsIViewManager, so private to the view module
    * to be rerendered.
    * @param aView view to paint. should be the nsScrollPortView that
    * got scrolled.
-   * @param aBlitRegion the region that was blitted; this is just so
-   * we can notify our view observer
    * @param aUpdateRegion ensure that this part of the view is repainted
    */
-  void UpdateViewAfterScroll(nsView *aView, const nsRegion& aBlitRegion,
-                             const nsRegion& aUpdateRegion);
+  void UpdateViewAfterScroll(nsView *aView, const nsRegion& aUpdateRegion);
 
   /**
    * Given that the view aView has being moved by scrolling by aDelta
@@ -385,6 +390,8 @@ private:
   // the root view manager.  Some have accessor functions to enforce
   // this, as noted.
   
+  // Use GrabMouseEvents() and GetMouseEventGrabber() to access mMouseGrabber.
+  nsView            *mMouseGrabber;
   // Use IncrementUpdateCount(), DecrementUpdateCount(), UpdateCount(),
   // ClearUpdateCount() on the root viewmanager to access mUpdateCnt.
   PRInt32           mUpdateCnt;

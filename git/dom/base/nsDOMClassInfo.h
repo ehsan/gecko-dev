@@ -191,11 +191,17 @@ public:
 
   static void PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper);
 
+  static inline void *GetJSPrivate(JSObject *obj)
+  {
+    JS_ASSERT(STOBJ_GET_CLASS(obj)->flags & JSCLASS_HAS_PRIVATE);
+    jsval v = STOBJ_GET_SLOT(obj, JSSLOT_PRIVATE);
+    return JSVAL_IS_INT(v) ? JSVAL_TO_PRIVATE(v) : nsnull;
+  }
   static inline nsISupports *GetNative(nsIXPConnectWrappedNative *wrapper,
                                        JSObject *obj)
   {
     return wrapper ? wrapper->Native() :
-                     static_cast<nsISupports*>(obj->getPrivate());
+                     static_cast<nsISupports*>(GetJSPrivate(obj));
   }
 
   static nsIXPConnect *XPConnect()
@@ -1497,30 +1503,6 @@ public:
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
   {
     return new nsClientRectListSH(aData);
-  }
-};
-
-
-// PaintRequestList helper
-
-class nsPaintRequestListSH : public nsArraySH
-{
-protected:
-  nsPaintRequestListSH(nsDOMClassInfoData* aData) : nsArraySH(aData)
-  {
-  }
-
-  virtual ~nsPaintRequestListSH()
-  {
-  }
-
-  virtual nsISupports* GetItemAt(nsISupports *aNative, PRUint32 aIndex,
-                                 nsresult *aResult);
-
-public:
-  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
-  {
-    return new nsPaintRequestListSH(aData);
   }
 };
 

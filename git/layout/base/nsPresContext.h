@@ -148,16 +148,6 @@ enum nsLayoutPhase {
 };
 #endif
 
-class nsInvalidateRequestList {
-public:
-  struct Request {
-    nsRect   mRect;
-    PRUint32 mFlags;
-  };
-
-  nsTArray<Request> mRequests;
-};
-
 /* Used by nsPresContext::HasAuthorSpecifiedRules */
 #define NS_AUTHOR_SPECIFIED_BACKGROUND      (1 << 0)
 #define NS_AUTHOR_SPECIFIED_BORDER          (1 << 1)
@@ -817,15 +807,15 @@ public:
   // user font set is changed and fonts become unavailable).
   void UserFontSetUpdated();
 
-  PRBool MayHavePaintEventListener();
-  void NotifyInvalidation(const nsRect& aRect, PRUint32 aFlags);
+  void NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc);
   void FireDOMPaintEvent();
   PRBool IsDOMPaintEventPending() {
-    return !mInvalidateRequests.mRequests.IsEmpty();
+    return !mSameDocDirtyRegion.IsEmpty() || !mCrossDocDirtyRegion.IsEmpty();
   }
 
   void ClearMozAfterPaintEvents() {
-    mInvalidateRequests.mRequests.Clear();
+    mSameDocDirtyRegion.SetEmpty();
+    mCrossDocDirtyRegion.SetEmpty();
   }
 
   PRBool IsProcessingAnimationStyleChange() const {
@@ -833,7 +823,7 @@ public:
   }
 
   void SetProcessingAnimationStyleChange(PRBool aProcessing) {
-    NS_ASSERTION(aProcessing != PRBool(mProcessingAnimationStyleChange),
+    NS_ASSERTION(aProcessing != mProcessingAnimationStyleChange,
                  "should never nest");
     mProcessingAnimationStyleChange = aProcessing;
   }
@@ -972,7 +962,8 @@ protected:
 
   nsPropertyTable       mPropertyTable;
 
-  nsInvalidateRequestList mInvalidateRequests;
+  nsRegion              mSameDocDirtyRegion;
+  nsRegion              mCrossDocDirtyRegion;
 
   // container for per-context fonts (downloadable, SVG, etc.)
   nsUserFontSet*        mUserFontSet;
@@ -1174,8 +1165,9 @@ struct nsAutoLayoutPhase {
                      "constructing frames in the middle of a paint");
         NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
                      "constructing frames in the middle of reflow");
-        NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
-                     "recurring into frame construction");
+        // Once bug 337957 is fixed this should become an NS_ASSERTION
+        NS_WARN_IF_FALSE(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
+                         "recurring into frame construction");
         NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                      "constructing frames and scripts are not blocked");
         break;

@@ -69,8 +69,6 @@ class nsTextControlFrame : public nsStackFrame,
 
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext);
   virtual ~nsTextControlFrame();
 
