@@ -106,14 +106,14 @@ nsSVGAnimationElement::Init()
 //----------------------------------------------------------------------
 // nsISMILAnimationElement methods
 
-const Element&
-nsSVGAnimationElement::AsElement() const
+const nsIContent&
+nsSVGAnimationElement::Content() const
 {
   return *this;
 }
 
-Element&
-nsSVGAnimationElement::AsElement()
+nsIContent&
+nsSVGAnimationElement::Content()
 {
   return *this;
 }
@@ -372,30 +372,17 @@ nsSVGAnimationElement::ParseAttribute(PRInt32 aNamespaceID,
     }
   }
 
-  return nsSVGAnimationElementBase::ParseAttribute(aNamespaceID, aAttribute,
-                                                   aValue, aResult);
-}
-
-nsresult
-nsSVGAnimationElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                                    const nsAString* aValue, PRBool aNotify)
-{
-  nsresult rv =
-    nsSVGAnimationElementBase::AfterSetAttr(aNamespaceID, aName, aValue,
-                                            aNotify);
-
-  if (aNamespaceID != kNameSpaceID_XLink || aName != nsGkAtoms::href)
-    return rv;
-
-  if (!aValue) {
-    mHrefTarget.Unlink();
-    AnimationTargetChanged();
-  } else if (IsInDoc()) {
-    UpdateHrefTarget(this, *aValue);
-  } // else: we're not yet in a document -- we'll update the target on
-    // next BindToTree call.
-
-  return rv;
+  PRBool returnVal =
+    nsSVGAnimationElementBase::ParseAttribute(aNamespaceID, aAttribute,
+                                              aValue, aResult);
+  if (aNamespaceID == kNameSpaceID_XLink &&
+      aAttribute == nsGkAtoms::href &&
+      IsInDoc()) {
+    // NOTE: If we fail the IsInDoc call, it's ok -- we'll update the target
+    // on next BindToTree call.
+    UpdateHrefTarget(this, aValue);
+  }
+  return returnVal;
 }
 
 nsresult
@@ -410,6 +397,10 @@ nsSVGAnimationElement::UnsetAttr(PRInt32 aNamespaceID,
     if (AnimationFunction().UnsetAttr(aAttribute) ||
         mTimedElement.UnsetAttr(aAttribute)) {
       AnimationNeedsResample();
+    }
+  } else if (aNamespaceID == kNameSpaceID_XLink) {
+    if (aAttribute == nsGkAtoms::href) {
+      mHrefTarget.Unlink();
     }
   }
 
@@ -500,12 +491,4 @@ nsSVGAnimationElement::UpdateHrefTarget(nsIContent* aNodeForContext,
   nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(targetURI),
                                             aHrefStr, GetOwnerDoc(), baseURI);
   mHrefTarget.Reset(aNodeForContext, targetURI);
-  AnimationTargetChanged();
-}
-
-void
-nsSVGAnimationElement::AnimationTargetChanged()
-{
-  mTimedElement.HandleTargetElementChange(GetTargetElementContent());
-  AnimationNeedsResample();
 }
