@@ -84,8 +84,8 @@ IntentionalCrash()
     fprintf(processfd, "==> process %d will purposefully crash\n", getpid());
     fclose(processfd);
   }
-  int *pi = NULL;
-  *pi = 55; // Crash dereferencing null pointer
+  void (*funcptr)() = NULL;
+  funcptr(); // Crash calling null function pointer
   ++gCrashCount;
 }
 
@@ -2428,7 +2428,6 @@ asyncCallback(void* cookie)
       BOOLEAN_TO_NPVARIANT(id->asyncCallbackResult, arg);
       NPN_Invoke(npp, windowObject, NPN_GetStringIdentifier(id->asyncTestScriptCallback.c_str()), &arg, 1, &rval);
       NPN_ReleaseVariantValue(&arg);
-      NPN_ReleaseObject(windowObject);
       break;
   }
 }

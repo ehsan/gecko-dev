@@ -1598,7 +1598,7 @@ SortBlitRectsForCopy(nsIntPoint aPixDelta, nsTArray<nsIntRect>* aRects)
 static PRBool
 CanScrollWithBlitting(nsIFrame* aFrame)
 {
-  for (nsIFrame* f = aFrame; f; f = nsLayoutUtils::GetCrossDocParentFrame(f)) {
+  for (nsIFrame* f = aFrame; f; f = f->GetParent()) {
     if (f->GetStyleDisplay()->HasTransform()) {
       return PR_FALSE;
     }
@@ -1614,11 +1614,7 @@ CanScrollWithBlitting(nsIFrame* aFrame)
 
 void nsGfxScrollFrameInner::ScrollVisual(nsIntPoint aPixDelta)
 {
-  nsRootPresContext* rootPresContext =
-    mOuter->PresContext()->GetRootPresContext();
-  if (!rootPresContext) {
-    return;
-  }
+  nsRootPresContext* rootPresContext = mOuter->PresContext()->RootPresContext();
 
   nsPoint offsetToView;
   nsPoint offsetToWidget;

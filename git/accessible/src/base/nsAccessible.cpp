@@ -448,8 +448,8 @@ nsAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
     // Copy access key from label node unless it is labeled
     // via an ancestor <label>, in which case that would be redundant
     nsCOMPtr<nsIContent> labelContent(nsCoreUtils::GetLabelContent(content));
-    nsCOMPtr<nsINode> thisNode = do_QueryInterface(mDOMNode);
-    if (labelContent && !nsCoreUtils::IsAncestorOf(labelContent, thisNode))
+    nsCOMPtr<nsIDOMNode> labelNode = do_QueryInterface(labelContent);
+    if (labelNode && !nsCoreUtils::IsAncestorOf(labelNode, mDOMNode))
       key = nsCoreUtils::GetAccessKeyFor(labelContent);
   }
 
@@ -1708,13 +1708,11 @@ nsAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 
       if (nsAccUtils::Role(tabPanel) == nsIAccessibleRole::ROLE_PROPERTYPAGE) {
         nsCOMPtr<nsIAccessNode> tabPanelAccessNode(do_QueryInterface(tabPanel));
-        nsCOMPtr<nsIDOMNode> tabPanelDOMNode;
-        tabPanelAccessNode->GetDOMNode(getter_AddRefs(tabPanelDOMNode));
-        NS_ENSURE_STATE(tabPanelDOMNode);
+        nsCOMPtr<nsIDOMNode> tabPanelNode;
+        tabPanelAccessNode->GetDOMNode(getter_AddRefs(tabPanelNode));
+        NS_ENSURE_STATE(tabPanelNode);
 
-        nsCOMPtr<nsINode> tabPanelNode(do_QueryInterface(tabPanelDOMNode));
-        nsCOMPtr<nsINode> lastFocusedNode(do_QueryInterface(gLastFocusedNode));
-        if (nsCoreUtils::IsAncestorOf(tabPanelNode, lastFocusedNode))
+        if (nsCoreUtils::IsAncestorOf(tabPanelNode, gLastFocusedNode))
           *aState |= nsIAccessibleStates::STATE_SELECTED;
       }
     }

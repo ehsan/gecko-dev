@@ -54,6 +54,12 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+
+
+#include <stdio.h>
+
+
+
 #include "base/eintr_wrapper.h"
 #include "base/message_loop.h"
 #include "base/process_util.h"
@@ -73,6 +79,22 @@ IsProcessDead(pid_t process)
   // don't care if the process crashed, just if it exited
   base::DidProcessCrash(&exited, process);
   return exited;
+}
+
+bool
+WaitForProcessExitMaxSecs(pid_t process, int maxSecs)
+{
+  bool infiniteWait = (maxSecs < 0);
+  int status;
+  int nWaits = 0;
+
+  do {
+    HANDLE_EINTR(waitpid(process, &status, WNOHANG));
+  } while (!WIFEXITED(status) &&
+           (infiniteWait || nWaits++ < maxSecs) &&
+           0 == HANDLE_EINTR(sleep(1)));
+
+  return WIFEXITED(status);
 }
 
 
@@ -109,7 +131,31 @@ protected:
   void WaitForChildExit()
   {
     DCHECK(process_);
+
+
+
+    printf("TEST-UNEXPECTED-FAIL | process %d busy-waiting on | child process %d\n", getpid(), process_);
+
+
+
+#if 0
     HANDLE_EINTR(waitpid(process_, NULL, 0));
+#else
+
+    if (WaitForProcessExitMaxSecs(process_, 30)) {
+      printf("TEST-UNEXPECTED-FAIL | process %d done busy-waiting on | child process %d exited normally\n", getpid(), process_);
+      return;
+    }
+
+    printf("TEST-UNEXPECTED-FAIL | process %d wait on | child process %d timed out!\n", getpid(), process_);
+    // kill the child in such a way that breakpad is triggered
+    kill(process_, SIGSEGV);
+
+    WaitForProcessExitMaxSecs(process_, -1); // wait "forever"
+#endif
+
+
+
   }
 
   pid_t process_;
@@ -189,6 +235,14 @@ public:
     ChildReaper::OnSignal(sig);
 
     if (!process_) {
+
+
+
+      printf("TEST-UNEXPECTED-FAIL | process %d reaped | child process (got SIGCHLD, exited normally)\n", getpid());
+
+
+
+
       MessageLoop::current()->RemoveDestructionObserver(this);
       delete this;
     }
@@ -200,6 +254,13 @@ public:
     DCHECK(process_);
 
     WaitForChildExit();
+
+
+
+    printf("TEST-UNEXPECTED-FAIL | process %d reaped | child process (waitpid() on shutdown)\n", getpid());
+
+
+
     process_ = 0;
 
     // XXX don't think this is necessary, since destruction can only
@@ -239,8 +300,16 @@ ProcessWatcher::EnsureProcessTerminated(base::ProcessHandle process,
   DCHECK(process != base::GetCurrentProcId());
   DCHECK(process > 0);
 
-  if (IsProcessDead(process))
+  if (IsProcessDead(process)) {
+
+
+
+    printf("TEST-UNEXPECTED-FAIL | process %d reaped | child process %d (it was already dead)\n", getpid(), process);
+
+
+
     return;
+  }
 
   MessageLoopForIO* loop = MessageLoopForIO::current();
   if (force) {

@@ -403,8 +403,6 @@ protected:
   static STDMETHODIMP_(LRESULT) LresultFromObject(REFIID riid, WPARAM wParam, LPUNKNOWN pAcc);
 #endif // ACCESSIBILITY
 
-  void                    UpdateWindowInternal(HWND aWnd);
-
 protected:
   nsIntSize             mLastSize;
   nsIntPoint            mLastPoint;
@@ -448,9 +446,6 @@ protected:
   static PRBool         sJustGotActivate;
   static int            sTrimOnMinimize;
   static PRBool         sTrackPointHack;
-#ifdef MOZ_IPC
-  static PRUint32       sOOPPPluginFocusEvent;
-#endif
 
   // Hook Data Memebers for Dropdowns. sProcessHook Tells the
   // hook methods whether they should be processing the hook
@@ -502,6 +497,7 @@ protected:
 #endif
 
 #if defined(WINCE_HAVE_SOFTKB)
+  static PRBool         sSoftKeyMenuBar;
   static PRBool         sSoftKeyboardState;
 #endif // defined(WINCE_HAVE_SOFTKB)
 

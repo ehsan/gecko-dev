@@ -143,9 +143,6 @@ protected:
 
     // Run on the worker thread
     void OnDispatchMessage(const Message& aMsg);
-    virtual bool OnSpecialMessage(uint16 id, const Message& msg);
-    void SendSpecialMessage(Message* msg);
-
     bool MaybeHandleError(Result code, const char* channelName);
     void ReportConnectionError(const char* channelName);
 
@@ -157,7 +154,8 @@ protected:
 
     // Run on the worker thread
 
-    bool ProcessGoodbyeMessage();
+    void SendGoodbye();
+    bool MaybeInterceptGoodbye(const Message& msg);
 
     void NotifyChannelClosed();
     void NotifyMaybeChannelError();

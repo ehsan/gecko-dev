@@ -350,9 +350,7 @@ nsXULPopupManager::SetTriggerEvent(nsIDOMEvent* aEvent, nsIContent* aPopup)
           nsIPresShell* presShell = doc->GetPrimaryShell();
           if (presShell && presShell->GetPresContext()) {
             nsPresContext* rootDocPresContext =
-              presShell->GetPresContext()->GetRootPresContext();
-            if (!rootDocPresContext)
-              return;
+                presShell->GetPresContext()->RootPresContext();
             nsIFrame* rootDocumentRootFrame = rootDocPresContext->
                 PresShell()->FrameManager()->GetRootFrame();
             if ((event->eventStructType == NS_MOUSE_EVENT || 
@@ -1022,14 +1020,8 @@ nsXULPopupManager::FirePopupShowingEvent(nsIContent* aPopup,
 
   // coordinates are relative to the root widget
   nsPresContext* rootPresContext =
-    presShell->GetPresContext()->GetRootPresContext();
-  if (rootPresContext) {
-    rootPresContext->PresShell()->GetViewManager()->
-      GetRootWidget(getter_AddRefs(event.widget));
-  }
-  else {
-    event.widget = nsnull;
-  }
+    presShell->GetPresContext()->RootPresContext();
+  rootPresContext->PresShell()->GetViewManager()->GetRootWidget(getter_AddRefs(event.widget));
 
   event.refPoint = mCachedMousePoint;
   nsEventDispatcher::Dispatch(aPopup, aPresContext, &event, nsnull, &status);
