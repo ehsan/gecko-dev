@@ -25,12 +25,8 @@ namespace winrt {
 extern ComPtr<MetroApp> sMetroApp;
 } } }
 
-namespace mozilla {
-namespace widget {
-// pulled from win32 app shell
-extern UINT sAppShellGeckoMsgId;
-} }
-
+const PRUnichar* kMetroAppShellEventId = L"nsAppShell:EventID";
+static UINT sShellEventMsgID;
 static ComPtr<ICoreWindowStatic> sCoreStatic;
 
 MetroAppShell::~MetroAppShell()
@@ -47,6 +43,7 @@ MetroAppShell::Init()
 
   WNDCLASSW wc;
   HINSTANCE module = GetModuleHandle(NULL);
+  sShellEventMsgID = RegisterWindowMessageW(kMetroAppShellEventId);
 
   const PRUnichar *const kWindowClass = L"nsAppShell:EventWindowClass";
   if (!GetClassInfoW(module, kWindowClass, &wc)) {
@@ -201,7 +198,7 @@ MetroAppShell::NativeCallback()
 LRESULT CALLBACK
 MetroAppShell::EventWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-  if (uMsg == sAppShellGeckoMsgId) {
+  if (uMsg == sShellEventMsgID) {
     MetroAppShell *as = reinterpret_cast<MetroAppShell *>(lParam);
     as->NativeCallback();
     NS_RELEASE(as);
@@ -214,7 +211,7 @@ void
 MetroAppShell::ScheduleNativeEventCallback()
 {
   NS_ADDREF_THIS();
-  PostMessage(mEventWnd, sAppShellGeckoMsgId, 0, reinterpret_cast<LPARAM>(this));
+  PostMessage(mEventWnd, sShellEventMsgID, 0, reinterpret_cast<LPARAM>(this));
 }
 
 void

@@ -609,15 +609,13 @@ public:
     CreateTextureImage(const nsIntSize& aSize,
                        TextureImage::ContentType aContentType,
                        GLenum aWrapMode,
-                       TextureImage::Flags aFlags = TextureImage::NoFlags,
-                       TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown);
+                       TextureImage::Flags aFlags = TextureImage::NoFlags);
 
     // a function to generate Tiles for Tiled Texture Image
     virtual already_AddRefed<TextureImage>
     TileGenFunc(const nsIntSize& aSize,
                 TextureImage::ContentType aContentType,
-                TextureImage::Flags aFlags = TextureImage::NoFlags,
-                TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown) MOZ_OVERRIDE;
+                TextureImage::Flags aFlags = TextureImage::NoFlags) MOZ_OVERRIDE;
     // hold a reference to the given surface
     // for the lifetime of this context.
     void HoldSurface(gfxASurface *aSurf) {
@@ -1105,11 +1103,10 @@ public:
                     ContentType aContentType,
                     GLContext* aContext,
                     Flags aFlags = TextureImage::NoFlags,
-                    TextureState aTextureState = Created,
-                    TextureImage::ImageFormat aImageFormat = gfxASurface::ImageFormatUnknown)
+                    TextureState aTextureState = Created)
         : TextureImage(aSize, aWrapMode, aContentType, aFlags)
         , mGLContext(aContext)
-        , mUpdateFormat(aImageFormat)
+        , mUpdateFormat(gfxASurface::ImageFormatUnknown)
         , mEGLImage(nullptr)
         , mTexture(aTexture)
         , mSurface(nullptr)
@@ -1117,9 +1114,7 @@ public:
         , mTextureState(aTextureState)
         , mBound(false)
     {
-        if (mUpdateFormat == gfxASurface::ImageFormatUnknown) {
-            mUpdateFormat = gfxPlatform::GetPlatform()->OptimalFormatForContent(GetContentType());
-        }
+        mUpdateFormat = gfxPlatform::GetPlatform()->OptimalFormatForContent(GetContentType());
 
         if (gUseBackingSurface) {
             if (mUpdateFormat != gfxASurface::ImageFormatARGB32) {
@@ -1534,18 +1529,16 @@ already_AddRefed<TextureImage>
 GLContextEGL::CreateTextureImage(const nsIntSize& aSize,
                                  TextureImage::ContentType aContentType,
                                  GLenum aWrapMode,
-                                 TextureImage::Flags aFlags,
-                                 TextureImage::ImageFormat aImageFormat)
+                                 TextureImage::Flags aFlags)
 {
-    nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType, aFlags, aImageFormat);
+    nsRefPtr<TextureImage> t = new gl::TiledTextureImage(this, aSize, aContentType, aFlags);
     return t.forget();
 }
 
 already_AddRefed<TextureImage>
 GLContextEGL::TileGenFunc(const nsIntSize& aSize,
                           TextureImage::ContentType aContentType,
-                          TextureImage::Flags aFlags,
-                          TextureImage::ImageFormat aImageFormat)
+                          TextureImage::Flags aFlags)
 {
   MakeCurrent();
 
@@ -1553,8 +1546,7 @@ GLContextEGL::TileGenFunc(const nsIntSize& aSize,
   fGenTextures(1, &texture);
 
   nsRefPtr<TextureImageEGL> teximage =
-      new TextureImageEGL(texture, aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType,
-                          this, aFlags, TextureImage::Created, aImageFormat);
+      new TextureImageEGL(texture, aSize, LOCAL_GL_CLAMP_TO_EDGE, aContentType, this, aFlags);
   
   teximage->BindTexture(LOCAL_GL_TEXTURE0);
 

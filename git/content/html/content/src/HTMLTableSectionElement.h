@@ -12,7 +12,8 @@
 namespace mozilla {
 namespace dom {
 
-class HTMLTableSectionElement MOZ_FINAL : public nsGenericHTMLElement
+class HTMLTableSectionElement MOZ_FINAL : public nsGenericHTMLElement,
+                                          public nsIDOMHTMLElement
 {
 public:
   HTMLTableSectionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
@@ -22,6 +23,15 @@ public:
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
 
   nsIHTMLCollection* Rows();
   already_AddRefed<nsGenericHTMLElement>
@@ -72,6 +82,8 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(HTMLTableSectionElement,
                                                      nsGenericHTMLElement)
+
+  virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }
 protected:
   virtual JSObject* WrapNode(JSContext *aCx,
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;

@@ -214,7 +214,7 @@ JS_SetSingleStepMode(JSContext *cx, JSScript *scriptArg, JSBool singleStep)
     assertSameCompartment(cx, script);
 
     if (!CheckDebugMode(cx))
-        return false;
+        return JS_FALSE;
 
     return script->setStepModeFlag(cx, singleStep);
 }
@@ -281,7 +281,7 @@ JS_ClearInterrupt(JSRuntime *rt, JSInterruptHook *hoop, void **closurep)
         *closurep = rt->debugHooks.interruptHookData;
     rt->debugHooks.interruptHook = 0;
     rt->debugHooks.interruptHookData = 0;
-    return true;
+    return JS_TRUE;
 }
 
 /************************************************************************/
@@ -407,12 +407,12 @@ JS_GetLinePCs(JSContext *cx, JSScript *script,
     size_t len = (script->length > maxLines ? maxLines : script->length);
     unsigned *lines = cx->pod_malloc<unsigned>(len);
     if (!lines)
-        return false;
+        return JS_FALSE;
 
     jsbytecode **pcs = cx->pod_malloc<jsbytecode*>(len);
     if (!pcs) {
         js_free(lines);
-        return false;
+        return JS_FALSE;
     }
 
     unsigned lineno = script->lineno;
@@ -447,7 +447,7 @@ JS_GetLinePCs(JSContext *cx, JSScript *script,
     else
         js_free(pcs);
 
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(unsigned)
@@ -663,7 +663,7 @@ GetPropertyDesc(JSContext *cx, JSObject *obj_, HandleShape shape, JSPropertyDesc
     pd->spare = 0;
     pd->alias = JSVAL_VOID;
 
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -779,7 +779,7 @@ JS_SetDebuggerHandler(JSRuntime *rt, JSDebuggerHandler handler, void *closure)
 {
     rt->debugHooks.debuggerHandler = handler;
     rt->debugHooks.debuggerHandlerData = closure;
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -787,7 +787,7 @@ JS_SetSourceHandler(JSRuntime *rt, JSSourceHandler handler, void *closure)
 {
     rt->debugHooks.sourceHandler = handler;
     rt->debugHooks.sourceHandlerData = closure;
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -795,7 +795,7 @@ JS_SetExecuteHook(JSRuntime *rt, JSInterpreterHook hook, void *closure)
 {
     rt->debugHooks.executeHook = hook;
     rt->debugHooks.executeHookData = closure;
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -803,7 +803,7 @@ JS_SetCallHook(JSRuntime *rt, JSInterpreterHook hook, void *closure)
 {
     rt->debugHooks.callHook = hook;
     rt->debugHooks.callHookData = closure;
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -811,7 +811,7 @@ JS_SetThrowHook(JSRuntime *rt, JSThrowHook hook, void *closure)
 {
     rt->debugHooks.throwHook = hook;
     rt->debugHooks.throwHookData = closure;
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -819,7 +819,7 @@ JS_SetDebugErrorHook(JSRuntime *rt, JSDebugErrorHook hook, void *closure)
 {
     rt->debugHooks.debugErrorHook = hook;
     rt->debugHooks.debugErrorHookData = closure;
-    return true;
+    return JS_TRUE;
 }
 
 /************************************************************************/
@@ -941,14 +941,14 @@ js_CallContextDebugHandler(JSContext *cx)
     switch (js::CallContextDebugHandler(cx, script, iter.pc(), rval.address())) {
       case JSTRAP_ERROR:
         JS_ClearPendingException(cx);
-        return false;
+        return JS_FALSE;
       case JSTRAP_THROW:
         JS_SetPendingException(cx, rval);
-        return false;
+        return JS_FALSE;
       case JSTRAP_RETURN:
       case JSTRAP_CONTINUE:
       default:
-        return true;
+        return JS_TRUE;
     }
 }
 

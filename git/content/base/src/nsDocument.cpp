@@ -112,6 +112,7 @@
 #include "nsHTMLDocument.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIRequest.h"
+#include "nsILink.h"
 #include "nsHostObjectProtocolHandler.h"
 
 #include "nsCharsetAlias.h"
@@ -148,7 +149,6 @@
 #include "nsObjectLoadingContent.h"
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsIDOMElementReplaceEvent.h"
-#include "mozilla/dom/HTMLLinkElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #ifdef MOZ_WEBRTC
 #include "IPeerConnection.h"
@@ -194,7 +194,6 @@
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/WebComponentsBinding.h"
 #include "mozilla/dom/HTMLBodyElement.h"
-#include "mozilla/dom/HTMLInputElement.h"
 #include "mozilla/dom/NodeFilterBinding.h"
 #include "mozilla/dom/UndoManager.h"
 #include "nsFrame.h"
@@ -7591,7 +7590,7 @@ nsDocument::Sanitize()
   for (uint32_t i = 0; i < length; ++i) {
     NS_ASSERTION(nodes->Item(i), "null item in node list!");
 
-    nsRefPtr<HTMLInputElement> input = HTMLInputElement::FromContentOrNull(nodes->Item(i));
+    nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(nodes->Item(i));
     if (!input)
       continue;
 
@@ -7607,7 +7606,8 @@ nsDocument::Sanitize()
     }
 
     if (resetValue) {
-      input->Reset();
+      nsCOMPtr<nsIFormControl> fc = do_QueryInterface(input);
+      fc->Reset();
     }
   }
 
@@ -7622,8 +7622,7 @@ nsDocument::Sanitize()
     if (!form)
       continue;
 
-    nodes->Item(i)->AsElement()->GetAttr(kNameSpaceID_None,
-                                         nsGkAtoms::autocomplete, value);
+    form->GetAttribute(NS_LITERAL_STRING("autocomplete"), value);
     if (value.LowerCaseEqualsLiteral("off"))
       form->Reset();
   }
@@ -8067,12 +8066,15 @@ nsDocument::OnPageShow(bool aPersisted,
   if (aPersisted && root) {
     // Send out notifications that our <link> elements are attached.
     nsRefPtr<nsContentList> links = NS_GetContentList(root,
-                                                      kNameSpaceID_XHTML,
+                                                      kNameSpaceID_Unknown,
                                                       NS_LITERAL_STRING("link"));
 
     uint32_t linkCount = links->Length(true);
     for (uint32_t i = 0; i < linkCount; ++i) {
-      static_cast<HTMLLinkElement*>(links->Item(i, false))->LinkAdded();
+      nsCOMPtr<nsILink> link = do_QueryInterface(links->Item(i, false));
+      if (link) {
+        link->LinkAdded();
+      }
     }
   }
 
@@ -8128,12 +8130,15 @@ nsDocument::OnPageHide(bool aPersisted,
   Element* root = GetRootElement();
   if (aPersisted && root) {
     nsRefPtr<nsContentList> links = NS_GetContentList(root,
-                                                      kNameSpaceID_XHTML,
+                                                      kNameSpaceID_Unknown,
                                                       NS_LITERAL_STRING("link"));
 
     uint32_t linkCount = links->Length(true);
     for (uint32_t i = 0; i < linkCount; ++i) {
-      static_cast<HTMLLinkElement*>(links->Item(i, false))->LinkRemoved();
+      nsCOMPtr<nsILink> link = do_QueryInterface(links->Item(i, false));
+      if (link) {
+        link->LinkRemoved();
+      }
     }
   }
 

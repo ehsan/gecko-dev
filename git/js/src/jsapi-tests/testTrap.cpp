@@ -45,7 +45,7 @@ BEGIN_TEST(testTrap_gc)
     CHECK_EQUAL(emptyTrapCallCount, 0);
 
     // Enable debug mode
-    CHECK(JS_SetDebugMode(cx, true));
+    CHECK(JS_SetDebugMode(cx, JS_TRUE));
 
     static const char trapClosureText[] = "some trap closure";
 

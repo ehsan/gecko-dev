@@ -283,9 +283,6 @@ public:
                                   JSObject* /* unused */);
 #endif // MOZ_MEDIA_NAVIGATOR
 
-  static bool HasPushNotificationsSupport(JSContext* /* unused */,
-                                          JSObject* aGlobal);
-
   nsPIDOMWindow* GetParentObject() const
   {
     return GetWindow();

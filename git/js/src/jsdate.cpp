@@ -569,7 +569,7 @@ static JSBool
 date_regionMatches(const char* s1, int s1off, const jschar* s2, int s2off,
                    int count, int ignoreCase)
 {
-    JSBool result = false;
+    JSBool result = JS_FALSE;
     /* return true if matches, otherwise, false */
 
     while (count > 0 && s1[s1off] && s2[s2off]) {
@@ -587,7 +587,7 @@ date_regionMatches(const char* s1, int s1off, const jschar* s2, int s2off,
     }
 
     if (count == 0) {
-        result = true;
+        result = JS_TRUE;
     }
 
     return result;
@@ -615,11 +615,11 @@ date_msecFromArgs(JSContext *cx, CallArgs args, double *rval)
         if (loop < args.length()) {
             double d;
             if (!ToNumber(cx, args[loop], &d))
-                return false;
+                return JS_FALSE;
             /* return NaN if any arg is not finite */
             if (!IsFinite(d)) {
                 *rval = js_NaN;
-                return true;
+                return JS_TRUE;
             }
             array[loop] = ToInteger(d);
         } else {
@@ -638,7 +638,7 @@ date_msecFromArgs(JSContext *cx, CallArgs args, double *rval)
     msec_time = date_msecFromDate(array[0], array[1], array[2],
                                   array[3], array[4], array[5], array[6]);
     *rval = msec_time;
-    return true;
+    return JS_TRUE;
 }
 
 /*
@@ -719,7 +719,7 @@ ndigits(size_t n, size_t *result, const jschar *s, size_t* i, size_t limit)
         return ((*i - init) == n);
 
     *i = init;
-    return false;
+    return JS_FALSE;
 }
 
 static int
@@ -803,7 +803,7 @@ date_parseISOString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
     size_t min = 0;
     size_t sec = 0;
     double frac = 0;
-    bool isLocalTime = false;
+    bool isLocalTime = JS_FALSE;
     size_t tzHour = 0;
     size_t tzMin = 0;
 
@@ -876,7 +876,7 @@ date_parseISOString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
           ++i;
         NEED_NDIGITS(2, tzMin);
     } else {
-        isLocalTime = true;
+        isLocalTime = JS_TRUE;
     }
 
  done:
@@ -912,12 +912,12 @@ date_parseISOString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
 
     *result = msec;
 
-    return true;
+    return JS_TRUE;
 
  syntax:
     /* syntax error */
     *result = 0;
-    return false;
+    return JS_FALSE;
 
 #undef PEEK
 #undef NEED
@@ -943,12 +943,12 @@ date_parseString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
     int n = -1;
     int tzoffset = -1;
     int prevc = 0;
-    JSBool seenplusminus = false;
+    JSBool seenplusminus = JS_FALSE;
     int temp;
-    JSBool seenmonthname = false;
+    JSBool seenmonthname = JS_FALSE;
 
     if (date_parseISOString(str, result, dtInfo))
-        return true;
+        return JS_TRUE;
 
     s = str->chars();
     limit = str->length();
@@ -992,7 +992,7 @@ date_parseString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
 
             if ((prevc == '+' || prevc == '-')/*  && year>=0 */) {
                 /* make ':' case below change tzoffset */
-                seenplusminus = true;
+                seenplusminus = JS_TRUE;
 
                 /* offset */
                 if (n < 24)
@@ -1084,7 +1084,7 @@ date_parseString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
                             if (seenmonthname) {
                                 goto syntax;
                             }
-                            seenmonthname = true;
+                            seenmonthname = JS_TRUE;
                             temp = /*byte*/ (action - 2) + 1;
 
                             if (mon < 0) {
@@ -1189,12 +1189,12 @@ date_parseString(JSLinearString *str, double *result, DateTimeInfo *dtInfo)
     }
 
     *result = msec;
-    return true;
+    return JS_TRUE;
 
 syntax:
     /* syntax error */
     *result = 0;
-    return false;
+    return JS_FALSE;
 }
 
 static bool
@@ -2585,26 +2585,26 @@ date_format(JSContext *cx, double date, formatspec format, MutableHandleValue rv
              * characters.  It's then likely in some other character
              * encoding, and we probably won't display it correctly.
              */
-            usetz = true;
+            usetz = JS_TRUE;
             tzlen = strlen(tzbuf);
             if (tzlen > 100) {
-                usetz = false;
+                usetz = JS_FALSE;
             } else {
                 for (i = 0; i < tzlen; i++) {
                     jschar c = tzbuf[i];
                     if (c > 127 ||
                         !(isalpha(c) || isdigit(c) ||
                           c == ' ' || c == '(' || c == ')')) {
-                        usetz = false;
+                        usetz = JS_FALSE;
                     }
                 }
             }
 
             /* Also reject it if it's not parenthesized or if it's '()'. */
             if (tzbuf[0] != '(' || tzbuf[1] == ')')
-                usetz = false;
+                usetz = JS_FALSE;
         } else
-            usetz = false;
+            usetz = JS_FALSE;
 
         switch (format) {
           case FORMATSPEC_FULL:

@@ -38,7 +38,7 @@ JSD_PUBLIC_API(void)
 JSD_DebuggerPause(JSDContext* jsdc)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
-    jsd_DebuggerPause(jsdc, false);
+    jsd_DebuggerPause(jsdc, JS_FALSE);
 }
 
 JSD_PUBLIC_API(void)
@@ -775,7 +775,7 @@ JSD_EvaluateUCScriptInStackFrame(JSDContext* jsdc,
 
     return jsd_EvaluateUCScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                             bytes, length, filename, lineno,
-                                            true, rval);
+                                            JS_TRUE, rval);
 }
 
 JSD_PUBLIC_API(JSBool)
@@ -793,7 +793,7 @@ JSD_AttemptUCScriptInStackFrame(JSDContext* jsdc,
 
     return jsd_EvaluateUCScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                             bytes, length, filename, lineno,
-                                            false, rval);
+                                            JS_FALSE, rval);
 }
 
 JSD_PUBLIC_API(JSBool)
@@ -810,7 +810,7 @@ JSD_EvaluateScriptInStackFrame(JSDContext* jsdc,
 
     return jsd_EvaluateScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                           bytes, length,
-                                          filename, lineno, true, rval);
+                                          filename, lineno, JS_TRUE, rval);
 }
 
 JSD_PUBLIC_API(JSBool)
@@ -827,7 +827,7 @@ JSD_AttemptScriptInStackFrame(JSDContext* jsdc,
 
     return jsd_EvaluateScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                           bytes, length,
-                                          filename, lineno, false, rval);
+                                          filename, lineno, JS_FALSE, rval);
 }
 
 JSD_PUBLIC_API(JSString*)
@@ -881,9 +881,9 @@ JSD_PUBLIC_API(JSBool)
 JSD_IsLockingAndThreadIdSupported()
 {
 #ifdef JSD_THREADSAFE
-    return true;
+    return JS_TRUE;
 #else
-    return false;
+    return JS_FALSE;
 #endif
 }
 
@@ -919,7 +919,7 @@ JSD_IsLocked(JSDStaticLock* lock)
 #if defined(JSD_THREADSAFE) && defined(DEBUG)
     return jsd_IsLocked(lock);
 #else
-    return true;
+    return JS_TRUE;
 #endif
 }
 
@@ -929,7 +929,7 @@ JSD_IsUnlocked(JSDStaticLock* lock)
 #if defined(JSD_THREADSAFE) && defined(DEBUG)
     return ! jsd_IsLocked(lock);
 #else
-    return true;
+    return JS_TRUE;
 #endif
 }
 

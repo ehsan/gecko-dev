@@ -31,7 +31,7 @@ newScriptHook(JSContext *cx, const char *fn, unsigned lineno,
               JSScript *script, JSFunction *fun, void *data)
 {
     if (!JS_StringEqualsAscii(cx, script->sourceData(cx), simpleSource, (JSBool *)data))
-        *((JSBool *)data) = false;
+        *((JSBool *)data) = JS_FALSE;
 }
 
 BEGIN_TEST(testScriptSourceReentrant)

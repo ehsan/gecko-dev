@@ -5760,7 +5760,10 @@ nsCSSFrameConstructor::AppendFramesToParent(nsFrameConstructorState&       aStat
     }
 
     if (!aFrameList.IsEmpty()) {
-      bool positioned = aParentFrame->IsRelativelyPositioned();
+      const nsStyleDisplay* parentDisplay = aParentFrame->StyleDisplay();
+      bool positioned =
+        parentDisplay->mPosition == NS_STYLE_POSITION_RELATIVE &&
+        !aParentFrame->IsSVGText();
       nsFrameItems ibSiblings;
       CreateIBSiblings(aState, aParentFrame, positioned, aFrameList,
                        ibSiblings);
@@ -10228,7 +10231,7 @@ nsCSSFrameConstructor::ConstructInline(nsFrameConstructorState& aState,
 
   bool positioned =
     NS_STYLE_DISPLAY_INLINE == aDisplay->mDisplay &&
-    aDisplay->IsRelativelyPositionedStyle() &&
+    NS_STYLE_POSITION_RELATIVE == aDisplay->mPosition &&
     !aParentFrame->IsSVGText();
 
   nsIFrame* newFrame = NS_NewInlineFrame(mPresShell, styleContext);

@@ -188,7 +188,7 @@ ContentClientRemoteBuffer::BuildDeprecatedTextureClients(ContentType aType,
     if (!CreateAndAllocateDeprecatedTextureClient(mDeprecatedTextureClientOnWhite)) {
       return;
     }
-    mTextureInfo.mTextureFlags |= TEXTURE_COMPONENT_ALPHA;
+    mTextureInfo.mTextureFlags |= ComponentAlpha;
   }
 
   CreateFrontBufferAndNotify(aRect);
@@ -305,7 +305,7 @@ ContentClientDoubleBuffered::CreateFrontBufferAndNotify(const nsIntRect& aBuffer
     return;
   }
 
-  if (mTextureInfo.mTextureFlags & TEXTURE_COMPONENT_ALPHA) {
+  if (mTextureInfo.mTextureFlags & ComponentAlpha) {
     if (!CreateAndAllocateDeprecatedTextureClient(mFrontClientOnWhite)) {
       return;
     }
@@ -614,7 +614,7 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
     canReuseBuffer = neededRegion.GetBounds().Size() <= mBufferRect.Size() &&
       mHasBuffer &&
       (!(aFlags & ThebesLayerBuffer::PAINT_WILL_RESAMPLE) ||
-       !(mTextureInfo.mTextureFlags & TEXTURE_ALLOW_REPEAT));
+       !(mTextureInfo.mTextureFlags & AllowRepeat));
 
     if (canReuseBuffer) {
       if (mBufferRect.Contains(neededRegion.GetBounds())) {
@@ -700,9 +700,9 @@ ContentClientIncremental::BeginPaintBuffer(ThebesLayer* aLayer,
   nsIntRect drawBounds = result.mRegionToDraw.GetBounds();
   bool createdBuffer = false;
 
-  uint32_t bufferFlags = canHaveRotation ? TEXTURE_ALLOW_REPEAT : 0;
+  uint32_t bufferFlags = canHaveRotation ? AllowRepeat : 0;
   if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
-    bufferFlags |= TEXTURE_COMPONENT_ALPHA;
+    bufferFlags |= ComponentAlpha;
   }
   if (canReuseBuffer) {
     nsIntRect keepArea;

@@ -38,13 +38,13 @@ nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
   unsigned lineno = 0;
 
   if (!JS_DescribeScriptedCaller(aContext, &script, &lineno)) {
-    return false;
+    return JS_FALSE;
   }
 
   *aFilename = ::JS_GetScriptFilename(aContext, script);
   *aLineno = lineno;
 
-  return true;
+  return JS_TRUE;
 }
 
 nsIScriptGlobalObject *

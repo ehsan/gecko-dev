@@ -19,8 +19,6 @@ using namespace js::ion;
 
 using mozilla::Array;
 
-namespace {
-
 // Iterates over the flags in an AliasSet.
 class AliasSetIterator
 {
@@ -52,8 +50,6 @@ class AliasSetIterator
         return pos;
     }
 };
-
-} /* anonymous namespace */
 
 AliasAnalysis::AliasAnalysis(MIRGenerator *mir, MIRGraph &graph)
   : mir(mir),

@@ -20,7 +20,6 @@ const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
-const promptConnections = Services.prefs.getBoolPref("devtools.debugger.prompt-connection");
 
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
@@ -444,7 +443,7 @@ var DebuggerServer = {
 
   onSocketAccepted:
   makeInfallible(function DS_onSocketAccepted(aSocket, aTransport) {
-    if (promptConnections && !this._allowConnection()) {
+    if (!this._allowConnection()) {
       return;
     }
     dumpn("New debugging connection on " + aTransport.host + ":" + aTransport.port);

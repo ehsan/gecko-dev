@@ -542,7 +542,7 @@ Reject(JSContext *cx, JSObject *obj, unsigned errorNumber, bool throwError, bool
         return Throw(cx, obj, errorNumber);
 
     *rval = false;
-    return true;
+    return JS_TRUE;
 }
 
 static bool
@@ -608,7 +608,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
     RootedObject obj2(cx);
     JS_ASSERT(!obj->getOps()->lookupGeneric);
     if (!HasOwnProperty<CanGC>(cx, NULL, obj, id, &obj2, &shape))
-        return false;
+        return JS_FALSE;
 
     JS_ASSERT(!obj->getOps()->defineProperty);
 
@@ -639,7 +639,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
         RootedValue dummy(cx);
         unsigned dummyAttrs;
         if (!CheckAccess(cx, obj, id, JSACC_WATCH, &dummy, &dummyAttrs))
-            return false;
+            return JS_FALSE;
 
         RootedValue tmp(cx, UndefinedValue());
         return baseops::DefineGeneric(cx, obj, id, tmp,
@@ -724,7 +724,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
                 }
 
                 if (!js_NativeGet(cx, obj, obj2, shape, 0, &v))
-                    return false;
+                    return JS_FALSE;
             }
 
             if (desc.isDataDescriptor()) {
@@ -870,7 +870,7 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
          */
         RootedValue dummy(cx);
         if (!CheckAccess(cx, obj2, id, JSACC_WATCH, &dummy, &attrs))
-             return false;
+             return JS_FALSE;
 
         /* 8.12.9 step 12. */
         unsigned changed = 0;
@@ -3152,7 +3152,7 @@ js_FindClassObject(ExclusiveContext *cx, JSProtoKey protoKey, MutableHandleValue
             return false;
         if (cobj) {
             vp.set(ObjectValue(*cobj));
-            return true;
+            return JS_TRUE;
         }
         id = NameToId(ClassName(protoKey, cx));
     } else {
@@ -4155,13 +4155,13 @@ GetPropertyHelperInline(JSContext *cx,
 
             /* We may just be checking if that object has an iterator. */
             if (JSID_IS_ATOM(id, cx->names().iteratorIntrinsic))
-                return true;
+                return JS_TRUE;
 
             /* Do not warn about tests like (obj[prop] == undefined). */
             if (cx->resolveFlags == RESOLVE_INFER) {
                 pc += js_CodeSpec[op].length;
                 if (Detecting(cx, script, pc))
-                    return true;
+                    return JS_TRUE;
             }
 
             unsigned flags = JSREPORT_WARNING | JSREPORT_STRICT;
@@ -4176,7 +4176,7 @@ GetPropertyHelperInline(JSContext *cx,
                 return false;
             }
         }
-        return true;
+        return JS_TRUE;
     }
 
     if (!obj2->isNative()) {
@@ -4198,9 +4198,9 @@ GetPropertyHelperInline(JSContext *cx,
 
     /* This call site is hot -- use the always-inlined variant of js_NativeGet(). */
     if (!NativeGetInline<allowGC>(cx, obj, receiver, obj2, shape, getHow, vp))
-        return false;
+        return JS_FALSE;
 
-    return true;
+    return JS_TRUE;
 }
 
 bool
@@ -4610,7 +4610,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
                     return JSObject::reportReadOnly(cx, id, JSREPORT_ERROR);
                 if (cx->hasExtraWarningsOption())
                     return JSObject::reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
-                return true;
+                return JS_TRUE;
             }
         }
 
@@ -4621,7 +4621,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
              */
             if (!shape->shadowable()) {
                 if (shape->hasDefaultSetter() && !shape->hasGetterValue())
-                    return true;
+                    return JS_TRUE;
 
                 return shape->set(cx, obj, receiver, strict, vp);
             }
@@ -5013,7 +5013,7 @@ js::CheckAccess(JSContext *cx, JSObject *obj_, HandleId id, JSAccessMode mode,
         if (!writing) {
             RootedObject proto(cx);
             if (!JSObject::getProto(cx, obj, &proto))
-                return false;
+                return JS_FALSE;
             vp.setObjectOrNull(proto);
         }
         *attrsp = JSPROP_PERMANENT;
@@ -5022,7 +5022,7 @@ js::CheckAccess(JSContext *cx, JSObject *obj_, HandleId id, JSAccessMode mode,
       default:
         RootedShape shape(cx);
         if (!JSObject::lookupGeneric(cx, obj, id, &pobj, &shape))
-            return false;
+            return JS_FALSE;
         if (!shape) {
             if (!writing)
                 vp.setUndefined();
@@ -5282,7 +5282,7 @@ js_GetterOnlyPropertyStub(JSContext *cx, HandleObject obj, HandleId id, JSBool s
                           MutableHandleValue vp)
 {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_GETTER_ONLY);
-    return false;
+    return JS_FALSE;
 }
 
 #ifdef DEBUG

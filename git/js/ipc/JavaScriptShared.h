@@ -112,14 +112,14 @@ class JavaScriptShared
     virtual bool makeId(JSContext *cx, JSObject *obj, ObjectId *idp) = 0;
     virtual JSObject *unwrap(JSContext *cx, ObjectId id) = 0;
 
-    bool unwrap(JSContext *cx, ObjectId id, JS::MutableHandle<JSObject*> objp) {
+    bool unwrap(JSContext *cx, ObjectId id, JSObject **objp) {
         if (!id) {
-            objp.set(NULL);
+            *objp = NULL;
             return true;
         }
 
-        objp.set(unwrap(cx, id));
-        return bool(objp.get());
+        *objp = unwrap(cx, id);
+        return !!*objp;
     }
 
     static void ConvertID(const nsID &from, JSIID *to);

@@ -824,7 +824,7 @@ js_fun_call(JSContext *cx, unsigned argc, Value *vp)
     /* Allocate stack space for fval, obj, and the args. */
     InvokeArgs args(cx);
     if (!args.init(argc))
-        return false;
+        return JS_FALSE;
 
     /* Push fval, thisv, and the args. */
     args.setCallee(fval);

@@ -142,14 +142,14 @@ WriteIndent(JSContext *cx, StringifyContext *scx, uint32_t limit)
 {
     if (!scx->gap.empty()) {
         if (!scx->sb.append('\n'))
-            return false;
+            return JS_FALSE;
         for (uint32_t i = 0; i < limit; i++) {
             if (!scx->sb.append(scx->gap.begin(), scx->gap.end()))
-                return false;
+                return JS_FALSE;
         }
     }
 
-    return true;
+    return JS_TRUE;
 }
 
 template<typename KeyType>
@@ -288,7 +288,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
     }
 
     if (!scx->sb.append('{'))
-        return false;
+        return JS_FALSE;
 
     /* Steps 5-7. */
     Maybe<AutoIdVector> ids;
@@ -378,18 +378,18 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
     }
 
     if (!scx->sb.append('['))
-        return false;
+        return JS_FALSE;
 
     /* Step 6. */
     uint32_t length;
     if (!GetLengthProperty(cx, obj, &length))
-        return false;
+        return JS_FALSE;
 
     /* Steps 7-10. */
     if (length != 0) {
         /* Steps 4, 10b(i). */
         if (!WriteIndent(cx, scx, scx->depth))
-            return false;
+            return JS_FALSE;
 
         /* Steps 7-10. */
         RootedValue outputValue(cx);
@@ -401,29 +401,29 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
              * values as |null| in separate steps.
              */
             if (!JSObject::getElement(cx, obj, obj, i, &outputValue))
-                return false;
+                return JS_FALSE;
             if (!PreprocessValue(cx, obj, i, &outputValue, scx))
-                return false;
+                return JS_FALSE;
             if (IsFilteredValue(outputValue)) {
                 if (!scx->sb.append("null"))
-                    return false;
+                    return JS_FALSE;
             } else {
                 if (!Str(cx, outputValue, scx))
-                    return false;
+                    return JS_FALSE;
             }
 
             /* Steps 3, 4, 10b(i). */
             if (i < length - 1) {
                 if (!scx->sb.append(','))
-                    return false;
+                    return JS_FALSE;
                 if (!WriteIndent(cx, scx, scx->depth))
-                    return false;
+                    return JS_FALSE;
             }
         }
 
         /* Step 10(b)(iii). */
         if (!WriteIndent(cx, scx, scx->depth - 1))
-            return false;
+            return JS_FALSE;
     }
 
     return scx->sb.append(']');
@@ -790,7 +790,7 @@ static bool
 json_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
     vp->setString(cx->names().JSON);
-    return true;
+    return JS_TRUE;
 }
 #endif
 

@@ -110,9 +110,9 @@ FlagsToGLFlags(TextureFlags aFlags)
 {
   uint32_t result = TextureImage::NoFlags;
 
-  if (aFlags & TEXTURE_USE_NEAREST_FILTER)
+  if (aFlags & UseNearestFilter)
     result |= TextureImage::UseNearestFilter;
-  if (aFlags & TEXTURE_NEEDS_Y_FLIP)
+  if (aFlags & NeedsYFlip)
     result |= TextureImage::NeedsYFlip;
   if (aFlags & TEXTURE_DISALLOW_BIGIMAGE)
     result |= TextureImage::DisallowBigImage;
@@ -154,13 +154,13 @@ TextureImageTextureSourceOGL::Update(gfx::DataSourceSurface* aSurface,
       // the size of aSurface.
       mTexImage = mGL->CreateTextureImage(size,
                                           gfx::ContentForFormat(aSurface->GetFormat()),
-                                          WrapMode(mGL, aFlags & TEXTURE_ALLOW_REPEAT),
+                                          WrapMode(mGL, aFlags & AllowRepeat),
                                           FlagsToGLFlags(aFlags));
     } else {
       mTexImage = CreateBasicTextureImage(mGL,
                                           size,
                                           gfx::ContentForFormat(aSurface->GetFormat()),
-                                          WrapMode(mGL, aFlags & TEXTURE_ALLOW_REPEAT),
+                                          WrapMode(mGL, aFlags & AllowRepeat),
                                           FlagsToGLFlags(aFlags));
     }
   }
@@ -392,7 +392,7 @@ TextureImageDeprecatedTextureHostOGL::EnsureBuffer(const nsIntSize& aSize,
       mTexture->GetContentType() != aContentType) {
     mTexture = mGL->CreateTextureImage(aSize,
                                        aContentType,
-                                       WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
+                                       WrapMode(mGL, mFlags & AllowRepeat),
                                        FlagsToGLFlags(mFlags));
   }
   mTexture->Resize(aSize);
@@ -422,22 +422,16 @@ TextureImageDeprecatedTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage
     NS_WARNING("trying to update TextureImageDeprecatedTextureHostOGL without a compositor?");
     return;
   }
-
   AutoOpenSurface surf(OPEN_READ_ONLY, aImage);
   nsIntSize size = surf.Size();
-  TextureImage::ImageFormat format = surf.ImageFormat();
 
   if (!mTexture ||
       (mTexture->GetSize() != size && !aOffset) ||
-      mTexture->GetContentType() != surf.ContentType() ||
-      (mTexture->GetImageFormat() != format &&
-       mTexture->GetImageFormat() != gfxASurface::ImageFormatUnknown)) {
-
+      mTexture->GetContentType() != surf.ContentType()) {
     mTexture = mGL->CreateTextureImage(size,
                                        surf.ContentType(),
-                                       WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
-                                       FlagsToGLFlags(mFlags),
-                                       format);
+                                       WrapMode(mGL, mFlags & AllowRepeat),
+                                       FlagsToGLFlags(mFlags));
   }
 
   // XXX this is always just ridiculously slow
@@ -519,7 +513,7 @@ SharedDeprecatedTextureHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImage
   nsIntSize size = texture.size();
   mSize = gfx::IntSize(size.width, size.height);
   if (texture.inverted()) {
-    mFlags |= TEXTURE_NEEDS_Y_FLIP;
+    mFlags |= NeedsYFlip;
   }
 
   if (mSharedHandle && mSharedHandle != newHandle) {
@@ -744,21 +738,21 @@ YCbCrDeprecatedTextureHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
     mYTexture->mTexImage = CreateBasicTextureImage(mGL,
                                                    gfxSize,
                                                    gfxASurface::CONTENT_ALPHA,
-                                                   WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
+                                                   WrapMode(mGL, mFlags & AllowRepeat),
                                                    FlagsToGLFlags(mFlags));
   }
   if (!mCbTexture->mTexImage || mCbTexture->mTexImage->GetSize() != gfxCbCrSize) {
     mCbTexture->mTexImage = CreateBasicTextureImage(mGL,
                                                     gfxCbCrSize,
                                                     gfxASurface::CONTENT_ALPHA,
-                                                    WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
+                                                    WrapMode(mGL, mFlags & AllowRepeat),
                                                     FlagsToGLFlags(mFlags));
   }
   if (!mCrTexture->mTexImage || mCrTexture->mTexImage->GetSize() != gfxCbCrSize) {
     mCrTexture->mTexImage = CreateBasicTextureImage(mGL,
                                                     gfxCbCrSize,
                                                     gfxASurface::CONTENT_ALPHA,
-                                                    WrapMode(mGL, mFlags & TEXTURE_ALLOW_REPEAT),
+                                                    WrapMode(mGL, mFlags & AllowRepeat),
                                                     FlagsToGLFlags(mFlags));
   }
 
@@ -834,7 +828,7 @@ TiledDeprecatedTextureHostOGL::Update(gfxReusableSurfaceWrapper* aReusableSurfac
 {
   mSize = aSize;
   mGL->MakeCurrent();
-  if (aFlags & TEXTURE_NEW_TILE) {
+  if (aFlags & NewTile) {
     SetFlags(aFlags);
     mGL->fGenTextures(1, &mTextureHandle);
     mGL->fBindTexture(LOCAL_GL_TEXTURE_2D, mTextureHandle);
@@ -1113,7 +1107,7 @@ GrallocDeprecatedTextureHostOGL::GetRenderState()
 {
   if (mGraphicBuffer.get()) {
 
-    uint32_t flags = mFlags & TEXTURE_NEEDS_Y_FLIP ? LAYER_RENDER_STATE_Y_FLIPPED : 0;
+    uint32_t flags = mFlags & NeedsYFlip ? LAYER_RENDER_STATE_Y_FLIPPED : 0;
 
     /*
      * The 32 bit format of gralloc buffer is created as RGBA8888 or RGBX888 by default.

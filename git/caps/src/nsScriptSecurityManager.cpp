@@ -432,17 +432,17 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 
     NS_ASSERTION(ssm, "Failed to get security manager service");
     if (!ssm)
-        return false;
+        return JS_FALSE;
 
     nsresult rv;
     nsIPrincipal* subjectPrincipal = ssm->GetSubjectPrincipal(cx, &rv);
 
     NS_ASSERTION(NS_SUCCEEDED(rv), "CSP: Failed to get nsIPrincipal from js context");
     if (NS_FAILED(rv))
-        return false; // Not just absence of principal, but failure.
+        return JS_FALSE; // Not just absence of principal, but failure.
 
     if (!subjectPrincipal)
-        return true;
+        return JS_TRUE;
 
     nsCOMPtr<nsIContentSecurityPolicy> csp;
     rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
@@ -450,7 +450,7 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
 
     // don't do anything unless there's a CSP
     if (!csp)
-        return true;
+        return JS_TRUE;
 
     bool evalOK = true;
     bool reportViolation = false;
@@ -459,7 +459,7 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
     if (NS_FAILED(rv))
     {
         NS_WARNING("CSP: failed to get allowsEval");
-        return true; // fail open to not break sites.
+        return JS_TRUE; // fail open to not break sites.
     }
 
     if (reportViolation) {
@@ -494,7 +494,7 @@ nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> 
 
     NS_WARN_IF_FALSE(ssm, "Failed to get security manager service");
     if (!ssm)
-        return false;
+        return JS_FALSE;
 
     // Get the object being accessed.  We protect these cases:
     // 1. The Function.prototype.caller property's value, which might lead
@@ -515,9 +515,9 @@ nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> 
                                  (int32_t)nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
 
     if (NS_FAILED(rv))
-        return false; // Security check failed (XXX was an error reported?)
+        return JS_FALSE; // Security check failed (XXX was an error reported?)
 
-    return true;
+    return JS_TRUE;
 }
 
 NS_IMETHODIMP
