@@ -61,6 +61,7 @@
 #define _isatty		isatty
 #undef fileno
 #define fileno      (int)_fileno
+#define fstat       (int)_fstat
 #define _mbctolower tolower
 #define _mbsicmp    mbsicmp
 #define _mbsdec     mbsdec
@@ -149,15 +150,6 @@
 extern "C" {
 #endif
 
-  MOZCE_SHUNT_API BOOL InitializeAcl(PACL apAcl, DWORD len, DWORD rev);
-  MOZCE_SHUNT_API DWORD SetNamedSecurityInfoW(unsigned short* pObjectName,
-					      SE_OBJECT_TYPE ObjectType,
-					      SECURITY_INFORMATION SecurityInfo,
-					      PSID psidOwner,
-					      PSID psidGroup,
-					      PACL pDacl,
-					      PACL pSacl);
-
   // From assert.cpp
   MOZCE_SHUNT_API void mozce_assert(int inExpression);
 
@@ -216,7 +208,6 @@ extern "C" {
   MOZCE_SHUNT_API int unlink(const char *pathname);
   MOZCE_SHUNT_API int lseek(int fildes, int offset, int whence);
 
-  MOZCE_SHUNT_API int fstat(FILE* handle, struct stat* buff);
 
   // From stdlib.cpp
   MOZCE_SHUNT_API void splitpath(const char* inPath, char* outDrive, char* outDir, char* outFname, char* outExt);

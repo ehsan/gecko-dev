@@ -5261,12 +5261,9 @@ BlastSubtreeToPieces(nsINode *aNode)
       while (map->Enumerate(BlastFunc, &attr) > 0) {
         BlastSubtreeToPieces(attr);
 
-#ifdef DEBUG
-        nsresult rv =
-#endif
-          element->UnsetAttr(attr->NodeInfo()->NamespaceID(),
-                             attr->NodeInfo()->NameAtom(),
-                             PR_FALSE);
+        nsresult rv = element->UnsetAttr(attr->NodeInfo()->NamespaceID(),
+                                         attr->NodeInfo()->NameAtom(),
+                                         PR_FALSE);
 
         // XXX Should we abort here?
         NS_ASSERTION(NS_SUCCEEDED(rv), "Uhoh, UnsetAttr shouldn't fail!");
@@ -5277,10 +5274,8 @@ BlastSubtreeToPieces(nsINode *aNode)
   count = aNode->GetChildCount();
   for (i = 0; i < count; ++i) {
     BlastSubtreeToPieces(aNode->GetChildAt(0));
-#ifdef DEBUG
-    nsresult rv =
-#endif
-      aNode->RemoveChildAt(0, PR_FALSE);
+
+    nsresult rv = aNode->RemoveChildAt(0, PR_FALSE);
 
     // XXX Should we abort here?
     NS_ASSERTION(NS_SUCCEEDED(rv), "Uhoh, RemoveChildAt shouldn't fail!");

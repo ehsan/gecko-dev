@@ -51,7 +51,9 @@ MOZCE_SHUNT_API void setbuf(FILE *, char *)
 
 MOZCE_SHUNT_API int chmod(const char* inFilename, int inMode)
 {
-    WINCE_LOG_API_CALL("chmod called\n");
+#ifdef API_LOGGING
+    mozce_printf("chmod called\n");
+#endif
     
     int retval = -1;
     
@@ -91,7 +93,9 @@ MOZCE_SHUNT_API int chmod(const char* inFilename, int inMode)
 
 MOZCE_SHUNT_API int isatty(int inHandle)
 {
-    WINCE_LOG_API_CALL("-- isatty called\n");
+#ifdef API_LOGGING
+    mozce_printf("-- isatty called\n");
+#endif
     
     int retval = 0;
     

@@ -70,14 +70,19 @@ static struct tm tmStorage;
 
 MOZCE_SHUNT_API size_t strftime(char *, size_t, const char *, const struct tm *)
 {
-    WINCE_LOG_API_CALL("mozce_strftime called\n");
+#ifdef API_LOGGING
+    mozce_printf("mozce_strftime called\n");
+#endif
+
     return 0;
 }
 
 
 MOZCE_SHUNT_API struct tm* mozce_localtime_r(const time_t* inTimeT,struct tm* outRetval)
 {
-    WINCE_LOG_API_CALL("tm* mozce_localtime_r called\n");
+#ifdef API_LOGGING
+    mozce_printf("tm* mozce_localtime_r called\n");
+#endif
 
     struct tm* retval = NULL;
 
@@ -124,7 +129,9 @@ MOZCE_SHUNT_API struct tm* mozce_localtime_r(const time_t* inTimeT,struct tm* ou
 
 MOZCE_SHUNT_API struct tm* localtime(const time_t* inTimeT)
 {
-    WINCE_LOG_API_CALL("tm* mozce_localtime called\n");
+#ifdef API_LOGGING
+    mozce_printf("tm* mozce_localtime called\n");
+#endif
 
     return mozce_localtime_r(inTimeT, &tmStorage);
 }
@@ -132,7 +139,9 @@ MOZCE_SHUNT_API struct tm* localtime(const time_t* inTimeT)
 
 MOZCE_SHUNT_API struct tm* mozce_gmtime_r(const time_t* inTimeT, struct tm* outRetval)
 {
-    WINCE_LOG_API_CALL("tm* mozce_gmtime_r called\n");
+#ifdef API_LOGGING
+    mozce_printf("tm* mozce_gmtime_r called\n");
+#endif
 
     struct tm* retval = NULL;
 
@@ -179,7 +188,9 @@ MOZCE_SHUNT_API struct tm* mozce_gmtime_r(const time_t* inTimeT, struct tm* outR
 
 MOZCE_SHUNT_API struct tm* gmtime(const time_t* inTimeT)
 {
-    WINCE_LOG_API_CALL("tm* mozce_gmtime called\n");
+#ifdef API_LOGGING
+    mozce_printf("tm* mozce_gmtime called\n");
+#endif
 
     return mozce_gmtime_r(inTimeT, &tmStorage);
 }
@@ -187,7 +198,9 @@ MOZCE_SHUNT_API struct tm* gmtime(const time_t* inTimeT)
 
 MOZCE_SHUNT_API time_t mktime(struct tm* inTM)
 {
-    WINCE_LOG_API_CALL("mozce_mktime called\n");
+#ifdef API_LOGGING
+    mozce_printf("mozce_mktime called\n");
+#endif
 
     time_t retval = (time_t)-1;
 

@@ -53,6 +53,11 @@ DIRS += \
         contentprefs \
         microformats \
         places \
+        $(NULL)
+
+# These component dirs are built only for XUL apps
+
+DIRS += \
 	apppicker \
 	filepicker \
 	console \
@@ -90,19 +95,18 @@ DIRS +=	search
 endif
 endif
 
-ifdef MOZ_XUL
-DIRS += \
-	autocomplete \
-	$(NULL)
-endif
-
-ifndef MOZ_THUNDERBIRD
+ifdef MOZ_THUNDERBIRD
+DIRS += autocomplete/public
+else
 DIRS +=	\
 	cookie \
 	$(NULL)
 
 ifdef MOZ_XUL
-DIRS += satchel
+DIRS += \
+	autocomplete \
+	satchel \
+	$(NULL)
 endif # MOZ_XUL
 
 ifdef MOZ_SUITE
