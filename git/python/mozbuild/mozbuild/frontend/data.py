@@ -423,9 +423,6 @@ class TestManifest(SandboxDerived):
         # The relative path of the parsed manifest within the srcdir.
         'manifest_relpath',
 
-        # The relative path of the parsed manifest within the objdir.
-        'manifest_obj_relpath',
-
         # If this manifest is a duplicate of another one, this is the
         # manifestparser.TestManifest of the other one.
         'dupe_manifest',
@@ -441,7 +438,6 @@ class TestManifest(SandboxDerived):
         self.flavor = flavor
         self.install_prefix = install_prefix
         self.manifest_relpath = relpath
-        self.manifest_obj_relpath = relpath
         self.dupe_manifest = dupe_manifest
         self.installs = {}
         self.pattern_installs = []

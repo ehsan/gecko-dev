@@ -37,6 +37,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsIPrincipal.h"
 #include "nsJSUtils.h"
+#include "DictionaryHelpers.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsXULAppAPI.h"

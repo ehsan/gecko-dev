@@ -849,13 +849,16 @@ Seer::Shutdown()
   }
 
   if (mIOThread) {
+    nsCOMPtr<nsIThread> ioThread;
+    mIOThread.swap(ioThread);
+
     if (mDB) {
       nsRefPtr<SeerDBShutdownRunner> runner =
-        new SeerDBShutdownRunner(mIOThread, this);
-      mIOThread->Dispatch(runner, NS_DISPATCH_NORMAL);
+        new SeerDBShutdownRunner(ioThread, this);
+      ioThread->Dispatch(runner, NS_DISPATCH_NORMAL);
     } else {
       nsRefPtr<SeerThreadShutdownRunner> runner =
-        new SeerThreadShutdownRunner(mIOThread);
+        new SeerThreadShutdownRunner(ioThread);
       NS_DispatchToMainThread(runner);
     }
   }
@@ -2390,12 +2393,6 @@ void
 Seer::MaybeScheduleCleanup()
 {
   MOZ_ASSERT(!NS_IsMainThread(), "MaybeScheduleCleanup called on main thread!");
-
-  // This is a little racy, but it's a nice little shutdown optimization if the
-  // race works out the right way.
-  if (!mInitialized) {
-    return;
-  }
 
   if (mCleanupScheduled) {
     Telemetry::Accumulate(Telemetry::SEER_CLEANUP_SCHEDULED, false);

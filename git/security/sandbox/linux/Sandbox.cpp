@@ -35,12 +35,9 @@
 #include "android_ucontext.h"
 #include <android/log.h>
 #endif
-
-#if defined(MOZ_CONTENT_SANDBOX)
 #include "seccomp_filter.h"
-#include "linux_seccomp.h"
-#endif
 
+#include "linux_seccomp.h"
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG 1
 #endif

@@ -24,6 +24,7 @@
 #include "DOMCameraManager.h"
 #include "DOMCameraCapabilities.h"
 #include "CameraCommon.h"
+#include "DictionaryHelpers.h"
 #include "nsGlobalWindow.h"
 #include "CameraPreviewMediaStream.h"
 #include "mozilla/dom/CameraControlBinding.h"
@@ -33,6 +34,7 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+using namespace mozilla::idl;
 using namespace mozilla::ipc;
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMCameraControl)

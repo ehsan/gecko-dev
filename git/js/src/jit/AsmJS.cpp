@@ -7028,7 +7028,7 @@ js::IsAsmJSCompilationAvailable(JSContext *cx, unsigned argc, Value *vp)
                      cx->signalHandlersInstalled() &&
                      cx->gcSystemPageSize() == AsmJSPageSize &&
                      !cx->compartment()->debugMode() &&
-                     cx->runtime()->options().asmJS();
+                     cx->compartment()->options().asmJS(cx);
 
     args.rval().set(BooleanValue(available));
     return true;

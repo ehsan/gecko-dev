@@ -353,9 +353,7 @@ GrallocImage::GetAsSourceSurface()
 
     surface->Unmap();
     return surface;
-  }
-
-  if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
+  } else if (format == HAL_PIXEL_FORMAT_YCrCb_420_SP) {
     uint32_t uvOffset = height * width;
     ConvertYVU420SPToRGB565(buffer, width,
                             buffer + uvOffset, width,
@@ -364,15 +362,12 @@ GrallocImage::GetAsSourceSurface()
 
     surface->Unmap();
     return surface;
-  }
-
-  if (format == HAL_PIXEL_FORMAT_YV12) {
+  } else if (format == HAL_PIXEL_FORMAT_YV12) {
     gfx::ConvertYCbCrToRGB(mData,
                            surface->GetFormat(),
                            mSize,
                            surface->GetData(),
                            surface->Stride());
-    surface->Unmap();
     return surface;
   }
 
@@ -381,7 +376,6 @@ GrallocImage::GetAsSourceSurface()
 
   if (!colorConverter.isValid()) {
     NS_WARNING("Invalid color conversion");
-    surface->Unmap();
     return nullptr;
   }
 

@@ -19,3 +19,9 @@ interface nsIDOMSmartCardEvent : nsIDOMEvent
                                      in boolean aCancelableArg,
                                      in DOMString aTokenNAme);
 };
+
+dictionary SmartCardEventInit : EventInit
+{
+  DOMString tokenName;
+};
+

@@ -1036,11 +1036,11 @@ ProcessArgsForCompartment(JSContext *cx, char **argv, int argc)
             ContextOptionsRef(cx).toggleExtraWarnings();
             break;
         case 'I':
-            RuntimeOptionsRef(cx).toggleIon()
+            ContextOptionsRef(cx).toggleIon()
                                  .toggleAsmJS();
             break;
         case 'n':
-            RuntimeOptionsRef(cx).toggleTypeInference();
+            ContextOptionsRef(cx).toggleTypeInference();
             break;
         }
     }
@@ -1482,6 +1482,9 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
             printf("JS_NewContext failed!\n");
             return 1;
         }
+
+        // Ion not enabled yet here because of bug 931861.
+        JS::ContextOptionsRef(cx).setBaseline(true);
 
         argc--;
         argv++;

@@ -103,9 +103,16 @@ void Axis::StartTouch(int32_t aPos) {
   mAxisLocked = false;
 }
 
-float Axis::AdjustDisplacement(float aDisplacement, float& aOverscrollAmountOut) {
+float Axis::AdjustDisplacement(float aDisplacement, float& aOverscrollAmountOut,
+                               bool aScrollingDisabled) {
   if (mAxisLocked) {
     aOverscrollAmountOut = 0;
+    return 0;
+  }
+
+  if (aScrollingDisabled) {
+    // Scrolling is disabled on this axis, stop scrolling.
+    aOverscrollAmountOut = aDisplacement;
     return 0;
   }
 

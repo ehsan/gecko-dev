@@ -32,6 +32,7 @@
 #include "nsIGeolocationProvider.h"
 #include "nsIContentPermissionPrompt.h"
 #include "nsIDOMWindow.h"
+#include "DictionaryHelpers.h"
 #include "mozilla/Attributes.h"
 
 class nsGeolocationService;

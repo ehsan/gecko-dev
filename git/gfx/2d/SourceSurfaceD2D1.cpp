@@ -167,9 +167,6 @@ DataSourceSurfaceD2D1::Map(MapType aMapType, MappedSurface *aMappedSurface)
 void
 DataSourceSurfaceD2D1::Unmap()
 {
-  MOZ_ASSERT(mIsMapped);
-
-  mIsMapped = false;
   mBitmap->Unmap();
 }
 

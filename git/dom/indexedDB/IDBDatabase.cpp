@@ -8,6 +8,7 @@
 
 #include "IDBDatabase.h"
 
+#include "DictionaryHelpers.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/storage.h"
 #include "mozilla/dom/ContentParent.h"

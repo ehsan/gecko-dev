@@ -490,7 +490,6 @@ GLScreenBuffer::Readback(SharedSurface_GL* src, DataSourceSurface* dest)
                         ms.mStride,
                         SurfaceFormatToImageFormat(dest->GetFormat()));
   DeprecatedReadback(src, wrappedDest);
-  dest->Unmap();
 }
 
 void

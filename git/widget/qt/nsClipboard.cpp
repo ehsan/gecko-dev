@@ -197,7 +197,8 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                   continue;
 
                 DataSourceSurface::MappedSurface map;
-                if (!dataSurface->Map(DataSourceSurface::MapType::READ, &map))
+                dataSurface->Map(DataSourceSurface::MapType::READ, &map);
+                if (!map.mData)
                   continue;
 
                 QImage qImage(map.mData,
@@ -205,8 +206,6 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                               dataSurface->GetSize().height,
                               map.mStride,
                               _moz2dformat_to_qformat(dataSurface->GetFormat()));
-
-                dataSurface->Unmap();
 
                 // Add image to the mimeData
                 mimeData->setImageData(qImage);

@@ -1704,6 +1704,7 @@ BufferOffset
 Assembler::as_BranchPool(uint32_t value, RepatchLabel *label, ARMBuffer::PoolEntry *pe, Condition c)
 {
     PoolHintPun php;
+    BufferOffset next = nextOffset();
     php.phd.init(0, c, PoolHintData::poolBranch, pc);
     m_buffer.markNextAsBranch();
     BufferOffset ret = m_buffer.insertEntry(4, (uint8_t*)&php.raw, int32Pool, (uint8_t*)&value, pe);
@@ -1711,9 +1712,9 @@ Assembler::as_BranchPool(uint32_t value, RepatchLabel *label, ARMBuffer::PoolEnt
     // a correct branch.
     if (label->bound()) {
         BufferOffset dest(label);
-        as_b(dest.diffB<BOffImm>(ret), c, ret);
+        as_b(dest.diffB<BOffImm>(next), c, next);
     } else {
-        label->use(ret.getOffset());
+        label->use(next.getOffset());
     }
     return ret;
 }

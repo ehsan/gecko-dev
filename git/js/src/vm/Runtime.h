@@ -1704,7 +1704,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *runtime);
 
   private:
-    JS::RuntimeOptions options_;
 
     JSUseHelperThreads useHelperThreads_;
 
@@ -1750,13 +1749,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     }
     bool isWorkerRuntime() const {
         return isWorkerRuntime_;
-    }
-
-    const JS::RuntimeOptions &options() const {
-        return options_;
-    }
-    JS::RuntimeOptions &options() {
-        return options_;
     }
 
 #ifdef DEBUG

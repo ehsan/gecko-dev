@@ -29,3 +29,10 @@ interface nsIDOMSpeechRecognitionEvent : nsIDOMEvent {
     readonly attribute DOMString interpretation;
     readonly attribute nsIDOMDocument emma;
 };
+
+dictionary SpeechRecognitionEventInit : EventInit {
+    unsigned long resultIndex;
+    nsISupports results;
+    DOMString interpretation;
+    nsIDOMDocument emma;
+};

@@ -68,8 +68,6 @@
 #include "nsBidiUtils.h"
 #include "nsServiceManagerUtils.h"
 
-#include "URL.h"
-
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -698,28 +696,16 @@ nsPresContext::GetDocumentColorPreferences()
 
   int32_t useAccessibilityTheme = 0;
   bool usePrefColors = true;
-  bool isChromeDocShell = false;
-
-  nsIDocument* doc = mDocument->GetDisplayDocument();
-  if (doc && doc->GetDocShell()) {
-    isChromeDocShell = nsIDocShellTreeItem::typeChrome ==
-                       doc->GetDocShell()->ItemType();
-  } else {
-    nsCOMPtr<nsIDocShellTreeItem> docShell(mContainer);
-    if (docShell) {
-      isChromeDocShell = nsIDocShellTreeItem::typeChrome == docShell->ItemType();
+  nsCOMPtr<nsIDocShellTreeItem> docShell(mContainer);
+  if (docShell) {
+    if (nsIDocShellTreeItem::typeChrome == docShell->ItemType()) {
+      usePrefColors = false;
+    } else {
+      useAccessibilityTheme =
+        LookAndFeel::GetInt(LookAndFeel::eIntID_UseAccessibilityTheme, 0);
+      usePrefColors = !useAccessibilityTheme;
     }
-  }
 
-  mIsChromeOriginImage = mDocument->IsBeingUsedAsImage() &&
-                         IsChromeURI(mDocument->GetDocumentURI());
-
-  if (isChromeDocShell || mIsChromeOriginImage) {
-    usePrefColors = false;
-  } else {
-    useAccessibilityTheme =
-      LookAndFeel::GetInt(LookAndFeel::eIntID_UseAccessibilityTheme, 0);
-    usePrefColors = !useAccessibilityTheme;
   }
   if (usePrefColors) {
     usePrefColors =

@@ -25,3 +25,9 @@ interface nsIDOMSpeechSynthesisEvent : nsIDOMEvent {
   readonly attribute float elapsedTime;
   readonly attribute DOMString name;
 };
+
+dictionary SpeechSynthesisEventInit : EventInit {
+  unsigned long charIndex;
+  float elapsedTime;
+  DOMString name;
+};
