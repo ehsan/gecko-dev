@@ -195,24 +195,22 @@ private:
  {
     public:
       PostFreeSpaceResultEvent(DeviceStorageRequestParent* aParent,
-                               uint64_t aFreeSpace);
+                               int64_t aFreeSpace);
       virtual ~PostFreeSpaceResultEvent();
       virtual nsresult CancelableRun();
     private:
-      uint64_t mFreeSpace;
+      int64_t mFreeSpace;
  };
 
  class PostUsedSpaceResultEvent : public CancelableRunnable
  {
     public:
       PostUsedSpaceResultEvent(DeviceStorageRequestParent* aParent,
-                               const nsAString& aType,
-                               uint64_t aUsedSpace);
+                               int64_t aUsedSpace);
       virtual ~PostUsedSpaceResultEvent();
       virtual nsresult CancelableRun();
     private:
-      nsString mType;
-      uint64_t mUsedSpace;
+      int64_t mUsedSpace;
  };
 
  class PostAvailableResultEvent : public CancelableRunnable
