@@ -209,10 +209,6 @@ LoginManager.prototype = {
     },
 
     _gatherTelemetry : function() {
-      let numPasswordsBlocklist = Services.telemetry.getHistogramById("PWMGR_BLOCKLIST_NUM_SITES");
-      numPasswordsBlocklist.clear();
-      numPasswordsBlocklist.add(this.getAllDisabledHosts({}).length);
-
       let numPasswordsHist = Services.telemetry.getHistogramById("PWMGR_NUM_SAVED_PASSWORDS");
       numPasswordsHist.clear();
       numPasswordsHist.add(this.countLogins("", "", ""));
