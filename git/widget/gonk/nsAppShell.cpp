@@ -1,19 +1,8 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim: set ts=4 sw=4 sts=4 tw=80 et: */
-/* Copyright 2012 Mozilla Foundation and Mozilla contributors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #define _GNU_SOURCE
 
@@ -119,7 +108,7 @@ struct UserInputData {
 };
 
 static void
-sendMouseEvent(PRUint32 msg, uint64_t timeMs, int x, int y, bool forwardToChildren)
+sendMouseEvent(PRUint32 msg, uint64_t timeMs, int x, int y)
 {
     nsMouseEvent event(true, msg, NULL,
                        nsMouseEvent::eReal, nsMouseEvent::eNormal);
@@ -130,9 +119,6 @@ sendMouseEvent(PRUint32 msg, uint64_t timeMs, int x, int y, bool forwardToChildr
     event.button = nsMouseEvent::eLeftButton;
     if (msg != NS_MOUSE_MOVE)
         event.clickCount = 1;
-
-    if (!forwardToChildren)
-        event.flags |= NS_EVENT_FLAG_DONT_FORWARD_CROSS_PROCESS;
 
     nsWindow::DispatchInputEvent(event);
 }
@@ -346,6 +332,8 @@ GeckoInputDispatcher::dispatchOnce()
     switch (data.type) {
     case UserInputData::MOTION_DATA: {
         nsEventStatus status = sendTouchEvent(data);
+        if (status == nsEventStatus_eConsumeNoDefault)
+            break;
 
         PRUint32 msg;
         switch (data.action & AMOTION_EVENT_ACTION_MASK) {
@@ -366,8 +354,7 @@ GeckoInputDispatcher::dispatchOnce()
         sendMouseEvent(msg,
                        data.timeMs,
                        data.motion.touches[0].coords.getX(),
-                       data.motion.touches[0].coords.getY(),
-                       status != nsEventStatus_eConsumeNoDefault);
+                       data.motion.touches[0].coords.getY());
         break;
     }
     case UserInputData::KEY_DATA:

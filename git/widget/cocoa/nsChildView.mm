@@ -526,20 +526,26 @@ void nsChildView::SetTransparencyMode(nsTransparencyMode aMode)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-bool nsChildView::IsVisible() const
+NS_IMETHODIMP nsChildView::IsVisible(bool& outState)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   if (!mVisible) {
-    return mVisible;
+    outState = mVisible;
+  }
+  else {
+    // mVisible does not accurately reflect the state of a hidden tabbed view
+    // so verify that the view has a window as well
+    outState = ([mView window] != nil);
+    // now check native widget hierarchy visibility
+    if (outState && NSIsEmptyRect([mView visibleRect])) {
+      outState = false;
+    }
   }
 
-  // mVisible does not accurately reflect the state of a hidden tabbed view
-  // so verify that the view has a window as well
-  // then check native widget hierarchy visibility
-  return ([mView window] != nil) && !NSIsEmptyRect([mView visibleRect]);
+  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 void nsChildView::HidePlugin()
@@ -970,7 +976,9 @@ NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint&
   outOrigin.x = -NSToIntRound(viewOrigin.x);
   outOrigin.y = -NSToIntRound(viewOrigin.y);
 
-  if (IsVisible() && [mView window] != nil) {
+  bool isVisible;
+  IsVisible(isVisible);
+  if (isVisible && [mView window] != nil) {
     outClipRect.width  = NSToIntRound(visibleBounds.origin.x + visibleBounds.size.width) - NSToIntRound(visibleBounds.origin.x);
     outClipRect.height = NSToIntRound(visibleBounds.origin.y + visibleBounds.size.height) - NSToIntRound(visibleBounds.origin.y);
 
@@ -2476,7 +2484,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 - (void)drawRect:(NSRect)aRect inContext:(CGContextRef)aContext
 {
   SAMPLE_LABEL("widget", "ChildView::drawRect");
-  if (!mGeckoChild || !mGeckoChild->IsVisible())
+  bool isVisible;
+  if (!mGeckoChild || NS_FAILED(mGeckoChild->IsVisible(isVisible)) ||
+      !isVisible)
     return;
 
 #ifndef NP_NO_QUICKDRAW

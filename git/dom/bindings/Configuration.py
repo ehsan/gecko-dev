@@ -134,13 +134,8 @@ class Descriptor(DescriptorProvider):
         headerDefault = headerDefault.replace("::", "/") + ".h"
         self.headerFile = desc.get('headerFile', headerDefault)
 
-        if self.interface.isCallback() or self.interface.isExternal():
-            if 'castable' in desc:
-                raise TypeError("%s is external or callback but has a castable "
-                                "setting" % self.interface.identifier.name)
-            self.castable = False
-        else:
-            self.castable = desc.get('castable', True)
+        castableDefault = not self.interface.isCallback()
+        self.castable = desc.get('castable', castableDefault)
 
         self.notflattened = desc.get('notflattened', False)
         self.register = desc.get('register', True)
@@ -154,9 +149,6 @@ class Descriptor(DescriptorProvider):
                 iface.setUserData('hasConcreteDescendant', True)
                 iface = iface.parent
 
-        if self.interface.isExternal() and 'prefable' in desc:
-            raise TypeError("%s is external but has a prefable setting" %
-                            self.interface.identifier.name)
         self.prefable = desc.get('prefable', False)
 
         self.nativeIsISupports = not self.workers

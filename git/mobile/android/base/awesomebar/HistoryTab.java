@@ -48,6 +48,7 @@ public class HistoryTab extends AwesomeBarTab {
     private ContentObserver mContentObserver;
     private ContentResolver mContentResolver;
     private HistoryQueryTask mQueryTask = null;
+    private ExpandableListView mView = null;
     private HistoryListAdapter mCursorAdapter = null;
 
     public HistoryTab(Context context) {
@@ -95,11 +96,11 @@ public class HistoryTab extends AwesomeBarTab {
             mView.setOnTouchListener(mListListener);
 
             // We need to add the header before we set the adapter, hence make it null
-            ((ExpandableListView)mView).setAdapter(getCursorAdapter());
+            mView.setAdapter(getCursorAdapter());
             HistoryQueryTask task = new HistoryQueryTask();
             task.execute();
         }
-        return (ListView)mView;
+        return mView;
     }
 
     public void destroy() {

@@ -585,7 +585,9 @@ NS_METHOD nsWindow::Show(bool aState)
       // don't try to show new windows (e.g. the Bookmark menu)
       // during a native dragover because they'll remain invisible;
       if (CheckDragStatus(ACTION_SHOW, 0)) {
-        if (!IsVisible()) {
+        bool isVisible;
+        IsVisible(isVisible);
+        if (!isVisible) {
           PlaceBehind(eZPlacementTop, 0, false);
         }
         WinShowWindow(mWnd, true);
@@ -600,9 +602,10 @@ NS_METHOD nsWindow::Show(bool aState)
 
 //-----------------------------------------------------------------------------
 
-bool nsWindow::IsVisible() const
+NS_METHOD nsWindow::IsVisible(bool& aState)
 {
-  return WinIsWindowVisible(GetMainWindow());
+  aState = WinIsWindowVisible(GetMainWindow()) ? true : false;
+  return NS_OK;
 }
 
 //-----------------------------------------------------------------------------

@@ -62,7 +62,6 @@ EXPORTS_mozilla += \
 endif
 
 EXPORTS		= \
-		InputData.h \
 		nsIWidget.h \
 		nsGUIEvent.h \
 		nsEvent.h \

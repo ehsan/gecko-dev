@@ -203,7 +203,7 @@ class NativeIterCache
     static const size_t SIZE = size_t(1) << 8;
 
     /* Cached native iterators. */
-    PropertyIteratorObject *data[SIZE];
+    JSObject            *data[SIZE];
 
     static size_t getIndex(uint32_t key) {
         return size_t(key) % SIZE;
@@ -211,7 +211,7 @@ class NativeIterCache
 
   public:
     /* Native iterator most recently started. */
-    PropertyIteratorObject *last;
+    JSObject            *last;
 
     NativeIterCache()
       : last(NULL) {
@@ -223,11 +223,11 @@ class NativeIterCache
         PodArrayZero(data);
     }
 
-    PropertyIteratorObject *get(uint32_t key) const {
+    JSObject *get(uint32_t key) const {
         return data[getIndex(key)];
     }
 
-    void set(uint32_t key, PropertyIteratorObject *iterobj) {
+    void set(uint32_t key, JSObject *iterobj) {
         data[getIndex(key)] = iterobj;
     }
 };
@@ -1146,7 +1146,7 @@ struct JSContext : js::ContextFriendFields
 
   private:
     /* Lazily initialized pool of maps used during parse/emit. */
-    js::frontend::ParseMapPool *parseMapPool_;
+    js::ParseMapPool    *parseMapPool_;
 
   public:
     /* Top-level object and pointer to top stack frame's scope chain. */
@@ -1175,7 +1175,7 @@ struct JSContext : js::ContextFriendFields
     inline js::RegExpStatics *regExpStatics();
 
   public:
-    js::frontend::ParseMapPool &parseMapPool() {
+    js::ParseMapPool &parseMapPool() {
         JS_ASSERT(parseMapPool_);
         return *parseMapPool_;
     }
@@ -1303,7 +1303,7 @@ struct JSContext : js::ContextFriendFields
     DSTOffsetCache dstOffsetCache;
 
     /* List of currently active non-escaping enumerators (for-in). */
-    js::PropertyIteratorObject *enumerators;
+    JSObject *enumerators;
 
   private:
     /* Innermost-executing generator or null if no generator are executing. */

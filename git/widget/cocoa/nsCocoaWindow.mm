@@ -545,13 +545,14 @@ void* nsCocoaWindow::GetNativeData(PRUint32 aDataType)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSNULL;
 }
 
-bool nsCocoaWindow::IsVisible() const
+NS_IMETHODIMP nsCocoaWindow::IsVisible(bool & aState)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  return (mWindow && ([mWindow isVisible] || mSheetNeedsShow));
+  aState = (mWindow && ([mWindow isVisible] || mSheetNeedsShow));
+  return NS_OK;
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsCocoaWindow::SetModal(bool aState)

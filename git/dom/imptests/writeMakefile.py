@@ -17,13 +17,15 @@ DIRS = \\
 ${dirs}
 
 include $$(DEPTH)/config/autoconf.mk
+include $$(topsrcdir)/config/rules.mk
 """
 
 filesTemplate = """
-MOCHITEST_FILES := \\
+_FILES = \\
 ${files}
 
-include $$(topsrcdir)/config/rules.mk
+libs:: $$(_FILES)
+\t$$(INSTALL) $$(foreach f,$$^,"$$f") $$(DEPTH)/_tests/testing/mochitest/tests/$$(relativesrcdir)
 """
 
 def makefileString(entries):

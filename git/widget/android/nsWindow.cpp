@@ -384,10 +384,11 @@ nsWindow::SetModal(bool aState)
     return NS_OK;
 }
 
-bool
-nsWindow::IsVisible() const
+NS_IMETHODIMP
+nsWindow::IsVisible(bool& aState)
 {
-    return mIsVisible;
+    aState = mIsVisible;
+    return NS_OK;
 }
 
 NS_IMETHODIMP

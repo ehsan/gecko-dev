@@ -577,7 +577,7 @@ class IDLInterface(IDLObjectWithScope):
         return not hasattr(self, "_noInterfaceObject")
 
     def hasInterfacePrototypeObject(self):
-        return not self.isCallback() and self.getUserData('hasConcreteDescendant', False)
+        return not self.isCallback()
 
     def addExtendedAttributes(self, attrs):
         self._extendedAttrDict = {}

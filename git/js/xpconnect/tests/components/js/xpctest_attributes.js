@@ -17,10 +17,7 @@ TestObjectReadWrite.prototype = {
   shortProperty: 32767,
   longProperty: 2147483647,
   floatProperty: 5.5,
-  charProperty: "X",
-  // timeProperty is PRTime and signed type.
-  // So it has to allow negative value.
-  timeProperty: -1
+  charProperty: "X"
 };
 
 
@@ -38,10 +35,7 @@ TestObjectReadOnly.prototype = {
   shortReadOnly: 32767,
   longReadOnly: 2147483647,
   floatReadOnly: 5.5,
-  charReadOnly: "X",
-  // timeProperty is PRTime and signed type.
-  // So it has to allow negative value.
-  timeReadOnly: -1
+  charReadOnly: "X"
 };
 
 

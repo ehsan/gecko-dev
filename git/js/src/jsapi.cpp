@@ -86,7 +86,6 @@
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
-using js::frontend::Parser;
 
 bool
 JS::detail::CallMethodIfWrapped(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
@@ -1597,10 +1596,8 @@ JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
      * for that GC. Hence, we finish any ongoing incremental GC before the
      * transplant to avoid leaks.
      */
-    if (cx->runtime->gcIncrementalState != NO_INCREMENTAL) {
-        PrepareForIncrementalGC(cx->runtime);
+    if (cx->runtime->gcIncrementalState != NO_INCREMENTAL)
         FinishIncrementalGC(cx->runtime, gcreason::TRANSPLANT);
-    }
 
     JSCompartment *destination = target->compartment();
     WrapperMap &map = destination->crossCompartmentWrappers;
@@ -1867,7 +1864,9 @@ static JSStdName standard_class_names[] = {
     {js_InitXMLClass,           EAGER_ATOM(isXMLName), CLASP(XML)},
 #endif
 
-    {js_InitIteratorClasses,    EAGER_CLASS_ATOM(Iterator), &PropertyIteratorObject::class_},
+#if JS_HAS_GENERATORS
+    {js_InitIteratorClasses,    EAGER_ATOM_AND_CLASP(Iterator)},
+#endif
 
     /* Typed Arrays */
     {js_InitTypedArrayClasses,  EAGER_CLASS_ATOM(ArrayBuffer),  &ArrayBufferClass},
@@ -4513,16 +4512,22 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
     return JS_TRUE;
 }
 
-JS_PUBLIC_API(JSBool)
-JS_ArrayIterator(JSContext *cx, unsigned argc, jsval *vp)
+JS_PUBLIC_API(JSObject *)
+JS_NewElementIterator(JSContext *cx, JSObject *obj_)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    Rooted<Value> target(cx, args.thisv());
-    JSObject *iterobj = ElementIteratorObject::create(cx, target);
-    if (!iterobj)
-        return false;
-    vp->setObject(*iterobj);
-    return true;
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj_);
+
+    Rooted<JSObject*> obj(cx, obj_);
+    return ElementIteratorObject::create(cx, obj);
+}
+
+JS_PUBLIC_API(JSObject *)
+JS_ElementIteratorStub(JSContext *cx, JSHandleObject obj, JSBool keysonly)
+{
+    JS_ASSERT(!keysonly);
+    return JS_NewElementIterator(cx, obj);
 }
 
 JS_PUBLIC_API(jsval)
@@ -6808,7 +6813,7 @@ JS_IsIdentifier(JSContext *cx, JSString *str, JSBool *isIdentifier)
     if (!linearStr)
         return false;
 
-    *isIdentifier = js::frontend::IsIdentifier(linearStr);
+    *isIdentifier = js::IsIdentifier(linearStr);
     return true;
 }
 

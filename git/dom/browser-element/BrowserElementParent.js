@@ -136,12 +136,7 @@ function BrowserElementParent(frameLoader) {
 
   let self = this;
   function addMessageListener(msg, handler) {
-    function checkedHandler() {
-      if (self._isAlive()) {
-        handler.apply(self, arguments);
-      }
-    }
-    self._mm.addMessageListener('browser-element-api:' + msg, checkedHandler);
+    self._mm.addMessageListener('browser-element-api:' + msg, handler.bind(self));
   }
 
   addMessageListener("hello", this._recvHello);
@@ -162,19 +157,11 @@ function BrowserElementParent(frameLoader) {
   addMessageListener('got-can-go-forward', this._gotDOMRequestResult);
 
   function defineMethod(name, fn) {
-    XPCNativeWrapper.unwrap(self._frameElement)[name] = function() {
-      if (self._isAlive()) {
-        return fn.apply(self, arguments);
-      }
-    };
+    XPCNativeWrapper.unwrap(self._frameElement)[name] = fn.bind(self);
   }
 
   function defineDOMRequestMethod(domName, msgName) {
-    XPCNativeWrapper.unwrap(self._frameElement)[domName] = function() {
-      if (self._isAlive()) {
-        return self._sendDOMRequest(msgName);
-      }
-    };
+    XPCNativeWrapper.unwrap(self._frameElement)[domName] = self._sendDOMRequest.bind(self, msgName);
   }
 
   // Define methods on the frame element.
@@ -189,16 +176,6 @@ function BrowserElementParent(frameLoader) {
 }
 
 BrowserElementParent.prototype = {
-  /**
-   * You shouldn't touch this._frameElement or this._window if _isAlive is
-   * false.  (You'll likely get an exception if you do.)
-   */
-  _isAlive: function() {
-    return !Cu.isDeadWrapper(this._frameElement) &&
-           !Cu.isDeadWrapper(this._frameElement.ownerDocument) &&
-           !Cu.isDeadWrapper(this._frameElement.ownerDocument.defaultView);
-  },
-
   get _window() {
     return this._frameElement.ownerDocument.defaultView;
   },

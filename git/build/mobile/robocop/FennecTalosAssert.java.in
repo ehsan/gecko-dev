@@ -33,39 +33,19 @@ public class FennecTalosAssert implements Assert {
 
     public void finalize() { }
 
-    public void ok(boolean condition, String name, String diag) {
-        if (!condition) {
-            dumpLog("__FAIL" + name + ": " + diag + "__FAIL");
-        }
-    }
+    public void ok(boolean condition, String name, String diag) { }
 
-    public void is(Object a, Object b, String name) {
-        boolean pass = (a == null ? b == null : a.equals(b));
-        ok(pass, name, "got " + a + ", expected " + b);
-    }
+    public void is(Object a, Object b, String name) { }
     
-    public void isnot(Object a, Object b, String name) {
-        boolean fail = (a == null ? b == null : a.equals(b));
-        ok(!fail, name, "got " + a + ", expected not " + b);
-    }
+    public void isnot(Object a, Object b, String name) { }
 
-    public void ispixel(int actual, int r, int g, int b, String name) {
-        throw new UnsupportedOperationException();
-    }
+    public void ispixel(int actual, int r, int g, int b, String name) { }
 
-    public void todo(boolean condition, String name, String diag) {
-        throw new UnsupportedOperationException();
-    }
+    public void todo(boolean condition, String name, String diag) { }
 
-    public void todo_is(Object a, Object b, String name) {
-        throw new UnsupportedOperationException();
-    }
+    public void todo_is(Object a, Object b, String name) { }
     
-    public void todo_isnot(Object a, Object b, String name) {
-        throw new UnsupportedOperationException();
-    }
+    public void todo_isnot(Object a, Object b, String name) { }
 
-    public void info(String name, String message) {
-        dumpLog(name + ": " + message);
-    }
+    public void info(String name, String message) { }
 }

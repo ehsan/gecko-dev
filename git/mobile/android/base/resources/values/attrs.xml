@@ -33,9 +33,5 @@
          <attr name="initialValues" format="string"/>
     </declare-styleable>
 
-    <declare-styleable name="TextSelectionHandle">
-         <attr name="handleType" format="string"/>
-    </declare-styleable>
-
 </resources>
 

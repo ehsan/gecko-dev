@@ -64,9 +64,8 @@ public:
   NS_IMETHOD Destroy();
 
   NS_IMETHOD Show(bool aState);
-
-  virtual bool IsVisible() const
-  { return mVisible; }
+  NS_IMETHOD IsVisible(bool& aState)
+  { aState = mVisible; return NS_OK; }
 
   NS_IMETHOD ConstrainPosition(bool     /*ignored aAllowSlop*/,
                                PRInt32* aX,

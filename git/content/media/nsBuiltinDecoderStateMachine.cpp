@@ -221,7 +221,7 @@ public:
 private:
   // Holds global instance of StateMachineTracker.
   // Writable on main thread only.
-  static StateMachineTracker* sInstance;
+  static StateMachineTracker* mInstance;
 
   // Reentrant monitor that must be obtained to access
   // the decode thread count member and methods.
@@ -247,15 +247,15 @@ private:
   nsDeque mPending;
 };
 
-StateMachineTracker* StateMachineTracker::sInstance = nsnull;
+StateMachineTracker* StateMachineTracker::mInstance = nsnull;
 
 StateMachineTracker& StateMachineTracker::Instance()
 {
-  if (!sInstance) {
+  if (!mInstance) {
     NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-    sInstance = new StateMachineTracker();
+    mInstance = new StateMachineTracker();
   }
-  return *sInstance;
+  return *mInstance;
 }
 
 void StateMachineTracker::EnsureGlobalStateMachine() 
@@ -303,7 +303,7 @@ void StateMachineTracker::CleanupGlobalStateMachine()
       NS_DispatchToMainThread(event);
 
       NS_ASSERTION(mDecodeThreadCount == 0, "Decode thread count must be zero.");
-      sInstance = nsnull;
+      mInstance = nsnull;
     }
     delete this;
   }

@@ -79,7 +79,17 @@ Sanitizer.prototype = {
       clear: function ()
       {
         Services.cookies.removeAll();
+      },
 
+      get canClear()
+      {
+        return true;
+      }
+    },
+
+    geolocation: {
+      clear: function ()
+      {
         // clear any network geolocation provider sessions
         try {
           var branch = Services.prefs.getBranch("geo.wifi.access_token.");
