@@ -207,7 +207,7 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
         // Some code is running, we can't make the assumption, as above, but we
         // can't use a native frame, so clear fp.
         fp = NULL;
-    } else if (!JS_IsScriptFrame(cx, fp)) {
+    } else if (!fp->script) {
         fp = NULL;
     }
 
@@ -222,7 +222,7 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
     static const char prefix[] = "chrome://global/";
     const char *filename;
     if (fp &&
-        (filename = JS_GetFrameScript(cx, fp)->filename) &&
+       (filename = fp->script->filename) &&
         !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
         return true;
     }

@@ -51,28 +51,8 @@
 namespace mozilla {
 namespace layers {
 
-extern cairo_user_data_key_t gKeyD3D9Texture;
-
 class LayerD3D9;
 class ThebesLayerD3D9;
-
-/**
- * This structure is used to pass rectangles to our shader constant. We can use
- * this for passing rectangular areas to SetVertexShaderConstant. In the format
- * of a 4 component float(x,y,width,height). Our vertex shader can then use
- * this to construct rectangular positions from the 0,0-1,1 quad that we source
- * it with.
- */
-struct ShaderConstantRect
-{
-  float mX, mY, mWidth, mHeight;
-  ShaderConstantRect(float aX, float aY, float aWidth, float aHeight)
-    : mX(aX), mY(aY), mWidth(aWidth), mHeight(aHeight)
-  { }
-
-  // For easy passing to SetVertexShaderConstantF.
-  operator float* () { return &mX; }
-};
 
 /*
  * This is the LayerManager used for Direct3D 9. For now this will render on
@@ -107,8 +87,6 @@ public:
   /*
    * LayerManager implementation.
    */
-  virtual void Destroy();
-
   void BeginTransaction();
 
   void BeginTransactionWithTarget(gfxContext* aTarget);
@@ -139,13 +117,7 @@ public:
 
   virtual already_AddRefed<ImageContainer> CreateImageContainer();
 
-  virtual already_AddRefed<gfxASurface>
-    CreateOptimalSurface(const gfxIntSize &aSize,
-                         gfxASurface::gfxImageFormat imageFormat);
-
   virtual LayersBackend GetBackendType() { return LAYERS_D3D9; }
-  virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Direct3D 9"); }
-  bool DeviceWasRemoved() { return deviceManager()->DeviceWasRemoved(); }
 
   /*
    * Helper methods.
@@ -158,31 +130,14 @@ public:
   IDirect3DDevice9 *device() const { return mDeviceManager->device(); }
   DeviceManagerD3D9 *deviceManager() const { return mDeviceManager; }
 
-  /** 
-   * Return pointer to the Nv3DVUtils instance. Re-direct to mDeviceManager.
-   */ 
-  Nv3DVUtils *GetNv3DVUtils()  { return mDeviceManager ? mDeviceManager->GetNv3DVUtils() : NULL; } 
-
-  /** 
-   * Indicate whether 3D is enabled or not 
-   */ 
-  PRBool Is3DEnabled() { return mIs3DEnabled; } 
-
   static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
-    if(aDeviceManager == mDefaultDeviceManager)
-      mDefaultDeviceManager = nsnull;
+    if(aDeviceManager == mDeviceManager)
+      mDeviceManager = nsnull;
   }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() const { return "D3D9"; }
-#endif // MOZ_LAYERS_HAVE_LOG
-
 private:
-  /* Default device manager instance */
-  static DeviceManagerD3D9 *mDefaultDeviceManager;
-
-  /* Device manager instance for this layer manager */
-  nsRefPtr<DeviceManagerD3D9> mDeviceManager;
+  /* Device manager instance */
+  static DeviceManagerD3D9 *mDeviceManager;
 
   /* Swap chain associated with this layer manager */
   nsRefPtr<SwapChainD3D9> mSwapChain;
@@ -195,11 +150,11 @@ private:
    */
   nsRefPtr<gfxContext> mTarget;
 
+  /* Current root layer. */
+  LayerD3D9 *mRootLayer;
+
   /* Callback info for current transaction */
   CallbackInfo mCurrentCallbackInfo;
-
-  /* Flag that indicates whether 3D is enabled or not*/ 
-  PRBool mIs3DEnabled; 
 
   /*
    * Region we're clipping our current drawing to.
@@ -239,15 +194,7 @@ public:
 
   virtual void RenderLayer() = 0;
 
-  /* This function may be used on device resets to clear all VRAM resources
-   * that a layer might be using.
-   */
-  virtual void CleanResources() {}
-
   IDirect3DDevice9 *device() const { return mD3DManager->device(); }
-
-  /* Called by the layer manager when it's destroyed */
-  virtual void LayerManagerDestroyed() {}
 protected:
   LayerManagerD3D9 *mD3DManager;
 };

@@ -171,10 +171,12 @@ static void
 NPObjWrapper_Finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
-NPObjWrapper_Call(JSContext *cx, uintN argc, jsval *vp);
+NPObjWrapper_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                  jsval *rval);
 
 static JSBool
-NPObjWrapper_Construct(JSContext *cx, uintN argc, jsval *vp);
+NPObjWrapper_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                       jsval *rval);
 
 static JSBool
 CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject *npobj,
@@ -206,7 +208,8 @@ static void
 NPObjectMember_Finalize(JSContext *cx, JSObject *obj);
 
 static JSBool
-NPObjectMember_Call(JSContext *cx, uintN argc, jsval *vp);
+NPObjectMember_Call(JSContext *cx, JSObject *obj, uintN argc,
+                    jsval *argv, jsval *rval);
 
 static uint32
 NPObjectMember_Mark(JSContext *cx, JSObject *obj, void *arg);
@@ -454,13 +457,7 @@ JSValToNPVariant(NPP npp, JSContext *cx, jsval val, NPVariant *variant)
     } else if (JSVAL_IS_INT(val)) {
       INT32_TO_NPVARIANT(JSVAL_TO_INT(val), *variant);
     } else if (JSVAL_IS_DOUBLE(val)) {
-      jsdouble d = JSVAL_TO_DOUBLE(val);
-      jsint i;
-      if (JS_DoubleIsInt32(d, &i)) {
-        INT32_TO_NPVARIANT(i, *variant);
-      } else {
-        DOUBLE_TO_NPVARIANT(d, *variant);
-      }
+      DOUBLE_TO_NPVARIANT(JSVAL_TO_DOUBLE(val), *variant);
     } else if (JSVAL_IS_STRING(val)) {
       JSString *jsstr = JSVAL_TO_STRING(val);
       nsDependentString str((PRUnichar *)::JS_GetStringChars(jsstr),
@@ -1545,13 +1542,10 @@ CallNPMethodInternal(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 }
 
 static JSBool
-CallNPMethod(JSContext *cx, uintN argc, jsval *vp)
+CallNPMethod(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+             jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-      return JS_FALSE;
-
-  return CallNPMethodInternal(cx, obj, argc, JS_ARGV(cx, vp), vp, PR_FALSE);
+  return CallNPMethodInternal(cx, obj, argc, argv, rval, PR_FALSE);
 }
 
 struct NPObjectEnumerateState {
@@ -1750,17 +1744,19 @@ NPObjWrapper_Finalize(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-NPObjWrapper_Call(JSContext *cx, uintN argc, jsval *vp)
+NPObjWrapper_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                  jsval *rval)
 {
-  return CallNPMethodInternal(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)), argc,
-                              JS_ARGV(cx, vp), vp, PR_FALSE);
+  return CallNPMethodInternal(cx, JSVAL_TO_OBJECT(argv[-2]), argc, argv, rval,
+                              PR_FALSE);
 }
 
 static JSBool
-NPObjWrapper_Construct(JSContext *cx, uintN argc, jsval *vp)
+NPObjWrapper_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                       jsval *rval)
 {
-  return CallNPMethodInternal(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)), argc,
-                              JS_ARGV(cx, vp), vp, PR_TRUE);
+  return CallNPMethodInternal(cx, JSVAL_TO_OBJECT(argv[-2]), argc, argv, rval,
+                              PR_TRUE);
 }
 
 class NPObjWrapperHashEntry : public PLDHashEntryHdr
@@ -2245,15 +2241,16 @@ NPObjectMember_Finalize(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-NPObjectMember_Call(JSContext *cx, uintN argc, jsval *vp)
+NPObjectMember_Call(JSContext *cx, JSObject *obj,
+                    uintN argc, jsval *argv, jsval *rval)
 {
-  JSObject *memobj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
+  JSObject *memobj = JSVAL_TO_OBJECT(argv[-2]);
   NS_ENSURE_TRUE(memobj, JS_FALSE);
 
   NPObjectMemberPrivate *memberPrivate =
     (NPObjectMemberPrivate *)::JS_GetInstancePrivate(cx, memobj,
                                                      &sNPObjectMemberClass,
-                                                     JS_ARGV(cx, vp));
+                                                     argv);
   if (!memberPrivate || !memberPrivate->npobjWrapper)
     return JS_FALSE;
 
@@ -2281,7 +2278,6 @@ NPObjectMember_Call(JSContext *cx, uintN argc, jsval *vp)
 
   // Convert arguments
   PRUint32 i;
-  jsval *argv = JS_ARGV(cx, vp);
   for (i = 0; i < argc; ++i) {
     if (!JSValToNPVariant(memberPrivate->npp, cx, argv[i], npargs + i)) {
       ThrowJSException(cx, "Error converting jsvals to NPVariants!");
@@ -2318,9 +2314,9 @@ NPObjectMember_Call(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
   }
 
-  JS_SET_RVAL(cx, vp, NPVariantToJSVal(memberPrivate->npp, cx, &npv));
+  *rval = NPVariantToJSVal(memberPrivate->npp, cx, &npv);
 
-  // *vp now owns the value, release our reference.
+  // *rval now owns the value, release our reference.
   _releasevariantvalue(&npv);
 
   return ReportExceptionIfPending(cx);

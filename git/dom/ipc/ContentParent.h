@@ -114,14 +114,6 @@ private:
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
-    virtual PExternalHelperAppParent* AllocPExternalHelperApp(
-            const IPC::URI& uri,
-            const nsCString& aMimeContentType,
-            const nsCString& aContentDisposition,
-            const bool& aForceSave,
-            const PRInt64& aContentLength);
-    virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
-
     virtual bool RecvGetPrefType(const nsCString& prefName,
             PRInt32* retValue, nsresult* rv);
 
@@ -166,17 +158,11 @@ private:
     virtual bool RecvNotifyIME(const int&, const int&);
 
     virtual bool RecvNotifyIMEChange(const nsString&, const PRUint32&, const int&, 
-                                     const int&, const int&);
+                               const int&, const int&)
+;
 
-    virtual bool RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
-                                           const nsString& aText, const PRBool& aTextClickable,
-                                           const nsString& aCookie, const nsString& aName);
 
     virtual bool RecvLoadURIExternal(const IPC::URI& uri);
-
-    virtual bool RecvSyncMessage(const nsString& aMsg, const nsString& aJSON,
-                                 nsTArray<nsString>* aRetvals);
-    virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
 
     mozilla::Monitor mMonitor;
 

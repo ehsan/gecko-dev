@@ -113,6 +113,7 @@ _TEST_FILES = \
 		test_load_candidates.html \
 		test_load_source.html \
 		test_media_selection.html \
+		test_mixed_principals.html \
 		test_mozLoadFrom.html \
 		test_networkState.html \
 		test_new_audio.html \
@@ -123,8 +124,6 @@ _TEST_FILES = \
 		test_play_twice.html \
 		test_playback.html \
 		test_playback_errors.html \
-		test_preload_actions.html \
-		test_preload_attribute.html \
 		test_progress.html \
 		test_reactivate.html \
 		test_readyState.html \
@@ -135,12 +134,10 @@ _TEST_FILES = \
 		test_source.html \
 		test_source_write.html \
 		test_standalone.html \
-		test_timeupdate_seek.html \
 		test_timeupdate_small_files.html \
 		test_volume.html \
 		test_video_to_canvas.html \
 		use_large_cache.js \
-		test_audiowrite.html \
 		$(NULL)
 
 # These tests are disabled until we figure out random failures.
@@ -150,10 +147,19 @@ _TEST_FILES = \
 #   test_videoDocumentTitle.html
 # Bug 493692:
 #   test_preload_suspend.html
-# Bug 567954 and Bug 574586:
-#   test_mixed_principals.html
 # Disabled since we don't play Wave files standalone, for now
 #		test_audioDocumentTitle.html
+
+ifdef MOZ_OGG
+ifneq ($(OS_ARCH),WINNT)
+# Disabled on windows until we figure out the random failures.
+# When this is fixed, make it backend-independent please.
+# See bug 475369 and bug 526323
+_TEST_FILES += \
+		test_timeupdate3.html \
+		$(NULL)
+endif
+endif
 
 # sample files
 _TEST_FILES += \
@@ -198,7 +204,6 @@ _TEST_FILES += \
 		small-shot.ogg \
 		sound.ogg \
 		video-overhang.ogg \
-		file_a4_tone.ogg \
 		$(NULL)
 
 # Wave sample files
@@ -237,10 +242,6 @@ _TEST_FILES += \
 		contentDuration5.sjs \
 		contentDuration6.sjs \
 		contentDuration7.sjs \
-		test_a4_tone.html \
-		file_audio_event_adopt_iframe.html \
-		test_audio_event_adopt.html \
-		test_framebuffer.html \
 		$(NULL)
 else
 _TEST_FILES += \

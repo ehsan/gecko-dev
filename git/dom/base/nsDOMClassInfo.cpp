@@ -239,7 +239,6 @@
 #include "nsIDOMMessageEvent.h"
 #include "nsPaintRequest.h"
 #include "nsIDOMNotifyPaintEvent.h"
-#include "nsIDOMNotifyAudioAvailableEvent.h"
 #include "nsIDOMScrollAreaEvent.h"
 #include "nsIDOMTransitionEvent.h"
 #include "nsIDOMNSDocumentStyle.h"
@@ -261,7 +260,6 @@
 #include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMHTMLButtonElement.h"
 #include "nsIDOMHTMLCanvasElement.h"
-#include "nsIDOMHTMLDataListElement.h"
 #include "nsIDOMHTMLDListElement.h"
 #include "nsIDOMHTMLDirectoryElement.h"
 #include "nsIDOMHTMLDivElement.h"
@@ -309,8 +307,8 @@
 #include "nsIDOMNSHTMLTextAreaElement.h"
 #include "nsIDOMHTMLTitleElement.h"
 #include "nsIDOMHTMLUListElement.h"
-#include "nsIDOMMediaError.h"
-#include "nsIDOMTimeRanges.h"
+#include "nsIDOMHTMLMediaError.h"
+#include "nsIDOMHTMLTimeRanges.h"
 #include "nsIDOMHTMLSourceElement.h"
 #include "nsIDOMHTMLVideoElement.h"
 #include "nsIDOMHTMLAudioElement.h"
@@ -466,9 +464,6 @@
 #include "nsIDOMFileException.h"
 #include "nsIDOMFileError.h"
 #include "nsIDOMFormData.h"
-
-#include "nsIDOMDesktopNotification.h"
-#include "nsIDOMNavigatorDesktopNotification.h"
 
 // Simple gestures include
 #include "nsIDOMSimpleGestureEvent.h"
@@ -764,8 +759,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(HTMLBodyElement, nsHTMLBodyElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLButtonElement, nsElementSH,
-                           ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(HTMLDataListElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLDListElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
@@ -1367,11 +1360,11 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLSourceElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MediaError, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(HTMLMediaError, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(HTMLAudioElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(TimeRanges, nsDOMGenericSH,
+  NS_DEFINE_CLASSINFO_DATA(HTMLTimeRanges, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 #endif
 
@@ -1390,9 +1383,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(NotifyPaintEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-  NS_DEFINE_CLASSINFO_DATA(NotifyAudioAvailableEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(SimpleGestureEvent, nsDOMGenericSH,
@@ -1426,8 +1416,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(WebGLUniformLocation, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(WebGLActiveInfo, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(PaintRequest, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
@@ -1446,11 +1434,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(FormData, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-  NS_DEFINE_CLASSINFO_DATA(DesktopNotification, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(DesktopNotificationCenter, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(WebSocket, nsEventTargetSH,
@@ -1633,7 +1616,6 @@ jsid nsDOMClassInfo::sOnended_id         = JSID_VOID;
 jsid nsDOMClassInfo::sOnratechange_id    = JSID_VOID;
 jsid nsDOMClassInfo::sOndurationchange_id= JSID_VOID;
 jsid nsDOMClassInfo::sOnvolumechange_id  = JSID_VOID;
-jsid nsDOMClassInfo::sOnmessage_id       = JSID_VOID;
 
 static const JSClass *sObjectClass = nsnull;
 JSPropertyOp nsDOMClassInfo::sXPCNativeWrapperGetPropertyOp = nsnull;
@@ -1857,7 +1839,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSID_TO_STRING(sOnratechange_id,    cx, "onratechange");
   SET_JSID_TO_STRING(sOndurationchange_id,cx, "ondurationchange");
   SET_JSID_TO_STRING(sOnvolumechange_id,  cx, "onvolumechange");
-  SET_JSID_TO_STRING(sOnmessage_id,       cx, "onmessage");
 #endif // MOZ_MEDIA
 
   return NS_OK;
@@ -2275,7 +2256,6 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(Navigator, nsIDOMNavigator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigator)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorGeolocation)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNavigatorDesktopNotification)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMClientInformation)
   DOM_CLASSINFO_MAP_END
 
@@ -2530,11 +2510,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLButtonElement, nsIDOMHTMLButtonElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLButtonElement)
-    DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(HTMLDataListElement, nsIDOMHTMLDataListElement)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDataListElement)
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -3910,8 +3885,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(MediaError, nsIDOMMediaError)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMediaError)
+  DOM_CLASSINFO_MAP_BEGIN(HTMLMediaError, nsIDOMHTMLMediaError)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLMediaError)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(HTMLAudioElement, nsIDOMHTMLAudioElement)
@@ -3919,8 +3894,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_GENERIC_HTML_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(TimeRanges, nsIDOMTimeRanges)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMTimeRanges)
+  DOM_CLASSINFO_MAP_BEGIN(HTMLTimeRanges, nsIDOMHTMLTimeRanges)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLTimeRanges)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END  
 #endif
@@ -3944,11 +3919,6 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(NotifyPaintEvent, nsIDOMNotifyPaintEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNotifyPaintEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(NotifyAudioAvailableEvent, nsIDOMNotifyAudioAvailableEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNotifyAudioAvailableEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -4024,10 +3994,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIWebGLUniformLocation)
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(WebGLActiveInfo, nsIWebGLActiveInfo)
-    DOM_CLASSINFO_MAP_ENTRY(nsIWebGLActiveInfo)
-  DOM_CLASSINFO_MAP_END
-
   DOM_CLASSINFO_MAP_BEGIN(PaintRequest, nsIDOMPaintRequest)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMPaintRequest)
    DOM_CLASSINFO_MAP_END
@@ -4054,20 +4020,11 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIFrameMessageManager)
-    DOM_CLASSINFO_MAP_ENTRY(nsISyncMessageSender)
     DOM_CLASSINFO_MAP_ENTRY(nsIContentFrameMessageManager)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(FormData, nsIDOMFormData)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMFormData)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DesktopNotification, nsIDOMDesktopNotification)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDesktopNotification)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(DesktopNotificationCenter, nsIDOMDesktopNotificationCenter)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMDesktopNotificationCenter)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(WebSocket, nsIWebSocket)
@@ -4930,7 +4887,6 @@ nsDOMClassInfo::ShutDown()
   sOnratechange_id    = JSID_VOID;
   sOndurationchange_id= JSID_VOID;
   sOnvolumechange_id  = JSID_VOID;
-  sOnmessage_id       = JSID_VOID;
 
   NS_IF_RELEASE(sXPConnect);
   NS_IF_RELEASE(sSecMan);
@@ -4940,8 +4896,8 @@ nsDOMClassInfo::ShutDown()
 // Window helper
 
 NS_IMETHODIMP
-nsInnerWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
-                           JSObject *globalObj, JSObject **parentObj)
+nsCommonWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
+                            JSObject *globalObj, JSObject **parentObj)
 {
   // Normally ::PreCreate() is used to give XPConnect the parent
   // object for the object that's being wrapped, this parent object is
@@ -4959,30 +4915,25 @@ nsInnerWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   NS_ASSERTION(sgo, "nativeObj not a global object!");
 
   nsGlobalWindow *win = nsGlobalWindow::FromSupports(nativeObj);
-  JSObject *winObj = win->FastGetGlobalJSObject();
-  if (!winObj) {
-    NS_ASSERTION(win->GetOuterWindowInternal()->IsCreatingInnerWindow(),
-                 "should have a JS object by this point");
-    return NS_OK;
+
+  if (win->IsOuterWindow()) {
+    win->EnsureInnerWindow();
   }
 
-  *parentObj = winObj;
-  return NS_OK;
-}
+  if (sgo) {
+    *parentObj = sgo->GetGlobalJSObject();
 
-NS_IMETHODIMP
-nsOuterWindowSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
-                           JSObject *globalObj, JSObject **parentObj)
-{
-  nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeObj));
-  NS_ASSERTION(sgo, "nativeObj not a global object!");
-
-  nsGlobalWindow *win = nsGlobalWindow::FromSupports(nativeObj);
-  if (!win->EnsureInnerWindow()) {
-    return NS_ERROR_FAILURE;
+    if (*parentObj) {
+      return win->IsChromeWindow() ? NS_OK : NS_SUCCESS_NEEDS_XOW;
+    }
   }
 
-  *parentObj = win->GetCurrentInnerWindowInternal()->FastGetGlobalJSObject();
+  // We're most likely being called when the global object is
+  // created, at that point we won't get a nsIScriptContext but we
+  // know we're called on the correct context so we return globalObj
+
+  *parentObj = globalObj;
+
   return win->IsChromeWindow() ? NS_OK : NS_SUCCESS_NEEDS_XOW;
 }
 
@@ -6556,13 +6507,10 @@ nsCommonWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 // Native code for window._content getter, this simply maps
 // window._content to window.content for backwards compatibility only.
 static JSBool
-ContentWindowGetter(JSContext *cx, uintN argc, jsval *vp)
+ContentWindowGetter(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                    jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-
-  return ::JS_GetProperty(cx, obj, "content", vp);
+  return ::JS_GetProperty(cx, obj, "content", rval);
 }
 
 PRBool
@@ -6718,33 +6666,33 @@ nsCommonWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     my_cx = (JSContext *)my_context->GetNativeContext();
   }
 
-  JSBool ok = JS_TRUE;
-  jsval exn = JSVAL_VOID;
-  if (win->IsInnerWindow()) {
+  JSBool ok;
+  jsval exn;
+  {
     JSAutoRequest transfer(my_cx);
 
     JSObject *realObj;
     wrapper->GetJSObject(&realObj);
-
+    
     // Don't resolve standard classes on XPCNativeWrapper etc, only
     // resolve them if we're resolving on the real global object.
     ok = obj == realObj ?
          ::JS_ResolveStandardClass(my_cx, obj, id, &did_resolve) :
          JS_TRUE;
-
+    
     if (!ok) {
       // Trust the JS engine (or the script security manager) to set
       // the exception in the JS engine.
-
+      
       if (!JS_GetPendingException(my_cx, &exn)) {
         return NS_ERROR_UNEXPECTED;
       }
-
+      
       // Return NS_OK to avoid stomping over the exception that was passed
       // down from the ResolveStandardClass call.
       // Note that the order of the JS_ClearPendingException and
       // JS_SetPendingException is important in the case that my_cx == cx.
-
+      
       JS_ClearPendingException(my_cx);
     }
   }
@@ -7780,8 +7728,7 @@ nsEventReceiverSH::ReallyIsEventName(jsid id, jschar aFirstChar)
             id == sOnmouseout_id     ||
             id == sOnmouseover_id    ||
             id == sOnmouseup_id      ||
-            id == sOnmousedown_id    ||
-            id == sOnmessage_id);
+            id == sOnmousedown_id);
   case 'p' :
     return (id == sOnpaint_id        ||
             id == sOnpageshow_id     ||
@@ -8756,20 +8703,16 @@ ResolveImpl(JSContext *cx, nsIXPConnectWrappedNative *wrapper, jsid id,
 
 // static
 JSBool
-nsHTMLDocumentSH::DocumentOpen(JSContext *cx, uintN argc, jsval *vp)
+nsHTMLDocumentSH::DocumentOpen(JSContext *cx, JSObject *obj, uintN argc,
+                               jsval *argv, jsval *rval)
 {
-  JSObject *obj = JS_THIS_OBJECT(cx, vp);
-  if (!obj)
-    return JS_FALSE;
-
-  jsval *argv = JS_ARGV(cx, vp);
   if (argc > 2) {
     JSObject *global = ::JS_GetGlobalForObject(cx, obj);
 
     // DOM0 quirk that makes document.open() call window.open() if
     // called with 3 or more arguments.
 
-    return ::JS_CallFunctionName(cx, global, "open", argc, JS_ARGV(cx, vp), vp);
+    return ::JS_CallFunctionName(cx, global, "open", argc, argv, rval);
   }
 
   nsCOMPtr<nsISupports> native = do_QueryWrapper(cx, obj);
@@ -8822,7 +8765,7 @@ nsHTMLDocumentSH::DocumentOpen(JSContext *cx, uintN argc, jsval *vp)
   }
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  rv = WrapNative(cx, obj, retval, PR_FALSE, vp,
+  rv = WrapNative(cx, obj, retval, PR_FALSE, rval,
                   getter_AddRefs(holder));
   NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to wrap native!");
 
@@ -9098,7 +9041,8 @@ nsHTMLDocumentSH::ReleaseDocument(JSContext *cx, JSObject *obj)
 }
 
 JSBool
-nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, uintN argc, jsval *vp)
+nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, JSObject *obj, uintN argc,
+                                      jsval *argv, jsval *rval)
 {
   // Handle document.all("foo") style access to document.all.
 
@@ -9112,30 +9056,28 @@ nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, uintN argc, jsval *vp)
   }
 
   // Convert all types to string.
-  JSString *str = ::JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+  JSString *str = ::JS_ValueToString(cx, argv[0]);
   if (!str) {
     return JS_FALSE;
   }
 
   JSObject *self;
 
-  if (::JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION) {
-    // If the callee is a function, we're called through
+  if (::JS_TypeOfValue(cx, argv[-2]) == JSTYPE_FUNCTION) {
+    // If argv[-2] is a function, we're called through
     // document.all.item() or something similar. In such a case, self
     // is passed as obj.
 
-    self = JS_THIS_OBJECT(cx, vp);
-    if (!self)
-      return JS_FALSE;
+    self = obj;
   } else {
     // In other cases (i.e. document.all("foo")), self is passed as
-    // the callee
+    // argv[-2].
 
-    self = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
+    self = JSVAL_TO_OBJECT(argv[-2]);
   }
 
   return ::JS_GetUCProperty(cx, self, ::JS_GetStringChars(str),
-                            ::JS_GetStringLength(str), vp);
+                            ::JS_GetStringLength(str), rval);
 }
 
 

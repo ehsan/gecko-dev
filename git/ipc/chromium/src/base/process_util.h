@@ -17,8 +17,6 @@
 #include <dirent.h>
 #include <limits.h>
 #include <sys/types.h>
-#elif defined(OS_MACOSX)
-#include <mach/mach.h>
 #endif
 
 #include <map>
@@ -136,11 +134,13 @@ bool LaunchApp(const std::vector<std::string>& argv,
                const file_handle_mapping_vector& fds_to_remap,
                bool wait, ProcessHandle* process_handle);
 
+#if defined(CHROMIUM_MOZILLA_BUILD) && (defined(OS_LINUX) || defined(OS_MACOSX))
 typedef std::map<std::string, std::string> environment_map;
 bool LaunchApp(const std::vector<std::string>& argv,
                const file_handle_mapping_vector& fds_to_remap,
                const environment_map& env_vars_to_set,
                bool wait, ProcessHandle* process_handle);
+#endif
 #endif
 
 // Executes the application specified by cl. This function delegates to one

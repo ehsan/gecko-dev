@@ -1,5 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-/ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -41,7 +40,6 @@ import java.io.*;
 import java.util.*;
 import java.util.zip.*;
 import java.nio.*;
-import java.nio.channels.FileChannel;
 
 import android.os.*;
 import android.app.*;
@@ -58,13 +56,9 @@ import android.util.*;
 abstract public class GeckoApp
     extends Activity
 {
-    public static final String ACTION_ALERT_CLICK = "org.mozilla.gecko.ACTION_ALERT_CLICK";
-    public static final String ACTION_ALERT_CLEAR = "org.mozilla.gecko.ACTION_ALERT_CLEAR";
-
     public static FrameLayout mainLayout;
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
-    ProgressDialog mProgressDialog;
 
     void launch()
     {
@@ -90,8 +84,6 @@ abstract public class GeckoApp
         // hide our window's title, we don't want it
         requestWindowFeature(Window.FEATURE_NO_TITLE);
 
-        checkAndLaunchUpdate();
-
         surfaceView = new GeckoSurfaceView(this);
         
         mainLayout = new FrameLayout(this);
@@ -110,11 +102,6 @@ abstract public class GeckoApp
                                                   ViewGroup.LayoutParams.FILL_PARENT));
 
         if (!GeckoAppShell.sGeckoRunning) {
-            
-            if (!useLaunchButton)
-                mProgressDialog = 
-                    ProgressDialog.show(GeckoApp.this, "", getAppName() + 
-                                        " is loading", true);
             // Load our JNI libs; we need to do this before launch() because
             // setInitialSize will be called even before Gecko is actually up
             // and running.
@@ -235,8 +222,7 @@ abstract public class GeckoApp
     public void onLowMemory()
     {
         Log.i("GeckoApp", "low memory");
-        if (GeckoAppShell.sGeckoRunning)
-            GeckoAppShell.onLowMemory();
+        // XXX TODO
         super.onLowMemory();
     }
 
@@ -298,20 +284,10 @@ abstract public class GeckoApp
             File componentsDir = new File("/data/data/org.mozilla." + getAppName() +"/components");
             componentsDir.mkdir();
             zip = new ZipFile(getApplication().getPackageResourcePath());
-        } catch (Exception e) {
-            Log.i("GeckoAppJava", e.toString());
-            return;
-        }
 
-        byte[] buf = new byte[8192];
-        unpackFile(zip, buf, null, "application.ini");
-        unpackFile(zip, buf, null, getContentProcessName());
-        unpackFile(zip, buf, null, "update.locale");
-
-        try {
             ZipEntry componentsList = zip.getEntry("components/components.manifest");
             if (componentsList == null) {
-                Log.i("GeckoAppJava", "Can't find components.manifest!");
+                Log.i("GeckoAppJava", "Can't find components.list !");
                 return;
             }
 
@@ -320,6 +296,8 @@ abstract public class GeckoApp
             Log.i("GeckoAppJava", e.toString());
             return;
         }
+
+        byte[] buf = new byte[8192];
 
         StreamTokenizer tkn = new StreamTokenizer(new InputStreamReader(listStream));
         String line = "components/";
@@ -351,6 +329,9 @@ abstract public class GeckoApp
                 break;
             }
         } while (status != StreamTokenizer.TT_EOF);
+
+        unpackFile(zip, buf, null, "application.ini");
+        unpackFile(zip, buf, null, getContentProcessName());
     }
 
     private void unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry, String name)
@@ -443,83 +424,5 @@ abstract public class GeckoApp
             Log.i("GeckoAppJava", e.toString());
         }
         System.exit(0);
-    }
-
-    public void handleNotification(String action, String alertName, String alertCookie) {
-        GeckoAppShell.handleNotification(action, alertName, alertCookie);
-    }
-
-    private void checkAndLaunchUpdate() {
-        Log.i("GeckoAppJava", "Checking for an update");
-
-        int statusCode = 8; // UNEXPECTED_ERROR
-
-        String updateDir = "/data/data/org.mozilla." + getAppName() + "/updates/0/";
-        File updateFile = new File(updateDir + "update.apk");
-
-        if (!updateFile.exists())
-            return;
-
-        Log.i("GeckoAppJava", "Update is available!");
-
-        // Launch APK
-        File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-        File updateFileToRun = new File(downloadDir, getAppName() + "-update.apk");
-        try {
-            if (moveFile(updateFile, updateFileToRun)) {
-                String amCmd = "/system/bin/am start -a android.intent.action.VIEW " +
-                               "-n com.android.packageinstaller/.PackageInstallerActivity -d file://" +
-                               updateFileToRun.getPath();
-                Log.i("GeckoAppJava", amCmd);
-                Runtime.getRuntime().exec(amCmd);
-                statusCode = 0; // OK
-            } else {
-                Log.i("GeckoAppJava", "Cannot move the update file!");
-                statusCode = 7; // WRITE_ERROR
-            }
-        } catch (Exception e) {
-            Log.i("GeckoAppJava", e.toString());
-        }
-
-        // Update the status file
-        String status = statusCode == 0 ? "succeeded\n" : "failed: "+ statusCode + "\n";
-
-        File statusFile = new File(updateDir + "update.status");
-        OutputStream outStream;
-        try {
-            byte[] buf = status.getBytes("UTF-8");
-            outStream = new FileOutputStream(statusFile);
-            outStream.write(buf, 0, buf.length);
-            outStream.close();
-        } catch (Exception e) {
-            Log.i("GeckoAppJava", e.toString());
-        }
-
-        if (statusCode == 0)
-            System.exit(0);
-    }
-
-    private static boolean moveFile(File fromFile, File toFile) {
-        try {
-            if (fromFile.renameTo(toFile))
-                return true;
-
-            // Simple rename failed, transfer the data explicitly
-            FileChannel inChannel = new FileInputStream(fromFile).getChannel();
-            FileChannel outChannel = new FileOutputStream(toFile).getChannel();
-
-            long tansferred = inChannel.transferTo(0, inChannel.size(), outChannel);
-
-            inChannel.close();
-            outChannel.close();
-
-            if (tansferred > 0)
-                fromFile.delete();
-
-            return (tansferred > 0);
-        } catch (Exception e) {
-            Log.i("GeckoAppJava", e.toString());
-            return false;
-        }
     }
 }

@@ -310,10 +310,6 @@ already_AddRefed<gfxASurface>
 gfxASurface::CreateSimilarSurface(gfxContentType aContent,
                                   const gfxIntSize& aSize)
 {
-    if (!mSurface || !mSurfaceValid) {
-      return nsnull;
-    }
-    
     cairo_surface_t *surface =
         cairo_surface_create_similar(mSurface, cairo_content_t(aContent),
                                      aSize.width, aSize.height);
@@ -460,22 +456,10 @@ static const char *sSurfaceNamesForSurfaceType[] = {
     "gfx/surface/quartzimage",
     "gfx/surface/script",
     "gfx/surface/qpainter",
-    "gfx/surface/recording",
-    "gfx/surface/vg",
-    "gfx/surface/gl",
-    "gfx/surface/drm",
-    "gfx/surface/tee",
-    "gfx/surface/xml",
-    "gfx/surface/skia",
-    "gfx/surface/ddraw",
-    "gfx/surface/d2d"
+    "gfx/surface/ddraw"
 };
 
 PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sSurfaceNamesForSurfaceType) == gfxASurface::SurfaceTypeMax);
-#ifdef CAIRO_HAS_D2D_SURFACE
-PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_D2D == gfxASurface::SurfaceTypeD2D);
-#endif
-PR_STATIC_ASSERT(CAIRO_SURFACE_TYPE_SKIA == gfxASurface::SurfaceTypeSkia);
 
 static const char *
 SurfaceMemoryReporterPathForType(gfxASurface::gfxSurfaceType aType)

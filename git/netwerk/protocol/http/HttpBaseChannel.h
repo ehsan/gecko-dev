@@ -48,14 +48,12 @@
 #include "nsHttpRequestHead.h"
 #include "nsHttpResponseHead.h"
 #include "nsHttpConnectionInfo.h"
-#include "nsIEncodedChannel.h"
 #include "nsIHttpChannel.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsIUploadChannel.h"
 #include "nsIUploadChannel2.h"
 #include "nsIProgressEventSink.h"
 #include "nsIURI.h"
-#include "nsIStringEnumerator.h"
 #include "nsISupportsPriority.h"
 #include "nsIApplicationCache.h"
 #include "nsIResumableChannel.h"
@@ -93,7 +91,6 @@ typedef enum { eUploadStream_null = -1,
  *   the way to the HTTP channel.
  */
 class HttpBaseChannel : public nsHashPropertyBag
-                      , public nsIEncodedChannel
                       , public nsIHttpChannel
                       , public nsIHttpChannelInternal
                       , public nsIUploadChannel
@@ -136,11 +133,6 @@ public:
   NS_IMETHOD SetContentLength(PRInt32 aContentLength);
   NS_IMETHOD Open(nsIInputStream **aResult);
 
-  // nsIEncodedChannel
-  NS_IMETHOD GetApplyConversion(PRBool *value);
-  NS_IMETHOD SetApplyConversion(PRBool value);
-  NS_IMETHOD GetContentEncodings(nsIUTF8StringEnumerator** aEncodings);
-
   // HttpBaseChannel::nsIHttpChannel
   NS_IMETHOD GetRequestMethod(nsACString& aMethod);
   NS_IMETHOD SetRequestMethod(const nsACString& aMethod);
@@ -173,8 +165,6 @@ public:
   NS_IMETHOD GetForceAllowThirdPartyCookie(PRBool *aForce);
   NS_IMETHOD SetForceAllowThirdPartyCookie(PRBool aForce);
   NS_IMETHOD GetCanceled(PRBool *aCanceled);
-  NS_IMETHOD GetChannelIsForDownload(PRBool *aChannelIsForDownload);
-  NS_IMETHOD SetChannelIsForDownload(PRBool aChannelIsForDownload);
 
   // nsISupportsPriority
   NS_IMETHOD GetPriority(PRInt32 *value);
@@ -183,33 +173,7 @@ public:
   // nsIResumableChannel
   NS_IMETHOD GetEntityID(nsACString& aEntityID);
 
-  class nsContentEncodings : public nsIUTF8StringEnumerator
-    {
-    public:
-        NS_DECL_ISUPPORTS
-        NS_DECL_NSIUTF8STRINGENUMERATOR
-
-        nsContentEncodings(nsIHttpChannel* aChannel, const char* aEncodingHeader);
-        virtual ~nsContentEncodings();
-        
-    private:
-        nsresult PrepareForNext(void);
-        
-        // We do not own the buffer.  The channel owns it.
-        const char* mEncodingHeader;
-        const char* mCurStart;  // points to start of current header
-        const char* mCurEnd;  // points to end of current header
-        
-        // Hold a ref to our channel so that it can't go away and take the
-        // header with it.
-        nsCOMPtr<nsIHttpChannel> mChannel;
-        
-        PRPackedBool mReady;
-    };
-
 protected:
-  nsresult ApplyContentConversions();
-
   void AddCookiesToRequest();
   virtual nsresult SetupReplacementChannel(nsIURI *,
                                            nsIChannel *,
@@ -256,7 +220,6 @@ protected:
   PRUint8                           mCaps;
   PRUint8                           mRedirectionLimit;
 
-  PRUint32                          mApplyConversion            : 1;
   PRUint32                          mCanceled                   : 1;
   PRUint32                          mIsPending                  : 1;
   PRUint32                          mWasOpened                  : 1;
@@ -267,7 +230,6 @@ protected:
   PRUint32                          mInheritApplicationCache    : 1;
   PRUint32                          mChooseApplicationCache     : 1;
   PRUint32                          mLoadedFromApplicationCache : 1;
-  PRUint32                          mChannelIsForDownload       : 1;
 };
 
 

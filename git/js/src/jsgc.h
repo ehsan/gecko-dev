@@ -51,11 +51,22 @@
 #include "jsbit.h"
 #include "jsgcchunk.h"
 #include "jsutil.h"
+#include "jstask.h"
 #include "jsvector.h"
 #include "jsversion.h"
 #include "jsobj.h"
 #include "jsfun.h"
-#include "jsgcstats.h"
+
+#if !defined JS_DUMP_CONSERVATIVE_GC_ROOTS && defined DEBUG
+# define JS_DUMP_CONSERVATIVE_GC_ROOTS 1
+#endif
+
+#if defined JS_GCMETER
+const bool JS_WANT_GC_METER_PRINT = true;
+#elif defined DEBUG
+# define JS_GCMETER 1
+const bool JS_WANT_GC_METER_PRINT = false;
+#endif
 
 #define JSTRACE_XML         2
 
@@ -63,18 +74,6 @@
  * One past the maximum trace kind.
  */
 #define JSTRACE_LIMIT       3
-
-/*
- * Lower limit after which we limit the heap growth
- */
-const size_t GC_ARENA_ALLOCATION_TRIGGER = 25 * js::GC_CHUNK_SIZE;
-
-/*
- * A GC is triggered once the number of newly allocated arenas 
- * is 1.5 times the number of live arenas after the last GC.
- * (Starting after the lower limit of GC_ARENA_ALLOCATION_TRIGGER)
- */
-const float GC_HEAP_GROWTH_FACTOR = 1.5;
 
 const uintN JS_EXTERNAL_STRING_LIMIT = 8;
 
@@ -87,9 +86,6 @@ js_GetExternalStringGCType(JSString *str);
 
 extern JS_FRIEND_API(uint32)
 js_GetGCThingTraceKind(void *thing);
-
-extern size_t
-ThingsPerArena(size_t thingSize);
 
 /*
  * The sole purpose of the function is to preserve public API compatibility
@@ -176,22 +172,21 @@ js_GCThingIsMarked(void *thing, uint32 color);
 extern void
 js_TraceStackFrame(JSTracer *trc, JSStackFrame *fp);
 
-namespace js {
-
 extern JS_REQUIRES_STACK void
-MarkRuntime(JSTracer *trc);
-
-extern void
-TraceRuntime(JSTracer *trc);
+js_TraceRuntime(JSTracer *trc);
 
 extern JS_REQUIRES_STACK JS_FRIEND_API(void)
-MarkContext(JSTracer *trc, JSContext *acx);
+js_TraceContext(JSTracer *trc, JSContext *acx);
 
-/* Must be called with GC lock taken. */
+/*
+ * Schedule the GC call at a later safe point.
+ */
+#ifndef JS_THREADSAFE
+# define js_TriggerGC(cx, gcLocked)    js_TriggerGC (cx)
+#endif
+
 extern void
-TriggerGC(JSRuntime *rt);
-
-} /* namespace js */
+js_TriggerGC(JSContext *cx, JSBool gcLocked);
 
 /*
  * Kinds of js_GC invocation.
@@ -299,7 +294,7 @@ js_NewGCExternalString(JSContext *cx, uintN type)
     return (JSString *) js_NewFinalizableGCThing(cx, type);
 }
 
-static inline JSFunction *
+static inline JSFunction*
 js_NewGCFunction(JSContext *cx)
 {
     JSFunction* obj = (JSFunction *)js_NewFinalizableGCThing(cx, FINALIZE_FUNCTION);
@@ -352,29 +347,38 @@ struct JSGCFreeLists {
 extern void
 js_DestroyScriptsToGC(JSContext *cx, JSThreadData *data);
 
+struct JSWeakRoots {
+    /* Most recently created things by type, members of the GC's root set. */
+    void              *finalizableNewborns[FINALIZE_LIMIT];
+
+    /* Atom root for the last-looked-up atom on this context. */
+    JSAtom            *lastAtom;
+
+    /* Root for the result of the most recent js_InternalInvoke call. */
+    void              *lastInternalResult;
+
+    void mark(JSTracer *trc);
+};
+
+#define JS_CLEAR_WEAK_ROOTS(wr) (memset((wr), 0, sizeof(JSWeakRoots)))
+
 namespace js {
 
 #ifdef JS_THREADSAFE
 
 /*
  * During the finalization we do not free immediately. Rather we add the
- * corresponding pointers to a buffer which we later release on a separated
- * thread.
+ * corresponding pointers to a buffer which we later release on the
+ * background thread.
  *
  * The buffer is implemented as a vector of 64K arrays of pointers, not as a
  * simple vector, to avoid realloc calls during the vector growth and to not
  * bloat the binary size of the inlined freeLater method. Any OOM during
  * buffer growth results in the pointer being freed immediately.
  */
-class GCHelperThread {
+class BackgroundSweepTask : public JSBackgroundTask {
     static const size_t FREE_ARRAY_SIZE = size_t(1) << 16;
     static const size_t FREE_ARRAY_LENGTH = FREE_ARRAY_SIZE / sizeof(void *);
-
-    PRThread*         thread;
-    PRCondVar*        wakeup;
-    PRCondVar*        sweepingDone;
-    bool              shutdown;
-    bool              sweeping;
 
     Vector<void **, 16, js::SystemAllocPolicy> freeVector;
     void            **freeCursor;
@@ -390,37 +394,18 @@ class GCHelperThread {
         js_free(array);
     }
 
-    static void threadMain(void* arg);
-
-    void threadLoop(JSRuntime *rt);
-    void doSweep();
-
   public:
-    GCHelperThread()
-      : thread(NULL),
-        wakeup(NULL),
-        sweepingDone(NULL),
-        shutdown(false),
-        sweeping(false),
-        freeCursor(NULL),
-        freeCursorEnd(NULL) { }
-    
-    bool init(JSRuntime *rt);
-    void finish(JSRuntime *rt);
-    
-    /* Must be called with GC lock taken. */
-    void startBackgroundSweep(JSRuntime *rt);
-    
-    /* Must be called outside the GC lock. */
-    void waitBackgroundSweepEnd(JSRuntime *rt);
-    
-    void freeLater(void *ptr) {
-        JS_ASSERT(!sweeping);
+    BackgroundSweepTask()
+        : freeCursor(NULL), freeCursorEnd(NULL) { }
+
+    void freeLater(void* ptr) {
         if (freeCursor != freeCursorEnd)
             *freeCursor++ = ptr;
         else
             replenishAndFreeLater(ptr);
     }
+
+    virtual void run();
 };
 
 #endif /* JS_THREADSAFE */
@@ -463,27 +448,38 @@ struct ConservativeGCThreadData {
         jsuword         words[JS_HOWMANY(sizeof(jmp_buf), sizeof(jsuword))];
     } registerSnapshot;
 
-    /*
-     * Cycle collector uses this to communicate that the native stack of the
-     * GC thread should be scanned only if the thread have more than the given
-     * threshold of requests.
-     */
-    unsigned requestThreshold;
+    int                 enableCount;
 
-    JS_NEVER_INLINE void recordStackTop();
+    JS_NEVER_INLINE JS_FRIEND_API(void) enable(bool knownStackBoundary = false);
+    JS_FRIEND_API(void) disable();
+    bool isEnabled() const { return enableCount > 0; }
+};
 
-#ifdef JS_THREADSAFE
-    void updateForRequestEnd(unsigned suspendCount) {
-        if (suspendCount)
-            recordStackTop();
-        else
-            nativeStackTop = NULL;
+/*
+ * The conservative GC test for a word shows that it is either a valid GC
+ * thing or is not for one of the following reasons.
+ */
+enum ConservativeGCTest {
+    CGCT_VALID,
+    CGCT_LOWBITSET, /* excluded because one of the low bits was set */
+    CGCT_NOTARENA,  /* not within arena range in a chunk */
+    CGCT_NOTCHUNK,  /* not within a valid chunk */
+    CGCT_FREEARENA, /* within arena containing only free things */
+    CGCT_WRONGTAG,  /* tagged pointer but wrong type */
+    CGCT_NOTLIVE,   /* gcthing is not allocated */
+    CGCT_END
+};
+
+struct ConservativeGCStats {
+    uint32  counter[CGCT_END];  /* ConservativeGCTest classification
+                                   counters */
+
+    void add(const ConservativeGCStats &another) {
+        for (size_t i = 0; i != JS_ARRAY_LENGTH(counter); ++i)
+            counter[i] += another.counter[i];
     }
-#endif
 
-    bool hasStackToScan() const {
-        return !!nativeStackTop;
-    }
+    void dump(FILE *fp);
 };
 
 struct GCMarker : public JSTracer {
@@ -501,7 +497,7 @@ struct GCMarker : public JSTracer {
 #if defined(JS_DUMP_CONSERVATIVE_GC_ROOTS) || defined(JS_GCMETER)
     ConservativeGCStats conservativeStats;
 #endif
-
+   
 #ifdef JS_DUMP_CONSERVATIVE_GC_ROOTS
     struct ConservativeRoot { void *thing; uint32 traceKind; };
     Vector<ConservativeRoot, 0, SystemAllocPolicy> conservativeRoots;
@@ -540,6 +536,62 @@ struct GCMarker : public JSTracer {
 
 extern void
 js_FinalizeStringRT(JSRuntime *rt, JSString *str);
+
+#ifdef JS_GCMETER
+
+struct JSGCArenaStats {
+    uint32  alloc;          /* allocation attempts */
+    uint32  localalloc;     /* allocations from local lists */
+    uint32  retry;          /* allocation retries after running the GC */
+    uint32  fail;           /* allocation failures */
+    uint32  nthings;        /* live GC things */
+    uint32  maxthings;      /* maximum of live GC cells */
+    double  totalthings;    /* live GC things the GC scanned so far */
+    uint32  narenas;        /* number of arena in list before the GC */
+    uint32  newarenas;      /* new arenas allocated before the last GC */
+    uint32  livearenas;     /* number of live arenas after the last GC */
+    uint32  maxarenas;      /* maximum of allocated arenas */
+    uint32  totalarenas;    /* total number of arenas with live things that
+                               GC scanned so far */
+};
+
+struct JSGCStats {
+    uint32  finalfail;  /* finalizer calls allocator failures */
+    uint32  lockborn;   /* things born locked */
+    uint32  lock;       /* valid lock calls */
+    uint32  unlock;     /* valid unlock calls */
+    uint32  depth;      /* mark tail recursion depth */
+    uint32  maxdepth;   /* maximum mark tail recursion depth */
+    uint32  cdepth;     /* mark recursion depth of C functions */
+    uint32  maxcdepth;  /* maximum mark recursion depth of C functions */
+    uint32  unmarked;   /* number of times marking of GC thing's children were
+                           delayed due to a low C stack */
+#ifdef DEBUG
+    uint32  maxunmarked;/* maximum number of things with children to mark
+                           later */
+#endif
+    uint32  poke;           /* number of potentially useful GC calls */
+    uint32  afree;          /* thing arenas freed so far */
+    uint32  stackseg;       /* total extraordinary stack segments scanned */
+    uint32  segslots;       /* total stack segment value slots scanned */
+    uint32  nclose;         /* number of objects with close hooks */
+    uint32  maxnclose;      /* max number of objects with close hooks */
+    uint32  closelater;     /* number of close hooks scheduled to run */
+    uint32  maxcloselater;  /* max number of close hooks scheduled to run */
+    uint32  nallarenas;     /* number of all allocated arenas */
+    uint32  maxnallarenas;  /* maximum number of all allocated arenas */
+    uint32  nchunks;        /* number of allocated chunks */
+    uint32  maxnchunks;     /* maximum number of allocated chunks */
+
+    JSGCArenaStats  arenaStats[FINALIZE_LIMIT];
+
+    js::ConservativeGCStats conservative;
+};
+
+extern JS_FRIEND_API(void)
+js_DumpGCStats(JSRuntime *rt, FILE *fp);
+
+#endif /* JS_GCMETER */
 
 /*
  * This function is defined in jsdbgapi.cpp but is declared here to avoid
@@ -599,10 +651,11 @@ MarkAtomRange(JSTracer *trc, size_t len, JSAtom **vec, const char *name)
 }
 
 static inline void
-MarkObject(JSTracer *trc, JSObject &obj, const char *name)
+MarkObject(JSTracer *trc, JSObject *obj, const char *name)
 {
+    JS_ASSERT(obj);
     JS_SET_TRACING_NAME(trc, name);
-    Mark(trc, &obj, JSTRACE_OBJECT);
+    Mark(trc, obj, JSTRACE_OBJECT);
 }
 
 static inline void
@@ -645,9 +698,6 @@ MarkValueRange(JSTracer *trc, size_t len, Value *vec, const char *name)
 {
     MarkValueRange(trc, vec, vec + len, name);
 }
-
-void
-MarkStackRangeConservatively(JSTracer *trc, Value *begin, Value *end);
 
 static inline void
 MarkId(JSTracer *trc, jsid id)

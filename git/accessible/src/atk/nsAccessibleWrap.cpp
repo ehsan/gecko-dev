@@ -452,8 +452,11 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
         interfacesBits |= 1 << MAI_INTERFACE_IMAGE;
     }
 
-    // HyperLinkAccessible
-    if (IsHyperLink()) {
+    //nsIAccessibleHyperLink
+    nsCOMPtr<nsIAccessibleHyperLink> accessInterfaceHyperlink;
+    QueryInterface(NS_GET_IID(nsIAccessibleHyperLink),
+                   getter_AddRefs(accessInterfaceHyperlink));
+    if (accessInterfaceHyperlink) {
        interfacesBits |= 1 << MAI_INTERFACE_HYPERLINK_IMPL;
     }
 
@@ -475,7 +478,10 @@ nsAccessibleWrap::CreateMaiInterfaces(void)
       }
       
       //nsIAccessibleSelection
-      if (IsSelect()) {
+      nsCOMPtr<nsIAccessibleSelectable> accessInterfaceSelection;
+      QueryInterface(NS_GET_IID(nsIAccessibleSelectable),
+                     getter_AddRefs(accessInterfaceSelection));
+      if (accessInterfaceSelection) {
           interfacesBits |= 1 << MAI_INTERFACE_SELECTION;
       }
     }
@@ -752,8 +758,11 @@ getRoleCB(AtkObject *aAtkObj)
 #endif
 
     if (aAtkObj->role == ATK_ROLE_INVALID) {
-        // map to the actual value
-        PRUint32 atkRole = atkRoleMap[accWrap->Role()];
+        PRUint32 accRole, atkRole;
+        nsresult rv = accWrap->GetRole(&accRole);
+        NS_ENSURE_SUCCESS(rv, ATK_ROLE_INVALID);
+
+        atkRole = atkRoleMap[accRole]; // map to the actual value
         NS_ASSERTION(atkRoleMap[nsIAccessibleRole::ROLE_LAST_ENTRY] ==
                      kROLE_ATK_LAST_ENTRY, "ATK role map skewed");
         aAtkObj->role = static_cast<AtkRole>(atkRole);
@@ -1041,7 +1050,7 @@ nsAccessibleWrap *GetAccessibleWrap(AtkObject *aAtkObj)
 }
 
 nsresult
-nsAccessibleWrap::HandleAccEvent(AccEvent* aEvent)
+nsAccessibleWrap::HandleAccEvent(nsAccEvent *aEvent)
 {
     nsresult rv = nsAccessible::HandleAccEvent(aEvent);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1050,7 +1059,7 @@ nsAccessibleWrap::HandleAccEvent(AccEvent* aEvent)
 }
 
 nsresult
-nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
+nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
 {
     nsAccessible *accessible = aEvent->GetAccessible();
     NS_ENSURE_TRUE(accessible, NS_ERROR_FAILURE);
@@ -1088,10 +1097,10 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
         if (rootAccWrap && rootAccWrap->mActivated) {
             atk_focus_tracker_notify(atkObj);
             // Fire state change event for focus
-            nsRefPtr<AccEvent> stateChangeEvent =
-              new AccStateChangeEvent(accessible,
-                                      nsIAccessibleStates::STATE_FOCUSED,
-                                      PR_FALSE, PR_TRUE);
+            nsRefPtr<nsAccEvent> stateChangeEvent =
+              new nsAccStateChangeEvent(accessible,
+                                        nsIAccessibleStates::STATE_FOCUSED,
+                                        PR_FALSE, PR_TRUE);
             return FireAtkStateChangeEvent(stateChangeEvent, atkObj);
         }
       } break;
@@ -1121,7 +1130,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_TEXT_CARET_MOVED\n"));
 
-        AccCaretMoveEvent* caretMoveEvent = downcast_accEvent(aEvent);
+        nsAccCaretMoveEvent *caretMoveEvent = downcast_accEvent(aEvent);
         NS_ASSERTION(caretMoveEvent, "Event needs event data");
         if (!caretMoveEvent)
             break;
@@ -1150,7 +1159,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
     case nsIAccessibleEvent::EVENT_TABLE_ROW_INSERT:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_TABLE_ROW_INSERT\n"));
-        AccTableChangeEvent* tableEvent = downcast_accEvent(aEvent);
+        nsAccTableChangeEvent *tableEvent = downcast_accEvent(aEvent);
         NS_ENSURE_TRUE(tableEvent, NS_ERROR_FAILURE);
 
         PRInt32 rowIndex = tableEvent->GetIndex();
@@ -1167,7 +1176,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
    case nsIAccessibleEvent::EVENT_TABLE_ROW_DELETE:
      {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_TABLE_ROW_DELETE\n"));
-        AccTableChangeEvent* tableEvent = downcast_accEvent(aEvent);
+        nsAccTableChangeEvent *tableEvent = downcast_accEvent(aEvent);
         NS_ENSURE_TRUE(tableEvent, NS_ERROR_FAILURE);
 
         PRInt32 rowIndex = tableEvent->GetIndex();
@@ -1191,7 +1200,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
     case nsIAccessibleEvent::EVENT_TABLE_COLUMN_INSERT:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_TABLE_COLUMN_INSERT\n"));
-        AccTableChangeEvent* tableEvent = downcast_accEvent(aEvent);
+        nsAccTableChangeEvent *tableEvent = downcast_accEvent(aEvent);
         NS_ENSURE_TRUE(tableEvent, NS_ERROR_FAILURE);
 
         PRInt32 colIndex = tableEvent->GetIndex();
@@ -1208,7 +1217,7 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
     case nsIAccessibleEvent::EVENT_TABLE_COLUMN_DELETE:
       {
         MAI_LOG_DEBUG(("\n\nReceived: EVENT_TABLE_COLUMN_DELETE\n"));
-        AccTableChangeEvent* tableEvent = downcast_accEvent(aEvent);
+        nsAccTableChangeEvent *tableEvent = downcast_accEvent(aEvent);
         NS_ENSURE_TRUE(tableEvent, NS_ERROR_FAILURE);
 
         PRInt32 colIndex = tableEvent->GetIndex();
@@ -1311,12 +1320,12 @@ nsAccessibleWrap::FirePlatformEvent(AccEvent* aEvent)
 }
 
 nsresult
-nsAccessibleWrap::FireAtkStateChangeEvent(AccEvent* aEvent,
+nsAccessibleWrap::FireAtkStateChangeEvent(nsAccEvent *aEvent,
                                           AtkObject *aObject)
 {
     MAI_LOG_DEBUG(("\n\nReceived: EVENT_STATE_CHANGE\n"));
 
-    AccStateChangeEvent* event = downcast_accEvent(aEvent);
+    nsAccStateChangeEvent *event = downcast_accEvent(aEvent);
     NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 
     PRUint32 state = event->GetState();
@@ -1347,12 +1356,12 @@ nsAccessibleWrap::FireAtkStateChangeEvent(AccEvent* aEvent,
 }
 
 nsresult
-nsAccessibleWrap::FireAtkTextChangedEvent(AccEvent* aEvent,
+nsAccessibleWrap::FireAtkTextChangedEvent(nsAccEvent *aEvent,
                                           AtkObject *aObject)
 {
     MAI_LOG_DEBUG(("\n\nReceived: EVENT_TEXT_REMOVED/INSERTED\n"));
 
-    AccTextChangeEvent* event = downcast_accEvent(aEvent);
+    nsAccTextChangeEvent *event = downcast_accEvent(aEvent);
     NS_ENSURE_TRUE(event, NS_ERROR_FAILURE);
 
     PRInt32 start = event->GetStartOffset();
@@ -1370,7 +1379,7 @@ nsAccessibleWrap::FireAtkTextChangedEvent(AccEvent* aEvent,
 }
 
 nsresult
-nsAccessibleWrap::FireAtkShowHideEvent(AccEvent* aEvent,
+nsAccessibleWrap::FireAtkShowHideEvent(nsAccEvent *aEvent,
                                        AtkObject *aObject, PRBool aIsAdded)
 {
     if (aIsAdded)

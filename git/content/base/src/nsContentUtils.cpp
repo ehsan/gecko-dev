@@ -153,7 +153,6 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsIPrivateDOMEvent.h"
 #include "nsXULPopupManager.h"
 #include "nsIPermissionManager.h"
-#include "nsIContentPrefService.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIRunnable.h"
 #include "nsDOMJSUtils.h"
@@ -207,9 +206,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsContentDLF.h"
-#ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
-#endif
 
 using namespace mozilla::dom;
 using namespace mozilla::layers;
@@ -673,7 +670,6 @@ nsContentUtils::InitializeEventTable() {
     { nsGkAtoms::onratechange,                  NS_RATECHANGE, EventNameType_HTML, NS_EVENT_NULL },
     { nsGkAtoms::ondurationchange,              NS_DURATIONCHANGE, EventNameType_HTML, NS_EVENT_NULL },
     { nsGkAtoms::onvolumechange,                NS_VOLUMECHANGE, EventNameType_HTML, NS_EVENT_NULL },
-    { nsGkAtoms::onMozAudioAvailable,           NS_MOZAUDIOAVAILABLE, EventNameType_None, NS_EVENT_NULL },
 #endif // MOZ_MEDIA
     { nsGkAtoms::onMozAfterPaint,               NS_AFTERPAINT, EventNameType_None, NS_EVENT },
     { nsGkAtoms::onMozBeforePaint,              NS_BEFOREPAINT, EventNameType_None, NS_EVENT_NULL },
@@ -1522,36 +1518,29 @@ nsContentUtils::GetDocShellFromCaller()
   return nsnull;
 }
 
-nsPIDOMWindow *
-nsContentUtils::GetWindowFromCaller()
-{
-  JSContext *cx = nsnull;
-  sThreadJSContextStack->Peek(&cx);
-
-  if (cx) {
-    nsCOMPtr<nsPIDOMWindow> win =
-      do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
-    return win;
-  }
-
-  return nsnull;
-}
-
 nsIDOMDocument *
 nsContentUtils::GetDocumentFromCaller()
 {
   JSContext *cx = nsnull;
-  JSObject *obj = nsnull;
-  sXPConnect->GetCaller(&cx, &obj);
-  NS_ASSERTION(cx && obj, "Caller ensures something is running");
+  sThreadJSContextStack->Peek(&cx);
 
-  nsCOMPtr<nsPIDOMWindow> win =
-    do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, obj));
-  if (!win) {
-    return nsnull;
+  nsIDOMDocument *doc = nsnull;
+
+  if (cx) {
+    JSObject *callee = nsnull;
+    JSStackFrame *fp = nsnull;
+    while (!callee && (fp = ::JS_FrameIterator(cx, &fp))) {
+      callee = ::JS_GetFrameCalleeObject(cx, fp);
+    }
+
+    nsCOMPtr<nsPIDOMWindow> win =
+      do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, callee));
+    if (win) {
+      doc = win->GetExtantDocument();
+    }
   }
 
-  return win->GetExtantDocument();
+  return doc;
 }
 
 nsIDOMDocument *
@@ -2817,20 +2806,6 @@ nsContentUtils::AddIntPrefVarCache(const char *aPref,
   RegisterPrefCallback(aPref, IntVarChanged, data);
 }
 
-PRBool
-nsContentUtils::IsSitePermAllow(nsIURI* aURI, const char* aType)
-{
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    do_GetService("@mozilla.org/permissionmanager;1");
-  NS_ENSURE_TRUE(permMgr, PR_FALSE);
-
-  PRUint32 perm;
-  nsresult rv = permMgr->TestPermission(aURI, aType, &perm);
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  
-  return perm == nsIPermissionManager::ALLOW_ACTION;
-}
-
 static const char *gEventNames[] = {"event"};
 static const char *gSVGEventNames[] = {"evt"};
 // for b/w compat, the first name to onerror is still 'event', even though it
@@ -3903,9 +3878,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
     }
     
     nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
-    if (contextAsContent &&
-        !(nsGkAtoms::html == contextAsContent->Tag() &&
-          contextAsContent->IsHTML())) {
+    if (contextAsContent) {
       parser->ParseFragment(aFragment, 
                             fragment, 
                             contextAsContent->Tag(), 
@@ -5432,7 +5405,7 @@ nsContentUtils::CanAccessNativeAnon()
     // Some code is running, we can't make the assumption, as above, but we
     // can't use a native frame, so clear fp.
     fp = nsnull;
-  } else if (!JS_IsScriptFrame(cx, fp)) {
+  } else if (!fp->script) {
     fp = nsnull;
   }
 
@@ -5447,8 +5420,8 @@ nsContentUtils::CanAccessNativeAnon()
   // if they've been cloned into less privileged contexts.
   static const char prefix[] = "chrome://global/";
   const char *filename;
-  if (fp && JS_IsScriptFrame(cx, fp) &&
-      (filename = JS_GetFrameScript(cx, fp)->filename) &&
+  if (fp && fp->script &&
+      (filename = fp->script->filename) &&
       !strncmp(filename, prefix, NS_ARRAY_LENGTH(prefix) - 1)) {
     return PR_TRUE;
   }

@@ -299,6 +299,8 @@ public:
   virtual nsIWidget*      GetParent(void);
   virtual float           GetDPI();
 
+  LayerManager*           GetLayerManager();
+
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);
   NS_IMETHOD              Move(PRInt32 aX, PRInt32 aY);
@@ -399,8 +401,6 @@ public:
 
   nsCocoaTextInputHandler* TextInputHandler() { return &mTextInputHandler; }
   NSView<mozView>* GetEditorView();
-
-  PRBool IsPluginView() { return (mWindowType == eWindowType_plugin); }
 
 protected:
 

@@ -3777,12 +3777,11 @@ nsWindow::Create(nsIWidget        *aParent,
                 // GTK_WINDOW_POPUP, which will use a Window with the
                 // override-redirect attribute (for temporary windows).
                 mShell = gtk_window_new(GTK_WINDOW_POPUP);
-                gtk_window_set_wmclass(GTK_WINDOW(mShell), "Popup", cBrand.get());
             } else {
                 // For long-lived windows, their stacking order is managed by
                 // the window manager, as indicated by GTK_WINDOW_TOPLEVEL ...
                 mShell = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-                gtk_window_set_wmclass(GTK_WINDOW(mShell), "Popup", cBrand.get());
+                GtkWindow* gtkWin = GTK_WINDOW(mShell);
                 // ... but the window manager does not decorate this window,
                 // nor provide a separate taskbar icon.
                 if (mBorderStyle == eBorderStyle_default) {
@@ -3795,11 +3794,11 @@ nsWindow::Create(nsIWidget        *aParent,
                     gtk_window_set_deletable(GTK_WINDOW(mShell), mBorderStyle & eBorderStyle_close);
                   }
                 }
-                gtk_window_set_skip_taskbar_hint(GTK_WINDOW(mShell), TRUE);
+                gtk_window_set_skip_taskbar_hint(gtkWin, TRUE);
                 // Element focus is managed by the parent window so the
                 // WM_HINTS input field is set to False to tell the window
                 // manager not to set input focus to this window ...
-                gtk_window_set_accept_focus(GTK_WINDOW(mShell), FALSE);
+                gtk_window_set_accept_focus(gtkWin, FALSE);
 #ifdef MOZ_X11
                 // ... but when the window manager offers focus through
                 // WM_TAKE_FOCUS, focus is requested on the parent window.
@@ -3808,6 +3807,8 @@ nsWindow::Create(nsIWidget        *aParent,
                                       popup_take_focus_filter, NULL); 
 #endif
             }
+
+            gtk_window_set_wmclass(GTK_WINDOW(mShell), "Popup", cBrand.get());
 
             GdkWindowTypeHint gtkTypeHint;
             switch (aInitData->mPopupHint) {
@@ -6470,6 +6471,25 @@ nsWindow::GetSurfaceForGdkDrawable(GdkDrawable* aDrawable,
     return result;
 }
 #endif
+
+mozilla::layers::LayerManager*
+nsWindow::GetLayerManager()
+{
+    GtkWidget *topWidget;
+    GetToplevelWidget(&topWidget);
+
+    nsWindow *topWindow = get_window_for_gtk_widget(topWidget);
+    if (!topWindow) {
+        return nsBaseWidget::GetLayerManager();
+    }
+
+    if (mUseAcceleratedRendering != topWindow->GetAcceleratedRendering()) {
+        mLayerManager = NULL;
+        mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
+    }
+
+    return nsBaseWidget::GetLayerManager();
+}
 
 // return the gfxASurface for rendering to this widget
 gfxASurface*

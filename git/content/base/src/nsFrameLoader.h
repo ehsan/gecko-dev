@@ -54,7 +54,7 @@
 
 class nsIContent;
 class nsIURI;
-class nsSubDocumentFrame;
+class nsIFrameFrame;
 class nsIView;
 class nsIInProcessContentFrameMessageManager;
 class AutoResetInShow;
@@ -132,7 +132,7 @@ public:
    */
   PRBool Show(PRInt32 marginWidth, PRInt32 marginHeight,
               PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
-              nsSubDocumentFrame* frame);
+              nsIFrameFrame* frame);
 
   /**
    * Called from the layout frame associated with this frame loader, when
@@ -204,7 +204,7 @@ private:
 
   // Do the hookup necessary to actually show a remote frame once the view and
   // widget are available.
-  bool ShowRemoteFrame(nsSubDocumentFrame* frame, nsIView* view);
+  bool ShowRemoteFrame(nsIFrameFrame* frame, nsIView* view);
 #endif
 
   nsCOMPtr<nsIDocShell> mDocShell;

@@ -46,7 +46,6 @@
 #include "nsXPCOMStrings.h"
 
 #include "AndroidBridge.h"
-#include "nsAppShell.h"
 
 using namespace mozilla;
 
@@ -109,9 +108,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jOpenUriExternal = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "openUriExternal", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z");
     jGetMimeTypeFromExtension = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getMimeTypeFromExtension", "(Ljava/lang/String;)Ljava/lang/String;");
     jMoveTaskToBack = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "moveTaskToBack", "()V");
-    jGetClipboardText = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getClipboardText", "()Ljava/lang/String;");
-    jSetClipboardText = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setClipboardText", "(Ljava/lang/String;)V");
-    jShowAlertNotification = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showAlertNotification", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
 
 
     jEGLContextClass = (jclass) jEnv->NewGlobalRef(jEnv->FindClass("javax/microedition/khronos/egl/EGLContext"));
@@ -347,7 +343,7 @@ AndroidBridge::OpenUriExternal(const nsACString& aUriSpec, const nsACString& aMi
 }
 
 void
-AndroidBridge::GetMimeTypeFromExtension(const nsACString& aFileExt, nsCString& aMimeType) {
+AndroidBridge::GetMimeTypeFromExtension(const nsCString& aFileExt, nsCString& aMimeType) {
     AutoLocalJNIFrame jniFrame;
     NS_ConvertUTF8toUTF16 wFileExt(aFileExt);
     jstring jstrExt = mJNIEnv->NewString(wFileExt.get(), wFileExt.Length());
@@ -362,71 +358,6 @@ void
 AndroidBridge::MoveTaskToBack()
 {
     mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jMoveTaskToBack);
-}
-
-bool
-AndroidBridge::GetClipboardText(nsAString& aText)
-{
-    jstring jstrType =  
-        static_cast<jstring>(mJNIEnv->
-                             CallStaticObjectMethod(mGeckoAppShellClass,
-                                                    jGetClipboardText));
-    if (!jstrType)
-        return PR_FALSE;
-    nsJNIString jniStr(jstrType);
-    aText.Assign(jniStr);
-    return PR_TRUE;
-}
-
-void
-AndroidBridge::SetClipboardText(const nsAString& aText)
-{
-    const PRUnichar* wText;
-    PRUint32 wTextLen = NS_StringGetData(aText, &wText);
-    jstring jstr = mJNIEnv->NewString(wText, wTextLen);
-    mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jSetClipboardText, jstr);
-}
-
-bool
-AndroidBridge::ClipboardHasText()
-{
-    jstring jstrType =  
-        static_cast<jstring>(mJNIEnv->
-                             CallStaticObjectMethod(mGeckoAppShellClass,
-                                                    jGetClipboardText));
-    if (!jstrType)
-        return PR_FALSE;
-    return PR_TRUE;
-}
-
-void
-AndroidBridge::EmptyClipboard()
-{
-    mJNIEnv->CallStaticObjectMethod(mGeckoAppShellClass, jSetClipboardText, nsnull);
-}
-
-void
-AndroidBridge::ShowAlertNotification(const nsAString& aImageUrl,
-                                     const nsAString& aAlertTitle,
-                                     const nsAString& aAlertText,
-                                     const nsAString& aAlertCookie,
-                                     nsIObserver *aAlertListener,
-                                     const nsAString& aAlertName)
-{
-    ALOG("ShowAlertNotification");
-
-    AutoLocalJNIFrame jniFrame;
-
-    if (nsAppShell::gAppShell && aAlertListener)
-        nsAppShell::gAppShell->AddObserver(aAlertName, aAlertListener);
-
-    jvalue args[5];
-    args[0].l = mJNIEnv->NewString(nsPromiseFlatString(aImageUrl).get(), aImageUrl.Length());
-    args[1].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertTitle).get(), aAlertTitle.Length());
-    args[2].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertText).get(), aAlertText.Length());
-    args[3].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertCookie).get(), aAlertCookie.Length());
-    args[4].l = mJNIEnv->NewString(nsPromiseFlatString(aAlertName).get(), aAlertName.Length());
-    mJNIEnv->CallStaticVoidMethodA(mGeckoAppShellClass, jShowAlertNotification, args);
 }
 
 void
@@ -477,26 +408,6 @@ AndroidBridge::CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoS
     jint realSurface = mJNIEnv->GetIntField(surf, sfield);
 
     return (void*) realSurface;
-}
-
-bool
-AndroidBridge::GetStaticStringField(const char *className, const char *fieldName, nsAString &result)
-{
-    AutoLocalJNIFrame jniFrame(3);
-    jclass cls = mJNIEnv->FindClass(className);
-    if (!cls)
-        return false;
-
-    jfieldID field = mJNIEnv->GetStaticFieldID(cls, fieldName, "Ljava/lang/String;");
-    if (!field)
-        return false;
-
-    jstring jstr = (jstring) mJNIEnv->GetStaticObjectField(cls, field);
-    if (!jstr)
-        return false;
-
-    result.Assign(nsJNIString(jstr));
-    return true;
 }
 
 // Available for places elsewhere in the code to link to.

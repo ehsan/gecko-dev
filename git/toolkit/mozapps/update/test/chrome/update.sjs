@@ -74,20 +74,12 @@ function handleRequest(aRequest, aResponse) {
     return;
   }
 
-  var hash;
-  var patches = "";
-  if (!params.partialPatchOnly) {
-    hash = SHA512_HASH + (params.invalidCompleteHash ? "e" : "");
-    patches += getRemotePatchString("complete", SERVICE_URL, "SHA512",
-                                    hash, "775");
-  }
+  var patches = getRemotePatchString("complete", SERVICE_URL, "SHA512",
+                                     SHA512_HASH, "775");
 
-  if (!params.completePatchOnly) {
-    hash = SHA512_HASH + (params.invalidPartialHash ? "e" : "");
+  if (!params.completePatchOnly)
     patches += getRemotePatchString("partial", SERVICE_URL, "SHA512",
-                                    hash, "775");
-  }
-
+                                    SHA512_HASH, "775");
   var type = params.type ? params.type : "major";
   var name = params.name ? params.name : "App Update Test";
   var appVersion = params.appVersion ? params.appVersion : "99.9";

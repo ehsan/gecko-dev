@@ -40,7 +40,7 @@
 #ifndef mozilla_dom_indexeddb_idbtransaction_h__
 #define mozilla_dom_indexeddb_idbtransaction_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBRequest.h"
 #include "mozilla/dom/indexedDB/IDBDatabase.h"
 
 #include "nsIIDBTransaction.h"
@@ -53,7 +53,6 @@
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
 
-class mozIStorageStatement;
 class nsIThread;
 
 BEGIN_INDEXEDDB_NAMESPACE
@@ -64,6 +63,7 @@ struct ObjectStoreInfo;
 class TransactionThreadPool;
 
 class IDBTransaction : public nsDOMEventTargetHelper,
+                       public IDBRequest::Generator,
                        public nsIIDBTransaction
 {
   friend class AsyncConnectionHelper;
@@ -144,12 +144,6 @@ public:
 
   enum { FULL_LOCK = nsIIDBTransaction::SNAPSHOT_READ + 1 };
 
-  IDBDatabase* Database()
-  {
-    NS_ASSERTION(mDatabase, "This should never be null!");
-    return mDatabase;
-  }
-
 private:
   IDBTransaction();
   ~IDBTransaction();
@@ -170,7 +164,6 @@ private:
   nsRefPtr<nsDOMEventListenerWrapper> mOnCompleteListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnAbortListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnTimeoutListener;
-  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
 
   nsInterfaceHashtable<nsCStringHashKey, mozIStorageStatement>
     mCachedStatements;
@@ -191,7 +184,13 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  CommitHelper(IDBTransaction* aTransaction);
+  CommitHelper(IDBTransaction* aTransaction)
+  : mTransaction(aTransaction),
+    mAborted(!!aTransaction->mAborted),
+    mHasInitialSavepoint(!!aTransaction->mHasInitialSavepoint)
+  {
+    mConnection.swap(aTransaction->mConnection);
+  }
 
   template<class T>
   bool AddDoomedObject(nsCOMPtr<T>& aCOMPtr)

@@ -42,7 +42,6 @@
 #include "nsBaseAppShell.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
-#include "nsInterfaceHashtable.h"
 
 #include "prcvar.h"
 
@@ -71,10 +70,6 @@ public:
     void RemoveNextEvent();
     void OnResume();
 
-    nsresult AddObserver(const nsAString &aObserverKey, nsIObserver *aObserver);
-    void CallObserver(const nsAString &aObserverKey, const nsAString &aTopic, const nsAString &aData);
-    void RemoveObserver(const nsAString &aObserverKey);
-
 protected:
     virtual void ScheduleNativeEventCallback();
     virtual ~nsAppShell();
@@ -86,7 +81,6 @@ protected:
     PRCondVar *mQueueCond;
     PRCondVar *mPaused;
     nsTArray<mozilla::AndroidGeckoEvent *> mEventQueue;
-    nsInterfaceHashtable<nsStringHashKey, nsIObserver> mObserversHash;
 
     mozilla::AndroidGeckoEvent *GetNextEvent();
     mozilla::AndroidGeckoEvent *PeekNextEvent();

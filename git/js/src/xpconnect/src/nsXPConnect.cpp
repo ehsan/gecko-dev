@@ -390,13 +390,18 @@ nsXPConnect::Collect()
     // cycle collection. So to compensate for JS_BeginRequest in
     // XPCCallContext::Init we disable the conservative scanner if that call
     // has started the request on this thread.
-    JS_ASSERT(cx->thread->requestDepth >= 1);
-    JS_ASSERT(!cx->thread->data.conservativeGC.requestThreshold);
-    if(cx->thread->requestDepth == 1)
-        cx->thread->data.conservativeGC.requestThreshold = 1;
-    JS_GC(cx);
-    if(cx->thread->requestDepth == 1)
-        cx->thread->data.conservativeGC.requestThreshold = 0;
+    JS_ASSERT(cx->requestDepth >= 1);
+    JS_ASSERT(cx->thread->requestContext == cx);
+    if(cx->requestDepth >= 2)
+    {
+        JS_GC(cx);
+    }
+    else
+    {
+        JS_THREAD_DATA(cx)->conservativeGC.disable();
+        JS_GC(cx);
+        JS_THREAD_DATA(cx)->conservativeGC.enable();
+    }
 }
 
 NS_IMETHODIMP
@@ -846,19 +851,16 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
     return NS_OK;
 }
 
-unsigned
-nsXPConnect::GetOutstandingRequests(JSContext* cx)
+PRInt32
+nsXPConnect::GetRequestDepth(JSContext* cx)
 {
-    unsigned n = cx->outstandingRequests;
+    PRInt32 requestDepth = cx->outstandingRequests;
     XPCCallContext* context = mCycleCollectionContext;
-    // Ignore the contribution from the XPCCallContext we created for cycle
+    // Ignore the request from the XPCCallContext we created for cycle
     // collection.
     if(context && cx == context->GetJSContext())
-    {
-        JS_ASSERT(n);
-        --n;
-    }
-    return n;
+        --requestDepth;
+    return requestDepth;
 }
 
 class JSContextParticipant : public nsCycleCollectionParticipant
@@ -885,13 +887,14 @@ public:
     {
         JSContext *cx = static_cast<JSContext*>(n);
 
-        // Add outstandingRequests to the count, if there are outstanding
+        // Add cx->requestDepth to the refcount, if there are outstanding
         // requests the context needs to be kept alive and adding unknown
         // edges will ensure that any cycles this context is in won't be
         // collected.
-        unsigned refCount = nsXPConnect::GetXPConnect()->GetOutstandingRequests(cx) + 1;
+        PRInt32 refCount = nsXPConnect::GetXPConnect()->GetRequestDepth(cx) + 1;
 
-        cb.DescribeNode(RefCounted, refCount, sizeof(JSContext), "JSContext");
+        cb.DescribeNode(RefCounted, refCount, sizeof(JSContext),
+                        "JSContext");
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[global object]");
         if (cx->globalObject) {
             cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
@@ -946,6 +949,58 @@ private:
     JSStackFrame *mFrame;
 };
 
+/*
+ * Initialize WebGL type name aliases.  These types exist in the JS engine
+ * as generic names, e.g. "Uint8Array", but WebGL has specific names for these
+ * for now.  So we set up the aliases here, because we don't have a good place
+ * to do lazy resolution of these.
+ */
+static PRBool
+InitWebGLTypes(JSContext *aJSContext, JSObject *aGlobalJSObj)
+{
+    // this is unrooted, but it's a property on aGlobalJSObj so won't go away
+    jsval v;
+
+    // Alias WebGLArrayBuffer -> ArrayBuffer
+    if(!JS_GetProperty(aJSContext, aGlobalJSObj, "ArrayBuffer", &v) ||
+       !JS_DefineProperty(aJSContext, aGlobalJSObj, "WebGLArrayBuffer", v,
+                          NULL, NULL, JSPROP_PERMANENT))
+        return PR_FALSE;
+
+    const int webglTypes[] = {
+        js::TypedArray::TYPE_INT8,
+        js::TypedArray::TYPE_UINT8,
+        js::TypedArray::TYPE_INT16,
+        js::TypedArray::TYPE_UINT16,
+        js::TypedArray::TYPE_INT32,
+        js::TypedArray::TYPE_UINT32,
+        js::TypedArray::TYPE_FLOAT32
+    };
+
+    const char *webglNames[] = {
+        "WebGLByteArray",
+        "WebGLUnsignedByteArray",
+        "WebGLShortArray",
+        "WebGLUnsignedShortArray",
+        "WebGLIntArray",
+        "WebGLUnsignedIntArray",
+        "WebGLFloatArray"
+    };
+
+    for(size_t i = 0;
+        i < NS_ARRAY_LENGTH(webglTypes);
+        ++i)
+    {
+        if(!JS_GetProperty(aJSContext, aGlobalJSObj, js::TypedArray::slowClasses[webglTypes[i]].name, &v) ||
+           !JS_DefineProperty(aJSContext, aGlobalJSObj, webglNames[i], v,
+                              NULL, NULL, JSPROP_PERMANENT))
+            return PR_FALSE;
+    }
+
+    return PR_TRUE;
+}
+
+
 /* void initClasses (in JSContextPtr aJSContext, in JSObjectPtr aGlobalJSObj); */
 NS_IMETHODIMP
 nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
@@ -958,8 +1013,6 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     if(!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
     SaveFrame sf(aJSContext);
-
-    JSAutoEnterCompartment autoCompartment(ccx, aGlobalJSObj);
 
     xpc_InitJSxIDClassObjects();
 
@@ -983,6 +1036,28 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
             return UnexpectedFailure(NS_ERROR_FAILURE);
     }
 
+    if (!InitWebGLTypes(ccx, aGlobalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    return NS_OK;
+}
+
+/* void initClassesForOuterObject (in JSContextPtr aJSContext, in JSObjectPtr aGlobalJSObj); */
+NS_IMETHODIMP nsXPConnect::InitClassesForOuterObject(JSContext * aJSContext, JSObject * aGlobalJSObj)
+{
+    // Nest frame chain save/restore in request created by XPCCallContext.
+    XPCCallContext ccx(NATIVE_CALLER, aJSContext);
+    if(!ccx.IsValid())
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+    SaveFrame sf(aJSContext);
+
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::GetNewOrUsed(ccx, aGlobalJSObj);
+
+    if(!scope)
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    scope->RemoveWrappedNativeProtos();
     return NS_OK;
 }
 
@@ -1093,13 +1168,11 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
         if(NS_FAILED(InitClasses(aJSContext, tempGlobal)))
             return UnexpectedFailure(NS_ERROR_FAILURE);
 
-        nsresult rv;
-        xpcObjectHelper helper(aCOMObj);
         if(!XPCConvert::NativeInterface2JSObject(ccx, &v,
                                                  getter_AddRefs(holder),
-                                                 helper, &aIID, nsnull,
-                                                 tempGlobal, PR_FALSE,
-                                                 OBJ_IS_GLOBAL, &rv))
+                                                 aCOMObj, &aIID, nsnull,
+                                                 nsnull, tempGlobal,
+                                                 PR_FALSE, OBJ_IS_GLOBAL, &rv))
             return UnexpectedFailure(rv);
 
         NS_ASSERTION(NS_SUCCEEDED(rv) && holder, "Didn't wrap properly");
@@ -1160,6 +1233,9 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
         }
     }
 
+    if (!InitWebGLTypes(ccx, globalJSObj))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
     NS_ADDREF(*_retval = holder);
 
     return NS_OK;
@@ -1176,10 +1252,10 @@ NativeInterface2JSObject(XPCLazyCallContext & lccx,
                          nsIXPConnectJSObjectHolder **aHolder)
 {
     nsresult rv;
-    xpcObjectHelper helper(aCOMObj, aCache);
-    if(!XPCConvert::NativeInterface2JSObject(lccx, aVal, aHolder, helper, aIID,
-                                             nsnull, aScope, aAllowWrapping,
-                                             OBJ_IS_NOT_GLOBAL, &rv))
+    if(!XPCConvert::NativeInterface2JSObject(lccx, aVal, aHolder, aCOMObj, aIID,
+                                             nsnull, aCache, aScope,
+                                             aAllowWrapping, OBJ_IS_NOT_GLOBAL,
+                                             &rv))
         return rv;
 
 #ifdef DEBUG
@@ -2708,29 +2784,6 @@ nsXPConnect::GetNativeWrapperGetPropertyOp(JSPropertyOp *getPropertyPtr)
                  "Call and NoCall XPCNativeWrapper Class must use the same "
                  "getProperty hook.");
     *getPropertyPtr = XPCNativeWrapper::GetJSClass(true)->getProperty;
-}
-
-NS_IMETHODIMP
-nsXPConnect::HoldObject(JSContext *aJSContext, JSObject *aObject,
-                        nsIXPConnectJSObjectHolder **aHolder)
-{
-    XPCCallContext ccx(NATIVE_CALLER, aJSContext);
-    XPCJSObjectHolder* objHolder = XPCJSObjectHolder::newHolder(ccx, aObject);
-    if(!objHolder)
-        return NS_ERROR_OUT_OF_MEMORY;
-
-    NS_ADDREF(*aHolder = objHolder);
-    return NS_OK;
-}
-
-NS_IMETHODIMP_(void)
-nsXPConnect::GetCaller(JSContext **aJSContext, JSObject **aObj)
-{
-    XPCCallContext *ccx = XPCPerThreadData::GetData(nsnull)->GetCallContext();
-    *aJSContext = ccx->GetJSContext();
-
-    // Set to the caller in XPC_WN_Helper_{Call,Construct}
-    *aObj = ccx->GetFlattenedJSObject();
 }
 
 /* These are here to be callable from a debugger */

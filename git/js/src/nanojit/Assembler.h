@@ -196,7 +196,7 @@ namespace nanojit
     typedef HashMap<uint64_t, uint64_t*> ImmDPoolMap;
 #endif
 
-#ifdef VMCFG_VTUNE
+#ifdef VTUNE
     class avmplus::CodegenLIR;
 #endif
 
@@ -271,8 +271,8 @@ namespace nanojit
             #endif // NJ_VERBOSE
 
         public:
-            #ifdef VMCFG_VTUNE
-            void* vtuneHandle;
+            #ifdef VTUNE
+            avmplus::CodegenLIR *cgen;
             #endif
 
             Assembler(CodeAlloc& codeAlloc, Allocator& dataAlloc, Allocator& alloc, AvmCore* core, LogControl* logc, const Config& config);
@@ -315,11 +315,7 @@ namespace nanojit
             Register    registerAlloc(LIns* ins, RegisterMask allow, RegisterMask prefer);
             Register    registerAllocTmp(RegisterMask allow);
             void        registerResetAll();
-            void        evictAllActiveRegs() {
-                // The evicted set will be be intersected with activeSet(),
-                // so use an all-1s mask to avoid an extra load or call.
-                evictSomeActiveRegs(~RegisterMask(0));
-            }
+            void        evictAllActiveRegs();
             void        evictSomeActiveRegs(RegisterMask regs);
             void        evictScratchRegsExcept(RegisterMask ignore);
             void        intersectRegisterState(RegAlloc& saved);
@@ -429,12 +425,8 @@ namespace nanojit
             // Otherwise, register allocation decisions will be suboptimal.
             void        asm_restore(LIns*, Register);
 
-            bool        asm_maybe_spill(LIns* ins, bool pop);
-#ifdef NANOJIT_IA32
-            void        asm_spill(Register rr, int d, bool pop);
-#else
-            void        asm_spill(Register rr, int d, bool quad);
-#endif
+            void        asm_maybe_spill(LIns* ins, bool pop);
+            void        asm_spill(Register rr, int d, bool pop, bool quad);
             void        asm_load64(LIns* ins);
             void        asm_ret(LIns* ins);
 #ifdef NANOJIT_64BIT
@@ -506,10 +498,10 @@ namespace nanojit
 
             // since we generate backwards the depth is negative
             inline void fpu_push() {
-                debug_only( ++_fpuStkDepth; NanoAssert(_fpuStkDepth <= 0); )
+                debug_only( ++_fpuStkDepth; NanoAssert(_fpuStkDepth<=0); )
             }
             inline void fpu_pop() {
-                debug_only( --_fpuStkDepth; NanoAssert(_fpuStkDepth >= -7); )
+                debug_only( --_fpuStkDepth; NanoAssert(_fpuStkDepth<=0); )
             }
 #endif
             const Config& _config;

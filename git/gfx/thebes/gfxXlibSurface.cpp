@@ -47,7 +47,6 @@
 #include "nsAlgorithm.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIPrefService.h"
-#include "cairo-xlib-xrender.h"
 
 // Although the dimension parameters in the xCreatePixmapReq wire protocol are
 // 16-bit unsigned integers, the server's CreatePixmap returns BadAlloc if
@@ -183,10 +182,6 @@ already_AddRefed<gfxASurface>
 gfxXlibSurface::CreateSimilarSurface(gfxContentType aContent,
                                      const gfxIntSize& aSize)
 {
-    if (!mSurface || !mSurfaceValid) {
-      return nsnull;
-    }
-
     if (aContent == CONTENT_COLOR) {
         // cairo_surface_create_similar will use a matching visual if it can.
         // However, systems with 16-bit or indexed default visuals may benefit
@@ -495,10 +490,3 @@ gfxXlibSurface::FindRenderFormat(Display *dpy, gfxImageFormat format)
 
     return (XRenderPictFormat*)NULL;
 }
-
-XRenderPictFormat*
-gfxXlibSurface::XRenderFormat()
-{
-    return cairo_xlib_surface_get_xrender_format(CairoSurface());
-}
-

@@ -44,6 +44,7 @@
 #include "imgIDecoderObserver.h"
 #include "nsISecurityInfoProvider.h"
 
+#include "imgIDecoder.h"
 #include "nsIRequestObserver.h"
 #include "nsIChannel.h"
 #include "nsILoadGroup.h"
@@ -123,16 +124,6 @@ public:
     mDeferNotifications = aDeferNotifications;
   }
 
-  // Setter for our |mImage| pointer, for imgRequest to use, once it
-  // instantiates an Image.
-  void SetImage(mozilla::imagelib::Image* aImage);
-
-  // Removes all animation consumers that were created with
-  // IncrementAnimationConsumers. This is necessary since we need
-  // to do it before the proxy itself is destroyed. See
-  // imgRequest::RemoveProxy
-  void ClearAnimationConsumers();
-
 protected:
   friend class imgStatusTracker;
   friend class imgStatusNotifyRunnable;
@@ -190,12 +181,6 @@ protected:
     RemoveFromLoadGroup(PR_TRUE);
   }
 
-  // Return the imgStatusTracker associated with mOwner and/or mImage. It may
-  // live either on mOwner or mImage, depending on whether
-  //   (a) we have an mOwner at all
-  //   (b) whether mOwner has instantiated its image yet
-  imgStatusTracker& GetStatusTracker();
-
 private:
   friend class imgCacheValidator;
 
@@ -225,8 +210,7 @@ private:
   nsCOMPtr<nsILoadGroup> mLoadGroup;
 
   nsLoadFlags mLoadFlags;
-  PRUint32    mLockCount;
-  PRUint32    mAnimationConsumers;
+  PRUint32    mLocksHeld;
   PRPackedBool mCanceled;
   PRPackedBool mIsInLoadGroup;
   PRPackedBool mListenerIsStrongRef;

@@ -113,9 +113,8 @@ public:
     JSObject *global;
     bool knownFail;
     JSAPITestString msgs;
-    JSCrossCompartmentCall *call;
 
-    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), call(NULL) {
+    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false) {
         next = list;
         list = this;
     }
@@ -131,17 +130,10 @@ public:
             return false;
         JS_BeginRequest(cx);
         global = createGlobal();
-        if (!global)
-            return false;
-        call = JS_EnterCrossCompartmentCall(cx, global);
-        return call != NULL;
+        return global != NULL;
     }
 
     virtual void uninit() {
-        if (call) {
-            JS_LeaveCrossCompartmentCall(call);
-            call = NULL;
-        }
         if (cx) {
             JS_EndRequest(cx);
             JS_DestroyContext(cx);
@@ -281,11 +273,10 @@ protected:
 
     virtual JSObject * createGlobal() {
         /* Create the global object. */
-        JSObject *global = JS_NewCompartmentAndGlobalObject(cx, getGlobalClass(), NULL);
+        JSObject *global = JS_NewGlobalObject(cx, getGlobalClass());
         if (!global)
             return NULL;
 
-        JSAutoEnterCompartment enter(cx, global);
         /* Populate the global object with the standard globals,
            like Object and Array. */
         if (!JS_InitStandardClasses(cx, global))

@@ -202,18 +202,13 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength)
     }
   }
 
-  // We don't attempt to detect if large text nodes can be stored compactly,
-  // because that wastes too much time.
-  const PRInt32 LARGE_STRING_THRESHOLD = 10240; // 10KB
-  PRBool need2 = aLength >= LARGE_STRING_THRESHOLD;
-  if (!need2) {
-    // See if we need to store the data in ucs2 or not
-    while (ucp < uend) {
-      PRUnichar ch = *ucp++;
-      if (ch >= 256) {
-        need2 = PR_TRUE;
-        break;
-      }
+  // See if we need to store the data in ucs2 or not
+  PRBool need2 = PR_FALSE;
+  while (ucp < uend) {
+    PRUnichar ch = *ucp++;
+    if (ch >= 256) {
+      need2 = PR_TRUE;
+      break;
     }
   }
 
@@ -372,11 +367,11 @@ nsTextFragment::Append(const PRUnichar* aBuffer, PRUint32 aLength)
 // To save time we only do this when we really want to know, not during
 // every allocation
 void
-nsTextFragment::UpdateBidiFlag(const PRUnichar* aBuffer, PRUint32 aLength)
+nsTextFragment::SetBidiFlag()
 {
   if (mState.mIs2b && !mState.mIsBidi) {
-    const PRUnichar* cp = aBuffer;
-    const PRUnichar* end = cp + aLength;
+    const PRUnichar* cp = m2b;
+    const PRUnichar* end = cp + mState.mLength;
     while (cp < end) {
       PRUnichar ch1 = *cp++;
       PRUint32 utf32Char = ch1;

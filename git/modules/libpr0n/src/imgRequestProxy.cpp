@@ -67,8 +67,7 @@ imgRequestProxy::imgRequestProxy() :
   mPrincipal(nsnull),
   mListener(nsnull),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
-  mLockCount(0),
-  mAnimationConsumers(0),
+  mLocksHeld(0),
   mCanceled(PR_FALSE),
   mIsInLoadGroup(PR_FALSE),
   mListenerIsStrongRef(PR_FALSE),
@@ -86,11 +85,9 @@ imgRequestProxy::~imgRequestProxy()
   NS_PRECONDITION(!mListener, "Someone forgot to properly cancel this request!");
 
   // Unlock the image the proper number of times if we're holding locks on it.
-  // Note that UnlockImage() decrements mLockCount each time it's called.
-  while (mLockCount)
+  // Note that UnlockImage() decrements mLocksHeld each time it's called.
+  while (mLocksHeld)
     UnlockImage();
-
-  ClearAnimationConsumers();
 
   // Explicitly set mListener to null to ensure that the RemoveProxy
   // call below can't send |this| to an arbitrary listener while |this|
@@ -122,8 +119,6 @@ nsresult imgRequestProxy::Init(imgRequest* request, nsILoadGroup* aLoadGroup, Im
 
   LOG_SCOPE_WITH_PARAM(gImgLog, "imgRequestProxy::Init", "request", request);
 
-  NS_ABORT_IF_FALSE(mAnimationConsumers == 0, "Cannot have animation before Init");
-
   mOwner = request;
   mListener = aObserver;
   // Make sure to addref mListener before the AddProxy call below, since
@@ -149,14 +144,10 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   NS_PRECONDITION(mOwner, "Cannot ChangeOwner on a proxy without an owner!");
 
   // If we're holding locks, unlock the old image.
-  // Note that UnlockImage decrements mLockCount each time it's called.
-  PRUint32 oldLockCount = mLockCount;
-  while (mLockCount)
+  // Note that UnlockImage decrements mLocksHeld each time it's called.
+  PRUint32 oldLockCount = mLocksHeld;
+  while (mLocksHeld)
     UnlockImage();
-
-  // If we're holding animation requests, undo them.
-  PRUint32 oldAnimationConsumers = mAnimationConsumers;
-  ClearAnimationConsumers();
 
   // Even if we are cancelled, we MUST change our image, because the image
   // holds our status, and the status must always be correct.
@@ -166,20 +157,13 @@ nsresult imgRequestProxy::ChangeOwner(imgRequest *aNewOwner)
   for (PRUint32 i = 0; i < oldLockCount; i++)
     LockImage();
 
-  // If we had animation requests, apply them here
-  for (PRUint32 i = 0; i < oldAnimationConsumers; i++)
-    IncrementAnimationConsumers();
-
   if (mCanceled)
     return NS_OK;
 
   // Were we decoded before?
   PRBool wasDecoded = PR_FALSE;
-  if (mImage &&
-      (mImage->GetStatusTracker().GetImageStatus() &
-       imgIRequest::STATUS_FRAME_COMPLETE)) {
+  if (mImage->GetStatusTracker().GetImageStatus() & imgIRequest::STATUS_FRAME_COMPLETE)
     wasDecoded = PR_TRUE;
-  }
 
   // Passing false to aNotify means that mListener will still get
   // OnStopRequest, if needed.
@@ -329,70 +313,20 @@ imgRequestProxy::RequestDecode()
 NS_IMETHODIMP
 imgRequestProxy::LockImage()
 {
-  mLockCount++;
-  if (mImage)
-    return mImage->LockImage();
-  return NS_OK;
+  mLocksHeld++;
+
+  return mImage->LockImage();
 }
 
 /* void unlockImage (); */
 NS_IMETHODIMP
 imgRequestProxy::UnlockImage()
 {
-  NS_ABORT_IF_FALSE(mLockCount > 0, "calling unlock but no locks!");
+  NS_ABORT_IF_FALSE(mLocksHeld > 0, "calling unlock but no locks!");
 
-  mLockCount--;
-  if (mImage)
-    return mImage->UnlockImage();
-  return NS_OK;
-}
+  mLocksHeld--;
 
-NS_IMETHODIMP
-imgRequestProxy::IncrementAnimationConsumers()
-{
-  // Without an observer, we should not animate
-  if (!HasObserver())
-    return NS_OK;
-
-  mAnimationConsumers++;
-  if (mImage)
-    mImage->IncrementAnimationConsumers();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-imgRequestProxy::DecrementAnimationConsumers()
-{
-  if (!HasObserver()) {
-    NS_ABORT_IF_FALSE(mAnimationConsumers == 0,
-                      "How can we have animation consumers without an observer?");
-
-    // Without an observer, we have no consumers anyhow
-    return NS_OK;
-  }
-
-  // We may get here if some responsible code called Increment,
-  // then called us, but we have meanwhile called ClearAnimationConsumers
-  // because we needed to get rid of them earlier (see
-  // imgRequest::RemoveProxy), and hence have nothing left to
-  // decrement. (In such a case we got rid of the animation consumers
-  // early, but not the observer.)
-  if (mAnimationConsumers > 0) {
-    mAnimationConsumers--;
-    if (mImage)
-      mImage->DecrementAnimationConsumers();
-  }
-  return NS_OK;
-}
-
-void
-imgRequestProxy::ClearAnimationConsumers()
-{
-  NS_ABORT_IF_FALSE(HasObserver() || mAnimationConsumers == 0,
-                    "How can we have animation consumers without an observer?");
-
-  while (mAnimationConsumers > 0)
-    DecrementAnimationConsumers();
+  return mImage->UnlockImage();
 }
 
 /* void suspend (); */
@@ -436,16 +370,10 @@ NS_IMETHODIMP imgRequestProxy::SetLoadFlags(nsLoadFlags flags)
 /* attribute imgIContainer image; */
 NS_IMETHODIMP imgRequestProxy::GetImage(imgIContainer * *aImage)
 {
-  // It's possible that our owner has an image but hasn't notified us of it -
-  // that'll happen if we get Canceled before the owner instantiates its image
-  // (because Canceling unregisters us as a listener on mOwner). If we're
-  // in that situation, just grab the image off of mOwner.
-  imgIContainer* imageToReturn = mImage ? mImage : mOwner->mImage;
-
-  if (!imageToReturn)
+  if (!mImage->IsInitialized())
     return NS_ERROR_FAILURE;
 
-  NS_ADDREF(*aImage = imageToReturn);
+  NS_ADDREF(*aImage = mImage);
 
   return NS_OK;
 }
@@ -453,7 +381,7 @@ NS_IMETHODIMP imgRequestProxy::GetImage(imgIContainer * *aImage)
 /* readonly attribute unsigned long imageStatus; */
 NS_IMETHODIMP imgRequestProxy::GetImageStatus(PRUint32 *aStatus)
 {
-  *aStatus = GetStatusTracker().GetImageStatus();
+  *aStatus = mImage->GetStatusTracker().GetImageStatus();
 
   return NS_OK;
 }
@@ -509,9 +437,7 @@ NS_IMETHODIMP imgRequestProxy::Clone(imgIDecoderObserver* aObserver,
   // XXXldb That's not true anymore.  Stuff from imgLoader adds the
   // request to the loadgroup.
   clone->SetLoadFlags(mLoadFlags);
-  nsresult rv = clone->Init(mOwner, mLoadGroup,
-                            mImage ? mImage : mOwner->mImage,
-                            mURI, aObserver);
+  nsresult rv = clone->Init(mOwner, mLoadGroup, mImage, mURI, aObserver);
   if (NS_FAILED(rv))
     return rv;
 
@@ -752,10 +678,6 @@ void imgRequestProxy::OnStopRequest(PRBool lastPart)
 
 void imgRequestProxy::NullOutListener()
 {
-  // If we have animation consumers, then they don't matter anymore
-  if (mListener)
-    ClearAnimationConsumers();
-
   if (mListenerIsStrongRef) {
     // Releasing could do weird reentery stuff, so just play it super-safe
     nsCOMPtr<imgIDecoderObserver> obs;
@@ -772,7 +694,7 @@ imgRequestProxy::GetStaticRequest(imgIRequest** aReturn)
   *aReturn = nsnull;
 
   PRBool animated;
-  if (!mImage || (NS_SUCCEEDED(mImage->GetAnimated(&animated)) && !animated)) {
+  if (NS_SUCCEEDED(mImage->GetAnimated(&animated)) && !animated) {
     // Early exit - we're not animated, so we don't have to do anything.
     NS_ADDREF(*aReturn = this);
     return NS_OK;
@@ -817,12 +739,10 @@ void imgRequestProxy::NotifyListener()
 
   if (mOwner) {
     // Send the notifications to our listener asynchronously.
-    GetStatusTracker().Notify(mOwner, this);
+    mImage->GetStatusTracker().Notify(mOwner, this);
   } else {
     // We don't have an imgRequest, so we can only notify the clone of our
     // current state, but we still have to do that asynchronously.
-    NS_ABORT_IF_FALSE(mImage,
-                      "if we have no imgRequest, we should have an Image");
     mImage->GetStatusTracker().NotifyCurrentState(this);
   }
 }
@@ -834,34 +754,5 @@ void imgRequestProxy::SyncNotifyListener()
   // processing when we receive notifications (like OnStopRequest()), and we
   // need to check mCanceled everywhere too.
 
-  GetStatusTracker().SyncNotify(this);
-}
-
-void
-imgRequestProxy::SetImage(Image* aImage)
-{
-  NS_ABORT_IF_FALSE(aImage,  "Setting null image");
-  NS_ABORT_IF_FALSE(!mImage, "Setting image when we already have one");
-
-  mImage = aImage;
-
-  // Apply any locks we have
-  for (PRUint32 i = 0; i < mLockCount; ++i)
-    mImage->LockImage();
-
-  // Apply any animation consumers we have
-  for (PRUint32 i = 0; i < mAnimationConsumers; i++)
-    mImage->IncrementAnimationConsumers();
-}
-
-imgStatusTracker&
-imgRequestProxy::GetStatusTracker()
-{
-  // NOTE: It's possible that our mOwner has an Image that it didn't notify
-  // us about, if we were Canceled before its Image was constructed.
-  // (Canceling removes us as an observer, so mOwner has no way to notify us).
-  // That's why this method uses mOwner->GetStatusTracker() instead of just
-  // mOwner->mStatusTracker -- we might have a null mImage and yet have an
-  // mOwner with a non-null mImage (and a null mStatusTracker pointer).
-  return mImage ? mImage->GetStatusTracker() : mOwner->GetStatusTracker();
+  mImage->GetStatusTracker().SyncNotify(this);
 }

@@ -575,22 +575,21 @@ nsXULTreeGridAccessible::IsProbablyForLayout(PRBool *aIsProbablyForLayout)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridAccessible: nsAccessible implementation
 
-PRUint32
-nsXULTreeGridAccessible::NativeRole()
+nsresult
+nsXULTreeGridAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsITreeColumns> treeColumns;
   mTree->GetColumns(getter_AddRefs(treeColumns));
-  if (!treeColumns) {
-    NS_ERROR("No treecolumns object for tree!");
-    return nsIAccessibleRole::ROLE_NOTHING;
-  }
+  NS_ENSURE_STATE(treeColumns);
 
   nsCOMPtr<nsITreeColumn> primaryColumn;
   treeColumns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
 
-  return primaryColumn ?
+  *aRole = primaryColumn ?
     static_cast<PRUint32>(nsIAccessibleRole::ROLE_TREE_TABLE) :
     static_cast<PRUint32>(nsIAccessibleRole::ROLE_TABLE);
+
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,10 +656,11 @@ nsXULTreeGridRowAccessible::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULTreeGridRowAccessible: nsAccessible implementation
 
-PRUint32
-nsXULTreeGridRowAccessible::NativeRole()
+nsresult
+nsXULTreeGridRowAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_ROW;
+  *aRole = nsIAccessibleRole::ROLE_ROW;
+  return NS_OK;
 }
 
 nsresult
@@ -1164,10 +1164,11 @@ nsXULTreeGridCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAtt
   return NS_OK;
 }
 
-PRUint32
-nsXULTreeGridCellAccessible::NativeRole()
+nsresult
+nsXULTreeGridCellAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  return nsIAccessibleRole::ROLE_GRID_CELL;
+  *aRole = nsIAccessibleRole::ROLE_GRID_CELL;
+  return NS_OK;
 }
 
 nsresult
@@ -1237,9 +1238,9 @@ nsXULTreeGridCellAccessible::CellInvalidated()
     mTreeView->GetCellValue(mRow, mColumn, textEquiv);
     if (mCachedTextEquiv != textEquiv) {
       PRBool isEnabled = textEquiv.EqualsLiteral("true");
-      nsRefPtr<AccEvent> accEvent =
-        new AccStateChangeEvent(this, nsIAccessibleStates::STATE_CHECKED,
-                                PR_FALSE, isEnabled);
+      nsRefPtr<nsAccEvent> accEvent =
+        new nsAccStateChangeEvent(this, nsIAccessibleStates::STATE_CHECKED,
+                                  PR_FALSE, isEnabled);
       nsEventShell::FireEvent(accEvent);
 
       mCachedTextEquiv = textEquiv;

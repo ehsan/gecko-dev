@@ -296,24 +296,30 @@ FinishCreate(XPCCallContext& ccx,
 // static
 nsresult
 XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
-                               xpcObjectHelper& helper,
+                               nsISupports* Object,
                                XPCWrappedNativeScope* Scope,
                                XPCNativeInterface* Interface,
+                               nsWrapperCache *cache,
                                JSBool isGlobal,
                                XPCWrappedNative** resultWrapper)
 {
-    nsWrapperCache *cache = helper.GetWrapperCache();
-
     NS_ASSERTION(!cache || !cache->GetWrapper(),
                  "We assume the caller already checked if it could get the "
                  "wrapper from the cache.");
 
     nsresult rv;
 
+#ifdef DEBUG
     NS_ASSERTION(!Scope->GetRuntime()->GetThreadRunningGC(), 
                  "XPCWrappedNative::GetNewOrUsed called during GC");
+    {
+        nsWrapperCache *cache2 = nsnull;
+        CallQueryInterface(Object, &cache2);
+        NS_ASSERTION(!cache == !cache2, "Caller should pass in the cache!");
+    }
+#endif
 
-    nsISupports *identity;
+    nsCOMPtr<nsISupports> identity;
 #ifdef XPC_IDISPATCH_SUPPORT
     // XXX This is done for the benefit of some warped COM implementations
     // where QI(IID_IUnknown, a.b) == QI(IID_IUnknown, a). If someone passes
@@ -323,10 +329,10 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     PRBool isIDispatch = Interface &&
                          Interface->GetIID()->Equals(NSID_IDISPATCH);
     if(isIDispatch)
-        identity = helper.Object();
+        identity = Object;
     else
 #endif
-        identity = helper.GetCanonical();
+        identity = do_QueryInterface(Object);
 
     if(!identity)
     {
@@ -390,17 +396,18 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     JSBool isClassInfo = Interface &&
                          Interface->GetIID()->Equals(NS_GET_IID(nsIClassInfo));
 
-    nsIClassInfo *info = helper.GetClassInfo();
+    nsCOMPtr<nsIClassInfo> info;
+
+    if(!isClassInfo)
+        info = do_QueryInterface(identity);
 
 #ifdef XPC_IDISPATCH_SUPPORT
     // If this is an IDispatch wrapper and it didn't give us a class info
     // we'll provide a default one
-    nsCOMPtr<nsIClassInfo> dispatchInfo;
     if(isIDispatch && !info)
     {
-        dispatchInfo = dont_AddRef(static_cast<nsIClassInfo*>
+        info = dont_AddRef(static_cast<nsIClassInfo*>
                                       (XPCIDispatchClassInfo::GetSingleton()));
-        info = dispatchInfo;
     }
 #endif
 
@@ -427,8 +434,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     JSBool needsCOW = JS_FALSE;
     JSBool needsXOW = JS_FALSE;
 
-    JSAutoCrossCompartmentCall accc;
-
     if(sciWrapper.GetFlags().WantPreCreate())
     {
         JSObject* plannedParent = parent;
@@ -451,14 +456,11 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
             XPCWrappedNativeScope* betterScope =
                 XPCWrappedNativeScope::FindInJSObjectScope(ccx, parent);
             if(betterScope != Scope)
-                return GetNewOrUsed(ccx, helper, betterScope, Interface,
-                                    isGlobal, resultWrapper);
+                return GetNewOrUsed(ccx, identity, betterScope, Interface,
+                                    cache, isGlobal, resultWrapper);
 
             newParentVal = OBJECT_TO_JSVAL(parent);
         }
-
-        if(!accc.enter(ccx, parent))
-            return NS_ERROR_FAILURE;
 
         // Take the performance hit of checking the hashtable again in case
         // the preCreate call caused the wrapper to get created through some
@@ -508,10 +510,6 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     }
     else
     {
-        if(!accc.enter(ccx, parent))
-            return NS_ERROR_FAILURE;
-
-        nsISupports *Object = helper.Object();
         if(nsXPCWrappedJSClass::IsWrappedJS(Object))
         {
             nsCOMPtr<nsIXPConnectWrappedJS> wrappedjs(do_QueryInterface(Object));
@@ -544,8 +542,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
         proto->CacheOffsets(identity);
 
         wrapper = needsXOW
-                  ? new XPCWrappedNativeWithXOW(identity, proto)
-                  : new XPCWrappedNative(identity, proto);
+                  ? new XPCWrappedNativeWithXOW(identity.get(), proto)
+                  : new XPCWrappedNative(identity.get(), proto);
         if(!wrapper)
             return NS_ERROR_FAILURE;
     }
@@ -562,8 +560,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
             return NS_ERROR_FAILURE;
 
         wrapper = needsXOW
-                  ? new XPCWrappedNativeWithXOW(identity, Scope, set)
-                  : new XPCWrappedNative(identity, Scope, set);
+                  ? new XPCWrappedNativeWithXOW(identity.get(), Scope, set)
+                  : new XPCWrappedNative(identity.get(), Scope, set);
         if(!wrapper)
             return NS_ERROR_FAILURE;
 
@@ -572,7 +570,8 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
     // The strong reference was taken over by the wrapper, so make the nsCOMPtr
     // forget about it.
-    helper.forgetCanonical();
+    // Note that identity is null from here on!
+    identity.forget();
 
     NS_ADDREF(wrapper);
 
@@ -1651,19 +1650,8 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCCallContext& ccx,
 
     // Now we can just fix up the parent and return the wrapper
 
-    if(aNewParent)
-    {
-        if(!JS_SetParent(ccx, flat, aNewParent))
-            return NS_ERROR_FAILURE;
-
-        JSObject *nw;
-        if(wrapper &&
-           (nw = wrapper->GetWrapper()) &&
-           !JS_SetParent(ccx, nw, JS_GetGlobalForObject(ccx, aNewParent)))
-        {
-            return NS_ERROR_FAILURE;
-        }
-    }
+    if(aNewParent && !JS_SetParent(ccx, flat, aNewParent))
+        return NS_ERROR_FAILURE;
 
     *aWrapper = nsnull;
     wrapper.swap(*aWrapper);
@@ -1740,8 +1728,12 @@ return_wrapper:
             {
                 XPCWrappedNativeProto* wrapper_proto =
                     isWN ? wrapper->GetProto() : GetSlimWrapperProto(cur);
+                XPCWrappedNativeScope* wrapper_scope =
+                    wrapper_proto ? wrapper_proto->GetScope() :
+                                    wrapper->GetScope();
                 if(proto != wrapper_proto &&
-                   (!protoClassInfo || !wrapper_proto ||
+                   (proto->GetScope() != wrapper_scope ||
+                    !protoClassInfo || !wrapper_proto ||
                     protoClassInfo != wrapper_proto->GetClassInfo()))
                     continue;
             }
@@ -3854,11 +3846,25 @@ static PRUint32 sSlimWrappers;
 
 JSBool
 ConstructSlimWrapper(XPCCallContext &ccx,
-                     xpcObjectHelper &aHelper,
+                     nsISupports *p,
+                     qsObjectHelper* aHelper,
+                     nsWrapperCache* cache,
                      XPCWrappedNativeScope* xpcScope, jsval *rval)
 {
-    nsISupports *identityObj = aHelper.GetCanonical();
-    nsXPCClassInfo *classInfoHelper = aHelper.GetXPCClassInfo();
+    nsCOMPtr<nsISupports> strongIdentity;
+    nsISupports* identityObj = aHelper ? aHelper->GetCanonical() : nsnull;
+    if (!identityObj) {
+      strongIdentity = do_QueryInterface(p);
+      identityObj = strongIdentity.get();
+    }
+
+    nsRefPtr<nsXPCClassInfo> classInfoHelper;
+    if (aHelper) {
+      classInfoHelper = aHelper->GetXPCClassInfo();
+    }
+    if (!classInfoHelper) {
+      CallQueryInterface(p, getter_AddRefs(classInfoHelper));
+    }
 
     JSUint32 flagsInt;
     nsresult rv = classInfoHelper->GetScriptableFlags(&flagsInt);
@@ -3902,7 +3908,6 @@ ConstructSlimWrapper(XPCCallContext &ccx,
 
     // The PreCreate hook could have forced the creation of a wrapper, need
     // to check for that here and return early.
-    nsWrapperCache *cache = aHelper.GetWrapperCache();
     JSObject* wrapper = cache->GetWrapper();
     if(wrapper)
     {
@@ -3911,15 +3916,16 @@ ConstructSlimWrapper(XPCCallContext &ccx,
         return JS_TRUE;
     }
 
+    nsIClassInfo* classInfo = classInfoHelper;
     PRUint32 interfacesBitmap = classInfoHelper->GetInterfacesBitmap();
     XPCNativeScriptableCreateInfo
-        sciProto(aHelper.forgetXPCClassInfo(), flags, interfacesBitmap);
+        sciProto(classInfoHelper.forget().get(), flags, interfacesBitmap);
 
     AutoMarkingWrappedNativeProtoPtr xpcproto(ccx);
     JSBool isGlobal = JS_FALSE;
-    xpcproto = XPCWrappedNativeProto::GetNewOrUsed(ccx, xpcScope,
-                                                   classInfoHelper, &sciProto,
-                                                   JS_FALSE, isGlobal);
+    xpcproto = XPCWrappedNativeProto::GetNewOrUsed(ccx, xpcScope, classInfo,
+                                                   &sciProto, JS_FALSE,
+                                                   isGlobal);
     if(!xpcproto)
         return JS_FALSE;
 
@@ -3939,7 +3945,11 @@ ConstructSlimWrapper(XPCCallContext &ccx,
         return JS_FALSE;
 
     // Transfer ownership to the wrapper's private.
-    aHelper.forgetCanonical();
+    if (strongIdentity) {
+        strongIdentity.forget();
+    } else {
+      aHelper->TakeCanonical();
+    }
 
     cache->SetWrapper(wrapper);
 

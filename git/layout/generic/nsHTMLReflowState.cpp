@@ -395,16 +395,10 @@ nsHTMLReflowState::InitResizeFlags(nsPresContext* aPresContext)
   }
 
   PRBool dependsOnCBHeight =
-    (mStylePosition->HeightDependsOnContainer() &&
-     // FIXME: condition this on not-abspos?
-     mStylePosition->mHeight.GetUnit() != eStyleUnit_Auto) ||
-    (mStylePosition->MinHeightDependsOnContainer() &&
-     // FIXME: condition this on not-abspos?
-     mStylePosition->mMinHeight.GetUnit() != eStyleUnit_Auto) ||
-    (mStylePosition->MaxHeightDependsOnContainer() &&
-     // FIXME: condition this on not-abspos?
-     mStylePosition->mMaxHeight.GetUnit() != eStyleUnit_Auto) ||
-    mStylePosition->OffsetHasPercent(NS_SIDE_TOP) ||
+    mStylePosition->mHeight.GetUnit() == eStyleUnit_Percent ||
+    mStylePosition->mMinHeight.GetUnit() == eStyleUnit_Percent ||
+    mStylePosition->mMaxHeight.GetUnit() == eStyleUnit_Percent ||
+    mStylePosition->mOffset.GetTopUnit() == eStyleUnit_Percent ||
     mStylePosition->mOffset.GetBottomUnit() != eStyleUnit_Auto ||
     frame->IsBoxFrame() ||
     (mStylePosition->mHeight.GetUnit() == eStyleUnit_Auto &&
@@ -611,6 +605,17 @@ nsHTMLReflowState::ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
   PRBool  leftIsAuto = eStyleUnit_Auto == mStylePosition->mOffset.GetLeftUnit();
   PRBool  rightIsAuto = eStyleUnit_Auto == mStylePosition->mOffset.GetRightUnit();
 
+  // Check for percentage based values and an unconstrained containing
+  // block width. Treat them like 'auto'
+  if (NS_UNCONSTRAINEDSIZE == aContainingBlockWidth) {
+    if (eStyleUnit_Percent == mStylePosition->mOffset.GetLeftUnit()) {
+      leftIsAuto = PR_TRUE;
+    }
+    if (eStyleUnit_Percent == mStylePosition->mOffset.GetRightUnit()) {
+      rightIsAuto = PR_TRUE;
+    }
+  }
+
   // If neither 'left' not 'right' are auto, then we're over-constrained and
   // we ignore one of them
   if (!leftIsAuto && !rightIsAuto) {
@@ -657,10 +662,10 @@ nsHTMLReflowState::ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
   // Check for percentage based values and a containing block height that
   // depends on the content height. Treat them like 'auto'
   if (NS_AUTOHEIGHT == aContainingBlockHeight) {
-    if (mStylePosition->OffsetHasPercent(NS_SIDE_TOP)) {
+    if (eStyleUnit_Percent == mStylePosition->mOffset.GetTopUnit()) {
       topIsAuto = PR_TRUE;
     }
-    if (mStylePosition->OffsetHasPercent(NS_SIDE_BOTTOM)) {
+    if (eStyleUnit_Percent == mStylePosition->mOffset.GetBottomUnit()) {
       bottomIsAuto = PR_TRUE;
     }
   }
@@ -783,7 +788,7 @@ static PRBool
 GetIntrinsicSizeFor(nsIFrame* aFrame, nsSize& aIntrinsicSize)
 {
   // See if it is an image frame
-  PRBool success = PR_FALSE;
+  PRBool    result = PR_FALSE;
 
   // Currently the only type of replaced frame that we can get the intrinsic
   // size for is an image frame
@@ -792,11 +797,10 @@ GetIntrinsicSizeFor(nsIFrame* aFrame, nsSize& aIntrinsicSize)
   if (aFrame->GetType() == nsGkAtoms::imageFrame) {
     nsImageFrame* imageFrame = (nsImageFrame*)aFrame;
 
-    if (NS_SUCCEEDED(imageFrame->GetIntrinsicImageSize(aIntrinsicSize))) {
-      success = (aIntrinsicSize != nsSize(0, 0));
-    }
+    imageFrame->GetIntrinsicImageSize(aIntrinsicSize);
+    result = (aIntrinsicSize != nsSize(0, 0));
   }
-  return success;
+  return result;
 }
 
 /**
@@ -1575,7 +1579,6 @@ nsHTMLReflowState::ComputeContainingBlockRectangle(nsPresContext*          aPres
   } else {
     // an element in quirks mode gets a containing block based on looking for a
     // parent with a non-auto height if the element has a percent height
-    // Note: We don't emulate this quirk for percents in calc().
     if (NS_AUTOHEIGHT == aContainingBlockHeight) {
       if (eCompatibility_NavQuirks == aPresContext->CompatibilityMode() &&
           mStylePosition->mHeight.GetUnit() == eStyleUnit_Percent) {
@@ -1705,14 +1708,12 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
 
     InitOffsets(aContainingBlockWidth, aBorder, aPadding);
 
-    const nsStyleCoord &height = mStylePosition->mHeight;
-    nsStyleUnit heightUnit = height.GetUnit();
+    nsStyleUnit heightUnit = mStylePosition->mHeight.GetUnit();
 
     // Check for a percentage based height and a containing block height
     // that depends on the content height
     // XXX twiddling heightUnit doesn't help anymore
-    // FIXME Shouldn't we fix that?
-    if (height.HasPercent()) {
+    if (eStyleUnit_Percent == heightUnit) {
       if (NS_AUTOHEIGHT == aContainingBlockHeight) {
         // this if clause enables %-height on replaced inline frames,
         // such as images.  See bug 54119.  The else clause "heightUnit = eStyleUnit_Auto;"
@@ -1771,8 +1772,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
       // Internal table elements. The rules vary depending on the type.
       // Calculate the computed width
       PRBool rowOrRowGroup = PR_FALSE;
-      const nsStyleCoord &width = mStylePosition->mWidth;
-      nsStyleUnit widthUnit = width.GetUnit();
+      nsStyleUnit widthUnit = mStylePosition->mWidth.GetUnit();
       if ((NS_STYLE_DISPLAY_TABLE_ROW == mStyleDisplay->mDisplay) ||
           (NS_STYLE_DISPLAY_TABLE_ROW_GROUP == mStyleDisplay->mDisplay)) {
         // 'width' property doesn't apply to table rows and row groups
@@ -1780,8 +1780,7 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
         rowOrRowGroup = PR_TRUE;
       }
 
-      // calc() acts like auto on internal table elements
-      if (eStyleUnit_Auto == widthUnit || width.IsCalcUnit()) {
+      if (eStyleUnit_Auto == widthUnit) {
         mComputedWidth = availableWidth;
 
         if ((mComputedWidth != NS_UNCONSTRAINEDSIZE) && !rowOrRowGroup){
@@ -1808,14 +1807,14 @@ nsHTMLReflowState::InitConstraints(nsPresContext* aPresContext,
         // 'height' property doesn't apply to table columns and column groups
         heightUnit = eStyleUnit_Auto;
       }
-      // calc() acts like 'auto' on internal table elements
-      if (eStyleUnit_Auto == heightUnit || height.IsCalcUnit()) {
+      if (eStyleUnit_Auto == heightUnit) {
         mComputedHeight = NS_AUTOHEIGHT;
       } else {
         NS_ASSERTION(heightUnit == mStylePosition->mHeight.GetUnit(),
                      "unexpected height unit change");
         mComputedHeight = nsLayoutUtils::
-          ComputeHeightValue(aContainingBlockHeight, mStylePosition->mHeight);
+          ComputeHeightDependentValue(aContainingBlockHeight,
+                                      mStylePosition->mHeight);
       }
 
       // Doesn't apply to table elements
@@ -2153,12 +2152,25 @@ nsCSSOffsetState::ComputeMargin(nscoord aContainingBlockWidth)
   const nsStyleMargin *styleMargin = frame->GetStyleMargin();
   if (!styleMargin->GetMargin(mComputedMargin)) {
     // We have to compute the value
-    mComputedMargin.left = nsLayoutUtils::
-      ComputeWidthDependentValue(aContainingBlockWidth,
-                                 styleMargin->mMargin.GetLeft());
-    mComputedMargin.right = nsLayoutUtils::
-      ComputeWidthDependentValue(aContainingBlockWidth,
-                                 styleMargin->mMargin.GetRight());
+    if (NS_UNCONSTRAINEDSIZE == aContainingBlockWidth) {
+      mComputedMargin.left = 0;
+      mComputedMargin.right = 0;
+
+      if (eStyleUnit_Coord == styleMargin->mMargin.GetLeftUnit()) {
+        mComputedMargin.left = styleMargin->mMargin.GetLeft().GetCoordValue();
+      }
+      if (eStyleUnit_Coord == styleMargin->mMargin.GetRightUnit()) {
+        mComputedMargin.right = styleMargin->mMargin.GetRight().GetCoordValue();
+      }
+
+    } else {
+      mComputedMargin.left = nsLayoutUtils::
+        ComputeWidthDependentValue(aContainingBlockWidth,
+                                   styleMargin->mMargin.GetLeft());
+      mComputedMargin.right = nsLayoutUtils::
+        ComputeWidthDependentValue(aContainingBlockWidth,
+                                   styleMargin->mMargin.GetRight());
+    }
 
     // According to the CSS2 spec, margin percentages are
     // calculated with respect to the *width* of the containing
@@ -2187,22 +2199,21 @@ nsCSSOffsetState::ComputePadding(nscoord aContainingBlockWidth)
   const nsStylePadding *stylePadding = frame->GetStylePadding();
   if (!stylePadding->GetPadding(mComputedPadding)) {
     // We have to compute the value
-    // clamp negative calc() results to 0
-    mComputedPadding.left = NS_MAX(0, nsLayoutUtils::
+    mComputedPadding.left = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetLeft()));
-    mComputedPadding.right = NS_MAX(0, nsLayoutUtils::
+                                 stylePadding->mPadding.GetLeft());
+    mComputedPadding.right = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetRight()));
+                                 stylePadding->mPadding.GetRight());
 
     // According to the CSS2 spec, percentages are calculated with respect to
     // containing block width for padding-top and padding-bottom
-    mComputedPadding.top = NS_MAX(0, nsLayoutUtils::
+    mComputedPadding.top = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetTop()));
-    mComputedPadding.bottom = NS_MAX(0, nsLayoutUtils::
+                                 stylePadding->mPadding.GetTop());
+    mComputedPadding.bottom = nsLayoutUtils::
       ComputeWidthDependentValue(aContainingBlockWidth,
-                                 stylePadding->mPadding.GetBottom()));
+                                 stylePadding->mPadding.GetBottom());
 
     frame->Properties().Set(nsIFrame::UsedPaddingProperty(),
                             new nsMargin(mComputedPadding));
@@ -2266,36 +2277,28 @@ nsHTMLReflowState::ComputeMinMaxValues(nscoord aContainingBlockWidth,
 
   // Check for percentage based values and a containing block height that
   // depends on the content height. Treat them like 'auto'
-  // Likewise, check for calc() on internal table elements; calc() on
-  // such elements is unsupported.
-  const nsStyleCoord &minHeight = mStylePosition->mMinHeight;
-  if ((NS_AUTOHEIGHT == aContainingBlockHeight &&
-       minHeight.HasPercent()) ||
-      (mFrameType == NS_CSS_FRAME_TYPE_INTERNAL_TABLE &&
-       minHeight.IsCalcUnit())) {
+  if ((NS_AUTOHEIGHT == aContainingBlockHeight) &&
+      (eStyleUnit_Percent == mStylePosition->mMinHeight.GetUnit())) {
     mComputedMinHeight = 0;
   } else {
     mComputedMinHeight = nsLayoutUtils::
-      ComputeHeightValue(aContainingBlockHeight, minHeight);
+      ComputeHeightDependentValue(aContainingBlockHeight,
+                                  mStylePosition->mMinHeight);
   }
-  const nsStyleCoord &maxHeight = mStylePosition->mMaxHeight;
-  nsStyleUnit maxHeightUnit = maxHeight.GetUnit();
+  nsStyleUnit maxHeightUnit = mStylePosition->mMaxHeight.GetUnit();
   if (eStyleUnit_None == maxHeightUnit) {
     // Specified value of 'none'
     mComputedMaxHeight = NS_UNCONSTRAINEDSIZE;  // no limit
   } else {
     // Check for percentage based values and a containing block height that
     // depends on the content height. Treat them like 'auto'
-    // Likewise, check for calc() on internal table elements; calc() on
-    // such elements is unsupported.
-    if ((NS_AUTOHEIGHT == aContainingBlockHeight && 
-         maxHeight.HasPercent()) ||
-        (mFrameType == NS_CSS_FRAME_TYPE_INTERNAL_TABLE &&
-         maxHeight.IsCalcUnit())) {
+    if ((NS_AUTOHEIGHT == aContainingBlockHeight) && 
+        (eStyleUnit_Percent == maxHeightUnit)) {
       mComputedMaxHeight = NS_UNCONSTRAINEDSIZE;
     } else {
       mComputedMaxHeight = nsLayoutUtils::
-        ComputeHeightValue(aContainingBlockHeight, maxHeight);
+        ComputeHeightDependentValue(aContainingBlockHeight,
+                                    mStylePosition->mMaxHeight);
     }
   }
 

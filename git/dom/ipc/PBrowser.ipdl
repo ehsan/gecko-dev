@@ -42,7 +42,8 @@ include protocol PContentDialog;
 include protocol PDocumentRenderer;
 include protocol PDocumentRendererShmem;
 include protocol PDocumentRendererNativeID;
-include protocol PContentPermissionRequest;
+include protocol PGeolocationRequest;
+include protocol PExternalHelperApp;
 
 include "mozilla/TabTypes.h";
 include "TabMessageUtils.h";
@@ -70,7 +71,8 @@ rpc protocol PBrowser
     manages PDocumentRenderer;
     manages PDocumentRendererShmem;
     manages PDocumentRendererNativeID;
-    manages PContentPermissionRequest;
+    manages PGeolocationRequest;
+    manages PExternalHelperApp;
 
 both:
     AsyncMessage(nsString aMessage, nsString aJSON);
@@ -112,12 +114,14 @@ parent:
 
     QueryContentResult(nsQueryContentEvent event);
 
-    PContentPermissionRequest(nsCString aType, URI uri);
+    PGeolocationRequest(URI uri);
 
     PContentDialog(PRUint32 aType, nsCString aName, nsCString aFeatures,
                    PRInt32[] aIntParams, nsString[] aStringParams);
 
     __delete__();
+
+    PExternalHelperApp(URI uri, nsCString aMimeContentType, bool aForceSave, PRInt64 aContentLength);
 
 child:
     CreateWidget(MagicWindowHandle parentWidget);

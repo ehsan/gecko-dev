@@ -145,33 +145,24 @@ amManager.prototype = {
         if (aInstall) {
           installs.push(aInstall);
           if (aCallback) {
-            function callCallback(aUri, aStatus) {
-              try {
-                aCallback.onInstallEnded(aUri, aStatus);
-              }
-              catch (e) {
-                Components.utils.reportError(e);
-              }
-            }
-
             aInstall.addListener({
               onDownloadCancelled: function(aInstall) {
-                callCallback(uri, USER_CANCELLED);
+                aCallback.onInstallEnded(uri, USER_CANCELLED);
               },
 
               onDownloadFailed: function(aInstall) {
                 if (aInstall.error == AddonManager.ERROR_CORRUPT_FILE)
-                  callCallback(uri, CANT_READ_ARCHIVE);
+                  aCallback.onInstallEnded(uri, CANT_READ_ARCHIVE);
                 else
-                  callCallback(uri, DOWNLOAD_ERROR);
+                  aCallback.onInstallEnded(uri, DOWNLOAD_ERROR);
               },
 
               onInstallFailed: function(aInstall) {
-                callCallback(uri, EXECUTION_ERROR);
+                aCallback.onInstallEnded(uri, EXECUTION_ERROR);
               },
 
               onInstallEnded: function(aInstall, aStatus) {
-                callCallback(uri, SUCCESS);
+                aCallback.onInstallEnded(uri, SUCCESS);
               }
             });
           }
@@ -221,13 +212,15 @@ amManager.prototype = {
             },
           };
         }
-        var window = null;
+        var window;
         try {
           // Normal approach for single-process mode
-          window = aMessage.target.contentWindow;
+          window = aMessage.target.docShell
+                           .QueryInterface(Ci.nsIInterfaceRequestor)
+                           .getInterface(Ci.nsIDOMWindow).content;
         } catch (e) {
-          // Fallback for multiprocess (e10s) mode. Should reimplement this
-          // properly with Window IDs when possible, see bug 596109.
+          // Fallback for multiprocess (e10s) mode. Appears to work but has
+          // not had a full suite of automated tests run on it.
           window = aMessage.target.ownerDocument.defaultView;
         }
         return this.installAddonsFromWebpage(payload.mimetype,

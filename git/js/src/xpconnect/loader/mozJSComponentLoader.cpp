@@ -75,20 +75,14 @@
 #endif
 #include "jsxdrapi.h"
 #include "jsprf.h"
+#include "nsIFastLoadFileControl.h"
 // For reporting errors with the console service
 #include "nsIScriptError.h"
 #include "nsIConsoleService.h"
-#include "nsIStorageStream.h"
-#include "nsIStringStream.h"
 #include "prmem.h"
 #include "plbase64.h"
 #if defined(XP_WIN)
 #include "nsILocalFileWin.h"
-#endif
-
-#ifdef MOZ_ENABLE_LIBXUL
-#include "mozilla/scache/StartupCache.h"
-#include "mozilla/scache/StartupCacheUtils.h"
 #endif
 
 #if defined(MOZ_SHARK) || defined(MOZ_CALLGRIND) || defined(MOZ_VTUNE) || defined(MOZ_TRACEVIS)
@@ -112,6 +106,9 @@ static const char kObserverServiceContractID[] = "@mozilla.org/observer-service;
  */
 #define XPC_SERIALIZATION_BUFFER_SIZE   (64 * 1024)
 #define XPC_DESERIALIZATION_BUFFER_SIZE (12 * 8192)
+
+// Inactivity delay before closing our fastload file stream.
+static const int kFastLoadWriteDelay = 10000;   // 10 seconds
 
 #ifdef PR_LOGGING
 // NSPR_LOG_MODULES=JSComponentLoader:5
@@ -188,13 +185,13 @@ mozJSLoaderErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
 }
 
 static JSBool
-Dump(JSContext *cx, uintN argc, jsval *vp)
+Dump(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
 
@@ -204,23 +201,23 @@ Dump(JSContext *cx, uintN argc, jsval *vp)
 }
 
 static JSBool
-Debug(JSContext *cx, uintN argc, jsval *vp)
+Debug(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
 #ifdef DEBUG
-    return Dump(cx, argc, vp);
+    return Dump(cx, obj, argc, argv, rval);
 #else
     return JS_TRUE;
 #endif
 }
 
 static JSBool
-Atob(JSContext *cx, uintN argc, jsval *vp)
+Atob(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
 
@@ -245,18 +242,18 @@ Atob(JSContext *cx, uintN argc, jsval *vp)
     if (!str)
         return JS_FALSE;
 
-    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
+    *rval = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
 
 static JSBool
-Btoa(JSContext *cx, uintN argc, jsval *vp)
+Btoa(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
     JSString *str;
     if (!argc)
         return JS_TRUE;
 
-    str = JS_ValueToString(cx, JS_ARGV(cx, vp)[0]);
+    str = JS_ValueToString(cx, argv[0]);
     if (!str)
         return JS_FALSE;
 
@@ -273,37 +270,37 @@ Btoa(JSContext *cx, uintN argc, jsval *vp)
     if (!str)
         return JS_FALSE;
 
-    JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(str));
+    *rval = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
 
 static JSFunctionSpec gGlobalFun[] = {
-    {"dump",    Dump,   1,0},
-    {"debug",   Debug,  1,0},
-    {"atob",    Atob,   1,0},
-    {"btoa",    Btoa,   1,0},
+    {"dump",    Dump,   1,0,0},
+    {"debug",   Debug,  1,0,0},
+    {"atob",    Atob,   1,0,0},
+    {"btoa",    Btoa,   1,0,0},
 #ifdef MOZ_SHARK
-    {"startShark",      js_StartShark,     0,0},
-    {"stopShark",       js_StopShark,      0,0},
-    {"connectShark",    js_ConnectShark,   0,0},
-    {"disconnectShark", js_DisconnectShark,0,0},
+    {"startShark",      js_StartShark,     0,0,0},
+    {"stopShark",       js_StopShark,      0,0,0},
+    {"connectShark",    js_ConnectShark,   0,0,0},
+    {"disconnectShark", js_DisconnectShark,0,0,0},
 #endif
 #ifdef MOZ_CALLGRIND
-    {"startCallgrind",  js_StartCallgrind, 0,0},
-    {"stopCallgrind",   js_StopCallgrind,  0,0},
-    {"dumpCallgrind",   js_DumpCallgrind,  1,0},
+    {"startCallgrind",  js_StartCallgrind, 0,0,0},
+    {"stopCallgrind",   js_StopCallgrind,  0,0,0},
+    {"dumpCallgrind",   js_DumpCallgrind,  1,0,0},
 #endif
 #ifdef MOZ_VTUNE
-    {"startVtune",      js_StartVtune,     1,0},
-    {"stopVtune",       js_StopVtune,      0,0},
-    {"pauseVtune",      js_PauseVtune,     0,0},
-    {"resumeVtune",     js_ResumeVtune,    0,0},
+    {"startVtune",      js_StartVtune,     1,0,0},
+    {"stopVtune",       js_StopVtune,      0,0,0},
+    {"pauseVtune",      js_PauseVtune,     0,0,0},
+    {"resumeVtune",     js_ResumeVtune,    0,0,0},
 #endif
 #ifdef MOZ_TRACEVIS
-    {"initEthogram",     js_InitEthogram,      0,0},
-    {"shutdownEthogram", js_ShutdownEthogram,  0,0},
+    {"initEthogram",     js_InitEthogram,      0,0,0},
+    {"shutdownEthogram", js_ShutdownEthogram,  0,0,0},
 #endif
-    {nsnull,nsnull,0,0}
+    {nsnull,nsnull,0,0,0}
 };
 
 class JSCLContextHelper
@@ -389,6 +386,59 @@ ReportOnCaller(JSCLContextHelper &helper,
     }
 
     return OutputError(cx, format, ap);
+}
+
+NS_IMPL_ISUPPORTS1(nsXPCFastLoadIO, nsIFastLoadFileIO)
+
+NS_IMETHODIMP
+nsXPCFastLoadIO::GetInputStream(nsIInputStream **_retval)
+{
+    if (! mInputStream) {
+        nsCOMPtr<nsIInputStream> fileInput;
+        nsresult rv = NS_NewLocalFileInputStream(getter_AddRefs(fileInput),
+                                                 mFile);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = NS_NewBufferedInputStream(getter_AddRefs(mInputStream),
+                                       fileInput,
+                                       XPC_DESERIALIZATION_BUFFER_SIZE);
+        NS_ENSURE_SUCCESS(rv, rv);
+        mTruncateOutputFile = false;
+    }
+
+    NS_ADDREF(*_retval = mInputStream);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPCFastLoadIO::GetOutputStream(nsIOutputStream **_retval)
+{
+    if (! mOutputStream) {
+        PRInt32 ioFlags = PR_WRONLY;
+        if (mTruncateOutputFile) {
+            ioFlags |= PR_CREATE_FILE | PR_TRUNCATE;
+        }
+
+        nsCOMPtr<nsIOutputStream> fileOutput;
+        nsresult rv = NS_NewLocalFileOutputStream(getter_AddRefs(fileOutput),
+                                                  mFile, ioFlags, 0644);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = NS_NewBufferedOutputStream(getter_AddRefs(mOutputStream),
+                                        fileOutput,
+                                        XPC_SERIALIZATION_BUFFER_SIZE);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    NS_ADDREF(*_retval = mOutputStream);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsXPCFastLoadIO::DisableTruncate()
+{
+    mTruncateOutputFile = false;
+    return NS_OK;
 }
 
 static nsresult
@@ -516,6 +566,9 @@ mozJSComponentLoader::~mozJSComponentLoader()
         UnloadModules();
     }
 
+    NS_ASSERTION(!mFastLoadTimer,
+                 "Fastload file should have been closed via xpcom-shutdown");
+
     sSelf = nsnull;
 }
 
@@ -531,8 +584,8 @@ nsresult
 mozJSComponentLoader::ReallyInit()
 {
     NS_TIME_FUNCTION;
-    nsresult rv;
 
+    nsresult rv;
 
     /*
      * Get the JSRuntime from the runtime svc, if possible.
@@ -581,8 +634,21 @@ mozJSComponentLoader::ReallyInit()
     if (!mInProgressImports.Init(32))
         return NS_ERROR_OUT_OF_MEMORY;
 
+    // Set up our fastload file
+    nsCOMPtr<nsIFastLoadService> flSvc = do_GetFastLoadService(&rv);
+    if (NS_SUCCEEDED(rv))
+        rv = flSvc->NewFastLoadFile("XPC", getter_AddRefs(mFastLoadFile));
+    if (NS_FAILED(rv)) {
+        LOG(("Could not get fastload file location\n"));
+    }
+
+    // Listen for xpcom-shutdown so that we can close out our fastload file
+    // at that point (after that we can no longer create an input stream).
     nsCOMPtr<nsIObserverService> obsSvc =
         do_GetService(kObserverServiceContractID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = obsSvc->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = obsSvc->AddObserver(this, "xpcom-shutdown-loaders", PR_FALSE);
@@ -743,9 +809,6 @@ mozJSComponentLoader::LoadModuleImpl(nsILocalFile* aSourceFile,
         return NULL;
 
     JSCLContextHelper cx(this);
-    JSAutoCrossCompartmentCall ac;
-    if (!ac.enter(cx, entry->global))
-        return NULL;
 
     JSObject* cm_jsobj;
     nsCOMPtr<nsIXPConnectJSObjectHolder> cm_holder;
@@ -869,66 +932,245 @@ class JSScriptHolder
     JSScript *mScript;
 };
 
+class FastLoadStateHolder
+{
+ public:
+    explicit FastLoadStateHolder(nsIFastLoadService *service);
+    ~FastLoadStateHolder() { pop(); }
+
+    void pop();
+
+ private:
+    nsCOMPtr<nsIFastLoadService> mService;
+    nsCOMPtr<nsIFastLoadFileIO> mIO;
+    nsCOMPtr<nsIObjectInputStream> mInputStream;
+    nsCOMPtr<nsIObjectOutputStream> mOutputStream;
+};
+
+FastLoadStateHolder::FastLoadStateHolder(nsIFastLoadService *service)
+{
+    if (!service)
+        return;
+
+    mService = service;
+    service->GetFileIO(getter_AddRefs(mIO));
+    service->GetInputStream(getter_AddRefs(mInputStream));
+    service->GetOutputStream(getter_AddRefs(mOutputStream));
+}
+
+void
+FastLoadStateHolder::pop()
+{
+    if (!mService)
+        return;
+
+    mService->SetFileIO(mIO);
+    mService->SetInputStream(mInputStream);
+    mService->SetOutputStream(mOutputStream);
+
+    mService = nsnull;
+}
 
 /* static */
-#ifdef MOZ_ENABLE_LIBXUL
+void
+mozJSComponentLoader::CloseFastLoad(nsITimer *timer, void *closure)
+{
+    static_cast<mozJSComponentLoader*>(closure)->CloseFastLoad();
+}
+
+void
+mozJSComponentLoader::CloseFastLoad()
+{
+    // Close our fastload streams
+    LOG(("Closing fastload file\n"));
+    if (mFastLoadOutput) {
+        nsresult rv = mFastLoadOutput->Close();
+        if (NS_SUCCEEDED(rv)) {
+            nsCOMPtr<nsIFastLoadService> flSvc = do_GetFastLoadService(&rv);
+            if (NS_SUCCEEDED(rv)) {
+                flSvc->CacheChecksum(mFastLoadFile, mFastLoadOutput);
+            }
+        }
+        mFastLoadOutput = nsnull;
+    }
+    if (mFastLoadInput) {
+        mFastLoadInput->Close();
+        mFastLoadInput = nsnull;
+    }
+
+    mFastLoadIO = nsnull;
+    mFastLoadTimer = nsnull;
+}
+
 nsresult
-mozJSComponentLoader::ReadScript(StartupCache* cache, nsIURI *uri,
+mozJSComponentLoader::StartFastLoad(nsIFastLoadService *flSvc)
+{
+    if (!mFastLoadFile || !flSvc) {
+        return NS_ERROR_NOT_AVAILABLE;
+    }
+
+    // Now set our IO object as current, and create our streams.
+    if (!mFastLoadIO) {
+        mFastLoadIO = new nsXPCFastLoadIO(mFastLoadFile);
+        NS_ENSURE_TRUE(mFastLoadIO, NS_ERROR_OUT_OF_MEMORY);
+    }
+
+    nsresult rv = flSvc->SetFileIO(mFastLoadIO);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (!mFastLoadInput && !mFastLoadOutput) {
+        // First time accessing the fastload file
+        PRBool exists;
+        mFastLoadFile->Exists(&exists);
+        if (exists) {
+            LOG(("trying to use existing fastload file\n"));
+
+            rv = flSvc->NewInputStream(mFastLoadFile, getter_AddRefs(mFastLoadInput));
+            if (NS_SUCCEEDED(rv)) {
+                LOG(("opened fastload file for reading\n"));
+
+                nsCOMPtr<nsIFastLoadReadControl>
+                    readControl(do_QueryInterface(mFastLoadInput));
+                if (NS_SUCCEEDED(rv)) {
+                    /* Get the JS bytecode version number and validate it. */
+                    PRUint32 version;
+                    rv = mFastLoadInput->Read32(&version);
+                    if (NS_SUCCEEDED(rv) && version != JSXDR_BYTECODE_VERSION) {
+                        LOG(("Bad JS bytecode version\n"));
+                        rv = NS_ERROR_UNEXPECTED;
+                    }
+                }
+            }
+            if (NS_FAILED(rv)) {
+                LOG(("Invalid fastload file detected, removing it\n"));
+                if (mFastLoadInput) {
+                    mFastLoadInput->Close();
+                    mFastLoadInput = nsnull;
+                } 
+                mFastLoadIO->SetInputStream(nsnull);
+                mFastLoadFile->Remove(PR_FALSE);
+                exists = PR_FALSE;
+            }
+        }
+
+        if (!exists) {
+            LOG(("Creating new fastload file\n"));
+
+            nsCOMPtr<nsIOutputStream> output;
+            rv = mFastLoadIO->GetOutputStream(getter_AddRefs(output));
+            NS_ENSURE_SUCCESS(rv, rv);
+
+            rv = flSvc->NewOutputStream(output,
+                                        getter_AddRefs(mFastLoadOutput));
+
+            if (NS_SUCCEEDED(rv))
+                rv = mFastLoadOutput->Write32(JSXDR_BYTECODE_VERSION);
+
+            if (NS_FAILED(rv)) {
+                LOG(("Fatal error, could not create fastload file\n"));
+
+                if (mFastLoadOutput) {
+                    mFastLoadOutput->Close();
+                    mFastLoadOutput = nsnull;
+                } else {
+                    output->Close();
+                }
+                mFastLoadIO->SetOutputStream(nsnull);
+                mFastLoadFile->Remove(PR_FALSE);
+                return rv;
+            }
+        }
+    }
+
+    flSvc->SetInputStream(mFastLoadInput);
+    flSvc->SetOutputStream(mFastLoadOutput);
+
+    // Start our update timer.  This allows us to keep the stream open
+    // when many components are loaded in succession, but close it once
+    // there has been a period of inactivity.
+
+    if (!mFastLoadTimer) {
+        mFastLoadTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = mFastLoadTimer->InitWithFuncCallback(&mozJSComponentLoader::CloseFastLoad,
+                                                  this,
+                                                  kFastLoadWriteDelay,
+                                                  nsITimer::TYPE_ONE_SHOT);
+    } else {
+        // Note, that since CloseFastLoad nulls out mFastLoadTimer,
+        // SetDelay() will only be called on a timer that hasn't fired.
+        rv = mFastLoadTimer->SetDelay(kFastLoadWriteDelay);
+    }
+
+    return rv;
+}
+
+nsresult
+mozJSComponentLoader::ReadScript(nsIFastLoadService *flSvc,
+                                 const char *nativePath, nsIURI *uri,
                                  JSContext *cx, JSScript **script)
 {
-    nsresult rv;
-    
-    nsCAutoString spec;
-    rv = uri->GetSpec(spec);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoArrayPtr<char> buf;   
-    PRUint32 len;
-    rv = cache->GetBuffer(spec.get(), getter_Transfers(buf), 
-                          &len);
+    NS_ASSERTION(flSvc, "fastload not initialized");
+
+    nsresult rv = flSvc->StartMuxedDocument(uri, nativePath,
+                                            nsIFastLoadService::NS_FASTLOAD_READ);
     if (NS_FAILED(rv)) {
         return rv; // don't warn since NOT_AVAILABLE is an ok error
     }
 
-    LOG(("Found %s in startupcache\n", spec.get()));
-    nsCOMPtr<nsIObjectInputStream> ois;
-    rv = NS_NewObjectInputStreamFromBuffer(buf, len, getter_AddRefs(ois));
-    NS_ENSURE_SUCCESS(rv, rv);
-    buf.forget();
+    LOG(("Found %s in fastload file\n", nativePath));
 
-    return ReadScriptFromStream(cx, ois, script);
+    nsCOMPtr<nsIURI> oldURI;
+    rv = flSvc->SelectMuxedDocument(uri, getter_AddRefs(oldURI));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    NS_ASSERTION(mFastLoadInput,
+                 "FASTLOAD_READ should only succeed with an input stream");
+
+    rv = ReadScriptFromStream(cx, mFastLoadInput, script);
+    if (NS_SUCCEEDED(rv)) {
+        rv = flSvc->EndMuxedDocument(uri);
+    }
+
+    return rv;
 }
 
 nsresult
-mozJSComponentLoader::WriteScript(StartupCache* cache, JSScript *script,
-                                  nsIFile *component, nsIURI *uri, JSContext *cx)
+mozJSComponentLoader::WriteScript(nsIFastLoadService *flSvc, JSScript *script,
+                                  nsIFile *component, const char *nativePath,
+                                  nsIURI *uri, JSContext *cx)
 {
+    NS_ASSERTION(flSvc, "fastload not initialized");
     nsresult rv;
 
-    nsCAutoString spec;
-    rv = uri->GetSpec(spec);
+    if (!mFastLoadOutput) {
+        // Trying to read a URI that was not in the fastload file will have
+        // created an output stream for us.  But, if we haven't tried to
+        // load anything that was missing, it will still be null.
+        rv = flSvc->GetOutputStream(getter_AddRefs(mFastLoadOutput));
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    NS_ASSERTION(mFastLoadOutput, "must have an output stream here");
+
+    LOG(("Writing %s to fastload\n", nativePath));
+    rv = flSvc->AddDependency(component);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    LOG(("Writing %s to startupcache\n", spec.get()));
-    nsCOMPtr<nsIObjectOutputStream> oos;
-    nsCOMPtr<nsIStorageStream> storageStream; 
-    rv = NS_NewObjectOutputWrappedStorageStream(getter_AddRefs(oos),
-                                                getter_AddRefs(storageStream));
+    rv = flSvc->StartMuxedDocument(uri, nativePath,
+                                   nsIFastLoadService::NS_FASTLOAD_WRITE);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = WriteScriptToStream(cx, script, oos);
-    oos->Close();
+    nsCOMPtr<nsIURI> oldURI;
+    rv = flSvc->SelectMuxedDocument(uri, getter_AddRefs(oldURI));
     NS_ENSURE_SUCCESS(rv, rv);
- 
-    nsAutoArrayPtr<char> buf;
-    PRUint32 len;
-    rv = NS_NewBufferFromStorageStream(storageStream, getter_Transfers(buf), 
-                                       &len);
+
+    rv = WriteScriptToStream(cx, script, mFastLoadOutput);
     NS_ENSURE_SUCCESS(rv, rv);
- 
-    rv = cache->PutBuffer(spec.get(), buf, len);
-    return rv;
+
+    return flSvc->EndMuxedDocument(uri);
 }
-#endif //MOZ_ENABLE_LIBXUL
 
 nsresult
 mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
@@ -941,9 +1183,7 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
 
     JSPrincipals* jsPrincipals = nsnull;
     JSCLContextHelper cx(this);
-    // preserve caller's compartment
-    JSAutoEnterCompartment ac1(cx, (JSCompartment *)NULL);
-    
+
 #ifndef XPCONNECT_STANDALONE
     rv = mSystemPrincipal->GetJSPrincipals(cx, &jsPrincipals);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -978,10 +1218,6 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     JSObject *global;
     rv = holder->GetJSObject(&global);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    JSAutoCrossCompartmentCall ac;
-    if (!ac.enter(cx, global))
-        return NS_ERROR_FAILURE;
 
     if (!JS_DefineFunctions(cx, global, gGlobalFun)) {
         return NS_ERROR_FAILURE;
@@ -1027,31 +1263,60 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     NS_ENSURE_SUCCESS(rv, rv);
 #endif
 
-    JSScript *script = nsnull;
-
-#ifdef MOZ_ENABLE_LIBXUL  
     // Before compiling the script, first check to see if we have it in
-    // the startupcache.  Note: as a rule, startupcache errors are not fatal
+    // the fastload file.  Note: as a rule, fastload errors are not fatal
     // to loading the script, since we can always slow-load.
-    
-    PRBool writeToCache = PR_FALSE;
-    StartupCache* cache = StartupCache::GetSingleton();
+    nsCOMPtr<nsIFastLoadService> flSvc = do_GetFastLoadService(&rv);
 
-    if (cache) {
-        rv = ReadScript(cache, aURI, cx, &script);
+    // Save the old state and restore it upon return
+    FastLoadStateHolder flState(flSvc);
+    PRBool fastLoading = PR_FALSE;
+
+    if (NS_SUCCEEDED(rv)) {
+        rv = StartFastLoad(flSvc);
         if (NS_SUCCEEDED(rv)) {
-            LOG(("Successfully loaded %s from startupcache\n", nativePath.get()));
-        } else {
-            // This is ok, it just means the script is not yet in the
-            // cache. Could mean that the cache was corrupted and got removed,
-            // but either way we're going to write this out.
-            writeToCache = PR_TRUE;
+            fastLoading = PR_TRUE;
         }
     }
-#endif
 
-    if (!script) {
-        // The script wasn't in the cache , so compile it now.
+    JSScript *script = nsnull;
+
+    if (fastLoading) {
+        rv = ReadScript(flSvc, nativePath.get(), aURI, cx, &script);
+        if (NS_SUCCEEDED(rv)) {
+            LOG(("Successfully loaded %s from fastload\n", nativePath.get()));
+            fastLoading = PR_FALSE; // no need to write out the script
+        } else if (rv == NS_ERROR_NOT_AVAILABLE) {
+            // This is ok, it just means the script is not yet in the
+            // fastload file.
+            rv = NS_OK;
+        } else {
+            LOG(("Failed to deserialize %s\n", nativePath.get()));
+
+            // Remove the fastload file, it may be corrupted.
+            LOG(("Invalid fastload file detected, removing it\n"));
+            nsCOMPtr<nsIObjectOutputStream> objectOutput;
+            flSvc->GetOutputStream(getter_AddRefs(objectOutput));
+            if (objectOutput) {
+                flSvc->SetOutputStream(nsnull);
+                objectOutput->Close();
+            }
+            nsCOMPtr<nsIObjectInputStream> objectInput;
+            flSvc->GetInputStream(getter_AddRefs(objectInput));
+            if (objectInput) {
+                flSvc->SetInputStream(nsnull);
+                objectInput->Close();
+            }
+            if (mFastLoadFile) {
+                mFastLoadFile->Remove(PR_FALSE);
+            }
+            fastLoading = PR_FALSE;
+        }
+    }
+
+
+    if (!script || NS_FAILED(rv)) {
+        // The script wasn't in the fastload cache, so compile it now.
         LOG(("Slow loading %s\n", nativePath.get()));
 
         // If |exception| is non-null, then our caller wants us to propagate
@@ -1210,20 +1475,21 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
             nativePath.get());
 #endif
 
-#ifdef MOZ_ENABLE_LIBXUL
-    if (writeToCache) {
-        // We successfully compiled the script, so cache it. 
-        rv = WriteScript(cache, script, aComponentFile, aURI, cx);
+    if (fastLoading) {
+        // We successfully compiled the script, so cache it in fastload.
+        rv = WriteScript(flSvc, script, aComponentFile, nativePath.get(), aURI, cx);
 
         // Don't treat failure to write as fatal, since we might be working
-        // with a read-only cache.
+        // with a read-only fastload file.
         if (NS_SUCCEEDED(rv)) {
-            LOG(("Successfully wrote to cache\n"));
+            LOG(("Successfully wrote to fastload\n"));
         } else {
-            LOG(("Failed to write to cache\n"));
+            LOG(("Failed to write to fastload\n"));
         }
     }
-#endif
+
+    // Restore the old state of the fastload service.
+    flState.pop();
 
     // Assign aGlobal here so that it's available to recursive imports.
     // See bug 384168.
@@ -1474,9 +1740,6 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
     jsval symbols;
     if (targetObj) {
         JSCLContextHelper cxhelper(this);
-        JSAutoCrossCompartmentCall ac;
-        if (!ac.enter(mContext, mod->global))
-            return NULL;
 
         if (!JS_GetProperty(mContext, mod->global,
                             "EXPORTED_SYMBOLS", &symbols)) {
@@ -1556,7 +1819,14 @@ NS_IMETHODIMP
 mozJSComponentLoader::Observe(nsISupports *subject, const char *topic,
                               const PRUnichar *data)
 {
-    if (!strcmp(topic, "xpcom-shutdown-loaders")) {
+    if (!strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
+        if (mFastLoadTimer) {
+            mFastLoadTimer->Cancel();
+        }
+
+        CloseFastLoad();
+    }
+    else if (!strcmp(topic, "xpcom-shutdown-loaders")) {
         UnloadModules();
     }
     else {

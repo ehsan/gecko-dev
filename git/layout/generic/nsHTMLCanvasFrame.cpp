@@ -64,8 +64,8 @@ CanvasElementFromContent(nsIContent *content)
 
 class nsDisplayCanvas : public nsDisplayItem {
 public:
-  nsDisplayCanvas(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
+  nsDisplayCanvas(nsIFrame* aFrame)
+    : nsDisplayItem(aFrame)
   {
     MOZ_COUNT_CTOR(nsDisplayCanvas);
   }
@@ -85,7 +85,7 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder) {
     nsHTMLCanvasFrame* f = static_cast<nsHTMLCanvasFrame*>(GetUnderlyingFrame());
-    return f->GetInnerArea() + ToReferenceFrame();
+    return f->GetInnerArea() + aBuilder->ToReferenceFrame(f);
   }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
@@ -241,7 +241,7 @@ nsHTMLCanvasFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                               LayerManager* aManager,
                               nsDisplayItem* aItem)
 {
-  nsRect area = GetContentRect() - GetPosition() + aItem->ToReferenceFrame();
+  nsRect area = GetContentRect() + aBuilder->ToReferenceFrame(GetParent());
   nsHTMLCanvasElement* element = static_cast<nsHTMLCanvasElement*>(GetContent());
   nsIntSize canvasSize = GetCanvasSize();
 
@@ -283,19 +283,11 @@ nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsDisplayList replacedContent;
-
-  rv = replacedContent.AppendNewToTop(
-      new (aBuilder) nsDisplayCanvas(aBuilder, this));
+  rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayCanvas(this));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = DisplaySelectionOverlay(aBuilder, &replacedContent,
-                               nsISelectionDisplay::DISPLAY_IMAGES);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
-
-  return NS_OK;
+  return DisplaySelectionOverlay(aBuilder, aLists,
+                                 nsISelectionDisplay::DISPLAY_IMAGES);
 }
 
 nsIAtom*

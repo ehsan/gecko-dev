@@ -88,7 +88,11 @@ MODULE_OPTIMIZE_FLAGS = -O2 -ip
 #XXX: do we want different INTERP_OPTIMIZER flags here?
 endif
 else # not INTEL_CXX
-MODULE_OPTIMIZE_FLAGS = -O3 -fstrict-aliasing -fomit-frame-pointer $(MOZ_OPTIMIZE_SIZE_TWEAK)
+MODULE_OPTIMIZE_FLAGS = -O3 -fstrict-aliasing $(MOZ_OPTIMIZE_SIZE_TWEAK)
+ifeq ($(OS_ARCH),Linux)
+#TODO: move this up a line when we fix OS X (bug 517832)
+MODULE_OPTIMIZE_FLAGS += -fomit-frame-pointer
+endif
 # Special optimization flags for jsinterp.c
 INTERP_OPTIMIZER = -O3 -fstrict-aliasing
 endif
@@ -97,7 +101,12 @@ ifeq ($(OS_ARCH),SunOS)
 MODULE_OPTIMIZE_FLAGS = -xO4
 endif
 ifeq ($(OS_ARCH),WINNT)
+ifdef WINCE
+# -GL is not supported on windows mobile while we are using the arm-wince-link command
 MODULE_OPTIMIZE_FLAGS = -O2
+else
+MODULE_OPTIMIZE_FLAGS = -O2 -GL
+endif
 endif
 endif
 
@@ -134,7 +143,6 @@ CPPSRCS		= \
 		jsfun.cpp \
 		jsgc.cpp \
 		jsgcchunk.cpp \
-		jsgcstats.cpp \
 		jshash.cpp \
 		jsinterp.cpp \
 		jsinvoke.cpp \
@@ -150,15 +158,14 @@ CPPSRCS		= \
 		jsparse.cpp \
 		jsproxy.cpp \
 		jsprf.cpp \
-		jsprobes.cpp \
 		jspropertycache.cpp \
 		jspropertytree.cpp \
-		jsreflect.cpp \
 		jsregexp.cpp \
 		jsscan.cpp \
 		jsscope.cpp \
 		jsscript.cpp \
 		jsstr.cpp \
+		jstask.cpp \
 		jstypedarray.cpp \
 		jsutil.cpp \
 		jswrapper.cpp \
@@ -166,6 +173,11 @@ CPPSRCS		= \
 		jsxml.cpp \
 		prmjtime.cpp \
 		$(NULL)
+
+ifdef HAVE_DTRACE
+CPPSRCS 	+= \
+		jsdtracef.cpp
+endif
 
 INSTALLED_HEADERS = \
 		js-config.h \
@@ -189,7 +201,6 @@ INSTALLED_HEADERS = \
 		jsfun.h \
 		jsgc.h \
 		jsgcchunk.h \
-		jsgcstats.h \
 		jshash.h \
 		jsinterp.h \
 		jsinttypes.h \
@@ -206,14 +217,12 @@ INSTALLED_HEADERS = \
 		jsparse.h \
 		jsproxy.h \
 		jsprf.h \
-		jsprobes.h \
 		jspropertycache.h \
 		jspropertycacheinlines.h \
 		jspropertytree.h \
 		jsproto.tbl \
 		jsprvtd.h \
 		jspubtd.h \
-		jsreflect.h \
 		jsregexp.h \
 		jsscan.h \
 		jsscope.h \
@@ -222,6 +231,7 @@ INSTALLED_HEADERS = \
 		jsstaticcheck.h \
 		jsstdint.h \
 		jsstr.h \
+		jstask.h \
 		jstracer.h \
 		jstypedarray.h \
 		jstypes.h \
@@ -282,56 +292,8 @@ ASFILES += jswince.asm
 endif
 
 endif # ENABLE_TRACEJIT
-ifdef ENABLE_METHODJIT
 
-###############################################
-# BEGIN include sources for the method JIT
-#
-VPATH += 	$(srcdir)/methodjit
-
-CPPSRCS += 	MethodJIT.cpp \
-		BytecodeAnalyzer.cpp \
-		StubCalls.cpp \
-		Compiler.cpp \
-		FrameState.cpp \
-		FastArithmetic.cpp \
-		FastOps.cpp \
-		StubCompiler.cpp \
-		MonoIC.cpp \
-		PolyIC.cpp \
-		ImmutableSync.cpp \
-		InvokeHelpers.cpp \
-		Retcon.cpp \
-		TrampolineCompiler.cpp \
-		$(NULL)
-#		PICStubCompiler.cpp \
-
-ifeq (86, $(findstring 86,$(TARGET_CPU)))
-ifeq (x86_64, $(TARGET_CPU))
-ifdef _MSC_VER
-ASFILES +=	TrampolineMasmX64.asm
-endif
-ifdef SOLARIS_SUNPRO_CXX
-ASFILES +=	TrampolineSUNWX64.s
-endif
-#CPPSRCS		+= only_on_x86_64.cpp
-else
-#CPPSRCS		+= only_on_x86.cpp
-ifdef SOLARIS_SUNPRO_CXX
-ASFILES +=	TrampolineSUNWX86.s
-endif
-endif
-endif
-ifeq (arm, $(TARGET_CPU))
-#CPPSRCS		+= only_on_arm.cpp
-endif
-#
-# END enclude sources for the method JIT
-#############################################
-
-endif
-
-ifeq (,$(filter-out powerpc sparc,$(TARGET_CPU)))
+ifeq ($(TARGET_CPU), powerpc)
 
 VPATH +=	$(srcdir)/assembler \
 		$(srcdir)/assembler/wtf \
@@ -379,6 +341,9 @@ CPPSRCS += 	Assertions.cpp \
 
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
 ifeq (x86_64, $(TARGET_CPU))
+ifeq ($(OS_ARCH),WINNT)
+ASFILES +=	TrampolineMasmX64.asm
+endif
 #CPPSRCS		+= only_on_x86_64.cpp
 else
 #CPPSRCS		+= only_on_x86.cpp
@@ -420,6 +385,7 @@ endif # JS_HAS_CTYPES
 
 ifdef HAVE_DTRACE
 INSTALLED_HEADERS += \
+		jsdtracef.h \
 		$(CURDIR)/javascript-trace.h \
 		$(NULL)
 endif
@@ -673,7 +639,7 @@ endif
 ifeq ($(OS_ARCH),IRIX)
 ifndef GNU_CC
 _COMPILE_CFLAGS  = $(patsubst -O%,-O1,$(COMPILE_CFLAGS))
-jsapi.o jsxdrapi.o jsarena.o jsarray.o jsatom.o jsemit.o jsfun.o jsinterp.o jsreflect.o jsregexp.o jsparse.o jsopcode.o jsscript.o: %.o: %.cpp Makefile.in
+jsapi.o jsxdrapi.o jsarena.o jsarray.o jsatom.o jsemit.o jsfun.o jsinterp.o jsregexp.o jsparse.o jsopcode.o jsscript.o: %.o: %.cpp Makefile.in
 	$(REPORT_BUILD)
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(CXX) -o $@ -c $(_COMPILE_CFLAGS) $<
@@ -823,7 +789,7 @@ $(CURDIR)/javascript-trace.h: $(srcdir)/javascript-trace.d
 
 # We can't automatically generate dependencies on auto-generated headers;
 # we have to list them explicitly.
-$(addsuffix .$(OBJ_SUFFIX),jsprobes jsinterp jsobj): $(CURDIR)/javascript-trace.h
+$(addsuffix .$(OBJ_SUFFIX),jsdtracef jsinterp jsobj): $(CURDIR)/javascript-trace.h
 endif
 
 ifdef ENABLE_TRACEJIT
@@ -872,24 +838,6 @@ CXXFLAGS += -DUSE_SYSTEM_MALLOC=1 -DENABLE_ASSEMBLER=1 -DENABLE_JIT=1
 
 INCLUDES +=	-I$(srcdir)/assembler -I$(srcdir)/yarr
 
-ifdef ENABLE_METHODJIT
-# Build a standalone test program that exercises the assembler
-# sources a bit.
-TESTMAIN_OBJS = \
-		Assertions.$(OBJ_SUFFIX) \
-		ExecutableAllocatorPosix.$(OBJ_SUFFIX) \
-		ExecutableAllocatorWin.$(OBJ_SUFFIX) \
-		ExecutableAllocator.$(OBJ_SUFFIX) \
-		ARMAssembler.$(OBJ_SUFFIX) \
-		MacroAssemblerARM.$(OBJ_SUFFIX) \
-		TestMain.$(OBJ_SUFFIX) \
-		jsutil.$(OBJ_SUFFIX) \
-		jslog2.$(OBJ_SUFFIX)
-TestMain$(HOST_BIN_SUFFIX): $(TESTMAIN_OBJS)
-	$(CXX) -o TestMain$(HOST_BIN_SUFFIX) $(TESTMAIN_OBJS)
-endif
-
 #
 # END kludges for the Nitro assembler
 ###############################################
-

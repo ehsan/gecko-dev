@@ -10,25 +10,15 @@ const RELATIVE_DIR = "browser/toolkit/mozapps/extensions/test/browser/";
 
 const TESTROOT = "http://example.com/" + RELATIVE_DIR;
 const TESTROOT2 = "http://example.org/" + RELATIVE_DIR;
+const CHROMEROOT = "chrome://mochikit/content/" + RELATIVE_DIR;
 
 const MANAGER_URI = "about:addons";
 const INSTALL_URI = "chrome://mozapps/content/xpinstall/xpinstallConfirm.xul";
 const PREF_LOGGING_ENABLED = "extensions.logging.enabled";
 const PREF_SEARCH_MAXRESULTS = "extensions.getAddons.maxResults";
-const CHROME_NAME = "mochikit";
-
-function getChromeRoot(path) {
-  if (path === undefined) {
-    return "chrome://" + CHROME_NAME + "/content/" + RELATIVE_DIR;
-  }
-  return getRootDirectory(path);
-}
 
 var gPendingTests = [];
 var gTestsRun = 0;
-var gTestStart = null;
-
-var gUseInContentUI = ("switchToTabHavingURI" in window);
 
 // Turn logging on for all tests
 Services.prefs.setBoolPref(PREF_LOGGING_ENABLED, true);
@@ -48,88 +38,22 @@ function add_test(test) {
 }
 
 function run_next_test() {
-  if (gTestsRun > 0)
-    info("Test " + gTestsRun + " took " + (Date.now() - gTestStart) + "ms");
-
   if (gPendingTests.length == 0) {
     end_test();
     return;
   }
 
   gTestsRun++;
-  var test = gPendingTests.shift();
-  if (test.name)
-    info("Running test " + gTestsRun + " (" + test.name + ")");
-  else
-    info("Running test " + gTestsRun);
+  info("Running test " + gTestsRun);
 
-  gTestStart = Date.now();
-  test();
+  gPendingTests.shift()();
 }
 
 function get_addon_file_url(aFilename) {
-  var chromeroot = getChromeRoot(gTestPath);
-  try {
-    var cr = Cc["@mozilla.org/chrome/chrome-registry;1"].
-             getService(Ci.nsIChromeRegistry);
-    var fileurl = cr.convertChromeURL(makeURI(chromeroot + "addons/" + aFilename));
-    return fileurl.QueryInterface(Ci.nsIFileURL);
-  } catch(ex) {
-    var jar = getJar(chromeroot + "addons/" + aFilename);
-    var tmpDir = extractJarToTmp(jar);
-    tmpDir.append(aFilename);
-
-    var ios = Components.classes["@mozilla.org/network/io-service;1"].
-                getService(Components.interfaces.nsIIOService);
-    return ios.newFileURI(tmpDir).QueryInterface(Ci.nsIFileURL);
-  }
-}
-
-function check_all_in_list(aManager, aIds, aIgnoreExtras) {
-  var doc = aManager.document;
-  var view = doc.getElementById("view-port").selectedPanel;
-  var listid = view.id == "search-view" ? "search-list" : "addon-list";
-  var list = doc.getElementById(listid);
-
-  var inlist = [];
-  var node = list.firstChild;
-  while (node) {
-    if (node.value)
-      inlist.push(node.value);
-    node = node.nextSibling;
-  }
-
-  for (var i = 0; i < aIds.length; i++) {
-    if (inlist.indexOf(aIds[i]) == -1)
-      ok(false, "Should find " + aIds[i] + " in the list");
-  }
-
-  if (aIgnoreExtras)
-    return;
-
-  for (i = 0; i < inlist.length; i++) {
-    if (aIds.indexOf(inlist[i]) == -1)
-      ok(false, "Shouldn't have seen " + inlist[i] + " in the list");
-  }
-}
-
-function get_addon_element(aManager, aId) {
-  var doc = aManager.document;
-  var view = doc.getElementById("view-port").selectedPanel;
-  var listid = "addon-list";
-  if (view.id == "search-view")
-    listid = "search-list";
-  else if (view.id == "updates-view")
-    listid = "updates-list";
-  var list = doc.getElementById(listid);
-
-  var node = list.firstChild;
-  while (node) {
-    if (node.value == aId)
-      return node;
-    node = node.nextSibling;
-  }
-  return null;
+  var cr = Cc["@mozilla.org/chrome/chrome-registry;1"].
+           getService(Ci.nsIChromeRegistry);
+  var fileurl = cr.convertChromeURL(makeURI(CHROMEROOT + "addons/" + aFilename));
+  return fileurl.QueryInterface(Ci.nsIFileURL);
 }
 
 function wait_for_view_load(aManagerWindow, aCallback, aForceWait) {
@@ -150,7 +74,6 @@ function wait_for_manager_load(aManagerWindow, aCallback) {
     return;
   }
 
-  info("Waiting for initialization");
   aManagerWindow.document.addEventListener("Initialized", function() {
     aManagerWindow.document.removeEventListener("Initialized", arguments.callee, false);
     aCallback(aManagerWindow);
@@ -173,7 +96,7 @@ function open_manager(aView, aCallback, aLoadCallback) {
     });
   }
 
-  if (gUseInContentUI) {
+  if ("switchToTabHavingURI" in window) {
     gBrowser.selectedTab = gBrowser.addTab();
     switchToTabHavingURI(MANAGER_URI, true, function(aBrowser) {
       setup_manager(aBrowser.contentWindow.wrappedJSObject);
@@ -210,28 +133,11 @@ function restart_manager(aManagerWindow, aView, aCallback, aLoadCallback) {
   });
 }
 
-function is_hidden(aElement) {
-  var style = aElement.ownerDocument.defaultView.getComputedStyle(aElement, "");
-  if (style.display == "none")
-    return true;
-  if (style.visibility != "visible")
-    return true;
-
-  // Hiding a parent element will hide all its children
-  if (aElement.parentNode != aElement.ownerDocument)
-    return is_hidden(aElement.parentNode);
-
-  return false;
-}
-
-function is_element_visible(aElement, aMsg) {
+function is_element_visible(aWindow, aElement, aExpected, aMsg) {
   isnot(aElement, null, "Element should not be null, when checking visibility");
-  ok(!is_hidden(aElement), aMsg);
-}
-
-function is_element_hidden(aElement, aMsg) {
-  isnot(aElement, null, "Element should not be null, when checking visibility");
-  ok(is_hidden(aElement), aMsg);
+  var style = aWindow.getComputedStyle(aElement, "");
+  var visible = style.display != "none" && style.visibility == "visible";
+  is(visible, aExpected, aMsg);
 }
 
 function CategoryUtilities(aManagerWindow) {
@@ -239,7 +145,7 @@ function CategoryUtilities(aManagerWindow) {
 
   var self = this;
   this.window.addEventListener("unload", function() {
-    self.window.removeEventListener("unload", arguments.callee, false);
+    self.removeEventListener("unload", arguments.callee, false);
     self.window = null;
   }, false);
 }
@@ -284,7 +190,8 @@ CategoryUtilities.prototype = {
         aCategory.getAttribute("disabled") == "true")
       return false;
 
-    return !is_hidden(aCategory);
+    var style = this.window.document.defaultView.getComputedStyle(aCategory, "");
+    return style.display != "none" && style.visibility == "visible";
   },
 
   isTypeVisible: function(aCategoryType) {
@@ -735,15 +642,15 @@ function MockAddon(aId, aName, aType, aOperationsRequiringRestart) {
   this.blocklistState = 0;
   this.appDisabled = false;
   this._userDisabled = false;
-  this._applyBackgroundUpdates = AddonManager.AUTOUPDATE_ENABLE;
+  this._applyBackgroundUpdates = true;
   this.scope = AddonManager.SCOPE_PROFILE;
   this.isActive = true;
   this.creator = "";
   this.pendingOperations = 0;
-  this._permissions = AddonManager.PERM_CAN_UNINSTALL |
-                      AddonManager.PERM_CAN_ENABLE |
-                      AddonManager.PERM_CAN_DISABLE |
-                      AddonManager.PERM_CAN_UPGRADE;
+  this.permissions = AddonManager.PERM_CAN_UNINSTALL |
+                     AddonManager.PERM_CAN_ENABLE |
+                     AddonManager.PERM_CAN_DISABLE |
+                     AddonManager.PERM_CAN_UPGRADE;
   this.operationsRequiringRestart = aOperationsRequiringRestart ||
     (AddonManager.OP_NEEDS_RESTART_INSTALL |
      AddonManager.OP_NEEDS_RESTART_UNINSTALL |
@@ -771,30 +678,12 @@ MockAddon.prototype = {
 
     return val;
   },
-
-  get permissions() {
-    let permissions = this._permissions;
-    if (this.appDisabled || !this._userDisabled)
-      permissions &= ~AddonManager.PERM_CAN_ENABLE;
-    if (this.appDisabled || this._userDisabled)
-      permissions &= ~AddonManager.PERM_CAN_DISABLE;
-    return permissions;
-  },
-
-  set permissions(val) {
-    return this._permissions = val;
-  },
-
+  
   get applyBackgroundUpdates() {
     return this._applyBackgroundUpdates;
   },
   
   set applyBackgroundUpdates(val) {
-    if (val != AddonManager.AUTOUPDATE_DEFAULT &&
-        val != AddonManager.AUTOUPDATE_DISABLE &&
-        val != AddonManager.AUTOUPDATE_ENABLE) {
-      ok(false, "addon.applyBackgroundUpdates set to an invalid value: " + val);
-    }
     this._applyBackgroundUpdates = val;
     AddonManagerPrivate.callAddonListeners("onPropertyChanged", this, ["applyBackgroundUpdates"]);
   },
@@ -833,7 +722,6 @@ MockAddon.prototype = {
       return;
 
     if (newActive == this.isActive) {
-      this.pendingOperations -= (newActive ? AddonManager.PENDING_DISABLE : AddonManager.PENDING_ENABLE);
       AddonManagerPrivate.callAddonListeners("onOperationCancelled", this);
     }
     else if (newActive) {

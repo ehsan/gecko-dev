@@ -48,7 +48,8 @@ namespace imagelib {
 class Image : public imgIContainer
 {
 public:
-  imgStatusTracker& GetStatusTracker() { return *mStatusTracker; }
+  imgStatusTracker& GetStatusTracker() { return mStatusTracker; }
+  PRBool IsInitialized() const { return mInitialized; }
 
   /**
    * Flags for Image initialization.
@@ -80,62 +81,38 @@ public:
    */
   virtual nsresult Init(imgIDecoderObserver* aObserver,
                         const char* aMimeType,
-                        const char* aURIString,
                         PRUint32 aFlags) = 0;
 
   /**
    * The rectangle defining the location and size of the currently displayed
-   * frame.
+   * frame.  Should be an attribute, but can't be because of reference/pointer
+   * conflicts with native types in xpidl.
    */
-  virtual void GetCurrentFrameRect(nsIntRect& aRect) = 0;
+  virtual nsresult GetCurrentFrameRect(nsIntRect& aRect) = 0;
+
+  /**
+   * The index of the current frame that would be drawn if the image was to be
+   * drawn now.
+   */
+  virtual nsresult GetCurrentFrameIndex(PRUint32* aCurrentFrameIdx) = 0;
+
+  /**
+   * The total number of frames in this image.
+   */
+  virtual nsresult GetNumFrames(PRUint32* aNumFrames) = 0;
 
   /**
    * The size, in bytes, occupied by the significant data portions of the image.
    * This includes both compressed source data and decoded frames.
    */
-  virtual PRUint32 GetDataSize() = 0;
-
-  // Mimetype translation
-  enum eDecoderType {
-    eDecoderType_png     = 0,
-    eDecoderType_gif     = 1,
-    eDecoderType_jpeg    = 2,
-    eDecoderType_bmp     = 3,
-    eDecoderType_ico     = 4,
-    eDecoderType_icon    = 5,
-    eDecoderType_unknown = 6
-  };
-  static eDecoderType GetDecoderType(const char *aMimeType);
-
-  void IncrementAnimationConsumers();
-  void DecrementAnimationConsumers();
-#ifdef DEBUG
-  PRUint32 GetAnimationConsumers() { return mAnimationConsumers; }
-#endif
+  virtual nsresult GetDataSize(PRUint32* aDataSize) = 0;
 
 protected:
-  Image(imgStatusTracker* aStatusTracker);
-
-  /**
-   * Decides whether animation should or should not be happening,
-   * and makes sure the right thing is being done.
-   */
-  virtual void EvaluateAnimation();
-
-  virtual nsresult StartAnimation() = 0;
-  virtual nsresult StopAnimation() = 0;
+  Image();
 
   // Member data shared by all implementations of this abstract class
-  nsAutoPtr<imgStatusTracker> mStatusTracker;
-  PRUint32                    mAnimationConsumers;
-  PRPackedBool                mInitialized;   // Have we been initalized?
-  PRPackedBool                mAnimating;
-
-  /**
-   * Extended by child classes, if they have additional
-   * conditions for being able to animate
-   */
-  virtual PRBool ShouldAnimate() { return mAnimationConsumers > 0; }
+  imgStatusTracker   mStatusTracker;
+  PRPackedBool       mInitialized;   // Have we been initalized?
 };
 
 } // namespace imagelib

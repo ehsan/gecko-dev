@@ -41,16 +41,14 @@
 #include "nsStyleConsts.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
-#include "nsIConstraintValidation.h"
+#include "nsConstraintValidation.h"
 
 
 class nsHTMLFieldSetElement : public nsGenericHTMLFormElement,
                               public nsIDOMHTMLFieldSetElement,
-                              public nsIConstraintValidation
+                              public nsConstraintValidation
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsHTMLFieldSetElement();
 
@@ -76,16 +74,8 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo();
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLFieldSetElement,
-                                           nsGenericHTMLFormElement)
-private:
-
-  // This function is used to generate the nsContentList (listed form elements).
-  static PRBool MatchListedElements(nsIContent* aContent, PRInt32 aNamespaceID,
-                                    nsIAtom* aAtom, void* aData);
-
-  // listed form controls elements.
-  nsRefPtr<nsContentList> mElements;
+  // nsConstraintValidation
+  PRBool IsBarredFromConstraintValidation() { return PR_TRUE; };
 };
 
 // construction, destruction
@@ -97,8 +87,6 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(FieldSet)
 nsHTMLFieldSetElement::nsHTMLFieldSetElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
 {
-  // <fieldset> is always barred from constraint validation.
-  SetBarredFromConstraintValidation(PR_TRUE);
 }
 
 nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
@@ -107,16 +95,6 @@ nsHTMLFieldSetElement::~nsHTMLFieldSetElement()
 
 // nsISupports
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHTMLFieldSetElement)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mElements)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLFieldSetElement)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLFieldSetElement,
-                                                  nsGenericHTMLFormElement)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mElements, nsIDOMNodeList)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
 NS_IMPL_ADDREF_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLFieldSetElement, nsGenericElement)
 
@@ -124,20 +102,20 @@ DOMCI_NODE_DATA(HTMLFieldSetElement, nsHTMLFieldSetElement)
 
 // QueryInterface implementation for nsHTMLFieldSetElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLFieldSetElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLFieldSetElement,
-                                   nsIDOMHTMLFieldSetElement,
-                                   nsIConstraintValidation)
+  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLFieldSetElement,
+                                   nsIDOMHTMLFieldSetElement)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLFieldSetElement,
                                                nsGenericHTMLFormElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFieldSetElement)
 
+
+// nsIDOMHTMLFieldSetElement
+
+// nsConstraintValidation
+NS_IMPL_NSCONSTRAINTVALIDATION(nsHTMLFieldSetElement)
+
 NS_IMPL_ELEMENT_CLONE(nsHTMLFieldSetElement)
 
-
-NS_IMPL_STRING_ATTR(nsHTMLFieldSetElement, Name, name)
-
-// nsIConstraintValidation
-NS_IMPL_NSICONSTRAINTVALIDATION(nsHTMLFieldSetElement)
 
 // nsIDOMHTMLFieldSetElement
 
@@ -145,34 +123,6 @@ NS_IMETHODIMP
 nsHTMLFieldSetElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
   return nsGenericHTMLFormElement::GetForm(aForm);
-}
-
-NS_IMETHODIMP
-nsHTMLFieldSetElement::GetType(nsAString& aType)
-{
-  aType.AssignLiteral("fieldset");
-  return NS_OK;
-}
-
-/* static */
-PRBool
-nsHTMLFieldSetElement::MatchListedElements(nsIContent* aContent, PRInt32 aNamespaceID,
-                                           nsIAtom* aAtom, void* aData)
-{
-  nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(aContent);
-  return formControl && formControl->GetType() != NS_FORM_LABEL;
-}
-
-NS_IMETHODIMP
-nsHTMLFieldSetElement::GetElements(nsIDOMHTMLCollection** aElements)
-{
-  if (!mElements) {
-    mElements = new nsContentList(this, MatchListedElements, nsnull, nsnull, PR_TRUE);
-  }
-
-  NS_ADDREF(*aElements = mElements);
-
-  return NS_OK;
 }
 
 // nsIFormControl

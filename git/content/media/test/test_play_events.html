@@ -11,8 +11,7 @@
 <pre id="test">
 
 <script>
-
-var manager = new MediaTestManager;
+var videos = [];
 
 var tokens = {
   0:                ["play"],
@@ -25,27 +24,27 @@ var tokens = {
 function gotPlayEvent(event) {
   var v = event.target;
   ok(tokens[v._state].indexOf(event.type) >= 0,
-     "Check expected event got " + event.type + " at " + v._state + " for " + v.src +
-     " uneval(event.type)=" + uneval(event.type) + " typeof(event.type)=" + typeof(event.type) +
-     " uneval(v._state)=" + uneval(v._state) + " typeof(v._state)=" + typeof(v._state) + 
-     " tokens["+v._state+"]=" + tokens[v._state] +
-     " tokens["+v._state+"].indexOf(event.type)=" + tokens[v._state].indexOf(event.type));
+     "Check expected event got " + event.type + " at " + v._state + " for " + v.src);
   v._state = event.type;
 }
 
 function ended(event) {
   var v = event.target;
+  v._finished = true;
   is(v._state, "canplaythrough", "Last event should be canplaythrough for " + v.src);
-  v.parentNode.removeChild(v);
-  manager.finished(v.token);
+  if (AllFinished(videos)) {
+    SimpleTest.finish();
+  }
 }
 
-function initTest(test, token) {
+for (var i=0; i<gSmallTests.length; ++i) {
   var v = document.createElement('video');
-  v.token = token;
-  manager.started(token);
+  var test = gSmallTests[i];
+  if (!v.canPlayType(test.type))
+    continue;
   v._state = 0;
- 
+  v._finished = false;
+
   ["play", "canplay", "playing", "canplaythrough"].forEach(function (e) {
     v.addEventListener(e, gotPlayEvent, false);
   });
@@ -55,9 +54,15 @@ function initTest(test, token) {
   v.src = test.name;
   document.body.appendChild(v); // Causes load.
   v.play();
+  videos.push(v);
 }
 
-manager.runTests(gSmallTests, initTest);
+if (videos.length == 0) {
+  todo(false, "No types supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
+
 
 </script>
 </pre>

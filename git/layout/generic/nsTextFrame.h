@@ -367,11 +367,6 @@ public:
   TrimmedOffsets GetTrimmedOffsets(const nsTextFragment* aFrag,
                                    PRBool aTrimAfter);
 
-  // Similar to Reflow(), but for use from nsLineLayout
-  void ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
-                  nsIRenderingContext* aRenderingContext, PRBool aShouldBlink,
-                  nsHTMLReflowMetrics& aMetrics, nsReflowStatus& aStatus);
-
 protected:
   virtual ~nsTextFrame();
 
@@ -460,8 +455,6 @@ protected:
                    PRBool aForInsertionPoint);
 
   void ClearFrameOffsetCache();
-
-  virtual PRBool HasAnyNoncollapsedCharacters();
 };
 
 #endif

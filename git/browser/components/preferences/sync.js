@@ -21,7 +21,6 @@
  *   Edward Lee <edilee@mozilla.com>
  *   Mike Connor <mconnor@mozilla.com>
  *   Paul O’Shannessy <paul@oshannessy.com>
- *   Philipp von Weitershausen <philipp@weitershausen.de>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -119,11 +118,14 @@ let gSyncPane = {
       this.page = PAGE_NO_ACCOUNT;
     else {
       this.page = PAGE_HAS_ACCOUNT;
-      document.getElementById("currentAccount").value = Weave.Service.account;
+      document.getElementById("currentUser").value = Weave.Service.username;
       document.getElementById("syncComputerName").value = Weave.Clients.localName;
       if (Weave.Status.service == Weave.LOGIN_FAILED)
         this.onLoginError();
       this.updateConnectButton();
+      let syncEverything = this._checkDefaultValues();
+      document.getElementById("weaveSyncMode").selectedIndex = syncEverything ? 0 : 1;
+      document.getElementById("syncModeOptions").selectedIndex = syncEverything ? 0 : 1;
       document.getElementById("tosPP").hidden = this._usingCustomServer;
     }
   },
@@ -144,7 +146,7 @@ let gSyncPane = {
                   Services.prompt.BUTTON_POS_1 * Services.prompt.BUTTON_TITLE_CANCEL;
       let buttonChoice =
         Services.prompt.confirmEx(window,
-                                  this._stringBundle.GetStringFromName("stopUsingAccount.title"),
+                                  this._stringBundle.GetStringFromName("differentAccount.title"),
                                   this._stringBundle.GetStringFromName("differentAccount.label"),
                                   flags,
                                   this._stringBundle.GetStringFromName("differentAccountConfirm.label"),
@@ -176,6 +178,35 @@ let gSyncPane = {
       gSyncUtils.resetPassphrase();
   },
 
+  updateSyncPrefs: function () {
+    let syncEverything = document.getElementById("weaveSyncMode").selectedItem.value == "syncEverything";
+    document.getElementById("syncModeOptions").selectedIndex = syncEverything ? 0 : 1;
+
+    if (syncEverything) {
+      let prefs = this.prefArray;
+      for (let i = 0; i < prefs.length; ++i)
+        document.getElementById(prefs[i]).value = true;
+    }
+  },
+
+  /**
+   * Check whether all the preferences values are set to their default values
+   *
+   * @param aPrefs an array of pref names to check for
+   * @returns boolean true if all of the prefs are set to their default values,
+   *                  false otherwise
+   */
+  _checkDefaultValues: function () {
+    let prefs = this.prefArray;
+    for (let i = 0; i < prefs.length; ++i) {
+      let pref = document.getElementById(prefs[i]);
+      if (pref.value != pref.defaultValue)
+        return false;
+    }
+    return true;
+  },
+
+
   handleExpanderClick: function () {
     //XXXzpao Might be fixed in bug 583441, otherwise we'll need a new bug.
     // ok, this is pretty evil, and likely fragile if the prefwindow
@@ -204,15 +235,6 @@ let gSyncPane = {
       window.openDialog("chrome://browser/content/syncSetup.xul",
                         "weaveSetup", "centerscreen,chrome,resizable=no", resetSync);
     }
-  },
-
-  openQuotaDialog: function () {
-    let win = Services.wm.getMostRecentWindow("Sync:ViewQuota");
-    if (win)
-      win.focus();
-    else 
-      window.openDialog("chrome://browser/content/syncQuota.xul", "",
-                        "centerscreen,chrome,dialog,modal");
   },
 
   resetSync: function () {

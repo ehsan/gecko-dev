@@ -142,12 +142,11 @@ run_for_side_effects := \
 
 include $(TOPSRCDIR)/.mozconfig.mk
 
-ifndef MOZ_OBJDIR
-  MOZ_OBJDIR = obj-$(CONFIG_GUESS)
-endif
-
 ifdef MOZ_BUILD_PROJECTS
 
+ifndef MOZ_OBJDIR
+  $(error When MOZ_BUILD_PROJECTS is set, you must set MOZ_OBJDIR)
+endif
 ifdef MOZ_CURRENT_PROJECT
   OBJDIR = $(MOZ_OBJDIR)/$(MOZ_CURRENT_PROJECT)
   MOZ_MAKE = $(MAKE) $(MOZ_MAKE_FLAGS) -C $(OBJDIR)
@@ -159,8 +158,13 @@ endif
 
 else # MOZ_BUILD_PROJECTS
 
-OBJDIR = $(MOZ_OBJDIR)
-MOZ_MAKE = $(MAKE) $(MOZ_MAKE_FLAGS) -C $(OBJDIR)
+ifdef MOZ_OBJDIR
+  OBJDIR = $(MOZ_OBJDIR)
+  MOZ_MAKE = $(MAKE) $(MOZ_MAKE_FLAGS) -C $(OBJDIR)
+else
+  OBJDIR := $(TOPSRCDIR)
+  MOZ_MAKE := $(MAKE) $(MOZ_MAKE_FLAGS)
+endif
 
 endif # MOZ_BUILD_PROJECTS
 
@@ -211,7 +215,6 @@ endif
 
 profiledbuild::
 	$(MAKE) -f $(TOPSRCDIR)/client.mk build MOZ_PROFILE_GENERATE=1
-	$(MAKE) -C $(PGO_OBJDIR) package
 	OBJDIR=${PGO_OBJDIR} $(PROFILE_GEN_SCRIPT)
 	$(MAKE) -f $(TOPSRCDIR)/client.mk maybe_clobber_profiledbuild
 	$(MAKE) -f $(TOPSRCDIR)/client.mk build MOZ_PROFILE_USE=1

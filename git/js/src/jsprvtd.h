@@ -74,6 +74,19 @@ typedef uint8  jsbytecode;
 typedef uint8  jssrcnote;
 typedef uint32 jsatomid;
 
+#ifdef __cplusplus
+
+/* Class and struct forward declarations in namespace js. */
+extern "C++" {
+namespace js {
+struct Parser;
+struct Compiler;
+class RegExp;
+}
+}
+
+#endif
+
 /* Struct typedefs. */
 typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
 typedef struct JSCodeGenerator      JSCodeGenerator;
@@ -85,10 +98,12 @@ typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
 typedef struct JSProperty           JSProperty;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
+typedef struct JSEmptyScope         JSEmptyScope;
 typedef struct JSThread             JSThread;
 typedef struct JSThreadData         JSThreadData;
 typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
+typedef struct JSWeakRoots          JSWeakRoots;
 
 /* Friend "Advanced API" typedefs. */
 typedef struct JSAtom               JSAtom;
@@ -99,6 +114,9 @@ typedef struct JSAtomState          JSAtomState;
 typedef struct JSCodeSpec           JSCodeSpec;
 typedef struct JSPrinter            JSPrinter;
 typedef struct JSRegExpStatics      JSRegExpStatics;
+typedef struct JSScope              JSScope;
+typedef struct JSScopeOps           JSScopeOps;
+typedef struct JSScopeProperty      JSScopeProperty;
 typedef struct JSStackHeader        JSStackHeader;
 typedef struct JSSubString          JSSubString;
 typedef struct JSNativeTraceInfo    JSNativeTraceInfo;
@@ -119,8 +137,6 @@ extern "C++" {
 
 namespace js {
 
-struct ArgumentsData;
-
 class RegExp;
 class RegExpStatics;
 class AutoStringRooter;
@@ -131,10 +147,7 @@ class TraceRecorder;
 struct TraceMonitor;
 class StackSpace;
 class StackSegment;
-class FrameRegsIter;
 
-struct Compiler;
-struct Parser;
 class TokenStream;
 struct Token;
 struct TokenPos;
@@ -167,8 +180,6 @@ class DeflatedStringCache;
 class PropertyCache;
 struct PropertyCacheEntry;
 
-struct Shape;
-struct EmptyShape;
 
 } /* namespace js */
 
@@ -280,7 +291,7 @@ typedef struct JSDebugHooks {
     void                *debugErrorHookData;
 } JSDebugHooks;
 
-/* js::ObjectOps function pointer typedefs. */
+/* JSObjectOps function pointer typedefs. */
 
 /*
  * Look for id in obj and its prototype chain, returning false on error or
@@ -328,6 +339,14 @@ typedef JSBool
  */
 typedef JSBool
 (* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
+
+/*
+ * The type of ops->call. Same argument types as JSFastNative, but a different
+ * contract. A JSCallOp expects a dummy stack frame with the caller's
+ * scopeChain.
+ */
+typedef JSBool
+(* JSCallOp)(JSContext *cx, uintN argc, jsval *vp);
 
 /*
  * A generic type for functions mapping an object to another object, or null

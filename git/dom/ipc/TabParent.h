@@ -42,6 +42,7 @@
 #include "mozilla/dom/PBrowserParent.h"
 #include "mozilla/dom/PContentDialogParent.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/dom/PExternalHelperApp.h"
 
 #include "jsapi.h"
 #include "nsCOMPtr.h"
@@ -146,6 +147,13 @@ public:
       return true;
     }
 
+    virtual PExternalHelperAppParent* AllocPExternalHelperApp(
+            const IPC::URI& uri,
+            const nsCString& aMimeContentType,
+            const bool& aForceSave,
+            const PRInt64& aContentLength);
+    virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
+
     void LoadURL(nsIURI* aURI);
     void Move(PRUint32 x, PRUint32 y, PRUint32 width, PRUint32 height);
     void Activate();
@@ -191,8 +199,8 @@ public:
     virtual bool DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* actor);
 
 
-    virtual PContentPermissionRequestParent* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
-    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestParent* actor);
+    virtual PGeolocationRequestParent* AllocPGeolocationRequest(const IPC::URI& uri);
+    virtual bool DeallocPGeolocationRequest(PGeolocationRequestParent* actor);
 
     JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 

@@ -38,7 +38,6 @@
 #include "base/basictypes.h"
 #include "jscntxt.h"
 #include "nsXULAppAPI.h"
-#include "nsNativeCharsetUtils.h"
 
 #include "mozilla/jetpack/JetpackChild.h"
 #include "mozilla/jetpack/Handle.h"
@@ -58,7 +57,8 @@ JetpackChild::~JetpackChild()
 {
 }
 
-#define IMPL_METHOD_FLAGS (JSPROP_ENUMERATE | \
+#define IMPL_METHOD_FLAGS (JSFUN_FAST_NATIVE |  \
+                           JSPROP_ENUMERATE | \
                            JSPROP_READONLY | \
                            JSPROP_PERMANENT)
 const JSFunctionSpec
@@ -88,31 +88,6 @@ JetpackChild::sGlobalClass = {
   JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
-#ifdef BUILD_CTYPES
-static char*
-UnicodeToNative(JSContext *cx, const jschar *source, size_t slen)
-{
-  nsCAutoString native;
-  nsDependentString unicode(reinterpret_cast<const PRUnichar*>(source), slen);
-  nsresult rv = NS_CopyUnicodeToNative(unicode, native);
-  if (NS_FAILED(rv)) {
-    JS_ReportError(cx, "could not convert string to native charset");
-    return NULL;
-  }
-
-  char* result = static_cast<char*>(JS_malloc(cx, native.Length() + 1));
-  if (!result)
-    return NULL;
-
-  memcpy(result, native.get(), native.Length() + 1);
-  return result;
-}
-
-static JSCTypesCallbacks sCallbacks = {
-  UnicodeToNative
-};
-#endif
-
 bool
 JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
                    MessageLoop* aIOLoop,
@@ -136,15 +111,9 @@ JetpackChild::Init(base::ProcessHandle aParentProcessHandle,
     JSAutoRequest request(mCx);
     JS_SetContextPrivate(mCx, this);
     JSObject* implGlobal =
-      JS_NewCompartmentAndGlobalObject(mCx, const_cast<JSClass*>(&sGlobalClass), NULL);
-    jsval ctypes;
+      JS_NewGlobalObject(mCx, const_cast<JSClass*>(&sGlobalClass));
     if (!implGlobal ||
         !JS_InitStandardClasses(mCx, implGlobal) ||
-#ifdef BUILD_CTYPES
-        !JS_InitCTypesClass(mCx, implGlobal) ||
-        !JS_GetProperty(mCx, implGlobal, "ctypes", &ctypes) ||
-        !JS_SetCTypesCallbacks(mCx, JSVAL_TO_OBJECT(ctypes), &sCallbacks) ||
-#endif
         !JS_DefineFunctions(mCx, implGlobal,
                             const_cast<JSFunctionSpec*>(sImplMethods)))
       return false;
@@ -427,12 +396,8 @@ JetpackChild::CreateSandbox(JSContext* cx, uintN argc, jsval* vp)
     return JS_FALSE;
   }
 
-  JSObject* obj = JS_NewCompartmentAndGlobalObject(cx, const_cast<JSClass*>(&sGlobalClass), NULL);
+  JSObject* obj = JS_NewGlobalObject(cx, const_cast<JSClass*>(&sGlobalClass));
   if (!obj)
-    return JS_FALSE;
-
-  JSAutoCrossCompartmentCall ac;
-  if (!ac.enter(cx, obj))
     return JS_FALSE;
 
   JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
@@ -460,10 +425,6 @@ JetpackChild::EvalInSandbox(JSContext* cx, uintN argc, jsval* vp)
 
   JSString* str = JS_ValueToString(cx, argv[1]);
   if (!str)
-    return JS_FALSE;
-
-  JSAutoCrossCompartmentCall ac;
-  if (!ac.enter(cx, obj))
     return JS_FALSE;
 
   js::AutoValueRooter ignored(cx);

@@ -861,7 +861,6 @@ Volume.h
 wab.h
 wait.h
 wchar.h
-wctype.h
 winbase.h
 win/compobj.h
 windef.h
@@ -892,7 +891,6 @@ wx/xrc/xmlres.h
 X11/cursorfont.h
 X11/extensions/Print.h
 X11/extensions/shape.h
-X11/extensions/scrnsaver.h
 X11/extensions/XIElib.h
 X11/extensions/XShm.h
 X11/extensions/Xrender.h

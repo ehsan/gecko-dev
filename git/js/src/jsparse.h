@@ -69,10 +69,7 @@ JS_BEGIN_EXTERN_C
  *                          pn_body: TOK_UPVARS if the function's source body
  *                                   depends on outer names, else TOK_ARGSBODY
  *                                   if formal parameters, else TOK_LC node for
- *                                   function body statements, else TOK_RETURN
- *                                   for expression closure, else TOK_SEQ for
- *                                   expression closure with destructured
- *                                   formal parameters
+ *                                   function body statements
  *                          pn_cookie: static level and var index for function
  *                          pn_dflags: PND_* definition/use flags (see below)
  *                          pn_blockid: block id number
@@ -87,10 +84,7 @@ JS_BEGIN_EXTERN_C
  *
  * <Statements>
  * TOK_LC       list        pn_head: list of pn_count statements
- * TOK_IF       ternary     pn_kid1: cond, pn_kid2: then, pn_kid3: else or null.
- *                            In body of a comprehension or desugared generator
- *                            expression, pn_kid2 is TOK_YIELD, TOK_ARRAYPUSH,
- *                            or (if the push was optimized away) empty TOK_LC.
+ * TOK_IF       ternary     pn_kid1: cond, pn_kid2: then, pn_kid3: else or null
  * TOK_SWITCH   binary      pn_left: discriminant
  *                          pn_right: list of TOK_CASE nodes, with at most one
  *                            TOK_DEFAULT node, or if there are let bindings
@@ -134,7 +128,7 @@ JS_BEGIN_EXTERN_C
  *                                     pn_expr: initializer or null
  *                                   each assignment node has
  *                                     pn_left: TOK_NAME with pn_used true and
- *                                              pn_lexdef (NOT pn_expr) set
+*                                               pn_lexdef (NOT pn_expr) set
  *                                     pn_right: initializer
  * TOK_RETURN   unary       pn_kid: return expr or null
  * TOK_SEMI     unary       pn_kid: expr or null statement
@@ -213,9 +207,6 @@ JS_BEGIN_EXTERN_C
  * TOK_PRIMARY  nullary     pn_op: JSOp bytecode
  *
  * <E4X node descriptions>
- * TOK_DEFAULT  name        pn_atom: default XML namespace string literal
- * TOK_FILTER   binary      pn_left: container expr, pn_right: filter expr
- * TOK_DBLDOT   binary      pn_left: container expr, pn_right: selector expr
  * TOK_ANYNAME  nullary     pn_op: JSOP_ANYNAME
  *                          pn_atom: cx->runtime->atomState.starAtom
  * TOK_AT       unary       pn_op: JSOP_TOATTRNAME; pn_kid attribute id/expr
@@ -229,13 +220,11 @@ JS_BEGIN_EXTERN_C
  *                          pn_head: start tag, content1, ... contentN, end tag
  *                          pn_count: 2 + N where N is number of content nodes
  *                                    N may be > x.length() if {expr} embedded
- *                            After constant folding, these contents may be
- *                            concatenated into string nodes.
  * TOK_XMLLIST  list        XML list node
  *                          pn_head: content1, ... contentN
  * TOK_XMLSTAGO, list       XML start, end, and point tag contents
- * TOK_XMLETAGO,            pn_head: tag name or {expr}, ... XML attrs ...
- * TOK_XMLPTAGC
+ * TOK_XMLETAGC,            pn_head: tag name or {expr}, ... XML attrs ...
+ * TOK_XMLPTAGO
  * TOK_XMLNAME  nullary     pn_atom: XML name, with no {expr} embedded
  * TOK_XMLNAME  list        pn_head: tag name or {expr}, ... name or {expr}
  * TOK_XMLATTR, nullary     pn_atom: attribute value string; pn_op: JSOP_STRING
@@ -278,10 +267,10 @@ JS_BEGIN_EXTERN_C
  * TOK_LEXICALSCOPE   name      pn_op: JSOP_LEAVEBLOCK or JSOP_LEAVEBLOCKEXPR
  *                              pn_objbox: block object in JSObjectBox holder
  *                              pn_expr: block body
- * TOK_ARRAYCOMP      list      pn_count: 1
- *                              pn_head: list of 1 element, which is block
- *                                enclosing for loop(s) and optionally
- *                                if-guarded TOK_ARRAYPUSH
+ * TOK_ARRAYCOMP      list      pn_head: list of pn_count (1 or 2) elements
+ *                              if pn_count is 2, first element is #n=[...]
+ *                                last element is block enclosing for loop(s)
+ *                                and optionally if-guarded TOK_ARRAYPUSH
  * TOK_ARRAYPUSH      unary     pn_op: JSOP_ARRAYCOMP
  *                              pn_kid: array comprehension expression
  */
@@ -297,33 +286,6 @@ typedef enum JSParseNodeArity {
 } JSParseNodeArity;
 
 struct JSDefinition;
-
-namespace js {
-
-struct GlobalScope {
-    GlobalScope(JSContext *cx, JSObject *globalObj, JSCodeGenerator *cg)
-      : globalObj(globalObj), cg(cg), defs(ContextAllocPolicy(cx))
-    { }
-
-    struct GlobalDef {
-        JSAtom *atom;
-        JSFunctionBox *funbox;
-
-        GlobalDef() { }
-        GlobalDef(JSAtom *atom) : atom(atom), funbox(NULL)
-        { }
-        GlobalDef(JSAtom *atom, JSFunctionBox *box) :
-          atom(atom), funbox(box)
-        { }
-    };
-
-    JSObject *globalObj;
-    JSCodeGenerator *cg;
-    Vector<GlobalDef, 16, ContextAllocPolicy> defs;
-    uint32 globalFreeSlot;
-};
-
-} /* namespace js */
 
 struct JSParseNode {
     uint32              pn_type:16,     /* TOK_* type, see jsscan.h */
@@ -477,10 +439,9 @@ public:
 #define PND_DEOPTIMIZED 0x400           /* former pn_used name node, pn_lexdef
                                            still valid, but this use no longer
                                            optimizable via an upvar opcode */
-#define PND_CLOSED      0x800           /* variable is closed over */
 
 /* Flags to propagate from uses to definition. */
-#define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_FUNARG | PND_CLOSED)
+#define PND_USE2DEF_FLAGS (PND_ASSIGNED | PND_FUNARG)
 
 /* PN_LIST pn_xflags bits. */
 #define PNX_STRCAT      0x01            /* TOK_PLUS list has string term */
@@ -497,9 +458,9 @@ public:
 #define PNX_DESTRUCT   0x200            /* destructuring special cases:
                                            1. shorthand syntax used, at present
                                               object destructuring ({x,y}) only;
-                                           2. code evaluating destructuring
-                                              arguments occurs before function
-                                              body */
+                                           2. the first child of function body
+                                              is code evaluating destructuring
+                                              arguments */
 #define PNX_HOLEY      0x400            /* array initialiser has holes */
 
     uintN frameLevel() const {
@@ -570,35 +531,6 @@ public:
         return (pn_pos.begin.lineno == pn_pos.end.lineno &&
                 pn_pos.begin.index + str->length() + 2 == pn_pos.end.index);
     }
-
-#ifdef JS_HAS_GENERATOR_EXPRS
-    /*
-     * True if this node is a desugared generator expression.
-     */
-    bool isGeneratorExpr() const {
-        if (PN_TYPE(this) == js::TOK_LP) {
-            JSParseNode *callee = this->pn_head;
-            if (PN_TYPE(callee) == js::TOK_FUNCTION) {
-                JSParseNode *body = (PN_TYPE(callee->pn_body) == js::TOK_UPVARS)
-                                    ? callee->pn_body->pn_tree
-                                    : callee->pn_body;
-                if (PN_TYPE(body) == js::TOK_LEXICALSCOPE)
-                    return true;
-            }
-        }
-        return false;
-    }
-
-    JSParseNode *generatorExpr() const {
-        JS_ASSERT(isGeneratorExpr());
-        JSParseNode *callee = this->pn_head;
-        JSParseNode *body = PN_TYPE(callee->pn_body) == js::TOK_UPVARS
-            ? callee->pn_body->pn_tree
-            : callee->pn_body;
-        JS_ASSERT(PN_TYPE(body) == js::TOK_LEXICALSCOPE);
-        return body->pn_expr;
-    }
-#endif
 
     /*
      * Compute a pointer to the last element in a singly-linked list. NB: list
@@ -929,9 +861,9 @@ struct JSFunctionBox : public JSObjectBox
      * be joined to one compiler-created null closure shared among N different
      * closure environments.
      *
-     * We despecialize from caching function objects, caching slots or shapes
+     * We despecialize from caching function objects, caching slots or sprops
      * instead, because an unbranded object may still have joined methods (for
-     * which shape->isMethod), since PropertyCache::fill gives precedence to
+     * which sprop->isMethod), since PropertyCache::fill gives precedence to
      * joined methods over branded methods.
      */
     bool shouldUnbrand(uintN methods, uintN slowMethods) const;
@@ -994,12 +926,22 @@ struct Parser : private js::AutoGCRooter
     uint32              functionCount;  /* number of functions in current unit */
     JSObjectBox         *traceListHead; /* list of parsed object for GC tracing */
     JSTreeContext       *tc;            /* innermost tree context (stack-allocated) */
-    JSVersion           version;        /* cached version to avoid repeated lookups */
 
     /* Root atoms and objects allocated for the parsed tree. */
     js::AutoKeepAtoms   keepAtoms;
 
-    Parser(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL);
+    Parser(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL)
+      : js::AutoGCRooter(cx, PARSER), context(cx),
+        aleFreeList(NULL), tokenStream(cx), principals(NULL), callerFrame(cfp),
+        callerVarObj(cfp ? cfp->varobj(cx->containingSegment(cfp)) : NULL),
+        nodeList(NULL), functionCount(0), traceListHead(NULL), tc(NULL),
+        keepAtoms(cx->runtime)
+    {
+        js::PodArrayZero(tempFreeList);
+        setPrincipals(prin);
+        JS_ASSERT_IF(cfp, cfp->script);
+    }
+
     ~Parser();
 
     friend void js::AutoGCRooter::trace(JSTracer *trc);
@@ -1016,11 +958,6 @@ struct Parser : private js::AutoGCRooter
               FILE *fp, const char *filename, uintN lineno);
 
     void setPrincipals(JSPrincipals *prin);
-
-    const char *getFilename()
-    {
-        return tokenStream.getFilename();
-    }
 
     /*
      * Parse a top-level JS script.
@@ -1096,13 +1033,8 @@ private:
      * Additional JS parsers.
      */
     bool recognizeDirectivePrologue(JSParseNode *pn);
-
-    enum FunctionType { GETTER, SETTER, GENERAL };
-    bool functionArguments(JSTreeContext &funtc, JSFunctionBox *funbox, JSFunction *fun,
-                           JSParseNode **list);
     JSParseNode *functionBody();
-    JSParseNode *functionDef(JSAtom *name, FunctionType type, uintN lambda);
-
+    JSParseNode *functionDef(uintN lambda, bool namePermitted);
     JSParseNode *condition();
     JSParseNode *comprehensionTail(JSParseNode *kid, uintN blockid,
                                    js::TokenKind type = js::TOK_SEMI, JSOp op = JSOP_NOP);
@@ -1143,9 +1075,11 @@ Parser::reportErrorNumber(JSParseNode *pn, uintN flags, uintN errorNumber, ...)
 struct Compiler
 {
     Parser parser;
-    GlobalScope *globalScope;
 
-    Compiler(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL);
+    Compiler(JSContext *cx, JSPrincipals *prin = NULL, JSStackFrame *cfp = NULL)
+      : parser(cx, prin, cfp)
+    {
+    }
 
     /*
      * Initialize a compiler. Parameters are passed on to init parser.
@@ -1168,7 +1102,7 @@ struct Compiler
                   const jschar *chars, size_t length,
                   FILE *file, const char *filename, uintN lineno,
                   JSString *source = NULL,
-                  uintN staticLevel = 0);
+                  unsigned staticLevel = 0);
 };
 
 } /* namespace js */

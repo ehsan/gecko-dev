@@ -41,9 +41,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-const PREF_EM_UPDATE_ENABLED   = "extensions.update.enabled";
-const PREF_EM_LAST_APP_VERSION = "extensions.lastAppVersion";
-const PREF_EM_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
+const PREF_EM_UPDATE_ENABLED = "extensions.update.enabled";
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
@@ -159,56 +157,6 @@ AsyncObjectCaller.prototype = {
 };
 
 /**
- * This represents an author of an add-on (e.g. creator or developer)
- *
- * @param  aName
- *         The name of the author
- * @param  aURL
- *         The URL of the author's profile page
- */
-function AddonAuthor(aName, aURL) {
-  this.name = aName;
-  this.url = aURL;
-}
-
-AddonAuthor.prototype = {
-  name: null,
-  url: null,
-
-  // Returns the author's name, defaulting to the empty string
-  toString: function() {
-    return this.name || "";
-  }
-}
-
-/**
- * This represents an screenshot for an add-on
- *
- * @param  aURL
- *         The URL to the full version of the screenshot
- * @param  aThumbnailURL
- *         The URL to the thumbnail version of the screenshot
- * @param  aCaption
- *         The caption of the screenshot
- */
-function AddonScreenshot(aURL, aThumbnailURL, aCaption) {
-  this.url = aURL;
-  this.thumbnailURL = aThumbnailURL;
-  this.caption = aCaption;
-}
-
-AddonScreenshot.prototype = {
-  url: null,
-  thumbnailURL: null,
-  caption: null,
-
-  // Returns the screenshot URL, defaulting to the empty string
-  toString: function() {
-    return this.url || "";
-  }
-}
-
-/**
  * This is the real manager, kept here rather than in AddonManager to keep its
  * contents hidden from API users.
  */
@@ -220,7 +168,7 @@ var AddonManagerInternal = {
 
   /**
    * Initializes the AddonManager, loading any known providers and initializing
-   * them.
+   * them. 
    */
   startup: function AMI_startup() {
     if (this.started)
@@ -229,17 +177,17 @@ var AddonManagerInternal = {
     this.installListeners = [];
     this.addonListeners = [];
 
-    let appChanged = undefined;
+    let appChanged = true;
 
     try {
       appChanged = Services.appinfo.version !=
-                   Services.prefs.getCharPref(PREF_EM_LAST_APP_VERSION);
+                   Services.prefs.getCharPref("extensions.lastAppVersion");
     }
     catch (e) { }
 
-    if (appChanged !== false) {
+    if (appChanged) {
       LOG("Application has been upgraded");
-      Services.prefs.setCharPref(PREF_EM_LAST_APP_VERSION,
+      Services.prefs.setCharPref("extensions.lastAppVersion",
                                  Services.appinfo.version);
     }
 
@@ -328,39 +276,11 @@ var AddonManagerInternal = {
     if (!Services.prefs.getBoolPref(PREF_EM_UPDATE_ENABLED))
       return;
 
-    Services.obs.notifyObservers(null, "addons-background-update-start", null);
-    let pendingUpdates = 1;
-
-    function notifyComplete() {
-      if (--pendingUpdates == 0)
-        Services.obs.notifyObservers(null, "addons-background-update-complete", null);
-    }
-
     let scope = {};
-    Components.utils.import("resource://gre/modules/AddonRepository.jsm", scope);
     Components.utils.import("resource://gre/modules/LightweightThemeManager.jsm", scope);
     scope.LightweightThemeManager.updateCurrentTheme();
 
     this.getAllAddons(function getAddonsCallback(aAddons) {
-      if ("getCachedAddonByID" in scope.AddonRepository) {
-        pendingUpdates++;
-        var ids = [a.id for each (a in aAddons)];
-        scope.AddonRepository.repopulateCache(ids, notifyComplete);
-      }
-
-      pendingUpdates += aAddons.length;
-      var autoUpdateDefault = AddonManager.autoUpdateDefault;
-
-      function shouldAutoUpdate(aAddon) {
-        if (!("applyBackgroundUpdates" in aAddon))
-          return false;
-        if (aAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_ENABLE)
-          return true;
-        if (aAddon.applyBackgroundUpdates == AddonManager.AUTOUPDATE_DISABLE)
-          return false;
-        return autoUpdateDefault;
-      }
-
       aAddons.forEach(function BUC_forEachCallback(aAddon) {
         // Check all add-ons for updates so that any compatibility updates will
         // be applied
@@ -369,16 +289,12 @@ var AddonManagerInternal = {
             // Start installing updates when the add-on can be updated and
             // background updates should be applied.
             if (aAddon.permissions & AddonManager.PERM_CAN_UPGRADE &&
-                shouldAutoUpdate(aAddon)) {
+                aAddon.applyBackgroundUpdates) {
               aInstall.install();
             }
-          },
-
-          onUpdateFinished: notifyComplete
+          }
         }, AddonManager.UPDATE_WHEN_PERIODIC_UPDATE);
       });
-
-      notifyComplete();
     });
   },
 
@@ -840,13 +756,6 @@ var AddonManagerInternal = {
     this.addonListeners = this.addonListeners.filter(function(i) {
       return i != aListener;
     });
-  },
-  
-  get autoUpdateDefault() {
-    try {
-      return Services.prefs.getBoolPref(PREF_EM_AUTOUPDATE_DEFAULT);
-    } catch(e) { }
-    return true;
   }
 };
 
@@ -892,11 +801,7 @@ var AddonManagerPrivate = {
 
   callAddonListeners: function AMP_callAddonListeners(aMethod) {
     AddonManagerInternal.callAddonListeners.apply(AddonManagerInternal, arguments);
-  },
-
-  AddonAuthor: AddonAuthor,
-
-  AddonScreenshot: AddonScreenshot
+  }
 };
 
 /**
@@ -1008,15 +913,6 @@ var AddonManager = {
   SCOPE_SYSTEM: 8,
   // The combination of all scopes.
   SCOPE_ALL: 15,
-  
-  // Constants for Addon.applyBackgroundUpdates.
-  // Indicates that the Addon should not update automatically.
-  AUTOUPDATE_DISABLE: 0,
-  // Indicates that the Addon should update automatically only if
-  // that's the global default.
-  AUTOUPDATE_DEFAULT: 1,
-  // Indicates that the Addon should update automatically.
-  AUTOUPDATE_ENABLE: 2,
 
   getInstallForURL: function AM_getInstallForURL(aUrl, aCallback, aMimetype,
                                                  aHash, aName, aIconURL,
@@ -1085,9 +981,5 @@ var AddonManager = {
 
   removeAddonListener: function AM_removeAddonListener(aListener) {
     AddonManagerInternal.removeAddonListener(aListener);
-  },
-  
-  get autoUpdateDefault() {
-    return AddonManagerInternal.autoUpdateDefault;
   }
 };

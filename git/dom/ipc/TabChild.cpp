@@ -54,6 +54,7 @@
 #include "mozilla/ipc/DocumentRendererChild.h"
 #include "mozilla/ipc/DocumentRendererShmemChild.h"
 #include "mozilla/ipc/DocumentRendererNativeIDChild.h"
+#include "mozilla/dom/ExternalHelperAppChild.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindowUtils.h"
@@ -85,10 +86,9 @@
 #include "nsSerializationHelper.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
-#include "nsIEventListenerManager.h"
-#include "PCOMContentPermissionRequestChild.h"
 
 #ifdef MOZ_WIDGET_QT
+#include <QX11EmbedWidget>
 #include <QGraphicsView>
 #include <QGraphicsWidget>
 #endif
@@ -428,9 +428,17 @@ TabChild::RecvCreateWidget(const MagicWindowHandle& parentWidget)
     }
 
 #ifdef MOZ_WIDGET_GTK2
-    GtkWidget* win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    GtkWidget* win = gtk_plug_new((GdkNativeWindow)parentWidget);
+    gtk_widget_show(win);
 #elif defined(MOZ_WIDGET_QT)
-    QGraphicsView *view = new QGraphicsView(new QGraphicsScene());
+    QX11EmbedWidget *embedWin = nsnull;
+    if (parentWidget) {
+      embedWin = new QX11EmbedWidget();
+      NS_ENSURE_TRUE(embedWin, false);
+      embedWin->embedInto(parentWidget);
+      embedWin->show();
+    }
+    QGraphicsView *view = new QGraphicsView(new QGraphicsScene(), embedWin);
     NS_ENSURE_TRUE(view, false);
     QGraphicsWidget *win = new QGraphicsWidget();
     NS_ENSURE_TRUE(win, false);
@@ -500,11 +508,6 @@ TabChild::~TabChild()
     }
     if (mCx) {
       DestroyCx();
-    }
-    
-    nsIEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
-    if (elm) {
-      elm->Disconnect();
     }
     mTabChildGlobal->mTabChild = nsnull;
 }
@@ -967,18 +970,20 @@ TabChild::DeallocPContentDialog(PContentDialogChild* aDialog)
   return true;
 }
 
-PContentPermissionRequestChild*
-TabChild::AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI&)
+/* The PGeolocationRequestChild actor is implemented by a refcounted
+   nsGeolocationRequest, and has an identical lifetime. */
+
+PGeolocationRequestChild*
+TabChild::AllocPGeolocationRequest(const IPC::URI&)
 {
   NS_RUNTIMEABORT("unused");
   return nsnull;
 }
 
 bool
-TabChild::DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor)
+TabChild::DeallocPGeolocationRequest(PGeolocationRequestChild* actor)
 {
-    static_cast<PCOMContentPermissionRequestChild*>(actor)->IPDLRelease();
-    return true;
+  return true;
 }
 
 bool
@@ -998,9 +1003,6 @@ TabChild::RecvActivateFrameEvent(const nsString& aType, const bool& capture)
 bool
 TabChild::RecvLoadRemoteScript(const nsString& aURL)
 {
-  if (!mCx && !InitTabChildGlobal())
-    return false;
-
   LoadFrameScriptInternal(aURL);
   return true;
 }
@@ -1061,9 +1063,6 @@ TabChild::RecvDestroy()
 bool
 TabChild::InitTabChildGlobal()
 {
-  if (mCx && mTabChildGlobal)
-    return true;
-
   nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
   NS_ENSURE_TRUE(window, false);
   nsCOMPtr<nsIDOMEventTarget> chromeHandler =
@@ -1189,7 +1188,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TabChildGlobal)
   NS_INTERFACE_MAP_ENTRY(nsIFrameMessageManager)
-  NS_INTERFACE_MAP_ENTRY(nsISyncMessageSender)
   NS_INTERFACE_MAP_ENTRY(nsIContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContextPrincipal)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
@@ -1236,4 +1234,24 @@ TabChildGlobal::GetPrincipal()
     return nsnull;
   return mTabChild->GetPrincipal();
 }
+
+PExternalHelperAppChild*
+TabChild::AllocPExternalHelperApp(const IPC::URI& uri,
+                                  const nsCString& aMimeContentType,
+                                  const bool& aForceSave,
+                                  const PRInt64& aContentLength)
+{
+  ExternalHelperAppChild *child = new ExternalHelperAppChild();
+  child->AddRef();
+  return child;
+}
+
+bool
+TabChild::DeallocPExternalHelperApp(PExternalHelperAppChild* aService)
+{
+  ExternalHelperAppChild *child = static_cast<ExternalHelperAppChild*>(aService);
+  child->Release();
+  return true;
+}
+
 

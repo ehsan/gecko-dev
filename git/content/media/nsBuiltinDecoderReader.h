@@ -330,15 +330,6 @@ template <class T> class MediaQueue : private nsDeque {
     return GetSize() == 0 && mEndOfStream;    
   }
 
-  // Returns PR_TRUE if the media queue has had it last sample added to it.
-  // This happens when the media stream has been completely decoded. Note this
-  // does not mean that the corresponding stream has finished playback.
-  PRBool IsFinished() {
-    MonitorAutoEnter mon(mMonitor);
-    return mEndOfStream;    
-  }
-
-  // Informs the media queue that it won't be receiving any more samples.
   void Finish() {
     MonitorAutoEnter mon(mMonitor);
     mEndOfStream = PR_TRUE;    
@@ -469,12 +460,8 @@ public:
   // must be the presentation time of the first sample/frame in the media, e.g.
   // the media time corresponding to playback time/position 0. This function
   // should only be called on the main thread.
-  virtual nsresult GetBuffered(nsTimeRanges* aBuffered,
+  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered,
                                PRInt64 aStartTime) = 0;
-
-  // Only used by nsWebMReader for now, so stub here rather than in every
-  // reader than inherits from nsBuiltinDecoderReader.
-  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRUint32 aOffset) {}
 
 protected:
 

@@ -68,7 +68,6 @@
 #include "nsIHTMLContentSink.h"
 #include "nsContentUtils.h"
 #include "txXMLUtils.h"
-#include "nsContentSink.h"
 #include "nsINode.h"
 #include "nsContentCreatorFunctions.h"
 #include "txError.h"
@@ -578,13 +577,12 @@ txMozillaXMLOutput::closePrevious(PRBool aFlushText)
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
-        rv = mCurrentNode->AppendChildTo(mOpenedElement, PR_TRUE);
-        NS_ENSURE_SUCCESS(rv, rv);
-
         if (currentIsDoc) {
             mRootContentCreated = PR_TRUE;
-            nsContentSink::NotifyDocElementCreated(mDocument);
         }
+
+        rv = mCurrentNode->AppendChildTo(mOpenedElement, PR_TRUE);
+        NS_ENSURE_SUCCESS(rv, rv);
 
         mCurrentNode = mOpenedElement;
         mOpenedElement = nsnull;
@@ -629,9 +627,8 @@ txMozillaXMLOutput::createTxWrapper()
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIContent> wrapper;
-    rv = mDocument->CreateElem(nsDependentAtomString(nsGkAtoms::result),
-                               nsGkAtoms::transformiix, namespaceID,
-                               PR_FALSE, getter_AddRefs(wrapper));
+    rv = mDocument->CreateElem(nsAtomString(nsGkAtoms::result), nsGkAtoms::transformiix,
+                               namespaceID, PR_FALSE, getter_AddRefs(wrapper));
     NS_ENSURE_SUCCESS(rv, rv);
 
     PRUint32 i, j, childCount = mDocument->GetChildCount();

@@ -66,7 +66,6 @@
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMNavigator.h"
 #include "nsIDOMNavigatorGeolocation.h"
-#include "nsIDOMNavigatorDesktopNotification.h"
 #include "nsIDOMLocation.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIInterfaceRequestor.h"
@@ -348,8 +347,7 @@ public:
 
   virtual NS_HIDDEN_(void) SetDocShell(nsIDocShell* aDocShell);
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aForceReuseInnerWindow);
+                                              nsISupports *aState);
   void DispatchDOMWindowCreated();
   virtual NS_HIDDEN_(void) SetOpenerWindow(nsIDOMWindowInternal *aOpener,
                                            PRBool aOriginalOpener);
@@ -384,11 +382,6 @@ public:
   {
     // Make sure this matches the casts we do in QueryInterface().
     return (nsGlobalWindow *)(nsIScriptGlobalObject *)supports;
-  }
-  static nsISupports *ToSupports(nsGlobalWindow *win)
-  {
-    // Make sure this matches the casts we do in QueryInterface().
-    return (nsISupports *)(nsIScriptGlobalObject *)win;
   }
   static nsGlobalWindow *FromWrapper(nsIXPConnectWrappedNative *wrapper)
   {
@@ -481,15 +474,6 @@ public:
             mInClose ||
             mHavePendingClose ||
             mCleanedUp);
-  }
-
-  static void FirePopupBlockedEvent(nsIDOMDocument* aDoc,
-                                    nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
-                                    const nsAString &aPopupWindowName,
-                                    const nsAString &aPopupWindowFeatures);
-
-  virtual PRUint32 GetSerial() {
-    return mSerial;
   }
 
 protected:
@@ -843,10 +827,9 @@ protected:
   // the method that was used to focus mFocusedNode
   PRUint32 mFocusMethod;
 
-  PRUint32 mSerial;
-
 #ifdef DEBUG
   PRBool mSetOpenerWindowCalled;
+  PRUint32 mSerial;
   nsCOMPtr<nsIURI> mLastOpenedURI;
 #endif
 
@@ -918,8 +901,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsGlobalModalWindow, nsGlobalWindow)
 
   virtual NS_HIDDEN_(nsresult) SetNewDocument(nsIDocument *aDocument,
-                                              nsISupports *aState,
-                                              PRBool aForceReuseInnerWindow);
+                                              nsISupports *aState);
 
 protected:
   nsCOMPtr<nsIVariant> mReturnValue;
@@ -932,8 +914,7 @@ protected:
 
 class nsNavigator : public nsIDOMNavigator,
                     public nsIDOMClientInformation,
-                    public nsIDOMNavigatorGeolocation,
-                    public nsIDOMNavigatorDesktopNotification
+                    public nsIDOMNavigatorGeolocation
 {
 public:
   nsNavigator(nsIDocShell *aDocShell);
@@ -943,7 +924,6 @@ public:
   NS_DECL_NSIDOMNAVIGATOR
   NS_DECL_NSIDOMCLIENTINFORMATION
   NS_DECL_NSIDOMNAVIGATORGEOLOCATION
-  NS_DECL_NSIDOMNAVIGATORDESKTOPNOTIFICATION
   
   void SetDocShell(nsIDocShell *aDocShell);
   nsIDocShell *GetDocShell()

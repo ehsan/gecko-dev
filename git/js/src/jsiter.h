@@ -58,12 +58,6 @@
 #define JSITER_OWNONLY    0x8   /* iterate over obj's own properties only */
 #define JSITER_HIDDEN     0x10  /* also enumerate non-enumerable properties */
 
-/*
- * For cacheable native iterators, whether the iterator is currently active.
- * Not serialized by XDR.
- */
-#define JSITER_ACTIVE     0x1000
-
 struct NativeIterator {
     JSObject  *obj;
     void      *props_array;
@@ -72,8 +66,8 @@ struct NativeIterator {
     uint32    *shapes_array;
     uint32    shapes_length;
     uint32    shapes_key;
-    uint32    flags;
-    JSObject  *next;  /* Forms cx->enumerators list, garbage otherwise. */
+    uintN     flags;
+    JSObject  *next;
 
     bool isKeyIter() const { return (flags & JSITER_FOREACH) == 0; }
 
@@ -127,9 +121,9 @@ struct NativeIterator {
 
     static NativeIterator *allocateKeyIterator(JSContext *cx, uint32 slength,
                                                const js::AutoIdVector &props);
-    static NativeIterator *allocateValueIterator(JSContext *cx,
+    static NativeIterator *allocateValueIterator(JSContext *cx, uint32 slength,
                                                  const js::AutoValueVector &props);
-    void init(JSObject *obj, uintN flags, uint32 slength, uint32 key);
+    void init(JSObject *obj, uintN flags, const uint32 *sarray, uint32 slength, uint32 key);
 
     void mark(JSTracer *trc);
 };
@@ -201,19 +195,20 @@ typedef enum JSGeneratorState {
 struct JSGenerator {
     JSObject            *obj;
     JSGeneratorState    state;
-    JSFrameRegs         regs;
+    JSFrameRegs         savedRegs;
+    uintN               vplen;
+    JSStackFrame        *liveFrame;
     JSObject            *enumerators;
-    JSStackFrame        *floating;
     js::Value           floatingStack[1];
 
-    JSStackFrame *floatingFrame() {
-        return floating;
+    JSStackFrame *getFloatingFrame() {
+        return reinterpret_cast<JSStackFrame *>(floatingStack + vplen);
     }
 
-    JSStackFrame *liveFrame() {
+    JSStackFrame *getLiveFrame() {
         JS_ASSERT((state == JSGEN_RUNNING || state == JSGEN_CLOSING) ==
-                  (regs.fp != floatingFrame()));
-        return regs.fp;
+                  (liveFrame != getFloatingFrame()));
+        return liveFrame;
     }
 };
 
@@ -235,8 +230,8 @@ inline JSStackFrame *
 js_FloatingFrameIfGenerator(JSContext *cx, JSStackFrame *fp)
 {
     JS_ASSERT(cx->stack().contains(fp));
-    if (JS_UNLIKELY(fp->isGeneratorFrame()))
-        return cx->generatorFor(fp)->floatingFrame();
+    if (JS_UNLIKELY(fp->isGenerator()))
+        return cx->generatorFor(fp)->getFloatingFrame();
     return fp;
 }
 
@@ -247,7 +242,9 @@ js_FloatingFrameToGenerator(JSStackFrame *fp);
 inline JSStackFrame *
 js_LiveFrameIfGenerator(JSStackFrame *fp)
 {
-    return fp->isGeneratorFrame() ? js_FloatingFrameToGenerator(fp)->liveFrame() : fp;
+    if (fp->flags & JSFRAME_GENERATOR)
+        return js_FloatingFrameToGenerator(fp)->getLiveFrame();
+    return fp;
 }
 
 #endif

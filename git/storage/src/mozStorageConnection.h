@@ -46,7 +46,7 @@
 #include "mozilla/Mutex.h"
 
 #include "nsString.h"
-#include "nsDataHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "mozIStorageProgressHandler.h"
 #include "SQLiteMutex.h"
 #include "mozIStorageConnection.h"
@@ -70,28 +70,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_MOZISTORAGECONNECTION
 
-  /**
-   * Structure used to describe user functions on the database connection.
-   */
-  struct FunctionInfo {
-    enum FunctionType {
-      SIMPLE,
-      AGGREGATE
-    };
-
-    nsCOMPtr<nsISupports> function;
-    FunctionType type;
-    PRInt32 numArgs;
-  };
-
-  /**
-   * @param aService
-   *        Pointer to the storage service.  Held onto for the lifetime of the
-   *        connection.
-   * @param aFlags
-   *        The flags to pass to sqlite3_open_v2.
-   */
-  Connection(Service *aService, int aFlags);
+  Connection(Service *aService);
 
   /**
    * Creates the connection to the database.
@@ -100,12 +79,8 @@ public:
    *        The nsIFile of the location of the database to open, or create if it
    *        does not exist.  Passing in nsnull here creates an in-memory
    *        database.
-   * @param aVFSName
-   *        The VFS that SQLite will use when opening this database. NULL means
-   *        "default".
    */
-  nsresult initialize(nsIFile *aDatabaseFile,
-                      const char* aVFSName = NULL);
+  nsresult initialize(nsIFile *aDatabaseFile);
 
   // fetch the native handle
   sqlite3 *GetNativeConnection() { return mDBConn; }
@@ -222,18 +197,13 @@ private:
    * Stores the mapping of a given function by name to its instance.  Access is
    * protected by mDBMutex.
    */
-  nsDataHashtable<nsCStringHashKey, FunctionInfo> mFunctions;
+  nsInterfaceHashtable<nsCStringHashKey, nsISupports> mFunctions;
 
   /**
    * Stores the registered progress handler for the database connection.  Access
    * is protected by mDBMutex.
    */
   nsCOMPtr<mozIStorageProgressHandler> mProgressHandler;
-
-  /**
-   * Stores the flags we passed to sqlite3_open_v2.
-   */
-  const int mFlags;
 
   // This is here for two reasons: 1) It's used to make sure that the
   // connections do not outlive the service.  2) Our custom collating functions

@@ -115,10 +115,6 @@ public:
   void StartSampling(nsRefreshDriver* aRefreshDriver);
   void StopSampling(nsRefreshDriver* aRefreshDriver);
 
-  // Helper to check if we have any animation elements at all
-  PRBool HasRegisteredAnimations()
-  { return mAnimationElementTable.Count() != 0; }
-
 protected:
   // Typedefs
   typedef nsPtrHashKey<nsSMILTimeContainer> TimeContainerPtrKey;
@@ -195,9 +191,6 @@ protected:
   TimeContainerHashtable     mChildContainerTable;
   PRPackedBool               mResampleNeeded;
   PRPackedBool               mDeferredStartSampling;
-#ifdef DEBUG
-  PRPackedBool               mRunningSample;
-#endif
 
   // Store raw ptr to mDocument.  It owns the controller, so controller
   // shouldn't outlive it

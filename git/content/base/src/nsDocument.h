@@ -257,14 +257,14 @@ private:
                            PRBool aImageOnly = PR_FALSE);
 
   // empty if there are no elementswith this ID.
-  // The elements are stored as weak pointers.
+  // The elementsnodes are stored addrefed.
   nsSmallVoidArray mIdContentList;
   // NAME_NOT_VALID if this id cannot be used as a 'name'.  Otherwise
   // stores Elements.
   nsBaseContentList *mNameContentList;
   nsRefPtr<nsContentList> mDocAllList;
   nsAutoPtr<nsTHashtable<ChangeCallbackEntry> > mChangeCallbacks;
-  nsRefPtr<Element> mImageElement;
+  nsCOMPtr<Element> mImageElement;
 };
 
 class nsDocHeaderData
@@ -956,8 +956,7 @@ public:
 
   virtual PRInt32 GetDocumentState();
 
-  virtual void RegisterFileDataUri(const nsACString& aUri);
-  virtual void UnregisterFileDataUri(const nsACString& aUri);
+  virtual void RegisterFileDataUri(nsACString& aUri);
 
   // Only BlockOnload should call this!
   void AsyncBlockOnload();
@@ -1050,7 +1049,6 @@ protected:
   virtual nsPIDOMWindow *GetWindowInternal();
   virtual nsPIDOMWindow *GetInnerWindowInternal();
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const;
-  virtual PRBool InternalAllowXULXBL();
 
 #define NS_DOCUMENT_NOTIFY_OBSERVERS(func_, params_)                        \
   NS_OBSERVER_ARRAY_NOTIFY_XPCOM_OBSERVERS(mObservers, nsIDocumentObserver, \
@@ -1144,9 +1142,6 @@ protected:
 
   // Whether we're currently holding a lock on all of our images.
   PRPackedBool mLockingImages:1;
-
-  // Whether we currently require our images to animate
-  PRPackedBool mAnimatingImages:1;
 
   PRUint8 mXMLDeclarationBits;
 
@@ -1254,12 +1249,6 @@ private:
 protected:
   PRBool mWillReparent;
 #endif
-
-protected:
-  // Makes the images on this document capable of having their animation
-  // active or suspended. An Image will animate as long as at least one of its
-  // owning Documents needs it to animate; otherwise it can suspend.
-  void SetImagesNeedAnimating(PRBool aAnimating);
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

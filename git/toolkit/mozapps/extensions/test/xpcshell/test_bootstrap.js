@@ -98,8 +98,11 @@ function check_test_1() {
       do_check_false(b1.hasResource("foo.bar"));
       do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
-      let dir = do_get_addon_root_uri(profileDir, "bootstrap1@tests.mozilla.org");
-      do_check_eq(b1.getResourceURI("bootstrap.js").spec, dir + "bootstrap.js");
+      let dir = profileDir.clone();
+      dir.append("bootstrap1@tests.mozilla.org");
+      dir.append("bootstrap.js");
+      let uri = Services.io.newFileURI(dir).spec;
+      do_check_eq(b1.getResourceURI("bootstrap.js").spec, uri);
 
       AddonManager.getAddonsWithOperationsByTypes(null, function(list) {
         do_check_eq(list.length, 0);

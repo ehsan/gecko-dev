@@ -2,7 +2,6 @@ toolkit.jar:
 +  skin/classic/global/autocomplete.css
 +  skin/classic/global/button.css
 +  skin/classic/global/checkbox.css
-+  skin/classic/global/commonDialog.css
 +  skin/classic/global/dropmarker.css
 +  skin/classic/global/filefield.css
 +  skin/classic/global/filepicker.css
@@ -10,6 +9,7 @@ toolkit.jar:
 +  skin/classic/global/findBar.css
 +  skin/classic/global/global.css
 +  skin/classic/global/groupbox.css
++  skin/classic/global/headsUpDisplay.css
 +  skin/classic/global/listbox.css
 +  skin/classic/global/menu.css
 +  skin/classic/global/menulist.css
@@ -28,8 +28,6 @@ toolkit.jar:
 +  skin/classic/global/toolbar.css
 +  skin/classic/global/toolbarbutton.css
 +  skin/classic/global/tree.css
-+  skin/classic/global/webConsole.css
-+  skin/classic/global/webConsole_networkPanel.css
 +  skin/classic/global/alerts/alert.css                        (alerts/alert.css)
 +  skin/classic/global/console/console.css                     (console/console.css)
 +  skin/classic/global/console/console.png                     (console/console.png)

@@ -46,6 +46,7 @@
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
+#include "jsdtoa.h"
 #include "jsfun.h"
 #include "jsinterp.h"
 #include "jsiter.h"
@@ -76,7 +77,7 @@ struct JSONParser
 {
     JSONParser(JSContext *cx)
      : hexChar(), numHex(), statep(), stateStack(), rootVal(), objectStack(),
-       objectKey(cx), buffer(cx), suppressErrors(false)
+       objectKey(cx), buffer(cx)
     {}
 
     /* Used while handling \uNNNN in strings */
@@ -89,7 +90,6 @@ struct JSONParser
     JSObject *objectStack;
     js::Vector<jschar, 8> objectKey;
     js::Vector<jschar, 8> buffer;
-    bool suppressErrors;
 };
 
 #ifdef _MSC_VER
@@ -240,14 +240,16 @@ public:
         if (gapValue.value().isString()) {
             if (!js_ValueToCharBuffer(cx, gapValue.value(), gap))
                 return false;
-            if (gap.length() > 10)
-                gap.resize(10);
-        } else if (gapValue.value().isNumber()) {
+            if (cb.length() > 10)
+                cb.resize(10);
+        }
+
+        if (gapValue.value().isNumber()) {
             jsdouble d = gapValue.value().isInt32()
                          ? gapValue.value().toInt32()
                          : js_DoubleToInteger(gapValue.value().toDouble());
             d = JS_MIN(10, d);
-            if (d >= 1 && !gap.appendN(' ', uint32(d)))
+            if (d >= 1 && !cb.appendN(' ', uint32(d)))
                 return false;
         }
 
@@ -344,23 +346,23 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
     }
 
     JSBool memberWritten = JS_FALSE;
-    AutoIdVector props(cx);
-    if (!GetPropertyNames(cx, &keySource->toObject(), JSITER_OWNONLY, props))
+    AutoIdArray ida(cx, JS_Enumerate(cx, &keySource->toObject()));
+    if (!ida)
         return JS_FALSE;
 
-    for (size_t i = 0, len = props.length(); i < len; i++) {
+    for (jsint i = 0, len = ida.length(); i < len; i++) {
         outputValue.setUndefined();
 
         if (!usingWhitelist) {
-            if (!js_ValueToStringId(cx, IdToValue(props[i]), &id))
+            if (!js_ValueToStringId(cx, IdToValue(ida[i]), &id))
                 return JS_FALSE;
         } else {
             // skip non-index properties
             jsuint index = 0;
-            if (!js_IdIsIndex(props[i], &index))
+            if (!js_IdIsIndex(ida[i], &index))
                 continue;
 
-            if (!scx->replacer->getProperty(cx, props[i], &whitelistElement))
+            if (!scx->replacer->getProperty(cx, ida[i], &whitelistElement))
                 return JS_FALSE;
 
             if (!js_ValueToStringId(cx, whitelistElement, &id))
@@ -407,7 +409,6 @@ JO(JSContext *cx, Value *vp, StringifyContext *scx)
         s->getCharsAndLength(chars, length);
         if (!write_string(cx, scx->cb, chars, length) ||
             !scx->cb.append(':') ||
-            !(scx->gap.empty() || scx->cb.append(' ')) ||
             !Str(cx, id, obj, scx, &outputValue, true)) {
             return JS_FALSE;
         }
@@ -526,11 +527,21 @@ Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, Value *vp, 
                 return js_AppendLiteral(scx->cb, "null");
         }
 
-        JSCharBuffer cb(cx);
-        if (!js_NumberValueToCharBuffer(cx, *vp, cb))
+        char numBuf[DTOSTR_STANDARD_BUFFER_SIZE], *numStr;
+        jsdouble d = vp->isInt32() ? jsdouble(vp->toInt32()) : vp->toDouble();
+        numStr = js_dtostr(JS_THREAD_DATA(cx)->dtoaState, numBuf, sizeof numBuf,
+                           DTOSTR_STANDARD, 0, d);
+        if (!numStr) {
+            JS_ReportOutOfMemory(cx);
+            return JS_FALSE;
+        }
+
+        jschar dstr[DTOSTR_STANDARD_BUFFER_SIZE];
+        size_t dbufSize = DTOSTR_STANDARD_BUFFER_SIZE;
+        if (!js_InflateStringToBuffer(cx, numStr, strlen(numStr), dstr, &dbufSize))
             return JS_FALSE;
 
-        return scx->cb.append(cb.begin(), cb.length());
+        return scx->cb.append(dstr, dbufSize);
     }
 
     if (vp->isObject() && !IsFunctionObject(*vp) && !IsXML(*vp)) {
@@ -607,12 +618,12 @@ Walk(JSContext *cx, jsid id, JSObject *holder, const Value &reviver, Value *vp)
                     return false;
             }
         } else {
-            AutoIdVector props(cx);
-            if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, props))
+            AutoIdArray ida(cx, JS_Enumerate(cx, obj));
+            if (!ida)
                 return false;
 
-            for (size_t i = 0, len = props.length(); i < len; i++) {
-                jsid idName = props[i];
+            for (jsint i = 0, len = ida.length(); i < len; i++) {
+                jsid idName = ida[i];
                 if (!Walk(cx, idName, obj, reviver, propValue.addr()))
                     return false;
                 if (propValue.value().isUndefined()) {
@@ -645,14 +656,6 @@ Walk(JSContext *cx, jsid id, JSObject *holder, const Value &reviver, Value *vp)
     return true;
 }
 
-static JSBool
-JSONParseError(JSONParser *jp, JSContext *cx)
-{
-    if (!jp->suppressErrors)
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
-    return JS_FALSE;
-}
-
 static bool
 Revive(JSContext *cx, const Value &reviver, Value *vp)
 {
@@ -671,7 +674,7 @@ Revive(JSContext *cx, const Value &reviver, Value *vp)
 }
 
 JSONParser *
-js_BeginJSONParse(JSContext *cx, Value *rootVal, bool suppressErrors /*= false*/)
+js_BeginJSONParse(JSContext *cx, Value *rootVal)
 {
     if (!cx)
         return NULL;
@@ -691,7 +694,6 @@ js_BeginJSONParse(JSContext *cx, Value *rootVal, bool suppressErrors /*= false*/
     jp->statep = jp->stateStack;
     *jp->statep = JSON_PARSE_STATE_INIT;
     jp->rootVal = rootVal;
-    jp->suppressErrors = suppressErrors;
 
     return jp;
 
@@ -728,15 +730,18 @@ js_FinishJSONParse(JSContext *cx, JSONParser *jp, const Value &reviver)
     bool ok = *jp->statep == JSON_PARSE_STATE_FINISHED;
     Value *vp = jp->rootVal;
 
-    if (!early_ok) {
-        ok = false;
-    } else if (!ok) {
-        JSONParseError(jp, cx);
-    } else if (reviver.isObject() && reviver.toObject().isCallable()) {
-        ok = Revive(cx, reviver, vp);
+    cx->destroy(jp);
+
+    if (!early_ok)
+        return false;
+
+    if (!ok) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return false;
     }
 
-    cx->destroy(jp);
+    if (reviver.isObject() && reviver.toObject().isCallable())
+        ok = Revive(cx, reviver, vp);
 
     return ok;
 }
@@ -746,13 +751,15 @@ PushState(JSContext *cx, JSONParser *jp, JSONParserState state)
 {
     if (*jp->statep == JSON_PARSE_STATE_FINISHED) {
         // extra input
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     jp->statep++;
     if ((uint32)(jp->statep - jp->stateStack) >= JS_ARRAY_LENGTH(jp->stateStack)) {
         // too deep
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     *jp->statep = state;
@@ -766,7 +773,8 @@ PopState(JSContext *cx, JSONParser *jp)
     jp->statep--;
     if (jp->statep < jp->stateStack) {
         jp->statep = jp->stateStack;
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     if (*jp->statep == JSON_PARSE_STATE_INIT)
@@ -804,8 +812,10 @@ PushObject(JSContext *cx, JSONParser *jp, JSObject *obj)
     jsuint len;
     if (!js_GetLengthProperty(cx, jp->objectStack, &len))
         return JS_FALSE;
-    if (len >= JSON_MAX_DEPTH)
-        return JSONParseError(jp, cx);
+    if (len >= JSON_MAX_DEPTH) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
+    }
 
     AutoObjectRooter tvr(cx, obj);
     Value v = ObjectOrNullValue(obj);
@@ -908,7 +918,8 @@ HandleNumber(JSContext *cx, JSONParser *jp, const jschar *buf, uint32 len)
         return JS_FALSE;
     if (ep != buf + len) {
         // bad number input
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     return PushPrimitive(cx, jp, DoubleValue(val));
@@ -931,7 +942,8 @@ HandleKeyword(JSContext *cx, JSONParser *jp, const jschar *buf, uint32 len)
     TokenKind tt = js_CheckKeyword(buf, len);
     if (tt != TOK_PRIMARY) {
         // bad keyword
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     if (buf[0] == 'n') {
@@ -941,7 +953,8 @@ HandleKeyword(JSContext *cx, JSONParser *jp, const jschar *buf, uint32 len)
     } else if (buf[0] == 'f') {
         keyword.setBoolean(false);
     } else {
-        return JSONParseError(jp, cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+        return JS_FALSE;
     }
 
     return PushPrimitive(cx, jp, keyword);
@@ -977,30 +990,40 @@ HandleData(JSContext *cx, JSONParser *jp, JSONDataType type)
 }
 
 JSBool
-js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len,
-                   DecodingMode decodingMode)
+js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len)
 {
-    CHECK_REQUEST(cx);
+    uint32 i;
 
     if (*jp->statep == JSON_PARSE_STATE_INIT) {
         PushState(cx, jp, JSON_PARSE_STATE_VALUE);
     }
 
-    for (uint32 i = 0; i < len; i++) {
+    for (i = 0; i < len; i++) {
         jschar c = data[i];
         switch (*jp->statep) {
-          case JSON_PARSE_STATE_ARRAY_INITIAL_VALUE:
+          case JSON_PARSE_STATE_VALUE:
             if (c == ']') {
+                // empty array
                 if (!PopState(cx, jp))
                     return JS_FALSE;
-                JS_ASSERT(*jp->statep == JSON_PARSE_STATE_ARRAY_AFTER_ELEMENT);
+
+                if (*jp->statep != JSON_PARSE_STATE_ARRAY) {
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                    return JS_FALSE;
+                }
+
                 if (!CloseArray(cx, jp) || !PopState(cx, jp))
                     return JS_FALSE;
+
                 break;
             }
-            // fall through if non-empty array or whitespace
 
-          case JSON_PARSE_STATE_VALUE:
+            if (c == '}') {
+                // we should only find these in OBJECT_KEY state
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
+            }
+
             if (c == '"') {
                 *jp->statep = JSON_PARSE_STATE_STRING;
                 break;
@@ -1020,78 +1043,61 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                 break;
             }
 
+          // fall through in case the value is an object or array
+          case JSON_PARSE_STATE_OBJECT_VALUE:
             if (c == '{') {
-                *jp->statep = JSON_PARSE_STATE_OBJECT_AFTER_PAIR;
-                if (!OpenObject(cx, jp) || !PushState(cx, jp, JSON_PARSE_STATE_OBJECT_INITIAL_PAIR))
+                *jp->statep = JSON_PARSE_STATE_OBJECT;
+                if (!OpenObject(cx, jp) || !PushState(cx, jp, JSON_PARSE_STATE_OBJECT_PAIR))
                     return JS_FALSE;
             } else if (c == '[') {
-                *jp->statep = JSON_PARSE_STATE_ARRAY_AFTER_ELEMENT;
-                if (!OpenArray(cx, jp) || !PushState(cx, jp, JSON_PARSE_STATE_ARRAY_INITIAL_VALUE))
-                    return JS_FALSE;
-            } else if (JS_ISXMLSPACE(c)) {
-                // nothing to do
-            } else if (decodingMode == LEGACY && c == ']') {
-                if (!PopState(cx, jp))
-                    return JS_FALSE;
-                JS_ASSERT(*jp->statep == JSON_PARSE_STATE_ARRAY_AFTER_ELEMENT);
-                if (!CloseArray(cx, jp) || !PopState(cx, jp))
-                    return JS_FALSE;
-            } else {
-                return JSONParseError(jp, cx);
-            }
-            break;
-
-          case JSON_PARSE_STATE_ARRAY_AFTER_ELEMENT:
-            if (c == ',') {
-                if (!PushState(cx, jp, JSON_PARSE_STATE_VALUE))
-                    return JS_FALSE;
-            } else if (c == ']') {
-                if (!CloseArray(cx, jp) || !PopState(cx, jp))
+                *jp->statep = JSON_PARSE_STATE_ARRAY;
+                if (!OpenArray(cx, jp) || !PushState(cx, jp, JSON_PARSE_STATE_VALUE))
                     return JS_FALSE;
             } else if (!JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
-          case JSON_PARSE_STATE_OBJECT_AFTER_PAIR:
-            if (c == ',') {
+          case JSON_PARSE_STATE_OBJECT:
+            if (c == '}') {
+                if (!CloseObject(cx, jp) || !PopState(cx, jp))
+                    return JS_FALSE;
+            } else if (c == ',') {
                 if (!PushState(cx, jp, JSON_PARSE_STATE_OBJECT_PAIR))
                     return JS_FALSE;
-            } else if (c == '}') {
-                if (!CloseObject(cx, jp) || !PopState(cx, jp))
-                    return JS_FALSE;
-            } else if (!JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+            } else if (c == ']' || !JS_ISXMLSPACE(c)) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
-          case JSON_PARSE_STATE_OBJECT_INITIAL_PAIR:
-            if (c == '}') {
-                if (!PopState(cx, jp))
+          case JSON_PARSE_STATE_ARRAY :
+            if (c == ']') {
+                if (!CloseArray(cx, jp) || !PopState(cx, jp))
                     return JS_FALSE;
-                JS_ASSERT(*jp->statep == JSON_PARSE_STATE_OBJECT_AFTER_PAIR);
-                if (!CloseObject(cx, jp) || !PopState(cx, jp))
+            } else if (c == ',') {
+                if (!PushState(cx, jp, JSON_PARSE_STATE_VALUE))
                     return JS_FALSE;
-                break;
+            } else if (!JS_ISXMLSPACE(c)) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
-            // fall through if non-empty object or whitespace
+            break;
 
-          case JSON_PARSE_STATE_OBJECT_PAIR:
+          case JSON_PARSE_STATE_OBJECT_PAIR :
             if (c == '"') {
                 // we want to be waiting for a : when the string has been read
                 *jp->statep = JSON_PARSE_STATE_OBJECT_IN_PAIR;
                 if (!PushState(cx, jp, JSON_PARSE_STATE_STRING))
                     return JS_FALSE;
-            } else if (JS_ISXMLSPACE(c)) {
-                // nothing to do
-            } else if (decodingMode == LEGACY && c == '}') {
-                if (!PopState(cx, jp))
+            } else if (c == '}') {
+                // pop off the object pair state and the object state
+                if (!CloseObject(cx, jp) || !PopState(cx, jp) || !PopState(cx, jp))
                     return JS_FALSE;
-                JS_ASSERT(*jp->statep == JSON_PARSE_STATE_OBJECT_AFTER_PAIR);
-                if (!CloseObject(cx, jp) || !PopState(cx, jp))
-                    return JS_FALSE;
-            } else {
-                return JSONParseError(jp, cx);
+            } else if (c == ']' || !JS_ISXMLSPACE(c)) {
+              JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+              return JS_FALSE;
             }
             break;
 
@@ -1099,7 +1105,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
             if (c == ':') {
                 *jp->statep = JSON_PARSE_STATE_VALUE;
             } else if (!JS_ISXMLSPACE(c)) {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 
@@ -1117,10 +1124,11 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                     return JS_FALSE;
             } else if (c == '\\') {
                 *jp->statep = JSON_PARSE_STATE_STRING_ESCAPE;
-            } else if (c <= 0x1F) {
+            } else if (c < 31) {
                 // The JSON lexical grammer does not allow a JSONStringCharacter to be
                 // any of the Unicode characters U+0000 thru U+001F (control characters).
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             } else {
                 if (!jp->buffer.append(c))
                     return JS_FALSE;
@@ -1145,7 +1153,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
                     *jp->statep = JSON_PARSE_STATE_STRING_HEX;
                     continue;
                 } else {
-                    return JSONParseError(jp, cx);
+                    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                    return JS_FALSE;
                 }
             }
 
@@ -1162,7 +1171,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
             } else if (('A' <= c) && (c <= 'F')) {
                 jp->hexChar = (jp->hexChar << 4) | (c - 'A' + 0x0a);
             } else {
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
 
             if (++(jp->numHex) == 4) {
@@ -1206,7 +1216,8 @@ js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len
           case JSON_PARSE_STATE_FINISHED:
             if (!JS_ISXMLSPACE(c)) {
                 // extra input
-                return JSONParseError(jp, cx);
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_JSON_BAD_PARSE);
+                return JS_FALSE;
             }
             break;
 

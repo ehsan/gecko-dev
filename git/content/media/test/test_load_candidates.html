@@ -21,19 +21,20 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=465458
 
 /** Test for Bug 465458 **/
 
-var manager = new MediaTestManager;
+var videos = [];
 
 function finish(evt) {
-  var v = evt.target;
-  ok(v._error, "Should have received an error event before loaded");
-  v._finished = true;
-  v.parentNode.removeChild(v);
-  manager.finished(v.token);
+  is(evt.target._error, false, "Shouldn't have thrown an error - " + evt.target._name);
+  evt.target._finished = true;
+  if (AllFinished(videos)) {
+    SimpleTest.finish();
+  }
 }
 
 function errorHandler(evt) {
   evt.stopPropagation();
-  evt.target.parentNode._error = true;
+  evt.target._error = true;
+  finish(evt);
 }
 
 var extenstion = {
@@ -44,10 +45,11 @@ var extenstion = {
   "video/webm" : "webm"
 };
 
-function startTest(test, token) {
+for (var i=0; i<gSmallTests.length; ++i) {
   var v = document.createElement('video');
-  v.token = token;
-  manager.started(token);
+  var test = gSmallTests[i];
+  if (!v.canPlayType(test.type))
+    continue;
   v._error = false;
   v._finished = false;
   v._name = test.name;
@@ -55,7 +57,6 @@ function startTest(test, token) {
   var s1 = document.createElement("source");
   s1.type = test.type;
   s1.src = "404." + extenstion[test.type];
-  s1.addEventListener("error", errorHandler, false);
   v.appendChild(s1);
   
   var s2 = document.createElement("source");
@@ -63,11 +64,20 @@ function startTest(test, token) {
   s2.src = test.name;
   v.appendChild(s2);
   
+  v.addEventListener("error", errorHandler, false);
   v.addEventListener("loadeddata", finish, false);
+  
   document.body.appendChild(v);
+  
+  videos.push(v);
 }
 
-manager.runTests(gSmallTests, startTest);
+
+if (videos.length == 0) {
+  todo(false, "No types supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
 
 </script>
 </pre>

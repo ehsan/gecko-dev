@@ -93,8 +93,6 @@ class nsJAR : public nsIZipReader
 {
   // Allows nsJARInputStream to call the verification functions
   friend class nsJARInputStream;
-  // Allows nsZipReaderCache to access mOuterZipEntry
-  friend class nsZipReaderCache;
 
   public:
 
@@ -132,8 +130,7 @@ class nsJAR : public nsIZipReader
   protected:
     //-- Private data members
     nsCOMPtr<nsIFile>        mZipFile;        // The zip/jar file on disk
-    nsCString                mOuterZipEntry;  // The entry in the zip this zip is reading from
-    nsAutoPtr<nsZipArchive>  mZip;            // The underlying zip archive
+    nsZipArchive             mZip;            // The underlying zip archive
     nsObjectHashtable        mManifestData;   // Stores metadata for each entry
     PRBool                   mParsedManifest; // True if manifest has been parsed
     nsCOMPtr<nsIPrincipal>   mPrincipal;      // The entity which signed this file

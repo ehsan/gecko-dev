@@ -347,24 +347,15 @@ NS_NewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
 {
     NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
 
-    nsIDocument* doc = aNodeInfo.get()->GetDocument();
-    if (doc && !doc->AllowXULXBL()) {
-        nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-        return NS_ERROR_NOT_AVAILABLE;
-    }
-
-    NS_ADDREF(*aResult = new nsXULElement(aNodeInfo));
-
-    return NS_OK;
-}
-
-void
-NS_TrustedNewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo)
-{
-    NS_PRECONDITION(aNodeInfo.get(), "need nodeinfo for non-proto Create");
+    *aResult = nsnull;
 
     // Create an nsXULElement with the specified namespace and tag.
-    NS_ADDREF(*aResult = new nsXULElement(aNodeInfo));
+    nsXULElement* element = new nsXULElement(aNodeInfo);
+    NS_ENSURE_TRUE(element, NS_ERROR_OUT_OF_MEMORY);
+
+    NS_ADDREF(*aResult = element);
+
+    return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -672,7 +663,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
         !frame->AreAncestorViewsVisible())
         return;
 
-    nsXULElement* elm = FromContent(content);
+    nsCOMPtr<nsIDOMXULElement> elm(do_QueryInterface(content));
     if (elm) {
         // Define behavior for each type of XUL element.
         nsIAtom *tag = content->Tag();
@@ -682,7 +673,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
             nsCOMPtr<nsIDOMElement> element;
             // for radio buttons, focus the radiogroup instead
             if (tag == nsGkAtoms::radio) {
-              nsCOMPtr<nsIDOMXULSelectControlItemElement> controlItem(do_QueryInterface(content));
+              nsCOMPtr<nsIDOMXULSelectControlItemElement> controlItem(do_QueryInterface(elm));
               if (controlItem) {
                 PRBool disabled;
                 controlItem->GetDisabled(&disabled);
@@ -701,7 +692,7 @@ nsXULElement::PerformAccesskey(PRBool aKeyCausesActivation,
           }
         }
         if (aKeyCausesActivation && tag != nsGkAtoms::textbox && tag != nsGkAtoms::menulist) {
-          elm->ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
+            ClickWithInputSource(nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD);
         }
     }
     else {
@@ -1378,10 +1369,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
     if (slots && slots->mAttributeMap) {
       slots->mAttributeMap->DropAttribute(aNameSpaceID, aName);
     }
-
-    // The id-handling code, and in the future possibly other code, need to
-    // react to unexpected attribute changes.
-    nsMutationGuard::DidMutate();
 
     nsAttrValue ignored;
     rv = mAttrsAndChildren.RemoveAttrAt(index, ignored);

@@ -38,21 +38,31 @@
 # ***** END LICENSE BLOCK *****
 */
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
 const PREF_APP_UPDATE_LASTUPDATETIME_FMT  = "app.update.lastUpdateTime.%ID%";
 const PREF_APP_UPDATE_TIMER               = "app.update.timer";
-const PREF_APP_UPDATE_TIMERFIRSTINTERVAL  = "app.update.timerFirstInterval";
 const PREF_APP_UPDATE_LOG                 = "app.update.log";
 
 const CATEGORY_UPDATE_TIMER               = "update-timer";
 
+XPCOMUtils.defineLazyServiceGetter(this, "gPref",
+                                   "@mozilla.org/preferences-service;1",
+                                   "nsIPrefBranch2");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gConsole",
+                                   "@mozilla.org/consoleservice;1",
+                                   "nsIConsoleService");
+
 XPCOMUtils.defineLazyGetter(this, "gLogEnabled", function tm_gLogEnabled() {
   return getPref("getBoolPref", PREF_APP_UPDATE_LOG, false);
 });
+
+function getObserverService() {
+  return Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
+}
 
 /**
 #  Gets a preference value, handling the case where there is no default.
@@ -68,7 +78,7 @@ XPCOMUtils.defineLazyGetter(this, "gLogEnabled", function tm_gLogEnabled() {
  */
 function getPref(func, preference, defaultValue) {
   try {
-    return Services.prefs[func](preference);
+    return gPref[func](preference);
   }
   catch (e) {
   }
@@ -83,7 +93,7 @@ function getPref(func, preference, defaultValue) {
 function LOG(string) {
   if (gLogEnabled) {
     dump("*** UTM:SVC " + string + "\n");
-    Services.console.logStringMessage("UTM:SVC " + string);
+    gConsole.logStringMessage("UTM:SVC " + string);
   }
 }
 
@@ -93,7 +103,7 @@ function LOG(string) {
 #  @constructor
  */
 function TimerManager() {
-  Services.obs.addObserver(this, "xpcom-shutdown", false);
+  getObserverService().addObserver(this, "xpcom-shutdown", false);
 }
 TimerManager.prototype = {
   /**
@@ -130,15 +140,11 @@ TimerManager.prototype = {
   observe: function TM_observe(aSubject, aTopic, aData) {
     // Prevent setting the timer interval to a value of less than 60 seconds.
     var minInterval = 60000;
-    // Prevent setting the first timer interval to a value of less than 10
-    // seconds.
-    var minFirstInterval = 10000;
     switch (aTopic) {
     case "utm-test-init":
       // Enforce a minimum timer interval of 500 ms for tests and fall through
       // to profile-after-change to initialize the timer.
       minInterval = 500;
-      minFirstInterval = 500;
     case "profile-after-change":
       // Cancel the timer if it has already been initialized. This is primarily
       // for tests.
@@ -148,14 +154,13 @@ TimerManager.prototype = {
       }
       this._timerInterval = Math.max(getPref("getIntPref", PREF_APP_UPDATE_TIMER, 600000),
                                      minInterval);
-      let firstInterval = Math.max(getPref("getIntPref", PREF_APP_UPDATE_TIMERFIRSTINTERVAL,
-                                           this._timerInterval), minFirstInterval);
       this._timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-      this._timer.initWithCallback(this, firstInterval,
+      this._timer.initWithCallback(this, this._timerInterval,
                                    Ci.nsITimer.TYPE_REPEATING_SLACK);
       break;
     case "xpcom-shutdown":
-      Services.obs.removeObserver(this, "xpcom-shutdown");
+      let os = getObserverService();
+      os.removeObserver(this, "xpcom-shutdown");
 
       // Release everything we hold onto.
       if (this._timer) {
@@ -175,9 +180,6 @@ TimerManager.prototype = {
 #             The checking timer that fired.
    */
   notify: function TM_notify(timer) {
-    if (timer.delay != this._timerInterval)
-      timer.delay = this._timerInterval;
-
     var prefLastUpdate;
     var lastUpdateTime;
     var now = Math.round(Date.now() / 1000);
@@ -200,12 +202,12 @@ TimerManager.prototype = {
       let interval = getPref("getIntPref", prefInterval, defaultInterval);
       prefLastUpdate = PREF_APP_UPDATE_LASTUPDATETIME_FMT.replace(/%ID%/,
                                                                   timerID);
-      if (Services.prefs.prefHasUserValue(prefLastUpdate)) {
-        lastUpdateTime = Services.prefs.getIntPref(prefLastUpdate);
+      if (gPref.prefHasUserValue(prefLastUpdate)) {
+        lastUpdateTime = gPref.getIntPref(prefLastUpdate);
       }
       else {
         lastUpdateTime = now + this._fudge;
-        Services.prefs.setIntPref(prefLastUpdate, lastUpdateTime);
+        gPref.setIntPref(prefLastUpdate, lastUpdateTime);
         continue;
       }
 
@@ -219,7 +221,7 @@ TimerManager.prototype = {
               cid + " ,error: " + e);
         }
         lastUpdateTime = now + this._fudge;
-        Services.prefs.setIntPref(prefLastUpdate, lastUpdateTime);
+        gPref.setIntPref(prefLastUpdate, lastUpdateTime);
       }
     }
 
@@ -244,7 +246,7 @@ TimerManager.prototype = {
         lastUpdateTime = now + this._fudge;
         timerData.lastUpdateTime = lastUpdateTime;
         prefLastUpdate = PREF_APP_UPDATE_LASTUPDATETIME_FMT.replace(/%ID%/, timerID);
-        Services.prefs.setIntPref(prefLastUpdate, lastUpdateTime);
+        gPref.setIntPref(prefLastUpdate, lastUpdateTime);
       }
     }
   },
@@ -256,11 +258,11 @@ TimerManager.prototype = {
     LOG("TimerManager:registerTimer - id: " + id);
     var prefLastUpdate = PREF_APP_UPDATE_LASTUPDATETIME_FMT.replace(/%ID%/, id);
     var lastUpdateTime;
-    if (Services.prefs.prefHasUserValue(prefLastUpdate)) {
-      lastUpdateTime = Services.prefs.getIntPref(prefLastUpdate);
+    if (gPref.prefHasUserValue(prefLastUpdate)) {
+      lastUpdateTime = gPref.getIntPref(prefLastUpdate);
     } else {
       lastUpdateTime = Math.round(Date.now() / 1000) + this._fudge;
-      Services.prefs.setIntPref(prefLastUpdate, lastUpdateTime);
+      gPref.setIntPref(prefLastUpdate, lastUpdateTime);
     }
     this._timers[id] = { callback       : callback,
                          interval       : interval,

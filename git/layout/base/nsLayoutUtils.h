@@ -64,7 +64,6 @@ class nsClientRectList;
 #include "gfxPattern.h"
 #include "imgIContainer.h"
 #include "nsCSSPseudoElements.h"
-#include "nsHTMLReflowState.h"
 
 class nsBlockFrame;
 class gfxDrawable;
@@ -778,50 +777,6 @@ public:
                    const nsStyleCoord&  aCoord);
 
   /*
-   * Likewise, but for 'height', 'min-height', or 'max-height'.
-   */
-  static nscoord ComputeHeightValue(nscoord aContainingBlockHeight,
-                                    const nsStyleCoord& aCoord)
-  {
-    nscoord result =
-      ComputeHeightDependentValue(aContainingBlockHeight, aCoord);
-    if (result < 0)
-      result = 0; // clamp calc()
-    return result;
-  }
-
-  static PRBool IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
-  {
-    nsStyleUnit unit = aCoord.GetUnit();
-    return unit == eStyleUnit_Auto ||  // only for 'height'
-           unit == eStyleUnit_None ||  // only for 'max-height'
-           (aCBHeight == NS_AUTOHEIGHT && aCoord.HasPercent());
-  }
-
-  static PRBool IsPaddingZero(const nsStyleCoord &aCoord)
-  {
-    return (aCoord.GetUnit() == eStyleUnit_Coord &&
-            aCoord.GetCoordValue() == 0) ||
-           (aCoord.GetUnit() == eStyleUnit_Percent &&
-            aCoord.GetPercentValue() == 0.0) ||
-           (aCoord.IsCalcUnit() &&
-            // clamp negative calc() to 0
-            nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) <= 0 &&
-            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) <= 0);
-  }
-
-  static PRBool IsMarginZero(const nsStyleCoord &aCoord)
-  {
-    return (aCoord.GetUnit() == eStyleUnit_Coord &&
-            aCoord.GetCoordValue() == 0) ||
-           (aCoord.GetUnit() == eStyleUnit_Percent &&
-            aCoord.GetPercentValue() == 0.0) ||
-           (aCoord.IsCalcUnit() &&
-            nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) == 0 &&
-            nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) == 0);
-  }
-
-  /*
    * Calculate the used values for 'width' and 'height' for a replaced element.
    *
    *   http://www.w3.org/TR/CSS21/visudet.html#min-max-widths
@@ -955,12 +910,6 @@ public:
                             PRUint32             aImageFlags);
 
   /**
-   * Convert an nsRect to a gfxRect.
-   */
-  static gfxRect RectToGfxRect(const nsRect& aRect,
-                               PRInt32 aAppUnitsPerDevPixel);
-
-  /**
    * Draw a drawable using the pixel snapping algorithm.
    * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
    *   @param aRenderingContext Where to draw the image, set up with an
@@ -1027,25 +976,6 @@ public:
                                   const nsRect&        aDirty,
                                   PRUint32             aImageFlags,
                                   const nsRect*        aSourceArea = nsnull);
-
-  /**
-   * Given an imgIContainer, this method attempts to obtain an intrinsic
-   * px-valued height & width for it.  If the imgIContainer has a non-pixel
-   * value for either height or width, this method tries to generate a pixel
-   * value for that dimension using the intrinsic ratio (if available).
-   *
-   * This method will always set aGotWidth and aGotHeight to indicate whether
-   * we were able to successfully obtain (or compute) a value for each
-   * dimension.
-   *
-   * NOTE: This method is similar to ComputeSizeWithIntrinsicDimensions.  The
-   * difference is that this one is simpler and is suited to places where we
-   * have less information about the frame tree.
-   */
-  static void ComputeSizeForDrawing(imgIContainer* aImage,
-                                    nsIntSize&     aImageSize,
-                                    PRBool&        aGotWidth,
-                                    PRBool&        aGotHeight);
 
   /**
    * Given a source area of an image (in appunits) and a destination area

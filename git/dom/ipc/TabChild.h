@@ -224,6 +224,12 @@ public:
                                                      const nsTArray<int>&,
                                                      const nsTArray<nsString>&);
     virtual bool DeallocPContentDialog(PContentDialogChild* aDialog);
+    virtual PExternalHelperAppChild *AllocPExternalHelperApp(
+            const IPC::URI& uri,
+            const nsCString& aMimeContentType,
+            const bool& aForceSave,
+            const PRInt64& aContentLength);
+    virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
     static void ParamsToArrays(nsIDialogParamBlock* aParams,
                                nsTArray<int>& aIntParams,
                                nsTArray<nsString>& aStringParams);
@@ -277,8 +283,8 @@ public:
             const gfxMatrix& aMatrix,
             const PRUint32& aNativeID);
 
-    virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::URI& uri);
-    virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor);
+    virtual PGeolocationRequestChild* AllocPGeolocationRequest(const IPC::URI& uri);
+    virtual bool DeallocPGeolocationRequest(PGeolocationRequestChild* actor);
 
     nsIWebNavigation* WebNavigation() { return mWebNav; }
 
@@ -298,7 +304,7 @@ private:
     bool InitTabChildGlobal();
 
     nsCOMPtr<nsIWebNavigation> mWebNav;
-    nsRefPtr<TabChildGlobal> mTabChildGlobal;
+    TabChildGlobal* mTabChildGlobal;
     PRUint32 mChromeFlags;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);

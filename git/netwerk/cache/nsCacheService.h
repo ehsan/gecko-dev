@@ -143,9 +143,6 @@ public:
     static void      ReleaseObject_Locked(nsISupports *    object,
                                           nsIEventTarget * target = nsnull);
 
-    static nsresult DispatchToCacheIOThread(nsIRunnable* event);
-
-
     /**
      * Methods called by nsCacheProfilePrefObserver
      */
@@ -169,8 +166,6 @@ public:
 private:
     friend class nsCacheServiceAutoLock;
     friend class nsOfflineCacheDevice;
-    friend class nsProcessRequestEvent;
-    friend class nsSetSmartSizeEvent;
 
     /**
      * Internal Methods
@@ -249,8 +244,6 @@ private:
 #if defined(DEBUG)
     PRThread *                      mLockedThread;  // The thread holding mLock
 #endif
-
-    nsCOMPtr<nsIThread>             mCacheIOThread;
 
     nsTArray<nsISupports*>          mDoomedObjects;
     

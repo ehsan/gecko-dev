@@ -148,7 +148,6 @@ const char *const js_common_atom_names[] = {
     js_ignoreCase_str,          /* ignoreCaseAtom               */
     js_index_str,               /* indexAtom                    */
     js_input_str,               /* inputAtom                    */
-    "toISOString",              /* toISOStringAtom              */
     js_iterator_str,            /* iteratorAtom                 */
     js_join_str,                /* joinAtom                     */
     js_lastIndex_str,           /* lastIndexAtom                */
@@ -176,7 +175,6 @@ const char *const js_common_atom_names[] = {
     js_configurable_str,        /* configurableAtom             */
     js_writable_str,            /* writableAtom                 */
     js_value_str,               /* valueAtom                    */
-    js_test_str,                /* testAtom                     */
     "use strict",               /* useStrictAtom                */
 
 #if JS_HAS_XML_SUPPORT
@@ -266,7 +264,6 @@ const char js_enumerable_str[]      = "enumerable";
 const char js_configurable_str[]    = "configurable";
 const char js_writable_str[]        = "writable";
 const char js_value_str[]           = "value";
-const char js_test_str[]            = "test";
 
 #if JS_HAS_XML_SUPPORT
 const char js_etago_str[]           = "</";
@@ -556,6 +553,7 @@ js_AtomizeString(JSContext *cx, JSString *str, uintN flags)
 
     JS_ASSERT(key->isAtomized());
     JSAtom *atom = STRING_TO_ATOM(key);
+    cx->weakRoots.lastAtom = atom;
     JS_UNLOCK(cx, &state->lock);
     return atom;
 }

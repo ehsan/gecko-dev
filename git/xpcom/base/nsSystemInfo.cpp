@@ -45,10 +45,6 @@
 #include <gtk/gtk.h>
 #endif
 
-#ifdef ANDROID
-#include "AndroidBridge.h"
-#endif
-
 nsSystemInfo::nsSystemInfo()
 {
 }
@@ -127,15 +123,7 @@ nsSystemInfo::Init()
         free(line);
       fclose(fp);
     }
-#endif
-
-#ifdef ANDROID
-    if (mozilla::AndroidBridge::Bridge()) {
-        nsAutoString str;
-        if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str))
-            SetPropertyAsAString(NS_LITERAL_STRING("device"), str);
-    }
-#endif
+#endif   
     return NS_OK;
 }
 

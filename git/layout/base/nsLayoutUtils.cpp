@@ -1144,9 +1144,7 @@ PruneDisplayListForExtraPage(nsDisplayListBuilder* aBuilder,
     nsDisplayList* subList = i->GetList();
     if (subList) {
       PruneDisplayListForExtraPage(aBuilder, aExtraPage, aY, subList);
-      nsDisplayItem::Type type = i->GetType();
-      if (type == nsDisplayItem::TYPE_CLIP ||
-          type == nsDisplayItem::TYPE_CLIP_ROUNDED_RECT) {
+      if (i->GetType() == nsDisplayItem::TYPE_CLIP) {
         // This might clip an element which should appear on the first
         // page, and that element might be visible if this uses a 'clip'
         // property with a negative top.
@@ -1221,13 +1219,13 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
                           const nsRegion& aDirtyRegion, nscolor aBackstop,
                           PRUint32 aFlags)
 {
+#ifdef DEBUG
   if (aFlags & PAINT_WIDGET_LAYERS) {
     nsIView* view = aFrame->GetView();
-    if (!(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame)) {
-      aFlags &= ~PAINT_WIDGET_LAYERS;
-      NS_ASSERTION(aRenderingContext, "need a rendering context");
-    }
+    NS_ASSERTION(view && view->GetWidget() && GetDisplayRootFrame(aFrame) == aFrame,
+      "PAINT_WIDGET_LAYERS should only be used on a display root that has a widget");
   }
+#endif
 
   nsPresContext* presContext = aFrame->PresContext();
   nsIPresShell* presShell = presContext->PresShell();
@@ -1259,8 +1257,9 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (aFlags & PAINT_WIDGET_LAYERS) {
     builder.SetPaintingToWindow(PR_TRUE);
   }
-  if (aFlags & PAINT_IGNORE_SUPPRESSION) {
-    builder.IgnorePaintSuppression();
+  if ((aFlags & PAINT_IGNORE_SUPPRESSION) && builder.IsBackgroundOnly()) {
+    builder.SetBackgroundOnly(PR_FALSE);
+    willFlushLayers = PR_TRUE;
   }
   nsRect canvasArea(nsPoint(0, 0), aFrame->GetSize());
   if (aFlags & PAINT_IGNORE_VIEWPORT_SCROLLING) {
@@ -1370,10 +1369,6 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   builder.LeavePresShell(aFrame, dirtyRect);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (builder.GetHadToIgnorePaintSuppression()) {
-    willFlushLayers = PR_TRUE;
-  }
-
 #ifdef DEBUG
   if (gDumpPaintList) {
     fprintf(stderr, "Painting --- before optimization (dirty %d,%d,%d,%d):\n",
@@ -1382,7 +1377,7 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   }
 #endif
 
-  list.ComputeVisibilityForRoot(&builder, &visibleRegion);
+  list.ComputeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
   if (gDumpPaintList) {
@@ -1609,14 +1604,12 @@ nsLayoutUtils::GetTextShadowRectsUnion(const nsRect& aTextAndDecorationsRect,
     return aTextAndDecorationsRect;
 
   nsRect resultRect = aTextAndDecorationsRect;
-  PRInt32 A2D = aFrame->PresContext()->AppUnitsPerDevPixel();
   for (PRUint32 i = 0; i < textStyle->mTextShadow->Length(); ++i) {
     nsRect tmpRect(aTextAndDecorationsRect);
     nsCSSShadowItem* shadow = textStyle->mTextShadow->ShadowAt(i);
 
     tmpRect.MoveBy(nsPoint(shadow->mXOffset, shadow->mYOffset));
-    tmpRect.Inflate(
-      nsContextBoxBlur::GetBlurRadiusMargin(shadow->mRadius, A2D));
+    tmpRect.Inflate(shadow->mRadius, shadow->mRadius);
 
     resultRect.UnionRect(resultRect, tmpRect);
   }
@@ -1780,8 +1773,6 @@ static nscoord AddPercents(nsLayoutUtils::IntrinsicWidthType aType,
   return result;
 }
 
-// Use only for widths/heights (or their min/max), since it clamps
-// negative calc() results to 0.
 static PRBool GetAbsoluteCoord(const nsStyleCoord& aStyle, nscoord& aResult)
 {
   if (aStyle.IsCalcUnit()) {
@@ -1790,8 +1781,6 @@ static PRBool GetAbsoluteCoord(const nsStyleCoord& aStyle, nscoord& aResult)
     }
     // If it has no percents, we can pass 0 for the percentage basis.
     aResult = nsRuleNode::ComputeComputedCalc(aStyle, 0);
-    if (aResult < 0)
-      aResult = 0;
     return PR_TRUE;
   }
 
@@ -1799,7 +1788,6 @@ static PRBool GetAbsoluteCoord(const nsStyleCoord& aStyle, nscoord& aResult)
     return PR_FALSE;
 
   aResult = aStyle.GetCoordValue();
-  NS_ASSERTION(aResult >= 0, "negative widths not allowed");
   return PR_TRUE;
 }
 
@@ -1825,7 +1813,7 @@ GetPercentHeight(const nsStyleCoord& aStyle,
   if (!GetAbsoluteCoord(pos->mHeight, h) &&
       !GetPercentHeight(pos->mHeight, f, h)) {
     NS_ASSERTION(pos->mHeight.GetUnit() == eStyleUnit_Auto ||
-                 pos->mHeight.HasPercent(),
+                 pos->mHeight.GetUnit() == eStyleUnit_Percent,
                  "unknown height unit");
     nsIAtom* fType = f->GetType();
     if (fType != nsGkAtoms::viewportFrame && fType != nsGkAtoms::canvasFrame &&
@@ -1856,7 +1844,7 @@ GetPercentHeight(const nsStyleCoord& aStyle,
       h = maxh;
   } else {
     NS_ASSERTION(pos->mMaxHeight.GetUnit() == eStyleUnit_None ||
-                 pos->mMaxHeight.HasPercent(),
+                 pos->mMaxHeight.GetUnit() == eStyleUnit_Percent,
                  "unknown max-height unit");
   }
 
@@ -1866,7 +1854,7 @@ GetPercentHeight(const nsStyleCoord& aStyle,
     if (minh > h)
       h = minh;
   } else {
-    NS_ASSERTION(pos->mMinHeight.HasPercent(),
+    NS_ASSERTION(pos->mMinHeight.GetUnit() == eStyleUnit_Percent,
                  "unknown min-height unit");
   }
 
@@ -1961,11 +1949,6 @@ nsLayoutUtils::IntrinsicForContainer(nsIRenderingContext *aRenderingContext,
   //     intrinsic minimum width
   nscoord result = 0, min = 0;
 
-  nscoord maxw;
-  PRBool haveFixedMaxWidth = GetAbsoluteCoord(styleMaxWidth, maxw);
-  nscoord minw;
-  PRBool haveFixedMinWidth = GetAbsoluteCoord(styleMinWidth, minw);
-
   // If we have a specified width (or a specified 'min-width' greater
   // than the specified 'max-width', which works out to the same thing),
   // don't even bother getting the frame's intrinsic width.
@@ -1978,7 +1961,9 @@ nsLayoutUtils::IntrinsicForContainer(nsIRenderingContext *aRenderingContext,
     // specified widths, but ignore -moz-box-sizing.
     boxSizing = NS_STYLE_BOX_SIZING_CONTENT;
   } else if (styleWidth.GetUnit() != eStyleUnit_Coord &&
-             !(haveFixedMinWidth && haveFixedMaxWidth && maxw <= minw)) {
+             (styleMinWidth.GetUnit() != eStyleUnit_Coord ||
+              styleMaxWidth.GetUnit() != eStyleUnit_Coord ||
+              styleMaxWidth.GetCoordValue() > styleMinWidth.GetCoordValue())) {
 #ifdef DEBUG_INTRINSIC_WIDTH
     ++gNoiseIndent;
 #endif
@@ -2101,7 +2086,8 @@ nsLayoutUtils::IntrinsicForContainer(nsIRenderingContext *aRenderingContext,
     result = AddPercents(aType, result, pctTotal);
   }
 
-  if (haveFixedMaxWidth ||
+  nscoord maxw;
+  if (GetAbsoluteCoord(styleMaxWidth, maxw) ||
       GetIntrinsicCoord(styleMaxWidth, aRenderingContext, aFrame,
                         PROP_MAX_WIDTH, maxw)) {
     maxw = AddPercents(aType, maxw + coordOutsideWidth, pctOutsideWidth);
@@ -2109,7 +2095,8 @@ nsLayoutUtils::IntrinsicForContainer(nsIRenderingContext *aRenderingContext,
       result = maxw;
   }
 
-  if (haveFixedMinWidth ||
+  nscoord minw;
+  if (GetAbsoluteCoord(styleMinWidth, minw) ||
       GetIntrinsicCoord(styleMinWidth, aRenderingContext, aFrame,
                         PROP_MIN_WIDTH, minw)) {
     minw = AddPercents(aType, minw + coordOutsideWidth, pctOutsideWidth);
@@ -2160,8 +2147,12 @@ nsLayoutUtils::ComputeWidthDependentValue(
                    "very large sizes, not attempts at intrinsic width "
                    "calculation");
 
-  if (aCoord.IsCoordPercentCalcUnit()) {
-    return nsRuleNode::ComputeCoordPercentCalc(aCoord, aContainingBlockWidth);
+  if (eStyleUnit_Coord == aCoord.GetUnit()) {
+    return aCoord.GetCoordValue();
+  }
+  if (eStyleUnit_Percent == aCoord.GetUnit()) {
+    return NSToCoordFloorClamped(aContainingBlockWidth *
+                                 aCoord.GetPercentValue());
   }
   NS_ASSERTION(aCoord.GetUnit() == eStyleUnit_None ||
                aCoord.GetUnit() == eStyleUnit_Auto,
@@ -2234,25 +2225,39 @@ nsLayoutUtils::ComputeHeightDependentValue(
                  nscoord              aContainingBlockHeight,
                  const nsStyleCoord&  aCoord)
 {
-  // XXXldb Some callers explicitly check aContainingBlockHeight
-  // against NS_AUTOHEIGHT *and* unit against eStyleUnit_Percent or
-  // calc()s containing percents before calling this function.
-  // However, it would be much more likely to catch problems without
-  // the unit conditions.
-  // XXXldb Many callers pass a non-'auto' containing block height when
-  // according to CSS2.1 they should be passing 'auto'.
-  NS_PRECONDITION(NS_AUTOHEIGHT != aContainingBlockHeight ||
-                  !aCoord.HasPercent(),
-                  "unexpected containing block height");
-
-  if (aCoord.IsCoordPercentCalcUnit()) {
-    return nsRuleNode::ComputeCoordPercentCalc(aCoord, aContainingBlockHeight);
+  if (eStyleUnit_Coord == aCoord.GetUnit()) {
+    return aCoord.GetCoordValue();
   }
+  if (eStyleUnit_Percent == aCoord.GetUnit()) {
+    // XXXldb Some callers explicitly check aContainingBlockHeight
+    // against NS_AUTOHEIGHT *and* unit against eStyleUnit_Percent
+    // before calling this function, so this assertion probably needs to
+    // be inside the percentage case.  However, it would be much more
+    // likely to catch problems if it were at the start of the function.
+    // XXXldb Many callers pass a non-'auto' containing block height when
+    // according to CSS2.1 they should be passing 'auto'.
+    NS_PRECONDITION(NS_AUTOHEIGHT != aContainingBlockHeight,
+                    "unexpected 'containing block height'");
 
+    if (NS_AUTOHEIGHT != aContainingBlockHeight) {
+      return NSToCoordFloorClamped(aContainingBlockHeight *
+                                   aCoord.GetPercentValue());
+    }
+  }
   NS_ASSERTION(aCoord.GetUnit() == eStyleUnit_None ||
                aCoord.GetUnit() == eStyleUnit_Auto,
                "unexpected height value");
   return 0;
+}
+
+inline PRBool
+IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
+{
+  nsStyleUnit unit = aCoord.GetUnit();
+  return unit == eStyleUnit_Auto ||  // only for 'height'
+         unit == eStyleUnit_None ||  // only for 'max-height'
+         (unit == eStyleUnit_Percent &&
+          aCBHeight == NS_AUTOHEIGHT);
 }
 
 #define MULDIV(a,b,c) (nscoord(PRInt64(a) * PRInt64(b) / PRInt64(c)))
@@ -2312,7 +2317,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
 
   if (!isAutoHeight) {
     height = nsLayoutUtils::
-      ComputeHeightValue(aCBSize.height, stylePos->mHeight) -
+      ComputeHeightDependentValue(aCBSize.height, stylePos->mHeight) -
       boxSizingAdjust.height;
     if (height < 0)
       height = 0;
@@ -2320,7 +2325,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
 
   if (!IsAutoHeight(stylePos->mMaxHeight, aCBSize.height)) {
     maxHeight = nsLayoutUtils::
-      ComputeHeightValue(aCBSize.height, stylePos->mMaxHeight) -
+      ComputeHeightDependentValue(aCBSize.height, stylePos->mMaxHeight) -
       boxSizingAdjust.height;
     if (maxHeight < 0)
       maxHeight = 0;
@@ -2330,7 +2335,7 @@ nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
 
   if (!IsAutoHeight(stylePos->mMinHeight, aCBSize.height)) {
     minHeight = nsLayoutUtils::
-      ComputeHeightValue(aCBSize.height, stylePos->mMinHeight) -
+      ComputeHeightDependentValue(aCBSize.height, stylePos->mMinHeight) -
       boxSizingAdjust.height;
     if (minHeight < 0)
       minHeight = 0;
@@ -2875,8 +2880,10 @@ MapToFloatUserPixels(const gfxSize& aSize,
                   aPt.y*aDest.size.height/aSize.height + aDest.pos.y);
 }
 
-/* static */ gfxRect
-nsLayoutUtils::RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
+// helper function to convert a nsRect to a gfxRect
+// borrowed from nsCSSRendering.cpp
+static gfxRect
+RectToGfxRect(const nsRect& aRect, PRInt32 aAppUnitsPerDevPixel)
 {
   return gfxRect(gfxFloat(aRect.x) / aAppUnitsPerDevPixel,
                  gfxFloat(aRect.y) / aAppUnitsPerDevPixel,
@@ -2936,12 +2943,9 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
   if (aDest.IsEmpty() || aFill.IsEmpty())
     return SnappedImageDrawingParameters();
 
-  gfxRect devPixelDest =
-    nsLayoutUtils::RectToGfxRect(aDest, aAppUnitsPerDevPixel);
-  gfxRect devPixelFill =
-    nsLayoutUtils::RectToGfxRect(aFill, aAppUnitsPerDevPixel);
-  gfxRect devPixelDirty =
-    nsLayoutUtils::RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
+  gfxRect devPixelDest = RectToGfxRect(aDest, aAppUnitsPerDevPixel);
+  gfxRect devPixelFill = RectToGfxRect(aFill, aAppUnitsPerDevPixel);
+  gfxRect devPixelDirty = RectToGfxRect(aDirty, aAppUnitsPerDevPixel);
 
   PRBool ignoreScale = PR_FALSE;
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
@@ -3047,8 +3051,7 @@ DrawImageInternal(nsIRenderingContext* aRenderingContext,
   }
 
   aImage->Draw(ctx, aGraphicsFilter, drawingParams.mUserSpaceToImageSpace,
-               drawingParams.mFillRect, drawingParams.mSubimage, aImageSize,
-               aImageFlags);
+               drawingParams.mFillRect, drawingParams.mSubimage, aImageFlags);
   return NS_OK;
 }
 
@@ -3139,13 +3142,8 @@ nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                                const nsRect*        aSourceArea)
 {
   nsIntSize imageSize;
-  if (aImage->GetType() == imgIContainer::TYPE_VECTOR) {
-    imageSize.width  = nsPresContext::AppUnitsToIntCSSPixels(aDest.width);
-    imageSize.height = nsPresContext::AppUnitsToIntCSSPixels(aDest.height);
-  } else {
-    aImage->GetWidth(&imageSize.width);
-    aImage->GetHeight(&imageSize.height);
-  }
+  aImage->GetWidth(&imageSize.width);
+  aImage->GetHeight(&imageSize.height);
   NS_ENSURE_TRUE(imageSize.width > 0 && imageSize.height > 0, NS_ERROR_FAILURE);
 
   nsRect source;
@@ -3168,49 +3166,6 @@ nsLayoutUtils::DrawSingleImage(nsIRenderingContext* aRenderingContext,
                            fill.TopLeft(), aDirty, imageSize, aImageFlags);
 }
 
-/* static */ void
-nsLayoutUtils::ComputeSizeForDrawing(imgIContainer *aImage,
-                                     nsIntSize&     aImageSize, /*outparam*/
-                                     PRBool&        aGotWidth,  /*outparam*/
-                                     PRBool&        aGotHeight  /*outparam*/)
-{
-  aGotWidth  = NS_SUCCEEDED(aImage->GetWidth(&aImageSize.width));
-  aGotHeight = NS_SUCCEEDED(aImage->GetHeight(&aImageSize.height));
-
-  if ((aGotWidth && aGotHeight) ||    // Trivial success!
-      (!aGotWidth && !aGotHeight)) {  // Trivial failure!
-    return;
-  }
-
-  // If we get here, we succeeded at querying *either* the width *or* the
-  // height, but not both.
-  NS_ASSERTION(aImage->GetType() == imgIContainer::TYPE_VECTOR,
-               "GetWidth and GetHeight should only fail for vector images");
-
-  nsIFrame* rootFrame = aImage->GetRootLayoutFrame();
-  NS_ASSERTION(rootFrame,
-               "We should have a VectorImage, which should have a rootFrame");
-
-  // This falls back on failure, if we somehow end up without a rootFrame.
-  nsSize ratio = rootFrame ? rootFrame->GetIntrinsicRatio() : nsSize(0,0);
-  if (!aGotWidth) { // Have height, missing width
-    if (ratio.height != 0) { // don't divide by zero
-      aImageSize.width = NSToCoordRound(aImageSize.height *
-                                        float(ratio.width) /
-                                        float(ratio.height));
-      aGotWidth = PR_TRUE;
-    }
-  } else { // Have width, missing height
-    if (ratio.width != 0) { // don't divide by zero
-      aImageSize.height = NSToCoordRound(aImageSize.width *
-                                         float(ratio.height) /
-                                         float(ratio.width));
-      aGotHeight = PR_TRUE;
-    }
-  }
-}
-
-
 /* static */ nsresult
 nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          imgIContainer*       aImage,
@@ -3222,16 +3177,9 @@ nsLayoutUtils::DrawImage(nsIRenderingContext* aRenderingContext,
                          PRUint32             aImageFlags)
 {
   nsIntSize imageSize;
-  PRBool gotHeight, gotWidth;
-  ComputeSizeForDrawing(aImage, imageSize, gotWidth, gotHeight);
-
-  // fallback size based on aFill.
-  if (!gotWidth) {
-    imageSize.width = nsPresContext::AppUnitsToIntCSSPixels(aFill.width);
-  }
-  if (!gotHeight) {
-    imageSize.height = nsPresContext::AppUnitsToIntCSSPixels(aFill.height);
-  }
+  aImage->GetWidth(&imageSize.width);
+  aImage->GetHeight(&imageSize.height);
+  NS_ENSURE_TRUE(imageSize.width > 0 && imageSize.height > 0, NS_ERROR_FAILURE);
 
   return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
                            aDest, aFill, aAnchor, aDirty,
@@ -3266,13 +3214,14 @@ nsLayoutUtils::SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC)
 
 static PRBool NonZeroStyleCoord(const nsStyleCoord& aCoord)
 {
-  if (aCoord.IsCoordPercentCalcUnit()) {
-    // Since negative results are clamped to 0, check > 0.
-    return nsRuleNode::ComputeCoordPercentCalc(aCoord, nscoord_MAX) > 0 ||
-           nsRuleNode::ComputeCoordPercentCalc(aCoord, 0) > 0;
+  switch (aCoord.GetUnit()) {
+  case eStyleUnit_Percent:
+    return aCoord.GetPercentValue() > 0;
+  case eStyleUnit_Coord:
+    return aCoord.GetCoordValue() > 0;
+  default:
+    return PR_TRUE;
   }
-
-  return PR_TRUE;
 }
 
 /* static */ PRBool

@@ -48,6 +48,7 @@
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 
+#include "nsTransform2D.h"
 #include "imgIRequest.h"
 #include "nsStubImageDecoderObserver.h"
 #include "imgIDecoderObserver.h"
@@ -61,8 +62,8 @@ struct nsHTMLReflowMetrics;
 struct nsSize;
 class nsDisplayImage;
 class nsPresContext;
+
 class nsImageFrame;
-class nsTransform2D;
 
 class nsImageListener : public nsStubImageDecoderObserver
 {
@@ -109,7 +110,6 @@ public:
                               const nsDisplayListSet& aLists);
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
-  virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -181,7 +181,7 @@ public:
 protected:
   virtual ~nsImageFrame();
 
-  void EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext);
+  void EnsureIntrinsicSize(nsPresContext* aPresContext);
 
   virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
@@ -244,28 +244,14 @@ private:
    * Recalculate mIntrinsicSize from the image.
    *
    * @return whether aImage's size did _not_
-   *         match our previous intrinsic size.
+   *         match our previous intrinsic size
    */
   PRBool UpdateIntrinsicSize(imgIContainer* aImage);
 
   /**
-   * Recalculate mIntrinsicRatio from the image.
-   *
-   * @return whether aImage's ratio did _not_
-   *         match our previous intrinsic ratio.
+   * This function will recalculate mTransform.
    */
-  PRBool UpdateIntrinsicRatio(imgIContainer* aImage);
-
-  /**
-   * This function calculates the transform for converting between
-   * source space & destination space. May fail if our image has a
-   * percent-valued or zero-valued height or width.
-   *
-   * @param aTransform The transform object to populate.
-   *
-   * @return whether we succeeded in creating the transform.
-   */
-  PRBool GetSourceToDestTransform(nsTransform2D& aTransform);
+  void RecalculateTransform(PRBool aInnerAreaChanged);
 
   /**
    * Helper functions to check whether the request or image container
@@ -286,9 +272,8 @@ private:
   nsCOMPtr<imgIDecoderObserver> mListener;
 
   nsSize mComputedSize;
-  nsIFrame::IntrinsicSize mIntrinsicSize;
-  nsSize mIntrinsicRatio;
-
+  nsSize mIntrinsicSize;
+  nsTransform2D mTransform;
   PRBool mDisplayingIcon;
 
   static nsIIOService* sIOService;

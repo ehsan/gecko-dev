@@ -1264,8 +1264,7 @@ nsBoxFrame::GetDebugPref(nsPresContext* aPresContext)
 
 class nsDisplayXULDebug : public nsDisplayItem {
 public:
-  nsDisplayXULDebug(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) :
-    nsDisplayItem(aBuilder, aFrame) {
+  nsDisplayXULDebug(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
     MOZ_COUNT_CTOR(nsDisplayXULDebug);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1278,7 +1277,7 @@ public:
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) {
     nsPoint rectCenter(aRect.x + aRect.width / 2, aRect.y + aRect.height / 2);
     static_cast<nsBoxFrame*>(mFrame)->
-      DisplayDebugInfoFor(this, rectCenter - ToReferenceFrame());
+      DisplayDebugInfoFor(this, rectCenter - aBuilder->ToReferenceFrame(mFrame));
     aOutFrames->AppendElement(this);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder
@@ -1291,7 +1290,7 @@ nsDisplayXULDebug::Paint(nsDisplayListBuilder* aBuilder,
                          nsIRenderingContext* aCtx)
 {
   static_cast<nsBoxFrame*>(mFrame)->
-    PaintXULDebugOverlay(*aCtx, ToReferenceFrame());
+    PaintXULDebugOverlay(*aCtx, aBuilder->ToReferenceFrame(mFrame));
 }
 
 static void
@@ -1307,54 +1306,26 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                              const nsRect&           aDirtyRect,
                              const nsDisplayListSet& aLists)
 {
-  // forcelayer is only supported on XUL elements with box layout
-  PRBool forceLayer =
-    GetContent()->HasAttr(kNameSpaceID_None, nsGkAtoms::layer) &&
-    GetContent()->IsXUL();
-
-  nsDisplayListCollection tempLists;
-  const nsDisplayListSet& destination = forceLayer ? tempLists : aLists;
-
-  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, destination);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG_LAYOUT
+  // REVIEW: From GetFrameForPoint
   if (mState & NS_STATE_CURRENTLY_IN_DEBUG) {
-    rv = destination.BorderBackground()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aBuilder, this, PaintXULDebugBackground,
-                         "XULDebugBackground"));
+    rv = aLists.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayGeneric(this, PaintXULDebugBackground, "XULDebugBackground"));
     NS_ENSURE_SUCCESS(rv, rv);
-    rv = destination.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayXULDebug(aBuilder, this));
+    rv = aLists.Outlines()->AppendNewToTop(new (aBuilder)
+        nsDisplayXULDebug(this));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 #endif
 
-  rv = BuildDisplayListForChildren(aBuilder, aDirtyRect, destination);
+  rv = BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // see if we have to draw a selection frame around this container
-  rv = DisplaySelectionOverlay(aBuilder, destination.Content());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (forceLayer) {
-    // This is a bit of a hack. Collect up all descendant display items
-    // and merge them into a single Content() list. This can cause us
-    // to violate CSS stacking order, but forceLayer is a magic
-    // XUL-only extension anyway.
-    nsDisplayList masterList;
-    masterList.AppendToTop(tempLists.BorderBackground());
-    masterList.AppendToTop(tempLists.BlockBorderBackgrounds());
-    masterList.AppendToTop(tempLists.Floats());
-    masterList.AppendToTop(tempLists.Content());
-    masterList.AppendToTop(tempLists.PositionedDescendants());
-    masterList.AppendToTop(tempLists.Outlines());
-    // Wrap the list to make it its own layer
-    rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-        nsDisplayOwnLayer(aBuilder, this, &masterList));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  return NS_OK;
+  return DisplaySelectionOverlay(aBuilder, aLists);
 }
 
 NS_IMETHODIMP
@@ -2169,14 +2140,12 @@ nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIBox* aChild)
 // reasonable thing to do.
 class nsDisplayXULEventRedirector : public nsDisplayWrapList {
 public:
-  nsDisplayXULEventRedirector(nsDisplayListBuilder* aBuilder,
-                              nsIFrame* aFrame, nsDisplayItem* aItem,
+  nsDisplayXULEventRedirector(nsIFrame* aFrame, nsDisplayItem* aItem,
                               nsIFrame* aTargetFrame)
-    : nsDisplayWrapList(aBuilder, aFrame, aItem), mTargetFrame(aTargetFrame) {}
-  nsDisplayXULEventRedirector(nsDisplayListBuilder* aBuilder,
-                              nsIFrame* aFrame, nsDisplayList* aList,
+    : nsDisplayWrapList(aFrame, aItem), mTargetFrame(aTargetFrame) {}
+  nsDisplayXULEventRedirector(nsIFrame* aFrame, nsDisplayList* aList,
                               nsIFrame* aTargetFrame)
-    : nsDisplayWrapList(aBuilder, aFrame, aList), mTargetFrame(aTargetFrame) {}
+    : nsDisplayWrapList(aFrame, aList), mTargetFrame(aTargetFrame) {}
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   NS_DISPLAY_DECL_NAME("XULEventRedirector", TYPE_XUL_EVENT_REDIRECTOR)
@@ -2228,12 +2197,12 @@ public:
   virtual nsDisplayItem* WrapList(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame, nsDisplayList* aList) {
     return new (aBuilder)
-        nsDisplayXULEventRedirector(aBuilder, aFrame, aList, mTargetFrame);
+        nsDisplayXULEventRedirector(aFrame, aList, mTargetFrame);
   }
   virtual nsDisplayItem* WrapItem(nsDisplayListBuilder* aBuilder,
                                   nsDisplayItem* aItem) {
     return new (aBuilder)
-        nsDisplayXULEventRedirector(aBuilder, aItem->GetUnderlyingFrame(), aItem,
+        nsDisplayXULEventRedirector(aItem->GetUnderlyingFrame(), aItem,
                                     mTargetFrame);
   }
 private:

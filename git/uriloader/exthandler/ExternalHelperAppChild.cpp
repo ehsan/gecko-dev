@@ -39,7 +39,6 @@
 #include "ExternalHelperAppChild.h"
 #include "nsIInputStream.h"
 #include "nsIRequest.h"
-#include "nsIResumableChannel.h"
 #include "nsNetUtil.h"
 
 namespace mozilla {
@@ -89,14 +88,9 @@ ExternalHelperAppChild::OnDataAvailable(nsIRequest *request,
 NS_IMETHODIMP
 ExternalHelperAppChild::OnStartRequest(nsIRequest *request, nsISupports *ctx)
 {
-  nsresult rv = mHandler->OnStartRequest(request, ctx);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
-
-  nsCString entityID;
-  nsCOMPtr<nsIResumableChannel> resumable(do_QueryInterface(request));
-  if (resumable)
-    resumable->GetEntityID(entityID);
-  SendOnStartRequest(entityID);
+  // FIXME: Eventually we should implement this:
+  // mHandler->OnStartRequest(request, ctx);
+  SendOnStartRequest();
   return NS_OK;
 }
 
@@ -106,10 +100,9 @@ ExternalHelperAppChild::OnStopRequest(nsIRequest *request,
                                       nsISupports *ctx,
                                       nsresult status)
 {
-  nsresult rv = mHandler->OnStopRequest(request, ctx, status);
+  // FIXME: Eventually we should implement this:
+  // mHandler->OnStopRequest(request, ctx, status);
   SendOnStopRequest(status);
-
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_UNEXPECTED);
   return NS_OK;
 }
 

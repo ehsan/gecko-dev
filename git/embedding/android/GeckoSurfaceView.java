@@ -1,4 +1,4 @@
-/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-
+/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -135,12 +135,12 @@ class GeckoSurfaceView
             mSurfaceLock.unlock();
         }
     }
-
+ 
     public void surfaceCreated(SurfaceHolder holder) {
         if (GeckoAppShell.sGeckoRunning)
             mSurfaceNeedsRedraw = true;
     }
-
+ 
     public void surfaceDestroyed(SurfaceHolder holder) {
         Log.i("GeckoAppJava", "surface destroyed");
         mSurfaceValid = false;
@@ -211,10 +211,6 @@ class GeckoSurfaceView
     }
 
     public void draw2D(ByteBuffer buffer) {
-        if (GeckoApp.mAppContext.mProgressDialog != null) {
-            GeckoApp.mAppContext.mProgressDialog.dismiss();
-            GeckoApp.mAppContext.mProgressDialog = null;
-        }
         Canvas c = getHolder().lockCanvas();
         if (c == null)
             return;
@@ -247,8 +243,6 @@ class GeckoSurfaceView
 
         if (mIMEState == IME_STATE_PASSWORD)
             outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_PASSWORD;
-
-        inputConnection.reset();
         return inputConnection;
     }
 

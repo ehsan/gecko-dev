@@ -98,12 +98,9 @@ gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format) 
 
     // if we have a zero-sized surface, just leave mData nsnull
     if (mSize.height * mStride > 0) {
-
-        // Use the fallible allocator here
-        mData = (unsigned char *) moz_malloc(mSize.height * mStride);
+        mData = (unsigned char *) calloc(mSize.height, mStride);
         if (!mData)
             return;
-        memset(mData, 0, mSize.height * mStride);
     }
 
     mOwnsData = PR_TRUE;
@@ -191,28 +188,4 @@ gfxImageSurface::CopyFrom(gfxImageSurface *other)
     }
 
     return PR_TRUE;
-}
-
-already_AddRefed<gfxSubimageSurface>
-gfxImageSurface::GetSubimage(const gfxRect& aRect)
-{
-    gfxRect r(aRect);
-    r.Round();
-    unsigned char* subData = Data() +
-        (Stride() * (int)r.Y()) +
-        (int)r.X() * gfxASurface::BytePerPixelFromFormat(Format());
-
-    nsRefPtr<gfxSubimageSurface> image =
-        new gfxSubimageSurface(this, subData,
-                               gfxIntSize((int)r.Width(), (int)r.Height()));
-
-    return image.forget().get();
-}
-
-gfxSubimageSurface::gfxSubimageSurface(gfxImageSurface* aParent,
-                                       unsigned char* aData,
-                                       const gfxIntSize& aSize)
-  : gfxImageSurface(aData, aSize, aParent->Stride(), aParent->Format())
-  , mParent(aParent)
-{
 }

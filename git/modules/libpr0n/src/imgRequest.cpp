@@ -51,7 +51,6 @@
 #include "imgLoader.h"
 #include "imgRequestProxy.h"
 #include "RasterImage.h"
-#include "VectorImage.h"
 
 #include "imgILoader.h"
 #include "ImageLogging.h"
@@ -88,9 +87,6 @@
 
 #define DISCARD_PREF "image.mem.discardable"
 #define DECODEONDRAW_PREF "image.mem.decodeondraw"
-#define BYTESATATIME_PREF "image.mem.decode_bytes_at_a_time"
-#define MAXMS_PREF "image.mem.max_ms_before_yield"
-#define MAXBYTESFORSYNC_PREF "image.mem.max_bytes_for_sync_decode"
 #define SVG_MIMETYPE "image/svg+xml"
 
 using namespace mozilla::imagelib;
@@ -121,18 +117,6 @@ ReloadPrefs(nsIPrefBranch *aBranch)
   rv = aBranch->GetBoolPref(DECODEONDRAW_PREF, &decodeondraw);
   if (NS_SUCCEEDED(rv))
     gDecodeOnDraw = decodeondraw;
-
-  // Progressive decoding knobs
-  PRInt32 bytesAtATime, maxMS, maxBytesForSync;
-  rv = aBranch->GetIntPref(BYTESATATIME_PREF, &bytesAtATime);
-  if (NS_SUCCEEDED(rv))
-    RasterImage::SetDecodeBytesAtATime(bytesAtATime);
-  rv = aBranch->GetIntPref(MAXMS_PREF, &maxMS);
-  if (NS_SUCCEEDED(rv))
-    RasterImage::SetMaxMSBeforeYield(maxMS);
-  rv = aBranch->GetIntPref(MAXBYTESFORSYNC_PREF, &maxBytesForSync);
-  if (NS_SUCCEEDED(rv))
-    RasterImage::SetMaxBytesForSyncDecode(maxBytesForSync);
 
   // Discard timeout
   mozilla::imagelib::DiscardTracker::ReloadTimeout();
@@ -220,7 +204,10 @@ nsresult imgRequest::Init(nsIURI *aURI,
 
   mProperties = do_CreateInstance("@mozilla.org/properties;1");
 
-  mStatusTracker = new imgStatusTracker(nsnull);
+  // XXXdholbert For SVG support, this mImage-construction will need to happen
+  // later -- *after* we know image mimetype.
+  nsCOMPtr<imgIContainer> comImg = do_CreateInstance("@mozilla.org/image/rasterimage;1");
+  mImage = static_cast<Image*>(comImg.get());
 
   mURI = aURI;
   mKeyURI = aKeyURI;
@@ -259,20 +246,6 @@ nsresult imgRequest::Init(nsIURI *aURI,
   return NS_OK;
 }
 
-imgStatusTracker&
-imgRequest::GetStatusTracker()
-{
-  if (mImage) {
-    NS_ABORT_IF_FALSE(!mStatusTracker,
-                      "Should have given mStatusTracker to mImage");
-    return mImage->GetStatusTracker();
-  } else {
-    NS_ABORT_IF_FALSE(mStatusTracker,
-                      "Should have mStatusTracker until we create mImage");
-    return *mStatusTracker;
-  }
-}
-
 void imgRequest::SetCacheEntry(imgCacheEntry *entry)
 {
   mCacheEntry = entry;
@@ -296,7 +269,7 @@ nsresult imgRequest::AddProxy(imgRequestProxy *proxy)
   }
 
   // If we don't have any current observers, we should restart any animation.
-  if (mImage && !HaveProxyWithObserver(proxy) && proxy->HasObserver()) {
+  if (!HaveProxyWithObserver(proxy) && proxy->HasObserver()) {
     LOG_MSG(gImgLog, "imgRequest::AddProxy", "resetting animation");
 
     mImage->ResetAnimation();
@@ -312,29 +285,20 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
 {
   LOG_SCOPE_WITH_PARAM(gImgLog, "imgRequest::RemoveProxy", "proxy", proxy);
 
-  NS_ABORT_IF_FALSE(!mImage || HaveProxyWithObserver(nsnull) ||
-                    mImage->GetAnimationConsumers() == 0,
-    "How can we have an image with animation consumers, but no observer?");
-
-  // This will remove our animation consumers, so after removing
-  // this proxy, we don't end up without proxies with observers, but still
-  // have animation consumers.
-  proxy->ClearAnimationConsumers();
-
   mObservers.RemoveElement(proxy);
-
-  // Check that after our changes, we are still in a consistent state
-  NS_ABORT_IF_FALSE(!mImage || HaveProxyWithObserver(nsnull) ||
-                    mImage->GetAnimationConsumers() == 0,
-    "How can we have an image with animation consumers, but no observer?");
 
   // Let the status tracker do its thing before we potentially call Cancel()
   // below, because Cancel() may result in OnStopRequest being called back
   // before Cancel() returns, leaving the image in a different state then the
   // one it was in at this point.
 
-  imgStatusTracker& statusTracker = GetStatusTracker();
-  statusTracker.EmulateRequestFinished(proxy, aStatus, !aNotify);
+  mImage->GetStatusTracker().EmulateRequestFinished(proxy, aStatus, !aNotify);
+
+  if (!HaveProxyWithObserver(nsnull)) {
+    LOG_MSG(gImgLog, "imgRequest::RemoveProxy", "stopping animation");
+
+    mImage->StopAnimation();
+  }
 
   if (mObservers.IsEmpty()) {
     // If we have no observers, there's nothing holding us alive. If we haven't
@@ -358,7 +322,7 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus, PRBoo
        This way, if a proxy is destroyed without calling cancel on it, it won't leak
        and won't leave a bad pointer in mObservers.
      */
-    if (statusTracker.IsLoading() && NS_FAILED(aStatus)) {
+    if (mImage->GetStatusTracker().IsLoading() && NS_FAILED(aStatus)) {
       LOG_MSG(gImgLog, "imgRequest::RemoveProxy", "load in progress.  canceling");
 
       this->Cancel(NS_BINDING_ABORTED);
@@ -403,12 +367,14 @@ void imgRequest::Cancel(nsresult aStatus)
 
   LOG_SCOPE(gImgLog, "imgRequest::Cancel");
 
-  imgStatusTracker& statusTracker = GetStatusTracker();
-  statusTracker.RecordCancel();
+  LOG_MSG(gImgLog, "imgRequest::Cancel", "stopping animation");
+  mImage->StopAnimation();
+
+  mImage->GetStatusTracker().RecordCancel();
 
   RemoveFromCache();
 
-  if (mRequest && statusTracker.IsLoading())
+  if (mRequest && mImage->GetStatusTracker().IsLoading())
     mRequest->Cancel(aStatus);
 }
 
@@ -516,7 +482,9 @@ void imgRequest::SetIsInCache(PRBool incache)
 void imgRequest::UpdateCacheEntrySize()
 {
   if (mCacheEntry) {
-    mCacheEntry->SetDataSize(mImage->GetDataSize());
+    PRUint32 imageSize = 0;
+    mImage->GetDataSize(&imageSize);
+    mCacheEntry->SetDataSize(imageSize);
 
 #ifdef DEBUG_joe
     nsCAutoString url;
@@ -542,7 +510,7 @@ nsresult
 imgRequest::RequestDecode()
 {
   // If we've initialized our image, we can request a decode.
-  if (mImage) {
+  if (mImage->IsInitialized()) {
     return mImage->RequestDecode();
   }
 
@@ -559,8 +527,6 @@ NS_IMETHODIMP imgRequest::FrameChanged(imgIContainer *container,
                                        const nsIntRect *dirtyRect)
 {
   LOG_SCOPE(gImgLog, "imgRequest::FrameChanged");
-  NS_ABORT_IF_FALSE(mImage,
-                    "FrameChanged callback before we've created our image");
 
   mImage->GetStatusTracker().RecordFrameChanged(container, dirtyRect);
 
@@ -578,9 +544,6 @@ NS_IMETHODIMP imgRequest::FrameChanged(imgIContainer *container,
 NS_IMETHODIMP imgRequest::OnStartDecode(imgIRequest *request)
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStartDecode");
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnStartDecode callback before we've created our image");
-
 
   mImage->GetStatusTracker().RecordStartDecode();
 
@@ -614,10 +577,6 @@ NS_IMETHODIMP imgRequest::OnStartContainer(imgIRequest *request, imgIContainer *
   NS_ASSERTION(image, "imgRequest::OnStartContainer called with a null image!");
   if (!image) return NS_ERROR_UNEXPECTED;
 
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnStartContainer callback before we've created our image");
-  NS_ABORT_IF_FALSE(image == mImage,
-                    "OnStartContainer callback from an image we don't own");
   mImage->GetStatusTracker().RecordStartContainer(image);
 
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
@@ -633,8 +592,6 @@ NS_IMETHODIMP imgRequest::OnStartFrame(imgIRequest *request,
                                        PRUint32 frame)
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStartFrame");
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnStartFrame callback before we've created our image");
 
   mImage->GetStatusTracker().RecordStartFrame(frame);
 
@@ -652,8 +609,6 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(imgIRequest *request,
                                           const nsIntRect * rect)
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnDataAvailable");
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnDataAvailable callback before we've created our image");
 
   mImage->GetStatusTracker().RecordDataAvailable(aCurrentFrame, rect);
 
@@ -670,8 +625,6 @@ NS_IMETHODIMP imgRequest::OnStopFrame(imgIRequest *request,
                                       PRUint32 frame)
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStopFrame");
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnStopFrame callback before we've created our image");
 
   mImage->GetStatusTracker().RecordStopFrame(frame);
 
@@ -688,8 +641,6 @@ NS_IMETHODIMP imgRequest::OnStopContainer(imgIRequest *request,
                                           imgIContainer *image)
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStopContainer");
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnDataContainer callback before we've created our image");
 
   mImage->GetStatusTracker().RecordStopContainer(image);
 
@@ -707,8 +658,6 @@ NS_IMETHODIMP imgRequest::OnStopDecode(imgIRequest *aRequest,
                                        const PRUnichar *aStatusArg)
 {
   LOG_SCOPE(gImgLog, "imgRequest::OnStopDecode");
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnDataDecode callback before we've created our image");
 
   // We finished the decode, and thus have the decoded frames. Update the cache
   // entry size to take this into account.
@@ -748,9 +697,6 @@ NS_IMETHODIMP imgRequest::OnStopRequest(imgIRequest *aRequest,
 /* void onDiscard (in imgIRequest request); */
 NS_IMETHODIMP imgRequest::OnDiscard(imgIRequest *aRequest)
 {
-  NS_ABORT_IF_FALSE(mImage,
-                    "OnDiscard callback before we've created our image");
-
   mImage->GetStatusTracker().RecordDiscard();
 
   // Update the cache entry size, since we just got rid of frame data
@@ -779,20 +725,14 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
       mIsMultiPartChannel = PR_TRUE;
 
   // If we're not multipart, we shouldn't have an image yet
-  NS_ABORT_IF_FALSE(mIsMultiPartChannel || !mImage,
+  NS_ABORT_IF_FALSE(mIsMultiPartChannel || !mImage->IsInitialized(),
                     "Already have an image for non-multipart request");
 
   // If we're multipart, and our image is initialized, fix things up for another round
-  if (mIsMultiPartChannel && mImage) {
-    if (mImage->GetType() == imgIContainer::TYPE_RASTER) {
-      // Inform the RasterImage that we have new source data
-      static_cast<RasterImage*>(mImage.get())->NewSourceData();
-    } else {  // imageType == imgIContainer::TYPE_VECTOR
-      nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-      NS_ABORT_IF_FALSE(imageAsStream,
-                        "SVG-typed Image failed QI to nsIStreamListener");
-      imageAsStream->OnStartRequest(aRequest, ctxt);
-    }
+  if (mIsMultiPartChannel && mImage->IsInitialized() &&
+      mImage->GetType() == imgIContainer::TYPE_RASTER) {
+    // Inform the RasterImage that we have new source data
+    static_cast<RasterImage*>(mImage.get())->NewSourceData();
   }
 
   /*
@@ -810,8 +750,7 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
     mRequest = chan;
   }
 
-  imgStatusTracker& statusTracker = GetStatusTracker();
-  statusTracker.RecordStartRequest();
+  mImage->GetStatusTracker().RecordStartRequest();
 
   nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
   if (channel)
@@ -819,7 +758,7 @@ NS_IMETHODIMP imgRequest::OnStartRequest(nsIRequest *aRequest, nsISupports *ctxt
 
   nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
   while (iter.HasMore()) {
-    statusTracker.SendStartRequest(iter.GetNext());
+    mImage->GetStatusTracker().SendStartRequest(iter.GetNext());
   }
 
   /* Get our principal */
@@ -928,32 +867,25 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   // Tell the image that it has all of the source data. Note that this can
   // trigger a failure, since the image might be waiting for more non-optional
   // data and this is the point where we break the news that it's not coming.
-  if (mImage) {
-    nsresult rv;
-    if (mImage->GetType() == imgIContainer::TYPE_RASTER) {
-      // Notify the image
-      rv = static_cast<RasterImage*>(mImage.get())->SourceDataComplete();
-    } else { // imageType == imgIContainer::TYPE_VECTOR
-      nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-      NS_ABORT_IF_FALSE(imageAsStream,
-                        "SVG-typed Image failed QI to nsIStreamListener");
-      rv = imageAsStream->OnStopRequest(aRequest, ctxt, status);
-    }
+  if (mImage->IsInitialized() &&
+      mImage->GetType() == imgIContainer::TYPE_RASTER) {
 
-    // If we got an error in the SourceDataComplete() / OnStopRequest() call,
-    // we don't want to proceed as if nothing bad happened. However, we also
-    // want to give precedence to failure status codes from necko, since
-    // presumably they're more meaningful.
+    // Notify the image
+    nsresult rv = static_cast<RasterImage*>(mImage.get())->SourceDataComplete();
+
+    // If we got an error in the SourceDataComplete() call, we don't want to
+    // proceed as if nothing bad happened. However, we also want to give
+    // precedence to failure status codes from necko, since presumably
+    // they're more meaningful.
     if (NS_FAILED(rv) && NS_SUCCEEDED(status))
       status = rv;
   }
 
-  imgStatusTracker& statusTracker = GetStatusTracker();
-  statusTracker.RecordStopRequest(lastPart, status);
+  mImage->GetStatusTracker().RecordStopRequest(lastPart, status);
 
   // If the request went through, update the cache entry size. Otherwise,
   // cancel the request, which removes us from the cache.
-  if (mImage && NS_SUCCEEDED(status)) {
+  if (mImage->IsInitialized() && NS_SUCCEEDED(status)) {
     // We update the cache entry size here because this is where we finish
     // loading compressed source data, which is part of our size calculus.
     UpdateCacheEntrySize();
@@ -966,7 +898,7 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   /* notify the kids */
   nsTObserverArray<imgRequestProxy*>::ForwardIterator srIter(mObservers);
   while (srIter.HasMore()) {
-    statusTracker.SendStopRequest(srIter.GetNext(), lastPart, status);
+    mImage->GetStatusTracker().SendStopRequest(srIter.GetNext(), lastPart, status);
   }
 
   return NS_OK;
@@ -1029,18 +961,8 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
     }
 
     /* now we have mimetype, so we can infer the image type that we want */
-    if (mContentType.EqualsLiteral(SVG_MIMETYPE)) {
-      mImage = new VectorImage(mStatusTracker.forget());
-    } else {
-      mImage = new RasterImage(mStatusTracker.forget());
-    }
-    imageType = mImage->GetType();
-
-    // Notify any imgRequestProxys that are observing us that we have an Image.
-    nsTObserverArray<imgRequestProxy*>::ForwardIterator iter(mObservers);
-    while (iter.HasMore()) {
-      iter.GetNext()->SetImage(mImage);
-    }
+    imageType = mContentType.EqualsLiteral(SVG_MIMETYPE) ?
+      imgIContainer::TYPE_VECTOR : imgIContainer::TYPE_RASTER;
 
     /* set our mimetype as a property */
     nsCOMPtr<nsISupportsCString> contentType(do_CreateInstance("@mozilla.org/supports-cstring;1"));
@@ -1106,16 +1028,10 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
     if (mIsMultiPartChannel)
       imageFlags |= Image::INIT_FLAG_MULTIPART;
 
-    // Get our URI string
-    nsCAutoString uriString;
-    rv = mURI->GetSpec(uriString);
-    if (NS_FAILED(rv))
-      uriString.Assign("<unknown image URI>");
-
-    // Initialize the image that we created above. For RasterImages, this
+    // Initialize the image that we created in OnStartRequest(). This
     // instantiates a decoder behind the scenes, so if we don't have a decoder
     // for this mimetype we'll find out about it here.
-    rv = mImage->Init(this, mContentType.get(), uriString.get(), imageFlags);
+    rv = mImage->Init(this, mContentType.get(), imageFlags);
     if (NS_FAILED(rv)) { // Probably bad mimetype
 
       this->Cancel(rv);
@@ -1143,32 +1059,17 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
       }
     }
 
-    if (imageType == imgIContainer::TYPE_RASTER) {
-      // If we were waiting on the image to do something, now's our chance.
-      if (mDecodeRequested) {
-        mImage->RequestDecode();
-      }
-    } else { // imageType == imgIContainer::TYPE_VECTOR
-      nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-      NS_ABORT_IF_FALSE(imageAsStream,
-                        "SVG-typed Image failed QI to nsIStreamListener");
-      imageAsStream->OnStartRequest(aRequest, nsnull);
+    // If we were waiting on the image to do something, now's our chance.
+    if (mDecodeRequested) {
+      mImage->RequestDecode();
     }
   }
 
-  if (imageType == imgIContainer::TYPE_RASTER) {
-    // WriteToRasterImage always consumes everything it gets
-    PRUint32 bytesRead;
-    rv = inStr->ReadSegments(RasterImage::WriteToRasterImage,
-                             static_cast<void*>(mImage),
-                             count, &bytesRead);
-    NS_ABORT_IF_FALSE(bytesRead == count,
-                      "WriteToRasterImage should consume everything!");
-  } else { // imageType == imgIContainer::TYPE_VECTOR
-    nsCOMPtr<nsIStreamListener> imageAsStream = do_QueryInterface(mImage);
-    rv = imageAsStream->OnDataAvailable(aRequest, ctxt, inStr,
-                                        sourceOffset, count);
-  }
+  // WriteToRasterImage always consumes everything it gets
+  PRUint32 bytesRead;
+  rv = inStr->ReadSegments(RasterImage::WriteToRasterImage,
+                           static_cast<void*>(mImage),
+                           count, &bytesRead);
   if (NS_FAILED(rv)) {
     PR_LOG(gImgLog, PR_LOG_WARNING,
            ("[this=%p] imgRequest::OnDataAvailable -- "
@@ -1176,6 +1077,7 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
     this->Cancel(NS_IMAGELIB_ERROR_FAILURE);
     return NS_BINDING_ABORTED;
   }
+  NS_ABORT_IF_FALSE(bytesRead == count, "WriteToRasterImage should consume everything!");
 
   return NS_OK;
 }

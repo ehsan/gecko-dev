@@ -9,11 +9,9 @@ const XULAPPINFO_CONTRACTID = "@mozilla.org/xre/app-info;1";
 const XULAPPINFO_CID = Components.ID("{c763b610-9d49-455a-bbd2-ede71682a1ac}");
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 var gInternalManager = null;
 var gAppInfo = null;
@@ -120,139 +118,6 @@ function do_get_addon(aName) {
 }
 
 /**
- * Returns an extension uri spec
- *
- * @param  aProfileDir
- *         The extension install directory
- * @return a uri spec pointing to the root of the extension
- */
-function do_get_addon_root_uri(aProfileDir, aId) {
-  let path = aProfileDir.clone();
-  path.append(aId);
-  if (!path.exists()) {
-    path.leafName += ".xpi";
-    return "jar:" + Services.io.newFileURI(path).spec + "!/";
-  }
-  else {
-    return Services.io.newFileURI(path).spec;
-  }
-}
-
-function do_get_expected_addon_name(aId) {
-  if (Services.prefs.getBoolPref("extensions.alwaysUnpack"))
-    return aId;
-  return aId + ".xpi";
-}
-
-/**
- * Check that an array of actual add-ons is the same as an array of
- * expected add-ons.
- *
- * @param  aActualAddons
- *         The array of actual add-ons to check.
- * @param  aExpectedAddons
- *         The array of expected add-ons to check against.
- * @param  aProperties
- *         An array of properties to check.
- */
-function do_check_addons(aActualAddons, aExpectedAddons, aProperties) {
-  do_check_neq(aActualAddons, null);
-  do_check_eq(aActualAddons.length, aExpectedAddons.length);
-  for (let i = 0; i < aActualAddons.length; i++)
-    do_check_addon(aActualAddons[i], aExpectedAddons[i], aProperties);
-}
-
-/**
- * Check that the actual add-on is the same as the expected add-on.
- *
- * @param  aActualAddon
- *         The actual add-on to check.
- * @param  aExpectedAddon
- *         The expected add-on to check against.
- * @param  aProperties
- *         An array of properties to check.
- */
-function do_check_addon(aActualAddon, aExpectedAddon, aProperties) {
-  do_check_neq(aActualAddon, null);
-
-  aProperties.forEach(function(aProperty) {
-    let actualValue = aActualAddon[aProperty];
-    let expectedValue = aExpectedAddon[aProperty];
-
-    // Check that all undefined expected properties are null on actual add-on
-    if (!(aProperty in aExpectedAddon)) {
-      if (actualValue !== undefined && actualValue !== null)
-        do_throw("Unexpected defined/non-null property for add-on " +
-                 aExpectedAddon.id + " (addon[" + aProperty + "] = " + actualValue);
-
-      return;
-    }
-
-    switch (aProperty) {
-      case "creator":
-        do_check_author(actualValue, expectedValue);
-        break;
-
-      case "developers":
-      case "translators":
-      case "contributors":
-        do_check_eq(actualValue.length, expectedValue.length);
-        for (let i = 0; i < actualValue.length; i++)
-          do_check_author(actualValue[i], expectedValue[i]);
-        break;
-
-      case "screenshots":
-        do_check_eq(actualValue.length, expectedValue.length);
-        for (let i = 0; i < actualValue.length; i++)
-          do_check_screenshot(actualValue[i], expectedValue[i]);
-        break;
-
-      case "sourceURI":
-        do_check_eq(actualValue.spec, expectedValue);
-        break;
-
-      case "updateDate":
-        do_check_eq(actualValue.getTime(), expectedValue.getTime());
-        break;
-
-      default:
-        if (actualValue !== expectedValue)
-          do_throw("Failed for " + aProperty + " for add-on " + aExpectedAddon.id +
-                   " (" + actualValue + " === " + expectedValue + ")");
-    }
-  });
-}
-
-/**
- * Check that the actual author is the same as the expected author.
- *
- * @param  aActual
- *         The actual author to check.
- * @param  aExpected
- *         The expected author to check against.
- */
-function do_check_author(aActual, aExpected) {
-  do_check_eq(aActual.toString(), aExpected.name);
-  do_check_eq(aActual.name, aExpected.name);
-  do_check_eq(aActual.url, aExpected.url);
-}
-
-/**
- * Check that the actual screenshot is the same as the expected screenshot.
- *
- * @param  aActual
- *         The actual screenshot to check.
- * @param  aExpected
- *         The expected screenshot to check against.
- */
-function do_check_screenshot(aActual, aExpected) {
-  do_check_eq(aActual.toString(), aExpected.url);
-  do_check_eq(aActual.url, aExpected.url);
-  do_check_eq(aActual.thumbnailURL, aExpected.thumbnailURL);
-  do_check_eq(aActual.caption, aExpected.caption);
-}
-
-/**
  * Starts up the add-on manager as if it was started by the application.
  *
  * @param  aAppChanged
@@ -306,28 +171,9 @@ function shutdownManager() {
 
   let obs = AM_Cc["@mozilla.org/observer-service;1"].
             getService(AM_Ci.nsIObserverService);
-
-  let xpiShutdown = false;
-  obs.addObserver({
-    observe: function(aSubject, aTopic, aData) {
-      xpiShutdown = true;
-      obs.removeObserver(this, "xpi-provider-shutdown");
-    }
-  }, "xpi-provider-shutdown", false);
-
-  let repositoryShutdown = false;
-  obs.addObserver({
-    observe: function(aSubject, aTopic, aData) {
-      repositoryShutdown = true;
-      obs.removeObserver(this, "addon-repository-shutdown");
-    }
-  }, "addon-repository-shutdown", false);
-
   obs.notifyObservers(null, "quit-application-granted", null);
   gInternalManager.observe(null, "xpcom-shutdown", null);
   gInternalManager = null;
-
-  AddonRepository.shutdown();
 
   // Load the add-ons list as it was after application shutdown
   loadAddonsList();
@@ -335,14 +181,43 @@ function shutdownManager() {
   // Clear any crash report annotations
   gAppInfo.annotations = {};
 
+  let dbfile = gProfD.clone();
+  dbfile.append("extensions.sqlite");
+
+  // If there is no database then it cannot be locked.
+  if (!dbfile.exists())
+    return;
+
   let thr = AM_Cc["@mozilla.org/thread-manager;1"].
             getService(AM_Ci.nsIThreadManager).
             mainThread;
 
-  // Wait until we observe the shutdown notifications
-  while (!repositoryShutdown || !xpiShutdown) {
-    if (thr.hasPendingEvents())
-      thr.processNextEvent(false);
+  // Wait until we can open a connection to the database
+  let db = null;
+  while (!db) {
+    // Poll for database
+    try {
+      db = Services.storage.openUnsharedDatabase(dbfile);
+    }
+    catch (e) {
+      if (thr.hasPendingEvents())
+        thr.processNextEvent(false);
+    }
+  }
+
+  // Wait until we can write to the database
+  while (db) {
+    // Poll for write access
+    try {
+      db.executeSimpleSQL("PRAGMA user_version = 1");
+      db.executeSimpleSQL("PRAGMA user_version = 0");
+      db.close();
+      db = null;
+    }
+    catch (e) {
+      if (thr.hasPendingEvents())
+        thr.processNextEvent(false);
+    }
   }
 }
 
@@ -386,13 +261,8 @@ function loadAddonsList() {
 function isItemInAddonsList(aType, aDir, aId) {
   var path = aDir.clone();
   path.append(aId);
-  var xpiPath = aDir.clone();
-  xpiPath.append(aId + ".xpi");
   for (var i = 0; i < gAddonsList[aType].length; i++) {
-    let file = gAddonsList[aType][i];
-    if (file.isDirectory() && file.equals(path))
-      return true;
-    if (file.isFile() && file.equals(xpiPath))
+    if (gAddonsList[aType][i].equals(path))
       return true;
   }
   return false;
@@ -438,15 +308,26 @@ function writeLocaleStrings(aData) {
   return rdf;
 }
 
-function createInstallRDF(aData) {
+/**
+ * Writes an install.rdf manifest into a directory using the properties passed
+ * in a JS object. The objects should contain a property for each property to
+ * appear in the RDFThe object may contain an array of objects with id,
+ * minVersion and maxVersion in the targetApplications property to give target
+ * application compatibility.
+ *
+ * @param   aData
+ *          The object holding data about the add-on
+ * @param   aDir
+ *          The directory to add the install.rdf to
+ */
+function writeInstallRDFToDir(aData, aDir) {
   var rdf = '<?xml version="1.0"?>\n';
   rdf += '<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"\n' +
          '     xmlns:em="http://www.mozilla.org/2004/em-rdf#">\n';
   rdf += '<Description about="urn:mozilla:install-manifest">\n';
 
   ["id", "version", "type", "internalName", "updateURL", "updateKey",
-   "optionsURL", "aboutURL", "iconURL", "icon64URL",
-   "skinnable"].forEach(function(aProp) {
+   "optionsURL", "aboutURL", "iconURL", "skinnable"].forEach(function(aProp) {
     if (aProp in aData)
       rdf += "<em:" + aProp + ">" + escapeXML(aData[aProp]) + "</em:" + aProp + ">\n";
   });
@@ -484,25 +365,7 @@ function createInstallRDF(aData) {
   }
 
   rdf += "</Description>\n</RDF>\n";
-  return rdf;
-}
 
-/**
- * Writes an install.rdf manifest into a directory using the properties passed
- * in a JS object. The objects should contain a property for each property to
- * appear in the RDFThe object may contain an array of objects with id,
- * minVersion and maxVersion in the targetApplications property to give target
- * application compatibility.
- *
- * @param   aData
- *          The object holding data about the add-on
- * @param   aDir
- *          The directory to add the install.rdf to
- * @param   aExtraFile
- *          An optional dummy file to create in the directory
- */
-function writeInstallRDFToDir(aData, aDir, aExtraFile) {
-  var rdf = createInstallRDF(aData);
   if (!aDir.exists())
     aDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
   var file = aDir.clone();
@@ -516,60 +379,6 @@ function writeInstallRDFToDir(aData, aDir, aExtraFile) {
            FileUtils.PERMS_FILE, 0);
   fos.write(rdf, rdf.length);
   fos.close();
-
-  if (!aExtraFile)
-    return;
-
-  file = aDir.clone();
-  file.append(aExtraFile);
-  file.create(AM_Ci.nsIFile.NORMAL_FILE_TYPE, 0644);
-}
-
-/**
- * Writes an install.rdf manifest into an extension using the properties passed
- * in a JS object. The objects should contain a property for each property to
- * appear in the RDFThe object may contain an array of objects with id,
- * minVersion and maxVersion in the targetApplications property to give target
- * application compatibility.
- *
- * @param   aData
- *          The object holding data about the add-on
- * @param   aDir
- *          The install directory to add the extension to
- * @param   aId
- *          An optional string to override the default installation aId
- * @param   aExtraFile
- *          An optional dummy file to create in the extension
- * @return  A file pointing to where the extension was installed
- */
-function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
-  var id = aId ? aId : aData.id
-
-  var dir = aDir.clone();
-
-  if (Services.prefs.getBoolPref("extensions.alwaysUnpack")) {
-    dir.append(id);
-    writeInstallRDFToDir(aData, dir, aExtraFile);
-    return dir;
-  }
-
-  if (!dir.exists())
-    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
-  dir.append(id + ".xpi");
-  var rdf = createInstallRDF(aData);
-  var stream = AM_Cc["@mozilla.org/io/string-input-stream;1"].
-               createInstance(AM_Ci.nsIStringInputStream);
-  stream.setData(rdf, -1);
-  var zipW = AM_Cc["@mozilla.org/zipwriter;1"].
-             createInstance(AM_Ci.nsIZipWriter);
-  zipW.open(dir, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE | FileUtils.MODE_TRUNCATE);
-  zipW.addEntryStream("install.rdf", 0, AM_Ci.nsIZipWriter.COMPRESSION_NONE,
-                      stream, false);
-  if (aExtraFile)
-    zipW.addEntryStream(aExtraFile, 0, AM_Ci.nsIZipWriter.COMPRESSION_NONE,
-                        stream, false);
-  zipW.close();
-  return dir;
 }
 
 function registerDirectory(aKey, aDir) {
@@ -602,19 +411,6 @@ function getExpectedEvent(aId) {
   return [event, true];
 }
 
-function getExpectedInstall(aAddon) {
-  if (gExpectedInstalls instanceof Array)
-    return gExpectedInstalls.shift();
-  if (!aAddon || !aAddon.id)
-    return gExpectedInstalls["NO_ID"].shift();
-  let id = aAddon.id;
-  if (!(id in gExpectedInstalls) || !(gExpectedInstalls[id] instanceof Array))
-    do_throw("Wasn't expecting events for " + id);
-  if (gExpectedInstalls[id].length == 0)
-    do_throw("Too many events for " + id);
-  return gExpectedInstalls[id].shift();
-}
-
 const AddonListener = {
   onPropertyChanged: function(aAddon, aProperties) {
     let [event, properties] = getExpectedEvent(aAddon.id);
@@ -623,8 +419,8 @@ const AddonListener = {
     properties.forEach(function(aProperty) {
       // Only test that the expected properties are listed, having additional
       // properties listed is not necessary a problem
-      if (aProperties.indexOf(aProperty) == -1)
-        do_throw("Did not see property change for " + aProperty);
+      if (aProperties.indexOf(aProperty) != -1)
+        ok(false, "Did not see property change for " + aProperty);
     });
     return check_test_completed(arguments);
   },
@@ -706,66 +502,66 @@ const InstallListener = {
         install.state != AddonManager.STATE_AVAILABLE)
       do_throw("Bad install state " + install.state);
     do_check_eq(install.error, 0);
-    do_check_eq("onNewInstall", getExpectedInstall());
+    do_check_eq("onNewInstall", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onDownloadStarted: function(install) {
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADING);
     do_check_eq(install.error, 0);
-    do_check_eq("onDownloadStarted", getExpectedInstall());
+    do_check_eq("onDownloadStarted", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onDownloadEnded: function(install) {
     do_check_eq(install.state, AddonManager.STATE_DOWNLOADED);
     do_check_eq(install.error, 0);
-    do_check_eq("onDownloadEnded", getExpectedInstall());
+    do_check_eq("onDownloadEnded", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onDownloadFailed: function(install) {
     do_check_eq(install.state, AddonManager.STATE_DOWNLOAD_FAILED);
-    do_check_eq("onDownloadFailed", getExpectedInstall());
+    do_check_eq("onDownloadFailed", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onDownloadCancelled: function(install) {
     do_check_eq(install.state, AddonManager.STATE_CANCELLED);
     do_check_eq(install.error, 0);
-    do_check_eq("onDownloadCancelled", getExpectedInstall());
+    do_check_eq("onDownloadCancelled", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onInstallStarted: function(install) {
     do_check_eq(install.state, AddonManager.STATE_INSTALLING);
     do_check_eq(install.error, 0);
-    do_check_eq("onInstallStarted", getExpectedInstall(install.addon));
+    do_check_eq("onInstallStarted", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onInstallEnded: function(install, newAddon) {
     do_check_eq(install.state, AddonManager.STATE_INSTALLED);
     do_check_eq(install.error, 0);
-    do_check_eq("onInstallEnded", getExpectedInstall(install.addon));
+    do_check_eq("onInstallEnded", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onInstallFailed: function(install) {
     do_check_eq(install.state, AddonManager.STATE_INSTALL_FAILED);
-    do_check_eq("onInstallFailed", getExpectedInstall(install.addon));
+    do_check_eq("onInstallFailed", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onInstallCancelled: function(install) {
     do_check_eq(install.state, AddonManager.STATE_CANCELLED);
     do_check_eq(install.error, 0);
-    do_check_eq("onInstallCancelled", getExpectedInstall(install.addon));
+    do_check_eq("onInstallCancelled", gExpectedInstalls.shift());
     return check_test_completed(arguments);
   },
 
   onExternalInstall: function(aAddon, existingAddon, aRequiresRestart) {
-    do_check_eq("onExternalInstall", getExpectedInstall(aAddon));
+    do_check_eq("onExternalInstall", gExpectedInstalls.shift());
     do_check_false(aRequiresRestart);
     return check_test_completed(arguments);
   }
@@ -790,13 +586,8 @@ function check_test_completed(aArgs) {
   if (!gNext)
     return;
 
-  if (gExpectedInstalls instanceof Array &&
-      gExpectedInstalls.length > 0)
+  if (gExpectedInstalls.length > 0)
     return;
-  else for each (let installList in gExpectedInstalls) {
-    if (installList.length > 0)
-      return;
-  }
 
   for (let id in gExpectedEvents) {
     if (gExpectedEvents[id].length > 0)
@@ -1004,14 +795,8 @@ Services.prefs.setBoolPref("extensions.logging.enabled", true);
 // By default only load extensions from the profile install location
 Services.prefs.setIntPref("extensions.enabledScopes", AddonManager.SCOPE_PROFILE);
 
-// By default, don't cache add-ons in AddonRepository.jsm
-Services.prefs.setBoolPref("extensions.getAddons.cache.enabled", false);
-
 // Disable the compatibility updates window by default
 Services.prefs.setBoolPref("extensions.showMismatchUI", false);
-
-// By default, don't cache add-ons in AddonRepository.jsm
-Services.prefs.setBoolPref("extensions.getAddons.cache.enabled", false);
 
 // Register a temporary directory for the tests.
 const gTmpD = gProfD.clone();

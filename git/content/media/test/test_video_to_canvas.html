@@ -15,7 +15,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=486646
 <body>
 <script class="testbody" type="text/javascript">
 
-var manager = new MediaTestManager;
+var videos = [];
 
 function loaded(e) {
   var v = e.target;
@@ -35,19 +35,20 @@ function loaded(e) {
   }
 
   v._finished = true;
-  v.parentNode.removeChild(v);
-  manager.finished(v.token);
+  if (AllFinished(videos))
+    SimpleTest.finish();
   return false;
 }
 
-function startTest(test, token) {
+for (var i=0; i<gSmallTests.length; ++i) {
+  var test = gSmallTests[i];
   var isVideo = /^video/.test(test.type) ? true : false;
   if (!isVideo)
-    return;
+    continue;
   
   var v = document.createElement('video');
-  v.token = token;
-  manager.started(token);
+  if (!v.canPlayType(test.type))
+    continue;
   v.src = test.name;
   v._name = test.name;
   v._finished = false;
@@ -55,9 +56,14 @@ function startTest(test, token) {
   v.style.display = "none";
   v.addEventListener("ended", loaded, false);
   document.body.appendChild(v);
+  videos.push(v);
 }
 
-manager.runTests(gSmallTests, startTest);
+if (videos.length == 0) {
+  todo(false, "No types supported");
+} else {
+  SimpleTest.waitForExplicitFinish();
+}
 
 
 </script>

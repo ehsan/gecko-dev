@@ -152,8 +152,9 @@ class AutoCompartment
     JSObject * const target;
     JSCompartment * const destination;
   private:
-    LazilyConstructed<DummyFrameGuard> frame;
+    LazilyConstructed<ExecuteFrameGuard> frame;
     JSFrameRegs regs;
+    RegExpStatics statics;
     AutoStringRooter input;
     bool entered;
 
@@ -163,6 +164,11 @@ class AutoCompartment
 
     bool enter();
     void leave();
+
+    js::Value *getvp() {
+        JS_ASSERT(entered);
+        return frame.ref().getvp();
+    }
 
   private:
     // Prohibit copying.

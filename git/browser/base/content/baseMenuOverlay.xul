@@ -103,19 +103,12 @@
                   label="&helpReleaseNotes.label;"
                   oncommand="openReleaseNotes()"
                   onclick="checkForMiddleClick(this, event);"/>
-        <menuitem id="feedbackPage"
-                  accesskey="&helpFeedbackPage.accesskey;"
-                  label="&helpFeedbackPage.label;"
-                  oncommand="openFeedbackPage()"
-                  onclick="checkForMiddleClick(this, event);"/>
         <menuseparator id="updateSeparator"/>
-#ifdef XP_MACOSX
 #ifdef MOZ_UPDATER
         <menuitem id="checkForUpdates"
                   label="&updateCmd.label;"
                   class="menuitem-iconic"
                   oncommand="checkForUpdates();"/>
-#endif
 #endif
         <menuseparator id="aboutSeparator"/>
         <menuitem id="aboutName"

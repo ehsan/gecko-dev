@@ -90,13 +90,6 @@ public:
     return mChildProcessHandle;
   }
 
-#ifdef XP_MACOSX
-  task_t GetChildTask() {
-    return mChildTask;
-  }
-#endif
-
-
 protected:
   GeckoProcessType mProcessType;
   Monitor mMonitor;
@@ -116,9 +109,6 @@ protected:
   base::WaitableEventWatcher::Delegate* mDelegate;
 
   ProcessHandle mChildProcessHandle;
-#if defined(OS_MACOSX)
-  task_t mChildTask;
-#endif
 
 private:
   DISALLOW_EVIL_CONSTRUCTORS(GeckoChildProcessHost);

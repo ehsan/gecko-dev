@@ -815,8 +815,6 @@ public:
 
   virtual LayerManager* GetLayerManager();
 
-  virtual void SynthesizeMouseMove(PRBool aFromScroll);
-
   //nsIViewObserver interface
 
   NS_IMETHOD Paint(nsIView* aDisplayRoot,
@@ -836,6 +834,7 @@ public:
                                                         nsIDOMEvent* aEvent,
                                                         nsEventStatus* aStatus);
   NS_IMETHOD ResizeReflow(nsIView *aView, nscoord aWidth, nscoord aHeight);
+  NS_IMETHOD_(PRBool) IsVisible();
   NS_IMETHOD_(PRBool) ShouldIgnoreInvalidation();
   NS_IMETHOD_(void) WillPaint(PRBool aWillSendDidPaint);
   NS_IMETHOD_(void) DidPaint();
@@ -4529,10 +4528,7 @@ PresShell::CaptureHistoryState(nsILayoutHistoryState** aState, PRBool aLeavingPa
 void
 PresShell::UnsuppressAndInvalidate()
 {
-  // Note: We ignore the EnsureVisible check for resource documents, because
-  // they won't have a docshell, so they'll always fail EnsureVisible.
-  if ((!mDocument->IsResourceDoc() && !mPresContext->EnsureVisible()) ||
-      mHaveShutDown) {
+  if (!mPresContext->EnsureVisible() || mHaveShutDown) {
     // No point; we're about to be torn down anyway.
     return;
   }
@@ -4559,8 +4555,8 @@ PresShell::UnsuppressAndInvalidate()
   if (win)
     win->SetReadyForFocus();
 
-  if (!mHaveShutDown)
-    SynthesizeMouseMove(PR_FALSE);
+  if (!mHaveShutDown && mViewManager)
+    mViewManager->SynthesizeMouseMove(PR_FALSE);
 }
 
 void
@@ -4726,12 +4722,7 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
   NS_ASSERTION(aType >= Flush_Frames, "Why did we get called?");
 
   PRBool isSafeToFlush = IsSafeToFlush();
-
-  // If layout could possibly trigger scripts, then it's only safe to flush if
-  // it's safe to run script.
-  if (mDocument->GetScriptGlobalObject()) {
-    isSafeToFlush = isSafeToFlush && nsContentUtils::IsSafeToRunScript();
-  }
+  isSafeToFlush = isSafeToFlush && nsContentUtils::IsSafeToRunScript();
 
   NS_ASSERTION(!isSafeToFlush || mViewManager, "Must have view manager");
   // Make sure the view manager stays alive while batching view updates.
@@ -4937,12 +4928,12 @@ PresShell::DocumentStatesChanged(nsIDocument* aDocument,
 
 void
 PresShell::AttributeWillChange(nsIDocument* aDocument,
-                               Element*     aElement,
+                               nsIContent*  aContent,
                                PRInt32      aNameSpaceID,
                                nsIAtom*     aAttribute,
                                PRInt32      aModType)
 {
-  NS_PRECONDITION(!mIsDocumentGone, "Unexpected AttributeWillChange");
+  NS_PRECONDITION(!mIsDocumentGone, "Unexpected AttributeChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
   // XXXwaterson it might be more elegant to wait until after the
@@ -4950,7 +4941,7 @@ PresShell::AttributeWillChange(nsIDocument* aDocument,
   // squelch any other inappropriate notifications as well.
   if (mDidInitialReflow) {
     nsAutoCauseReflowNotifier crNotifier(this);
-    mFrameConstructor->AttributeWillChange(aElement, aNameSpaceID,
+    mFrameConstructor->AttributeWillChange(aContent, aNameSpaceID,
                                            aAttribute, aModType);
     VERIFY_STYLE_TREE;
   }
@@ -4958,7 +4949,7 @@ PresShell::AttributeWillChange(nsIDocument* aDocument,
 
 void
 PresShell::AttributeChanged(nsIDocument* aDocument,
-                            Element*     aElement,
+                            nsIContent*  aContent,
                             PRInt32      aNameSpaceID,
                             nsIAtom*     aAttribute,
                             PRInt32      aModType)
@@ -4971,7 +4962,7 @@ PresShell::AttributeChanged(nsIDocument* aDocument,
   // squelch any other inappropriate notifications as well.
   if (mDidInitialReflow) {
     nsAutoCauseReflowNotifier crNotifier(this);
-    mFrameConstructor->AttributeChanged(aElement, aNameSpaceID,
+    mFrameConstructor->AttributeChanged(aContent, aNameSpaceID,
                                         aAttribute, aModType);
     VERIFY_STYLE_TREE;
   }
@@ -5377,8 +5368,7 @@ PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
             // wrap the item in an nsDisplayClip so that it can be clipped to
             // the selection. If the allocation fails, fall through and delete
             // the item below.
-            itemToInsert = new (aBuilder)
-                nsDisplayClip(aBuilder, frame, i, textRect);
+            itemToInsert = new (aBuilder)nsDisplayClip(frame, frame, i, textRect);
           }
         }
         // Don't try to descend into subdocuments.
@@ -5627,7 +5617,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
 
     aArea.MoveBy(-rangeInfo->mRootOffset.x, -rangeInfo->mRootOffset.y);
     nsRegion visible(aArea);
-    rangeInfo->mList.ComputeVisibilityForRoot(&rangeInfo->mBuilder, &visible);
+    rangeInfo->mList.ComputeVisibility(&rangeInfo->mBuilder, &visible);
     rangeInfo->mList.PaintRoot(&rangeInfo->mBuilder, rc, nsDisplayList::PAINT_DEFAULT);
     aArea.MoveBy(rangeInfo->mRootOffset.x, rangeInfo->mRootOffset.y);
   }
@@ -5725,8 +5715,8 @@ PresShell::AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
                                          nsIFrame*             aFrame,
                                          const nsRect&         aBounds)
 {
-  return aList.AppendNewToBottom(new (&aBuilder)
-    nsDisplaySolidColor(&aBuilder, aFrame, aBounds, NS_RGB(115, 115, 115)));
+  return aList.AppendNewToBottom(
+      new (&aBuilder) nsDisplaySolidColor(aFrame, aBounds, NS_RGB(115, 115, 115)));
 }
 
 static PRBool
@@ -5782,20 +5772,7 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
   }
 
   return aList.AppendNewToBottom(
-      new (&aBuilder) nsDisplaySolidColor(&aBuilder, aFrame, aBounds, bgcolor));
-}
-
-static PRBool IsTransparentContainerElement(nsPresContext* aPresContext)
-{
-  nsCOMPtr<nsISupports> container = aPresContext->GetContainerInternal();
-  nsCOMPtr<nsIDocShellTreeItem> docShellItem = do_QueryInterface(container);
-  nsCOMPtr<nsPIDOMWindow> pwin(do_GetInterface(docShellItem));
-  if (!pwin)
-    return PR_FALSE;
-  nsCOMPtr<nsIContent> containerElement =
-    do_QueryInterface(pwin->GetFrameElementInternal());
-  return containerElement &&
-         containerElement->HasAttr(kNameSpaceID_None, nsGkAtoms::transparent);
+      new (&aBuilder) nsDisplaySolidColor(aFrame, aBounds, bgcolor));
 }
 
 void PresShell::UpdateCanvasBackground()
@@ -5803,22 +5780,17 @@ void PresShell::UpdateCanvasBackground()
   // If we have a frame tree and it has style information that
   // specifies the background color of the canvas, update our local
   // cache of that color.
-  nsIFrame* rootStyleFrame = FrameConstructor()->GetRootElementStyleFrame();
-  if (rootStyleFrame) {
+  nsIFrame* rootFrame = FrameConstructor()->GetRootElementStyleFrame();
+  if (rootFrame) {
     nsStyleContext* bgStyle =
-      nsCSSRendering::FindRootFrameBackground(rootStyleFrame);
+      nsCSSRendering::FindRootFrameBackground(rootFrame);
     // XXX We should really be passing the canvasframe, not the root element
     // style frame but we don't have access to the canvasframe here. It isn't
     // a problem because only a few frames can return something other than true
     // and none of them would be a canvas frame or root element style frame.
     mCanvasBackgroundColor =
-      nsCSSRendering::DetermineBackgroundColor(mPresContext, bgStyle,
-                                               rootStyleFrame);
-    if (GetPresContext()->IsRootContentDocument() &&
-        !IsTransparentContainerElement(mPresContext)) {
-      mCanvasBackgroundColor =
-        NS_ComposeColors(mPresContext->DefaultBackgroundColor(), mCanvasBackgroundColor);
-    }
+      nsCSSRendering::DetermineBackgroundColor(GetPresContext(), bgStyle,
+                                               rootFrame);
   }
 
   // If the root element of the document (ie html) has style 'display: none'
@@ -5861,13 +5833,6 @@ LayerManager* PresShell::GetLayerManager()
     }
   }
   return nsnull;
-}
-
-void PresShell::SynthesizeMouseMove(PRBool aFromScroll)
-{
-  if (mViewManager && !mPaintingSuppressed && mIsActive) {
-    mViewManager->SynthesizeMouseMove(aFromScroll);
-  }
 }
 
 static void DrawThebesLayer(ThebesLayer* aLayer,
@@ -7190,17 +7155,29 @@ PresShell::ResizeReflow(nsIView *aView, nscoord aWidth, nscoord aHeight)
 }
 
 NS_IMETHODIMP_(PRBool)
+PresShell::IsVisible()
+{
+  nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
+  nsCOMPtr<nsIBaseWindow> bw = do_QueryInterface(container);
+  if (!bw)
+    return PR_FALSE;
+  PRBool res = PR_TRUE;
+  bw->GetVisibility(&res);
+  return res;
+}
+
+NS_IMETHODIMP_(PRBool)
 PresShell::ShouldIgnoreInvalidation()
 {
-  return mPaintingSuppressed || !mIsActive;
+  return mPaintingSuppressed;
 }
 
 NS_IMETHODIMP_(void)
 PresShell::WillPaint(PRBool aWillSendDidPaint)
 {
-  // Don't bother doing anything if some viewmanager in our tree is painting
-  // while we still have painting suppressed or we are not active.
-  if (mPaintingSuppressed || !mIsActive) {
+  // Don't bother doing anything if some viewmanager in our tree is
+  // painting while we still have painting suppressed.
+  if (mPaintingSuppressed) {
     return;
   }
 
@@ -7369,6 +7346,8 @@ PresShell::Thaw()
   if (mDocument)
     mDocument->EnumerateSubDocuments(ThawSubDocument, nsnull);
 
+  UnsuppressPainting();
+
   // Get the activeness of our presshell, as this might have changed
   // while we were in the bfcache
   QueryIsActive();
@@ -7376,8 +7355,6 @@ PresShell::Thaw()
   // We're now unfrozen
   mFrozen = PR_FALSE;
   UpdateImageLockingState();
-
-  UnsuppressPainting();
 }
 
 //--------------------------------------------------------
@@ -7443,7 +7420,10 @@ PresShell::DidDoReflow(PRBool aInterruptible)
   mFrameConstructor->EndUpdate();
   
   HandlePostedReflowCallbacks(aInterruptible);
-  SynthesizeMouseMove(PR_FALSE);
+  // Null-check mViewManager in case this happens during Destroy.  See
+  // bugs 244435 and 238546.
+  if (!mPaintingSuppressed && mViewManager)
+    mViewManager->SynthesizeMouseMove(PR_FALSE);
   if (mCaret) {
     // Update the caret's position now to account for any changes created by
     // the reflow.
@@ -9012,11 +8992,6 @@ nsresult
 PresShell::SetIsActive(PRBool aIsActive)
 {
   mIsActive = aIsActive;
-  nsPresContext* presContext = GetPresContext();
-  if (presContext &&
-      presContext->RefreshDriver()->PresContext() == presContext) {
-    presContext->RefreshDriver()->SetThrottled(!mIsActive);
-  }
   return UpdateImageLockingState();
 }
 

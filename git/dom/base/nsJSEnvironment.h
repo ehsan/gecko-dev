@@ -142,7 +142,7 @@ public:
                                   void *aOuterGlobal);
   virtual nsresult InitContext();
   virtual nsresult CreateOuterObject(nsIScriptGlobalObject *aGlobalObject,
-                                     nsIScriptGlobalObject *aCurrentInner);
+                                     nsIPrincipal *aPrincipal);
   virtual nsresult InitOuterWindow();
   virtual PRBool IsContextInitialized();
   virtual void FinalizeContext();
@@ -188,7 +188,7 @@ public:
 
   // CC does always call cycle collector and it also updates the counters
   // that MaybeCC uses.
-  static void CC(nsICycleCollectorListener *aListener);
+  static void CC();
 
   // MaybeCC calls cycle collector if certain conditions are fulfilled.
   // The conditions are:

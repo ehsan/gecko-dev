@@ -152,12 +152,10 @@ SessionStartup.prototype = {
       this._sessionType = Ci.nsISessionStartup.RECOVER_SESSION;
     else if (!lastSessionCrashed && doResumeSession)
       this._sessionType = Ci.nsISessionStartup.RESUME_SESSION;
-    else if (initialState)
-      this._sessionType = Ci.nsISessionStartup.DEFER_SESSION;
     else
       this._iniString = null; // reset the state string
 
-    if (this.doRestore()) {
+    if (this._sessionType != Ci.nsISessionStartup.NO_SESSION) {
       // wait for the first browser window to open
 
       // Don't reset the initial window's default args (i.e. the home page(s))
@@ -254,8 +252,7 @@ SessionStartup.prototype = {
    * @returns bool
    */
   doRestore: function sss_doRestore() {
-    return this._sessionType == Ci.nsISessionStartup.RECOVER_SESSION ||
-           this._sessionType == Ci.nsISessionStartup.RESUME_SESSION;
+    return this._sessionType != Ci.nsISessionStartup.NO_SESSION;
   },
 
   /**

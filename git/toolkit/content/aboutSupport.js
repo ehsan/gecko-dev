@@ -38,12 +38,12 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
+let gPrefService = Cc["@mozilla.org/preferences-service;1"]
+                     .getService(Ci.nsIPrefService)
+                     .QueryInterface(Ci.nsIPrefBranch2);
 
-
-const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis",
-                                               Ci.nsIPrefLocalizedString).data;
+const ELLIPSIS = gPrefService.getComplexValue("intl.ellipsis",
+                                              Ci.nsIPrefLocalizedString).data;
 
 // We use a preferences whitelist to make sure we only show preferences that
 // are useful for support and won't compromise the user's privacy.  Note that
@@ -64,9 +64,7 @@ const PREFS_WHITELIST = [
   "extensions.lastAppVersion",
   "font.",
   "general.useragent.",
-  "gfx.",
-  "mozilla.widget.render-mode",
-  "layers.",
+  "gfx.color_management.mode",
   "javascript.",
   "keyword.",
   "layout.css.dpi",
@@ -90,9 +88,8 @@ window.onload = function () {
   let supportUrl = urlFormatter.formatURLPref("app.support.baseURL");
 
   // Update the application basics section.
-  document.getElementById("application-box").textContent = Services.appinfo.name;
-  document.getElementById("version-box").textContent = Services.appinfo.version;
-  document.getElementById("useragent-box").textContent = navigator.userAgent;
+  document.getElementById("application-box").textContent = Application.name;
+  document.getElementById("version-box").textContent = Application.version;
   document.getElementById("supportLink").href = supportUrl;
 
   // Update the other sections.
@@ -102,14 +99,15 @@ window.onload = function () {
 }
 
 function populateExtensionsSection() {
-  AddonManager.getAddonsByTypes(["extension"], function(extensions) {
+  Application.getExtensions(function (extensions) {
+    let all = extensions.all;
     let trExtensions = [];
-    for (let i = 0; i < extensions.length; i++) {
-      let extension = extensions[i];
+    for (let i = 0; i < all.length; i++) {
+      let extension = all[i];
       let tr = createParentElement("tr", [
         createElement("td", extension.name),
         createElement("td", extension.version),
-        createElement("td", extension.isActive),
+        createElement("td", extension.enabled),
         createElement("td", extension.id),
       ]);
       trExtensions.push(tr);
@@ -143,105 +141,16 @@ function populatePreferencesSection() {
 }
 
 function populateGraphicsSection() {
-  function createHeader(name)
-  {
-    let elem = createElement("th", name);
-    elem.className = "column";
-    return elem;
-  }
-
-  let bundle = Services.strings.createBundle("chrome://global/locale/aboutSupport.properties");
-  let graphics_tbody = document.getElementById("graphics-tbody");
-
   try {
     // nsIGfxInfo is currently only implemented on Windows
-    let gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
-    let trGraphics = [];
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("adapterDescription")),
-      createElement("td", gfxInfo.adapterDescription),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("adapterVendorID")),
-      // pad with zeros. (printf would be nicer)
-      createElement("td", String('0000'+gfxInfo.adapterVendorID.toString(16)).slice(-4)),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("adapterDeviceID")),
-      // pad with zeros. (printf would be nicer)
-      createElement("td", String('0000'+gfxInfo.adapterDeviceID.toString(16)).slice(-4)),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("adapterRAM")),
-      createElement("td", gfxInfo.adapterRAM),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("adapterDrivers")),
-      createElement("td", gfxInfo.adapterDriver),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("driverVersion")),
-      createElement("td", gfxInfo.adapterDriverVersion),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("driverDate")),
-      createElement("td", gfxInfo.adapterDriverDate),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("direct2DEnabled")),
-      createElement("td", gfxInfo.D2DEnabled),
-    ]));
-    trGraphics.push(createParentElement("tr", [
-      createHeader(bundle.GetStringFromName("directWriteEnabled")),
-      createElement("td", gfxInfo.DWriteEnabled),
-    ]));
-
-    appendChildren(graphics_tbody, trGraphics);
-
+    var d2d = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo).D2DEnabled;
   } catch (e) {
+    d2d = false;
   }
 
-  let windows = Services.ww.getWindowEnumerator();
-  let acceleratedWindows = 0;
-  let totalWindows = 0;
-  let mgrType;
-  while (windows.hasMoreElements()) {
-    totalWindows++;
-
-    let awindow = windows.getNext().QueryInterface(Ci.nsIInterfaceRequestor);
-    let windowutils = awindow.getInterface(Ci.nsIDOMWindowUtils);
-    if (windowutils.layerManagerType != "Basic") {
-      acceleratedWindows++;
-      mgrType = windowutils.layerManagerType;
-    }
-  }
-
-  let msg = acceleratedWindows + "/" + totalWindows;
-  if (acceleratedWindows)
-    msg += " " + mgrType;
-
-  let header = createHeader(bundle.GetStringFromName("acceleratedWindows"));
-
-  appendChildren(graphics_tbody, [ header, createElement("td", msg) ]);
+  document.getElementById("direct2d").textContent = d2d;
 }
 
-function getPrefValue(aName) {
-  let value = "";
-  let type = Services.prefs.getPrefType(aName);
-  switch (type) {
-    case Ci.nsIPrefBranch2.PREF_STRING:
-      value = Services.prefs.getComplexValue(aName, Ci.nsISupportsString).data;
-      break;
-    case Ci.nsIPrefBranch2.PREF_BOOL:
-      value = Services.prefs.getBoolPref(aName);
-      break;
-    case Ci.nsIPrefBranch2.PREF_INT:
-      value = Services.prefs.getIntPref(aName);
-      break;
-  }
-
-  return { name: aName, value: value };
-}
 
 function formatPrefValue(prefValue) {
   // Some pref values are really long and don't have spaces.  This can cause
@@ -261,9 +170,9 @@ function getModifiedPrefs() {
   // much, much slower.  Application.prefs.all also gets slower each
   // time it's called.  See bug 517312.
   let prefNames = getWhitelistedPrefNames();
-  let prefs = [getPrefValue(prefName)
+  let prefs = [Application.prefs.get(prefName)
                       for each (prefName in prefNames)
-                          if (Services.prefs.prefHasUserValue(prefName)
+                          if (gPrefService.prefHasUserValue(prefName)
                             && !isBlacklisted(prefName))];
   return prefs;
 }
@@ -271,7 +180,7 @@ function getModifiedPrefs() {
 function getWhitelistedPrefNames() {
   let results = [];
   PREFS_WHITELIST.forEach(function (prefStem) {
-    let prefNames = Services.prefs.getChildList(prefStem);
+    let prefNames = gPrefService.getChildList(prefStem);
     results = results.concat(prefNames);
   });
   return results;
@@ -388,7 +297,9 @@ function generateTextForTextNode(node, indent, textFragmentAccumulator) {
 
 function openProfileDirectory() {
   // Get the profile directory.
-  let currProfD = Services.dirsvc.get("ProfD", Ci.nsIFile);
+  let propertiesService = Cc["@mozilla.org/file/directory_service;1"]
+                            .getService(Ci.nsIProperties);
+  let currProfD = propertiesService.get("ProfD", Ci.nsIFile);
   let profileDir = currProfD.path;
 
   // Show the profile directory.

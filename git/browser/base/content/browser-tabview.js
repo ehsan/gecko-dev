@@ -136,20 +136,6 @@ let TabView = {
     else 
       this.show();
   },
-  
-  getActiveGroupName: function Tabview_getActiveGroupName() {
-    // We get the active group this way, instead of querying
-    // GroupItems.getActiveGroupItem() because the tabSelect event
-    // will not have happened by the time the browser tries to
-    // update the title.
-    let activeTab = window.gBrowser.selectedTab;
-    if (activeTab.tabItem && activeTab.tabItem.parent){
-      let groupName = activeTab.tabItem.parent.getTitle();
-      if (groupName)
-        return groupName;
-    }
-    return null;
-  },  
 
   // ----------
   updateContextMenu: function(tab, popup) {
@@ -164,11 +150,8 @@ let TabView = {
       let activeGroup = tab.tabItem.parent;
       let groupItems = self._window.GroupItems.groupItems;
 
-      groupItems.forEach(function(groupItem) {
-        // if group has title, it's not hidden and there is no active group or
-        // the active group id doesn't match the group id, a group menu item
-        // would be added.
-        if (groupItem.getTitle().length > 0 && !groupItem.hidden &&
+      groupItems.forEach(function(groupItem) { 
+        if (groupItem.getTitle().length > 0 && 
             (!activeGroup || activeGroup.id != groupItem.id)) {
           let menuItem = self._createGroupMenuItem(groupItem);
           popup.insertBefore(menuItem, separator);
@@ -213,8 +196,8 @@ let TabView = {
       if (!event.ctrlKey && !event.metaKey && !event.shiftKey &&
           charCode == 160) { // alt + space
 #else
-      if (event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey && 
-          charCode == KeyEvent.DOM_VK_SPACE) { // ctrl + space
+      if (event.ctrlKey && !event.metaKey && !event.shiftKey &&
+          !event.altKey && charCode == 32) { // ctrl + space
 #endif
 
         // Don't handle this event if it's coming from a node that might allow

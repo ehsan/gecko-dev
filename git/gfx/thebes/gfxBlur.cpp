@@ -54,16 +54,15 @@ gfxAlphaBoxBlur::~gfxAlphaBoxBlur()
 
 gfxContext*
 gfxAlphaBoxBlur::Init(const gfxRect& aRect,
-                      const gfxIntSize& aSpreadRadius,
                       const gfxIntSize& aBlurRadius,
                       const gfxRect* aDirtyRect,
                       const gfxRect* aSkipRect)
 {
-    mSpreadRadius = aSpreadRadius;
     mBlurRadius = aBlurRadius;
 
     gfxRect rect(aRect);
-    rect.Outset(aBlurRadius + aSpreadRadius);
+    rect.Outset(aBlurRadius.height, aBlurRadius.width,
+                aBlurRadius.height, aBlurRadius.width);
     rect.RoundOut();
 
     if (rect.IsEmpty())
@@ -75,7 +74,8 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
         mHasDirtyRect = PR_TRUE;
         mDirtyRect = *aDirtyRect;
         gfxRect requiredBlurArea = mDirtyRect.Intersect(rect);
-        requiredBlurArea.Outset(aBlurRadius + aSpreadRadius);
+        requiredBlurArea.Outset(aBlurRadius.height, aBlurRadius.width,
+                                aBlurRadius.height, aBlurRadius.width);
         rect = requiredBlurArea.Intersect(rect);
     } else {
         mHasDirtyRect = PR_FALSE;
@@ -83,13 +83,14 @@ gfxAlphaBoxBlur::Init(const gfxRect& aRect,
 
     if (aSkipRect) {
         // If we get passed a skip rect, we can lower the amount of
-        // blurring/spreading we need to do. We convert it to nsIntRect to avoid
+        // blurring we need to do. We convert it to nsIntRect to avoid
         // expensive int<->float conversions if we were to use gfxRect instead.
         gfxRect skipRect = *aSkipRect;
         skipRect.RoundIn();
-        skipRect.Inset(aBlurRadius + aSpreadRadius);
         mSkipRect = gfxThebesUtils::GfxRectToIntRect(skipRect);
         nsIntRect shadowIntRect = gfxThebesUtils::GfxRectToIntRect(rect);
+
+        mSkipRect.Deflate(aBlurRadius.width, aBlurRadius.height);
         mSkipRect.IntersectRect(mSkipRect, shadowIntRect);
         if (mSkipRect == shadowIntRect)
           return nsnull;
@@ -139,7 +140,6 @@ gfxAlphaBoxBlur::PremultiplyAlpha(gfxFloat alpha)
  * @param aWidth The number of columns in the buffers.
  * @param aRows The number of rows in the buffers.
  * @param aSkipRect An area to skip blurring in.
- * XXX shouldn't we pass stride in separately here?
  */
 static void
 BoxBlurHorizontal(unsigned char* aInput,
@@ -152,7 +152,7 @@ BoxBlurHorizontal(unsigned char* aInput,
 {
     PRInt32 boxSize = aLeftLobe + aRightLobe + 1;
     PRBool skipRectCoversWholeRow = 0 >= aSkipRect.x &&
-                                    aWidth <= aSkipRect.XMost();
+                                    aWidth - 1 <= aSkipRect.XMost();
 
     for (PRInt32 y = 0; y < aRows; y++) {
         // Check whether the skip rect intersects this row. If the skip
@@ -206,7 +206,6 @@ BoxBlurHorizontal(unsigned char* aInput,
 /**
  * Identical to BoxBlurHorizontal, except it blurs top and bottom instead of
  * left and right.
- * XXX shouldn't we pass stride in separately here?
  */
 static void
 BoxBlurVertical(unsigned char* aInput,
@@ -219,7 +218,7 @@ BoxBlurVertical(unsigned char* aInput,
 {
     PRInt32 boxSize = aTopLobe + aBottomLobe + 1;
     PRBool skipRectCoversWholeColumn = 0 >= aSkipRect.y &&
-                                       aRows <= aSkipRect.YMost();
+                                       aRows - 1 <= aSkipRect.YMost();
 
     for (PRInt32 x = 0; x < aWidth; x++) {
         PRBool inSkipRectX = x >= aSkipRect.x &&
@@ -305,99 +304,6 @@ static void ComputeLobes(PRInt32 aRadius, PRInt32 aLobes[3][2])
     aLobes[2][1] = final;
 }
 
-static void
-SpreadHorizontal(unsigned char* aInput,
-                 unsigned char* aOutput,
-                 PRInt32 aRadius,
-                 PRInt32 aWidth,
-                 PRInt32 aRows,
-                 PRInt32 aStride,
-                 const nsIntRect& aSkipRect)
-{
-    if (aRadius == 0) {
-        memcpy(aOutput, aInput, aStride*aRows);
-        return;
-    }
-
-    PRBool skipRectCoversWholeRow = 0 >= aSkipRect.x &&
-                                    aWidth <= aSkipRect.XMost();
-    for (PRInt32 y = 0; y < aRows; y++) {
-        // Check whether the skip rect intersects this row. If the skip
-        // rect covers the whole surface in this row, we can avoid
-        // this row entirely (and any others along the skip rect).
-        PRBool inSkipRectY = y >= aSkipRect.y &&
-                             y < aSkipRect.YMost();
-        if (inSkipRectY && skipRectCoversWholeRow) {
-            y = aSkipRect.YMost() - 1;
-            continue;
-        }
-
-        for (PRInt32 x = 0; x < aWidth; x++) {
-            // Check whether we are within the skip rect. If so, go
-            // to the next point outside the skip rect.
-            if (inSkipRectY && x >= aSkipRect.x &&
-                x < aSkipRect.XMost()) {
-                x = aSkipRect.XMost();
-                if (x >= aWidth)
-                    break;
-            }
-
-            PRInt32 sMin = PR_MAX(x - aRadius, 0);
-            PRInt32 sMax = PR_MIN(x + aRadius, aWidth - 1);
-            PRInt32 v = 0;
-            for (PRInt32 s = sMin; s <= sMax; ++s) {
-                v = PR_MAX(v, aInput[aStride * y + s]);
-            }
-            aOutput[aStride * y + x] = v;
-        }
-    }
-}
-
-static void
-SpreadVertical(unsigned char* aInput,
-               unsigned char* aOutput,
-               PRInt32 aRadius,
-               PRInt32 aWidth,
-               PRInt32 aRows,
-               PRInt32 aStride,
-               const nsIntRect& aSkipRect)
-{
-    if (aRadius == 0) {
-        memcpy(aOutput, aInput, aStride*aRows);
-        return;
-    }
-
-    PRBool skipRectCoversWholeColumn = 0 >= aSkipRect.y &&
-                                       aRows <= aSkipRect.YMost();
-    for (PRInt32 x = 0; x < aWidth; x++) {
-        PRBool inSkipRectX = x >= aSkipRect.x &&
-                             x < aSkipRect.XMost();
-        if (inSkipRectX && skipRectCoversWholeColumn) {
-            x = aSkipRect.XMost() - 1;
-            continue;
-        }
-
-        for (PRInt32 y = 0; y < aRows; y++) {
-            // Check whether we are within the skip rect. If so, go
-            // to the next point outside the skip rect.
-            if (inSkipRectX && y >= aSkipRect.y &&
-                y < aSkipRect.YMost()) {
-                y = aSkipRect.YMost();
-                if (y >= aRows)
-                    break;
-            }
-
-            PRInt32 sMin = PR_MAX(y - aRadius, 0);
-            PRInt32 sMax = PR_MIN(y + aRadius, aRows - 1);
-            PRInt32 v = 0;
-            for (PRInt32 s = sMin; s <= sMax; ++s) {
-                v = PR_MAX(v, aInput[aStride * s + x]);
-            }
-            aOutput[aStride * y + x] = v;
-        }
-    }
-}
-
 void
 gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
 {
@@ -406,8 +312,8 @@ gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
 
     unsigned char* boxData = mImageSurface->Data();
 
-    // no need to do all this if not blurring or spreading
-    if (mBlurRadius != gfxIntSize(0,0) || mSpreadRadius != gfxIntSize(0,0)) {
+    // no need to do all this if not blurring
+    if (mBlurRadius.width != 0 || mBlurRadius.height != 0) {
         nsTArray<unsigned char> tempAlphaDataBuf;
         PRSize szB = mImageSurface->GetDataSize();
         if (!tempAlphaDataBuf.SetLength(szB))
@@ -417,16 +323,11 @@ gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
         // .SetLength above doesn't initialise the new elements since
         // they are unsigned chars and so have no default constructor.
         // So we have to initialise them by hand.
+        // https://bugzilla.mozilla.org/show_bug.cgi?id=582668#c10
         memset(tmpData, 0, szB);
 
         PRInt32 stride = mImageSurface->Stride();
         PRInt32 rows = mImageSurface->Height();
-        PRInt32 width = mImageSurface->Width();
-
-        if (mSpreadRadius.width > 0 || mSpreadRadius.height > 0) {
-            SpreadHorizontal(boxData, tmpData, mSpreadRadius.width, width, rows, stride, mSkipRect);
-            SpreadVertical(tmpData, boxData, mSpreadRadius.height, width, rows, stride, mSkipRect);
-        }
 
         if (mBlurRadius.width > 0) {
             PRInt32 lobes[3][2];
@@ -434,8 +335,6 @@ gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
             BoxBlurHorizontal(boxData, tmpData, lobes[0][0], lobes[0][1], stride, rows, mSkipRect);
             BoxBlurHorizontal(tmpData, boxData, lobes[1][0], lobes[1][1], stride, rows, mSkipRect);
             BoxBlurHorizontal(boxData, tmpData, lobes[2][0], lobes[2][1], stride, rows, mSkipRect);
-        } else {
-            memcpy(tmpData, boxData, stride*rows);
         }
 
         if (mBlurRadius.height > 0) {
@@ -444,38 +343,25 @@ gfxAlphaBoxBlur::Paint(gfxContext* aDestinationCtx, const gfxPoint& offset)
             BoxBlurVertical(tmpData, boxData, lobes[0][0], lobes[0][1], stride, rows, mSkipRect);
             BoxBlurVertical(boxData, tmpData, lobes[1][0], lobes[1][1], stride, rows, mSkipRect);
             BoxBlurVertical(tmpData, boxData, lobes[2][0], lobes[2][1], stride, rows, mSkipRect);
-        } else {
-            memcpy(boxData, tmpData, stride*rows);
         }
     }
 
     // Avoid a semi-expensive clip operation if we can, otherwise
     // clip to the dirty rect
     if (mHasDirtyRect) {
-        aDestinationCtx->Save();
-        aDestinationCtx->NewPath();
-        aDestinationCtx->Rectangle(mDirtyRect);
-        aDestinationCtx->Clip();
-        aDestinationCtx->Mask(mImageSurface, offset);
-        aDestinationCtx->Restore();
+      aDestinationCtx->Save();
+      aDestinationCtx->NewPath();
+      aDestinationCtx->Rectangle(mDirtyRect);
+      aDestinationCtx->Clip();
+      aDestinationCtx->Mask(mImageSurface, offset);
+      aDestinationCtx->Restore();
     } else {
-        aDestinationCtx->Mask(mImageSurface, offset);
+      aDestinationCtx->Mask(mImageSurface, offset);
     }
 }
 
-/**
- * Compute the box blur size (which we're calling the blur radius) from
- * the standard deviation.
- *
- * Much of this, the 3 * sqrt(2 * pi) / 4, is the known value for
- * approximating a Gaussian using box blurs.  This yields quite a good
- * approximation for a Gaussian.  Then we multiply this by 1.5 since our
- * code wants the radius of the entire triple-box-blur kernel instead of
- * the diameter of an individual box blur.  For more details, see:
- *   http://www.w3.org/TR/SVG11/filters.html#feGaussianBlurElement
- *   https://bugzilla.mozilla.org/show_bug.cgi?id=590039#c19
- */
-static const gfxFloat GAUSSIAN_SCALE_FACTOR = (3 * sqrt(2 * M_PI) / 4) * 1.5;
+// Blur radius is approximately 3/2 times the box-blur size
+static const gfxFloat GAUSSIAN_SCALE_FACTOR = (3 * sqrt(2 * M_PI) / 4) * (3/2);
 
 gfxIntSize gfxAlphaBoxBlur::CalculateBlurRadius(const gfxPoint& aStd)
 {

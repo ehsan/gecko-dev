@@ -27,7 +27,7 @@
 #sanitizeEverythingWarningBox {
   background-color: Window;
   border: 1px solid ThreeDDarkShadow;
-  border-radius: 5px;
+  -moz-border-radius: 5px;
   padding: 16px;
 }
 

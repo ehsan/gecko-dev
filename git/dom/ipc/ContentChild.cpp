@@ -44,7 +44,6 @@
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/jsipc/PContextWrapperChild.h"
-#include "mozilla/dom/ExternalHelperAppChild.h"
 
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
@@ -64,7 +63,6 @@
 
 #include "nsChromeRegistryContent.h"
 #include "mozilla/chrome/RegistryMessageUtils.h"
-#include "nsFrameMessageManager.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::net;
@@ -177,41 +175,6 @@ private:
     PrefObserver& operator=(const PrefObserver&);
 };
 
-class AlertObserver
-{
-public:
-
-    AlertObserver(nsIObserver *aObserver, const nsString& aData)
-        : mData(aData)
-        , mObserver(aObserver)
-    {
-    }
-
-    ~AlertObserver() {}
-
-    bool ShouldRemoveFrom(nsIObserver* aObserver,
-                          const nsString& aData) const
-    {
-        return (mObserver == aObserver &&
-                mData == aData);
-    }
-
-    bool Observes(const nsString& aData) const
-    {
-        return mData.Equals(aData);
-    }
-
-    bool Notify(const nsCString& aType) const
-    {
-        mObserver->Observe(nsnull, aType.get(), mData.get());
-        return true;
-    }
-
-private:
-    nsCOMPtr<nsIObserver> mObserver;
-    nsString mData;
-};
-
 
 ContentChild* ContentChild::sSingleton;
 
@@ -285,26 +248,6 @@ ContentChild::DeallocPNecko(PNeckoChild* necko)
     return true;
 }
 
-PExternalHelperAppChild*
-ContentChild::AllocPExternalHelperApp(const IPC::URI& uri,
-                                      const nsCString& aMimeContentType,
-                                      const nsCString& aContentDisposition,
-                                      const bool& aForceSave,
-                                      const PRInt64& aContentLength)
-{
-    ExternalHelperAppChild *child = new ExternalHelperAppChild();
-    child->AddRef();
-    return child;
-}
-
-bool
-ContentChild::DeallocPExternalHelperApp(PExternalHelperAppChild* aService)
-{
-    ExternalHelperAppChild *child = static_cast<ExternalHelperAppChild*>(aService);
-    child->Release();
-    return true;
-}
-
 bool
 ContentChild::RecvRegisterChrome(const nsTArray<ChromePackage>& packages,
                                  const nsTArray<ResourceMapping>& resources,
@@ -342,7 +285,7 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
     // |if (mDead)| special case below and we're safe.
     mDead = true;
     mPrefObservers.Clear();
-    mAlertObservers.Clear();
+
     XRE_ShutdownChildProcess();
 }
 
@@ -387,15 +330,6 @@ ContentChild::RemoveRemotePrefObserver(const nsCString& aDomain,
     return NS_ERROR_UNEXPECTED;
 }
 
-nsresult
-ContentChild::AddRemoteAlertObserver(const nsString& aData,
-                                     nsIObserver* aObserver)
-{
-    NS_ASSERTION(aObserver, "Adding a null observer?");
-    mAlertObservers.AppendElement(new AlertObserver(aObserver, aData));
-    return NS_OK;
-}
-
 bool
 ContentChild::RecvNotifyRemotePrefObserver(const nsCString& aPref)
 {
@@ -415,44 +349,11 @@ ContentChild::RecvNotifyRemotePrefObserver(const nsCString& aPref)
 }
 
 bool
-ContentChild::RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData)
-{
-    printf("ContentChild::RecvNotifyAlertsObserver %s\n", aType.get() );
-
-    for (PRUint32 i = 0; i < mAlertObservers.Length();
-         /*we mutate the array during the loop; ++i iff no mutation*/) {
-        AlertObserver* observer = mAlertObservers[i];
-        if (observer->Observes(aData) && observer->Notify(aType)) {
-            // if aType == alertfinished, this alert is done.  we can
-            // remove the observer.
-            if (aType.Equals(nsDependentCString("alertfinished"))) {
-                mAlertObservers.RemoveElementAt(i);
-                continue;
-            }
-        }
-        ++i;
-    }
-    return true;
-}
-
-bool
 ContentChild::RecvNotifyVisited(const IPC::URI& aURI)
 {
     nsCOMPtr<nsIURI> newURI(aURI);
     History::GetService()->NotifyVisited(newURI);
     return true;
-}
-
-
-bool
-ContentChild::RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON)
-{
-  nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
-  if (cpm) {
-    cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
-                        aMsg, PR_FALSE, aJSON, nsnull, nsnull);
-  }
-  return true;
 }
 
 } // namespace dom

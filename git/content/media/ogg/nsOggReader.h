@@ -49,7 +49,7 @@
 using namespace mozilla;
 
 class nsMediaDecoder;
-class nsTimeRanges;
+class nsHTMLTimeRanges;
 
 class nsOggReader : public nsBuiltinDecoderReader
 {
@@ -88,7 +88,7 @@ public:
 
   virtual nsresult ReadMetadata();
   virtual nsresult Seek(PRInt64 aTime, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime);
-  virtual nsresult GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime);
+  virtual nsresult GetBuffered(nsHTMLTimeRanges* aBuffered, PRInt64 aStartTime);
 
 private:
 
@@ -152,11 +152,11 @@ private:
 
   // Decodes one packet of Vorbis data, storing the resulting chunks of
   // PCM samples in aChunks.
-  nsresult DecodeVorbis(nsTArray<nsAutoPtr<SoundData> >& aChunks,
+  nsresult DecodeVorbis(nsTArray<SoundData*>& aChunks,
                         ogg_packet* aPacket);
 
   // May return NS_ERROR_OUT_OF_MEMORY.
-  nsresult DecodeTheora(nsTArray<nsAutoPtr<VideoData> >& aFrames,
+  nsresult DecodeTheora(nsTArray<VideoData*>& aFrames,
                         ogg_packet* aPacket);
 
   // Read a page of data from the Ogg file. Returns the offset of the start

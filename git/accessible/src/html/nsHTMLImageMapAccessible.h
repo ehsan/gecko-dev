@@ -57,13 +57,13 @@ public:
   // nsISupports and cycle collector
   NS_DECL_ISUPPORTS_INHERITED
 
-  // nsAccessible
-  virtual PRUint32 NativeRole();
+  // nsIAccessibleHyperLink
+  NS_IMETHOD GetAnchorCount(PRInt32 *aAnchorCount);
+  NS_IMETHOD GetURI(PRInt32 aIndex, nsIURI **aURI);
+  NS_IMETHOD GetAnchor(PRInt32 aIndex, nsIAccessible **aAccessible);
 
-  // HyperLinkAccessible
-  virtual PRUint32 AnchorCount();
-  virtual nsAccessible* GetAnchor(PRUint32 aAnchorIndex);
-  virtual already_AddRefed<nsIURI> GetAnchorURI(PRUint32 aAnchorIndex);
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
 protected:
 
@@ -97,10 +97,6 @@ public:
   virtual nsresult GetChildAtPoint(PRInt32 aX, PRInt32 aY,
                                    PRBool aDeepestChild,
                                    nsIAccessible **aChild);
-
-  // HyperLinkAccessible
-  virtual PRUint32 StartOffset();
-  virtual PRUint32 EndOffset();
 
 protected:
 

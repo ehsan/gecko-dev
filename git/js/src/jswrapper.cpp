@@ -45,11 +45,6 @@
 #include "jsnum.h"
 #include "jsregexp.h"
 #include "jswrapper.h"
-#include "methodjit/PolyIC.h"
-#include "methodjit/MonoIC.h"
-#ifdef JS_METHODJIT
-# include "assembler/jit/ExecutableAllocator.h"
-#endif
 
 #include "jsobjinlines.h"
 
@@ -294,9 +289,8 @@ TransparentObjectWrapper(JSContext *cx, JSObject *obj, JSObject *wrappedProto, u
 }
 
 JSCompartment::JSCompartment(JSRuntime *rt)
-  : rt(rt), principals(NULL), data(NULL), marked(false), debugMode(false)
+  : rt(rt), principals(NULL), data(NULL), marked(false)
 {
-    JS_INIT_CLIST(&scripts);
 }
 
 JSCompartment::~JSCompartment()
@@ -387,8 +381,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp)
      * we parent all wrappers to the global object in their home compartment.
      * This loses us some transparency, and is generally very cheesy.
      */
-    JSObject *global =
-        cx->hasfp() ? cx->fp()->scopeChain().getGlobal() : cx->globalObject;
+    JSObject *global = cx->fp ? cx->fp->scopeChain->getGlobal() : cx->globalObject;
     wrapper->setParent(global);
     return true;
 }
@@ -416,8 +409,7 @@ JSCompartment::wrap(JSContext *cx, JSObject **objp)
 }
 
 bool
-JSCompartment::wrapId(JSContext *cx, jsid *idp)
-{
+JSCompartment::wrapId(JSContext *cx, jsid *idp) {
     if (JSID_IS_INT(*idp))
         return true;
     AutoValueRooter tvr(cx, IdToValue(*idp));
@@ -437,8 +429,7 @@ JSCompartment::wrap(JSContext *cx, PropertyOp *propp)
 }
 
 bool
-JSCompartment::wrap(JSContext *cx, PropertyDescriptor *desc)
-{
+JSCompartment::wrap(JSContext *cx, PropertyDescriptor *desc) {
     return wrap(cx, &desc->obj) &&
            (!(desc->attrs & JSPROP_GETTER) || wrap(cx, &desc->getter)) &&
            (!(desc->attrs & JSPROP_SETTER) || wrap(cx, &desc->setter)) &&
@@ -446,8 +437,7 @@ JSCompartment::wrap(JSContext *cx, PropertyDescriptor *desc)
 }
 
 bool
-JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
-{
+JSCompartment::wrap(JSContext *cx, AutoIdVector &props) {
     jsid *vector = props.begin();
     jsint length = props.length();
     for (size_t n = 0; n < size_t(length); ++n) {
@@ -458,8 +448,7 @@ JSCompartment::wrap(JSContext *cx, AutoIdVector &props)
 }
 
 bool
-JSCompartment::wrapException(JSContext *cx)
-{
+JSCompartment::wrapException(JSContext *cx) {
     JS_ASSERT(cx->compartment == this);
 
     if (cx->throwing) {
@@ -485,28 +474,29 @@ JSCompartment::sweep(JSContext *cx)
     }
 }
 
-void
-JSCompartment::purge(JSContext *cx)
+static bool
+SetupFakeFrame(JSContext *cx, ExecuteFrameGuard &frame, JSFrameRegs &regs, JSObject *obj)
 {
-#ifdef JS_METHODJIT
-    for (JSScript *script = (JSScript *)scripts.next;
-         &script->links != &scripts;
-         script = (JSScript *)script->links.next) {
-        if (script->jit) {
-# if defined JS_POLYIC
-            mjit::ic::PurgePICs(cx, script);
-# endif
-# if defined JS_MONOIC
-            /*
-             * MICs do not refer to data which can be GC'ed, but are sensitive
-             * to shape regeneration.
-             */
-            if (cx->runtime->gcRegenShapes)
-                mjit::ic::PurgeMICs(cx, script);
-# endif
-        }
-    }
-#endif
+    const uintN vplen = 2;
+    const uintN nfixed = 0;
+    if (!cx->stack().getExecuteFrame(cx, js_GetTopStackFrame(cx), vplen, nfixed, frame))
+        return false;
+
+    Value *vp = frame.getvp();
+    vp[0].setUndefined();
+    vp[1].setNull();  // satisfy LeaveTree assert
+
+    JSStackFrame *fp = frame.getFrame();
+    PodZero(fp);  // fp->fun and fp->script are both NULL
+    fp->argv = vp + 2;
+    fp->scopeChain = obj->getGlobal();
+    fp->flags = JSFRAME_DUMMY;
+
+    regs.pc = NULL;
+    regs.sp = fp->slots();
+
+    cx->stack().pushExecuteFrame(cx, frame, regs, NULL);
+    return true;
 }
 
 AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
@@ -514,6 +504,7 @@ AutoCompartment::AutoCompartment(JSContext *cx, JSObject *target)
       origin(cx->compartment),
       target(target),
       destination(target->getCompartment(cx)),
+      statics(cx),
       input(cx),
       entered(false)
 {
@@ -530,15 +521,14 @@ AutoCompartment::enter()
 {
     JS_ASSERT(!entered);
     if (origin != destination) {
-        LeaveTrace(context);
         context->compartment = destination;
-        JSObject *scopeChain = target->getGlobal();
         frame.construct();
-        if (!context->stack().pushDummyFrame(context, *scopeChain, &frame.ref())) {
+        if (!SetupFakeFrame(context, frame.ref(), regs, target)) {
             frame.destroy();
             context->compartment = origin;
             return false;
         }
+        js_SaveAndClearRegExpStatics(context, &statics, &input);
     }
     entered = true;
     return true;
@@ -549,6 +539,7 @@ AutoCompartment::leave()
 {
     JS_ASSERT(entered);
     if (origin != destination) {
+        js_RestoreRegExpStatics(context, &statics);
         frame.destroy();
         context->compartment = origin;
         origin->wrapException(context);
@@ -773,6 +764,9 @@ JSCrossCompartmentWrapper::call(JSContext *cx, JSObject *wrapper, uintN argc, Va
         if (!call.destination->wrap(cx, &argv[n]))
             return false;
     }
+    Value *fakevp = call.getvp();
+    fakevp[0] = vp[0];
+    fakevp[1] = vp[1];
     if (!JSWrapper::call(cx, wrapper, argc, vp))
         return false;
 
@@ -792,6 +786,8 @@ JSCrossCompartmentWrapper::construct(JSContext *cx, JSObject *wrapper, uintN arg
         if (!call.destination->wrap(cx, &argv[n]))
             return false;
     }
+    Value *vp = call.getvp();
+    vp[0] = ObjectValue(*call.target);
     if (!JSWrapper::construct(cx, wrapper, argc, argv, rval))
         return false;
 

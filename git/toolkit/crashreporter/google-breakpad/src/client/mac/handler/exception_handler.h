@@ -114,22 +114,11 @@ class ExceptionHandler {
 
   // Writes a minidump immediately.  This can be used to capture the
   // execution state independently of a crash.  Returns true on success.
-  bool WriteMinidump() {
-    return WriteMinidump(false);
-  }
-
-  bool WriteMinidump(bool write_exception_stream);
+  bool WriteMinidump();
 
   // Convenience form of WriteMinidump which does not require an
   // ExceptionHandler instance.
   static bool WriteMinidump(const string &dump_path, MinidumpCallback callback,
-                            void *callback_context) {
-    return WriteMinidump(dump_path, false, callback, callback_context);
-  }
-
-  static bool WriteMinidump(const string &dump_path,
-                            bool write_exception_stream,
-                            MinidumpCallback callback,
                             void *callback_context);
 
   // Write a minidump of child immediately. This can be used to capture
@@ -160,14 +149,13 @@ class ExceptionHandler {
   // thread
   bool Teardown();
 
-  // Send a mach message to the exception handler.  Return true on
-  // success, false otherwise.
-  bool SendMessageToHandlerThread(mach_msg_id_t message_id);
+  // Send an "empty" mach message to the exception handler.  Return true on
+  // success, false otherwise
+  bool SendEmptyMachMessage();
 
   // All minidump writing goes through this one routine
   bool WriteMinidumpWithException(int exception_type, int exception_code,
-                                  int exception_subcode, mach_port_t thread_name,
-                                  bool exit_after_write);
+                                  int exception_subcode, mach_port_t thread_name);
 
   // When installed, this static function will be call from a newly created
   // pthread with |this| as the argument

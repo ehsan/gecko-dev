@@ -60,7 +60,7 @@
 
 #define STRING_TO_ATOM(str)       (JS_ASSERT(str->isAtomized()),             \
                                    (JSAtom *)str)
-#define ATOM_TO_STRING(atom)      ((JSString *)(atom))
+#define ATOM_TO_STRING(atom)      ((JSString *)atom)
 #define ATOM_TO_JSVAL(atom)       STRING_TO_JSVAL(ATOM_TO_STRING(atom))
 
 /* Engine-internal extensions of jsid */
@@ -340,7 +340,6 @@ struct JSAtomState
     JSAtom              *ignoreCaseAtom;
     JSAtom              *indexAtom;
     JSAtom              *inputAtom;
-    JSAtom              *toISOStringAtom;
     JSAtom              *iteratorAtom;
     JSAtom              *joinAtom;
     JSAtom              *lastIndexAtom;
@@ -368,7 +367,6 @@ struct JSAtomState
     JSAtom              *configurableAtom;
     JSAtom              *writableAtom;
     JSAtom              *valueAtom;
-    JSAtom              *testAtom;
     JSAtom              *useStrictAtom;
 
 #if JS_HAS_XML_SUPPORT
@@ -525,7 +523,6 @@ extern const char   js_enumerable_str[];
 extern const char   js_configurable_str[];
 extern const char   js_writable_str[];
 extern const char   js_value_str[];
-extern const char   js_test_str[];
 
 /*
  * Initialize atom state. Return true on success, false on failure to allocate

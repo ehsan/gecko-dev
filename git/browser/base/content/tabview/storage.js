@@ -51,7 +51,7 @@ let Storage = {
   // ----------
   // Function: init
   // Sets up the object.
-  init: function Storage_init() {
+  init: function() {
     this._sessionStore =
       Cc["@mozilla.org/browser/sessionstore;1"].
         getService(Ci.nsISessionStore);
@@ -59,14 +59,14 @@ let Storage = {
 
   // ----------
   // Function: uninit
-  uninit: function Storage_uninit () {
+  uninit : function() {
     this._sessionStore = null;
   },
 
   // ----------
   // Function: wipe
   // Cleans out all the stored data, leaving empty objects.
-  wipe: function Storage_wipe() {
+  wipe: function() {
     try {
       var self = this;
 
@@ -92,7 +92,7 @@ let Storage = {
   // ----------
   // Function: saveTab
   // Saves the data for a single tab.
-  saveTab: function Storage_saveTab(tab, data) {
+  saveTab: function(tab, data) {
     Utils.assert(tab, "tab");
 
     this._sessionStore.setTabValue(tab, this.TAB_DATA_IDENTIFIER,
@@ -102,7 +102,7 @@ let Storage = {
   // ----------
   // Function: getTabData
   // Returns the data object associated with a single tab.
-  getTabData: function Storage_getTabData(tab) {
+  getTabData: function(tab) {
     Utils.assert(tab, "tab");
 
     var existingData = null;
@@ -122,7 +122,7 @@ let Storage = {
   // ----------
   // Function: saveGroupItem
   // Saves the data for a single groupItem, associated with a specific window.
-  saveGroupItem: function Storage_saveGroupItem(win, data) {
+  saveGroupItem: function(win, data) {
     var id = data.id;
     var existingData = this.readGroupItemData(win);
     existingData[id] = data;
@@ -133,7 +133,7 @@ let Storage = {
   // ----------
   // Function: deleteGroupItem
   // Deletes the data for a single groupItem from the given window.
-  deleteGroupItem: function Storage_deleteGroupItem(win, id) {
+  deleteGroupItem: function(win, id) {
     var existingData = this.readGroupItemData(win);
     delete existingData[id];
     this._sessionStore.setWindowValue(win, this.GROUP_DATA_IDENTIFIER,
@@ -143,7 +143,7 @@ let Storage = {
   // ----------
   // Function: readGroupItemData
   // Returns the data for all groupItems associated with the given window.
-  readGroupItemData: function Storage_readGroupItemData(win) {
+  readGroupItemData: function(win) {
     var existingData = {};
     try {
       existingData = JSON.parse(
@@ -159,35 +159,35 @@ let Storage = {
   // ----------
   // Function: saveGroupItemsData
   // Saves the global data for the <GroupItems> singleton for the given window.
-  saveGroupItemsData: function Storage_saveGroupItemsData(win, data) {
+  saveGroupItemsData: function(win, data) {
     this.saveData(win, this.GROUPS_DATA_IDENTIFIER, data);
   },
 
   // ----------
   // Function: readGroupItemsData
   // Reads the global data for the <GroupItems> singleton for the given window.
-  readGroupItemsData: function Storage_readGroupItemsData(win) {
+  readGroupItemsData: function(win) {
     return this.readData(win, this.GROUPS_DATA_IDENTIFIER);
   },
 
   // ----------
   // Function: saveUIData
   // Saves the global data for the <UIManager> singleton for the given window.
-  saveUIData: function Storage_saveUIData(win, data) {
+  saveUIData: function(win, data) {
     this.saveData(win, this.UI_DATA_IDENTIFIER, data);
   },
 
   // ----------
   // Function: readUIData
   // Reads the global data for the <UIManager> singleton for the given window.
-  readUIData: function Storage_readUIData(win) {
+  readUIData: function(win) {
     return this.readData(win, this.UI_DATA_IDENTIFIER);
   },
 
   // ----------
   // Function: saveData
   // Generic routine for saving data to a window.
-  saveData: function Storage_saveData(win, id, data) {
+  saveData: function(win, id, data) {
     try {
       this._sessionStore.setWindowValue(win, id, JSON.stringify(data));
     } catch (e) {
@@ -198,7 +198,7 @@ let Storage = {
   // ----------
   // Function: readData
   // Generic routine for reading data from a window.
-  readData: function Storage_readData(win, id) {
+  readData: function(win, id) {
     var existingData = {};
     try {
       var data = this._sessionStore.getWindowValue(win, id);

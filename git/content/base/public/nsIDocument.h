@@ -64,7 +64,6 @@
 #endif // MOZ_SMIL
 #include "nsIScriptGlobalObject.h"
 #include "nsIDocumentEncoder.h"
-#include "nsIAnimationFrameListener.h"
 
 class nsIContent;
 class nsPresContext;
@@ -120,8 +119,8 @@ class Element;
 
 
 #define NS_IDOCUMENT_IID      \
-{ 0x73d79167, 0xacba, 0x46eb, \
-  { 0xad, 0x45, 0xa3, 0x4b, 0x92, 0xf6, 0x01, 0x5b } }
+{ 0x0218352e, 0x9ddf, 0x43b0, \
+  { 0xb6, 0x1d, 0xd3, 0x1a, 0x47, 0x7a, 0xfd, 0x89 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -160,7 +159,6 @@ public:
       // unless we get a window, and in that case the docshell value will get
       // &&-ed in, this is safe.
       mAllowDNSPrefetch(PR_TRUE),
-      mIsBeingUsedAsImage(PR_FALSE),
       mPartID(0)
   {
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
@@ -1149,19 +1147,6 @@ public:
     return !mParentDocument && !mDisplayDocument;
   }
 
-  PRBool IsBeingUsedAsImage() const {
-    return mIsBeingUsedAsImage;
-  }
-
-  void SetIsBeingUsedAsImage() {
-    mIsBeingUsedAsImage = PR_TRUE;
-  }
-
-  PRBool IsResourceDoc() const {
-    return IsBeingUsedAsImage() || // Are we a helper-doc for an SVG image?
-      !!mDisplayDocument;          // Are we an external resource doc?
-  }
-
   /**
    * Get the document for which this document is an external resource.  This
    * will be null if this document is not an external resource.  Otherwise,
@@ -1307,20 +1292,6 @@ public:
   PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
 
   /**
-   * Returns PR_TRUE if this document is allowed to contain XUL element and
-   * use non-builtin XBL bindings.
-   */
-  PRBool AllowXULXBL() {
-    return mAllowXULXBL == eTriTrue ? PR_TRUE :
-           mAllowXULXBL == eTriFalse ? PR_FALSE :
-           InternalAllowXULXBL();
-  }
-
-  void ForceEnableXULXBL() {
-    mAllowXULXBL = eTriTrue;
-  }
-
-  /**
    * PR_TRUE when this document is a static clone of a normal document.
    * For example print preview and printing use static documents.
    */
@@ -1420,13 +1391,12 @@ public:
   virtual nsISupports* GetCurrentContentSink() = 0;
 
   /**
-   * Register/Unregister a filedata uri as being "owned" by this document. 
-   * I.e. that its lifetime is connected with this document. When the document
-   * goes away it should "kill" the uri by calling
+   * Register a filedata uri as being "owned" by this document. I.e. that its
+   * lifetime is connected with this document. When the document goes away it
+   * should "kill" the uri by calling
    * nsFileDataProtocolHandler::RemoveFileDataEntry
    */
-  virtual void RegisterFileDataUri(const nsACString& aUri) = 0;
-  virtual void UnregisterFileDataUri(const nsACString& aUri) = 0;
+  virtual void RegisterFileDataUri(nsACString& aUri) = 0;
 
   virtual void SetScrollToRef(nsIURI *aDocumentURI) = 0;
   virtual void ScrollToRef() = 0;
@@ -1450,18 +1420,11 @@ public:
    */
   virtual Element* LookupImageElement(const nsAString& aElementId) = 0;
 
-  void ScheduleBeforePaintEvent(nsIAnimationFrameListener* aListener);
+  void ScheduleBeforePaintEvent();
   void BeforePaintEventFiring()
   {
     mHavePendingPaint = PR_FALSE;
   }
-
-  typedef nsTArray< nsCOMPtr<nsIAnimationFrameListener> > AnimationListenerList;
-  /**
-   * Put this documents animation frame listeners into the provided
-   * list, and forget about them.
-   */
-  void TakeAnimationFrameListeners(AnimationListenerList& aListeners);
 
   // This returns true when the document tree is being teared down.
   PRBool InUnlinkOrDeletion() { return mInUnlinkOrDeletion; }
@@ -1506,9 +1469,6 @@ protected:
 
   // Never ever call this. Only call GetScriptHandlingObject!
   virtual nsIScriptGlobalObject* GetScriptHandlingObjectInternal() const = 0;
-
-  // Never ever call this. Only call AllowXULXBL!
-  virtual PRBool InternalAllowXULXBL() = 0;
 
   /**
    * These methods should be called before and after dispatching
@@ -1593,12 +1553,6 @@ protected:
   PRPackedBool mIsRegularHTML;
   PRPackedBool mIsXUL;
 
-  enum {
-    eTriUnset = 0,
-    eTriFalse,
-    eTriTrue
-  } mAllowXULXBL;
-
   // True if we're loaded as data and therefor has any dangerous stuff, such
   // as scripts and plugins, disabled.
   PRPackedBool mLoadedAsData;
@@ -1640,9 +1594,6 @@ protected:
 
   // True if we're waiting for a before-paint event.
   PRPackedBool mHavePendingPaint;
-
-  // True if we're an SVG document being used as an image.
-  PRPackedBool mIsBeingUsedAsImage;
 
   // The document's script global object, the object from which the
   // document can get its script context and scope. This is the
@@ -1698,8 +1649,6 @@ protected:
   nsPIDOMWindow *mWindow;
 
   nsCOMPtr<nsIDocumentEncoder> mCachedEncoder;
-
-  AnimationListenerList mAnimationFrameListeners;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)

@@ -66,9 +66,7 @@ SECTION_RODATA macro
                .const
                endm
 
-HIDDEN_DATA macro v
-    exitm <v>
-endm
+HIDDEN_DATA textequ <>
 
 .686p
 .XMM

@@ -6,8 +6,3 @@ input, textarea, select, button,
 input[required]:required {
   visibility: visible;
 }
-
-/* Override the default style. */
-:invalid {
-  box-shadow: none;
-}

@@ -555,22 +555,6 @@ NS_IMETHODIMP nsImageLoadingContent::ForceReload()
  * Non-interface methods
  */
 
-void
-nsImageLoadingContent::NotifyOwnerDocumentChanged(nsIDocument *aOldDoc)
-{
-  // If we had a document before, unregister ourselves with it.
-  if (aOldDoc) {
-    if (mCurrentRequest)
-      aOldDoc->RemoveImage(mCurrentRequest);
-    if (mPendingRequest)
-      aOldDoc->RemoveImage(mPendingRequest);
-  }
-
-  // Re-track the images
-  TrackImage(mCurrentRequest);
-  TrackImage(mPendingRequest);
-}
-
 nsresult
 nsImageLoadingContent::LoadImage(const nsAString& aNewURI,
                                  PRBool aForce,
@@ -983,9 +967,6 @@ nsImageLoadingContent::SetBlockingOnload(PRBool aBlocking)
 nsresult
 nsImageLoadingContent::TrackImage(imgIRequest* aImage)
 {
-  if (!aImage)
-    return NS_OK;
-
   nsIDocument* doc = GetOurDocument();
   if (doc)
     return doc->AddImage(aImage);
@@ -995,9 +976,6 @@ nsImageLoadingContent::TrackImage(imgIRequest* aImage)
 nsresult
 nsImageLoadingContent::UntrackImage(imgIRequest* aImage)
 {
-  if (!aImage)
-    return NS_OK;
-
   // If GetOurDocument() returns null here, we've outlived our document.
   // That's fine, because the document empties out the tracker and unlocks
   // all locked images on destruction.
@@ -1012,7 +990,6 @@ void
 nsImageLoadingContent::CreateStaticImageClone(nsImageLoadingContent* aDest) const
 {
   aDest->mCurrentRequest = nsContentUtils::GetStaticRequest(mCurrentRequest);
-  aDest->TrackImage(aDest->mCurrentRequest);
   aDest->mForcedImageState = mForcedImageState;
   aDest->mImageBlockingStatus = mImageBlockingStatus;
   aDest->mLoadingEnabled = mLoadingEnabled;

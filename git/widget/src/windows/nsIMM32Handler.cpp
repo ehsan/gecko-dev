@@ -318,8 +318,8 @@ nsIMM32Handler::CommitComposition(nsWindow* aWindow, PRBool aForce)
   }
   nsIMEContext IMEContext(aWindow->GetWindowHandle());
   if (IMEContext.IsValid()) {
-    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_COMPLETE, 0);
-    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_COMPLETE, NULL);
+    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, NULL);
   }
 }
 
@@ -339,7 +339,7 @@ nsIMM32Handler::CancelComposition(nsWindow* aWindow, PRBool aForce)
   }
   nsIMEContext IMEContext(aWindow->GetWindowHandle());
   if (IMEContext.IsValid()) {
-    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, 0);
+    ::ImmNotifyIME(IMEContext.get(), NI_COMPOSITIONSTR, CPS_CANCEL, NULL);
   }
 }
 
@@ -991,7 +991,8 @@ nsIMM32Handler::OnIMESetContextOnPlugin(nsWindow* aWindow,
   // Dispatch message to the plug-in.
   // XXX When a windowless plug-in gets focus, we should send
   //     WM_IME_SETCONTEXT
-  aWindow->DispatchPluginEvent(WM_IME_SETCONTEXT, wParam, lParam, PR_FALSE);
+  PRBool handled =
+    aWindow->DispatchPluginEvent(WM_IME_SETCONTEXT, wParam, lParam, PR_FALSE);
 
   // We should send WM_IME_SETCONTEXT to the DefWndProc here.  It shouldn't
   // be received on ancestor windows, see OnIMESetContext() for the detail.
@@ -1045,8 +1046,7 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
     "HandleStartComposition should not be called when a plug-in has focus");
 
   nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, aWindow);
-  nsIntPoint point(0, 0);
-  aWindow->InitEvent(selection, &point);
+  aWindow->InitEvent(selection, &nsIntPoint(0, 0));
   aWindow->DispatchWindowEvent(&selection);
   if (!selection.mSucceeded) {
     PR_LOG(gIMM32Log, PR_LOG_ALWAYS,
@@ -1057,6 +1057,7 @@ nsIMM32Handler::HandleStartComposition(nsWindow* aWindow,
   mCompositionStart = selection.mReply.mOffset;
 
   nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, aWindow);
+  nsIntPoint point(0, 0);
   aWindow->InitEvent(event, &point);
   aWindow->DispatchWindowEvent(&event);
 
@@ -2119,27 +2120,6 @@ nsIMM32Handler::OnKeyDownEvent(nsWindow* aWindow, WPARAM wParam, LPARAM lParam,
         nsIMEContext IMEContext(aWindow->GetWindowHandle());
         sIsIMEOpening =
           IMEContext.IsValid() && !::ImmGetOpenStatus(IMEContext.get());
-      }
-      return PR_FALSE;
-    case VK_TAB:
-    case VK_PRIOR:
-    case VK_NEXT:
-    case VK_END:
-    case VK_HOME:
-    case VK_LEFT:
-    case VK_UP:
-    case VK_RIGHT:
-    case VK_DOWN:
-      // If IME didn't process the key message (the virtual key code wasn't
-      // converted to VK_PROCESSKEY), and the virtual key code event causes
-      // to move caret, we should cancel the composition here.  Then, this
-      // event will be dispatched.
-      // XXX I think that we should dispatch all key events during composition,
-      //     and nsEditor should cancel/commit the composition if it *thinks*
-      //     it's needed.
-      if (IsComposingOnOurEditor()) {
-        // NOTE: We don't need to cancel the composition on another window.
-        CancelComposition(aWindow, PR_FALSE);
       }
       return PR_FALSE;
     default:

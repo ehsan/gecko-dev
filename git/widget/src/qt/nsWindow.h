@@ -130,16 +130,6 @@ public:
                               nsIAppShell      *aAppShell,
                               nsIToolkit       *aToolkit,
                               nsWidgetInitData *aInitData);
-
-    virtual already_AddRefed<nsIWidget>
-    CreateChild(const nsIntRect&  aRect,
-                EVENT_CALLBACK    aHandleEventFunction,
-                nsIDeviceContext* aContext,
-                nsIAppShell*      aAppShell = nsnull,
-                nsIToolkit*       aToolkit = nsnull,
-                nsWidgetInitData* aInitData = nsnull,
-                PRBool            aForceUseIWidgetParent = PR_TRUE);
-
     NS_IMETHOD         Destroy(void);
     NS_IMETHOD         SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
@@ -200,6 +190,7 @@ public:
 
     NS_IMETHODIMP      SetIMEEnabled(PRUint32 aState);
     NS_IMETHODIMP      GetIMEEnabled(PRUint32* aState);
+    NS_IMETHOD         SetAcceleratedRendering(PRBool aEnabled);
 
     //
     // utility methods
@@ -314,6 +305,7 @@ protected:
 
     void               ThemeChanged(void);
 
+    virtual LayerManager* GetLayerManager();
     gfxASurface*       GetThebesSurface();
 
 private:

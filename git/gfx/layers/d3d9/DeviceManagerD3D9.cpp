@@ -41,8 +41,6 @@
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 #include "nsPrintfCString.h"
-#include "nsIPrefService.h" 
-#include "Nv3DVUtils.h"
 
 namespace mozilla {
 namespace layers {
@@ -181,7 +179,6 @@ SwapChainD3D9::Reset()
 
 DeviceManagerD3D9::DeviceManagerD3D9()
   : mHasDynamicTextures(false)
-  , mDeviceWasRemoved(false)
 {
 }
 
@@ -189,9 +186,6 @@ DeviceManagerD3D9::~DeviceManagerD3D9()
 {
   LayerManagerD3D9::OnDeviceManagerDestroy(this);
 }
-
-NS_IMPL_ADDREF(DeviceManagerD3D9)
-NS_IMPL_RELEASE(DeviceManagerD3D9)
 
 bool
 DeviceManagerD3D9::Init()
@@ -218,19 +212,6 @@ DeviceManagerD3D9::Init()
     NS_WARNING("Failed to create DeviceManagerD3D9 Window.");
     return false;
   }
-
-  /* Create an Nv3DVUtils instance */ 
-  if (!mNv3DVUtils) { 
-    mNv3DVUtils = new Nv3DVUtils(); 
-    if (!mNv3DVUtils) { 
-      NS_WARNING("Could not create a new instance of Nv3DVUtils.\n"); 
-    } 
-  } 
-
-  /* Initialize the Nv3DVUtils object */ 
-  if (mNv3DVUtils) { 
-    mNv3DVUtils->Initialize(); 
-  } 
 
   HMODULE d3d9 = LoadLibraryW(L"d3d9.dll");
   Direct3DCreate9Func d3d9Create = (Direct3DCreate9Func)
@@ -285,7 +266,7 @@ DeviceManagerD3D9::Init()
     }
 
     D3DCAPS9 caps;
-    if (mDeviceEx && mDeviceEx->GetDeviceCaps(&caps)) {
+    if (mDeviceEx->GetDeviceCaps(&caps)) {
       if (LACKS_CAP(caps.Caps2, D3DCAPS2_DYNAMICTEXTURES)) {
         // XXX - Should we actually hit this we'll need a CanvasLayer that
         // supports static D3DPOOL_DEFAULT textures.
@@ -317,17 +298,6 @@ DeviceManagerD3D9::Init()
     return false;
   }
 
-  /* 
-   * Do some post device creation setup 
-   */ 
-  if (mNv3DVUtils) { 
-    IUnknown* devUnknown = NULL; 
-    if (mDevice) { 
-      mDevice->QueryInterface(IID_IUnknown, (void **)&devUnknown); 
-    } 
-    mNv3DVUtils->SetDeviceInfo(devUnknown); 
-  } 
-
   hr = mDevice->CreateVertexShader((DWORD*)LayerQuadVS,
                                    getter_AddRefs(mLayerVS));
 
@@ -337,13 +307,6 @@ DeviceManagerD3D9::Init()
 
   hr = mDevice->CreatePixelShader((DWORD*)RGBShaderPS,
                                   getter_AddRefs(mRGBPS));
-
-  if (FAILED(hr)) {
-    return false;
-  }
-
-  hr = mDevice->CreatePixelShader((DWORD*)RGBAShaderPS,
-                                  getter_AddRefs(mRGBAPS));
 
   if (FAILED(hr)) {
     return false;
@@ -439,9 +402,6 @@ DeviceManagerD3D9::SetupRenderState()
   mDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
   mDevice->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_ONE);
   mDevice->SetRenderState(D3DRS_SCISSORTESTENABLE, TRUE);
-  mDevice->SetRenderState(D3DRS_SRCBLENDALPHA, D3DBLEND_ONE);
-  mDevice->SetRenderState(D3DRS_DESTBLENDALPHA, D3DBLEND_INVSRCALPHA);
-  mDevice->SetRenderState(D3DRS_BLENDOPALPHA, D3DBLENDOP_ADD);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(1, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
@@ -470,10 +430,6 @@ DeviceManagerD3D9::SetShaderMode(ShaderMode aMode)
       mDevice->SetVertexShader(mLayerVS);
       mDevice->SetPixelShader(mRGBPS);
       break;
-    case RGBALAYER:
-      mDevice->SetVertexShader(mLayerVS);
-      mDevice->SetPixelShader(mRGBAPS);
-      break;
     case YCBCRLAYER:
       mDevice->SetVertexShader(mLayerVS);
       mDevice->SetPixelShader(mYCbCrPS);
@@ -493,13 +449,6 @@ DeviceManagerD3D9::VerifyReadyForRendering()
   if (SUCCEEDED(hr)) {
     if (IsD3D9Ex()) {
       hr = mDeviceEx->CheckDeviceState(mFocusWnd);
-
-      if (hr == D3DERR_DEVICEREMOVED) {
-        mDeviceWasRemoved = true;
-        LayerManagerD3D9::OnDeviceManagerDestroy(this);
-        return false;
-      }
-
       if (FAILED(hr)) {
         D3DPRESENT_PARAMETERS pp;
         memset(&pp, 0, sizeof(D3DPRESENT_PARAMETERS));
@@ -513,6 +462,7 @@ DeviceManagerD3D9::VerifyReadyForRendering()
         pp.hDeviceWindow = mFocusWnd;
         
         hr = mDeviceEx->ResetEx(&pp, NULL);
+        // Handle D3DERR_DEVICEREMOVED!
         if (FAILED(hr)) {
           return false;
         }
@@ -521,8 +471,12 @@ DeviceManagerD3D9::VerifyReadyForRendering()
     return true;
   }
 
-  for(unsigned int i = 0; i < mLayersWithResources.Length(); i++) {
-    mLayersWithResources[i]->CleanResources();
+  if (hr != D3DERR_DEVICENOTRESET) {
+    return false;
+  }
+
+  for(unsigned int i = 0; i < mThebesLayers.Length(); i++) {
+    mThebesLayers[i]->CleanResources();
   }
   for(unsigned int i = 0; i < mSwapChains.Length(); i++) {
     mSwapChains[i]->Reset();
@@ -541,13 +495,7 @@ DeviceManagerD3D9::VerifyReadyForRendering()
 
   hr = mDevice->Reset(&pp);
 
-  if (hr == D3DERR_DEVICELOST) {
-    return false;
-  }
-
   if (FAILED(hr)) {
-    mDeviceWasRemoved = true;
-    LayerManagerD3D9::OnDeviceManagerDestroy(this);
     return false;
   }
 

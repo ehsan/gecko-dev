@@ -43,10 +43,6 @@
 #include "base/string_util.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/process_watcher.h"
-#ifdef XP_MACOSX
-#include "chrome/common/mach_ipc_mac.h"
-#include "base/rand_util.h"
-#endif
 
 #include "prprf.h"
 
@@ -87,9 +83,6 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
     mChannelInitialized(false),
     mDelegate(aDelegate),
     mChildProcessHandle(0)
-#if defined(XP_MACOSX)
-  , mChildTask(MACH_PORT_NULL)
-#endif
 {
     MOZ_COUNT_CTOR(GeckoChildProcessHost);
     
@@ -112,11 +105,6 @@ GeckoChildProcessHost::~GeckoChildProcessHost()
                                             , false // don't "force"
 #endif
     );
-
-#if defined(XP_MACOSX)
-  if (mChildTask != MACH_PORT_NULL)
-    mach_port_deallocate(mach_task_self(), mChildTask);
-#endif
 }
 
 #ifdef XP_WIN
@@ -312,6 +300,7 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
 #endif
 
   childArgv.push_back(pidstring);
+  childArgv.push_back(childProcessType);
 
 #if defined(MOZ_CRASHREPORTER)
 #  if defined(OS_LINUX)
@@ -333,63 +322,11 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
 #  endif  // OS_LINUX
 #endif
 
-#ifdef XP_MACOSX
-  // Add a mach port to the command line so the child can communicate its
-  // 'task_t' back to the parent.
-  //
-  // Put a random number into the channel name, so that a compromised renderer
-  // can't pretend being the child that's forked off.
-  std::string mach_connection_name = StringPrintf("org.mozilla.machname.%d",
-                                                  base::RandInt(0, std::numeric_limits<int>::max()));
-  childArgv.push_back(mach_connection_name.c_str());
-#endif
-
-  childArgv.push_back(childProcessType);
-
   base::LaunchApp(childArgv, mFileMap,
 #if defined(OS_LINUX) || defined(OS_MACOSX)
                   newEnvVars,
 #endif
                   false, &process);
-
-#ifdef XP_MACOSX
-  // Wait for the child process to send us its 'task_t' data.
-  const int kTimeoutMs = 1000;
-
-  MachReceiveMessage child_message;
-  ReceivePort parent_recv_port(mach_connection_name.c_str());
-  kern_return_t err = parent_recv_port.WaitForMessage(&child_message, kTimeoutMs);
-  if (err != KERN_SUCCESS) {
-    std::string errString = StringPrintf("0x%x %s", err, mach_error_string(err));
-    LOG(ERROR) << "parent WaitForMessage() failed: " << errString;
-    return false;
-  }
-
-  task_t child_task = child_message.GetTranslatedPort(0);
-  if (child_task == MACH_PORT_NULL) {
-    LOG(ERROR) << "parent GetTranslatedPort(0) failed.";
-    return false;
-  }
-
-  if (child_message.GetTranslatedPort(1) == MACH_PORT_NULL) {
-    LOG(ERROR) << "parent GetTranslatedPort(1) failed.";
-    return false;
-  }
-  MachPortSender parent_sender(child_message.GetTranslatedPort(1));
-
-  MachSendMessage parent_message(/* id= */0);
-  if (!parent_message.AddDescriptor(bootstrap_port)) {
-    LOG(ERROR) << "parent AddDescriptor(" << bootstrap_port << ") failed.";
-    return false;
-  }
-
-  err = parent_sender.SendMessage(parent_message, kTimeoutMs);
-  if (err != KERN_SUCCESS) {
-    std::string errString = StringPrintf("0x%x %s", err, mach_error_string(err));
-    LOG(ERROR) << "parent SendMessage() failed: " << errString;
-    return false;
-  }
-#endif
 
 //--------------------------------------------------
 #elif defined(OS_WIN)
@@ -423,13 +360,11 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
 #endif
 
   cmdLine.AppendLooseValue(UTF8ToWide(pidstring));
-
+  cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 #if defined(MOZ_CRASHREPORTER)
   cmdLine.AppendLooseValue(
     UTF8ToWide(CrashReporter::GetChildNotificationPipe()));
 #endif
-
-  cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 
   base::LaunchApp(cmdLine, false, false, &process);
 
@@ -441,9 +376,6 @@ GeckoChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts)
     return false;
   }
   SetHandle(process);
-#if defined(XP_MACOSX)
-  mChildTask = child_task;
-#endif
 
   return true;
 }

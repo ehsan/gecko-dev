@@ -161,8 +161,8 @@ public:
                    // not used (must be FARTHEST_CORNER) for linear shape
   PRPackedBool mRepeating;
 
-  nsStyleCoord mBgPosX; // percent, coord, calc, none
-  nsStyleCoord mBgPosY; // percent, coord, calc, none
+  nsStyleCoord mBgPosX; // percent, coord, none
+  nsStyleCoord mBgPosY; // percent, coord, none
   nsStyleCoord mAngle;  // none, angle
 
   // stops are in the order specified in the stylesheet
@@ -349,18 +349,12 @@ struct nsStyleBackground {
   struct Position;
   friend struct Position;
   struct Position {
-    struct PositionCoord {
-      // A 'background-position' can be a linear combination of length
-      // and percent (thanks to calc(), which can combine them).
-      nscoord mLength;
-      float   mPercent;
-
-      bool operator==(const PositionCoord& aOther) const
-        { return mLength == aOther.mLength && mPercent == aOther.mPercent; }
-      bool operator!=(const PositionCoord& aOther) const
-        { return !(*this == aOther); }
-    };
+    typedef union {
+      nscoord mCoord; // for lengths
+      float   mFloat; // for percents
+    } PositionCoord;
     PositionCoord mXPosition, mYPosition;
+    PRPackedBool mXIsPercent, mYIsPercent;
 
     // Initialize nothing
     Position() {}
@@ -371,14 +365,19 @@ struct nsStyleBackground {
     // True if the effective background image position described by this depends
     // on the size of the corresponding frame.
     PRBool DependsOnFrameSize() const {
-      return mXPosition.mPercent != 0.0f || mYPosition.mPercent != 0.0f;
+      return (mXIsPercent && mXPosition.mFloat != 0.0f) ||
+             (mYIsPercent && mYPosition.mFloat != 0.0f);
     }
 
-    bool operator==(const Position& aOther) const {
-      return mXPosition == aOther.mXPosition &&
-             mYPosition == aOther.mYPosition;
+    PRBool operator==(const Position& aOther) const {
+      return mXIsPercent == aOther.mXIsPercent &&
+             (mXIsPercent ? (mXPosition.mFloat == aOther.mXPosition.mFloat)
+                          : (mXPosition.mCoord == aOther.mXPosition.mCoord)) &&
+             mYIsPercent == aOther.mYIsPercent &&
+             (mYIsPercent ? (mYPosition.mFloat == aOther.mYPosition.mFloat)
+                          : (mYPosition.mCoord == aOther.mYPosition.mCoord));
     }
-    bool operator!=(const Position& aOther) const {
+    PRBool operator!=(const Position& aOther) const {
       return !(*this == aOther);
     }
   };
@@ -386,31 +385,25 @@ struct nsStyleBackground {
   struct Size;
   friend struct Size;
   struct Size {
-    struct Dimension {
-      // A 'background-size' can be a linear combination of length
-      // and percent (thanks to calc(), which can combine them).
-      nscoord mLength;
-      float   mPercent;
-
-      bool operator==(const Dimension& aOther) const
-        { return mLength == aOther.mLength && mPercent == aOther.mPercent; }
-      bool operator!=(const Dimension& aOther) const
-        { return !(*this == aOther); }
-    };
+    typedef union {
+      nscoord mCoord; // for lengths
+      float mFloat; // for percents
+    } Dimension;
     Dimension mWidth, mHeight;
 
-    // Except for eLengthPercentage, Dimension types which might change
-    // how a layer is painted when the corresponding frame's dimensions
-    // change *must* precede all dimension types which are agnostic to
-    // frame size; see DependsOnFrameSize below.
+    // Dimension types which might change how a layer is painted when the
+    // corresponding frame's dimensions change *must* precede all dimension
+    // types which are agnostic to frame size; see DependsOnFrameSize below.
     enum DimensionType {
       // If one of mWidth and mHeight is eContain or eCover, then both are.
       // Also, these two values must equal the corresponding values in
       // kBackgroundSizeKTable.
       eContain, eCover,
 
+      ePercentage,
+
       eAuto,
-      eLengthPercentage,
+      eLength,
       eDimensionType_COUNT
     };
     PRUint8 mWidthType, mHeightType;
@@ -423,13 +416,9 @@ struct nsStyleBackground {
     // -moz-element also depends on the frame size when the dimensions
     // are 'auto' since it could be an SVG gradient or pattern which
     // behaves exactly like a CSS gradient.
-    bool DependsOnFrameSize(nsStyleImageType aType) const {
-      if ((mWidthType == eLengthPercentage && mWidth.mPercent != 0.0f) ||
-          (mHeightType == eLengthPercentage && mHeight.mPercent != 0.0f)) {
-        return true;
-      }
+    PRBool DependsOnFrameSize(nsStyleImageType aType) const {
       if (aType == eStyleImageType_Image) {
-        return mWidthType <= eCover || mHeightType <= eCover;
+        return mWidthType <= ePercentage || mHeightType <= ePercentage;
       } else {
         NS_ABORT_IF_FALSE(aType == eStyleImageType_Gradient ||
                           aType == eStyleImageType_Element,
@@ -444,8 +433,8 @@ struct nsStyleBackground {
     // Initialize to initial values
     void SetInitialValues();
 
-    bool operator==(const Size& aOther) const;
-    bool operator!=(const Size& aOther) const {
+    PRBool operator==(const Size& aOther) const;
+    PRBool operator!=(const Size& aOther) const {
       return !(*this == aOther);
     }
   };
@@ -569,7 +558,7 @@ struct nsStyleMargin {
 #endif
   static PRBool ForceCompare() { return PR_TRUE; }
 
-  nsStyleSides  mMargin;          // [reset] coord, percent, calc, auto
+  nsStyleSides  mMargin;          // [reset] coord, percent, auto
 
   PRBool GetMargin(nsMargin& aMargin) const
   {
@@ -603,7 +592,7 @@ struct nsStylePadding {
 #endif
   static PRBool ForceCompare() { return PR_TRUE; }
 
-  nsStyleSides  mPadding;         // [reset] coord, percent, calc
+  nsStyleSides  mPadding;         // [reset] coord, percent
 
   PRBool GetPadding(nsMargin& aPadding) const
   {
@@ -760,7 +749,7 @@ struct nsStyleBorder {
   static PRBool ForceCompare() { return PR_FALSE; }
   PRBool ImageBorderDiffers() const;
 
-  nsStyleCorners mBorderRadius;    // [reset] coord, percent, calc
+  nsStyleCorners mBorderRadius;    // [reset] coord, percent
   nsStyleSides  mBorderImageSplit; // [reset] integer, percent
   PRUint8       mFloatEdge;       // [reset] see nsStyleConsts.h
   PRUint8       mBorderImageHFill; // [reset]
@@ -879,11 +868,6 @@ struct nsStyleBorder {
   inline void SetBorderImage(imgIRequest* aImage);
   inline imgIRequest* GetBorderImage() const;
 
-  bool HasBorderImage() {return !!mBorderImage;}
-
-  void TrackImage(nsPresContext* aContext);
-  void UntrackImage(nsPresContext* aContext);
-
   // These methods are used for the caller to caches the sub images created during
   // a border-image paint operation
   inline void SetSubImage(PRUint8 aIndex, imgIContainer* aSubImage) const;
@@ -919,10 +903,6 @@ struct nsStyleBorder {
     mBorderStyle[aSide] |= BORDER_COLOR_FOREGROUND;
   }
 
-#ifdef DEBUG
-  bool mImageTracked;
-#endif
-
 protected:
   // mComputedBorder holds the CSS2.1 computed border-width values.  In
   // particular, these widths take into account the border-style for the
@@ -956,8 +936,6 @@ private:
   nsCOMArray<imgIContainer> mSubImages;
 
   nscoord       mTwipsPerPixel;
-
-  nsStyleBorder& operator=(const nsStyleBorder& aOther); // Not to be implemented
 };
 
 
@@ -983,7 +961,7 @@ struct nsStyleOutline {
 #endif
   static PRBool ForceCompare() { return PR_FALSE; }
 
-  nsStyleCorners  mOutlineRadius; // [reset] coord, percent, calc
+  nsStyleCorners  mOutlineRadius; // [reset] coord, percent
 
   // Note that this is a specified value.  You can get the actual values
   // with GetOutlineWidth.  You cannot get the computed value directly.
@@ -1107,13 +1085,13 @@ struct nsStylePosition {
 #endif
   static PRBool ForceCompare() { return PR_TRUE; }
 
-  nsStyleSides  mOffset;                // [reset] coord, percent, calc, auto
-  nsStyleCoord  mWidth;                 // [reset] coord, percent, enum, calc, auto
-  nsStyleCoord  mMinWidth;              // [reset] coord, percent, enum, calc
-  nsStyleCoord  mMaxWidth;              // [reset] coord, percent, enum, calc, none
-  nsStyleCoord  mHeight;                // [reset] coord, percent, calc, auto
-  nsStyleCoord  mMinHeight;             // [reset] coord, percent, calc
-  nsStyleCoord  mMaxHeight;             // [reset] coord, percent, calc, none
+  nsStyleSides  mOffset;                // [reset] coord, percent, auto
+  nsStyleCoord  mWidth;                 // [reset] coord, percent, enum, auto
+  nsStyleCoord  mMinWidth;              // [reset] coord, percent, enum
+  nsStyleCoord  mMaxWidth;              // [reset] coord, percent, enum, none
+  nsStyleCoord  mHeight;                // [reset] coord, percent, auto
+  nsStyleCoord  mMinHeight;             // [reset] coord, percent
+  nsStyleCoord  mMaxHeight;             // [reset] coord, percent, none
   PRUint8       mBoxSizing;             // [reset] see nsStyleConsts.h
   nsStyleCoord  mZIndex;                // [reset] integer, auto
 
@@ -1123,13 +1101,6 @@ struct nsStylePosition {
     { return WidthCoordDependsOnContainer(mMinWidth); }
   PRBool MaxWidthDependsOnContainer() const
     { return WidthCoordDependsOnContainer(mMaxWidth); }
-
-  // Note that these functions count 'auto' as depending on the
-  // container since that's the case for absolutely positioned elements.
-  // However, some callers do not care about this case and should check
-  // for it, since it is the most common case.
-  // FIXME: We should probably change the assumption to be the other way
-  // around.
   PRBool HeightDependsOnContainer() const
     { return HeightCoordDependsOnContainer(mHeight); }
   PRBool MinHeightDependsOnContainer() const
@@ -1137,17 +1108,12 @@ struct nsStylePosition {
   PRBool MaxHeightDependsOnContainer() const
     { return HeightCoordDependsOnContainer(mMaxHeight); }
 
-  PRBool OffsetHasPercent(mozilla::css::Side aSide) const
-  {
-    return mOffset.Get(aSide).HasPercent();
-  }
-
 private:
   static PRBool WidthCoordDependsOnContainer(const nsStyleCoord &aCoord);
   static PRBool HeightCoordDependsOnContainer(const nsStyleCoord &aCoord)
   {
     return aCoord.GetUnit() == eStyleUnit_Auto || // CSS 2.1, 10.6.4, item (5)
-           aCoord.HasPercent();
+           aCoord.GetUnit() == eStyleUnit_Percent;
   }
 };
 
@@ -1173,7 +1139,7 @@ struct nsStyleTextReset {
   PRUint8 mTextDecoration;              // [reset] see nsStyleConsts.h
   PRUint8 mUnicodeBidi;                 // [reset] see nsStyleConsts.h
 
-  nsStyleCoord  mVerticalAlign;         // [reset] coord, percent, calc, enum (see nsStyleConsts.h)
+  nsStyleCoord  mVerticalAlign;         // [reset] coord, percent, enum (see nsStyleConsts.h)
 };
 
 struct nsStyleText {
@@ -1203,7 +1169,7 @@ struct nsStyleText {
 
   nsStyleCoord  mLetterSpacing;         // [inherited] coord, normal
   nsStyleCoord  mLineHeight;            // [inherited] coord, factor, normal
-  nsStyleCoord  mTextIndent;            // [inherited] coord, percent, calc
+  nsStyleCoord  mTextIndent;            // [inherited] coord, percent
   nscoord mWordSpacing;                 // [inherited]
 
   nsRefPtr<nsCSSShadowArray> mTextShadow; // [inherited] NULL in case of a zero-length
@@ -1385,7 +1351,7 @@ struct nsStyleDisplay {
   // null, as appropriate.) (owned by the style rule)
   const nsCSSValueList *mSpecifiedTransform; // [reset]
   nsStyleTransformMatrix mTransform; // [reset] The stored transform matrix
-  nsStyleCoord mTransformOrigin[2]; // [reset] percent, coord, calc
+  nsStyleCoord mTransformOrigin[2]; // [reset] percent, coord.
 
   nsAutoTArray<nsTransition, 1> mTransitions; // [reset]
   // The number of elements in mTransitions that are not from repeating

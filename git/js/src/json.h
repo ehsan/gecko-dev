@@ -40,10 +40,7 @@
 /*
  * JS JSON functions.
  */
-#include "jsprvtd.h"
-#include "jspubtd.h"
-#include "jsvalue.h"
-#include "jsvector.h"
+#include "jsscan.h"
 
 #define JSON_MAX_DEPTH  2048
 #define JSON_PARSER_BUFSIZE 1024
@@ -67,26 +64,23 @@ enum JSONParserState {
     /* JSON fully processed, expecting only trailing whitespace. */
     JSON_PARSE_STATE_FINISHED,
 
+    /* Unused: to be removed in bug 564621. */
+    JSON_PARSE_STATE_OBJECT_VALUE,
+
     /* Start of JSON value. */
     JSON_PARSE_STATE_VALUE,
 
-    /* Start of first key/value pair in object, or at }. */
-    JSON_PARSE_STATE_OBJECT_INITIAL_PAIR,
+    /* In object, at start of pair, at comma, or at closing brace. */
+    JSON_PARSE_STATE_OBJECT,
 
-    /* Start of subsequent key/value pair in object, after delimiting comma. */
+    /* At start of pair within object, or at closing brace. */
     JSON_PARSE_STATE_OBJECT_PAIR,
 
     /* At : in key/value pair in object. */
     JSON_PARSE_STATE_OBJECT_IN_PAIR,
 
-    /* Immediately after key/value pair in object: at , or }. */
-    JSON_PARSE_STATE_OBJECT_AFTER_PAIR,
-
-    /* Start of first element of array or at ]. */
-    JSON_PARSE_STATE_ARRAY_INITIAL_VALUE,
-
-    /* Immediately after element in array: at , or ]. */
-    JSON_PARSE_STATE_ARRAY_AFTER_ELEMENT,
+    /* In array, at start of element, at comma, or at closing bracket. */
+    JSON_PARSE_STATE_ARRAY,
 
 
     /* The following states allow no leading whitespace. */
@@ -117,28 +111,10 @@ enum JSONDataType {
 struct JSONParser;
 
 extern JSONParser *
-js_BeginJSONParse(JSContext *cx, js::Value *rootVal, bool suppressErrors = false);
+js_BeginJSONParse(JSContext *cx, js::Value *rootVal);
 
-/* Aargh, Windows. */
-#ifdef STRICT
-#undef STRICT
-#endif
-#ifdef LEGACY
-#undef LEGACY
-#endif
-
-/*
- * The type of JSON decoding to perform.  Strict decoding is to-the-spec;
- * legacy decoding accepts a few non-JSON syntaxes historically accepted by the
- * implementation.  (Full description of these deviations is deliberately
- * omitted.)  New users should use strict decoding rather than legacy decoding,
- * as legacy decoding might be removed at a future time.
- */
-enum DecodingMode { STRICT, LEGACY };
-
-extern JS_FRIEND_API(JSBool)
-js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len,
-                   DecodingMode decodingMode = STRICT);
+extern JSBool
+js_ConsumeJSONText(JSContext *cx, JSONParser *jp, const jschar *data, uint32 len);
 
 extern bool
 js_FinishJSONParse(JSContext *cx, JSONParser *jp, const js::Value &reviver);

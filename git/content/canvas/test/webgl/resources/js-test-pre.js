@@ -34,7 +34,7 @@ function initNonKhronosFramework(waitUntilDone) {
   }
 }
 
-function nonKhronosFrameworkNotifyDone() {
+function nonKhronosFrameworkNotifyIfDone() {
   if (window.layoutTestController) {
     layoutTestController.notifyDone();
   }

@@ -88,7 +88,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsIContentPolicy.h"
-#include "nsIDocumentViewer.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentErrors.h"
 #include "nsIDOMProcessingInstruction.h"
@@ -387,9 +386,9 @@ nsXMLContentSink::OnDocumentCreated(nsIDocument* aResultDocument)
 
   nsCOMPtr<nsIContentViewer> contentViewer;
   mDocShell->GetContentViewer(getter_AddRefs(contentViewer));
-  nsCOMPtr<nsIDocumentViewer> docViewer = do_QueryInterface(contentViewer);
-  if (docViewer) {
-    return docViewer->SetDocumentInternal(aResultDocument, PR_TRUE);
+  if (contentViewer) {
+    nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(aResultDocument);
+    return contentViewer->SetDOMDocument(doc);
   }
   return NS_OK;
 }
@@ -447,7 +446,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
                                  mDocument->IndexOf(rootElement));
     mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
   }
-
+  
   // Start the layout process
   StartLayout(PR_FALSE);
 
@@ -1087,10 +1086,6 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
     // This isn't the root and we're not inside an XHTML <head>.
     // Might need to start layout
     MaybeStartLayout(PR_FALSE);
-  }
-
-  if (content == mDocElement) {
-    NotifyDocElementCreated(mDocument);
   }
 
   return aInterruptable && NS_SUCCEEDED(result) ? DidProcessATokenImpl() :

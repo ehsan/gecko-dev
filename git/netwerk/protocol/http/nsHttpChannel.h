@@ -55,6 +55,8 @@
 #include "nsICacheEntryDescriptor.h"
 #include "nsICacheListener.h"
 #include "nsIApplicationCacheChannel.h"
+#include "nsIEncodedChannel.h"
+#include "nsIStringEnumerator.h"
 #include "nsIPrompt.h"
 #include "nsIResumableChannel.h"
 #include "nsIProtocolProxyCallback.h"
@@ -65,7 +67,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 
 class nsAHttpConnection;
-class AutoRedirectVetoNotifier;
 
 using namespace mozilla::net;
 
@@ -77,13 +78,13 @@ class nsHttpChannel : public HttpBaseChannel
                     , public nsIStreamListener
                     , public nsICachingChannel
                     , public nsICacheListener
+                    , public nsIEncodedChannel
                     , public nsITransportEventSink
                     , public nsIProtocolProxyCallback
                     , public nsIHttpAuthenticableChannel
                     , public nsITraceableChannel
                     , public nsIApplicationCacheChannel
                     , public nsIAsyncVerifyRedirectCallback
-                    , public nsIHttpChannelParentInternal
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
@@ -92,6 +93,7 @@ public:
     NS_DECL_NSICACHEINFOCHANNEL
     NS_DECL_NSICACHINGCHANNEL
     NS_DECL_NSICACHELISTENER
+    NS_DECL_NSIENCODEDCHANNEL
     NS_DECL_NSITRANSPORTEVENTSINK
     NS_DECL_NSIPROTOCOLPROXYCALLBACK
     NS_DECL_NSIPROXIEDCHANNEL
@@ -99,7 +101,6 @@ public:
     NS_DECL_NSIAPPLICATIONCACHECONTAINER
     NS_DECL_NSIAPPLICATIONCACHECHANNEL
     NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
-    NS_DECL_NSIHTTPCHANNELPARENTINTERNAL
 
     // nsIHttpAuthenticableChannel. We can't use
     // NS_DECL_NSIHTTPAUTHENTICABLECHANNEL because it duplicates cancel() and
@@ -146,6 +147,7 @@ public:
 public: /* internal necko use only */ 
     typedef void (nsHttpChannel:: *nsAsyncCallback)(void);
     nsHttpResponseHead * GetResponseHead() const { return mResponseHead; }
+    void SetRemoteChannel(bool aRemote) { mRemoteChannel = aRemote; }
     void InternalSetUploadStream(nsIInputStream *uploadStream) 
       { mUploadStream = uploadStream; }
     void SetUploadStreamHasHeaders(PRBool hasHeaders) 
@@ -176,6 +178,7 @@ private:
     void     HandleAsyncNotifyListener();
     void     DoNotifyListener();
     nsresult SetupTransaction();
+    nsresult ApplyContentConversions();
     nsresult CallOnStartRequest();
     nsresult ProcessResponse();
     nsresult ContinueProcessResponse(nsresult);
@@ -213,16 +216,7 @@ private:
     nsresult ResolveProxy();
 
     // cache specific methods
-    nsresult OpenCacheEntry();
-    nsresult OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
-                                          nsCacheAccessMode aAccess,
-                                          nsresult aResult,
-                                          PRBool aSync);
-    nsresult OpenNormalCacheEntry(PRBool aSync);
-    nsresult OnNormalCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
-                                         nsCacheAccessMode aAccess,
-                                         nsresult aResult,
-                                         PRBool aSync);
+    nsresult OpenCacheEntry(PRBool offline, PRBool *delayed);
     nsresult OpenOfflineCacheEntryForWriting();
     nsresult GenerateCacheKey(PRUint32 postID, nsACString &key);
     nsresult UpdateExpirationTime();
@@ -240,7 +234,6 @@ private:
     nsresult InstallOfflineCacheListener();
     void     MaybeInvalidateCacheEntryForSubsequentGet();
     nsCacheStoragePolicy DetermineStoragePolicy();
-    nsresult DetermineCacheAccess(nsCacheAccessMode *_retval);
     void     AsyncOnExamineCachedResponse();
 
     // Handle the bogus Content-Encoding Apache sometimes sends
@@ -253,18 +246,6 @@ private:
 
     nsresult DoAuthRetry(nsAHttpConnection *);
     PRBool   MustValidateBasedOnQueryUrl();
-
-    void     HandleAsyncRedirectChannelToHttps();
-    nsresult AsyncRedirectChannelToHttps();
-    nsresult ContinueAsyncRedirectChannelToHttps(nsresult rv);
-
-    /**
-     * A function that takes care of reading STS headers and enforcing STS 
-     * load rules.  After a secure channel is erected, STS requires the channel
-     * to be trusted or any STS header data on the channel is ignored.
-     * This is called from ProcessResponse.
-     */
-    nsresult ProcessSTSHeader();
 
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;
@@ -282,11 +263,6 @@ private:
     nsCacheAccessMode                 mCacheAccess;
     PRUint32                          mPostID;
     PRUint32                          mRequestTime;
-
-    typedef nsresult (nsHttpChannel:: *nsOnCacheEntryAvailableCallback)(
-        nsICacheEntryDescriptor *, nsCacheAccessMode, nsresult, PRBool);
-    nsOnCacheEntryAvailableCallback   mOnCacheEntryAvailableCallback;
-    PRBool                            mAsyncCacheOpen;
 
     nsCOMPtr<nsICacheEntryDescriptor> mOfflineCacheEntry;
     nsCacheAccessMode                 mOfflineCacheAccess;
@@ -312,12 +288,12 @@ private:
     // cache entry.
     nsCString                         mFallbackKey;
 
-    friend class AutoRedirectVetoNotifier;
     nsCOMPtr<nsIURI>                  mRedirectURI;
     nsCOMPtr<nsIChannel>              mRedirectChannel;
     PRUint32                          mRedirectType;
 
     // state flags
+    PRUint32                          mApplyConversion          : 1;
     PRUint32                          mCachedContentIsValid     : 1;
     PRUint32                          mCachedContentIsPartial   : 1;
     PRUint32                          mTransactionReplaced      : 1;
@@ -343,6 +319,30 @@ private:
     // True if mRequestTime has been set. In such a case it is safe to update
     // the cache entry's expiration time. Otherwise, it is not(see bug 567360).
     PRUint32                          mRequestTimeInitialized : 1;
+
+    class nsContentEncodings : public nsIUTF8StringEnumerator
+    {
+    public:
+        NS_DECL_ISUPPORTS
+        NS_DECL_NSIUTF8STRINGENUMERATOR
+
+        nsContentEncodings(nsIHttpChannel* aChannel, const char* aEncodingHeader);
+        virtual ~nsContentEncodings();
+        
+    private:
+        nsresult PrepareForNext(void);
+        
+        // We do not own the buffer.  The channel owns it.
+        const char* mEncodingHeader;
+        const char* mCurStart;  // points to start of current header
+        const char* mCurEnd;  // points to end of current header
+        
+        // Hold a ref to our channel so that it can't go away and take the
+        // header with it.
+        nsCOMPtr<nsIHttpChannel> mChannel;
+        
+        PRPackedBool mReady;
+    };
 
     nsTArray<nsContinueRedirectionFunc> mRedirectFuncStack;
 

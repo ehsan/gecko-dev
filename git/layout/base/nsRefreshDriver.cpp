@@ -51,42 +51,21 @@
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "jsapi.h"
-#include "nsContentUtils.h"
+
+/*
+ * TODO:
+ * Once this is hooked in to suppressing updates when the presentation
+ * is not visible, we need to hook it up to FlushPendingNotifications so
+ * that we flush when necessary.
+ */
+
+#define REFRESH_INTERVAL_MILLISECONDS 20
 
 using mozilla::TimeStamp;
 
-#define DEFAULT_FRAME_RATE 60
-#define DEFAULT_THROTTLED_FRAME_RATE 1
-
-// Compute the interval to use for the refresh driver timer, in
-// milliseconds
-static PRInt32
-GetRefreshTimerInterval(bool aThrottled)
-{
-  const char* prefName =
-    aThrottled ? "layout.throttled_frame_rate" : "layout.frame_rate";
-  PRInt32 rate = nsContentUtils::GetIntPref(prefName, -1);
-  if (rate <= 0) {
-    // TODO: get the rate from the platform
-    rate = aThrottled ? DEFAULT_THROTTLED_FRAME_RATE : DEFAULT_FRAME_RATE;
-  }
-  NS_ASSERTION(rate > 0, "Must have positive rate here");
-  return NSToIntRound(1000.0/rate);
-}
-
-static PRInt32
-GetRefreshTimerType()
-{
-  PRBool precise =
-    nsContentUtils::GetBoolPref("layout.frame_rate.precise", PR_FALSE);
-  return precise ? (PRInt32)nsITimer::TYPE_REPEATING_PRECISE
-                 : (PRInt32)nsITimer::TYPE_REPEATING_SLACK;
-}
-
 nsRefreshDriver::nsRefreshDriver(nsPresContext *aPresContext)
   : mPresContext(aPresContext),
-    mFrozen(false),
-    mThrottled(false)
+    mFrozen(PR_FALSE)
 {
 }
 
@@ -149,9 +128,8 @@ nsRefreshDriver::EnsureTimerStarted()
     return;
   }
 
-  nsresult rv = mTimer->InitWithCallback(this,
-                                         GetRefreshTimerInterval(mThrottled),
-                                         GetRefreshTimerType());
+  nsresult rv = mTimer->InitWithCallback(this, REFRESH_INTERVAL_MILLISECONDS,
+                                         nsITimer::TYPE_REPEATING_SLACK);
   if (NS_FAILED(rv)) {
     mTimer = nsnull;
   }
@@ -175,14 +153,9 @@ nsRefreshDriver::ObserverCount() const
   for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(mObservers); ++i) {
     sum += mObservers[i].Length();
   }
-  // Even while throttled, we need to process layout and style changes.  Style
-  // changes can trigger transitions which fire events when they complete, and
-  // layout changes can affect media queries on child documents, triggering
-  // style changes, etc.
   sum += mStyleFlushObservers.Length();
   sum += mLayoutFlushObservers.Length();
   sum += mBeforePaintTargets.Length();
-  sum += mAnimationFrameListenerDocs.Length();
   return sum;
 }
 
@@ -264,29 +237,14 @@ nsRefreshDriver::Notify(nsITimer * /* unused */)
       // target as needed.
       nsTArray<nsIDocument*> targets;
       targets.SwapElements(mBeforePaintTargets);
+      PRInt64 eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
       for (PRUint32 i = 0; i < targets.Length(); ++i) {
         targets[i]->BeforePaintEventFiring();
       }
-
-      // Also grab all of our animation frame listeners up front.
-      nsIDocument::AnimationListenerList animationListeners;
-      for (PRUint32 i = 0; i < mAnimationFrameListenerDocs.Length(); ++i) {
-        mAnimationFrameListenerDocs[i]->
-          TakeAnimationFrameListeners(animationListeners);
-      }
-      // OK, now reset mAnimationFrameListenerDocs so they can be
-      // readded as needed.
-      mAnimationFrameListenerDocs.Clear();
-
-      PRInt64 eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
       for (PRUint32 i = 0; i < targets.Length(); ++i) {
         nsEvent ev(PR_TRUE, NS_BEFOREPAINT);
         ev.time = eventTime;
         nsEventDispatcher::Dispatch(targets[i], nsnull, &ev);
-      }
-
-      for (PRUint32 i = 0; i < animationListeners.Length(); ++i) {
-        animationListeners[i]->OnBeforePaint(eventTime);
       }
 
       // This is the Flush_Style case.
@@ -320,31 +278,17 @@ nsRefreshDriver::Freeze()
 {
   NS_ASSERTION(!mFrozen, "Freeze called on already-frozen refresh driver");
   StopTimer();
-  mFrozen = true;
+  mFrozen = PR_TRUE;
 }
 
 void
 nsRefreshDriver::Thaw()
 {
   NS_ASSERTION(mFrozen, "Thaw called on an unfrozen refresh driver");
-  mFrozen = false;
+  mFrozen = PR_FALSE;
   if (ObserverCount()) {
     NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsRefreshDriver::DoRefresh));
     EnsureTimerStarted();
-  }
-}
-
-void
-nsRefreshDriver::SetThrottled(bool aThrottled)
-{
-  if (aThrottled != mThrottled) {
-    mThrottled = aThrottled;
-    if (mTimer) {
-      // Stopping and restarting the timer would update our most recent refresh
-      // time, which isn't quite right.  Luckily, we can just reschedule the
-      // timer.
-      mTimer->SetDelay(GetRefreshTimerInterval(mThrottled));
-    }
   }
 }
 
@@ -379,23 +323,7 @@ nsRefreshDriver::ScheduleBeforePaintEvent(nsIDocument* aDocument)
 }
 
 void
-nsRefreshDriver::ScheduleAnimationFrameListeners(nsIDocument* aDocument)
-{
-  NS_ASSERTION(mAnimationFrameListenerDocs.IndexOf(aDocument) ==
-               mAnimationFrameListenerDocs.NoIndex,
-               "Don't schedule the same document multiple times");
-  mAnimationFrameListenerDocs.AppendElement(aDocument);
-  EnsureTimerStarted();
-}
-
-void
 nsRefreshDriver::RevokeBeforePaintEvent(nsIDocument* aDocument)
 {
   mBeforePaintTargets.RemoveElement(aDocument);
-}
-
-void
-nsRefreshDriver::RevokeAnimationFrameListeners(nsIDocument* aDocument)
-{
-  mAnimationFrameListenerDocs.RemoveElement(aDocument);
 }

@@ -77,8 +77,8 @@ class nsIArray;
 class nsPIWindowRoot;
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x8d8be7db, 0xffaa, 0x4962, \
-  { 0xa7, 0x27, 0xb7, 0x0f, 0xc9, 0xfa, 0xd3, 0x0e } }
+{ 0x4beac1da, 0x513e, 0x4a8b, \
+  { 0x96, 0x94, 0x1c, 0xf6, 0x4f, 0xba, 0xa8, 0x1c } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -373,8 +373,7 @@ public:
    * created.
    */
   virtual nsresult SetNewDocument(nsIDocument *aDocument,
-                                  nsISupports *aState,
-                                  PRBool aForceReuseInnerWindow) = 0;
+                                  nsISupports *aState) = 0;
 
   /**
    * Set the opener window.  aOriginalOpener is true if and only if this is the
@@ -429,24 +428,6 @@ public:
   {
     mMayHaveTouchEventListener = PR_TRUE;
     MaybeUpdateTouchState();
-  }
-
-  /**
-   * Call this to check whether some node (this window, its document,
-   * or content in that document) has a MozAudioAvailable event listener.
-   */
-  PRBool HasAudioAvailableEventListeners()
-  {
-    return mMayHaveAudioAvailableEventListener;
-  }
-
-  /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a MozAudioAvailable event listener.
-   */
-  void SetHasAudioAvailableEventListeners()
-  {
-    mMayHaveAudioAvailableEventListener = PR_TRUE;
   }
 
   /**
@@ -547,13 +528,6 @@ public:
    */
   virtual nsresult SetArguments(nsIArray *aArguments, nsIPrincipal *aOrigin) = 0;
 
-  /**
-   * NOTE! This function *will* be called on multiple threads so the
-   * implementation must not do any AddRef/Release or other actions that will
-   * mutate internal state.
-   */
-  virtual PRUint32 GetSerial() = 0;
-
 protected:
   // The nsPIDOMWindow constructor. The aOuterWindow argument should
   // be null if and only if the created window itself is an outer
@@ -595,7 +569,6 @@ protected:
   PRPackedBool           mIsInnerWindow;
   PRPackedBool           mMayHavePaintEventListener;
   PRPackedBool           mMayHaveTouchEventListener;
-  PRPackedBool           mMayHaveAudioAvailableEventListener;
 
   // This variable is used on both inner and outer windows (and they
   // should match).

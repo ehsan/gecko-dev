@@ -51,798 +51,740 @@ Narcissus.parser = (function() {
     // Set constants in the local scope.
     eval(definitions.consts);
 
-    /*
-     * Function.prototype.bind is not yet implemented in many browsers.
-     * The following definition will be removed when it is.
-     *
-     * Similar to Prototype's implementation.
-     */
-
-    function bindMethod(method, context) {
-        if (arguments.length < 3 && arguments[0] === undefined)
-            return method;
-        var slice = Array.prototype.slice;
-        var args = slice.call(arguments, 2);
-        // Optimization for when there's no currying.
-        if (args.length === 0) {
-            return function() {
-                return method.apply(context, arguments);
-            }
-        }
-
-        return function() {
-            var a = slice.call(args, 0);
-            for (var i = 0, j = arguments.length; i < j; i++) {
-                a.push(arguments[i]);
-            }
-            return method.apply(context, a);
-        }
+   /*
+    * The vanilla AST builder.
+    */
+    function VanillaBuilder() {
     }
 
-    function bindSubBuilders(builder, proto) {
-        for (var ns in proto) {
-            var unbound = proto[ns];
-            // We do not want to bind functions like setHoists.
-            if (typeof unbound !== "object")
-                continue;
-
-            /*
-             * We store the bound sub-builder as builder's own property
-             * so that we can have multiple builders at the same time.
-             */
-            var bound = builder[ns] = {};
-            for (var m in unbound) {
-                bound[m] = bindMethod(unbound[m], builder);
-            }
-        }
-    }
-
-    /*
-     * The vanilla AST builder.
-     */
-
-    function DefaultBuilder() {
-        bindSubBuilders(this, DefaultBuilder.prototype);
-    }
-
-    function pushDestructuringVarDecls(n, x) {
-        for (var i in n) {
-            var sub = n[i];
-            if (sub.type === IDENTIFIER) {
-                x.varDecls.push(sub);
-            } else {
-                pushDestructuringVarDecls(sub, x);
-            }
-        }
-    }
-
-    function mkBinopBuilder(type) {
-        return {
-            build: !type ? function(t) { return new Node(t); }
-                          : function(t) { return new Node(t, type); },
-            addOperand: function(n, n2) { n.push(n2); },
-            finish: function(n) { }
-        };
-    }
-
-    DefaultBuilder.prototype = {
-        IF: {
-            build: function(t) {
-                return new Node(t, IF);
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setThenPart: function(n, s) {
-                n.thenPart = s;
-            },
-
-            setElsePart: function(n, s) {
-                n.elsePart = s;
-            },
-
-            finish: function(n) {
-            }
+    VanillaBuilder.prototype = {
+        IF$build: function(t) {
+            return new Node(t, IF);
         },
 
-        SWITCH: {
-            build: function(t) {
-                var n = new Node(t, SWITCH);
-                n.cases = [];
-                n.defaultIndex = -1;
-                return n;
-            },
-
-            setDiscriminant: function(n, e) {
-                n.discriminant = e;
-            },
-
-            setDefaultIndex: function(n, i) {
-                n.defaultIndex = i;
-            },
-
-            addCase: function(n, n2) {
-                n.cases.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        IF$setCondition: function(n, e) {
+            n.condition = e;
         },
 
-        CASE: {
-            build: function(t) {
-                return new Node(t, CASE);
-            },
-
-            setLabel: function(n, e) {
-                n.caseLabel = e;
-            },
-
-            initializeStatements: function(n, t) {
-                n.statements = new Node(t, BLOCK);
-            },
-
-            addStatement: function(n, s) {
-                n.statements.push(s);
-            },
-
-            finish: function(n) {
-            }
+        IF$setThenPart: function(n, s) {
+            n.thenPart = s;
         },
 
-        DEFAULT: {
-            build: function(t, p) {
-                return new Node(t, DEFAULT);
-            },
-
-            initializeStatements: function(n, t) {
-                n.statements = new Node(t, BLOCK);
-            },
-
-            addStatement: function(n, s) {
-                n.statements.push(s);
-            },
-
-            finish: function(n) {
-            }
+        IF$setElsePart: function(n, s) {
+            n.elsePart = s;
         },
 
-        FOR: {
-            build: function(t) {
-                var n = new Node(t, FOR);
-                n.isLoop = true;
-                n.isEach = false;
-                return n;
-            },
-
-            rebuildForEach: function(n) {
-                n.isEach = true;
-            },
-
-            // NB. This function is called after rebuildForEach, if that's called
-            // at all.
-            rebuildForIn: function(n) {
-                n.type = FOR_IN;
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setSetup: function(n, e) {
-                n.setup = e || null;
-            },
-
-            setUpdate: function(n, e) {
-                n.update = e;
-            },
-
-            setObject: function(n, e) {
-                n.object = e;
-            },
-
-            setIterator: function(n, e, e2) {
-                n.iterator = e;
-                n.varDecl = e2;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
+        IF$finish: function(n) {
         },
 
-        WHILE: {
-            build: function(t) {
-                var n = new Node(t, WHILE);
-                n.isLoop = true;
-                return n;
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
+        SWITCH$build: function(t) {
+            var n = new Node(t, SWITCH);
+            n.cases = [];
+            n.defaultIndex = -1;
+            return n;
         },
 
-        DO: {
-            build: function(t) {
-                var n = new Node(t, DO);
-                n.isLoop = true;
-                return n;
-            },
-
-            setCondition: function(n, e) {
-                n.condition = e;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
+        SWITCH$setDiscriminant: function(n, e) {
+            n.discriminant = e;
         },
 
-        BREAK: {
-            build: function(t) {
-                return new Node(t, BREAK);
-            },
-
-            setLabel: function(n, v) {
-                n.label = v;
-            },
-
-            setTarget: function(n, n2) {
-                n.target = n2;
-            },
-
-            finish: function(n) {
-            }
+        SWITCH$setDefaultIndex: function(n, i) {
+            n.defaultIndex = i;
         },
 
-        CONTINUE: {
-            build: function(t) {
-                return new Node(t, CONTINUE);
-            },
-
-            setLabel: function(n, v) {
-                n.label = v;
-            },
-
-            setTarget: function(n, n2) {
-                n.target = n2;
-            },
-
-            finish: function(n) {
-            }
+        SWITCH$addCase: function(n, n2) {
+            n.cases.push(n2);
         },
 
-        TRY: {
-            build: function(t) {
-                var n = new Node(t, TRY);
-                n.catchClauses = [];
-                return n;
-            },
-
-            setTryBlock: function(n, s) {
-                n.tryBlock = s;
-            },
-
-            addCatch: function(n, n2) {
-                n.catchClauses.push(n2);
-            },
-
-            finishCatches: function(n) {
-            },
-
-            setFinallyBlock: function(n, s) {
-                n.finallyBlock = s;
-            },
-
-            finish: function(n) {
-            }
+        SWITCH$finish: function(n) {
         },
 
-        CATCH: {
-            build: function(t) {
-                var n = new Node(t, CATCH);
-                n.guard = null;
-                return n;
-            },
-
-            setVarName: function(n, v) {
-                n.varName = v;
-            },
-
-            setGuard: function(n, e) {
-                n.guard = e;
-            },
-
-            setBlock: function(n, s) {
-                n.block = s;
-            },
-
-            finish: function(n) {
-            }
+        CASE$build: function(t) {
+            return new Node(t, CASE);
         },
 
-        THROW: {
-            build: function(t) {
-                return new Node(t, THROW);
-            },
-
-            setException: function(n, e) {
-                n.exception = e;
-            },
-
-            finish: function(n) {
-            }
+        CASE$setLabel: function(n, e) {
+            n.caseLabel = e;
         },
 
-        RETURN: {
-            build: function(t) {
-                var n = new Node(t, RETURN);
-                n.value = undefined;
-                return n;
-            },
-
-            setValue: function(n, e) {
-                n.value = e;
-            },
-
-            finish: function(n) {
-            }
+        CASE$initializeStatements: function(n, t) {
+            n.statements = new Node(t, BLOCK);
         },
 
-        YIELD: {
-            build: function(t) {
-                return new Node(t, YIELD);
-            },
-
-            setValue: function(n, e) {
-                n.value = e;
-            },
-
-            finish: function(n) {
-            }
+        CASE$addStatement: function(n, s) {
+            n.statements.push(s);
         },
 
-        GENERATOR: {
-            build: function(t) {
-                return new Node(t, GENERATOR);
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e;
-            },
-
-            setTail: function(n, n2) {
-                n.tail = n2;
-            },
-
-            finish: function(n) {
-            }
+        CASE$finish: function(n) {
         },
 
-        WITH: {
-            build: function(t) {
-                return new Node(t, WITH);
-            },
-
-            setObject: function(n, e) {
-                n.object = e;
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            finish: function(n) {
-            }
+        DEFAULT$build: function(t, p) {
+            return new Node(t, DEFAULT);
         },
 
-        DEBUGGER: {
-            build: function(t) {
-                return new Node(t, DEBUGGER);
-            }
+        DEFAULT$initializeStatements: function(n, t) {
+            n.statements = new Node(t, BLOCK);
         },
 
-        SEMICOLON: {
-            build: function(t) {
-                return new Node(t, SEMICOLON);
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e;
-            },
-
-            finish: function(n) {
-            }
+        DEFAULT$addStatement: function(n, s) {
+            n.statements.push(s);
         },
 
-        LABEL: {
-            build: function(t) {
-                return new Node(t, LABEL);
-            },
-
-            setLabel: function(n, e) {
-                n.label = e;
-            },
-
-            setStatement: function(n, s) {
-                n.statement = s;
-            },
-
-            finish: function(n) {
-            }
+        DEFAULT$finish: function(n) {
         },
 
-        FUNCTION: {
-            build: function(t) {
-                var n = new Node(t);
-                if (n.type !== FUNCTION)
-                    n.type = (n.value === "get") ? GETTER : SETTER;
-                n.params = [];
-                return n;
-            },
-
-            setName: function(n, v) {
-                n.name = v;
-            },
-
-            addParam: function(n, v) {
-                n.params.push(v);
-            },
-
-            setBody: function(n, s) {
-                n.body = s;
-            },
-
-            hoistVars: function(x) {
-            },
-
-            finish: function(n, x) {
-            }
+        FOR$build: function(t) {
+            var n = new Node(t, FOR);
+            n.isLoop = true;
+            n.isEach = false;
+            return n;
         },
 
-        VAR: {
-            build: function(t) {
-                return new Node(t, VAR);
-            },
-
-            addDestructuringDecl: function(n, n2, x) {
-                n.push(n2);
-                pushDestructuringVarDecls(n2.name.destructuredNames, x);
-            },
-
-            addDecl: function(n, n2, x) {
-                n.push(n2);
-                x.varDecls.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        FOR$rebuildForEach: function(n) {
+            n.isEach = true;
         },
 
-        CONST: {
-            build: function(t) {
-                return new Node(t, CONST);
-            },
-
-            addDestructuringDecl: function(n, n2, x) {
-                n.push(n2);
-                pushDestructuringVarDecls(n2.name.destructuredNames, x);
-            },
-
-            addDecl: function(n, n2, x) {
-                n.push(n2);
-                x.varDecls.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        // NB. This function is called after rebuildForEach, if that's called
+        // at all.
+        FOR$rebuildForIn: function(n) {
+            n.type = FOR_IN;
         },
 
-        LET: {
-            build: function(t) {
-                return new Node(t, LET);
-            },
-
-            addDestructuringDecl: function(n, n2, x) {
-                n.push(n2);
-                pushDestructuringVarDecls(n2.name.destructuredNames, x);
-            },
-
-            addDecl: function(n, n2, x) {
-                n.push(n2);
-                x.varDecls.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        FOR$setCondition: function(n, e) {
+            n.condition = e;
         },
 
-        DECL: {
-            build: function(t) {
-                return new Node(t, IDENTIFIER);
-            },
-
-            setName: function(n, v) {
-                n.name = v;
-            },
-
-            setInitializer: function(n, e) {
-                n.initializer = e;
-            },
-
-            setReadOnly: function(n, b) {
-                n.readOnly = b;
-            },
-
-            finish: function(n) {
-            }
+        FOR$setSetup: function(n, e) {
+            n.setup = e || null;
         },
 
-        LET_BLOCK: {
-            build: function(t) {
-                var n = new Node(t, LET_BLOCK);
-                n.varDecls = [];
-                return n;
-            },
-
-            setVariables: function(n, n2) {
-                n.variables = n2;
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e;
-            },
-
-            setBlock: function(n, s) {
-                n.block = s;
-            },
-
-            finish: function(n) {
-            }
+        FOR$setUpdate: function(n, e) {
+            n.update = e;
         },
 
-        BLOCK: {
-            build: function(t, id) {
-                var n = new Node(t, BLOCK);
-                n.varDecls = [];
-                n.id = id;
-                return n;
-            },
-
-            hoistLets: function(n) {
-            },
-
-            addStatement: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        FOR$setObject: function(n, e) {
+            n.object = e;
         },
 
-        ASSIGN: {
-            build: function(t) {
-                return new Node(t, ASSIGN);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            setAssignOp: function(n, o) {
-                n.assignOp = o;
-            },
-
-            finish: function(n) {
-            }
+        FOR$setIterator: function(n, e, e2) {
+            n.iterator = e;
+            n.varDecl = e2;
         },
 
-        HOOK: {
-            build: function(t) {
-                return new Node(t, HOOK);
-            },
-
-            setCondition: function(n, e) {
-                n[0] = e;
-            },
-
-            setThenPart: function(n, n2) {
-                n[1] = n2;
-            },
-
-            setElsePart: function(n, n2) {
-                n[2] = n2;
-            },
-
-            finish: function(n) {
-            }
+        FOR$setBody: function(n, s) {
+            n.body = s;
         },
 
-        OR: mkBinopBuilder(OR),
-        AND: mkBinopBuilder(AND),
-        BITWISE_OR: mkBinopBuilder(BITWISE_OR),
-        BITWISE_XOR: mkBinopBuilder(BITWISE_XOR),
-        BITWISE_AND: mkBinopBuilder(BITWISE_AND),
-        EQUALITY: mkBinopBuilder(), // EQ | NE | STRICT_EQ | STRICT_NE
-        RELATIONAL: mkBinopBuilder(), // LT | LE | GE | GT
-        SHIFT: mkBinopBuilder(), // LSH | RSH | URSH
-        ADD: mkBinopBuilder(), // PLUS | MINUS
-        MULTIPLY: mkBinopBuilder(), // MUL | DIV | MOD
-
-        UNARY: {
-            // DELETE | VOID | TYPEOF | NOT | BITWISE_NOT
-            // UNARY_PLUS | UNARY_MINUS | INCREMENT | DECREMENT
-            build: function(t) {
-                if (t.token.type === PLUS)
-                    t.token.type = UNARY_PLUS;
-                else if (t.token.type === MINUS)
-                    t.token.type = UNARY_MINUS;
-                return new Node(t);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            setPostfix: function(n) {
-                n.postfix = true;
-            },
-
-            finish: function(n) {
-            }
+        FOR$finish: function(n) {
         },
 
-        MEMBER: {
-            // NEW | DOT | INDEX
-            build: function(t, tt) {
-                return new Node(t, tt);
-            },
-
-            rebuildNewWithArgs: function(n) {
-                n.type = NEW_WITH_ARGS;
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        WHILE$build: function(t) {
+            var n = new Node(t, WHILE);
+            n.isLoop = true;
+            return n;
         },
 
-        PRIMARY: {
-            build: function(t, tt) {
-                // NULL | THIS | TRUE | FALSE | IDENTIFIER | NUMBER
-                // STRING | REGEXP.
-                return new Node(t, tt);
-            },
-
-            finish: function(n) {
-            }
+        WHILE$setCondition: function(n, e) {
+            n.condition = e;
         },
 
-        ARRAY_INIT: {
-            build: function(t) {
-                return new Node(t, ARRAY_INIT);
-            },
-
-            addElement: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        WHILE$setBody: function(n, s) {
+            n.body = s;
         },
 
-        ARRAY_COMP: {
-            build: function(t) {
-                return new Node(t, ARRAY_COMP);
-            },
-
-            setExpression: function(n, e) {
-                n.expression = e
-            },
-
-            setTail: function(n, n2) {
-                n.tail = n2;
-            },
-
-            finish: function(n) {
-            }
+        WHILE$finish: function(n) {
         },
 
-        COMP_TAIL: {
-            build: function(t) {
-                return new Node(t, COMP_TAIL);
-            },
-
-            setGuard: function(n, e) {
-                n.guard = e;
-            },
-
-            addFor: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        DO$build: function(t) {
+            var n = new Node(t, DO);
+            n.isLoop = true;
+            return n;
         },
 
-        OBJECT_INIT: {
-            build: function(t) {
-                return new Node(t, OBJECT_INIT);
-            },
-
-            addProperty: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        DO$setCondition: function(n, e) {
+            n.condition = e;
         },
 
-        PROPERTY_NAME: {
-            build: function(t) {
-                return new Node(t, IDENTIFIER);
-            },
-
-            finish: function(n) {
-            }
+        DO$setBody: function(n, s) {
+            n.body = s;
         },
 
-        PROPERTY_INIT: {
-            build: function(t) {
-                return new Node(t, PROPERTY_INIT);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        DO$finish: function(n) {
         },
 
-        COMMA: {
-            build: function(t) {
-                return new Node(t, COMMA);
-            },
-
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
-
-            finish: function(n) {
-            }
+        BREAK$build: function(t) {
+            return new Node(t, BREAK);
         },
 
-        LIST: {
-            build: function(t) {
-                return new Node(t, LIST);
-            },
+        BREAK$setLabel: function(n, v) {
+            n.label = v;
+        },
 
-            addOperand: function(n, n2) {
-                n.push(n2);
-            },
+        BREAK$setTarget: function(n, n2) {
+            n.target = n2;
+        },
 
-            finish: function(n) {
-            }
+        BREAK$finish: function(n) {
+        },
+
+        CONTINUE$build: function(t) {
+            return new Node(t, CONTINUE);
+        },
+
+        CONTINUE$setLabel: function(n, v) {
+            n.label = v;
+        },
+
+        CONTINUE$setTarget: function(n, n2) {
+            n.target = n2;
+        },
+
+        CONTINUE$finish: function(n) {
+        },
+
+        TRY$build: function(t) {
+            var n = new Node(t, TRY);
+            n.catchClauses = [];
+            return n;
+        },
+
+        TRY$setTryBlock: function(n, s) {
+            n.tryBlock = s;
+        },
+
+        TRY$addCatch: function(n, n2) {
+            n.catchClauses.push(n2);
+        },
+
+        TRY$finishCatches: function(n) {
+        },
+
+        TRY$setFinallyBlock: function(n, s) {
+            n.finallyBlock = s;
+        },
+
+        TRY$finish: function(n) {
+        },
+
+        CATCH$build: function(t) {
+            var n = new Node(t, CATCH);
+            n.guard = null;
+            return n;
+        },
+
+        CATCH$setVarName: function(n, v) {
+            n.varName = v;
+        },
+
+        CATCH$setGuard: function(n, e) {
+            n.guard = e;
+        },
+
+        CATCH$setBlock: function(n, s) {
+            n.block = s;
+        },
+
+        CATCH$finish: function(n) {
+        },
+
+        THROW$build: function(t) {
+            return new Node(t, THROW);
+        },
+
+        THROW$setException: function(n, e) {
+            n.exception = e;
+        },
+
+        THROW$finish: function(n) {
+        },
+
+        RETURN$build: function(t) {
+            return new Node(t, RETURN);
+        },
+
+        RETURN$setValue: function(n, e) {
+            n.value = e;
+        },
+
+        RETURN$finish: function(n) {
+        },
+
+        YIELD$build: function(t) {
+            return new Node(t, YIELD);
+        },
+
+        YIELD$setValue: function(n, e) {
+            n.value = e;
+        },
+
+        YIELD$finish: function(n) {
+        },
+
+        GENERATOR$build: function(t) {
+            return new Node(t, GENERATOR);
+        },
+
+        GENERATOR$setExpression: function(n, e) {
+            n.expression = e;
+        },
+
+        GENERATOR$setTail: function(n, n2) {
+            n.tail = n2;
+        },
+
+        GENERATOR$finish: function(n) {
+        },
+
+        WITH$build: function(t) {
+            return new Node(t, WITH);
+        },
+
+        WITH$setObject: function(n, e) {
+            n.object = e;
+        },
+
+        WITH$setBody: function(n, s) {
+            n.body = s;
+        },
+
+        WITH$finish: function(n) {
+        },
+
+        DEBUGGER$build: function(t) {
+            return new Node(t, DEBUGGER);
+        },
+
+        SEMICOLON$build: function(t) {
+            return new Node(t, SEMICOLON);
+        },
+
+        SEMICOLON$setExpression: function(n, e) {
+            n.expression = e;
+        },
+
+        SEMICOLON$finish: function(n) {
+        },
+
+        LABEL$build: function(t) {
+            return new Node(t, LABEL);
+        },
+
+        LABEL$setLabel: function(n, e) {
+            n.label = e;
+        },
+
+        LABEL$setStatement: function(n, s) {
+            n.statement = s;
+        },
+
+        LABEL$finish: function(n) {
+        },
+
+        FUNCTION$build: function(t) {
+            var n = new Node(t);
+            if (n.type !== FUNCTION)
+                n.type = (n.value === "get") ? GETTER : SETTER;
+            n.params = [];
+            return n;
+        },
+
+        FUNCTION$setName: function(n, v) {
+            n.name = v;
+        },
+
+        FUNCTION$addParam: function(n, v) {
+            n.params.push(v);
+        },
+
+        FUNCTION$setBody: function(n, s) {
+            n.body = s;
+        },
+
+        FUNCTION$hoistVars: function(x) {
+        },
+
+        FUNCTION$finish: function(n, x) {
+        },
+
+        VAR$build: function(t) {
+            return new Node(t, VAR);
+        },
+
+        VAR$addDecl: function(n, n2, x) {
+            n.push(n2);
+        },
+
+        VAR$finish: function(n) {
+        },
+
+        CONST$build: function(t) {
+            return new Node(t, VAR);
+        },
+
+        CONST$addDecl: function(n, n2, x) {
+            n.push(n2);
+        },
+
+        CONST$finish: function(n) {
+        },
+
+        LET$build: function(t) {
+            return new Node(t, LET);
+        },
+
+        LET$addDecl: function(n, n2, x) {
+            n.push(n2);
+        },
+
+        LET$finish: function(n) {
+        },
+
+        DECL$build: function(t) {
+            return new Node(t, IDENTIFIER);
+        },
+
+        DECL$setName: function(n, v) {
+            n.name = v;
+        },
+
+        DECL$setInitializer: function(n, e) {
+            n.initializer = e;
+        },
+
+        DECL$setReadOnly: function(n, b) {
+            n.readOnly = b;
+        },
+
+        DECL$finish: function(n) {
+        },
+
+        LET_BLOCK$build: function(t) {
+            var n = Node(t, LET_BLOCK);
+            n.varDecls = [];
+            return n;
+        },
+
+        LET_BLOCK$setVariables: function(n, n2) {
+            n.variables = n2;
+        },
+
+        LET_BLOCK$setExpression: function(n, e) {
+            n.expression = e;
+        },
+
+        LET_BLOCK$setBlock: function(n, s) {
+            n.block = s;
+        },
+
+        LET_BLOCK$finish: function(n) {
+        },
+
+        BLOCK$build: function(t, id) {
+            var n = new Node(t, BLOCK);
+            n.varDecls = [];
+            n.id = id;
+            return n;
+        },
+
+        BLOCK$hoistLets: function(n) {
+        },
+
+        BLOCK$addStatement: function(n, n2) {
+            n.push(n2);
+        },
+
+        BLOCK$finish: function(n) {
+        },
+
+        EXPRESSION$build: function(t, tt) {
+            return new Node(t, tt);
+        },
+
+        EXPRESSION$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        EXPRESSION$finish: function(n) {
+        },
+
+        ASSIGN$build: function(t) {
+            return new Node(t, ASSIGN);
+        },
+
+        ASSIGN$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        ASSIGN$setAssignOp: function(n, o) {
+            n.assignOp = o;
+        },
+
+        ASSIGN$finish: function(n) {
+        },
+
+        HOOK$build: function(t) {
+            return new Node(t, HOOK);
+        },
+
+        HOOK$setCondition: function(n, e) {
+            n[0] = e;
+        },
+
+        HOOK$setThenPart: function(n, n2) {
+            n[1] = n2;
+        },
+
+        HOOK$setElsePart: function(n, n2) {
+            n[2] = n2;
+        },
+
+        HOOK$finish: function(n) {
+        },
+
+        OR$build: function(t) {
+            return new Node(t, OR);
+        },
+
+        OR$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        OR$finish: function(n) {
+        },
+
+        AND$build: function(t) {
+            return new Node(t, AND);
+        },
+
+        AND$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        AND$finish: function(n) {
+        },
+
+        BITWISE_OR$build: function(t) {
+            return new Node(t, BITWISE_OR);
+        },
+
+        BITWISE_OR$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        BITWISE_OR$finish: function(n) {
+        },
+
+        BITWISE_XOR$build: function(t) {
+            return new Node(t, BITWISE_XOR);
+        },
+
+        BITWISE_XOR$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        BITWISE_XOR$finish: function(n) {
+        },
+
+        BITWISE_AND$build: function(t) {
+            return new Node(t, BITWISE_AND);
+        },
+
+        BITWISE_AND$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        BITWISE_AND$finish: function(n) {
+        },
+
+        EQUALITY$build: function(t) {
+            // NB t.token.type must be EQ, NE, STRICT_EQ, or STRICT_NE.
+            return new Node(t);
+        },
+
+        EQUALITY$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        EQUALITY$finish: function(n) {
+        },
+
+        RELATIONAL$build: function(t) {
+            // NB t.token.type must be LT, LE, GE, or GT.
+            return new Node(t);
+        },
+
+        RELATIONAL$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        RELATIONAL$finish: function(n) {
+        },
+
+        SHIFT$build: function(t) {
+            // NB t.token.type must be LSH, RSH, or URSH.
+            return new Node(t);
+        },
+
+        SHIFT$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        SHIFT$finish: function(n) {
+        },
+
+        ADD$build: function(t) {
+            // NB t.token.type must be PLUS or MINUS.
+            return new Node(t);
+        },
+
+        ADD$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        ADD$finish: function(n) {
+        },
+
+        MULTIPLY$build: function(t) {
+            // NB t.token.type must be MUL, DIV, or MOD.
+            return new Node(t);
+        },
+
+        MULTIPLY$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        MULTIPLY$finish: function(n) {
+        },
+
+        UNARY$build: function(t) {
+            // NB t.token.type must be DELETE, VOID, TYPEOF, NOT, BITWISE_NOT,
+            // UNARY_PLUS, UNARY_MINUS, INCREMENT, or DECREMENT.
+            if (t.token.type === PLUS)
+                t.token.type = UNARY_PLUS;
+            else if (t.token.type === MINUS)
+                t.token.type = UNARY_MINUS;
+            return new Node(t);
+        },
+
+        UNARY$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        UNARY$setPostfix: function(n) {
+            n.postfix = true;
+        },
+
+        UNARY$finish: function(n) {
+        },
+
+        MEMBER$build: function(t, tt) {
+            // NB t.token.type must be NEW, DOT, or INDEX.
+            return new Node(t, tt);
+        },
+
+        MEMBER$rebuildNewWithArgs: function(n) {
+            n.type = NEW_WITH_ARGS;
+        },
+
+        MEMBER$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        MEMBER$finish: function(n) {
+        },
+
+        PRIMARY$build: function(t, tt) {
+            // NB t.token.type must be NULL, THIS, TRUIE, FALSE, IDENTIFIER,
+            // NUMBER, STRING, or REGEXP.
+            return new Node(t, tt);
+        },
+
+        PRIMARY$finish: function(n) {
+        },
+
+        ARRAY_INIT$build: function(t) {
+            return new Node(t, ARRAY_INIT);
+        },
+
+        ARRAY_INIT$addElement: function(n, n2) {
+            n.push(n2);
+        },
+
+        ARRAY_INIT$finish: function(n) {
+        },
+
+        ARRAY_COMP$build: function(t) {
+            return new Node(t, ARRAY_COMP);
+        },
+
+        ARRAY_COMP$setExpression: function(n, e) {
+            n.expression = e
+        },
+
+        ARRAY_COMP$setTail: function(n, n2) {
+            n.tail = n2;
+        },
+
+        ARRAY_COMP$finish: function(n) {
+        },
+
+        COMP_TAIL$build: function(t) {
+            return new Node(t, COMP_TAIL);
+        },
+
+        COMP_TAIL$setGuard: function(n, e) {
+            n.guard = e;
+        },
+
+        COMP_TAIL$addFor: function(n, n2) {
+            n.push(n2);
+        },
+
+        COMP_TAIL$finish: function(n) {
+        },
+
+        OBJECT_INIT$build: function(t) {
+            return new Node(t, OBJECT_INIT);
+        },
+
+        OBJECT_INIT$addProperty: function(n, n2) {
+            n.push(n2);
+        },
+
+        OBJECT_INIT$finish: function(n) {
+        },
+
+        PROPERTY_INIT$build: function(t) {
+            return new Node(t, PROPERTY_INIT);
+        },
+
+        PROPERTY_INIT$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        PROPERTY_INIT$finish: function(n) {
+        },
+
+        COMMA$build: function(t) {
+            return new Node(t, COMMA);
+        },
+
+        COMMA$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        COMMA$finish: function(n) {
+        },
+
+        LIST$build: function(t) {
+            return new Node(t, LIST);
+        },
+
+        LIST$addOperand: function(n, n2) {
+            n.push(n2);
+        },
+
+        LIST$finish: function(n) {
         },
 
         setHoists: function(id, vds) {
@@ -994,17 +936,16 @@ Narcissus.parser = (function() {
          * For more details in its interaction with hoisting, see comments in
          * FunctionDefinition.
          */
-        var builder = x.builder;
-        var b = builder.BLOCK;
-        var n = b.build(t, x.blockId++);
-        b.hoistLets(n);
+        var b = x.builder;
+        var n = b.BLOCK$build(t, x.blockId++);
+        b.BLOCK$hoistLets(n);
         x.stmtStack.push(n);
         while (!t.done && t.peek(true) !== RIGHT_CURLY)
-            b.addStatement(n, Statement(t, x));
+            b.BLOCK$addStatement(n, Statement(t, x));
         x.stmtStack.pop();
-        b.finish(n);
+        b.BLOCK$finish(n);
         if (n.needsHoisting) {
-            builder.setHoists(n.id, n.varDecls);
+            b.setHoists(n.id, n.varDecls);
             /*
              * If a block needs hoisting, we need to propagate this flag up to
              * the CompilerContext.
@@ -1030,7 +971,7 @@ Narcissus.parser = (function() {
      */
     function Statement(t, x) {
         var i, label, n, n2, ss, tt = t.get(true);
-        var builder = x.builder, b, b2, b3;
+        var b = x.builder;
 
         // Cases for statements ending in a right curly return early, avoiding the
         // common semicolon insertion magic after this switch.
@@ -1048,24 +989,20 @@ Narcissus.parser = (function() {
             return n;
 
           case IF:
-            b = builder.IF;
-            n = b.build(t);
-            b.setCondition(n, ParenExpression(t, x));
+            n = b.IF$build(t);
+            b.IF$setCondition(n, ParenExpression(t, x));
             x.stmtStack.push(n);
-            b.setThenPart(n, Statement(t, x));
+            b.IF$setThenPart(n, Statement(t, x));
             if (t.match(ELSE))
-                b.setElsePart(n, Statement(t, x));
+                b.IF$setElsePart(n, Statement(t, x));
             x.stmtStack.pop();
-            b.finish(n);
+            b.IF$finish(n);
             return n;
 
           case SWITCH:
             // This allows CASEs after a DEFAULT, which is in the standard.
-            b = builder.SWITCH;
-            b2 = builder.DEFAULT;
-            b3 = builder.CASE;
-            n = b.build(t);
-            b.setDiscriminant(n, ParenExpression(t, x));
+            n = b.SWITCH$build(t);
+            b.SWITCH$setDiscriminant(n, ParenExpression(t, x));
             x.stmtStack.push(n);
             t.mustMatch(LEFT_CURLY);
             while ((tt = t.get()) !== RIGHT_CURLY) {
@@ -1073,41 +1010,40 @@ Narcissus.parser = (function() {
                   case DEFAULT:
                     if (n.defaultIndex >= 0)
                         throw t.newSyntaxError("More than one switch default");
-                    n2 = b2.build(t);
-                    b.setDefaultIndex(n, n.cases.length);
+                    n2 = b.DEFAULT$build(t);
+                    b.SWITCH$setDefaultIndex(n, n.cases.length);
                     t.mustMatch(COLON);
-                    b2.initializeStatements(n2, t);
+                    b.DEFAULT$initializeStatements(n2, t);
                     while ((tt=t.peek(true)) !== CASE && tt !== DEFAULT &&
                            tt !== RIGHT_CURLY)
-                        b2.addStatement(n2, Statement(t, x));
-                    b2.finish(n2);
+                        b.DEFAULT$addStatement(n2, Statement(t, x));
+                    b.DEFAULT$finish(n2);
                     break;
 
                   case CASE:
-                    n2 = b3.build(t);
-                    b3.setLabel(n2, Expression(t, x, COLON));
+                    n2 = b.CASE$build(t);
+                    b.CASE$setLabel(n2, Expression(t, x, COLON));
                     t.mustMatch(COLON);
-                    b3.initializeStatements(n2, t);
+                    b.CASE$initializeStatements(n2, t);
                     while ((tt=t.peek(true)) !== CASE && tt !== DEFAULT &&
                            tt !== RIGHT_CURLY)
-                        b3.addStatement(n2, Statement(t, x));
-                    b3.finish(n2);
+                        b.CASE$addStatement(n2, Statement(t, x));
+                    b.CASE$finish(n2);
                     break;
 
                   default:
                     throw t.newSyntaxError("Invalid switch case");
                 }
-                b.addCase(n, n2);
+                b.SWITCH$addCase(n, n2);
             }
             x.stmtStack.pop();
-            b.finish(n);
+            b.SWITCH$finish(n);
             return n;
 
           case FOR:
-            b = builder.FOR;
-            n = b.build(t);
+            n = b.FOR$build(t);
             if (t.match(IDENTIFIER) && t.token.value === "each")
-                b.rebuildForEach(n);
+                b.FOR$rebuildForEach(n);
             t.mustMatch(LEFT_PAREN);
             if ((tt = t.peek()) !== SEMICOLON) {
                 x.inForLoopInit = true;
@@ -1123,7 +1059,7 @@ Narcissus.parser = (function() {
                          * Let in for head, we need to add an implicit block
                          * around the rest of the for.
                          */
-                        var forBlock = builder.BLOCK.build(t, x.blockId++);
+                        var forBlock = b.BLOCK$build(t, x.blockId++);
                         x.stmtStack.push(forBlock);
                         n2 = Variables(t, x, forBlock);
                     }
@@ -1133,76 +1069,51 @@ Narcissus.parser = (function() {
                 x.inForLoopInit = false;
             }
             if (n2 && t.match(IN)) {
-                // for-ins always get a for block to help desugaring.
-                if (!forBlock) {
-                    var forBlock = builder.BLOCK.build(t, x.blockId++);
-                    forBlock.isInternalForInBlock = true;
-                    x.stmtStack.push(forBlock);
-                }
-
-                b.rebuildForIn(n);
-                b.setObject(n, Expression(t, x));
+                b.FOR$rebuildForIn(n);
+                b.FOR$setObject(n, Expression(t, x), forBlock);
                 if (n2.type === VAR || n2.type === LET) {
-                    // Destructuring turns one decl into multiples, so either
-                    // there must be only one destructuring or only one
-                    // decl.
-                    if (n2.length !== 1 && n2.destructurings.length !== 1) {
+                    if (n2.length !== 1) {
                         throw new SyntaxError("Invalid for..in left-hand side",
                                               t.filename, n2.lineno);
                     }
-                    if (n2.destructurings.length > 0) {
-                        b.setIterator(n, n2.destructurings[0], n2, forBlock);
-                    } else {
-                        b.setIterator(n, n2[0], n2, forBlock);
-                    }
+                    b.FOR$setIterator(n, n2[0], n2, forBlock);
                 } else {
-                    if (n2.type === ARRAY_INIT || n2.type === OBJECT_INIT) {
-                        n2.destructuredNames = checkDestructuring(t, x, n2);
-                    }
-                    b.setIterator(n, n2, null, forBlock);
+                    b.FOR$setIterator(n, n2, null, forBlock);
                 }
             } else {
-                b.setSetup(n, n2);
+                b.FOR$setSetup(n, n2);
                 t.mustMatch(SEMICOLON);
                 if (n.isEach)
                     throw t.newSyntaxError("Invalid for each..in loop");
-                b.setCondition(n, (t.peek() === SEMICOLON)
+                b.FOR$setCondition(n, (t.peek() === SEMICOLON)
                                   ? null
                                   : Expression(t, x));
                 t.mustMatch(SEMICOLON);
-                b.setUpdate(n, (t.peek() === RIGHT_PAREN)
-                               ? null
-                               : Expression(t, x));
+                b.FOR$setUpdate(n, (t.peek() === RIGHT_PAREN)
+                                   ? null
+                                   : Expression(t, x));
             }
             t.mustMatch(RIGHT_PAREN);
-            b.setBody(n, nest(t, x, n, Statement));
-            b.finish(n);
-
-            // In case desugaring statements were added to the imaginary
-            // block.
+            b.FOR$setBody(n, nest(t, x, n, Statement));
             if (forBlock) {
-                builder.BLOCK.finish(forBlock);
+                b.BLOCK$finish(forBlock);
                 x.stmtStack.pop();
-                for (var i = 0, j = forBlock.length; i < j; i++) {
-                    n.body.unshift(forBlock[i]);
-                }
             }
+            b.FOR$finish(n);
             return n;
 
           case WHILE:
-            b = builder.WHILE;
-            n = b.build(t);
-            b.setCondition(n, ParenExpression(t, x));
-            b.setBody(n, nest(t, x, n, Statement));
-            b.finish(n);
+            n = b.WHILE$build(t);
+            b.WHILE$setCondition(n, ParenExpression(t, x));
+            b.WHILE$setBody(n, nest(t, x, n, Statement));
+            b.WHILE$finish(n);
             return n;
 
           case DO:
-            b = builder.DO;
-            n = b.build(t);
-            b.setBody(n, nest(t, x, n, Statement, WHILE));
-            b.setCondition(n, ParenExpression(t, x));
-            b.finish(n);
+            n = b.DO$build(t);
+            b.DO$setBody(n, nest(t, x, n, Statement, WHILE));
+            b.DO$setCondition(n, ParenExpression(t, x));
+            b.DO$finish(n);
             if (!x.ecmaStrictMode) {
                 // <script language="JavaScript"> (without version hints) may need
                 // automatic semicolon insertion without a newline after do-while.
@@ -1214,16 +1125,14 @@ Narcissus.parser = (function() {
 
           case BREAK:
           case CONTINUE:
-            if (tt === BREAK) {
-                b = builder.BREAK;
-            } else {
-                b = builder.CONTINUE;
-            }
-            n = b.build(t);
+            n = tt === BREAK ? b.BREAK$build(t) : b.CONTINUE$build(t);
 
             if (t.peekOnSameLine() === IDENTIFIER) {
                 t.get();
-                b.setLabel(n, t.token.value);
+                if (tt === BREAK)
+                    b.BREAK$setLabel(n, t.token.value);
+                else
+                    b.CONTINUE$setLabel(n, t.token.value);
             }
 
             ss = x.stmtStack;
@@ -1247,9 +1156,6 @@ Narcissus.parser = (function() {
                     i++;
                 if (i < ss.length - 1 && ss[i+1].isLoop)
                     i++;
-                else if (i < ss.length - 1 && ss[i+1].isInternalForInBlock
-                                           && ss[i+2].isLoop)
-                    i++;
                 else if (tt === CONTINUE)
                     throw t.newSyntaxError("Invalid continue");
             } else {
@@ -1261,27 +1167,29 @@ Narcissus.parser = (function() {
                     }
                 } while (!ss[i].isLoop && !(tt === BREAK && ss[i].type === SWITCH));
             }
-            b.setTarget(n, ss[i]);
-            b.finish(n);
+            if (tt === BREAK) {
+                b.BREAK$setTarget(n, ss[i]);
+                b.BREAK$finish(n);
+            } else {
+                b.CONTINUE$setTarget(n, ss[i]);
+                b.CONTINUE$finish(n);
+            }
             break;
 
           case TRY:
-            b = builder.TRY;
-            b2 = builder.CATCH;
-            n = b.build(t);
-            b.setTryBlock(n, Block(t, x));
+            n = b.TRY$build(t);
+            b.TRY$setTryBlock(n, Block(t, x));
             while (t.match(CATCH)) {
-                n2 = b2.build(t);
+                n2 = b.CATCH$build(t);
                 t.mustMatch(LEFT_PAREN);
                 switch (t.get()) {
                   case LEFT_BRACKET:
                   case LEFT_CURLY:
                     // Destructured catch identifiers.
                     t.unget();
-                    b2.setVarName(n2, DestructuringExpressionNoHoist(t, x, true));
-                    break;
+                    b.CATCH$setVarName(n2, DestructuringExpression(t, x, true));
                   case IDENTIFIER:
-                    b2.setVarName(n2, t.token.value);
+                    b.CATCH$setVarName(n2, t.token.value);
                     break;
                   default:
                     throw t.newSyntaxError("missing identifier in catch");
@@ -1292,21 +1200,21 @@ Narcissus.parser = (function() {
                         throw t.newSyntaxError("Illegal catch guard");
                     if (n.catchClauses.length && !n.catchClauses.top().guard)
                         throw t.newSyntaxError("Guarded catch after unguarded");
-                    b2.setGuard(n2, Expression(t, x));
+                    b.CATCH$setGuard(n2, Expression(t, x));
                 } else {
-                    b2.setGuard(n2, null);
+                    b.CATCH$setGuard(n2, null);
                 }
                 t.mustMatch(RIGHT_PAREN);
-                b2.setBlock(n2, Block(t, x));
-                b2.finish(n2);
-                b.addCatch(n, n2);
+                b.CATCH$setBlock(n2, Block(t, x));
+                b.CATCH$finish(n2);
+                b.TRY$addCatch(n, n2);
             }
-            b.finishCatches(n);
+            b.TRY$finishCatches(n);
             if (t.match(FINALLY))
-                b.setFinallyBlock(n, Block(t, x));
+                b.TRY$setFinallyBlock(n, Block(t, x));
             if (!n.catchClauses.length && !n.finallyBlock)
                 throw t.newSyntaxError("Invalid try statement");
-            b.finish(n);
+            b.TRY$finish(n);
             return n;
 
           case CATCH:
@@ -1314,10 +1222,9 @@ Narcissus.parser = (function() {
             throw t.newSyntaxError(definitions.tokens[tt] + " without preceding try");
 
           case THROW:
-            b = builder.THROW;
-            n = b.build(t);
-            b.setException(n, Expression(t, x));
-            b.finish(n);
+            n = b.THROW$build(t);
+            b.THROW$setException(n, Expression(t, x));
+            b.THROW$finish(n);
             break;
 
           case RETURN:
@@ -1325,11 +1232,10 @@ Narcissus.parser = (function() {
             break;
 
           case WITH:
-            b = builder.WITH;
-            n = b.build(t);
-            b.setObject(n, ParenExpression(t, x));
-            b.setBody(n, nest(t, x, n, Statement));
-            b.finish(n);
+            n = b.WITH$build(t);
+            b.WITH$setObject(n, ParenExpression(t, x));
+            b.WITH$setBody(n, nest(t, x, n, Statement));
+            b.WITH$finish(n);
             return n;
 
           case VAR:
@@ -1345,15 +1251,14 @@ Narcissus.parser = (function() {
             break;
 
           case DEBUGGER:
-            n = builder.DEBUGGER.build(t);
+            n = b.DEBUGGER$build(t);
             break;
 
           case NEWLINE:
           case SEMICOLON:
-            b = builder.SEMICOLON;
-            n = b.build(t);
-            b.setExpression(n, null);
-            b.finish(t);
+            n = b.SEMICOLON$build(t);
+            b.SEMICOLON$setExpression(n, null);
+            b.SEMICOLON$finish(t);
             return n;
 
           default:
@@ -1368,23 +1273,21 @@ Narcissus.parser = (function() {
                             throw t.newSyntaxError("Duplicate label");
                     }
                     t.get();
-                    b = builder.LABEL;
-                    n = b.build(t);
-                    b.setLabel(n, label)
-                    b.setStatement(n, nest(t, x, n, Statement));
-                    b.finish(n);
+                    n = b.LABEL$build(t);
+                    b.LABEL$setLabel(n, label)
+                    b.LABEL$setStatement(n, nest(t, x, n, Statement));
+                    b.LABEL$finish(n);
                     return n;
                 }
             }
 
             // Expression statement.
             // We unget the current token to parse the expression as a whole.
-            b = builder.SEMICOLON;
-            n = b.build(t);
+            n = b.SEMICOLON$build(t);
             t.unget();
-            b.setExpression(n, Expression(t, x));
+            b.SEMICOLON$setExpression(n, Expression(t, x));
             n.end = n.expression.end;
-            b.finish(n);
+            b.SEMICOLON$finish(n);
             break;
         }
 
@@ -1403,31 +1306,29 @@ Narcissus.parser = (function() {
     }
 
     function returnOrYield(t, x) {
-        var n, b, tt = t.token.type, tt2;
+        var n, b = x.builder, tt = t.token.type, tt2;
 
         if (tt === RETURN) {
             if (!x.inFunction)
                 throw t.newSyntaxError("Return not in function");
-            b = x.builder.RETURN;
-        } else /* if (tt === YIELD) */ {
+            n = b.RETURN$build(t);
+        } else /* (tt === YIELD) */ {
             if (!x.inFunction)
                 throw t.newSyntaxError("Yield not in function");
             x.isGenerator = true;
-            b = x.builder.YIELD;
+            n = b.YIELD$build(t);
         }
-        n = b.build(t);
 
         tt2 = t.peek(true);
-        if (tt2 !== END && tt2 !== NEWLINE &&
-            tt2 !== SEMICOLON && tt2 !== RIGHT_CURLY
+        if (tt2 !== END && tt2 !== NEWLINE && tt2 !== SEMICOLON && tt2 !== RIGHT_CURLY
             && (tt !== YIELD ||
                 (tt2 !== tt && tt2 !== RIGHT_BRACKET && tt2 !== RIGHT_PAREN &&
                  tt2 !== COLON && tt2 !== COMMA))) {
             if (tt === RETURN) {
-                b.setValue(n, Expression(t, x));
+                b.RETURN$setValue(n, Expression(t, x));
                 x.hasReturnWithValue = true;
             } else {
-                b.setValue(n, AssignExpression(t, x));
+                b.YIELD$setValue(n, AssignExpression(t, x));
             }
         } else if (tt === RETURN) {
             x.hasEmptyReturn = true;
@@ -1437,7 +1338,11 @@ Narcissus.parser = (function() {
         if (x.hasReturnWithValue && x.isGenerator)
             throw t.newSyntaxError("Generator returns a value");
 
-        b.finish(n);
+        if (tt === RETURN)
+            b.RETURN$finish(n);
+        else
+            b.YIELD$finish(n);
+
         return n;
     }
 
@@ -1447,12 +1352,10 @@ Narcissus.parser = (function() {
      *                    -> node
      */
     function FunctionDefinition(t, x, requireName, functionForm) {
-        var tt, x2, rp;
-        var builder = x.builder;
-        var b = builder.FUNCTION;
-        var f = b.build(t);
+        var b = x.builder;
+        var f = b.FUNCTION$build(t);
         if (t.match(IDENTIFIER))
-            b.setName(f, t.token.value);
+            b.FUNCTION$setName(f, t.token.value);
         else if (requireName)
             throw t.newSyntaxError("missing function identifier");
 
@@ -1464,10 +1367,10 @@ Narcissus.parser = (function() {
                   case LEFT_CURLY:
                     // Destructured formal parameters.
                     t.unget();
-                    b.addParam(f, DestructuringExpression(t, x));
+                    b.FUNCTION$addParam(f, DestructuringExpression(t, x));
                     break;
                   case IDENTIFIER:
-                    b.addParam(f, t.token.value);
+                    b.FUNCTION$addParam(f, t.token.value);
                     break;
                   default:
                     throw t.newSyntaxError("missing formal parameter");
@@ -1478,12 +1381,12 @@ Narcissus.parser = (function() {
         }
 
         // Do we have an expression closure or a normal body?
-        tt = t.get();
+        var tt = t.get();
         if (tt !== LEFT_CURLY)
             t.unget();
 
-        x2 = new StaticContext(true, builder);
-        rp = t.save();
+        var x2 = new StaticContext(true, b);
+        var rp = t.save();
         if (x.inFunction) {
             /*
              * Inner functions don't reset block numbering, only functions at
@@ -1493,12 +1396,12 @@ Narcissus.parser = (function() {
         }
 
         if (tt !== LEFT_CURLY) {
-            b.setBody(f, AssignExpression(t, x));
+            b.FUNCTION$setBody(f, AssignExpression(t, x));
             if (x.isGenerator)
                 throw t.newSyntaxError("Generator returns a value");
         } else {
-            b.hoistVars(x2.blockId);
-            b.setBody(f, Script(t, x2));
+            b.FUNCTION$hoistVars(x2.blockId);
+            b.FUNCTION$setBody(f, Script(t, x2));
         }
 
         /*
@@ -1551,9 +1454,12 @@ Narcissus.parser = (function() {
          * Statements.
          */
         if (x2.needsHoisting) {
-            // Order is important here! Builders expect funDecls to come
-            // after varDecls!
-            builder.setHoists(f.body.id, x2.varDecls.concat(x2.funDecls));
+
+            /*
+             * Order is important here! Builders expect funDecls to come after
+             * varDecls!
+             */
+            b.setHoists(f.body.id, x2.varDecls.concat(x2.funDecls));
 
             if (x.inFunction) {
                 /*
@@ -1563,16 +1469,16 @@ Narcissus.parser = (function() {
                 x.needsHoisting = true;
             } else {
                 // Only re-parse functions at the top level of the program.
-                x2 = new StaticContext(true, builder);
+                x2 = new StaticContext(true, b);
                 t.rewind(rp);
                 /*
                  * Set a flag in case the builder wants to have different behavior
                  * on the second pass.
                  */
-                builder.secondPass = true;
-                b.hoistVars(f.body.id, true);
-                b.setBody(f, Script(t, x2));
-                builder.secondPass = false;
+                b.secondPass = true;
+                b.FUNCTION$hoistVars(f.body.id, true);
+                b.FUNCTION$setBody(f, Script(t, x2));
+                b.secondPass = false;
             }
         }
 
@@ -1583,7 +1489,7 @@ Narcissus.parser = (function() {
         f.functionForm = functionForm;
         if (functionForm === DECLARED_FORM)
             x.funDecls.push(f);
-        b.finish(f, x);
+        b.FUNCTION$finish(f, x);
         return f;
     }
 
@@ -1594,22 +1500,27 @@ Narcissus.parser = (function() {
      * initializations).
      */
     function Variables(t, x, letBlock) {
-        var b, n, n2, ss, i, s, tt;
-        var builder = x.builder;
-        var bDecl = builder.DECL;
-
+        var b = x.builder;
+        var n, ss, i, s;
+        var build, addDecl, finish;
         switch (t.token.type) {
           case VAR:
-            b = builder.VAR;
+            build = b.VAR$build;
+            addDecl = b.VAR$addDecl;
+            finish = b.VAR$finish;
             s = x;
             break;
           case CONST:
-            b = builder.CONST;
+            build = b.CONST$build;
+            addDecl = b.CONST$addDecl;
+            finish = b.CONST$finish;
             s = x;
             break;
           case LET:
           case LEFT_PAREN:
-            b = builder.LET;
+            build = b.LET$build;
+            addDecl = b.LET$addDecl;
+            finish = b.LET$finish;
             if (!letBlock) {
                 ss = x.stmtStack;
                 i = ss.length;
@@ -1619,7 +1530,9 @@ Narcissus.parser = (function() {
                  * SpiderMonkey.
                  */
                 if (i === 0) {
-                    b = builder.VAR;
+                    build = b.VAR$build;
+                    addDecl = b.VAR$addDecl;
+                    finish = b.VAR$finish;
                     s = x;
                 } else {
                     s = ss[i];
@@ -1629,26 +1542,25 @@ Narcissus.parser = (function() {
             }
             break;
         }
-
-        n = b.build(t);
-        n.destructurings = [];
-
+        n = build.call(b, t);
+        initializers = [];
         do {
-            tt = t.get();
+            var tt = t.get();
+            /*
+             * FIXME Should have a special DECLARATION node instead of overloading
+             * IDENTIFIER to mean both identifier declarations and destructured
+             * declarations.
+             */
+            var n2 = b.DECL$build(t);
             if (tt === LEFT_BRACKET || tt === LEFT_CURLY) {
+                // Pass in s if we need to add each pattern matched into
+                // its varDecls, else pass in x.
+                var data = null;
                 // Need to unget to parse the full destructured expression.
                 t.unget();
-
-                var dexp = DestructuringExpressionNoHoist(t, x, true, s);
-
-                n2 = bDecl.build(t);
-                bDecl.setName(n2, dexp);
-                bDecl.setReadOnly(n2, n.type === CONST);
-                b.addDestructuringDecl(n, n2, s);
-
-                n.destructurings.push({ exp: dexp, decl: n2 });
-
+                b.DECL$setName(n2, DestructuringExpression(t, x, true, s));
                 if (x.inForLoopInit && t.peek() === IN) {
+                    addDecl.call(b, n, n2, s);
                     continue;
                 }
 
@@ -1656,30 +1568,47 @@ Narcissus.parser = (function() {
                 if (t.token.assignOp)
                     throw t.newSyntaxError("Invalid variable initialization");
 
-                bDecl.setInitializer(n2, AssignExpression(t, x));
-                bDecl.finish(n2);
+                // Parse the init as a normal assignment.
+                var n3 = b.ASSIGN$build(t);
+                b.ASSIGN$addOperand(n3, n2.name);
+                b.ASSIGN$addOperand(n3, AssignExpression(t, x));
+                b.ASSIGN$finish(n3);
 
+                // But only add the rhs as the initializer.
+                b.DECL$setInitializer(n2, n3[1]);
+                b.DECL$finish(n2);
+                addDecl.call(b, n, n2, s);
                 continue;
             }
 
             if (tt !== IDENTIFIER)
                 throw t.newSyntaxError("missing variable name");
 
-            n2 = bDecl.build(t);
-            bDecl.setName(n2, t.token.value);
-            bDecl.setReadOnly(n2, n.type === CONST);
-            b.addDecl(n, n2, s);
+            b.DECL$setName(n2, t.token.value);
+            b.DECL$setReadOnly(n2, n.type === CONST);
+            addDecl.call(b, n, n2, s);
 
             if (t.match(ASSIGN)) {
                 if (t.token.assignOp)
                     throw t.newSyntaxError("Invalid variable initialization");
 
-                bDecl.setInitializer(n2, AssignExpression(t, x));
+                // Parse the init as a normal assignment with a fake lhs.
+                var id = new Node(n2.tokenizer, IDENTIFIER);
+                var n3 = b.ASSIGN$build(t);
+                id.name = id.value = n2.name;
+                b.ASSIGN$addOperand(n3, id);
+                b.ASSIGN$addOperand(n3, AssignExpression(t, x));
+                b.ASSIGN$finish(n3);
+                initializers.push(n3);
+
+                // But only add the rhs as the initializer.
+                b.DECL$setInitializer(n2, n3[1]);
             }
 
-            bDecl.finish(n2);
+            b.DECL$finish(n2);
+            s.varDecls.push(n2);
         } while (t.match(COMMA));
-        b.finish(n);
+        finish.call(b, n);
         return n;
     }
 
@@ -1690,13 +1619,12 @@ Narcissus.parser = (function() {
      */
     function LetBlock(t, x, isStatement) {
         var n, n2, binds;
-        var builder = x.builder;
-        var b = builder.LET_BLOCK, b2;
+        var b = x.builder;
 
         // t.token.type must be LET
-        n = b.build(t);
+        n = b.LET_BLOCK$build(t);
         t.mustMatch(LEFT_PAREN);
-        b.setVariables(n, Variables(t, x, n));
+        b.LET_BLOCK$setVariables(n, Variables(t, x, n));
         t.mustMatch(RIGHT_PAREN);
 
         if (isStatement && t.peek() !== LEFT_CURLY) {
@@ -1705,22 +1633,21 @@ Narcissus.parser = (function() {
              * need to wrap the LET_BLOCK node in a SEMICOLON node so that we pop
              * the return value of the expression.
              */
-            b2 = builder.SEMICOLON;
-            n2 = b2.build(t);
-            b2.setExpression(n2, n);
-            b2.finish(n2);
+            n2 = b.SEMICOLON$build(t);
+            b.SEMICOLON$setExpression(n2, n);
+            b.SEMICOLON$finish(n2);
             isStatement = false;
         }
 
         if (isStatement) {
             n2 = Block(t, x);
-            b.setBlock(n, n2);
+            b.LET_BLOCK$setBlock(n, n2);
         } else {
             n2 = AssignExpression(t, x);
-            b.setExpression(n, n2);
+            b.LET_BLOCK$setExpression(n, n2);
         }
 
-        b.finish(n);
+        b.LET_BLOCK$finish(n);
 
         return n;
     }
@@ -1731,89 +1658,66 @@ Narcissus.parser = (function() {
         if (n.type !== ARRAY_INIT && n.type !== OBJECT_INIT)
             return;
 
-        var lhss = {};
-        var nn, n2, idx, sub;
+        var b = x.builder;
+
         for (var i = 0, j = n.length; i < j; i++) {
-            if (!(nn = n[i]))
+            var nn = n[i], lhs, rhs;
+            if (!nn)
                 continue;
-            if (nn.type === PROPERTY_INIT) {
-                sub = nn[1];
-                idx = nn[0].value;
-            } else if (n.type === OBJECT_INIT) {
-                // Do we have destructuring shorthand {foo, bar}?
-                sub = nn;
-                idx = nn.value;
-            } else {
-                sub = nn;
-                idx = i;
-            }
-
-            if (sub.type === ARRAY_INIT || sub.type === OBJECT_INIT) {
-                lhss[idx] = checkDestructuring(t, x, sub,
-                                               simpleNamesOnly, data);
-            } else {
-                if (simpleNamesOnly && sub.type !== IDENTIFIER) {
-                    // In declarations, lhs must be simple names
+            if (nn.type === PROPERTY_INIT)
+                lhs = nn[0], rhs = nn[1];
+            else
+                lhs = null, rhs = null;
+            if (rhs && (rhs.type === ARRAY_INIT || rhs.type === OBJECT_INIT))
+                checkDestructuring(t, x, rhs, simpleNamesOnly, data);
+            if (lhs && simpleNamesOnly) {
+                // In declarations, lhs must be simple names
+                if (lhs.type !== IDENTIFIER) {
                     throw t.newSyntaxError("missing name in pattern");
+                } else if (data) {
+                    var n2 = b.DECL$build(t);
+                    b.DECL$setName(n2, lhs.value);
+                    // Don't need to set initializer because it's just for
+                    // hoisting anyways.
+                    b.DECL$finish(n2);
+                    // Each pattern needs to be added to varDecls.
+                    data.varDecls.push(n2);
                 }
-
-                lhss[idx] = sub;
             }
         }
-
-        return lhss;
     }
 
     function DestructuringExpression(t, x, simpleNamesOnly, data) {
         var n = PrimaryExpression(t, x);
-        // Keep the list of lefthand sides in case the builder wants to
-        // desugar.
-        n.destructuredNames = checkDestructuring(t, x, n,
-                                                 simpleNamesOnly, data);
+        checkDestructuring(t, x, n, simpleNamesOnly, data);
         return n;
     }
 
-    function DestructuringExpressionNoHoist(t, x, simpleNamesOnly, data) {
-        // Sometimes we don't want to flag the pattern as possible hoists, so
-        // pretend it's the second pass.
-        var builder = x.builder;
-        var oldSP = builder.secondPass;
-        builder.secondPass = true;
-        var dexp = DestructuringExpression(t, x, simpleNamesOnly, data);
-        builder.secondPass = oldSP;
-        return dexp;
-    }
-
     function GeneratorExpression(t, x, e) {
-        var n, b = x.builder.GENERATOR;
+        var n;
 
-        n = b.build(t);
-        b.setExpression(n, e);
-        b.setTail(n, comprehensionTail(t, x));
-        b.finish(n);
+        n = b.GENERATOR$build(t);
+        b.GENERATOR$setExpression(n, e);
+        b.GENERATOR$setTail(n, comprehensionTail(t, x));
+        b.GENERATOR$finish(n);
 
         return n;
     }
 
     function comprehensionTail(t, x) {
         var body, n;
-        var builder = x.builder;
-        var b = builder.COMP_TAIL;
-        var bFor = builder.FOR;
-        var bDecl = builder.DECL;
-        var bVar = builder.VAR;
-
+        var b = x.builder;
         // t.token.type must be FOR
-        body = b.build(t);
+        body = b.COMP_TAIL$build(t);
 
         do {
-            n = bFor.build(t);
+            n = b.FOR$build(t);
             // Comprehension tails are always for..in loops.
-            bFor.rebuildForIn(n);
+            b.FOR$rebuildForIn(n);
             if (t.match(IDENTIFIER)) {
                 // But sometimes they're for each..in.
                 if (t.token.value === "each")
-                    bFor.rebuildForEach(n);
+                    b.FOR$rebuildForEach(n);
                 else
                     t.unget();
             }
@@ -1823,36 +1727,38 @@ Narcissus.parser = (function() {
               case LEFT_CURLY:
                 t.unget();
                 // Destructured left side of for in comprehension tails.
-                b2.setIterator(n, DestructuringExpressionNoHoist(t, x), null);
+                b.FOR$setIterator(n, DestructuringExpression(t, x), null);
                 break;
 
               case IDENTIFIER:
-                var n3 = bDecl.build(t);
-                bDecl.setName(n3, n3.value);
-                bDecl.finish(n3);
-                var n2 = bVar.build(t);
-                bVar.addDecl(n2, n3, x);
-                bVar.finish(n2);
-                bFor.setIterator(n, n3, n2);
-                // Don't add to varDecls since the semantics of comprehensions is
-                // such that the variables are in their own function when
-                // desugared.
+                var n3 = b.DECL$build(t);
+                b.DECL$setName(n3, n3.value);
+                b.DECL$finish(n3);
+                var n2 = b.VAR$build(t);
+                b.VAR$addDecl(n2, n3);
+                b.VAR$finish(n2);
+                b.FOR$setIterator(n, n3, n2);
+                /*
+                 * Don't add to varDecls since the semantics of comprehensions is
+                 * such that the variables are in their own function when
+                 * desugared.
+                 */
                 break;
 
               default:
                 throw t.newSyntaxError("missing identifier");
             }
             t.mustMatch(IN);
-            bFor.setObject(n, Expression(t, x));
+            b.FOR$setObject(n, Expression(t, x));
             t.mustMatch(RIGHT_PAREN);
-            b.addFor(body, n);
+            b.COMP_TAIL$addFor(body, n);
         } while (t.match(FOR));
 
         // Optional guard.
         if (t.match(IF))
-            b.setGuard(body, ParenExpression(t, x));
+            b.COMP_TAIL$setGuard(body, ParenExpression(t, x));
 
-        b.finish(body);
+        b.COMP_TAIL$finish(body);
         return body;
     }
 
@@ -1884,50 +1790,52 @@ Narcissus.parser = (function() {
     }
 
     /*
-     * Expression :: (tokenizer, compiler context) -> node
+     * Expression: (tokenizer, compiler context) -> node
      *
      * Top-down expression parser matched against SpiderMonkey.
      */
     function Expression(t, x) {
-        var n, n2, b = x.builder.COMMA;
+        var n, n2;
+        var b = x.builder;
 
         n = AssignExpression(t, x);
         if (t.match(COMMA)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
+            n2 = b.COMMA$build(t);
+            b.COMMA$addOperand(n2, n);
             n = n2;
             do {
                 n2 = n[n.length-1];
                 if (n2.type === YIELD && !n2.parenthesized)
                     throw t.newSyntaxError("Yield expression must be parenthesized");
-                b.addOperand(n, AssignExpression(t, x));
+                b.COMMA$addOperand(n, AssignExpression(t, x));
             } while (t.match(COMMA));
-            b.finish(n);
+            b.COMMA$finish(n);
         }
 
         return n;
     }
 
     function AssignExpression(t, x) {
-        var n, lhs, b = x.builder.ASSIGN;
+        var n, lhs;
+        var b = x.builder;
 
         // Have to treat yield like an operand because it could be the leftmost
         // operand of the expression.
         if (t.match(YIELD, true))
             return returnOrYield(t, x);
 
-        n = b.build(t);
+        n = b.ASSIGN$build(t);
         lhs = ConditionalExpression(t, x);
 
         if (!t.match(ASSIGN)) {
-            b.finish(n);
+            b.ASSIGN$finish(n);
             return lhs;
         }
 
         switch (lhs.type) {
           case OBJECT_INIT:
           case ARRAY_INIT:
-            lhs.destructuredNames = checkDestructuring(t, x, lhs);
+            checkDestructuring(t, x, lhs);
             // FALL THROUGH
           case IDENTIFIER: case DOT: case INDEX: case CALL:
             break;
@@ -1936,22 +1844,23 @@ Narcissus.parser = (function() {
             break;
         }
 
-        b.setAssignOp(n, t.token.assignOp);
-        b.addOperand(n, lhs);
-        b.addOperand(n, AssignExpression(t, x));
-        b.finish(n);
+        b.ASSIGN$setAssignOp(n, t.token.assignOp);
+        b.ASSIGN$addOperand(n, lhs);
+        b.ASSIGN$addOperand(n, AssignExpression(t, x));
+        b.ASSIGN$finish(n);
 
         return n;
     }
 
     function ConditionalExpression(t, x) {
-        var n, n2, b = x.builder.HOOK;
+        var n, n2;
+        var b = x.builder;
 
         n = OrExpression(t, x);
         if (t.match(HOOK)) {
             n2 = n;
-            n = b.build(t);
-            b.setCondition(n, n2);
+            n = b.HOOK$build(t);
+            b.HOOK$setCondition(n, n2);
             /*
              * Always accept the 'in' operator in the middle clause of a ternary,
              * where it's unambiguous, even if we might be parsing the init of a
@@ -1959,26 +1868,27 @@ Narcissus.parser = (function() {
              */
             var oldLoopInit = x.inForLoopInit;
             x.inForLoopInit = false;
-            b.setThenPart(n, AssignExpression(t, x));
+            b.HOOK$setThenPart(n, AssignExpression(t, x));
             x.inForLoopInit = oldLoopInit;
             if (!t.match(COLON))
                 throw t.newSyntaxError("missing : after ?");
-            b.setElsePart(n, AssignExpression(t, x));
-            b.finish(n);
+            b.HOOK$setElsePart(n, AssignExpression(t, x));
+            b.HOOK$finish(n);
         }
 
         return n;
     }
 
     function OrExpression(t, x) {
-        var n, n2, b = x.builder.OR;
+        var n, n2;
+        var b = x.builder;
 
         n = AndExpression(t, x);
         while (t.match(OR)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, AndExpression(t, x));
-            b.finish(n2);
+            n2 = b.OR$build(t);
+            b.OR$addOperand(n2, n);
+            b.OR$addOperand(n2, AndExpression(t, x));
+            b.OR$finish(n2);
             n = n2;
         }
 
@@ -1986,14 +1896,15 @@ Narcissus.parser = (function() {
     }
 
     function AndExpression(t, x) {
-        var n, n2, b = x.builder.AND;
+        var n, n2;
+        var b = x.builder;
 
         n = BitwiseOrExpression(t, x);
         while (t.match(AND)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, BitwiseOrExpression(t, x));
-            b.finish(n2);
+            n2 = b.AND$build(t);
+            b.AND$addOperand(n2, n);
+            b.AND$addOperand(n2, BitwiseOrExpression(t, x));
+            b.AND$finish(n2);
             n = n2;
         }
 
@@ -2001,14 +1912,15 @@ Narcissus.parser = (function() {
     }
 
     function BitwiseOrExpression(t, x) {
-        var n, n2, b = x.builder.BITWISE_OR;
+        var n, n2;
+        var b = x.builder;
 
         n = BitwiseXorExpression(t, x);
         while (t.match(BITWISE_OR)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, BitwiseXorExpression(t, x));
-            b.finish(n2);
+            n2 = b.BITWISE_OR$build(t);
+            b.BITWISE_OR$addOperand(n2, n);
+            b.BITWISE_OR$addOperand(n2, BitwiseXorExpression(t, x));
+            b.BITWISE_OR$finish(n2);
             n = n2;
         }
 
@@ -2016,14 +1928,15 @@ Narcissus.parser = (function() {
     }
 
     function BitwiseXorExpression(t, x) {
-        var n, n2, b = x.builder.BITWISE_XOR;
+        var n, n2;
+        var b = x.builder;
 
         n = BitwiseAndExpression(t, x);
         while (t.match(BITWISE_XOR)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, BitwiseAndExpression(t, x));
-            b.finish(n2);
+            n2 = b.BITWISE_XOR$build(t);
+            b.BITWISE_XOR$addOperand(n2, n);
+            b.BITWISE_XOR$addOperand(n2, BitwiseAndExpression(t, x));
+            b.BITWISE_XOR$finish(n2);
             n = n2;
         }
 
@@ -2031,14 +1944,15 @@ Narcissus.parser = (function() {
     }
 
     function BitwiseAndExpression(t, x) {
-        var n, n2, b = x.builder.BITWISE_AND;
+        var n, n2;
+        var b = x.builder;
 
         n = EqualityExpression(t, x);
         while (t.match(BITWISE_AND)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, EqualityExpression(t, x));
-            b.finish(n2);
+            n2 = b.BITWISE_AND$build(t);
+            b.BITWISE_AND$addOperand(n2, n);
+            b.BITWISE_AND$addOperand(n2, EqualityExpression(t, x));
+            b.BITWISE_AND$finish(n2);
             n = n2;
         }
 
@@ -2046,15 +1960,16 @@ Narcissus.parser = (function() {
     }
 
     function EqualityExpression(t, x) {
-        var n, n2, b = x.builder.EQUALITY;
+        var n, n2;
+        var b = x.builder;
 
         n = RelationalExpression(t, x);
         while (t.match(EQ) || t.match(NE) ||
                t.match(STRICT_EQ) || t.match(STRICT_NE)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, RelationalExpression(t, x));
-            b.finish(n2);
+            n2 = b.EQUALITY$build(t);
+            b.EQUALITY$addOperand(n2, n);
+            b.EQUALITY$addOperand(n2, RelationalExpression(t, x));
+            b.EQUALITY$finish(n2);
             n = n2;
         }
 
@@ -2062,7 +1977,8 @@ Narcissus.parser = (function() {
     }
 
     function RelationalExpression(t, x) {
-        var n, n2, b = x.builder.RELATIONAL;
+        var n, n2;
+        var b = x.builder;
         var oldLoopInit = x.inForLoopInit;
 
         /*
@@ -2074,10 +1990,10 @@ Narcissus.parser = (function() {
         while ((t.match(LT) || t.match(LE) || t.match(GE) || t.match(GT) ||
                (oldLoopInit === false && t.match(IN)) ||
                t.match(INSTANCEOF))) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, ShiftExpression(t, x));
-            b.finish(n2);
+            n2 = b.RELATIONAL$build(t);
+            b.RELATIONAL$addOperand(n2, n);
+            b.RELATIONAL$addOperand(n2, ShiftExpression(t, x));
+            b.RELATIONAL$finish(n2);
             n = n2;
         }
         x.inForLoopInit = oldLoopInit;
@@ -2086,14 +2002,15 @@ Narcissus.parser = (function() {
     }
 
     function ShiftExpression(t, x) {
-        var n, n2, b = x.builder.SHIFT;
+        var n, n2;
+        var b = x.builder;
 
         n = AddExpression(t, x);
         while (t.match(LSH) || t.match(RSH) || t.match(URSH)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, AddExpression(t, x));
-            b.finish(n2);
+            n2 = b.SHIFT$build(t);
+            b.SHIFT$addOperand(n2, n);
+            b.SHIFT$addOperand(n2, AddExpression(t, x));
+            b.SHIFT$finish(n2);
             n = n2;
         }
 
@@ -2101,14 +2018,15 @@ Narcissus.parser = (function() {
     }
 
     function AddExpression(t, x) {
-        var n, n2, b = x.builder.ADD;
+        var n, n2;
+        var b = x.builder;
 
         n = MultiplyExpression(t, x);
         while (t.match(PLUS) || t.match(MINUS)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, MultiplyExpression(t, x));
-            b.finish(n2);
+            n2 = b.ADD$build(t);
+            b.ADD$addOperand(n2, n);
+            b.ADD$addOperand(n2, MultiplyExpression(t, x));
+            b.ADD$finish(n2);
             n = n2;
         }
 
@@ -2116,14 +2034,15 @@ Narcissus.parser = (function() {
     }
 
     function MultiplyExpression(t, x) {
-        var n, n2, b = x.builder.MULTIPLY;
+        var n, n2;
+        var b = x.builder;
 
         n = UnaryExpression(t, x);
         while (t.match(MUL) || t.match(DIV) || t.match(MOD)) {
-            n2 = b.build(t);
-            b.addOperand(n2, n);
-            b.addOperand(n2, UnaryExpression(t, x));
-            b.finish(n2);
+            n2 = b.MULTIPLY$build(t);
+            b.MULTIPLY$addOperand(n2, n);
+            b.MULTIPLY$addOperand(n2, UnaryExpression(t, x));
+            b.MULTIPLY$finish(n2);
             n = n2;
         }
 
@@ -2131,20 +2050,21 @@ Narcissus.parser = (function() {
     }
 
     function UnaryExpression(t, x) {
-        var n, n2, tt, b = x.builder.UNARY;
+        var n, n2, tt;
+        var b = x.builder;
 
         switch (tt = t.get(true)) {
           case DELETE: case VOID: case TYPEOF:
           case NOT: case BITWISE_NOT: case PLUS: case MINUS:
-            n = b.build(t);
-            b.addOperand(n, UnaryExpression(t, x));
+            n = b.UNARY$build(t);
+            b.UNARY$addOperand(n, UnaryExpression(t, x));
             break;
 
           case INCREMENT:
           case DECREMENT:
             // Prefix increment/decrement.
-            n = b.build(t)
-            b.addOperand(n, MemberExpression(t, x, true));
+            n = b.UNARY$build(t)
+            b.UNARY$addOperand(n, MemberExpression(t, x, true));
             break;
 
           default:
@@ -2155,34 +2075,32 @@ Narcissus.parser = (function() {
             if (t.tokens[(t.tokenIndex + t.lookahead - 1) & 3].lineno ===
                 t.lineno) {
                 if (t.match(INCREMENT) || t.match(DECREMENT)) {
-                    n2 = b.build(t);
-                    b.setPostfix(n2);
-                    b.finish(n);
-                    b.addOperand(n2, n);
+                    n2 = b.UNARY$build(t);
+                    b.UNARY$setPostfix(n2);
+                    b.UNARY$finish(n);
+                    b.UNARY$addOperand(n2, n);
                     n = n2;
                 }
             }
             break;
         }
 
-        b.finish(n);
+        b.UNARY$finish(n);
         return n;
     }
 
     function MemberExpression(t, x, allowCallSyntax) {
-        var n, n2, name, tt;
-        var builder = x.builder;
-        var b = builder.MEMBER
-        var b2 = builder.PROPERTY_NAME;
+        var n, n2, tt;
+        var b = x.builder;
 
         if (t.match(NEW)) {
-            n = b.build(t);
-            b.addOperand(n, MemberExpression(t, x, false));
+            n = b.MEMBER$build(t);
+            b.MEMBER$addOperand(n, MemberExpression(t, x, false));
             if (t.match(LEFT_PAREN)) {
-                b.rebuildNewWithArgs(n);
-                b.addOperand(n, ArgumentList(t, x));
+                b.MEMBER$rebuildNewWithArgs(n);
+                b.MEMBER$addOperand(n, ArgumentList(t, x));
             }
-            b.finish(n);
+            b.MEMBER$finish(n);
         } else {
             n = PrimaryExpression(t, x);
         }
@@ -2190,26 +2108,24 @@ Narcissus.parser = (function() {
         while ((tt = t.get()) !== END) {
             switch (tt) {
               case DOT:
-                n2 = b.build(t);
-                b.addOperand(n2, n);
+                n2 = b.MEMBER$build(t);
+                b.MEMBER$addOperand(n2, n);
                 t.mustMatch(IDENTIFIER);
-                name = b2.build(t);
-                b2.finish(name);
-                b.addOperand(n2, name);
+                b.MEMBER$addOperand(n2, b.MEMBER$build(t));
                 break;
 
               case LEFT_BRACKET:
-                n2 = b.build(t, INDEX);
-                b.addOperand(n2, n);
-                b.addOperand(n2, Expression(t, x));
+                n2 = b.MEMBER$build(t, INDEX);
+                b.MEMBER$addOperand(n2, n);
+                b.MEMBER$addOperand(n2, Expression(t, x));
                 t.mustMatch(RIGHT_BRACKET);
                 break;
 
               case LEFT_PAREN:
                 if (allowCallSyntax) {
-                    n2 = b.build(t, CALL);
-                    b.addOperand(n2, n);
-                    b.addOperand(n2, ArgumentList(t, x));
+                    n2 = b.MEMBER$build(t, CALL);
+                    b.MEMBER$addOperand(n2, n);
+                    b.MEMBER$addOperand(n2, ArgumentList(t, x));
                     break;
                 }
 
@@ -2219,7 +2135,7 @@ Narcissus.parser = (function() {
                 return n;
             }
 
-            b.finish(n2);
+            b.MEMBER$finish(n2);
             n = n2;
         }
 
@@ -2227,10 +2143,11 @@ Narcissus.parser = (function() {
     }
 
     function ArgumentList(t, x) {
-        var n, n2, b = x.builder.LIST;
+        var n, n2;
+        var b = x.builder;
         var err = "expression must be parenthesized";
 
-        n = b.build(t);
+        n = b.LIST$build(t);
         if (t.match(RIGHT_PAREN, true))
             return n;
         do {
@@ -2242,23 +2159,17 @@ Narcissus.parser = (function() {
                 if (n.length > 1 || t.peek(true) === COMMA)
                     throw t.newSyntaxError("Generator " + err);
             }
-            b.addOperand(n, n2);
+            b.LIST$addOperand(n, n2);
         } while (t.match(COMMA));
         t.mustMatch(RIGHT_PAREN);
-        b.finish(n);
+        b.LIST$finish(n);
 
         return n;
     }
 
     function PrimaryExpression(t, x) {
         var n, n2, n3, tt = t.get(true);
-        var builder = x.builder;
-        var bArrayInit = builder.ARRAY_INIT;
-        var bArrayComp = builder.ARRAY_COMP;
-        var bPrimary = builder.PRIMARY;
-        var bPropName = builder.PROPERTY_NAME;
-        var bObjInit = builder.OBJECT_INIT;
-        var bPropInit = builder.PROPERTY_INIT;
+        var b = x.builder;
 
         switch (tt) {
           case FUNCTION:
@@ -2266,14 +2177,14 @@ Narcissus.parser = (function() {
             break;
 
           case LEFT_BRACKET:
-            n = bArrayInit.build(t);
-            while ((tt = t.peek(true)) !== RIGHT_BRACKET) {
+            n = b.ARRAY_INIT$build(t);
+            while ((tt = t.peek()) !== RIGHT_BRACKET) {
                 if (tt === COMMA) {
                     t.get();
-                    bArrayInit.addElement(n, null);
+                    b.ARRAY_INIT$addElement(n, null);
                     continue;
                 }
-                bArrayInit.addElement(n, AssignExpression(t, x));
+                b.ARRAY_INIT$addElement(n, AssignExpression(t, x));
                 if (tt !== COMMA && !t.match(COMMA))
                     break;
             }
@@ -2281,18 +2192,18 @@ Narcissus.parser = (function() {
             // If we matched exactly one element and got a FOR, we have an
             // array comprehension.
             if (n.length === 1 && t.match(FOR)) {
-                n2 = bArrayComp.build(t);
-                bArrayComp.setExpression(n2, n[0]);
-                bArrayComp.setTail(n2, comprehensionTail(t, x));
+                n2 = b.ARRAY_COMP$build(t);
+                b.ARRAY_COMP$setExpression(n2, n[0]);
+                b.ARRAY_COMP$setTail(n2, comprehensionTail(t, x));
                 n = n2;
             }
             t.mustMatch(RIGHT_BRACKET);
-            bArrayInit.finish(n);
+            b.PRIMARY$finish(n);
             break;
 
           case LEFT_CURLY:
-            var id, fd;
-            n = bObjInit.build(t);
+            var id;
+            n = b.OBJECT_INIT$build(t);
 
           object_init:
             if (!t.match(RIGHT_CURLY)) {
@@ -2302,13 +2213,13 @@ Narcissus.parser = (function() {
                         t.peek() === IDENTIFIER) {
                         if (x.ecma3OnlyMode)
                             throw t.newSyntaxError("Illegal property accessor");
-                        fd = FunctionDefinition(t, x, true, EXPRESSED_FORM);
-                        bObjInit.addProperty(n, fd);
+                        var fd = FunctionDefinition(t, x, true, EXPRESSED_FORM);
+                        b.OBJECT_INIT$addProperty(n, fd);
                     } else {
                         switch (tt) {
                           case IDENTIFIER: case NUMBER: case STRING:
-                            id = bPropName.build(t);
-                            bPropName.finish(id);
+                            id = b.PRIMARY$build(t, IDENTIFIER);
+                            b.PRIMARY$finish(id);
                             break;
                           case RIGHT_CURLY:
                             if (x.ecma3OnlyMode)
@@ -2316,30 +2227,30 @@ Narcissus.parser = (function() {
                             break object_init;
                           default:
                             if (t.token.value in definitions.keywords) {
-                                id = bPropName.build(t);
-                                bPropName.finish(id);
+                                id = b.PRIMARY$build(t, IDENTIFIER);
+                                b.PRIMARY$finish(id);
                                 break;
                             }
                             throw t.newSyntaxError("Invalid property name");
                         }
                         if (t.match(COLON)) {
-                            n2 = bPropInit.build(t);
-                            bPropInit.addOperand(n2, id);
-                            bPropInit.addOperand(n2, AssignExpression(t, x));
-                            bPropInit.finish(n2);
-                            bObjInit.addProperty(n, n2);
+                            n2 = b.PROPERTY_INIT$build(t);
+                            b.PROPERTY_INIT$addOperand(n2, id);
+                            b.PROPERTY_INIT$addOperand(n2, AssignExpression(t, x));
+                            b.PROPERTY_INIT$finish(n2);
+                            b.OBJECT_INIT$addProperty(n, n2);
                         } else {
                             // Support, e.g., |var {x, y} = o| as destructuring shorthand
                             // for |var {x: x, y: y} = o|, per proposed JS2/ES4 for JS1.8.
                             if (t.peek() !== COMMA && t.peek() !== RIGHT_CURLY)
                                 throw t.newSyntaxError("missing : after property");
-                            bObjInit.addProperty(n, id);
+                            b.OBJECT_INIT$addProperty(n, id);
                         }
                     }
                 } while (t.match(COMMA));
                 t.mustMatch(RIGHT_CURLY);
             }
-            bObjInit.finish(n);
+            b.OBJECT_INIT$finish(n);
             break;
 
           case LEFT_PAREN:
@@ -2356,8 +2267,8 @@ Narcissus.parser = (function() {
 
           case NULL: case THIS: case TRUE: case FALSE:
           case IDENTIFIER: case NUMBER: case STRING: case REGEXP:
-            n = bPrimary.build(t);
-            bPrimary.finish(n);
+            n = b.PRIMARY$build(t);
+            b.PRIMARY$finish(n);
             break;
 
           default:
@@ -2383,12 +2294,7 @@ Narcissus.parser = (function() {
 
     return {
         parse: parse,
-        Node: Node,
-        DefaultBuilder: DefaultBuilder,
-        get SSABuilder() {
-            throw new Error("SSA builder not yet supported");
-        },
-        bindSubBuilders: bindSubBuilders,
+        VanillaBuilder: VanillaBuilder,
         DECLARED_FORM: DECLARED_FORM,
         EXPRESSED_FORM: EXPRESSED_FORM,
         STATEMENT_FORM: STATEMENT_FORM,

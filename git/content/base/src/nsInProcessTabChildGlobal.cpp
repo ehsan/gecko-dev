@@ -153,7 +153,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsInProcessTabChildGlobal)
   NS_INTERFACE_MAP_ENTRY(nsIFrameMessageManager)
-  NS_INTERFACE_MAP_ENTRY(nsISyncMessageSender)
   NS_INTERFACE_MAP_ENTRY(nsIContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIInProcessContentFrameMessageManager)
   NS_INTERFACE_MAP_ENTRY(nsIScriptContextPrincipal)
@@ -220,10 +219,6 @@ nsInProcessTabChildGlobal::DelayedDisconnect()
     static_cast<nsFrameMessageManager*>(mMessageManager.get())->Disconnect();
     mMessageManager = nsnull;
   }
-  if (mListenerManager) {
-    mListenerManager->Disconnect();
-  }
-  
   if (!mLoadingScript) {
     if (mCx) {
       DestroyCx();

@@ -45,11 +45,11 @@
 #include "nsITextControlElement.h"
 #include "nsIPhonetic.h"
 #include "nsIDOMNSEditableElement.h"
+#include "nsIFileControlElement.h"
 
 #include "nsTextEditorState.h"
 #include "nsCOMPtr.h"
-#include "nsIConstraintValidation.h"
-#include "nsDOMFile.h"
+#include "nsConstraintValidation.h"
 
 //
 // Accessors for mBitField
@@ -74,42 +74,6 @@
                                         : ((bitfield) &= ~(0x01 << (field))))
 
 class nsDOMFileList;
-class nsIRadioGroupContainer;
-class nsIRadioGroupVisitor;
-class nsIRadioVisitor;
-
-class UploadLastDir : public nsIObserver, public nsSupportsWeakReference {
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  UploadLastDir();
-
-  /**
-   * Fetch the last used directory for this location from the content
-   * pref service, if it is available.
-   *
-   * @param aURI URI of the current page
-   * @param aFile path to the last used directory
-   */
-  nsresult FetchLastUsedDirectory(nsIURI* aURI, nsILocalFile** aFile);
-
-  /**
-   * Store the last used directory for this location using the
-   * content pref service, if it is available
-   * @param aURI URI of the current page
-   * @param aFile file chosen by the user - the path to the parent of this
-   *        file will be stored
-   */
-  nsresult StoreLastUsedDirectory(nsIURI* aURI, nsILocalFile* aFile);
-private:
-  // Directories are stored here during private browsing mode
-  nsInterfaceHashtable<nsStringHashKey, nsILocalFile> mUploadLastDirStore;
-  PRBool mInPrivateBrowsing;
-};
-
-class nsIRadioGroupContainer;
-class nsIRadioVisitor;
 
 class nsHTMLInputElement : public nsGenericHTMLFormElement,
                            public nsImageLoadingContent,
@@ -117,11 +81,10 @@ class nsHTMLInputElement : public nsGenericHTMLFormElement,
                            public nsITextControlElement,
                            public nsIPhonetic,
                            public nsIDOMNSEditableElement,
-                           public nsIConstraintValidation
+                           public nsIFileControlElement,
+                           public nsConstraintValidation
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLInputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                      PRUint32 aFromParser);
   virtual ~nsHTMLInputElement();
@@ -208,17 +171,16 @@ public:
   NS_IMETHOD_(void) UpdatePlaceholderText(PRBool aNotify);
   NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
-  NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
   // nsIFileControlElement
-  void GetDisplayFileName(nsAString& aFileName) const;
-  const nsCOMArray<nsIDOMFile>& GetFiles();
-  void SetFiles(const nsCOMArray<nsIDOMFile>& aFiles);
+  virtual void GetDisplayFileName(nsAString& aFileName);
+  virtual void GetFileArray(nsCOMArray<nsIFile> &aFile);
+  virtual void SetFileNames(const nsTArray<nsString>& aFileNames);
 
   void SetCheckedChangedInternal(PRBool aCheckedChanged);
   PRBool GetCheckedChanged();
   void AddedToRadioGroup(PRBool aNotify = PR_TRUE);
-  void WillRemoveFromRadioGroup(PRBool aNotify);
+  void WillRemoveFromRadioGroup();
   /**
    * Get the radio group container for this button (form or document)
    * @return the radio group container (or null if no form or document)
@@ -236,8 +198,6 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  NS_IMETHOD FireAsyncClickHandler();
-
   virtual void UpdateEditableState()
   {
     return UpdateEditableFormControlState();
@@ -246,36 +206,18 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLInputElement,
                                                      nsGenericHTMLFormElement)
 
-  static UploadLastDir* gUploadLastDir;
-  // create and destroy the static UploadLastDir object for remembering
-  // which directory was last used on a site-by-site basis
-  static void InitUploadLastDir();
-  static void DestroyUploadLastDir();
-
   void MaybeLoadImage();
 
   virtual nsXPCClassInfo* GetClassInfo();
 
-  static nsHTMLInputElement* FromContent(nsIContent *aContent)
-  {
-    if (aContent->NodeInfo()->Equals(nsGkAtoms::input, kNameSpaceID_XHTML))
-      return static_cast<nsHTMLInputElement*>(aContent);
-    return NULL;
-  }
-
-  // nsIConstraintValidation
+  // nsConstraintValidation
   PRBool   IsTooLong();
   PRBool   IsValueMissing();
   PRBool   HasTypeMismatch();
   PRBool   HasPatternMismatch();
-  void     UpdateTooLongValidityState();
-  void     UpdateValueMissingValidityState();
-  void     UpdateTypeMismatchValidityState();
-  void     UpdatePatternMismatchValidityState();
-  void     UpdateAllValidityStates(PRBool aNotify);
-  void     UpdateBarredFromConstraintValidation();
+  PRBool   IsBarredFromConstraintValidation();
   nsresult GetValidationMessage(nsAString& aValidationMessage,
-                                ValidityStateType aType);
+                                ValidationMessageType aType);
 
 protected:
   // Pull IsSingleLineTextControl into our scope, otherwise it'd be hidden
@@ -349,16 +291,15 @@ protected:
                             PRBool aUserInput,
                             PRBool aSetValueChanged);
 
-  void ClearFiles() {
-    nsCOMArray<nsIDOMFile> files;
-    SetFiles(files);
+  void ClearFileNames() {
+    nsTArray<nsString> fileNames;
+    SetFileNames(fileNames);
   }
 
-  void SetSingleFile(nsIDOMFile* aFile) {
-    nsCOMArray<nsIDOMFile> files;
-    nsCOMPtr<nsIDOMFile> file = aFile;
-    files.AppendObject(file);
-    SetFiles(files);
+  void SetSingleFileName(const nsAString& aFileName) {
+    nsAutoTArray<nsString, 1> fileNames;
+    fileNames.AppendElement(aFileName);
+    SetFileNames(fileNames);
   }
 
   nsresult SetIndeterminateInternal(PRBool aValue,
@@ -432,7 +373,7 @@ protected:
    * Actually set checked and notify the frame of the change.
    * @param aValue the value of checked to set
    */
-  void SetCheckedInternal(PRBool aValue, PRBool aNotify);
+  nsresult SetCheckedInternal(PRBool aValue, PRBool aNotify);
 
   /**
    * Syntax sugar to make it easier to check for checked
@@ -506,14 +447,7 @@ protected:
   void SanitizeValue(nsAString& aValue);
 
   /**
-   * Returns whether the placeholder attribute applies for the current type.
-   */
-  bool PlaceholderApplies() const { return IsSingleLineTextControlInternal(PR_FALSE, mType); }
-
-  /**
    * Set the current default value to the value of the input element.
-   * @note You should not call this method if GetValueMode() doesn't return
-   * VALUE_MODE_VALUE.
    */
   nsresult SetDefaultValueAsValue();
 
@@ -557,11 +491,9 @@ protected:
    * the frame. Whenever the frame wants to change the filename it has to call
    * SetFileNames to update this member.
    */
-  nsCOMArray<nsIDOMFile>   mFiles;
+  nsTArray<nsString>       mFileNames;
 
   nsRefPtr<nsDOMFileList>  mFileList;
-
-  nsString mStaticDocFileList;
 };
 
 #endif

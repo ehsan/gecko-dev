@@ -104,7 +104,10 @@ menuitem.spell-suggestion {
 menulist > menupopup > menuitem,
 .menulist-menupopup > menu,
 menulist > menupopup > menu {
-  padding: 1px 5px;
+  padding-top: 1px;
+  padding-bottom: 1px;
+  -moz-padding-start: 1px;
+  -moz-padding-end: 30px;
   max-width: none;
   font: message-box;
 }

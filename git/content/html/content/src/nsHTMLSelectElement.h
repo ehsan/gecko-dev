@@ -52,7 +52,7 @@
 #include "nsISelectControlFrame.h"
 #include "nsContentUtils.h"
 #include "nsIHTMLCollection.h"
-#include "nsIConstraintValidation.h"
+#include "nsConstraintValidation.h"
 
 // PresState
 #include "nsXPCOM.h"
@@ -238,11 +238,9 @@ private:
 class nsHTMLSelectElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLSelectElement,
                             public nsISelectElement,
-                            public nsIConstraintValidation
+                            public nsConstraintValidation
 {
 public:
-  using nsIConstraintValidation::GetValidationMessage;
-
   nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                       PRUint32 aFromParser = 0);
   virtual ~nsHTMLSelectElement();
@@ -287,8 +285,6 @@ public:
    */
   virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAString* aValue, PRBool aNotify);
-  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                const nsAString* aValue, PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
   

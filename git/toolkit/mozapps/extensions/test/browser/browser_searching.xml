@@ -5,12 +5,6 @@
     <type id='1'>Extension</type>
     <guid>addon1@tests.mozilla.org</guid>
     <version>1.0</version>
-    <authors>
-      <author>
-        <name>Test Creator</name>
-        <link>http://example.com/creator.html</link>
-      </author>
-    </authors>
     <status id='4'>Public</status>
     <summary>Addon already installed - SEARCH</summary>
     <description>Test description</description>
@@ -18,12 +12,6 @@
       <application>
         <name>Firefox</name>
         <appID>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</appID>
-        <min_version>0</min_version>
-        <max_version>*</max_version>
-      </application>
-      <application>
-        <name>SeaMonkey</name>
-        <appID>{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}</appID>
         <min_version>0</min_version>
         <max_version>*</max_version>
       </application>
@@ -36,12 +24,6 @@
     <type id='1'>Extension</type>
     <guid>install1@tests.mozilla.org</guid>
     <version>1.0</version>
-    <authors>
-      <author>
-        <name>Test Creator</name>
-        <link>http://example.com/creator.html</link>
-      </author>
-    </authors>
     <status id='4'>Public</status>
     <summary>Install already exists - SEARCH</summary>
     <description>Test description</description>
@@ -49,12 +31,6 @@
       <application>
         <name>Firefox</name>
         <appID>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</appID>
-        <min_version>0</min_version>
-        <max_version>*</max_version>
-      </application>
-      <application>
-        <name>SeaMonkey</name>
-        <appID>{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}</appID>
         <min_version>0</min_version>
         <max_version>*</max_version>
       </application>
@@ -67,12 +43,6 @@
     <type id='1'>Extension</type>
     <guid>remote1@tests.mozilla.org</guid>
     <version>3.0</version>
-    <authors>
-      <author>
-        <name>Test Creator</name>
-        <link>http://example.com/creator.html</link>
-      </author>
-    </authors>
     <status id='4'>Public</status>
     <summary>Test summary - SEARCH SEARCH</summary>
     <description>Test description</description>
@@ -80,12 +50,6 @@
       <application>
         <name>Firefox</name>
         <appID>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</appID>
-        <min_version>0</min_version>
-        <max_version>*</max_version>
-      </application>
-      <application>
-        <name>SeaMonkey</name>
-        <appID>{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}</appID>
         <min_version>0</min_version>
         <max_version>*</max_version>
       </application>
@@ -98,12 +62,6 @@
     <type id='1'>Extension</type>
     <guid>remote2@tests.mozilla.org</guid>
     <version>4.0</version>
-    <authors>
-      <author>
-        <name>Test Creator</name>
-        <link>http://example.com/creator.html</link>
-      </author>
-    </authors>
     <status id='4'>Public</status>
     <summary>Test summary - SEARCHing SEARCH</summary>
     <description>Test description</description>
@@ -111,12 +69,6 @@
       <application>
         <name>Firefox</name>
         <appID>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</appID>
-        <min_version>0</min_version>
-        <max_version>*</max_version>
-      </application>
-      <application>
-        <name>SeaMonkey</name>
-        <appID>{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}</appID>
         <min_version>0</min_version>
         <max_version>*</max_version>
       </application>
@@ -129,12 +81,6 @@
     <type id='1'>Extension</type>
     <guid>remote3@tests.mozilla.org</guid>
     <version>5.0</version>
-    <authors>
-      <author>
-        <name>Test Creator</name>
-        <link>http://example.com/creator.html</link>
-      </author>
-    </authors>
     <status id='4'>Public</status>
     <summary>Test summary - Does not match query</summary>
     <description>Test description</description>
@@ -142,12 +88,6 @@
       <application>
         <name>Firefox</name>
         <appID>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</appID>
-        <min_version>0</min_version>
-        <max_version>*</max_version>
-      </application>
-      <application>
-        <name>SeaMonkey</name>
-        <appID>{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}</appID>
         <min_version>0</min_version>
         <max_version>*</max_version>
       </application>
@@ -160,12 +100,6 @@
     <type id='1'>Extension</type>
     <guid>remote4@tests.mozilla.org</guid>
     <version>6.0</version>
-    <authors>
-      <author>
-        <name>Test Creator</name>
-        <link>http://example.com/creator.html</link>
-      </author>
-    </authors>
     <status id='4'>Public</status>
     <summary>Test summary - SEARCHing SEARCH SEARCH</summary>
     <description>Test description</description>
@@ -173,12 +107,6 @@
       <application>
         <name>Firefox</name>
         <appID>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</appID>
-        <min_version>0</min_version>
-        <max_version>*</max_version>
-      </application>
-      <application>
-        <name>SeaMonkey</name>
-        <appID>{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}</appID>
         <min_version>0</min_version>
         <max_version>*</max_version>
       </application>

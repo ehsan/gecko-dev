@@ -38,7 +38,6 @@ function test() {
     }, function() { return "call"; });
 
     assertEq(proxy(), "call");
-    assertEq(Function.prototype.bind.call(proxy)(), "call");
     assertEq(typeof proxy, "function");
     if ("isTrapping" in Proxy) {
 	assertEq(Proxy.isTrapping(proxy), true);
@@ -57,9 +56,7 @@ function test() {
     function() { var x = {}; x.origin = "new"; return x; })
 
     assertEq(proxy().origin, "call");
-    assertEq(Function.prototype.bind.call(proxy)().origin, "call");
     assertEq((new proxy()).origin, "new");
-    assertEq(new (Function.prototype.bind.call(proxy))().origin, "new");
     if ("fix" in Proxy) {
 	assertEq(Proxy.fix(proxy), true);
 	assertEq(proxy().origin, "call");

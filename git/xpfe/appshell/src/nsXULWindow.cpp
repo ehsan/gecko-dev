@@ -154,7 +154,6 @@ nsXULWindow::nsXULWindow(PRUint32 aChromeFlags)
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
     mChromeFlags(aChromeFlags),
-    mIgnoreXULSizeMode(PR_FALSE),
     // best guess till we have a widget
     mAppPerDev(nsPresContext::AppUnitsPerCSSPixel())
 {
@@ -1220,8 +1219,7 @@ PRBool nsXULWindow::LoadMiscPersistentAttributesFromXUL()
     if (stateString.Equals(SIZEMODE_MINIMIZED))
       sizeMode = nsSizeMode_Minimized;
     */
-    if (!mIgnoreXULSizeMode &&
-        (stateString.Equals(SIZEMODE_MAXIMIZED) || stateString.Equals(SIZEMODE_FULLSCREEN))) {
+    if (stateString.Equals(SIZEMODE_MAXIMIZED) || stateString.Equals(SIZEMODE_FULLSCREEN)) {
       /* Honor request to maximize only if the window is sizable.
          An unsizable, unmaximizable, yet maximized window confuses
          Windows OS and is something of a travesty, anyway. */
@@ -1404,7 +1402,13 @@ void nsXULWindow::SyncAttributesToWidget()
 
   // "accelerated" attribute
   PRBool isAccelerated;
-  rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
+  static const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
+  if (acceleratedEnv && *acceleratedEnv) {
+    isAccelerated = *acceleratedEnv != '0';
+    rv = NS_OK;
+  } else
+    rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
+
   if (NS_SUCCEEDED(rv)) {
     mWindow->SetAcceleratedRendering(isAccelerated);
   }

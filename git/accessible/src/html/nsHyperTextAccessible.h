@@ -86,7 +86,7 @@ public:
   // nsAccessible
   virtual PRInt32 GetLevelInternal();
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void InvalidateChildren();
@@ -131,7 +131,7 @@ public:
   inline PRInt32 GetLinkIndexAtOffset(PRUint32 aOffset)
   {
     nsAccessible* child = GetChildAtOffset(aOffset);
-    return child ? GetLinkIndex(child) : -1;
+    return GetLinkIndex(child);
   }
 
   /**

@@ -40,10 +40,9 @@ topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
 ADDONSRC = $(srcdir)/addons
-relativesrcdir = toolkit/mozapps/extensions/test
-
-TESTROOT = $(CURDIR)/$(DEPTH)/_tests/xpcshell/$(relativesrcdir)
+TESTROOT = $(CURDIR)/$(DEPTH)/_tests/xpcshell/$(MODULE)
 TESTXPI = $(TESTROOT)/xpcshell/addons
+relativesrcdir  = toolkit/mozapps/extensions/test
 
 include $(DEPTH)/config/autoconf.mk
 
@@ -58,7 +57,6 @@ endif
 
 XPCSHELL_TESTS = \
   xpcshell \
-  xpcshell-unpack \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk
@@ -73,5 +71,3 @@ libs::
 			(cd $$dir && zip -r $(TESTXPI)/$$base.xpi *) \
 		done \
 	fi
-	cp -pPR $(TESTROOT)/xpcshell/. $(TESTROOT)/xpcshell-unpack
-

@@ -441,17 +441,15 @@ AndroidRect::Init(JNIEnv *jenv, jobject jobj)
     }
 }
 
-nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
+nsJNIString::nsJNIString(jstring jstr)
 {
     if (!jstr) {
         SetIsVoid(PR_TRUE);
         return;
     }
-    JNIEnv *jni = jenv;
-    if (!jni)
-        jni = JNI();
-    const jchar* jCharPtr = jni->GetStringChars(jstr, false);
-    int len = jni->GetStringLength(jstr);
-    Assign(jCharPtr, len);
-    jni->ReleaseStringChars(jstr, jCharPtr);
+    const jchar* jCharPtr = JNI()->GetStringChars(jstr, false);
+    nsresult rv;
+    Assign(jCharPtr);
+    JNI()->ReleaseStringChars(jstr, jCharPtr);
+
 }

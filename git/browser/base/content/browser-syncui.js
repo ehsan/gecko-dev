@@ -22,7 +22,6 @@
 #  Chris Beard <cbeard@mozilla.com>
 #  Dan Mosedale <dmose@mozilla.org>
 #  Paul O’Shannessy <paul@oshannessy.com>
-#  Philipp von Weitershausen <philipp@weitershausen.de>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,20 +43,12 @@ let gSyncUI = {
     // this will be the first notification fired during init
     // we can set up everything else later
     Services.obs.addObserver(this, "weave:service:ready", true);
-
-    // Remove the observer if the window is closed before the observer
-    // was triggered.
-    window.addEventListener("unload", function() {
-      window.removeEventListener("unload", arguments.callee, false);
-      Services.obs.removeObserver(gSyncUI, "weave:service:ready");
-    }, false);
   },
   initUI: function SUI_initUI() {
     let obs = ["weave:service:sync:start",
                "weave:service:sync:finish",
                "weave:service:sync:error",
                "weave:service:sync:delayed",
-               "weave:service:quota:remaining",
                "weave:service:setup-complete",
                "weave:service:login:start",
                "weave:service:login:finish",
@@ -93,27 +84,27 @@ let gSyncUI = {
     try {
       firstSync = Services.prefs.getCharPref("services.sync.firstSync");
     } catch (e) { }
-    return Weave.Status.checkSetup() == Weave.CLIENT_NOT_CONFIGURED ||
+    return Weave.Status.service == Weave.CLIENT_NOT_CONFIGURED ||
            firstSync == "notReady";
-  },
-
-  _isLoggedIn: function() {
-    if (this._needsSetup())
-      return false;
-    return Weave.Service.isLoggedIn;
   },
 
   updateUI: function SUI_updateUI() {
     let needsSetup = this._needsSetup();
-    document.getElementById("sync-setup-state").hidden = !needsSetup;
-    document.getElementById("sync-syncnow-state").hidden = needsSetup;
+    document.getElementById("sync-setup").hidden = !needsSetup;
+    document.getElementById("sync-menu").hidden = needsSetup;
 
     if (gBrowser) {
-      document.getElementById("sync-button").removeAttribute("status");
-      this._updateLastSyncTime();
-    }
-    if (needsSetup) {
-      document.getElementById("sync-button").removeAttribute("tooltiptext");
+      let showLabel = !Weave.Service.isLoggedIn && !needsSetup;
+      let button = document.getElementById("sync-status-button");
+      button.setAttribute("class", showLabel ? "statusbarpanel-iconic-text"
+                                             : "statusbarpanel-iconic");
+      button.image = "chrome://browser/skin/sync-16.png";
+
+      if (!Weave.Service.isLoggedIn) {
+        //XXXzpao When we move the string bundle, we can add more and make this
+        //        say "needs setup" or something similar. (bug 583381)
+        button.removeAttribute("tooltiptext");
+      }
     }
   },
 
@@ -149,7 +140,8 @@ let gSyncUI = {
   onActivityStart: function SUI_onActivityStart() {
     //XXXzpao Followup: Do this with a class. (bug 583384)
     if (gBrowser)
-      document.getElementById("sync-button").setAttribute("status", "active");
+      document.getElementById("sync-status-button").image =
+        "chrome://browser/skin/sync-16-throbber.png";
   },
 
   onSyncFinish: function SUI_onSyncFinish() {
@@ -175,7 +167,7 @@ let gSyncUI = {
     Weave.Notifications.removeAll(title);
 
     this.updateUI();
-    this._updateLastSyncTime();
+    this._updateLastSyncItem();
   },
 
   onLoginError: function SUI_onLoginError() {
@@ -213,21 +205,6 @@ let gSyncUI = {
     this.updateUI();
   },
 
-  onQuotaNotice: function onQuotaNotice(subject, data) {
-    let title = this._stringBundle.GetStringFromName("warning.sync.quota.label");
-    let description = this._stringBundle.GetStringFromName("warning.sync.quota.description");
-    let buttons = [];
-    buttons.push(new Weave.NotificationButton(
-      this._stringBundle.GetStringFromName("error.sync.viewQuotaButton.label"),
-      this._stringBundle.GetStringFromName("error.sync.viewQuotaButton.accesskey"),
-      function() { gSyncUI.openQuotaDialog(); return true; }
-    ));
-
-    let notification = new Weave.Notification(
-      title, description, null, Weave.Notifications.PRIORITY_WARNING, buttons);
-    Weave.Notifications.replaceTitle(notification);
-  },
-
   onNotificationAdded: function SUI_onNotificationAdded() {
     if (!gBrowser)
       return;
@@ -259,6 +236,32 @@ let gSyncUI = {
   },
 
   // Commands
+  doUpdateMenu: function SUI_doUpdateMenu(event) {
+    this._updateLastSyncItem();
+
+    let loginItem = document.getElementById("sync-loginitem");
+    let logoutItem = document.getElementById("sync-logoutitem");
+    let syncItem = document.getElementById("sync-syncnowitem");
+
+    // Don't allow "login" to be selected in some cases
+    let offline = Services.io.offline;
+    let locked = Weave.Service.locked;
+    let noUser = Weave.Service.username == "";
+    let notReady = offline || locked || noUser;
+    loginItem.setAttribute("disabled", notReady);
+    logoutItem.setAttribute("disabled", notReady);
+
+    // Don't allow "sync now" to be selected in some cases
+    let loggedIn = Weave.Service.isLoggedIn;
+    let noNode = Weave.Status.sync == Weave.NO_SYNC_NODE_FOUND;
+    let disableSync = notReady || !loggedIn || noNode;
+    syncItem.setAttribute("disabled", disableSync);
+
+    // Only show one of login/logout
+    loginItem.setAttribute("hidden", loggedIn);
+    logoutItem.setAttribute("hidden", !loggedIn);
+  },
+
   doLogin: function SUI_doLogin() {
     Weave.Service.login();
   },
@@ -268,15 +271,16 @@ let gSyncUI = {
   },
 
   doSync: function SUI_doSync() {
-    if (Weave.Service.isLoggedIn || Weave.Service.login())
-      Weave.Service.sync();
+    Weave.Service.sync();
   },
 
-  handleToolbarButton: function SUI_handleStatusbarButton() {
-    if (this._needsSetup())
+  handleStatusbarButton: function SUI_handleStatusbarButton() {
+    if (Weave.Service.isLoggedIn)
+      Weave.Service.sync();
+    else if (this._needsSetup())
       this.openSetup();
     else
-      this.doSync();
+      Weave.Service.login();
   },
 
   //XXXzpao should be part of syncCommon.js - which we might want to make a module...
@@ -291,52 +295,39 @@ let gSyncUI = {
     }
   },
 
-  openQuotaDialog: function SUI_openQuotaDialog() {
-    let win = Services.wm.getMostRecentWindow("Sync:ViewQuota");
-    if (win)
-      win.focus();
-    else 
-      Services.ww.activeWindow.openDialog(
-        "chrome://browser/content/syncQuota.xul", "",
-        "centerscreen,chrome,dialog,modal");
-  },
-
   openPrefs: function SUI_openPrefs() {
     openPreferences("paneSync");
   },
 
 
   // Helpers
-  _updateLastSyncTime: function SUI__updateLastSyncTime() {
-    if (!gBrowser)
-      return;
-
-    let syncButton = document.getElementById("sync-button");
+  _updateLastSyncItem: function SUI__updateLastSyncItem() {
     let lastSync;
     try {
-      lastSync = Services.prefs.getCharPref("services.sync.lastSync");
+      Services.prefs.getCharPref("services.sync.lastSync");
     }
     catch (e) { };
-    if (!lastSync || this._needsSetup()) {
-      syncButton.removeAttribute("tooltiptext");
+    if (!lastSync)
       return;
-    }
+
+    let lastSyncItem = document.getElementById("sync-lastsyncitem");
 
     // Show the day-of-week and time (HH:MM) of last sync
     let lastSyncDate = new Date(lastSync).toLocaleFormat("%a %H:%M");
     let lastSyncLabel =
       this._stringBundle.formatStringFromName("lastSync.label", [lastSyncDate], 1);
+    lastSyncItem.setAttribute("label", lastSyncLabel);
+    lastSyncItem.setAttribute("hidden", "false");
+    document.getElementById("sync-lastsyncsep").hidden = false;
 
-    syncButton.setAttribute("tooltiptext", lastSyncLabel);
+    if (gBrowser)
+      document.getElementById("sync-status-button").
+               setAttribute("tooltiptext", lastSyncLabel);
   },
 
   _onSyncEnd: function SUI__onSyncEnd(success) {
     let title = this._stringBundle.GetStringFromName("error.sync.title");
     if (!success) {
-      if (Weave.Status.login != Weave.LOGIN_SUCCEEDED) {
-        this.onLoginError();
-        return;
-      }
       let error = Weave.Utils.getErrorString(Weave.Status.sync);
       let description =
         this._stringBundle.formatStringFromName("error.sync.description", [error], 1);
@@ -344,18 +335,7 @@ let gSyncUI = {
       let priority = Weave.Notifications.PRIORITY_WARNING;
       let buttons = [];
 
-      if (Weave.Status.sync == Weave.OVER_QUOTA) {
-        description = this._stringBundle.GetStringFromName(
-          "error.sync.quota.description");
-        buttons.push(new Weave.NotificationButton(
-          this._stringBundle.GetStringFromName(
-            "error.sync.viewQuotaButton.label"),
-          this._stringBundle.GetStringFromName(
-            "error.sync.viewQuotaButton.accesskey"),
-          function() { gSyncUI.openQuotaDialog(); return true; } )
-        );
-      }
-      else if (!Weave.Status.enforceBackoff) {
+      if (!Weave.Status.enforceBackoff) {
         priority = Weave.Notifications.PRIORITY_INFO;
         buttons.push(new Weave.NotificationButton(
           this._stringBundle.GetStringFromName("error.sync.tryAgainButton.label"),
@@ -380,7 +360,7 @@ let gSyncUI = {
     }
 
     this.updateUI();
-    this._updateLastSyncTime();
+    this._updateLastSyncItem();
   },
   
   observe: function SUI_observe(subject, topic, data) {
@@ -396,9 +376,6 @@ let gSyncUI = {
         break;
       case "weave:service:sync:delayed":
         this.onSyncDelay();
-        break;
-      case "weave:service:quota:remaining":
-        this.onQuotaNotice();
         break;
       case "weave:service:setup-complete":
         this.onLoginFinish();
@@ -420,12 +397,6 @@ let gSyncUI = {
         break;
       case "weave:service:ready":
         this.initUI();
-        break;
-      case "weave:notification:added":
-        this.onNotificationAdded();
-        break;
-      case "weave:notification:removed":
-        this.onNotificationRemoved();
         break;
     }
   },

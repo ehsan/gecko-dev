@@ -40,6 +40,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+
 #include "nsMenuPopupFrame.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
@@ -405,26 +406,10 @@ nsMenuPopupFrame::IsLeaf() const
 void
 nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, PRBool aSizedToPopup)
 {
-  if (!mGeneratedChildren)
-    return;
-
-  PRBool shouldPosition = PR_TRUE;
+  // if the popup is not open, only do layout if the menu is sized to the popup
   PRBool isOpen = IsOpen();
-  if (!isOpen) {
-    // if the popup is not open, only do layout while showing or if the menu
-    // is sized to the popup
-    shouldPosition = (mPopupState == ePopupShowing);
-    if (!shouldPosition && !aSizedToPopup)
-      return;
-  }
-
-  // if the popup has just been opened, make sure the scrolled window is at 0,0
-  if (mIsOpenChanged) {
-    nsIScrollableFrame *scrollframe = do_QueryFrame(GetChildBox());
-    if (scrollframe) {
-      scrollframe->ScrollTo(nsPoint(0,0), nsIScrollableFrame::INSTANT);
-    }
-  }
+  if (!mGeneratedChildren || (!isOpen && !aSizedToPopup))
+    return;
 
   // get the preferred, minimum and maximum size. If the menu is sized to the
   // popup, then the popup's width is the menu's width.
@@ -444,7 +429,7 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, P
     mPrefSize = prefSize;
   }
 
-  if (shouldPosition) {
+  if (isOpen) {
     SetPopupPosition(aParentMenu, PR_FALSE);
   }
 
@@ -467,63 +452,55 @@ nsMenuPopupFrame::LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, P
     }
   }
 
-  nsPresContext* pc = PresContext();
   if (isOpen) {
-    nsIView* view = GetView();
-    nsIViewManager* viewManager = view->GetViewManager();
-    nsRect rect = GetRect();
-    rect.x = rect.y = 0;
+    AdjustView();
+  }
+}
 
-    // Increase the popup's view size to account for any titlebar or borders.
-    // XXXndeakin this should really be accounted for earlier in
-    // SetPopupPosition so that this extra size is accounted for when flipping
-    // or resizing the popup due to it being too large, but that can be a
-    // followup bug.
-    if (mPopupType == ePopupTypePanel && view) {
-      nsIWidget* widget = view->GetWidget();
-      if (widget) {
-        nsIntSize popupSize = nsIntSize(pc->AppUnitsToDevPixels(rect.width),
-                                        pc->AppUnitsToDevPixels(rect.height));
-        popupSize = widget->ClientToWindowSize(popupSize);
-        rect.width = pc->DevPixelsToAppUnits(popupSize.width);
-        rect.height = pc->DevPixelsToAppUnits(popupSize.height);
-      }
-    }
-    viewManager->ResizeView(view, rect);
-
-    viewManager->SetViewVisibility(view, nsViewVisibility_kShow);
-    mPopupState = ePopupOpenAndVisible;
-    nsContainerFrame::SyncFrameViewProperties(pc, this, nsnull, view, 0);
+void
+nsMenuPopupFrame::AdjustView()
+{
+  // if the popup has just opened, make sure the scrolled window is at 0,0
+  if (mIsOpenChanged) {
+    nsIBox* child = GetChildBox();
+    nsIScrollableFrame *scrollframe = do_QueryFrame(child);
+    if (scrollframe)
+      scrollframe->ScrollTo(nsPoint(0,0), nsIScrollableFrame::INSTANT);
   }
 
-  // finally, if the popup just opened, send a popupshown event
+  nsIView* view = GetView();
+  nsIViewManager* viewManager = view->GetViewManager();
+  nsRect rect = GetRect();
+  rect.x = rect.y = 0;
+
+  // Increase the popup's view size to account for any titlebar or borders.
+  // XXXndeakin this should really be accounted for earlier in
+  // SetPopupPosition so that this extra size is accounted for when flipping
+  // or resizing the popup due to it being too large, but that can be a
+  // followup bug.
+  nsPresContext* pc = PresContext();
+  if (mPopupType == ePopupTypePanel && view) {
+    nsIWidget* widget = view->GetWidget();
+    if (widget) {
+      nsIntSize popupSize = nsIntSize(pc->AppUnitsToDevPixels(rect.width),
+                                      pc->AppUnitsToDevPixels(rect.height));
+      popupSize = widget->ClientToWindowSize(popupSize);
+      rect.width = pc->DevPixelsToAppUnits(popupSize.width);
+      rect.height = pc->DevPixelsToAppUnits(popupSize.height);
+    }
+  }
+  viewManager->ResizeView(view, rect);
+
+  viewManager->SetViewVisibility(view, nsViewVisibility_kShow);
+  mPopupState = ePopupOpenAndVisible;
+  nsContainerFrame::SyncFrameViewProperties(pc, this, nsnull, view, 0);
+
+  // fire popupshown event when the state has changed
   if (mIsOpenChanged) {
     mIsOpenChanged = PR_FALSE;
     nsCOMPtr<nsIRunnable> event = new nsXULPopupShownEvent(GetContent(), pc);
     NS_DispatchToCurrentThread(event);
   }
-}
-
-nsIContent*
-nsMenuPopupFrame::GetTriggerContent(nsMenuPopupFrame* aMenuPopupFrame)
-{
-  while (aMenuPopupFrame) {
-    if (aMenuPopupFrame->mTriggerContent)
-      return aMenuPopupFrame->mTriggerContent;
-
-    // check up the menu hierarchy until a popup with a trigger node is found
-    nsMenuFrame* menuFrame = aMenuPopupFrame->GetParentMenu();
-    if (!menuFrame)
-      break;
-
-    nsMenuParent* parentPopup = menuFrame->GetMenuParent();
-    if (!parentPopup || !parentPopup->IsMenu())
-      break;
-
-    aMenuPopupFrame = static_cast<nsMenuPopupFrame *>(parentPopup);
-  }
-
-  return nsnull;
 }
 
 void
@@ -716,9 +693,43 @@ nsMenuPopupFrame::InitializePopupWithAnchorAlign(nsIContent* aAnchorContent,
 }
 
 void
+LazyGeneratePopupDone(nsIContent* aPopup, nsIFrame* aFrame, void* aArg)
+{
+  // be safe and check the frame type
+  if (aFrame->GetType() == nsGkAtoms::menuPopupFrame) {
+    nsWeakFrame weakFrame(aFrame);
+    nsMenuPopupFrame* popupFrame = static_cast<nsMenuPopupFrame*>(aFrame);
+
+    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+    if (pm && popupFrame->IsMenu()) {
+      nsCOMPtr<nsIContent> popup = aPopup;
+      pm->UpdateMenuItems(popup);
+
+      if (!weakFrame.IsAlive())
+        return;
+
+      PRBool selectFirstItem = (PRBool)NS_PTR_TO_INT32(aArg);
+      if (selectFirstItem) {
+        nsMenuFrame* next = pm->GetNextMenuItem(popupFrame, nsnull, PR_TRUE);
+        popupFrame->SetCurrentMenuItem(next);
+      }
+    }
+
+    if (weakFrame.IsAlive()) {
+      popupFrame->PresContext()->PresShell()->
+        FrameNeedsReflow(popupFrame, nsIPresShell::eTreeChange,
+                         NS_FRAME_HAS_DIRTY_CHILDREN);
+    }
+  }
+}
+
+
+PRBool
 nsMenuPopupFrame::ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem)
 {
   mIsContextMenu = aIsContextMenu;
+
+  PRBool hasChildren = PR_FALSE;
 
   if (mPopupState == ePopupShowing) {
     mPopupState = ePopupOpen;
@@ -729,14 +740,21 @@ nsMenuPopupFrame::ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem)
       nsWeakFrame weakFrame(this);
       menuFrame->PopupOpened();
       if (!weakFrame.IsAlive())
-        return;
+        return PR_FALSE;
     }
 
-    // do we need an actual reflow here?
-    // is SetPopupPosition all that is needed?
-    PresContext()->PresShell()->FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                                                 NS_FRAME_HAS_DIRTY_CHILDREN);
-
+    // the frames for the child menus have not been created yet, so tell the
+    // frame constructor to build them
+    if (mFrames.IsEmpty() && !mGeneratedChildren) {
+      PresContext()->PresShell()->FrameConstructor()->
+        AddLazyChildren(mContent, LazyGeneratePopupDone, NS_INT32_TO_PTR(aSelectFirstItem));
+    }
+    else {
+      hasChildren = PR_TRUE;
+      PresContext()->PresShell()->
+        FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                         NS_FRAME_HAS_DIRTY_CHILDREN);
+    }
     if (mPopupType == ePopupTypeMenu) {
       nsCOMPtr<nsISound> sound(do_CreateInstance("@mozilla.org/sound;1"));
       if (sound)
@@ -745,6 +763,7 @@ nsMenuPopupFrame::ShowPopup(PRBool aIsContextMenu, PRBool aSelectFirstItem)
   }
 
   mShouldAutoPosition = PR_TRUE;
+  return hasChildren;
 }
 
 void
@@ -1694,12 +1713,10 @@ nsMenuPopupFrame::AttributeChanged(PRInt32 aNameSpaceID,
   if (aAttribute == nsGkAtoms::menugenerated &&
       mFrames.IsEmpty() && !mGeneratedChildren) {
     EnsureWidget();
-
-    // indicate that the children have been generated and then generate them
-    mGeneratedChildren = PR_TRUE;
-    PresContext()->PresShell()->FrameConstructor()->GenerateChildFrames(this);
+    PresContext()->PresShell()->FrameConstructor()->
+      AddLazyChildren(mContent, LazyGeneratePopupDone, nsnull, PR_TRUE);
   }
-
+  
   return rv;
 }
 

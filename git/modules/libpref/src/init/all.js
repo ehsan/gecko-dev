@@ -50,7 +50,6 @@
 pref("keyword.URL", "http://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
-pref("general.useragent.compatMode.firefox", false);
 
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
@@ -60,11 +59,6 @@ pref("general.warnOnAboutConfig", true);
 pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
-// Is this the first-time smartsizing has been introduced?
-pref("browser.cache.disk.smart_size.first_run", true);
-// Does the user want smart-sizing?
-pref("browser.cache.disk.smart_size.enabled", true);
-// Size explicitly set by the user. Used when smart_size.enabled == false
 #ifndef WINCE
 pref("browser.cache.disk.capacity",         256000);
 #else
@@ -95,11 +89,6 @@ pref("browser.cache.offline.capacity", 15000);
 pref("offline-apps.quota.max",          7000);
 pref("offline-apps.quota.warn",         4000);
 #endif
-
-// Whether or not indexedDB is enabled.
-pref("dom.indexedDB.enabled", true);
-// Space to allow indexedDB databases before prompting (in MB).
-pref("dom.indexedDB.warningQuota", 50);
 
 // Fastback caching - if this pref is negative, then we calculate the number
 // of content viewers to cache based on the amount of available memory.
@@ -189,11 +178,13 @@ pref("gfx.color_management.mode", 2);
 pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
-pref("gfx.3d_video.enabled", false);
-
 pref("gfx.downloadable_fonts.enabled", true);
 
+#ifdef XP_MACOSX
 pref("gfx.font_rendering.harfbuzz.level", 1);
+#else
+pref("gfx.font_rendering.harfbuzz.level", 0);
+#endif
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -582,10 +573,8 @@ pref("javascript.options.strict",           false);
 pref("javascript.options.strict.debug",     true);
 #endif
 pref("javascript.options.relimit",          true);
-pref("javascript.options.tracejit.content",  true);
-pref("javascript.options.tracejit.chrome",   true);
-pref("javascript.options.methodjit.content", true);
-pref("javascript.options.methodjit.chrome",  false);
+pref("javascript.options.jit.content",      true);
+pref("javascript.options.jit.chrome",       true);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
@@ -803,23 +792,12 @@ pref("network.IDN.whitelist.vn", true);
 // IDN ccTLDs
 // ae, UAE, .<Emarat>
 pref("network.IDN.whitelist.xn--mgbaam7a8h", true); 
-// cn, China, .<China> with variants
-pref("network.IDN.whitelist.xn--fiqz9s", true); // Traditional
-pref("network.IDN.whitelist.xn--fiqs8s", true); // Simplified
-// hk, Hong Kong, .<Hong Kong>
-pref("network.IDN.whitelist.xn--j6w193g", true);
-// jo, Jordan, .<Al-Ordon>
-pref("network.IDN.whitelist.xn--mgbayh7gpa", true);
+// sa, Saudi Arabia, .<al-Saudiah>
+pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
 // ru, Russian Federation, .<RF>
 pref("network.IDN.whitelist.xn--p1ai", true);
-// sa, Saudi Arabia, .<al-Saudiah> with variants
-pref("network.IDN.whitelist.xn--mgberp4a5d4ar", true); 
-pref("network.IDN.whitelist.xn--mgberp4a5d4a87g", true);
-pref("network.IDN.whitelist.xn--mgbqly7c0a67fbc", true);
-pref("network.IDN.whitelist.xn--mgbqly7cvafr", true);
-// tw, Taiwan, <.Taiwan> with variants
-pref("network.IDN.whitelist.xn--kpry57d", true);  // Traditional
-pref("network.IDN.whitelist.xn--kprw13d", true);  // Simplified
+// jo, Jordan, .<Al-Ordon>
+pref("network.IDN.whitelist.xn--mgbayh7gpa", true);
 
 // gTLDs
 pref("network.IDN.whitelist.biz", true);
@@ -1019,7 +997,6 @@ pref("security.xpconnect.plugin.unrestricted", true);
 pref("security.dialog_enable_delay", 2000);
 
 pref("security.csp.enable", true);
-pref("security.csp.debug", false);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
@@ -1237,23 +1214,6 @@ pref("layout.css.devPixelsPerPx", "1.0");
 // 2 = right
 // 3 = left
 pref("layout.scrollbar.side", 0);
-
-// pref to control browser frame rate, in Hz. A value <= 0 means choose
-// automatically based on knowledge of the platform (or 60Hz if no platform-
-// specific information is available).
-pref("layout.frame_rate", -1);
-
-// pref to control precision of the frame rate timer. When true,
-// we use a "precise" timer, which means each notification fires
-// Nms after the start of the last notification. That means if the
-// processing of the notification is slow, the timer can fire immediately
-// after we've just finished processing the last notification, which might
-// lead to starvation problems.
-// When false, we use a "slack" timer which fires Nms after the *end*
-// of the last notification. This can give less tight frame rates
-// but provides more time for other operations when the browser is
-// heavily loaded.
-pref("layout.frame_rate.precise", false);
 
 // pref to permit users to make verified SOAP calls by default
 pref("capability.policy.default.SOAPCall.invokeVerifySourceHeader", "allAccess");
@@ -3162,7 +3122,7 @@ pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
 
 // Discards inactive image frames and re-decodes them on demand from
 // compressed data.
-pref("image.mem.discardable", true);
+pref("image.mem.discardable", false);
 
 // Prevents images from automatically being decoded on load, instead allowing
 // them to be decoded on demand when they are drawn.
@@ -3173,22 +3133,11 @@ pref("image.mem.decodeondraw", false);
 // value and twice this value.
 pref("image.mem.min_discard_timeout_ms", 10000);
 
-// Chunk size for calls to the image decoders
-pref("image.mem.decode_bytes_at_a_time", 200000);
-
-// The longest time we can spend in an iteration of an async decode
-pref("image.mem.max_ms_before_yield", 400);
-
-// The maximum source data size for which we auto sync decode
-pref("image.mem.max_bytes_for_sync_decode", 150000);
-
 // WebGL prefs
 pref("webgl.enabled_for_all_sites", false);
 pref("webgl.shader_validator", true);
-pref("webgl.force_osmesa", false);
-pref("webgl.mochitest_native_gl", false);
+pref("webgl.software_render", false);
 pref("webgl.osmesalib", "");
-pref("webgl.verbose", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -3202,25 +3151,15 @@ pref("mozilla.widget.disable-native-theme", true);
 pref("gfx.color_management.mode", 0);
 #endif
 
-// Default value of acceleration for all widgets.
-#ifdef XP_WIN
-pref("layers.accelerate-all", true);
-#else
-pref("layers.accelerate-all", false);
-#endif
+// Initialize default render-mode.
+pref("mozilla.widget.render-mode", -1);
 
-// Whether to allow acceleration on layers at all.
-pref("layers.accelerate-none", false);
+// Initialize default accelerated layers
+pref("mozilla.widget.accelerated-layers", true);
 
 #ifdef XP_WIN
 #ifndef WINCE
-// Whether to disable the automatic detection and use of direct2d.
-pref("gfx.direct2d.disabled", false);
-// Whether to attempt to enable Direct2D regardless of automatic detection or
-// blacklisting
-pref("gfx.direct2d.force-enabled", false);
-
-pref("layers.prefer-opengl", false);
+pref("mozilla.layers.prefer-opengl", false);
 #endif
 #endif
 
@@ -3250,7 +3189,6 @@ pref("browser.history.maxStateObjectSize", 655360);
 
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
-pref("extensions.alwaysUnpack", false);
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);

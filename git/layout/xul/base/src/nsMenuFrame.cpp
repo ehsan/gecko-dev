@@ -232,11 +232,12 @@ nsMenuFrame::nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 
 } // cntr
 
-void
-nsMenuFrame::SetParent(nsIFrame* aParent)
+NS_IMETHODIMP
+nsMenuFrame::SetParent(const nsIFrame* aParent)
 {
   nsBoxFrame::SetParent(aParent);
-  InitMenuParent(aParent);
+  InitMenuParent(const_cast<nsIFrame *>(aParent));
+  return NS_OK;
 }
 
 void
@@ -1368,13 +1369,6 @@ nsMenuFrame::SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize)
         return PR_FALSE;
       tmpSize = mPopupFrame->GetPrefSize(aState);
       aSize.width = tmpSize.width;
-
-      // if there is a scroll frame, add the desired width of the scrollbar as well
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(mPopupFrame->GetFirstChild(nsnull));
-      if (scrollFrame) {
-        aSize.width += scrollFrame->GetDesiredScrollbarSizes(&aState).LeftRight();
-      }
-
       return PR_TRUE;
     }
   }

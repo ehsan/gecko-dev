@@ -246,15 +246,11 @@ void nsWindowGfx::OnSettingsChangeGfx(WPARAM wParam)
 
 nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
                                        PAINTSTRUCT ps, HDC aDC)
-{
+{ 
   if (aForceFullRepaint) {
     RECT paintRect;
     ::GetClientRect(mWnd, &paintRect);
-    nsIntRegion region(nsWindowGfx::ToIntRect(paintRect));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-    return region;
+    return nsIntRegion(nsWindowGfx::ToIntRect(paintRect));
   }
 
 #if defined(WINCE_WINDOWS_MOBILE) || !defined(WINCE)
@@ -274,21 +270,11 @@ nsIntRegion nsWindow::GetRegionToPaint(PRBool aForceFullRepaint,
     ::DeleteObject(paintRgn);
 # ifdef WINCE
     if (!rgn.IsEmpty())
-      return rgn;
-# elif MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-    rgn.Sub(rgn, mCaptionButtonsRoundedRegion);
-    return rgn;
-# else
-    return rgn;
 # endif
+      return rgn;
   }
 #endif
-
-  nsIntRegion region(nsWindowGfx::ToIntRect(ps.rcPaint));
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  region.Sub(region, mCaptionButtonsRoundedRegion);
-#endif
-  return region;
+  return nsIntRegion(nsWindowGfx::ToIntRect(ps.rcPaint));
 }
 
 #define WORDSSIZE(x) ((x).width * (x).height)
@@ -499,9 +485,9 @@ PRBool nsWindow::OnPaint(HDC aDC, PRUint32 aNestingLevel)
             targetSurfaceDDraw = new gfxDDrawSurface(gpDDSurf.get(), winrect);
             targetSurface = targetSurfaceDDraw;
           }
+#endif
 
 DDRAW_FAILED:
-#endif
           nsRefPtr<gfxImageSurface> targetSurfaceImage;
           if (!targetSurface &&
               (IsRenderMode(gfxWindowsPlatform::RENDER_IMAGE_STRETCH32) ||
@@ -574,28 +560,6 @@ DDRAW_FAILED:
             doubleBuffering = BasicLayerManager::BUFFER_BUFFERED;
 #endif
           }
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-          if (IsRenderMode(gfxWindowsPlatform::RENDER_GDI) &&
-              mTransparencyMode != eTransparencyTransparent &&
-              !mCaptionButtons.IsEmpty()) {
-            // The area behind the caption buttons need to have a
-            // black background first to make the clipping work.
-            RECT rect;
-            rect.top = mCaptionButtons.y;
-            rect.left = mCaptionButtons.x;
-            rect.right = mCaptionButtons.x + mCaptionButtons.width;
-            rect.bottom = mCaptionButtons.y + mCaptionButtons.height;
-            FillRect(hDC, &rect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-
-            const nsIntRect* r;
-            for (nsIntRegionRectIterator iter(event.region);
-                 (r = iter.Next()) != nsnull;) {
-              thebesContext->Rectangle(gfxRect(r->x, r->y, r->width, r->height), PR_TRUE);
-            }
-            thebesContext->Clip();
-          }
-#endif
 
           {
             AutoLayerManagerSetup
@@ -745,19 +709,9 @@ DDRAW_FAILED:
         break;
 #ifdef MOZ_ENABLE_D3D9_LAYER
       case LayerManager::LAYERS_D3D9:
-        {
-          LayerManagerD3D9 *layerManagerD3D9 =
-            static_cast<mozilla::layers::LayerManagerD3D9*>(GetLayerManager());
-          layerManagerD3D9->SetClippingRegion(event.region);
-          result = DispatchWindowEvent(&event, eventStatus);
-          if (layerManagerD3D9->DeviceWasRemoved()) {
-            mLayerManager = nsnull;
-            // When our device was removed, we should have gfxWindowsPlatform
-            // check if its render mode is up to date!
-            gfxWindowsPlatform::GetPlatform()->UpdateRenderMode();
-            Invalidate(PR_FALSE);
-          }
-        }
+        static_cast<mozilla::layers::LayerManagerD3D9*>(GetLayerManager())->
+          SetClippingRegion(event.region);
+        result = DispatchWindowEvent(&event, eventStatus);
         break;
 #endif
       default:
@@ -765,23 +719,6 @@ DDRAW_FAILED:
         break;
     }
   }
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-  if(event.region.Intersects(mCaptionButtons)) {
-    // Temporary workaround to make the captions buttons visible for D3D9
-    const nsIntRect* r;
-    RECT rect;
-    HBRUSH blackBrush = (HBRUSH)GetStockObject(BLACK_BRUSH);
-    for (nsIntRegionRectIterator iter(mCaptionButtonsRoundedRegion);
-         (r = iter.Next()) != nsnull;) {
-      rect.top = r->y;
-      rect.left = r->x;
-      rect.right = r->XMost();
-      rect.bottom = r->YMost();
-      FillRect(hDC, &rect, blackBrush);
-    }
-  }
-#endif
 
   if (!aDC) {
     ::EndPaint(mWnd, &ps);
@@ -823,6 +760,8 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   PRUint32 aHotspotX,
                                   PRUint32 aHotspotY,
                                   HICON *aIcon) {
+
+  nsresult rv;
 
   // Get the image data
   nsRefPtr<gfxImageSurface> frame;

@@ -243,8 +243,7 @@ public:
         nsIInputStream* aPostDataStream = 0,
         nsIInputStream* aHeadersDataStream = 0,
         nsIDocShell** aDocShell = 0,
-        nsIRequest** aRequest = 0,
-        const char* aHttpMethod = 0);
+        nsIRequest** aRequest = 0);
     NS_IMETHOD OnOverLink(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec);
@@ -270,13 +269,6 @@ public:
 
     friend class OnLinkClickEvent;
 
-    // We need dummy OnLocationChange in some cases to update the UI.
-    void FireDummyOnLocationChange()
-    {
-      FireOnLocationChange(this, nsnull, mCurrentURI);
-    }
-
-    nsresult HistoryTransactionRemoved(PRInt32 aIndex);
 protected:
     // Object Management
     virtual ~nsDocShell();
@@ -326,8 +318,7 @@ protected:
                                nsIRequest ** aRequest,
                                PRBool aIsNewWindowTarget,
                                PRBool aBypassClassifier,
-                               PRBool aForceAllowCookies,
-                               const char* aHttpMethod);
+                               PRBool aForceAllowCookies);
     NS_IMETHOD AddHeadersToChannel(nsIInputStream * aHeadersData, 
                                   nsIChannel * aChannel);
     virtual nsresult DoChannelLoad(nsIChannel * aChannel,
@@ -335,7 +326,8 @@ protected:
                                    PRBool aBypassClassifier);
 
     nsresult ScrollIfAnchor(nsIURI * aURI, PRBool * aWasAnchor,
-                            PRUint32 aLoadType, PRBool * aDoHashchange);
+                            PRUint32 aLoadType, nscoord *cx, nscoord *cy,
+                            PRBool * aDoHashchange);
 
     // Tries to stringify a given variant by converting it to JSON.  This only
     // works if the variant is backed by a JSVal.
@@ -436,10 +428,10 @@ protected:
 
     // overridden from nsDocLoader, this provides more information than the
     // normal OnStateChange with flags STATE_REDIRECTING
-    virtual nsresult OnRedirectStateChange(nsIChannel* aOldChannel,
-                                           nsIChannel* aNewChannel,
-                                           PRUint32 aRedirectFlags,
-                                           PRUint32 aStateFlags);
+    virtual void OnRedirectStateChange(nsIChannel* aOldChannel,
+                                       nsIChannel* aNewChannel,
+                                       PRUint32 aRedirectFlags,
+                                       PRUint32 aStateFlags);
 
     /**
      * Helper function that determines if channel is an HTTP POST.
@@ -449,17 +441,7 @@ protected:
      *
      * @return True iff channel is an HTTP post.
      */
-     static bool ChannelIsPost(nsIChannel* aChannel);
-
-     /**
-      * Helper function that determines if the HTTP channel has a safe method
-      *
-      * @param aChannel The channel to test
-      *
-      * @return Whether the channel has a safe HTTP method.
-      * @note Will return true if the channel isn't an HTTP channel.
-      */
-     static bool ChannelIsSafeHTTPMethod(nsIChannel* aChannel);
+    bool ChannelIsPost(nsIChannel* aChannel);
 
     /**
      * Helper function that finds the last URI and its transition flags for a

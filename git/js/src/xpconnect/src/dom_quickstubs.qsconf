@@ -148,7 +148,6 @@ members = [
     'nsIDOM3Document.adoptNode',
     'nsIDOM3Document.renameNode',
     'nsIDOM3Node.*',
-    'nsIDOMDOMImplementation.*',
     'nsIDOMDOMStringList.*',
     'nsIDOMDOMTokenList.*',
     'nsIDOMDOMSettableTokenList.*',
@@ -446,14 +445,11 @@ members = [
     '-nsICanvasRenderingContextWebGL.getFramebufferAttachmentParameter',
     '-nsICanvasRenderingContextWebGL.getRenderbufferParameter',
     '-nsICanvasRenderingContextWebGL.getProgramParameter',
+    '-nsICanvasRenderingContextWebGL.texParameterf',
+    '-nsICanvasRenderingContextWebGL.texParameteri',
     '-nsICanvasRenderingContextWebGL.getUniform',
     '-nsICanvasRenderingContextWebGL.getVertexAttrib',
     '-nsICanvasRenderingContextWebGL.getShaderParameter',
-
-    # Audio
-    'nsIDOMNotifyAudioAvailableEvent.frameBuffer',
-    'nsIDOMNotifyAudioAvailableEvent.time',
-    'nsIDOMHTMLAudioElement.mozWriteAudio',
 
     # dom/indexedDB
     'nsIIDBCursor.*',

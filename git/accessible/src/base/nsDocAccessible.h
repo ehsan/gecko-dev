@@ -110,14 +110,14 @@ public:
   virtual nsINode* GetNode() const { return mDocument; }
 
   // nsAccessible
-  virtual PRUint32 NativeRole();
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetARIAState(PRUint32 *aState, PRUint32 *aExtraState);
 
   virtual void SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry);
 
 #ifdef DEBUG_ACCDOCMGR
-  virtual nsresult HandleAccEvent(AccEvent* aAccEvent);
+  virtual nsresult HandleAccEvent(nsAccEvent *aAccEvent);
 #endif
 
   // nsIAccessibleText
@@ -142,24 +142,6 @@ public:
   void MarkAsLoaded() { mIsLoaded = PR_TRUE; }
 
   /**
-   * Return the parent document.
-   */
-  nsDocAccessible* ParentDocument() const
-    { return mParent ? mParent->GetDocAccessible() : nsnull; }
-
-  /**
-   * Return the child document count.
-   */
-  PRUint32 ChildDocumentCount() const
-    { return mChildDocuments.Length(); }
-
-  /**
-   * Return the child document at the given index.
-   */
-  nsDocAccessible* GetChildDocumentAt(PRUint32 aIndex) const
-    { return mChildDocuments.SafeElementAt(aIndex, nsnull); }
-
-  /**
    * Non-virtual method to fire a delayed event after a 0 length timeout.
    *
    * @param aEventType   [in] the nsIAccessibleEvent event type
@@ -169,7 +151,7 @@ public:
    *                      code synchronous with a DOM event
    */
   nsresult FireDelayedAccessibleEvent(PRUint32 aEventType, nsINode *aNode,
-                                      AccEvent::EEventRule aAllowDupes = AccEvent::eRemoveDupes,
+                                      nsAccEvent::EEventRule aAllowDupes = nsAccEvent::eRemoveDupes,
                                       PRBool aIsAsynch = PR_FALSE,
                                       EIsFromUserInput aIsFromUserInput = eAutoDetect);
 
@@ -178,7 +160,7 @@ public:
    *
    * @param aEvent  [in] the event to fire
    */
-  nsresult FireDelayedAccessibleEvent(AccEvent* aEvent);
+  nsresult FireDelayedAccessibleEvent(nsAccEvent *aEvent);
 
   /**
    * Find the accessible object in the accessibility cache that corresponds to
@@ -207,12 +189,6 @@ public:
   nsAccessible* GetCachedAccessible(void *aUniqueID);
 
   /**
-   * Return the cached accessible by the given unique ID looking through
-   * this and nested documents.
-   */
-  nsAccessible* GetCachedAccessibleInSubtree(void* aUniqueID);
-
-  /**
    * Cache the accessible.
    *
    * @param  aUniquID     [in] the unique identifier of accessible
@@ -231,7 +207,7 @@ public:
    * Process the event when the queue of pending events is untwisted. Fire
    * accessible events as result of the processing.
    */
-  void ProcessPendingEvent(AccEvent* aEvent);
+  void ProcessPendingEvent(nsAccEvent* aEvent);
 
 protected:
 
@@ -240,24 +216,6 @@ protected:
     virtual nsresult RemoveEventListeners();
     void AddScrollListener();
     void RemoveScrollListener();
-
-  /**
-   * Append the given document accessible to this document's child document
-   * accessibles.
-   */
-  bool AppendChildDocument(nsDocAccessible* aChildDocument)
-  {
-    return mChildDocuments.AppendElement(aChildDocument);
-  }
-
-  /**
-   * Remove the given document accessible from this document's child document
-   * accessibles.
-   */
-  void RemoveChildDocument(nsDocAccessible* aChildDocument)
-  {
-    mChildDocuments.RemoveElement(aChildDocument);
-  }
 
   /**
    * Invalidate parent-child relations for any cached accessible in the DOM
@@ -318,7 +276,7 @@ protected:
    * @param  aIsAsync              [in] whether casual change is async
    * @param  aIsFromUserInput      [in] the event is known to be from user input
    */
-  already_AddRefed<AccEvent>
+  already_AddRefed<nsAccEvent>
     CreateTextChangeEventForNode(nsAccessible *aContainerAccessible,
                                  nsIContent *aChangeNode,
                                  nsAccessible *aAccessible,
@@ -379,8 +337,6 @@ protected:
 
     static PRUint32 gLastFocusedAccessiblesState;
     static nsIAtom *gLastFocusedFrameType;
-
-  nsTArray<nsRefPtr<nsDocAccessible> > mChildDocuments;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,

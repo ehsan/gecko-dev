@@ -43,7 +43,6 @@
 #include "nsTArray.h"
 #include "nsRegion.h"
 #include "nsIFrame.h"
-#include "Layers.h"
 
 class nsDisplayListBuilder;
 class nsDisplayList;
@@ -51,6 +50,12 @@ class nsDisplayItem;
 class gfxContext;
 
 namespace mozilla {
+
+namespace layers {
+class Layer;
+class ThebesLayer;
+class LayerManager;
+}
 
 enum LayerState {
   LAYER_NONE,
@@ -168,14 +173,6 @@ public:
                                             const nsRect& aRect);
 
   /**
-   * For any descendant frame of aFrame (including across documents) that
-   * has an associated container layer, invalidate all the contents of
-   * all ThebesLayer children of the container. Useful when aFrame is
-   * being moved and we need to invalidate everything in aFrame's subtree.
-   */
-  static void InvalidateThebesLayersInSubtree(nsIFrame* aFrame);
-
-  /**
    * Call this to force *all* retained layer contents to be discarded at
    * the next paint.
    */
@@ -227,10 +224,9 @@ public:
    * for the container layer this ThebesItem belongs to.
    * aItem must have an underlying frame.
    */
-  struct Clip;
   void AddThebesDisplayItem(ThebesLayer* aLayer,
                             nsDisplayItem* aItem,
-                            const Clip& aClip,
+                            const nsRect* aClipRect,
                             nsIFrame* aContainerLayerFrame,
                             LayerState aLayerState,
                             LayerManager* aTempManager);
@@ -243,75 +239,6 @@ public:
    * that renders many display items.
    */
   Layer* GetOldLayerFor(nsIFrame* aFrame, PRUint32 aDisplayItemKey);
-
-  /**
-   * A useful hashtable iteration function that removes the
-   * DisplayItemData property for the frame, clears its
-   * NS_FRAME_HAS_CONTAINER_LAYER bit and returns PL_DHASH_REMOVE.
-   * aClosure is ignored.
-   */
-  static PLDHashOperator RemoveDisplayItemDataForFrame(nsPtrHashKey<nsIFrame>* aEntry,
-                                                       void* aClosure)
-  {
-    return UpdateDisplayItemDataForFrame(aEntry, nsnull);
-  }
-
-  /**
-   * Try to determine whether the ThebesLayer aLayer paints an opaque
-   * single color everywhere it's visible in aRect.
-   * If successful, return that color, otherwise return NS_RGBA(0,0,0,0).
-   */
-  nscolor FindOpaqueColorCovering(nsDisplayListBuilder* aBuilder,
-                                  ThebesLayer* aLayer, const nsRect& aRect);
-
-  /**
-   * Clip represents the intersection of an optional rectangle with a
-   * list of rounded rectangles.
-   */
-  struct Clip {
-    struct RoundedRect {
-      nsRect mRect;
-      // Indices into mRadii are the NS_CORNER_* constants in nsStyleConsts.h
-      nscoord mRadii[8];
-
-      bool operator==(const RoundedRect& aOther) const {
-        if (mRect != aOther.mRect) {
-          return false;
-        }
-
-        NS_FOR_CSS_HALF_CORNERS(corner) {
-          if (mRadii[corner] != aOther.mRadii[corner]) {
-            return false;
-          }
-        }
-        return true;
-      }
-      bool operator!=(const RoundedRect& aOther) const {
-        return !(*this == aOther);
-      }
-    };
-    nsRect mClipRect;
-    nsTArray<RoundedRect> mRoundedClipRects;
-    PRPackedBool mHaveClipRect;
-
-    Clip() : mHaveClipRect(PR_FALSE) {}
-
-    // Construct as the intersection of aOther and aClipItem.
-    Clip(const Clip& aOther, nsDisplayItem* aClipItem);
-
-    // Apply this |Clip| to the given gfxContext.  Any saving of state
-    // or clearing of other clips must be done by the caller.
-    void ApplyTo(gfxContext* aContext, nsPresContext* aPresContext);
-
-    bool operator==(const Clip& aOther) const {
-      return mHaveClipRect == aOther.mHaveClipRect &&
-             (!mHaveClipRect || mClipRect == aOther.mClipRect) &&
-             mRoundedClipRects == aOther.mRoundedClipRects;
-    }
-    bool operator!=(const Clip& aOther) const {
-      return !(*this == aOther);
-    }
-  };
 
 protected:
   /**
@@ -373,14 +300,18 @@ protected:
    * mItem always has an underlying frame.
    */
   struct ClippedDisplayItem {
-    ClippedDisplayItem(nsDisplayItem* aItem, const Clip& aClip)
-      : mItem(aItem), mClip(aClip)
+    ClippedDisplayItem(nsDisplayItem* aItem, const nsRect* aClipRect)
+      : mItem(aItem), mHasClipRect(aClipRect != nsnull)
     {
+      if (mHasClipRect) {
+        mClipRect = *aClipRect;
+      }
     }
 
     nsDisplayItem* mItem;
     nsRefPtr<LayerManager> mTempLayerManager;
-    Clip mClip;
+    nsRect         mClipRect;
+    PRPackedBool   mHasClipRect;
   };
 
   /**

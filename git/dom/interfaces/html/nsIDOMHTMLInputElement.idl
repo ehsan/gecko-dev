@@ -50,30 +50,25 @@ interface nsIDOMValidityState;
   * For more information on this interface please see
   * http://www.w3.org/TR/DOM-Level-2-HTML/
   */
-
-[scriptable, uuid(0805059d-f18f-4095-ae6b-0bf6df80b7b8)]
+ 
+[scriptable, uuid(da7ef8a0-a9a0-11df-94e2-0800200c9a66)]
 interface nsIDOMHTMLInputElement : nsIDOMHTMLElement
 {
            attribute DOMString             accept;
            attribute DOMString             alt;
 
-           attribute DOMString             autocomplete;
            attribute boolean               autofocus;
            attribute boolean               defaultChecked;
            attribute boolean               checked;
            attribute boolean               disabled;
   readonly attribute nsIDOMHTMLFormElement form;
            attribute DOMString             formAction;
-           attribute DOMString             formEnctype;
-           attribute DOMString             formMethod;
-           attribute boolean               formNoValidate;
            attribute DOMString             formTarget;
 
   readonly attribute nsIDOMFileList        files;
 
            attribute boolean               indeterminate;
 
-  readonly attribute nsIDOMHTMLElement     list;
            attribute long                  maxLength;
 
            attribute boolean               multiple;

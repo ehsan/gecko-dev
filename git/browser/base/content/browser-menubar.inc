@@ -317,7 +317,121 @@
                     <menuseparator/>
                   </menupopup>
                 </menu>
-#include browser-charsetmenu.inc
+                <menu id="charsetMenu"
+                      label="&charsetMenu.label;"
+                      accesskey="&charsetMenu.accesskey;"
+                      datasources="rdf:charset-menu"
+                      ref="NC:BrowserCharsetMenuRoot"
+                      oncommand="MultiplexHandler(event)"
+                      onpopupshowing="CreateMenu('browser');UpdateMenus(event)"
+                      onpopupshown="CreateMenu('more-menu');"
+                      observes="isImage">
+                    <template>
+                        <rule rdf:type="http://home.netscape.com/NC-rdf#BookmarkSeparator">
+                            <menupopup>
+                            <menuseparator uri="..." />
+                            </menupopup>
+                        </rule>
+                        <rule>
+                            <menupopup>
+                            <menuitem type="radio" name="charsetGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                            </menupopup>
+                        </rule>
+                    </template>
+
+                    <menupopup>
+                    <menu label="&charsetMenuAutodet.label;" accesskey="&charsetMenuAutodet.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserAutodetMenuRoot">
+                        <template>
+                            <rule rdf:type="http://home.netscape.com/NC-rdf#CharsetDetector">
+                                <menupopup>
+                                <menuitem type="radio" name="detectorGroup" checked="rdf:http://home.netscape.com/NC-rdf#Checked" uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                </menupopup>
+                            </rule>
+                        </template>
+                        <menupopup>
+                        </menupopup>
+                    </menu>
+                    <menu label="&charsetMenuMore.label;" accesskey="&charsetMenuMore.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMoreCharsetMenuRoot">
+                        <template>
+                            <rule>
+                                <menupopup>
+                                <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                </menupopup>
+                            </rule>
+                        </template>
+                        <menupopup>
+                            <menu label="&charsetMenuMore1.label;" accesskey="&charsetMenuMore1.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore1CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore2.label;" accesskey="&charsetMenuMore2.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore2CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore3.label;" accesskey="&charsetMenuMore3.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore3CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore4.label;" accesskey="&charsetMenuMore4.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore4CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuMore5.label;" accesskey="&charsetMenuMore5.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserMore5CharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menu label="&charsetMenuUnicode.label;" accesskey="&charsetMenuUnicode.accesskey;" datasources="rdf:charset-menu" ref="NC:BrowserUnicodeCharsetMenuRoot">
+                                <template>
+                                    <rule>
+                                        <menupopup>
+                                        <menuitem uri="..." label="rdf:http://home.netscape.com/NC-rdf#Name"/>
+                                        </menupopup>
+                                    </rule>
+                                </template>
+                                <menupopup>
+                                </menupopup>
+                            </menu>
+                            <menuseparator />
+                        </menupopup>
+                    </menu>
+                    <menuitem name="charsetCustomize" accesskey="&charsetCustomize.accesskey;" label="&charsetCustomize.label;" oncommand="window.openDialog('chrome://global/content/customizeCharset.xul','PrefWindow', 'chrome,modal=yes,resizable=yes', 'browser')"/>
+                    </menupopup>
+                </menu>
                 <menuseparator/>
                 <menuitem id="menu_pageSource"
                           accesskey="&pageSourceCmd.accesskey;"
@@ -397,13 +511,7 @@
                           oncommand="BrowserOpenSyncTabs();"
                           disabled="true"/>
 #endif
-                <menuitem id="historyRestoreLastSession"
-                          class="restoreLastSession"
-                          label="&historyRestoreLastSession.label;"
-                          oncommand="restoreLastSession();"
-                          disabled="true"/>
                 <menu id="historyUndoMenu"
-                      class="recentlyClosedTabsMenu"
                       label="&historyUndoMenu.label;"
                       disabled="true">
                   <menupopup id="historyUndoPopup"
@@ -413,7 +521,6 @@
                              onpopupshowing="document.getElementById('history-menu')._placesView.populateUndoSubmenu();"/>
                 </menu>
                 <menu id="historyUndoWindowMenu"
-                      class="recentlyClosedWindowsMenu"
                       label="&historyUndoWindowMenu.label;"
                       disabled="true">
                   <menupopup id="historyUndoWindowPopup"
@@ -450,10 +557,10 @@
                 label="&subscribeToPageMenuitem.label;"
                 oncommand="return FeedHandler.subscribeToFeed(null, event);"
                 onclick="checkForMiddleClick(this, event);"
-                observes="singleFeedMenuitemState"/>
+                disabled="true"/>
       <menu id="subscribeToPageMenupopup"
             label="&subscribeToPageMenupopup.label;"
-            observes="multipleFeedsMenuState">
+            hidden="true">
         <menupopup id="subscribeToPageSubmenuMenupopup"
                    onpopupshowing="return FeedHandler.buildFeedList(event.target);"
                    oncommand="return FeedHandler.subscribeToFeed(null, event);"
@@ -464,7 +571,7 @@
                 command="Browser:BookmarkAllTabs"
                 key="bookmarkAllTabsKb"/>
       <menuitem id="bookmarksShowAll"
-                label="&showAllBookmarks.label;"
+                label="&organizeBookmarks.label;"
                 command="Browser:ShowAllBookmarks"
                 key="manBookmarkKb"/>
       <menuseparator id="organizeBookmarksSeparator"/>
@@ -506,31 +613,44 @@
               <menuitem id="menu_openAddons"
                         label="&addons.label;"
                         accesskey="&addons.accesskey;"
-                        key="key_openAddons"
                         command="Tools:Addons"/>
 #ifdef MOZ_SERVICES_SYNC
               <!-- only one of sync-setup or sync-menu will be showing at once -->
               <menuitem id="sync-setup"
                         label="&syncSetup.label;"
                         accesskey="&syncSetup.accesskey;"
-                        observes="sync-setup-state"
                         oncommand="gSyncUI.openSetup()"/>
-              <menuitem id="sync-syncnowitem"
-                        label="&syncSyncNowItem.label;"
-                        accesskey="&syncSyncNowItem.accesskey;"
-                        observes="sync-syncnow-state"
-                        oncommand="gSyncUI.doSync(event);"/>
+              <menu id="sync-menu"
+                    label="&syncMenu.label;"
+                    accesskey="&syncMenu.accesskey;">
+                <menupopup id="sync-menu-popup"
+                           onpopupshowing="if (event.target == this) gSyncUI.doUpdateMenu(event);">
+                  <menuitem id="sync-loginitem"
+                            label="&syncLogInItem.label;"
+                            accesskey="&syncLogInItem.accesskey;"
+                            oncommand="gSyncUI.doLogin();"/>
+                  <menuitem id="sync-logoutitem"
+                            label="&syncLogOutItem.label;"
+                            accesskey="&syncLogOutItem.accesskey;"
+                            oncommand="gSyncUI.doLogout();"/>
+                  <menuitem id="sync-syncnowitem"
+                            label="&syncSyncNowItem.label;"
+                            accesskey="&syncSyncNowItem.accesskey;"
+                            oncommand="gSyncUI.doSync(event);"/>
+                  <menuseparator id="sync-lastsyncsep" hidden="true"/>
+                  <menuitem id="sync-lastsyncitem"
+                            disabled="true" hidden="true"/>
+                </menupopup>
+              </menu>
 #endif
               <menuseparator id="devToolsSeparator"/>
               <menuitem id="menu_pageinspect"
                         type="checkbox"
-                        hidden="true"
                         label="&inspectMenu.label;"
                         accesskey="&inspectMenu.accesskey;"
                         key="key_inspect"
                         command="Tools:Inspect"/>
               <menuitem id="javascriptConsole"
-                        hidden="true"
                         label="&errorConsoleCmd.label;"
                         accesskey="&errorConsoleCmd.accesskey;"
                         key="key_errorConsole"
