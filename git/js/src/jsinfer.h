@@ -889,61 +889,51 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
     HeapPtrObject proto_;
 
 #ifdef DEBUG
-    void assertCanAccessProto() const;
+    void assertCanAccessProto();
 #else
-    void assertCanAccessProto() const {}
+    void assertCanAccessProto() {}
 #endif
-
-    /*
-     * Whether there is a singleton JS object with this type. That JS object
-     * must appear in type sets instead of this; we include the back reference
-     * here to allow reverting the JS object to a lazy type.
-     */
-    HeapPtrObject singleton_;
 
   public:
 
-    const Class *clasp() const {
-        AutoThreadSafeAccess ts(this);
+    const Class *clasp() {
         return clasp_;
     }
 
     void setClasp(const Class *clasp) {
         JS_ASSERT(CurrentThreadCanWriteCompilationData());
-        JS_ASSERT(singleton());
+        JS_ASSERT(singleton);
         clasp_ = clasp;
     }
 
-    TaggedProto proto() const {
-        AutoThreadSafeAccess ts(this);
+    TaggedProto proto() {
         assertCanAccessProto();
         return TaggedProto(proto_);
     }
 
-    JSObject *singleton() const {
-        AutoThreadSafeAccess ts(this);
-        return singleton_;
+    HeapPtrObject &protoRaw() {
+        // For use during marking, don't call otherwise.
+        return proto_;
     }
-
-    // For use during marking, don't call otherwise.
-    HeapPtrObject &protoRaw() { return proto_; }
-    HeapPtrObject &singletonRaw() { return singleton_; }
 
     void setProto(JSContext *cx, TaggedProto proto);
     void setProtoUnchecked(TaggedProto proto) {
         proto_ = proto.raw();
     }
 
-    void initSingleton(JSObject *singleton) {
-        singleton_ = singleton;
-    }
+    /*
+     * Whether there is a singleton JS object with this type. That JS object
+     * must appear in type sets instead of this; we include the back reference
+     * here to allow reverting the JS object to a lazy type.
+     */
+    HeapPtrObject singleton;
 
     /*
      * Value held by singleton if this is a standin type for a singleton JS
      * object whose type has not been constructed yet.
      */
     static const size_t LAZY_SINGLETON = 1;
-    bool lazy() const { return singleton() == (JSObject *) LAZY_SINGLETON; }
+    bool lazy() const { return singleton == (JSObject *) LAZY_SINGLETON; }
 
   private:
     /* Flags for this object. */
@@ -964,7 +954,6 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
 
     TypeObjectFlags flags() const {
         JS_ASSERT(CurrentThreadCanReadCompilationData());
-        AutoThreadSafeAccess ts(this);
         return flags_;
     }
 
@@ -980,25 +969,21 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
 
     bool hasNewScript() const {
         JS_ASSERT(CurrentThreadCanReadCompilationData());
-        AutoThreadSafeAccess ts(this);
         return addendum && addendum->isNewScript();
     }
 
     TypeNewScript *newScript() {
         JS_ASSERT(CurrentThreadCanReadCompilationData());
-        AutoThreadSafeAccess ts(this);
         return addendum->asNewScript();
     }
 
     bool hasTypedObject() {
         JS_ASSERT(CurrentThreadCanReadCompilationData());
-        AutoThreadSafeAccess ts(this);
         return addendum && addendum->isTypedObject();
     }
 
     TypeTypedObject *typedObject() {
         JS_ASSERT(CurrentThreadCanReadCompilationData());
-        AutoThreadSafeAccess ts(this);
         return addendum->asTypedObject();
     }
 

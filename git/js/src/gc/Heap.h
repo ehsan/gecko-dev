@@ -993,6 +993,12 @@ Cell::shadowRuntimeFromAnyThread() const
     return reinterpret_cast<JS::shadow::Runtime*>(runtimeFromAnyThread());
 }
 
+AllocKind
+Cell::tenuredGetAllocKind() const
+{
+    return arenaHeader()->getAllocKind();
+}
+
 bool
 Cell::isMarked(uint32_t color /* = BLACK */) const
 {
@@ -1118,9 +1124,7 @@ InFreeList(ArenaHeader *aheader, void *thing)
 class AutoThreadSafeAccess
 {
 public:
-#if defined(DEBUG) && defined(JS_CPU_X64) && !defined(XP_WIN)
-#define JS_CAN_CHECK_THREADSAFE_ACCESSES
-
+#if defined(DEBUG) && !defined(XP_WIN)
     JSRuntime *runtime;
     gc::ArenaHeader *arena;
 
@@ -1135,13 +1139,6 @@ public:
 #endif
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
-
-gc::AllocKind
-gc::Cell::tenuredGetAllocKind() const
-{
-    AutoThreadSafeAccess ts(this);
-    return arenaHeader()->getAllocKind();
-}
 
 } /* namespace js */
 

@@ -5880,30 +5880,21 @@ RIL[REQUEST_SET_PREFERRED_NETWORK_TYPE] = function REQUEST_SET_PREFERRED_NETWORK
     return;
   }
 
-  if (options.rilRequestError) {
-    options.success = false;
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  } else {
-    options.success = true;
-  }
+  options.success = (options.rilRequestError == ERROR_SUCCESS);
   this.sendChromeMessage(options);
 };
 RIL[REQUEST_GET_PREFERRED_NETWORK_TYPE] = function REQUEST_GET_PREFERRED_NETWORK_TYPE(length, options) {
-  if (options.rilRequestError) {
-    options.success = false;
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    this.sendChromeMessage(options);
-    return;
+  let networkType;
+  if (!options.rilRequestError) {
+    networkType = RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(GECKO_PREFERRED_NETWORK_TYPE_DEFAULT);
+    let responseLen = Buf.readInt32(); // Number of INT32 responsed.
+    if (responseLen) {
+      this.preferredNetworkType = networkType = Buf.readInt32();
+    }
+    options.networkType = networkType;
   }
 
-  let networkType = RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(GECKO_PREFERRED_NETWORK_TYPE_DEFAULT);
-  let responseLen = Buf.readInt32(); // Number of INT32 responsed.
-  if (responseLen) {
-    this.preferredNetworkType = networkType = Buf.readInt32();
-  }
-  options.networkType = networkType;
-  options.success = true;
-
+  options.success = (options.rilRequestError == ERROR_SUCCESS);
   this.sendChromeMessage(options);
 };
 RIL[REQUEST_GET_NEIGHBORING_CELL_IDS] = null;

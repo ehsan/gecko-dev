@@ -8,7 +8,6 @@ import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 
-import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.view.SurfaceView;
@@ -108,7 +107,7 @@ public class PluginLayer extends TileLayer {
 
             mLastZoomFactor = context.zoomFactor;
             mLastViewport = context.viewport;
-            mLayoutParams.reposition(context.viewport, context.offset, context.zoomFactor);
+            mLayoutParams.reposition(context.viewport, context.zoomFactor);
 
             showView();
         }
@@ -149,10 +148,9 @@ public class PluginLayer extends TileLayer {
             mRect = rect;
         }
 
-        public void reposition(RectF viewport, PointF offset, float zoomFactor) {
+        public void reposition(RectF viewport, float zoomFactor) {
 
             RectF scaled = RectUtils.scale(mRect, zoomFactor);
-            scaled.offset(offset.x, offset.y);
 
             this.x = Math.round(scaled.left - viewport.left);
             this.y = Math.round(scaled.top - viewport.top);

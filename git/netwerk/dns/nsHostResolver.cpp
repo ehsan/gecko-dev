@@ -972,7 +972,7 @@ public:
         // These are all declared here because compiler warnings about goto.
         DnsQueryFunc dnsQuery;
         TimeStamp startALookup, endALookup, startSRVLookup, endSRVLookup;
-        DNS_RECORDA *aResults = nullptr, *srvResults = nullptr;
+        DNS_RECORDA *aResults, *srvResults;
         DNS_STATUS aStatus, srvStatus;
         int32_t experimentStatus;
         Telemetry::ID deltaKey;
@@ -1049,26 +1049,18 @@ public:
 
         // Ensure we got the expected results
         if (aStatus == DNS_RCODE_NOERROR) {
-            if (!aResults) {
-                // Mark this as failed, since we didn't get a result back
-                aStatus = !DNS_RCODE_NOERROR;
-            } else if (aResults->Data.A.IpAddress != 0x7F000001) {
+            if (aResults->Data.A.IpAddress != 0x7F000001) {
                 correctA = false;
             }
         }
 
         if (srvStatus == DNS_RCODE_NOERROR) {
-            if (srvResults) {
-                DNS_SRV_DATAA *srvData = &srvResults->Data.Srv;
-                if (_stricmp(srvData->pNameTarget, "success.http2test.mozilla.org") ||
-                    srvData->wPort != 443 ||
-                    srvData->wPriority != 100 ||
-                    srvData->wWeight != 100) {
-                    correctSRV = false;
-                }
-            } else {
-                // Mark this as failed, since we didn't get a result back
-                srvStatus = !DNS_RCODE_NOERROR;
+            DNS_SRV_DATAA *srvData = &srvResults->Data.Srv;
+            if (_stricmp(srvData->pNameTarget, "success.http2test.mozilla.org") ||
+                srvData->wPort != 443 ||
+                srvData->wPriority != 100 ||
+                srvData->wWeight != 100) {
+                correctSRV = false;
             }
         }
 

@@ -1672,7 +1672,7 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
                  cx->asJSContext()->runtime()->gcIncrementalState != NO_INCREMENTAL &&
                  zone->gcBytes > zone->gcTriggerBytes;
 
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
     JS_ASSERT_IF(cx->isJSContext() && allowGC,
                  !cx->asJSContext()->runtime()->currentThreadHasExclusiveAccess());
 #endif
@@ -1702,7 +1702,7 @@ ArenaLists::refillFreeList(ThreadSafeContext *cx, AllocKind thingKind)
                 cx->asJSContext()->runtime()->gcHelperThread.waitBackgroundSweepEnd();
             }
         } else {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
             /*
              * If we're off the main thread, we try to allocate once and
              * return whatever value we get. If we aren't in a ForkJoin
@@ -4303,7 +4303,7 @@ AutoTraceSession::AutoTraceSession(JSRuntime *rt, js::HeapState heapState)
     if (rt->exclusiveThreadsPresent()) {
         // Lock the worker thread state when changing the heap state in the
         // presence of exclusive threads, to avoid racing with refillFreeList.
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         AutoLockWorkerThreadState lock(*rt->workerThreadState);
         rt->heapState = heapState;
 #else
@@ -4319,7 +4319,7 @@ AutoTraceSession::~AutoTraceSession()
     JS_ASSERT(runtime->isHeapBusy());
 
     if (runtime->exclusiveThreadsPresent()) {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         AutoLockWorkerThreadState lock(*runtime->workerThreadState);
         runtime->heapState = prevState;
 
@@ -4947,7 +4947,7 @@ Collect(JSRuntime *rt, bool incremental, int64_t budget,
     } while (repeat);
 
     if (rt->gcIncrementalState == NO_INCREMENTAL) {
-#ifdef JS_THREADSAFE
+#ifdef JS_WORKER_THREADS
         EnqueuePendingParseTasksAfterGC(rt);
 #endif
     }
@@ -5561,19 +5561,12 @@ JS::GetGCNumber()
 }
 
 JS::AutoAssertNoGC::AutoAssertNoGC()
-  : runtime(nullptr), gcNumber(0)
+  : runtime(nullptr)
 {
     js::PerThreadData *data = js::TlsPerThreadData.get();
     if (data) {
-        /*
-         * GC's from off-thread will always assert, so off-thread is implicitly
-         * AutoAssertNoGC. We still need to allow AutoAssertNoGC to be used in
-         * code that works from both threads, however. We also use this to
-         * annotate the off thread run loops.
-         */
-        runtime = data->runtimeIfOnOwnerThread();
-        if (runtime)
-            gcNumber = runtime->gcNumber;
+        runtime = data->runtimeFromMainThread();
+        gcNumber = runtime->gcNumber;
     }
 }
 
@@ -5586,5 +5579,7 @@ JS::AutoAssertNoGC::~AutoAssertNoGC()
 {
     if (runtime)
         MOZ_ASSERT(gcNumber == runtime->gcNumber, "GC ran inside an AutoAssertNoGC scope.");
+    else
+        MOZ_ASSERT(!js::TlsPerThreadData.get(), "Runtime created within AutoAssertNoGC scope?");
 }
 #endif

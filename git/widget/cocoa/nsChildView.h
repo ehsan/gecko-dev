@@ -185,10 +185,6 @@ enum {
 };
 typedef NSUInteger NSEventPhase;
 
-@interface NSWindow (LionWindowFeatures)
-- (NSRect)convertRectToScreen:(NSRect)aRect;
-@end
-
 #ifdef __LP64__
 enum {
   NSEventSwipeTrackingLockDirection = 0x1 << 0,

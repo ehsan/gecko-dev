@@ -51,14 +51,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "smsService",
                                    "@mozilla.org/sms/smsservice;1",
                                    "nsISmsService");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
-                                   "@mozilla.org/settingsService;1",
-                                   "nsISettingsService");
-
 const kSilentSmsReceivedTopic = "silent-sms-received";
-const kMozSettingsChangedObserverTopic = "mozsettings-changed";
-
-const kRilDefaultDataServiceId = "ril.data.defaultServiceId";
 
 const MOBILEMESSAGECALLBACK_CID =
   Components.ID("{b484d8c9-6be4-4f94-ab60-c9c7ebcc853d}");
@@ -68,7 +61,6 @@ const MOBILEMESSAGECALLBACK_CID =
 // from JS.
 function SilentSmsRequest() {
 }
-
 SilentSmsRequest.prototype = {
   __exposedProps__: {
     onsuccess: 'rw',
@@ -88,68 +80,17 @@ SilentSmsRequest.prototype = {
   },
 
   notifyMessageSent: function notifyMessageSent(aMessage) {
-    if (_debug) {
-      LOG("Silent message successfully sent");
+    if (_DEBUG) {
+      _debug("Silent message successfully sent");
     }
     this._onsuccess(aMessage);
   },
 
   notifySendMessageFailed: function notifySendMessageFailed(aError) {
-    if (_debug) {
-      LOG("Error sending silent message " + aError);
+    if (_DEBUG) {
+      _debug("Error sending silent message " + aError);
     }
     this._onerror(aError);
-  }
-};
-
-function PaymentSettings() {
-  this.dataServiceId = 0;
-  Services.obs.addObserver(this, kMozSettingsChangedObserverTopic, false);
-  gSettingsService.createLock().get(kRilDefaultDataServiceId, this);
-}
-
-PaymentSettings.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsISettingsServiceCallback,
-                                         Ci.nsIObserver]),
-
-  handle: function(aName, aValue) {
-    if (aName != kRilDefaultDataServiceId) {
-      return;
-    }
-
-    this.dataServiceId = aValue;
-
-    if (_debug) {
-      LOG("dataServiceId " + this.dataServiceId);
-    }
-  },
-
-  observe: function(aSubject, aTopic, aData) {
-    if (aTopic != kMozSettingsChangedObserverTopic) {
-      return;
-    }
-
-    try {
-      let setting = JSON.parse(aData);
-      if (!setting.key || setting.key !== kRilDefaultDataServiceId) {
-        return;
-      }
-
-      this.dataServiceId = setting.value;
-
-      if (_debug) {
-        LOG("dataServiceId " + setting.value);
-      }
-    } catch (e) {
-      if (_debug) {
-        LOG(e);
-      }
-    }
-
-  },
-
-  cleanup: function() {
-    Services.obs.removeObserver(this, kMozSettingsChangedObserverTopic);
   }
 };
 #endif
@@ -178,12 +119,6 @@ let PaymentProvider = {
     paymentFailed: 'r'
   },
 #endif
-
-  _init: function _init() {
-#ifdef MOZ_B2G_RIL
-    this._settings = new PaymentSettings();
-#endif
-  },
 
   _closePaymentFlowDialog: function _closePaymentFlowDialog(aCallback) {
     // After receiving the payment provider confirmation about the
@@ -259,7 +194,7 @@ let PaymentProvider = {
   // Bug 938993. Support Multi-SIM for Payments.
   get iccInfo() {
     delete this.iccInfo;
-    return this.iccInfo = iccProvider.getIccInfo(this._settings.dataServiceId);
+    return this.iccInfo = iccProvider.getIccInfo(0);
   },
 
   get iccIds() {
@@ -369,7 +304,6 @@ let PaymentProvider = {
     }
     this._silentNumbers = null;
     this._silentSmsObservers = null;
-    this._settings.cleanup();
     Services.obs.removeObserver(this._onSilentSms, kSilentSmsReceivedTopic);
   }
 #endif
@@ -379,7 +313,6 @@ let PaymentProvider = {
 // of the payment flow to the appropriate content process.
 addMessageListener("Payment:LoadShim", function receiveMessage(aMessage) {
   gRequestId = aMessage.json.requestId;
-  PaymentProvider._init();
 });
 
 addEventListener("DOMWindowCreated", function(e) {
