@@ -5742,12 +5742,11 @@ nsSVGFEImageElement::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP
-nsSVGFEImageElement::FrameChanged(imgIRequest* aRequest,
-                                  imgIContainer *aContainer,
+nsSVGFEImageElement::FrameChanged(imgIContainer *aContainer,
                                   const nsIntRect *aDirtyRect)
 {
   nsresult rv =
-    nsImageLoadingContent::FrameChanged(aRequest, aContainer, aDirtyRect);
+    nsImageLoadingContent::FrameChanged(aContainer, aDirtyRect);
   Invalidate();
   return rv;
 }

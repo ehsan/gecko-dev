@@ -49,7 +49,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsITimer.h"
 
-#include "mozilla/LazyIdleThread.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/storage.h"
@@ -66,6 +65,7 @@
 #include "IDBEvents.h"
 #include "IDBFactory.h"
 #include "IDBKeyRange.h"
+#include "LazyIdleThread.h"
 #include "OpenDatabaseHelper.h"
 #include "TransactionThreadPool.h"
 

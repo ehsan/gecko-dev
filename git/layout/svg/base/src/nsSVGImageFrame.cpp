@@ -62,8 +62,7 @@ public:
   NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
                           const PRUnichar *statusArg);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIRequest *aRequest,
-                          imgIContainer *aContainer,
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer,
                           const nsIntRect *aDirtyRect);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest,
@@ -556,8 +555,7 @@ NS_IMETHODIMP nsSVGImageListener::OnStopDecode(imgIRequest *aRequest,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSVGImageListener::FrameChanged(imgIRequest *aRequest,
-                                               imgIContainer *aContainer,
+NS_IMETHODIMP nsSVGImageListener::FrameChanged(imgIContainer *aContainer,
                                                const nsIntRect *aDirtyRect)
 {
   if (!mFrame)

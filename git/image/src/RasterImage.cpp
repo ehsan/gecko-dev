@@ -480,7 +480,7 @@ RasterImage::RequestRefresh(const mozilla::TimeStamp& aTime)
       mFramesNotified++;
     #endif
 
-    observer->FrameChanged(nsnull, this, &dirtyRect);
+    observer->FrameChanged(this, &dirtyRect);
   }
 }
 
@@ -1423,7 +1423,7 @@ RasterImage::ResetAnimation()
   // Update display if we were animating before
   nsCOMPtr<imgIContainerObserver> observer(do_QueryReferent(mObserver));
   if (mAnimating && observer)
-    observer->FrameChanged(nsnull, this, &(mAnim->firstFrameRefreshArea));
+    observer->FrameChanged(this, &(mAnim->firstFrameRefreshArea));
 
   if (ShouldAnimate()) {
     StartAnimation();
