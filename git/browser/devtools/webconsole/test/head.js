@@ -15,7 +15,6 @@ let {Utils: WebConsoleUtils} = require("devtools/toolkit/webconsole/utils");
 let {Messages} = require("devtools/webconsole/console-output");
 
 // promise._reportErrors = true; // please never leave me.
-//Services.prefs.setBoolPref("devtools.debugger.log", true);
 
 let gPendingOutputTest = 0;
 
@@ -41,13 +40,35 @@ const WEBCONSOLE_STRINGS_URI = "chrome://browser/locale/devtools/webconsole.prop
 let WCU_l10n = new WebConsoleUtils.l10n(WEBCONSOLE_STRINGS_URI);
 
 gDevTools.testing = true;
+SimpleTest.registerCleanupFunction(() => {
+  gDevTools.testing = false;
+});
 
-function asyncTest(generator) {
-  return () => {
-    Task.spawn(generator).then(finishTest);
-  };
+function log(aMsg)
+{
+  dump("*** WebConsoleTest: " + aMsg + "\n");
 }
 
+function pprint(aObj)
+{
+  for (let prop in aObj) {
+    if (typeof aObj[prop] == "function") {
+      log("function " + prop);
+    }
+    else {
+      log(prop + ": " + aObj[prop]);
+    }
+  }
+}
+
+let tab, browser, hudId, hud, hudBox, filterBox, outputNode, cs;
+
+function addTab(aURL)
+{
+  gBrowser.selectedTab = gBrowser.addTab(aURL);
+  tab = gBrowser.selectedTab;
+  browser = gBrowser.getBrowserForTab(tab);
+}
 
 function loadTab(url) {
   let deferred = promise.defer();
@@ -68,7 +89,7 @@ function loadBrowser(browser) {
 
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
-    deferred.resolve(null);
+    deferred.resolve(null)
   }, true);
 
   return deferred.promise;
@@ -177,16 +198,18 @@ function findLogEntry(aString)
  * @return object
  *         A promise that is resolved once the web console is open.
  */
-let openConsole = function(aTab) {
-  let webconsoleOpened = promise.defer();
-  let target = TargetFactory.forTab(aTab || gBrowser.selectedTab);
-  gDevTools.showToolbox(target, "webconsole").then(toolbox => {
+function openConsole(aTab, aCallback = function() { })
+{
+  let deferred = promise.defer();
+  let target = TargetFactory.forTab(aTab || tab);
+  gDevTools.showToolbox(target, "webconsole").then(function(toolbox) {
     let hud = toolbox.getCurrentPanel().hud;
     hud.jsterm._lazyVariablesView = false;
-    webconsoleOpened.resolve(hud);
+    aCallback(hud);
+    deferred.resolve(hud);
   });
-  return webconsoleOpened.promise;
-};
+  return deferred.promise;
+}
 
 /**
  * Close the Web Console for the given tab.
@@ -200,13 +223,22 @@ let openConsole = function(aTab) {
  * @return object
  *         A promise that is resolved once the web console is closed.
  */
-let closeConsole = Task.async(function* (aTab) {
-  let target = TargetFactory.forTab(aTab || gBrowser.selectedTab);
+function closeConsole(aTab, aCallback = function() { })
+{
+  let target = TargetFactory.forTab(aTab || tab);
   let toolbox = gDevTools.getToolbox(target);
   if (toolbox) {
-    yield toolbox.destroy();
+    let panel = toolbox.getPanel("webconsole");
+    if (panel) {
+      let hudId = panel.hud.hudId;
+      return toolbox.destroy().then(aCallback.bind(null, hudId)).then(null, console.debug);
+    }
+    return toolbox.destroy().then(aCallback.bind(null));
   }
-});
+
+  aCallback();
+  return promise.resolve(null);
+}
 
 /**
  * Wait for a context menu popup to open.
@@ -220,9 +252,6 @@ let closeConsole = Task.async(function* (aTab) {
  *        Function to invoke on popupshown event.
  * @param function aOnHidden
  *        Function to invoke on popuphidden event.
- * @return object
- *         A Promise object that is resolved after the popuphidden event
- *         callback is invoked.
  */
 function waitForContextMenu(aPopup, aButton, aOnShown, aOnHidden)
 {
@@ -230,7 +259,7 @@ function waitForContextMenu(aPopup, aButton, aOnShown, aOnHidden)
     info("onPopupShown");
     aPopup.removeEventListener("popupshown", onPopupShown);
 
-    aOnShown && aOnShown();
+    aOnShown();
 
     // Use executeSoon() to get out of the popupshown event.
     aPopup.addEventListener("popuphidden", onPopupHidden);
@@ -239,20 +268,15 @@ function waitForContextMenu(aPopup, aButton, aOnShown, aOnHidden)
   function onPopupHidden() {
     info("onPopupHidden");
     aPopup.removeEventListener("popuphidden", onPopupHidden);
-
-    aOnHidden && aOnHidden();
-
-    deferred.resolve(aPopup);
+    aOnHidden();
   }
 
-  let deferred = promise.defer();
   aPopup.addEventListener("popupshown", onPopupShown);
 
   info("wait for the context menu to open");
   let eventDetails = { type: "contextmenu", button: 2};
   EventUtils.synthesizeMouse(aButton, 2, 2, eventDetails,
                              aButton.ownerDocument.defaultView);
-  return deferred.promise;
 }
 
 /**
@@ -302,7 +326,10 @@ function dumpMessageElement(aMessage)
                 "text", text);
 }
 
-let finishTest = Task.async(function* () {
+function finishTest()
+{
+  browser = hudId = hud = filterBox = outputNode = cs = hudBox = null;
+
   dumpConsoles();
 
   let browserConsole = HUDService.getBrowserConsole();
@@ -310,19 +337,27 @@ let finishTest = Task.async(function* () {
     if (browserConsole.jsterm) {
       browserConsole.jsterm.clearOutput(true);
     }
-    yield HUDService.toggleBrowserConsole();
+    HUDService.toggleBrowserConsole().then(finishTest);
+    return;
   }
 
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  yield gDevTools.closeToolbox(target);
+  let contentHud = HUDService.getHudByWindow(content);
+  if (!contentHud) {
+    finish();
+    return;
+  }
 
-  finish();
-});
+  if (contentHud.jsterm) {
+    contentHud.jsterm.clearOutput(true);
+  }
+
+  closeConsole(contentHud.target.tab, finish);
+
+  contentHud = null;
+}
 
 function tearDown()
 {
-  gDevTools.testing = false;
-
   dumpConsoles();
 
   if (HUDService.getBrowserConsole()) {
@@ -331,10 +366,10 @@ function tearDown()
 
   let target = TargetFactory.forTab(gBrowser.selectedTab);
   gDevTools.closeToolbox(target);
-
   while (gBrowser.tabs.length > 1) {
     gBrowser.removeCurrentTab();
   }
+  WCU_l10n = tab = browser = hudId = hud = filterBox = outputNode = cs = null;
 }
 
 registerCleanupFunction(tearDown);
@@ -346,56 +381,55 @@ waitForExplicitFinish();
  *
  * @param object aOptions
  *        Options object with the following properties:
- *        - validator
+ *        - validatorFn
  *        A validator function that returns a boolean. This is called every few
- *        milliseconds to check if the result is true. When it is true, the
- *        promise is resolved and polling stops. If validator never returns
- *        true, then polling timeouts after several tries and the promise is
- *        rejected.
+ *        milliseconds to check if the result is true. When it is true, succesFn
+ *        is called and polling stops. If validatorFn never returns true, then
+ *        polling timeouts after several tries and a failure is recorded.
+ *        - successFn
+ *        A function called when the validator function returns true.
+ *        - failureFn
+ *        A function called if the validator function timeouts - fails to return
+ *        true in the given time.
  *        - name
  *        Name of test. This is used to generate the success and failure
  *        messages.
  *        - timeout
  *        Timeout for validator function, in milliseconds. Default is 5000.
- * @return object
- *         A Promise object that is resolved based on the validator function.
  */
 function waitForSuccess(aOptions)
 {
-  let deferred = promise.defer();
   let start = Date.now();
   let timeout = aOptions.timeout || 5000;
-  let {validator} = aOptions;
 
-
-  function wait()
+  function wait(validatorFn, successFn, failureFn)
   {
     if ((Date.now() - start) > timeout) {
       // Log the failure.
       ok(false, "Timed out while waiting for: " + aOptions.name);
-      deferred.reject(null);
+      failureFn(aOptions);
       return;
     }
 
-    if (validator(aOptions)) {
+    if (validatorFn(aOptions)) {
       ok(true, aOptions.name);
-      deferred.resolve(null);
+      successFn();
     }
     else {
-      setTimeout(wait, 100);
+      setTimeout(function() wait(validatorFn, successFn, failureFn), 100);
     }
   }
 
-  setTimeout(wait, 100);
-
-  return deferred.promise;
+  wait(aOptions.validatorFn, aOptions.successFn, aOptions.failureFn);
 }
 
-let openInspector = Task.async(function* (aTab = gBrowser.selectedTab) {
+function openInspector(aCallback, aTab = gBrowser.selectedTab)
+{
   let target = TargetFactory.forTab(aTab);
-  let toolbox = yield gDevTools.showToolbox(target, "inspector");
-  return toolbox.getCurrentPanel();
-});
+  gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
+    aCallback(toolbox.getCurrentPanel());
+  });
+}
 
 /**
  * Find variables or properties in a VariablesView instance.
@@ -739,10 +773,10 @@ function variablesViewExpandTo(aOptions)
  *          - or "value" to change the property value.
  *        - string: the new string to write into the field.
  *        - webconsole: reference to the Web Console instance we work with.
- * @return object
- *         A Promise object that is resolved once the property is updated.
+ *        - callback: function to invoke after the property is updated.
  */
-let updateVariablesViewProperty = Task.async(function* (aOptions) {
+function updateVariablesViewProperty(aOptions)
+{
   let view = aOptions.property._variablesView;
   view.window.focus();
   aOptions.property.focus();
@@ -756,34 +790,27 @@ let updateVariablesViewProperty = Task.async(function* (aOptions) {
       break;
     default:
       throw new Error("options.field is incorrect");
+      return;
   }
-
-  let deferred = promise.defer();
 
   executeSoon(() => {
     EventUtils.synthesizeKey("A", { accelKey: true }, view.window);
 
     for (let c of aOptions.string) {
-      EventUtils.synthesizeKey(c, {}, view.window);
+      EventUtils.synthesizeKey(c, {}, gVariablesView.window);
     }
 
     if (aOptions.webconsole) {
-      aOptions.webconsole.jsterm.once("variablesview-fetched").then((varView) => {
-        deferred.resolve(varView);
-      });
+      aOptions.webconsole.jsterm.once("variablesview-fetched", aOptions.callback);
     }
 
     EventUtils.synthesizeKey("VK_RETURN", {}, view.window);
 
     if (!aOptions.webconsole) {
-      executeSoon(() => {
-        deferred.resolve(null);
-      });
+      executeSoon(aOptions.callback);
     }
   });
-
-  return deferred.promise;
-});
+}
 
 /**
  * Open the JavaScript debugger.

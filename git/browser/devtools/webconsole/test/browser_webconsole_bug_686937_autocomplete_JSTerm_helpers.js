@@ -7,54 +7,68 @@
 
 const TEST_URI = "data:text/html;charset=utf8,<p>test JSTerm Helpers autocomplete";
 
-let jsterm;
+let testDriver;
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, function(hud) {
+      testDriver = testCompletion(hud);
+      testDriver.next();
+    });
+  }, true);
+}
 
-  let hud = yield openConsole();
+function testNext() {
+  executeSoon(function() {
+    testDriver.next();
+  });
+}
 
-  jsterm = hud.jsterm;
+function testCompletion(hud) {
+  let jsterm = hud.jsterm;
   let input = jsterm.inputNode;
   let popup = jsterm.autocompletePopup;
 
   // Test if 'i' gives 'inspect'
   input.value = "i";
   input.setSelectionRange(1, 1);
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield;
 
   let newItems = popup.getItems().map(function(e) {return e.label;});
   ok(newItems.indexOf("inspect") > -1, "autocomplete results contain helper 'inspect'");
-
+  
   // Test if 'window.' does not give 'inspect'.
   input.value = "window.";
   input.setSelectionRange(7, 7);
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield;
 
   newItems = popup.getItems().map(function(e) {return e.label;});
   is(newItems.indexOf("inspect"), -1, "autocomplete results do not contain helper 'inspect'");
 
-  // Test if 'dump(i' gives 'inspect'
+
+// Test if 'dump(i' gives 'inspect'
   input.value = "dump(i";
   input.setSelectionRange(6, 6);
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield;
 
   newItems = popup.getItems().map(function(e) {return e.label;});
   ok(newItems.indexOf("inspect") > -1, "autocomplete results contain helper 'inspect'");
 
-  // Test if 'window.dump(i' gives 'inspect'
+// Test if 'window.dump(i' gives 'inspect'
   input.value = "window.dump(i";
   input.setSelectionRange(13, 13);
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield;
 
   newItems = popup.getItems().map(function(e) {return e.label;});
   ok(newItems.indexOf("inspect") > -1, "autocomplete results contain helper 'inspect'");
 
-  jsterm = null;
-});
-
-function complete(type) {
-  let updated = jsterm.once("autocomplete-updated");
-  jsterm.complete(type);
-  return updated;
+  testDriver = jsterm = input = popup = newItems = null;
+  executeSoon(finishTest);
+  yield;
 }

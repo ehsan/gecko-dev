@@ -8,8 +8,10 @@ const LEARN_MORE_URI = "https://developer.mozilla.org/docs/Security/HTTP_Strict_
 
 function test()
 {
-  loadTab(TEST_URI).then(() => {
-    openConsole().then((hud) => {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad(aEvent) {
+    browser.removeEventListener(aEvent.type, onLoad, true);
+    openConsole(null, function testHSTSErrorLogged (hud) {
       waitForMessages({
         webconsole: hud,
         messages: [
@@ -22,8 +24,8 @@ function test()
           },
         ],
       }).then((results) => testClickOpenNewTab(hud, results));
-    })
-  });
+    });
+  }, true);
 }
 
 function testClickOpenNewTab(hud, results) {

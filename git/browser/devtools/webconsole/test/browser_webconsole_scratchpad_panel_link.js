@@ -15,12 +15,14 @@ function test()
 {
   waitForExplicitFinish();
 
-  loadTab(TEST_URI).then(() => {
+  addTab(TEST_URI);
+  gBrowser.selectedBrowser.addEventListener("load", function onTabLoad() {
+    gBrowser.selectedBrowser.removeEventListener("load", onTabLoad, true);
     info("Opening toolbox with Scratchpad panel");
 
     let target = TargetFactory.forTab(gBrowser.selectedTab);
     gDevTools.showToolbox(target, "scratchpad", "window").then(runTests);
-  });
+  }, true);
 }
 
 function runTests(aToolbox)

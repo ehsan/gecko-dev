@@ -98,7 +98,6 @@ loop.store = loop.store || {};
       "getAllRoomsError",
       "openRoom",
       "renameRoom",
-      "renameRoomError",
       "updateRoomList"
     ],
 
@@ -121,7 +120,7 @@ loop.store = loop.store || {};
         error: null,
         pendingCreation: false,
         pendingInitialRetrieval: false,
-        rooms: [],
+        rooms: []
       };
     },
 
@@ -133,7 +132,6 @@ loop.store = loop.store || {};
       this._mozLoop.rooms.on("add", this._onRoomAdded.bind(this));
       this._mozLoop.rooms.on("update", this._onRoomUpdated.bind(this));
       this._mozLoop.rooms.on("delete", this._onRoomRemoved.bind(this));
-      this._mozLoop.rooms.on("refresh", this._onRoomsRefresh.bind(this));
     },
 
     /**
@@ -183,17 +181,6 @@ loop.store = loop.store || {};
         roomList: this._storeState.rooms.filter(function(room) {
           return room.roomToken !== removedRoomData.roomToken;
         })
-      }));
-    },
-
-    /**
-     * Executed when the user switches accounts.
-     *
-     * @param {String} eventName The event name (unused).
-     */
-    _onRoomsRefresh: function(eventName) {
-      this.dispatchAction(new sharedActions.UpdateRoomList({
-        roomList: []
       }));
     },
 
@@ -298,7 +285,6 @@ loop.store = loop.store || {};
      */
     copyRoomUrl: function(actionData) {
       this._mozLoop.copyString(actionData.roomUrl);
-      this._mozLoop.notifyUITour("Loop:RoomURLCopied");
     },
 
     /**
@@ -308,7 +294,6 @@ loop.store = loop.store || {};
      */
     emailRoomUrl: function(actionData) {
       loop.shared.utils.composeCallUrlEmail(actionData.roomUrl);
-      this._mozLoop.notifyUITour("Loop:RoomURLEmailed");
     },
 
     /**
@@ -393,17 +378,13 @@ loop.store = loop.store || {};
      * @param {sharedActions.RenameRoom} actionData
      */
     renameRoom: function(actionData) {
-      this.setStoreState({error: null});
       this._mozLoop.rooms.rename(actionData.roomToken, actionData.newRoomName,
         function(err) {
           if (err) {
-            this.dispatchAction(new sharedActions.RenameRoomError({error: err}));
+            // XXX Give this a proper UI - bug 1100595.
+            console.error("Failed to rename the room", err);
           }
-        }.bind(this));
-    },
-
-    renameRoomError: function(actionData) {
-      this.setStoreState({error: actionData.error});
+        });
     }
   });
 })();

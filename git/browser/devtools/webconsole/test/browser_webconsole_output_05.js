@@ -107,7 +107,6 @@ let inputTests = [
 ];
 
 function test() {
-  requestLongerTimeout(2);
   Task.spawn(function*() {
     let {tab} = yield loadTab(TEST_URI);
     let hud = yield openConsole(tab);
@@ -116,6 +115,6 @@ function test() {
 }
 
 function finishUp() {
-  inputTests = dateNow = null;
+  inputTests = null;
   finishTest();
 }

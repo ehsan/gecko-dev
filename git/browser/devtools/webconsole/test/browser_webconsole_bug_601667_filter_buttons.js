@@ -5,21 +5,19 @@
 
 const TEST_URI = "http://example.com/";
 
-let hud, hudId, hudBox;
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testFilterButtons);
+  }, true);
+}
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  hud = yield openConsole();
+function testFilterButtons(aHud) {
+  hud = aHud;
   hudId = hud.hudId;
   hudBox = hud.ui.rootElement;
 
-  testFilterButtons();
-
-  hud = hudId = hudBox = null;
-});
-
-function testFilterButtons() {
   testMenuFilterButton("net");
   testMenuFilterButton("css");
   testMenuFilterButton("js");
@@ -31,6 +29,8 @@ function testFilterButtons() {
   testIsolateFilterButton("js");
   testIsolateFilterButton("logging");
   testIsolateFilterButton("security");
+
+  finishTest();
 }
 
 function testMenuFilterButton(aCategory) {

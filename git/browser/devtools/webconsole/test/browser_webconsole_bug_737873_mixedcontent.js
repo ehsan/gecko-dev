@@ -10,27 +10,24 @@
 
 // Tests that the Web Console Mixed Content messages are displayed
 
-const TEST_URI = "data:text/html;charset=utf8,Web Console mixed content test";
 const TEST_HTTPS_URI = "https://example.com/browser/browser/devtools/webconsole/test/test-bug-737873-mixedcontent.html";
 
-let test = asyncTest(function* () {
+function test() {
+  addTab("data:text/html;charset=utf8,Web Console mixed content test");
+  browser.addEventListener("load", onLoad, true);
+}
+
+function onLoad(aEvent) {
+  browser.removeEventListener("load", onLoad, true);
   Services.prefs.setBoolPref("security.mixed_content.block_display_content", false);
   Services.prefs.setBoolPref("security.mixed_content.block_active_content", false);
-
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-
-  yield testMixedContent(hud);
-
-  Services.prefs.clearUserPref("security.mixed_content.block_display_content");
-  Services.prefs.clearUserPref("security.mixed_content.block_active_content");
-});
+  openConsole(null, testMixedContent);
+}
 
 function testMixedContent(hud) {
   content.location = TEST_HTTPS_URI;
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "example.com",
@@ -67,5 +64,10 @@ function testMixedContent(hud) {
     ok(msg.classList.contains("filtered-by-type"), "message is filtered");
 
     hud.setFilterState("netwarn", true);
+
+    Services.prefs.clearUserPref("security.mixed_content.block_display_content");
+    Services.prefs.clearUserPref("security.mixed_content.block_active_content");
+
+    finishTest();
   });
 }

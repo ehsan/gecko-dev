@@ -5,13 +5,20 @@
 
 // Tests that the message type filter checkboxes work.
 
-"use strict";
-
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
 
-let test = asyncTest(function*() {
-  yield loadTab(TEST_URI);
-  let hud = yield openConsole();
+let hud;
+
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
+
+function consoleOpened(aHud) {
+  hud = aHud;
   hud.jsterm.clearOutput();
 
   let console = content.console;
@@ -20,27 +27,31 @@ let test = asyncTest(function*() {
     console.log("foobarz #" + i);
   }
 
-  yield waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "foobarz #49",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testLiveFilteringOfMessageTypes);
+}
 
+function testLiveFilteringOfMessageTypes() {
   is(hud.outputNode.children.length, 50, "number of messages");
 
   hud.setFilterState("log", false);
-  is(countMessageNodes(hud), 0, "the log nodes are hidden when the " +
+  is(countMessageNodes(), 0, "the log nodes are hidden when the " +
     "corresponding filter is switched off");
 
   hud.setFilterState("log", true);
-  is(countMessageNodes(hud), 50, "the log nodes reappear when the " +
+  is(countMessageNodes(), 50, "the log nodes reappear when the " +
     "corresponding filter is switched on");
-});
 
-function countMessageNodes(hud) {
+  finishTest();
+}
+
+function countMessageNodes() {
   let messageNodes = hud.outputNode.querySelectorAll(".message");
   let displayedMessageNodes = 0;
   let view = hud.iframeWindow;

@@ -67,28 +67,8 @@ loop.roomViews = (function(mozL10n) {
     getInitialState: function() {
       return {
         copiedUrl: false,
-        newRoomName: "",
-        error: null,
+        newRoomName: ""
       };
-    },
-
-    componentWillMount: function() {
-      this.listenTo(this.props.roomStore, "change:error",
-                    this.onRoomError);
-    },
-
-    componentWillUnmount: function() {
-      this.stopListening(this.props.roomStore);
-    },
-
-    handleTextareaKeyDown: function(event) {
-      // Submit the form as soon as the user press Enter in that field
-      // Note: We're using a textarea instead of a simple text input to display
-      // placeholder and entered text on two lines, to circumvent l10n
-      // rendering/UX issues for some locales.
-      if (event.which === 13) {
-        this.handleFormSubmit(event);
-      }
     },
 
     handleFormSubmit: function(event) {
@@ -121,28 +101,13 @@ loop.roomViews = (function(mozL10n) {
       this.setState({copiedUrl: true});
     },
 
-    onRoomError: function() {
-      // Only update the state if we're mounted, to avoid the problem where
-      // stopListening doesn't nuke the active listeners during a event
-      // processing.
-      if (this.isMounted()) {
-        this.setState({error: this.props.roomStore.getStoreState("error")});
-      }
-    },
-
     render: function() {
-      var cx = React.addons.classSet;
       return (
         <div className="room-invitation-overlay">
-          <p className={cx({"error": !!this.state.error,
-                            "error-display-area": true})}>
-            {mozL10n.get("rooms_name_change_failed_label")}
-          </p>
           <form onSubmit={this.handleFormSubmit}>
-            <textarea rows="2" type="text" className="input-room-name"
+            <input type="text" className="input-room-name"
               valueLink={this.linkState("newRoomName")}
               onBlur={this.handleFormSubmit}
-              onKeyDown={this.handleTextareaKeyDown}
               placeholder={mozL10n.get("rooms_name_this_room_label")} />
           </form>
           <p>{mozL10n.get("invite_header_text")}</p>

@@ -16,8 +16,10 @@ function test()
     gWebConsole = gJSTerm = gVariablesView = null;
   });
 
-  loadTab(TEST_URI).then(() => {
-    openConsole().then((hud) => {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, (hud) => {
       openDebugger().then(({ toolbox, panelWin }) => {
         let deferred = promise.defer();
         panelWin.gThreadClient.addOneTimeListener("resumed", (aEvent, aPacket) => {
@@ -39,8 +41,8 @@ function test()
 
         return deferred.promise;
       });
-    })
-  });
+    });
+  }, true);
 }
 
 function consoleOpened(hud)

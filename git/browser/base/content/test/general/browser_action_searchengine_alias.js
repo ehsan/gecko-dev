@@ -3,6 +3,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  **/
 
+let gOriginalEngine;
+
 add_task(function* () {
   Services.prefs.setBoolPref("browser.urlbar.unifiedcomplete", true);
 
@@ -10,14 +12,13 @@ add_task(function* () {
   Services.search.addEngineWithDetails("MozSearch", iconURI, "moz", "", "GET",
                                        "http://example.com/?q={searchTerms}");
   let engine = Services.search.getEngineByName("MozSearch");
-  let originalEngine = Services.search.currentEngine;
+  gOriginalEngine = Services.search.currentEngine;
   Services.search.currentEngine = engine;
 
-  let tab = gBrowser.selectedTab = gBrowser.addTab("about:mozilla", {animate: false});
-  yield promiseTabLoaded(gBrowser.selectedTab);
+  let tab = gBrowser.selectedTab = gBrowser.addTab();
 
   registerCleanupFunction(() => {
-    Services.search.currentEngine = originalEngine;
+    Services.search.currentEngine = gOriginalEngine;
     let engine = Services.search.getEngineByName("MozSearch");
     Services.search.removeEngine(engine);
     Services.prefs.clearUserPref("browser.urlbar.unifiedcomplete");
@@ -29,7 +30,10 @@ add_task(function* () {
     return promiseClearHistory();
   });
 
-  yield promiseAutocompleteResultPopup("moz open a search");
+  gURLBar.focus();
+  gURLBar.value = "moz open a searc";
+  EventUtils.synthesizeKey("h" , {});
+  yield promiseSearchComplete();
 
   let result = gURLBar.popup.richlistbox.children[0];
   ok(result.hasAttribute("image"), "Result should have an image attribute");

@@ -46,9 +46,8 @@ interface Telephony : EventTarget {
   readonly attribute CallsList calls;
   readonly attribute TelephonyCallGroup conferenceGroup;
 
-  // Async notification that object initialization is done.
-  [Throws]
-  readonly attribute Promise<void> ready;
+  // The 'ready' event will be fired when the telephony object is ready.
+  attribute EventHandler onready;
 
   attribute EventHandler onincoming;
   attribute EventHandler oncallschanged;

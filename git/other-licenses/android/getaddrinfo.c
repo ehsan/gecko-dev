@@ -414,46 +414,19 @@ extern int
 __wrap_getaddrinfo(const char *hostname, const char *servname,
     const struct addrinfo *hints, struct addrinfo **res);
 
-extern const char *
-__real_gai_strerror(int ecode);
-extern void
-__real_freeaddrinfo(struct addrinfo *ai);
-extern int
-__real_getaddrinfo(const char *hostname, const char *servname,
-    const struct addrinfo *hints, struct addrinfo **res);
+int android_sdk_version;
 
 #pragma GCC visibility pop
 
-static int get_android_sdk_version()
-{
-  char version_str[PROP_VALUE_MAX];
-  memset(version_str, 0, PROP_VALUE_MAX);
-  int len = __system_property_get("ro.build.version.sdk", version_str);
-  if (len < 1) {
-#ifdef MOZ_GETADDRINFO_LOG_VERBOSE
-    __android_log_print(ANDROID_LOG_INFO, "getaddrinfo",
-      "Failed to get Android SDK version\n");
-#endif
-
-    return len;
-  }
-
-  return (int)strtol(version_str, NULL, 10);
-}
+int android_sdk_version = -1;
 
 static int honeycomb_or_later()
 {
-  static int android_sdk_version = 0;
-  if (android_sdk_version == 0) {
-    android_sdk_version = get_android_sdk_version();
-  }
-
 #ifdef MOZ_GETADDRINFO_LOG_VERBOSE
 	__android_log_print(ANDROID_LOG_INFO, "getaddrinfo",
 		"I am%s Honeycomb\n",
 		(android_sdk_version >= 11) ? "" : " not");
 #endif
-
 	return android_sdk_version >= 11;
 }
 
@@ -461,7 +434,7 @@ const char *
 __wrap_gai_strerror(int ecode)
 {
 	if (honeycomb_or_later())
-		return __real_gai_strerror(ecode);
+		return gai_strerror(ecode);
 	if (ecode < 0 || ecode > EAI_MAX)
 		ecode = EAI_MAX;
 	return ai_errlist[ecode];
@@ -473,7 +446,7 @@ __wrap_freeaddrinfo(struct addrinfo *ai)
 	struct addrinfo *next;
 
 	if (honeycomb_or_later()) {
-		__real_freeaddrinfo(ai);
+		freeaddrinfo(ai);
 		return;
 	}
 
@@ -572,7 +545,7 @@ __wrap_getaddrinfo(const char *hostname, const char *servname,
 	const struct explore *ex;
 
 	if (honeycomb_or_later())
-		return __real_getaddrinfo(hostname, servname, hints, res);
+		return getaddrinfo(hostname, servname, hints, res);
 
 	/* hostname is allowed to be NULL */
 	/* servname is allowed to be NULL */

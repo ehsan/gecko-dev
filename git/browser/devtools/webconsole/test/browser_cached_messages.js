@@ -13,12 +13,16 @@ function test()
 
   expectUncaughtException();
 
-  loadTab(TEST_URI).then(testOpenUI);
+  addTab(TEST_URI);
+  gBrowser.selectedBrowser.addEventListener("load", function onLoad() {
+    gBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
+    testOpenUI(true);
+  }, true);
 }
 
 function testOpenUI(aTestReopen)
 {
-  openConsole().then((hud) => {
+  openConsole(null, function(hud) {
     waitForMessages({
       webconsole: hud,
       messages: [
@@ -44,7 +48,7 @@ function testOpenUI(aTestReopen)
         },
       ],
     }).then(() => {
-      closeConsole(gBrowser.selectedTab).then(() => {
+      closeConsole(gBrowser.selectedTab, function() {
         aTestReopen && info("will reopen the Web Console");
         executeSoon(aTestReopen ? testOpenUI : finishTest);
       });

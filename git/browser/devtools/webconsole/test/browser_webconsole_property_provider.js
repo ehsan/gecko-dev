@@ -9,10 +9,11 @@
 const TEST_URI = "data:text/html;charset=utf8,<p>test the JS property provider";
 
 function test() {
-  loadTab(TEST_URI).then(testPropertyProvider);
+  addTab(TEST_URI);
+  browser.addEventListener("load", testPropertyProvider, true);
 }
 
-function testPropertyProvider({browser}) {
+function testPropertyProvider() {
   browser.removeEventListener("load", testPropertyProvider, true);
   let tools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
   let JSPropertyProvider = tools.require("devtools/toolkit/webconsole/utils").JSPropertyProvider;

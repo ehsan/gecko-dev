@@ -66,7 +66,7 @@ function test()
       privateBrowser.selectedBrowser.removeEventListener("load", onLoad, true);
       privateContent = privateBrowser.selectedBrowser.contentWindow;
       ok(PrivateBrowsingUtils.isBrowserPrivate(privateBrowser.selectedBrowser), "tab window is private");
-      openConsole(privateTab).then(consoleOpened);
+      openConsole(privateTab, consoleOpened);
     }, true);
   }
 
@@ -109,9 +109,9 @@ function test()
   function testCachedMessages()
   {
     info("testCachedMessages()");
-    closeConsole(privateTab).then(() => {
+    closeConsole(privateTab, () => {
       info("web console closed");
-      openConsole(privateTab).then(consoleReopened);
+      openConsole(privateTab, consoleReopened);
     });
   }
 
@@ -131,7 +131,7 @@ function test()
   function testBrowserConsole()
   {
     info("testBrowserConsole()");
-    closeConsole(privateTab).then(() => {
+    closeConsole(privateTab, () => {
       info("web console closed");
       privateWindow.HUDService.toggleBrowserConsole().then(onBrowserConsoleOpen);
     });

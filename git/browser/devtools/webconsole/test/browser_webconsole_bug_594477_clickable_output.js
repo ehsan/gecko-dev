@@ -10,30 +10,22 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
 let HUD;
+
 let outputItem;
-let outputNode;
 
-"use strict";
+function consoleOpened(aHud) {
+  HUD = aHud;
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  HUD = yield openConsole();
   outputNode = HUD.outputNode;
 
-  // reload the tab
-  BrowserReload();
-  yield loadBrowser(gBrowser.selectedBrowser);
+  browser.addEventListener("load", tabLoad2, true);
 
-  let event = yield clickEvents();
-  yield testClickAgain(event);
-  yield networkPanelHidden();
+  // Reload so we get some output in the console.
+  browser.contentWindow.location.reload();
+}
 
-  HUD = outputItem = outputNode = null;
-});
-
-function clickEvents() {
-  let deferred = promise.defer();
+function tabLoad2(aEvent) {
+  browser.removeEventListener(aEvent.type, tabLoad2, true);
 
   waitForMessages({
     webconsole: HUD,
@@ -46,23 +38,18 @@ function clickEvents() {
     let msg = [...result.matched][0];
     outputItem = msg.querySelector(".message-body .url");
     ok(outputItem, "found a network message");
-    document.addEventListener("popupshown", function onPanelShown(event) {
-      document.removeEventListener("popupshown", onPanelShown, false);
-      deferred.resolve(event);
-    }, false);
+    document.addEventListener("popupshown", networkPanelShown, false);
 
     // Send the mousedown and click events such that the network panel opens.
     EventUtils.sendMouseEvent({type: "mousedown"}, outputItem);
     EventUtils.sendMouseEvent({type: "click"}, outputItem);
   });
-
-  return deferred.promise;
 }
 
-function testClickAgain(event) {
-  info("testClickAgain");
+function networkPanelShown(aEvent) {
+  document.removeEventListener(aEvent.type, networkPanelShown, false);
 
-  let deferred = promise.defer();
+  info("networkPanelShown");
 
   document.addEventListener("popupshown", networkPanelShowFailure, false);
 
@@ -71,22 +58,19 @@ function testClickAgain(event) {
   EventUtils.sendMouseEvent({type: "click"}, outputItem);
 
   executeSoon(function() {
-    document.addEventListener("popuphidden", function onHidden() {
-      document.removeEventListener("popuphidden", onHidden, false);
-      deferred.resolve();
-    }, false);
-    event.target.hidePopup();
+    aEvent.target.addEventListener("popuphidden", networkPanelHidden, false);
+    aEvent.target.hidePopup();
   });
-
-  return deferred.promise;
 }
 
-function networkPanelShowFailure() {
+function networkPanelShowFailure(aEvent) {
+  document.removeEventListener(aEvent.type, networkPanelShowFailure, false);
+
   ok(false, "the network panel should not show");
 }
 
-function networkPanelHidden() {
-  let deferred = promise.defer();
+function networkPanelHidden(aEvent) {
+  this.removeEventListener(aEvent.type, networkPanelHidden, false);
 
   info("networkPanelHidden");
 
@@ -114,10 +98,10 @@ function networkPanelHidden() {
 
     // Done with the network output. Now test the jsterm output and the property
     // panel.
-    HUD.jsterm.execute("document").then((msg) => {
+    HUD.jsterm.execute("document", (msg) => {
       info("jsterm execute 'document' callback");
 
-      HUD.jsterm.once("variablesview-open", deferred.resolve);
+      HUD.jsterm.once("variablesview-open", onVariablesViewOpen);
       let outputItem = msg.querySelector(".message-body a");
       ok(outputItem, "jsterm output message found");
 
@@ -126,6 +110,22 @@ function networkPanelHidden() {
       EventUtils.sendMouseEvent({type: "click"}, outputItem);
     });
   });
-
-  return deferred.promise;
 }
+
+function onVariablesViewOpen() {
+  info("onVariablesViewOpen");
+
+  executeSoon(function() {
+    HUD = outputItem = null;
+    executeSoon(finishTest);
+  });
+}
+
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
+

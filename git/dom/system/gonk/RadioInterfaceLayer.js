@@ -494,11 +494,17 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
     _getNumCards: function() {
       let numCards = 0;
       for (let i = 0, N = _ril.numRadioInterfaces; i < N; ++i) {
-        if (_ril.getRadioInterface(i).isCardPresent()) {
+        if (this._isCardPresentAtClient(i)) {
           numCards++;
         }
       }
       return numCards;
+    },
+
+    _isCardPresentAtClient: function(clientId) {
+      let cardState = _ril.getRadioInterface(clientId).rilContext.cardState;
+      return cardState !== Ci.nsIIccProvider.CARD_STATE_UNDETECTED &&
+             cardState !== Ci.nsIIccProvider.CARD_STATE_UNKNOWN;
     },
 
     _isRadioAbleToEnableAtClient: function(clientId, numCards) {
@@ -510,7 +516,7 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function() {
       // 1. a SIM card is presented or
       // 2. it is the default clientId and there is no any SIM card at any client.
 
-      if (_ril.getRadioInterface(clientId).isCardPresent()) {
+      if (this._isCardPresentAtClient(clientId)) {
         return true;
       }
 
@@ -1505,15 +1511,12 @@ RadioInterfaceLayer.prototype = {
   },
 
   getClientIdForEmergencyCall: function() {
-    // Select the client with sim card first.
     for (let cid = 0; cid < this.numRadioInterfaces; ++cid) {
-      if (this.getRadioInterface(cid).isCardPresent()) {
+      if (gRadioEnabledController._isRadioAbleToEnableAtClient(cid)) {
         return cid;
       }
     }
-
-    // Use the defualt client if no card presents.
-    return HW_DEFAULT_CLIENT_ID;
+    return -1;
   },
 
   setMicrophoneMuted: function(muted) {
@@ -1819,12 +1822,6 @@ RadioInterface.prototype = {
     }
 
     return false;
-  },
-
-  isCardPresent: function() {
-    let cardState = this.rilContext.cardState;
-    return cardState !== Ci.nsIIccProvider.CARD_STATE_UNDETECTED &&
-      cardState !== Ci.nsIIccProvider.CARD_STATE_UNKNOWN;
   },
 
   /**

@@ -341,7 +341,7 @@ Icc::GetCardLockRetryCount(IccLockType aLockType, ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-Icc::ReadContacts(IccContactType aContactType, ErrorResult& aRv)
+Icc::ReadContacts(const nsAString& aContactType, ErrorResult& aRv)
 {
   if (!mProvider) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -349,8 +349,7 @@ Icc::ReadContacts(IccContactType aContactType, ErrorResult& aRv)
   }
 
   nsRefPtr<nsIDOMDOMRequest> request;
-  nsresult rv = mProvider->ReadContacts(mClientId, GetOwner(),
-                                        static_cast<uint32_t>(aContactType),
+  nsresult rv = mProvider->ReadContacts(mClientId, GetOwner(), aContactType,
                                         getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -361,7 +360,7 @@ Icc::ReadContacts(IccContactType aContactType, ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-Icc::UpdateContact(const JSContext* aCx, IccContactType aContactType,
+Icc::UpdateContact(const JSContext* aCx, const nsAString& aContactType,
                    JS::Handle<JS::Value> aContact, const nsAString& aPin2,
                    ErrorResult& aRv)
 {
@@ -371,8 +370,7 @@ Icc::UpdateContact(const JSContext* aCx, IccContactType aContactType,
   }
 
   nsRefPtr<nsIDOMDOMRequest> request;
-  nsresult rv = mProvider->UpdateContact(mClientId, GetOwner(),
-                                         static_cast<uint32_t>(aContactType),
+  nsresult rv = mProvider->UpdateContact(mClientId, GetOwner(), aContactType,
                                          aContact, aPin2,
                                          getter_AddRefs(request));
   if (NS_FAILED(rv)) {

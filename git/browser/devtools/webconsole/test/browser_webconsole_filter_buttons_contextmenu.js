@@ -6,9 +6,11 @@
 const TEST_URI = "http://example.com/";
 
 function test() {
-  loadTab(TEST_URI).then(() => {
-    openConsole().then(testFilterButtons);
-  })
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testFilterButtons);
+  }, true);
 }
 
 function testFilterButtons(aHud) {

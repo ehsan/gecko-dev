@@ -13,14 +13,25 @@
 // the user's preferences.
 
 const TEST_URI = "data:text/html;charset=utf8,test for bug 585237";
+let hud, testDriver;
 
-let outputNode;
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, function(aHud) {
+      hud = aHud;
+      testDriver = testGen();
+      testNext();
+    });
+  }, true);
+}
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
+function testNext() {
+  testDriver.next();
+}
 
-  let hud = yield openConsole();
-
+function testGen() {
   let console = content.console;
   outputNode = hud.outputNode;
 
@@ -33,28 +44,32 @@ let test = asyncTest(function* () {
     console.log("foo #" + i); // must change message to prevent repeats
   }
 
-  yield waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "foo #29",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testNext);
+
+  yield undefined;
 
   is(countMessageNodes(), 20, "there are 20 message nodes in the output " +
      "when the log limit is set to 20");
 
   console.log("bar bug585237");
 
-  yield waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "bar bug585237",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testNext);
+
+  yield undefined;
 
   is(countMessageNodes(), 20, "there are still 20 message nodes in the " +
      "output when adding one more");
@@ -64,22 +79,26 @@ let test = asyncTest(function* () {
     console.log("boo #" + i); // must change message to prevent repeats
   }
 
-  yield waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "boo #19",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testNext);
+
+  yield undefined;
 
   is(countMessageNodes(), 30, "there are 30 message nodes in the output " +
      "when the log limit is set to 30");
 
   prefBranch.clearUserPref("console");
+  hud = testDriver = prefBranch = console = outputNode = null;
+  finishTest();
 
-  outputNode = null;
-});
+  yield undefined;
+}
 
 function countMessageNodes() {
   return outputNode.querySelectorAll(".message").length;

@@ -9,57 +9,45 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 
 let gWebConsole, gJSTerm, gVariablesView;
 
-let hud;
+function test()
+{
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  hud = yield openConsole();
-
+function consoleOpened(hud)
+{
   gWebConsole = hud;
   gJSTerm = hud.jsterm;
-  let msg = yield gJSTerm.execute("fooObj");
+  gJSTerm.execute("fooObj", onExecuteFooObj);
+}
 
+function onExecuteFooObj(msg)
+{
   ok(msg, "output message found");
   ok(msg.textContent.contains('{ testProp: "testValue" }'), "message text check");
 
   let anchor = msg.querySelector("a");
   ok(anchor, "object link found");
 
-  let fetched = gJSTerm.once("variablesview-fetched");
+  gJSTerm.once("variablesview-fetched", onFooObjFetch);
 
-  // executeSoon
-  EventUtils.synthesizeMouse(anchor, 2, 2, {}, gWebConsole.iframeWindow);
+  executeSoon(() =>
+    EventUtils.synthesizeMouse(anchor, 2, 2, {}, gWebConsole.iframeWindow)
+  );
+}
 
-  let view = yield fetched;
-
-  let results = yield onFooObjFetch(view);
-
-  let vView = yield onTestPropFound(results);
-  let results2 = yield onFooObjFetchAfterUpdate(vView);
-
-  let vView2 = yield onUpdatedTestPropFound(results2);
-  let results3 = yield onFooObjFetchAfterPropRename(vView2);
-
-  let vView3 = yield onRenamedTestPropFound(results3);
-  let results4 = yield onPropUpdateError(vView3);
-
-  yield onRenamedTestPropFoundAgain(results4);
-
-  let prop = results4[0].matchedProp;
-  yield testPropDelete(prop);
-
-  gWebConsole = gJSTerm = gVariablesView = null;
-});
-
-function onFooObjFetch(aVar)
+function onFooObjFetch(aEvent, aVar)
 {
   gVariablesView = aVar._variablesView;
   ok(gVariablesView, "variables view object");
 
-  return findVariableViewProperties(aVar, [
+  findVariableViewProperties(aVar, [
     { name: "testProp", value: "testValue" },
-  ], { webconsole: gWebConsole });
+  ], { webconsole: gWebConsole }).then(onTestPropFound);
 }
 
 function onTestPropFound(aResults)
@@ -67,28 +55,29 @@ function onTestPropFound(aResults)
   let prop = aResults[0].matchedProp;
   ok(prop, "matched the |testProp| property in the variables view");
 
-  is("testValue", aResults[0].value,
+  is(content.wrappedJSObject.fooObj.testProp, aResults[0].value,
      "|fooObj.testProp| value is correct");
 
   // Check that property value updates work and that jsterm functions can be
   // used.
-  return updateVariablesViewProperty({
+  updateVariablesViewProperty({
     property: prop,
     field: "value",
     string: "document.title + window.location + $('p')",
-    webconsole: gWebConsole
+    webconsole: gWebConsole,
+    callback: onFooObjFetchAfterUpdate,
   });
 }
 
-function onFooObjFetchAfterUpdate(aVar)
+function onFooObjFetchAfterUpdate(aEvent, aVar)
 {
   info("onFooObjFetchAfterUpdate");
-  let expectedValue = content.document.title + content.location
-                      + '[object HTMLParagraphElement]';
+  let para = content.wrappedJSObject.document.querySelector("p");
+  let expectedValue = content.document.title + content.location + para;
 
-  return findVariableViewProperties(aVar, [
+  findVariableViewProperties(aVar, [
     { name: "testProp", value: expectedValue },
-  ], { webconsole: gWebConsole });
+  ], { webconsole: gWebConsole }).then(onUpdatedTestPropFound);
 }
 
 function onUpdatedTestPropFound(aResults)
@@ -100,15 +89,16 @@ function onUpdatedTestPropFound(aResults)
      "|fooObj.testProp| value has been updated");
 
   // Check that property name updates work.
-  return updateVariablesViewProperty({
+  updateVariablesViewProperty({
     property: prop,
     field: "name",
     string: "testUpdatedProp",
-    webconsole: gWebConsole
+    webconsole: gWebConsole,
+    callback: onFooObjFetchAfterPropRename,
   });
 }
 
-function onFooObjFetchAfterPropRename(aVar)
+function onFooObjFetchAfterPropRename(aEvent, aVar)
 {
   info("onFooObjFetchAfterPropRename");
 
@@ -116,9 +106,9 @@ function onFooObjFetchAfterPropRename(aVar)
   let expectedValue = content.document.title + content.location + para;
 
   // Check that the new value is in the variables view.
-  return findVariableViewProperties(aVar, [
+  findVariableViewProperties(aVar, [
     { name: "testUpdatedProp", value: expectedValue },
-  ], { webconsole: gWebConsole });
+  ], { webconsole: gWebConsole }).then(onRenamedTestPropFound);
 }
 
 function onRenamedTestPropFound(aResults)
@@ -133,15 +123,16 @@ function onRenamedTestPropFound(aResults)
 
   // Check that property value updates that cause exceptions are reported in
   // the web console output.
-  return updateVariablesViewProperty({
+  updateVariablesViewProperty({
     property: prop,
     field: "value",
     string: "foobarzFailure()",
-    webconsole: gWebConsole
+    webconsole: gWebConsole,
+    callback: onPropUpdateError,
   });
 }
 
-function onPropUpdateError(aVar)
+function onPropUpdateError(aEvent, aVar)
 {
   info("onPropUpdateError");
 
@@ -149,9 +140,9 @@ function onPropUpdateError(aVar)
   let expectedValue = content.document.title + content.location + para;
 
   // Make sure the property did not change.
-  return findVariableViewProperties(aVar, [
+  findVariableViewProperties(aVar, [
     { name: "testUpdatedProp", value: expectedValue },
-  ], { webconsole: gWebConsole });
+  ], { webconsole: gWebConsole }).then(onRenamedTestPropFoundAgain);
 }
 
 function onRenamedTestPropFoundAgain(aResults)
@@ -161,7 +152,7 @@ function onRenamedTestPropFoundAgain(aResults)
 
   let outputNode = gWebConsole.outputNode;
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: gWebConsole,
     messages: [{
       name: "exception in property update reported in the web console output",
@@ -169,7 +160,7 @@ function onRenamedTestPropFoundAgain(aResults)
       category: CATEGORY_OUTPUT,
       severity: SEVERITY_ERROR,
     }],
-  });
+  }).then(testPropDelete.bind(null, prop));
 }
 
 function testPropDelete(aProp)
@@ -179,11 +170,14 @@ function testPropDelete(aProp)
 
   executeSoon(() => {
     EventUtils.synthesizeKey("VK_DELETE", {}, gVariablesView.window);
+    gWebConsole = gJSTerm = gVariablesView = null;
   });
 
-  return waitForSuccess({
+  waitForSuccess({
     name: "property deleted",
     timeout: 60000,
-    validator: () => !("testUpdatedProp" in content.wrappedJSObject.fooObj)
+    validatorFn: () => !("testUpdatedProp" in content.wrappedJSObject.fooObj),
+    successFn: finishTest,
+    failureFn: finishTest,
   });
 }

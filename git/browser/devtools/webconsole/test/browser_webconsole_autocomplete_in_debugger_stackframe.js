@@ -13,12 +13,14 @@ let testDriver, gStackframes;
 function test()
 {
   requestLongerTimeout(2);
-  loadTab(TEST_URI).then(() => {
-    openConsole().then((hud) => {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, function(hud) {
       testDriver = testCompletion(hud);
       testDriver.next();
     });
-  });
+  }, true);
 }
 
 function testNext() {
@@ -138,7 +140,7 @@ function testCompletion(hud) {
     gStackframes.selectFrame(1);
 
     info("openConsole");
-    executeSoon(() => openConsole().then(() => testDriver.next()));
+    executeSoon(() => openConsole(null, () => testDriver.next()));
   });
   yield undefined;
 
@@ -233,7 +235,7 @@ function debuggerOpened(aResult)
 function onFramesAdded()
 {
   info("onFramesAdded, openConsole() now");
-  executeSoon(() => openConsole().then(testNext));
+  executeSoon(() => openConsole(null, testNext));
 }
 
 function finishUp() {

@@ -75,13 +75,6 @@ enum IccLockType
   "fdn"
 };
 
-enum IccContactType
-{
-  "adn", // Abbreviated Dialling Number.
-  "fdn", // Fixed Dialling Number.
-  "sdn"  // Service Dialling Number.
-};
-
 dictionary IccUnlockCardLockOptions
 {
   required IccLockType lockType;
@@ -283,27 +276,32 @@ interface MozIcc : EventTarget
    * Read ICC contacts.
    *
    * @param contactType
-   *        Identifies the contact type.
+   *        One of type as below,
+   *        - 'adn': Abbreviated Dialling Number.
+   *        - 'fdn': Fixed Dialling Number.
+   *        - 'sdn': Service Dialling Number.
    *
    * @return a DOMRequest.
    */
   [Throws]
-  DOMRequest readContacts(IccContactType contactType);
+  DOMRequest readContacts(DOMString contactType);
 
   /**
    * Update ICC Phonebook contact.
    *
    * @param contactType
-   *        Identifies the contact type.
+   *        One of type as below,
+   *        - 'adn': Abbreviated Dialling Number.
+   *        - 'fdn': Fixed Dialling Number.
    * @param contact
    *        The contact will be updated in ICC.
-   * @param pin2 [optional]
-   *        PIN2 is only required for "fdn".
+   * @param [optional] pin2
+   *        PIN2 is only required for 'fdn'.
    *
    * @return a DOMRequest.
    */
   [Throws]
-  DOMRequest updateContact(IccContactType contactType,
+  DOMRequest updateContact(DOMString contactType,
                            any contact,
                            optional DOMString? pin2 = null);
 

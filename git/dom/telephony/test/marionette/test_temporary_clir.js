@@ -14,7 +14,19 @@ startTest(function() {
     outCall = call;
 
     ok(call);
-    is(call.id.number, number);  // Should display the number w/o clir prefix.
+    is(call.id.number, number);
+    is(call.state, "dialing");
+
+    let deferred = Promise.defer();
+
+    call.onalerting = function onalerting(event) {
+      call.onalerting = null;
+      log("Received 'onalerting' call event.");
+      is(call.id.number, number);
+      deferred.resolve(call);
+    };
+
+    return deferred.promise;
   })
   .then(() => gRemoteHangUp(outCall))
   .catch(error => ok(false, "Promise reject: " + error))

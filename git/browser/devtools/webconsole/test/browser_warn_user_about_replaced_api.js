@@ -5,77 +5,75 @@
 
 const TEST_REPLACED_API_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console-replaced-api.html";
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/testscript.js";
-const PREF = "devtools.webconsole.persistlog";
 
-let test = asyncTest(function* () {
+function test() {
+  waitForExplicitFinish();
+
+  const PREF = "devtools.webconsole.persistlog";
   Services.prefs.setBoolPref(PREF, true);
+  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
 
-  let { browser } = yield loadTab(TEST_URI);
-  let hud = yield openConsole();
+  // First test that the warning does not appear on a page that doesn't override
+  // the window.console object.
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testWarningNotPresent);
+  }, true);
 
-  yield testWarningNotPresent(hud);
-
-  let loaded = loadBrowser(browser);
-  content.location = TEST_REPLACED_API_URI;
-  yield loaded;
-
-  let hud2 = yield openConsole();
-
-  yield testWarningPresent(hud2);
-
-  Services.prefs.clearUserPref(PREF);
-});
-
-function testWarningNotPresent(hud)
-{
-  let deferred = promise.defer();
-
-  is(hud.outputNode.textContent.indexOf("logging API"), -1,
-     "no warning displayed");
-
-  // Bug 862024: make sure the warning doesn't show after page reload.
-  info("reload " + TEST_URI);
-  executeSoon(() => content.location.reload());
-
-  waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "testscript.js",
-      category: CATEGORY_NETWORK,
-    }],
-  }).then(() => executeSoon(() => {
+  function testWarningNotPresent(hud)
+  {
     is(hud.outputNode.textContent.indexOf("logging API"), -1,
        "no warning displayed");
-    closeConsole().then(deferred.resolve);
-  }));
 
-  return deferred.promise;
-}
+    // Bug 862024: make sure the warning doesn't show after page reload.
+    info("reload " + TEST_URI);
+    executeSoon(() => content.location.reload());
 
-function testWarningPresent(hud)
-{
-  info("wait for the warning to show");
-  let deferred = promise.defer();
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        text: "testscript.js",
+        category: CATEGORY_NETWORK,
+      }],
+    }).then(() => executeSoon(() => {
+      is(hud.outputNode.textContent.indexOf("logging API"), -1,
+         "no warning displayed");
 
-  let warning = {
-    webconsole: hud,
-    messages: [{
-      text: /logging API .+ disabled by a script/,
-      category: CATEGORY_JS,
-      severity: SEVERITY_WARNING,
-    }],
-  };
+      closeConsole(null, loadTestPage);
+    }));
+  }
 
-  waitForMessages(warning).then(() => {
-    hud.jsterm.clearOutput();
+  function loadTestPage()
+  {
+    info("load test " + TEST_REPLACED_API_URI);
+    browser.addEventListener("load", function onLoad() {
+      browser.removeEventListener("load", onLoad, true);
+      openConsole(null, testWarningPresent);
+    }, true);
+    content.location = TEST_REPLACED_API_URI;
+  }
 
-    executeSoon(() => {
-      info("reload the test page and wait for the warning to show");
-      waitForMessages(warning).then(deferred.resolve);
-      content.location.reload();
+  function testWarningPresent(hud)
+  {
+    info("wait for the warning to show");
+    let warning = {
+      webconsole: hud,
+      messages: [{
+        text: /logging API .+ disabled by a script/,
+        category: CATEGORY_JS,
+        severity: SEVERITY_WARNING,
+      }],
+    };
+
+    waitForMessages(warning).then(() => {
+      hud.jsterm.clearOutput();
+
+      executeSoon(() => {
+        info("reload the test page and wait for the warning to show");
+        waitForMessages(warning).then(finishTest);
+        content.location.reload();
+      });
     });
-  });
-
-  return deferred.promise;
+  }
 }
-

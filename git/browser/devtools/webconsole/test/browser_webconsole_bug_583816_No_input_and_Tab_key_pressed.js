@@ -5,12 +5,13 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/browser/test-console.html";
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-  testCompletion(hud);
-});
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testCompletion);
+  }, true);
+}
 
 function testCompletion(hud) {
   var jsterm = hud.jsterm;
@@ -28,4 +29,7 @@ function testCompletion(hud) {
   is(jsterm.completeNode.value, "                <- no result", "completenode content - matched");
   is(input.value, "window.Bug583816", "inputnode content - matched");
   is(input.getAttribute("focused"), "true", "input is still focused");
+
+  jsterm = input = null;
+  finishTest();
 }

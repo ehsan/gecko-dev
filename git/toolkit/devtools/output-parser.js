@@ -337,7 +337,15 @@ OutputParser.prototype = {
    *         CSS Property value to check
    */
   _cssPropertySupportsValue: function(name, value) {
-    return DOMUtils.cssPropertyIsValid(name, value);
+    let win = Services.appShell.hiddenDOMWindow;
+    let doc = win.document;
+
+    value = value.replace("!important", "");
+
+    let div = doc.createElement("div");
+    div.style.setProperty(name, value);
+
+    return !!div.style.getPropertyValue(name);
   },
 
   /**

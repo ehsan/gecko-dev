@@ -60,7 +60,7 @@ let modules = {
     privileged: true
   },
   reader: {
-    uri: "chrome://global/content/reader/aboutReader.html",
+    uri: "chrome://browser/content/aboutReader.html",
     privileged: false,
     hide: true
   },

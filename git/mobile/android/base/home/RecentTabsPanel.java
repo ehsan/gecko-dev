@@ -8,9 +8,6 @@ package org.mozilla.gecko.home;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.mozilla.gecko.AboutPages;
 import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
@@ -22,8 +19,8 @@ import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.CommonColumns;
 import org.mozilla.gecko.db.BrowserContract.URLColumns;
+import org.mozilla.gecko.home.HomePager.OnNewTabsListener;
 import org.mozilla.gecko.util.EventCallback;
-import org.mozilla.gecko.util.GeckoRequest;
 import org.mozilla.gecko.util.NativeEventListener;
 import org.mozilla.gecko.util.NativeJSObject;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -36,7 +33,6 @@ import android.database.MatrixCursor.RowBuilder;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -69,41 +65,49 @@ public class RecentTabsPanel extends HomeFragment
     // Callbacks used for the search and favicon cursor loaders
     private CursorLoaderCallbacks mCursorLoaderCallbacks;
 
+    // On new tabs listener
+    private OnNewTabsListener mNewTabsListener;
+
     // Recently closed tabs from gecko
     private ClosedTab[] mClosedTabs;
-
-    private void restoreSessionWithHistory(List<String> dataList) {
-        JSONObject json = new JSONObject();
-        try {
-            json.put("tabs", new JSONArray(dataList));
-        } catch (JSONException e) {
-            Log.e(LOGTAG, "JSON error", e);
-        }
-
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Session:RestoreRecentTabs", json.toString()));
-    }
 
     private static final class ClosedTab {
         public final String url;
         public final String title;
-        public final String data;
 
-        public ClosedTab(String url, String title, String data) {
+        public ClosedTab(String url, String title) {
             this.url = url;
             this.title = title;
-            this.data = data;
         }
     }
 
     public static final class RecentTabs implements URLColumns, CommonColumns {
         public static final String TYPE = "type";
-        public static final String DATA = "data";
 
         public static final int TYPE_HEADER = 0;
         public static final int TYPE_LAST_TIME = 1;
         public static final int TYPE_CLOSED = 2;
         public static final int TYPE_OPEN_ALL_LAST_TIME = 3;
         public static final int TYPE_OPEN_ALL_CLOSED = 4;
+    }
+
+    @Override
+    public void onAttach(Activity activity) {
+        super.onAttach(activity);
+
+        try {
+            mNewTabsListener = (OnNewTabsListener) activity;
+        } catch (ClassCastException e) {
+            throw new ClassCastException(activity.toString()
+                    + " must implement HomePager.OnNewTabsListener");
+        }
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+
+        mNewTabsListener = null;
     }
 
     @Override
@@ -138,9 +142,10 @@ public class RecentTabsPanel extends HomeFragment
 
                 Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.LIST_ITEM);
 
-                final List<String> dataList = new ArrayList<>();
-                dataList.add(c.getString(c.getColumnIndexOrThrow(RecentTabs.DATA)));
-                restoreSessionWithHistory(dataList);
+                final ArrayList<String> urls = new ArrayList<String>();
+                urls.add(c.getString(c.getColumnIndexOrThrow(RecentTabs.URL)));
+
+                mNewTabsListener.onNewTabs(urls);
             }
         });
 
@@ -222,7 +227,7 @@ public class RecentTabsPanel extends HomeFragment
         final ClosedTab[] closedTabs = new ClosedTab[length];
         for (int i = 0; i < length; i++) {
             final NativeJSObject tab = tabs[i];
-            closedTabs[i] = new ClosedTab(tab.getString("url"), tab.getString("title"), tab.getObject("data").toString());
+            closedTabs[i] = new ClosedTab(tab.getString("url"), tab.getString("title"));
         }
 
         // Only modify mClosedTabs on the UI thread
@@ -247,16 +252,16 @@ public class RecentTabsPanel extends HomeFragment
             return;
         }
 
-        final List<String> dataList = new ArrayList<String>();
+        final List<String> urls = new ArrayList<String>();
         do {
             if (c.getInt(c.getColumnIndexOrThrow(RecentTabs.TYPE)) == type) {
-                dataList.add(c.getString(c.getColumnIndexOrThrow(RecentTabs.DATA)));
+                urls.add(c.getString(c.getColumnIndexOrThrow(RecentTabs.URL)));
             }
         } while (c.moveToNext());
 
         Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL, TelemetryContract.Method.BUTTON);
 
-        restoreSessionWithHistory(dataList);
+        mNewTabsListener.onNewTabs(urls);
     }
 
     private static class RecentTabsCursorLoader extends SimpleCursorLoader {
@@ -267,13 +272,12 @@ public class RecentTabsPanel extends HomeFragment
             this.closedTabs = closedTabs;
         }
 
-        private void addRow(MatrixCursor c, String url, String title, int type, String data) {
+        private void addRow(MatrixCursor c, String url, String title, int type) {
             final RowBuilder row = c.newRow();
             row.add(-1);
             row.add(url);
             row.add(title);
             row.add(type);
-            row.add(data);
         }
 
         @Override
@@ -283,8 +287,7 @@ public class RecentTabsPanel extends HomeFragment
             final MatrixCursor c = new MatrixCursor(new String[] { RecentTabs._ID,
                                                                    RecentTabs.URL,
                                                                    RecentTabs.TITLE,
-                                                                   RecentTabs.TYPE,
-                                                                   RecentTabs.DATA});
+                                                                   RecentTabs.TYPE });
 
             if (closedTabs != null && closedTabs.length > 0) {
                 // How many closed tabs are actually displayed.
@@ -298,16 +301,16 @@ public class RecentTabsPanel extends HomeFragment
                     if (!AboutPages.isTitlelessAboutPage(url)) {
                         // If this is the first closed tab we're adding, add a header for the section.
                         if (visibleClosedTabs == 0) {
-                            addRow(c, null, context.getString(R.string.home_closed_tabs_title), RecentTabs.TYPE_HEADER, null);
+                            addRow(c, null, context.getString(R.string.home_closed_tabs_title), RecentTabs.TYPE_HEADER);
                         }
-                        addRow(c, url, closedTabs[i].title, RecentTabs.TYPE_CLOSED, closedTabs[i].data);
+                        addRow(c, url, closedTabs[i].title, RecentTabs.TYPE_CLOSED);
                         visibleClosedTabs++;
                     }
                 }
 
                 // Add an "Open all" button if more than 2 tabs were added to the list.
                 if (visibleClosedTabs > 1) {
-                    addRow(c, null, null, RecentTabs.TYPE_OPEN_ALL_CLOSED, null);
+                    addRow(c, null, null, RecentTabs.TYPE_OPEN_ALL_CLOSED);
                 }
             }
 
@@ -331,16 +334,16 @@ public class RecentTabsPanel extends HomeFragment
 
                     // If this is the first tab we're reading, add a header.
                     if (c.getCount() == count) {
-                        addRow(c, null, context.getString(R.string.home_last_tabs_title), RecentTabs.TYPE_HEADER, null);
+                        addRow(c, null, context.getString(R.string.home_last_tabs_title), RecentTabs.TYPE_HEADER);
                     }
 
-                    addRow(c, url, tab.getTitle(), RecentTabs.TYPE_LAST_TIME, tab.getTabObject().toString());
+                    addRow(c, url, tab.getTitle(), RecentTabs.TYPE_LAST_TIME);
                 }
             }.parse(jsonString);
 
             // Add an "Open all" button if more than 2 tabs were added to the list (account for the header)
             if (c.getCount() - count > 2) {
-                addRow(c, null, null, RecentTabs.TYPE_OPEN_ALL_LAST_TIME, null);
+                addRow(c, null, null, RecentTabs.TYPE_OPEN_ALL_LAST_TIME);
             }
 
             return c;

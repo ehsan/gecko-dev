@@ -13,10 +13,10 @@ function cleanUp() {
 let telephony = window.navigator.mozTelephony;
 ok(telephony);
 
-telephony.ready.then(function() {
-  log("Telephony got ready");
+telephony.onready = function() {
+  log("Receive 'ready' event");
 
-  // Test telephony.ready in another window.
+  // Test registering 'ready' event in another window.
   let iframe = document.createElement("iframe");
   iframe.addEventListener("load", function load() {
     iframe.removeEventListener("load", load);
@@ -24,12 +24,12 @@ telephony.ready.then(function() {
     let iframeTelephony = iframe.contentWindow.navigator.mozTelephony;
     ok(iframeTelephony);
 
-    iframeTelephony.ready.then(function() {
-      log("Telephony in iframe got ready");
+    iframeTelephony.onready = function() {
+      log("Receive 'ready' event in iframe");
 
       cleanUp();
-    });
+    };
   });
 
   document.body.appendChild(iframe);
-});
+};

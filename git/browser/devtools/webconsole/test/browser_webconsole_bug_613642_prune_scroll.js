@@ -7,17 +7,13 @@
  *   Mihai Șucan <mihai.sucan@gmail.com>
  */
 
-"use strict";
+let hud, testDriver;
 
-const TEST_URI = "data:text/html;charset=utf-8,Web Console test for bug 613642: maintain scroll with pruning of old messages";
+function testNext() {
+  testDriver.next();
+}
 
-let hud;
-
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-
+function testGen() {
   hud.jsterm.clearOutput();
 
   let outputNode = hud.outputNode;
@@ -29,14 +25,16 @@ let test = asyncTest(function* () {
     content.console.log("test message " + i);
   }
 
-  yield waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "test message 149",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testNext);
+
+  yield undefined;
 
   let oldScrollTop = scrollBoxElement.scrollTop;
   isnot(oldScrollTop, 0, "scroll location is not at the top");
@@ -58,14 +56,16 @@ let test = asyncTest(function* () {
   // add a message
   content.console.log("hello world");
 
-  yield waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "hello world",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testNext);
+
+  yield undefined;
 
   // Scroll location needs to change, because one message is also removed, and
   // we need to scroll a bit towards the top, to keep the current view in sync.
@@ -77,5 +77,21 @@ let test = asyncTest(function* () {
 
   Services.prefs.clearUserPref("devtools.hud.loglimit.console");
 
-  hud = null;
-});
+  hud = testDriver = null;
+  finishTest();
+
+  yield undefined;
+}
+
+function test() {
+  addTab("data:text/html;charset=utf-8,Web Console test for bug 613642: maintain scroll with pruning of old messages");
+  browser.addEventListener("load", function tabLoad(aEvent) {
+    browser.removeEventListener(aEvent.type, tabLoad, true);
+
+    openConsole(null, function(aHud) {
+      hud = aHud;
+      testDriver = testGen();
+      testDriver.next();
+    });
+  }, true);
+}

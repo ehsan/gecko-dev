@@ -67,7 +67,7 @@ let gFxAccounts = {
   },
 
   get isActiveWindow() {
-    let fm = Services.focus;
+    let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
     return fm.activeWindow == window;
   },
 

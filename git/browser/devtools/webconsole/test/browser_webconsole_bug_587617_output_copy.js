@@ -12,22 +12,16 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 
 let HUD, outputNode;
 
-"use strict";
-
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-  yield consoleOpened(hud);
-  yield testContextMenuCopy();
-
-  HUD = outputNode = null;
-});
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
 function consoleOpened(aHud) {
   HUD = aHud;
-
-  let deferred = promise.defer();
 
   // See bugs 574036, 586386 and 587617.
   outputNode = HUD.outputNode;
@@ -63,16 +57,13 @@ function consoleOpened(aHud) {
 
     waitForClipboard((str) => { return selection.trim() == str.trim(); },
       () => { goDoCommand("cmd_copy") },
-      deferred.resolve, deferred.resolve);
+      testContextMenuCopy, testContextMenuCopy);
   });
-  return deferred.promise;
 }
 
 // Test that the context menu "Copy" (which has a different code path) works
 // properly as well.
 function testContextMenuCopy() {
-  let deferred = promise.defer();
-
   let contextMenuId = outputNode.parentNode.getAttribute("context");
   let contextMenu = HUD.ui.document.getElementById(contextMenuId);
   ok(contextMenu, "the output node has a context menu");
@@ -86,9 +77,7 @@ function testContextMenuCopy() {
 
   waitForClipboard((str) => { return selection.trim() == str.trim(); },
     () => { goDoCommand("cmd_copy") },
-    deferred.resolve, deferred.resolve);
+    finishTest, finishTest);
   HUD = outputNode = null;
-
-  return deferred.promise;
 }
 

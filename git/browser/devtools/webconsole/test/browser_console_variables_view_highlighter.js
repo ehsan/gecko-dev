@@ -12,11 +12,11 @@ let gWebConsole, gJSTerm, gVariablesView, gToolbox;
 
 function test()
 {
-  loadTab(TEST_URI).then(() => {
-    openConsole().then(hud => {
-      consoleOpened(hud);
-    })
-  });
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
 }
 
 function consoleOpened(hud)
@@ -24,7 +24,7 @@ function consoleOpened(hud)
   gWebConsole = hud;
   gJSTerm = hud.jsterm;
   gToolbox = gDevTools.getToolbox(hud.target);
-  gJSTerm.execute("document.querySelectorAll('p')").then(onQSAexecuted);
+  gJSTerm.execute("document.querySelectorAll('p')", onQSAexecuted);
 }
 
 function onQSAexecuted(msg)

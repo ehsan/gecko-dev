@@ -5,7 +5,6 @@
 
 const { utils: Cu } = Components;
 
-Cu.import("resource://gre/modules/ReaderMode.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
@@ -40,13 +39,13 @@ let TEST_PAGES = [
 
 add_task(function* test_article_not_found() {
   let uri = Services.io.newURI(TEST_PAGES[0].url, null, null);
-  let article = yield ReaderMode.getArticleFromCache(uri);
+  let article = yield Reader.getArticleFromCache(uri);
   do_check_eq(article, null);
 });
 
 add_task(function* test_store_article() {
   // Create an article object to store in the cache.
-  yield ReaderMode.storeArticleInCache({
+  yield Reader.storeArticleInCache({
     url: TEST_PAGES[0].url,
     content: "Lorem ipsum",
     title: TEST_PAGES[0].expected.title,
@@ -56,14 +55,14 @@ add_task(function* test_store_article() {
   });
 
   let uri = Services.io.newURI(TEST_PAGES[0].url, null, null);
-  let article = yield ReaderMode.getArticleFromCache(uri);
+  let article = yield Reader.getArticleFromCache(uri);
   checkArticle(article, TEST_PAGES[0]);
 });
 
 add_task(function* test_remove_article() {
   let uri = Services.io.newURI(TEST_PAGES[0].url, null, null);
-  yield ReaderMode.removeArticleFromCache(uri);
-  let article = yield ReaderMode.getArticleFromCache(uri);
+  yield Reader.removeArticleFromCache(uri);
+  let article = yield Reader.getArticleFromCache(uri);
   do_check_eq(article, null);
 });
 
@@ -111,7 +110,7 @@ add_task(function* test_migrate_cache() {
 
   // Check to make sure the article made it into the new cache.
   let uri = Services.io.newURI(TEST_PAGES[0].url, null, null);
-  let article = yield ReaderMode.getArticleFromCache(uri);
+  let article = yield Reader.getArticleFromCache(uri);
   checkArticle(article, TEST_PAGES[0]);
 });
 

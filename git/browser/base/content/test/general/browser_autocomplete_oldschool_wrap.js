@@ -4,6 +4,13 @@ function repeat(limit, func) {
   }
 }
 
+function* promiseAutoComplete(inputText) {
+  gURLBar.focus();
+  gURLBar.value = inputText.slice(0, -1);
+  EventUtils.synthesizeKey(inputText.slice(-1), {});
+  yield promiseSearchComplete();
+}
+
 function is_selected(index) {
   is(gURLBar.popup.richlistbox.selectedIndex, index, `Item ${index + 1} should be selected`);
 }
@@ -11,7 +18,7 @@ function is_selected(index) {
 add_task(function*() {
   // This test is only relevant if UnifiedComplete is *disabled*.
   if (Services.prefs.getBoolPref("browser.urlbar.unifiedcomplete")) {
-    ok(true, "Don't run this test with UnifiedComplete enabled.")
+    todo(false, "Stop supporting old autocomplete components.");
     return;
   }
 
@@ -25,9 +32,7 @@ add_task(function*() {
   });
   yield PlacesTestUtils.addVisits(visits);
 
-  let tab = gBrowser.selectedTab = gBrowser.addTab("about:mozilla", {animate: false});
-  yield promiseTabLoaded(tab);
-  yield promiseAutocompleteResultPopup("example.com/autocomplete");
+  yield promiseAutoComplete("example.com/autocomplete");
 
   let popup = gURLBar.popup;
   let results = popup.richlistbox.children;
@@ -66,5 +71,4 @@ add_task(function*() {
 
   EventUtils.synthesizeKey("VK_ESCAPE", {});
   yield promisePopupHidden(gURLBar.popup);
-  gBrowser.removeTab(tab);
 });

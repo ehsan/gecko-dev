@@ -5,28 +5,28 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
 
-  let hud = yield openConsole();
+    openConsole(null, function(hud) {
+      content.location.reload();
 
-  BrowserReload();
+      waitForMessages({
+        webconsole: hud,
+        messages: [{
+          text: "test-console.html",
+          category: CATEGORY_NETWORK,
+          severity: SEVERITY_LOG,
+        }],
+      }).then(performTest);
+    });
+  }, true);
+}
 
-  let results = yield waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "test-console.html",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
-    }],
-  })
-
-  yield performTest(hud, results);
-});
-
-
-function performTest(HUD, results) {
-  let deferred = promise.defer();
+function performTest(results) {
+  let HUD = HUDService.getHudByWindow(content);
 
   let networkMessage = [...results[0].matched][0];
   ok(networkMessage, "network message element");
@@ -69,7 +69,7 @@ function performTest(HUD, results) {
       let popups = popupset.querySelectorAll("panel[hudId=" + HUD.hudId + "]");
       is(popups.length, 0, "no popups found");
 
-      executeSoon(deferred.resolve);
+      executeSoon(finishTest);
     });
   };
 
@@ -85,6 +85,4 @@ function performTest(HUD, results) {
   EventUtils.sendMouseEvent({ type: "mousedown" }, networkLink, HUD.iframeWindow);
   EventUtils.sendMouseEvent({ type: "mouseup" }, networkLink, HUD.iframeWindow);
   EventUtils.sendMouseEvent({ type: "click" }, networkLink, HUD.iframeWindow);
-
-  return deferred.promise;
 }

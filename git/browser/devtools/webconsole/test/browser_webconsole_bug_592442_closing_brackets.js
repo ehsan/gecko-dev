@@ -13,14 +13,15 @@
 // Tests that, when the user types an extraneous closing bracket, no error
 // appears.
 
-"use strict";
+function test() {
+  addTab("data:text/html;charset=utf-8,test for bug 592442");
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testExtraneousClosingBrackets);
+  }, true);
+}
 
-const TEST_URI = "data:text/html;charset=utf-8,test for bug 592442";
-
-let test = asyncTest(function*() {
-  yield loadTab(TEST_URI);
-  let hud = yield openConsole();
-  hud.jsterm.clearOutput();
+function testExtraneousClosingBrackets(hud) {
   let jsterm = hud.jsterm;
 
   jsterm.setInputValue("document.getElementById)");
@@ -34,4 +35,7 @@ let test = asyncTest(function*() {
   }
 
   ok(!error, "no error was thrown when an extraneous bracket was inserted");
-});
+
+  finishTest();
+}
+

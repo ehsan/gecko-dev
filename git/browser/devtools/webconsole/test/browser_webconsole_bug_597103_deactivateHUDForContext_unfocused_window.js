@@ -13,7 +13,9 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/te
 let tab1, tab2, win1, win2;
 let noErrors = true;
 
-function tab1Loaded() {
+function tab1Loaded(aEvent) {
+  browser.removeEventListener(aEvent.type, tab1Loaded, true);
+
   win2 = OpenBrowserWindow();
   whenDelayedStartupFinished(win2, win2Loaded);
 }
@@ -95,10 +97,9 @@ function tab2Loaded(aEvent) {
 }
 
 function test() {
-  loadTab(TEST_URI).then(() => {
-    tab1 = gBrowser.selectedTab;
-    win1 = window;
-    tab1Loaded();
-  });
+  addTab(TEST_URI);
+  browser.addEventListener("load", tab1Loaded, true);
+  tab1 = gBrowser.selectedTab;
+  win1 = window;
 }
 
