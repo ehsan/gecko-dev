@@ -2963,11 +2963,6 @@ fi
 
 AC_LANG_CPLUSPLUS
 
-if test "$GNU_CXX"; then
-    _SAVE_CXXFLAGS=$CXXFLAGS
-    CXXFLAGS="$CXXFLAGS -std=gnu++0x"
-fi
-
 dnl Check for usable char16_t (2 bytes, unsigned)
 dnl (we might not need the unsignedness check anymore)
 AC_CACHE_CHECK(for usable char16_t (2 bytes, unsigned),
@@ -2983,8 +2978,6 @@ AC_CACHE_CHECK(for usable char16_t (2 bytes, unsigned),
 if test "$ac_cv_have_usable_char16_t" = "yes"; then
     AC_DEFINE(HAVE_CPP_CHAR16_T)
     HAVE_CPP_CHAR16_T=1
-else
-    CXXFLAGS="$_SAVE_CXXFLAGS"
 fi
 
 dnl Check for usable wchar_t (2 bytes, unsigned)
@@ -3185,7 +3178,7 @@ dnl Checks for header files.
 dnl ========================================================
 AC_HEADER_DIRENT
 case "$target_os" in
-freebsd*|openbsd*)
+freebsd*)
 # for stuff like -lXshm
     CPPFLAGS="${CPPFLAGS} ${X_CFLAGS}"
     ;;
@@ -3351,6 +3344,11 @@ else
     dnl ========================================================
     AC_CHECK_LIB(Xext, XShmCreateImage, _HAVE_XSHM_XEXT=1,,
         $XLIBS $XEXT_LIBS)
+    MOZ_CHECK_HEADER(X11/extensions/XShm.h)
+    if test "$ac_cv_header_X11_extensions_XShm_h" = "yes" &&
+        test -n "$_HAVE_XSHM_XEXT"; then
+        AC_DEFINE(HAVE_XSHM)
+    fi
 
     dnl ========================================================
     dnl = Check for Xss
@@ -4804,6 +4802,7 @@ MOZ_PSM=1
 MOZ_RDF=1
 MOZ_REFLOW_PERF=
 MOZ_SAFE_BROWSING=
+MOZ_FASTSTART=
 MOZ_HELP_VIEWER=
 MOZ_SPELLCHECK=1
 MOZ_SPLASHSCREEN=
@@ -6771,6 +6770,18 @@ if test -n "$MOZ_SAFE_BROWSING"; then
     AC_DEFINE(MOZ_SAFE_BROWSING)
 fi
 AC_SUBST(MOZ_SAFE_BROWSING)
+
+dnl ========================================================
+dnl = Enable faststart component
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(faststart,
+[  --enable-faststart      Enable the faststart component],
+    MOZ_FASTSTART=1,
+    MOZ_FASTSTART= )
+if test -n "$MOZ_FASTSTART"; then
+    AC_DEFINE(MOZ_FASTSTART)
+fi
+AC_SUBST(MOZ_FASTSTART)
 
 dnl ========================================================
 dnl = Enable url-classifier
@@ -9030,7 +9041,6 @@ if test "$MOZ_X11"; then
         #include <stdlib.h>
         #include <X11/Xlib.h>
         #include <X11/Intrinsic.h>
-        #include <X11/extensions/XShm.h>
     ],
     [
         Display *dpy = 0;

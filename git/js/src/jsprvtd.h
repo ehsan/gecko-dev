@@ -138,18 +138,12 @@ class ExecuteArgsGuard;
 class InvokeFrameGuard;
 class InvokeArgsGuard;
 class InvokeSessionGuard;
-class StringBuffer;
 class TraceRecorder;
 struct TraceMonitor;
-
-class FrameRegs;
-class StackFrame;
-class StackSegment;
 class StackSpace;
-class ContextStack;
+class StackSegment;
 class FrameRegsIter;
-class CallReceiver;
-class CallArgs;
+class StringBuffer;
 
 struct Compiler;
 struct Parser;

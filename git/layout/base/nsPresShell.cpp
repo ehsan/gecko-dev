@@ -7361,10 +7361,6 @@ PresShell::WillPaint(PRBool aWillSendDidPaint)
 NS_IMETHODIMP_(void)
 PresShell::DidPaint()
 {
-  if (mPaintingSuppressed || !mIsActive) {
-    return;
-  }
-
   nsRootPresContext* rootPresContext = mPresContext->GetRootPresContext();
   if (!rootPresContext) {
     return;
@@ -8830,7 +8826,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
       nscoord x = 0, y = fm->MaxAscent();
       nscoord width, height = fm->MaxHeight();
       aRenderingContext->SetTextRunRTL(PR_FALSE);
-      width = aRenderingContext->GetWidth(buf);
+      aRenderingContext->GetWidth((char*)buf, width);
 
       PRUint32 color;
       PRUint32 color2;

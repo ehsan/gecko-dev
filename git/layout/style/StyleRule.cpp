@@ -1378,13 +1378,10 @@ StyleRule::DeclarationChanged(Declaration* aDecl,
   NS_ADDREF(clone); // for return
 
   if (aHandleContainer) {
+    NS_ASSERTION(mSheet, "rule must be in a sheet");
     if (mParentRule) {
-      if (mSheet) {
-        mSheet->ReplaceRuleInGroup(mParentRule, this, clone);
-      } else {
-        mParentRule->ReplaceStyleRule(this, clone);
-      }
-    } else if (mSheet) {
+      mSheet->ReplaceRuleInGroup(mParentRule, this, clone);
+    } else {
       mSheet->ReplaceStyleRule(this, clone);
     }
   }

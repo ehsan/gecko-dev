@@ -76,7 +76,7 @@ DOMCI_CLASS(MouseScrollEvent)
 DOMCI_CLASS(DragEvent)
 DOMCI_CLASS(KeyboardEvent)
 DOMCI_CLASS(PopupBlockedEvent)
-DOMCI_CLASS(DeviceOrientationEvent)
+DOMCI_CLASS(OrientationEvent)
 
 // HTML classes
 DOMCI_CLASS(HTMLDocument)

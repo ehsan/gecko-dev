@@ -2211,7 +2211,7 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
     }
 
     if (cookie.isFree()) {
-        StackFrame *caller = cg->parser->callerFrame;
+        JSStackFrame *caller = cg->parser->callerFrame;
         if (caller) {
             JS_ASSERT(cg->compileAndGo());
 

@@ -75,6 +75,8 @@
 #include "nsDOMAttribute.h"
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDOMImplementation.h"
+#include "nsIDOMDocumentView.h"
+#include "nsIDOMAbstractView.h"
 #include "nsIDOMDocumentXBL.h"
 #include "mozilla/FunctionTimer.h"
 #include "nsGenericElement.h"
@@ -1594,11 +1596,9 @@ nsDocument::~nsDocument()
     mStyleSheetSetList->Disconnect();
   }
 
-#ifdef MOZ_SMIL
   if (mAnimationController) {
     mAnimationController->Disconnect();
   }
-#endif // MOZ_SMIL
 
   mParentDocument = nsnull;
 
@@ -5075,14 +5075,16 @@ nsDocument::CreateTreeWalker(nsIDOMNode *aRoot,
 
 
 NS_IMETHODIMP
-nsDocument::GetDefaultView(nsIDOMWindow** aDefaultView)
+nsDocument::GetDefaultView(nsIDOMAbstractView** aDefaultView)
 {
-  *aDefaultView = nsnull;
   nsPIDOMWindow* win = GetWindow();
-  if (!win) {
-    return NS_OK;
+  if (win) {
+    return CallQueryInterface(win, aDefaultView);
   }
-  return CallQueryInterface(win, aDefaultView);
+
+  *aDefaultView = nsnull;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -8327,7 +8329,7 @@ nsDocument::SetImagesNeedAnimating(PRBool aAnimating)
 }
 
 NS_IMETHODIMP
-nsDocument::CreateTouch(nsIDOMWindow* aView,
+nsDocument::CreateTouch(nsIDOMAbstractView* aView,
                         nsIDOMEventTarget* aTarget,
                         PRInt32 aIdentifier,
                         PRInt32 aPageX,

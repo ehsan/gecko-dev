@@ -1078,7 +1078,7 @@ nsresult CViewSourceHTML::CreateViewSourceURL(const nsAString& linkUrl,
     viewSourceUrl.AssignLiteral("view-source:");    
   }
 
-  AppendUTF8toUTF16(absoluteLinkUrl, viewSourceUrl);
+  viewSourceUrl.AppendWithConversion(absoluteLinkUrl);
 
   return NS_OK;
 }

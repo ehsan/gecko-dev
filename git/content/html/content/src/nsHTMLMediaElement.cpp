@@ -371,13 +371,11 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLMediaElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLMediaElement, nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLoadBlockedDoc)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceLoadCandidate)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLMediaElement, nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLoadBlockedDoc)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSourceLoadCandidate)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsHTMLMediaElement)
@@ -687,11 +685,10 @@ void nsHTMLMediaElement::NotifyLoadError()
   if (!mIsLoadingFromSourceChildren) {
     LOG(PR_LOG_DEBUG, ("NotifyLoadError(), no supported media error"));
     NoSupportedMediaSourceError();
-  } else if (mSourceLoadCandidate) {
+  } else {
+    NS_ASSERTION(mSourceLoadCandidate, "Must know the source we were loading from!");
     DispatchAsyncSourceError(mSourceLoadCandidate);
     QueueLoadFromSourceTask();
-  } else {
-    NS_WARNING("Should know the source we were loading from!");
   }
 }
 
@@ -1980,17 +1977,14 @@ void nsHTMLMediaElement::NetworkError()
 void nsHTMLMediaElement::DecodeError()
 {
   if (mIsLoadingFromSourceChildren) {
+    NS_ASSERTION(mSourceLoadCandidate, "Must know the source we were loading from!");
     if (mDecoder) {
       mDecoder->Shutdown();
       mDecoder = nsnull;
     }
     mError = nsnull;
-    if (mSourceLoadCandidate) {
-      DispatchAsyncSourceError(mSourceLoadCandidate);
-      QueueLoadFromSourceTask();
-    } else {
-      NS_WARNING("Should know the source we were loading from!");
-    }
+    DispatchAsyncSourceError(mSourceLoadCandidate);
+    QueueLoadFromSourceTask();
   } else {
     Error(nsIDOMMediaError::MEDIA_ERR_DECODE);
   }

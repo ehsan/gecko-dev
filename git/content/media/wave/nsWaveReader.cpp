@@ -153,7 +153,7 @@ nsresult nsWaveReader::Init(nsBuiltinDecoderReader* aCloneDonor)
 nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 {
   NS_ASSERTION(mDecoder->OnStateMachineThread(), "Should be on state machine thread.");
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
 
   PRBool loaded = LoadRIFFChunk() && LoadFormatChunk() && FindDataOffset();
   if (!loaded) {
@@ -167,8 +167,8 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 
   *aInfo = mInfo;
 
-  ReentrantMonitorAutoExit exitReaderMon(mReentrantMonitor);
-  ReentrantMonitorAutoEnter decoderMon(mDecoder->GetReentrantMonitor());
+  MonitorAutoExit exitReaderMon(mMonitor);
+  MonitorAutoEnter decoderMon(mDecoder->GetMonitor());
 
   mDecoder->GetStateMachine()->SetDuration(
     static_cast<PRInt64>(BytesToTime(GetDataLength()) * USECS_PER_S));
@@ -178,7 +178,7 @@ nsresult nsWaveReader::ReadMetadata(nsVideoInfo* aInfo)
 
 PRBool nsWaveReader::DecodeAudioData()
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine thread or decode thread.");
 
@@ -246,7 +246,7 @@ PRBool nsWaveReader::DecodeAudioData()
 PRBool nsWaveReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
                                       PRInt64 aTimeThreshold)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread() || mDecoder->OnDecodeThread(),
                "Should be on state machine or decode thread.");
 
@@ -255,7 +255,7 @@ PRBool nsWaveReader::DecodeVideoFrame(PRBool &aKeyframeSkip,
 
 nsresult nsWaveReader::Seek(PRInt64 aTarget, PRInt64 aStartTime, PRInt64 aEndTime, PRInt64 aCurrentTime)
 {
-  ReentrantMonitorAutoEnter mon(mReentrantMonitor);
+  MonitorAutoEnter mon(mMonitor);
   NS_ASSERTION(mDecoder->OnStateMachineThread(),
                "Should be on state machine thread.");
   LOG(PR_LOG_DEBUG, ("%p About to seek to %lld", mDecoder, aTarget));
@@ -477,7 +477,7 @@ nsWaveReader::LoadFormatChunk()
     return PR_FALSE;
   }
 
-  ReentrantMonitorAutoEnter monitor(mDecoder->GetReentrantMonitor());
+  MonitorAutoEnter monitor(mDecoder->GetMonitor());
   mSampleRate = rate;
   mChannels = channels;
   mSampleSize = sampleSize;
@@ -509,7 +509,7 @@ nsWaveReader::FindDataOffset()
     return PR_FALSE;
   }
 
-  ReentrantMonitorAutoEnter monitor(mDecoder->GetReentrantMonitor());
+  MonitorAutoEnter monitor(mDecoder->GetMonitor());
   mWaveLength = length;
   mWavePCMOffset = PRUint32(offset);
   return PR_TRUE;

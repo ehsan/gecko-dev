@@ -1694,11 +1694,9 @@ nsViewManager::CallDidPaintOnObservers()
     nsViewManager* vm = (nsViewManager*)gViewManagers->ElementAt(index);
     if (vm->RootViewManager() == this) {
       // One of our kids.
-      if (vm->mRootView && vm->mRootView->IsEffectivelyVisible()) {
-        nsCOMPtr<nsIViewObserver> obs = vm->GetViewObserver();
-        if (obs) {
-          obs->DidPaint();
-        }
+      nsCOMPtr<nsIViewObserver> obs = vm->GetViewObserver();
+      if (obs) {
+        obs->DidPaint();
       }
     }
   }

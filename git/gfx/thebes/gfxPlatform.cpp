@@ -92,7 +92,6 @@
 #include "nsIGfxInfo.h"
 
 gfxPlatform *gPlatform = nsnull;
-static bool gEverInitialized = false;
 
 // These two may point to the same profile
 static qcms_profile *gCMSOutputProfile = nsnull;
@@ -229,19 +228,13 @@ gfxPlatform::gfxPlatform()
 gfxPlatform*
 gfxPlatform::GetPlatform()
 {
-    if (!gPlatform) {
-        Init();
-    }
     return gPlatform;
 }
 
 void
 gfxPlatform::Init()
 {
-    if (gEverInitialized) {
-        NS_RUNTIMEABORT("Already started???");
-    }
-    gEverInitialized = true;
+    NS_ASSERTION(!gPlatform, "Already started???");
 
     gfxAtoms::RegisterAtoms();
 
@@ -324,11 +317,6 @@ gfxPlatform::Init()
         prefs->AddObserver("gfx.downloadable_fonts.", fontPrefObserver, PR_FALSE);
         prefs->AddObserver("gfx.font_rendering.", fontPrefObserver, PR_FALSE);
     }
-
-    // Force registration of the gfx component, thus arranging for
-    // ::Shutdown to be called.
-    nsCOMPtr<nsISupports> forceReg
-        = do_CreateInstance("@mozilla.org/gfx/init;1");
 }
 
 void

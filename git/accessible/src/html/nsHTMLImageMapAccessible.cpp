@@ -47,8 +47,8 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLAreaElement.h"
 #include "nsIFrame.h"
-#include "nsImageFrame.h"
-#include "nsImageMap.h"
+#include "nsIImageFrame.h"
+#include "nsIImageMap.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLImageMapAccessible
@@ -203,12 +203,14 @@ nsHTMLAreaAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
 
   nsIFrame *frame = GetFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-  nsImageFrame *imageFrame = do_QueryFrame(frame);
+  nsIImageFrame *imageFrame = do_QueryFrame(frame);
 
-  nsImageMap* map = imageFrame->GetImageMap(presContext);
+  nsCOMPtr<nsIImageMap> map;
+  imageFrame->GetImageMap(presContext, getter_AddRefs(map));
   NS_ENSURE_TRUE(map, NS_ERROR_FAILURE);
 
   nsRect rect;
+  nsIntRect orgRectPixels;
   nsresult rv = map->GetBoundsForAreaContent(mContent, rect);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -221,7 +223,7 @@ nsHTMLAreaAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
   *aHeight = presContext->AppUnitsToDevPixels(rect.height - rect.y);
 
   // Put coords in absolute screen coords
-  nsIntRect orgRectPixels = frame->GetScreenRectExternal();
+  orgRectPixels = frame->GetScreenRectExternal();
   *aX += orgRectPixels.x;
   *aY += orgRectPixels.y;
 

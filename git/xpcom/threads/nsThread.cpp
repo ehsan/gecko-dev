@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/ReentrantMonitor.h"
+#include "mozilla/Monitor.h"
 #include "nsThread.h"
 #include "nsThreadManager.h"
 #include "nsIClassInfoImpl.h"
@@ -184,7 +184,7 @@ public:
   void Wait() {
     if (mInitialized)  // Maybe avoid locking...
       return;
-    ReentrantMonitorAutoEnter mon(mMon);
+    MonitorAutoEnter mon(mMon);
     while (!mInitialized)
       mon.Wait();
   }
@@ -196,7 +196,7 @@ public:
 
 private:
   NS_IMETHOD Run() {
-    ReentrantMonitorAutoEnter mon(mMon);
+    MonitorAutoEnter mon(mMon);
     mInitialized = PR_TRUE;
     mon.Notify();
     return NS_OK;
@@ -207,7 +207,7 @@ private:
     , mInitialized(PR_FALSE) {
   }
 
-  ReentrantMonitor mMon;
+  Monitor    mMon;
   PRBool     mInitialized;
 };
 
