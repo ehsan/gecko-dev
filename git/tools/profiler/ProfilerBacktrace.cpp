@@ -4,10 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "JSStreamWriter.h"
+#include "JSCustomObjectBuilder.h"
+#include "JSObjectBuilder.h"
 #include "ProfilerBacktrace.h"
 #include "SyncProfile.h"
-
 
 ProfilerBacktrace::ProfilerBacktrace(SyncProfile* aProfile)
   : mProfile(aProfile)
@@ -22,9 +22,18 @@ ProfilerBacktrace::~ProfilerBacktrace()
   }
 }
 
-void
-ProfilerBacktrace::StreamJSObject(JSStreamWriter& b)
+template<typename Builder> void
+ProfilerBacktrace::BuildJSObject(Builder& aObjBuilder,
+                                 typename Builder::ObjectHandle aScope)
 {
   mozilla::MutexAutoLock lock(*mProfile->GetMutex());
-  mProfile->StreamJSObject(b);
+  mProfile->BuildJSObject(aObjBuilder, aScope);
 }
+
+template void
+ProfilerBacktrace::BuildJSObject<JSCustomObjectBuilder>(
+                                    JSCustomObjectBuilder& aObjBuilder,
+                                    JSCustomObjectBuilder::ObjectHandle aScope);
+template void
+ProfilerBacktrace::BuildJSObject<JSObjectBuilder>(JSObjectBuilder& aObjBuilder,
+                                          JSObjectBuilder::ObjectHandle aScope);

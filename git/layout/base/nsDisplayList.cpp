@@ -938,7 +938,6 @@ void
 nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
                                                const nsFrameList& aFrames,
                                                const nsRect& aDirtyRect) {
-  mFramesMarkedForDisplay.SetCapacity(mFramesMarkedForDisplay.Length() + aFrames.GetLength());
   for (nsFrameList::Enumerator e(aFrames); !e.AtEnd(); e.Next()) {
     mFramesMarkedForDisplay.AppendElement(e.get());
     MarkOutOfFlowFrameForDisplay(aDirtyFrame, e.get(), aDirtyRect);

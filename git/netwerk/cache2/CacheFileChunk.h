@@ -97,9 +97,6 @@ public:
   bool   IsReady() const;
   bool   IsDirty() const;
 
-  nsresult GetStatus();
-  void     SetError(nsresult aStatus);
-
   char *       BufForWriting() const;
   const char * BufForReading() const;
   void         EnsureBufSize(uint32_t aBufSize);
@@ -126,7 +123,6 @@ private:
 
   uint32_t mIndex;
   EState   mState;
-  nsresult mStatus;
   bool     mIsDirty;
   bool     mRemovingChunk;
   uint32_t mDataSize;

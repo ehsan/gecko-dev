@@ -134,7 +134,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #endif
 
 #include "ogg/ogg.h"
-#if defined(MOZ_VPX) && !defined(MOZ_VPX_NO_MEM_REPORTING)
+#ifdef MOZ_VPX
 #include "vpx_mem/vpx_mem.h"
 #endif
 #ifdef MOZ_WEBM
@@ -602,7 +602,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
                           OggReporter::CountingRealloc,
                           OggReporter::CountingFree);
 
-#if defined(MOZ_VPX) && !defined(MOZ_VPX_NO_MEM_REPORTING)
+#ifdef MOZ_VPX
     // And for VPX.
     vpx_mem_set_functions(VPXReporter::CountingMalloc,
                           VPXReporter::CountingCalloc,

@@ -126,7 +126,6 @@ private:
                           CacheFileChunkListener *aCallback,
                           CacheFileChunk **_retval);
   nsresult RemoveChunk(CacheFileChunk *aChunk);
-  void     RemoveChunkInternal(CacheFileChunk *aChunk, bool aCacheChunk);
 
   nsresult RemoveInput(CacheFileInputStream *aInput);
   nsresult RemoveOutput(CacheFileOutputStream *aOutput);
@@ -161,8 +160,6 @@ private:
                                              void* aClosure);
 
   nsresult PadChunkWithZeroes(uint32_t aChunkIdx);
-
-  void SetError(nsresult aStatus);
 
   nsresult InitIndexEntry();
 

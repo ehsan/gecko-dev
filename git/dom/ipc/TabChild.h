@@ -46,10 +46,6 @@ namespace layers {
 class ActiveElementManager;
 }
 
-namespace widget {
-struct AutoCacheNativeKeyCommands;
-}
-
 namespace dom {
 
 class TabChild;
@@ -397,8 +393,6 @@ public:
 
     void NotifyPainted();
 
-    void RequestNativeKeyBindings(mozilla::widget::AutoCacheNativeKeyCommands* aAutoCache,
-                                  WidgetKeyboardEvent* aEvent);
 
     /** Return a boolean indicating if the page has called preventDefault on
      *  the event.

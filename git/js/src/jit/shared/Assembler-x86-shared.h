@@ -781,16 +781,14 @@ class AssemblerX86Shared
         masm.int3();
     }
 
-#ifdef DEBUG
     static bool HasSSE2() {
-        return JSC::MacroAssembler::isSSE2Present();
+        return JSC::MacroAssembler::getSSEState() >= JSC::MacroAssembler::HasSSE2;
     }
-#endif
     static bool HasSSE3() {
-        return JSC::MacroAssembler::isSSE3Present();
+        return JSC::MacroAssembler::getSSEState() >= JSC::MacroAssembler::HasSSE3;
     }
     static bool HasSSE41() {
-        return JSC::MacroAssembler::isSSE41Present();
+        return JSC::MacroAssembler::getSSEState() >= JSC::MacroAssembler::HasSSE4_1;
     }
 
     // The below cmpl methods switch the lhs and rhs when it invokes the

@@ -21,7 +21,8 @@
 #include "nsXULAppAPI.h"
 
 // JSON
-#include "JSStreamWriter.h"
+#include "JSObjectBuilder.h"
+#include "JSCustomObjectBuilder.h"
 
 // Meta
 #include "nsXPCOM.h"
@@ -104,209 +105,203 @@ void TableTicker::HandleSaveRequest()
   NS_DispatchToMainThread(runnable);
 }
 
-void TableTicker::StreamMetaJSCustomObject(JSStreamWriter& b)
+template <typename Builder>
+typename Builder::Object TableTicker::GetMetaJSCustomObject(Builder& b)
 {
-  b.BeginObject();
+  typename Builder::RootedObject meta(b.context(), b.CreateObject());
 
-    b.NameValue("version", 2);
-    b.NameValue("interval", interval());
-    b.NameValue("stackwalk", mUseStackWalk);
-    b.NameValue("jank", mJankOnly);
-    b.NameValue("processType", XRE_GetProcessType());
+  b.DefineProperty(meta, "version", 2);
+  b.DefineProperty(meta, "interval", interval());
+  b.DefineProperty(meta, "stackwalk", mUseStackWalk);
+  b.DefineProperty(meta, "jank", mJankOnly);
+  b.DefineProperty(meta, "processType", XRE_GetProcessType());
 
-    TimeDuration delta = TimeStamp::Now() - sStartTime;
-    b.NameValue("startTime", static_cast<float>(PR_Now()/1000.0 - delta.ToMilliseconds()));
+  TimeDuration delta = TimeStamp::Now() - sStartTime;
+  b.DefineProperty(meta, "startTime", static_cast<float>(PR_Now()/1000.0 - delta.ToMilliseconds()));
 
-    nsresult res;
-    nsCOMPtr<nsIHttpProtocolHandler> http = do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &res);
-    if (!NS_FAILED(res)) {
-      nsAutoCString string;
+  nsresult res;
+  nsCOMPtr<nsIHttpProtocolHandler> http = do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &res);
+  if (!NS_FAILED(res)) {
+    nsAutoCString string;
 
-      res = http->GetPlatform(string);
-      if (!NS_FAILED(res))
-        b.NameValue("platform", string.Data());
+    res = http->GetPlatform(string);
+    if (!NS_FAILED(res))
+      b.DefineProperty(meta, "platform", string.Data());
 
-      res = http->GetOscpu(string);
-      if (!NS_FAILED(res))
-        b.NameValue("oscpu", string.Data());
+    res = http->GetOscpu(string);
+    if (!NS_FAILED(res))
+      b.DefineProperty(meta, "oscpu", string.Data());
 
-      res = http->GetMisc(string);
-      if (!NS_FAILED(res))
-        b.NameValue("misc", string.Data());
-    }
+    res = http->GetMisc(string);
+    if (!NS_FAILED(res))
+      b.DefineProperty(meta, "misc", string.Data());
+  }
 
-    nsCOMPtr<nsIXULRuntime> runtime = do_GetService("@mozilla.org/xre/runtime;1");
-    if (runtime) {
-      nsAutoCString string;
+  nsCOMPtr<nsIXULRuntime> runtime = do_GetService("@mozilla.org/xre/runtime;1");
+  if (runtime) {
+    nsAutoCString string;
 
-      res = runtime->GetXPCOMABI(string);
-      if (!NS_FAILED(res))
-        b.NameValue("abi", string.Data());
+    res = runtime->GetXPCOMABI(string);
+    if (!NS_FAILED(res))
+      b.DefineProperty(meta, "abi", string.Data());
 
-      res = runtime->GetWidgetToolkit(string);
-      if (!NS_FAILED(res))
-        b.NameValue("toolkit", string.Data());
-    }
+    res = runtime->GetWidgetToolkit(string);
+    if (!NS_FAILED(res))
+      b.DefineProperty(meta, "toolkit", string.Data());
+  }
 
-    nsCOMPtr<nsIXULAppInfo> appInfo = do_GetService("@mozilla.org/xre/app-info;1");
-    if (appInfo) {
-      nsAutoCString string;
+  nsCOMPtr<nsIXULAppInfo> appInfo = do_GetService("@mozilla.org/xre/app-info;1");
+  if (appInfo) {
+    nsAutoCString string;
 
-      res = appInfo->GetName(string);
-      if (!NS_FAILED(res))
-        b.NameValue("product", string.Data());
-    }
+    res = appInfo->GetName(string);
+    if (!NS_FAILED(res))
+      b.DefineProperty(meta, "product", string.Data());
+  }
 
-  b.EndObject();
+  return meta;
 }
 
 void TableTicker::ToStreamAsJSON(std::ostream& stream)
 {
-  JSStreamWriter b(stream);
-  StreamJSObject(b);
+  JSCustomObjectBuilder b;
+  JSCustomObject* profile = b.CreateObject();
+  BuildJSObject(b, profile);
+  b.Serialize(profile, stream);
+  b.DeleteObject(profile);
 }
 
 JSObject* TableTicker::ToJSObject(JSContext *aCx)
 {
-  JS::RootedValue val(aCx);
-  std::stringstream ss;
-  JSStreamWriter b(ss);
-  StreamJSObject(b);
-  NS_ConvertUTF8toUTF16 js_string(nsDependentCString(ss.str().c_str()));
-  JS_ParseJSON(aCx, static_cast<const jschar*>(js_string.get()), js_string.Length(), &val);
-  return &val.toObject();
+  JSObjectBuilder b(aCx);
+  JS::RootedObject profile(aCx, b.CreateObject());
+  BuildJSObject(b, profile);
+  return profile;
 }
 
+template <typename Builder>
 struct SubprocessClosure {
-  SubprocessClosure(JSStreamWriter *aWriter)
-    : mWriter(aWriter)
+  SubprocessClosure(Builder *aBuilder, typename Builder::ArrayHandle aThreads)
+    : mBuilder(aBuilder), mThreads(aThreads)
   {}
 
-  JSStreamWriter* mWriter;
+  Builder* mBuilder;
+  typename Builder::ArrayHandle mThreads;
 };
 
+template <typename Builder>
 void SubProcessCallback(const char* aProfile, void* aClosure)
 {
   // Called by the observer to get their profile data included
   // as a sub profile
-  SubprocessClosure* closure = (SubprocessClosure*)aClosure;
+  SubprocessClosure<Builder>* closure = (SubprocessClosure<Builder>*)aClosure;
 
-  // Add the string profile into the profile
-  closure->mWriter->Value(aProfile);
+  closure->mBuilder->ArrayPush(closure->mThreads, aProfile);
 }
 
-
 #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
+template <typename Builder>
 static
-void BuildJavaThreadJSObject(JSStreamWriter& b)
+typename Builder::Object BuildJavaThreadJSObject(Builder& b)
 {
-  b.BeginObject();
+  typename Builder::RootedObject javaThread(b.context(), b.CreateObject());
+  b.DefineProperty(javaThread, "name", "Java Main Thread");
 
-    b.NameValue("name", "Java Main Thread");
+  typename Builder::RootedArray samples(b.context(), b.CreateArray());
+  b.DefineProperty(javaThread, "samples", samples);
 
-    b.Name("samples");
-    b.BeginArray();
-
-      // for each sample
-      for (int sampleId = 0; true; sampleId++) {
-        bool firstRun = true;
-        // for each frame
-        for (int frameId = 0; true; frameId++) {
-          nsCString result;
-          bool hasFrame = AndroidBridge::Bridge()->GetFrameNameJavaProfiling(0, sampleId, frameId, result);
-          // when we run out of frames, we stop looping
-          if (!hasFrame) {
-            // if we found at least one frame, we have objects to close
-            if (!firstRun) {
-                b.EndArray();
-              b.EndObject();
-            }
-            break;
-          }
-          // the first time around, open the sample object and frames array
-          if (firstRun) {
-            firstRun = false;
-
-            double sampleTime =
-              mozilla::widget::android::GeckoJavaSampler::GetSampleTimeJavaProfiling(0, sampleId);
-
-            b.BeginObject();
-              b.NameValue("time", sampleTime);
-
-              b.Name("frames");
-              b.BeginArray();
-          }
-          // add a frame to the sample
-          b.BeginObject();
-            b.NameValue("location", result.BeginReading());
-          b.EndObject();
+  int sampleId = 0;
+  while (true) {
+    int frameId = 0;
+    typename Builder::RootedObject sample(b.context());
+    typename Builder::RootedArray frames(b.context());
+    while (true) {
+      nsCString result;
+      bool hasFrame = AndroidBridge::Bridge()->GetFrameNameJavaProfiling(0, sampleId, frameId, result);
+      if (!hasFrame) {
+        if (frames) {
+          b.DefineProperty(sample, "frames", frames);
         }
-        // if we found no frames for this sample, we are done
-        if (firstRun) {
-          break;
-        }
+        break;
       }
+      if (!sample) {
+        sample = b.CreateObject();
+        frames = b.CreateArray();
+        b.DefineProperty(sample, "frames", frames);
+        b.ArrayPush(samples, sample);
 
-    b.EndArray();
+        double sampleTime =
+          mozilla::widget::android::GeckoJavaSampler::GetSampleTimeJavaProfiling(0, sampleId);
+        b.DefineProperty(sample, "time", sampleTime);
+      }
+      typename Builder::RootedObject frame(b.context(), b.CreateObject());
+      b.DefineProperty(frame, "location", result.BeginReading());
+      b.ArrayPush(frames, frame);
+      frameId++;
+    }
+    if (frameId == 0) {
+      break;
+    }
+    sampleId++;
+  }
 
-  b.EndObject();
+  return javaThread;
 }
 #endif
 
-void TableTicker::StreamJSObject(JSStreamWriter& b)
+template <typename Builder>
+void TableTicker::BuildJSObject(Builder& b, typename Builder::ObjectHandle profile)
 {
-  b.BeginObject();
-    // Put shared library info
-    b.NameValue("libs", GetSharedLibraryInfoString().c_str());
+  // Put shared library info
+  b.DefineProperty(profile, "libs", GetSharedLibraryInfoString().c_str());
 
-    // Put meta data
-    b.Name("meta");
-    StreamMetaJSCustomObject(b);
+  // Put meta data
+  typename Builder::RootedObject meta(b.context(), GetMetaJSCustomObject(b));
+  b.DefineProperty(profile, "meta", meta);
 
-    // Lists the samples for each ThreadProfile
-    b.Name("threads");
-    b.BeginArray();
+  // Lists the samples for each ThreadProfile
+  typename Builder::RootedArray threads(b.context(), b.CreateArray());
+  b.DefineProperty(profile, "threads", threads);
 
-      SetPaused(true);
+  SetPaused(true);
 
-      {
-        mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
+  {
+    mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
 
-        for (size_t i = 0; i < sRegisteredThreads->size(); i++) {
-          // Thread not being profiled, skip it
-          if (!sRegisteredThreads->at(i)->Profile())
-            continue;
+    for (size_t i = 0; i < sRegisteredThreads->size(); i++) {
+      // Thread not being profiled, skip it
+      if (!sRegisteredThreads->at(i)->Profile())
+        continue;
 
-          MutexAutoLock lock(*sRegisteredThreads->at(i)->Profile()->GetMutex());
+      MutexAutoLock lock(*sRegisteredThreads->at(i)->Profile()->GetMutex());
 
-          sRegisteredThreads->at(i)->Profile()->StreamJSObject(b);
-        }
-      }
+      typename Builder::RootedObject threadSamples(b.context(), b.CreateObject());
+      sRegisteredThreads->at(i)->Profile()->BuildJSObject(b, threadSamples);
+      b.ArrayPush(threads, threadSamples);
+    }
+  }
 
-      // Send a event asking any subprocesses (plugins) to
-      // give us their information
-      SubprocessClosure closure(&b);
-      nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-      if (os) {
-        nsRefPtr<ProfileSaveEvent> pse = new ProfileSaveEvent(SubProcessCallback, &closure);
-        os->NotifyObservers(pse, "profiler-subprocess", nullptr);
-      }
+#if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
+  if (ProfileJava()) {
+    mozilla::widget::android::GeckoJavaSampler::PauseJavaProfiling();
 
-  #if defined(SPS_OS_android) && !defined(MOZ_WIDGET_GONK)
-      if (ProfileJava()) {
-        mozilla::widget::android::GeckoJavaSampler::PauseJavaProfiling();
+    typename Builder::RootedObject javaThread(b.context(), BuildJavaThreadJSObject(b));
+    b.ArrayPush(threads, javaThread);
 
-        BuildJavaThreadJSObject(b);
+    mozilla::widget::android::GeckoJavaSampler::UnpauseJavaProfiling();
+  }
+#endif
 
-        mozilla::widget::android::GeckoJavaSampler::UnpauseJavaProfiling();
-      }
-  #endif
+  SetPaused(false);
 
-      SetPaused(false);
-    b.EndArray();
-
-  b.EndObject();
-
+  // Send a event asking any subprocesses (plugins) to
+  // give us their information
+  SubprocessClosure<Builder> closure(&b, threads);
+  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  if (os) {
+    nsRefPtr<ProfileSaveEvent> pse = new ProfileSaveEvent(SubProcessCallback<Builder>, &closure);
+    os->NotifyObservers(pse, "profiler-subprocess", nullptr);
+  }
 }
 
 // END SaveProfileTask et al

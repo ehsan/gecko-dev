@@ -944,9 +944,8 @@ WebGLContext::ValidateTexImageSize(GLenum target, GLint level,
 
     const GLuint maxTexImageSize = MaxTextureSizeForTarget(target) >> level;
     const bool isCubemapTarget = IsTexImageCubemapTarget(target);
-    const bool isSub = IsSubFunc(func);
 
-    if (!isSub && isCubemapTarget && (width != height)) {
+    if (isCubemapTarget && width != height) {
         /* GL ES Version 2.0.25 - 3.7.1 Texture Image Specification
          *   "When the target parameter to TexImage2D is one of the
          *   six cube map two-dimensional image targets, the error
