@@ -58,7 +58,7 @@ function performTest() {
     HUDService.activateHUDForContext(tab);
     let hudId = HUDService.getHudIdByWindow(tab.linkedBrowser.contentWindow);
     ok(hudId, "HUD is open for tab " + i);
-    let HUD = HUDService.hudReferences[hudId];
+    let HUD = HUDService.hudWeakReferences[hudId].get();
     HUD.console.log("message for tab " + i);
   }
 

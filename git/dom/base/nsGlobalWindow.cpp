@@ -4481,6 +4481,8 @@ nsGlobalWindow::Alert(const nsAString& aString)
     do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  EnterModalState();
+
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
     nsXPIDLString label;
@@ -4494,6 +4496,8 @@ nsGlobalWindow::Alert(const nsAString& aString)
   } else {
     rv = promptSvc->Alert(this, title.get(), final.get());
   }
+
+  LeaveModalState();
 
   return rv;
 }
@@ -4534,6 +4538,8 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
     do_GetService("@mozilla.org/embedcomp/prompt-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  EnterModalState();
+
   if (shouldEnableDisableDialog) {
     PRBool disallowDialog = PR_FALSE;
     nsXPIDLString label;
@@ -4547,6 +4553,8 @@ nsGlobalWindow::Confirm(const nsAString& aString, PRBool* aReturn)
   } else {
     rv = promptSvc->Confirm(this, title.get(), final.get(), aReturn);
   }
+
+  LeaveModalState();
 
   return rv;
 }
@@ -4597,9 +4605,13 @@ nsGlobalWindow::Prompt(const nsAString& aMessage, const nsAString& aInitial,
                                        "ScriptDialogLabel", label);
   }
 
+  EnterModalState();
+
   PRBool ok;
   rv = promptSvc->Prompt(this, title.get(), fixedMessage.get(),
                          &inoutValue, label.get(), &disallowDialog, &ok);
+
+  LeaveModalState();
 
   if (disallowDialog) {
     PreventFurtherDialogs();

@@ -41,7 +41,6 @@
 
 interface nsIDOMElement;
 interface nsIDOMHTMLCanvasElement;
-interface nsIPropertyBag;
 
 // XXX should we comment out these typedefs in the C++ header?
 
@@ -56,9 +55,6 @@ typedef float          WebGLfloat;
 typedef float          WebGLclampf;
 
 %{C++
-// for jsval
-#include "jsapi.h"
-
 namespace js {
 struct ArrayBuffer;
 struct TypedArray;
@@ -134,7 +130,7 @@ interface nsIWebGLUniformLocation : nsISupports
 
 
 [scriptable, uuid(2f21ca21-9720-4eee-ad94-27eefe4f72dc)]
-interface nsIDOMWebGLRenderingContext : nsISupports
+interface nsICanvasRenderingContextWebGL : nsISupports
 {
   //
   //  CONSTANTS
@@ -562,7 +558,7 @@ interface nsIDOMWebGLRenderingContext : nsISupports
   //
   //  METHODS
   //
-  jsval getContextAttributes();
+  void present();
 
   void activeTexture(in WebGLenum texture);
   void attachShader([optional] in nsIWebGLProgram program, [optional] in nsIWebGLShader shader);

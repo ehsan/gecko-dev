@@ -70,7 +70,6 @@ public:
       mFrozen(PR_FALSE),
       mDefer(PR_FALSE),
       mAsync(PR_FALSE),
-      mExternal(PR_FALSE),
       mParserCreated(aFromParser == mozilla::dom::FROM_PARSER_FRAGMENT ?
                      mozilla::dom::NOT_FROM_PARSER : aFromParser),
                      // Fragment parser-created scripts (if executable)
@@ -125,15 +124,6 @@ public:
   {
     NS_PRECONDITION(mFrozen, "Not ready for this call yet!");
     return mAsync;  
-  }
-
-  /**
-   * Is the script an external script?
-   */
-  PRBool GetScriptExternal()
-  {
-    NS_PRECONDITION(mFrozen, "Not ready for this call yet!");
-    return mExternal;
   }
 
   /**
@@ -259,12 +249,6 @@ protected:
    */
   PRPackedBool mAsync;
   
-  /**
-   * The effective externalness. A script can be external with mUri being null
-   * if the src attribute contained an invalid URL string.
-   */
-  PRPackedBool mExternal;
-
   /**
    * Whether this element was parser-created.
    */

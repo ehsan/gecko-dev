@@ -51,6 +51,7 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
+#include "nsDataHashtable.h"
 
 class AccGroupInfo;
 class EmbeddedObjCollector;
@@ -66,6 +67,8 @@ class nsIView;
 
 typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessible>
   nsAccessibleHashtable;
+typedef nsDataHashtable<nsPtrHashKey<const nsINode>, nsAccessible*>
+  NodeToAccessibleMap;
 
 // see nsAccessible::GetAttrValue
 #define NS_OK_NO_ARIA_VALUE \

@@ -590,7 +590,6 @@ public:
   Layer* GetNextSibling() { return mNextSibling; }
   Layer* GetPrevSibling() { return mPrevSibling; }
   virtual Layer* GetFirstChild() { return nsnull; }
-  virtual Layer* GetLastChild() { return nsnull; }
   const gfx3DMatrix& GetTransform() { return mTransform; }
 
   /**
@@ -886,7 +885,6 @@ public:
   // These getters can be used anytime.
 
   virtual Layer* GetFirstChild() { return mFirstChild; }
-  virtual Layer* GetLastChild() { return mLastChild; }
   const FrameMetrics& GetFrameMetrics() { return mFrameMetrics; }
 
   MOZ_LAYER_DECL_NAME("ContainerLayer", TYPE_CONTAINER)
@@ -916,7 +914,6 @@ protected:
   ContainerLayer(LayerManager* aManager, void* aImplData)
     : Layer(aManager, aImplData),
       mFirstChild(nsnull),
-      mLastChild(nsnull),
       mUseIntermediateSurface(PR_FALSE)
   {}
 
@@ -934,7 +931,6 @@ protected:
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   Layer* mFirstChild;
-  Layer* mLastChild;
   FrameMetrics mFrameMetrics;
   PRPackedBool mUseIntermediateSurface;
 };

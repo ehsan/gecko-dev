@@ -44,8 +44,6 @@
 #include "nsHyperTextAccessibleWrap.h"
 #include "nsEventShell.h"
 
-#include "nsClassHashtable.h"
-#include "nsDataHashtable.h"
 #include "nsIDocument.h"
 #include "nsIDocumentObserver.h"
 #include "nsIEditor.h"
@@ -269,28 +267,6 @@ protected:
     mChildDocuments.RemoveElement(aChildDocument);
   }
 
-  /**
-   * Add dependent IDs pointed by accessible element by relation attribute to
-   * cache. If the relation attribute is missed then all relation attributes
-   * are checked.
-   *
-   * @param aRelProvider [in] accessible that element has relation attribute
-   * @param aRelAttr     [in, optional] relation attribute
-   */
-  void AddDependentIDsFor(nsAccessible* aRelProvider,
-                          nsIAtom* aRelAttr = nsnull);
-
-  /**
-   * Remove dependent IDs pointed by accessible element by relation attribute
-   * from cache. If the relation attribute is absent then all relation
-   * attributes are checked.
-   *
-   * @param aRelProvider [in] accessible that element has relation attribute
-   * @param aRelAttr     [in, optional] relation attribute
-   */
-  void RemoveDependentIDsFor(nsAccessible* aRelProvider,
-                             nsIAtom* aRelAttr = nsnull);
-
     static void ScrollTimerCallback(nsITimer *aTimer, void *aClosure);
 
     /**
@@ -322,6 +298,14 @@ protected:
     void FireTextChangeEventForText(nsIContent *aContent,
                                     CharacterDataChangeInfo* aInfo,
                                     PRBool aIsInserted);
+
+  /**
+   * Used to define should the event be fired on a delay.
+   */
+  enum EEventFiringType {
+    eNormalEvent,
+    eDelayedEvent
+  };
 
   /**
    * Fire a value change event for the the given accessible if it is a text
@@ -363,8 +347,7 @@ protected:
    * Cache of accessibles within this document accessible.
    */
   nsAccessibleHashtable mAccessibleCache;
-  nsDataHashtable<nsPtrHashKey<const nsINode>, nsAccessible*>
-    mNodeToAccessibleMap;
+  NodeToAccessibleMap mNodeToAccessibleMap;
 
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsITimer> mScrollWatchTimer;
@@ -383,35 +366,9 @@ protected:
     static nsIAtom *gLastFocusedFrameType;
 
   nsTArray<nsRefPtr<nsDocAccessible> > mChildDocuments;
-
-  /**
-   * A storage class for pairing content with one of its relation attributes.
-   */
-  class AttrRelProvider
-  {
-  public:
-    AttrRelProvider(nsIAtom* aRelAttr, nsIContent* aContent) :
-      mRelAttr(aRelAttr), mContent(aContent) { }
-
-    nsIAtom* mRelAttr;
-    nsIContent* mContent;
-
-  private:
-    AttrRelProvider();
-    AttrRelProvider(const AttrRelProvider&);
-    AttrRelProvider& operator =(const AttrRelProvider&);
-  };
-
-  /**
-   * The cache of IDs pointed by relation attributes.
-   */
-  typedef nsTArray<nsAutoPtr<AttrRelProvider> > AttrRelProviderArray;
-  nsClassHashtable<nsStringHashKey, AttrRelProviderArray> mDependentIDsHash;
-
-  friend class RelatedAccIterator;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsDocAccessible,
                               NS_DOCACCESSIBLE_IMPL_CID)
 
-#endif
+#endif  

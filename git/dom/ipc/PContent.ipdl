@@ -36,7 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PAudio;
 include protocol PBrowser;
 include protocol PTestShell;
 include protocol PNecko;
@@ -62,7 +61,6 @@ namespace dom {
 
 rpc protocol PContent
 {
-    manages PAudio;
     manages PBrowser;
     manages PTestShell;
     manages PNecko;
@@ -93,8 +91,6 @@ child:
 
 parent:
     PNecko();
-
-    PAudio(PRInt32 aNumChannels, PRInt32 aRate, PRInt32 aFormat);
 
     // Services remoting
 

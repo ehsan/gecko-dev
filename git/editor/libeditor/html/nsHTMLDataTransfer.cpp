@@ -1330,9 +1330,6 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
       nsCOMPtr<nsIFile> fileObj(do_QueryInterface(genericDataObj));
       if (fileObj && len > 0)
       {
-        rv = NS_NewFileURI(getter_AddRefs(fileURI), fileObj);
-        NS_ENSURE_SUCCESS(rv, rv);
-
         nsCOMPtr<nsIMIMEService> mime = do_GetService("@mozilla.org/mime;1");
         NS_ENSURE_TRUE(mime, NS_ERROR_FAILURE);
         nsCAutoString contentType;
@@ -1406,8 +1403,7 @@ NS_IMETHODIMP nsHTMLEditor::InsertFromTransferable(nsITransferable *transferable
     }
     else if (0 == nsCRT::strcmp(bestFlavor, kJPEGImageMime) ||
              0 == nsCRT::strcmp(bestFlavor, kPNGImageMime) ||
-             0 == nsCRT::strcmp(bestFlavor, kGIFImageMime) ||
-             insertAsImage)
+             0 == nsCRT::strcmp(bestFlavor, kGIFImageMime))
     {
       nsCOMPtr<nsIInputStream> imageStream;
       if (insertAsImage) {

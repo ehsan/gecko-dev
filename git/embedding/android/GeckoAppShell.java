@@ -125,8 +125,6 @@ class GeckoAppShell
         f = Environment.getDownloadCacheDirectory();
         GeckoAppShell.putenv("EXTERNAL_STORAGE" + f.getPath());
 
-        GeckoAppShell.putenv("LANG=" + Locale.getDefault().toString());
-
         loadLibs(apkName);
     }
 

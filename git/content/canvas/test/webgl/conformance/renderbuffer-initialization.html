@@ -12,7 +12,7 @@ found in the LICENSE file.
 function runTest()
 {
     var canvas = document.getElementById("testbed");
-    var gl = create3DContext(canvas);
+    var gl = canvas.getContext("experimental-webgl");
     if (!gl) {
         testFailed('canvas.getContext() failed');
         return false;

@@ -87,10 +87,6 @@
 
 /*** global warnings ***/
 
-.global-warning-container {
-  overflow-x: hidden;
-}
-
 .global-warning {
   -moz-box-align: center;
   margin: 0 8px;
@@ -103,12 +99,6 @@
   background-color: rgba(255, 255, 0, 0.1);
   background-image: url("chrome://mozapps/skin/extensions/warning-stripes.png");
   background-repeat: repeat-x;
-}
-
-@media all and (max-width: 700px) {
-  .global-warning-text {
-    display: none;
-  }
 }
 
 /*** notification icons ***/
@@ -501,7 +491,6 @@
 #search-filter {
   padding: 5px 20px;
   font-size: 120%;
-  overflow-x: hidden;
 }
 
 #search-filter-label {

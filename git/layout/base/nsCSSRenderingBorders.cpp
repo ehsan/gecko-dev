@@ -423,8 +423,7 @@ typedef enum {
 // Given three points, p0, p1, and midPoint, move p1 further in to the
 // rectangle (of which aMidPoint is the center) so that it reaches the
 // closer of the horizontal or vertical lines intersecting the midpoint,
-// while maintaing the slope of the line.  If p0 and p1 are the same,
-// just move p1 to midPoint (since there's no slope to maintain).
+// while maintaing the slope of the line.  p0 and p1 must be distinct.
 // FIXME: Extending only to the midpoint isn't actually sufficient for
 // boxes with asymmetric radii.
 static void
@@ -434,7 +433,7 @@ MaybeMoveToMidPoint(gfxPoint& aP0, gfxPoint& aP1, const gfxPoint& aMidPoint)
 
   if (ps.x == 0.0) {
     if (ps.y == 0.0) {
-      aP1 = aMidPoint;
+      NS_NOTREACHED("points should be different");
     } else {
       aP1.y = aMidPoint.y;
     }

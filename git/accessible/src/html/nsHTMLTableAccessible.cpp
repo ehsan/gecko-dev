@@ -308,27 +308,34 @@ nsHTMLTableCellAccessible::GetHeaderCells(PRInt32 aRowOrColumnHeaderCell,
                                           nsIArray **aHeaderCells)
 {
   // Get header cells from @header attribute.
-  IDRefsIterator iter(mContent, nsAccessibilityAtoms::headers);
-  nsIContent* headerCellElm = iter.NextElem();
-  if (headerCellElm) {
+  nsCOMPtr<nsIArray> headerCellElms;
+  nsCoreUtils::GetElementsByIDRefsAttr(mContent, nsAccessibilityAtoms::headers,
+                                       getter_AddRefs(headerCellElms));
+
+  if (headerCellElms) {
     nsresult rv = NS_OK;
     nsCOMPtr<nsIMutableArray> headerCells =
       do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    do {
-      nsAccessible* headerCell =
-        GetAccService()->GetAccessibleInWeakShell(headerCellElm, mWeakShell);
+    PRUint32 count = 0;
+    rv = headerCellElms->GetLength(&count);
+    if (NS_SUCCEEDED(rv) && count > 0) {
+      nsCOMPtr<nsIContent> headerCellContent;
+      for (PRUint32 idx = 0; idx < count; idx++) {
+        headerCellContent = do_QueryElementAt(headerCellElms, idx, &rv);
+        nsAccessible *headerCell =
+          GetAccService()->GetAccessibleInWeakShell(headerCellContent, mWeakShell);
 
-      if (headerCell &&
-          (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells &&
-              headerCell->Role() == nsIAccessibleRole::ROLE_ROWHEADER ||
-              aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells &&
-              headerCell->Role() == nsIAccessibleRole::ROLE_COLUMNHEADER)) {
-        headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
-                                   PR_FALSE);
+        if (headerCell &&
+            (aRowOrColumnHeaderCell == nsAccUtils::eRowHeaderCells &&
+             headerCell->Role() == nsIAccessibleRole::ROLE_ROWHEADER ||
+             aRowOrColumnHeaderCell == nsAccUtils::eColumnHeaderCells &&
+             headerCell->Role() == nsIAccessibleRole::ROLE_COLUMNHEADER))
+          headerCells->AppendElement(static_cast<nsIAccessible*>(headerCell),
+                                     PR_FALSE);
       }
-    } while ((headerCellElm = iter.NextElem()));
+    }
 
     NS_ADDREF(*aHeaderCells = headerCells);
     return NS_OK;

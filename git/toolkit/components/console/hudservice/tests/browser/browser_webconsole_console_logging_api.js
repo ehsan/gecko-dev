@@ -56,6 +56,7 @@ function onLoad() {
   testConsoleLoggingAPI("info");
   testConsoleLoggingAPI("warn");
   testConsoleLoggingAPI("error");
+  testConsoleLoggingAPI("exception");
 
   finishTest();
 }
@@ -68,37 +69,26 @@ function testConsoleLoggingAPI(aMethod) {
 
   HUDService.clearDisplay(hudId);
 
-  setStringFilter(hudId, "foo");
+  setStringFilter("foo");
   console[aMethod]("foo-bar-baz");
   console[aMethod]("bar-baz");
-
-  var nodes = outputNode.querySelectorAll(".hud-filtered-by-string");
-
-  is(nodes.length, 1, "1 hidden " + aMethod  + " node found (via classList)");
-
+  var count = outputNode.querySelectorAll(".hud-filtered-by-string").length;
+  ok(count == 1, "1 hidden " + aMethod  + " node found");
   HUDService.clearDisplay(hudId);
 
   // now toggle the current method off - make sure no visible message
-
-  // TODO: move all filtering tests into a separate test file: see bug 608135
-  setStringFilter(hudId, "");
+  // nodes are logged
+  setStringFilter("");
   HUDService.setFilterState(hudId, aMethod, false);
   console[aMethod]("foo-bar-baz");
-  nodes = outputNode.querySelectorAll("label");
-
-  is(nodes.length, 1,  aMethod + " logging turned off, 1 message hidden");
-
+  count = outputNode.querySelectorAll(".hud-filtered-by-type").length;
+  is(count, 1, aMethod + " logging turned off, 1 message hidden");
   HUDService.clearDisplay(hudId);
-  HUDService.setFilterState(hudId, aMethod, true);
-  console[aMethod]("foo-bar-baz");
-  nodes = outputNode.querySelectorAll("label");
-
-  is(nodes.length, 1, aMethod + " logging turned on, 1 message shown");
-
-  HUDService.clearDisplay(hudId);
-  setStringFilter(hudId, "");
+  setStringFilter("");
 
   // test for multiple arguments.
+  HUDService.clearDisplay(hudId);
+  HUDService.setFilterState(hudId, aMethod, true);
   console[aMethod]("foo", "bar");
 
   let node = outputNode.querySelectorAll(".hud-msg-node")[0];
@@ -106,9 +96,10 @@ function testConsoleLoggingAPI(aMethod) {
     "Emitted both console arguments");
 }
 
-function setStringFilter(aId, aValue) {
-  let hudBox = HUDService.getHeadsUpDisplay(aId);
+function setStringFilter(aValue) {
+  let hudId = HUDService.displaysIndex()[0];
+  let hudBox = HUDService.getHeadsUpDisplay(hudId);
   hudBox.querySelector(".hud-filter-box").value = aValue;
-  HUDService.adjustVisibilityOnSearchStringChange(aId, aValue);
+  HUDService.adjustVisibilityOnSearchStringChange(hudId, aValue);
 }
 

@@ -91,17 +91,10 @@ const CATEGORY_UPDATE_TIMER               = "update-timer";
 
 const KEY_APPDIR          = "XCurProcD";
 const KEY_GRED            = "GreD";
-
 #ifdef XP_WIN
 #ifndef WINCE
-#define USE_UPDROOT
-#endif
-#elifdef ANDROID
-#define USE_UPDROOT
-#endif
-
-#ifdef USE_UPDROOT
 const KEY_UPDROOT         = "UpdRootD";
+#endif
 #endif
 
 const DIR_UPDATES         = "updates";
@@ -380,12 +373,14 @@ function binaryToHex(input) {
 #  @return  nsIFile object for the location specified.
  */
 function getUpdateDirCreate(pathArray) {
-#ifdef USE_UPDROOT
+#ifdef XP_WIN
+#ifndef WINCE
   try {
     let dir = FileUtils.getDir(KEY_UPDROOT, pathArray, true);
     return dir;
   } catch (e) {
   }
+#endif
 #endif
   return FileUtils.getDir(KEY_APPDIR, pathArray, true);
 }
@@ -2643,6 +2638,14 @@ Downloader.prototype = {
         // that UI will notify.
         if (this.background)
           shouldShowPrompt = true;
+
+#ifdef ANDROID
+        // Give read permissions to everyone so the .APK file is accessible by
+        // the system installer (bug 596662).
+        let patchFile = getUpdatesDir().QueryInterface(Ci.nsILocalFile);
+        patchFile.append(FILE_UPDATE_ARCHIVE);
+        patchFile.permissions = FileUtils.PERMS_FILE;
+#endif
 
         // Tell the updater.exe we're ready to apply.
         writeStatusFile(getUpdatesDir(), state);
