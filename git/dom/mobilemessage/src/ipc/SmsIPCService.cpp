@@ -167,14 +167,12 @@ SmsIPCService::GetSegmentInfoForText(const nsAString& aText,
 }
 
 NS_IMETHODIMP
-SmsIPCService::Send(uint32_t aServiceId,
-                    const nsAString& aNumber,
+SmsIPCService::Send(const nsAString& aNumber,
                     const nsAString& aMessage,
                     const bool aSilent,
                     nsIMobileMessageCallback* aRequest)
 {
-  return SendRequest(SendMessageRequest(SendSmsMessageRequest(aServiceId,
-                                                              nsString(aNumber),
+  return SendRequest(SendMessageRequest(SendSmsMessageRequest(nsString(aNumber),
                                                               nsString(aMessage),
                                                               aSilent)),
                      aRequest);
@@ -243,10 +241,9 @@ SmsIPCService::CreateMessageCursor(nsIDOMMozSmsFilter* aFilter,
 NS_IMETHODIMP
 SmsIPCService::MarkMessageRead(int32_t aMessageId,
                                bool aValue,
-                               bool aSendReadReport,
                                nsIMobileMessageCallback* aRequest)
 {
-  return SendRequest(MarkMessageReadRequest(aMessageId, aValue, aSendReadReport), aRequest);
+  return SendRequest(MarkMessageReadRequest(aMessageId, aValue), aRequest);
 }
 
 NS_IMETHODIMP
@@ -258,8 +255,7 @@ SmsIPCService::CreateThreadCursor(nsIMobileMessageCursorCallback* aCursorCallbac
 }
 
 bool
-GetSendMmsMessageRequestFromParams(uint32_t aServiceId,
-                                   const JS::Value& aParam,
+GetSendMmsMessageRequestFromParams(const JS::Value& aParam,
                                    SendMmsMessageRequest& request) {
   if (aParam.isUndefined() || aParam.isNull() || !aParam.isObject()) {
     return false;
@@ -300,9 +296,6 @@ GetSendMmsMessageRequestFromParams(uint32_t aServiceId,
   request.smil() = params.mSmil;
   request.subject() = params.mSubject;
 
-  // Set service ID.
-  request.serviceId() = aServiceId;
-
   return true;
 }
 
@@ -318,12 +311,11 @@ SmsIPCService::GetMmsDefaultServiceId(uint32_t* aServiceId)
 }
 
 NS_IMETHODIMP
-SmsIPCService::Send(uint32_t aServiceId,
-                    const JS::Value& aParameters,
+SmsIPCService::Send(const JS::Value& aParameters,
                     nsIMobileMessageCallback *aRequest)
 {
   SendMmsMessageRequest req;
-  if (!GetSendMmsMessageRequestFromParams(aServiceId, aParameters, req)) {
+  if (!GetSendMmsMessageRequestFromParams(aParameters, req)) {
     return NS_ERROR_INVALID_ARG;
   }
   return SendRequest(SendMessageRequest(req), aRequest);
@@ -333,13 +325,4 @@ NS_IMETHODIMP
 SmsIPCService::Retrieve(int32_t aId, nsIMobileMessageCallback *aRequest)
 {
   return SendRequest(RetrieveMessageRequest(aId), aRequest);
-}
-
-NS_IMETHODIMP
-SmsIPCService::SendReadReport(const nsAString & messageID,
-                              const nsAString & toAddress,
-                              const nsAString & iccId)
-{
-  NS_ERROR("We should not be here!");
-  return NS_OK;
 }

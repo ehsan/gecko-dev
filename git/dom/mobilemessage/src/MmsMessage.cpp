@@ -34,8 +34,7 @@ NS_IMPL_ADDREF(MmsMessage)
 NS_IMPL_RELEASE(MmsMessage)
 
 MmsMessage::MmsMessage(int32_t                          aId,
-                       uint64_t                         aThreadId,
-                       const nsAString&                 aIccId,
+                       const uint64_t                   aThreadId,
                        DeliveryState                    aDelivery,
                        const nsTArray<MmsDeliveryInfo>& aDeliveryInfo,
                        const nsAString&                 aSender,
@@ -45,11 +44,9 @@ MmsMessage::MmsMessage(int32_t                          aId,
                        const nsAString&                 aSubject,
                        const nsAString&                 aSmil,
                        const nsTArray<MmsAttachment>&   aAttachments,
-                       uint64_t                         aExpiryDate,
-                       bool                             aIsReadReportRequested)
+                       uint64_t                         aExpiryDate)
   : mId(aId),
     mThreadId(aThreadId),
-    mIccId(aIccId),
     mDelivery(aDelivery),
     mDeliveryInfo(aDeliveryInfo),
     mSender(aSender),
@@ -59,15 +56,13 @@ MmsMessage::MmsMessage(int32_t                          aId,
     mSubject(aSubject),
     mSmil(aSmil),
     mAttachments(aAttachments),
-    mExpiryDate(aExpiryDate),
-    mIsReadReportRequested(aIsReadReportRequested)
+    mExpiryDate(aExpiryDate)
 {
 }
 
 MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
   : mId(aData.id())
   , mThreadId(aData.threadId())
-  , mIccId(aData.iccId())
   , mDelivery(aData.delivery())
   , mSender(aData.sender())
   , mReceivers(aData.receivers())
@@ -76,7 +71,6 @@ MmsMessage::MmsMessage(const mobilemessage::MmsMessageData& aData)
   , mSubject(aData.subject())
   , mSmil(aData.smil())
   , mExpiryDate(aData.expiryDate())
-  , mIsReadReportRequested(aData.isReadReportRequested())
 {
   uint32_t len = aData.attachments().Length();
   mAttachments.SetCapacity(len);
@@ -166,8 +160,7 @@ convertTimeToInt(JSContext* aCx, const JS::Value& aTime, uint64_t& aReturn)
 
 /* static */ nsresult
 MmsMessage::Create(int32_t               aId,
-                   uint64_t              aThreadId,
-                   const nsAString&      aIccId,
+                   const uint64_t        aThreadId,
                    const nsAString&      aDelivery,
                    const JS::Value&      aDeliveryInfo,
                    const nsAString&      aSender,
@@ -178,7 +171,6 @@ MmsMessage::Create(int32_t               aId,
                    const nsAString&      aSmil,
                    const JS::Value&      aAttachments,
                    const JS::Value&      aExpiryDate,
-                   bool                  aIsReadReportRequested,
                    JSContext*            aCx,
                    nsIDOMMozMmsMessage** aMessage)
 {
@@ -288,7 +280,6 @@ MmsMessage::Create(int32_t               aId,
 
   nsCOMPtr<nsIDOMMozMmsMessage> message = new MmsMessage(aId,
                                                          aThreadId,
-                                                         aIccId,
                                                          delivery,
                                                          deliveryInfo,
                                                          aSender,
@@ -298,8 +289,7 @@ MmsMessage::Create(int32_t               aId,
                                                          aSubject,
                                                          aSmil,
                                                          attachments,
-                                                         expiryDate,
-                                                         aIsReadReportRequested);
+                                                         expiryDate);
   message.forget(aMessage);
   return NS_OK;
 }
@@ -312,7 +302,6 @@ MmsMessage::GetData(ContentParent* aParent,
 
   aData.id() = mId;
   aData.threadId() = mThreadId;
-  aData.iccId() = mIccId;
   aData.delivery() = mDelivery;
   aData.sender().Assign(mSender);
   aData.receivers() = mReceivers;
@@ -321,7 +310,6 @@ MmsMessage::GetData(ContentParent* aParent,
   aData.subject() = mSubject;
   aData.smil() = mSmil;
   aData.expiryDate() = mExpiryDate;
-  aData.isReadReportRequested() = mIsReadReportRequested;
 
   aData.deliveryInfo().SetCapacity(mDeliveryInfo.Length());
   for (uint32_t i = 0; i < mDeliveryInfo.Length(); i++) {
@@ -396,13 +384,6 @@ NS_IMETHODIMP
 MmsMessage::GetThreadId(uint64_t* aThreadId)
 {
   *aThreadId = mThreadId;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-MmsMessage::GetIccId(nsAString& aIccId)
-{
-  aIccId = mIccId;
   return NS_OK;
 }
 
@@ -619,14 +600,6 @@ MmsMessage::GetExpiryDate(JSContext* cx, JS::Value* aDate)
   *aDate = OBJECT_TO_JSVAL(obj);
   return NS_OK;
 }
-
-NS_IMETHODIMP
-MmsMessage::GetIsReadReportRequested(bool* aIsReadReportRequested)
-{
-  *aIsReadReportRequested = mIsReadReportRequested;
-  return NS_OK;
-}
-
 
 } // namespace dom
 } // namespace mozilla

@@ -451,9 +451,8 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
       nsCOMPtr<nsISmsService> smsService = do_GetService(SMS_SERVICE_CONTRACTID);
       NS_ENSURE_TRUE(smsService, true);
 
-      const SendSmsMessageRequest &req = aRequest.get_SendSmsMessageRequest();
-      smsService->Send(req.serviceId(), req.number(), req.message(),
-                       req.silent(), this);
+      const SendSmsMessageRequest &data = aRequest.get_SendSmsMessageRequest();
+      smsService->Send(data.number(), data.message(), data.silent(), this);
     }
     break;
   case SendMessageRequest::TSendMmsMessageRequest: {
@@ -462,14 +461,14 @@ SmsRequestParent::DoRequest(const SendMessageRequest& aRequest)
 
       AutoJSContext cx;
       JS::Rooted<JS::Value> params(cx);
-      const SendMmsMessageRequest &req = aRequest.get_SendMmsMessageRequest();
-      if (!GetParamsFromSendMmsMessageRequest(cx,
-                                              req,
-                                              params.address())) {
+      if (!GetParamsFromSendMmsMessageRequest(
+              cx,
+              aRequest.get_SendMmsMessageRequest(),
+              params.address())) {
         NS_WARNING("SmsRequestParent: Fail to build MMS params.");
         return true;
       }
-      mmsService->Send(req.serviceId(), params, this);
+      mmsService->Send(params, this);
     }
     break;
   default:
@@ -542,7 +541,7 @@ SmsRequestParent::DoRequest(const MarkMessageReadRequest& aRequest)
     do_GetService(MOBILE_MESSAGE_DATABASE_SERVICE_CONTRACTID);
   if (dbService) {
     rv = dbService->MarkMessageRead(aRequest.messageId(), aRequest.value(),
-                                    aRequest.sendReadReport(), this);
+                                    this);
   }
 
   if (NS_FAILED(rv)) {
