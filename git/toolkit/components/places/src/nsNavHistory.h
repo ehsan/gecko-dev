@@ -121,8 +121,6 @@
 // mInPrivateBrowsing member
 #define PRIVATEBROWSING_NOTINITED (PRBool(0xffffffff))
 
-#define PLACES_INIT_COMPLETE_EVENT_TOPIC "places-init-complete"
-
 struct AutoCompleteIntermediateResult;
 class AutoCompleteResultComparator;
 class mozIAnnotationService;
@@ -837,8 +835,6 @@ protected:
   PRInt64 mTagsFolder;
 
   PRBool mInPrivateBrowsing;
-
-  PRBool mDatabaseStatus;
 };
 
 /**
