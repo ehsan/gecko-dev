@@ -202,6 +202,8 @@ ShouldBeInElements(nsIFormControl* aFormControl)
   //
   // NS_FORM_INPUT_IMAGE
   // NS_FORM_LABEL
+  // NS_FORM_OPTION
+  // NS_FORM_OPTGROUP
   // NS_FORM_LEGEND
 
   return PR_FALSE;
@@ -353,11 +355,41 @@ nsHTMLFormElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 }
 
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, AcceptCharset, acceptcharset)
-NS_IMPL_STRING_ATTR(nsHTMLFormElement, Action, action)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Enctype, enctype)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Method, method)
 NS_IMPL_STRING_ATTR(nsHTMLFormElement, Name, name)
-NS_IMPL_STRING_ATTR(nsHTMLFormElement, Target, target)
+
+NS_IMETHODIMP
+nsHTMLFormElement::GetAction(nsAString& aValue)
+{
+  GetAttr(kNameSpaceID_None, nsGkAtoms::action, aValue);
+  if (aValue.IsEmpty()) {
+    // Avoid resolving action="" to the base uri, bug 297761.
+    return NS_OK;
+  }
+  return GetURIAttr(nsGkAtoms::action, nsnull, aValue);
+}
+
+NS_IMETHODIMP
+nsHTMLFormElement::SetAction(const nsAString& aValue)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::action, aValue, PR_TRUE);
+}
+
+NS_IMETHODIMP
+nsHTMLFormElement::GetTarget(nsAString& aValue)
+{
+  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::target, aValue)) {
+    GetBaseTarget(aValue);
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLFormElement::SetTarget(const nsAString& aValue)
+{
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::target, aValue, PR_TRUE);
+}
 
 NS_IMETHODIMP
 nsHTMLFormElement::Submit()
@@ -786,9 +818,8 @@ nsHTMLFormElement::SubmitSubmission(nsFormSubmission* aFormSubmission)
   }
 
   nsAutoString target;
-  if (!GetAttr(kNameSpaceID_None, nsGkAtoms::target, target)) {
-    GetBaseTarget(target);
-  }
+  rv = GetTarget(target);
+  NS_ENSURE_SUBMIT_SUCCESS(rv);
 
   //
   // Notify observers of submit
@@ -1322,11 +1353,7 @@ nsHTMLFormElement::GetActionURL(nsIURI** aActionURL)
   // Grab the URL string
   //
   nsAutoString action;
-  GetAttr(kNameSpaceID_None, nsGkAtoms::action, action);
-  // Avoid resolving action="" to the base uri, bug 297761.
-  if (!action.IsEmpty()) {
-    GetURIAttr(nsGkAtoms::action, nsnull, action);
-  }
+  GetAction(action);
 
   //
   // Form the full action URL
