@@ -1101,9 +1101,8 @@ UpdateService.prototype = {
    * notify the user of install success.
    */
   _postUpdateProcessing: function AUS__postUpdateProcessing() {
-    if (!this.canCheckForUpdates || !this.canApplyUpdates) {
-      LOG("UpdateService:_postUpdateProcessing - unable to check for or apply " +
-          "updates... returning early");
+    if (!this.canUpdate) {
+      LOG("UpdateService:_postUpdateProcessing - unable to update");
       return;
     }
 
@@ -1543,6 +1542,13 @@ UpdateService.prototype = {
   /**
    * See nsIUpdateService.idl
    */
+  get canUpdate() {
+    return gCanCheckForUpdates && gCanApplyUpdates;
+  },
+
+  /**
+   * See nsIUpdateService.idl
+   */
   get canCheckForUpdates() {
     return gCanCheckForUpdates;
   },
@@ -1631,6 +1637,7 @@ UpdateService.prototype = {
   getHelperForLanguage: function(language) null,
   getInterfaces: function AUS_getInterfaces(count) {
     var interfaces = [Ci.nsIApplicationUpdateService,
+                      Ci.nsIApplicationUpdateService2,
                       Ci.nsITimerCallback,
                       Ci.nsIObserver];
     count.value = interfaces.length;
@@ -1646,6 +1653,7 @@ UpdateService.prototype = {
                                 PREF_APP_UPDATE_INTERVAL + ",86400" }],
   _xpcom_factory: UpdateServiceFactory,
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIApplicationUpdateService,
+                                         Ci.nsIApplicationUpdateService2,
                                          Ci.nsIAddonUpdateCheckListener,
                                          Ci.nsITimerCallback,
                                          Ci.nsIObserver])

@@ -54,9 +54,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsPluginLogging.h"
 #include "nsICategoryManager.h"
-#include "mozilla/TimeStamp.h"
-
-using mozilla::TimeStamp;
 
 inline char* new_str(const char* str)
 {
@@ -81,6 +78,7 @@ mMimeDescriptionArray(aPluginTag->mMimeDescriptionArray),
 mExtensionsArray(nsnull),
 mLibrary(nsnull),
 mCanUnloadLibrary(PR_TRUE),
+mXPConnected(PR_FALSE),
 mIsJavaPlugin(aPluginTag->mIsJavaPlugin),
 mIsNPRuntimeEnabledJavaPlugin(aPluginTag->mIsNPRuntimeEnabledJavaPlugin),
 mFileName(aPluginTag->mFileName),
@@ -115,6 +113,7 @@ mCanUnloadLibrary(!aPluginInfo->fBundle),
 #else
 mCanUnloadLibrary(PR_TRUE),
 #endif
+mXPConnected(PR_FALSE),
 mIsJavaPlugin(PR_FALSE),
 mIsNPRuntimeEnabledJavaPlugin(PR_FALSE),
 mFileName(aPluginInfo->fFileName),
@@ -204,6 +203,7 @@ mMimeTypeArray(nsnull),
 mExtensionsArray(nsnull),
 mLibrary(nsnull),
 mCanUnloadLibrary(aCanUnload),
+mXPConnected(PR_FALSE),
 mIsJavaPlugin(PR_FALSE),
 mIsNPRuntimeEnabledJavaPlugin(PR_FALSE),
 mFileName(aFileName),
@@ -543,8 +543,16 @@ void nsPluginTag::TryUnloadPlugin()
   
   // before we unload check if we are allowed to, see bug #61388
   if (mLibrary && mCanUnloadLibrary) {
-    // unload the plugin asynchronously by posting a PLEvent
-    nsPluginHost::PostPluginUnloadEvent(mLibrary);
+    // NPAPI plugins can be unloaded now if they don't use XPConnect
+    if (!mXPConnected) {
+      // unload the plugin asynchronously by posting a PLEvent
+      nsPluginHost::PostPluginUnloadEvent(mLibrary);
+    }
+    else {
+      // add library to the unused library list to handle it later
+      if (mPluginHost)
+        mPluginHost->AddUnusedLibrary(mLibrary);
+    }
   }
   
   // we should zero it anyway, it is going to be unloaded by
@@ -567,31 +575,41 @@ nsPluginInstanceTag::nsPluginInstanceTag(nsPluginTag* aPluginTag,
                                          const char * url,
                                          PRBool aDefaultPlugin)
 {
-  NS_ASSERTION(aInstance, "Must have a valid plugin instance when creating an nsPluginInstanceTag");
-  NS_ADDREF(aInstance);
-  mInstance = static_cast<nsNPAPIPluginInstance*>(aInstance);
-
   mNext = nsnull;
   mPluginTag = aPluginTag;
   
   mURL = PL_strdup(url);
-
+  mInstance = aInstance;
+  if (aInstance)
+    NS_ADDREF(aInstance);
+  mXPConnected = PR_FALSE;
   mDefaultPlugin = aDefaultPlugin;
+  mStopped = PR_FALSE;
+  mllStopTime = LL_ZERO;
 }
 
 nsPluginInstanceTag::~nsPluginInstanceTag()
 {
   mPluginTag = nsnull;
-
-  nsCOMPtr<nsIPluginInstanceOwner> owner;
-  mInstance->GetOwner(getter_AddRefs(owner));
-  if (owner)
-    owner->SetInstance(nsnull);
-  mInstance->InvalidateOwner();
-
-  NS_RELEASE(mInstance);
-
+  if (mInstance) {
+    nsCOMPtr<nsIPluginInstanceOwner> owner;
+    mInstance->GetOwner(getter_AddRefs(owner));
+    if (owner)
+      owner->SetInstance(nsnull);
+    mInstance->InvalidateOwner();
+    
+    NS_RELEASE(mInstance);
+  }
   PL_strfree(mURL);
+}
+
+void nsPluginInstanceTag::setStopped(PRBool stopped)
+{
+  mStopped = stopped;
+  if (mStopped) // plugin instance is told to stop
+    mllStopTime = PR_Now();
+  else
+    mllStopTime = LL_ZERO;
 }
 
 /* nsPluginInstanceTagList */
@@ -713,14 +731,16 @@ void nsPluginInstanceTagList::stopRunning(nsISupportsArray* aReloadDocs,
     return;
   
   for (nsPluginInstanceTag * p = mFirst; p != nsnull; p = p->mNext) {
-    if (p->mInstance->IsRunning() && (!aPluginTag || aPluginTag == p->mPluginTag)) {
+    if (!p->mStopped && p->mInstance &&
+        (!aPluginTag || aPluginTag == p->mPluginTag)) {
       p->mInstance->SetWindow(nsnull);
       p->mInstance->Stop();
+      p->setStopped(PR_TRUE);
       
       // If we've been passed an array to return, lets collect all our documents,
       // removing duplicates. These will be reframed (embedded) or reloaded (full-page) later
       // to kickstart our instances.
-      if (aReloadDocs) {
+      if (aReloadDocs && p->mInstance) {
         nsCOMPtr<nsIPluginInstanceOwner> owner;
         p->mInstance->GetOwner(getter_AddRefs(owner));
         if (owner) {
@@ -744,7 +764,7 @@ void nsPluginInstanceTagList::removeAllStopped()
   for (nsPluginInstanceTag * p = mFirst; p != nsnull;) {
     next = p->mNext;
     
-    if (!p->mInstance->IsRunning())
+    if (p->mStopped)
       remove(p);
     
     p = next;
@@ -788,7 +808,7 @@ nsPluginInstanceTag * nsPluginInstanceTagList::find(const char * mimetype)
 nsPluginInstanceTag * nsPluginInstanceTagList::findStopped(const char * url)
 {
   for (nsPluginInstanceTag * p = mFirst; p != nsnull; p = p->mNext) {
-    if (!PL_strcmp(url, p->mURL) && !p->mInstance->IsRunning())
+    if (!PL_strcmp(url, p->mURL) && p->mStopped)
       return p;
   }
   return nsnull;
@@ -798,7 +818,7 @@ PRUint32 nsPluginInstanceTagList::getStoppedCount()
 {
   PRUint32 stoppedCount = 0;
   for (nsPluginInstanceTag * p = mFirst; p != nsnull; p = p->mNext) {
-    if (!p->mInstance->IsRunning())
+    if (p->mStopped)
       stoppedCount++;
   }
   return stoppedCount;
@@ -807,14 +827,13 @@ PRUint32 nsPluginInstanceTagList::getStoppedCount()
 nsPluginInstanceTag * nsPluginInstanceTagList::findOldestStopped()
 {
   nsPluginInstanceTag * res = nsnull;
-  TimeStamp oldestTime = TimeStamp::Now();
+  PRInt64 llTime = LL_MAXINT;
   for (nsPluginInstanceTag * p = mFirst; p != nsnull; p = p->mNext) {
-    if (p->mInstance->IsRunning())
+    if (!p->mStopped)
       continue;
-
-    TimeStamp time = p->mInstance->LastStopTime();
-    if (time < oldestTime) {
-      oldestTime = time;
+    
+    if (LL_CMP(p->mllStopTime, <, llTime)) {
+      llTime = p->mllStopTime;
       res = p;
     }
   }

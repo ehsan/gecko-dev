@@ -63,7 +63,7 @@ nsPrintSettings::nsPrintSettings() :
   mPrintPreview(PR_FALSE),
   mShrinkToFit(PR_TRUE),
   mShowPrintProgress(PR_TRUE),
-  mPrintPageDelay(50),
+  mPrintPageDelay(500),
   mPaperData(0),
   mPaperSizeType(kPaperSizeDefined),
   mPaperWidth(8.5),

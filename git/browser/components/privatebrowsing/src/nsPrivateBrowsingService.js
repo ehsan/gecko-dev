@@ -450,10 +450,7 @@ PrivateBrowsingService.prototype = {
       case "command-line-startup":
         this._obs.removeObserver(this, "command-line-startup");
         aSubject.QueryInterface(Ci.nsICommandLine);
-        if (aSubject.findFlag("private", false) >= 0) {
-          this.privateBrowsingEnabled = true;
-          this._autoStarted = true;
-        }
+        this.handle(aSubject);
         break;
       case "sessionstore-browser-state-restored":
         if (this._currentStatus == STATE_WAITING_FOR_RESTORE) {
@@ -467,17 +464,14 @@ PrivateBrowsingService.prototype = {
   // nsICommandLineHandler
 
   handle: function PBS_handle(aCmdLine) {
-    if (aCmdLine.handleFlag("private", false))
-      ; // It has already been handled
-    else if (aCmdLine.handleFlag("private-toggle", false)) {
-      this.privateBrowsingEnabled = !this.privateBrowsingEnabled;
-      this._autoStarted = false;
+    if (aCmdLine.handleFlag("private", false)) {
+      this.privateBrowsingEnabled = true;
+      this._autoStarted = true;
     }
   },
 
   get helpInfo PBS_get_helpInfo() {
-    return "  -private            Enable private browsing mode.\n" +
-           "  -private-toggle     Toggle private browsing mode.\n";
+    return "  -private           Enable private browsing mode.\n";
   },
 
   // nsIPrivateBrowsingService

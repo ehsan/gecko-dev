@@ -67,6 +67,12 @@
 #define UNIVERSALCHARDET_MODULE
 #endif
 
+#ifdef MOZ_MATHML
+#define MATHML_MODULES MODULE(nsUCvMathModule)
+#else
+#define MATHML_MODULES
+#endif
+
 #define GFX_MODULES MODULE(nsGfxModule)
 
 #ifdef XP_WIN
@@ -249,6 +255,7 @@
 
 #define XUL_MODULES                          \
     MODULE(xpconnect)                        \
+    MATHML_MODULES                           \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
     MODULE(nsChardetModule)                  \

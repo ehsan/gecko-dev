@@ -90,7 +90,6 @@
 #include "nsDisplayList.h"
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
-#include "nsPLDOMEvent.h"
 
 NS_IMETHODIMP
 nsComboboxControlFrame::RedisplayTextEvent::Run()
@@ -1474,8 +1473,18 @@ nsComboboxControlFrame::OnOptionSelected(PRInt32 aIndex, PRBool aSelected)
 void nsComboboxControlFrame::FireValueChangeEvent()
 {
   // Fire ValueChange event to indicate data value of combo box has changed
-  nsContentUtils::AddScriptRunner(new nsPLDOMEvent(mContent,
-                                  NS_LITERAL_STRING("ValueChange"), PR_FALSE));
+  nsCOMPtr<nsIDOMEvent> event;
+  nsPresContext* presContext = PresContext();
+  if (NS_SUCCEEDED(nsEventDispatcher::CreateEvent(presContext, nsnull,
+                                                  NS_LITERAL_STRING("Events"),
+                                                  getter_AddRefs(event)))) {
+    event->InitEvent(NS_LITERAL_STRING("ValueChange"), PR_TRUE, PR_TRUE);
+
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+    privateEvent->SetTrusted(PR_TRUE);
+    nsEventDispatcher::DispatchDOMEvent(mContent, nsnull, event, nsnull,
+                                        nsnull);
+  }
 }
 
 void

@@ -1799,7 +1799,7 @@ PRBool nsPluginHost::IsRunningPlugin(nsPluginTag * plugin)
 
   for (int i = 0; i < plugin->mVariants; i++) {
     nsPluginInstanceTag * p = mPluginInstanceTagList.find(plugin->mMimeTypeArray[i]);
-    if (p && p->mInstance->IsRunning())
+    if (p && !p->mStopped)
       return PR_TRUE;
   }
 
@@ -2571,7 +2571,7 @@ NS_IMETHODIMP nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
 }
 
 nsresult nsPluginHost::FindStoppedPluginForURL(nsIURI* aURL,
-                                               nsIPluginInstanceOwner *aOwner)
+                                                   nsIPluginInstanceOwner *aOwner)
 {
   nsCAutoString url;
   if (!aURL)
@@ -2579,13 +2579,13 @@ nsresult nsPluginHost::FindStoppedPluginForURL(nsIURI* aURL,
 
   aURL->GetAsciiSpec(url);
 
-  nsPluginInstanceTag *instanceTag = mPluginInstanceTagList.findStopped(url.get());
+  nsPluginInstanceTag * plugin = mPluginInstanceTagList.findStopped(url.get());
 
-  if (instanceTag && !instanceTag->mInstance->IsRunning()) {
+  if (plugin && plugin->mStopped) {
+    nsIPluginInstance* instance = plugin->mInstance;
     NPWindow* window = nsnull;
     aOwner->GetWindow(window);
 
-    nsIPluginInstance* instance = static_cast<nsIPluginInstance*>(instanceTag->mInstance);
     aOwner->SetInstance(instance);
     instance->SetOwner(aOwner);
 
@@ -2598,6 +2598,7 @@ nsresult nsPluginHost::FindStoppedPluginForURL(nsIURI* aURL,
       ((nsPluginNativeWindow*)window)->CallSetWindow(inst);
     }
 
+    plugin->setStopped(PR_FALSE);
     return NS_OK;
   }
   return NS_ERROR_FAILURE;
@@ -2607,6 +2608,7 @@ nsresult nsPluginHost::AddInstanceToActiveList(nsCOMPtr<nsIPlugin> aPlugin,
                                                nsIPluginInstance* aInstance,
                                                nsIURI* aURL,
                                                PRBool aDefaultPlugin)
+
 {
   nsCAutoString url;
   // It's OK to not have a URL here, as is the case with the dummy
@@ -4536,6 +4538,8 @@ nsPluginHost::StopPluginInstance(nsIPluginInstance* aInstance)
   nsPluginInstanceTag * plugin = mPluginInstanceTagList.find(aInstance);
 
   if (plugin) {
+    plugin->setStopped(PR_TRUE);  // be sure we set the "stop" bit
+
     // if the plugin does not want to be 'cached' just remove it
     PRBool doCache = PR_TRUE;
     aInstance->ShouldCache(&doCache);
@@ -4762,6 +4766,20 @@ nsPluginHost::HandleBadPlugin(PRLibrary* aLibrary, nsIPluginInstance *aInstance)
   }
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsPluginHost::SetIsScriptableInstance(nsIPluginInstance * aPluginInstance, PRBool aScriptable)
+{
+  nsPluginInstanceTag * p = mPluginInstanceTagList.find(aPluginInstance);
+  if (p == nsnull)
+    return NS_ERROR_FAILURE;
+
+  p->mXPConnected = aScriptable;
+  if (p->mPluginTag)
+    p->mPluginTag->mXPConnected = aScriptable;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
