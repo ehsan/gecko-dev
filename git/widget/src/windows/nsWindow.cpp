@@ -3374,9 +3374,6 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     case NS_MOUSE_MOVE:
       pluginEvent.event = WM_MOUSEMOVE;
       break;
-    case NS_MOUSE_EXIT:
-      pluginEvent.event = WM_MOUSELEAVE;
-      break;
     default:
       pluginEvent.event = WM_NULL;
       break;

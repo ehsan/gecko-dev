@@ -104,8 +104,6 @@ public:
     virtual bool
     AnswerNPN_GetValue_NPNVisOfflineBool(bool* value, NPError* result);
     virtual bool
-    AnswerNPN_GetValue_NPNVnetscapeWindow(intptr_t* value, NPError* result);
-    virtual bool
     AnswerNPN_GetValue_NPNVWindowNPObject(
                                        PPluginScriptableObjectParent** value,
                                        NPError* result);
@@ -218,12 +216,14 @@ private:
     bool SharedSurfaceSetWindow(const NPWindow* aWindow, NPRemoteWindow& aRemoteWindow);
     void SharedSurfaceBeforePaint(RECT &rect, NPRemoteEvent& npremoteevent);
     void SharedSurfaceAfterPaint(NPEvent* npevent);
+    void SharedSurfaceSetOrigin(NPRemoteEvent& npremoteevent);
     void SharedSurfaceRelease();
 
 private:
     gfx::SharedDIBWin  mSharedSurfaceDib;
     nsIntRect          mPluginPort;
     nsIntRect          mSharedSize;
+    nsIntPoint         mPluginPosOrigin;
 #endif // defined(XP_WIN)
 };
 
