@@ -69,11 +69,6 @@ public:
    */
   void Name(nsString& aName) const;
 
-  /*
-   * Set aValue to the value of the proxied accessible.
-   */
-  void Value(nsString& aValue) const;
-
   /**
    * Set aDesc to the description of the proxied accessible.
    */

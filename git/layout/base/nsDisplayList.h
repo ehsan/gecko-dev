@@ -2628,11 +2628,6 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
   {
     *aSnap = false;
-    return nsRect();
-  }
-  nsRect GetHitRegionBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
-  {
-    *aSnap = false;
     return mHitRegion.GetBounds().Union(mMaybeHitRegion.GetBounds());
   }
 

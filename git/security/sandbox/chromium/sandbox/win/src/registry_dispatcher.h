@@ -23,20 +23,13 @@ class RegistryDispatcher : public Dispatcher {
 
  private:
   // Processes IPC requests coming from calls to NtCreateKey in the target.
-  bool NtCreateKey(IPCInfo* ipc,
-                   base::string16* name,
-                   uint32 attributes,
-                   HANDLE root,
-                   uint32 desired_access,
-                   uint32 title_index,
-                   uint32 create_options);
+  bool NtCreateKey(IPCInfo* ipc, base::string16* name, DWORD attributes,
+                   HANDLE root, DWORD desired_access,
+                   DWORD title_index, DWORD create_options);
 
   // Processes IPC requests coming from calls to NtOpenKey in the target.
-  bool NtOpenKey(IPCInfo* ipc,
-                 base::string16* name,
-                 uint32 attributes,
-                 HANDLE root,
-                 uint32 desired_access);
+  bool NtOpenKey(IPCInfo* ipc, base::string16* name, DWORD attributes,
+                 HANDLE root, DWORD desired_access);
 
   PolicyBase* policy_base_;
   DISALLOW_COPY_AND_ASSIGN(RegistryDispatcher);

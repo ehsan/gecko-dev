@@ -25,7 +25,7 @@ SBOX_TESTS_COMMAND int Event_Open(int argc, wchar_t **argv) {
       desired_access, FALSE, argv[1]));
   DWORD error_open = ::GetLastError();
 
-  if (event_open.IsValid())
+  if (event_open.Get())
     return SBOX_TEST_SUCCEEDED;
 
   if (ERROR_ACCESS_DENIED == error_open ||
@@ -57,7 +57,7 @@ SBOX_TESTS_COMMAND int Event_CreateOpen(int argc, wchar_t **argv) {
   if (event_name)
     event_open.Set(::OpenEvent(EVENT_ALL_ACCESS, FALSE, event_name));
 
-  if (event_create.IsValid()) {
+  if (event_create.Get()) {
     DWORD wait = ::WaitForSingleObject(event_create.Get(), 0);
     if (initial_state && WAIT_OBJECT_0 != wait)
       return SBOX_TEST_FAILED;
@@ -68,11 +68,10 @@ SBOX_TESTS_COMMAND int Event_CreateOpen(int argc, wchar_t **argv) {
 
   if (event_name) {
     // Both event_open and event_create have to be valid.
-    if (event_open.IsValid() && event_create.IsValid())
+    if (event_open.Get() && event_create)
       return SBOX_TEST_SUCCEEDED;
 
-    if (event_open.IsValid() && !event_create.IsValid() ||
-        !event_open.IsValid() && event_create.IsValid())
+    if (event_open.Get() && !event_create || !event_open.Get() && event_create)
       return SBOX_TEST_FAILED;
   } else {
     // Only event_create has to be valid.

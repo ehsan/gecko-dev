@@ -41,8 +41,6 @@ interface RequestSyncTask {
 
   Promise<void> setPolicy(RequestSyncTaskPolicyState aState,
                           optional long ovewrittenMinInterval);
-
-  Promise<void> runNow();
 };
 
 [NavigatorProperty="syncManager",

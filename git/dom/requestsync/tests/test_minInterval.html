@@ -19,13 +19,7 @@
       is(e, "ParamsError", "Correct error received");
     })
 
-    .then(function() {
-      if (expected) {
-        navigator.sync.unregister('foobar').then(runTests);
-      } else {
-        runTests();
-      }
-    });
+    .then(runTests);
   }
 
   var tests = [

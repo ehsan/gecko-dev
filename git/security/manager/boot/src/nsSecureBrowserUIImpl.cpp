@@ -63,11 +63,13 @@ RequestMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->r == key;
 }
 
-static void
-RequestMapInitEntry(PLDHashEntryHdr *hdr, const void *key)
+static bool
+RequestMapInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                     const void *key)
 {
   RequestHashEntry *entry = static_cast<RequestHashEntry*>(hdr);
   entry->r = (void*)key;
+  return true;
 }
 
 static const PLDHashTableOps gMapOps = {
@@ -860,8 +862,8 @@ nsSecureBrowserUIImpl::OnStateChange(nsIWebProgress* aWebProgress,
     // means, there has already been data transfered.
 
     ReentrantMonitorAutoEnter lock(mReentrantMonitor);
-    PL_DHashTableAdd(&mTransferringRequests, aRequest, fallible);
-
+    PL_DHashTableAdd(&mTransferringRequests, aRequest);
+    
     return NS_OK;
   }
 

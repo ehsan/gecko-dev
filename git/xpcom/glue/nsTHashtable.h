@@ -149,21 +149,19 @@ public:
    */
   EntryType* PutEntry(KeyType aKey)
   {
-    NS_ASSERTION(mTable.IsInitialized(),
-                 "nsTHashtable was not initialized properly.");
-
-    return static_cast<EntryType*>  // infallible add
-      (PL_DHashTableAdd(&mTable, EntryType::KeyToPointer(aKey)));
+    EntryType* e = PutEntry(aKey, mozilla::fallible);
+    if (!e) {
+      NS_ABORT_OOM(mTable.EntrySize() * mTable.EntryCount());
+    }
+    return e;
   }
 
-  EntryType* PutEntry(KeyType aKey, const fallible_t&) NS_WARN_UNUSED_RESULT
-  {
+  EntryType* PutEntry(KeyType aKey, const fallible_t&) NS_WARN_UNUSED_RESULT {
     NS_ASSERTION(mTable.IsInitialized(),
                  "nsTHashtable was not initialized properly.");
 
-    return static_cast<EntryType*>
-      (PL_DHashTableAdd(&mTable, EntryType::KeyToPointer(aKey),
-                        mozilla::fallible));
+    return static_cast<EntryType*>(PL_DHashTableAdd(
+      &mTable, EntryType::KeyToPointer(aKey)));
   }
 
   /**
@@ -337,7 +335,8 @@ protected:
 
   static void s_ClearEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry);
 
-  static void s_InitEntry(PLDHashEntryHdr* aEntry, const void* aKey);
+  static bool s_InitEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
+                          const void* aKey);
 
   /**
    * passed internally during enumeration.  Allocated on the stack.
@@ -487,11 +486,13 @@ nsTHashtable<EntryType>::s_ClearEntry(PLDHashTable* aTable,
 }
 
 template<class EntryType>
-void
-nsTHashtable<EntryType>::s_InitEntry(PLDHashEntryHdr* aEntry,
+bool
+nsTHashtable<EntryType>::s_InitEntry(PLDHashTable* aTable,
+                                     PLDHashEntryHdr* aEntry,
                                      const void* aKey)
 {
   new (aEntry) EntryType(reinterpret_cast<KeyTypePointer>(aKey));
+  return true;
 }
 
 template<class EntryType>

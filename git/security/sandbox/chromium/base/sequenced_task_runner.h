@@ -139,7 +139,7 @@ class BASE_EXPORT SequencedTaskRunner : public TaskRunner {
   }
 
  protected:
-  ~SequencedTaskRunner() override {}
+  virtual ~SequencedTaskRunner() {}
 
  private:
   template <class T, class R> friend class subtle::DeleteHelperInternal;

@@ -2915,11 +2915,6 @@ ContainerState::ProcessDisplayItems(nsDisplayList* aList)
       ScaleToOutsidePixels(item->GetVisibleRect(), false);
     bool snap;
     nsRect itemContent = item->GetBounds(mBuilder, &snap);
-    if (itemType == nsDisplayItem::TYPE_LAYER_EVENT_REGIONS) {
-      nsDisplayLayerEventRegions* eventRegions =
-        static_cast<nsDisplayLayerEventRegions*>(item);
-      itemContent = eventRegions->GetHitRegionBounds(mBuilder, &snap);
-    }
     nsIntRect itemDrawRect = ScaleToOutsidePixels(itemContent, snap);
     bool prerenderedTransform = itemType == nsDisplayItem::TYPE_TRANSFORM &&
         static_cast<nsDisplayTransform*>(item)->ShouldPrerender(mBuilder);
@@ -2934,15 +2929,7 @@ ContainerState::ProcessDisplayItems(nsDisplayList* aList)
       clipRect.MoveBy(mParameters.mOffset);
     }
 #ifdef DEBUG
-    nsRect bounds = itemContent;
-    bool dummy;
-    if (itemType == nsDisplayItem::TYPE_LAYER_EVENT_REGIONS) {
-      bounds = item->GetBounds(mBuilder, &dummy);
-      if (itemClip.HasClip()) {
-        bounds.IntersectRect(bounds, itemClip.GetClipRect());
-      }
-    }
-    ((nsRect&)mAccumulatedChildBounds).UnionRect(mAccumulatedChildBounds, bounds);
+    ((nsRect&)mAccumulatedChildBounds).UnionRect(mAccumulatedChildBounds, itemContent);
 #endif
     itemVisibleRect.IntersectRect(itemVisibleRect, itemDrawRect);
 

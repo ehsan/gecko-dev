@@ -3814,14 +3814,14 @@ function FillHistoryMenu(aParent) {
     let item = document.createElement("menuitem");
     let entry = sessionHistory.getEntryAtIndex(j, false);
     let uri = entry.URI.spec;
-    let entryURI = BrowserUtils.makeURIFromCPOW(entry.URI);
+    let uriCopy = BrowserUtils.makeURI(uri);
 
     item.setAttribute("uri", uri);
     item.setAttribute("label", entry.title || uri);
     item.setAttribute("index", j);
 
     if (j != index) {
-      PlacesUtils.favicons.getFaviconURLForPage(entryURI, function (aURI) {
+      PlacesUtils.favicons.getFaviconURLForPage(uriCopy, function (aURI) {
         if (aURI) {
           let iconURL = PlacesUtils.favicons.getFaviconLinkForIcon(aURI).spec;
           iconURL = PlacesUtils.getImageURLForResolution(window, iconURL);
@@ -5818,9 +5818,9 @@ function handleLinkClick(event, href, linkNode) {
 
   urlSecurityCheck(href, doc.nodePrincipal);
   let params = { charset: doc.characterSet,
-                 allowMixedContent: persistAllowMixedContentInChildTab,
-                 referrerURI: referrerURI,
-                 noReferrer: BrowserUtils.linkHasNoReferrer(linkNode) };
+                 allowMixedContent: persistAllowMixedContentInChildTab };
+  if (!BrowserUtils.linkHasNoReferrer(linkNode))
+    params.referrerURI = referrerURI;
   openLinkIn(href, where, params);
   event.preventDefault();
   return true;

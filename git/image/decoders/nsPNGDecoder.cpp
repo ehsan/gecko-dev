@@ -169,6 +169,7 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   }
 
   mFrameRect = neededRect;
+  mFrameHasNoAlpha = true;
 
   PR_LOG(GetPNGDecoderAccountingLog(), PR_LOG_DEBUG,
          ("PNGDecoderAccounting: nsPNGDecoder::CreateFrame -- created "
@@ -200,7 +201,7 @@ nsPNGDecoder::EndImageFrame()
   mNumFrames++;
 
   Opacity opacity = Opacity::SOME_TRANSPARENCY;
-  if (format == gfx::SurfaceFormat::B8G8R8X8) {
+  if (format == gfx::SurfaceFormat::B8G8R8X8 || mFrameHasNoAlpha) {
     opacity = Opacity::OPAQUE;
   }
 
@@ -738,6 +739,7 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
 
     uint32_t bpr = width * sizeof(uint32_t);
     uint32_t* cptr32 = (uint32_t*)(decoder->mImageData + (row_num*bpr));
+    bool rowHasNoAlpha = true;
 
     if (decoder->mTransform) {
       if (decoder->mCMSLine) {
@@ -786,12 +788,18 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
         if (!decoder->mDisablePremultipliedAlpha) {
           for (uint32_t x=width; x>0; --x) {
             *cptr32++ = gfxPackedPixel(line[3], line[0], line[1], line[2]);
+            if (line[3] != 0xff) {
+              rowHasNoAlpha = false;
+            }
             line += 4;
           }
         } else {
           for (uint32_t x=width; x>0; --x) {
             *cptr32++ = gfxPackedPixelNoPreMultiply(line[3], line[0], line[1],
                                                     line[2]);
+            if (line[3] != 0xff) {
+              rowHasNoAlpha = false;
+            }
             line += 4;
           }
         }
@@ -799,6 +807,10 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
       break;
       default:
         png_longjmp(decoder->mPNG, 1);
+    }
+
+    if (!rowHasNoAlpha) {
+      decoder->mFrameHasNoAlpha = false;
     }
 
     if (decoder->mNumFrames <= 1) {

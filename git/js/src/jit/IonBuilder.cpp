@@ -7765,6 +7765,7 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
     // describes.
     TemporaryTypeSet *observedTypes = bytecodeTypes(pc);
     const Class *observedClass = observedTypes->getKnownClass(constraints());
+    JSObject *observedProto = observedTypes->getCommonPrototype(constraints());
 
     // If expectedClass/expectedProto are both non-null (and hence known), we
     // can predict precisely what object group derivedTypedObj will have.
@@ -7783,9 +7784,7 @@ IonBuilder::pushDerivedTypedObject(bool *emitted,
     //
     // Barriers are particularly expensive here because they prevent
     // us from optimizing the MNewDerivedTypedObject away.
-    JSObject *observedProto;
-    if (observedTypes->getCommonPrototype(constraints(), &observedProto) &&
-        observedClass && observedProto && observedClass == expectedClass &&
+    if (observedClass && observedProto && observedClass == expectedClass &&
         observedProto == expectedProto)
     {
         derivedTypedObj->setResultTypeSet(observedTypes);
@@ -10076,6 +10075,9 @@ IonBuilder::getPropTryUnboxed(bool *emitted, MDefinition *obj, PropertyName *nam
         current->add(guard);
         obj = guard;
     }
+
+    if (unboxedType != JSVAL_TYPE_OBJECT)
+        barrier = BarrierKind::NoBarrier;
 
     MInstruction *load = loadUnboxedProperty(obj, offset, unboxedType, barrier, types);
     current->push(load);

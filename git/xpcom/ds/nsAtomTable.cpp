@@ -283,10 +283,13 @@ AtomTableClearEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry)
   }
 }
 
-static void
-AtomTableInitEntry(PLDHashEntryHdr* aEntry, const void* aKey)
+static bool
+AtomTableInitEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry,
+                   const void* aKey)
 {
   static_cast<AtomTableEntry*>(aEntry)->mAtom = nullptr;
+
+  return true;
 }
 
 
@@ -553,8 +556,12 @@ GetAtomHashEntry(const char* aString, uint32_t aLength, uint32_t* aHashOut)
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   EnsureTableExists();
   AtomTableKey key(aString, aLength, aHashOut);
-  // This is an infallible add.
-  return static_cast<AtomTableEntry*>(PL_DHashTableAdd(&gAtomTable, &key));
+  AtomTableEntry* e = static_cast<AtomTableEntry*>(
+    PL_DHashTableAdd(&gAtomTable, &key));
+  if (!e) {
+    NS_ABORT_OOM(gAtomTable.EntryCount() * gAtomTable.EntrySize());
+  }
+  return e;
 }
 
 static inline AtomTableEntry*
@@ -563,8 +570,12 @@ GetAtomHashEntry(const char16_t* aString, uint32_t aLength, uint32_t* aHashOut)
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   EnsureTableExists();
   AtomTableKey key(aString, aLength, aHashOut);
-  // This is an infallible add.
-  return static_cast<AtomTableEntry*>(PL_DHashTableAdd(&gAtomTable, &key));
+  AtomTableEntry* e = static_cast<AtomTableEntry*>(
+    PL_DHashTableAdd(&gAtomTable, &key));
+  if (!e) {
+    NS_ABORT_OOM(gAtomTable.EntryCount() * gAtomTable.EntrySize());
+  }
+  return e;
 }
 
 class CheckStaticAtomSizes

@@ -3957,8 +3957,8 @@ SubDocClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   }
 }
 
-static void
-SubDocInitEntry(PLDHashEntryHdr *entry, const void *key)
+static bool
+SubDocInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry, const void *key)
 {
   SubDocMapEntry *e =
     const_cast<SubDocMapEntry *>
@@ -3968,6 +3968,7 @@ SubDocInitEntry(PLDHashEntryHdr *entry, const void *key)
   NS_ADDREF(e->mKey);
 
   e->mSubDocument = nullptr;
+  return true;
 }
 
 nsresult
@@ -4007,8 +4008,9 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     }
 
     // Add a mapping to the hash table
-    SubDocMapEntry *entry = static_cast<SubDocMapEntry*>
-      (PL_DHashTableAdd(mSubDocuments, aElement, fallible));
+    SubDocMapEntry *entry =
+      static_cast<SubDocMapEntry*>
+                 (PL_DHashTableAdd(mSubDocuments, aElement));
 
     if (!entry) {
       return NS_ERROR_OUT_OF_MEMORY;

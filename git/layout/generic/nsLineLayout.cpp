@@ -152,7 +152,7 @@ nsLineLayout::BeginLineReflow(nscoord aICoord, nscoord aBCoord,
                               bool aImpactedByFloats,
                               bool aIsTopOfPage,
                               WritingMode aWritingMode,
-                              const nsSize& aContainerSize)
+                              nscoord aContainerWidth)
 {
   NS_ASSERTION(nullptr == mRootSpan, "bad linelayout user");
   NS_WARN_IF_FALSE(aISize != NS_UNCONSTRAINEDSIZE,
@@ -207,7 +207,7 @@ nsLineLayout::BeginLineReflow(nscoord aICoord, nscoord aBCoord,
   psd->mIStart = aICoord;
   psd->mICoord = aICoord;
   psd->mIEnd = aICoord + aISize;
-  mContainerSize = aContainerSize;
+  mContainerWidth = aContainerWidth;
 
   // If we're in a constrained height frame, then we don't allow a
   // max line box width to take effect.
@@ -241,6 +241,10 @@ nsLineLayout::BeginLineReflow(nscoord aICoord, nscoord aBCoord,
     if (textIndent.HasPercent()) {
       pctBasis =
         nsHTMLReflowState::GetContainingBlockContentWidth(mBlockReflowState);
+
+      if (mGotLineBox) {
+        mLineBox->DisableResizeReflowOptimization();
+      }
     }
     nscoord indent = nsRuleNode::ComputeCoordPercentCalc(textIndent, pctBasis);
 
@@ -317,7 +321,7 @@ nsLineLayout::UpdateBand(WritingMode aWM,
   // need to convert to our writing mode, because we might have a different
   // mode from the caller due to dir: auto
   LogicalRect availSpace = aNewAvailSpace.ConvertTo(lineWM, aWM,
-                                                    ContainerWidth());
+                                                    mContainerWidth);
 #ifdef REALLY_NOISY_REFLOW
   printf("nsLL::UpdateBand %d, %d, %d, %d, (converted to %d, %d, %d, %d); frame=%p\n  will set mImpacted to true\n",
          aNewAvailSpace.x, aNewAvailSpace.y,
@@ -1484,7 +1488,7 @@ nsLineLayout::AddBulletFrame(nsIFrame* aFrame,
   }
 
   // Note: block-coord value will be updated during block-direction alignment
-  pfd->mBounds = LogicalRect(lineWM, aFrame->GetRect(), ContainerWidth());
+  pfd->mBounds = LogicalRect(lineWM, aFrame->GetRect(), mContainerWidth);
   pfd->mOverflowAreas = aMetrics.mOverflowAreas;
 }
 
@@ -1500,7 +1504,7 @@ nsLineLayout::DumpPerSpanData(PerSpanData* psd, int32_t aIndent)
     nsFrame::IndentBy(stdout, aIndent+1);
     nsFrame::ListTag(stdout, pfd->mFrame);
     nsRect rect = pfd->mBounds.GetPhysicalRect(psd->mWritingMode,
-                                               ContainerWidth());
+                                               mContainerWidth);
     printf(" %d,%d,%d,%d\n", rect.x, rect.y, rect.width, rect.height);
     if (pfd->mSpan) {
       DumpPerSpanData(pfd->mSpan, aIndent + 1);
@@ -1589,7 +1593,7 @@ nsLineLayout::VerticalAlignLine()
   for (PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
     if (pfd->mBlockDirAlign == VALIGN_OTHER) {
       pfd->mBounds.BStart(lineWM) += baselineBCoord;
-      pfd->mFrame->SetRect(lineWM, pfd->mBounds, ContainerWidth());
+      pfd->mFrame->SetRect(lineWM, pfd->mBounds, mContainerWidth);
     }
   }
   PlaceTopBottomFrames(psd, -mBStartEdge, lineBSize);
@@ -1600,7 +1604,7 @@ nsLineLayout::VerticalAlignLine()
     mLineBox->SetBounds(lineWM,
                         psd->mIStart, mBStartEdge,
                         psd->mICoord - psd->mIStart, lineBSize,
-                        ContainerWidth());
+                        mContainerWidth);
 
     mLineBox->SetLogicalAscent(baselineBCoord - mBStartEdge);
 #ifdef NOISY_BLOCKDIR_ALIGN
@@ -3033,17 +3037,17 @@ nsLineLayout::TextAlignLine(nsLineBox* aLine,
       (!mPresContext->IsVisualMode() || !lineWM.IsBidiLTR())) {
     nsBidiPresUtils::ReorderFrames(psd->mFirstFrame->mFrame,
                                    aLine->GetChildCount(),
-                                   lineWM, mContainerSize,
+                                   lineWM, mContainerWidth,
                                    psd->mIStart + mTextIndent + dx);
     if (dx) {
-      aLine->IndentBy(dx, ContainerWidth());
+      aLine->IndentBy(dx, mContainerWidth);
     }
   } else if (dx) {
     for (PerFrameData* pfd = psd->mFirstFrame; pfd; pfd = pfd->mNext) {
       pfd->mBounds.IStart(lineWM) += dx;
       pfd->mFrame->SetRect(lineWM, pfd->mBounds, ContainerWidthForSpan(psd));
     }
-    aLine->IndentBy(dx, ContainerWidth());
+    aLine->IndentBy(dx, mContainerWidth);
   }
 }
 
@@ -3057,13 +3061,13 @@ nsLineLayout::ApplyRelativePositioning(PerFrameData* aPFD)
 
   nsIFrame* frame = aPFD->mFrame;
   WritingMode frameWM = frame->GetWritingMode();
-  LogicalPoint origin = frame->GetLogicalPosition(ContainerWidth());
+  LogicalPoint origin = frame->GetLogicalPosition(mContainerWidth);
   // right and bottom are handled by
   // nsHTMLReflowState::ComputeRelativeOffsets
   nsHTMLReflowState::ApplyRelativePositioning(frame, frameWM,
                                               aPFD->mOffsets, &origin,
-                                              ContainerWidth());
-  frame->SetPosition(frameWM, origin, ContainerWidth());
+                                              mContainerWidth);
+  frame->SetPosition(frameWM, origin, mContainerWidth);
 }
 
 // This method do relative positioning for ruby annotations.
@@ -3116,7 +3120,7 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
     // children of the block starts at the upper left corner of the
     // line and is sized to match the size of the line's bounding box
     // (the same size as the values returned from VerticalAlignFrames)
-    overflowAreas.VisualOverflow() = rect.GetPhysicalRect(wm, ContainerWidth());
+    overflowAreas.VisualOverflow() = rect.GetPhysicalRect(wm, mContainerWidth);
     overflowAreas.ScrollableOverflow() = overflowAreas.VisualOverflow();
   }
 

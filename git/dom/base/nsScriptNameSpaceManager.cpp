@@ -99,8 +99,9 @@ GlobalNameHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   memset(&e->mGlobalName, 0, sizeof(nsGlobalNameStruct));
 }
 
-static void
-GlobalNameHashInitEntry(PLDHashEntryHdr *entry, const void *key)
+static bool
+GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
+                        const void *key)
 {
   GlobalNameMapEntry *e = static_cast<GlobalNameMapEntry *>(entry);
   const nsAString *keyStr = static_cast<const nsAString *>(key);
@@ -111,6 +112,7 @@ GlobalNameHashInitEntry(PLDHashEntryHdr *entry, const void *key)
   // This will set e->mGlobalName.mType to
   // nsGlobalNameStruct::eTypeNotInitialized
   memset(&e->mGlobalName, 0, sizeof(nsGlobalNameStruct));
+  return true;
 }
 
 NS_IMPL_ISUPPORTS(
@@ -140,8 +142,9 @@ nsGlobalNameStruct *
 nsScriptNameSpaceManager::AddToHash(PLDHashTable *aTable, const nsAString *aKey,
                                     const char16_t **aClassName)
 {
-  GlobalNameMapEntry *entry = static_cast<GlobalNameMapEntry *>
-    (PL_DHashTableAdd(aTable, aKey, fallible));
+  GlobalNameMapEntry *entry =
+    static_cast<GlobalNameMapEntry *>
+               (PL_DHashTableAdd(aTable, aKey));
 
   if (!entry) {
     return nullptr;

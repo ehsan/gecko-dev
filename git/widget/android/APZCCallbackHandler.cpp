@@ -90,6 +90,7 @@ APZCCallbackHandler::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
         if (utils && APZCCallbackHelper::HasValidPresShellId(utils, aFrameMetrics)) {
             FrameMetrics metrics = aFrameMetrics;
             APZCCallbackHelper::UpdateRootFrame(utils, metrics);
+            APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, metrics);
         }
     } else {
         // aFrameMetrics.mIsRoot is false, so we are trying to update a subframe.
@@ -98,6 +99,7 @@ APZCCallbackHandler::RequestContentRepaint(const FrameMetrics& aFrameMetrics)
         if (content) {
             FrameMetrics newSubFrameMetrics(aFrameMetrics);
             APZCCallbackHelper::UpdateSubFrame(content, newSubFrameMetrics);
+            APZCCallbackHelper::UpdateCallbackTransform(aFrameMetrics, newSubFrameMetrics);
         }
     }
 }

@@ -18,7 +18,7 @@ enum MediaKeyStatus {
   "internal-error"
 };
 
-[Pref="media.eme.apiVisible"]
+[Pref="media.eme.enabled"]
 interface MediaKeyStatusMap {
   [Throws]
   readonly attribute unsigned long size;

@@ -13,7 +13,6 @@
 #include "nsStringStream.h"
 #include "nsStreamUtils.h"
 #include "nsReadableUtils.h"
-#include "nsICloneableInputStream.h"
 #include "nsISeekableStream.h"
 #include "nsISupportsPrimitives.h"
 #include "nsCRT.h"
@@ -35,7 +34,6 @@ class nsStringInputStream MOZ_FINAL
   , public nsISeekableStream
   , public nsISupportsCString
   , public nsIIPCSerializableInputStream
-  , public nsICloneableInputStream
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -45,19 +43,10 @@ public:
   NS_DECL_NSISUPPORTSPRIMITIVE
   NS_DECL_NSISUPPORTSCSTRING
   NS_DECL_NSIIPCSERIALIZABLEINPUTSTREAM
-  NS_DECL_NSICLONEABLEINPUTSTREAM
 
   nsStringInputStream()
   {
     Clear();
-  }
-
-  explicit nsStringInputStream(const nsStringInputStream& aOther)
-    : mOffset(aOther.mOffset)
-  {
-    // Use Assign() here because we don't want the life of the clone to be
-    // dependent on the life of the original stream.
-    mData.Assign(aOther.mData);
   }
 
 private:
@@ -101,14 +90,12 @@ NS_IMPL_QUERY_INTERFACE_CI(nsStringInputStream,
                            nsIInputStream,
                            nsISupportsCString,
                            nsISeekableStream,
-                           nsIIPCSerializableInputStream,
-                           nsICloneableInputStream)
+                           nsIIPCSerializableInputStream)
 NS_IMPL_CI_INTERFACE_GETTER(nsStringInputStream,
                             nsIStringInputStream,
                             nsIInputStream,
                             nsISupportsCString,
-                            nsISeekableStream,
-                            nsICloneableInputStream)
+                            nsISeekableStream)
 
 /////////
 // nsISupportsCString implementation
@@ -321,10 +308,6 @@ nsStringInputStream::SetEOF()
   return NS_OK;
 }
 
-/////////
-// nsIIPCSerializableInputStream implementation
-/////////
-
 void
 nsStringInputStream::Serialize(InputStreamParams& aParams,
                                FileDescriptorArray& /* aFDs */)
@@ -352,25 +335,6 @@ nsStringInputStream::Deserialize(const InputStreamParams& aParams,
   }
 
   return true;
-}
-
-/////////
-// nsICloneableInputStream implementation
-/////////
-
-NS_IMETHODIMP
-nsStringInputStream::GetCloneable(bool* aCloneableOut)
-{
-  *aCloneableOut = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsStringInputStream::Clone(nsIInputStream** aCloneOut)
-{
-  nsRefPtr<nsIInputStream> ref = new nsStringInputStream(*this);
-  ref.forget(aCloneOut);
-  return NS_OK;
 }
 
 nsresult

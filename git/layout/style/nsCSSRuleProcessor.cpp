@@ -244,11 +244,13 @@ RuleHash_CSMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return match_atom == entry_atom;
 }
 
-static void
-RuleHash_InitEntry(PLDHashEntryHdr *hdr, const void *key)
+static bool
+RuleHash_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                   const void *key)
 {
   RuleHashTableEntry* entry = static_cast<RuleHashTableEntry*>(hdr);
   new (entry) RuleHashTableEntry();
+  return true;
 }
 
 static void
@@ -282,12 +284,14 @@ RuleHash_TagTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return match_atom == entry_atom;
 }
 
-static void
-RuleHash_TagTable_InitEntry(PLDHashEntryHdr *hdr, const void *key)
+static bool
+RuleHash_TagTable_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                            const void *key)
 {
   RuleHashTagTableEntry* entry = static_cast<RuleHashTagTableEntry*>(hdr);
   new (entry) RuleHashTagTableEntry();
   entry->mTag = const_cast<nsIAtom*>(static_cast<const nsIAtom*>(key));
+  return true;
 }
 
 static void
@@ -569,7 +573,7 @@ void RuleHash::AppendRuleToTable(PLDHashTable* aTable, const void* aKey,
 {
   // Get a new or existing entry.
   RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-    (PL_DHashTableAdd(aTable, aKey, fallible));
+                                         (PL_DHashTableAdd(aTable, aKey));
   if (!entry)
     return;
   entry->mRules.AppendElement(RuleValue(aRuleInfo, mRuleCount++, mQuirksMode));
@@ -581,7 +585,7 @@ AppendRuleToTagTable(PLDHashTable* aTable, nsIAtom* aKey,
 {
   // Get a new or exisiting entry
   RuleHashTagTableEntry *entry = static_cast<RuleHashTagTableEntry*>
-    (PL_DHashTableAdd(aTable, aKey, fallible));
+    (PL_DHashTableAdd(aTable, aKey));
   if (!entry)
     return;
 
@@ -832,12 +836,14 @@ AtomSelector_ClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
   (static_cast<AtomSelectorEntry*>(hdr))->~AtomSelectorEntry();
 }
 
-static void
-AtomSelector_InitEntry(PLDHashEntryHdr *hdr, const void *key)
+static bool
+AtomSelector_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                       const void *key)
 {
   AtomSelectorEntry *entry = static_cast<AtomSelectorEntry*>(hdr);
   new (entry) AtomSelectorEntry();
   entry->mAtom = const_cast<nsIAtom*>(static_cast<const nsIAtom*>(key));
+  return true;
 }
 
 static void
@@ -1035,7 +1041,7 @@ RuleCascadeData::AttributeListFor(nsIAtom* aAttribute)
 {
   AtomSelectorEntry *entry =
     static_cast<AtomSelectorEntry*>
-               (PL_DHashTableAdd(&mAttributeSelectors, aAttribute, fallible));
+               (PL_DHashTableAdd(&mAttributeSelectors, aAttribute));
   if (!entry)
     return nullptr;
   return &entry->mSelectors;
@@ -3128,8 +3134,9 @@ AddSelector(RuleCascadeData* aCascade,
     if (negation == aSelectorInTopLevel) {
       for (nsAtomList* curID = negation->mIDList; curID;
            curID = curID->mNext) {
-        AtomSelectorEntry *entry = static_cast<AtomSelectorEntry*>
-          (PL_DHashTableAdd(&aCascade->mIdSelectors, curID->mAtom, fallible));
+        AtomSelectorEntry *entry =
+          static_cast<AtomSelectorEntry*>(PL_DHashTableAdd(&aCascade->mIdSelectors,
+                                                           curID->mAtom));
         if (entry) {
           entry->mSelectors.AppendElement(aSelectorInTopLevel);
         }
@@ -3142,9 +3149,9 @@ AddSelector(RuleCascadeData* aCascade,
     if (negation == aSelectorInTopLevel) {
       for (nsAtomList* curClass = negation->mClassList; curClass;
            curClass = curClass->mNext) {
-        AtomSelectorEntry *entry = static_cast<AtomSelectorEntry*>
-          (PL_DHashTableAdd(&aCascade->mClassSelectors, curClass->mAtom,
-                            fallible));
+        AtomSelectorEntry *entry =
+          static_cast<AtomSelectorEntry*>(PL_DHashTableAdd(&aCascade->mClassSelectors,
+                                                           curClass->mAtom));
         if (entry) {
           entry->mSelectors.AppendElement(aSelectorInTopLevel);
         }
@@ -3313,11 +3320,13 @@ MatchWeightEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->data.mWeight == NS_PTR_TO_INT32(key);
 }
 
-static void
-InitWeightEntry(PLDHashEntryHdr *hdr, const void *key)
+static bool
+InitWeightEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                const void *key)
 {
   RuleByWeightEntry* entry = static_cast<RuleByWeightEntry*>(hdr);
   new (entry) RuleByWeightEntry();
+  return true;
 }
 
 static const PLDHashTableOps gRulesByWeightOps = {
@@ -3401,8 +3410,7 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
          sel; sel = sel->mNext) {
       int32_t weight = sel->mWeight;
       RuleByWeightEntry *entry = static_cast<RuleByWeightEntry*>(
-        PL_DHashTableAdd(&data->mRulesByWeight, NS_INT32_TO_PTR(weight),
-                         fallible));
+        PL_DHashTableAdd(&data->mRulesByWeight, NS_INT32_TO_PTR(weight)));
       if (!entry)
         return false;
       entry->data.mWeight = weight;

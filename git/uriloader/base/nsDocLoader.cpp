@@ -64,12 +64,14 @@ void GetURIStringFromRequest(nsIRequest* request, nsACString &name)
 
 
 
-void
-nsDocLoader::RequestInfoHashInitEntry(PLDHashEntryHdr* entry,
+bool
+nsDocLoader::RequestInfoHashInitEntry(PLDHashTable* table,
+                                      PLDHashEntryHdr* entry,
                                       const void* key)
 {
   // Initialize the entry with placement new
   new (entry) nsRequestInfo(key);
+  return true;
 }
 
 void
@@ -1338,7 +1340,7 @@ nsDocLoader::RefreshAttempted(nsIWebProgress* aWebProgress,
 
 nsresult nsDocLoader::AddRequestInfo(nsIRequest *aRequest)
 {
-  if (!PL_DHashTableAdd(&mRequestInfoHash, aRequest, mozilla::fallible)) {
+  if (!PL_DHashTableAdd(&mRequestInfoHash, aRequest)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
