@@ -107,7 +107,7 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
     return;
 
   nsIPresShell *presShell = nsnull;
-  presShell = document->GetShell();
+  presShell = document->GetPrimaryShell();
   if (!presShell)
     return;
 
@@ -219,7 +219,7 @@ nsCoreUtils::GetAccessKeyFor(nsIContent *aContent)
   if (!doc)
     return 0;
 
-  nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
+  nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
   if (!presShell)
     return 0;
 

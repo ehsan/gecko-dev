@@ -103,7 +103,7 @@ public:
   virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);

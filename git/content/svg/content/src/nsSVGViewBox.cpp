@@ -282,7 +282,7 @@ nsSVGViewBox::SMILViewBox
             ::ValueFromString(const nsAString& aStr,
                               const nsISMILAnimationElement* /*aSrcElement*/,
                               nsSMILValue& aValue,
-                              PRBool& aPreventCachingOfSandwich) const
+                              PRBool& aCanCache) const
 {
   nsSVGViewBoxRect viewBox;
   nsresult res = ToSVGViewBoxRect(aStr, &viewBox);
@@ -292,7 +292,7 @@ nsSVGViewBox::SMILViewBox
   nsSMILValue val(&SVGViewBoxSMILType::sSingleton);
   *static_cast<nsSVGViewBoxRect*>(val.mU.mPtr) = viewBox;
   aValue.Swap(val);
-  aPreventCachingOfSandwich = PR_FALSE;
+  aCanCache = PR_TRUE;
   
   return NS_OK;
 }

@@ -312,10 +312,10 @@ nsHTMLCanvasFrame::GetContinuationOffset(nscoord* aWidth) const
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsHTMLCanvasFrame::CreateAccessible()
+NS_IMETHODIMP
+nsHTMLCanvasFrame::GetAccessible(nsIAccessible** aAccessible)
 {
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 

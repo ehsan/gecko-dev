@@ -149,9 +149,6 @@ D_DEBUG_DOMAIN( ns_Window, "nsWindow", "nsWindow" );
 #define GDK_WINDOW_XWINDOW(_win) _win
 #endif
 
-using mozilla::gl::GLContext;
-using mozilla::layers::LayerManagerOGL;
-
 // Don't put more than this many rects in the dirty region, just fluff
 // out to the bounding-box if there are more
 #define MAX_RECTS_IN_REGION 100
@@ -721,19 +718,12 @@ nsWindow::Destroy(void)
     if (mIsDestroyed || !mCreated)
         return NS_OK;
 
+    /** Need to clean our LayerManager up while still alive */
+    mLayerManager = NULL;
+
     LOG(("nsWindow::Destroy [%p]\n", (void *)this));
     mIsDestroyed = PR_TRUE;
     mCreated = PR_FALSE;
-
-    nsRefPtr<GLContext> gl;
-    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL)
-    {
-        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
-        gl = manager->gl();
-    }
-
-    /** Need to clean our LayerManager up while still alive */
-    mLayerManager = NULL;
 
     if (gUseBufferPixmap &&
         gBufferPixmapUsageCount &&
@@ -822,9 +812,6 @@ nsWindow::Destroy(void)
 
         gdk_window_set_user_data(mGdkWindow, NULL);
         g_object_set_data(G_OBJECT(mGdkWindow), "nsWindow", NULL);
-        if (gl) {
-            gl->WindowDestroyed();
-        }
         gdk_window_destroy(mGdkWindow);
         mGdkWindow = nsnull;
     }
@@ -2375,7 +2362,7 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
 
     if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL)
     {
-        LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(GetLayerManager());
+        mozilla::layers::LayerManagerOGL *manager = static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager());
         manager->SetClippingRegion(event.region);
 
         nsEventStatus status;

@@ -1124,8 +1124,7 @@ nsXULTreeItemAccessibleBase::IsExpandable()
       nsCOMPtr<nsITreeColumn> primaryColumn;
       if (columns) {
         columns->GetPrimaryColumn(getter_AddRefs(primaryColumn));
-        if (primaryColumn &&
-            !nsCoreUtils::IsColumnHidden(primaryColumn))
+        if (!nsCoreUtils::IsColumnHidden(primaryColumn))
           return PR_TRUE;
       }
     }

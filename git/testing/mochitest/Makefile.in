@@ -66,7 +66,6 @@ _SERV_FILES = 	\
 		$(topsrcdir)/build/mobile/devicemanager.py \
 		$(topsrcdir)/build/automationutils.py \
 		$(topsrcdir)/build/poster.zip \
-		$(topsrcdir)/build/mobile/remoteautomation.py \
 		gen_template.pl \
 		server.js \
 		harness-a11y.xul \
@@ -74,8 +73,6 @@ _SERV_FILES = 	\
 		harness.xul \
 		browser-test-overlay.xul \
 		browser-test.js \
-		ipc-overlay.xul \
-		ipc.js \
 		browser-harness.xul \
 		redirect-a11y.html \
 		redirect.html \
@@ -125,14 +122,13 @@ GARBAGE += runtests.py
 libs:: $(_SERV_FILES)
 	$(INSTALL) $^ $(_DEST_DIR)
 
-# Binaries and scripts that don't get packaged with the build,
+# Binaries that don't get packaged with the build,
 # but that we need for the test harness
 TEST_HARNESS_BINS := \
   xpcshell$(BIN_SUFFIX) \
   ssltunnel$(BIN_SUFFIX) \
   certutil$(BIN_SUFFIX) \
   pk12util$(BIN_SUFFIX) \
-  fix_stack_using_bpsyms.py \
   $(NULL)
 
 ifeq ($(OS_ARCH),WINNT)

@@ -1912,7 +1912,7 @@ PresShell::Destroy()
   // hierarchy is torn down to avoid finding deleted frames through
   // this presshell while the frames are being torn down
   if (mDocument) {
-    NS_ASSERTION(mDocument->GetShell() == this, "Wrong shell?");
+    NS_ASSERTION(mDocument->GetPrimaryShell() == this, "Wrong shell?");
     mDocument->DeleteShell();
   }
 
@@ -3723,13 +3723,20 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
     return NS_OK;
   }
 
+  nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(mDocument);
   nsCOMPtr<nsIDOMHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
   nsresult rv = NS_OK;
   nsCOMPtr<nsIContent> content;
 
   // Search for an element with a matching "id" attribute
-  if (mDocument) {    
-    content = mDocument->GetElementById(aAnchorName);
+  if (doc) {    
+    nsCOMPtr<nsIDOMElement> element;
+    rv = doc->GetElementById(aAnchorName, getter_AddRefs(element));
+    if (NS_SUCCEEDED(rv) && element) {
+      // Get the nsIContent interface, because that's what we need to
+      // get the primary frame
+      content = do_QueryInterface(element);
+    }
   }
 
   // Search for an anchor element with a matching "name" attribute
@@ -3761,7 +3768,6 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
   // Search for anchor in the HTML namespace with a matching name
   if (!content && !htmlDoc)
   {
-    nsCOMPtr<nsIDOMDocument> doc = do_QueryInterface(mDocument);
     nsCOMPtr<nsIDOMNodeList> list;
     NS_NAMED_LITERAL_STRING(nameSpace, "http://www.w3.org/1999/xhtml");
     // Get the list of anchor elements
@@ -5824,7 +5830,9 @@ static void DrawThebesLayer(ThebesLayer* aLayer,
   PaintParams* params = static_cast<PaintParams*>(aCallbackData);
   nsIFrame* frame = params->mFrame;
   if (frame) {
-    // We're drawing into a child window.
+    // We're drawing into a child window. Don't pass
+    // nsLayoutUtils::PAINT_WIDGET_LAYERS, since that will draw into
+    // the widget for the display root.
     nsIDeviceContext* devCtx = frame->PresContext()->DeviceContext();
     nsCOMPtr<nsIRenderingContext> rc;
     nsresult rv = devCtx->CreateRenderingContextInstance(*getter_AddRefs(rc));
@@ -5835,8 +5843,7 @@ static void DrawThebesLayer(ThebesLayer* aLayer,
       nsIRenderingContext::AutoPushTranslation
         push(rc, -params->mOffsetToWidget.x, -params->mOffsetToWidget.y);
       nsLayoutUtils::PaintFrame(rc, frame, dirtyRegion,
-                                params->mBackgroundColor,
-                                nsLayoutUtils::PAINT_WIDGET_LAYERS);
+                                params->mBackgroundColor);
     }
   } else {
     aContext->NewPath();
@@ -6136,7 +6143,7 @@ PresShell::HandleEvent(nsIView         *aView,
     }
 
     if (retargetEventDoc) {
-      nsIPresShell* presShell = retargetEventDoc->GetShell();
+      nsIPresShell* presShell = retargetEventDoc->GetPrimaryShell();
       if (!presShell)
         return NS_OK;
 
@@ -6566,7 +6573,10 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
         return NS_OK;
       }
 
-      accEvent->mAccessible = accService->GetAccessibleInShell(mDocument, this);
+      nsCOMPtr<nsIDOMNode> domNode(do_QueryInterface(mDocument));
+      NS_ASSERTION(domNode, "No dom node for doc");
+
+      accEvent->mAccessible = accService->GetAccessibleInShell(domNode, this);
 
       // Ensure this is set in case a11y was activated before any
       // nsPresShells existed to observe "a11y-init-or-shutdown" topic
@@ -6994,12 +7004,11 @@ PresShell::GetCurrentItemAndPositionForElement(nsIDOMElement *aCurrentEl,
     // don't check menulists as the selected item will be inside a popup.
     nsCOMPtr<nsIDOMXULMenuListElement> menulist = do_QueryInterface(aCurrentEl);
     if (!menulist) {
+      checkLineHeight = PR_FALSE;
       nsCOMPtr<nsIDOMXULSelectControlElement> select =
         do_QueryInterface(aCurrentEl);
-      if (select) {
-        checkLineHeight = PR_FALSE;
+      if (select)
         select->GetSelectedItem(getter_AddRefs(item));
-      }
     }
   }
 
@@ -7131,7 +7140,7 @@ FreezeElement(nsIContent *aContent, void * /* unused */)
 static PRBool
 FreezeSubDocument(nsIDocument *aDocument, void *aData)
 {
-  nsIPresShell *shell = aDocument->GetShell();
+  nsIPresShell *shell = aDocument->GetPrimaryShell();
   if (shell)
     shell->Freeze();
 
@@ -7196,7 +7205,7 @@ ThawElement(nsIContent *aContent, void *aShell)
 static PRBool
 ThawSubDocument(nsIDocument *aDocument, void *aData)
 {
-  nsIPresShell *shell = aDocument->GetShell();
+  nsIPresShell *shell = aDocument->GetPrimaryShell();
   if (shell)
     shell->Thaw();
 

@@ -822,8 +822,10 @@ nsIContent* nsHTMLSelectOptionAccessible::GetSelectState(PRUint32* aState,
     content = content->GetParent();
   }
 
-  if (content) {
-    nsAccessible* selAcc = GetAccService()->GetAccessible(content);
+  nsCOMPtr<nsIDOMNode> selectNode(do_QueryInterface(content));
+  if (selectNode) {
+    nsCOMPtr<nsIAccessible> selAcc;
+    GetAccService()->GetAccessibleFor(selectNode, getter_AddRefs(selAcc));
     if (selAcc) {
       selAcc->GetState(aState, aExtraState);
       return content;

@@ -79,9 +79,9 @@ function test() {
 }
 
 function end_test() {
-  close_manager(gManagerWindow, function() {
-    finish();
-  });
+  gManagerWindow.close();
+
+  finish();
 }
 
 function test_confirmation(aWindow, aExpectedURLs) {
@@ -111,8 +111,7 @@ add_test(function() {
     test_confirmation(aWindow, [url]);
   }, run_next_test);
 
-  var viewContainer = gManagerWindow.document.getElementById("view-container");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = EventUtils.synthesizeDrop(gManagerWindow.document.getElementById("view-container"),
                [[{type: "text/x-moz-url", data: url}]],
                "copy", gManagerWindow);
   is(effect, "copy", "Drag should be accepted");
@@ -126,8 +125,7 @@ add_test(function() {
     test_confirmation(aWindow, [fileurl.spec]);
   }, run_next_test);
 
-  var viewContainer = gManagerWindow.document.getElementById("view-container");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = EventUtils.synthesizeDrop(gManagerWindow.document.getElementById("view-container"),
                [[{type: "application/x-moz-file", data: fileurl.file}]],
                "copy", gManagerWindow);
   is(effect, "copy", "Drag should be accepted");
@@ -142,8 +140,7 @@ add_test(function() {
     test_confirmation(aWindow, [url1, url2]);
   }, run_next_test);
 
-  var viewContainer = gManagerWindow.document.getElementById("view-container");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = EventUtils.synthesizeDrop(gManagerWindow.document.getElementById("view-container"),
                [[{type: "text/x-moz-url", data: url1}],
                 [{type: "text/x-moz-url", data: url2}]],
                "copy", gManagerWindow);
@@ -159,8 +156,7 @@ add_test(function() {
     test_confirmation(aWindow, [fileurl1.spec, fileurl2.spec]);
   }, run_next_test);
 
-  var viewContainer = gManagerWindow.document.getElementById("view-container");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = EventUtils.synthesizeDrop(gManagerWindow.document.getElementById("view-container"),
                [[{type: "application/x-moz-file", data: fileurl1.file}],
                 [{type: "application/x-moz-file", data: fileurl2.file}]],
                "copy", gManagerWindow);
@@ -176,8 +172,7 @@ add_test(function() {
     test_confirmation(aWindow, [url, fileurl.spec]);
   }, run_next_test);
 
-  var viewContainer = gManagerWindow.document.getElementById("view-container");
-  var effect = EventUtils.synthesizeDrop(viewContainer, viewContainer,
+  var effect = EventUtils.synthesizeDrop(gManagerWindow.document.getElementById("view-container"),
                [[{type: "text/x-moz-url", data: url}],
                 [{type: "application/x-moz-file", data: fileurl.file}]],
                "copy", gManagerWindow);

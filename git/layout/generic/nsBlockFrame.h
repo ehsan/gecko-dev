@@ -202,7 +202,7 @@ public:
 #endif
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<nsAccessible> CreateAccessible();
+  NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
   // line cursor methods to speed up searching for the line(s)

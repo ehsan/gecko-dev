@@ -408,7 +408,7 @@ nsComputedDOMStyle::GetPresShellForContent(nsIContent* aContent)
   if (!currentDoc)
     return nsnull;
 
-  return currentDoc->GetShell();
+  return currentDoc->GetPrimaryShell();
 }
 
 NS_IMETHODIMP
@@ -455,7 +455,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
   mFlushedPendingReflows = propEntry->mNeedsLayoutFlush;
 #endif
 
-  mPresShell = document->GetShell();
+  mPresShell = document->GetPrimaryShell();
   NS_ENSURE_TRUE(mPresShell && mPresShell->GetPresContext(),
                  NS_ERROR_NOT_AVAILABLE);
 
@@ -1179,7 +1179,7 @@ nsComputedDOMStyle::GetFontFamily(nsIDOMCSSValue** aValue)
 
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocumentWeak);
   NS_ASSERTION(doc, "document is required");
-  nsIPresShell* presShell = doc->GetShell();
+  nsIPresShell* presShell = doc->GetPrimaryShell();
   NS_ASSERTION(presShell, "pres shell is required");
   nsPresContext *presContext = presShell->GetPresContext();
   NS_ASSERTION(presContext, "pres context is required");

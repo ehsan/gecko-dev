@@ -176,7 +176,7 @@ parent:
     returns (NPError result);
 
 parent:
-  rpc PluginFocusChange(bool gotFocus);
+  rpc PluginGotFocus();
 
 child:
   rpc SetPluginFocus();

@@ -458,21 +458,6 @@ members = [
     '-nsICanvasRenderingContextWebGL.getUniform',
     '-nsICanvasRenderingContextWebGL.getVertexAttrib',
     '-nsICanvasRenderingContextWebGL.getShaderParameter',
-
-    # dom/indexedDB
-    'nsIIDBCursor.*',
-    'nsIIDBDatabase.*',
-    'nsIIDBDatabaseException.*',
-    'nsIIDBEvent.*',
-    'nsIIDBErrorEvent.*',
-    'nsIIDBIndex.*',
-    'nsIIDBKeyRange.*',
-    'nsIIDBObjectStore.*',
-    'nsIIDBRequest.*',
-    'nsIIDBSuccessEvent.*',
-    'nsIIDBTransaction.*',
-    'nsIIDBTransactionEvent.*',
-    'nsIIDBFactory.*',
     ]
 
 # Most interfaces can be found by searching the includePath; to find

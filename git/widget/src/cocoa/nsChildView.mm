@@ -41,11 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
-#endif
-#include "prlog.h"
-
 #include <unistd.h>
  
 #include "nsChildView.h"
@@ -101,6 +96,11 @@ using namespace mozilla::layers;
 // Don't put more than this many rects in the dirty region, just fluff
 // out to the bounding-box if there are more
 #define MAX_RECTS_IN_REGION 100
+
+#ifdef MOZ_LOGGING
+#define FORCE_PR_LOG
+#endif
+#include "prlog.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* sCocoaLog = nsnull;

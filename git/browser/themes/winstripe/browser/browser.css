@@ -112,10 +112,6 @@ statusbarpanel#statusbar-display {
 }
 %endif
 
-#appmenu-button-container {
-  -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
-}
-
 #appmenu-button {
   -moz-appearance: none;
   background-color: rgb(228,120,14);
@@ -124,15 +120,12 @@ statusbarpanel#statusbar-display {
                                          rgba(255,255,255,0) 50%);
   background-clip: padding-box;
   border: 1px solid rgba(0,0,0,.5);
-  border-top-style: none;
-  -moz-border-radius-bottomleft: 4px;
-  -moz-border-radius-bottomright: 4px;
+  -moz-border-radius: 4px;
   -moz-box-shadow: 0 0 5px rgba(255,255,255,.5) inset;
   color: white;
   text-shadow: 0 0 2px #333;
   font-weight: bold;
-  padding: .1em 1.5em;
-  margin: 0;
+  padding: .2em 2em;
 }
 
 #appmenu-button:hover:not(:active):not([open]) {
@@ -162,31 +155,6 @@ statusbarpanel#statusbar-display {
 #appmenu-button > menupopup > menuitem {
   -moz-padding-end: 16px;
 }
-
-.split-menuitem-item[_moz-menuactive="true"],
-.split-menuitem-menu[_moz-menuactive="true"] {
-  background-color: -moz-menuhover;
-  color: -moz-menuhovertext;
-}
-
-/* XXX: stop-gap until the button can be drawn in the title bar */
-%ifdef WINSTRIPE_AERO
-@media not all and (-moz-windows-compositor) {
-%endif
-  #main-window[tabsontop="true"] > #appmenu-button-container > #appmenu-button {
-    position: relative !important;
-    margin-bottom: -1.6em !important;
-  }
-  #navigator-toolbox[tabsontop="true"] > #toolbar-menubar[autohide="true"] {
-    position: relative !important;
-    background-color: -moz-dialog !important;
-  }
-  #navigator-toolbox[tabsontop="true"] > #toolbar-menubar[autohide="true"] ~ #TabsToolbar {
-    -moz-padding-start: 10em !important;
-  }
-%ifdef WINSTRIPE_AERO
-}
-%endif
 
 /* ::::: bookmark buttons ::::: */
 
@@ -376,7 +344,7 @@ toolbar[iconsize="small"][mode="icons"] toolbarbutton[type="menu-button"] {
 
 .toolbarbutton-menubutton-button:not([disabled="true"]):not(:active):hover,
 toolbarbutton[type="menu-button"]:not([open="true"]):not(:active):hover > .toolbarbutton-menubutton-dropmarker:not([disabled="true"]),
-.toolbarbutton-1:not([disabled="true"]):not([checked="true"]):not([open="true"]):not(:active):hover {
+.toolbarbutton-1:not([disabled="true"]):not([checked="true"]):not(:active):hover {
   background-color: hsla(190,60%,70%,.5);
   border-color: hsla(190,50%,65%,.8) hsla(190,50%,50%,.8) hsla(190,50%,40%,.8);
   -moz-box-shadow: 0 0 0 1px rgba(255,255,255,.3) inset,
@@ -600,19 +568,10 @@ toolbar:not([iconsize="small"])[mode="icons"] #forward-button:not([disabled="tru
   -moz-image-region: rect(0, 126px, 18px, 108px);
 }
 
-/* bookmark sidebar & menu buttons */
+/* bookmark sidebar button */
 
-#bookmarks-button,
-#bookmarks-menu-button {
+#bookmarks-button {
   -moz-image-region: rect(0, 144px, 18px, 126px);
-}
-
-#bookmarks-menu-button.bookmark-item {
-  list-style-image: url("chrome://browser/skin/Toolbar.png");
-}
-
-#bookmarks-menu-button.toolbarbutton-1 {
-  -moz-box-orient: horizontal;
 }
 
 /* print button */
@@ -1204,14 +1163,11 @@ richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-i
 }
 
 .tab-icon-image {
+  -moz-margin-end: 3px;
   width: 16px;
   height: 16px;
   list-style-image: url("chrome://global/skin/icons/folder-item.png");
   -moz-image-region: rect(0px, 16px, 16px, 0px);
-}
-
-.tabbrowser-tab:not([pinned]) > .tab-icon-image {
-  -moz-margin-end: 3px;
 }
 
 /* tabbrowser-tab focus ring */
@@ -1627,15 +1583,9 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   -moz-image-region: rect(0, 108px, 18px, 90px);
 }
 
-/* Bookmarks roots menu-items */
-#bookmarksToolbarFolderMenu,
-#BMB_bookmarksToolbarFolderMenu {
+/* Bookmarks Toolbar menu-item */
+#bookmarksToolbarFolderMenu {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
-  -moz-image-region: auto;
-}
-
-#BMB_unsortedBookmarksFolderMenu {
-  list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
   -moz-image-region: auto;
 }
 

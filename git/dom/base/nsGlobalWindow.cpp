@@ -86,7 +86,8 @@
 #include "nsCanvasFrame.h"
 #include "nsIWidget.h"
 #include "nsIBaseWindow.h"
-#include "nsAccelerometer.h"
+#include "nsIAccelerometer.h"
+#include "nsWidgetsCID.h"
 #include "nsIContent.h"
 #include "nsIContentViewerEdit.h"
 #include "nsIDocShell.h"
@@ -214,8 +215,6 @@
 #define FORCE_PR_LOG 1
 #endif
 #include "prlog.h"
-
-#include "mozilla/dom/indexedDB/IDBFactory.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDOMLeakPRLog;
@@ -933,7 +932,6 @@ nsGlobalWindow::CleanUp(PRBool aIgnoreModalDialog)
   mLocation = nsnull;
   mFrames = nsnull;
   mApplicationCache = nsnull;
-  mIndexedDB = nsnull;
 
   ClearControllers();
 
@@ -1102,8 +1100,6 @@ nsGlobalWindow::FreeInnerObjects(PRBool aClearScope)
     static_cast<nsDOMOfflineResourceList*>(mApplicationCache.get())->Disconnect();
     mApplicationCache = nsnull;
   }
-
-  mIndexedDB = nsnull;
 
   if (aClearScope) {
     // NB: This might not clear our scope, but fire an event to do so
@@ -5519,7 +5515,7 @@ PostMessageEvent::Run()
   // happen because then untrusted content can call postMessage on a chrome
   // window if it can get a reference to it.
 
-  nsIPresShell *shell = targetWindow->mDoc->GetShell();
+  nsIPresShell *shell = targetWindow->mDoc->GetPrimaryShell();
   nsRefPtr<nsPresContext> presContext;
   if (shell)
     presContext = shell->GetPresContext();
@@ -6703,7 +6699,7 @@ nsGlobalWindow::DispatchEvent(nsIDOMEvent* aEvent, PRBool* _retval)
   }
 
   // Obtain a presentation shell
-  nsIPresShell *shell = mDoc->GetShell();
+  nsIPresShell *shell = mDoc->GetPrimaryShell();
   nsRefPtr<nsPresContext> presContext;
   if (shell) {
     // Retrieve the context
@@ -7299,7 +7295,7 @@ nsGlobalWindow::DispatchSyncPopState()
   }
 
   // Obtain a presentation shell for use in creating a popstate event.
-  nsIPresShell *shell = mDoc->GetShell();
+  nsIPresShell *shell = mDoc->GetPrimaryShell();
   nsRefPtr<nsPresContext> presContext;
   if (shell) {
     presContext = shell->GetPresContext();
@@ -7592,19 +7588,6 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
   }
 
   NS_ADDREF(*aLocalStorage = mLocalStorage);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::GetMoz_indexedDB(nsIIDBFactory** _retval)
-{
-  if (!mIndexedDB) {
-    mIndexedDB = mozilla::dom::indexedDB::IDBFactory::Create();
-    NS_ENSURE_TRUE(mIndexedDB, NS_ERROR_FAILURE);
-  }
-
-  nsCOMPtr<nsIIDBFactory> request(mIndexedDB);
-  request.forget(_retval);
   return NS_OK;
 }
 

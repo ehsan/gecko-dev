@@ -62,7 +62,7 @@ nsresult
 nsSMILMappedAttribute::ValueFromString(const nsAString& aStr,
                                        const nsISMILAnimationElement* aSrcElement,
                                        nsSMILValue& aValue,
-                                       PRBool& aPreventCachingOfSandwich) const
+                                       PRBool& aCanCache) const
 {
   NS_ENSURE_TRUE(IsPropertyAnimatable(mPropID), NS_ERROR_FAILURE);
 
@@ -73,7 +73,7 @@ nsSMILMappedAttribute::ValueFromString(const nsAString& aStr,
 
   // XXXdholbert: For simplicity, just assume that all CSS values have to
   // reparsed every sample. See note in nsSMILCSSProperty::ValueFromString.
-  aPreventCachingOfSandwich = PR_TRUE;
+  aCanCache = PR_FALSE;
   return NS_OK;
 }
 
@@ -157,7 +157,7 @@ nsSMILMappedAttribute::FlushChangesToTargetAttr() const
 
   // Request animation restyle
   if (doc) {
-    nsIPresShell* shell = doc->GetShell();
+    nsIPresShell* shell = doc->GetPrimaryShell();
     if (shell) {
       shell->RestyleForAnimation(mElement);
     }

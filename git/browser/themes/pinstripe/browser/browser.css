@@ -286,13 +286,8 @@ toolbarbutton.bookmark-item > menupopup {
   height: 16px;
 }
 
-#bookmarksToolbarFolderMenu,
-#BMB_bookmarksToolbarFolderMenu {
-  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
-}
-
-#BMB_unsortedBookmarksFolderMenu {
-  list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
+#bookmarksToolbarFolderMenu {
+  list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");  
 }
 
 /* ----- PRIMARY TOOLBAR BUTTONS ----- */	
@@ -328,8 +323,14 @@ toolbar[mode="icons"] toolbarbutton[type="menu-button"] > .toolbarbutton-menubut
 #restore-button > .toolbarbutton-icon,
 toolbarbutton[type="menu-button"] > .toolbarbutton-menubutton-button > .toolbarbutton-icon {
   padding: 0;
-  height: 20px;
-  width: 20px;
+  max-height: 20px;
+}
+
+/* Only set the max-width in icon-only mode because it affects the label, too */
+toolbar[mode="icons"] .toolbarbutton-1 > .toolbarbutton-icon,
+toolbar[mode="icons"] #restore-button > .toolbarbutton-icon,
+toolbar[mode="icons"] toolbarbutton[type="menu-button"] > .toolbarbutton-menubutton-button > .toolbarbutton-icon {
+  max-width: 20px;
 }
 
 .toolbarbutton-1[disabled="true"] > .toolbarbutton-icon,
@@ -553,10 +554,9 @@ toolbar[iconsize="small"][mode="icons"] #forward-button:-moz-locale-dir(rtl) {
   -moz-image-region: rect(40px, 160px, 60px, 140px);
 }
 
-/* bookmark sidebar & menu buttons */
+/* bookmark sidebar button */
 
-#bookmarks-button,
-#bookmarks-menu-button {
+#bookmarks-button {
   -moz-image-region: rect(0, 180px, 20px, 160px);
 }
 
@@ -566,14 +566,6 @@ toolbar[iconsize="small"][mode="icons"] #forward-button:-moz-locale-dir(rtl) {
 
 #bookmarks-button[checked="true"]:active:hover {
   -moz-image-region: rect(40px, 180px, 60px, 160px);
-}
-
-#bookmarks-menu-button.bookmark-item {
-  list-style-image: url("chrome://browser/skin/Toolbar.png");
-}
-
-#bookmarks-menu-button.toolbarbutton-1 {
-  -moz-box-orient: horizontal;
 }
 
 /* print button */
@@ -1344,6 +1336,10 @@ sidebarheader > .tabs-closebutton > .toolbarbutton-text {
 
 toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   display: none;
+}
+
+#nav-bar {
+  padding-top: 0 !important;
 }
 
 #nav-bar[collapsed="true"] + toolbar[customindex] {

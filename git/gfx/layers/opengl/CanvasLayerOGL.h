@@ -80,7 +80,6 @@ protected:
 
   PRPackedBool mGLBufferIsPremultiplied;
   PRPackedBool mNeedsYFlip;
-  nsRefPtr<GLContext> mCanvasSurfaceAsGLContext;
 };
 
 } /* layers */

@@ -85,7 +85,6 @@ MAKEFILES_dom="
   dom/src/threads/Makefile
   dom/locales/Makefile
   dom/plugins/Makefile
-  js/jetpack/Makefile
 "
 
 MAKEFILES_editor="

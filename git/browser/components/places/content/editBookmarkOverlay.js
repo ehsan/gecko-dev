@@ -846,8 +846,8 @@ var gEditItemOverlay = {
   function EIO__getFolderMenuItem(aFolderId) {
     var menupopup = this._folderMenuList.menupopup;
 
-    for (let i = 0; i < menupopup.childNodes.length; i++) {
-      if ("folderId" in menupopup.childNodes[i] &&
+    for (var i=0;  i < menupopup.childNodes.length; i++) {
+      if (menupopup.childNodes[i].folderId &&
           menupopup.childNodes[i].folderId == aFolderId)
         return menupopup.childNodes[i];
     }
@@ -1074,9 +1074,8 @@ var gEditItemOverlay = {
         // menulist has been changed, we need to update the label of its
         // representing element.
         var menupopup = this._folderMenuList.menupopup;
-        for (let i = 0; i < menupopup.childNodes.length; i++) {
-          if ("folderId" in menupopup.childNodes[i] &&
-              menupopup.childNodes[i].folderId == aItemId) {
+        for (var i=0; i < menupopup.childNodes.length; i++) {
+          if (menupopup.childNodes[i].folderId == aItemId) {
             menupopup.childNodes[i].label = aValue;
             break;
           }

@@ -1296,7 +1296,7 @@ PluginInstanceParent::SharedSurfaceAfterPaint(NPEvent* npevent)
 #endif // defined(OS_WIN)
 
 bool
-PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
+PluginInstanceParent::AnswerPluginGotFocus()
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 
@@ -1305,10 +1305,10 @@ PluginInstanceParent::AnswerPluginFocusChange(const bool& gotFocus)
     // focus. We forward the event down to widget so the dom/focus manager can
     // be updated.
 #if defined(OS_WIN)
-    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, gotFocus ? 1 : 0, 0);
+    ::SendMessage(mPluginHWND, gOOPPPluginFocusEvent, 0, 0);
     return true;
 #else
-    NS_NOTREACHED("PluginInstanceParent::AnswerPluginFocusChange not implemented!");
+    NS_NOTREACHED("PluginInstanceParent::AnswerPluginGotFocus not implemented!");
     return false;
 #endif
 }

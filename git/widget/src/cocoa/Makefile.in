@@ -88,6 +88,7 @@ CMMSRCS = \
 		nsPrintOptionsX.mm \
 		nsPrintSettingsX.mm \
 		nsIdleServiceX.mm \
+		nsAccelerometerX.mm \
 		nsCocoaTextInputHandler.mm \
 		nsMacDockSupport.mm \
 		nsStandaloneNativeMenu.mm \

@@ -414,8 +414,8 @@ nsApplicationAccessible::GetParent()
 void
 nsApplicationAccessible::InvalidateChildren()
 {
-  // Do nothing because application children are kept updated by AppendChild()
-  // and RemoveChild() method calls.
+  // Do nothing because application children are kept updated by
+  // AddRootAccessible() and RemoveRootAccessible() method calls.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -428,8 +428,8 @@ nsApplicationAccessible::CacheChildren()
   // children are requested because empty InvalidateChldren() prevents its
   // repeated calls.
 
-  // Basically children are kept updated by Append/RemoveChild method calls.
-  // However if there are open windows before accessibility was started
+  // Basically children are kept updated by Add/RemoveRootAccessible method
+  // calls. However if there are open windows before accessibility was started
   // then we need to make sure root accessibles for open windows are created so
   // that all root accessibles are stored in application accessible children
   // array.
@@ -453,8 +453,9 @@ nsApplicationAccessible::CacheChildren()
       nsCOMPtr<nsIDOMDocument> DOMDocument;
       DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
       if (DOMDocument) {
-        nsCOMPtr<nsIDocument> docNode(do_QueryInterface(DOMDocument));
-        GetAccService()->GetDocAccessible(docNode); // ensure creation
+        nsCOMPtr<nsIAccessible> accessible;
+        GetAccService()->GetAccessibleFor(DOMDocument,
+                                          getter_AddRefs(accessible));
       }
     }
     windowEnumerator->HasMoreElements(&hasMore);
@@ -480,22 +481,30 @@ nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 ////////////////////////////////////////////////////////////////////////////////
 // Public methods
 
-PRBool
-nsApplicationAccessible::AppendChild(nsAccessible* aChild)
+nsresult
+nsApplicationAccessible::AddRootAccessible(nsIAccessible *aRootAccessible)
 {
-  if (!mChildren.AppendElement(aChild))
-    return PR_FALSE;
+  NS_ENSURE_ARG_POINTER(aRootAccessible);
 
-  aChild->SetParent(this);
-  return PR_TRUE;
+  nsRefPtr<nsAccessible> rootAcc = do_QueryObject(aRootAccessible);
+
+  if (!mChildren.AppendElement(rootAcc))
+    return NS_ERROR_FAILURE;
+
+  rootAcc->SetParent(this);
+
+  return NS_OK;
 }
 
-PRBool
-nsApplicationAccessible::RemoveChild(nsAccessible* aChild)
+nsresult
+nsApplicationAccessible::RemoveRootAccessible(nsIAccessible *aRootAccessible)
 {
-  // It's not needed to unbind root accessible from parent because this method
-  // is called when root accessible is shutdown and it'll be unbound properly.
-  return mChildren.RemoveElement(aChild);
+  NS_ENSURE_ARG_POINTER(aRootAccessible);
+
+  // It's not needed to void root accessible parent because this method is
+  // called on root accessible shutdown and its parent will be cleared
+  // properly.
+  return mChildren.RemoveElement(aRootAccessible) ? NS_OK : NS_ERROR_FAILURE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

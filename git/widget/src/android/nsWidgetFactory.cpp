@@ -49,12 +49,14 @@
 #include "nsAppShellSingleton.h"
 #include "nsScreenManagerAndroid.h"
 
+#include "nsAccelerometerAndroid.h"
 #include "nsIdleServiceAndroid.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsToolkit)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsLookAndFeel)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScreenManagerAndroid)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsAccelerometerAndroid)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIdleServiceAndroid)
 
 
@@ -87,7 +89,12 @@ static const nsModuleComponentInfo components[] =
     { "Android Idle Service",
       NS_IDLE_SERVICE_CID,
       "@mozilla.org/widget/idleservice;1",
-      nsIdleServiceAndroidConstructor }
+      nsIdleServiceAndroidConstructor },
+    { "Accelerometer",
+      NS_ACCELEROMETER_CID,
+      NS_ACCELEROMETER_CONTRACTID,
+      nsAccelerometerAndroidConstructor },
+
 };
 
 static void

@@ -146,18 +146,17 @@ nsTableCaptionFrame::GetParentStyleContextFrame(nsPresContext* aPresContext,
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTableCaptionFrame::CreateAccessible()
+NS_IMETHODIMP nsTableCaptionFrame::GetAccessible(nsIAccessible** aAccessible)
 {
+  *aAccessible = nsnull;
   if (!GetRect().IsEmpty()) {
     nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
     if (accService) {
-      return accService->CreateHTMLCaptionAccessible(mContent,
-                                                     PresContext()->PresShell());
+      return accService->CreateHTMLCaptionAccessible(static_cast<nsIFrame*>(this), aAccessible);
     }
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
@@ -193,17 +192,15 @@ NS_QUERYFRAME_HEAD(nsTableOuterFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTableOuterFrame::CreateAccessible()
+NS_IMETHODIMP nsTableOuterFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTableAccessible(mContent,
-                                                 PresContext()->PresShell());
+    return accService->CreateHTMLTableAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
 
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 

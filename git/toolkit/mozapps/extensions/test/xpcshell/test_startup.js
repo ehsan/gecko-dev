@@ -18,10 +18,6 @@ var addon1 = {
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
     maxVersion: "1"
-  }, {                 // Repeated target application entries should be ignored
-    id: "xpcshell@tests.mozilla.org",
-    minVersion: "2",
-    maxVersion: "2"
   }]
 };
 
@@ -29,10 +25,7 @@ var addon2 = {
   id: "addon2@tests.mozilla.org",
   version: "2.0",
   name: "Test 2",
-  targetApplications: [{  // Bad target application entries should be ignored
-    minVersion: "3",
-    maxVersion: "4"
-  }, {
+  targetApplications: [{
     id: "xpcshell@tests.mozilla.org",
     minVersion: "1",
     maxVersion: "2"

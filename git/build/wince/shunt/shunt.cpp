@@ -113,15 +113,15 @@ int errno = 0;
 //  File System Stuff
 ////////////////////////////////////////////////////////
 
-wchar_t * _wgetcwd(wchar_t * dir, unsigned long size)
+unsigned short * _wgetcwd(unsigned short * dir, unsigned long size)
 {
-  wchar_t tmp[MAX_PATH] = {0};
+  unsigned short tmp[MAX_PATH] = {0};
   GetEnvironmentVariableW(L"CWD", tmp, size);
   if (tmp && tmp[0]) {
     if (wcslen(tmp) > size)
       return 0;
     if (!dir) {
-      dir = (wchar_t*)malloc(sizeof(wchar_t) * (wcslen(tmp) + 2));
+      dir = (unsigned short*)malloc(sizeof(unsigned short) * (wcslen(tmp) + 2));
       if (!dir)
         return 0;
     }
@@ -129,7 +129,7 @@ wchar_t * _wgetcwd(wchar_t * dir, unsigned long size)
   } else {
     unsigned long i;
     if (!dir) {
-      dir = (wchar_t*)malloc(sizeof(wchar_t) * (MAX_PATH + 1));
+      dir = (unsigned short*)malloc(sizeof(unsigned short) * (MAX_PATH + 1));
       if (!dir)
         return 0;
     }
@@ -147,12 +147,12 @@ wchar_t * _wgetcwd(wchar_t * dir, unsigned long size)
   return dir;
 }
 
-wchar_t *_wfullpath( wchar_t *absPath, const wchar_t *relPath, unsigned long maxLength )
+unsigned short *_wfullpath( unsigned short *absPath, const unsigned short *relPath, unsigned long maxLength )
 {
   if(absPath == NULL){
-    absPath = (wchar_t *)malloc(maxLength*sizeof(wchar_t));
+    absPath = (unsigned short *)malloc(maxLength*sizeof(unsigned short));
   }
-  wchar_t cwd[MAX_PATH];
+  unsigned short cwd[MAX_PATH];
   if (NULL == _wgetcwd( cwd, MAX_PATH))
     return NULL;
 
@@ -181,7 +181,7 @@ int _wchdir(const WCHAR* path) {
 
 int _unlink(const char *filename)
 {
-  wchar_t wname[MAX_PATH];
+  unsigned short wname[MAX_PATH];
   
   MultiByteToWideChar(CP_ACP,
                       0,

@@ -111,7 +111,7 @@ nsImageBoxFrameEvent::Run()
     return NS_OK;
   }
 
-  nsIPresShell *pres_shell = doc->GetShell();
+  nsIPresShell *pres_shell = doc->GetPrimaryShell();
   if (!pres_shell) {
     return NS_OK;
   }

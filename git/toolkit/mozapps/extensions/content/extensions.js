@@ -88,9 +88,6 @@ XPCOMUtils.defineLazyGetter(gStrings, "appVersion", function() {
 window.addEventListener("load",  initialize, false);
 window.addEventListener("unload",  shutdown, false);
 
-var gPendingInitializations = 1;
-__defineGetter__("gIsInitializing", function() gPendingInitializations > 0);
-
 function initialize() {
   gCategories.initialize();
   gHeader.initialize();
@@ -108,19 +105,6 @@ function initialize() {
   }
 
   gViewController.loadView(view);
-  notifyInitialized();
-}
-
-function notifyInitialized() {
-  if (!gIsInitializing)
-    return;
-
-  gPendingInitializations--;
-  if (!gIsInitializing) {
-    var event = document.createEvent("Events");
-    event.initEvent("Initialized", true, true);
-    document.dispatchEvent(event);
-  }
 }
 
 function shutdown() {
@@ -272,10 +256,6 @@ var gViewController = {
     var matchRegex = /^addons:\/\/([^\/]+)\/(.*)$/;
     var [,viewType, viewParam] = aViewId.match(matchRegex) || [];
     return {type: viewType, param: decodeURIComponent(viewParam)};
-  },
-
-  get isLoading() {
-    return this.currentViewObj.node.hasAttribute("loading");
   },
 
   loadView: function(aViewId) {
@@ -561,15 +541,14 @@ var gViewController = {
     }
   },
 
-  doCommand: function(aCommand, aAddon) {
+  doCommand: function(aCommand) {
     if (!this.supportsCommand(aCommand))
       return;
+    var addon = this.currentViewObj.getSelectedAddon();
     var cmd = this.commands[aCommand];
-    if (!aAddon)
-      aAddon = this.currentViewObj.getSelectedAddon();
-    if (!cmd.isEnabled(aAddon))
+    if (!cmd.isEnabled(addon))
       return;
-    cmd.doCommand(aAddon);
+    cmd.doCommand(addon);
   },
 
   onEvent: function() {}
@@ -636,39 +615,6 @@ function createItem(aObj, aIsInstall, aRequiresRestart) {
   return item;
 }
 
-function getAddonsAndInstalls(aType, aCallback) {
-  var addonTypes = null, installTypes = null;
-  if (aType != null) {
-    addonTypes = [aType];
-    installTypes = [aType];
-    if (aType == "extension") {
-      addonTypes.push("bootstrapped");
-      installTypes = addonTypes.concat("");
-    }
-  }
-
-  var addons = null, installs = null;
-
-  AddonManager.getAddonsByTypes(addonTypes, function(aAddonsList) {
-    addons = aAddonsList;
-    if (installs != null)
-      aCallback(addons, installs);
-  });
-
-  AddonManager.getInstallsByTypes(installTypes, function(aInstallsList) {
-    // skip over upgrade installs and non-active installs
-    installs = aInstallsList.filter(function(aInstall) {
-      return !(aInstall.existingAddon ||
-               aInstall.state == AddonManager.STATE_AVAILABLE);
-    });
-
-    if (addons != null)
-      aCallback(addons, installs)
-  });
-
-  return {addon: addonTypes, install: installTypes};
-}
-
 
 var gCategories = {
   node: null,
@@ -701,18 +647,16 @@ var gCategories = {
     }, false);
 
     var maybeHidden = ["addons://list/locale", "addons://list/searchengine"];
-    gPendingInitializations += maybeHidden.length;
     maybeHidden.forEach(function(aId) {
       var type = gViewController.parseViewId(aId).param;
-      getAddonsAndInstalls(type, function(aAddonsList, aInstallsList) {
-        if (aAddonsList.length > 0 || aInstallsList.length > 0) {
+      AddonManager.getAddonsByTypes([type], function(aAddonsList) {
+        if (aAddonsList.length > 0) {
           self.get(aId).hidden = false;
-          notifyInitialized();
           return;
         }
 
         gEventManager.registerInstallListener({
-          onDownloadStarted: function(aInstall) {
+          onNewInstall: function(aInstall) {
             this._maybeShowCategory(aInstall);
           },
 
@@ -735,8 +679,6 @@ var gCategories = {
             }
           }
         });
-
-        notifyInitialized();
       });
     });
   },
@@ -852,7 +794,6 @@ var gDiscoverView = {
                 .getService(Ci.nsIURLFormatter)
                 .formatURLPref(PREF_DISCOVERURL);
 
-    gPendingInitializations++;
     AddonManager.getAllAddons(function(aAddons) {
       var list = {};
       aAddons.forEach(function(aAddon) {
@@ -867,7 +808,6 @@ var gDiscoverView = {
       });
 
       gDiscoverView._browser.homePage = url + "#" + JSON.stringify(list);
-      notifyInitialized();
     });
   },
 
@@ -1055,21 +995,33 @@ var gListView = {
     gHeader.setName(gStrings.ext.GetStringFromName("header-" + aType));
     this.showEmptyNotice(false);
 
+    this._types = [aType];
+    this._installTypes = [aType];
+    if (aType == "extension") {
+      this._types.push("bootstrapped");
+      this._installTypes = this._types.concat("");
+    }
+
     while (this._listBox.itemCount > 0)
       this._listBox.removeItemAt(0);
 
     var self = this;
-    var types = getAddonsAndInstalls(aType, function(aAddonsList, aInstallsList) {
-      if (gViewController && aRequest != gViewController.currentViewRequest)
+    var addons = null, installs = null;
+
+    function updateList() {
+      if (addons == null || installs == null)
         return;
 
-      for (let i = 0; i < aAddonsList.length; i++) {
-        let item = createItem(aAddonsList[i]);
+      for (let i = 0; i < addons.length; i++) {
+        let item = createItem(addons[i]);
         self._listBox.appendChild(item);
       }
 
-      for (let i = 0; i < aInstallsList.length; i++) {
-        let item = createItem(aInstallsList[i], true);
+      for (let i = 0; i < installs.length; i++) {
+        // skip over upgrade installs
+        if (installs[i].existingAddon)
+          continue;
+        let item = createItem(installs[i], true);
         self._listBox.appendChild(item);
       }
 
@@ -1078,13 +1030,25 @@ var gListView = {
       else
         self.showEmptyNotice(true);
 
-      gEventManager.registerInstallListener(self);
       gViewController.updateCommands();
       gViewController.notifyViewChanged();
+    }
+
+
+    AddonManager.getAddonsByTypes(this._types, function(aAddonsList) {
+      if (gViewController && aRequest != gViewController.currentViewRequest)
+        return;
+      addons = aAddonsList;
+      updateList();
     });
 
-    this._types = types.addon;
-    this._installTypes = types.install;
+    AddonManager.getInstallsByTypes(this._installTypes, function(aInstallsList) {
+      if (gViewController && aRequest != gViewController.currentViewRequest)
+        return;
+      installs = aInstallsList;
+      updateList();
+      gEventManager.registerInstallListener(self);
+    });
   },
 
   hide: function() {
@@ -1312,7 +1276,7 @@ var gDragDrop = {
   },
 
   onDrop: function(aEvent) {
-    var dataTransfer = aEvent.dataTransfer;
+    var dataTransfer = aEvent.dataTransfer; 
     var urls = [];
 
     // Convert every dropped item into a url

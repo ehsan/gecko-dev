@@ -961,7 +961,7 @@ nsXTFElementWrapper::RegUnregAccessKey(PRBool aDoReg)
     return;
 
   // Get presentation shell 0
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   if (!presShell)
     return;
 

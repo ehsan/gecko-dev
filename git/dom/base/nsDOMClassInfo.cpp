@@ -479,16 +479,6 @@
 
 using namespace mozilla::dom;
 
-#include "mozilla/dom/indexedDB/IDBFactory.h"
-#include "mozilla/dom/indexedDB/IDBRequest.h"
-#include "mozilla/dom/indexedDB/IDBDatabase.h"
-#include "mozilla/dom/indexedDB/IDBEvents.h"
-#include "mozilla/dom/indexedDB/IDBObjectStore.h"
-#include "mozilla/dom/indexedDB/IDBTransaction.h"
-#include "mozilla/dom/indexedDB/IDBCursor.h"
-#include "mozilla/dom/indexedDB/IDBKeyRange.h"
-#include "mozilla/dom/indexedDB/IDBIndex.h"
-
 static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
 static const char kDOMStringBundleURL[] =
@@ -1417,29 +1407,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(CloseEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-  NS_DEFINE_CLASSINFO_DATA(IDBFactory, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBRequest, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBDatabase, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBErrorEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBSuccessEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBTransactionEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBObjectStore, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBTransaction, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBCursor, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBKeyRange, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(IDBIndex, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 };
 
 // Objects that should be constructable through |new Name();|
@@ -1532,7 +1499,6 @@ jsval nsDOMClassInfo::sOnpopstate_id      = JSVAL_VOID;
 jsval nsDOMClassInfo::sOnbeforeunload_id  = JSVAL_VOID;
 jsval nsDOMClassInfo::sOnunload_id        = JSVAL_VOID;
 jsval nsDOMClassInfo::sOnhashchange_id    = JSVAL_VOID;
-jsval nsDOMClassInfo::sOnreadystatechange_id = JSVAL_VOID;
 jsval nsDOMClassInfo::sOnpageshow_id      = JSVAL_VOID;
 jsval nsDOMClassInfo::sOnpagehide_id      = JSVAL_VOID;
 jsval nsDOMClassInfo::sOnabort_id         = JSVAL_VOID;
@@ -1734,7 +1700,6 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
   SET_JSVAL_TO_STRING(sOnbeforeunload_id,  cx, "onbeforeunload");
   SET_JSVAL_TO_STRING(sOnunload_id,        cx, "onunload");
   SET_JSVAL_TO_STRING(sOnhashchange_id,    cx, "onhashchange");
-  SET_JSVAL_TO_STRING(sOnreadystatechange_id, cx, "onreadystatechange");
   SET_JSVAL_TO_STRING(sOnpageshow_id,      cx, "onpageshow");
   SET_JSVAL_TO_STRING(sOnpagehide_id,      cx, "onpagehide");
   SET_JSVAL_TO_STRING(sOnabort_id,         cx, "onabort");
@@ -3923,61 +3888,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-  DOM_CLASSINFO_MAP_BEGIN(IDBFactory, nsIIDBFactory)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBFactory)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBRequest, nsIIDBRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBRequest)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBDatabase, nsIIDBDatabase)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBDatabase)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBErrorEvent, nsIIDBErrorEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBErrorEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBSuccessEvent, nsIIDBSuccessEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBSuccessEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBTransactionEvent, nsIIDBTransactionEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBTransactionEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBSuccessEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEvent)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBObjectStore, nsIIDBObjectStore)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBObjectStore)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBTransaction, nsIIDBTransaction)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBTransaction)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBCursor, nsIIDBCursor)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBCursor)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBKeyRange, nsIIDBKeyRange)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBKeyRange)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(IDBIndex, nsIIDBIndex)
-    DOM_CLASSINFO_MAP_ENTRY(nsIIDBIndex)
-  DOM_CLASSINFO_MAP_END
-
 #ifdef NS_DEBUG
   {
     PRUint32 i = NS_ARRAY_LENGTH(sClassInfoData);
@@ -4706,7 +4616,6 @@ nsDOMClassInfo::ShutDown()
   sOnbeforeunload_id  = JSVAL_VOID;
   sOnunload_id        = JSVAL_VOID;
   sOnhashchange_id    = JSVAL_VOID;
-  sOnreadystatechange_id = JSVAL_VOID;
   sOnpageshow_id      = JSVAL_VOID;
   sOnpagehide_id      = JSVAL_VOID;
   sOnabort_id         = JSVAL_VOID;
@@ -4889,7 +4798,16 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSObject *obj,
   }
 
   nsDependentJSString str(jsstr);
-  nsCOMPtr<nsISupports> result = document->GetElementById(str);
+  nsCOMPtr<nsISupports> result;
+
+  {
+    nsCOMPtr<nsIDOMDocument> dom_doc(do_QueryInterface(doc));
+    nsCOMPtr<nsIDOMElement> element;
+
+    dom_doc->GetElementById(str, getter_AddRefs(element));
+
+    result = element;
+  }
 
   if (!result) {
     doc->ResolveName(str, nsnull, getter_AddRefs(result));
@@ -7644,8 +7562,7 @@ nsEventReceiverSH::ReallyIsEventName(jsval id, jschar aFirstChar)
             id == sOnmouseup_id      ||
             id == sOnmousedown_id);
   case 'r' :
-    return (id == sOnreadystatechange_id ||
-            id == sOnreset_id            ||
+    return (id == sOnreset_id        ||
             id == sOnresize_id);
   case 's' :
     return (id == sOnscroll_id       ||
@@ -7844,7 +7761,7 @@ GetBindingURL(Element *aElement, nsIDocument *aDocument,
   // If we have a frame the frame has already loaded the binding.  And
   // otherwise, don't do anything else here unless we're dealing with
   // XUL.
-  nsIPresShell *shell = aDocument->GetShell();
+  nsIPresShell *shell = aDocument->GetPrimaryShell();
   if (!shell || aElement->GetPrimaryFrame() || !aElement->IsXUL()) {
     *aResult = nsnull;
 

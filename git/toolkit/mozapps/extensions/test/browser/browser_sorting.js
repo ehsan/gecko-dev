@@ -49,9 +49,9 @@ function test() {
 }
 
 function end_test() {
-  close_manager(gManagerWindow, function() {
-    finish();
-  });
+  gManagerWindow.close();
+
+  finish();
 }
 
 function check_order(aExpectedOrder) {

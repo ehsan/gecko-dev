@@ -104,6 +104,7 @@
 
 #include "nsIServiceManager.h"
 #ifdef ACCESSIBILITY
+#include "nsIAccessible.h"
 #include "nsIAccessibilityService.h"
 #endif
 #include "nsAutoPtr.h"
@@ -537,7 +538,6 @@ static PRBool IsCSSWordSpacingSpace(const nsTextFragment* aFrag,
   case ' ':
   case CH_NBSP:
     return !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
-  case '\r':
   case '\t': return !aStyleText->WhiteSpaceIsSignificant();
   case '\n': return !aStyleText->NewlineIsSignificant();
   default: return PR_FALSE;
@@ -553,14 +553,14 @@ static PRBool IsTrimmableSpace(const PRUnichar* aChars, PRUint32 aLength)
   PRUnichar ch = *aChars;
   if (ch == ' ')
     return !nsTextFrameUtils::IsSpaceCombiningSequenceTail(aChars + 1, aLength - 1);
-  return ch == '\t' || ch == '\f' || ch == '\n' || ch == '\r';
+  return ch == '\t' || ch == '\f' || ch == '\n';
 }
 
 // Check whether the character aCh is trimmable according to CSS
 // 'white-space:normal/nowrap'
 static PRBool IsTrimmableSpace(char aCh)
 {
-  return aCh == ' ' || aCh == '\t' || aCh == '\f' || aCh == '\n' || aCh == '\r';
+  return aCh == ' ' || aCh == '\t' || aCh == '\f' || aCh == '\n';
 }
 
 static PRBool IsTrimmableSpace(const nsTextFragment* aFrag, PRUint32 aPos,
@@ -573,7 +573,6 @@ static PRBool IsTrimmableSpace(const nsTextFragment* aFrag, PRUint32 aPos,
                    !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
   case '\n': return !aStyleText->NewlineIsSignificant();
   case '\t':
-  case '\r':
   case '\f': return !aStyleText->WhiteSpaceIsSignificant();
   default: return PR_FALSE;
   }
@@ -585,7 +584,7 @@ static PRBool IsSelectionSpace(const nsTextFragment* aFrag, PRUint32 aPos)
   PRUnichar ch = aFrag->CharAt(aPos);
   if (ch == ' ' || ch == CH_NBSP)
     return !IsSpaceCombiningSequenceTail(aFrag, aPos + 1);
-  return ch == '\t' || ch == '\n' || ch == '\f' || ch == '\r';
+  return ch == '\t' || ch == '\n' || ch == '\f';
 }
 
 // Count the amount of trimmable whitespace (as per CSS
@@ -628,7 +627,7 @@ IsAllWhitespace(const nsTextFragment* aFrag, PRBool aAllowNewline)
   const char* str = aFrag->Get1b();
   for (PRInt32 i = 0; i < len; ++i) {
     char ch = str[i];
-    if (ch == ' ' || ch == '\t' || ch == '\r' || (ch == '\n' && aAllowNewline))
+    if (ch == ' ' || ch == '\t' || (ch == '\n' && aAllowNewline))
       continue;
     return PR_FALSE;
   }
@@ -2109,7 +2108,7 @@ static PRBool IsJustifiableCharacter(const nsTextFragment* aFrag, PRInt32 aPos,
                                      PRBool aLangIsCJ)
 {
   PRUnichar ch = aFrag->CharAt(aPos);
-  if (ch == '\n' || ch == '\t' || ch == '\r')
+  if (ch == '\n' || ch == '\t')
     return PR_TRUE;
   if (ch == ' ' || ch == CH_NBSP) {
     // Don't justify spaces that are combined with diacriticals
@@ -3387,24 +3386,22 @@ nsTextPaintStyle::GetResolvedForeColor(nscolor aColor,
 //-----------------------------------------------------------------------------
 
 #ifdef ACCESSIBILITY
-already_AddRefed<nsAccessible>
-nsTextFrame::CreateAccessible()
+NS_IMETHODIMP nsTextFrame::GetAccessible(nsIAccessible** aAccessible)
 {
   if (IsEmpty()) {
     nsAutoString renderedWhitespace;
     GetRenderedText(&renderedWhitespace, nsnull, nsnull, 0, 1);
     if (renderedWhitespace.IsEmpty()) {
-      return nsnull;
+      return NS_ERROR_FAILURE;
     }
   }
 
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLTextAccessible(mContent,
-                                                PresContext()->PresShell());
+    return accService->CreateHTMLTextAccessible(static_cast<nsIFrame*>(this), aAccessible);
   }
-  return nsnull;
+  return NS_ERROR_FAILURE;
 }
 #endif
 
