@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,14 +11,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is JavaScript Engine testing utilities.
+ * The Original Code is Mozilla XUL Toolkit Testing Code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2006
+ * Paolo Amadini <http://www.amadzone.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s): Jim Grandy
+ * Contributor(s):
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,22 +34,38 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-//-----------------------------------------------------------------------------
-var BUGNUMBER = 336100;
-var summary = 'bug 336100 - arguments regressed';
-var actual = '';
-var expect;
+/**
+ * This file loads the entire library of testing objects and functions.
+ */
 
-printBugNumber(BUGNUMBER);
-printStatus (summary);
+// Define the shortcuts required by the included files.
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
+const Cr = Components.results;
+const Cm = Components.manager;
 
-var arguments = [];
+// Execute the following code while keeping the current scope clean.
+void(function (scriptScope) {
+  const kBaseUrl = "chrome://mochitests/content/browser/toolkit/content/tests/browser/common/";
 
-expect = '[object Arguments]';
-actual = (function(){return (arguments + '');})(); 
-reportCompare(expect, actual, summary);
+  // If you add files here, add them to "Makefile.in" too.
+  var scriptNames = [
+    "mockObjects.js",
+    "testRunner.js",
 
-// see bug 336100 comment 29
-expect = typeof window == 'undefined' ? '' : '[object Arguments]';
-actual = (function(){with (this) return(arguments + '');})();
-reportCompare(expect, actual, summary);
+    // To be included after the files above.
+    "mockFilePicker.js",
+    "mockTransferForContinuing.js",
+    "toolkitFunctions.js",
+  ];
+
+  // Include all the required scripts.
+  var scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
+                     getService(Ci.mozIJSSubScriptLoader);
+  for (let [, scriptName] in Iterator(scriptNames)) {
+    // Ensure that the subscript is loaded in the scope where this script is
+    // being executed, which is not necessarily the global scope.
+    scriptLoader.loadSubScript(kBaseUrl + scriptName, scriptScope);
+  }
+}(this));

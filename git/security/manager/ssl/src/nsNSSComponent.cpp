@@ -91,6 +91,7 @@
 #include "nsReadableUtils.h"
 #include "nsIDateTimeFormat.h"
 #include "prtypes.h"
+#include "nsTime.h"
 #include "nsIEntropyCollector.h"
 #include "nsIBufEntropyCollector.h"
 #include "nsIServiceManager.h"

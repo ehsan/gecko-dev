@@ -574,7 +574,7 @@ public:
                         const nsACString &aDescription,
                         nsISupports *aWrappedMRs)
     {
-        if (aKind == nsIMemoryReporter::KIND_NONHEAP && aAmount != PRInt64(-1)) {
+        if (aKind == nsIMemoryReporter::KIND_MAPPED && aAmount != PRInt64(-1)) {
             MemoryReportsWrapper *wrappedMRs =
                 static_cast<MemoryReportsWrapper *>(aWrappedMRs);
             MemoryReport mr(aPath, aAmount);
@@ -603,10 +603,10 @@ isParent(const nsACString &path1, const nsACString &path2)
 NS_IMETHODIMP
 nsMemoryReporterManager::GetExplicit(PRInt64 *aExplicit)
 {
-    InfallibleTArray<MemoryReport> nonheap;
+    InfallibleTArray<MemoryReport> mapped;
     PRInt64 heapUsed = PRInt64(-1);
 
-    // Get "heap-allocated" and all the KIND_NONHEAP measurements from vanilla
+    // Get "heap-allocated" and all the KIND_MAPPED measurements from vanilla
     // reporters.
     nsCOMPtr<nsISimpleEnumerator> e;
     EnumerateReporters(getter_AddRefs(e));
@@ -620,7 +620,7 @@ nsMemoryReporterManager::GetExplicit(PRInt64 *aExplicit)
         nsresult rv = r->GetKind(&kind);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        if (kind == nsIMemoryReporter::KIND_NONHEAP) {
+        if (kind == nsIMemoryReporter::KIND_MAPPED) {
             nsCString path;
             rv = r->GetPath(path);
             NS_ENSURE_SUCCESS(rv, rv);
@@ -629,11 +629,11 @@ nsMemoryReporterManager::GetExplicit(PRInt64 *aExplicit)
             rv = r->GetAmount(&amount);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            // Just skip any NONHEAP reporters that fail, because
+            // Just skip any MAPPED reporters that fail, because
             // "heap-allocated" is the most important one.
             if (amount != PRInt64(-1)) {
                 MemoryReport mr(path, amount);
-                nonheap.AppendElement(mr);
+                mapped.AppendElement(mr);
             }
         } else {
             nsCString path;
@@ -653,11 +653,11 @@ nsMemoryReporterManager::GetExplicit(PRInt64 *aExplicit)
         }
     }
 
-    // Get KIND_NONHEAP measurements from multi-reporters, too.
+    // Get KIND_MAPPED measurements from multi-reporters, too.
     nsCOMPtr<nsISimpleEnumerator> e2;
     EnumerateMultiReporters(getter_AddRefs(e2));
     nsRefPtr<MemoryReportsWrapper> wrappedMRs =
-        new MemoryReportsWrapper(&nonheap);
+        new MemoryReportsWrapper(&mapped);
     nsRefPtr<MemoryReportCallback> cb = new MemoryReportCallback();
 
     while (NS_SUCCEEDED(e2->HasMoreElements(&more)) && more) {
@@ -668,24 +668,24 @@ nsMemoryReporterManager::GetExplicit(PRInt64 *aExplicit)
 
     // Ignore (by zeroing its amount) any reporter that is a child of another
     // reporter.  Eg. if we have "explicit/a" and "explicit/a/b", zero the
-    // latter.  This is quadratic in the number of NONHEAP reporters, but there
+    // latter.  This is quadratic in the number of MAPPED reporters, but there
     // shouldn't be many.
-    for (PRUint32 i = 0; i < nonheap.Length(); i++) {
-        const nsCString &iPath = nonheap[i].path;
-        for (PRUint32 j = i + 1; j < nonheap.Length(); j++) {
-            const nsCString &jPath = nonheap[j].path;
+    for (PRUint32 i = 0; i < mapped.Length(); i++) {
+        const nsCString &iPath = mapped[i].path;
+        for (PRUint32 j = i + 1; j < mapped.Length(); j++) {
+            const nsCString &jPath = mapped[j].path;
             if (isParent(iPath, jPath)) {
-                nonheap[j].amount = 0;
+                mapped[j].amount = 0;
             } else if (isParent(jPath, iPath)) {
-                nonheap[i].amount = 0;
+                mapped[i].amount = 0;
             }
         }
     }
 
-    // Sum all the nonheap reporters and heapUsed.
+    // Sum all the mapped reporters and heapUsed.
     *aExplicit = heapUsed;
-    for (PRUint32 i = 0; i < nonheap.Length(); i++) {
-        *aExplicit += nonheap[i].amount;
+    for (PRUint32 i = 0; i < mapped.Length(); i++) {
+        *aExplicit += mapped[i].amount;
     }
 
     return NS_OK;
