@@ -50,24 +50,6 @@ enum BluetoothCmeError {
   NETWORK_NOT_ALLOWED = 32
 };
 
-enum PhoneType {
-  NONE, // no connection
-  GSM,
-  CDMA
-};
-
-class Call {
-public:
-  Call();
-  void Reset();
-  bool IsActive();
-
-  uint16_t mState;
-  bool mDirection; // true: incoming call; false: outgoing call
-  nsString mNumber;
-  int mType;
-};
-
 class BluetoothHfpManager : public BluetoothSocketObserver
                           , public BluetoothProfileManagerBase
                           , public BatteryObserver
@@ -121,12 +103,6 @@ public:
   bool IsConnected();
   bool IsScoConnected();
 
-  // CDMA-specific functions
-  void UpdateSecondNumber(const nsAString& aNumber);
-  void AnswerWaitingCall();
-  void IgnoreWaitingCall();
-  void ToggleCalls();
-
 private:
   class CloseScoTask;
   class GetVolumeTask;
@@ -149,13 +125,10 @@ private:
   void ResetCallArray();
   uint32_t FindFirstCall(uint16_t aState);
   uint32_t GetNumberOfCalls(uint16_t aState);
-  PhoneType GetPhoneType(const nsAString& aType);
 
   void NotifyConnectionStatusChanged(const nsAString& aType);
   void NotifyDialer(const nsAString& aCommand);
 
-  void SendCCWA(const nsAString& aNumber, int aType);
-  bool SendCLCC(const Call& aCall, int aIndex);
   bool SendCommand(const char* aCommand, uint32_t aValue = 0);
   bool SendLine(const char* aMessage);
   void UpdateCIND(uint8_t aType, uint8_t aValue, bool aSend = true);
@@ -172,7 +145,6 @@ private:
   bool mCMER;
   bool mFirstCKPD;
   int mNetworkSelectionMode;
-  PhoneType mPhoneType;
   bool mReceiveVgsFlag;
   bool mDialingRequestProcessed;
   nsString mDeviceAddress;
@@ -198,9 +170,6 @@ private:
   nsRefPtr<BluetoothSocket> mHeadsetSocket;
   nsRefPtr<BluetoothSocket> mScoSocket;
   SocketConnectionStatus mScoSocketStatus;
-
-  // CDMA-specific variable
-  Call mCdmaSecondCall;
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -5,13 +5,13 @@ load(libdir + "iteration.js");
 var s = Set();
 var it = s[std_iterator]();
 s.clear();
-assertIteratorDone(it, undefined);
+assertIteratorResult(it.next(), undefined, true);
 
 s = Set(["a", "b", "c", "d"]);
 it = s[std_iterator]();
-assertIteratorNext(it, "a");
+assertIteratorResult(it.next(), "a", false);
 s.clear();
-assertIteratorDone(it, undefined);
+assertIteratorResult(it.next(), undefined, true);
 
 var log = "";
 s = Set(["a", "b", "c", "d"]);

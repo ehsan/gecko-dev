@@ -8,7 +8,6 @@
 #include "mozilla/dom/CrashReporterChild.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
-#include "mozilla/unused.h"
 #include "mozilla/Util.h"
 
 #include "nsThreadUtils.h"
@@ -454,7 +453,8 @@ bool MinidumpCallback(
                       O_WRONLY | O_CREAT | O_TRUNC,
                       0600);
     if (fd != -1) {
-      unused << sys_write(fd, minidumpPath, my_strlen(minidumpPath));
+      ssize_t ignored = sys_write(fd, minidumpPath, my_strlen(minidumpPath));
+      (void)ignored;
       sys_close(fd);
     }
 #endif
@@ -507,7 +507,8 @@ bool MinidumpCallback(
                       O_WRONLY | O_CREAT | O_TRUNC,
                       0600);
     if (fd != -1) {
-      unused << sys_write(fd, crashTimeString, crashTimeStringLen);
+      ssize_t ignored = sys_write(fd, crashTimeString, crashTimeStringLen);
+      (void)ignored;
       sys_close(fd);
     }
 #endif
@@ -613,30 +614,29 @@ bool MinidumpCallback(
 
     if (fd != -1) {
       // not much we can do in case of error
-      unused << sys_write(fd, crashReporterAPIData->get(),
+      ssize_t ignored = sys_write(fd, crashReporterAPIData->get(),
                                   crashReporterAPIData->Length());
-      unused << sys_write(fd, kCrashTimeParameter, kCrashTimeParameterLen);
-      unused << sys_write(fd, crashTimeString, crashTimeStringLen);
-      unused << sys_write(fd, "\n", 1);
+      ignored = sys_write(fd, kCrashTimeParameter, kCrashTimeParameterLen);
+      ignored = sys_write(fd, crashTimeString, crashTimeStringLen);
+      ignored = sys_write(fd, "\n", 1);
       if (timeSinceLastCrash != 0) {
-        unused << sys_write(fd, kTimeSinceLastCrashParameter,
+        ignored = sys_write(fd, kTimeSinceLastCrashParameter,
                         kTimeSinceLastCrashParameterLen);
-        unused << sys_write(fd, timeSinceLastCrashString,
+        ignored = sys_write(fd, timeSinceLastCrashString,
                         timeSinceLastCrashStringLen);
-        unused << sys_write(fd, "\n", 1);
+        ignored = sys_write(fd, "\n", 1);
       }
       if (isGarbageCollecting) {
-        unused << sys_write(fd, kIsGarbageCollectingParameter, kIsGarbageCollectingParameterLen);
-        unused << sys_write(fd, isGarbageCollecting ? "1" : "0", 1);
-        unused << sys_write(fd, "\n", 1);
+        ignored = sys_write(fd, kIsGarbageCollectingParameter, kIsGarbageCollectingParameterLen);
+        ignored = sys_write(fd, isGarbageCollecting ? "1" : "0", 1);
+        ignored = sys_write(fd, "\n", 1);
       }
       if (oomAllocationSizeBufferLen) {
-        unused << sys_write(fd, kOOMAllocationSizeParameter,
-                            kOOMAllocationSizeParameterLen);
-        unused << sys_write(fd, oomAllocationSizeBuffer,
-                            oomAllocationSizeBufferLen);
-        unused << sys_write(fd, "\n", 1);
-      }
+        sys_write(fd, kOOMAllocationSizeParameter,
+                  kOOMAllocationSizeParameterLen);
+        sys_write(fd, oomAllocationSizeBuffer, oomAllocationSizeBufferLen);
+        sys_write(fd, "\n", 1);
+      }        
       sys_close(fd);
     }
   }
@@ -676,27 +676,27 @@ bool MinidumpCallback(
     // need to clobber this, as libcurl might load NSS,
     // and we want it to load the system NSS.
     unsetenv("LD_LIBRARY_PATH");
-    unused << execl(crashReporterPath,
-                    crashReporterPath, minidumpPath, (char*)0);
+    (void) execl(crashReporterPath,
+                 crashReporterPath, minidumpPath, (char*)0);
 #else
     // Invoke the reportCrash activity using am
     if (androidUserSerial) {
-      unused << execlp("/system/bin/am",
-                       "/system/bin/am",
-                       "start",
-                       "--user", androidUserSerial,
-                       "-a", "org.mozilla.gecko.reportCrash",
-                       "-n", crashReporterPath,
-                       "--es", "minidumpPath", minidumpPath,
-                       (char*)0);
+      (void) execlp("/system/bin/am",
+                    "/system/bin/am",
+                    "start",
+                    "--user", androidUserSerial,
+                    "-a", "org.mozilla.gecko.reportCrash",
+                    "-n", crashReporterPath,
+                    "--es", "minidumpPath", minidumpPath,
+                    (char*)0);
     } else {
-      unused << execlp("/system/bin/am",
-                       "/system/bin/am",
-                       "start",
-                       "-a", "org.mozilla.gecko.reportCrash",
-                       "-n", crashReporterPath,
-                       "--es", "minidumpPath", minidumpPath,
-                       (char*)0);
+      (void) execlp("/system/bin/am",
+                    "/system/bin/am",
+                    "start",
+                    "-a", "org.mozilla.gecko.reportCrash",
+                    "-n", crashReporterPath,
+                    "--es", "minidumpPath", minidumpPath,
+                    (char*)0);
     }
 #endif
     _exit(1);

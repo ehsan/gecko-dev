@@ -466,11 +466,12 @@ sdnAccessible::get_innerHTML(BSTR __RPC_FAR* aInnerHTML)
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  if (!mNode->IsElement())
+  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mNode);
+  if (!htmlElement)
     return S_FALSE;
 
   nsAutoString innerHTML;
-  mNode->AsElement()->GetInnerHTML(innerHTML);
+  htmlElement->GetInnerHTML(innerHTML);
   if (innerHTML.IsEmpty())
     return S_FALSE;
 

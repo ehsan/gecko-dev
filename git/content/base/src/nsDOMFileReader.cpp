@@ -206,11 +206,9 @@ nsDOMFileReader::GetResult(JSContext* aCx, JS::Value* aResult)
   }
  
   nsString tmpResult = mResult;
-  JS::Rooted<JS::Value> result(aCx);
-  if (!xpc::StringToJsval(aCx, tmpResult, &result)) {
+  if (!xpc::StringToJsval(aCx, tmpResult, aResult)) {
     return NS_ERROR_FAILURE;
   }
-  *aResult = result;
   return NS_OK;
 }
 

@@ -413,16 +413,13 @@ xpc_qsGetterOnlyNativeStub(JSContext *cx, unsigned argc, jsval *vp)
                                         JSMSG_GETTER_ONLY);
 }
 
-xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, HandleValue v,
-                                 MutableHandleValue pval, bool notpassed,
+xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, jsval v, jsval *pval,
                                  StringificationBehavior nullBehavior,
                                  StringificationBehavior undefinedBehavior)
 {
     typedef implementation_type::char_traits traits;
     // From the T_DOMSTRING case in XPCConvert::JSData2Native.
-    JSString *s = InitOrStringify<traits>(cx, v,
-                                          pval, notpassed,
-                                          nullBehavior,
+    JSString *s = InitOrStringify<traits>(cx, v, pval, nullBehavior,
                                           undefinedBehavior);
     if (!s)
         return;
@@ -438,16 +435,13 @@ xpc_qsDOMString::xpc_qsDOMString(JSContext *cx, HandleValue v,
     mValid = true;
 }
 
-xpc_qsACString::xpc_qsACString(JSContext *cx, HandleValue v,
-                               MutableHandleValue pval, bool notpassed,
+xpc_qsACString::xpc_qsACString(JSContext *cx, jsval v, jsval *pval,
                                StringificationBehavior nullBehavior,
                                StringificationBehavior undefinedBehavior)
 {
     typedef implementation_type::char_traits traits;
     // From the T_CSTRING case in XPCConvert::JSData2Native.
-    JSString *s = InitOrStringify<traits>(cx, v,
-                                          pval, notpassed,
-                                          nullBehavior,
+    JSString *s = InitOrStringify<traits>(cx, v, pval, nullBehavior,
                                           undefinedBehavior);
     if (!s)
         return;
@@ -468,11 +462,11 @@ xpc_qsACString::xpc_qsACString(JSContext *cx, HandleValue v,
     mValid = true;
 }
 
-xpc_qsAUTF8String::xpc_qsAUTF8String(JSContext *cx, HandleValue v, MutableHandleValue pval, bool notpassed)
+xpc_qsAUTF8String::xpc_qsAUTF8String(JSContext *cx, jsval v, jsval *pval)
 {
     typedef nsCharTraits<PRUnichar> traits;
     // From the T_UTF8STRING  case in XPCConvert::JSData2Native.
-    JSString *s = InitOrStringify<traits>(cx, v, pval, notpassed, eNull, eNull);
+    JSString *s = InitOrStringify<traits>(cx, v, pval, eNull, eNull);
     if (!s)
         return;
 
@@ -580,12 +574,12 @@ castNative(JSContext *cx,
            const nsIID &iid,
            void **ppThis,
            nsISupports **pThisRef,
-           MutableHandleValue vp)
+           jsval *vp)
 {
     RootedObject cur(cx, curArg);
     if (wrapper) {
         nsresult rv = getNativeFromWrapper(cx,wrapper, iid, ppThis, pThisRef,
-                                           vp.address());
+                                           vp);
 
         if (rv != NS_ERROR_NO_INTERFACE)
             return rv;
@@ -596,7 +590,7 @@ castNative(JSContext *cx,
             return NS_ERROR_ILLEGAL_VALUE;
         }
 
-        if (NS_SUCCEEDED(getNative(native, cur, iid, ppThis, pThisRef, vp.address()))) {
+        if (NS_SUCCEEDED(getNative(native, cur, iid, ppThis, pThisRef, vp))) {
             return NS_OK;
         }
     }
@@ -612,7 +606,7 @@ castNativeFromWrapper(JSContext *cx,
                       uint32_t protoID,
                       int32_t protoDepth,
                       nsISupports **pRef,
-                      MutableHandleValue pVal,
+                      jsval *pVal,
                       nsresult *rv)
 {
     XPCWrappedNative *wrapper;
@@ -650,7 +644,7 @@ castNativeFromWrapper(JSContext *cx,
 
     if (native) {
         *pRef = nullptr;
-        pVal.setObjectOrNull(cur);
+        *pVal = OBJECT_TO_JSVAL(cur);
         *rv = NS_OK;
     } else {
         *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
@@ -679,11 +673,11 @@ xpc_qsUnwrapThisFromCcxImpl(XPCCallContext &ccx,
 
 nsresult
 xpc_qsUnwrapArgImpl(JSContext *cx,
-                    HandleValue v,
+                    jsval v,
                     const nsIID &iid,
                     void **ppArg,
                     nsISupports **ppArgRef,
-                    MutableHandleValue vp)
+                    jsval *vp)
 {
     nsresult rv;
     RootedObject src(cx, xpc_qsUnwrapObj(v, ppArgRef, &rv));
@@ -742,7 +736,7 @@ xpc_qsUnwrapArgImpl(JSContext *cx,
     rv = wrappedJS->QueryInterface(iid, ppArg);
     if (NS_SUCCEEDED(rv)) {
         *ppArgRef = static_cast<nsISupports*>(*ppArg);
-        vp.setObjectOrNull(wrappedJS->GetJSObject());
+        *vp = OBJECT_TO_JSVAL(wrappedJS->GetJSObject());
     }
     return rv;
 }
@@ -791,13 +785,13 @@ xpc_qsJsvalToWcharStr(JSContext *cx, jsval v, jsval *pval, const PRUnichar **pst
 namespace xpc {
 
 bool
-NonVoidStringToJsval(JSContext *cx, nsAString &str, MutableHandleValue rval)
+NonVoidStringToJsval(JSContext *cx, nsAString &str, JS::Value *rval)
 {
     nsStringBuffer* sharedBuffer;
     jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str, &sharedBuffer);
     if (JSVAL_IS_NULL(jsstr))
         return false;
-    rval.set(jsstr);
+    *rval = jsstr;
     if (sharedBuffer) {
         // The string was shared but ReadableToJSVal didn't addref it.
         // Move the ownership from str to jsstr.
@@ -833,7 +827,7 @@ xpc_qsStringToJsstring(JSContext *cx, nsString &str, JSString **rval)
 bool
 xpc_qsXPCOMObjectToJsval(JSContext *cx, qsObjectHelper &aHelper,
                          const nsIID *iid, XPCNativeInterface **iface,
-                         MutableHandleValue rval)
+                         jsval *rval)
 {
     NS_PRECONDITION(iface, "Who did that and why?");
 
@@ -853,7 +847,7 @@ xpc_qsXPCOMObjectToJsval(JSContext *cx, qsObjectHelper &aHelper,
     }
 
 #ifdef DEBUG
-    JSObject* jsobj = rval.toObjectOrNull();
+    JSObject* jsobj = JSVAL_TO_OBJECT(*rval);
     if (jsobj && !js::GetObjectParent(jsobj))
         MOZ_ASSERT(js::GetObjectClass(jsobj)->flags & JSCLASS_IS_GLOBAL,
                    "Why did we recreate this wrapper?");
@@ -865,7 +859,7 @@ xpc_qsXPCOMObjectToJsval(JSContext *cx, qsObjectHelper &aHelper,
 bool
 xpc_qsVariantToJsval(JSContext *aCx,
                      nsIVariant *p,
-                     MutableHandleValue rval)
+                     jsval *rval)
 {
     // From the T_INTERFACE case in XPCConvert::NativeData2JS.
     // Error handling is in XPCWrappedNative::CallMethod.
@@ -876,7 +870,7 @@ xpc_qsVariantToJsval(JSContext *aCx,
             xpc_qsThrow(aCx, rv);
         return ok;
     }
-    rval.setNull();
+    *rval = JSVAL_NULL;
     return true;
 }
 

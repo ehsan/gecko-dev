@@ -3597,7 +3597,7 @@ class MRandom : public MNullaryInstruction
 
 class MMathFunction
   : public MUnaryInstruction,
-    public FloatingPointPolicy<0>
+    public DoublePolicy<0>
 {
   public:
     enum Function {
@@ -3634,7 +3634,6 @@ class MMathFunction
       : MUnaryInstruction(input), function_(function), cache_(cache)
     {
         setResultType(MIRType_Double);
-        setPolicyType(MIRType_Double);
         setMovable();
     }
 
@@ -3673,13 +3672,6 @@ class MMathFunction
     void printOpcode(FILE *fp) const;
 
     static const char *FunctionName(Function function);
-
-    bool isFloat32Commutative() const {
-        return function_ == Log || function_ == Sin || function_ == Cos
-               || function_ == Exp || function_ == Tan || function_ == ATan
-               || function_ == ASin || function_ == ACos;
-    }
-    void trySpecializeFloat32();
 };
 
 class MAdd : public MBinaryArithInstruction
@@ -7143,13 +7135,10 @@ class MSetElementCache
     public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
 {
     bool strict_;
-    bool guardHoles_;
 
-    MSetElementCache(MDefinition *obj, MDefinition *index, MDefinition *value, bool strict,
-                     bool guardHoles)
+    MSetElementCache(MDefinition *obj, MDefinition *index, MDefinition *value, bool strict)
       : MSetElementInstruction(obj, index, value),
-        strict_(strict),
-        guardHoles_(guardHoles)
+        strict_(strict)
     {
     }
 
@@ -7157,15 +7146,12 @@ class MSetElementCache
     INSTRUCTION_HEADER(SetElementCache);
 
     static MSetElementCache *New(MDefinition *obj, MDefinition *index, MDefinition *value,
-                                 bool strict, bool guardHoles) {
-        return new MSetElementCache(obj, index, value, strict, guardHoles);
+                                 bool strict) {
+        return new MSetElementCache(obj, index, value, strict);
     }
 
     bool strict() const {
         return strict_;
-    }
-    bool guardHoles() const {
-        return guardHoles_;
     }
 
     TypePolicy *typePolicy() {
@@ -7181,12 +7167,10 @@ class MCallGetProperty
 {
     CompilerRootPropertyName name_;
     bool idempotent_;
-    bool callprop_;
 
-    MCallGetProperty(MDefinition *value, PropertyName *name, bool callprop)
+    MCallGetProperty(MDefinition *value, PropertyName *name)
       : MUnaryInstruction(value), name_(name),
-        idempotent_(false),
-        callprop_(callprop)
+        idempotent_(false)
     {
         setResultType(MIRType_Value);
     }
@@ -7194,17 +7178,14 @@ class MCallGetProperty
   public:
     INSTRUCTION_HEADER(CallGetProperty)
 
-    static MCallGetProperty *New(MDefinition *value, PropertyName *name, bool callprop) {
-        return new MCallGetProperty(value, name, callprop);
+    static MCallGetProperty *New(MDefinition *value, PropertyName *name) {
+        return new MCallGetProperty(value, name);
     }
     MDefinition *value() const {
         return getOperand(0);
     }
     PropertyName *name() const {
         return name_;
-    }
-    bool callprop() const {
-        return callprop_;
     }
     TypePolicy *typePolicy() {
         return this;
@@ -9018,18 +8999,18 @@ MIRType DenseNativeElementType(types::CompilerConstraintList *constraints, MDefi
 bool PropertyReadNeedsTypeBarrier(JSContext *cx, JSContext *propertycx,
                                   types::CompilerConstraintList *constraints,
                                   types::TypeObjectKey *object, PropertyName *name,
-                                  types::TemporaryTypeSet *observed, bool updateObserved);
+                                  types::StackTypeSet *observed, bool updateObserved);
 bool PropertyReadNeedsTypeBarrier(JSContext *cx, JSContext *propertycx,
                                   types::CompilerConstraintList *constraints,
                                   MDefinition *obj, PropertyName *name,
-                                  types::TemporaryTypeSet *observed);
+                                  types::StackTypeSet *observed);
 bool PropertyReadOnPrototypeNeedsTypeBarrier(JSContext *cx, types::CompilerConstraintList *constraints,
                                              MDefinition *obj, PropertyName *name,
                                              types::TemporaryTypeSet *observed);
 bool PropertyReadIsIdempotent(types::CompilerConstraintList *constraints,
                               MDefinition *obj, PropertyName *name);
-bool AddObjectsForPropertyRead(MDefinition *obj, PropertyName *name,
-                               types::TemporaryTypeSet *observed);
+bool AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *name,
+                               types::StackTypeSet *observed);
 bool PropertyWriteNeedsTypeBarrier(types::CompilerConstraintList *constraints,
                                    MBasicBlock *current, MDefinition **pobj,
                                    PropertyName *name, MDefinition **pvalue,

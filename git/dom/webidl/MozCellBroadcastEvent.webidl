@@ -5,7 +5,7 @@
  */
 interface MozCellBroadcastMessage;
 
-[Constructor(DOMString type, optional MozCellBroadcastEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h", Pref="dom.cellbroadcast.enabled"]
+[Constructor(DOMString type, optional MozCellBroadcastEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
 interface MozCellBroadcastEvent : Event
 {
   readonly attribute MozCellBroadcastMessage? message;

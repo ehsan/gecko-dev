@@ -186,11 +186,6 @@ void CompositableDataGonkOGL::SetCompositor(Compositor* aCompositor)
   mCompositor = static_cast<CompositorOGL*>(aCompositor);
 }
 
-void CompositableDataGonkOGL::ClearData()
-{
-  DeleteTextureIfPresent();
-}
-
 GLuint CompositableDataGonkOGL::GetTexture()
 {
   if (!mTexture) {

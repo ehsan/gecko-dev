@@ -8,8 +8,8 @@ var GeneratorObjectPrototype_next = GeneratorObjectPrototype.next;
 // Monkeypatch next on an iterator.
 var inner = g(20);
 var outer = delegate(inner);
-assertIteratorNext(outer, 0);
-assertIteratorNext(outer, 1);
+assertIteratorResult(0, false, outer.next());
+assertIteratorResult(1, false, outer.next());
 inner.next = function() { return 0; };
 // 42 yielded directly without re-boxing.
 assertEq(0, outer.next());
@@ -17,16 +17,16 @@ assertEq(0, outer.next());
 assertEq(0, outer.next());
 // Restore.
 inner.next = GeneratorObjectPrototype_next;
-assertIteratorNext(outer, 2);
+assertIteratorResult(2, false, outer.next());
 // Repatch.
 inner.next = function() { return { value: 42, done: true }; };
-assertIteratorDone(outer, 42);
+assertIteratorResult(42, true, outer.next());
 
 // Monkeypunch next on the prototype.
 var inner = g(20);
 var outer = delegate(inner);
-assertIteratorNext(outer, 0);
-assertIteratorNext(outer, 1);
+assertIteratorResult(0, false, outer.next());
+assertIteratorResult(1, false, outer.next());
 GeneratorObjectPrototype.next = function() { return 0; };
 // 42 yielded directly without re-boxing.
 assertEq(0, GeneratorObjectPrototype_next.call(outer));
@@ -34,7 +34,7 @@ assertEq(0, GeneratorObjectPrototype_next.call(outer));
 assertEq(0, GeneratorObjectPrototype_next.call(outer));
 // Restore.
 GeneratorObjectPrototype.next = GeneratorObjectPrototype_next;
-assertIteratorNext(outer, 2);
+assertIteratorResult(2, false, outer.next());
 
 if (typeof reportCompare == "function")
     reportCompare(true, true);

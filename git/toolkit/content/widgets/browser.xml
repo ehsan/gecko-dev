@@ -216,18 +216,9 @@
 
       <field name="_docShell">null</field>
 
-      <property name="docShell" readonly="true">
-        <getter><![CDATA[
-          if (this._docShell)
-            return this._docShell;
-
-          let frameLoader = this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader;
-          if (!frameLoader)
-            return null;
-          this._docShell = frameLoader.docShell;
-          return this._docShell;
-        ]]></getter>
-      </property>
+      <property name="docShell"
+                onget="return this._docShell || (this._docShell = this.boxObject.QueryInterface(Components.interfaces.nsIContainerBoxObject).docShell);"
+                readonly="true"/>
 
       <property name="docShellIsActive">
         <getter>
@@ -694,14 +685,8 @@
                       Components.classes["@mozilla.org/browser/shistory;1"]
                                 .createInstance(Components.interfaces.nsISHistory);
               // enable global history if we weren't told otherwise
-              if (!this.hasAttribute("disableglobalhistory") && !this.isRemoteBrowser) {
-                try {
-                  this.docShell.useGlobalHistory = true;
-                } catch(ex) {
-                  // This can occur if the Places database is locked
-                  Components.utils.reportError("Error enabling browser global history: " + ex);
-                }
-              }
+              if (!this.hasAttribute("disableglobalhistory"))
+                this.docShell.useGlobalHistory = true;
             }
           }
           catch (e) {

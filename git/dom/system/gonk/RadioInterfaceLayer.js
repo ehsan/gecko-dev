@@ -47,10 +47,6 @@ const RADIOINTERFACE_CID =
   Components.ID("{6a7c91f0-a2b3-4193-8562-8969296c0b54}");
 const RILNETWORKINTERFACE_CID =
   Components.ID("{3bdd52a9-3965-4130-b569-0ac5afed045e}");
-const GSMICCINFO_CID =
-  Components.ID("{d90c4261-a99d-47bc-8b05-b057bb7e8f8a}");
-const CDMAICCINFO_CID =
-  Components.ID("{39ba3c08-aacc-46d0-8c04-9b619c387061}");
 
 const kNetworkInterfaceStateChangedTopic = "network-interface-state-changed";
 const kSmsReceivedObserverTopic          = "sms-received";
@@ -466,52 +462,6 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
     }
   };
 });
-
-function IccInfo() {}
-IccInfo.prototype = {
-  iccType: null,
-  iccid: null,
-  mcc: null,
-  mnc: null,
-  spn: null,
-  isDisplayNetworkNameRequired: null,
-  isDisplaySpnRequired: null
-};
-
-function GsmIccInfo() {}
-GsmIccInfo.prototype = {
-  __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozGsmIccInfo]),
-  classID: GSMICCINFO_CID,
-  classInfo: XPCOMUtils.generateCI({
-    classID:          GSMICCINFO_CID,
-    classDescription: "MozGsmIccInfo",
-    flags:            Ci.nsIClassInfo.DOM_OBJECT,
-    interfaces:       [Ci.nsIDOMMozGsmIccInfo]
-  }),
-
-  // nsIDOMMozGsmIccInfo
-
-  msisdn: null
-};
-
-function CdmaIccInfo() {}
-CdmaIccInfo.prototype = {
-  __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozCdmaIccInfo]),
-  classID: CDMAICCINFO_CID,
-  classInfo: XPCOMUtils.generateCI({
-    classID:          CDMAICCINFO_CID,
-    classDescription: "MozCdmaIccInfo",
-    flags:            Ci.nsIClassInfo.DOM_OBJECT,
-    interfaces:       [Ci.nsIDOMMozCdmaIccInfo]
-  }),
-
-  // nsIDOMMozCdmaIccInfo
-
-  mdn: null,
-  min: null
-};
 
 function RadioInterfaceLayer() {
   gMessageManager.init(this);
@@ -1099,27 +1049,9 @@ RadioInterface.prototype = {
     }
   },
 
-  /**
-   * Get phone number from iccInfo.
-   *
-   * If the icc card is gsm card, the phone number is in msisdn.
-   * @see nsIDOMMozGsmIccInfo
-   *
-   * Otherwise, the phone number is in mdn.
-   * @see nsIDOMMozCdmaIccInfo
-   */
-  getPhoneNumber: function getPhoneNumber() {
+  getMsisdn: function getMsisdn() {
     let iccInfo = this.rilContext.iccInfo;
-
-    if (!iccInfo) {
-      return null;
-    }
-
-    // After moving SMS code out of RadioInterfaceLayer, we could use
-    // |iccInfo instanceof Ci.nsIDOMMozGsmIccInfo| here.
-    // TODO: Bug 873351 - B2G SMS: move SMS code out of RadioInterfaceLayer to
-    //                    SmsService
-    let number = (iccInfo instanceof GsmIccInfo) ? iccInfo.msisdn : iccInfo.mdn;
+    let number = iccInfo ? iccInfo.msisdn : null;
 
     // Workaround an xpconnect issue with undefined string objects.
     // See bug 808220
@@ -1812,7 +1744,7 @@ RadioInterface.prototype = {
 
     message.type = "sms";
     message.sender = message.sender || null;
-    message.receiver = this.getPhoneNumber();
+    message.receiver = this.getMsisdn();
     message.body = message.fullBody = message.fullBody || null;
     message.timestamp = Date.now();
 
@@ -1996,14 +1928,14 @@ RadioInterface.prototype = {
   setTimezoneByNitz: function setTimezoneByNitz(message) {
     // To set the sytem timezone. Note that we need to convert the time zone
     // value to a UTC repesentation string in the format of "UTC(+/-)hh:mm".
-    // Ex, time zone -480 is "UTC+08:00"; time zone 630 is "UTC-10:30".
+    // Ex, time zone -480 is "UTC-08:00"; time zone 630 is "UTC+10:30".
     //
     // We can unapply the DST correction if we want the raw time zone offset:
     // message.networkTimeZoneInMinutes -= message.networkDSTInMinutes;
     if (message.networkTimeZoneInMinutes != (new Date()).getTimezoneOffset()) {
       let absTimeZoneInMinutes = Math.abs(message.networkTimeZoneInMinutes);
       let timeZoneStr = "UTC";
-      timeZoneStr += (message.networkTimeZoneInMinutes > 0 ? "-" : "+");
+      timeZoneStr += (message.networkTimeZoneInMinutes >= 0 ? "+" : "-");
       timeZoneStr += ("0" + Math.floor(absTimeZoneInMinutes / 60)).slice(-2);
       timeZoneStr += ":";
       timeZoneStr += ("0" + absTimeZoneInMinutes % 60).slice(-2);
@@ -2059,27 +1991,12 @@ RadioInterface.prototype = {
   },
 
   handleIccInfoChange: function handleIccInfoChange(message) {
-    let oldSpn = this.rilContext.iccInfo ? this.rilContext.iccInfo.spn : null;
+    let oldIccInfo = this.rilContext.iccInfo;
+    this.rilContext.iccInfo = message;
 
-    if (!message || !message.iccType) {
-      // Card is not detected, clear iccInfo to null.
-      this.rilContext.iccInfo = null;
-    } else {
-      if (!this.rilContext.iccInfo) {
-        if (message.iccType === "ruim" || message.iccType === "csim") {
-          this.rilContext.iccInfo = new CdmaIccInfo();
-        } else {
-          this.rilContext.iccInfo = new GsmIccInfo();
-        }
-      }
-
-      if (!this.isInfoChanged(message, this.rilContext.iccInfo)) {
-        return;
-      }
-
-      this.updateInfo(message, this.rilContext.iccInfo);
+    if (!this.isInfoChanged(message, oldIccInfo)) {
+      return;
     }
-
     // RIL:IccInfoChanged corresponds to a DOM event that gets fired only
     // when iccInfo has changed.
     gMessageManager.sendIccMessage("RIL:IccInfoChanged",
@@ -2103,6 +2020,7 @@ RadioInterface.prototype = {
     }
 
     // If spn becomes available, we should check roaming again.
+    let oldSpn = oldIccInfo ? oldIccInfo.spn : null;
     if (!oldSpn && message.spn) {
       let voice = this.rilContext.voice;
       let data = this.rilContext.data;
@@ -3027,7 +2945,7 @@ RadioInterface.prototype = {
 
     let sendingMessage = {
       type: "sms",
-      sender: this.getPhoneNumber(),
+      sender: this.getMsisdn(),
       receiver: number,
       body: message,
       deliveryStatusRequested: options.requestStatusReport,

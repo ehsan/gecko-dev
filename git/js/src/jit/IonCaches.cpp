@@ -1235,8 +1235,6 @@ GetPropertyIC::tryAttachNative(JSContext *cx, IonScript *ion, HandleObject obj,
     *emitted = true;
 
     MacroAssembler masm(cx);
-    SkipRoot skip(cx, &masm);
-
     RepatchStubAppender attacher(*this);
     const char *attachKind;
 
@@ -1304,11 +1302,10 @@ GetPropertyIC::tryAttachTypedArrayLength(JSContext *cx, IonScript *ion, HandleOb
     return linkAndAttachStub(cx, masm, attacher, ion, "typed array length");
 }
 
-
 static bool
 EmitCallProxyGet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
                  PropertyName *name, RegisterSet liveRegs, Register object,
-                 TypedOrValueRegister output, jsbytecode *pc, void *returnAddr)
+                 TypedOrValueRegister output, void *returnAddr)
 {
     JS_ASSERT(output.hasValue());
     // saveLive()
@@ -1329,9 +1326,6 @@ EmitCallProxyGet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
     Register scratch         = regSet.takeGeneral();
 
     DebugOnly<uint32_t> initialStack = masm.framePushed();
-    void *getFunction = JSOp(*pc) == JSOP_CALLPROP                      ?
-                            JS_FUNC_TO_DATA_PTR(void *, Proxy::callProp) :
-                            JS_FUNC_TO_DATA_PTR(void *, Proxy::get);
 
     // Push stubCode for marking.
     attacher.pushStubCodePointer(masm);
@@ -1363,7 +1357,7 @@ EmitCallProxyGet(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &at
     masm.passABIArg(argProxyReg);
     masm.passABIArg(argIdReg);
     masm.passABIArg(argVpReg);
-    masm.callWithABI(getFunction);
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, Proxy::get));
 
     // Test for failure.
     masm.branchIfFalseBool(ReturnReg, masm.exceptionLabel());
@@ -1418,11 +1412,8 @@ GetPropertyIC::tryAttachDOMProxyShadowed(JSContext *cx, IonScript *ion,
     GenerateDOMProxyChecks(cx, masm, obj, name(), object(), &failures,
                            /*skipExpandoCheck=*/true);
 
-    if (!EmitCallProxyGet(cx, masm, attacher, name(), liveRegs_, object(), output(),
-                          pc(), returnAddr))
-    {
+    if (!EmitCallProxyGet(cx, masm, attacher, name(), liveRegs_, object(), output(), returnAddr))
         return false;
-    }
 
     // Success.
     attacher.jumpRejoin(masm);
@@ -1521,7 +1512,7 @@ GetPropertyIC::tryAttachDOMProxyUnshadowed(JSContext *cx, IonScript *ion, Handle
         // proxy get call
         JS_ASSERT(!idempotent());
         if (!EmitCallProxyGet(cx, masm, attacher, name, liveRegs_, object(), output(),
-                              pc(), returnAddr))
+                              returnAddr))
         {
             return false;
         }
@@ -1563,19 +1554,17 @@ GetPropertyIC::tryAttachProxy(JSContext *cx, IonScript *ion, HandleObject obj,
 
 static void
 GenerateProxyClassGuards(MacroAssembler &masm, Register object, Register scratchReg,
-                         Label *failures)
+                         Label *failures, Label *success)
 {
-    Label success;
     // Ensure that the incoming object has one of the magic class pointers, i.e,
     // that it is one of an ObjectProxy, FunctionProxy, or OuterWindowProxy.
     // This is equivalent to obj->is<ProxyObject>().
     masm.branchTestObjClass(Assembler::Equal, object, scratchReg,
-                            CallableProxyClassPtr, &success);
+                            CallableProxyClassPtr, success);
     masm.branchTestObjClass(Assembler::Equal, object, scratchReg,
-                            UncallableProxyClassPtr, &success);
+                            UncallableProxyClassPtr, success);
     masm.branchTestObjClass(Assembler::NotEqual, object, scratchReg,
                             OuterWindowProxyClassPtr, failures);
-    masm.bind(&success);
 }
 
 bool
@@ -1603,18 +1592,17 @@ GetPropertyIC::tryAttachGenericProxy(JSContext *cx, IonScript *ion, HandleObject
 
     masm.setFramePushed(ion->frameSize());
 
-    GenerateProxyClassGuards(masm, object(), scratchReg, &failures);
+    Label proxySuccess;
+    GenerateProxyClassGuards(masm, object(), scratchReg, &failures, &proxySuccess);
+    masm.bind(&proxySuccess);
 
     // Ensure that the incoming object is not a DOM proxy, so that we can get to
     // the specialized stubs
     masm.branchTestProxyHandlerFamily(Assembler::Equal, object(), scratchReg,
                                       GetDOMProxyHandlerFamily(), &failures);
 
-    if (!EmitCallProxyGet(cx, masm, attacher, name, liveRegs_, object(), output(),
-                          pc(), returnAddr))
-    {
+    if (!EmitCallProxyGet(cx, masm, attacher, name, liveRegs_, object(), output(), returnAddr))
         return false;
-    }
 
     attacher.jumpRejoin(masm);
 
@@ -2191,12 +2179,12 @@ SetPropertyIC::attachGenericProxy(JSContext *cx, IonScript *ion, void *returnAdd
         Register scratch = regSet.takeGeneral();
         masm.push(scratch);
 
-        GenerateProxyClassGuards(masm, object(), scratch, &proxyFailures);
+        GenerateProxyClassGuards(masm, object(), scratch, &proxyFailures, &proxySuccess);
 
         // Remove the DOM proxies. They'll take care of themselves so this stub doesn't
-        // catch too much. The failure case is actually Equal. Fall through to the failure code.
-        masm.branchTestProxyHandlerFamily(Assembler::NotEqual, object(), scratch,
-                                          GetDOMProxyHandlerFamily(), &proxySuccess);
+        // catch too much.
+        masm.branchTestProxyHandlerFamily(Assembler::Equal, object(), scratch,
+                                          GetDOMProxyHandlerFamily(), &proxyFailures);
 
         masm.bind(&proxyFailures);
         masm.pop(scratch);
@@ -3009,7 +2997,6 @@ GetElementIC::attachGetProp(JSContext *cx, IonScript *ion, HandleObject obj,
 
     Label failures;
     MacroAssembler masm(cx);
-    SkipRoot skip(cx, &masm);
 
     // Guard on the index value.
     ValueOperand val = index().reg().valueReg();
@@ -3479,17 +3466,14 @@ IsTypedArrayElementSetInlineable(JSObject *obj, const Value &idval, const Value 
 
 static bool
 GenerateSetDenseElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttacher &attacher,
-                        JSObject *obj, const Value &idval, bool guardHoles, Register object,
-                        ValueOperand indexVal, ConstantOrRegister value, Register tempToUnboxIndex,
-                        Register temp)
+                        JSObject *obj, const Value &idval, Register object, ValueOperand indexVal,
+                        ConstantOrRegister value, Register tempToUnboxIndex, Register temp)
 {
     JS_ASSERT(obj->isNative());
     JS_ASSERT(idval.isInt32());
 
     Label failures;
-    Label outOfBounds; // index represents a known hole, or an illegal append
-
-    Label markElem, storeElement; // used if TI protects us from worrying about holes.
+    Label outOfBounds; // index >= capacity || index > initialized length
 
     // Guard object is a dense array.
     Shape *shape = obj->lastProperty();
@@ -3511,53 +3495,49 @@ GenerateSetDenseElement(JSContext *cx, MacroAssembler &masm, IonCache::StubAttac
         // Compute the location of the element.
         BaseIndex target(elements, index, TimesEight);
 
-        // If TI cannot help us deal with HOLES by preventing indexed properties
-        // on the prototype chain, we have to be very careful to check for ourselves
-        // to avoid stomping on what should be a setter call. Start by only allowing things
-        // within the initialized length.
-        if (guardHoles) {
-            Address initLength(elements, ObjectElements::offsetOfInitializedLength());
-            masm.branch32(Assembler::BelowOrEqual, initLength, index, &outOfBounds);
-        } else {
-            // Guard that we can increase the initialized length.
-            Address capacity(elements, ObjectElements::offsetOfCapacity());
-            masm.branch32(Assembler::BelowOrEqual, capacity, index, &outOfBounds);
+        // Guard that we can increase the initialized length.
+        Address capacity(elements, ObjectElements::offsetOfCapacity());
+        masm.branch32(Assembler::BelowOrEqual, capacity, index, &outOfBounds);
 
-            // Guard on the initialized length.
-            Address initLength(elements, ObjectElements::offsetOfInitializedLength());
-            masm.branch32(Assembler::Below, initLength, index, &outOfBounds);
+        // Guard on the initialized length.
+        Address initLength(elements, ObjectElements::offsetOfInitializedLength());
+        masm.branch32(Assembler::Below, initLength, index, &outOfBounds);
 
-            // if (initLength == index)
-            masm.branch32(Assembler::NotEqual, initLength, index, &markElem);
-            {
-                // Increase initialize length.
-                Int32Key newLength(index);
-                masm.bumpKey(&newLength, 1);
-                masm.storeKey(newLength, initLength);
+        // if (initLength == index)
+        Label markElem, postBarrier;
+        masm.branch32(Assembler::NotEqual, initLength, index, &markElem);
+        {
+            // Increase initialize length.
+            Int32Key newLength(index);
+            masm.bumpKey(&newLength, 1);
+            masm.storeKey(newLength, initLength);
 
-                // Increase length if needed.
-                Label bumpedLength;
-                Address length(elements, ObjectElements::offsetOfLength());
-                masm.branch32(Assembler::AboveOrEqual, length, index, &bumpedLength);
-                masm.storeKey(newLength, length);
-                masm.bind(&bumpedLength);
+            // Increase length if needed.
+            Label bumpedLength;
+            Address length(elements, ObjectElements::offsetOfLength());
+            masm.branch32(Assembler::AboveOrEqual, length, index, &bumpedLength);
+            masm.storeKey(newLength, length);
+            masm.bind(&bumpedLength);
 
-                // Restore the index.
-                masm.bumpKey(&newLength, -1);
-                masm.jump(&storeElement);
-            }
-            // else
+            // Restore the index.
+            masm.bumpKey(&newLength, -1);
+            masm.jump(&postBarrier);
+        }
+        // else
+        {
+            // Mark old element.
             masm.bind(&markElem);
+            if (cx->zone()->needsBarrier())
+                masm.callPreBarrier(target, MIRType_Value);
         }
 
-        if (cx->zone()->needsBarrier())
-            masm.callPreBarrier(target, MIRType_Value);
+        // Call post barrier if necessary, and recalculate elements pointer if it got cobbered.
+        masm.bind(&postBarrier);
+        Register postBarrierScratch = elements;
+        if (masm.maybeCallPostBarrier(object, value, postBarrierScratch))
+            masm.loadPtr(Address(object, JSObject::offsetOfElements()), elements);
 
         // Store the value.
-        if (guardHoles)
-            masm.branchTestMagic(Assembler::Equal, target, &failures);
-        else
-            masm.bind(&storeElement);
         masm.storeConstantOrRegister(value, target);
     }
     attacher.jumpRejoin(masm);
@@ -3576,18 +3556,14 @@ SetElementIC::attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, c
     MacroAssembler masm(cx);
     RepatchStubAppender attacher(*this);
     if (!GenerateSetDenseElement(cx, masm, attacher, obj, idval,
-                                 guardHoles(), object(), index(),
-                                 value(), tempToUnboxIndex(),
-                                 temp()))
+                                 object(), index(), value(),
+                                 tempToUnboxIndex(), temp()))
     {
         return false;
     }
 
     setHasDenseStub();
-    const char *message = guardHoles()            ?
-                            "dense array (holes)" :
-                            "dense array";
-    return linkAndAttachStub(cx, masm, attacher, ion, message);
+    return linkAndAttachStub(cx, masm, attacher, ion, "dense array");
 }
 
 static bool
@@ -3728,18 +3704,13 @@ SetElementParIC::attachDenseElement(LockedJSContext &cx, IonScript *ion, JSObjec
     MacroAssembler masm(cx);
     DispatchStubPrepender attacher(*this);
     if (!GenerateSetDenseElement(cx, masm, attacher, obj, idval,
-                                 guardHoles(), object(), index(),
-                                 value(), tempToUnboxIndex(),
-                                 temp()))
+                                 object(), index(), value(),
+                                 tempToUnboxIndex(), temp()))
     {
         return false;
     }
 
-    const char *message = guardHoles()                     ?
-                            "parallel dense array (holes)" :
-                            "parallel dense array";
-
-    return linkAndAttachStub(cx, masm, attacher, ion, message);
+    return linkAndAttachStub(cx, masm, attacher, ion, "parallel dense array");
 }
 
 bool

@@ -9,7 +9,7 @@ var inner = g(20);
 var n = 0;
 for (var x of inner) {
     assertEq(x, n * 2);
-    assertIteratorNext(inner, n * 2 + 1);
+    assertIteratorResult(inner.next(), n * 2 + 1, false);
     n++;
 }
 assertEq(n, 10);

@@ -198,8 +198,6 @@ nsInputStreamPump::GetStatus(nsresult *status)
 NS_IMETHODIMP
 nsInputStreamPump::Cancel(nsresult status)
 {
-    MOZ_ASSERT(NS_IsMainThread());
-
     ReentrantMonitorAutoEnter mon(mMonitor);
 
     LOG(("nsInputStreamPump::Cancel [this=%p status=%x]\n",

@@ -85,7 +85,7 @@ void VideoFrameContainer::ClearCurrentFrame(bool aResetSize)
   kungFuDeathGrip = mImageContainer->LockCurrentImage();
   mImageContainer->UnlockCurrentImage();
 
-  mImageContainer->ClearAllImages();
+  mImageContainer->SetCurrentImage(nullptr);
   mImageSizeChanged = aResetSize;
 }
 

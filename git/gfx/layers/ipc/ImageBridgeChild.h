@@ -243,12 +243,12 @@ public:
   /**
    * Flush all Images sent to CompositableHost.
    */
-  static void FlushAllImages(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
+  static void FlushImage(ImageClient* aClient, ImageContainer* aContainer);
 
   /**
    * Must be called on the ImageBridgeChild's thread.
    */
-  static void FlushAllImagesNow(ImageClient* aClient, ImageContainer* aContainer, bool aExceptFront);
+  static void FlushImageNow(ImageClient* aClient, ImageContainer* aContainer);
 
   // CompositableForwarder
 

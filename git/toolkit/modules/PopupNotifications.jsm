@@ -4,9 +4,9 @@
 
 this.EXPORTED_SYMBOLS = ["PopupNotifications"];
 
-var Cc = Components.classes, Ci = Components.interfaces, Cu = Components.utils;
+var Cc = Components.classes, Ci = Components.interfaces;
 
-Cu.import("resource://gre/modules/Services.jsm");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 const NOTIFICATION_EVENT_DISMISSED = "dismissed";
 const NOTIFICATION_EVENT_REMOVED = "removed";
@@ -748,12 +748,8 @@ PopupNotifications.prototype = {
   },
 
   _fireCallback: function PopupNotifications_fireCallback(n, event) {
-    try {
-      if (n.options.eventCallback)
-        n.options.eventCallback.call(n, event);
-    } catch (error) {
-      Cu.reportError(error);
-    }
+    if (n.options.eventCallback)
+      n.options.eventCallback.call(n, event);
   },
 
   _onPopupHidden: function PopupNotifications_onPopupHidden(event) {
@@ -821,11 +817,7 @@ PopupNotifications.prototype = {
                                         timeSinceShown + "ms");
       return;
     }
-    try {
-      notification.mainAction.callback.call();
-    } catch(error) {
-      Cu.reportError(error);
-    }
+    notification.mainAction.callback.call();
 
     this._remove(notification);
     this._update();
@@ -837,11 +829,7 @@ PopupNotifications.prototype = {
       throw "menucommand target has no associated action/notification";
 
     event.stopPropagation();
-    try {
-      target.action.callback.call();
-    } catch(error) {
-      Cu.reportError(error);
-    }
+    target.action.callback.call();
 
     this._remove(target.notification);
     this._update();

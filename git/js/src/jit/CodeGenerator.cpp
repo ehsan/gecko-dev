@@ -3842,34 +3842,6 @@ CodeGenerator::visitMathFunctionD(LMathFunctionD *ins)
 }
 
 bool
-CodeGenerator::visitMathFunctionF(LMathFunctionF *ins)
-{
-    Register temp = ToRegister(ins->temp());
-    FloatRegister input = ToFloatRegister(ins->input());
-    JS_ASSERT(ToFloatRegister(ins->output()) == ReturnFloatReg);
-
-    masm.setupUnalignedABICall(1, temp);
-    masm.passABIArg(input);
-
-    void *funptr = NULL;
-    switch (ins->mir()->function()) {
-      case MMathFunction::Log:  funptr = JS_FUNC_TO_DATA_PTR(void *, logf);  break;
-      case MMathFunction::Sin:  funptr = JS_FUNC_TO_DATA_PTR(void *, sinf);  break;
-      case MMathFunction::Cos:  funptr = JS_FUNC_TO_DATA_PTR(void *, cosf);  break;
-      case MMathFunction::Exp:  funptr = JS_FUNC_TO_DATA_PTR(void *, expf);  break;
-      case MMathFunction::Tan:  funptr = JS_FUNC_TO_DATA_PTR(void *, tanf);  break;
-      case MMathFunction::ATan: funptr = JS_FUNC_TO_DATA_PTR(void *, atanf); break;
-      case MMathFunction::ASin: funptr = JS_FUNC_TO_DATA_PTR(void *, sinf);  break;
-      case MMathFunction::ACos: funptr = JS_FUNC_TO_DATA_PTR(void *, acosf); break;
-      default:
-        MOZ_ASSUME_UNREACHABLE("Unknown or unsupported float32 math function");
-    }
-
-    masm.callWithABI(funptr, MacroAssembler::DOUBLE);
-    return true;
-}
-
-bool
 CodeGenerator::visitModD(LModD *ins)
 {
     FloatRegister lhs = ToFloatRegister(ins->lhs());
@@ -5864,16 +5836,12 @@ CodeGenerator::visitOutOfLineUnboxFloatingPoint(OutOfLineUnboxFloatingPoint *ool
 
 typedef bool (*GetPropertyFn)(JSContext *, HandleValue, HandlePropertyName, MutableHandleValue);
 static const VMFunction GetPropertyInfo = FunctionInfo<GetPropertyFn>(GetProperty);
-static const VMFunction CallPropertyInfo = FunctionInfo<GetPropertyFn>(CallProperty);
 
 bool
 CodeGenerator::visitCallGetProperty(LCallGetProperty *lir)
 {
     pushArg(ImmGCPtr(lir->mir()->name()));
     pushArg(ToValue(lir, LCallGetProperty::Value));
-
-    if (lir->mir()->callprop())
-        return callVM(CallPropertyInfo, lir);
     return callVM(GetPropertyInfo, lir);
 }
 
@@ -6088,17 +6056,15 @@ CodeGenerator::addSetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Regi
 bool
 CodeGenerator::addSetElementCache(LInstruction *ins, Register obj, Register unboxIndex,
                                   Register temp, FloatRegister tempFloat, ValueOperand index,
-                                  ConstantOrRegister value, bool strict, bool guardHoles)
+                                  ConstantOrRegister value, bool strict)
 {
     switch (gen->info().executionMode()) {
       case SequentialExecution: {
-        SetElementIC cache(obj, unboxIndex, temp, tempFloat, index, value, strict,
-                           guardHoles);
+        SetElementIC cache(obj, unboxIndex, temp, tempFloat, index, value, strict);
         return addCache(ins, allocateCache(cache));
       }
       case ParallelExecution: {
-        SetElementParIC cache(obj, unboxIndex, temp, tempFloat, index, value, strict,
-                              guardHoles);
+        SetElementParIC cache(obj, unboxIndex, temp, tempFloat, index, value, strict);
         return addCache(ins, allocateCache(cache));
       }
       default:
@@ -6252,7 +6218,7 @@ CodeGenerator::visitSetElementCacheV(LSetElementCacheV *ins)
     ConstantOrRegister value = TypedOrValueRegister(ToValue(ins, LSetElementCacheV::Value));
 
     return addSetElementCache(ins, obj, unboxIndex, temp, tempFloat, index, value,
-                              ins->mir()->strict(), ins->mir()->guardHoles());
+                              ins->mir()->strict());
 }
 
 bool
@@ -6271,7 +6237,7 @@ CodeGenerator::visitSetElementCacheT(LSetElementCacheT *ins)
         value = TypedOrValueRegister(ins->mir()->value()->type(), ToAnyRegister(tmp));
 
     return addSetElementCache(ins, obj, unboxIndex, temp, tempFloat, index, value,
-                              ins->mir()->strict(), ins->mir()->guardHoles());
+                              ins->mir()->strict());
 }
 
 typedef bool (*SetElementICFn)(JSContext *, size_t, HandleObject, HandleValue, HandleValue);
