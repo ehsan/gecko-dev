@@ -15,7 +15,6 @@ const GLOBAL_SEARCH_ACTION_DELAY = 150; // ms
 const SEARCH_GLOBAL_FLAG = "!";
 const SEARCH_LINE_FLAG = ":";
 const SEARCH_TOKEN_FLAG = "#";
-const SEARCH_VARIABLE_FLAG = "*";
 
 /**
  * Object defining the debugger view components.
@@ -39,10 +38,8 @@ let DebuggerView = {
     this.GlobalSearch.initialize();
 
     this.Variables = new VariablesView(document.getElementById("variables"));
-    this.Variables.searchPlaceholder = L10N.getStr("emptyVariablesFilterText");
     this.Variables.emptyText = L10N.getStr("emptyVariablesText");
-    this.Variables.nonEnumVisible = Prefs.variablesNonEnumVisible;
-    this.Variables.searchEnabled = Prefs.variablesSearchboxVisible;
+    this.Variables.nonEnumVisible = Prefs.nonEnumVisible;
     this.Variables.eval = DebuggerController.StackFrames.evaluate;
     this.Variables.lazyEmpty = true;
 
