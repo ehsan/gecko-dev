@@ -64,8 +64,7 @@ class GeckoAppShell
     // static members only
     private GeckoAppShell() { }
 
-    static private LinkedList<GeckoEvent> gPendingEvents =
-        new LinkedList<GeckoEvent>();
+    static private GeckoEvent gPendingResize = null;
 
     static private boolean gRestartScheduled = false;
 
@@ -144,20 +143,16 @@ class GeckoAppShell
 
     private static GeckoEvent mLastDrawEvent;
 
-    private static void sendPendingEventsToGecko() {
-        try {
-            while (!gPendingEvents.isEmpty()) {
-                GeckoEvent e = gPendingEvents.removeFirst();
-                notifyGeckoOfEvent(e);
-            }
-        } catch (NoSuchElementException e) {}
-    }
- 
     public static void sendEventToGecko(GeckoEvent e) {
         if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning)) {
+            if (gPendingResize != null) {
+                notifyGeckoOfEvent(gPendingResize);
+                gPendingResize = null;
+            }
             notifyGeckoOfEvent(e);
         } else {
-            gPendingEvents.addLast(e);
+            if (e.mType == GeckoEvent.SIZE_CHANGED)
+                gPendingResize = e;
         }
     }
 
@@ -340,7 +335,10 @@ class GeckoAppShell
     {
         // mLaunchState can only be Launched at this point
         GeckoApp.setLaunchState(GeckoApp.LaunchState.GeckoRunning);
-        sendPendingEventsToGecko();
+        if (gPendingResize != null) {
+            notifyGeckoOfEvent(gPendingResize);
+            gPendingResize = null;
+        }
     }
 
     static void onXreExit() {
@@ -635,7 +633,10 @@ class GeckoAppShell
     }
 
     public static void hideProgressDialog() {
-        GeckoApp.surfaceView.mShowingSplashScreen = false;
+        if (GeckoApp.mAppContext.mProgressDialog != null) {
+            GeckoApp.mAppContext.mProgressDialog.dismiss();
+            GeckoApp.mAppContext.mProgressDialog = null;
+        }
     }
 
     public static void setKeepScreenOn(final boolean on) {
