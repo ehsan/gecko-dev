@@ -691,18 +691,14 @@ MarkIdInternal(JSTracer *trc, jsid *id)
 {
     if (JSID_IS_STRING(*id)) {
         JSString *str = JSID_TO_STRING(*id);
-        JSString *prior = str;
         trc->setTracingLocation((void *)id);
         MarkInternal(trc, &str);
-        if (str != prior)
-            *id = NON_INTEGER_ATOM_TO_JSID(reinterpret_cast<JSAtom *>(str));
+        *id = NON_INTEGER_ATOM_TO_JSID(reinterpret_cast<JSAtom *>(str));
     } else if (JSID_IS_SYMBOL(*id)) {
         JS::Symbol *sym = JSID_TO_SYMBOL(*id);
-        JS::Symbol *prior = sym;
         trc->setTracingLocation((void *)id);
         MarkInternal(trc, &sym);
-        if (sym != prior)
-            *id = SYMBOL_TO_JSID(sym);
+        *id = SYMBOL_TO_JSID(sym);
     } else {
         /* Unset realLocation manually if we do not call MarkInternal. */
         trc->unsetTracingLocation();
@@ -759,22 +755,14 @@ MarkValueInternal(JSTracer *trc, Value *v)
         MOZ_ASSERT(v->toGCThing());
         void *thing = v->toGCThing();
         trc->setTracingLocation((void *)v);
+        MarkKind(trc, &thing, v->gcKind());
         if (v->isString()) {
-            JSString *str = static_cast<JSString*>(thing);
-            MarkInternal(trc, &str);
-            if (str != thing)
-                v->setString(str);
+            v->setString((JSString *)thing);
         } else if (v->isObject()) {
-            JSObject *obj = static_cast<JSObject*>(thing);
-            MarkInternal(trc, &obj);
-            if (obj != thing)
-                v->setObjectOrNull(obj);
+            v->setObjectOrNull((JSObject *)thing);
         } else {
             MOZ_ASSERT(v->isSymbol());
-            JS::Symbol *sym = static_cast<JS::Symbol*>(thing);
-            MarkInternal(trc, &sym);
-            if (sym != thing)
-                v->setSymbol(sym);
+            v->setSymbol((JS::Symbol *)thing);
         }
     } else {
         /* Unset realLocation manually if we do not call MarkInternal. */
@@ -1005,6 +993,24 @@ gc::MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name)
 {
     trc->setTracingName(name);
     MarkValueInternal(trc, v);
+}
+
+bool
+gc::IsCellMarked(Cell **thingp)
+{
+    return IsMarked<Cell>(thingp);
+}
+
+bool
+gc::IsCellAboutToBeFinalized(Cell **thingp)
+{
+    return IsAboutToBeFinalized<Cell>(thingp);
+}
+
+bool
+gc::IsCellAboutToBeFinalizedFromAnyThread(Cell **thingp)
+{
+    return IsAboutToBeFinalizedFromAnyThread<Cell>(thingp);
 }
 
 /*** Push Mark Stack ***/

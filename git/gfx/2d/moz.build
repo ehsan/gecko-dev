@@ -109,7 +109,6 @@ UNIFIED_SOURCES += [
     'DrawTargetCapture.cpp',
     'DrawTargetDual.cpp',
     'DrawTargetRecording.cpp',
-    'DrawTargetTiled.cpp',
     'Factory.cpp',
     'FilterNodeSoftware.cpp',
     'FilterProcessing.cpp',
@@ -118,6 +117,7 @@ UNIFIED_SOURCES += [
     'Matrix.cpp',
     'Path.cpp',
     'PathCairo.cpp',
+    'PathHelpers.cpp',
     'PathRecording.cpp',
     'RecordedEvent.cpp',
     'Scale.cpp',
@@ -128,7 +128,7 @@ UNIFIED_SOURCES += [
 ]
 
 SOURCES += [
-    'PathHelpers.cpp', # Uses _USE_MATH_DEFINES
+    'DrawTargetTiled.cpp',
 ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':

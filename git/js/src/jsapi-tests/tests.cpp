@@ -76,23 +76,20 @@ bool JSAPITest::definePrint()
 JSObject * JSAPITest::createGlobal(JSPrincipals *principals)
 {
     /* Create the global object. */
-    JS::RootedObject newGlobal(cx);
     JS::CompartmentOptions options;
     options.setVersion(JSVERSION_LATEST);
-    newGlobal = JS_NewGlobalObject(cx, getGlobalClass(), principals, JS::FireOnNewGlobalHook,
-                                   options);
-    if (!newGlobal)
+    global = JS_NewGlobalObject(cx, getGlobalClass(), principals, JS::FireOnNewGlobalHook, options);
+    if (!global)
         return nullptr;
 
-    JSAutoCompartment ac(cx, newGlobal);
+    JSAutoCompartment ac(cx, global);
 
     /* Populate the global object with the standard globals, like Object and
        Array. */
-    if (!JS_InitStandardClasses(cx, newGlobal))
-        return nullptr;
+    if (!JS_InitStandardClasses(cx, global))
+        global = nullptr;
 
-    global = newGlobal;
-    return newGlobal;
+    return global;
 }
 
 int main(int argc, char *argv[])
