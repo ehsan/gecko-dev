@@ -62,6 +62,7 @@ CPPSRCS		+= \
 	nsSMILFloatType.cpp \
 	nsSMILInstanceTime.cpp \
 	nsSMILInterval.cpp \
+	nsSMILMappedAttribute.cpp \
 	nsSMILNullType.cpp \
 	nsSMILParserUtils.cpp \
 	nsSMILRepeatCount.cpp \
@@ -90,9 +91,12 @@ endif # ENABLE_TESTS
 EXPORTS		+= \
 	  nsISMILAnimationElement.h \
 	  nsISMILAttr.h \
+	  nsISMILType.h \
 	  nsSMILAnimationController.h \
 	  nsSMILCompositorTable.h \
+	  nsSMILCSSProperty.h \
 	  nsSMILKeySpline.h \
+	  nsSMILMappedAttribute.h \
 	  nsSMILMilestone.h \
 	  nsSMILTimeContainer.h \
 	  nsSMILTypes.h \

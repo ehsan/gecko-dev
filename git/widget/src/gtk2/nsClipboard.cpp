@@ -47,6 +47,7 @@
 #include "nsImageToPixbuf.h"
 #include "nsStringStream.h"
 #include "nsIObserverService.h"
+#include "mozilla/Services.h"
 
 #include "imgIContainer.h"
 
@@ -101,13 +102,18 @@ checkEventProc(Display *display, XEvent *event, XPointer arg);
 
 struct retrieval_context
 {
-    PRBool   completed;
+    PRPackedBool completed;
+    PRPackedBool timed_out;
     void    *data;
 
-    retrieval_context() : completed(PR_FALSE), data(nsnull) { }
+    retrieval_context()
+      : completed(PR_FALSE),
+        timed_out(PR_FALSE),
+        data(nsnull)
+    { }
 };
 
-static void
+static PRBool
 wait_for_retrieval(GtkClipboard *clipboard, retrieval_context *transferData);
 
 static void
@@ -141,10 +147,9 @@ NS_IMPL_ISUPPORTS1(nsClipboard, nsIClipboard)
 nsresult
 nsClipboard::Init(void)
 {
-    nsresult rv;
-    nsCOMPtr<nsIObserverService> os
-      (do_GetService("@mozilla.org/observer-service;1", &rv));
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    if (!os)
+      return NS_ERROR_FAILURE;
 
     os->AddObserver(this, "quit-application", PR_FALSE);
 
@@ -373,8 +378,9 @@ nsClipboard::GetData(nsITransferable *aTransferable, PRInt32 aWhichClipboard)
                     // Convert text/html into our unicode format
                     ConvertHTMLtoUCS2((guchar *)selectionData->data, length,
                                       &htmlBody, htmlBodyLen);
+                    // Try next data format?
                     if (!htmlBodyLen)
-                        break;
+                        continue;
                     data = (guchar *)htmlBody;
                     length = htmlBodyLen * 2;
                 } else {
@@ -891,11 +897,11 @@ checkEventProc(Display *display, XEvent *event, XPointer arg)
 // Idle timeout for receiving selection and property notify events (microsec)
 static const int kClipboardTimeout = 500000;
 
-static void
+static PRBool
 wait_for_retrieval(GtkClipboard *clipboard, retrieval_context *r_context)
 {
     if (r_context->completed)  // the request completed synchronously
-        return;
+        return PR_TRUE;
 
     Display *xDisplay = GDK_DISPLAY();
     checkEventContext context;
@@ -934,7 +940,7 @@ wait_for_retrieval(GtkClipboard *clipboard, retrieval_context *r_context)
                 DispatchPropertyNotifyEvent(context.cbWidget, &xevent);
 
             if (r_context->completed)
-                return;
+                return PR_TRUE;
         }
 
 #ifdef POLL_WITH_XCONNECTIONNUMBER
@@ -949,6 +955,8 @@ wait_for_retrieval(GtkClipboard *clipboard, retrieval_context *r_context)
 #ifdef DEBUG_CLIPBOARD
     printf("exceeded clipboard timeout\n");
 #endif
+    r_context->timed_out = PR_TRUE;
+    return PR_FALSE;
 }
 
 static void
@@ -957,6 +965,11 @@ clipboard_contents_received(GtkClipboard     *clipboard,
                             gpointer          data)
 {
     retrieval_context *context = static_cast<retrieval_context *>(data);
+    if (context->timed_out) {
+        delete context;
+        return;
+    }
+
     context->completed = PR_TRUE;
 
     if (selection_data->length >= 0)
@@ -967,13 +980,20 @@ clipboard_contents_received(GtkClipboard     *clipboard,
 static GtkSelectionData *
 wait_for_contents(GtkClipboard *clipboard, GdkAtom target)
 {
-    retrieval_context context;
+    retrieval_context *context = new retrieval_context();
     gtk_clipboard_request_contents(clipboard, target,
                                    clipboard_contents_received,
-                                   &context);
+                                   context);
 
-    wait_for_retrieval(clipboard, &context);
-    return static_cast<GtkSelectionData *>(context.data);
+    if (!wait_for_retrieval(clipboard, context)) {
+        // Don't delete |context|; the callback will when it eventually
+        // comes back.
+        return nsnull;
+    }
+
+    GtkSelectionData *result = static_cast<GtkSelectionData *>(context->data);
+    delete context;
+    return result;
 }
 
 static void
@@ -982,6 +1002,11 @@ clipboard_text_received(GtkClipboard *clipboard,
                         gpointer      data)
 {
     retrieval_context *context = static_cast<retrieval_context *>(data);
+    if (context->timed_out) {
+        delete context;
+        return;
+    }
+
     context->completed = PR_TRUE;
     context->data = g_strdup(text);
 }
@@ -989,9 +1014,16 @@ clipboard_text_received(GtkClipboard *clipboard,
 static gchar *
 wait_for_text(GtkClipboard *clipboard)
 {
-    retrieval_context context;
-    gtk_clipboard_request_text(clipboard, clipboard_text_received, &context);
+    retrieval_context *context = new retrieval_context();
+    gtk_clipboard_request_text(clipboard, clipboard_text_received, context);
 
-    wait_for_retrieval(clipboard, &context);
-    return static_cast<gchar *>(context.data);
+    if (!wait_for_retrieval(clipboard, context)) {
+        // Don't delete |context|; the callback will when it eventually
+        // comes back.
+        return nsnull;
+    }
+
+    gchar *result = static_cast<gchar *>(context->data);
+    delete context;
+    return result;
 }

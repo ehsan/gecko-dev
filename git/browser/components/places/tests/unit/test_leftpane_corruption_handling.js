@@ -116,10 +116,7 @@ function run_test() {
   // We want empty roots.
   remove_all_bookmarks();
 
-  // Import PlacesUIUtils.
-  let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
-                     getService(Ci.mozIJSSubScriptLoader);
-  scriptLoader.loadSubScript("chrome://browser/content/places/utils.js", this);
+  // Sanity check.
   do_check_true(!!PlacesUIUtils);
 
   // Check getters.
@@ -202,7 +199,8 @@ function compareJSON(aNodeJSON_1, aNodeJSON_2) {
   const SKIP_PROPS = ["dateAdded", "lastModified", "id"];
 
   function compareObjects(obj1, obj2) {
-    do_check_eq(obj1.__count__, obj2.__count__);
+    function count(o) { var n = 0; for (let p in o) n++; return n; }
+    do_check_eq(count(obj1), count(obj2));
     for (let prop in obj1) {
       // Skip everchanging values.
       if (SKIP_PROPS.indexOf(prop) != -1)

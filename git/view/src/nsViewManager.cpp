@@ -948,7 +948,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
     default:
       {
         if ((NS_IS_MOUSE_EVENT(aEvent) &&
-             // Ignore moves that we synthesize.
+             // Ignore mouse events that we synthesize.
              static_cast<nsMouseEvent*>(aEvent)->reason ==
                nsMouseEvent::eReal &&
              // Ignore mouse exit and enter (we'll get moves if the user
@@ -958,7 +958,8 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
              aEvent->message != NS_MOUSE_ENTER) ||
             NS_IS_KEY_EVENT(aEvent) ||
             NS_IS_IME_EVENT(aEvent) ||
-            NS_IS_PLUGIN_EVENT(aEvent)) {
+            NS_IS_PLUGIN_EVENT(aEvent) ||
+            NS_IS_NON_RETARGETED_PLUGIN_EVENT(aEvent)) {
           gLastUserEventTime = PR_IntervalToMicroseconds(PR_IntervalNow());
         }
 
@@ -1039,9 +1040,7 @@ NS_IMETHODIMP nsViewManager::DispatchEvent(nsGUIEvent *aEvent,
 
           // Dispatch the event
           nsRect baseViewDimensions;
-          if (baseView) {
-            baseView->GetDimensions(baseViewDimensions);
-          }
+          baseView->GetDimensions(baseViewDimensions);
 
           nsPoint pt;
           pt.x = baseViewDimensions.x + 

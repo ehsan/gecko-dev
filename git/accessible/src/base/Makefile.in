@@ -74,8 +74,8 @@ CPPSRCS = \
   $(NULL)
 
 EXPORTS = \
-  nsRootAccessible.h \
-  nsAccEvent.h \
+  a11yGeneric.h \
+  nsAccessible.h \
   nsAccessNode.h \
   $(NULL)
 

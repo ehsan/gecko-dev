@@ -120,6 +120,7 @@ MAKEFILES_xmlparser="
 
 MAKEFILES_gfx="
   gfx/Makefile
+  gfx/ycbcr/Makefile
   gfx/idl/Makefile
   gfx/layers/Makefile
   gfx/public/Makefile
@@ -210,10 +211,6 @@ MAKEFILES_xpconnect="
 MAKEFILES_jsdebugger="
   js/jsd/Makefile
   js/jsd/idl/Makefile
-"
-
-MAKEFILES_jsctypes="
-  js/ctypes/Makefile
 "
 
 MAKEFILES_content="
@@ -326,37 +323,12 @@ MAKEFILES_libtheora="
   media/libtheora/include/theora/Makefile
 "
 
-MAKEFILES_liboggz="
-  media/liboggz/Makefile
-  media/liboggz/src/Makefile
-  media/liboggz/src/liboggz/Makefile
-  media/liboggz/include/Makefile
-  media/liboggz/include/oggz/Makefile
-"
-
 MAKEFILES_libogg="
   media/libogg/Makefile
   media/libogg/src/Makefile
   media/libogg/include/Makefile
   media/libogg/include/ogg/Makefile
 "
-
-MAKEFILES_libfishsound="
-  media/libfishsound/Makefile
-  media/libfishsound/src/Makefile
-  media/libfishsound/src/libfishsound/Makefile
-  media/libfishsound/include/Makefile
-  media/libfishsound/include/fishsound/Makefile
-"
-
-MAKEFILES_liboggplay="
-  media/liboggplay/Makefile
-  media/liboggplay/src/Makefile
-  media/liboggplay/src/liboggplay/Makefile
-  media/liboggplay/include/Makefile
-  media/liboggplay/include/oggplay/Makefile
-"
-
 MAKEFILES_libsydneyaudio="
   media/libsydneyaudio/Makefile
   media/libsydneyaudio/include/Makefile
@@ -590,13 +562,8 @@ MAKEFILES_xpinstall="
 MAKEFILES_xpfe="
   widget/src/xremoteclient/Makefile
   toolkit/components/remote/Makefile
-  xpfe/Makefile
   xpfe/components/Makefile
   xpfe/components/directory/Makefile
-  xpfe/components/find/Makefile
-  xpfe/components/find/public/Makefile
-  xpfe/components/find/src/Makefile
-  xpfe/components/intl/Makefile
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
@@ -628,9 +595,6 @@ MAKEFILES_embedding="
   embedding/browser/gtk/Makefile
   embedding/browser/gtk/src/Makefile
   embedding/browser/gtk/tests/Makefile
-  embedding/browser/photon/Makefile
-  embedding/browser/photon/src/Makefile
-  embedding/browser/photon/tests/Makefile
   embedding/components/Makefile
   embedding/components/appstartup/Makefile
   embedding/components/appstartup/src/Makefile
@@ -652,9 +616,6 @@ MAKEFILES_embedding="
   embedding/components/windowwatcher/Makefile
   embedding/components/windowwatcher/public/Makefile
   embedding/components/windowwatcher/src/Makefile
-  embedding/components/ui/Makefile
-  embedding/components/ui/helperAppDlg/Makefile
-  embedding/components/ui/progressDlg/Makefile
   embedding/tests/Makefile
   embedding/tests/winEmbed/Makefile
 "
@@ -710,7 +671,11 @@ MAKEFILES_xulapp="
   toolkit/components/filepicker/Makefile
   toolkit/components/filepicker/public/Makefile
   toolkit/components/filepicker/src/Makefile
+  toolkit/components/find/Makefile
+  toolkit/components/find/public/Makefile
+  toolkit/components/find/src/Makefile
   toolkit/components/help/Makefile
+  toolkit/components/intl/Makefile
   toolkit/components/microformats/Makefile
   toolkit/components/microformats/src/Makefile
   toolkit/components/parentalcontrols/Makefile
@@ -778,6 +743,11 @@ MAKEFILES_xulapp="
   toolkit/themes/winstripe/help/Makefile
   toolkit/themes/winstripe/mozapps/Makefile
   toolkit/xre/Makefile
+"
+
+MAKEFILES_ctypes="
+  toolkit/components/ctypes/Makefile
+  toolkit/components/ctypes/tests/Makefile
 "
 
 MAKEFILES_libpr0n="
@@ -963,7 +933,6 @@ if [ "$ENABLE_TESTS" ]; then
     extensions/pref/Makefile
     intl/locale/tests_multilocale/Makefile
     js/src/xpconnect/tests/mochitest/Makefile
-    js/ctypes/tests/Makefile
     layout/forms/test/Makefile
     layout/generic/test/Makefile
     layout/inspector/tests/Makefile
@@ -993,6 +962,10 @@ if [ "$ENABLE_TESTS" ]; then
     testing/mochitest/ssltunnel/Makefile
     testing/mochitest/static/Makefile
     testing/mochitest/tests/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/MochiKit/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/tests/Makefile
+    testing/mochitest/tests/MochiKit-1.4.2/tests/SimpleTest/Makefile
     testing/mochitest/tests/SimpleTest/Makefile
     testing/mochitest/tests/browser/Makefile
     testing/xpcshell/Makefile
@@ -1264,10 +1237,7 @@ if [ "$MOZ_OGG" ]; then
  add_makefiles "
    $MAKEFILES_libvorbis
    $MAKEFILES_libtheora
-   $MAKEFILES_liboggz
    $MAKEFILES_libogg
-   $MAKEFILES_libfishsound
-   $MAKEFILES_liboggplay
    content/media/ogg/Makefile
  "
 fi

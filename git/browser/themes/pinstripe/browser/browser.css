@@ -67,11 +67,6 @@
   border-color: transparent !important;
 }
 
-.tabbrowser-strip:-moz-lwtheme,
-.tabbrowser-tabs:-moz-lwtheme {
-  background: none !important;
-}
-
 .tabbrowser-tab:-moz-lwtheme[selected="true"] {
   background-color: transparent !important;
 }
@@ -79,7 +74,7 @@
   opacity: .8;
 }
 
-.tabbrowser-arrowscrollbox:-moz-lwtheme > .tabs-newtab-button {
+.tabs-newtab-button:-moz-lwtheme {
   width: auto;
   -moz-box-flex: 1;
   -moz-box-pack: start;
@@ -100,8 +95,11 @@
 }
 
 .tabs-newtab-button:-moz-lwtheme-darktext,
-.tabs-alltabs-button:-moz-lwtheme-darktext,
-.tabs-container:-moz-lwtheme-darktext > .tabs-closebutton,
+#TabsToolbar > #new-tab-button:-moz-lwtheme-darktext,
+#TabsToolbar > toolbarpaletteitem > #new-tab-button:-moz-lwtheme-darktext,
+#TabsToolbar > #alltabs-button:-moz-lwtheme-darktext,
+#TabsToolbar > toolbarpaletteitem > #alltabs-button:-moz-lwtheme-darktext,
+#tabs-closebutton:-moz-lwtheme-darktext,
 .tabbrowser-arrowscrollbox:-moz-lwtheme-darktext > .scrollbutton-up,
 .tabbrowser-arrowscrollbox:-moz-lwtheme-darktext > .scrollbutton-down,
 .tabbrowser-tab:-moz-lwtheme-darktext:not([selected="true"]) {
@@ -109,8 +107,11 @@
 }
 
 .tabs-newtab-button:-moz-lwtheme-brighttext,
-.tabs-alltabs-button:-moz-lwtheme-brighttext,
-.tabs-container:-moz-lwtheme-brighttext > .tabs-closebutton,
+#TabsToolbar > #new-tab-button:-moz-lwtheme-brighttext,
+#TabsToolbar > toolbarpaletteitem > #new-tab-button:-moz-lwtheme-brighttext,
+#TabsToolbar > #alltabs-button:-moz-lwtheme-brighttext,
+#TabsToolbar > toolbarpaletteitem > #alltabs-button:-moz-lwtheme-brighttext,
+#tabs-closebutton:-moz-lwtheme-brighttext,
 .tabbrowser-arrowscrollbox:-moz-lwtheme-brighttext > .scrollbutton-up,
 .tabbrowser-arrowscrollbox:-moz-lwtheme-brighttext > .scrollbutton-down,
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]) {
@@ -126,40 +127,6 @@
   border-top: 1px solid rgba(0,0,0,0.65);
 }
 
-/* ----- INACTIVE WINDOW ----- */
-
-#main-window:not([active="true"]) > #navigator-toolbox > #nav-bar {
-  background-image: url("chrome://global/skin/toolbar/toolbar-background-inactive.png");
-}
-
-#main-window:not([active="true"]) > #navigator-toolbox > #PersonalToolbar {
-  background-color: -moz-mac-chrome-inactive;
-  border-bottom-color: rgba(0, 0, 0, 0.32);
-}
-
-#main-window:not([active="true"]) > #navigator-toolbox > toolbar > toolbaritem,
-#main-window:not([active="true"]) > #navigator-toolbox > toolbar > toolbarbutton,
-#main-window:not([active="true"]) .tabs-newtab-button > .toolbarbutton-icon {
-  opacity: 0.75;
-}
-
-#main-window:not([active="true"]) > #browser > vbox > #sidebar,
-#main-window:not([active="true"]) > #browser > vbox > sidebarheader { 
-  background-color: #e8e8e8;
-}
-
-#main-window:not([active="true"]) .tabbrowser-strip {
-  background-color: #e2e2e2;
-}
-
-#main-window:not([active="true"]) .tabbrowser-tab {
-  color: #575757;
-}
-
-#main-window:not([active="true"]) .tabbrowser-tab[selected="true"] {
-  background-color: -moz-mac-chrome-inactive;
-}
-
 /* ----- BOOKMARK TOOLBAR ----- */
 
 #PersonalToolbar {
@@ -170,6 +137,11 @@
   min-height: 22px;
   padding: 0 4px 3px;
   -moz-box-align: center;
+}
+
+#PersonalToolbar:-moz-window-inactive {
+  background-color: -moz-mac-chrome-inactive;
+  border-bottom-color: rgba(0, 0, 0, 0.32);
 }
 
 #personal-bookmarks {
@@ -198,7 +170,7 @@ toolbarbutton.bookmark-item {
   border: 0;
   -moz-border-radius: 100%;
   padding: 0 8px;
-  margin: 0;
+  margin: 0 0 1px;
   height: 16px;
 }
 
@@ -342,6 +314,11 @@ toolbar[mode="text"] .toolbarbutton-1 > .toolbarbutton-text {
 #restore-button {
   padding-top: 0;
   padding-bottom: 0;
+}
+
+#navigator-toolbox > toolbar > toolbaritem:-moz-window-inactive,
+#navigator-toolbox > toolbar > toolbarbutton:-moz-window-inactive {
+  opacity: 0.75;
 }
 
 #back-button:-moz-locale-dir(rtl) > .toolbarbutton-icon,
@@ -897,6 +874,17 @@ toolbar[iconsize="small"] #unified-back-forward-button > #back-forward-dropmarke
   width: 10px;
 }
 
+#urlbar-display {
+  margin-top: -2px;
+  margin-bottom: -2px;
+  padding-top: 3px;
+  padding-bottom: 2px;
+  -moz-padding-end: 3px;
+  color: GrayText;
+  -moz-border-end: 1px solid #AAA;
+  -moz-margin-end: 3px;
+}
+
 #PopupAutoCompleteRichResult {
   direction: ltr !important;
   margin-top: 2px;
@@ -956,6 +944,10 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 .ac-url-text {
   color: -moz-nativehyperlinktext;
   font-size: 0.95em;
+}
+
+richlistitem[type="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-icon {
+  list-style-image: url("chrome://browser/skin/actionicon-tab.png");
 }
 
 .autocomplete-treebody::-moz-tree-cell-text(treecolAutoCompleteComment) {
@@ -1056,20 +1048,11 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 
 .editBookmarkPanelHeaderButton,
 .editBookmarkPanelBottomButton {
-  -moz-appearance: none;
-  background: url("chrome://browser/skin/hud-style-button-middle-background.png") repeat-x #464646 center center;
-  border-width: 3px;
-  border-style: solid;
-  -moz-border-radius: 20px;
-  -moz-border-top-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
-  -moz-border-right-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
-  -moz-border-bottom-colors: rgba(128,128,128,0.35) rgba(0,0,0,0.5) rgba(255,255,255,0.15);
-  -moz-border-left-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
+  @hudButton@
   padding: 0 9px;
   margin: 6px;
   min-width: 79px;
   min-height: 22px;
-  color: #ffffff;
 }
 
 .editBookmarkPanelHeaderButton:hover:active,
@@ -1144,18 +1127,11 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 }
 
 #editBMPanel_folderMenuList {
-  -moz-appearance: none;
-  background: url("chrome://browser/skin/hud-style-button-middle-background.png") repeat-x #464646 center center;
-  border: 3px solid;
+  @hudButton@
   -moz-border-radius: 5px;
-  -moz-border-top-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
-  -moz-border-right-colors: rgba(53,53,53,1) rgba(53,53,53,1) rgba(162,162,162,1);
-  -moz-border-bottom-colors: rgba(128,128,128,0.35) rgba(0,0,0,0.5) rgba(255,255,255,0.15);
-  -moz-border-left-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
   margin: 0 3px !important;
   min-height: 22px;
   -moz-padding-start: 2px;
-  color: #ffffff !important;
 }
 
 #editBMPanel_folderMenuList:focus {
@@ -1279,21 +1255,14 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 
 #editBookmarkPanel .expander-up,
 #editBookmarkPanel .expander-down {
-  -moz-appearance: none;
-  background: url("chrome://browser/skin/hud-style-button-middle-background.png") repeat-x #464646 center center;
-  border: 3px solid;
+  @hudButton@
   -moz-border-radius: 5px;
-  -moz-border-top-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
-  -moz-border-right-colors: rgba(53,53,53,1) rgba(53,53,53,1) rgba(162,162,162,1);
-  -moz-border-bottom-colors: rgba(128,128,128,0.35) rgba(0,0,0,0.5) rgba(255,255,255,0.15);
-  -moz-border-left-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
   -moz-margin-start: 4px;
   -moz-margin-end: 2px;
   padding: 0;
   -moz-padding-start: 4px;
   min-width: 10px;
   min-height: 22px;
-  color: #ffffff !important;
 }
 
 #editBookmarkPanel .expander-up:focus,
@@ -1369,12 +1338,17 @@ richlistitem[selected="true"][current="true"] > hbox > .ac-result-type-bookmark,
 
 /* ----- SIDEBAR ELEMENTS ----- */
 
-#sidebar { 
+#sidebar,
+sidebarheader {
   background-color: #d4dde5;
 }
 
-sidebarheader { 
-  background-color: #d4dde5;
+#sidebar:-moz-window-inactive,
+sidebarheader:-moz-window-inactive {
+  background-color: #e8e8e8;
+}
+
+sidebarheader {
   padding: 2px;
   text-shadow: none;
 }
@@ -1464,10 +1438,6 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 }
 
 #nav-bar {
-  background-color: #9e9e9e;
-  background-image: url("chrome://global/skin/toolbar/toolbar-background.gif");
-  background-repeat: repeat-x;
-  background-position: top right;
   padding: 0 4px;
 }
 
@@ -1486,7 +1456,7 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
 
 /* ::::: tabbrowser ::::: */
 
-tabbrowser > tabbox {
+.tabbrowser-tabbox {
   margin: 0;
 }
 
@@ -1541,7 +1511,7 @@ tabbrowser > tabbox {
 }
 
 .tabbrowser-tab,
-.tabbrowser-arrowscrollbox > .tabs-newtab-button {
+.tabs-newtab-button {
   -moz-appearance: none;
   -moz-border-radius: 0 0 6px 6px;
   color: #222;
@@ -1560,9 +1530,13 @@ tabbrowser > tabbox {
   background-image: url(chrome://browser/skin/tabbrowser/tab-bkgnd.png);
 }
 
-.tabbrowser-arrowscrollbox > .tabs-newtab-button {
+.tabs-newtab-button {
   width: 34px;
   padding-top: 1px;
+}
+
+.tabs-newtab-button > .toolbarbutton-icon:-moz-window-inactive {
+  opacity: 0.75;
 }
 
 .tabbrowser-tab[selected="true"] {
@@ -1575,6 +1549,10 @@ tabbrowser > tabbox {
   background-color: -moz-mac-chrome-active;
 }
 
+.tabbrowser-tab[selected="true"]:-moz-window-inactive {
+  background-color: -moz-mac-chrome-inactive;
+}
+
 .tabbrowser-tab:focus > .tab-text {
   -moz-box-shadow: @focusRingShadow@;
 }
@@ -1584,34 +1562,44 @@ tabbrowser > tabbox {
   color: #000000;
 }
 
-.tabbrowser-tab:-moz-lwtheme,
-#main-window:not([active="true"]) .tabbrowser-tab:-moz-lwtheme {
+.tabbrowser-tab:-moz-window-inactive {
+  color: #575757;
+}
+
+.tabbrowser-tab:-moz-lwtheme {
   color: inherit;
   text-shadow: inherit;
 }
 
-.tabbrowser-strip {
+#TabsToolbar {
+  -moz-appearance: none;
+}
+
+#navigator-toolbox:not([tabsontop="true"]) > #TabsToolbar {
   margin-top: -1px;
   border-bottom: 1px solid #404040;
-  background-color: #9B9B9B;
+}
+
+#TabsToolbar:not(:-moz-lwtheme) {
+  background: #9B9B9B url("chrome://browser/skin/tabbrowser/tabbrowser-tabs-bkgnd.png") repeat-x;
+}
+
+#TabsToolbar:not(:-moz-lwtheme):-moz-window-inactive {
+  background-color: #e2e2e2;
+}
+
+#TabsToolbar > toolbarbutton,
+#TabsToolbar > toolbarpaletteitem > toolbarbutton {
+  padding: 0;
 }
 
 .tabbrowser-tabs {
-  border: none;
-  -moz-box-pack: center;
-  -moz-box-align: center;
-  background: url("chrome://browser/skin/tabbrowser/tabbrowser-tabs-bkgnd.png") repeat-x;
+  -moz-box-align: stretch;
   height: 25px;
-  margin-bottom: 0;
 }
 
-.tabs-left {
-  display: -moz-box;
-  width: 3px;
-}
-
-.tabbrowser-tabs[overflow="true"] .tabs-left {
-  display: none;
+.tabbrowser-tabs:not([overflow="true"]) {
+  -moz-margin-start: 3px;
 }
 
 /**
@@ -1712,55 +1700,71 @@ tabbrowser > tabbox {
  * Tabstrip New Tab & All Tabs Buttons
  */
 
-.tabs-container > .tabs-newtab-button,
-.tabs-alltabs-button {
+#TabsToolbar > #new-tab-button,
+#TabsToolbar > toolbarpaletteitem > #new-tab-button,
+#TabsToolbar > #alltabs-button,
+#TabsToolbar > toolbarpaletteitem > #alltabs-button {
   -moz-border-start: 2px solid;
   -moz-border-end: none;
   -moz-border-left-colors: rgba(0,0,0,0.25) rgba(255,255,255,0.15);
   -moz-border-right-colors: rgba(0,0,0,0.25) rgba(255,255,255,0.15);
   margin: 0;
-  padding: 0;
 }
+
 .tabs-newtab-button > .toolbarbutton-icon,
-.tabs-alltabs-button > .toolbarbutton-icon {
+#TabsToolbar > #new-tab-button > .toolbarbutton-icon,
+#TabsToolbar > toolbarpaletteitem > #new-tab-button > .toolbarbutton-icon,
+#TabsToolbar > #alltabs-button > .toolbarbutton-icon,
+#TabsToolbar > toolbarpaletteitem > #alltabs-button > .toolbarbutton-icon {
   padding: 0;
 }
-.tabs-newtab-button {
+
+.tabs-newtab-button,
+#TabsToolbar > #new-tab-button,
+#TabsToolbar > toolbarpaletteitem > #new-tab-button {
   list-style-image: url(chrome://browser/skin/tabbrowser/newtab.png);
   -moz-image-region: rect(0, 18px, 20px, 0);
 }
-.tabs-newtab-button:hover {
+
+.tabs-newtab-button:hover,
+#TabsToolbar > #new-tab-button:hover {
   -moz-image-region: rect(0, 36px, 20px, 18px);
 }
-.tabs-newtab-button:hover:active {
+
+.tabs-newtab-button:hover:active,
+#TabsToolbar > #new-tab-button:hover:active {
   -moz-image-region: rect(0, 54px, 20px, 36px);
 }
-.tabs-alltabs-button {
+
+#alltabs-button {
   list-style-image: url(chrome://browser/skin/tabbrowser/alltabs-box-bkgnd-icon.png);
   -moz-image-region: rect(0, 22px, 20px, 0);
 }
-.tabs-alltabs-button:hover {
+
+#alltabs-button:hover {
   -moz-image-region: rect(0, 44px, 20px, 22px);
 }
-.tabs-alltabs-button[type="menu"][open="true"],
-.tabs-alltabs-button:hover:active {
+
+#alltabs-button[type="menu"][open="true"],
+#alltabs-button:hover:active {
   -moz-image-region: rect(0, 66px, 20px, 44px);
 }
-.tabs-container > .tabs-newtab-button:hover,
-.tabs-alltabs-button:hover {
+
+#TabsToolbar > #new-tab-button:hover,
+#TabsToolbar > #alltabs-button:hover {
   background-color: rgba(0,0,0,0.10);
 }
-.tabs-container > .tabs-newtab-button:hover:active,
-.tabs-alltabs-button:hover:active {
+
+#TabsToolbar > #new-tab-button:hover:active,
+#TabsToolbar > #alltabs-button:hover:active {
   background-color: rgba(0,0,0,0.20);
 }
 
-.tabs-alltabs-button[type="menu"] > .toolbarbutton-menu-dropmarker,
-.tabs-alltabs-button > .toolbarbutton-text {
+#alltabs-button[type="menu"] > .toolbarbutton-menu-dropmarker {
   display: none;
 }
 
-.tabs-alltabs-button > .toolbarbutton-icon {
+#alltabs-button > .toolbarbutton-icon {
   -moz-margin-end: 2px;
 }
 
@@ -1785,7 +1789,7 @@ tabbrowser > tabbox {
 }
 
 /* Bookmarks toolbar */
-.toolbar-drop-indicator {
+#PlacesToolbarDropIndicator {
   list-style-image: url(chrome://browser/skin/places/toolbarDropMarker.png);
 }
 
@@ -1899,18 +1903,10 @@ tabbrowser > tabbox {
 
 /* Popup Buttons */
 #identity-popup-more-info-button {
-  -moz-appearance: none;
-  background: url("chrome://browser/skin/hud-style-button-middle-background.png") repeat-x #464646 center center;
-  border: 3px solid;
-  -moz-border-top-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
-  -moz-border-right-colors: rgba(53,53,53,1) rgba(53,53,53,1) rgba(162,162,162,1);
-  -moz-border-bottom-colors: rgba(128,128,128,0.35) rgba(0,0,0,0.5) rgba(255,255,255,0.15);
-  -moz-border-left-colors: rgba(0,0,0,0.35) rgba(26,26,26,0.5) rgba(255,255,255,0.4);
-  -moz-border-radius: 20px;
+  @hudButton@
   padding: 1px 9px;
   margin: 10px 0 0;
   min-height: 0px;
-  color: #fff;	
 }
 
 #identity-popup-more-info-button > .button-box > .button-text {
@@ -1959,19 +1955,6 @@ tabbrowser > tabbox {
 
 /* ::::: Ctrl-Tab and All Tabs Panels ::::: */
 
-.tabPreview-canvas {
-  -moz-box-shadow: 1px 1px 3px rgb(12%,12%,12%);
-}
-
-.ctrlTab-favicon[src],
-.allTabs-favicon[src] {
-  background-color: white;
-  width: 24px;
-  height: 24px;
-  padding: 2px;
-  opacity: .7;
-}
-
 /* Ctrl-Tab */
 
 #ctrlTab-panel {
@@ -1979,22 +1962,33 @@ tabbrowser > tabbox {
   text-shadow: 0 0 1px rgb(27%,27%,27%), 0 0 3px rgb(27%,27%,27%);
 }
 
-.ctrlTab-preview:not(#ctrlTab-showAll) .tabPreview-canvas {
+.ctrlTab-favicon[src] {
+  background-color: white;
+  width: 20px;
+  height: 20px;
+  padding: 2px;
+}
+
+.ctrlTab-preview-inner > .tabPreview-canvas {
+  -moz-box-shadow: 1px 1px 3px rgb(12%,12%,12%);
+}
+
+.ctrlTab-preview:not(#ctrlTab-showAll) > * > .ctrlTab-preview-inner > .tabPreview-canvas {
   margin-bottom: 2px;
 }
 
-.ctrlTab-preview .ctrlTab-preview-inner {
+.ctrlTab-preview-inner {
   padding-bottom: 10px;
 }
 
-#ctrlTab-showAll .ctrlTab-preview-inner {
+#ctrlTab-showAll:not(:focus) > * > .ctrlTab-preview-inner {
   padding: 10px;
   background-color: rgba(255,255,255,.2);
   -moz-border-radius: .5em;
 }
 
-.ctrlTab-preview:focus .ctrlTab-preview-inner,
-#ctrlTab-showAll:focus .ctrlTab-preview-inner {
+.ctrlTab-preview:focus > * > .ctrlTab-preview-inner {
+  color: white;
   background-color: rgba(0,0,0,.6);
   text-shadow: none;
   padding: 8px;
@@ -2002,7 +1996,7 @@ tabbrowser > tabbox {
   -moz-border-radius: .5em;
 }
 
-.ctrlTab-preview:not(#ctrlTab-showAll):focus .ctrlTab-preview-inner {
+.ctrlTab-preview:not(#ctrlTab-showAll):focus > * > .ctrlTab-preview-inner {
   margin: -10px -10px 0;
 }
 
@@ -2013,19 +2007,15 @@ tabbrowser > tabbox {
 /* All Tabs */
 
 #allTabs-panel {
-  padding: 10px;
-  margin-left: -10px;
-}
-
-#allTabs-panel:not(.KUI-panel) {
+  padding-bottom: 10px;
   -moz-appearance: none;
-  background: rgb(27%,27%,27%) url(KUI-background.png) repeat-x;
   border: none;
-  color: white;
+  background: -moz-dialog;
+  color: -moz-dialogText;
 }
 
 #allTabs-meta {
-  margin-bottom: 10px;
+  margin: 10px;
 }
 
 #allTabs-filter {
@@ -2033,26 +2023,24 @@ tabbrowser > tabbox {
   -moz-margin-end: 0;
 }
 
-#allTabs-tab-close-button {
-  /*XXX without this, the closebutton can cause the panel to expand horizontally */
-  margin-right: -16px;
-}
-
 #allTabs-tab-close-button > .toolbarbutton-icon {
   margin: 0;
 }
 
-.allTabs-preview:focus,
-.allTabs-preview:hover,
-.allTabs-preview[closebuttonhover] {
-  background-color: rgba(0,0,0,.4);
-  -moz-border-radius: .5em;
+.allTabs-favicon {
+  margin-top: 1px;
+  -moz-margin-start: 1px;
 }
 
-.allTabs-preview:focus {
-  border: 2px solid white;
+.allTabs-preview-inner > .tabPreview-canvas {
+  background-color: rgb(60%,60%,60%);
+  -moz-box-shadow: 0 0 2px ThreeDShadow;
 }
 
-.allTabs-preview-label {
-  -moz-transform: translate(0, 1px);
+.allTabs-preview:not(:hover):not([closebuttonhover]) > html|canvas {
+  opacity: .8;
+}
+
+.allTabs-preview:focus > * > .allTabs-preview-inner {
+  -moz-box-shadow: @focusRingShadow@;
 }

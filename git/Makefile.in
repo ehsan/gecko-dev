@@ -61,9 +61,14 @@ TIERS += base
 tier_base_dirs = \
 	config \
 	build \
-	memory \
 	probes \
 	$(NULL)
+
+ifndef LIBXUL_SDK
+tier_base_dirs += \
+	memory \
+	$(NULL)
+endif
 
 ifdef COMPILE_ENVIRONMENT
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk
@@ -190,7 +195,9 @@ ifdef MOZ_CRASHREPORTER
 	echo packing symbols
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" .
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip" .
+	cd $(DIST)/crashreporter-symbols && \
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" . -i "*.sym"
 else
 ifdef WINCE
 ifdef SYMBOLSTORE_PATH
@@ -210,7 +217,7 @@ endif # MOZ_CRASHREPORTER
 
 uploadsymbols:
 ifdef MOZ_CRASHREPORTER
-	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip"
+	$(SHELL) $(topsrcdir)/toolkit/crashreporter/tools/upload_symbols.sh "$(DIST)/$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip"
 endif
 
 # defined in package-name.mk

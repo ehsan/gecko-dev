@@ -54,6 +54,7 @@ XPIDLSRCS = \
 
 EXPORTS = \
   nsDOMCID.h \
+  nsDOMClassInfoClasses.h \
   nsDOMClassInfoID.h \
   nsDOMError.h \
   nsDOMJSUtils.h \
@@ -99,6 +100,7 @@ CPPSRCS =			\
 	nsDOMClassInfo.cpp	\
 	nsScriptNameSpaceManager.cpp \
 	nsDOMScriptObjectFactory.cpp \
+	nsQueryContentEventResult.cpp \
 	$(NULL)
 
 include $(topsrcdir)/dom/dom-config.mk

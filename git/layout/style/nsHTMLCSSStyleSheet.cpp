@@ -55,6 +55,9 @@
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"
 #include "nsRuleProcessorData.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 nsHTMLCSSStyleSheet::nsHTMLCSSStyleSheet()
   : mRefCnt(0),
@@ -75,24 +78,24 @@ NS_IMPL_ISUPPORTS2(nsHTMLCSSStyleSheet,
 NS_IMETHODIMP
 nsHTMLCSSStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
 {
-  nsIContent* content = aData->mContent;
+  Element* element = aData->mElement;
 
   // just get the one and only style rule from the content's STYLE attribute
-  nsICSSStyleRule* rule = content->GetInlineStyleRule();
+  nsICSSStyleRule* rule = element->GetInlineStyleRule();
   if (rule) {
     rule->RuleMatched();
     aData->mRuleWalker->Forward(rule);
   }
 
 #ifdef MOZ_SMIL
-  rule = content->GetSMILOverrideStyleRule();
+  rule = element->GetSMILOverrideStyleRule();
   if (rule) {
     if (aData->mPresContext->IsProcessingRestyles() &&
         !aData->mPresContext->IsProcessingAnimationStyleChange()) {
       // Non-animation restyle -- don't process SMIL override style, because we
       // don't want SMIL animation to trigger new CSS transitions. Instead,
       // request an Animation restyle, so we still get noticed.
-      aData->mPresContext->PresShell()->RestyleForAnimation(aData->mContent);
+      aData->mPresContext->PresShell()->RestyleForAnimation(element);
     } else {
       // Animation restyle (or non-restyle traversal of rules)
       // Now we can walk SMIL overrride style, without triggering transitions.
@@ -142,17 +145,23 @@ nsHTMLCSSStyleSheet::Init(nsIURI* aURL, nsIDocument* aDocument)
 }
 
 // Test if style is dependent on content state
-nsReStyleHint
+nsRestyleHint
 nsHTMLCSSStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
 {
-  return nsReStyleHint(0);
+  return nsRestyleHint(0);
+}
+
+PRBool
+nsHTMLCSSStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
+{
+  return PR_FALSE;
 }
 
 // Test if style is dependent on attribute
-nsReStyleHint
+nsRestyleHint
 nsHTMLCSSStyleSheet::HasAttributeDependentStyle(AttributeRuleProcessorData* aData)
 {
-  return nsReStyleHint(0);
+  return nsRestyleHint(0);
 }
 
 NS_IMETHODIMP

@@ -146,6 +146,10 @@ public:
   NS_IMETHODIMP HandleKeyPress(nsIDOMKeyEvent* aKeyEvent);
   NS_IMETHOD GetIsDocumentEditable(PRBool *aIsDocumentEditable);
   NS_IMETHODIMP BeginningOfDocument();
+  virtual PRBool HasFocus();
+
+  /* ------------ nsIEditorIMESupport overrides ------------ */
+  NS_IMETHOD GetPreferredIMEState(PRUint32 *aState);
 
   /* ------------ nsIHTMLEditor methods -------------- */
 
@@ -312,7 +316,6 @@ public:
   /** Internal, static version */
   static nsresult NodeIsBlockStatic(nsIDOMNode *aNode, PRBool *aIsBlock);
 
-  NS_IMETHOD GetFlags(PRUint32 *aFlags);
   NS_IMETHOD SetFlags(PRUint32 aFlags);
 
   NS_IMETHOD Paste(PRInt32 aSelectionType);
@@ -430,22 +433,13 @@ protected:
   // Create the event listeners for the editor to install
   virtual nsresult CreateEventListeners();
 
+  virtual nsresult InstallEventListeners();
   virtual void RemoveEventListeners();
-
-  // Sets mCSSAware to correspond to aFlags. This toggles whether CSS is
-  // used to style elements in the editor. Note that the editor is only CSS
-  // aware by default in Composer and in the mail editor.
-  void UpdateForFlags(PRUint32 aFlags) {
-    mCSSAware = ((aFlags & (eEditorNoCSSMask | eEditorMailMask)) == 0);
-  }
 
   // Return TRUE if aElement is a table-related elemet and caret was set
   PRBool SetCaretInTableCell(nsIDOMElement* aElement);
   PRBool IsElementInBody(nsIDOMElement* aElement);
 
-  // inline style caching
-  void ClearInlineStylesCache();
-  
   // key event helpers
   NS_IMETHOD TabInTable(PRBool inIsShift, PRBool *outHandled);
   NS_IMETHOD CreateBR(nsIDOMNode *aNode, PRInt32 aOffset, 
@@ -732,14 +726,18 @@ protected:
   nsresult HasStyleOrIdOrClass(nsIDOMElement * aElement, PRBool *aHasStyleOrIdOrClass);
   nsresult RemoveElementIfNoStyleOrIdOrClass(nsIDOMElement * aElement, nsIAtom * aTag);
 
+  // Whether the outer window of the DOM event target has focus or not.
+  PRBool   OurWindowHasFocus();
+  // Whether the content has independent selection or not.  E.g., input field,
+  // password field and textarea element.  At that time, this returns TRUE.
+  PRBool IsIndependentSelectionContent(nsIContent* aContent);
+
 // Data members
 protected:
 
   nsCOMArray<nsIContentFilter> mContentFilters;
 
   TypeInState*         mTypeInState;
-
-  nsCOMPtr<nsIDOMNode> mCachedNode;
 
   PRPackedBool mCRInParagraphCreatesParagraph;
 

@@ -115,12 +115,14 @@ nsSVGPathSegList::~nsSVGPathSegList()
 NS_IMPL_ADDREF(nsSVGPathSegList)
 NS_IMPL_RELEASE(nsSVGPathSegList)
 
+DOMCI_DATA(SVGPathSegList, nsSVGPathSegList)
+
 NS_INTERFACE_MAP_BEGIN(nsSVGPathSegList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPathSegList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPathSegList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGPathSegList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 
@@ -130,12 +132,10 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsSVGPathSegList::SetValueString(const nsAString& aValue)
 {
-  nsresult rv;
-  
   WillModify();
   ReleaseSegments(PR_FALSE);
   nsSVGPathDataParserToDOM parser(&mSegments);
-  rv = parser.Parse(aValue);
+  nsresult rv = parser.Parse(aValue);
 
   PRInt32 count = mSegments.Count();
   for (PRInt32 i=0; i<count; ++i) {

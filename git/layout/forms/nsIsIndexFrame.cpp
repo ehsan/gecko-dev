@@ -135,7 +135,7 @@ nsIsIndexFrame::UpdatePromptLabel(PRBool aNotify)
     // it might not be the string "This is a searchable index. Enter search keywords: "
     result =
       nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
-                                         "IsIndexPrompt", prompt);
+                                         "IsIndexPromptWithSpace", prompt);
   }
 
   mTextContent->SetText(prompt, aNotify);
@@ -357,7 +357,7 @@ nsIsIndexFrame::OnSubmit(nsPresContext* aPresContext)
   if (!document) return NS_OK; // No doc means don't submit, see Bug 28988
 
   // Resolve url to an absolute url
-  nsIURI *baseURI = document->GetBaseURI();
+  nsIURI *baseURI = document->GetDocBaseURI();
   if (!baseURI) {
     NS_ERROR("No Base URL found in Form Submit!\n");
     return NS_OK; // No base URL -> exit early, see Bug 30721

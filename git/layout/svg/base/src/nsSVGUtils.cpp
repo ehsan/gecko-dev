@@ -89,6 +89,9 @@
 #include "nsComputedDOMStyle.h"
 #include "nsSVGPathGeometryFrame.h"
 #include "prdtoa.h"
+#include "mozilla/dom/Element.h"
+
+using namespace mozilla::dom;
 
 gfxASurface *nsSVGUtils::mThebesComputationalSurface = nsnull;
 
@@ -256,14 +259,14 @@ nsSVGUtils::GetParentElement(nsIContent *aContent)
 }
 
 float
-nsSVGUtils::GetFontSize(nsIContent *aContent)
+nsSVGUtils::GetFontSize(Element *aElement)
 {
-  if (!aContent)
+  if (!aElement)
     return 1.0f;
 
   nsRefPtr<nsStyleContext> styleContext = 
-    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
-                                                         nsnull);
+    nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
+                                                         nsnull, nsnull);
   if (!styleContext) {
     NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
@@ -293,14 +296,14 @@ nsSVGUtils::GetFontSize(nsStyleContext *aStyleContext)
 }
 
 float
-nsSVGUtils::GetFontXHeight(nsIContent *aContent)
+nsSVGUtils::GetFontXHeight(Element *aElement)
 {
-  if (!aContent)
+  if (!aElement)
     return 1.0f;
 
   nsRefPtr<nsStyleContext> styleContext = 
-    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
-                                                         nsnull);
+    nsComputedDOMStyle::GetStyleContextForElementNoFlush(aElement,
+                                                         nsnull, nsnull);
   if (!styleContext) {
     NS_WARNING("Couldn't get style context for content in GetFontStyle");
     return 1.0f;
@@ -543,7 +546,7 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, PRBool aScreenCTM)
     // didn't find a nearestViewportElement
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
-  if (!ancestor || !ancestor->IsNodeOfType(nsINode::eELEMENT)) {
+  if (!ancestor || !ancestor->IsElement()) {
     return matrix;
   }
   if (ancestor->GetNameSpaceID() == kNameSpaceID_SVG) {
@@ -635,7 +638,7 @@ nsSVGUtils::FindFilterInvalidation(nsIFrame *aFrame, const nsRect& aRect)
                          TransformBounds(gfxRect(x, y, width, height));
       bounds.RoundOut();
       nsIntRect r;
-      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(bounds, &r))) {
+      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(bounds, &r))) {
         rect = r;
       } else {
         NS_NOTREACHED("Not going to invalidate the correct area");
@@ -953,7 +956,7 @@ public:
       gfxRect dirtyBounds = userToDeviceSpace.TransformBounds(
         gfxRect(aDirtyRect->x, aDirtyRect->y, aDirtyRect->width, aDirtyRect->height));
       dirtyBounds.RoundOut();
-      if (NS_SUCCEEDED(nsSVGUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
+      if (NS_SUCCEEDED(nsLayoutUtils::GfxRectToIntRect(dirtyBounds, &tmpDirtyRect))) {
         dirtyRect = &tmpDirtyRect;
       }
     }
@@ -1345,15 +1348,6 @@ nsSVGUtils::ClipToGfxRect(nsIntRect* aRect, const gfxRect& aGfxRect)
   r = r.Intersect(r2);
   *aRect = nsIntRect(PRInt32(r.X()), PRInt32(r.Y()),
                      PRInt32(r.Width()), PRInt32(r.Height()));
-}
-
-nsresult
-nsSVGUtils::GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut)
-{
-  *aOut = nsIntRect(PRInt32(aIn.X()), PRInt32(aIn.Y()),
-                    PRInt32(aIn.Width()), PRInt32(aIn.Height()));
-  return gfxRect(aOut->x, aOut->y, aOut->width, aOut->height) == aIn
-    ? NS_OK : NS_ERROR_FAILURE;
 }
 
 gfxRect

@@ -39,8 +39,13 @@
 #ifndef _nsEventShell_H_
 #define _nsEventShell_H_
 
-#include "nsCoreUtils.h"
 #include "nsAccEvent.h"
+
+#include "a11yGeneric.h"
+
+#include "nsAutoPtr.h"
+
+class nsIPersistentProperties;
 
 /**
  * Used for everything about events.

@@ -114,12 +114,14 @@ nsSVGAnimatedLengthList::Init(nsIDOMSVGLengthList* baseVal)
 NS_IMPL_ADDREF(nsSVGAnimatedLengthList)
 NS_IMPL_RELEASE(nsSVGAnimatedLengthList)
 
+DOMCI_DATA(SVGAnimatedLengthList, nsSVGAnimatedLengthList)
+
 NS_INTERFACE_MAP_BEGIN(nsSVGAnimatedLengthList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedLengthList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedLengthList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedLengthList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 

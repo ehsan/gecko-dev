@@ -57,6 +57,7 @@
 #include "nsMathUtils.h"
 #include "nsBidiUtils.h"
 #include "nsUnicodeRange.h"
+#include "nsCompressedCharMap.h"
 
 #include "cairo.h"
 #include "gfxFontTest.h"
@@ -807,9 +808,11 @@ gfxFont::RunMetrics::CombineWith(const RunMetrics& aOther, PRBool aOtherIsOnLeft
     mAdvanceWidth += aOther.mAdvanceWidth;
 }
 
-gfxFont::gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle) :
+gfxFont::gfxFont(gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
+                 AntialiasOption anAAOption) :
     mFontEntry(aFontEntry), mIsValid(PR_TRUE),
     mStyle(*aFontStyle), mSyntheticBoldOffset(0),
+    mAntialiasOption(anAAOption),
     mShaper(nsnull)
 {
 #ifdef DEBUG_TEXT_RUN_STORAGE_METRICS
@@ -944,7 +947,9 @@ gfxFont::Draw(gfxTextRun *aTextRun, PRUint32 aStart, PRUint32 aEnd,
             for (j = 0; j < glyphCount; ++j, ++details) {
                 double advance = details->mAdvance;
                 if (glyphData->IsMissing()) {
-                    if (!aDrawToPath) {
+                    // default ignorable characters will have zero advance width.
+                    // we don't have to draw the hexbox for them
+                    if (!aDrawToPath && advance > 0) {
                         double glyphX = x;
                         if (isRTL) {
                             glyphX -= advance;
@@ -1062,9 +1067,26 @@ NeedsGlyphExtents(gfxTextRun *aTextRun)
 gfxFont::RunMetrics
 gfxFont::Measure(gfxTextRun *aTextRun,
                  PRUint32 aStart, PRUint32 aEnd,
-                 BoundingBoxType aBoundingBoxType, gfxContext *aRefContext,
+                 BoundingBoxType aBoundingBoxType,
+                 gfxContext *aRefContext,
                  Spacing *aSpacing)
 {
+    // If aBoundingBoxType is TIGHT_HINTED_OUTLINE_EXTENTS
+    // and the underlying cairo font may be antialiased,
+    // we need to create a copy in order to avoid getting cached extents.
+    // This is inefficient, but only used by MathML layout at present.
+    if (aBoundingBoxType == TIGHT_HINTED_OUTLINE_EXTENTS &&
+        mAntialiasOption != kAntialiasNone) {
+        nsAutoPtr<gfxFont> tempFont(CopyWithAntialiasOption(kAntialiasNone));
+        // if font subclass doesn't implement CopyWithAntialiasOption(),
+        // it will return null and we'll proceed to use the existing font
+        if (tempFont) {
+            return tempFont->Measure(aTextRun, aStart, aEnd,
+                                     TIGHT_HINTED_OUTLINE_EXTENTS,
+                                     aRefContext, aSpacing);
+        }
+    }
+
     const PRUint32 appUnitsPerDevUnit = aTextRun->GetAppUnitsPerDevUnit();
     // Current position in appunits
     const gfxFont::Metrics& fontMetrics = GetMetrics();
@@ -1171,6 +1193,23 @@ gfxFont::Measure(gfxTextRun *aTextRun,
     return metrics;
 }
 
+void
+gfxFont::InitTextRun(gfxContext *aContext,
+                     gfxTextRun *aTextRun,
+                     const PRUnichar *aString,
+                     PRUint32 aRunStart,
+                     PRUint32 aRunLength)
+{
+    NS_ASSERTION(mShaper != nsnull, "no shaper?!");
+    if (!mShaper) {
+        return;
+    }
+
+    PRBool ok = mShaper->InitTextRun(aContext, aTextRun, aString,
+                                     aRunStart, aRunLength);
+    NS_WARN_IF_FALSE(ok, "shaper failed, expect scrambled or missing text");
+}
+
 gfxGlyphExtents *
 gfxFont::GetOrCreateGlyphExtents(PRUint32 aAppUnitsPerDevUnit) {
     PRUint32 i;
@@ -1239,12 +1278,12 @@ gfxFont::SanitizeMetrics(gfxFont::Metrics *aMetrics, PRBool aIsBadUnderlineFont)
     // MS (P)Gothic and MS (P)Mincho are not having suitable values in their super script offset.
     // If the values are not suitable, we should use x-height instead of them.
     // See https://bugzilla.mozilla.org/show_bug.cgi?id=353632
-    if (aMetrics->superscriptOffset == 0 ||
+    if (aMetrics->superscriptOffset <= 0 ||
         aMetrics->superscriptOffset >= aMetrics->maxAscent) {
         aMetrics->superscriptOffset = aMetrics->xHeight;
     }
     // And also checking the case of sub script offset. The old gfx for win has checked this too.
-    if (aMetrics->subscriptOffset == 0 ||
+    if (aMetrics->subscriptOffset <= 0 ||
         aMetrics->subscriptOffset >= aMetrics->maxAscent) {
         aMetrics->subscriptOffset = aMetrics->xHeight;
     }
@@ -1447,13 +1486,47 @@ gfxFontGroup::BuildFontList()
 
     if (mFonts.Length() == 0) {
         PRBool needsBold;
-        gfxFontEntry *defaultFont = 
-            gfxPlatformFontList::PlatformFontList()->GetDefaultFont(&mStyle, needsBold);
+        gfxPlatformFontList *pfl = gfxPlatformFontList::PlatformFontList();
+        gfxFontEntry *defaultFont = pfl->GetDefaultFont(&mStyle, needsBold);
         NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
 
-        nsRefPtr<gfxFont> font = defaultFont->FindOrMakeFont(&mStyle, needsBold);
-        if (font) {
-            mFonts.AppendElement(font);
+        if (defaultFont) {
+            nsRefPtr<gfxFont> font = defaultFont->FindOrMakeFont(&mStyle,
+                                                                 needsBold);
+            if (font) {
+                mFonts.AppendElement(font);
+            }
+        }
+
+        if (mFonts.Length() == 0) {
+            // Try for a "font of last resort...."
+            // Because an empty font list would be Really Bad for later code
+            // that assumes it will be able to get valid metrics for layout,
+            // just look for the first usable font and put in the list.
+            // (see bug 554544)
+            nsAutoTArray<nsRefPtr<gfxFontFamily>,200> families;
+            pfl->GetFontFamilyList(families);
+            for (PRUint32 i = 0; i < families.Length(); ++i) {
+                gfxFontEntry *fe = families[i]->FindFontForStyle(mStyle,
+                                                                 needsBold);
+                if (fe) {
+                    nsRefPtr<gfxFont> font = fe->FindOrMakeFont(&mStyle,
+                                                                needsBold);
+                    if (font) {
+                        mFonts.AppendElement(font);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (mFonts.Length() == 0) {
+            // an empty font list at this point is fatal; we're not going to
+            // be able to do even the most basic layout operations
+            char msg[256]; // CHECK buffer length if revising message below
+            sprintf(msg, "unable to find a usable font (%.220s)",
+                    NS_ConvertUTF16toUTF8(mFamilies).get());
+            NS_RUNTIMEABORT(msg);
         }
     }
 
@@ -1613,7 +1686,7 @@ gfxFontGroup::ForEachFontInternal(const nsAString& aFamilies,
     nsXPIDLCString value;
 
     while (p < p_end) {
-        while (nsCRT::IsAsciiSpace(*p))
+        while (nsCRT::IsAsciiSpace(*p) || *p == kComma)
             if (++p == p_end)
                 return PR_TRUE;
 
@@ -3313,6 +3386,15 @@ gfxTextRun::SetGlyphs(PRUint32 aIndex, CompressedGlyph aGlyph,
     mCharacterGlyphs[aIndex] = aGlyph;
 }
 
+#include "ignorable.x-ccmap"
+DEFINE_X_CCMAP(gIgnorableCCMapExt, const);
+
+static inline PRBool
+IsDefaultIgnorable(PRUint32 aChar)
+{
+    return CCMAP_HAS_CHAR_EXT(gIgnorableCCMapExt, aChar);
+}
+
 void
 gfxTextRun::SetMissingGlyph(PRUint32 aIndex, PRUint32 aChar)
 {
@@ -3322,9 +3404,14 @@ gfxTextRun::SetMissingGlyph(PRUint32 aIndex, PRUint32 aChar)
 
     details->mGlyphID = aChar;
     GlyphRun *glyphRun = &mGlyphRuns[FindFirstGlyphRunContaining(aIndex)];
-    gfxFloat width = PR_MAX(glyphRun->mFont->GetMetrics().aveCharWidth,
-                            gfxFontMissingGlyphs::GetDesiredMinWidth(aChar));
-    details->mAdvance = PRUint32(width*GetAppUnitsPerDevUnit());
+    if (IsDefaultIgnorable(aChar)) {
+        // Setting advance width to zero will prevent drawing the hexbox
+        details->mAdvance = 0;
+    } else {
+        gfxFloat width = PR_MAX(glyphRun->mFont->GetMetrics().aveCharWidth,
+                                gfxFontMissingGlyphs::GetDesiredMinWidth(aChar));
+        details->mAdvance = PRUint32(width*GetAppUnitsPerDevUnit());
+    }
     details->mXOffset = 0;
     details->mYOffset = 0;
     mCharacterGlyphs[aIndex].SetMissing(1);

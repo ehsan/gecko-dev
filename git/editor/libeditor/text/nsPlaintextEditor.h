@@ -89,11 +89,10 @@ public:
 
   /* ------------ nsIEditorIMESupport overrides -------------- */
   NS_IMETHOD SetCompositionString(const nsAString &aCompositionString,
-                                  nsIPrivateTextRangeList *aTextRange,
-                                  nsTextEventReply *aReply);
+                                  nsIPrivateTextRangeList *aTextRange);
 
   /* ------------ Overrides of nsEditor interface methods -------------- */
-  NS_IMETHOD BeginComposition(nsTextEventReply* aReply);
+  NS_IMETHOD BeginComposition();
   NS_IMETHOD SetAttributeOrEquivalent(nsIDOMElement * aElement,
                                       const nsAString & aAttribute,
                                       const nsAString & aValue,
@@ -111,9 +110,6 @@ public:
   NS_IMETHOD DeleteSelection(EDirection aAction);
 
   NS_IMETHOD SetDocumentCharacterSet(const nsACString & characterSet);
-
-  NS_IMETHOD GetFlags(PRUint32 *aFlags);
-  NS_IMETHOD SetFlags(PRUint32 aFlags);
 
   NS_IMETHOD Undo(PRUint32 aCount);
   NS_IMETHOD Redo(PRUint32 aCount);
@@ -219,10 +215,8 @@ protected:
   PRBool   mIgnoreSpuriousDragEvent;
   NS_IMETHOD IgnoreSpuriousDragEvent(PRBool aIgnoreSpuriousDragEvent) {mIgnoreSpuriousDragEvent = aIgnoreSpuriousDragEvent; return NS_OK;}
 
-  // Wrapper for nsCopySupport::GetClipboardEventTarget, finds target to fire
-  // [cut,copy,paste] and [beforecut,beforecopy,beforepaste] events at.
-  nsresult GetClipboardEventTarget(nsIDOMNode** aEventTarget);
-  nsresult FireClipboardEvent(PRUint32 msg, PRBool* aPreventDefault);
+  PRBool CanCutOrCopy();
+  PRBool FireClipboardEvent(PRInt32 aType);
 
 // Data members
 protected:

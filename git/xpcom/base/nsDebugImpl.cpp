@@ -320,7 +320,7 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_DEBUG_ABORT:
-#ifdef DEBUG
+#if defined(DEBUG) && defined(_WIN32)
      RealBreak();
 #endif
      nsTraceRefcntImpl::WalkTheStack(stderr);
@@ -357,7 +357,9 @@ NS_DebugBreak(PRUint32 aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_ASSERT_TRAP:
+   case NS_ASSERT_UNINITIALIZED: // Default to "trap" behavior
      Break(buf.buffer);
+     return;
    }   
 }
 

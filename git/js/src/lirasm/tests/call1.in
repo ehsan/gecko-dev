@@ -1,12 +1,12 @@
-ptr = alloc 8
-a = int 65
+ptr = allocp 8
+a = immi 65
 sti a ptr 0
-b = int 66
+b = immi 66
 sti b ptr 1
-c = int 67
+c = immi 67
 sti c ptr 2
-zero = int 0
+zero = immi 0
 sti zero ptr 3
-ss = icall puts cdecl ptr
-nn = ge ss zero
-ret nn
+ss = calli puts cdecl ptr
+nn = gei ss zero
+reti nn

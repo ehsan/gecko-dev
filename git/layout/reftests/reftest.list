@@ -38,6 +38,9 @@ include bugs/reftest.list
 # canvas 2D
 include canvas/reftest.list
 
+# css default pseudo class tests
+include css-default/reftest.list
+
 # css @import tests
 include css-import/reftest.list
 
@@ -62,6 +65,10 @@ include css-transitions/reftest.list
 # css values and units
 include css-valuesandunits/reftest.list
 
+# Reftests in css-visited are run using
+# layout/style/test/test_visited_reftests instead of using the reftest
+# harness.
+
 # columns/
 include columns/reftest.list
 
@@ -70,6 +77,9 @@ include ../../content/test/reftest/reftest.list
 
 # counters/
 include counters/reftest.list
+
+# dom/
+include dom/reftest.list
 
 # editor/
 include editor/reftest.list

@@ -46,7 +46,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsIContent.h"
+#include "mozilla/dom/Element.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMDocumentFragment.h"
 #include "nsIDOMEventTarget.h"
@@ -65,6 +65,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMNodeSelector.h"
 #include "nsIDOMXPathNSResolver.h"
+#include "nsPresContext.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -155,26 +156,15 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsNode3Tearoff, nsIDOM3Node)
 
-  nsNode3Tearoff(nsIContent *aContent) : mContent(aContent)
+  nsNode3Tearoff(nsINode *aNode) : mNode(aNode)
   {
   }
-
-  /**
-   * Determines whether two nodes are equal.
-   *
-   * @param aContent1 The first node to compare.
-   * @param aContent2 The second node to compare.
-   *
-   * @return PR_TRUE if the nodes are equal.
-   */
-  static PRBool AreNodesEqual(nsIContent* aContent1,
-                              nsIContent* aContent2);
 
 protected:
   virtual ~nsNode3Tearoff() {}
 
 private:
-  nsCOMPtr<nsIContent> mContent;
+  nsCOMPtr<nsINode> mNode;
 };
 
 /**
@@ -314,7 +304,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsNodeSelectorTearoff)
 
-  nsNodeSelectorTearoff(nsIContent *aContent) : mContent(aContent)
+  nsNodeSelectorTearoff(nsINode *aNode) : mNode(aNode)
   {
   }
 
@@ -322,7 +312,7 @@ private:
   ~nsNodeSelectorTearoff() {}
 
 private:
-  nsCOMPtr<nsIContent> mContent;
+  nsCOMPtr<nsINode> mNode;
 };
 
 // Forward declare to allow being a friend
@@ -332,7 +322,7 @@ class nsNSElementTearoff;
  * A generic base class for DOM elements, implementing many nsIContent,
  * nsIDOMNode and nsIDOMElement methods.
  */
-class nsGenericElement : public nsIContent
+class nsGenericElement : public mozilla::dom::Element
 {
 public:
   nsGenericElement(nsINodeInfo *aNodeInfo);
@@ -370,6 +360,16 @@ public:
   virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
   {
     return nsContentUtils::GetContextForEventHandlers(this, aRv);
+  }
+  virtual void GetTextContent(nsAString &aTextContent)
+  {
+    nsContentUtils::GetNodeTextContent(this, PR_TRUE, aTextContent);
+  }
+  virtual nsresult SetTextContent(const nsAString& aTextContent)
+  {
+    // Batch possible DOMSubtreeModified events.
+    mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
+    return nsContentUtils::SetNodeTextContent(this, aTextContent, PR_FALSE);
   }
 
   // nsIContent interface methods
@@ -431,7 +431,7 @@ public:
   virtual void SaveSubtreeState();
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* /*aName*/)
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* /*aName*/)
   {
     return nsnull;
   }
@@ -493,12 +493,21 @@ public:
                          const nsAString& aVersion, PRBool* aReturn);
   NS_IMETHOD HasAttributes(PRBool* aHasAttributes);
   NS_IMETHOD HasChildNodes(PRBool* aHasChildNodes);
-  NS_IMETHOD InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
-                          nsIDOMNode** aReturn);
-  NS_IMETHOD ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
-                          nsIDOMNode** aReturn);
-  NS_IMETHOD RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn);
-  NS_IMETHOD AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
+  nsresult InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
+                        nsIDOMNode** aReturn)
+  {
+    return ReplaceOrInsertBefore(PR_FALSE, aNewChild, aRefChild, aReturn);
+  }
+  nsresult ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
+                        nsIDOMNode** aReturn)
+  {
+    return ReplaceOrInsertBefore(PR_TRUE, aNewChild, aOldChild, aReturn);
+  }
+  nsresult RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
+  {
+    return nsINode::RemoveChild(aOldChild, aReturn);
+  }
+  nsresult AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
   {
     return InsertBefore(aNewChild, nsnull, aReturn);
   }
@@ -579,48 +588,7 @@ public:
                                       const nsAString& aVersion,
                                       PRBool* aReturn);
 
-  static nsresult InternalGetFeature(nsISupports* aObject,
-                                     const nsAString& aFeature,
-                                     const nsAString& aVersion,
-                                     nsISupports** aReturn);
-
-  static already_AddRefed<nsIDOMNSFeatureFactory>
-    GetDOMFeatureFactory(const nsAString& aFeature, const nsAString& aVersion);
-
   static PRBool ShouldBlur(nsIContent *aContent);
-
-  /**
-   * Actual implementation of the DOM InsertBefore and ReplaceChild methods.
-   * Shared by nsDocument. When called from nsDocument, aParent will be null.
-   *
-   * @param aReplace  True if aNewChild should replace aRefChild. False if
-   *                  aNewChild should be inserted before aRefChild.
-   * @param aNewChild The child to insert
-   * @param aRefChild The child to insert before or replace
-   * @param aParent The parent to use for the new child
-   * @param aDocument The document to use for the new child.
-   *                  Must be non-null, if aParent is null and must match
-   *                  aParent->GetCurrentDoc() if aParent is not null.
-   * @param aReturn [out] the child we insert
-   */
-  static nsresult doReplaceOrInsertBefore(PRBool aReplace, nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
-                                          nsIContent* aParent, nsIDocument* aDocument,
-                                          nsIDOMNode** aReturn);
-
-  /**
-   * Actual implementation of the DOM RemoveChild method.  Shared by
-   * nsDocument.  When called from nsDocument, aParent will be null.
-   *
-   * @param aOldChild The child to remove
-   * @param aParent The parent to use for the new child
-   * @param aDocument The document to use for the new child.
-   *                  Must be non-null if aParent is null and must match
-   *                  aParent->GetCurrentDoc() if aParent is not null.
-   * @param aReturn [out] the child we remove
-   */
-  static nsresult doRemoveChild(nsIDOMNode* aOldChild,
-                                nsIContent* aParent, nsIDocument* aDocument,
-                                nsIDOMNode** aReturn);
 
   /**
    * Most of the implementation of the nsINode InsertChildAt method.  Shared by
@@ -662,14 +630,21 @@ public:
                                   PRBool aMutationEvent);
 
   /**
+   * If there are listeners for DOMNodeInserted event, fires the event on all
+   * aNodes
+   */
+  static void FireNodeInserted(nsIDocument* aDoc,
+                               nsINode* aParent,
+                               nsCOMArray<nsIContent>& aNodes);
+
+  /**
    * Helper methods for implementing querySelector/querySelectorAll
    */
-  static nsresult doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
-                                  nsIDOMElement **aReturn);
+  static nsIContent* doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
+                                     nsresult *aResult NS_OUTPARAM);
   static nsresult doQuerySelectorAll(nsINode* aRoot,
                                      const nsAString& aSelector,
                                      nsIDOMNodeList **aReturn);
-  static PRBool doMatchesSelector(nsIContent* aNode, const nsAString& aSelector);
 
   /**
    * Default event prehandling for content objects. Handles event retargeting.
@@ -748,6 +723,69 @@ public:
   virtual void RecompileScriptEventListeners()
   {
   }
+
+  // nsIDOMNSElement methods
+  nsresult GetElementsByClassName(const nsAString& aClasses,
+                                  nsIDOMNodeList** aReturn)
+  {
+    return nsContentUtils::GetElementsByClassName(this, aClasses, aReturn);
+  }
+  nsresult GetClientRects(nsIDOMClientRectList** aResult);
+  nsresult GetBoundingClientRect(nsIDOMClientRect** aResult);
+  PRInt32 GetScrollTop();
+  void SetScrollTop(PRInt32 aScrollTop);
+  PRInt32 GetScrollLeft();
+  void SetScrollLeft(PRInt32 aScrollLeft);
+  PRInt32 GetScrollHeight();
+  PRInt32 GetScrollWidth();
+  PRInt32 GetClientTop()
+  {
+    return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().y);
+  }
+  PRInt32 GetClientLeft()
+  {
+    return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().x);
+  }
+  PRInt32 GetClientHeight()
+  {
+    return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().height);
+  }
+  PRInt32 GetClientWidth()
+  {
+    return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().width);
+  }
+  nsIContent* GetFirstElementChild();
+  nsIContent* GetLastElementChild();
+  nsIContent* GetPreviousElementSibling();
+  nsIContent* GetNextElementSibling();
+  nsresult GetChildElementCount(PRUint32* aResult)
+  {
+    nsContentList* list = GetChildrenList();
+    if (!list) {
+      *aResult = 0;
+
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    *aResult = list->Length(PR_TRUE);
+
+    return NS_OK;
+  }
+  nsresult GetChildren(nsIDOMNodeList** aResult)
+  {
+    nsContentList* list = GetChildrenList();
+    if (!list) {
+      *aResult = nsnull;
+
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    NS_ADDREF(*aResult = list);
+
+    return NS_OK;
+  }
+  nsIDOMDOMTokenList* GetClassList(nsresult *aResult);
+  PRBool MozMatchesSelector(const nsAString& aSelector);
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsGenericElement)
 
@@ -898,6 +936,11 @@ protected:
 
   nsIFrame* GetStyledFrame();
 
+  virtual mozilla::dom::Element* GetNameSpaceElement()
+  {
+    return this;
+  }
+
 public:
   // Because of a bug in MS C++ compiler nsDOMSlots must be declared public,
   // otherwise nsXULElement::nsXULSlots doesn't compile.
@@ -1042,6 +1085,17 @@ protected:
    * Array containing all attributes and children for this element
    */
   nsAttrAndChildArray mAttrsAndChildren;
+
+private:
+  /**
+   * Get this element's client area rect in app units.
+   * @return the frame's client area
+   */
+  nsRect GetClientAreaRect();
+
+  nsIScrollableFrame* GetScrollFrame(nsIFrame **aStyledFrame = nsnull);
+
+  nsContentList* GetChildrenList();
 };
 
 /**
@@ -1107,24 +1161,7 @@ public:
   }
 
 private:
-  nsContentList* GetChildrenList();
-
   nsRefPtr<nsGenericElement> mContent;
-
-  /**
-   * Get this element's client area rect in app units.
-   * @return the frame's client area
-   */
-  nsRect GetClientAreaRect();
-
-private:
-  /**
-   * Get the element's styled frame (the primary frame or, for tables, the inner
-   * table frame) and associated scrollable frame (if any).
-   * @note This method flushes pending notifications (Flush_Layout).
-   * @param aFrame (optional) the styled frame [OUT]
-   */
-  nsIScrollableFrame* GetScrollFrame(nsIFrame** aStyledFrame = nsnull);
 };
 
 #define NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE                               \

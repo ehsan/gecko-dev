@@ -89,43 +89,40 @@ struct LasmSideExit : public SideExit {
 
 /* LIR SPI implementation */
 
-void
-nanojit::StackFilter::getTops(LIns*, int& spTop, int& rpTop)
+int
+nanojit::StackFilter::getTop(LIns*)
 {
-    spTop = 0;
-    rpTop = 0;
+    return 0;
 }
 
 #if defined NJ_VERBOSE
 void
-nanojit::LirNameMap::formatGuard(LIns *i, char *out)
+nanojit::LInsPrinter::formatGuard(InsBuf *buf, LIns *ins)
 {
-    LasmSideExit *x;
-
-    x = (LasmSideExit *)i->record()->exit;
-    sprintf(out,
+    RefBuf b1, b2;
+    LasmSideExit *x = (LasmSideExit *)ins->record()->exit;
+    VMPI_snprintf(buf->buf, buf->len,
             "%s: %s %s -> line=%ld (GuardID=%03d)",
-            formatRef(i),
-            lirNames[i->opcode()],
-            i->oprnd1() ? formatRef(i->oprnd1()) : "",
+            formatRef(&b1, ins),
+            lirNames[ins->opcode()],
+            ins->oprnd1() ? formatRef(&b2, ins->oprnd1()) : "",
             (long)x->line,
-            i->record()->profGuardID);
+            ins->record()->profGuardID);
 }
 
 void
-nanojit::LirNameMap::formatGuardXov(LIns *i, char *out)
+nanojit::LInsPrinter::formatGuardXov(InsBuf *buf, LIns *ins)
 {
-    LasmSideExit *x;
-
-    x = (LasmSideExit *)i->record()->exit;
-    sprintf(out,
+    RefBuf b1, b2, b3;
+    LasmSideExit *x = (LasmSideExit *)ins->record()->exit;
+    VMPI_snprintf(buf->buf, buf->len,
             "%s = %s %s, %s -> line=%ld (GuardID=%03d)",
-            formatRef(i),
-            lirNames[i->opcode()],
-            formatRef(i->oprnd1()),
-            formatRef(i->oprnd2()),
+            formatRef(&b1, ins),
+            lirNames[ins->opcode()],
+            formatRef(&b2, ins->oprnd1()),
+            formatRef(&b3, ins->oprnd2()),
             (long)x->line,
-            i->record()->profGuardID);
+            ins->record()->profGuardID);
 }
 #endif
 
@@ -151,18 +148,11 @@ enum ReturnType {
 #endif
 
 #define CI(name, args) \
-    {(uintptr_t) (&name), args, /*_cse*/0, /*_fold*/0, nanojit::ABI_CDECL \
+    {(uintptr_t) (&name), args, nanojit::ABI_CDECL, /*isPure*/0, ACC_STORE_ANY \
      DEBUG_ONLY_NAME(name)}
 
 #define FN(name, args) \
     {#name, CI(name, args)}
-
-const int I32 = nanojit::ARGSIZE_LO;
-#ifdef NANOJIT_64BIT
-const int I64 = nanojit::ARGSIZE_Q;
-#endif
-const int F64 = nanojit::ARGSIZE_F;
-const int PTR = nanojit::ARGSIZE_P;
 
 enum LirTokenType {
     NAME, NUMBER, PUNCT, NEWLINE
@@ -270,7 +260,6 @@ public:
     bool lookupFunction(const string &name, CallInfo *&ci);
 
     LirBuffer *mLirbuf;
-    verbose_only( LabelMap *mLabelMap; )
     LogControl mLogc;
     avmplus::AvmCore mCore;
     Allocator mAlloc;
@@ -346,8 +335,8 @@ private:
     void endFragment();
 };
 
-// Meaning: arg 'm' of 'n' has size 'sz'.
-static int argMask(int sz, int m, int n)
+// Meaning: arg 'm' of 'n' has type 'ty'.
+static int argMask(int ty, int m, int n)
 {
     // Order examples, from MSB to LSB:  
     // - 3 args: 000 | 000 | 000 | 000 | 000 | arg1| arg2| arg3| ret
@@ -355,13 +344,13 @@ static int argMask(int sz, int m, int n)
     // If the mask encoding reversed the arg order the 'n' parameter wouldn't
     // be necessary, as argN would always be in the same place in the
     // bitfield.
-    return sz << ((1 + n - m) * ARGSIZE_SHIFT);
+    return ty << ((1 + n - m) * ARGTYPE_SHIFT);
 }
 
-// Return value has size 'sz'.
-static int retMask(int sz)
+// Return value has type 'ty'.
+static int retMask(int ty)
 {
-    return sz;
+    return ty;
 }
 
 // 'sin' is overloaded on some platforms, so taking its address
@@ -373,10 +362,10 @@ double sinFn(double d) {
 #define sin sinFn
 
 Function functions[] = {
-    FN(puts,   argMask(PTR, 1, 1) | retMask(I32)),
-    FN(sin,    argMask(F64, 1, 1) | retMask(F64)),
-    FN(malloc, argMask(PTR, 1, 1) | retMask(PTR)),
-    FN(free,   argMask(PTR, 1, 1) | retMask(I32))
+    FN(puts,   argMask(ARGTYPE_P, 1, 1) | retMask(ARGTYPE_I)),
+    FN(sin,    argMask(ARGTYPE_D, 1, 1) | retMask(ARGTYPE_D)),
+    FN(malloc, argMask(ARGTYPE_P, 1, 1) | retMask(ARGTYPE_P)),
+    FN(free,   argMask(ARGTYPE_P, 1, 1) | retMask(ARGTYPE_V))
 };
 
 template<typename out, typename in> out
@@ -519,13 +508,14 @@ FragmentAssembler::FragmentAssembler(Lirasm &parent, const string &fragmentName,
     mLir = mBufWriter  = new LirBufWriter(mParent.mLirbuf, nanojit::AvmCore::config);
 #ifdef DEBUG
     if (optimize) {     // don't re-validate if no optimization has taken place
-        mLir = mValidateWriter2 = new ValidateWriter(mLir, "end of writer pipeline");
+        mLir = mValidateWriter2 =
+            new ValidateWriter(mLir, mFragment->lirbuf->printer, "end of writer pipeline");
     }
 #endif
 #ifdef DEBUG
     if (mParent.mVerbose) {
         mLir = mVerboseWriter = new VerboseWriter(mParent.mAlloc, mLir,
-                                                  mParent.mLirbuf->names,
+                                                  mParent.mLirbuf->printer,
                                                   &mParent.mLogc);
     }
 #endif
@@ -541,7 +531,8 @@ FragmentAssembler::FragmentAssembler(Lirasm &parent, const string &fragmentName,
         mLir = mExprFilter = new ExprFilter(mLir);
     }
 #ifdef DEBUG
-    mLir = mValidateWriter1 = new ValidateWriter(mLir, "start of writer pipeline");
+    mLir = mValidateWriter1 =
+            new ValidateWriter(mLir, mFragment->lirbuf->printer, "start of writer pipeline");
 #endif
 
     mReturnTypeBits = 0;
@@ -635,7 +626,7 @@ FragmentAssembler::assemble_load()
         mTokens[1].find_first_of("0123456789") == 0) {
         return mLir->insLoad(mOpcode,
                              ref(mTokens[0]),
-                             imm(mTokens[1]));
+                             imm(mTokens[1]), ACC_LOAD_ANY);
     }
     bad("immediate offset required for load");
     return NULL;  // not reached
@@ -698,28 +689,28 @@ FragmentAssembler::assemble_call(const string &op)
 
         ci->_abi = _abi;
 
-        ci->_argtypes = 0;
+        ci->_typesig = 0;
         size_t argc = mTokens.size();
         for (size_t i = 0; i < argc; ++i) {
             args[i] = ref(mTokens[mTokens.size() - (i+1)]);
-            if      (args[i]->isF64()) ty = ARGSIZE_F;
+            if      (args[i]->isD()) ty = ARGTYPE_D;
 #ifdef NANOJIT_64BIT
-            else if (args[i]->isI64()) ty = ARGSIZE_Q;
+            else if (args[i]->isQ()) ty = ARGTYPE_Q;
 #endif
-            else                       ty = ARGSIZE_I;
+            else                       ty = ARGTYPE_I;
             // Nb: i+1 because argMask() uses 1-based arg counting.
-            ci->_argtypes |= argMask(ty, i+1, argc);
+            ci->_typesig |= argMask(ty, i+1, argc);
         }
 
         // Select return type from opcode.
         ty = 0;
-        if      (mOpcode == LIR_icall) ty = ARGSIZE_LO;
-        else if (mOpcode == LIR_fcall) ty = ARGSIZE_F;
+        if      (mOpcode == LIR_icall) ty = ARGTYPE_LO;
+        else if (mOpcode == LIR_fcall) ty = ARGTYPE_D;
 #ifdef NANOJIT_64BIT
-        else if (mOpcode == LIR_qcall) ty = ARGSIZE_Q;
+        else if (mOpcode == LIR_qcall) ty = ARGTYPE_Q;
 #endif
         else                           nyi("callh");
-        ci->_argtypes |= retMask(ty);
+        ci->_typesig |= retMask(ty);
     }
 
     return mLir->insCall(ci, args);
@@ -806,7 +797,7 @@ FragmentAssembler::endFragment()
         mLir->insGuard(LIR_x, NULL, createGuardRecord(createSideExit()));
 
     mParent.mAssm.compile(mFragment, mParent.mAlloc, optimize
-              verbose_only(, mParent.mLabelMap));
+              verbose_only(, mParent.mLirbuf->printer));
 
     if (mParent.mAssm.error() != nanojit::None) {
         cerr << "error during assembly: ";
@@ -960,7 +951,6 @@ FragmentAssembler::assembleFragment(LirTokenStream &in, bool implicitBegin, cons
                              ref(mTokens[0]));
             break;
 
-          case LIR_addp:
           case LIR_add:
           case LIR_sub:
           case LIR_mul:
@@ -1034,19 +1024,19 @@ FragmentAssembler::assembleFragment(LirTokenStream &in, bool implicitBegin, cons
 
           case LIR_int:
             need(1);
-            ins = mLir->insImm(imm(mTokens[0]));
+            ins = mLir->insImmI(imm(mTokens[0]));
             break;
 
 #ifdef NANOJIT_64BIT
           case LIR_quad:
             need(1);
-            ins = mLir->insImmq(lquad(mTokens[0]));
+            ins = mLir->insImmQ(lquad(mTokens[0]));
             break;
 #endif
 
           case LIR_float:
             need(1);
-            ins = mLir->insImmf(immf(mTokens[0]));
+            ins = mLir->insImmD(immf(mTokens[0]));
             break;
 
 #if NJ_EXPANDED_LOADSTORE_SUPPORTED 
@@ -1060,27 +1050,19 @@ FragmentAssembler::assembleFragment(LirTokenStream &in, bool implicitBegin, cons
             need(3);
             ins = mLir->insStore(mOpcode, ref(mTokens[0]),
                                   ref(mTokens[1]),
-                                  imm(mTokens[2]));
+                                  imm(mTokens[2]), ACC_STORE_ANY);
             break;
 
 #if NJ_EXPANDED_LOADSTORE_SUPPORTED 
-          case LIR_ldzb:
-          case LIR_ldzs:
           case LIR_ldsb:
           case LIR_ldss:
-          case LIR_ldcsb:
-          case LIR_ldcss:
           case LIR_ld32f:
-          case LIR_ldc32f:
 #endif
+          case LIR_ldzb:
+          case LIR_ldzs:
           case LIR_ld:
-          case LIR_ldc:
           CASE64(LIR_ldq:)
-          CASE64(LIR_ldqc:)
           case LIR_ldf:
-          case LIR_ldfc:
-          case LIR_ldcb:
-          case LIR_ldcs:
             ins = assemble_load();
             break;
 
@@ -1251,58 +1233,58 @@ static double f_F_F8(double a, double b, double c, double d,
 }
 
 #ifdef NANOJIT_64BIT
-static void f_N_IQF(int32_t, uint64_t, double)
+static void f_V_IQF(int32_t, uint64_t, double)
 {
     return;     // no need to do anything
 }
 #endif
 
-const CallInfo ci_I_I1 = CI(f_I_I1, argMask(I32, 1, 1) |
-                                    retMask(I32));
+const CallInfo ci_I_I1 = CI(f_I_I1, argMask(ARGTYPE_I, 1, 1) |
+                                    retMask(ARGTYPE_I));
 
-const CallInfo ci_I_I6 = CI(f_I_I6, argMask(I32, 1, 6) |
-                                    argMask(I32, 2, 6) |
-                                    argMask(I32, 3, 6) |
-                                    argMask(I32, 4, 6) |
-                                    argMask(I32, 5, 6) |
-                                    argMask(I32, 6, 6) |
-                                    retMask(I32));
+const CallInfo ci_I_I6 = CI(f_I_I6, argMask(ARGTYPE_I, 1, 6) |
+                                    argMask(ARGTYPE_I, 2, 6) |
+                                    argMask(ARGTYPE_I, 3, 6) |
+                                    argMask(ARGTYPE_I, 4, 6) |
+                                    argMask(ARGTYPE_I, 5, 6) |
+                                    argMask(ARGTYPE_I, 6, 6) |
+                                    retMask(ARGTYPE_I));
 
 #ifdef NANOJIT_64BIT
-const CallInfo ci_Q_Q2 = CI(f_Q_Q2, argMask(I64, 1, 2) |
-                                    argMask(I64, 2, 2) |
-                                    retMask(I64));
+const CallInfo ci_Q_Q2 = CI(f_Q_Q2, argMask(ARGTYPE_Q, 1, 2) |
+                                    argMask(ARGTYPE_Q, 2, 2) |
+                                    retMask(ARGTYPE_Q));
 
-const CallInfo ci_Q_Q7 = CI(f_Q_Q7, argMask(I64, 1, 7) |
-                                    argMask(I64, 2, 7) |
-                                    argMask(I64, 3, 7) |
-                                    argMask(I64, 4, 7) |
-                                    argMask(I64, 5, 7) |
-                                    argMask(I64, 6, 7) |
-                                    argMask(I64, 7, 7) |
-                                    retMask(I64));
+const CallInfo ci_Q_Q7 = CI(f_Q_Q7, argMask(ARGTYPE_Q, 1, 7) |
+                                    argMask(ARGTYPE_Q, 2, 7) |
+                                    argMask(ARGTYPE_Q, 3, 7) |
+                                    argMask(ARGTYPE_Q, 4, 7) |
+                                    argMask(ARGTYPE_Q, 5, 7) |
+                                    argMask(ARGTYPE_Q, 6, 7) |
+                                    argMask(ARGTYPE_Q, 7, 7) |
+                                    retMask(ARGTYPE_Q));
 #endif
 
-const CallInfo ci_F_F3 = CI(f_F_F3, argMask(F64, 1, 3) |
-                                    argMask(F64, 2, 3) |
-                                    argMask(F64, 3, 3) |
-                                    retMask(F64));
+const CallInfo ci_F_F3 = CI(f_F_F3, argMask(ARGTYPE_D, 1, 3) |
+                                    argMask(ARGTYPE_D, 2, 3) |
+                                    argMask(ARGTYPE_D, 3, 3) |
+                                    retMask(ARGTYPE_D));
 
-const CallInfo ci_F_F8 = CI(f_F_F8, argMask(F64, 1, 8) |
-                                    argMask(F64, 2, 8) |
-                                    argMask(F64, 3, 8) |
-                                    argMask(F64, 4, 8) |
-                                    argMask(F64, 5, 8) |
-                                    argMask(F64, 6, 8) |
-                                    argMask(F64, 7, 8) |
-                                    argMask(F64, 8, 8) |
-                                    retMask(F64));
+const CallInfo ci_F_F8 = CI(f_F_F8, argMask(ARGTYPE_D, 1, 8) |
+                                    argMask(ARGTYPE_D, 2, 8) |
+                                    argMask(ARGTYPE_D, 3, 8) |
+                                    argMask(ARGTYPE_D, 4, 8) |
+                                    argMask(ARGTYPE_D, 5, 8) |
+                                    argMask(ARGTYPE_D, 6, 8) |
+                                    argMask(ARGTYPE_D, 7, 8) |
+                                    argMask(ARGTYPE_D, 8, 8) |
+                                    retMask(ARGTYPE_D));
 
 #ifdef NANOJIT_64BIT
-const CallInfo ci_N_IQF = CI(f_N_IQF, argMask(I32, 1, 3) |
-                                      argMask(I64, 2, 3) |
-                                      argMask(F64, 3, 3) |
-                                      retMask(ARGSIZE_NONE));
+const CallInfo ci_V_IQF = CI(f_V_IQF, argMask(ARGTYPE_I, 1, 3) |
+                                      argMask(ARGTYPE_Q, 2, 3) |
+                                      argMask(ARGTYPE_D, 3, 3) |
+                                      retMask(ARGTYPE_V));
 #endif
 
 // Generate a random block containing nIns instructions, plus a few more
@@ -1334,6 +1316,10 @@ const CallInfo ci_N_IQF = CI(f_N_IQF, argMask(I32, 1, 3) |
 // - LIR_file/LIR_line (#ifdef VTUNE only)
 // - LIR_fmod (not implemented in NJ backends)
 //
+// Other limitations:
+// - Loads always use accSet==ACC_LOAD_ANY
+// - Stores always use accSet==ACC_STORE_ANY
+//
 void
 FragmentAssembler::assembleRandomFragment(int nIns)
 {
@@ -1350,14 +1336,11 @@ FragmentAssembler::assembleRandomFragment(int nIns)
 
     // Nb: there are no Q_Q_ops.
 
-    vector<LOpcode> F_F_ops;
-    F_F_ops.push_back(LIR_fneg);
+    vector<LOpcode> D_D_ops;
+    D_D_ops.push_back(LIR_fneg);
 
     vector<LOpcode> I_II_ops;
     I_II_ops.push_back(LIR_add);
-#ifndef NANOJIT_64BIT
-    I_II_ops.push_back(LIR_iaddp);
-#endif
     I_II_ops.push_back(LIR_sub);
     I_II_ops.push_back(LIR_mul);
 #if defined NANOJIT_IA32 || defined NANOJIT_X64
@@ -1374,7 +1357,6 @@ FragmentAssembler::assembleRandomFragment(int nIns)
 #ifdef NANOJIT_64BIT
     vector<LOpcode> Q_QQ_ops;
     Q_QQ_ops.push_back(LIR_qiadd);
-    Q_QQ_ops.push_back(LIR_qaddp);
     Q_QQ_ops.push_back(LIR_qiand);
     Q_QQ_ops.push_back(LIR_qior);
     Q_QQ_ops.push_back(LIR_qxor);
@@ -1385,11 +1367,11 @@ FragmentAssembler::assembleRandomFragment(int nIns)
     Q_QI_ops.push_back(LIR_qursh);
 #endif
 
-    vector<LOpcode> F_FF_ops;
-    F_FF_ops.push_back(LIR_fadd);
-    F_FF_ops.push_back(LIR_fsub);
-    F_FF_ops.push_back(LIR_fmul);
-    F_FF_ops.push_back(LIR_fdiv);
+    vector<LOpcode> D_DD_ops;
+    D_DD_ops.push_back(LIR_fadd);
+    D_DD_ops.push_back(LIR_fsub);
+    D_DD_ops.push_back(LIR_fmul);
+    D_DD_ops.push_back(LIR_fdiv);
 
     vector<LOpcode> I_BII_ops;
     I_BII_ops.push_back(LIR_cmov);
@@ -1423,12 +1405,12 @@ FragmentAssembler::assembleRandomFragment(int nIns)
     B_QQ_ops.push_back(LIR_quge);
 #endif
 
-    vector<LOpcode> B_FF_ops;
-    B_FF_ops.push_back(LIR_feq);
-    B_FF_ops.push_back(LIR_flt);
-    B_FF_ops.push_back(LIR_fgt);
-    B_FF_ops.push_back(LIR_fle);
-    B_FF_ops.push_back(LIR_fge);
+    vector<LOpcode> B_DD_ops;
+    B_DD_ops.push_back(LIR_feq);
+    B_DD_ops.push_back(LIR_flt);
+    B_DD_ops.push_back(LIR_fgt);
+    B_DD_ops.push_back(LIR_fle);
+    B_DD_ops.push_back(LIR_fge);
 
 #ifdef NANOJIT_64BIT
     vector<LOpcode> Q_I_ops;
@@ -1439,9 +1421,9 @@ FragmentAssembler::assembleRandomFragment(int nIns)
     I_Q_ops.push_back(LIR_q2i);
 #endif
 
-    vector<LOpcode> F_I_ops;
-    F_I_ops.push_back(LIR_i2f);
-    F_I_ops.push_back(LIR_u2f);
+    vector<LOpcode> D_I_ops;
+    D_I_ops.push_back(LIR_i2f);
+    D_I_ops.push_back(LIR_u2f);
 
     vector<LOpcode> I_F_ops;
 #if NJ_SOFTFLOAT_SUPPORTED
@@ -1450,43 +1432,32 @@ FragmentAssembler::assembleRandomFragment(int nIns)
 #endif
     I_F_ops.push_back(LIR_f2i);
 
-    vector<LOpcode> F_II_ops;
+    vector<LOpcode> D_II_ops;
 #if NJ_SOFTFLOAT_SUPPORTED
-    F_II_ops.push_back(LIR_qjoin);
+    D_II_ops.push_back(LIR_qjoin);
 #endif
 
     vector<LOpcode> I_loads;
     I_loads.push_back(LIR_ld);          // weight LIR_ld more heavily
     I_loads.push_back(LIR_ld);
     I_loads.push_back(LIR_ld);
-    I_loads.push_back(LIR_ldc);
-    I_loads.push_back(LIR_ldcb);
-    I_loads.push_back(LIR_ldcs);
-#if NJ_EXPANDED_LOADSTORE_SUPPORTED 
     I_loads.push_back(LIR_ldzb);
     I_loads.push_back(LIR_ldzs);
+#if NJ_EXPANDED_LOADSTORE_SUPPORTED 
     I_loads.push_back(LIR_ldsb);
     I_loads.push_back(LIR_ldss);
-    I_loads.push_back(LIR_ldcsb);
-    I_loads.push_back(LIR_ldcss);
 #endif
 
 #ifdef NANOJIT_64BIT
     vector<LOpcode> Q_loads;
-    Q_loads.push_back(LIR_ldq);      // weight LIR_ld more heavily
     Q_loads.push_back(LIR_ldq);
-    Q_loads.push_back(LIR_ldqc);
 #endif
 
-    vector<LOpcode> F_loads;
-    F_loads.push_back(LIR_ldf);      // weight LIR_ldf more heavily
-    F_loads.push_back(LIR_ldf);
-    F_loads.push_back(LIR_ldfc);
+    vector<LOpcode> D_loads;
+    D_loads.push_back(LIR_ldf);
 #if NJ_EXPANDED_LOADSTORE_SUPPORTED
-    // this loads a 32-bit float and expands to 64-bit float
-    F_loads.push_back(LIR_ld32f);    // weight LIR_ld32f more heavily
-    F_loads.push_back(LIR_ld32f); 
-    F_loads.push_back(LIR_ldc32f);
+    // this loads a 32-bit float and expands it to 64-bit float
+    D_loads.push_back(LIR_ld32f);
 #endif
 
     enum LInsClass {
@@ -1581,15 +1552,15 @@ FragmentAssembler::assembleRandomFragment(int nIns)
         // and 1 and small multiples of 4 which are common due to memory
         // addressing.  This puts some realistic stress on CseFilter.
         case LIMM_I: {
-            int32_t imm32 = 0;      // shut gcc up
+            int32_t immI = 0;      // shut gcc up
             switch (rnd(5)) {
-            case 0: imm32 = 0;                  break;
-            case 1: imm32 = 1;                  break;
-            case 2: imm32 = 4 * (rnd(256) + 1); break;  // 4, 8, ..., 1024
-            case 3: imm32 = rnd(19999) - 9999;  break;  // -9999..9999
-            case 4: imm32 = rndI32();           break;  // -RAND_MAX..RAND_MAX
+            case 0: immI = 0;                  break;
+            case 1: immI = 1;                  break;
+            case 2: immI = 4 * (rnd(256) + 1); break;  // 4, 8, ..., 1024
+            case 3: immI = rnd(19999) - 9999;  break;  // -9999..9999
+            case 4: immI = rndI32();           break;  // -RAND_MAX..RAND_MAX
             }
-            ins = mLir->insImm(imm32);
+            ins = mLir->insImmI(immI);
             addOrReplace(Is, ins);
             n++;
             break;
@@ -1605,17 +1576,17 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             case 3: imm64 = rnd(19999) - 9999;                      break;  // -9999..9999
             case 4: imm64 = uint64_t(rndU32()) << 32 | rndU32();    break;  // possibly big!
             }
-            ins = mLir->insImmq(imm64);
+            ins = mLir->insImmQ(imm64);
             addOrReplace(Qs, ins);
             n++;
             break;
         }
 #endif
 
-        case LIMM_F: {
+        case LIMM_D: {
             // We don't explicitly generate infinities and NaNs here, but they
             // end up occurring due to ExprFilter evaluating expressions like
-            // fdiv(1,0) and fdiv(Infinity,Infinity).
+            // divd(1,0) and divd(Infinity,Infinity).
             double imm64f = 0;
             switch (rnd(5)) {
             case 0: imm64f = 0.0;                                           break;
@@ -1631,7 +1602,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
                 imm64f = u.d;
                 break;
             }
-            ins = mLir->insImmf(imm64f);
+            ins = mLir->insImmD(imm64f);
             addOrReplace(Fs, ins);
             n++;
             break;
@@ -1647,9 +1618,9 @@ FragmentAssembler::assembleRandomFragment(int nIns)
 
         // case LOP_Q_Q:  no instruction in this category
 
-        case LOP_F_F:
+        case LOP_D_D:
             if (!Fs.empty()) {
-                ins = mLir->ins1(rndPick(F_F_ops), rndPick(Fs));
+                ins = mLir->ins1(rndPick(D_D_ops), rndPick(Fs));
                 addOrReplace(Fs, ins);
                 n++;
             }
@@ -1665,15 +1636,15 @@ FragmentAssembler::assembleRandomFragment(int nIns)
                     // XXX: ExprFilter can't fold a div/mod with constant
                     // args, due to the horrible semantics of LIR_mod.  So we
                     // just don't generate anything if we hit that case.
-                    if (!lhs->isconst() || !rhs->isconst()) {
+                    if (!lhs->isImmI() || !rhs->isImmI()) {
                         // If the divisor is positive, no problems.  If it's zero, we get an
                         // exception.  If it's -1 and the dividend is -2147483648 (-2^31) we get
                         // an exception (and this has been encountered in practice).  So we only
                         // allow positive divisors, ie. compute:  lhs / (rhs > 0 ? rhs : -k),
                         // where k is a random number in the range 2..100 (this ensures we have
                         // some negative divisors).
-                        LIns* gt0  = mLir->ins2i(LIR_gt, rhs, 0);
-                        LIns* rhs2 = mLir->ins3(LIR_cmov, gt0, rhs, mLir->insImm(-((int32_t)rnd(99)) - 2));
+                        LIns* gt0  = mLir->ins2ImmI(LIR_gt, rhs, 0);
+                        LIns* rhs2 = mLir->ins3(LIR_cmov, gt0, rhs, mLir->insImmI(-((int32_t)rnd(99)) - 2));
                         LIns* div  = mLir->ins2(LIR_div, lhs, rhs2);
                         if (op == LIR_div) {
                             ins = div;
@@ -1717,9 +1688,9 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
 #endif
 
-        case LOP_F_FF:
+        case LOP_D_DD:
             if (!Fs.empty()) {
-                ins = mLir->ins2(rndPick(F_FF_ops), rndPick(Fs), rndPick(Fs));
+                ins = mLir->ins2(rndPick(D_DD_ops), rndPick(Fs), rndPick(Fs));
                 addOrReplace(Fs, ins);
                 n++;
             }
@@ -1761,9 +1732,9 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
 #endif
 
-        case LOP_B_FF:
+        case LOP_B_DD:
             if (!Fs.empty()) {
-                ins = mLir->ins2(rndPick(B_FF_ops), rndPick(Fs), rndPick(Fs));
+                ins = mLir->ins2(rndPick(B_DD_ops), rndPick(Fs), rndPick(Fs));
                 // XXX: we don't push the result, because most (all?) of the
                 // backends currently can't handle cmovs/qcmovs that take
                 // float comparisons for the test (see bug 520944).  This means
@@ -1783,9 +1754,9 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
 #endif
 
-        case LOP_F_I:
+        case LOP_D_I:
             if (!Is.empty()) {
-                ins = mLir->ins1(rndPick(F_I_ops), rndPick(Is));
+                ins = mLir->ins1(rndPick(D_I_ops), rndPick(Is));
                 addOrReplace(Fs, ins);
                 n++;
             }
@@ -1801,7 +1772,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
 #endif
 
-        case LOP_I_F:
+        case LOP_I_D:
 // XXX: NativeX64 doesn't implement qhi yet (and it may not need to).
 #if !defined NANOJIT_X64
             if (!Fs.empty()) {
@@ -1812,9 +1783,9 @@ FragmentAssembler::assembleRandomFragment(int nIns)
 #endif
             break;
 
-        case LOP_F_II:
-            if (!Is.empty() && !F_II_ops.empty()) {
-                ins = mLir->ins2(rndPick(F_II_ops), rndPick(Is), rndPick(Is));
+        case LOP_D_II:
+            if (!Is.empty() && !D_II_ops.empty()) {
+                ins = mLir->ins2(rndPick(D_II_ops), rndPick(Is), rndPick(Is));
                 addOrReplace(Fs, ins);
                 n++;
             }
@@ -1824,7 +1795,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             vector<LIns*> Ms = rnd(2) ? M4s : M8ps;
             if (!Ms.empty()) {
                 LIns* base = rndPick(Ms);
-                ins = mLir->insLoad(rndPick(I_loads), base, rndOffset32(base->size()));
+                ins = mLir->insLoad(rndPick(I_loads), base, rndOffset32(base->size()), ACC_LOAD_ANY);
                 addOrReplace(Is, ins);
                 n++;
             }
@@ -1835,17 +1806,17 @@ FragmentAssembler::assembleRandomFragment(int nIns)
         case LLD_Q:
             if (!M8ps.empty()) {
                 LIns* base = rndPick(M8ps);
-                ins = mLir->insLoad(rndPick(Q_loads), base, rndOffset64(base->size()));
+                ins = mLir->insLoad(rndPick(Q_loads), base, rndOffset64(base->size()), ACC_LOAD_ANY);
                 addOrReplace(Qs, ins);
                 n++;
             }
             break;
 #endif
 
-        case LLD_F:
+        case LLD_D:
             if (!M8ps.empty()) {
                 LIns* base = rndPick(M8ps);
-                ins = mLir->insLoad(rndPick(F_loads), base, rndOffset64(base->size()));
+                ins = mLir->insLoad(rndPick(D_loads), base, rndOffset64(base->size()), ACC_LOAD_ANY);
                 addOrReplace(Fs, ins);
                 n++;
             }
@@ -1855,7 +1826,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             vector<LIns*> Ms = rnd(2) ? M4s : M8ps;
             if (!Ms.empty() && !Is.empty()) {
                 LIns* base = rndPick(Ms);
-                mLir->insStorei(rndPick(Is), base, rndOffset32(base->size()));
+                mLir->insStore(rndPick(Is), base, rndOffset32(base->size()), ACC_STORE_ANY);
                 n++;
             }
             break;
@@ -1865,16 +1836,16 @@ FragmentAssembler::assembleRandomFragment(int nIns)
         case LST_Q:
             if (!M8ps.empty() && !Qs.empty()) {
                 LIns* base = rndPick(M8ps);
-                mLir->insStorei(rndPick(Qs), base, rndOffset64(base->size()));
+                mLir->insStore(rndPick(Qs), base, rndOffset64(base->size()), ACC_STORE_ANY);
                 n++;
             }
             break;
 #endif
 
-        case LST_F:
+        case LST_D:
             if (!M8ps.empty() && !Fs.empty()) {
                 LIns* base = rndPick(M8ps);
-                mLir->insStorei(rndPick(Fs), base, rndOffset64(base->size()));
+                mLir->insStore(rndPick(Fs), base, rndOffset64(base->size()), ACC_STORE_ANY);
                 n++;
             }
             break;
@@ -1919,7 +1890,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
 #endif
 
-        case LCALL_F_F3:
+        case LCALL_D_D3:
             if (!Fs.empty()) {
                 LIns* args[3] = { rndPick(Fs), rndPick(Fs), rndPick(Fs) };
                 ins = mLir->insCall(&ci_F_F3, args);
@@ -1928,7 +1899,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             }
             break;
 
-        case LCALL_F_F8:
+        case LCALL_D_D8:
             if (!Fs.empty()) {
                 LIns* args[8] = { rndPick(Fs), rndPick(Fs), rndPick(Fs), rndPick(Fs),
                                   rndPick(Fs), rndPick(Fs), rndPick(Fs), rndPick(Fs) };
@@ -1939,11 +1910,11 @@ FragmentAssembler::assembleRandomFragment(int nIns)
             break;
 
 #ifdef NANOJIT_64BIT
-        case LCALL_N_IQF:
+        case LCALL_V_IQD:
             if (!Is.empty() && !Qs.empty() && !Fs.empty()) {
                 // Nb: args[] holds the args in reverse order... sigh.
                 LIns* args[3] = { rndPick(Fs), rndPick(Qs), rndPick(Is) };
-                ins = mLir->insCall(&ci_N_IQF, args);
+                ins = mLir->insCall(&ci_V_IQF, args);
                 n++;
             }
             break;
@@ -1969,7 +1940,7 @@ FragmentAssembler::assembleRandomFragment(int nIns)
 
     // Return 0.
     mReturnTypeBits |= RT_INT32;
-    mLir->ins1(LIR_ret, mLir->insImm(0));
+    mLir->ins1(LIR_ret, mLir->insImmI(0));
 
     endFragment();
 }
@@ -1984,19 +1955,19 @@ Lirasm::Lirasm(bool verbose) :
 #ifdef DEBUG
     if (mVerbose) {
         mLogc.lcbits = LC_ReadLIR | LC_Assembly | LC_RegAlloc | LC_Activation;
-        mLabelMap = new (mAlloc) LabelMap(mAlloc, &mLogc);
-        mLirbuf->names = new (mAlloc) LirNameMap(mAlloc, mLabelMap);
+        mLirbuf->printer = new (mAlloc) LInsPrinter(mAlloc);
     }
 #endif
 
     // Populate the mOpMap table.
-#define OP___(op, number, repKind, retType) \
+#define OP___(op, number, repKind, retType, isCse) \
     mOpMap[#op] = LIR_##op;
 #include "nanojit/LIRopcode.tbl"
 #undef OP___
 
-    mOpMap["alloc"] = mOpMap[PTR_SIZE("ialloc", "qalloc")];
-    mOpMap["param"] = mOpMap[PTR_SIZE("iparam", "qparam")];
+    // XXX: could add more pointer-sized synonyms here
+    mOpMap["allocp"] = mOpMap[PTR_SIZE("alloci", "allocq")];
+    mOpMap["paramp"] = mOpMap[PTR_SIZE("parami", "paramq")];
 }
 
 Lirasm::~Lirasm()
@@ -2024,13 +1995,13 @@ Lirasm::lookupFunction(const string &name, CallInfo *&ci)
         // The ABI, arg types and ret type will be overridden by the caller.
         if (func->second.mReturnType == RT_FLOAT) {
             CallInfo target = {(uintptr_t) func->second.rfloat,
-                               0, 0, 0, ABI_FASTCALL
+                               0, ABI_FASTCALL, /*isPure*/0, ACC_STORE_ANY
                                verbose_only(, func->first.c_str()) };
             *ci = target;
 
         } else {
             CallInfo target = {(uintptr_t) func->second.rint,
-                               0, 0, 0, ABI_FASTCALL
+                               0, ABI_FASTCALL, /*isPure*/0, ACC_STORE_ANY
                                verbose_only(, func->first.c_str()) };
             *ci = target;
         }

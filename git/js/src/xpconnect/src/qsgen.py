@@ -782,9 +782,11 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
             else:
                 code = customMethodCall['setter_code']
             stubName = templateName
+        else:
+            code = None
     else:
         callTemplate = ""
-        code = customMethodCall['code']
+        code = customMethodCall.get('code', None)
 
     # Function prolog.
 
@@ -835,7 +837,7 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         if isGetter:
             pthisval = 'vp'
         elif isSetter:
-            f.write("    JSAutoTempValueRooter tvr(cx);\n")
+            f.write("    js::AutoValueRooter tvr(cx);\n")
             pthisval = 'tvr.addr()'
         else:
             pthisval = '&vp[1]' # as above, ok to overwrite vp[1]
@@ -865,10 +867,17 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
         if len(member.params) > 0:
             f.write("    jsval *argv = JS_ARGV(cx, vp);\n")
         for i, param in enumerate(member.params):
-            validateParam(member, param)
+            argName = 'arg%d' % i
+            argTypeKey = argName + 'Type'
+            if customMethodCall is None or not argTypeKey in customMethodCall:
+                validateParam(member, param)
+                realtype = param.realtype
+            else:
+                realtype = xpidl.Forward(name=customMethodCall[argTypeKey],
+                                         location='', doccomments='')
             # Emit code to convert this argument from jsval.
             rvdeclared = writeArgumentUnboxing(
-                f, i, 'arg%d' % i, param.realtype,
+                f, i, argName, realtype,
                 haveCcx=haveCcx,
                 optional=param.optional,
                 rvdeclared=rvdeclared,
@@ -881,16 +890,17 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
                                            nullBehavior=member.null,
                                            undefinedBehavior=member.undefined)
 
-    canFail = customMethodCall is None or customMethodCall.get('canFail', False)
+    canFail = customMethodCall is None or customMethodCall.get('canFail', True)
     if canFail and not rvdeclared:
         f.write("    nsresult rv;\n")
         rvdeclared = True
 
-    if customMethodCall is not None:
+    if code is not None:
         f.write("%s\n" % code)
 
-    if customMethodCall is None or (isGetter and callTemplate is ""):
-        if customMethodCall is not None:
+    if code is None or (isGetter and callTemplate is ""):
+        debugGetter = code is not None
+        if debugGetter:
             f.write("#ifdef DEBUG\n")
             f.write("    nsresult debug_rv;\n")
             f.write("    nsCOMPtr<%s> debug_self = do_QueryInterface(self);\n"
@@ -923,10 +933,12 @@ def writeQuickStub(f, customMethodCalls, member, stubName, isSetter=False):
             else:
                 args = "arg0"
 
-        f.write("    %s = %s->%s(%s);\n"
-                % (nsresultname, selfname, comName, args))
+        f.write("    ")
+        if canFail or debugGetter:
+            f.write("%s = " % nsresultname)
+        f.write("%s->%s(%s);\n" % (selfname, comName, args))
 
-        if customMethodCall is not None:
+        if debugGetter:
             checkSuccess = "NS_SUCCEEDED(debug_rv)"
             if canFail:
                 checkSuccess += " == NS_SUCCEEDED(rv)"
@@ -1255,20 +1267,27 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
     # Convert in-parameters.
     rvdeclared = False
     for i, param in enumerate(member.params):
-        validateParam(member, param)
-        type = unaliasType(param.realtype)
         argName = "arg%d" % i
+        argTypeKey = argName + 'Type'
+        if customMethodCall is None or not argTypeKey in customMethodCall:
+            validateParam(member, param)
+            realtype = unaliasType(param.realtype)
+        else:
+            realtype = xpidl.Forward(name=customMethodCall[argTypeKey],
+                                     location='', doccomments='')
         rvdeclared = writeTraceableArgumentConversion(f, member, i, argName,
-                                                      param.realtype,
-                                                      haveCcx, rvdeclared)
+                                                      realtype, haveCcx,
+                                                      rvdeclared)
         argNames.append(argName)
 
-    if customMethodCall is not None:
+    canFail = customMethodCall is None or customMethodCall.get('canFail', True)
+    if canFail and not rvdeclared:
+        f.write("    nsresult rv;\n")
+        rvdeclared = True
+
+    if customMethodCall is not None and 'code' in customMethodCall:
         f.write("%s\n" % customMethodCall['code'])
     else:
-        if not rvdeclared:
-            f.write("    nsresult rv;\n")
-            rvdeclared = True
         prefix = ''
 
         resultname = prefix + 'result'
@@ -1284,9 +1303,12 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
             argNames.append(outParamForm(resultname, member.realtype))
         args = ', '.join(argNames)
 
-        f.write("    %s = %s->%s(%s);\n"
-                % (nsresultname, selfname, comName, args))
+        f.write("    ")
+        if canFail:
+            f.write("%s = " % nsresultname)
+        f.write("%s->%s(%s);\n" % (selfname, comName, args))
 
+    if canFail:
         # Check for errors.
         f.write("    if (NS_FAILED(rv)) {\n")
         if haveCcx:
@@ -1305,7 +1327,7 @@ def writeTraceableQuickStub(f, customMethodCalls, member, stubName):
 
     # Write the JS_DEFINE_TRCINFO block
     f.write("JS_DEFINE_TRCINFO_1(%s,\n" % stubName)
-    f.write("    (%d, (static, %s, %s, %s, 0, 0)))\n\n"
+    f.write("    (%d, (static, %s, %s, %s, 0, nanojit::ACC_STORE_ANY)))\n\n"
             % (len(traceInfo["params"]), traceInfo["type"], stubName + "_tn",
                ", ".join(traceInfo["params"])))
 
@@ -1655,7 +1677,7 @@ def main():
     if options.cachedir != '':
         sys.path.append(options.cachedir)
         if not os.path.isdir(options.cachedir):
-            os.mkdir(options.cachedir)
+            os.makedirs(options.cachedir)
 
     try:
         includePath = options.idlpath.split(':')

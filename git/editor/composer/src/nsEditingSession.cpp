@@ -81,7 +81,6 @@
 #include "nsIDOMNSDocument.h"
 #include "nsIScriptContext.h"
 #include "imgIContainer.h"
-#include "nsPresContext.h"
 
 #if DEBUG
 //#define NOISY_DOC_LOADING  1
@@ -1058,9 +1057,10 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
           if (NS_FAILED(rv)) return rv;
 
           mEditorStatus = eEditorCreationInProgress;
+          mDocShell = do_GetWeakReference(docShell);
           mLoadBlankDocTimer->InitWithFuncCallback(
                                           nsEditingSession::TimerCallback,
-                                          (void*)docShell,
+                                          static_cast<void*> (mDocShell.get()),
                                           10, nsITimer::TYPE_ONE_SHOT);
         }
       }
@@ -1073,7 +1073,7 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
 void
 nsEditingSession::TimerCallback(nsITimer* aTimer, void* aClosure)
 {
-  nsCOMPtr<nsIDocShell> docShell = (nsIDocShell*)aClosure;
+  nsCOMPtr<nsIDocShell> docShell = do_QueryReferent(static_cast<nsIWeakReference*> (aClosure));
   if (docShell)
   {
     nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(docShell));

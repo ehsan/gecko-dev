@@ -343,7 +343,6 @@ private:
     static void ActivateLastWindow();
     static nsresult OpenWindow( const char *urlstr, const char *args );
     static nsresult OpenBrowserWindow();
-    static nsresult ReParent( nsISupports *window, HWND newParent );
     static void     SetupSysTrayIcon();
     static void     RemoveSysTrayIcon();
 
@@ -863,8 +862,7 @@ nsNativeAppSupportWin::Enable()
 {
     mCanHandleRequests = PR_TRUE;
 
-    nsCOMPtr<nsIObserverService> obs
-        (do_GetService("@mozilla.org/observer-service;1"));
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
         obs->AddObserver(this, "quit-application", PR_FALSE);
     } else {

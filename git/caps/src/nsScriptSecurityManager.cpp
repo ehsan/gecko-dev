@@ -40,6 +40,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#include "xpcprivate.h"
 #include "nsScriptSecurityManager.h"
 #include "nsIServiceManager.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -532,8 +533,13 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
     if (NS_FAILED(rv))
         return JS_FALSE; // Not just absence of principal, but failure.
 
-    if (!subjectPrincipal)
-        return JS_FALSE;
+    if (!subjectPrincipal) {
+        // See bug 553448 for discussion of this case.
+        NS_ASSERTION(!JS_GetSecurityCallbacks(cx)->findObjectPrincipals,
+                     "CSP: Should have been able to find subject principal. "
+                     "Reluctantly granting access.");
+        return JS_TRUE;
+    }
 
     nsCOMPtr<nsIContentSecurityPolicy> csp;
     rv = subjectPrincipal->GetCsp(getter_AddRefs(csp));
@@ -584,7 +590,7 @@ nsScriptSecurityManager::CheckObjectAccess(JSContext *cx, JSObject *obj,
     // Do the same-origin check -- this sets a JS exception if the check fails.
     // Pass the parent object's class name, as we have no class-info for it.
     nsresult rv =
-        ssm->CheckPropertyAccess(cx, target, STOBJ_GET_CLASS(obj)->name, id,
+        ssm->CheckPropertyAccess(cx, target, obj->getClass()->name, id,
                                  (mode & JSACC_WRITE) ?
                                  (PRInt32)nsIXPCSecurityManager::ACCESS_SET_PROPERTY :
                                  (PRInt32)nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
@@ -808,13 +814,13 @@ nsScriptSecurityManager::CheckPropertyAccessImpl(PRUint32 aAction,
     {
         nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
         nsCOMPtr<nsIInterfaceInfo> interfaceInfo;
-        const nsIID* objIID;
+        const nsIID* objIID = nsnull;
         rv = aCallContext->GetCalleeWrapper(getter_AddRefs(wrapper));
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && wrapper)
             rv = wrapper->FindInterfaceWithMember(aProperty, getter_AddRefs(interfaceInfo));
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && interfaceInfo)
             rv = interfaceInfo->GetIIDShared(&objIID);
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && objIID)
         {
             switch (aAction)
             {
@@ -2383,7 +2389,7 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
     JSObject* origObj = aObj;
 #endif
     
-    const JSClass *jsClass = STOBJ_GET_CLASS(aObj);
+    const JSClass *jsClass = aObj->getClass();
 
     // A common case seen in this code is that we enter this function
     // with aObj being a Function object, whose parent is a Call
@@ -2460,12 +2466,12 @@ nsScriptSecurityManager::doGetObjectPrincipal(JSObject *aObj
             }
         }
 
-        aObj = STOBJ_GET_PARENT(aObj);
+        aObj = aObj->getParent();
 
         if (!aObj)
             break;
 
-        jsClass = STOBJ_GET_CLASS(aObj);
+        jsClass = aObj->getClass();
     } while (1);
 
     NS_ASSERTION(!aAllowShortCircuit ||
@@ -3362,11 +3368,12 @@ nsScriptSecurityManager::nsScriptSecurityManager(void)
 
 nsresult nsScriptSecurityManager::Init()
 {
-    nsresult rv = CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsXPConnect* xpconnect = nsXPConnect::GetXPConnect();
+     if (!xpconnect)
+        return NS_ERROR_FAILURE;
 
-    rv = CallGetService("@mozilla.org/js/xpc/ContextStack;1", &sJSContextStack);
-    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ADDREF(sXPConnect = xpconnect);
+    NS_ADDREF(sJSContextStack = xpconnect);
 
     JSContext* cx = GetSafeJSContext();
     if (!cx) return NS_ERROR_FAILURE;   // this can happen of xpt loading fails
@@ -3378,7 +3385,7 @@ nsresult nsScriptSecurityManager::Init()
 
     InitPrefs();
 
-    rv = CallGetService(NS_IOSERVICE_CONTRACTID, &sIOService);
+    nsresult rv = CallGetService(NS_IOSERVICE_CONTRACTID, &sIOService);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIStringBundleService> bundleService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
@@ -3399,7 +3406,7 @@ nsresult nsScriptSecurityManager::Init()
     //-- Register security check callback in the JS engine
     //   Currently this is used to control access to function.caller
     nsCOMPtr<nsIJSRuntimeService> runtimeService =
-        do_GetService("@mozilla.org/js/xpc/RuntimeService;1", &rv);
+        do_QueryInterface(sXPConnect, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = runtimeService->GetRuntime(&sRuntime);

@@ -88,27 +88,32 @@ typedef uint8  jsbytecode;
 typedef uint8  jssrcnote;
 typedef uint32 jsatomid;
 
+#ifdef __cplusplus
+
+/* Class and struct forward declarations in namespace js. */
+extern "C++" {
+namespace js {
+struct Parser;
+struct Compiler;
+}
+}
+
+#endif
+
 /* Struct typedefs. */
 typedef struct JSArgumentFormatMap  JSArgumentFormatMap;
 typedef struct JSCodeGenerator      JSCodeGenerator;
 typedef struct JSGCThing            JSGCThing;
 typedef struct JSGenerator          JSGenerator;
 typedef struct JSNativeEnumerator   JSNativeEnumerator;
-typedef struct JSCompiler           JSCompiler;
 typedef struct JSFunctionBox        JSFunctionBox;
 typedef struct JSObjectBox          JSObjectBox;
 typedef struct JSParseNode          JSParseNode;
-typedef struct JSPropCacheEntry     JSPropCacheEntry;
 typedef struct JSProperty           JSProperty;
 typedef struct JSSharpObjectMap     JSSharpObjectMap;
 typedef struct JSEmptyScope         JSEmptyScope;
-typedef struct JSTempValueRooter    JSTempValueRooter;
 typedef struct JSThread             JSThread;
 typedef struct JSThreadData         JSThreadData;
-typedef struct JSToken              JSToken;
-typedef struct JSTokenPos           JSTokenPos;
-typedef struct JSTokenPtr           JSTokenPtr;
-typedef struct JSTokenStream        JSTokenStream;
 typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
 typedef struct JSWeakRoots          JSWeakRoots;
@@ -147,8 +152,13 @@ extern "C++" {
 namespace js {
 
 class TraceRecorder;
-class TraceMonitor;
+struct TraceMonitor;
 class CallStack;
+
+class TokenStream;
+struct Token;
+struct TokenPos;
+struct TokenPtr;
 
 class ContextAllocPolicy;
 class SystemAllocPolicy;
@@ -172,16 +182,21 @@ template <class T,
           class AllocPolicy = ContextAllocPolicy>
 class HashSet;
 
+class DeflatedStringCache;
+
+class PropertyCache;
+struct PropertyCacheEntry;
+
+static inline JSPropertyOp
+CastAsPropertyOp(JSObject *object)
+{
+    return JS_DATA_TO_FUNC_PTR(JSPropertyOp, object);
+}
+
 } /* namespace js */
 
 /* Common instantiations. */
 typedef js::Vector<jschar, 32> JSCharBuffer;
-
-static inline JSPropertyOp
-js_CastAsPropertyOp(JSObject *object)
-{
-    return JS_DATA_TO_FUNC_PTR(JSPropertyOp, object);
-}
 
 } /* export "C++" */
 #endif  /* __cplusplus */
@@ -197,7 +212,19 @@ typedef enum JSTrapStatus {
 
 typedef JSTrapStatus
 (* JSTrapHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
-                  void *closure);
+                  jsval closure);
+
+typedef JSTrapStatus
+(* JSInterruptHook)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
+                    void *closure);
+
+typedef JSTrapStatus
+(* JSDebuggerHandler)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
+                      void *closure);
+
+typedef JSTrapStatus
+(* JSThrowHook)(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
+                void *closure);
 
 typedef JSBool
 (* JSWatchPointHandler)(JSContext *cx, JSObject *obj, jsval id, jsval old,
@@ -259,13 +286,13 @@ typedef JSBool
                      void *closure);
 
 typedef struct JSDebugHooks {
-    JSTrapHandler       interruptHandler;
-    void                *interruptHandlerData;
+    JSInterruptHook     interruptHook;
+    void                *interruptHookData;
     JSNewScriptHook     newScriptHook;
     void                *newScriptHookData;
     JSDestroyScriptHook destroyScriptHook;
     void                *destroyScriptHookData;
-    JSTrapHandler       debuggerHandler;
+    JSDebuggerHandler   debuggerHandler;
     void                *debuggerHandlerData;
     JSSourceHandler     sourceHandler;
     void                *sourceHandlerData;
@@ -275,36 +302,11 @@ typedef struct JSDebugHooks {
     void                *callHookData;
     JSObjectHook        objectHook;
     void                *objectHookData;
-    JSTrapHandler       throwHook;
+    JSThrowHook         throwHook;
     void                *throwHookData;
     JSDebugErrorHook    debugErrorHook;
     void                *debugErrorHookData;
 } JSDebugHooks;
-
-/*
- * Type definitions for temporary GC roots that register with GC local C
- * variables. See jscntxt.h for details.
- */
-typedef void
-(* JSTempValueTrace)(JSTracer *trc, JSTempValueRooter *tvr);
-
-typedef union JSTempValueUnion {
-    jsval               value;
-    JSObject            *object;
-    JSXML               *xml;
-    JSTempValueTrace    trace;
-    JSScopeProperty     *sprop;
-    JSWeakRoots         *weakRoots;
-    JSCompiler          *compiler;
-    JSScript            *script;
-    jsval               *array;
-} JSTempValueUnion;
-
-struct JSTempValueRooter {
-    JSTempValueRooter   *down;
-    ptrdiff_t           count;
-    JSTempValueUnion    u;
-};
 
 /* JSObjectOps function pointer typedefs. */
 
@@ -385,13 +387,5 @@ typedef void
 #else
 extern JSBool js_CStringsAreUTF8;
 #endif
-
-/*
- * Maximum supported value of Arguments.length. It bounds the maximum number
- * of arguments that can be supplied to the function call using
- * Function.prototype.apply. This value also gives the maximum number of
- * elements in the array initializer.
- */
-#define JS_ARGS_LENGTH_MAX      (JS_BIT(24) - 1)
 
 #endif /* jsprvtd_h___ */

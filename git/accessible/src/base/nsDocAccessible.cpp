@@ -36,10 +36,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsRootAccessible.h"
+#include "nsAccCache.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsAccEvent.h"
 #include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
+#include "nsCoreUtils.h"
+#include "nsRootAccessible.h"
+#include "nsTextEquivUtils.h"
+
 #include "nsIMutableArray.h"
 #include "nsICommandManager.h"
 #include "nsIDocShell.h"
@@ -475,17 +479,16 @@ NS_IMETHODIMP nsDocAccessible::GetWindow(nsIDOMWindow **aDOMWin)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsDocAccessible::GetDocument(nsIDOMDocument **aDOMDoc)
+NS_IMETHODIMP
+nsDocAccessible::GetDOMDocument(nsIDOMDocument **aDOMDocument)
 {
-  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mDocument));
-  *aDOMDoc = domDoc;
+  NS_ENSURE_ARG_POINTER(aDOMDocument);
+  *aDOMDocument = nsnull;
 
-  if (domDoc) {
-    NS_ADDREF(*aDOMDoc);
-    return NS_OK;
-  }
+  if (mDocument)
+    CallQueryInterface(mDocument, aDOMDocument);
 
-  return NS_ERROR_FAILURE;
+  return NS_OK;
 }
 
 // nsIAccessibleHyperText method
@@ -668,8 +671,7 @@ void nsDocAccessible::ShutdownChildDocuments(nsIDocShellTreeItem *aStart)
       nsCOMPtr<nsIAccessibleDocument> docAccessible =
         GetDocAccessibleFor(treeItemChild);
       if (docAccessible) {
-        nsRefPtr<nsAccessNode> docAccNode =
-          nsAccUtils::QueryAccessNode(docAccessible);
+        nsRefPtr<nsAccessNode> docAccNode = do_QueryObject(docAccessible);
         docAccNode->Shutdown();
       }
     }
@@ -1180,6 +1182,9 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
   if (!targetNode)
     return;
 
+  // Note: For universal/global ARIA states and properties we don't care if
+  // there is an ARIA role present or not.
+
   if (aAttribute == nsAccessibilityAtoms::aria_required) {
     nsRefPtr<nsAccEvent> event =
       new nsAccStateChangeEvent(targetNode,
@@ -1207,6 +1212,24 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
       if (rootAcc)
         rootAcc->FireAccessibleFocusEvent(nsnull, currentFocus, nsnull, PR_TRUE);
     }
+    return;
+  }
+
+  // For aria drag and drop changes we fire a generic attribute change event;
+  // at least until native API comes up with a more meaningful event.
+  if (aAttribute == nsAccessibilityAtoms::aria_grabbed ||
+      aAttribute == nsAccessibilityAtoms::aria_dropeffect) {
+    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_OBJECT_ATTRIBUTE_CHANGED,
+                               targetNode);
+  }
+
+  // We treat aria-expanded as a global ARIA state for historical reasons
+  if (aAttribute == nsAccessibilityAtoms::aria_expanded) {
+    nsRefPtr<nsAccEvent> event =
+      new nsAccStateChangeEvent(targetNode,
+                                nsIAccessibleStates::STATE_EXPANDED,
+                                PR_FALSE);
+    FireDelayedAccessibleEvent(event);
     return;
   }
 
@@ -1250,15 +1273,6 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     return;
   }
 
-  if (aAttribute == nsAccessibilityAtoms::aria_expanded) {
-    nsRefPtr<nsAccEvent> event =
-      new nsAccStateChangeEvent(targetNode,
-                                nsIAccessibleStates::STATE_EXPANDED,
-                                PR_FALSE);
-    FireDelayedAccessibleEvent(event);
-    return;
-  }
-
   if (aAttribute == nsAccessibilityAtoms::aria_readonly) {
     nsRefPtr<nsAccEvent> event =
       new nsAccStateChangeEvent(targetNode,
@@ -1290,14 +1304,6 @@ nsDocAccessible::ARIAAttributeChanged(nsIContent* aContent, nsIAtom* aAttribute)
     InvalidateCacheSubtree(aContent,
                            nsIAccessibilityService::NODE_SIGNIFICANT_CHANGE);
     return;
-  }
-
-  // For aria drag and drop changes we fire a generic attribute change event;
-  // at least until native API comes up with a more meaningful event.
-  if (aAttribute == nsAccessibilityAtoms::aria_grabbed ||
-      aAttribute == nsAccessibilityAtoms::aria_dropeffect) {
-    FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_OBJECT_ATTRIBUTE_CHANGED,
-                               targetNode);
   }
 }
 
@@ -1334,6 +1340,11 @@ void nsDocAccessible::ContentStatesChanged(nsIDocument* aDocument,
 
   nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent1);
   nsHTMLSelectOptionAccessible::SelectionChangedIfOption(aContent2);
+}
+
+void nsDocAccessible::DocumentStatesChanged(nsIDocument* aDocument,
+                                            PRInt32 aStateMask)
+{
 }
 
 void nsDocAccessible::CharacterDataWillChange(nsIDocument *aDocument,
@@ -1659,8 +1670,7 @@ nsDocAccessible::ProcessPendingEvent(nsAccEvent *aEvent)
 
     if (isAsync) {
       // For asynch show, delayed invalidatation of parent's children
-      nsRefPtr<nsAccessible> containerAcc =
-        nsAccUtils::QueryAccessible(containerAccessible);
+      nsRefPtr<nsAccessible> containerAcc = do_QueryObject(containerAccessible);
       if (containerAcc)
         containerAcc->InvalidateChildren();
 
@@ -1695,8 +1705,7 @@ nsDocAccessible::ProcessPendingEvent(nsAccEvent *aEvent)
 
   if (accessible) {
     if (eventType == nsIAccessibleEvent::EVENT_INTERNAL_LOAD) {
-      nsRefPtr<nsDocAccessible> docAcc =
-        nsAccUtils::QueryAccessibleDocument(accessible);
+      nsRefPtr<nsDocAccessible> docAcc = do_QueryObject(accessible);
       NS_ASSERTION(docAcc, "No doc accessible for doc load event");
 
       if (docAcc)
@@ -1927,8 +1936,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
         containerAccessible = this;
       }
 
-      nsRefPtr<nsAccessible> containerAcc =
-        nsAccUtils::QueryAccessible(containerAccessible);
+      nsRefPtr<nsAccessible> containerAcc = do_QueryObject(containerAccessible);
       containerAcc->InvalidateChildren();
       return;
     }     
@@ -2020,8 +2028,7 @@ nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
     if (!isAsynch) {
       // DOM already updated with new objects -- invalidate parent's children now
       // For asynch we must wait until layout updates before we invalidate the children
-      nsRefPtr<nsAccessible> containerAcc =
-        nsAccUtils::QueryAccessible(containerAccessible);
+      nsRefPtr<nsAccessible> containerAcc = do_QueryObject(containerAccessible);
       if (containerAcc)
         containerAcc->InvalidateChildren();
 
@@ -2116,8 +2123,10 @@ nsDocAccessible::GetAccessibleInParentChain(nsIDOMNode *aNode,
       currentNode = relevantNode;
     }
     if (aCanCreate) {
-      GetAccService()->GetAccessibleInWeakShell(currentNode, mWeakShell, 
-                                                aAccessible);
+      nsRefPtr<nsAccessible> acc =
+        GetAccService()->GetAccessibleInWeakShell(currentNode, mWeakShell);
+      if (acc)
+        CallQueryInterface(acc, aAccessible);
     }
     else { // Only return cached accessibles, don't create anything
       nsAccessNode* accessNode = GetCachedAccessNode(currentNode);

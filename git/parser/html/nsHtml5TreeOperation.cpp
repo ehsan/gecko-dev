@@ -286,7 +286,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* table = *(mThree.node);
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -424,6 +424,14 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
           newContent->AppendChildTo(optionElt, PR_FALSE);
           newContent->DoneAddingChildren(PR_FALSE);
         }
+      } else if (name == nsHtml5Atoms::frameset && ns == kNameSpaceID_XHTML) {
+        nsIDocument* doc = aBuilder->GetDocument();
+        nsCOMPtr<nsIHTMLDocument> htmlDocument = do_QueryInterface(doc);
+        if (htmlDocument) {
+          // It seems harmless to call this multiple times, since this 
+          // is a simple field setter
+          htmlDocument->SetIsFrameset(PR_TRUE);
+        }
       }
 
       if (!attributes) {
@@ -469,7 +477,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       
       nsIContent* foster = table->GetParent();
 
-      if (foster && foster->IsNodeOfType(nsINode::eELEMENT)) {
+      if (foster && foster->IsElement()) {
         aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->GetOwnerDoc(),
@@ -579,8 +587,9 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpSetDocumentCharset: {
       char* str = mOne.charPtr;
+      PRInt32 charsetSource = mInt;
       nsDependentCString dependentString(str);
-      aBuilder->SetDocumentCharset(dependentString);
+      aBuilder->SetDocumentCharsetAndSource(dependentString, charsetSource);
       return rv;
     }
     case eTreeOpNeedsCharsetSwitchTo: {
@@ -592,11 +601,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* node = *(mOne.node);
       aBuilder->FlushPendingAppendNotifications();
       aBuilder->UpdateStyleSheet(node);
-      return rv;
-    }
-    case eTreeOpProcessBase: {
-      nsIContent* node = *(mOne.node);
-      rv = aBuilder->ProcessBASETag(node);
       return rv;
     }
     case eTreeOpProcessMeta: {
@@ -628,7 +632,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpDocumentMode: {
-      aBuilder->DocumentMode(mOne.mode);
+      aBuilder->SetDocumentMode(mOne.mode);
       return rv;
     }
     case eTreeOpSetStyleLineNumber: {

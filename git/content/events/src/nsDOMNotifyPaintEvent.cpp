@@ -56,9 +56,11 @@ nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(nsPresContext* aPresContext,
   }
 }
 
+DOMCI_DATA(NotifyPaintEvent, nsDOMNotifyPaintEvent)
+
 NS_INTERFACE_MAP_BEGIN(nsDOMNotifyPaintEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNotifyPaintEvent)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NotifyPaintEvent)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NotifyPaintEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMNotifyPaintEvent, nsDOMEvent)

@@ -123,8 +123,6 @@ public:
   NS_IMETHOD SetDebug(nsBoxLayoutState& aState, PRBool aDebug);
 #endif
 
-  NS_IMETHOD IsActive(PRBool& aResult) { aResult = PR_TRUE; return NS_OK; }
-
   // The following methods are all overridden so that the menupopup
   // can be stored in a separate list, so that it doesn't impact reflow of the
   // actual menu item at all.
@@ -255,6 +253,12 @@ protected:
 
   PRBool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
 
+  PRBool ShouldBlink();
+  void StartBlinking(nsGUIEvent *aEvent, PRBool aFlipChecked);
+  void StopBlinking();
+  void CreateMenuCommandEvent(nsGUIEvent *aEvent, PRBool aFlipChecked);
+  void PassMenuCommandEventToPopupManager();
+
 protected:
 #ifdef DEBUG_LAYOUT
   nsresult SetDebug(nsBoxLayoutState& aState, nsIFrame* aList, PRBool aDebug);
@@ -274,6 +278,10 @@ protected:
   nsRefPtr<nsMenuTimerMediator> mTimerMediator;
 
   nsCOMPtr<nsITimer> mOpenTimer;
+  nsCOMPtr<nsITimer> mBlinkTimer;
+
+  PRUint8 mBlinkState; // 0: not blinking, 1: off, 2: on
+  nsRefPtr<nsXULMenuCommandEvent> mDelayedMenuCommandEvent;
 
   nsString mGroupName;
   

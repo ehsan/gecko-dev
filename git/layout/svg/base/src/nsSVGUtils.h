@@ -62,7 +62,6 @@ class nsIDOMSVGElement;
 class nsIDOMSVGLength;
 class nsIURI;
 class nsSVGOuterSVGFrame;
-class nsIPresShell;
 class nsSVGPreserveAspectRatio;
 class nsIAtom;
 class nsSVGLength2;
@@ -80,6 +79,12 @@ class nsSVGEnum;
 class nsISVGChildFrame;
 class nsSVGGeometryFrame;
 class nsSVGDisplayContainerFrame;
+
+namespace mozilla {
+namespace dom {
+class Element;
+} // namespace dom
+} // namespace mozilla
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -115,6 +120,16 @@ class nsSVGDisplayContainerFrame;
 // 4 bytes per pixel; in line with gfxASurface::CheckSurfaceSize
 // In fact Macs can't even manage that
 #define NS_SVG_OFFSCREEN_MAX_DIMENSION 4096
+
+#define SVG_WSP_DELIM       "\x20\x9\xD\xA"
+#define SVG_COMMA_WSP_DELIM "," SVG_WSP_DELIM
+
+inline PRBool
+IsSVGWhitespace(char aChar)
+{
+  return aChar == '\x20' || aChar == '\x9' ||
+         aChar == '\xD'  || aChar == '\xA';
+}
 
 /*
  * Checks the svg enable preference and if a renderer could
@@ -200,13 +215,13 @@ public:
   /*
    * Get a font-size (em) of an nsIContent
    */
-  static float GetFontSize(nsIContent *aContent);
+  static float GetFontSize(mozilla::dom::Element *aElement);
   static float GetFontSize(nsIFrame *aFrame);
   static float GetFontSize(nsStyleContext *aStyleContext);
   /*
    * Get an x-height of of an nsIContent
    */
-  static float GetFontXHeight(nsIContent *aContent);
+  static float GetFontXHeight(mozilla::dom::Element *aElement);
   static float GetFontXHeight(nsIFrame *aFrame);
   static float GetFontXHeight(nsStyleContext *aStyleContext);
 
@@ -451,13 +466,6 @@ public:
   static void SetClipRect(gfxContext *aContext,
                           const gfxMatrix &aCTM,
                           const gfxRect &aRect);
-
-  /**
-   * If aIn can be represented exactly using an nsIntRect (i.e. integer-aligned edges and
-   * coordinates in the PRInt32 range) then we set aOut to that rectangle, otherwise
-   * return failure.
-   */
-  static nsresult GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
 
   /**
    * Restricts aRect to pixels that intersect aGfxRect.

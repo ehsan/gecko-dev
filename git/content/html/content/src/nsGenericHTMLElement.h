@@ -156,6 +156,7 @@ public:
   NS_IMETHOD GetDraggable(PRBool* aDraggable);
   NS_IMETHOD SetDraggable(PRBool aDraggable);
   nsresult GetContentEditable(nsAString &aContentEditable);
+  nsresult GetIsContentEditable(PRBool* aContentEditable);
   nsresult SetContentEditable(const nsAString &aContentEditable);
 
   // Implementation for nsIContent
@@ -174,8 +175,7 @@ public:
                            PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              PRBool aNotify);
-  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
-  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull)
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE)
   {
     PRBool isFocusable = PR_FALSE;
     IsHTMLFocusable(&isFocusable, aTabIndex);
@@ -207,8 +207,6 @@ public:
   void Compact() { mAttrsAndChildren.Compact(); }
 
   virtual void UpdateEditableState();
-
-  already_AddRefed<nsIURI> GetBaseURI() const;
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
@@ -664,6 +662,19 @@ protected:
   NS_HIDDEN_(nsresult) GetURIListAttr(nsIAtom* aAttr, nsAString& aResult);
 
   /**
+   * Helper method for NS_IMPL_ENUM_ATTR_DEFAULT_VALUE.
+   * Gets the enum value string of an attribute and using a default value if
+   * the attribute is missing or the string is an invalid enum value.
+   *
+   * @param aType     the name of the attribute.
+   * @param aDefault  the default value if the attribute is missing or invalid.
+   * @param aResult   string corresponding to the value [out].
+   */
+  NS_HIDDEN_(nsresult) GetEnumAttr(nsIAtom* aAttr,
+                                   const char* aDefault,
+                                   nsAString& aResult);
+
+  /**
    * Locates the nsIEditor associated with this node.  In general this is
    * equivalent to GetEditorInternal(), but for designmode or contenteditable,
    * this may need to get an editor that's not actually on this element's
@@ -1065,6 +1076,23 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
   }
 
 /**
+ * A macro to implement the getter and setter for a given content
+ * property that needs to set an enumerated string. The method
+ * uses a specific GetEnumAttr and the generic SetAttrHelper methods.
+ */
+#define NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(_class, _method, _atom, _default) \
+  NS_IMETHODIMP                                                           \
+  _class::Get##_method(nsAString& aValue)                                 \
+  {                                                                       \
+    return GetEnumAttr(nsGkAtoms::_atom, _default, aValue);               \
+  }                                                                       \
+  NS_IMETHODIMP                                                           \
+  _class::Set##_method(const nsAString& aValue)                           \
+  {                                                                       \
+    return SetAttrHelper(nsGkAtoms::_atom, aValue);                       \
+  }
+
+/**
  * QueryInterface() implementation helper macros
  */
 
@@ -1097,7 +1125,7 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
   NS_ELEMENT_INTERFACE_MAP_END
 
 #define NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(_class)                \
-    NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(_class)                          \
+    NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(_class)                              \
   NS_HTML_CONTENT_INTERFACE_MAP_END
 
 #define NS_INTERFACE_MAP_ENTRY_IF_TAG(_interface, _tag)                       \
@@ -1105,9 +1133,10 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
                                      mNodeInfo->Equals(nsGkAtoms::_tag))
 
 
-#define NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO_IF_TAG(_class, _tag)         \
+#define NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_IF_TAG(_class, _tag)             \
   if (mNodeInfo->Equals(nsGkAtoms::_tag) &&                                   \
-      aIID.Equals(NS_GET_IID(nsIClassInfo))) {                                \
+      (aIID.Equals(NS_GET_IID(nsIClassInfo)) ||                               \
+       aIID.Equals(NS_GET_IID(nsXPCClassInfo)))) {                            \
     foundInterface = NS_GetDOMClassInfoInstance(eDOMClassInfo_##_class##_id); \
     if (!foundInterface) {                                                    \
       *aInstancePtr = nsnull;                                                 \
@@ -1202,6 +1231,14 @@ nsGenericHTMLElement*                                             \
 NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
                                   PRBool aFromParser = PR_FALSE);
 
+#define NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(_elementName)    \
+inline nsGenericHTMLElement*                                      \
+NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
+                                  PRBool aFromParser = PR_FALSE)  \
+{                                                                 \
+  return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);         \
+}
+
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedObject)
@@ -1223,9 +1260,9 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Form)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Frame)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FrameSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(HR)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Head)
+NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(Head)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Heading)
-NS_DECLARE_NS_NEW_HTML_ELEMENT(Html)
+NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(Html)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(IFrame)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Image)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Input)
@@ -1238,6 +1275,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Meta)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Object)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(OptGroup)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Option)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Output)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Paragraph)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Pre)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Script)

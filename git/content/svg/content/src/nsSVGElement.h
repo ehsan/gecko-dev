@@ -145,6 +145,11 @@ public:
    */
   virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
 
+  // Setter for to set the current <animateMotion> transformation
+  // Only visible for nsSVGGraphicElement, so it's a no-op here, and that
+  // subclass has the useful implementation.
+  virtual void SetAnimateMotionTransform(const gfxMatrix* aMatrix) {/*no-op*/}
+
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeNumber(PRUint8 aAttrEnum, PRBool aDoSetAttr);
   virtual void DidChangeInteger(PRUint8 aAttrEnum, PRBool aDoSetAttr);
@@ -170,7 +175,7 @@ public:
   void GetAnimatedIntegerValues(PRInt32 *aFirst, ...);
 
 #ifdef MOZ_SMIL
-  virtual nsISMILAttr* GetAnimatedAttr(const nsIAtom* aName);
+  virtual nsISMILAttr* GetAnimatedAttr(nsIAtom* aName);
   void AnimationNeedsResample();
   void FlushAnimations();
 #endif
@@ -189,10 +194,16 @@ protected:
                                               nsIAtom* aAttribute,
                                               const nsAString& aValue);
 
+  friend class nsSVGTextPositioningElement;
   // Hooks for subclasses
   virtual PRBool IsEventName(nsIAtom* aName);
 
   void UpdateContentStyleRule();
+#ifdef MOZ_SMIL
+  void UpdateAnimatedContentStyleRule();
+  nsICSSStyleRule* GetAnimatedContentStyleRule();
+#endif // MOZ_SMIL
+
   nsISVGValue* GetMappedAttribute(PRInt32 aNamespaceID, nsIAtom* aName);
   nsresult AddMappedSVGValue(nsIAtom* aName, nsISupports* aValue,
                              PRInt32 aNamespaceID = kNameSpaceID_None);

@@ -74,7 +74,6 @@ enum eHtml5TreeOperation {
   eTreeOpSetDocumentCharset,
   eTreeOpNeedsCharsetSwitchTo,
   eTreeOpUpdateStyleSheet,
-  eTreeOpProcessBase,
   eTreeOpProcessMeta,
   eTreeOpProcessOfflineManifest,
   eTreeOpMarkMalformedIfScript,
@@ -137,6 +136,13 @@ class nsHtml5TreeOperation {
       mOpCode = aOpCode;
       mOne.node = aNode;
       mTwo.node = aParent;
+    }
+    
+    inline void Init(eHtml5TreeOperation aOpCode, 
+                     const nsACString& aString,
+                     PRInt32 aInt32) {
+      Init(aOpCode, aString);
+      mInt = aInt32;
     }
 
     inline void Init(eHtml5TreeOperation aOpCode,

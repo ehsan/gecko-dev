@@ -47,8 +47,6 @@
  * If the pref is set to a number < 0 we will use the default value.
  */
 
-const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
-
 let os = Cc["@mozilla.org/observer-service;1"].
          getService(Ci.nsIObserverService);
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
@@ -151,14 +149,14 @@ function run_next_test() {
     // Observe expirations.
     observer = {
       observe: function(aSubject, aTopic, aData) {
-        os.removeObserver(observer, TOPIC_EXPIRATION_FINISHED);
+        os.removeObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
         hs.removeObserver(historyObserver, false);
 
         // This test finished.
         check_result();
       }
     };
-    os.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
+    os.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
 
     setMaxPages(gCurrentTest.maxPages);
     // Expire now, observers will check results.

@@ -38,7 +38,6 @@
 
 #include "nsIFormSubmission.h"
 
-#include "nsPresContext.h"
 #include "nsCOMPtr.h"
 #include "nsIForm.h"
 #include "nsILinkHandler.h"
@@ -114,6 +113,13 @@ public:
   virtual nsresult GetEncodedSubmission(nsIURI* aURI,
                                         nsIInputStream** aPostDataStream);
 
+  virtual PRBool SupportsIsindexSubmission()
+  {
+    return PR_TRUE;
+  }
+
+  virtual nsresult AddIsindex(const nsAString& aValue);
+
 protected:
 
   /**
@@ -164,6 +170,24 @@ nsFSURLEncoded::AddNameValuePair(const nsAString& aName,
   } else {
     mQueryString += NS_LITERAL_CSTRING("&") + convName
                   + NS_LITERAL_CSTRING("=") + convValue;
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsFSURLEncoded::AddIsindex(const nsAString& aValue)
+{
+  // Encode value
+  nsCString convValue;
+  nsresult rv = URLEncode(aValue, convValue);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Append data to string
+  if (mQueryString.IsEmpty()) {
+    mQueryString.Assign(convValue);
+  } else {
+    mQueryString += NS_LITERAL_CSTRING("&isindex=") + convValue;
   }
 
   return NS_OK;
@@ -779,8 +803,8 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
                       nsFormSubmission** aFormSubmission)
 {
   // Get all the information necessary to encode the form data
-  nsIDocument* doc = aForm->GetCurrentDoc();
-  NS_ASSERTION(doc, "Should have doc if we're building submission!");
+  NS_ASSERTION(aForm->GetCurrentDoc(),
+               "Should have doc if we're building submission!");
 
   // Get encoding type (default: urlencoded)
   PRInt32 enctype = NS_FORM_ENCTYPE_URLENCODED;
@@ -802,16 +826,16 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
              enctype == NS_FORM_ENCTYPE_TEXTPLAIN) {
     *aFormSubmission = new nsFSTextPlain(charset);
   } else {
+    nsIDocument* doc = aForm->GetOwnerDoc();
     if (enctype == NS_FORM_ENCTYPE_MULTIPART ||
         enctype == NS_FORM_ENCTYPE_TEXTPLAIN) {
       nsAutoString enctypeStr;
       aForm->GetAttr(kNameSpaceID_None, nsGkAtoms::enctype, enctypeStr);
       const PRUnichar* enctypeStrPtr = enctypeStr.get();
-      SendJSWarning(aForm->GetOwnerDoc(), "ForgotPostWarning",
+      SendJSWarning(doc, "ForgotPostWarning",
                     &enctypeStrPtr, 1);
     }
-    *aFormSubmission = new nsFSURLEncoded(charset, method,
-                                          aForm->GetOwnerDoc());
+    *aFormSubmission = new nsFSURLEncoded(charset, method, doc);
   }
   NS_ENSURE_TRUE(*aFormSubmission, NS_ERROR_OUT_OF_MEMORY);
 

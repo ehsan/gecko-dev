@@ -111,15 +111,8 @@ endif
 
 tier_platform_dirs += \
 		js/src/xpconnect \
-		js/ctypes \
 		intl/chardet \
 		$(NULL)
-
-ifdef BUILD_CTYPES
-tier_platform_staticdirs += \
-		js/ctypes/libffi \
-		$(NULL)
-endif
 
 ifdef MOZ_ENABLE_GTK2
 ifdef MOZ_X11
@@ -153,10 +146,7 @@ endif
 
 ifdef MOZ_OGG
 tier_platform_dirs += \
-		media/libfishsound \
 		media/libogg \
-		media/liboggplay \
-		media/liboggz \
 		media/libtheora \
 		media/libvorbis \
 		$(NULL)
@@ -207,10 +197,7 @@ ifdef MOZ_JPROF
 tier_platform_dirs        += tools/jprof
 endif
 
-tier_platform_dirs	+= \
-	xpfe \
-	toolkit/components \
-	$(NULL)
+tier_platform_dirs	+= xpfe/components
 
 ifdef MOZ_ENABLE_XREMOTE
 tier_platform_dirs += widget/src/xremoteclient

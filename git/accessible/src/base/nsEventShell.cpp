@@ -38,6 +38,8 @@
 
 #include "nsEventShell.h"
 
+#include "nsAccUtils.h"
+#include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,6 +330,18 @@ nsAccEventQueue::CoalesceEvents()
                         tailEvent->mNode, nsAccEvent::eAllowDupes);
       }
     } break; // case eCoalesceFromSameSubtree
+
+    case nsAccEvent::eCoalesceFromSameDocument:
+    {
+      for (PRInt32 index = 0; index < tail; index ++) {
+        nsAccEvent* thisEvent = mEvents[index];
+        if (thisEvent->mEventType == tailEvent->mEventType &&
+            thisEvent->mEventRule == tailEvent->mEventRule &&
+            thisEvent->GetDocAccessible() == tailEvent->GetDocAccessible()) {
+          thisEvent->mEventRule = nsAccEvent::eDoNotEmit;
+        }
+      }
+    } break; // case eCoalesceFromSameDocument
 
     case nsAccEvent::eRemoveDupes:
     {

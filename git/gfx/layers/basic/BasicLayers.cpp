@@ -36,9 +36,14 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "BasicLayers.h"
+#include "ImageLayers.h"
+
 #include "nsTArray.h"
 #include "nsGUIEvent.h"
 #include "nsIRenderingContext.h"
+#include "gfxContext.h"
+#include "gfxASurface.h"
+#include "gfxPattern.h"
 
 namespace mozilla {
 namespace layers {
@@ -47,7 +52,25 @@ class BasicContainerLayer;
 
 /**
  * This is the ImplData for all Basic layers. It also exposes methods
- * private to the Basic implementation.
+ * private to the Basic implementation that are common to all Basic layer types.
+ * In particular, there is an internal Paint() method that we can use
+ * to paint the contents of non-Thebes layers.
+ *
+ * The class hierarchy for Basic layers is like this:
+ *                                 BasicImplData
+ * Layer                            |   |   |
+ *  |                               |   |   |
+ *  +-> ContainerLayer              |   |   |
+ *  |    |                          |   |   |
+ *  |    +-> BasicContainerLayer <--+   |   |
+ *  |                                   |   |
+ *  +-> ThebesLayer                     |   |
+ *  |    |                              |   |
+ *  |    +-> BasicThebesLayer <---------+   |
+ *  |                                       |
+ *  +-> ImageLayer                          |
+ *       |                                  |
+ *       +-> BasicImageLayer <--------------+
  */
 class BasicImplData {
 public:
@@ -61,6 +84,14 @@ public:
   }
 
   const nsIntRegion& GetVisibleRegion() { return mVisibleRegion; }
+
+  /**
+   * Layers that paint themselves, such as ImageLayers, should paint
+   * in response to this method call. aContext will already have been
+   * set up to account for all the properties of the layer (transform,
+   * opacity, etc).
+   */
+  virtual void Paint(gfxContext* aContext) {}
 
 protected:
   nsIntRegion mVisibleRegion;
@@ -261,6 +292,76 @@ BasicThebesLayer::CopyFrom(ThebesLayer* aSource,
   // so no need to mark anything invalid.
 }
 
+class BasicImageLayer : public ImageLayer, BasicImplData {
+public:
+  BasicImageLayer(BasicLayerManager* aLayerManager) :
+    ImageLayer(aLayerManager, static_cast<BasicImplData*>(this))
+  {
+    MOZ_COUNT_CTOR(BasicImageLayer);
+  }
+  virtual ~BasicImageLayer()
+  {
+    MOZ_COUNT_DTOR(BasicImageLayer);
+  }
+
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
+  {
+    NS_ASSERTION(BasicManager()->InConstruction(),
+                 "Can only set properties in construction phase");
+    mVisibleRegion = aRegion;
+  }
+
+  virtual void Paint(gfxContext* aContext);
+
+protected:
+  BasicLayerManager* BasicManager()
+  {
+    return static_cast<BasicLayerManager*>(mManager);
+  }
+};
+
+void
+BasicImageLayer::Paint(gfxContext* aContext)
+{
+  if (!mContainer)
+    return;
+
+  gfxIntSize size;
+  nsRefPtr<gfxASurface> surface = mContainer->GetCurrentAsSurface(&size);
+  if (!surface) {
+    return;
+  }
+
+  nsRefPtr<gfxPattern> pat = new gfxPattern(surface);
+  if (!pat) {
+    return;
+  }
+
+  pat->SetFilter(mFilter);
+
+  // Set PAD mode so that when the video is being scaled, we do not sample
+  // outside the bounds of the video image.
+  gfxPattern::GraphicsExtend extend = gfxPattern::EXTEND_PAD;
+
+  // PAD is slow with X11 and Quartz surfaces, so prefer speed over correctness
+  // and use NONE.
+  nsRefPtr<gfxASurface> target = aContext->CurrentSurface();
+  gfxASurface::gfxSurfaceType type = target->GetType();
+  if (type == gfxASurface::SurfaceTypeXlib ||
+      type == gfxASurface::SurfaceTypeXcb ||
+      type == gfxASurface::SurfaceTypeQuartz) {
+    extend = gfxPattern::EXTEND_NONE;
+  }
+
+  pat->SetExtend(extend);
+
+  /* Draw RGB surface onto frame */
+  aContext->NewPath();
+  aContext->PixelSnappedRectangleAndSetPattern(
+      gfxRect(0, 0, size.width, size.height), pat);
+  aContext->Fill();
+}
+
 BasicLayerManager::BasicLayerManager(gfxContext* aContext) :
   mDefaultTarget(aContext), mLastPainted(nsnull)
 #ifdef DEBUG
@@ -349,7 +450,8 @@ NeedsGroup(Layer* aLayer)
 static PRBool
 NeedsState(Layer* aLayer)
 {
-  return aLayer->GetClipRect() != nsnull;
+  return aLayer->GetClipRect() != nsnull ||
+         !aLayer->GetTransform().IsIdentity();
 }
 
 // Returns true if it's OK to save the contents of aLayer in an
@@ -379,19 +481,38 @@ BasicLayerManager::BeginPaintingLayer(Layer* aLayer)
 {
   PRBool needsGroup = NeedsGroup(aLayer);
   if ((needsGroup || NeedsState(aLayer)) && mTarget) {
-    // If we need to call PushGroup, we should clip to the smallest possible
-    // area first to minimize the size of the temporary surface.
-    nsIntRect bbox = ToData(aLayer)->GetVisibleRegion().GetBounds();
+    mTarget->Save();
+
     if (aLayer->GetClipRect()) {
-      bbox.IntersectRect(bbox, *aLayer->GetClipRect());
+      const nsIntRect& r = *aLayer->GetClipRect();
+      mTarget->NewPath();
+      mTarget->Rectangle(gfxRect(r.x, r.y, r.width, r.height));
+      mTarget->Clip();
     }
 
-    mTarget->Save();
-    mTarget->NewPath();
-    mTarget->Rectangle(gfxRect(bbox.x, bbox.y, bbox.width, bbox.height));
-    mTarget->Clip();
+    gfxMatrix transform;
+    // XXX we need to add some kind of 3D transform support, possibly
+    // using pixman?
+    NS_ASSERTION(aLayer->GetTransform().Is2D(),
+                 "Only 2D transforms supported currently");
+    aLayer->GetTransform().Is2D(&transform);
+    mTarget->Multiply(transform);
 
     if (needsGroup) {
+      // If we need to call PushGroup, we should clip to the smallest possible
+      // area first to minimize the size of the temporary surface.
+      nsIntRect bbox = ToData(aLayer)->GetVisibleRegion().GetBounds();
+      gfxRect deviceRect =
+        mTarget->UserToDevice(gfxRect(bbox.x, bbox.y, bbox.width, bbox.height));
+      deviceRect.RoundOut();
+
+      gfxMatrix currentMatrix = mTarget->CurrentMatrix();
+      mTarget->IdentityMatrix();
+      mTarget->NewPath();
+      mTarget->Rectangle(deviceRect);
+      mTarget->Clip();
+      mTarget->SetMatrix(currentMatrix);
+
       gfxASurface::gfxContentType type = UseOpaqueSurface(aLayer)
           ? gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA;
       mTarget->PushGroup(type);
@@ -399,6 +520,10 @@ BasicLayerManager::BeginPaintingLayer(Layer* aLayer)
   }
 
   mLastPainted = aLayer;
+
+  // For layers that paint themselves (e.g., BasicImageLayer), paint
+  // them now.
+  ToData(aLayer)->Paint(mTarget);
 }
 
 void
@@ -467,6 +592,14 @@ BasicLayerManager::CreateContainerLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
   nsRefPtr<ContainerLayer> layer = new BasicContainerLayer(this);
+  return layer.forget();
+}
+
+already_AddRefed<ImageLayer>
+BasicLayerManager::CreateImageLayer()
+{
+  NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
+  nsRefPtr<ImageLayer> layer = new BasicImageLayer(this);
   return layer.forget();
 }
 

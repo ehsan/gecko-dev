@@ -97,6 +97,8 @@
 #include "SetDocTitleTxn.h"
 #include "nsGUIEvent.h"
 #include "nsTextFragment.h"
+#include "nsFocusManager.h"
+#include "nsPIDOMWindow.h"
 
 // netwerk
 #include "nsIURI.h"
@@ -272,10 +274,8 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     result = nsPlaintextEditor::Init(aDoc, aPresShell, aRoot, aSelCon, aFlags);
     if (NS_FAILED(result)) { return result; }
 
-    UpdateForFlags(aFlags);
-
     // disable Composer-only features
-    if (aFlags & eEditorMailMask)
+    if (IsMailEditor())
     {
       SetAbsolutePositioningEnabled(PR_FALSE);
       SetSnapToGridEnabled(PR_FALSE);
@@ -291,7 +291,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     // disable links
     nsPresContext *context = aPresShell->GetPresContext();
     if (!context) return NS_ERROR_NULL_POINTER;
-    if (!(mFlags & (eEditorPlaintextMask | eEditorAllowInteraction))) {
+    if (!IsPlaintextEditor() && !IsInteractionAllowed()) {
       mLinkHandler = context->GetLinkHandler();
 
       context->SetLinkHandler(nsnull);
@@ -306,7 +306,7 @@ nsHTMLEditor::Init(nsIDOMDocument *aDoc, nsIPresShell *aPresShell,
     mSelectionListenerP = new ResizerSelectionListener(this);
     if (!mSelectionListenerP) {return NS_ERROR_NULL_POINTER;}
 
-    if (!(mFlags & eEditorAllowInteraction)) {
+    if (!IsInteractionAllowed()) {
       // ignore any errors from this in case the file is missing
       AddOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/EditorOverride.css"));
     }
@@ -338,9 +338,19 @@ nsHTMLEditor::CreateEventListeners()
 {
   NS_ENSURE_TRUE(!mEventListener, NS_ERROR_ALREADY_INITIALIZED);
   mEventListener = do_QueryInterface(
-    static_cast<nsIDOMKeyListener*>(new nsHTMLEditorEventListener(this)));
+    static_cast<nsIDOMKeyListener*>(new nsHTMLEditorEventListener()));
   NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
+}
+
+nsresult
+nsHTMLEditor::InstallEventListeners()
+{
+  NS_ENSURE_TRUE(mDocWeak && mPresShellWeak && mEventListener,
+                 NS_ERROR_NOT_INITIALIZED);
+  nsHTMLEditorEventListener* listener =
+    reinterpret_cast<nsHTMLEditorEventListener*>(mEventListener.get());
+  return listener->Connect(this);
 }
 
 void
@@ -388,20 +398,17 @@ nsHTMLEditor::RemoveEventListeners()
 }
 
 NS_IMETHODIMP 
-nsHTMLEditor::GetFlags(PRUint32 *aFlags)
-{
-  if (!mRules || !aFlags) { return NS_ERROR_NULL_POINTER; }
-  return mRules->GetFlags(aFlags);
-}
-
-NS_IMETHODIMP 
 nsHTMLEditor::SetFlags(PRUint32 aFlags)
 {
-  if (!mRules) { return NS_ERROR_NULL_POINTER; }
+  nsresult rv = nsPlaintextEditor::SetFlags(aFlags);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  UpdateForFlags(aFlags);
+  // Sets mCSSAware to correspond to aFlags. This toggles whether CSS is
+  // used to style elements in the editor. Note that the editor is only CSS
+  // aware by default in Composer and in the mail editor.
+  mCSSAware = !NoCSS() && !IsMailEditor();
 
-  return mRules->SetFlags(aFlags);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -411,7 +418,7 @@ nsHTMLEditor::InitRules()
   nsresult res = NS_NewHTMLEditRules(getter_AddRefs(mRules));
   if (NS_FAILED(res)) return res;
   if (!mRules) return NS_ERROR_UNEXPECTED;
-  res = mRules->Init(static_cast<nsPlaintextEditor*>(this), mFlags);
+  res = mRules->Init(static_cast<nsPlaintextEditor*>(this));
   
   return res;
 }
@@ -1143,11 +1150,7 @@ nsHTMLEditor::GetIsDocumentEditable(PRBool *aIsDocumentEditable)
 
 PRBool nsHTMLEditor::IsModifiable()
 {
-  PRUint32 flags;
-  if (NS_SUCCEEDED(GetFlags(&flags)))
-    return ((flags & nsIPlaintextEditor::eEditorReadonlyMask) == 0);
-  else
-    return PR_FALSE;
+  return !IsReadonly();
 }
 
 #ifdef XP_MAC
@@ -1213,7 +1216,7 @@ NS_IMETHODIMP nsHTMLEditor::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent)
     
     if (keyCode == nsIDOMKeyEvent::DOM_VK_TAB)
     {
-      if (!(mFlags & eEditorPlaintextMask)) {
+      if (!IsPlaintextEditor()) {
         nsCOMPtr<nsISelection>selection;
         res = GetSelection(getter_AddRefs(selection));
         if (NS_FAILED(res)) return res;
@@ -1259,7 +1262,7 @@ NS_IMETHODIMP nsHTMLEditor::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent)
     {
       aKeyEvent->PreventDefault();
       nsString empty;
-      if (isShift && !(mFlags&eEditorPlaintextMask))
+      if (isShift && !IsPlaintextEditor())
       {
         return TypedText(empty, eTypedBR);  // only inserts a br node
       }
@@ -1991,7 +1994,7 @@ nsHTMLEditor::InsertElementAtSelection(nsIDOMElement* aElement, PRBool aDeleteSe
 /* 
   InsertNodeAtPoint: attempts to insert aNode into the document, at a point specified by 
       {*ioParent,*ioOffset}.  Checks with strict dtd to see if containment is allowed.  If not
-      allowed, will attempt to find a parent in the parent heirarchy of *ioParent that will
+      allowed, will attempt to find a parent in the parent hierarchy of *ioParent that will
       accept aNode as a child.  If such a parent is found, will split the document tree from
       {*ioParent,*ioOffset} up to parent, and then insert aNode.  ioParent & ioOffset are then
       adjusted to point to the actual location that aNode was inserted at.  aNoEmptyNodes
@@ -3308,7 +3311,7 @@ nsHTMLEditor::GetLinkedObjects(nsISupportsArray** aNodeList)
     if (!doc)
       return NS_ERROR_UNEXPECTED;
 
-    iter->Init(doc->GetRootContent());
+    iter->Init(doc->GetRootElement());
 
     // loop through the content iterator for each content node
     while (!iter->IsDone())
@@ -3641,7 +3644,7 @@ nsHTMLEditor::GetEmbeddedObjects(nsISupportsArray** aNodeList)
     if (!doc)
       return NS_ERROR_UNEXPECTED;
 
-    iter->Init(doc->GetRootContent());
+    iter->Init(doc->GetRootElement());
 
     // loop through the content iterator for each content node
     while (!iter->IsDone())
@@ -3944,8 +3947,6 @@ NS_IMETHODIMP
 nsHTMLEditor::StartOperation(PRInt32 opID, nsIEditor::EDirection aDirection)
 {
   nsEditor::StartOperation(opID, aDirection);  // will set mAction, mDirection
-  if (! ((mAction==kOpInsertText) || (mAction==kOpInsertIMEText)) )
-    ClearInlineStylesCache();
   if (mRules) return mRules->BeforeEdit(mAction, mDirection);
   return NS_OK;
 }
@@ -3957,8 +3958,6 @@ NS_IMETHODIMP
 nsHTMLEditor::EndOperation()
 {
   // post processing
-  if (! ((mAction==kOpInsertText) || (mAction==kOpInsertIMEText) || (mAction==kOpIgnore)) )
-    ClearInlineStylesCache();
   nsresult res = NS_OK;
   if (mRules) res = mRules->AfterEdit(mAction, mDirection);
   nsEditor::EndOperation();  // will clear mAction, mDirection
@@ -4251,11 +4250,6 @@ nsHTMLEditor::GetEnclosingTable(nsIDOMNode *aNode)
 #pragma mark -
 #endif
 
-void nsHTMLEditor::ClearInlineStylesCache()
-{
-  mCachedNode = nsnull;
-}
-
 #ifdef PRE_NODE_IN_BODY
 nsCOMPtr<nsIDOMElement> nsHTMLEditor::FindPreElement()
 {
@@ -4268,8 +4262,7 @@ nsCOMPtr<nsIDOMElement> nsHTMLEditor::FindPreElement()
   if (!doc)
     return 0;
 
-  nsCOMPtr<nsIContent> rootContent;
-  doc->GetRootContent(getter_AddRefs(rootContent));
+  nsCOMPtr<nsIContent> rootContent = doc->GetRootElement();
   if (!rootContent)
     return 0;
 
@@ -5119,18 +5112,13 @@ nsHTMLEditor::SetIsCSSEnabled(PRBool aIsCSSPrefChecked)
   }
   // Disable the eEditorNoCSSMask flag if we're enabling StyleWithCSS.
   if (NS_SUCCEEDED(err)) {
-    PRUint32 flags = 0;
-    err = GetFlags(&flags);
-    NS_ENSURE_SUCCESS(err, err);
-
+    PRUint32 flags = mFlags;
     if (aIsCSSPrefChecked) {
       // Turn off NoCSS as we're enabling CSS
-      if (flags & eEditorNoCSSMask) {
-        flags -= eEditorNoCSSMask;
-      }
-    } else if (!(flags & eEditorNoCSSMask)) {
+      flags &= ~eEditorNoCSSMask;
+    } else {
       // Turn on NoCSS, as we're disabling CSS.
-      flags += eEditorNoCSSMask;
+      flags |= eEditorNoCSSMask;
     }
 
     err = SetFlags(flags);
@@ -5635,5 +5623,80 @@ nsresult
 nsHTMLEditor::GetReturnInParagraphCreatesNewParagraph(PRBool *aCreatesNewParagraph)
 {
   *aCreatesNewParagraph = mCRInParagraphCreatesParagraph;
+  return NS_OK;
+}
+
+PRBool
+nsHTMLEditor::HasFocus()
+{
+  NS_ENSURE_TRUE(mDocWeak, PR_FALSE);
+
+  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE(fm, PR_FALSE);
+
+  nsCOMPtr<nsIContent> focusedContent = fm->GetFocusedContent();
+
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  PRBool inDesignMode = doc->HasFlag(NODE_IS_EDITABLE);
+  if (!focusedContent) {
+    // in designMode, nobody gets focus in most cases.
+    return inDesignMode ? OurWindowHasFocus() : PR_FALSE;
+  }
+
+  if (inDesignMode) {
+    return OurWindowHasFocus() ?
+      nsContentUtils::ContentIsDescendantOf(focusedContent, doc) : PR_FALSE;
+  }
+
+  // We're HTML editor for contenteditable
+
+  // If the focused content isn't editable, or it has independent selection,
+  // we don't have focus.
+  if (!focusedContent->HasFlag(NODE_IS_EDITABLE) ||
+      IsIndependentSelectionContent(focusedContent)) {
+    return PR_FALSE;
+  }
+  nsCOMPtr<nsIContent> rootContent = do_QueryInterface(GetRoot());
+  if (!rootContent) {
+    return PR_FALSE;
+  }
+  // If the focused content is a descendant of our editor root, we're focused.
+  return nsContentUtils::ContentIsDescendantOf(focusedContent, rootContent);
+}
+
+PRBool
+nsHTMLEditor::OurWindowHasFocus()
+{
+  NS_ENSURE_TRUE(mDocWeak, PR_FALSE);
+  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
+  NS_ENSURE_TRUE(fm, PR_FALSE);
+  nsCOMPtr<nsIDOMWindow> focusedWindow;
+  fm->GetFocusedWindow(getter_AddRefs(focusedWindow));
+  if (!focusedWindow) {
+    return PR_FALSE;
+  }
+  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
+  nsCOMPtr<nsIDOMWindow> ourWindow = do_QueryInterface(doc->GetWindow());
+  return ourWindow == focusedWindow;
+}
+
+PRBool
+nsHTMLEditor::IsIndependentSelectionContent(nsIContent* aContent)
+{
+  NS_PRECONDITION(aContent, "aContent must not be null");
+  nsIFrame* frame = aContent->GetPrimaryFrame();
+  return (frame && (frame->GetStateBits() & NS_FRAME_INDEPENDENT_SELECTION));
+}
+
+NS_IMETHODIMP
+nsHTMLEditor::GetPreferredIMEState(PRUint32 *aState)
+{
+  if (IsReadonly() || IsDisabled()) {
+    *aState = nsIContent::IME_STATUS_DISABLE;
+    return NS_OK;
+  }
+
+  // HTML editor don't prefer the CSS ime-mode because IE didn't do so too.
+  *aState = nsIContent::IME_STATUS_ENABLE;
   return NS_OK;
 }

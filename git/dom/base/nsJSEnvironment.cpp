@@ -277,8 +277,7 @@ nsUserActivityObserver::Observe(nsISupports* aSubject, const char* aTopic,
     sUserIsActive = PR_TRUE;
     higherProbability = (mUserActivityCounter > NS_CC_SOFT_LIMIT_ACTIVE);
   } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-    nsCOMPtr<nsIObserverService> obs =
-      do_GetService("@mozilla.org/observer-service;1");
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       obs->RemoveObserver(this, "user-interaction-active");
       obs->RemoveObserver(this, "user-interaction-inactive");
@@ -396,7 +395,7 @@ NS_HandleScriptError(nsIScriptGlobalObject *aScriptGlobal,
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(aScriptGlobal));
   nsIDocShell *docShell = win ? win->GetDocShell() : nsnull;
   if (docShell) {
-    nsCOMPtr<nsPresContext> presContext;
+    nsRefPtr<nsPresContext> presContext;
     docShell->GetPresContext(getter_AddRefs(presContext));
 
     static PRInt32 errorDepth; // Recursion prevention
@@ -439,7 +438,7 @@ public:
           !sHandlingScriptError) {
         sHandlingScriptError = PR_TRUE; // Recursion prevention
 
-        nsCOMPtr<nsPresContext> presContext;
+        nsRefPtr<nsPresContext> presContext;
         docShell->GetPresContext(getter_AddRefs(presContext));
 
         if (presContext) {
@@ -887,6 +886,12 @@ PrintWinCodebase(nsGlobalWindow *win)
   uri->GetSpec(spec);
   printf("%s\n", spec.get());
 }
+
+void
+DumpString(const nsAString &str)
+{
+  printf("%s\n", NS_ConvertUTF16toUTF8(str).get());
+}
 #endif
 
 static void
@@ -1044,6 +1049,16 @@ nsJSContext::DOMOperationCallback(JSContext *cx)
   if (duration < (isTrackingChromeCodeTime ?
                   sMaxChromeScriptRunTime : sMaxScriptRunTime)) {
     return JS_TRUE;
+  }
+
+  if (!nsContentUtils::IsSafeToRunScript()) {
+    // If it isn't safe to run script, then it isn't safe to bring up the
+    // prompt (since that will cause the event loop to spin). In this case
+    // (which is rare), we just stop the script... But report a warning so
+    // that developers have some idea of what went wrong.
+
+    JS_ReportWarning(cx, "A long running script was terminated");
+    return JS_FALSE;
   }
 
   // If we get here we're most likely executing an infinite loop in JS,
@@ -2108,15 +2123,11 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     return NS_OK;
   }
 
-  jsval targetVal = JSVAL_VOID;
-  JSAutoTempValueRooter tvr(mContext, 1, &targetVal);
-
   JSObject* target = nsnull;
   nsresult rv = JSObjectFromInterface(aTarget, aScope, &target);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  targetVal = OBJECT_TO_JSVAL(target);
-
+  js::AutoObjectRooter targetVal(mContext, target);
   jsval rval = JSVAL_VOID;
 
   // This one's a lot easier than EvaluateString because we don't have to
@@ -2140,7 +2151,7 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
     jsval *argv = nsnull;
 
     js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
-    js::LazilyConstructed<JSAutoTempValueRooter> tvr;
+    js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
     // Use |target| as the scope for wrapping the arguments, since aScope is
     // the safe scope in many cases, which isn't very useful.  Wrapping aTarget
@@ -2587,8 +2598,10 @@ nsJSContext::InitContext(nsIScriptGlobalObject *aGlobalObject)
 
     // Now check whether we need to grab a pointer to the
     // XPCNativeWrapper class
-    if (!nsDOMClassInfo::GetXPCNativeWrapperClass()) {
-      nsDOMClassInfo::SetXPCNativeWrapperClass(xpc->GetNativeWrapperClass());
+    if (!nsDOMClassInfo::GetXPCNativeWrapperGetPropertyOp()) {
+      JSPropertyOp getProperty;
+      xpc->GetNativeWrapperGetPropertyOp(&getProperty);
+      nsDOMClassInfo::SetXPCNativeWrapperGetPropertyOp(getProperty);
     }
   } else {
     // There's already a global object. We are preparing this outer window
@@ -2652,7 +2665,7 @@ nsJSContext::SetProperty(void *aTarget, const char *aPropName, nsISupports *aArg
   JSAutoRequest ar(mContext);
 
   js::LazilyConstructed<nsAutoPoolRelease> poolRelease;
-  js::LazilyConstructed<JSAutoTempValueRooter> tvr;
+  js::LazilyConstructed<js::AutoArrayRooter> tvr;
 
   nsresult rv;
   rv = ConvertSupportsTojsvals(aArgs, GetNativeGlobal(), &argc,
@@ -2687,7 +2700,7 @@ nsJSContext::ConvertSupportsTojsvals(nsISupports *aArgs,
                                      PRUint32 *aArgc,
                                      jsval **aArgv,
                                      js::LazilyConstructed<nsAutoPoolRelease> &aPoolRelease,
-                                     js::LazilyConstructed<JSAutoTempValueRooter> &aRooter)
+                                     js::LazilyConstructed<js::AutoArrayRooter> &aRooter)
 {
   nsresult rv = NS_OK;
 
@@ -3522,13 +3535,6 @@ nsJSContext::ScriptExecuted()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsJSContext::PreserveWrapper(nsIXPConnectWrappedNative *aWrapper)
-{
-  nsDOMClassInfo::PreserveNodeWrapper(aWrapper);
-  return NS_OK;
-}
-
 //static
 void
 nsJSContext::CC()
@@ -4013,9 +4019,9 @@ nsJSRuntime::Init()
   SetMemoryGCFrequencyPrefChangedCallback("javascript.options.mem.gc_frequency",
                                           nsnull);
 
-  nsCOMPtr<nsIObserverService> obs =
-    do_GetService("@mozilla.org/observer-service;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (!obs)
+    return NS_ERROR_FAILURE;
   nsIObserver* activityObserver = new nsUserActivityObserver();
   NS_ENSURE_TRUE(activityObserver, NS_ERROR_OUT_OF_MEMORY);
   obs->AddObserver(activityObserver, "user-interaction-inactive", PR_FALSE);
@@ -4028,7 +4034,7 @@ nsJSRuntime::Init()
 
   sIsInitialized = PR_TRUE;
 
-  return rv;
+  return NS_OK;
 }
 
 //static

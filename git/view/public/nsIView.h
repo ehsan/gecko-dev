@@ -63,8 +63,8 @@ enum nsViewVisibility {
 
 // IID for the nsIView interface
 #define NS_IVIEW_IID    \
-  { 0x4435167c, 0xb627, 0x4073, \
-    { 0x9c, 0x92, 0xbc, 0x34, 0x39, 0xd9, 0xf8, 0xd2 } }
+  { 0xe981334b, 0x756e, 0x417a, \
+    { 0xbf, 0x18, 0x47, 0x4a, 0x2d, 0xfe, 0xc3, 0x87 } }
 
 // Public view flags are defined in this file
 #define NS_VIEW_FLAGS_PUBLIC              0x00FF
@@ -334,6 +334,29 @@ public:
   virtual PRBool ExternalIsRoot() const;
 
   void SetDeletionObserver(nsWeakView* aDeletionObserver);
+
+  nsIntRect CalcWidgetBounds(nsWindowType aType);
+
+  PRBool IsEffectivelyVisible();
+
+  // This is an app unit offset to add when converting view coordinates to
+  // widget coordinates.  It is the offset in view coordinates from widget
+  // top-left to view top-left.
+  nsPoint ViewToWidgetOffset() const {
+    nsIView* parent = reinterpret_cast<nsIView*>(mParent);
+    if (parent && parent->GetViewManager() != GetViewManager()) {
+      // The document root view's mViewToWidgetOffset is always (0,0).
+      // If it has a parent view, the parent view must be the inner view
+      // for an nsSubdocumentFrame; its top-left position in appunits
+      // is always positioned at that inner view's top-left, and its
+      // widget top-left is always positioned at that inner view's widget's
+      // top-left, so its ViewToWidgetOffset is actually the same as
+      // its parent's.
+      return parent->ViewToWidgetOffset();
+    }
+    return mViewToWidgetOffset;
+  }
+
 protected:
   friend class nsWeakView;
   nsViewManager     *mViewManager;
@@ -346,6 +369,7 @@ protected:
   nsViewVisibility  mVis;
   nscoord           mPosX, mPosY;
   nsRect            mDimBounds; // relative to parent
+  nsPoint           mViewToWidgetOffset;
   float             mOpacity;
   PRUint32          mVFlags;
   nsWeakView*       mDeletionObserver;

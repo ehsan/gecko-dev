@@ -328,16 +328,16 @@ void nsView::ResetWidgetBounds(PRBool aRecurse, PRBool aMoveOnly,
   }
 }
 
-PRBool nsView::IsEffectivelyVisible()
+PRBool nsIView::IsEffectivelyVisible()
 {
-  for (nsView* v = this; v; v = v->mParent) {
+  for (nsIView* v = this; v; v = v->mParent) {
     if (v->GetVisibility() == nsViewVisibility_kHide)
       return PR_FALSE;
   }
   return PR_TRUE;
 }
 
-nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
+nsIntRect nsIView::CalcWidgetBounds(nsWindowType aType)
 {
   nsCOMPtr<nsIDeviceContext> dx;
   mViewManager->GetDeviceContext(*getter_AddRefs(dx));
@@ -347,24 +347,35 @@ nsIntRect nsView::CalcWidgetBounds(nsWindowType aType)
   nsRect viewBounds(mDimBounds);
 
   if (GetParent()) {
-    // put offset into screen coordinates
     nsPoint offset;
     nsIWidget* parentWidget = GetParent()->GetNearestWidget(&offset);
+    // make viewBounds be relative to the parent widget, in appunits
     viewBounds += offset;
 
     if (parentWidget && aType == eWindowType_popup &&
         IsEffectivelyVisible()) {
+      // put offset into screen coordinates
       nsIntPoint screenPoint = parentWidget->WidgetToScreenOffset();
       viewBounds += nsPoint(NSIntPixelsToAppUnits(screenPoint.x, p2a),
                             NSIntPixelsToAppUnits(screenPoint.y, p2a));
     }
   }
 
+  // Compute widget bounds in device pixels
   nsIntRect newBounds = viewBounds.ToNearestPixels(p2a);
 
+  // Compute where the top-left of the widget ended up relative to the
+  // parent widget, in appunits
   nsPoint roundedOffset(NSIntPixelsToAppUnits(newBounds.x, p2a),
                         NSIntPixelsToAppUnits(newBounds.y, p2a));
-  mViewToWidgetOffset = viewBounds.TopLeft() - roundedOffset;
+
+  // mViewToWidgetOffset is added to coordinates relative to the view origin
+  // to get coordinates relative to the widget.
+  // The view origin, relative to the parent widget, is at
+  // (mPosX,mPosY) - mDimBounds.TopLeft() + viewBounds.TopLeft().
+  // Our widget, relative to the parent widget, is roundedOffset.
+  mViewToWidgetOffset = nsPoint(mPosX, mPosY)
+    - mDimBounds.TopLeft() + viewBounds.TopLeft() - roundedOffset;
 
   return newBounds;
 }

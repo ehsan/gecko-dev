@@ -167,14 +167,10 @@ public:
    * descendants of a given block frame.
    *
    * @param aBlockFrame          The block frame
-   * @param aIsVisualFormControl [IN]  Set if we are in a form control on a
-   *                                   visual page.
-   *                                   @see nsBlockFrame::IsVisualFormControl
    *
    *  @lina 06/18/2000
    */
-  nsresult Resolve(nsBlockFrame*   aBlockFrame,
-                   PRBool          aIsVisualFormControl);
+  nsresult Resolve(nsBlockFrame* aBlockFrame);
 
   /**
    * Reorder this line using Bidi engine.
@@ -197,11 +193,6 @@ public:
                              PRInt32&        aTextLength,
                              nsCharType      aCharType,
                              PRBool          aIsOddLevel);
-
-  /**
-   * Return our nsBidi object (bidi reordering engine)
-   */
-  nsresult GetBidiEngine(nsBidi** aBidiEngine);
 
   /**
    * Reorder plain text using the Unicode Bidi algorithm and send it to

@@ -101,6 +101,8 @@ public:
                                      nsIContentSink* aSink = nsnull);
   virtual void StopDocumentLoad();
 
+  virtual void BeginLoad();
+
   virtual void EndLoad();
 
   virtual nsresult AddImageMap(nsIDOMHTMLMapElement* aMap);
@@ -135,9 +137,6 @@ public:
 
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE(nsDocument::)
-
-  // nsIDOM3Node interface
-  NS_IMETHOD GetBaseURI(nsAString& aBaseURI);
 
   // nsIDOMHTMLDocument interface
   NS_IMETHOD GetTitle(nsAString & aTitle);

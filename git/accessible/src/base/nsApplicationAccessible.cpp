@@ -43,8 +43,12 @@
 #include "nsApplicationAccessible.h"
 
 #include "nsAccessibilityService.h"
+#include "nsAccUtils.h"
 
 #include "nsIComponentManager.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMWindow.h"
+#include "nsIWindowMediator.h"
 #include "nsServiceManagerUtils.h"
 
 nsApplicationAccessible::nsApplicationAccessible() :
@@ -55,7 +59,20 @@ nsApplicationAccessible::nsApplicationAccessible() :
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsApplicationAccessible, nsAccessible)
+NS_IMPL_ISUPPORTS_INHERITED1(nsApplicationAccessible, nsAccessible,
+                             nsIAccessibleApplication)
+
+////////////////////////////////////////////////////////////////////////////////
+// nsIAccessNode
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
+{
+  NS_ENSURE_ARG_POINTER(aRootDocument);
+  *aRootDocument = nsnull;
+
+  return NS_OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
@@ -125,6 +142,64 @@ nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsIAccessibleApplication
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetAppName(nsAString& aName)
+{
+  aName.Truncate();
+
+  if (!mAppInfo)
+    return NS_ERROR_FAILURE;
+
+  nsCAutoString cname;
+  nsresult rv = mAppInfo->GetName(cname);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AppendUTF8toUTF16(cname, aName);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetAppVersion(nsAString& aVersion)
+{
+  aVersion.Truncate();
+
+  if (!mAppInfo)
+    return NS_ERROR_FAILURE;
+
+  nsCAutoString cversion;
+  nsresult rv = mAppInfo->GetVersion(cversion);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AppendUTF8toUTF16(cversion, aVersion);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetPlatformName(nsAString& aName)
+{
+  aName.AssignLiteral("Gecko");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
+{
+  aVersion.Truncate();
+
+  if (!mAppInfo)
+    return NS_ERROR_FAILURE;
+
+  nsCAutoString cversion;
+  nsresult rv = mAppInfo->GetPlatformVersion(cversion);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AppendUTF8toUTF16(cversion, aVersion);
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public methods
 
 PRBool
@@ -136,6 +211,14 @@ nsApplicationAccessible::IsDefunct()
 nsresult
 nsApplicationAccessible::Init()
 {
+  mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
+  return NS_OK;
+}
+
+nsresult
+nsApplicationAccessible::Shutdown()
+{
+  mAppInfo = nsnull;
   return NS_OK;
 }
 
@@ -179,8 +262,42 @@ nsApplicationAccessible::InvalidateChildren()
 void
 nsApplicationAccessible::CacheChildren()
 {
-  // Nothing to do. Children are keeped up to dated by Add/RemoveRootAccessible
-  // method calls.
+  // CacheChildren is called only once for application accessible when its
+  // children are requested because empty InvalidateChldren() prevents its
+  // repeated calls.
+
+  // Basically children are kept updated by Add/RemoveRootAccessible method
+  // calls. However if there are open windows before accessibility was started
+  // then we need to make sure root accessibles for open windows are created so
+  // that all root accessibles are stored in application accessible children
+  // array.
+
+  nsCOMPtr<nsIWindowMediator> windowMediator =
+    do_GetService(NS_WINDOWMEDIATOR_CONTRACTID);
+
+  nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
+  nsresult rv = windowMediator->GetEnumerator(nsnull,
+                                              getter_AddRefs(windowEnumerator));
+  if (NS_FAILED(rv))
+    return;
+
+  PRBool hasMore = PR_FALSE;
+  windowEnumerator->HasMoreElements(&hasMore);
+  while (hasMore) {
+    nsCOMPtr<nsISupports> window;
+    windowEnumerator->GetNext(getter_AddRefs(window));
+    nsCOMPtr<nsIDOMWindow> DOMWindow = do_QueryInterface(window);
+    if (DOMWindow) {
+      nsCOMPtr<nsIDOMDocument> DOMDocument;
+      DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
+      if (DOMDocument) {
+        nsCOMPtr<nsIAccessible> accessible;
+        GetAccService()->GetAccessibleFor(DOMDocument,
+                                          getter_AddRefs(accessible));
+      }
+    }
+    windowEnumerator->HasMoreElements(&hasMore);
+  }
 }
 
 nsAccessible*

@@ -118,12 +118,6 @@ nsCSSDeclaration::RemoveProperty(nsCSSProperty aProperty)
   return NS_OK;
 }
 
-nsresult
-nsCSSDeclaration::AppendComment(const nsAString& aComment)
-{
-  return /* NS_ERROR_NOT_IMPLEMENTED, or not any longer that is */ NS_OK;
-}
-
 PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const
 {
   nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
@@ -370,9 +364,6 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
                                            NS_STYLE_PAGE_MARKS_REGISTER,
                                            aResult);
       }
-    }
-    else if (eCSSProperty_transition_property == aProperty) {
-      AppendASCIItoUTF16(nsCSSProps::GetStringValue((nsCSSProperty) aValue.GetIntValue()), aResult);
     }
     else {
       const nsAFlatCString& name = nsCSSProps::LookupPropertyValue(aProperty, aValue.GetIntValue());

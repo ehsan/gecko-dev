@@ -67,12 +67,14 @@ nsSVGAnimatedTransformList::Init(nsIDOMSVGTransformList* baseVal)
 NS_IMPL_ADDREF(nsSVGAnimatedTransformList)
 NS_IMPL_RELEASE(nsSVGAnimatedTransformList)
 
+DOMCI_DATA(SVGAnimatedTransformList, nsSVGAnimatedTransformList)
+
 NS_INTERFACE_MAP_BEGIN(nsSVGAnimatedTransformList)
   NS_INTERFACE_MAP_ENTRY(nsISVGValue)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedTransformList)
   NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
   NS_INTERFACE_MAP_ENTRY(nsISVGValueObserver)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedTransformList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedTransformList)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISVGValue)
 NS_INTERFACE_MAP_END
 

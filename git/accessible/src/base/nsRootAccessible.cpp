@@ -35,10 +35,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// NOTE: alphabetically ordered
 #include "nsAccessibilityService.h"
-#include "nsAccEvent.h"
 #include "nsApplicationAccessibleWrap.h"
+#include "nsAccUtils.h"
+#include "nsCoreUtils.h"
+#include "nsRelUtils.h"
 
 #include "nsHTMLSelectAccessible.h"
 #include "nsIDocShell.h"
@@ -75,12 +76,16 @@
 #include "nsIDOMNSEventTarget.h"
 #include "nsIDOMDocumentEvent.h"
 #include "nsFocusManager.h"
+#include "mozilla/dom/Element.h"
+
 
 #ifdef MOZ_XUL
 #include "nsXULTreeAccessible.h"
 #include "nsIXULDocument.h"
 #include "nsIXULWindow.h"
 #endif
+
+using namespace mozilla;
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports
@@ -142,9 +147,9 @@ nsRootAccessible::GetRoleInternal(PRUint32 *aRole)
   }
 
   // If it's a <dialog> or <wizard>, use nsIAccessibleRole::ROLE_DIALOG instead
-  nsIContent *rootContent = mDocument->GetRootContent();
-  if (rootContent) {
-    nsCOMPtr<nsIDOMElement> rootElement(do_QueryInterface(rootContent));
+  dom::Element *root = mDocument->GetRootElement();
+  if (root) {
+    nsCOMPtr<nsIDOMElement> rootElement(do_QueryInterface(root));
     if (rootElement) {
       nsAutoString name;
       rootElement->GetLocalName(name);
@@ -518,26 +523,10 @@ nsRootAccessible::FireAccessibleFocusEvent(nsIAccessible *aAccessible,
 
   gLastFocusedFrameType = (focusFrame && focusFrame->GetStyleVisibility()->IsVisible()) ? focusFrame->GetType() : 0;
 
-  nsCOMPtr<nsIAccessibleDocument> docAccessible = do_QueryInterface(finalFocusAccessible);
-  if (docAccessible) {
-    // Doc is gaining focus, but actual focus may be on an element within document
-    nsCOMPtr<nsIDOMNode> realFocusedNode = GetCurrentFocus();
-    if ((realFocusedNode != aNode || realFocusedNode == mDOMNode) &&
-        !(nsAccUtils::ExtendedState(finalFocusAccessible) &
-                    nsIAccessibleStates::EXT_STATE_EDITABLE)) {
-      // Suppress document focus, because real DOM focus will be fired next,
-      // except in the case of editable documents because we can't rely on a
-      // followup focus event for an element in an editable document.
-      // Make sure we never fire focus for the nsRootAccessible (mDOMNode)
-
-      // XXX todo dig deeper on editor focus inconsistency in bug 526313
-
-      return PR_FALSE;
-    }
-  }
-
+  // Coalesce focus events from the same document, because DOM focus event might
+  // be fired for the document node and then for the focused DOM element.
   FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_FOCUS,
-                             finalFocusNode, nsAccEvent::eRemoveDupes,
+                             finalFocusNode, nsAccEvent::eCoalesceFromSameDocument,
                              aIsAsynch, aIsFromUserInput);
 
   return PR_TRUE;
@@ -567,7 +556,21 @@ nsRootAccessible::FireCurrentFocusEvent()
         nsCOMPtr<nsIDOMNode> targetNode;
         accService->GetRelevantContentNodeFor(focusedNode,
                                             getter_AddRefs(targetNode));
+
         if (targetNode) {
+          // If the focused element is document element or HTML body element
+          // then simulate the focus event for the document.
+          nsCOMPtr<nsIContent> targetContent(do_QueryInterface(targetNode));
+          if (targetContent) {
+            nsCOMPtr<nsIDOMNode> document =
+              do_QueryInterface(targetContent->GetOwnerDoc());
+            if (targetContent == nsCoreUtils::GetRoleContent(document)) {
+              HandleEventWithTarget(event, document);
+              return;
+            }
+          }
+
+          // Otherwise simulate the focus event for currently focused node.
           HandleEventWithTarget(event, targetNode);
         }
       }
@@ -625,7 +628,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIDocument> doc(do_QueryInterface(aTargetNode));
     nsCOMPtr<nsIAccessibleDocument> accDoc = GetDocAccessibleFor(doc);
     if (accDoc) {
-      nsRefPtr<nsAccessNode> docAccNode = nsAccUtils::QueryAccessNode(accDoc);
+      nsRefPtr<nsAccessNode> docAccNode = do_QueryObject(accDoc);
       docAccNode->Shutdown();
     }
 
@@ -652,14 +655,13 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
   if (eventType.EqualsLiteral("popuphiding"))
     return HandlePopupHidingEvent(aTargetNode, accessible);
 
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessible));
+  nsRefPtr<nsAccessible> acc(do_QueryObject(accessible));
   if (!acc)
     return NS_OK;
 
 #ifdef MOZ_XUL
   if (isTree) {
-    nsRefPtr<nsXULTreeAccessible> treeAcc =
-      nsAccUtils::QueryAccessibleTree(accessible);
+    nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(accessible);
     NS_ASSERTION(treeAcc,
                  "Accessible for xul:tree isn't nsXULTreeAccessible.");
 
@@ -723,8 +725,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
       PRInt32 treeIndex = -1;
       multiSelect->GetCurrentIndex(&treeIndex);
       if (treeIndex >= 0) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc =
-          nsAccUtils::QueryAccessibleTree(accessible);
+        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(accessible);
         if (treeAcc) {
           treeItemAccessible = treeAcc->GetTreeItemAccessible(treeIndex);
           if (treeItemAccessible)
@@ -835,8 +836,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
         return NS_OK; // Tree with nothing selected
       }
 #endif
-      nsRefPtr<nsAccessNode> menuAccessNode =
-        nsAccUtils::QueryAccessNode(accessible);
+      nsRefPtr<nsAccessNode> menuAccessNode = do_QueryObject(accessible);
   
       nsIFrame* menuFrame = menuAccessNode->GetFrame();
       NS_ENSURE_TRUE(menuFrame, NS_ERROR_FAILURE);
@@ -943,10 +943,10 @@ void nsRootAccessible::GetTargetNode(nsIDOMEvent *aEvent, nsIDOMNode **aTargetNo
 nsresult
 nsRootAccessible::Init()
 {
-  nsRefPtr<nsApplicationAccessibleWrap> root = GetApplicationAccessible();
-  NS_ENSURE_STATE(root);
+  nsApplicationAccessible *applicationAcc = GetApplicationAccessible();
+  NS_ENSURE_STATE(applicationAcc);
 
-  root->AddRootAccessible(this);
+  applicationAcc->AddRootAccessible(this);
 
   return nsDocAccessibleWrap::Init();
 }
@@ -959,10 +959,10 @@ nsRootAccessible::Shutdown()
     return NS_OK;  // Already shutdown
   }
 
-  nsRefPtr<nsApplicationAccessibleWrap> root = GetApplicationAccessible();
-  NS_ENSURE_STATE(root);
+  nsApplicationAccessible *applicationAcc = GetApplicationAccessible();
+  NS_ENSURE_STATE(applicationAcc);
 
-  root->RemoveRootAccessible(this);
+  applicationAcc->RemoveRootAccessible(this);
 
   mCurrentARIAMenubar = nsnull;
 
@@ -1128,7 +1128,7 @@ nsRootAccessible::HandlePopupShownEvent(nsIAccessible *aAccessible)
                                   PR_FALSE, PR_TRUE);
       NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-      nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(comboboxAcc));
+      nsRefPtr<nsAccessible> acc(do_QueryObject(comboboxAcc));
       nsEventShell::FireEvent(event);
       return NS_OK;
     }

@@ -1963,12 +1963,14 @@ nsLocalFile::SetLastModifiedTimeOfLink(PRInt64 aLastModifiedTime)
 nsresult
 nsLocalFile::SetModDate(PRInt64 aLastModifiedTime, const PRUnichar *filePath)
 {
+    // The FILE_FLAG_BACKUP_SEMANTICS is required in order to change the
+    // modification time for directories.
     HANDLE file = ::CreateFileW(filePath,          // pointer to name of the file
                                 GENERIC_WRITE,     // access (write) mode
                                 0,                 // share mode
                                 NULL,              // pointer to security attributes
                                 OPEN_EXISTING,     // how to create
-                                0,                 // file attributes
+                                FILE_FLAG_BACKUP_SEMANTICS,  // file attributes
                                 NULL);
 
     if (file == INVALID_HANDLE_VALUE)
@@ -2753,7 +2755,7 @@ nsLocalFile::Reveal()
     nsAutoString explorerPath;
     rv = winDir->GetPath(explorerPath);  
     NS_ENSURE_SUCCESS(rv, rv);
-#ifdef WINCE
+#ifndef WINCE
     explorerPath.Append(L"\\explorer.exe");
 #else
     explorerPath.Append(L"\\fexplorer.exe");
