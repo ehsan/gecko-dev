@@ -38,7 +38,7 @@ add_task(function test_initialize()
 
   // Add visits.
   for ([pageIndex, page] in Iterator(pages)) {
-    yield PlacesTestUtils.addVisits({
+    yield promiseAddVisits({
       uri: uri(page),
       visitDate: noon - (pages.length - pageIndex) * 1000
     });

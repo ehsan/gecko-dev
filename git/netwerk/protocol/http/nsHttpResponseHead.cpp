@@ -264,9 +264,6 @@ nsHttpResponseHead::AssignDefaultStatusText()
     case 417:
         mStatusText.AssignLiteral("Expectation Failed");
         break;
-    case 421:
-        mStatusText.AssignLiteral("Misdirected Request");
-        break;
     case 501:
         mStatusText.AssignLiteral("Not Implemented");
         break;

@@ -53,10 +53,11 @@ function test() {
     init: function(aCallback) {
       // Add a history entry.
       let uri = PlacesUtils._uri(TEST_URL);
-      PlacesTestUtils.addVisits({
-        uri: uri, visitDate: Date.now() * 1000,
-        transition: PlacesUtils.history.TRANSITION_TYPED
-      }).then(aCallback);
+      addVisits(
+        { uri: uri, visitDate: Date.now() * 1000,
+          transition: PlacesUtils.history.TRANSITION_TYPED },
+        window,
+        aCallback);
     },
     prepare: function() {
       sidebar.contentDocument.getElementById("byvisited").doCommand();

@@ -605,8 +605,8 @@ nsPerformance::PerformanceEntryComparator::Equals(
     const PerformanceEntry* aElem1,
     const PerformanceEntry* aElem2) const
 {
-  MOZ_ASSERT(aElem1 && aElem2,
-             "Trying to compare null performance entries");
+  NS_ABORT_IF_FALSE(aElem1 && aElem2,
+      "Trying to compare null performance entries");
   return aElem1->StartTime() == aElem2->StartTime();
 }
 
@@ -615,8 +615,8 @@ nsPerformance::PerformanceEntryComparator::LessThan(
     const PerformanceEntry* aElem1,
     const PerformanceEntry* aElem2) const
 {
-  MOZ_ASSERT(aElem1 && aElem2,
-             "Trying to compare null performance entries");
+  NS_ABORT_IF_FALSE(aElem1 && aElem2,
+      "Trying to compare null performance entries");
   return aElem1->StartTime() < aElem2->StartTime();
 }
 

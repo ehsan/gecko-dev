@@ -1741,33 +1741,28 @@ public:
         spew("movq       %s, %p", GPReg64Name(src), addr);
         m_formatter.oneByteOp64(OP_MOV_EvGv, addr, src);
     }
-#endif
 
-    void vmovq_rm(XMMRegisterID src, int32_t offset, RegisterID base)
+    void movq_rm(XMMRegisterID src, int32_t offset, RegisterID base)
     {
-        // vmovq_rm can be encoded either as a true vmovq or as a vmovd with a
-        // REX prefix modifying it to be 64-bit. We choose the vmovq encoding
-        // because it's smaller (when it doesn't need a REX prefix for other
-        // reasons) and because it works on 32-bit x86 too.
-        twoByteOpSimd("vmovq", VEX_PD, OP2_MOVQ_WdVd, offset, base, invalid_xmm, src);
+        spew("movq       %s, " MEM_ob, XMMRegName(src), ADDR_ob(offset, base));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp64(OP2_MOVQ_EdVd, offset, base, src);
     }
 
-    void vmovq_rm_disp32(XMMRegisterID src, int32_t offset, RegisterID base)
+    void movq_rm(XMMRegisterID src, int32_t offset, RegisterID base, RegisterID index, int scale)
     {
-        twoByteOpSimd_disp32("vmovq", VEX_PD, OP2_MOVQ_WdVd, offset, base, invalid_xmm, src);
+        spew("movq       %s, " MEM_obs, XMMRegName(src), ADDR_obs(offset, base, index, scale));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp64(OP2_MOVQ_EdVd, offset, base, index, scale, src);
     }
 
-    void vmovq_rm(XMMRegisterID src, int32_t offset, RegisterID base, RegisterID index, int scale)
+    void movq_rm(XMMRegisterID src, const void *addr)
     {
-        twoByteOpSimd("vmovq", VEX_PD, OP2_MOVQ_WdVd, offset, base, index, scale, invalid_xmm, src);
+        spew("movq       %s, %p", XMMRegName(src), addr);
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp64(OP2_MOVQ_EdVd, addr, src);
     }
 
-    void vmovq_rm(XMMRegisterID src, const void *addr)
-    {
-        twoByteOpSimd("vmovq", VEX_PD, OP2_MOVQ_WdVd, addr, invalid_xmm, src);
-    }
-
-#ifdef JS_CODEGEN_X64
     void movq_mEAX(const void *addr)
     {
         if (IsAddressImmediate(addr)) {
@@ -1820,33 +1815,28 @@ public:
         spew("movq       %p, %s", addr, GPReg64Name(dst));
         m_formatter.oneByteOp64(OP_MOV_GvEv, addr, dst);
     }
-#endif
 
-    void vmovq_mr(int32_t offset, RegisterID base, XMMRegisterID dst)
+    void movq_mr(int32_t offset, RegisterID base, XMMRegisterID dst)
     {
-        // vmovq_mr can be encoded either as a true vmovq or as a vmovd with a
-        // REX prefix modifying it to be 64-bit. We choose the vmovq encoding
-        // because it's smaller (when it doesn't need a REX prefix for other
-        // reasons) and because it works on 32-bit x86 too.
-        twoByteOpSimd("vmovq", VEX_SS, OP2_MOVQ_VdWd, offset, base, invalid_xmm, dst);
+        spew("movq       " MEM_ob ", %s", ADDR_ob(offset, base), XMMRegName(dst));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp64(OP2_MOVQ_VdEd, offset, base, (RegisterID) dst);
     }
 
-    void vmovq_mr_disp32(int32_t offset, RegisterID base, XMMRegisterID dst)
+    void movq_mr(int32_t offset, RegisterID base, RegisterID index, int32_t scale, XMMRegisterID dst)
     {
-        twoByteOpSimd_disp32("vmovq", VEX_SS, OP2_MOVQ_VdWd, offset, base, invalid_xmm, dst);
+        spew("movq       " MEM_obs ", %s", ADDR_obs(offset, base, index, scale), XMMRegName(dst));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp64(OP2_MOVQ_VdEd, offset, base, index, scale, (RegisterID) dst);
     }
 
-    void vmovq_mr(int32_t offset, RegisterID base, RegisterID index, int32_t scale, XMMRegisterID dst)
+    void movq_mr(const void *addr, XMMRegisterID dst)
     {
-        twoByteOpSimd("vmovq", VEX_SS, OP2_MOVQ_VdWd, offset, base, index, scale, invalid_xmm, dst);
+        spew("movq       %p, %s", addr, XMMRegName(dst));
+        m_formatter.prefix(PRE_SSE_66);
+        m_formatter.twoByteOp64(OP2_MOVQ_VdEd, addr, (RegisterID) dst);
     }
 
-    void vmovq_mr(const void *addr, XMMRegisterID dst)
-    {
-        twoByteOpSimd("vmovq", VEX_SS, OP2_MOVQ_VdWd, addr, invalid_xmm, dst);
-    }
-
-#ifdef JS_CODEGEN_X64
     void leaq_mr(int32_t offset, RegisterID base, RegisterID index, int scale, RegisterID dst)
     {
         spew("leaq       " MEM_obs ", %s", ADDR_obs(offset, base, index, scale), GPReg64Name(dst)),
@@ -2672,15 +2662,11 @@ public:
 #ifdef JS_CODEGEN_X64
     void vmovq_rr(XMMRegisterID src, RegisterID dst)
     {
-        // While this is called "vmovq", it actually uses the vmovd encoding
-        // with a REX prefix modifying it to be 64-bit.
         twoByteOpSimdInt64("vmovq", VEX_PD, OP2_MOVD_EdVd, (XMMRegisterID)dst, (RegisterID)src);
     }
 
     void vmovq_rr(RegisterID src, XMMRegisterID dst)
     {
-        // While this is called "vmovq", it actually uses the vmovd encoding
-        // with a REX prefix modifying it to be 64-bit.
         twoByteOpInt64Simd("vmovq", VEX_PD, OP2_MOVD_VdEd, src, invalid_xmm, dst);
     }
 #endif

@@ -582,7 +582,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mAllowMergingAndFlattening(true),
       mWillComputePluginGeometry(false),
       mInTransform(false),
-      mIsInChromePresContext(false),
+      mIsInRootChromeDocument(false),
       mSyncDecodeImages(false),
       mIsPaintingToWindow(false),
       mIsCompositingCheap(false),
@@ -590,8 +590,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mAncestorHasTouchEventHandler(false),
       mAncestorHasScrollEventHandler(false),
       mHaveScrollableDisplayPort(false),
-      mWindowDraggingAllowed(false),
-      mIsBuildingForPopup(nsLayoutUtils::IsPopup(aReferenceFrame))
+      mWindowDraggingAllowed(false)
 {
   MOZ_COUNT_CTOR(nsDisplayListBuilder);
   PL_InitArenaPool(&mPool, "displayListArena", 1024,
@@ -1016,7 +1015,8 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
 
   nsPresContext* pc = aReferenceFrame->PresContext();
   pc->GetDocShell()->GetWindowDraggingAllowed(&mWindowDraggingAllowed);
-  mIsInChromePresContext = pc->IsChrome();
+
+  mIsInRootChromeDocument = !IsInSubdocument() && pc->IsChrome();
 }
 
 void
@@ -1032,7 +1032,7 @@ nsDisplayListBuilder::LeavePresShell(nsIFrame* aReferenceFrame)
   if (!mPresShellStates.IsEmpty()) {
     nsPresContext* pc = CurrentPresContext();
     pc->GetDocShell()->GetWindowDraggingAllowed(&mWindowDraggingAllowed);
-    mIsInChromePresContext = pc->IsChrome();
+    mIsInRootChromeDocument = !IsInSubdocument() && pc->IsChrome();
   }
 }
 
@@ -1991,6 +1991,20 @@ nsDisplayItem::nsDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
       aBuilder->GetCurrentFrameOffsetToReferenceFrame();
 }
 
+void
+nsDisplayItem::AddInvalidRegionForSyncDecodeBackgroundImages(
+  nsDisplayListBuilder* aBuilder,
+  const nsDisplayItemGeometry* aGeometry,
+  nsRegion* aInvalidRegion)
+{
+  if (aBuilder->ShouldSyncDecodeImages()) {
+    if (!nsCSSRendering::AreAllBackgroundImagesDecodedForFrame(mFrame)) {
+      bool snap;
+      aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
+    }
+  }
+}
+
 /* static */ bool
 nsDisplayItem::ForceActiveLayers()
 {
@@ -2103,7 +2117,7 @@ static void
 RegisterThemeGeometry(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
                       nsITheme::ThemeGeometryType aType)
 {
-  if (aBuilder->IsInRootChromeDocumentOrPopup() && !aBuilder->IsInTransform()) {
+  if (aBuilder->IsInRootChromeDocument() && !aBuilder->IsInTransform()) {
     nsIFrame* displayRoot = nsLayoutUtils::GetDisplayRootFrame(aFrame);
     nsRect borderBox(aFrame->GetOffsetTo(displayRoot), aFrame->GetSize());
     aBuilder->RegisterThemeGeometry(aType,
@@ -2243,7 +2257,7 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
   if (isThemed) {
     nsITheme* theme = presContext->GetTheme();
     if (theme->NeedToClearBackgroundBehindWidget(aFrame->StyleDisplay()->mAppearance) &&
-        aBuilder->IsInRootChromeDocumentOrPopup() && !aBuilder->IsInTransform()) {
+        aBuilder->IsInRootChromeDocument() && !aBuilder->IsInTransform()) {
       bgItemList.AppendNewToTop(
         new (aBuilder) nsDisplayClearBackground(aBuilder, aFrame));
     }
@@ -2517,11 +2531,6 @@ nsDisplayBackgroundImage::ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& a
 
   mozilla::gfx::IntSize imageSize = mImageContainer->GetCurrentSize();
   NS_ASSERTION(imageSize.width != 0 && imageSize.height != 0, "Invalid image size!");
-  if (imageSize.width > 0 && imageSize.height > 0) {
-    // We're actually using the ImageContainer. Let our frame know that it
-    // should consider itself to have painted successfully.
-    nsDisplayBackgroundGeometry::UpdateDrawResult(this, DrawResult::SUCCESS);
-  }
 
   gfxPoint p = mDestRect.TopLeft() + aOffset;
   Matrix transform = Matrix::Translation(p.x, p.y);
@@ -2691,13 +2700,11 @@ nsDisplayBackgroundImage::PaintInternal(nsDisplayListBuilder* aBuilder,
   uint32_t flags = aBuilder->GetBackgroundPaintFlags();
   CheckForBorderItem(this, flags);
 
-  DrawResult result =
-    nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
-                                    aBounds,
-                                    nsRect(offset, mFrame->GetSize()),
-                                    flags, aClipRect, mLayer);
+  nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
+                                  aBounds,
+                                  nsRect(offset, mFrame->GetSize()),
+                                  flags, aClipRect, mLayer);
 
-  nsDisplayBackgroundGeometry::UpdateDrawResult(this, result);
 }
 
 void nsDisplayBackgroundImage::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
@@ -2726,9 +2733,8 @@ void nsDisplayBackgroundImage::ComputeInvalidationRegion(nsDisplayListBuilder* a
     return;
   }
   if (aBuilder->ShouldSyncDecodeImages()) {
-    const nsStyleImage& image = mBackgroundStyle->mLayers[mLayer].mImage;
-    if (image.GetType() == eStyleImageType_Image &&
-        geometry->ShouldInvalidateToSyncDecodeImages()) {
+    if (mBackgroundStyle &&
+        !nsCSSRendering::IsBackgroundImageDecodedForStyleContextAndLayer(mBackgroundStyle, mLayer)) {
       aInvalidRegion->Or(*aInvalidRegion, bounds);
 
       NotifyRenderingChanged();
@@ -4635,7 +4641,7 @@ nsDisplayScrollLayer::GetScrollLayerCount()
   // layers were created or the property was deleted to early. If the latter,
   // make sure that nsDisplayScrollInfoLayer is on the bottom of the list so
   // that it is processed last.
-  MOZ_ASSERT(hasCount, "nsDisplayScrollLayer should always be defined");
+  NS_ABORT_IF_FALSE(hasCount, "nsDisplayScrollLayer should always be defined");
   return result;
 #else
   return reinterpret_cast<intptr_t>(props.Get(nsIFrame::ScrollLayerCount()));
@@ -4880,8 +4886,8 @@ nsDisplayTransform::nsDisplayTransform(nsDisplayListBuilder* aBuilder,
   , mIndex(aIndex)
 {
   MOZ_COUNT_CTOR(nsDisplayTransform);
-  MOZ_ASSERT(aFrame, "Must have a frame!");
-  MOZ_ASSERT(!aFrame->IsTransformed(), "Can't specify a transform getter for a transformed frame!");
+  NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
+  NS_ABORT_IF_FALSE(!aFrame->IsTransformed(), "Can't specify a transform getter for a transformed frame!");
   Init(aBuilder);
 }
 
@@ -4924,7 +4930,7 @@ nsDisplayTransform::nsDisplayTransform(nsDisplayListBuilder* aBuilder,
   , mIndex(aIndex)
 {
   MOZ_COUNT_CTOR(nsDisplayTransform);
-  MOZ_ASSERT(aFrame, "Must have a frame!");
+  NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
   SetReferenceFrameToAncestor(aBuilder);
   Init(aBuilder);
 }
@@ -4940,7 +4946,7 @@ nsDisplayTransform::nsDisplayTransform(nsDisplayListBuilder* aBuilder,
   , mIndex(aIndex)
 {
   MOZ_COUNT_CTOR(nsDisplayTransform);
-  MOZ_ASSERT(aFrame, "Must have a frame!");
+  NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
   SetReferenceFrameToAncestor(aBuilder);
   Init(aBuilder);
 }
@@ -4992,7 +4998,7 @@ nsDisplayTransform::GetDeltaToTransformOrigin(const nsIFrame* aFrame,
         NSAppUnitsToFloatPixels(*dimensions[index], aAppUnitsPerPixel) *
         coord.GetPercentValue();
     } else {
-      MOZ_ASSERT(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
+      NS_ABORT_IF_FALSE(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
       coords[index] =
         NSAppUnitsToFloatPixels(coord.GetCoordValue(), aAppUnitsPerPixel);
     }
@@ -5076,7 +5082,7 @@ nsDisplayTransform::GetDeltaToPerspectiveOrigin(const nsIFrame* aFrame,
         NSAppUnitsToFloatPixels(*dimensions[index], aAppUnitsPerPixel) *
         coord.GetPercentValue();
     } else {
-      MOZ_ASSERT(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
+      NS_ABORT_IF_FALSE(coord.GetUnit() == eStyleUnit_Coord, "unexpected unit");
       *coords[index] =
         NSAppUnitsToFloatPixels(coord.GetCoordValue(), aAppUnitsPerPixel);
     }

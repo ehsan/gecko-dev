@@ -78,10 +78,9 @@ TextInputProcessor::~TextInputProcessor()
 }
 
 NS_IMETHODIMP
-TextInputProcessor::BeginInputTransaction(
-                      nsIDOMWindow* aWindow,
-                      nsITextInputProcessorCallback* aCallback,
-                      bool* aSucceeded)
+TextInputProcessor::Init(nsIDOMWindow* aWindow,
+                         nsITextInputProcessorCallback* aCallback,
+                         bool* aSucceeded)
 {
   MOZ_RELEASE_ASSERT(aSucceeded, "aSucceeded must not be nullptr");
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
@@ -89,29 +88,27 @@ TextInputProcessor::BeginInputTransaction(
     *aSucceeded = false;
     return NS_ERROR_INVALID_ARG;
   }
-  return BeginInputTransactionInternal(aWindow, aCallback, false, *aSucceeded);
+  return InitInternal(aWindow, aCallback, false, *aSucceeded);
 }
 
 NS_IMETHODIMP
-TextInputProcessor::BeginInputTransactionForTests(
-                      nsIDOMWindow* aWindow,
-                      nsITextInputProcessorCallback* aCallback,
-                      uint8_t aOptionalArgc,
-                      bool* aSucceeded)
+TextInputProcessor::InitForTests(nsIDOMWindow* aWindow,
+                                 nsITextInputProcessorCallback* aCallback,
+                                 uint8_t aOptionalArgc,
+                                 bool* aSucceeded)
 {
   MOZ_RELEASE_ASSERT(aSucceeded, "aSucceeded must not be nullptr");
   MOZ_RELEASE_ASSERT(nsContentUtils::IsCallerChrome());
   nsITextInputProcessorCallback* callback =
     aOptionalArgc >= 1 ? aCallback : nullptr;
-  return BeginInputTransactionInternal(aWindow, callback, true, *aSucceeded);
+  return InitInternal(aWindow, callback, true, *aSucceeded);
 }
 
 nsresult
-TextInputProcessor::BeginInputTransactionInternal(
-                      nsIDOMWindow* aWindow,
-                      nsITextInputProcessorCallback* aCallback,
-                      bool aForTests,
-                      bool& aSucceeded)
+TextInputProcessor::InitInternal(nsIDOMWindow* aWindow,
+                                 nsITextInputProcessorCallback* aCallback,
+                                 bool aForTests,
+                                 bool& aSucceeded)
 {
   aSucceeded = false;
   if (NS_WARN_IF(!aWindow)) {
@@ -167,9 +164,9 @@ TextInputProcessor::BeginInputTransactionInternal(
   UnlinkFromTextEventDispatcher();
 
   if (aForTests) {
-    rv = dispatcher->BeginInputTransactionForTests(this);
+    rv = dispatcher->InitForTests(this);
   } else {
-    rv = dispatcher->BeginInputTransaction(this);
+    rv = dispatcher->Init(this);
   }
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -193,7 +190,7 @@ TextInputProcessor::UnlinkFromTextEventDispatcher()
     mCallback = nullptr;
 
     nsRefPtr<TextInputProcessorNotification> notification =
-      new TextInputProcessorNotification("notify-end-input-transaction");
+      new TextInputProcessorNotification("notify-detached");
     bool result = false;
     callback->OnNotify(this, notification, &result);
   }

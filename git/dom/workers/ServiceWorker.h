@@ -61,15 +61,6 @@ public:
     DOMEventTargetHelper::DispatchTrustedEvent(NS_LITERAL_STRING("statechange"));
   }
 
-#ifdef XP_WIN
-#undef PostMessage
-#endif
-
-  void
-  PostMessage(JSContext* aCx, JS::Handle<JS::Value> aMessage,
-              const Optional<Sequence<JS::Value>>& aTransferable,
-              ErrorResult& aRv);
-
   WorkerPrivate*
   GetWorkerPrivate() const;
 

@@ -42,7 +42,6 @@
 #include "mozilla/gfx/Rect.h"           // for RoundedIn
 #include "mozilla/gfx/ScaleFactor.h"    // for ScaleFactor
 #include "mozilla/layers/APZCTreeManager.h"  // for ScrollableLayerGuid
-#include "mozilla/layers/APZThreadUtils.h"  // for AssertOnControllerThread, etc
 #include "mozilla/layers/AsyncCompositionManager.h"  // for ViewTransform
 #include "mozilla/layers/AxisPhysicsModel.h" // for AxisPhysicsModel
 #include "mozilla/layers/AxisPhysicsMSDModel.h" // for AxisPhysicsMSDModel
@@ -434,6 +433,8 @@ static inline void LogRendertraceRect(const ScrollableLayerGuid& aGuid, const ch
 }
 
 static TimeStamp sFrameTime;
+static bool sThreadAssertionsEnabled = true;
+static PRThread* sControllerThread;
 
 // Counter used to give each APZC a unique id
 static uint32_t sAsyncPanZoomControllerCount = 0;
@@ -823,6 +824,42 @@ AsyncPanZoomController::SetFrameTime(const TimeStamp& aTime) {
   sFrameTime = aTime;
 }
 
+void
+AsyncPanZoomController::SetThreadAssertionsEnabled(bool aEnabled) {
+  sThreadAssertionsEnabled = aEnabled;
+}
+
+bool
+AsyncPanZoomController::GetThreadAssertionsEnabled() {
+  return sThreadAssertionsEnabled;
+}
+
+void
+AsyncPanZoomController::AssertOnControllerThread() {
+  if (!GetThreadAssertionsEnabled()) {
+    return;
+  }
+
+  static bool sControllerThreadDetermined = false;
+  if (!sControllerThreadDetermined) {
+    // Technically this may not actually pick up the correct controller thread,
+    // if the first call to this method happens from a non-controller thread.
+    // If the assertion below fires, it is possible that it is because
+    // sControllerThread is not actually the controller thread.
+    sControllerThread = PR_GetCurrentThread();
+    sControllerThreadDetermined = true;
+  }
+  MOZ_ASSERT(sControllerThread == PR_GetCurrentThread());
+}
+
+void
+AsyncPanZoomController::AssertOnCompositorThread()
+{
+  if (GetThreadAssertionsEnabled()) {
+    Compositor::AssertOnCompositorThread();
+  }
+}
+
 /*static*/ void
 AsyncPanZoomController::InitializeGlobalState()
 {
@@ -887,7 +924,7 @@ AsyncPanZoomController::~AsyncPanZoomController()
 PCompositorParent*
 AsyncPanZoomController::GetSharedFrameMetricsCompositor()
 {
-  APZThreadUtils::AssertOnCompositorThread();
+  AssertOnCompositorThread();
 
   if (mSharingFrameMetricsAcrossProcesses) {
     const CompositorParent::LayerTreeState* state = CompositorParent::GetIndirectShadowTree(mLayersId);
@@ -919,7 +956,7 @@ AsyncPanZoomController::GetInputQueue() const {
 void
 AsyncPanZoomController::Destroy()
 {
-  APZThreadUtils::AssertOnCompositorThread();
+  AssertOnCompositorThread();
 
   CancelAnimation();
 
@@ -994,7 +1031,7 @@ AsyncPanZoomController::ArePointerEventsConsumable(TouchBlockState* aBlock, uint
 
 nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent,
                                                        const Matrix4x4& aTransformToApzc) {
-  APZThreadUtils::AssertOnControllerThread();
+  AssertOnControllerThread();
 
   nsEventStatus rv = nsEventStatus_eIgnore;
 
@@ -1066,7 +1103,7 @@ nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent,
 
 nsEventStatus AsyncPanZoomController::HandleGestureEvent(const InputData& aEvent)
 {
-  APZThreadUtils::AssertOnControllerThread();
+  AssertOnControllerThread();
 
   nsEventStatus rv = nsEventStatus_eIgnore;
 
@@ -2429,7 +2466,7 @@ AsyncPanZoomController::FireAsyncScrollOnTimeout()
 bool AsyncPanZoomController::UpdateAnimation(const TimeStamp& aSampleTime,
                                              Vector<Task*>* aOutDeferredTasks)
 {
-  APZThreadUtils::AssertOnCompositorThread();
+  AssertOnCompositorThread();
 
   // This function may get called multiple with the same sample time, because
   // there may be multiple layers with this APZC, and each layer invokes this
@@ -2507,7 +2544,7 @@ Matrix4x4 AsyncPanZoomController::GetOverscrollTransform() const {
 
 bool AsyncPanZoomController::AdvanceAnimations(const TimeStamp& aSampleTime)
 {
-  APZThreadUtils::AssertOnCompositorThread();
+  AssertOnCompositorThread();
 
   // Don't send any state-change notifications until the end of the function,
   // because we may go through some intermediate states while we finish
@@ -2654,7 +2691,7 @@ bool AsyncPanZoomController::IsCurrentlyCheckerboarding() const {
 }
 
 void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetrics, bool aIsFirstPaint) {
-  APZThreadUtils::AssertOnCompositorThread();
+  AssertOnCompositorThread();
 
   ReentrantMonitorAutoEnter lock(mMonitor);
   bool isDefault = mFrameMetrics.IsDefault();
@@ -3030,7 +3067,7 @@ AsyncPanZoomController::GetZoomConstraints() const
 
 
 void AsyncPanZoomController::PostDelayedTask(Task* aTask, int aDelayMs) {
-  APZThreadUtils::AssertOnControllerThread();
+  AssertOnControllerThread();
   nsRefPtr<GeckoContentController> controller = GetGeckoContentController();
   if (controller) {
     controller->PostDelayedTask(aTask, aDelayMs);

@@ -257,6 +257,7 @@
     _(CallGetProperty)              \
     _(GetNameCache)                 \
     _(CallGetIntrinsicValue)        \
+    _(CallsiteCloneCache)           \
     _(CallGetElement)               \
     _(CallSetElement)               \
     _(CallInitElementArray)         \

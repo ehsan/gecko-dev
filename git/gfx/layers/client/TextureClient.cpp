@@ -883,6 +883,20 @@ BufferTextureClient::GetLockedData() const
   return serializer.GetData();
 }
 
+TemporaryRef<gfx::DataSourceSurface>
+BufferTextureClient::GetAsSurface()
+{
+  ImageDataSerializer serializer(GetBuffer(), GetBufferSize());
+  MOZ_ASSERT(serializer.IsValid());
+
+  RefPtr<gfx::DataSourceSurface> wrappingSurf =
+    gfx::Factory::CreateWrappingDataSourceSurface(serializer.GetData(),
+                                                  serializer.GetStride(),
+                                                  serializer.GetSize(),
+                                                  serializer.GetFormat());
+  return gfx::CreateDataSourceSurfaceByCloning(wrappingSurf);
+}
+
 ////////////////////////////////////////////////////////////////////////
 // SharedSurfaceTextureClient
 

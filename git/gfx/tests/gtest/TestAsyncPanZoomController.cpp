@@ -12,7 +12,6 @@
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/layers/LayerMetricsWrapper.h"
-#include "mozilla/layers/APZThreadUtils.h"
 #include "mozilla/UniquePtr.h"
 #include "apz/src/AsyncPanZoomController.h"
 #include "apz/src/HitTestingTreeNode.h"
@@ -244,7 +243,7 @@ protected:
   virtual void SetUp()
   {
     gfxPrefs::GetSingleton();
-    APZThreadUtils::SetThreadAssertionsEnabled(false);
+    AsyncPanZoomController::SetThreadAssertionsEnabled(false);
 
     testStartTime = TimeStamp::Now();
     AsyncPanZoomController::SetFrameTime(testStartTime);
@@ -1656,7 +1655,7 @@ class APZCTreeManagerTester : public ::testing::Test {
 protected:
   virtual void SetUp() {
     gfxPrefs::GetSingleton();
-    APZThreadUtils::SetThreadAssertionsEnabled(false);
+    AsyncPanZoomController::SetThreadAssertionsEnabled(false);
 
     testStartTime = TimeStamp::Now();
     AsyncPanZoomController::SetFrameTime(testStartTime);

@@ -157,7 +157,7 @@ function testOrderedProviders(manifests, next) {
     });
   }
 
-  PlacesTestUtils.addVisits(visits).then(next);
+  promiseAddVisits(visits).then(next);
   yield;
   let orderedProviders = yield SocialService.getOrderedProviderList(next);
   do_check_eq(orderedProviders[0], providers[1]);

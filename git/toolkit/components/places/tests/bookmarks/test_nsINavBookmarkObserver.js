@@ -273,7 +273,7 @@ add_test(function onItemMoved_bookmark() {
         { name: "parentGuid", check: function (v) typeof(v) == "string" && /^[a-zA-Z0-9\-_]{12}$/.test(v) },
       ] },
   ];
-  PlacesTestUtils.addVisits({ uri: uri, transition: TRANSITION_TYPED });
+  promiseAddVisits({ uri: uri, transition: TRANSITION_TYPED });
 });
 
 add_test(function onItemRemoved_bookmark() {

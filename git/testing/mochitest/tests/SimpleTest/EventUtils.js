@@ -884,7 +884,7 @@ function _getTIP(aWindow, aCallback)
         createInstance(_EU_Ci.nsITextInputProcessor);
     TIPMap.set(aWindow, tip);
   }
-  if (!tip.beginInputTransactionForTests(aWindow, aCallback)) {
+  if (!tip.initForTests(aWindow, aCallback)) {
     tip = null;
     TIPMap.delete(aWindow);
   }

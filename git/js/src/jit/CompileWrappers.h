@@ -113,6 +113,8 @@ class CompileCompartment
 
     const void *addressOfEnumerators();
 
+    const CallsiteCloneTable &callsiteClones();
+
     const JitCompartment *jitCompartment();
 
     bool hasObjectMetadataCallback();

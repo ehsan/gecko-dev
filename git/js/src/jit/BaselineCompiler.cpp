@@ -413,10 +413,6 @@ BaselineCompiler::emitPrologue()
     if (!initScopeChain())
         return false;
 
-    // When compiling with Debugger instrumentation, set the debuggeeness of
-    // the frame before any operation that can call into the VM.
-    emitIsDebuggeeCheck();
-
     if (!emitStackCheck())
         return false;
 
@@ -569,19 +565,6 @@ BaselineCompiler::emitStackCheck(bool earlyCheck)
 
     masm.bind(&skipCall);
     return true;
-}
-
-void
-BaselineCompiler::emitIsDebuggeeCheck()
-{
-    if (compileDebugInstrumentation_) {
-        masm.Push(BaselineFrameReg);
-        masm.setupUnalignedABICall(1, R0.scratchReg());
-        masm.loadBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
-        masm.passABIArg(R0.scratchReg());
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, jit::FrameIsDebuggeeCheck));
-        masm.Pop(BaselineFrameReg);
-    }
 }
 
 typedef bool (*DebugPrologueFn)(JSContext *, BaselineFrame *, jsbytecode *, bool *);

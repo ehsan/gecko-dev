@@ -12,7 +12,6 @@
 #include "Layers.h"                     // for Layer, etc
 #include "mozilla/dom/Touch.h"          // for Touch
 #include "mozilla/gfx/Point.h"          // for Point
-#include "mozilla/layers/APZThreadUtils.h"  // for AssertOnCompositorThread, etc
 #include "mozilla/layers/AsyncCompositionManager.h" // for ViewTransform
 #include "mozilla/layers/CompositorParent.h" // for CompositorParent, etc
 #include "mozilla/layers/LayerMetricsWrapper.h"
@@ -160,7 +159,9 @@ APZCTreeManager::UpdateHitTestingTree(CompositorParent* aCompositor,
                                       uint64_t aOriginatingLayersId,
                                       uint32_t aPaintSequenceNumber)
 {
-  APZThreadUtils::AssertOnCompositorThread();
+  if (AsyncPanZoomController::GetThreadAssertionsEnabled()) {
+    Compositor::AssertOnCompositorThread();
+  }
 
   MonitorAutoLock lock(mTreeLock);
 
@@ -555,8 +556,6 @@ APZCTreeManager::ReceiveInputEvent(InputData& aEvent,
                                    ScrollableLayerGuid* aOutTargetGuid,
                                    uint64_t* aOutInputBlockId)
 {
-  APZThreadUtils::AssertOnControllerThread();
-
   // Initialize aOutInputBlockId to a sane value, and then later we overwrite
   // it if the input event goes into a block.
   if (aOutInputBlockId) {
@@ -863,13 +862,11 @@ APZCTreeManager::ReceiveInputEvent(WidgetInputEvent& aEvent,
                                    ScrollableLayerGuid* aOutTargetGuid,
                                    uint64_t* aOutInputBlockId)
 {
-  // This function will be removed once metro code is modified to use the
-  // InputData version of ReceiveInputEvent.
+  // This function will be removed as part of bug 930939.
   // In general it is preferable to use the version of ReceiveInputEvent
   // that takes an InputData, as that is usable from off-main-thread.
 
   MOZ_ASSERT(NS_IsMainThread());
-  APZThreadUtils::AssertOnControllerThread();
 
   // Initialize aOutInputBlockId to a sane value, and then later we overwrite
   // it if the input event goes into a block.
@@ -923,8 +920,6 @@ APZCTreeManager::ZoomToRect(const ScrollableLayerGuid& aGuid,
 void
 APZCTreeManager::ContentReceivedInputBlock(uint64_t aInputBlockId, bool aPreventDefault)
 {
-  APZThreadUtils::AssertOnControllerThread();
-
   mInputQueue->ContentReceivedInputBlock(aInputBlockId, aPreventDefault);
 }
 
@@ -932,8 +927,6 @@ void
 APZCTreeManager::SetTargetAPZC(uint64_t aInputBlockId,
                                const nsTArray<ScrollableLayerGuid>& aTargets)
 {
-  APZThreadUtils::AssertOnControllerThread();
-
   nsRefPtr<AsyncPanZoomController> target = nullptr;
   if (aTargets.Length() > 0) {
     target = GetTargetAPZC(aTargets[0]);
@@ -948,8 +941,6 @@ APZCTreeManager::SetTargetAPZC(uint64_t aInputBlockId,
 void
 APZCTreeManager::SetTargetAPZC(uint64_t aInputBlockId, const ScrollableLayerGuid& aTarget)
 {
-  APZThreadUtils::AssertOnControllerThread();
-
   nsRefPtr<AsyncPanZoomController> apzc = GetTargetAPZC(aTarget);
   mInputQueue->SetConfirmedTargetApzc(aInputBlockId, apzc);
 }

@@ -592,8 +592,18 @@ AppendErrorTextUntrusted(PRErrorCode errTrust,
   if (!errorID) {
     switch (errTrust) {
       case SEC_ERROR_UNKNOWN_ISSUER:
-        errorID = "certErrorTrust_UnknownIssuer";
+      {
+        nsCOMPtr<nsIArray> chain;
+        ix509->GetChain(getter_AddRefs(chain));
+        uint32_t length = 0;
+        if (chain && NS_FAILED(chain->GetLength(&length)))
+          length = 0;
+        if (length == 1)
+          errorID = "certErrorTrust_MissingChain";
+        else
+          errorID = "certErrorTrust_UnknownIssuer";
         break;
+      }
       case SEC_ERROR_CA_CERT_INVALID:
         errorID = "certErrorTrust_CaInvalid";
         break;

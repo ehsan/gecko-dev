@@ -102,7 +102,6 @@ public:
 
     const nsCString &GetHost() { return mHost; }
     const nsCString &GetNPNToken() { return mNPNToken; }
-    const nsCString &GetUsername() { return mUsername; }
 
     // Returns true for any kind of proxy (http, socks, https, etc..)
     bool UsingProxy();

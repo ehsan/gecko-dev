@@ -276,7 +276,7 @@ struct ForEachTrackedOptimizationAttemptOp
 };
 
 JS_PUBLIC_API(void)
-ForEachTrackedOptimizationAttempt(JSRuntime *rt, void *addr,
+ForEachTrackedOptimizationAttempt(JSRuntime *rt, void *addr, uint8_t index,
                                   ForEachTrackedOptimizationAttemptOp &op);
 
 struct ForEachTrackedOptimizationTypeInfoOp
@@ -308,7 +308,7 @@ struct ForEachTrackedOptimizationTypeInfoOp
 };
 
 extern JS_PUBLIC_API(void)
-ForEachTrackedOptimizationTypeInfo(JSRuntime *rt, void *addr,
+ForEachTrackedOptimizationTypeInfo(JSRuntime *rt, void *addr, uint8_t index,
                                    ForEachTrackedOptimizationTypeInfoOp &op);
 
 } // namespace JS

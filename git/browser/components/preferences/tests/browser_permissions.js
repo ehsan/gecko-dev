@@ -44,7 +44,7 @@ function test() {
   registerCleanupFunction(cleanUp);
 
   // add test history visit
-  PlacesTestUtils.addVisits(TEST_URI_1).then(() => {
+  addVisits(TEST_URI_1, function() {
     // set permissions ourselves to avoid problems with different defaults
     // from test harness configuration
     for (let type in TEST_PERMS) {

@@ -18,6 +18,7 @@ UNIFIED_SOURCES += [
     'nsMathMLmmultiscriptsFrame.cpp',
     'nsMathMLmoFrame.cpp',
     'nsMathMLmpaddedFrame.cpp',
+    'nsMathMLmphantomFrame.cpp',
     'nsMathMLmrootFrame.cpp',
     'nsMathMLmrowFrame.cpp',
     'nsMathMLmspaceFrame.cpp',

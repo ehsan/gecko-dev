@@ -113,27 +113,15 @@ function* testBreadcrumbs(selector, inspector) {
 }
 
 function* clickOnInspectMenuItem(node) {
-  info("Showing the contextual menu on node " + node);
-  yield executeInContent("Test:SynthesizeMouse", {
-    center: true,
-    options: {type: "contextmenu", button: 2}
-  }, {node});
+  info("Clicking on 'Inspect Element' context menu item of " + node);
+  document.popupNode = node;
+  var contentAreaContextMenu = getNode("#contentAreaContextMenu", { document });
+  var contextMenu = new nsContextMenu(contentAreaContextMenu);
 
-  // nsContextMenu also requires the popupNode to be set, but we can't set it to
-  // node under e10s as it's a CPOW, not a DOM node. But under e10s,
-  // nsContextMenu won't use the property anyway, so just try/catching is ok.
-  try {
-    document.popupNode = node;
-  } catch (e) {}
-
-  let contentAreaContextMenu = document.querySelector("#contentAreaContextMenu");
-  let contextMenu = new nsContextMenu(contentAreaContextMenu);
-
-  info("Triggering inspect action and hiding the menu.");
+  info("Triggering inspect action.");
   yield contextMenu.inspectNode();
 
-  contentAreaContextMenu.hidden = true;
-  contentAreaContextMenu.hidePopup();
+  // Clean up context menu:
   contextMenu.hiding();
 
   info("Waiting for inspector to update.");

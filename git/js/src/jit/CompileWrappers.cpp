@@ -249,6 +249,12 @@ CompileCompartment::addressOfEnumerators()
     return &compartment()->enumerators;
 }
 
+const CallsiteCloneTable &
+CompileCompartment::callsiteClones()
+{
+    return compartment()->callsiteClones;
+}
+
 const JitCompartment *
 CompileCompartment::jitCompartment()
 {

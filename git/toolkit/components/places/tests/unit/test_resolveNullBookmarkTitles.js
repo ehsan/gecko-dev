@@ -12,7 +12,7 @@ add_test(function test_resolveNullBookmarkTitles() {
   let uri1 = uri("http://foo.tld/");
   let uri2 = uri("https://bar.tld/");
 
-  PlacesTestUtils.addVisits([
+  promiseAddVisits([
     { uri: uri1, title: "foo title" },
     { uri: uri2, title: "bar title" }
   ]).then(function () {

@@ -44,7 +44,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Proxy;
 import java.net.ProxySelector;
-import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.MessageDigest;
@@ -349,32 +348,32 @@ public class UpdateService extends IntentService {
         }
     }
 
-    private URLConnection openConnectionWithProxy(URI uri) throws java.net.MalformedURLException, java.io.IOException {
-        Log.i(LOGTAG, "opening connection with URI: " + uri);
+    private URLConnection openConnectionWithProxy(URL url) throws java.net.URISyntaxException, java.io.IOException {
+        Log.i(LOGTAG, "opening connection with url: " + url);
 
         ProxySelector ps = ProxySelector.getDefault();
         Proxy proxy = Proxy.NO_PROXY;
         if (ps != null) {
-            List<Proxy> proxies = ps.select(uri);
+            List<Proxy> proxies = ps.select(url.toURI());
             if (proxies != null && !proxies.isEmpty()) {
                 proxy = proxies.get(0);
             }
         }
 
-        return uri.toURL().openConnection(proxy);
+        return url.openConnection(proxy);
     }
 
     private UpdateInfo findUpdate(boolean force) {
         try {
-            URI uri = getUpdateURI(force);
+            URL url = getUpdateUrl(force);
 
-            if (uri == null) {
-              Log.e(LOGTAG, "failed to get update URI");
+            if (url == null) {
+              Log.e(LOGTAG, "failed to get update URL");
               return null;
             }
 
             DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-            Document dom = builder.parse(openConnectionWithProxy(uri).getInputStream());
+            Document dom = builder.parse(openConnectionWithProxy(url).getInputStream());
 
             NodeList nodes = dom.getElementsByTagName("update");
             if (nodes == null || nodes.getLength() == 0)
@@ -402,7 +401,7 @@ public class UpdateService extends IntentService {
 
             // Fill in UpdateInfo from the XML data
             UpdateInfo info = new UpdateInfo();
-            info.uri = new URI(urlNode.getTextContent());
+            info.url = new URL(urlNode.getTextContent());
             info.buildID = buildIdNode.getTextContent();
             info.hashFunction = hashFunctionNode.getTextContent();
             info.hashValue = hashValueNode.getTextContent();
@@ -506,17 +505,9 @@ public class UpdateService extends IntentService {
     }
 
     private File downloadUpdatePackage(UpdateInfo info, boolean overwriteExisting) {
-        URL url = null;
-        try {
-            url = info.uri.toURL();
-        } catch (java.net.MalformedURLException e) {
-            Log.e(LOGTAG, "failed to read URL: ", e);
-            return null;
-        }
-
         File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         path.mkdirs();
-        String fileName = new File(url.getFile()).getName();
+        String fileName = new File(info.url.getFile()).getName();
         File downloadFile = new File(path, fileName);
 
         if (!overwriteExisting && info.buildID.equals(getLastBuildID()) && downloadFile.exists()) {
@@ -555,7 +546,7 @@ public class UpdateService extends IntentService {
                 mWifiLock.acquire();
             }
 
-            URLConnection conn = openConnectionWithProxy(info.uri);
+            URLConnection conn = openConnectionWithProxy(info.url);
             int length = conn.getContentLength();
 
             output = new BufferedOutputStream(new FileOutputStream(downloadFile));
@@ -718,8 +709,8 @@ public class UpdateService extends IntentService {
         editor.commit();
     }
 
-    private URI getUpdateURI(boolean force) {
-        return UpdateServiceHelper.expandUpdateURI(this, mPrefs.getString(KEY_UPDATE_URL, null), force);
+    private URL getUpdateUrl(boolean force) {
+        return UpdateServiceHelper.expandUpdateUrl(this, mPrefs.getString(KEY_UPDATE_URL, null), force);
     }
 
     private void setUpdateUrl(String url) {
@@ -738,7 +729,7 @@ public class UpdateService extends IntentService {
     }
 
     private class UpdateInfo {
-        public URI uri;
+        public URL url;
         public String buildID;
         public String hashFunction;
         public String hashValue;
@@ -749,13 +740,13 @@ public class UpdateService extends IntentService {
         }
 
         public boolean isValid() {
-            return uri != null && isNonEmpty(buildID) &&
+            return url != null && isNonEmpty(buildID) &&
                 isNonEmpty(hashFunction) && isNonEmpty(hashValue) && size > 0;
         }
 
         @Override
         public String toString() {
-            return "uri = " + uri + ", buildID = " + buildID + ", hashFunction = " + hashFunction + ", hashValue = " + hashValue + ", size = " + size;
+            return "url = " + url + ", buildID = " + buildID + ", hashFunction = " + hashFunction + ", hashValue = " + hashValue + ", size = " + size;
         }
     }
 }

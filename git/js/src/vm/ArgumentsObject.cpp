@@ -186,9 +186,8 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
                         numDeletedWords * sizeof(size_t) +
                         numArgs * sizeof(Value);
 
-    // Allocate zeroed memory to make the object GC-safe for early attachment.
     ArgumentsData *data = reinterpret_cast<ArgumentsData *>(
-            cx->zone()->pod_calloc<uint8_t>(numBytes));
+            cx->zone()->pod_malloc<uint8_t>(numBytes));
     if (!data)
         return nullptr;
 
@@ -206,17 +205,18 @@ ArgumentsObject::create(JSContext *cx, HandleScript script, HandleFunction calle
     data->callee.init(ObjectValue(*callee.get()));
     data->script = script;
 
-    // Attach the argument object.
-    // Because the argument object was zeroed by pod_calloc(), each Value in
-    // ArgumentsData is DoubleValue(0) and therefore safe for GC tracing.
-    MOZ_ASSERT(DoubleValue(0).asRawBits() == 0x0);
-    MOZ_ASSERT_IF(numArgs > 0, data->args[0].asRawBits() == 0x0);
+    // Initialize with dummy UndefinedValue, and attach it to the argument
+    // object such as the GC can trace ArgumentsData as they are recovered.
+    HeapValue *dst = data->args, *dstEnd = data->args + numArgs;
+    for (HeapValue *iter = dst; iter != dstEnd; iter++)
+        iter->init(UndefinedValue());
+
     obj->initFixedSlot(DATA_SLOT, PrivateValue(data));
 
     /* Copy [0, numArgs) into data->slots. */
-    copy.copyArgs(cx, data->args, numArgs);
+    copy.copyArgs(cx, dst, numArgs);
 
-    data->deletedBits = reinterpret_cast<size_t *>(data->args + numArgs);
+    data->deletedBits = reinterpret_cast<size_t *>(dstEnd);
     ClearAllBitArrayElements(data->deletedBits, numDeletedWords);
 
     obj->initFixedSlot(INITIAL_LENGTH_SLOT, Int32Value(numActuals << PACKED_BITS_COUNT));

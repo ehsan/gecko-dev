@@ -10,7 +10,7 @@
 */
 
 /*global ToObject: false, ToInteger: false, IsCallable: false,
-         ThrowError: false, AssertionFailed: false,
+         ThrowError: false, AssertionFailed: false, SetScriptHints: false,
          MakeConstructible: false, DecompileArg: false,
          RuntimeDefaultLocale: false,
          ParallelDo: false, ParallelSlices: false, NewDenseArray: false,

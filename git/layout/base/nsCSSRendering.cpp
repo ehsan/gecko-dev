@@ -63,7 +63,7 @@
 using namespace mozilla;
 using namespace mozilla::css;
 using namespace mozilla::gfx;
-using namespace mozilla::image;
+using mozilla::image::ImageOps;
 using mozilla::CSSSizeOrRatio;
 
 static int gFrameTreeLockCount = 0;
@@ -1619,7 +1619,7 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
   }
 }
 
-DrawResult
+void
 nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
                                 nsRenderingContext& aRenderingContext,
                                 nsIFrame* aForFrame,
@@ -1643,21 +1643,21 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
     // draw the background. The canvas really should be drawing the
     // bg, but there's no way to hook that up via css.
     if (!aForFrame->StyleDisplay()->mAppearance) {
-      return DrawResult::SUCCESS;
+      return;
     }
 
     nsIContent* content = aForFrame->GetContent();
     if (!content || content->GetParent()) {
-      return DrawResult::SUCCESS;
+      return;
     }
 
     sc = aForFrame->StyleContext();
   }
 
-  return PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
-                               aDirtyRect, aBorderArea, sc,
-                               *aForFrame->StyleBorder(), aFlags,
-                               aBGClipRect, aLayer);
+  PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
+                        aDirtyRect, aBorderArea, sc,
+                        *aForFrame->StyleBorder(), aFlags,
+                        aBGClipRect, aLayer);
 }
 
 static bool
@@ -1722,8 +1722,8 @@ SetupDirtyRects(const nsRect& aBGClipArea, const nsRect& aCallerDirtyRect,
   *aDirtyRectGfx = nsLayoutUtils::RectToGfxRect(*aDirtyRect, aAppUnitsPerPixel);
   NS_WARN_IF_FALSE(aDirtyRect->IsEmpty() || !aDirtyRectGfx->IsEmpty(),
                    "converted dirty rect should not be empty");
-  MOZ_ASSERT(!aDirtyRect->IsEmpty() || aDirtyRectGfx->IsEmpty(),
-             "second should be empty if first is");
+  NS_ABORT_IF_FALSE(!aDirtyRect->IsEmpty() || aDirtyRectGfx->IsEmpty(),
+                    "second should be empty if first is");
 }
 
 /* static */ void
@@ -2165,7 +2165,7 @@ ComputeRadialGradientLine(nsPresContext* aPresContext,
   }
   default:
     radiusX = radiusY = 0;
-    MOZ_ASSERT(false, "unknown radial gradient sizing method");
+    NS_ABORT_IF_FALSE(false, "unknown radial gradient sizing method");
   }
   *aRadiusX = radiusX;
   *aRadiusY = radiusY;
@@ -2460,8 +2460,8 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   gfxFloat lineLength = NS_hypot(lineEnd.x - lineStart.x,
                                   lineEnd.y - lineStart.y);
 
-  MOZ_ASSERT(aGradient->mStops.Length() >= 2,
-             "The parser should reject gradients with less than two stops");
+  NS_ABORT_IF_FALSE(aGradient->mStops.Length() >= 2,
+                    "The parser should reject gradients with less than two stops");
 
   // Build color stop array and compute stop positions
   nsTArray<ColorStop> stops;
@@ -2507,7 +2507,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
           (NSAppUnitsToFloatPixels(calc->mLength, appUnitsPerDevPixel) / lineLength));
       break;
     default:
-      MOZ_ASSERT(false, "Unknown stop position type");
+      NS_ABORT_IF_FALSE(false, "Unknown stop position type");
     }
 
     if (i > 0) {
@@ -2581,7 +2581,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       }
     }
     firstStop = stops[0].mPosition;
-    MOZ_ASSERT(firstStop >= 0.0, "Failed to fix stop offsets");
+    NS_ABORT_IF_FALSE(firstStop >= 0.0, "Failed to fix stop offsets");
   }
 
   if (aGradient->mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR && !aGradient->mRepeating) {
@@ -2818,7 +2818,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   }
 }
 
-DrawResult
+void
 nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                                       nsRenderingContext& aRenderingContext,
                                       nsIFrame* aForFrame,
@@ -2832,11 +2832,6 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
 {
   NS_PRECONDITION(aForFrame,
                   "Frame is expected to be provided to PaintBackground");
-
-  // Initialize our result to success. We update it only if its value is
-  // currently DrawResult::SUCCESS, which means that as soon as we hit our first
-  // non-successful draw, we stop updating and will return that value.
-  DrawResult result = DrawResult::SUCCESS;
 
   // Check to see if we have an appearance defined.  If so, we let the theme
   // renderer draw the background and bail out.
@@ -2853,7 +2848,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
       theme->DrawWidgetBackground(&aRenderingContext, aForFrame,
                                   displayData->mAppearance, aBorderArea,
                                   drawing);
-      return DrawResult::SUCCESS;
+      return;
     }
   }
 
@@ -2888,7 +2883,7 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // true if and only if we are actually supposed to paint an image or
   // color into aDirtyRect, respectively.
   if (!drawBackgroundImage && !drawBackgroundColor)
-    return DrawResult::SUCCESS;
+    return;
 
   // Compute the outermost boundary of the area that might be painted.
   // Same coordinate space as aBorderArea & aBGClipRect.
@@ -2935,13 +2930,13 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     if (!isCanvasFrame) {
       DrawBackgroundColor(clipState, ctx, appUnitsPerPixel);
     }
-    return DrawResult::SUCCESS;
+    return;
   }
 
   if (bg->mImageCount < 1) {
     // Return if there are no background layers, all work from this point
     // onwards happens iteratively on these.
-    return DrawResult::SUCCESS;
+    return;
   }
 
   // Validate the layer range before we start iterating.
@@ -3010,17 +3005,10 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                          "It is assumed the initial operator is OPERATOR_OVER, when it is restored later");
             ctx->SetOperator(state.mCompositingOp);
           }
-
-          DrawResult resultForLayer =
-            state.mImageRenderer.DrawBackground(aPresContext, aRenderingContext,
-                                                state.mDestArea, state.mFillArea,
-                                                state.mAnchor + paintBorderArea.TopLeft(),
-                                                clipState.mDirtyRect);
-
-          if (result == DrawResult::SUCCESS) {
-            result = resultForLayer;
-          }
-
+          state.mImageRenderer.DrawBackground(aPresContext, aRenderingContext,
+                                              state.mDestArea, state.mFillArea,
+                                              state.mAnchor + paintBorderArea.TopLeft(),
+                                              clipState.mDirtyRect);
           if (state.mCompositingOp != gfxContext::OPERATOR_OVER) {
             ctx->SetOperator(gfxContext::OPERATOR_OVER);
           }
@@ -3028,8 +3016,6 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
       }
     }
   }
-
-  return result;
 }
 
 static inline bool
@@ -3346,6 +3332,34 @@ nsCSSRendering::GetBackgroundLayerRect(nsPresContext* aPresContext,
       PrepareBackgroundLayer(aPresContext, aForFrame, aFlags, borderArea,
                              aClipRect, aLayer);
   return state.mFillArea;
+}
+
+/* static */ bool
+nsCSSRendering::IsBackgroundImageDecodedForStyleContextAndLayer(
+  const nsStyleBackground *aBackground, uint32_t aLayer)
+{
+  const nsStyleImage* image = &aBackground->mLayers[aLayer].mImage;
+  if (image->GetType() == eStyleImageType_Image) {
+    nsCOMPtr<imgIContainer> img;
+    if (NS_SUCCEEDED(image->GetImageData()->GetImage(getter_AddRefs(img)))) {
+      if (!img->IsDecoded()) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+/* static */ bool
+nsCSSRendering::AreAllBackgroundImagesDecodedForFrame(nsIFrame* aFrame)
+{
+  const nsStyleBackground *bg = aFrame->StyleContext()->StyleBackground();
+  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
+    if (!IsBackgroundImageDecodedForStyleContextAndLayer(bg, i)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 static void
@@ -4615,9 +4629,9 @@ nsImageRenderer::PrepareImage()
       nsCOMPtr<imgIContainer> srcImage;
       DebugOnly<nsresult> rv =
         mImage->GetImageData()->GetImage(getter_AddRefs(srcImage));
-      MOZ_ASSERT(NS_SUCCEEDED(rv) && srcImage,
-                 "If GetImage() is failing, mImage->IsComplete() "
-                 "should have returned false");
+      NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv) && srcImage,
+                        "If GetImage() is failing, mImage->IsComplete() "
+                        "should have returned false");
 
       if (!mImage->GetCropRect()) {
         mImageContainer.swap(srcImage);
@@ -4896,7 +4910,7 @@ ConvertImageRendererToDrawFlags(uint32_t aImageRendererFlags)
   return drawFlags;
 }
 
-DrawResult
+void
 nsImageRenderer::Draw(nsPresContext*       aPresContext,
                       nsRenderingContext&  aRenderingContext,
                       const nsRect&        aDirtyRect,
@@ -4907,11 +4921,11 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
 {
   if (!mIsReady) {
     NS_NOTREACHED("Ensure PrepareImage() has returned true before calling me");
-    return DrawResult::TEMPORARY_ERROR;
+    return;
   }
   if (aDest.IsEmpty() || aFill.IsEmpty() ||
       mSize.width <= 0 || mSize.height <= 0) {
-    return DrawResult::SUCCESS;
+    return;
   }
 
   GraphicsFilter filter = nsLayoutUtils::GetGraphicsFilterForFrame(mForFrame);
@@ -4921,19 +4935,19 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
     {
       nsIntSize imageSize(nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
                           nsPresContext::AppUnitsToIntCSSPixels(mSize.height));
-      return
-        nsLayoutUtils::DrawBackgroundImage(*aRenderingContext.ThebesContext(),
-                                           aPresContext,
-                                           mImageContainer, imageSize, filter,
-                                           aDest, aFill, aAnchor, aDirtyRect,
-                                           ConvertImageRendererToDrawFlags(mFlags));
+      nsLayoutUtils::DrawBackgroundImage(*aRenderingContext.ThebesContext(),
+                                         aPresContext,
+                                         mImageContainer, imageSize, filter,
+                                         aDest, aFill, aAnchor, aDirtyRect,
+                                         ConvertImageRendererToDrawFlags(mFlags));
+      return;
     }
     case eStyleImageType_Gradient:
     {
       nsCSSRendering::PaintGradient(aPresContext, aRenderingContext,
                                     mGradientData, aDirtyRect,
                                     aDest, aFill, aSrc, mSize);
-      return DrawResult::SUCCESS;
+      return;
     }
     case eStyleImageType_Element:
     {
@@ -4941,7 +4955,7 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
                                                           aRenderingContext);
       if (!drawable) {
         NS_WARNING("Could not create drawable for element");
-        return DrawResult::TEMPORARY_ERROR;
+        return;
       }
 
       gfxContext* ctx = aRenderingContext.ThebesContext();
@@ -4962,11 +4976,11 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
         ctx->Paint();
       }
 
-      return DrawResult::SUCCESS;
+      return;
     }
     case eStyleImageType_Null:
     default:
-      return DrawResult::SUCCESS;
+      return;
   }
 }
 
@@ -4999,7 +5013,7 @@ nsImageRenderer::DrawableForElement(const nsRect& aImageRect,
   return drawable.forget();
 }
 
-DrawResult
+void
 nsImageRenderer::DrawBackground(nsPresContext*       aPresContext,
                                 nsRenderingContext&  aRenderingContext,
                                 const nsRect&        aDest,
@@ -5009,18 +5023,18 @@ nsImageRenderer::DrawBackground(nsPresContext*       aPresContext,
 {
   if (!mIsReady) {
     NS_NOTREACHED("Ensure PrepareImage() has returned true before calling me");
-    return DrawResult::TEMPORARY_ERROR;
+    return;
   }
   if (aDest.IsEmpty() || aFill.IsEmpty() ||
       mSize.width <= 0 || mSize.height <= 0) {
-    return DrawResult::SUCCESS;
+    return;
   }
 
-  return Draw(aPresContext, aRenderingContext,
-              aDirty, aDest, aFill, aAnchor,
-              CSSIntRect(0, 0,
-                         nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
-                         nsPresContext::AppUnitsToIntCSSPixels(mSize.height)));
+  Draw(aPresContext, aRenderingContext,
+       aDirty, aDest, aFill, aAnchor,
+       CSSIntRect(0, 0,
+                  nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
+                  nsPresContext::AppUnitsToIntCSSPixels(mSize.height)));
 }
 
 /**

@@ -603,15 +603,10 @@ PluginAsyncSurrogate::GetPropertyHelper(NPObject* aObject, NPIdentifier aName,
     return false;
   }
 
-  if (!WaitForInit()) {
-    return false;
-  }
+  WaitForInit();
 
   AsyncNPObject* object = static_cast<AsyncNPObject*>(aObject);
   NPObject* realObject = object->GetRealObject();
-  if (!realObject) {
-    return false;
-  }
   if (realObject->_class != PluginScriptableObjectParent::GetClass()) {
     NS_ERROR("Don't know what kind of object this is!");
     return false;

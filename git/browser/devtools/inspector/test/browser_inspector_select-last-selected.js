@@ -66,8 +66,7 @@ add_task(function* () {
     info("Waiting for inspector to update after new-root event.");
     yield inspector.once("inspector-updated");
 
-    let nodeFront = yield getNodeFront(selectedNode, inspector);
-    is(inspector.selection.nodeFront, nodeFront,
+    is(inspector.selection.node, getNode(selectedNode),
        selectedNode + " is selected after navigation.");
   }
 

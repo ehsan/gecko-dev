@@ -11,8 +11,6 @@
 
 //
 // <mrow> -- horizontally group any number of subexpressions 
-// <mphantom> -- make content invisible but preserve its size
-// <mstyle> -- make style changes that affect the rendering of its contents
 //
 
 class nsMathMLmrowFrame : public nsMathMLContainerFrame {

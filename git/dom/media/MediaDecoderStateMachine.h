@@ -399,10 +399,12 @@ public:
   void OnNotDecoded(MediaData::Type aType, MediaDecoderReader::NotDecodedReason aReason);
   void OnAudioNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   {
+    MOZ_ASSERT(OnDecodeThread());
     OnNotDecoded(MediaData::AUDIO_DATA, aReason);
   }
   void OnVideoNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   {
+    MOZ_ASSERT(OnDecodeThread());
     OnNotDecoded(MediaData::VIDEO_DATA, aReason);
   }
 
@@ -412,14 +414,17 @@ public:
   void OnWaitForDataResolved(MediaData::Type aType)
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    WaitRequestRef(aType).Complete();
-    DispatchDecodeTasksIfNeeded();
+    if (RequestStatusRef(aType) == RequestStatus::Waiting) {
+      RequestStatusRef(aType) = RequestStatus::Idle;
+      DispatchDecodeTasksIfNeeded();
+    }
   }
 
   void OnWaitForDataRejected(WaitForDataRejectValue aRejection)
   {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    WaitRequestRef(aRejection.mType).Complete();
+    if (RequestStatusRef(aRejection.mType) == RequestStatus::Waiting) {
+      RequestStatusRef(aRejection.mType) = RequestStatus::Idle;
+    }
   }
 
 private:
@@ -1014,38 +1019,21 @@ protected:
   bool mIsAudioPrerolling;
   bool mIsVideoPrerolling;
 
-  // Only one of a given pair of ({Audio,Video}DataPromise, WaitForDataPromise)
-  // should exist at any given moment.
+  enum class RequestStatus {
+    Idle,
+    Pending,
+    Waiting
+  };
 
-  MediaPromiseConsumerHolder<MediaDecoderReader::AudioDataPromise> mAudioDataRequest;
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise> mAudioWaitRequest;
-  const char* AudioRequestStatus()
-  {
-    if (mAudioDataRequest.Exists()) {
-      MOZ_DIAGNOSTIC_ASSERT(!mAudioWaitRequest.Exists());
-      return "pending";
-    } else if (mAudioWaitRequest.Exists()) {
-      return "waiting";
-    }
-    return "idle";
-  }
+  // True when we have dispatched a task to the decode task queue to request
+  // decoded audio/video, and/or we are waiting for the requested sample to be
+  // returned by callback from the Reader.
+  RequestStatus mAudioRequestStatus;
+  RequestStatus mVideoRequestStatus;
 
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise> mVideoWaitRequest;
-  MediaPromiseConsumerHolder<MediaDecoderReader::VideoDataPromise> mVideoDataRequest;
-  const char* VideoRequestStatus()
+  RequestStatus& RequestStatusRef(MediaData::Type aType)
   {
-    if (mVideoDataRequest.Exists()) {
-      MOZ_DIAGNOSTIC_ASSERT(!mVideoWaitRequest.Exists());
-      return "pending";
-    } else if (mVideoWaitRequest.Exists()) {
-      return "waiting";
-    }
-    return "idle";
-  }
-
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise>& WaitRequestRef(MediaData::Type aType)
-  {
-    return aType == MediaData::AUDIO_DATA ? mAudioWaitRequest : mVideoWaitRequest;
+    return aType == MediaData::AUDIO_DATA ? mAudioRequestStatus : mVideoRequestStatus;
   }
 
   // True if we shouldn't play our audio (but still write it to any capturing

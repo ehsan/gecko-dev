@@ -34,10 +34,7 @@ var security = {
 
     var isBroken =
       (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_BROKEN);
-    var isMixed =
-      (ui.state & (Components.interfaces.nsIWebProgressListener.STATE_LOADED_MIXED_ACTIVE_CONTENT |
-                   Components.interfaces.nsIWebProgressListener.STATE_LOADED_MIXED_DISPLAY_CONTENT));
-    var isInsecure =
+    var isInsecure = 
       (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_INSECURE);
     var isEV =
       (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL);
@@ -57,7 +54,6 @@ var security = {
         encryptionStrength : undefined,
         version: undefined,
         isBroken : isBroken,
-        isMixed : isMixed,
         isEV : isEV,
         cert : cert,
         fullLocation : gWindow.location
@@ -96,7 +92,6 @@ var security = {
         encryptionStrength : 0,
         version: "",
         isBroken : isBroken,
-        isMixed : isMixed,
         isEV : isEV,
         cert : null,
         fullLocation : gWindow.location
@@ -258,14 +253,7 @@ function securityOnLoad() {
   var msg2;
 
   if (info.isBroken) {
-    if (info.isMixed) {
-      hdr = pkiBundle.getString("pageInfo_MixedContent");
-    } else {
-      hdr = pkiBundle.getFormattedString("pageInfo_BrokenEncryption",
-                                         [info.encryptionAlgorithm,
-                                          info.encryptionStrength + "",
-                                          info.version]);
-    }
+    hdr = pkiBundle.getString("pageInfo_MixedContent");
     msg1 = pkiBundle.getString("pageInfo_Privacy_Broken1");
     msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
   }

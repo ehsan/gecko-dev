@@ -137,8 +137,7 @@ public:
   /**
    * General handler for incoming input events. Manipulates the frame metrics
    * based on what type of input it is. For example, a PinchGestureEvent will
-   * cause scaling. This should only be called externally to this class, and
-   * must be called on the controller thread.
+   * cause scaling. This should only be called externally to this class.
    *
    * This function transforms |aEvent| to have its coordinates in DOM space.
    * This is so that the event can be passed through the DOM and content can
@@ -183,9 +182,7 @@ public:
    *
    * NOTE: Be careful of invoking the WidgetInputEvent variant. This can only be
    * called on the main thread. See widget/InputData.h for more information on
-   * why we have InputData and WidgetInputEvent separated. If this function is
-   * used, the controller thread must be the main thread, or undefined behaviour
-   * may occur.
+   * why we have InputData and WidgetInputEvent separated.
    * NOTE: On unix, mouse events are treated as touch and are forwarded
    * to the appropriate apz as such.
    *
@@ -216,8 +213,7 @@ public:
    * If we have touch listeners, this should always be called when we know
    * definitively whether or not content has preventDefaulted any touch events
    * that have come in. If |aPreventDefault| is true, any touch events in the
-   * queue will be discarded. This function must be called on the controller
-   * thread.
+   * queue will be discarded.
    */
   void ContentReceivedInputBlock(uint64_t aInputBlockId, bool aPreventDefault);
 
@@ -304,7 +300,6 @@ public:
    * corresponds to the different touch point that is currently active.
    * Must be called after receiving the TOUCH_START event that starts the
    * touch-session.
-   * This must be called on the controller thread.
    */
   void SetAllowedTouchBehavior(uint64_t aInputBlockId,
                                const nsTArray<TouchBehaviorFlags>& aValues);

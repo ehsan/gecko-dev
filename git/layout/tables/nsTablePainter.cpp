@@ -95,8 +95,6 @@
    XXX views are going 
  */
 
-using namespace mozilla::image;
-
 TableBackgroundPainter::TableBackgroundData::TableBackgroundData()
   : mFrame(nullptr)
   , mVisible(false)
@@ -187,16 +185,7 @@ TableBackgroundPainter::~TableBackgroundPainter()
   MOZ_COUNT_DTOR(TableBackgroundPainter);
 }
 
-static void
-UpdateDrawResult(DrawResult* aCurrentResult, DrawResult aNewResult)
-{
-  MOZ_ASSERT(aCurrentResult);
-  if (*aCurrentResult == DrawResult::SUCCESS) {
-    *aCurrentResult = aNewResult;
-  }
-}
-
-DrawResult
+void
 TableBackgroundPainter::PaintTableFrame(nsTableFrame*         aTableFrame,
                                         nsTableRowGroupFrame* aFirstRowGroup,
                                         nsTableRowGroupFrame* aLastRowGroup,
@@ -231,20 +220,14 @@ TableBackgroundPainter::PaintTableFrame(nsTableFrame*         aTableFrame,
       tableData.SetBCBorder(border);
     }
   }
-
-  DrawResult result = DrawResult::SUCCESS;
-
   if (tableData.IsVisible()) {
-    result =
-      nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
-                                            tableData.mFrame, mDirtyRect,
-                                            tableData.mRect + mRenderPt,
-                                            tableData.mFrame->StyleContext(),
-                                            tableData.StyleBorder(mZeroBorder),
-                                            mBGPaintFlags);
+    nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
+                                          tableData.mFrame, mDirtyRect,
+                                          tableData.mRect + mRenderPt,
+                                          tableData.mFrame->StyleContext(),
+                                          tableData.StyleBorder(mZeroBorder),
+                                          mBGPaintFlags);
   }
-
-  return result;
 }
 
 void
@@ -266,7 +249,7 @@ TableBackgroundPainter::ColData::ColData(nsIFrame* aFrame, TableBackgroundData& 
 {
 }
 
-DrawResult
+void
 TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
                                    const nsMargin& aDeflate,
                                    bool            aPaintTableBackground)
@@ -276,14 +259,12 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
   nsTableFrame::RowGroupArray rowGroups;
   aTableFrame->OrderRowGroups(rowGroups);
 
-  DrawResult result = DrawResult::SUCCESS;
-
   if (rowGroups.Length() < 1) { //degenerate case
     if (aPaintTableBackground) {
       PaintTableFrame(aTableFrame, nullptr, nullptr, nsMargin(0,0,0,0));
     }
     /* No cells; nothing else to paint */
-    return result;
+    return;
   }
 
   if (aPaintTableBackground) {
@@ -362,22 +343,18 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
     nsRect rgNormalRect = rgVisualOverflow + rg->GetNormalPosition();
 
     if (rgOverflowRect.Union(rgNormalRect).Intersects(mDirtyRect - mRenderPt)) {
-      DrawResult rowGroupResult =
-        PaintRowGroup(rg, rowGroupBGData, rg->IsPseudoStackingContextFromStyle());
-      UpdateDrawResult(&result, rowGroupResult);
+      PaintRowGroup(rg, rowGroupBGData, rg->IsPseudoStackingContextFromStyle());
     }
   }
-
-  return result;
 }
 
-DrawResult
+void
 TableBackgroundPainter::PaintRowGroup(nsTableRowGroupFrame* aFrame)
 {
-  return PaintRowGroup(aFrame, TableBackgroundData(aFrame), false);
+  PaintRowGroup(aFrame, TableBackgroundData(aFrame), false);
 }
 
-DrawResult
+void
 TableBackgroundPainter::PaintRowGroup(nsTableRowGroupFrame* aFrame,
                                       TableBackgroundData   aRowGroupBGData,
                                       bool                  aPassThrough)
@@ -435,8 +412,6 @@ TableBackgroundPainter::PaintRowGroup(nsTableRowGroupFrame* aFrame,
     row = firstRow;
   }
   
-  DrawResult result = DrawResult::SUCCESS;
-  
   /* Finally paint */
   for (; row; row = row->GetNextRow()) {
     TableBackgroundData rowBackgroundData(row);
@@ -452,28 +427,23 @@ TableBackgroundPainter::PaintRowGroup(nsTableRowGroupFrame* aFrame,
       break;
     }
     
-    DrawResult rowResult =
-      PaintRow(row, aRowGroupBGData, rowBackgroundData,
-               aPassThrough || row->IsPseudoStackingContextFromStyle());
-
-    UpdateDrawResult(&result, rowResult);
+    PaintRow(row, aRowGroupBGData, rowBackgroundData,
+             aPassThrough || row->IsPseudoStackingContextFromStyle());
   }
 
   /* translate back into table coord system */
   if (eOrigin_TableRowGroup != mOrigin) {
     TranslateContext(-rgRect.x, -rgRect.y);
   }
-
-  return result;
 }
 
-DrawResult
+void
 TableBackgroundPainter::PaintRow(nsTableRowFrame* aFrame)
 {
   return PaintRow(aFrame, TableBackgroundData(), TableBackgroundData(aFrame), false);
 }
 
-DrawResult
+void
 TableBackgroundPainter::PaintRow(nsTableRowFrame* aFrame,
                                  const TableBackgroundData& aRowGroupBGData,
                                  TableBackgroundData aRowBGData,
@@ -510,8 +480,6 @@ TableBackgroundPainter::PaintRow(nsTableRowFrame* aFrame,
   }
   //else: Use row group's coord system -> no translation necessary
 
-  DrawResult result = DrawResult::SUCCESS;
-  
   for (nsTableCellFrame* cell = aFrame->GetFirstCell(); cell; cell = cell->GetNextCell()) {
     nsRect cellBGRect, rowBGRect, rowGroupBGRect, colBGRect;
     ComputeCellBackgrounds(cell, aRowGroupBGData, aRowBGData,
@@ -526,18 +494,13 @@ TableBackgroundPainter::PaintRow(nsTableRowFrame* aFrame,
 
     if (combinedRect.Intersects(mDirtyRect)) {
       bool passCell = aPassThrough || cell->IsPseudoStackingContextFromStyle();
-      DrawResult cellResult =
-        PaintCell(cell, aRowGroupBGData, aRowBGData,
-                  cellBGRect, rowBGRect, rowGroupBGRect, colBGRect, passCell);
-
-      UpdateDrawResult(&result, cellResult);
+      PaintCell(cell, aRowGroupBGData, aRowBGData,
+                cellBGRect, rowBGRect, rowGroupBGRect, colBGRect, passCell);
     }
   }
-
-  return result;
 }
 
-DrawResult
+void
 TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
                                   const TableBackgroundData& aRowGroupBGData,
                                   const TableBackgroundData& aRowBGData,
@@ -553,7 +516,7 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
   cellTableStyle = aCell->StyleTableBorder();
   if (NS_STYLE_TABLE_EMPTY_CELLS_SHOW != cellTableStyle->mEmptyCells &&
       aCell->GetContentEmpty() && !mIsBorderCollapse) {
-    return DrawResult::SUCCESS;
+    return;
   }
 
   int32_t colIndex;
@@ -561,73 +524,58 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
   // We're checking mNumCols instead of mCols.Length() here because mCols can
   // be empty even if mNumCols > 0.
   NS_ASSERTION(size_t(colIndex) < mNumCols, "out-of-bounds column index");
-  if (size_t(colIndex) >= mNumCols) {
-    return DrawResult::SUCCESS;
-  }
+  if (size_t(colIndex) >= mNumCols)
+    return;
 
   // If callers call PaintRowGroup or PaintRow directly, we haven't processed
   // our columns. Ignore column / col group backgrounds in that case.
   bool haveColumns = !mCols.IsEmpty();
 
-  DrawResult result = DrawResult::SUCCESS;
-
   //Paint column group background
   if (haveColumns && mCols[colIndex].mColGroup.IsVisible()) {
-    DrawResult colGroupResult =
-      nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
-                                            mCols[colIndex].mColGroup.mFrame, mDirtyRect,
-                                            mCols[colIndex].mColGroup.mRect + mRenderPt,
-                                            mCols[colIndex].mColGroup.mFrame->StyleContext(),
-                                            mCols[colIndex].mColGroup.StyleBorder(mZeroBorder),
-                                            mBGPaintFlags, &aColBGRect);
-    UpdateDrawResult(&result, colGroupResult);
+    nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
+                                          mCols[colIndex].mColGroup.mFrame, mDirtyRect,
+                                          mCols[colIndex].mColGroup.mRect + mRenderPt,
+                                          mCols[colIndex].mColGroup.mFrame->StyleContext(),
+                                          mCols[colIndex].mColGroup.StyleBorder(mZeroBorder),
+                                          mBGPaintFlags, &aColBGRect);
   }
 
   //Paint column background
   if (haveColumns && mCols[colIndex].mCol.IsVisible()) {
-    DrawResult colResult =
-      nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
-                                            mCols[colIndex].mCol.mFrame, mDirtyRect,
-                                            mCols[colIndex].mCol.mRect + mRenderPt,
-                                            mCols[colIndex].mCol.mFrame->StyleContext(),
-                                            mCols[colIndex].mCol.StyleBorder(mZeroBorder),
-                                            mBGPaintFlags, &aColBGRect);
-    UpdateDrawResult(&result, colResult);
+    nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
+                                          mCols[colIndex].mCol.mFrame, mDirtyRect,
+                                          mCols[colIndex].mCol.mRect + mRenderPt,
+                                          mCols[colIndex].mCol.mFrame->StyleContext(),
+                                          mCols[colIndex].mCol.StyleBorder(mZeroBorder),
+                                          mBGPaintFlags, &aColBGRect);
   }
 
   //Paint row group background
   if (aRowGroupBGData.IsVisible()) {
-    DrawResult rowGroupResult =
-      nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
-                                            aRowGroupBGData.mFrame, mDirtyRect,
-                                            aRowGroupBGData.mRect + mRenderPt,
-                                            aRowGroupBGData.mFrame->StyleContext(),
-                                            aRowGroupBGData.StyleBorder(mZeroBorder),
-                                            mBGPaintFlags, &aRowGroupBGRect);
-    UpdateDrawResult(&result, rowGroupResult);
+    nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
+                                          aRowGroupBGData.mFrame, mDirtyRect,
+                                          aRowGroupBGData.mRect + mRenderPt,
+                                          aRowGroupBGData.mFrame->StyleContext(),
+                                          aRowGroupBGData.StyleBorder(mZeroBorder),
+                                          mBGPaintFlags, &aRowGroupBGRect);
   }
 
   //Paint row background
   if (aRowBGData.IsVisible()) {
-    DrawResult rowResult =
-      nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
-                                            aRowBGData.mFrame, mDirtyRect,
-                                            aRowBGData.mRect + mRenderPt,
-                                            aRowBGData.mFrame->StyleContext(),
-                                            aRowBGData.StyleBorder(mZeroBorder),
-                                            mBGPaintFlags, &aRowBGRect);
-    UpdateDrawResult(&result, rowResult);
+    nsCSSRendering::PaintBackgroundWithSC(mPresContext, mRenderingContext,
+                                          aRowBGData.mFrame, mDirtyRect,
+                                          aRowBGData.mRect + mRenderPt,
+                                          aRowBGData.mFrame->StyleContext(),
+                                          aRowBGData.StyleBorder(mZeroBorder),
+                                          mBGPaintFlags, &aRowBGRect);
   }
 
   //Paint cell background in border-collapse unless we're just passing
   if (mIsBorderCollapse && !aPassSelf) {
-    DrawResult cellResult =
-      aCell->PaintCellBackground(mRenderingContext, mDirtyRect,
-                                 aCellBGRect.TopLeft(), mBGPaintFlags);
-    UpdateDrawResult(&result, cellResult);
+    aCell->PaintCellBackground(mRenderingContext, mDirtyRect,
+                               aCellBGRect.TopLeft(), mBGPaintFlags);
   }
-
-  return result;
 }
 
 void

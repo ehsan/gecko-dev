@@ -1524,7 +1524,7 @@ nsGlobalWindow::CleanUp()
   }
 
   if (mCleanMessageManager) {
-    MOZ_ASSERT(mIsChrome, "only chrome should have msg manager cleaned");
+    NS_ABORT_IF_FALSE(mIsChrome, "only chrome should have msg manager cleaned");
     nsGlobalChromeWindow *asChrome = static_cast<nsGlobalChromeWindow*>(this);
     if (asChrome->mMessageManager) {
       static_cast<nsFrameMessageManager*>(
@@ -4489,19 +4489,13 @@ nsGlobalWindow::GetOpenerWindow(ErrorResult& aError)
     return nullptr;
   }
 
-  nsGlobalWindow* win = static_cast<nsGlobalWindow*>(opener.get());
-
   // First, check if we were called from a privileged chrome script
   if (nsContentUtils::IsCallerChrome()) {
-    // Catch the case where we're chrome but the opener is not...
-    if (GetPrincipal() == nsContentUtils::GetSystemPrincipal() &&
-        win->GetPrincipal() != nsContentUtils::GetSystemPrincipal()) {
-      return nullptr;
-    }
     return opener;
   }
 
-  // First, ensure that we're not handing back a chrome window to content:
+  // First, ensure that we're not handing back a chrome window.
+  nsGlobalWindow *win = static_cast<nsGlobalWindow *>(opener.get());
   if (win->IsChromeWindow()) {
     return nullptr;
   }
@@ -8119,10 +8113,10 @@ PopulateMessagePortList(MessagePortBase* aKey, MessagePortBase* aValue, void* aC
 NS_IMETHODIMP
 PostMessageEvent::Run()
 {
-  MOZ_ASSERT(mTargetWindow->IsOuterWindow(),
-             "should have been passed an outer window!");
-  MOZ_ASSERT(!mSource || mSource->IsOuterWindow(),
-             "should have been passed an outer window!");
+  NS_ABORT_IF_FALSE(mTargetWindow->IsOuterWindow(),
+                    "should have been passed an outer window!");
+  NS_ABORT_IF_FALSE(!mSource || mSource->IsOuterWindow(),
+                    "should have been passed an outer window!");
 
   AutoJSAPI jsapi;
   jsapi.Init();
@@ -8137,8 +8131,8 @@ PostMessageEvent::Run()
       targetWindow->IsClosedOrClosing())
     return NS_OK;
 
-  MOZ_ASSERT(targetWindow->IsInnerWindow(),
-             "we ordered an inner window!");
+  NS_ABORT_IF_FALSE(targetWindow->IsInnerWindow(),
+                    "we ordered an inner window!");
   JSAutoCompartment ac(cx, targetWindow->GetWrapperPreserveColor());
 
   // Ensure that any origin which might have been provided is the origin of this
@@ -8235,8 +8229,8 @@ nsGlobalWindow::PostMessageMoz(JSContext* aCx, JS::Handle<JS::Value> aMessage,
   nsRefPtr<nsGlobalWindow> callerInnerWin = CallerInnerWindow();
   nsIPrincipal* callerPrin;
   if (callerInnerWin) {
-    MOZ_ASSERT(callerInnerWin->IsInnerWindow(),
-               "should have gotten an inner window here");
+    NS_ABORT_IF_FALSE(callerInnerWin->IsInnerWindow(),
+                      "should have gotten an inner window here");
 
     // Compute the caller's origin either from its principal or, in the case the
     // principal doesn't carry a URI (e.g. the system principal), the caller's

@@ -3974,7 +3974,7 @@ MGuardShapePolymorphic::congruentTo(const MDefinition *ins) const
 }
 
 void
-InlinePropertyTable::trimTo(const ObjectVector &targets, const BoolVector &choiceSet)
+InlinePropertyTable::trimTo(ObjectVector &targets, BoolVector &choiceSet)
 {
     for (size_t i = 0; i < targets.length(); i++) {
         // If the target was inlined, don't erase the entry.
@@ -3995,7 +3995,7 @@ InlinePropertyTable::trimTo(const ObjectVector &targets, const BoolVector &choic
 }
 
 void
-InlinePropertyTable::trimToTargets(const ObjectVector &targets)
+InlinePropertyTable::trimToTargets(ObjectVector &targets)
 {
     JitSpew(JitSpew_Inlining, "Got inlineable property cache with %d cases",
             (int)numEntries());

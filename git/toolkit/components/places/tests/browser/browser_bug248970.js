@@ -38,7 +38,7 @@ add_task(function () {
   yield bookmarksDeferred.promise;
 
   // Create a handful of history items with various visit types
-  yield PlacesTestUtils.addVisits([
+  yield promiseAddVisits([
     { uri: visitedURIs[0], transition: TRANSITION_LINK },
     { uri: visitedURIs[1], transition: TRANSITION_TYPED },
     { uri: visitedURIs[2], transition: TRANSITION_BOOKMARK },

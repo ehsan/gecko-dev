@@ -46,7 +46,6 @@
 #include "mozilla/unused.h"
 #include "mozilla/VsyncDispatcher.h"
 #include "mozilla/layers/APZCTreeManager.h"
-#include "mozilla/layers/APZThreadUtils.h"
 #include "mozilla/layers/ChromeProcessController.h"
 #include "mozilla/layers/InputAPZContext.h"
 #include "mozilla/dom/TabParent.h"
@@ -320,7 +319,7 @@ nsBaseWidget::CreateChild(const nsIntRect  &aRect,
     // nativeWidget parameter.
     nativeParent = parent ? parent->GetNativeData(NS_NATIVE_WIDGET) : nullptr;
     parent = nativeParent ? nullptr : parent;
-    MOZ_ASSERT(!parent || !nativeParent, "messed up logic");
+    NS_ABORT_IF_FALSE(!parent || !nativeParent, "messed up logic");
   }
 
   nsCOMPtr<nsIWidget> widget;
@@ -934,7 +933,6 @@ nsBaseWidget::DispatchEventForAPZ(WidgetGUIEvent* aEvent,
                                   const ScrollableLayerGuid& aGuid,
                                   uint64_t aInputBlockId)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   InputAPZContext context(aGuid, aInputBlockId);
 
   nsEventStatus status;
@@ -944,15 +942,8 @@ nsBaseWidget::DispatchEventForAPZ(WidgetGUIEvent* aEvent,
     // APZ did not find a dispatch-to-content region in the child process,
     // and EventStateManager did not route the event into the child process.
     // It's safe to communicate to APZ that the event has been processed.
-
-    // need a local var to disambiguate between the SetTargetAPZC overloads.
-    void (APZCTreeManager::*setTargetApzcFunc)(uint64_t, const ScrollableLayerGuid&)
-        = &APZCTreeManager::SetTargetAPZC;
-    APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-        mAPZC.get(), setTargetApzcFunc, aInputBlockId, aGuid));
-    APZThreadUtils::RunOnControllerThread(NewRunnableMethod(
-        mAPZC.get(), &APZCTreeManager::ContentReceivedInputBlock, aInputBlockId,
-        aEvent->mFlags.mDefaultPrevented));
+    mAPZC->SetTargetAPZC(aInputBlockId, aGuid);
+    mAPZC->ContentReceivedInputBlock(aInputBlockId, aEvent->mFlags.mDefaultPrevented);
   }
 
   return status;

@@ -460,8 +460,7 @@ let Impl = {
   getHistograms: function getHistograms(hls) {
     this._log.trace("getHistograms");
 
-    let registered =
-      Telemetry.registeredHistograms(Ci.nsITelemetry.DATASET_RELEASE_CHANNEL_OPTIN, []);
+    let registered = Telemetry.registeredHistograms(Ci.nsITelemetry.DATASET_EXTENDED, []);
     let ret = {};
 
     for (let name of registered) {
@@ -497,8 +496,7 @@ let Impl = {
   getKeyedHistograms: function() {
     this._log.trace("getKeyedHistograms");
 
-    let registered =
-      Telemetry.registeredKeyedHistograms(Ci.nsITelemetry.DATASET_RELEASE_CHANNEL_OPTIN, []);
+    let registered = Telemetry.registeredKeyedHistograms(Ci.nsITelemetry.DATASET_EXTENDED, []);
     let ret = {};
 
     for (let id of registered) {
@@ -773,8 +771,7 @@ let Impl = {
   gatherStartupHistograms: function gatherStartupHistograms() {
     this._log.trace("gatherStartupHistograms");
 
-    let info =
-      Telemetry.registeredHistograms(Ci.nsITelemetry.DATASET_RELEASE_CHANNEL_OPTIN, []);
+    let info = Telemetry.registeredHistograms(Ci.nsITelemetry.DATASET_EXTENDED, []);
     let snapshots = Telemetry.histogramSnapshots;
     for (let name of info) {
       // Only duplicate histograms with actual data.

@@ -159,14 +159,12 @@ gbjar.sources += [
     'db/FormHistoryProvider.java',
     'db/HomeProvider.java',
     'db/LocalBrowserDB.java',
-    'db/LocalReadingListAccessor.java',
     'db/LocalSearches.java',
     'db/LocalTabsAccessor.java',
     'db/LocalURLMetadata.java',
     'db/PasswordsProvider.java',
     'db/PerProfileDatabaseProvider.java',
     'db/PerProfileDatabases.java',
-    'db/ReadingListAccessor.java',
     'db/ReadingListProvider.java',
     'db/RemoteClient.java',
     'db/RemoteTab.java',
@@ -567,10 +565,6 @@ if CONFIG['MOZ_ANDROID_NEW_TABLET_UI'] and max_sdk_version >= 11:
         'tabs/TabStripItemView.java',
         'tabs/TabStripView.java'
     ]
-
-# Selectively include reading list service code.
-if CONFIG['MOZ_ANDROID_READING_LIST_SERVICE']:
-    gbjar.sources += reading_list_service_java_files
 
 gbjar.sources += sync_java_files
 gbjar.extra_jars += [

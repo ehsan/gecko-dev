@@ -27,6 +27,8 @@
 class nsIWidget;
 
 namespace mozilla {
+class WidgetMouseEvent;
+
 namespace layers {
 class CompositorVsyncObserver;
 }
@@ -48,7 +50,7 @@ class GeckoTouchDispatcher
 public:
   GeckoTouchDispatcher();
   void NotifyTouch(MultiTouchInput& aTouch, TimeStamp aEventTime);
-  void DispatchTouchEvent(MultiTouchInput aMultiTouch);
+  void DispatchTouchEvent(MultiTouchInput& aMultiTouch);
   void DispatchTouchMoveEvents(TimeStamp aVsyncTime);
   static bool NotifyVsync(TimeStamp aVsyncTimestamp);
   static void SetCompositorVsyncObserver(layers::CompositorVsyncObserver* aObserver);

@@ -30,8 +30,7 @@ describe("loop.store.ActiveRoomStore", function () {
         leave: sinon.stub(),
         on: sinon.stub(),
         off: sinon.stub()
-      },
-      setScreenShareState: sinon.stub()
+      }
     };
 
     fakeSdkDriver = {
@@ -649,34 +648,12 @@ describe("loop.store.ActiveRoomStore", function () {
   });
 
   describe("#screenSharingState", function() {
-    beforeEach(function() {
-      store.setStoreState({windowId: "1234"});
-    });
-
     it("should save the state", function() {
       store.screenSharingState(new sharedActions.ScreenSharingState({
         state: SCREEN_SHARE_STATES.ACTIVE
       }));
 
       expect(store.getStoreState().screenSharingState).eql(SCREEN_SHARE_STATES.ACTIVE);
-    });
-
-    it("should set screen sharing active when the state is active", function() {
-      store.screenSharingState(new sharedActions.ScreenSharingState({
-        state: SCREEN_SHARE_STATES.ACTIVE
-      }));
-
-      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
-      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", true);
-    });
-
-    it("should set screen sharing inactive when the state is inactive", function() {
-      store.screenSharingState(new sharedActions.ScreenSharingState({
-        state: SCREEN_SHARE_STATES.INACTIVE
-      }));
-
-      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
-      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", false);
     });
   });
 
@@ -719,18 +696,8 @@ describe("loop.store.ActiveRoomStore", function () {
       store.setStoreState({
         roomState: ROOM_STATES.JOINED,
         roomToken: "fakeToken",
-        sessionToken: "1627384950",
-        windowId: "1234"
+        sessionToken: "1627384950"
       });
-    });
-
-    it("should set screen sharing inactive", function() {
-      store.screenSharingState(new sharedActions.ScreenSharingState({
-        state: SCREEN_SHARE_STATES.INACTIVE
-      }));
-
-      sinon.assert.calledOnce(fakeMozLoop.setScreenShareState);
-      sinon.assert.calledWithExactly(fakeMozLoop.setScreenShareState, "1234", false);
     });
 
     it("should reset the multiplexGum", function() {

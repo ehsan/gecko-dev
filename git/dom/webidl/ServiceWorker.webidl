@@ -18,10 +18,6 @@ interface ServiceWorker : EventTarget {
   readonly attribute ServiceWorkerState state;
 
   attribute EventHandler onstatechange;
-
-  // FIXME(catalinb): Should inherit this from Worker.
-  [Throws]
-  void postMessage(any message, optional sequence<Transferable> transferable);
 };
 
 ServiceWorker implements AbstractWorker;

@@ -541,27 +541,19 @@ SetReservedOrProxyPrivateSlot(JSObject *obj, size_t slot, const Value &value)
 class MOZ_STACK_CLASS ProxyOptions {
   protected:
     /* protected constructor for subclass */
-    explicit ProxyOptions(bool singletonArg, bool lazyProtoArg = false)
+    explicit ProxyOptions(bool singletonArg)
       : singleton_(singletonArg),
-        lazyProto_(lazyProtoArg),
         clasp_(ProxyClassPtr)
     {}
 
   public:
     ProxyOptions() : singleton_(false),
-                     lazyProto_(false),
                      clasp_(ProxyClassPtr)
     {}
 
     bool singleton() const { return singleton_; }
     ProxyOptions &setSingleton(bool flag) {
         singleton_ = flag;
-        return *this;
-    }
-
-    bool lazyProto() const { return lazyProto_; }
-    ProxyOptions &setLazyProto(bool flag) {
-        lazyProto_ = flag;
         return *this;
     }
 
@@ -575,7 +567,6 @@ class MOZ_STACK_CLASS ProxyOptions {
 
   private:
     bool singleton_;
-    bool lazyProto_;
     const Class *clasp_;
 };
 

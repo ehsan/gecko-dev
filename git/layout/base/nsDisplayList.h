@@ -432,13 +432,9 @@ public:
 
   /**
    * Return true if we're currently building a display list for the root
-   * presshell which is the presshell of a chrome document, or if we're
-   * building the display list for a popup and have not entered a subdocument
-   * inside that popup.
+   * presshell which is the presshell of a chrome document.
    */
-  bool IsInRootChromeDocumentOrPopup() {
-    return (mIsInChromePresContext || mIsBuildingForPopup) && !IsInSubdocument();
-  }
+  bool IsInRootChromeDocument() { return mIsInRootChromeDocument; }
 
   /**
    * @return true if images have been set to decode synchronously.
@@ -915,7 +911,7 @@ private:
   // True when we're building a display list that's directly or indirectly
   // under an nsDisplayTransform
   bool                           mInTransform;
-  bool                           mIsInChromePresContext;
+  bool                           mIsInRootChromeDocument;
   bool                           mSyncDecodeImages;
   bool                           mIsPaintingToWindow;
   bool                           mIsCompositingCheap;
@@ -927,7 +923,6 @@ private:
   // which WantsAsyncScroll().
   bool                           mHaveScrollableDisplayPort;
   bool                           mWindowDraggingAllowed;
-  bool                           mIsBuildingForPopup;
 };
 
 class nsDisplayItem;
@@ -1165,6 +1160,16 @@ public:
       }
     }
   }
+
+  /**
+   * For display items types that just draw a background we use this function
+   * to do any invalidation that might be needed if we are asked to sync decode
+   * images.
+   */
+  void AddInvalidRegionForSyncDecodeBackgroundImages(
+    nsDisplayListBuilder* aBuilder,
+    const nsDisplayItemGeometry* aGeometry,
+    nsRegion* aInvalidRegion);
 
   /**
    * Called when the area rendered by this display item has changed (been

@@ -9,7 +9,7 @@
 #define __mozilla_widget_GfxInfoBase_h__
 
 #include "nsIGfxInfo.h"
-#if defined(XP_MACOSX) || defined(XP_WIN)
+#ifdef XP_MACOSX
 #include "nsIGfxInfo2.h"
 #endif
 #include "nsCOMPtr.h"
@@ -28,7 +28,7 @@ namespace mozilla {
 namespace widget {  
 
 class GfxInfoBase : public nsIGfxInfo,
-#if defined(XP_MACOSX) || defined(XP_WIN)
+#ifdef XP_MACOSX
                     public nsIGfxInfo2,
 #endif
                     public nsIObserver,

@@ -107,10 +107,8 @@ add_task(function test_execute() {
 
   print("Add visits.");
   for (let aUrl of URIS) {
-    yield PlacesTestUtils.addVisits({
-      uri: uri(aUrl), visitDate: timeInMicroseconds++,
-      transition: PlacesUtils.history.TRANSITION_TYPED
-    });
+    yield promiseAddVisits({uri: uri(aUrl), visitDate: timeInMicroseconds++,
+                            transition: PlacesUtils.history.TRANSITION_TYPED})
   }
   print("Add cache.");
   storeCache(FTP_URL, "testData");
