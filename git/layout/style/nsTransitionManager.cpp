@@ -943,7 +943,7 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
           CommonElementAnimationData::CanAnimateFlags(0)) &&
         et->CanThrottleAnimation(now);
 
-      NS_ABORT_IF_FALSE(et->mElement->GetCrossShadowCurrentDoc() ==
+      NS_ABORT_IF_FALSE(et->mElement->GetCurrentDoc() ==
                           mPresContext->Document(),
                         "Element::UnbindFromTree should have "
                         "destroyed the element transitions object");

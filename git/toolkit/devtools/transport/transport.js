@@ -260,7 +260,8 @@ DebuggerTransport.prototype = {
 
     try {
       this._currentOutgoing.write(stream);
-    } catch(e if e.result != Cr.NS_BASE_STREAM_WOULD_BLOCK) {
+    } catch(e if e.result == Cr.NS_BASE_STREAM_CLOSED ||
+                 e.result == Cr.NS_ERROR_NET_RESET) {
       this.close(e.result);
       return;
     }
@@ -337,7 +338,9 @@ DebuggerTransport.prototype = {
       while(stream.available() && this._incomingEnabled &&
             this._processIncoming(stream, stream.available())) {}
       this._waitForIncoming();
-    } catch(e if e.result != Cr.NS_BASE_STREAM_WOULD_BLOCK) {
+    } catch(e if e.result == Cr.NS_BASE_STREAM_CLOSED ||
+                 e.result == Cr.NS_ERROR_CONNECTION_REFUSED ||
+                 e.result == Cr.NS_ERROR_OFFLINE) {
       this.close(e.result);
     }
   }, "DebuggerTransport.prototype.onInputStreamReady"),

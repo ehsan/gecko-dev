@@ -54,22 +54,18 @@ let FramerateActor = exports.FramerateActor = protocol.ActorClass({
   /**
    * Stops monitoring framerate, returning the recorded values.
    */
-  stopRecording: method(function(beginAt = 0, endAt = Number.MAX_SAFE_INTEGER) {
+  stopRecording: method(function() {
     if (!this._recording) {
       return [];
     }
     this._recording = false;
 
     // We don't need to store the ticks array for future use, release it.
-    let ticks = this._ticks.filter(e => e >= beginAt && e <= endAt);
+    let ticks = this._ticks;
     this._ticks = null;
     return ticks;
   }, {
-    request: {
-      beginAt: Arg(0, "nullable:number"),
-      endAt: Arg(1, "nullable:number")
-    },
-    response: { ticks: RetVal("array:number") }
+    response: { timeline: RetVal("array:number") }
   }),
 
   /**

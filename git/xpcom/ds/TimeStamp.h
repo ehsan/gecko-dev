@@ -129,10 +129,6 @@ public:
   double operator/(const TimeDuration& aOther) const {
     return static_cast<double>(mValue) / aOther.mValue;
   }
-  TimeDuration operator%(const TimeDuration& aOther) const {
-    MOZ_ASSERT(aOther.mValue != 0, "Division by zero");
-    return TimeDuration::FromTicks(mValue % aOther.mValue);
-  }
 
   bool operator<(const TimeDuration& aOther) const {
     return mValue < aOther.mValue;
@@ -148,9 +144,6 @@ public:
   }
   bool operator==(const TimeDuration& aOther) const {
     return mValue == aOther.mValue;
-  }
-  bool operator!=(const TimeDuration& aOther) const {
-    return mValue != aOther.mValue;
   }
 
   // Return a best guess at the system's current timing resolution,

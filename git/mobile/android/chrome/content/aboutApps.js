@@ -12,7 +12,9 @@ Cu.import("resource://gre/modules/Services.jsm")
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 
+#ifdef MOZ_ANDROID_SYNTHAPKS
 XPCOMUtils.defineLazyModuleGetter(this, "WebappManager", "resource://gre/modules/WebappManager.jsm");
+#endif
 
 const DEFAULT_ICON = "chrome://browser/skin/images/default-app-icon.png";
 
@@ -43,9 +45,51 @@ function openLink(aEvent) {
   } catch (ex) {}
 }
 
+#ifdef MOZ_ANDROID_SYNTHAPKS
 function checkForUpdates(aEvent) {
   WebappManager.checkForUpdates(true);
 }
+#endif
+
+#ifndef MOZ_ANDROID_SYNTHAPKS
+var ContextMenus = {
+  target: null,
+
+  init: function() {
+    document.addEventListener("contextmenu", this, false);
+    document.getElementById("addToHomescreenLabel").addEventListener("click", this.addToHomescreen, false);
+    document.getElementById("uninstallLabel").addEventListener("click", this.uninstall, false);
+  },
+
+  handleEvent: function(event) {
+    // store the target of context menu events so that we know which app to act on
+    this.target = event.target;
+    while (!this.target.hasAttribute("contextmenu")) {
+      this.target = this.target.parentNode;
+    }
+  },
+
+  addToHomescreen: function() {
+    let manifest = this.target.manifest;
+    gChromeWin.WebappsUI.createShortcut(manifest.name, manifest.fullLaunchPath(), manifest.biggestIconURL || DEFAULT_ICON, "webapp");
+    this.target = null;
+  },
+
+  uninstall: function() {
+    navigator.mozApps.mgmt.uninstall(this.target.app);
+
+    let manifest = this.target.manifest;
+    gChromeWin.sendMessageToJava({
+      type: "Shortcut:Remove",
+      title: manifest.name,
+      url: manifest.fullLaunchPath(),
+      origin: this.target.app.origin,
+      shortcutType: "webapp"
+    });
+    this.target = null;
+  }
+}
+#endif
 
 function onLoad(aEvent) {
   let elmts = document.querySelectorAll("[pref]");
@@ -53,14 +97,17 @@ function onLoad(aEvent) {
     elmts[i].addEventListener("click",  openLink,  false);
   }
 
+#ifdef MOZ_ANDROID_SYNTHAPKS
   document.getElementById("update-item").addEventListener("click", checkForUpdates, false);
+#endif
 
   navigator.mozApps.mgmt.oninstall = onInstall;
   navigator.mozApps.mgmt.onuninstall = onUninstall;
   updateList();
 
-  // XXX - Hack to fix bug 985867 for now
-  document.addEventListener("touchstart", function() { });
+#ifndef MOZ_ANDROID_SYNTHAPKS
+  ContextMenus.init();
+#endif
 }
 
 function updateList() {
@@ -84,6 +131,9 @@ function addApplication(aApp) {
 
   let container = document.createElement("div");
   container.className = "app list-item";
+#ifndef MOZ_ANDROID_SYNTHAPKS
+  container.setAttribute("contextmenu", "appmenu");
+#endif
   container.setAttribute("id", "app-" + aApp.origin);
   container.setAttribute("mozApp", aApp.origin);
   container.setAttribute("title", manifest.name);

@@ -189,7 +189,7 @@ InstallXBLField(JSContext* cx,
 
     JS::Rooted<JS::Value> name(cx, js::GetFunctionNativeReserved(callee, FIELD_SLOT));
     JSFlatString* fieldStr = JS_ASSERT_STRING_IS_FLAT(name.toString());
-    fieldName.infallibleInit(fieldStr);
+    fieldName.init(fieldStr);
 
     MOZ_ALWAYS_TRUE(JS_ValueToId(cx, name, idp));
 

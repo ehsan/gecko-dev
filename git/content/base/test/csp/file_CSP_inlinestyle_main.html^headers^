@@ -1,2 +1,2 @@
-Content-Security-Policy: default-src 'self' ; script-src 'self' 'unsafe-inline'
+X-Content-Security-Policy: default-src 'self'
 Cache-Control: no-cache

@@ -41,9 +41,6 @@ class Rule;
 class GroupRule;
 class ImportRule;
 }
-namespace dom {
-class CSSRuleList;
-}
 }
 
 // -------------------------------
@@ -99,6 +96,7 @@ private:
 //
 
 class CSSRuleListImpl;
+class nsICSSRuleList;
 
 // CID for the nsCSSStyleSheet class
 // ca926f30-2a7e-477e-8467-803fb32af20a
@@ -278,7 +276,7 @@ public:
   // called GetOwnerRule because that would be ambiguous with the ImportRule
   // version.
   nsIDOMCSSRule* GetDOMOwnerRule() const;
-  mozilla::dom::CSSRuleList* GetCssRules(mozilla::ErrorResult& aRv);
+  nsICSSRuleList* GetCssRules(mozilla::ErrorResult& aRv);
   uint32_t InsertRule(const nsAString& aRule, uint32_t aIndex,
                       mozilla::ErrorResult& aRv) {
     uint32_t retval;

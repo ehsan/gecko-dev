@@ -111,11 +111,6 @@ bool WebGLContext::DrawArrays_check(GLint first, GLsizei count, GLsizei primcoun
     if (!DoFakeVertexAttrib0(checked_firstPlusCount.value())) {
         return false;
     }
-
-    if (!DrawInstanced_check(info)) {
-        return false;
-    }
-
     BindFakeBlackTextures();
 
     return true;
@@ -149,6 +144,9 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
         return;
 
     if (!DrawArrays_check(first, count, primcount, "drawArraysInstanced"))
+        return;
+
+    if (!DrawInstanced_check("drawArraysInstanced"))
         return;
 
     RunContextLossTimer();
@@ -284,11 +282,6 @@ WebGLContext::DrawElements_check(GLsizei count, GLenum type,
     if (!DoFakeVertexAttrib0(mMaxFetchedVertices)) {
         return false;
     }
-
-    if (!DrawInstanced_check(info)) {
-        return false;
-    }
-
     BindFakeBlackTextures();
 
     return true;
@@ -334,6 +327,9 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
         return;
 
     if (!DrawElements_check(count, type, byteOffset, primcount, "drawElementsInstanced"))
+        return;
+
+    if (!DrawInstanced_check("drawElementsInstanced"))
         return;
 
     RunContextLossTimer();

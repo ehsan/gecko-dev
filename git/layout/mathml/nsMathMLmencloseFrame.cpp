@@ -567,20 +567,17 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   
   aDesiredSize.Width() = mBoundingMetrics.width;
 
-  aDesiredSize.SetBlockStartAscent(std::max(mBoundingMetrics.ascent,
-                                            baseSize.BlockStartAscent()));
-  aDesiredSize.Height() = aDesiredSize.BlockStartAscent() +
-    std::max(mBoundingMetrics.descent,
-             baseSize.Height() - baseSize.BlockStartAscent());
+  aDesiredSize.SetTopAscent(std::max(mBoundingMetrics.ascent, baseSize.TopAscent()));
+  aDesiredSize.Height() = aDesiredSize.TopAscent() +
+    std::max(mBoundingMetrics.descent, baseSize.Height() - baseSize.TopAscent());
 
   if (IsToDraw(NOTATION_LONGDIV) || IsToDraw(NOTATION_RADICAL)) {
     // get the leading to be left at the top of the resulting frame
     // this seems more reliable than using fm->GetLeading() on suspicious
     // fonts
     nscoord leading = nscoord(0.2f * mEmHeight);
-    nscoord desiredSizeAscent = aDesiredSize.BlockStartAscent();
-    nscoord desiredSizeDescent = aDesiredSize.Height() -
-                                 aDesiredSize.BlockStartAscent();
+    nscoord desiredSizeAscent = aDesiredSize.TopAscent();
+    nscoord desiredSizeDescent = aDesiredSize.Height() - aDesiredSize.TopAscent();
     
     if (IsToDraw(NOTATION_LONGDIV)) {
       desiredSizeAscent = std::max(desiredSizeAscent,
@@ -596,7 +593,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                                   radicalDescent + mRuleThickness);
     }
 
-    aDesiredSize.SetBlockStartAscent(desiredSizeAscent);
+    aDesiredSize.SetTopAscent(desiredSizeAscent);
     aDesiredSize.Height() = desiredSizeAscent + desiredSizeDescent;
   }
     
@@ -604,12 +601,12 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       IsToDraw(NOTATION_ROUNDEDBOX) ||
       (IsToDraw(NOTATION_TOP) && IsToDraw(NOTATION_BOTTOM))) {
     // center the menclose around the content (vertically)
-    nscoord dy = std::max(aDesiredSize.BlockStartAscent() - bmBase.ascent,
-                          aDesiredSize.Height() -
-                          aDesiredSize.BlockStartAscent() - bmBase.descent);
+    nscoord dy = std::max(aDesiredSize.TopAscent() - bmBase.ascent,
+                        aDesiredSize.Height() - aDesiredSize.TopAscent() -
+                        bmBase.descent);
 
-    aDesiredSize.SetBlockStartAscent(bmBase.ascent + dy);
-    aDesiredSize.Height() = aDesiredSize.BlockStartAscent() + bmBase.descent + dy;
+    aDesiredSize.SetTopAscent(bmBase.ascent + dy);
+    aDesiredSize.Height() = aDesiredSize.TopAscent() + bmBase.descent + dy;
   }
 
   // Update mBoundingMetrics ascent/descent
@@ -622,7 +619,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       IsToDraw(NOTATION_VERTICALSTRIKE) ||
       IsToDraw(NOTATION_CIRCLE) ||
       IsToDraw(NOTATION_ROUNDEDBOX))
-    mBoundingMetrics.ascent = aDesiredSize.BlockStartAscent();
+    mBoundingMetrics.ascent = aDesiredSize.TopAscent();
   
   if (IsToDraw(NOTATION_BOTTOM) ||
       IsToDraw(NOTATION_RIGHT) ||
@@ -633,7 +630,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       IsToDraw(NOTATION_VERTICALSTRIKE) ||
       IsToDraw(NOTATION_CIRCLE) ||
       IsToDraw(NOTATION_ROUNDEDBOX))
-    mBoundingMetrics.descent = aDesiredSize.Height() - aDesiredSize.BlockStartAscent();
+    mBoundingMetrics.descent = aDesiredSize.Height() - aDesiredSize.TopAscent();
 
   // phasorangle notation:
   // move up from the bottom by the angled line height
@@ -643,7 +640,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
   
   mReference.x = 0;
-  mReference.y = aDesiredSize.BlockStartAscent();
+  mReference.y = aDesiredSize.TopAscent();
 
   if (aPlaceOrigin) {
     //////////////////
@@ -651,7 +648,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
     if (IsToDraw(NOTATION_LONGDIV))
       mMathMLChar[mLongDivCharIndex].SetRect(nsRect(dx_left -
                                                     bmLongdivChar.width,
-                                                    aDesiredSize.BlockStartAscent() -
+                                                    aDesiredSize.TopAscent() -
                                                     longdivAscent,
                                                     bmLongdivChar.width,
                                                     bmLongdivChar.ascent +
@@ -662,7 +659,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                     dx_left + bmBase.width : dx_left - bmRadicalChar.width);
 
       mMathMLChar[mRadicalCharIndex].SetRect(nsRect(dx,
-                                                    aDesiredSize.BlockStartAscent() -
+                                                    aDesiredSize.TopAscent() -
                                                     radicalAscent,
                                                     bmRadicalChar.width,
                                                     bmRadicalChar.ascent +
@@ -673,7 +670,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
 
     //////////////////
     // Finish reflowing child frames
-    PositionRowChildFrames(dx_left, aDesiredSize.BlockStartAscent());
+    PositionRowChildFrames(dx_left, aDesiredSize.TopAscent());
   }
 
   return NS_OK;

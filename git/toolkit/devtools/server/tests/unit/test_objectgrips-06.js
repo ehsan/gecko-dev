@@ -9,32 +9,23 @@
 var gDebuggee;
 var gClient;
 var gThreadClient;
-var gCallback;
 
 function run_test()
 {
-  run_test_with_server(DebuggerServer, function () {
-    run_test_with_server(WorkerDebuggerServer, do_test_finished);
-  });
-  do_test_pending();
-};
-
-function run_test_with_server(aServer, aCallback)
-{
-  gCallback = aCallback;
-  initTestDebuggerServer(aServer);
-  gDebuggee = addTestGlobal("test-grips", aServer);
+  initTestDebuggerServer();
+  gDebuggee = addTestGlobal("test-grips");
   gDebuggee.eval(function stopMe(arg1, arg2) {
     debugger;
   }.toString());
 
-  gClient = new DebuggerClient(aServer.connectPipe());
+  gClient = new DebuggerClient(DebuggerServer.connectPipe());
   gClient.connect(function() {
     attachTestTabAndResume(gClient, "test-grips", function(aResponse, aTabClient, aThreadClient) {
       gThreadClient = aThreadClient;
       test_object_grip();
     });
   });
+  do_test_pending();
 }
 
 function test_object_grip()
@@ -53,7 +44,7 @@ function test_object_grip()
     do_check_false(obj2Client.isSealed);
 
     gThreadClient.resume(_ => {
-      gClient.close(gCallback);
+      finishClient(gClient);
     });
   });
 
