@@ -368,15 +368,12 @@ ImportRule::ImportRule(const ImportRule& aCopy)
   : nsCSSRule(aCopy),
     mURLSpec(aCopy.mURLSpec)
 {
-  // Whether or not an @import rule has a null sheet is a permanent
-  // property of that @import rule, since it is null only if the target
-  // sheet failed security checks.
+  nsRefPtr<nsCSSStyleSheet> sheet;
   if (aCopy.mChildSheet) {
-    nsRefPtr<nsCSSStyleSheet> sheet =
-      aCopy.mChildSheet->Clone(nsnull, this, nsnull, nsnull);
-    SetSheet(sheet);
-    // SetSheet sets mMedia appropriately
+    sheet = aCopy.mChildSheet->Clone(nsnull, this, nsnull, nsnull);
   }
+  SetSheet(sheet);
+  // SetSheet sets mMedia appropriately
 }
 
 ImportRule::~ImportRule()

@@ -290,11 +290,11 @@ Bindings::makeImmutable()
 void
 Bindings::trace(JSTracer *trc)
 {
-    if (lastBinding)
-        MarkShape(trc, lastBinding, "shape");
+    for (const Shape *shape = lastBinding; shape; shape = shape->previous())
+        shape->trace(trc);
 }
 
-} /* namespace js */
+} // namespace js
 
 #if JS_HAS_XDR
 
@@ -308,7 +308,7 @@ enum ScriptBits {
 };
 
 JSBool
-js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
+js_XDRScript(JSXDRState *xdr, JSScript **scriptp, JSBool *hasMagic)
 {
     JSScript *oldscript;
     JSBool ok;
@@ -319,6 +319,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
     uint16 nClosedArgs = 0, nClosedVars = 0;
     JSPrincipals *principals;
     uint32 encodeable;
+    JSBool filenameWasSaved;
     jssrcnote *sn;
     JSSecurityCallbacks *callbacks;
     uint32 scriptBits = 0;
@@ -326,13 +327,29 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
     JSContext *cx = xdr->cx;
     JSScript *script = *scriptp;
     nsrcnotes = ntrynotes = natoms = nobjects = nregexps = nconsts = 0;
+    filenameWasSaved = JS_FALSE;
     jssrcnote *notes = NULL;
-    XDRScriptState *state = xdr->state;
-
-    JS_ASSERT(state);
 
     /* Should not XDR scripts optimized for a single global object. */
     JS_ASSERT_IF(script, !JSScript::isValidOffset(script->globalsOffset));
+
+    uint32 magic;
+    if (xdr->mode == JSXDR_ENCODE)
+        magic = JSXDR_MAGIC_SCRIPT_CURRENT;
+    if (!JS_XDRUint32(xdr, &magic))
+        return JS_FALSE;
+    if (magic != JSXDR_MAGIC_SCRIPT_CURRENT) {
+        /* We do not provide binary compatibility with older scripts. */
+        if (!hasMagic) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                 JSMSG_BAD_SCRIPT_MAGIC);
+            return JS_FALSE;
+        }
+        *hasMagic = JS_FALSE;
+        return JS_TRUE;
+    }
+    if (hasMagic)
+        *hasMagic = JS_TRUE;
 
     /* XDR arguments, local vars, and upvars. */
     uint16 nargs, nvars, nupvars;
@@ -359,12 +376,7 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
     JS_ASSERT(nvars != Bindings::BINDING_COUNT_LIMIT);
     JS_ASSERT(nupvars != Bindings::BINDING_COUNT_LIMIT);
 
-    EmptyShape *emptyCallShape = EmptyShape::getEmptyCallShape(cx);
-    if (!emptyCallShape)
-        return false;
-    AutoShapeRooter shapeRoot(cx, emptyCallShape);
-
-    Bindings bindings(cx, emptyCallShape);
+    Bindings bindings(cx);
     AutoBindingsRooter rooter(cx, bindings);
     uint32 nameCount = nargs + nvars + nupvars;
     if (nameCount > 0) {
@@ -595,25 +607,11 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
         goto error;
 
     if (!JS_XDRBytes(xdr, (char *)notes, nsrcnotes * sizeof(jssrcnote)) ||
+        !JS_XDRCStringOrNull(xdr, (char **)&script->filename) ||
         !JS_XDRUint32(xdr, &lineno) ||
         !JS_XDRUint32(xdr, &nslots)) {
         goto error;
     }
-
-    if (xdr->mode == JSXDR_DECODE && state->filename) {
-        if (!state->filenameSaved) {
-            const char *filename = state->filename;
-            filename = js_SaveScriptFilename(xdr->cx, filename);
-            xdr->cx->free((void *) state->filename);
-            state->filename = filename;
-            state->filenameSaved = true;
-            if (!filename)
-                goto error;
-        }
-        script->filename = state->filename;
-    }
-
-    JS_ASSERT_IF(xdr->mode == JSXDR_ENCODE, state->filename == script->filename);
 
     callbacks = JS_GetSecurityCallbacks(cx);
     if (xdr->mode == JSXDR_ENCODE) {
@@ -641,9 +639,19 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
     }
 
     if (xdr->mode == JSXDR_DECODE) {
+        const char *filename = script->filename;
+        if (filename) {
+            filename = js_SaveScriptFilename(cx, filename);
+            if (!filename)
+                goto error;
+            cx->free((void *) script->filename);
+            script->filename = filename;
+            filenameWasSaved = JS_TRUE;
+        }
         script->lineno = (uintN)lineno;
         script->nslots = (uint16)nslots;
         script->staticLevel = (uint16)(nslots >> 16);
+
     }
 
     for (i = 0; i != natoms; ++i) {
@@ -735,6 +743,10 @@ js_XDRScript(JSXDRState *xdr, JSScript **scriptp)
 
   error:
     if (xdr->mode == JSXDR_DECODE) {
+        if (script->filename && !filenameWasSaved) {
+            cx->free((void *) script->filename);
+            script->filename = NULL;
+        }
         js_DestroyScript(cx, script);
         *scriptp = NULL;
     }
@@ -763,7 +775,7 @@ script_trace(JSTracer *trc, JSObject *obj)
 Class js_ScriptClass = {
     "Script",
     JSCLASS_HAS_PRIVATE |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
+    JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
     PropertyStub,         /* getProperty */
@@ -778,7 +790,7 @@ Class js_ScriptClass = {
     NULL,                 /* construct   */
     NULL,                 /* xdrObject   */
     NULL,                 /* hasInstance */
-    script_trace
+    JS_CLASS_TRACE(script_trace)
 };
 
 /*
@@ -1188,11 +1200,6 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
                     uint32 ntrynotes, uint32 nconsts, uint32 nglobals,
                     uint16 nClosedArgs, uint16 nClosedVars, JSVersion version)
 {
-    EmptyShape *emptyCallShape = EmptyShape::getEmptyCallShape(cx);
-    if (!emptyCallShape)
-        return NULL;
-    AutoShapeRooter shapeRoot(cx, emptyCallShape);
-
     size_t size, vectorSize;
     JSScript *script;
     uint8 *cursor;
@@ -1236,7 +1243,7 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
     PodZero(script);
     script->length = length;
     script->version = version;
-    new (&script->bindings) Bindings(cx, emptyCallShape);
+    new (&script->bindings) Bindings(cx);
 
     uint8 *scriptEnd = reinterpret_cast<uint8 *>(script + 1);
 
@@ -1698,7 +1705,7 @@ js_TraceScript(JSTracer *trc, JSScript *script)
     script->bindings.trace(trc);
 }
 
-JSObject *
+JSBool
 js_NewScriptObject(JSContext *cx, JSScript *script)
 {
     AutoScriptRooter root(cx, script);
@@ -1707,7 +1714,7 @@ js_NewScriptObject(JSContext *cx, JSScript *script)
 
     JSObject *obj = NewNonFunction<WithProto::Class>(cx, &js_ScriptClass, NULL, NULL);
     if (!obj)
-        return NULL;
+        return JS_FALSE;
     obj->setPrivate(script);
     script->u.object = obj;
 
@@ -1721,7 +1728,7 @@ js_NewScriptObject(JSContext *cx, JSScript *script)
     script->owner = NULL;
 #endif
 
-    return obj;
+    return JS_TRUE;
 }
 
 typedef struct GSNCacheEntry {
@@ -1952,29 +1959,6 @@ class DisablePrincipalsTranscoding {
     }
 };
 
-class AutoJSXDRState {
-public:
-    AutoJSXDRState(JSXDRState *x
-                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
-        : xdr(x)
-    {
-        JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-    ~AutoJSXDRState()
-    {
-        JS_XDRDestroy(xdr);
-    }
-
-    operator JSXDRState*() const
-    {
-        return xdr;
-    }
-
-private:
-    JSXDRState *const xdr;
-    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-
 JSScript *
 js_CloneScript(JSContext *cx, JSScript *script)
 {
@@ -1982,41 +1966,43 @@ js_CloneScript(JSContext *cx, JSScript *script)
     JS_ASSERT(script->compartment);
 
     // serialize script
-    AutoJSXDRState w(JS_XDRNewMem(cx, JSXDR_ENCODE));
+    JSXDRState *w = JS_XDRNewMem(cx, JSXDR_ENCODE);
     if (!w)
         return NULL;
 
     // we don't want gecko to transcribe our principals for us
     DisablePrincipalsTranscoding disable(cx);
 
-    XDRScriptState wstate(w);
-#ifdef DEBUG
-    wstate.filename = script->filename;
-#endif
-    if (!js_XDRScript(w, &script))
+    if (!JS_XDRScript(w, &script)) {
+        JS_XDRDestroy(w);
         return NULL;
+    }
 
     uint32 nbytes;
     void *p = JS_XDRMemGetData(w, &nbytes);
-    if (!p)
+    if (!p) {
+        JS_XDRDestroy(w);
         return NULL;
+    }
 
     // de-serialize script
-    AutoJSXDRState r(JS_XDRNewMem(cx, JSXDR_DECODE));
-    if (!r)
+    JSXDRState *r = JS_XDRNewMem(cx, JSXDR_DECODE);
+    if (!r) {
+        JS_XDRDestroy(w);
         return NULL;
+    }
 
     // Hand p off from w to r.  Don't want them to share the data
     // mem, lest they both try to free it in JS_XDRDestroy
     JS_XDRMemSetData(r, p, nbytes);
     JS_XDRMemSetData(w, NULL, 0);
 
-    XDRScriptState rstate(r);
-    rstate.filename = script->filename;
-    rstate.filenameSaved = true;
-
-    if (!js_XDRScript(r, &script))
+    // We can't use the public API because it makes a script object.
+    if (!js_XDRScript(r, &script, NULL))
         return NULL;
+
+    JS_XDRDestroy(r);
+    JS_XDRDestroy(w);
 
     // set the proper principals for the script
     script->principals = script->compartment->principals;

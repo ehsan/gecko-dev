@@ -62,14 +62,14 @@ nsUUIDGenerator::nsUUIDGenerator()
 nsUUIDGenerator::~nsUUIDGenerator()
 {
     if (mLock) {
-        nsAutoLock::DestroyLock(mLock);
+        PR_DestroyLock(mLock);
     }
 }
 
 nsresult
 nsUUIDGenerator::Init()
 {
-    mLock = nsAutoLock::NewLock("nsUUIDGenerator::mLock");
+    mLock = PR_NewLock();
 
     NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
 

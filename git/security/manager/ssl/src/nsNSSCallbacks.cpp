@@ -568,14 +568,14 @@ nsHTTPListener::nsHTTPListener()
 
 nsresult nsHTTPListener::InitLocks()
 {
-  mLock = nsAutoLock::NewLock("nsHttpListener::mLock");
+  mLock = PR_NewLock();
   if (!mLock)
     return NS_ERROR_OUT_OF_MEMORY;
   
   mCondition = PR_NewCondVar(mLock);
   if (!mCondition)
   {
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
     mLock = nsnull;
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -592,7 +592,7 @@ nsHTTPListener::~nsHTTPListener()
     PR_DestroyCondVar(mCondition);
   
   if (mLock)
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
 
   if (mLoader) {
     nsCOMPtr<nsIThread> mainThread(do_GetMainThread());

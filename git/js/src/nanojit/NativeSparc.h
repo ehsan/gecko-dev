@@ -204,6 +204,7 @@ namespace nanojit
 
 #define DECLARE_PLATFORM_ASSEMBLER()    \
      const static Register argRegs[6], retRegs[1]; \
+     bool has_cmov; \
      void nativePageReset(); \
      void nativePageSetup(); \
      void underrunProtect(int bytes); \

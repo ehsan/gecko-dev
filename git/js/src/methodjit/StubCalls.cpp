@@ -52,6 +52,7 @@
 #include "jstypes.h"
 #include "methodjit/Compiler.h"
 #include "methodjit/StubCalls.h"
+#include "jstracer.h"
 
 #include "jsinterpinlines.h"
 #include "jspropertycache.h"
@@ -419,7 +420,7 @@ stubs::GetElem(VMFrame &f)
         JSString *str = lref.toString();
         int32_t i = rref.toInt32();
         if ((size_t)i < str->length()) {
-            str = JSAtom::getUnitStringForElement(cx, str, (size_t)i);
+            str = JSString::getUnitString(cx, str, (size_t)i);
             if (!str)
                 THROW();
             f.regs.sp[-2].setString(str);
@@ -2002,7 +2003,7 @@ stubs::CallProp(VMFrame &f, JSAtom *origAtom)
     }
 #if JS_HAS_NO_SUCH_METHOD
     if (JS_UNLIKELY(rval.isUndefined()) && regs.sp[-1].isObject()) {
-        regs.sp[-2].setString(origAtom);
+        regs.sp[-2].setString(ATOM_TO_STRING(origAtom));
         if (!js_OnUnknownMethod(cx, regs.sp - 2))
             THROW();
     }
@@ -2173,7 +2174,7 @@ stubs::TypeOf(VMFrame &f)
     const Value &ref = f.regs.sp[-1];
     JSType type = JS_TypeOfValue(f.cx, Jsvalify(ref));
     JSAtom *atom = f.cx->runtime->atomState.typeAtoms[type];
-    return atom;
+    return ATOM_TO_STRING(atom);
 }
 
 void JS_FASTCALL
@@ -2376,7 +2377,7 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
             Value rval = script->getConst(GET_INDEX(pc));
             pc += INDEX_LEN;
             if (rval.isString()) {
-                JSLinearString *rhs = &rval.toString()->asLinear();
+                JSLinearString *rhs = rval.toString()->assertIsLinear();
                 if (rhs == str || EqualStrings(str, rhs)) {
                     void* native = script->nativeCodeForPC(ctor,
                                                            jpc + GET_JUMP_OFFSET(pc));

@@ -140,7 +140,6 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
     JSScript* script;
     JSDScript* jsdscript;
     const char* ctorURL;
-    JSString* ctorNameStr;
     const char* ctorName;
 
     JSD_LOCK_OBJECTS(jsdc);
@@ -157,11 +156,11 @@ jsd_Constructing(JSDContext* jsdc, JSContext *cx, JSObject *obj,
             JSD_LOCK_SCRIPTS(jsdc);
             jsdscript = jsd_FindOrCreateJSDScript(jsdc, cx, script, fp);
             JSD_UNLOCK_SCRIPTS(jsdc);
-            if( jsdscript && (ctorNameStr = jsd_GetScriptFunctionId(jsdc, jsdscript)) ) {
-                if( (ctorName = JS_EncodeString(cx, ctorNameStr)) ) {
+            if( jsdscript )
+            {
+                ctorName = jsd_GetScriptFunctionId(jsdc, jsdscript);
+                if( ctorName )
                     jsdobj->ctorName = jsd_AddAtom(jsdc, ctorName);
-                    JS_free(cx, (void *) ctorName);
-                }
             }
             jsdobj->ctorLineno = JS_GetScriptBaseLineNumber(cx, script);
         }

@@ -72,7 +72,7 @@ TimerThread::~TimerThread()
   if (mCondVar)
     PR_DestroyCondVar(mCondVar);
   if (mLock)
-    nsAutoLock::DestroyLock(mLock);
+    PR_DestroyLock(mLock);
 
   mThread = nsnull;
 
@@ -83,7 +83,7 @@ nsresult
 TimerThread::InitLocks()
 {
   NS_ASSERTION(!mLock, "InitLocks called twice?");
-  mLock = nsAutoLock::NewLock("TimerThread::mLock");
+  mLock = PR_NewLock();
   if (!mLock)
     return NS_ERROR_OUT_OF_MEMORY;
 
