@@ -4778,8 +4778,7 @@ CodeGenerator::visitCreateThisWithProto(LCreateThisWithProto *lir)
 }
 
 typedef JSObject *(*NewGCObjectFn)(JSContext *cx, gc::AllocKind allocKind,
-                                   gc::InitialHeap initialHeap, size_t ndynamic,
-                                   const js::Class *clasp);
+                                   gc::InitialHeap initialHeap, const js::Class *clasp);
 static const VMFunction NewGCObjectInfo =
     FunctionInfo<NewGCObjectFn>(js::jit::NewGCObject);
 
@@ -4790,15 +4789,12 @@ CodeGenerator::visitCreateThisWithTemplate(LCreateThisWithTemplate *lir)
     gc::AllocKind allocKind = templateObject->asTenured().getAllocKind();
     gc::InitialHeap initialHeap = lir->mir()->initialHeap();
     const js::Class *clasp = templateObject->getClass();
-    size_t ndynamic = 0;
-    if (templateObject->isNative())
-        ndynamic = templateObject->as<NativeObject>().numDynamicSlots();
     Register objReg = ToRegister(lir->output());
     Register tempReg = ToRegister(lir->temp());
 
     OutOfLineCode *ool = oolCallVM(NewGCObjectInfo, lir,
                                    (ArgList(), Imm32(allocKind), Imm32(initialHeap),
-                                    Imm32(ndynamic), ImmPtr(clasp)),
+                                    ImmPtr(clasp)),
                                    StoreRegisterTo(objReg));
 
     // Allocate. If the FreeList is empty, call to VM, which may GC.

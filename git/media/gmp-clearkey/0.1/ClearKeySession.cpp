@@ -10,6 +10,7 @@
 
 #include "gmp-api/gmp-decryption.h"
 #include "mozilla/Endian.h"
+#include "pk11pub.h"
 
 using namespace mozilla;
 

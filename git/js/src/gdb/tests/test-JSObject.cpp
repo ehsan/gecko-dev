@@ -6,10 +6,10 @@ FRAGMENT(JSObject, simple) {
   JS::Rooted<JSObject *> plain(cx, JS_NewPlainObject(cx));
   JS::Rooted<JSObject *> global(cx, JS::CurrentGlobalOrNull(cx));
   JS::Rooted<JSObject *> func(cx, (JSObject *) JS_NewFunction(cx, (JSNative) 1, 0, 0,
-                                                              "dys"));
-  JS::Rooted<JSObject *> anon(cx, (JSObject *) JS_NewFunction(cx, (JSNative) 1, 0, 0, nullptr));
+                                                              global, "dys"));
+  JS::Rooted<JSObject *> anon(cx, (JSObject *) JS_NewFunction(cx, (JSNative) 1, 0, 0, global, 0));
   JS::Rooted<JSFunction *> funcPtr(cx, JS_NewFunction(cx, (JSNative) 1, 0, 0,
-                                                      "formFollows"));
+                                                      global, "formFollows"));
 
   JSObject &plainRef = *plain;
   JSFunction &funcRef = *funcPtr;

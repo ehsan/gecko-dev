@@ -334,8 +334,8 @@ MediaSource::Enabled(JSContext* cx, JSObject* aGlobal)
     return false;
   }
 
-  // Check whether it's enabled everywhere or just whitelisted sites.
-  bool restrict = Preferences::GetBool("media.mediasource.whitelist", false);
+  // Check whether it's enabled everywhere or just YouTube.
+  bool restrict = Preferences::GetBool("media.mediasource.youtubeonly", false);
   if (!restrict) {
     return true;
   }
@@ -359,8 +359,7 @@ MediaSource::Enabled(JSContext* cx, JSObject* aGlobal)
    }
 
    return eTLDplusOne.EqualsLiteral("youtube.com") ||
-          eTLDplusOne.EqualsLiteral("youtube-nocookie.com") ||
-          eTLDplusOne.EqualsLiteral("netflix.com");
+          eTLDplusOne.EqualsLiteral("youtube-nocookie.com");
 }
 
 bool

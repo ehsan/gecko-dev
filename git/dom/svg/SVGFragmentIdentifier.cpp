@@ -259,9 +259,7 @@ SVGFragmentIdentifier::ProcessFragmentIdentifier(nsIDocument* aDocument,
     *rootElement->mCurrentViewID = aAnchorName;
     rootElement->mUseCurrentView = true;
     rootElement->InvalidateTransformNotifyFrame();
-    // not an svgView()-style fragment identifier, return false so the caller
-    // continues processing to match any :target pseudo elements
-    return false;
+    return true;
   }
 
   bool wasOverridden = !!rootElement->mCurrentViewID;

@@ -13,12 +13,9 @@
 #include "nsID.h"
 #include "nsJARURI.h"
 #include "nsIIconURI.h"
-#include "nsHostObjectURI.h"
 #include "nsNullPrincipalURI.h"
-#include "nsJSProtocolHandler.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
-#include "nsSimpleNestedURI.h"
 #include "nsThreadUtils.h"
 
 using namespace mozilla::ipc;
@@ -90,24 +87,12 @@ DeserializeURI(const URIParams& aParams)
       serializable = do_CreateInstance(kJARURICID);
       break;
 
-    case URIParams::TJSURIParams:
-      serializable = new nsJSURI();
-      break;
-
     case URIParams::TIconURIParams:
       serializable = do_CreateInstance(kIconURICID);
       break;
 
     case URIParams::TNullPrincipalURIParams:
       serializable = new nsNullPrincipalURI();
-      break;
-
-    case URIParams::TSimpleNestedURIParams:
-      serializable = new nsSimpleNestedURI();
-      break;
-
-    case URIParams::THostObjectURIParams:
-      serializable = new nsHostObjectURI();
       break;
 
     default:

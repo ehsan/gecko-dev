@@ -457,12 +457,9 @@ class FontTableRec {
 public:
     FontTableRec(IDWriteFontFace *aFontFace, void *aContext)
         : mFontFace(aFontFace), mContext(aContext)
-    {
-        MOZ_COUNT_CTOR(FontTableRec);
-    }
+    { }
 
     ~FontTableRec() {
-        MOZ_COUNT_DTOR(FontTableRec);
         mFontFace->ReleaseFontTable(mContext);
     }
 

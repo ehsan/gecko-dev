@@ -122,8 +122,7 @@ var testConfigured = new Promise(r => setTestOptions = r);
 
 function setupEnvironment() {
   if (!window.SimpleTest) {
-    // Running under Steeplechase
-    return;
+    return Promise.resolve();
   }
 
   // Running as a Mochitest.
@@ -149,10 +148,6 @@ function setupEnvironment() {
 function run_test(is_initiator) {
   var options = { is_local: is_initiator,
                   is_remote: !is_initiator };
-
-  setTimeout(() => {
-    unexpectedEventArrived(new Error("PeerConnectionTest timed out after 30s"));
-  }, 30000);
 
   // Also load the steeplechase test code.
   var s = document.createElement("script");

@@ -229,7 +229,8 @@ CairoFormatToGfxFormat(cairo_format_t format)
     case CAIRO_FORMAT_RGB16_565:
       return SurfaceFormat::R5G6B5;
     default:
-      gfxCriticalError() << "Unknown cairo format " << format;
+      gfxWarning() << "Unknown cairo format";
+      MOZ_ASSERT(false, "Unknown cairo format");
       return SurfaceFormat::UNKNOWN;
   }
 }

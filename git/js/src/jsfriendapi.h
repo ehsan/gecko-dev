@@ -57,7 +57,8 @@ extern JS_FRIEND_API(bool)
 JS_SplicePrototype(JSContext *cx, JS::HandleObject obj, JS::HandleObject proto);
 
 extern JS_FRIEND_API(JSObject *)
-JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, JS::HandleObject proto);
+JS_NewObjectWithUniqueType(JSContext *cx, const JSClass *clasp, JS::HandleObject proto,
+                           JS::HandleObject parent);
 
 // Allocate an object in exactly the same way as JS_NewObjectWithGivenProto, but
 // without invoking the metadata callback on it.  This allows creation of
@@ -736,11 +737,11 @@ DefineFunctionWithReserved(JSContext *cx, JSObject *obj, const char *name, JSNat
 
 JS_FRIEND_API(JSFunction *)
 NewFunctionWithReserved(JSContext *cx, JSNative call, unsigned nargs, unsigned flags,
-                        const char *name);
+                        JSObject *parent, const char *name);
 
 JS_FRIEND_API(JSFunction *)
 NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags,
-                            jsid id);
+                            JSObject *parent, jsid id);
 
 JS_FRIEND_API(const JS::Value &)
 GetFunctionNativeReserved(JSObject *fun, size_t which);
