@@ -207,6 +207,7 @@ ArgumentsObject::create(JSContext *cx, uint32 argc, JSObject &callee)
     EmptyShape *emptyArgumentsShape = EmptyShape::getEmptyArgumentsShape(cx);
     if (!emptyArgumentsShape)
         return NULL;
+    AutoShapeRooter shapeRoot(cx, emptyArgumentsShape);
 
     ArgumentsData *data = (ArgumentsData *)
         cx->malloc_(offsetof(ArgumentsData, slots) + argc * sizeof(Value));
@@ -1172,6 +1173,20 @@ static void
 call_trace(JSTracer *trc, JSObject *obj)
 {
     JS_ASSERT(obj->isCall());
+    if (StackFrame *fp = obj->maybeCallObjStackFrame()) {
+        /*
+         * FIXME: Hide copies of stack values rooted by fp from the Cycle
+         * Collector, which currently lacks a non-stub Unlink implementation
+         * for JS objects (including Call objects), so is unable to collect
+         * cycles involving Call objects whose frames are active without this
+         * hiding hack.
+         */
+        uintN first = JSObject::CALL_RESERVED_SLOTS;
+        uintN count = fp->script()->bindings.countArgsAndVars();
+
+        JS_ASSERT(obj->numSlots() >= first + count);
+        obj->clearSlotRange(first, count);
+    }
 
     MaybeMarkGenerator(trc, obj);
 }
@@ -1631,6 +1646,9 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
     if (xdr->mode == JSXDR_DECODE) {
         *objp = fun;
         fun->u.i.script->setOwnerObject(fun);
+#ifdef CHECK_SCRIPT_OWNER
+        fun->script()->owner = NULL;
+#endif
         if (!fun->u.i.script->typeSetFunction(cx, fun))
             return false;
         JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
@@ -1701,16 +1719,30 @@ fun_trace(JSTracer *trc, JSObject *obj)
     if (fun->atom)
         MarkString(trc, fun->atom, "atom");
 
-    if (fun->isInterpreted() && fun->script()) {
-        CheckScriptOwner(fun->script(), obj);
-        MarkScript(trc, fun->script(), "script");
-    }
+    if (fun->isInterpreted() && fun->script())
+        js_TraceScript(trc, fun->script(), obj);
 }
 
 static void
 fun_finalize(JSContext *cx, JSObject *obj)
 {
-    obj->finalizeUpvarsIfFlatClosure();
+    /* Ignore newborn function objects. */
+    JSFunction *fun = obj->getFunctionPrivate();
+    if (!fun)
+        return;
+
+    /* Cloned function objects may be flat closures with upvars to free. */
+    if (fun != obj) {
+        if (fun->isFlatClosure() && fun->script()->bindings.hasUpvars())
+            cx->free_((void *) obj->getFlatClosureUpvars());
+        return;
+    }
+
+    /*
+     * Null-check fun->script() because the parser sets interpreted very early.
+     */
+    if (fun->isInterpreted() && fun->script())
+        js_DestroyScriptFromGC(cx, fun->script(), obj);
 }
 
 /*
@@ -1722,8 +1754,7 @@ JS_PUBLIC_DATA(Class) js_FunctionClass = {
     js_Function_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE |
     JSCLASS_HAS_RESERVED_SLOTS(JSFunction::CLASS_RESERVED_SLOTS) |
-    JSCLASS_HAS_CACHED_PROTO(JSProto_Function) |
-    JSCLASS_CONCURRENT_FINALIZER,
+    JSCLASS_HAS_CACHED_PROTO(JSProto_Function),
     PropertyStub,         /* addProperty */
     PropertyStub,         /* delProperty */
     PropertyStub,         /* getProperty */
@@ -2163,6 +2194,8 @@ Function(JSContext *cx, uintN argc, Value *vp)
     }
 
     Bindings bindings(cx);
+    AutoBindingsRooter root(cx, bindings);
+
     uintN lineno;
     const char *filename = CurrentScriptFileAndLine(cx, &lineno);
 
@@ -2392,6 +2425,9 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj)
     script->noScriptRval = true;
     script->code[0] = JSOP_STOP;
     script->code[1] = SRC_NULL;
+#ifdef CHECK_SCRIPT_OWNER
+    script->owner = NULL;
+#endif
     fun->u.i.script = script;
     fun->getType(cx)->functionScript = script;
     script->hasFunction = true;
@@ -2510,8 +2546,8 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
         if (cfun->isInterpreted()) {
             JSScript *script = cfun->script();
             JS_ASSERT(script);
-            JS_ASSERT(script->compartment() == fun->compartment());
-            JS_ASSERT(script->compartment() != cx->compartment);
+            JS_ASSERT(script->compartment == fun->compartment());
+            JS_ASSERT(script->compartment != cx->compartment);
             JS_OPT_ASSERT(script->ownerObject == fun);
 
             cfun->u.i.script = NULL;
@@ -2524,6 +2560,9 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
                 return NULL;
 
             cfun->script()->setOwnerObject(cfun);
+#ifdef CHECK_SCRIPT_OWNER
+            cfun->script()->owner = NULL;
+#endif
             js_CallNewScriptHook(cx, cfun->script(), cfun);
             Debugger::onNewScript(cx, cfun->script(), cfun, Debugger::NewHeldScript);
         }

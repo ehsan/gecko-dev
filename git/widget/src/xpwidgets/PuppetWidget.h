@@ -138,7 +138,8 @@ public:
   { /* dead man walking */ }
 
   // PuppetWidgets don't have native data, as they're purely nonnative.
-  virtual void* GetNativeData(PRUint32 aDataType);
+  virtual void* GetNativeData(PRUint32 aDataType)
+  { return nsnull; }
   NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent)
   { return NS_ERROR_UNEXPECTED; }
 

@@ -576,7 +576,7 @@ static JSBool
 DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 {
     void* startThing = NULL;
-    JSGCTraceKind startTraceKind = JSTRACE_OBJECT;
+    uint32 startTraceKind = 0;
     void *thingToFind = NULL;
     size_t maxDepth = (size_t)-1;
     void *thingToIgnore = NULL;

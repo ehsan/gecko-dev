@@ -92,6 +92,7 @@ typedef struct JSTreeContext        JSTreeContext;
 typedef struct JSTryNote            JSTryNote;
 
 /* Friend "Advanced API" typedefs. */
+typedef struct JSAtomMap            JSAtomMap;
 typedef struct JSAtomState          JSAtomState;
 typedef struct JSCodeSpec           JSCodeSpec;
 typedef struct JSPrinter            JSPrinter;

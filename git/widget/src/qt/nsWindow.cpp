@@ -817,12 +817,6 @@ nsWindow::GetNativeData(PRUint32 aDataType)
             widget = mWidget->scene()->views()[0]->viewport();
         return (void *) widget;
     }
-
-    case NS_NATIVE_SHAREABLE_WINDOW: {
-        QWidget *widget = GetViewWidget();
-        return widget ? (void*)widget->winId() : nsnull;
-    }
-
     default:
         NS_WARNING("nsWindow::GetNativeData called with bad value");
         return nsnull;

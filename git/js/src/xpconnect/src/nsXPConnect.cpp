@@ -223,7 +223,7 @@ nsXPConnect::ReleaseXPConnectSingleton()
                                      : fopen(dumpName, "w");
                     if(dumpFile)
                     {
-                        JS_DumpHeap(ccx, dumpFile, nsnull, JSTRACE_OBJECT, nsnull,
+                        JS_DumpHeap(ccx, dumpFile, nsnull, 0, nsnull,
                                     static_cast<size_t>(-1), nsnull);
                         if(dumpFile != stdout)
                             fclose(dumpFile);
@@ -619,7 +619,7 @@ xpc_GCThingIsGrayCCThing(void *thing)
  * re-coloring.
  */
 static void
-UnmarkGrayChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
+UnmarkGrayChildren(JSTracer *trc, void *thing, uint32 kind)
 {
     int stackDummy;
     if (!JS_CHECK_STACK_SIZE(trc->context->stackLimit, &stackDummy)) {
@@ -675,7 +675,7 @@ struct TraversalTracer : public JSTracer
 };
 
 static void
-NoteJSChild(JSTracer *trc, void *thing, JSGCTraceKind kind)
+NoteJSChild(JSTracer *trc, void *thing, uint32 kind)
 {
     if(AddToCCKind(kind))
     {
@@ -732,7 +732,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 {
     JSContext *cx = mCycleCollectionContext->GetJSContext();
 
-    JSGCTraceKind traceKind = js_GetGCThingTraceKind(p);
+    uint32 traceKind = js_GetGCThingTraceKind(p);
     JSObject *obj;
     js::Class *clazz;
 
@@ -845,15 +845,11 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
         }
         else
         {
-            static const char trace_types[][11] = {
+            static const char trace_types[JSTRACE_LIMIT][7] = {
                 "Object",
                 "String",
-                "Script",
-                "Xml",
-                "Shape",
-                "TypeObject",
+                "Xml"
             };
-            JS_STATIC_ASSERT(JS_ARRAY_LENGTH(trace_types) == JSTRACE_LAST + 1);
             JS_snprintf(name, sizeof(name), "JS %s", trace_types[traceKind]);
         }
 

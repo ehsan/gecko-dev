@@ -658,12 +658,6 @@ nsDOMAttribute::IsSameNode(nsIDOMNode *other, PRBool *aResult)
 }
 
 NS_IMETHODIMP
-nsDOMAttribute::Contains(nsIDOMNode* aOther, PRBool* aReturn)
-{
-  return nsINode::Contains(aOther, aReturn);
-}
-
-NS_IMETHODIMP
 nsDOMAttribute::LookupPrefix(const nsAString & namespaceURI,
                              nsAString & aResult)
 {

@@ -291,7 +291,6 @@ extractFile(const char * path, const struct cdir_entry *entry, void * data)
                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (buf == (void *)-1) {
     __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "Couldn't mmap decompression buffer");
-    close(fd);
     return;
   }
 
@@ -511,12 +510,10 @@ static void * mozload(const char * path, void *zip,
       // we'd like to use fallocate here, but it doesn't exist currently?
       if (lseek(fd, lib_size - 1, SEEK_SET) == (off_t) - 1) {
          __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "seeking file failed");
-        close(fd);
         return NULL;
       }
       if (write(fd, "", 1) != 1) {
         __android_log_print(ANDROID_LOG_ERROR, "GeckoLibLoad", "writting one byte to the file failed");
-        close(fd);
         return NULL;
       }
       skipLibCache = true;

@@ -4259,10 +4259,12 @@ nsNavHistory::CleanupPlacesOnVisitsDelete(const nsCString& aPlaceIdsQueryString)
 //
 //    Removes a bunch of uris from history.
 //    Has better performance than RemovePage when deleting a lot of history.
+//    Notice that this function does not call the onDeleteURI observers,
+//    instead, if aDoBatchNotify is true, we call OnBegin/EndUpdateBatch.
 //    We don't do duplicates removal, URIs array should be cleaned-up before.
 
 NS_IMETHODIMP
-nsNavHistory::RemovePages(nsIURI **aURIs, PRUint32 aLength)
+nsNavHistory::RemovePages(nsIURI **aURIs, PRUint32 aLength, PRBool aDoBatchNotify)
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
   NS_ENSURE_ARG(aURIs);
@@ -4282,7 +4284,9 @@ nsNavHistory::RemovePages(nsIURI **aURIs, PRUint32 aLength)
     }
   }
 
-  UpdateBatchScoper batch(*this); // sends Begin/EndUpdateBatch to observers
+  // force a full refresh calling onEndUpdateBatch (will call Refresh())
+  if (aDoBatchNotify)
+    UpdateBatchScoper batch(*this); // sends Begin/EndUpdateBatch to observers
 
   rv = RemovePagesInternal(deletePlaceIdsQueryString);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -4305,22 +4309,9 @@ nsNavHistory::RemovePage(nsIURI *aURI)
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
   NS_ENSURE_ARG(aURI);
 
-  // Build a list of place ids to delete.
-  PRInt64 placeId;
-  nsCAutoString guid;
-  nsresult rv = GetIdForPage(aURI, &placeId, guid);
+  nsIURI** URIs = &aURI;
+  nsresult rv = RemovePages(URIs, 1, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (placeId == 0) {
-    return NS_OK;
-  }
-  nsCAutoString deletePlaceIdQueryString;
-  deletePlaceIdQueryString.AppendInt(placeId);
-
-  rv = RemovePagesInternal(deletePlaceIdQueryString);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Clear the registered embed visits.
-  clearEmbedVisits();
 
   return NS_OK;
 }
@@ -4678,6 +4669,40 @@ nsNavHistory::MarkPageAsFollowedLink(nsIURI *aURI)
     ExpireNonrecentEvents(&mRecentLink);
 
   mRecentLink.Put(uriString, GetNow());
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsNavHistory::RegisterOpenPage(nsIURI* aURI)
+{
+  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
+  NS_ENSURE_ARG(aURI);
+
+  nsCOMPtr<mozIPlacesAutoComplete> ac =
+    do_GetService("@mozilla.org/autocomplete/search;1?name=history");
+  NS_ENSURE_STATE(ac);
+
+  nsresult rv = ac->RegisterOpenPage(aURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsNavHistory::UnregisterOpenPage(nsIURI* aURI)
+{
+  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
+  NS_ENSURE_ARG(aURI);
+
+  nsCOMPtr<mozIPlacesAutoComplete> ac =
+    do_GetService("@mozilla.org/autocomplete/search;1?name=history");
+  NS_ENSURE_STATE(ac);
+
+  nsresult rv = ac->UnregisterOpenPage(aURI);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 

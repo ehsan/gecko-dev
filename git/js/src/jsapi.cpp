@@ -1211,7 +1211,7 @@ JS_EnterCrossCompartmentCallScript(JSContext *cx, JSScript *target)
 
     JSObject *scriptObject = target->u.object;
     if (!scriptObject) {
-        SwitchToCompartment sc(cx, target->compartment());
+        SwitchToCompartment sc(cx, target->compartment);
         scriptObject = JS_NewGlobalObject(cx, &js_dummy_class);
         if (!scriptObject)
             return NULL;
@@ -1261,7 +1261,7 @@ bool
 AutoEnterScriptCompartment::enter(JSContext *cx, JSScript *target)
 {
     JS_ASSERT(!call);
-    if (cx->compartment == target->compartment()) {
+    if (cx->compartment == target->compartment) {
         call = reinterpret_cast<JSCrossCompartmentCall*>(1);
         return true;
     }
@@ -2192,7 +2192,7 @@ JS_TraceRuntime(JSTracer *trc)
 }
 
 JS_PUBLIC_API(void)
-JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind)
+JS_CallTracer(JSTracer *trc, void *thing, uint32 kind)
 {
     JS_ASSERT(thing);
     MarkKind(trc, thing, kind);
@@ -2205,10 +2205,10 @@ JS_CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind)
 #endif
 
 JS_PUBLIC_API(void)
-JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
-                       JSGCTraceKind kind, JSBool details)
+JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing, uint32 kind,
+                       JSBool details)
 {
-    const char *name = NULL; /* silence uninitialized warning */
+    const char *name;
     size_t n;
 
     if (bufsize == 0)
@@ -2240,16 +2240,8 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
                : "string";
         break;
 
-      case JSTRACE_SCRIPT:
-        name = "script";
-        break;
-
       case JSTRACE_SHAPE:
         name = "shape";
-        break;
-
-      case JSTRACE_TYPE_OBJECT:
-        name = "type_object";
         break;
 
 #if JS_HAS_XML_SUPPORT
@@ -2257,6 +2249,10 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
         name = "xml";
         break;
 #endif
+      default:
+        JS_ASSERT(0);
+        return;
+        break;
     }
 
     n = strlen(name);
@@ -2303,16 +2299,11 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
             break;
           }
 
-          case JSTRACE_SCRIPT:
+          case JSTRACE_SHAPE:
           {
-            JSScript *script = static_cast<JSScript *>(thing);
-            JS_snprintf(buf, bufsize, "%s:%u", script->filename, unsigned(script->lineno));
+            JS_snprintf(buf, bufsize, "<shape>");
             break;
           }
-
-          case JSTRACE_SHAPE:
-          case JSTRACE_TYPE_OBJECT:
-            break;
 
 #if JS_HAS_XML_SUPPORT
           case JSTRACE_XML:
@@ -2324,6 +2315,9 @@ JS_PrintTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
             break;
           }
 #endif
+          default:
+            JS_ASSERT(0);
+            break;
         }
     }
     buf[bufsize - 1] = '\0';
@@ -2333,7 +2327,7 @@ typedef struct JSHeapDumpNode JSHeapDumpNode;
 
 struct JSHeapDumpNode {
     void            *thing;
-    JSGCTraceKind   kind;
+    uint32          kind;
     JSHeapDumpNode  *next;          /* next sibling */
     JSHeapDumpNode  *parent;        /* node with the thing that refer to thing
                                        from this node */
@@ -2354,7 +2348,7 @@ typedef struct JSDumpingTracer {
 } JSDumpingTracer;
 
 static void
-DumpNotify(JSTracer *trc, void *thing, JSGCTraceKind kind)
+DumpNotify(JSTracer *trc, void *thing, uint32 kind)
 {
     JSDumpingTracer *dtrc;
     JSContext *cx;
@@ -2498,7 +2492,7 @@ DumpNode(JSDumpingTracer *dtrc, FILE* fp, JSHeapDumpNode *node)
 }
 
 JS_PUBLIC_API(JSBool)
-JS_DumpHeap(JSContext *cx, FILE *fp, void* startThing, JSGCTraceKind startKind,
+JS_DumpHeap(JSContext *cx, FILE *fp, void* startThing, uint32 startKind,
             void *thingToFind, size_t maxDepth, void *thingToIgnore)
 {
     JSDumpingTracer dtrc;
@@ -2524,7 +2518,7 @@ JS_DumpHeap(JSContext *cx, FILE *fp, void* startThing, JSGCTraceKind startKind,
     node = NULL;
     dtrc.lastNodep = &node;
     if (!startThing) {
-        JS_ASSERT(startKind == JSTRACE_OBJECT);
+        JS_ASSERT(startKind == 0);
         TraceRuntime(&dtrc.base);
     } else {
         JS_TraceChildren(&dtrc.base, startThing, startKind);
@@ -3212,6 +3206,7 @@ LookupResult(JSContext *cx, JSObject *obj, JSObject *obj2, jsid id,
         Shape *shape = (Shape *) prop;
 
         if (shape->isMethod()) {
+            AutoShapeRooter root(cx, shape);
             vp->setObject(shape->methodObject());
             return !!obj2->methodReadBarrier(cx, *shape, vp);
         }
@@ -4748,6 +4743,7 @@ CompileUCFunctionForPrincipalsCommon(JSContext *cx, JSObject *obj,
     }
 
     Bindings bindings(cx);
+    AutoBindingsRooter root(cx, bindings);
     for (uintN i = 0; i < nargs; i++) {
         uint16 dummy;
         JSAtom *argAtom = js_Atomize(cx, argnames[i], strlen(argnames[i]));
@@ -4846,8 +4842,8 @@ JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, uintN inde
 
     CHECK_REQUEST(cx);
 #ifdef DEBUG
-    if (cx->compartment != script->compartment())
-        CompartmentChecker::fail(cx->compartment, script->compartment());
+    if (cx->compartment != script->compartment)
+        CompartmentChecker::fail(cx->compartment, script->compartment);
 #endif
     jp = js_NewPrinter(cx, name, NULL,
                        indent & ~JS_DONT_PRETTY_PRINT,

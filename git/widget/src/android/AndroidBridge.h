@@ -52,8 +52,8 @@
 #include "nsColor.h"
 
 // Some debug #defines
-// #define DEBUG_ANDROID_EVENTS
-// #define DEBUG_ANDROID_WIDGET
+// #define ANDROID_DEBUG_EVENTS
+// #define ANDROID_DEBUG_WIDGET
 
 class nsWindow;
 

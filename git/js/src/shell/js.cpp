@@ -73,7 +73,6 @@
 #include "jsreflect.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jstracer.h"
 #include "jstypedarray.h"
 #include "jstypedarrayinlines.h"
 #include "jsxml.h"
@@ -1364,7 +1363,7 @@ typedef struct JSCountHeapNode JSCountHeapNode;
 
 struct JSCountHeapNode {
     void                *thing;
-    JSGCTraceKind       kind;
+    int32               kind;
     JSCountHeapNode     *next;
 };
 
@@ -1377,7 +1376,7 @@ typedef struct JSCountHeapTracer {
 } JSCountHeapTracer;
 
 static void
-CountHeapNotify(JSTracer *trc, void *thing, JSGCTraceKind kind)
+CountHeapNotify(JSTracer *trc, void *thing, uint32 kind)
 {
     JSCountHeapTracer *countTracer;
     JSDHashEntryStub *entry;
@@ -1419,7 +1418,7 @@ static JSBool
 CountHeap(JSContext *cx, uintN argc, jsval *vp)
 {
     void* startThing;
-    JSGCTraceKind startTraceKind;
+    int32 startTraceKind;
     jsval v;
     int32 traceKind, i;
     JSString *str;
@@ -1440,7 +1439,7 @@ CountHeap(JSContext *cx, uintN argc, jsval *vp)
     };
 
     startThing = NULL;
-    startTraceKind = JSTRACE_OBJECT;
+    startTraceKind = 0;
     if (argc > 0) {
         v = JS_ARGV(cx, vp)[0];
         if (JSVAL_IS_TRACEABLE(v)) {
@@ -1936,7 +1935,7 @@ SrcNotes(JSContext *cx, JSScript *script, Sprinter *sp)
           case SRC_CATCH:
             delta = (uintN) js_GetSrcNoteOffset(sn, 0);
             if (delta) {
-                if (script->main()[offset] == JSOP_LEAVEBLOCK)
+                if (script->main[offset] == JSOP_LEAVEBLOCK)
                     Sprint(sp, " stack depth %u", delta);
                 else
                     Sprint(sp, " guard delta %u", delta);
@@ -2370,7 +2369,7 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval v;
     void* startThing;
-    JSGCTraceKind startTraceKind;
+    uint32 startTraceKind;
     const char *badTraceArg;
     void *thingToFind;
     size_t maxDepth;
@@ -2396,7 +2395,7 @@ DumpHeap(JSContext *cx, uintN argc, jsval *vp)
     }
 
     startThing = NULL;
-    startTraceKind = JSTRACE_OBJECT;
+    startTraceKind = 0;
     if (argc > 1) {
         v = JS_ARGV(cx, vp)[1];
         if (JSVAL_IS_TRACEABLE(v)) {
@@ -3809,11 +3808,6 @@ MakeAbsolutePathname(JSContext *cx, const char *from, const char *leaf)
     char *dir;
     const char *slash = NULL, *cp;
 
-    if (*leaf == '/') {
-        /* We were given an absolute pathname. */
-        return JS_strdup(cx, leaf);
-    }
-
     cp = from;
     while (*cp) {
         if (*cp == '/') {
@@ -3913,14 +3907,9 @@ struct FreeOnReturn {
     const char *ptr;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
-    FreeOnReturn(JSContext *cx, const char *ptr = NULL JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    FreeOnReturn(JSContext *cx, const char *ptr JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : cx(cx), ptr(ptr) {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    void init(const char *ptr) {
-        JS_ASSERT(!this->ptr);
-        this->ptr = ptr;
     }
 
     ~FreeOnReturn() {
@@ -3932,6 +3921,7 @@ static JSBool
 Snarf(JSContext *cx, uintN argc, jsval *vp)
 {
     JSString *str;
+    const char *pathname;
 
     if (!argc)
         return JS_FALSE;
@@ -3947,15 +3937,13 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
     JSStackFrame *fp = JS_GetScriptedCaller(cx, NULL);
     JSScript *script = JS_GetFrameScript(cx, fp);
     JS_ASSERT(fp && script->filename);
-    const char *pathname = filename.ptr();
 #ifdef XP_UNIX
-    FreeOnReturn pnGuard(cx);
-    if (pathname[0] != '/') {
-        pathname = MakeAbsolutePathname(cx, script->filename, pathname);
-        if (!pathname)
-            return JS_FALSE;
-        pnGuard.init(pathname);
-    }
+    pathname = MakeAbsolutePathname(cx, script->filename, filename.ptr());
+    if (!pathname)
+        return JS_FALSE;
+    FreeOnReturn pnGuard(cx, pathname);
+#else
+    pathname = filename.ptr();
 #endif
 
     if (argc > 1) {
@@ -4067,26 +4055,21 @@ MJitCodeStats(JSContext *cx, uintN argc, jsval *vp)
     return true;
 }
 
-#ifdef JS_METHODJIT
-
-static void
-SumJitDataSizeCallabck(JSContext *cx, void *data, void *thing,
-                       JSGCTraceKind traceKind, size_t thingSize)
-{
-    size_t *sump = static_cast<size_t *>(data);
-    JS_ASSERT(traceKind == JSTRACE_SCRIPT);
-    JSScript *script = static_cast<JSScript *>(thing);
-    *sump += script->jitDataSize();
-}
-
-#endif
-
 JSBool
 MJitDataStats(JSContext *cx, uintN argc, jsval *vp)
 {
 #ifdef JS_METHODJIT
+    JSRuntime *rt = cx->runtime;
+    AutoLockGC lock(rt);
     size_t n = 0;
-    IterateCells(cx, NULL, gc::FINALIZE_TYPE_OBJECT, &n, SumJitDataSizeCallabck);
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        for (JSScript *script = (JSScript *)(*c)->scripts.next;
+             &script->links != &(*c)->scripts;
+             script = (JSScript *)script->links.next)
+        {
+            n += script->jitDataSize(); 
+        }
+    }
     JS_SET_RVAL(cx, vp, INT_TO_JSVAL(n));
 #else
     JS_SET_RVAL(cx, vp, JSVAL_VOID);

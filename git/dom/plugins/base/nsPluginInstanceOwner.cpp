@@ -717,13 +717,32 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
   }
 
   return rv;
-#elif defined(MOZ_WIDGET_GTK2) || defined(MOZ_WIDGET_QT)
+#elif defined(MOZ_WIDGET_GTK2)
   // X11 window managers want the toplevel window for WM_TRANSIENT_FOR.
   nsIWidget* win = mObjectFrame->GetNearestWidget();
   if (!win)
     return NS_ERROR_FAILURE;
-  *static_cast<Window*>(value) = (long unsigned int)win->GetNativeData(NS_NATIVE_SHAREABLE_WINDOW);
+  GdkWindow* gdkWindow = static_cast<GdkWindow*>(win->GetNativeData(NS_NATIVE_WINDOW));
+  if (!gdkWindow)
+    return NS_ERROR_FAILURE;
+  gdkWindow = gdk_window_get_toplevel(gdkWindow);
+#ifdef MOZ_X11
+  *static_cast<Window*>(value) = GDK_WINDOW_XID(gdkWindow);
+#endif
   return NS_OK;
+#elif defined(MOZ_WIDGET_QT)
+  // X11 window managers want the toplevel window for WM_TRANSIENT_FOR.
+  nsIWidget* win = mObjectFrame->GetNearestWidget();
+  if (!win)
+    return NS_ERROR_FAILURE;
+  QWidget* widget = static_cast<QWidget*>(win->GetNativeData(NS_NATIVE_WINDOW));
+  if (!widget)
+    return NS_ERROR_FAILURE;
+#ifdef MOZ_X11
+  *static_cast<Window*>(value) = widget->handle();
+  return NS_OK;
+#endif
+  return NS_ERROR_FAILURE;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
 #endif
