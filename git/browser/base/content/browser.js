@@ -1119,18 +1119,25 @@ var gBrowserInit = {
     // If the user manually opens the download manager before the timeout, the
     // downloads will start right away, and getting the service again won't hurt.
     setTimeout(function() {
-      let DownloadsCommon =
-        Cu.import("resource:///modules/DownloadsCommon.jsm", {}).DownloadsCommon;
-      if (DownloadsCommon.useJSTransfer) {
-        // Open the data link without initalizing nsIDownloadManager.
-        DownloadsCommon.initializeAllDataLinks();
-      } else {
-        // Initalizing nsIDownloadManager will trigger the data link.
-        Services.downloads;
+      try {
+        let DownloadsCommon =
+          Cu.import("resource:///modules/DownloadsCommon.jsm", {}).DownloadsCommon;
+        if (DownloadsCommon.useJSTransfer) {
+          // Open the data link without initalizing nsIDownloadManager.
+          DownloadsCommon.initializeAllDataLinks();
+          let DownloadsTaskbar =
+            Cu.import("resource:///modules/DownloadsTaskbar.jsm", {}).DownloadsTaskbar;
+          DownloadsTaskbar.registerIndicator(window);
+        } else {
+          // Initalizing nsIDownloadManager will trigger the data link.
+          Services.downloads;
+          let DownloadTaskbarProgress =
+            Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;
+          DownloadTaskbarProgress.onBrowserWindowLoad(window);
+        }
+      } catch (ex) {
+        Cu.reportError(ex);
       }
-      let DownloadTaskbarProgress =
-        Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;
-      DownloadTaskbarProgress.onBrowserWindowLoad(window);
     }, 10000);
 
     // The object handling the downloads indicator is also initialized here in the
@@ -2177,6 +2184,9 @@ function BrowserPageInfo(doc, initialTab, imageElement) {
   // Check for windows matching the url
   while (windows.hasMoreElements()) {
     var currentWindow = windows.getNext();
+    if (currentWindow.closed) {
+      continue;
+    }
     if (currentWindow.document.documentElement.getAttribute("relatedUrl") == documentURL) {
       currentWindow.focus();
       currentWindow.resetPageInfo(args);
@@ -6040,7 +6050,7 @@ function warnAboutClosingWindow() {
   let nonPopupPresent = false;
   while (e.hasMoreElements()) {
     let win = e.getNext();
-    if (win != window) {
+    if (!win.closed && win != window) {
       if (isPBWindow && PrivateBrowsingUtils.isWindowPrivate(win))
         otherPBWindowExists = true;
       if (win.toolbar.visible)
@@ -6411,7 +6421,7 @@ var gIdentityHandler = {
     this._encryptionLabel[this.IDENTITY_MODE_MIXED_ACTIVE_LOADED] =
       gNavigatorBundle.getString("identity.mixed_active_loaded2");
     this._encryptionLabel[this.IDENTITY_MODE_MIXED_DISPLAY_LOADED_ACTIVE_BLOCKED] =
-      gNavigatorBundle.getString("identity.mixed_display_loaded_active_blocked");
+      gNavigatorBundle.getString("identity.mixed_display_loaded");
     return this._encryptionLabel;
   },
   get _identityPopup () {

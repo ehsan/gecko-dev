@@ -208,6 +208,9 @@ pref("media.dash.enabled", false);
 #ifdef MOZ_GSTREAMER
 pref("media.gstreamer.enabled", true);
 #endif
+#ifdef MOZ_APPLEMEDIA
+pref("media.apple.mp3.enabled", true);
+#endif
 #ifdef MOZ_WEBRTC
 pref("media.navigator.enabled", true);
 pref("media.navigator.video.default_width",640);
@@ -481,6 +484,8 @@ pref("devtools.debugger.force-local", true);
 pref("devtools.debugger.prompt-connection", true);
 // Temporary setting to enable webapps actors
 pref("devtools.debugger.enable-content-actors", true);
+// Block tools from seeing / interacting with certified apps
+pref("devtools.debugger.forbid-certified-apps", true);
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -505,6 +510,10 @@ pref("nglayout.debug.paint_flashing_chrome", false);
 // enable/disable widget update area flashing --- only supported with 
 // BasicLayers (other layer managers always update the entire widget area)
 pref("nglayout.debug.widget_update_flashing", false);
+
+pref("layout.imagevisibility.enabled", true);
+pref("layout.imagevisibility.numscrollportwidths", 0);
+pref("layout.imagevisibility.numscrollportheights", 1);
 
 // scrollbar snapping region
 // 0 - off
@@ -797,9 +806,7 @@ pref("dom.min_background_timeout_value", 1000);
 
 // Don't use new input types
 pref("dom.experimental_forms", false);
-
-// Don't enable <input type=range> yet:
-pref("dom.experimental_forms_range", true);
+pref("dom.forms.number", false);
 
 // Don't enable <input type=color> yet:
 pref("dom.forms.color", false);
@@ -4396,6 +4403,9 @@ pref("dom.forms.inputmode", false);
 #else
 pref("dom.forms.inputmode", true);
 #endif
+
+// Telephony API
+pref("dom.telephony.enabled", false);
 
 // DOM Inter-App Communication API.
 pref("dom.inter-app-communication-api.enabled", false);

@@ -316,7 +316,8 @@ private:
             const nsCString& aContentDisposition,
             const bool& aForceSave,
             const int64_t& aContentLength,
-            const OptionalURIParams& aReferrer);
+            const OptionalURIParams& aReferrer,
+            PBrowserParent* aBrowser);
     virtual bool DeallocPExternalHelperAppParent(PExternalHelperAppParent* aService);
 
     virtual PSmsParent* AllocPSmsParent();
@@ -414,10 +415,10 @@ private:
 
     virtual bool RecvFirstIdle();
 
-    virtual bool RecvAudioChannelGetMuted(const AudioChannelType& aType,
+    virtual bool RecvAudioChannelGetState(const AudioChannelType& aType,
                                           const bool& aElementHidden,
                                           const bool& aElementWasHidden,
-                                          bool* aValue);
+                                          AudioChannelState* aValue);
 
     virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType);
     virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType,

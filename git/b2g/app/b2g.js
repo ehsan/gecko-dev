@@ -73,7 +73,7 @@ pref("mozilla.widget.force-24bpp", true);
 pref("mozilla.widget.use-buffer-pixmap", true);
 pref("mozilla.widget.disable-native-theme", true);
 pref("layout.reflow.synthMouseMove", false);
-pref("layers.force-tiles", true);
+pref("layers.force-tiles", false);
 
 /* download manager (don't show the window or alert) */
 pref("browser.download.useDownloadDir", true);
@@ -424,6 +424,7 @@ pref("services.push.udp.port", 2442);
 #ifdef MOZ_B2G_RIL
 pref("dom.mozNetworkStats.enabled", true);
 pref("ril.cellbroadcast.disabled", false);
+pref("dom.webapps.firstRunWithSIM", false);
 #endif
 
 // WebSettings
@@ -553,6 +554,7 @@ pref("dom.disable_window_showModalDialog", true);
 
 // Enable new experimental html forms
 pref("dom.experimental_forms", true);
+pref("dom.forms.number", true);
 
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
@@ -706,6 +708,8 @@ pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
 
 pref("layout.imagevisibility.enabled", false);
+pref("layout.imagevisibility.numscrollportwidths", 1);
+pref("layout.imagevisibility.numscrollportheights", 1);
 
 // Enable native identity (persona/browserid)
 pref("dom.identity.enabled", true);
@@ -777,3 +781,6 @@ pref("devtools.debugger.unix-domain-socket", "/data/local/debugger-socket");
 // falling back to Skia/software for smaller canvases
 pref("gfx.canvas.azure.backends", "skia");
 pref("gfx.canvas.azure.accelerated", true);
+
+// Enable Telephony API
+pref("dom.telephony.enabled", true);
