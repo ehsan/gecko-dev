@@ -39,7 +39,6 @@
 #define NSMARGIN_H
 
 #include "nsCoord.h"
-#include "nsMargin.h"
 #include "gfxCore.h"
 
 struct nsMargin {

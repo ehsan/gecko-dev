@@ -203,7 +203,6 @@ MOZ_ARG_ENABLE_BOOL(compile-environment,
                            Disable compiler/library checks.],
     COMPILE_ENVIRONMENT=1,
     COMPILE_ENVIRONMENT= )
-AC_SUBST(COMPILE_ENVIRONMENT)
 
 MOZ_ARG_WITH_STRING(l10n-base,
 [  --with-l10n-base=DIR     path to l10n repositories],
@@ -3211,6 +3210,7 @@ else
 		[MISSING_X="$MISSING_X -lX11"], $XLIBS)
 	AC_CHECK_LIB(Xext, XextAddDisplay, [XEXT_LIBS="-lXext"],
 		[MISSING_X="$MISSING_X -lXext"], $XLIBS)
+    echo "green"
      
 	AC_CHECK_LIB(Xt, XtFree, [ XT_LIBS="-lXt"], [
         unset ac_cv_lib_Xt_XtFree

@@ -1081,10 +1081,10 @@ xpc_qsStringToJsval(JSContext *cx, const nsAString &str, jsval *rval)
         return JS_TRUE;
     }
 
-    jsval jsstr = XPCStringConvert::ReadableToJSVal(cx, str);
+    JSString *jsstr = XPCStringConvert::ReadableToJSString(cx, str);
     if(!jsstr)
         return JS_FALSE;
-    *rval = jsstr;
+    *rval = STRING_TO_JSVAL(jsstr);
     return JS_TRUE;
 }
 
@@ -1150,6 +1150,14 @@ xpc_qsVariantToJsval(XPCCallContext &ccx,
     }
     *rval = JSVAL_NULL;
     return JS_TRUE;
+}
+
+JSBool
+xpc_qsReadOnlySetter(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
+{
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                         JSMSG_GETTER_ONLY, NULL);
+    return JS_FALSE;
 }
 
 #ifdef DEBUG

@@ -2935,7 +2935,8 @@ class XPCStringConvert
 {
 public:
 
-    static jsval ReadableToJSVal(JSContext *cx, const nsAString &readable);
+    static JSString *ReadableToJSString(JSContext *cx,
+                                        const nsAString &readable);
 
     static XPCReadableJSStringWrapper *JSStringToReadable(XPCCallContext& ccx,
                                                           JSString *str);

@@ -181,14 +181,16 @@ var StarUI = {
     rows.insertBefore(header, rows.firstChild);
     header.hidden = false;
 
+    var bundle = this._element("bundle_browser");
+
     // Set panel title:
     // if we are batching, i.e. the bookmark has been added now,
     // then show Page Bookmarked, else if the bookmark did already exist,
     // we are about editing it, then use Edit This Bookmark.
     this._element("editBookmarkPanelTitle").value =
       this._batching ?
-        gNavigatorBundle.getString("editBookmarkPanel.pageBookmarkedTitle") :
-        gNavigatorBundle.getString("editBookmarkPanel.editBookmarkTitle");
+        bundle.getString("editBookmarkPanel.pageBookmarkedTitle") :
+        bundle.getString("editBookmarkPanel.editBookmarkTitle");
 
     // No description; show the Done, Cancel;
     // hide the Edit, Undo buttons
@@ -205,7 +207,7 @@ var StarUI = {
     // The label of the remove button differs if the URI is bookmarked
     // multiple times.
     var bookmarks = PlacesUtils.getBookmarksForURI(gBrowser.currentURI);
-    var forms = gNavigatorBundle.getString("editBookmark.removeBookmarks.label");
+    var forms = bundle.getString("editBookmark.removeBookmarks.label");
     var label = PluralForm.get(bookmarks.length, forms).replace("#1", bookmarks.length);
     this._element("editBookmarkPanelRemoveButton").label = label;
 
@@ -247,17 +249,18 @@ var StarUI = {
   function PCH_showPageBookmarkedNotification(aItemId, aAnchorElement, aPosition) {
     this._blockCommands(); // un-done in the popuphiding handler
 
+    var bundle = this._element("bundle_browser");
     var brandBundle = this._element("bundle_brand");
     var brandShortName = brandBundle.getString("brandShortName");
 
     // "Page Bookmarked" title
     this._element("editBookmarkPanelTitle").value =
-      gNavigatorBundle.getString("editBookmarkPanel.pageBookmarkedTitle");
+      bundle.getString("editBookmarkPanel.pageBookmarkedTitle");
 
     // description
     this._element("editBookmarkPanelDescription").textContent =
-      gNavigatorBundle.getFormattedString("editBookmarkPanel.pageBookmarkedDescription",
-                                          [brandShortName]);
+      bundle.getFormattedString("editBookmarkPanel.pageBookmarkedDescription",
+                                [brandShortName]);
 
     // show the "Edit.." button and the Remove Bookmark button, hide the
     // undo-remove-bookmark button.
@@ -307,11 +310,12 @@ var StarUI = {
     if (this._batching) {
       PlacesUIUtils.ptm.endBatch();
       PlacesUIUtils.ptm.beginBatch(); // allow undo from within the notification
+      var bundle = this._element("bundle_browser");
 
       // "Bookmark Removed" title (the description field is already empty in
       // this mode)
       this._element("editBookmarkPanelTitle").value =
-        gNavigatorBundle.getString("editBookmarkPanel.bookmarkedRemovedTitle");
+        bundle.getString("editBookmarkPanel.bookmarkedRemovedTitle");
 
       // hide the edit panel
       this.quitEditMode();
@@ -1144,16 +1148,17 @@ var PlacesStarButton = {
     if (!starIcon)
       return;
 
+    var browserBundle = document.getElementById("bundle_browser");
     var uri = getBrowser().currentURI;
     this._starred = uri && (PlacesUtils.getMostRecentBookmarkForURI(uri) != -1 ||
                             PlacesUtils.getMostRecentFolderForFeedURI(uri) != -1);
     if (this._starred) {
       starIcon.setAttribute("starred", "true");
-      starIcon.setAttribute("tooltiptext", gNavigatorBundle.getString("starButtonOn.tooltip"));
+      starIcon.setAttribute("tooltiptext", browserBundle.getString("starButtonOn.tooltip"));
     }
     else {
       starIcon.removeAttribute("starred");
-      starIcon.setAttribute("tooltiptext", gNavigatorBundle.getString("starButtonOff.tooltip"));
+      starIcon.setAttribute("tooltiptext", browserBundle.getString("starButtonOff.tooltip"));
     }
   },
 

@@ -101,8 +101,6 @@
 #include "jsstaticcheck.h"
 #include "jsvector.h"
 
-#include "jsatominlines.h"
-
 /* 2^32 - 1 as a number and a string */
 #define MAXINDEX 4294967295u
 #define MAXSTR   "4294967295"
@@ -885,7 +883,7 @@ js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj)
          */
         if (!OBJ_IS_NATIVE(obj))
             return JS_TRUE;
-        if (OBJ_SCOPE(obj)->hadIndexedProperties())
+        if (SCOPE_HAS_INDEXED_PROPERTIES(OBJ_SCOPE(obj)))
             return JS_TRUE;
     }
     return JS_FALSE;
@@ -1246,8 +1244,8 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
     JS_ASSERT(OBJ_GET_CLASS(cx, obj) == &js_ArrayClass);
 
     /* Create a native scope. */
-    JSScope *scope = JSScope::create(cx, &js_SlowArrayObjectOps,
-                                     &js_SlowArrayClass, obj);
+    JSScope *scope = js_NewScope(cx, &js_SlowArrayObjectOps,
+                                 &js_SlowArrayClass, obj);
     if (!scope)
         return JS_FALSE;
 
@@ -1272,8 +1270,9 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
             continue;
         }
 
-        sprop = scope->add(cx, id, NULL, NULL, i + JS_INITIAL_NSLOTS,
-                           JSPROP_ENUMERATE, 0, 0);
+        sprop = js_AddScopeProperty(cx, scope, id, NULL, NULL,
+                                    i + JS_INITIAL_NSLOTS, JSPROP_ENUMERATE,
+                                    0, 0);
         if (!sprop)
             goto out_bad;
     }
@@ -1299,7 +1298,7 @@ js_MakeArraySlow(JSContext *cx, JSObject *obj)
     return JS_TRUE;
 
   out_bad:
-    JSScope::destroy(cx, scope);
+    js_DestroyScope(cx, scope);
     return JS_FALSE;
 }
 
