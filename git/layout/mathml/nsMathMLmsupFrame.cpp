@@ -132,7 +132,7 @@ nsMathMLmsupFrame::PlaceSuperScript(nsPresContext*      aPresContext,
   nsHTMLReflowMetrics supScriptSize;
   nsBoundingMetrics bmBase, bmSupScript;
   nsIFrame* supScriptFrame = nsnull;
-  nsIFrame* baseFrame = aFrame->GetFirstPrincipalChild();
+  nsIFrame* baseFrame = aFrame->GetFirstChild(nsnull);
   if (baseFrame)
     supScriptFrame = baseFrame->GetNextSibling();
   if (!baseFrame || !supScriptFrame || supScriptFrame->GetNextSibling()) {

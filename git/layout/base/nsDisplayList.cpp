@@ -106,7 +106,7 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
 
   if(mReferenceFrame->GetType() == nsGkAtoms::viewportFrame) {
     ViewportFrame* viewportFrame = static_cast<ViewportFrame*>(mReferenceFrame);
-    if (!viewportFrame->GetChildList(nsIFrame::kFixedList).IsEmpty()) {
+    if (!viewportFrame->GetChildList(nsGkAtoms::fixedList).IsEmpty()) {
       mHasFixedItems = PR_TRUE;
     }
   }

@@ -3359,7 +3359,7 @@ nsIPresShell::GetRootScrollFrame() const
   // Ensure root frame is a viewport frame
   if (!rootFrame || nsGkAtoms::viewportFrame != rootFrame->GetType())
     return nsnull;
-  nsIFrame* theFrame = rootFrame->GetFirstPrincipalChild();
+  nsIFrame* theFrame = rootFrame->GetFirstChild(nsnull);
   if (!theFrame || nsGkAtoms::scrollFrame != theFrame->GetType())
     return nsnull;
   return theFrame;
@@ -3599,15 +3599,16 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
           }
         }
 
-        nsIFrame::ChildListIterator lists(f);
-        for (; !lists.IsDone(); lists.Next()) {
-          nsFrameList::Enumerator childFrames(lists.CurrentList());
-          for (; !childFrames.AtEnd(); childFrames.Next()) {
-            nsIFrame* kid = childFrames.get();
+        PRInt32 childListIndex = 0;
+        nsIAtom *childListName;
+        do {
+          childListName = f->GetAdditionalChildListName(childListIndex++);
+          for (nsIFrame *kid = f->GetFirstChild(childListName); kid;
+               kid = kid->GetNextSibling()) {
             kid->MarkIntrinsicWidthsDirty();
             stack.AppendElement(kid);
           }
-        }
+        } while (childListName);
       } while (stack.Length() != 0);
     }
 
@@ -6605,7 +6606,7 @@ PresShell::HandleEvent(nsIView         *aView,
                 capturingContent->IsHTML()) {
               // a dropdown <select> has a child in its selectPopupList and we should
               // capture on that instead.
-              nsIFrame* childFrame = captureFrame->GetChildList(nsIFrame::kSelectPopupList).FirstChild();
+              nsIFrame* childFrame = captureFrame->GetChildList(nsGkAtoms::selectPopupList).FirstChild();
               if (childFrame) {
                 captureFrame = childFrame;
               }
@@ -8138,11 +8139,12 @@ WalkFramesThroughPlaceholders(nsPresContext *aPresContext, nsIFrame *aFrame,
   if (!walkChildren)
     return;
 
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsIFrame* child = childFrames.get();
+  PRInt32 listIndex = 0;
+  nsIAtom* childList = nsnull;
+
+  do {
+    nsIFrame *child = aFrame->GetFirstChild(childList);
+    while (child) {
       if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
         // only do frames that are in flow, and recur through the
         // out-of-flows of placeholders.
@@ -8150,8 +8152,11 @@ WalkFramesThroughPlaceholders(nsPresContext *aPresContext, nsIFrame *aFrame,
                                       nsPlaceholderFrame::GetRealFrameFor(child),
                                       aFunc, aClosure);
       }
+      child = child->GetNextSibling();
     }
-  }
+
+    childList = aFrame->GetAdditionalChildListName(listIndex++);
+  } while (childList);
 }
 #endif
 
@@ -8342,11 +8347,11 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
   //if (aFirstFrame->GetType() == nsGkAtoms::scrollbarFrame)
   //  return PR_TRUE;
   PRBool ok = PR_TRUE;
-  nsIFrame::ChildListIterator lists1(aFirstFrame);
-  nsIFrame::ChildListIterator lists2(aSecondFrame);
+  nsIAtom* listName = nsnull;
+  PRInt32 listIndex = 0;
   do {
-    const nsFrameList& kids1 = !lists1.IsDone() ? lists1.CurrentList() : nsFrameList();
-    const nsFrameList& kids2 = !lists2.IsDone() ? lists2.CurrentList() : nsFrameList();
+    const nsFrameList& kids1 = aFirstFrame->GetChildList(listName);
+    const nsFrameList& kids2 = aSecondFrame->GetChildList(listName);
     PRInt32 l1 = kids1.GetLength();
     PRInt32 l2 = kids2.GetLength();;
     if (l1 != l2) {
@@ -8432,21 +8437,34 @@ CompareTrees(nsPresContext* aFirstPresContext, nsIFrame* aFirstFrame,
       break;
     }
 
-    lists1.Next();
-    lists2.Next();
-    if (lists1.IsDone() != lists2.IsDone() ||
-        (!lists1.IsDone() && lists1.CurrentID() != lists2.CurrentID())) {
+    nsIAtom* listName1 = aFirstFrame->GetAdditionalChildListName(listIndex);
+    nsIAtom* listName2 = aSecondFrame->GetAdditionalChildListName(listIndex);
+    listIndex++;
+    if (listName1 != listName2) {
       if (0 == (VERIFY_REFLOW_ALL & gVerifyReflowFlags)) {
         ok = PR_FALSE;
       }
       LogVerifyMessage(kids1.FirstChild(), kids2.FirstChild(),
                        "child list names are not matched: ");
-      fprintf(stdout, "%s != %s\n",
-              !lists1.IsDone() ? mozilla::layout::ChildListName(lists1.CurrentID()) : "(null)",
-              !lists2.IsDone() ? mozilla::layout::ChildListName(lists2.CurrentID()) : "(null)");
+      nsAutoString tmp;
+      if (nsnull != listName1) {
+        listName1->ToString(tmp);
+        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), stdout);
+      }
+      else
+        fputs("(null)", stdout);
+      printf(" != ");
+      if (nsnull != listName2) {
+        listName2->ToString(tmp);
+        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), stdout);
+      }
+      else
+        fputs("(null)", stdout);
+      printf("\n");
       break;
     }
-  } while (ok && !lists1.IsDone());
+    listName = listName1;
+  } while (ok && (listName != nsnull));
 
   return ok;
 }
@@ -8468,7 +8486,7 @@ FindTopFrame(nsIFrame* aRoot)
     }
 
     // Try one of the children
-    nsIFrame* kid = aRoot->GetFirstPrincipalChild();
+    nsIFrame* kid = aRoot->GetFirstChild(nsnull);
     while (nsnull != kid) {
       nsIFrame* result = FindTopFrame(kid);
       if (nsnull != result) {
@@ -9102,7 +9120,7 @@ static void RecurseIndiTotals(nsPresContext* aPresContext,
     nsMemory::Free(name);
   }
 
-  nsIFrame* child = aParentFrame->GetFirstPrincipalChild();
+  nsIFrame* child = aParentFrame->GetFirstChild(nsnull);
   while (child) {
     RecurseIndiTotals(aPresContext, aHT, child, aLevel+1);
     child = child->GetNextSibling();

@@ -208,7 +208,7 @@ public:
   nsresult CreateWidgetForView(nsIView* aView);
   PRUint8 GetShadowStyle();
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
   virtual PRBool IsLeaf() const;

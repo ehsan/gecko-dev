@@ -318,19 +318,17 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   rv = EnsureEventHandler(boundGlobal, boundContext, onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Bind it to the bound element
+  // Temporarily bind it to the bound element
   void *scope = boundGlobal->GetScriptGlobal(stID);
-  nsScriptObjectHolder boundHandler(boundContext);
   rv = boundContext->BindCompiledEventHandler(scriptTarget, scope,
-                                              handler, boundHandler);
+                                              onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Execute it.
   nsCOMPtr<nsIDOMEventListener> eventListener;
-  rv = NS_NewJSEventListener(boundContext, scope,
-                             scriptTarget, onEventAtom,
-                             boundHandler, getter_AddRefs(eventListener));
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_NewJSEventListener(boundContext, scope,
+                        scriptTarget, onEventAtom,
+                        getter_AddRefs(eventListener));
 
   // Handle the event.
   eventListener->HandleEvent(aEvent);

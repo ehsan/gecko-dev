@@ -2004,7 +2004,7 @@ nsXULPopupManager::GetNextMenuItem(nsIFrame* aParent,
   if (aStart)
     currFrame = aStart->GetNextSibling();
   else 
-    currFrame = immediateParent->GetFirstPrincipalChild();
+    currFrame = immediateParent->GetFirstChild(nsnull);
   
   while (currFrame) {
     // See if it's a menu item.
@@ -2015,7 +2015,7 @@ nsXULPopupManager::GetNextMenuItem(nsIFrame* aParent,
     currFrame = currFrame->GetNextSibling();
   }
 
-  currFrame = immediateParent->GetFirstPrincipalChild();
+  currFrame = immediateParent->GetFirstChild(nsnull);
 
   // Still don't have anything. Try cycling from the beginning.
   while (currFrame && currFrame != aStart) {
@@ -2044,7 +2044,7 @@ nsXULPopupManager::GetPreviousMenuItem(nsIFrame* aParent,
   if (!immediateParent)
     immediateParent = aParent;
 
-  const nsFrameList& frames(immediateParent->PrincipalChildList());
+  const nsFrameList& frames(immediateParent->GetChildList(nsnull));
 
   nsIFrame* currFrame = nsnull;
   if (aStart)

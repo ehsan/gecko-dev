@@ -473,7 +473,7 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
 
 nsresult
 nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
-                             ChildListID     aListID,
+                             nsIAtom*        aListName,
                              nsIFrame*       aPrevFrame,
                              nsFrameList&    aFrameList)
 {
@@ -482,11 +482,11 @@ nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
                   && !IS_TRUE_OVERFLOW_CONTAINER(aPrevFrame),
                   "aPrevFrame must be the last continuation in its chain!");
 
-  return aParentFrame->InsertFrames(aListID, aPrevFrame, aFrameList);
+  return aParentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
 }
 
 nsresult
-nsFrameManager::RemoveFrame(ChildListID     aListID,
+nsFrameManager::RemoveFrame(nsIAtom*        aListName,
                             nsIFrame*       aOldFrame)
 {
   PRBool wasDestroyingFrames = mIsDestroyingFrames;
@@ -507,7 +507,7 @@ nsFrameManager::RemoveFrame(ChildListID     aListID,
   NS_ASSERTION(!(aOldFrame->GetStateBits() & NS_FRAME_OUT_OF_FLOW &&
                  GetPlaceholderFrameFor(aOldFrame)),
                "Must call RemoveFrame on placeholder for out-of-flows.");
-  nsresult rv = aOldFrame->GetParent()->RemoveFrame(aListID, aOldFrame);
+  nsresult rv = aOldFrame->GetParent()->RemoveFrame(aListName, aOldFrame);
 
   mIsDestroyingFrames = wasDestroyingFrames;
 
@@ -649,11 +649,13 @@ VerifyStyleTree(nsPresContext* aPresContext, nsIFrame* aFrame,
   nsStyleContext*  context = aFrame->GetStyleContext();
   VerifyContextParent(aPresContext, aFrame, context, nsnull);
 
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsIFrame* child = childFrames.get();
+  PRInt32 listIndex = 0;
+  nsIAtom* childList = nsnull;
+  nsIFrame* child;
+
+  do {
+    child = aFrame->GetFirstChild(childList);
+    while (child) {
       if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
           || (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
         // only do frames that don't have placeholders
@@ -674,8 +676,11 @@ VerifyStyleTree(nsPresContext* aPresContext, nsIFrame* aFrame,
           VerifyStyleTree(aPresContext, child, nsnull);
         }
       }
+      child = child->GetNextSibling();
     }
-  }
+
+    childList = aFrame->GetAdditionalChildListName(listIndex++);
+  } while (childList);
   
   // do additional contexts 
   PRInt32 contextIndex = -1;
@@ -903,13 +908,15 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
         NS_ASSERTION(!(styleChange & nsChangeHint_ReconstructFrame),
                      "Our frame tree is likely to be bogus!");
         
+        PRInt32 listIndex = 0;
+        nsIAtom* childList = nsnull;
+        nsIFrame* child;
+          
         aFrame->SetStyleContext(newContext);
 
-        nsIFrame::ChildListIterator lists(aFrame);
-        for (; !lists.IsDone(); lists.Next()) {
-          nsFrameList::Enumerator childFrames(lists.CurrentList());
-          for (; !childFrames.AtEnd(); childFrames.Next()) {
-            nsIFrame* child = childFrames.get();
+        do {
+          child = aFrame->GetFirstChild(childList);
+          while (child) {
             // only do frames that don't have placeholders
             if ((!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW) ||
                  (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) &&
@@ -924,10 +931,15 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
                              "Out of flow provider?");
               }
 #endif
+
               ReparentStyleContext(child);
             }
+
+            child = child->GetNextSibling();
           }
-        }
+
+          childList = aFrame->GetAdditionalChildListName(listIndex++);
+        } while (childList);
 
         // If this frame is part of an IB split, then the style context of
         // the next part of the split might be a child of our style context.
@@ -1514,11 +1526,12 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // style contexts that we're just going to throw away anyway. - dwh
 
       // now do children
-      nsIFrame::ChildListIterator lists(aFrame);
-      for (; !lists.IsDone(); lists.Next()) {
-        nsFrameList::Enumerator childFrames(lists.CurrentList());
-        for (; !childFrames.AtEnd(); childFrames.Next()) {
-          nsIFrame* child = childFrames.get();
+      PRInt32 listIndex = 0;
+      nsIAtom* childList = nsnull;
+
+      do {
+        nsIFrame* child = aFrame->GetFirstChild(childList);
+        while (child) {
           if (!(child->GetStateBits() & NS_FRAME_OUT_OF_FLOW)
               || (child->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER)) {
             // only do frames that don't have placeholders
@@ -1579,8 +1592,11 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
               }
             }
           }
+          child = child->GetNextSibling();
         }
-      }
+
+        childList = aFrame->GetAdditionalChildListName(listIndex++);
+      } while (childList);
       // XXX need to do overflow frames???
 
 #ifdef ACCESSIBILITY
@@ -1738,13 +1754,17 @@ nsFrameManager::CaptureFrameState(nsIFrame* aFrame,
   CaptureFrameStateFor(aFrame, aState);
 
   // Now capture state recursively for the frame hierarchy rooted at aFrame
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      CaptureFrameState(childFrames.get(), aState);
+  nsIAtom*  childListName = nsnull;
+  PRInt32   childListIndex = 0;
+  do {    
+    nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
+    while (childFrame) {             
+      CaptureFrameState(childFrame, aState);
+      // Get the next sibling child frame
+      childFrame = childFrame->GetNextSibling();
     }
-  }
+    childListName = aFrame->GetAdditionalChildListName(childListIndex++);
+  } while (childListName);
 }
 
 // Restore state for a given frame.
@@ -1807,13 +1827,17 @@ nsFrameManager::RestoreFrameState(nsIFrame* aFrame,
   RestoreFrameStateFor(aFrame, aState);
 
   // Now restore state recursively for the frame hierarchy rooted at aFrame
-  nsIFrame::ChildListIterator lists(aFrame);
-  for (; !lists.IsDone(); lists.Next()) {
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      RestoreFrameState(childFrames.get(), aState);
+  nsIAtom*  childListName = nsnull;
+  PRInt32   childListIndex = 0;
+  do {    
+    nsIFrame* childFrame = aFrame->GetFirstChild(childListName);
+    while (childFrame) {
+      RestoreFrameState(childFrame, aState);
+      // Get the next sibling child frame
+      childFrame = childFrame->GetNextSibling();
     }
-  }
+    childListName = aFrame->GetAdditionalChildListName(childListIndex++);
+  } while (childListName);
 }
 
 //----------------------------------------------------------------------

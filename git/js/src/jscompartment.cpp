@@ -667,7 +667,7 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b)
 
     debugModeBits = (debugModeBits & ~uintN(DebugFromC)) | (b ? DebugFromC : 0);
     JS_ASSERT(debugMode() == enabledAfter);
-    if (enabledBefore != enabledAfter)
+    if (enabledBefore != enabledAfter && !onStack)
         updateForDebugMode(cx);
     return true;
 }
@@ -675,12 +675,6 @@ JSCompartment::setDebugModeFromC(JSContext *cx, bool b)
 void
 JSCompartment::updateForDebugMode(JSContext *cx)
 {
-    for (ThreadContextRange r(cx); !r.empty(); r.popFront()) {
-        JSContext *cx = r.front();
-        if (cx->compartment == this) 
-            cx->updateJITEnabled();
-    }
-
 #ifdef JS_METHODJIT
     bool enabled = debugMode();
 
@@ -804,7 +798,7 @@ JSCompartment::clearTraps(JSContext *cx, JSScript *script)
 }
 
 bool
-JSCompartment::markTrapClosuresIteratively(JSTracer *trc)
+JSCompartment::markBreakpointsIteratively(JSTracer *trc)
 {
     bool markedAny = false;
     JSContext *cx = trc->context;
@@ -814,7 +808,7 @@ JSCompartment::markTrapClosuresIteratively(JSTracer *trc)
         // Mark jsdbgapi state if any. But if we know the scriptObject, put off
         // marking trap state until we know the scriptObject is live.
         if (site->trapHandler &&
-            (!site->scriptObject || !IsAboutToBeFinalized(cx, site->scriptObject)))
+            (!site->scriptObject || IsAboutToBeFinalized(cx, site->scriptObject)))
         {
             if (site->trapClosure.isMarkable() &&
                 IsAboutToBeFinalized(cx, site->trapClosure.toGCThing()))
@@ -822,6 +816,26 @@ JSCompartment::markTrapClosuresIteratively(JSTracer *trc)
                 markedAny = true;
             }
             MarkValue(trc, site->trapClosure, "trap closure");
+        }
+
+        // Mark js::Debugger breakpoints. If either the debugger or the script is
+        // collected, then the breakpoint is collected along with it. So do not
+        // mark the handler in that case.
+        //
+        // If scriptObject is non-null, examine it to see if the script will be
+        // collected. If scriptObject is null, then site->script is an eval
+        // script on the stack, so it is definitely live.
+        //
+        if (!site->scriptObject || !IsAboutToBeFinalized(cx, site->scriptObject)) {
+            for (Breakpoint *bp = site->firstBreakpoint(); bp; bp = bp->nextInSite()) {
+                if (!IsAboutToBeFinalized(cx, bp->debugger->toJSObject()) &&
+                    bp->handler &&
+                    IsAboutToBeFinalized(cx, bp->handler))
+                {
+                    MarkObject(trc, *bp->handler, "breakpoint handler");
+                    markedAny = true;
+                }
+            }
         }
     }
     return markedAny;

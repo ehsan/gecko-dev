@@ -42,7 +42,7 @@
 
 #include "nsIdleService.h"
 
-#if !defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_X11)
+#ifndef MOZ_PLATFORM_MAEMO
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
@@ -66,7 +66,7 @@ public:
 
 private:
     ~nsIdleServiceQt();
-#if !defined(MOZ_PLATFORM_MAEMO) && defined(MOZ_X11)
+#ifndef MOZ_PLATFORM_MAEMO
     XScreenSaverInfo* mXssInfo;
 #endif
 

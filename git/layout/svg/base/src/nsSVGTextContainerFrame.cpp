@@ -96,11 +96,11 @@ nsSVGTextContainerFrame::GetRotate()
 // nsIFrame methods
 
 NS_IMETHODIMP
-nsSVGTextContainerFrame::InsertFrames(ChildListID aListID,
+nsSVGTextContainerFrame::InsertFrames(nsIAtom* aListName,
                                       nsIFrame* aPrevFrame,
                                       nsFrameList& aFrameList)
 {
-  nsresult rv = nsSVGDisplayContainerFrame::InsertFrames(aListID,
+  nsresult rv = nsSVGDisplayContainerFrame::InsertFrames(aListName,
                                                          aPrevFrame,
                                                          aFrameList);
 
@@ -109,11 +109,11 @@ nsSVGTextContainerFrame::InsertFrames(ChildListID aListID,
 }
 
 NS_IMETHODIMP
-nsSVGTextContainerFrame::RemoveFrame(ChildListID aListID, nsIFrame *aOldFrame)
+nsSVGTextContainerFrame::RemoveFrame(nsIAtom *aListName, nsIFrame *aOldFrame)
 {
   nsSVGTextFrame *textFrame = GetTextFrame();
 
-  nsresult rv = nsSVGDisplayContainerFrame::RemoveFrame(aListID, aOldFrame);
+  nsresult rv = nsSVGDisplayContainerFrame::RemoveFrame(aListName, aOldFrame);
 
   if (textFrame)
     textFrame->NotifyGlyphMetricsChange();

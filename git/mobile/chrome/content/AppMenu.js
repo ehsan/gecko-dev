@@ -4,11 +4,6 @@ var AppMenu = {
     return this.panel = document.getElementById("appmenu");
   },
 
-  get popup() {
-    delete this.popup;
-    return this.popup = document.getElementById("appmenu-popup");
-  },
-
   shouldShow: function appmenu_shouldShow(aElement) {
     return !aElement.hidden;
   },
@@ -20,81 +15,39 @@ var AppMenu = {
     if (BrowserUI.activePanel || BrowserUI.isPanelVisible() || modals > 0 || BrowserUI.activeDialog)
       return;
 
-    // Figure if we should show a menu-list or a pop-up menu
-    let menuButton = document.getElementById("tool-menu");
-    let listFormat = (getComputedStyle(menuButton).visibility == "visible");
+    let shown = 0;
+    let lastShown = null;
+    this.overflowMenu = [];
+    let childrenCount = this.panel.childElementCount;
+    for (let i = 0; i < childrenCount; i++) {
+      if (this.shouldShow(this.panel.children[i])) {
+        if (shown == 6 && this.overflowMenu.length == 0) {
+          // if we are trying to show more than 6 elements fall back to showing a more button
+          lastShown.removeAttribute("show");
+          this.overflowMenu.push(lastShown);
+          this.panel.appendChild(this.createMoreButton());
+        }
+        if (this.overflowMenu.length > 0) {
+          this.overflowMenu.push(this.panel.children[i]);
+        } else {
+          lastShown = this.panel.children[i];
+          lastShown.setAttribute("show", shown);
+          shown++;
+        }
+      }
+    }
+
+    this.panel.setAttribute("count", shown);
+    this.panel.hidden = false;
 
     addEventListener("keypress", this, true);
 
-    if (listFormat) {
-      let listbox = document.getElementById("appmenu-popup-commands");
-      while (listbox.firstChild)
-        listbox.removeChild(listbox.firstChild);
-
-      let childrenCount = this.panel.childElementCount;
-      for (let i = 0; i < childrenCount; i++) {
-        let child = this.panel.children[i];
-
-        if (!this.shouldShow(child))
-          continue;
-
-        child.setAttribute("show", true);
-
-        let item = document.createElement("richlistitem");
-        item.setAttribute("class", "appmenu-button");
-        item.onclick = function() { child.click(); }
-
-        let label = document.createElement("label");
-        label.setAttribute("value", child.label);
-        item.appendChild(label);
-
-        listbox.appendChild(item);
-      }
-
-      this.popup.top = menuButton.getBoundingClientRect().bottom;
-
-      let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(Ci.nsIXULChromeRegistry);
-      this.popup.setAttribute(chromeReg.isLocaleRTL("global") ? "left" : "right", 0);
-
-      this.popup.hidden = false;
-      this.popup.anchorTo(menuButton);
-
-      BrowserUI.lockToolbar();
-      BrowserUI.pushPopup(this, [this.popup, menuButton]);
-    } else {
-      let shown = 0;
-      let lastShown = null;
-      this.overflowMenu = [];
-      let childrenCount = this.panel.childElementCount;
-      for (let i = 0; i < childrenCount; i++) {
-        if (this.shouldShow(this.panel.children[i])) {
-          if (shown == 6 && this.overflowMenu.length == 0) {
-            // if we are trying to show more than 6 elements fall back to showing a more button
-            lastShown.removeAttribute("show");
-            this.overflowMenu.push(lastShown);
-            this.panel.appendChild(this.createMoreButton());
-          }
-          if (this.overflowMenu.length > 0) {
-            this.overflowMenu.push(this.panel.children[i]);
-          } else {
-            lastShown = this.panel.children[i];
-            lastShown.setAttribute("show", shown);
-            shown++;
-          }
-        }
-      }
-
-      this.panel.setAttribute("count", shown);
-      this.panel.hidden = false;
-
-      BrowserUI.lockToolbar();
-      BrowserUI.pushPopup(this, [this.panel, Elements.toolbarContainer]);
-    }
+    BrowserUI.lockToolbar();
+    BrowserUI.pushPopup(this, [this.panel, Elements.toolbarContainer]);
   },
 
   hide: function hide() {
     this.panel.hidden = true;
-    this.popup.hidden = true;
     let moreButton = document.getElementById("appmenu-more-button");
     if (moreButton)
       moreButton.parentNode.removeChild(moreButton);
@@ -111,7 +64,7 @@ var AppMenu = {
   },
 
   toggle: function toggle() {
-    (this.panel.hidden && this.popup.hidden) ? this.show() : this.hide();
+    this.panel.hidden ? this.show() : this.hide();
   },
 
   handleEvent: function handleEvent(aEvent) {

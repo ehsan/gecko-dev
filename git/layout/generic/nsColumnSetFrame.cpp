@@ -58,7 +58,7 @@ public:
 
   nsColumnSetFrame(nsStyleContext* aContext);
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
@@ -66,19 +66,19 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
                                
-  NS_IMETHOD  AppendFrames(ChildListID     aListID,
+  NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
                            nsFrameList&    aFrameList);
-  NS_IMETHOD  InsertFrames(ChildListID     aListID,
+  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
                            nsFrameList&    aFrameList);
-  NS_IMETHOD  RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);  
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   virtual nsIFrame* GetContentInsertionFrame() {
-    nsIFrame* frame = GetFirstPrincipalChild();
+    nsIFrame* frame = GetFirstChild(nsnull);
 
     // if no children return nsnull
     if (!frame)
@@ -287,15 +287,14 @@ nsColumnSetFrame::PaintColumnRule(nsRenderingContext* aCtx,
 }
 
 NS_IMETHODIMP
-nsColumnSetFrame::SetInitialChildList(ChildListID     aListID,
+nsColumnSetFrame::SetInitialChildList(nsIAtom*        aListName,
                                       nsFrameList&    aChildList)
 {
-  NS_ASSERTION(aListID == kPrincipalList,
-               "Only default child list supported");
+  NS_ASSERTION(!aListName, "Only default child list supported");
   NS_ASSERTION(aChildList.OnlyChild(),
                "initial child list must have exactly one child");
   // Queue up the frames for the content frame
-  return nsHTMLContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(nsnull, aChildList);
 }
 
 static nscoord
@@ -1109,7 +1108,7 @@ nsColumnSetFrame::GetSkipSides() const
 }
 
 NS_IMETHODIMP
-nsColumnSetFrame::AppendFrames(ChildListID     aListID,
+nsColumnSetFrame::AppendFrames(nsIAtom*        aListName,
                                nsFrameList&    aFrameList)
 {
   NS_NOTREACHED("AppendFrames not supported");
@@ -1117,7 +1116,7 @@ nsColumnSetFrame::AppendFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsColumnSetFrame::InsertFrames(ChildListID     aListID,
+nsColumnSetFrame::InsertFrames(nsIAtom*        aListName,
                                nsIFrame*       aPrevFrame,
                                nsFrameList&    aFrameList)
 {
@@ -1126,7 +1125,7 @@ nsColumnSetFrame::InsertFrames(ChildListID     aListID,
 }
 
 NS_IMETHODIMP
-nsColumnSetFrame::RemoveFrame(ChildListID     aListID,
+nsColumnSetFrame::RemoveFrame(nsIAtom*        aListName,
                               nsIFrame*       aOldFrame)
 {
   NS_NOTREACHED("RemoveFrame not supported");

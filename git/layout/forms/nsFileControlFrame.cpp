@@ -20,7 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Geoff Lankow <geoff@darktrojan.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -620,7 +620,7 @@ nsFileControlFrame::GetTextControlFrame(nsPresContext* aPresContext, nsIFrame* a
   nsNewFrame* result = nsnull;
 #ifndef DEBUG_NEWFRAME
   // find the text control frame.
-  nsIFrame* childFrame = aStart->GetFirstPrincipalChild();
+  nsIFrame* childFrame = aStart->GetFirstChild(nsnull);
 
   while (childFrame) {
     // see if the child is a text control

@@ -105,7 +105,7 @@ nsFirstLetterFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsFirstLetterFrame::SetInitialChildList(ChildListID  aListID,
+nsFirstLetterFrame::SetInitialChildList(nsIAtom*     aListName,
                                         nsFrameList& aChildList)
 {
   nsFrameManager *frameManager = PresContext()->FrameManager();
@@ -350,11 +350,11 @@ nsFirstLetterFrame::CreateContinuationForFloatingParent(nsPresContext* aPresCont
   }
 
   //XXX Bidi may not be involved but we have to use the list name
-  // kNoReflowPrincipalList because this is just like creating a continuation
+  // nsGkAtoms::nextBidi because this is just like creating a continuation
   // except we have to insert it in a different place and we don't want a
   // reflow command to try to be issued.
   nsFrameList temp(continuation, continuation);
-  rv = parent->InsertFrames(kNoReflowPrincipalList, placeholderFrame, temp);
+  rv = parent->InsertFrames(nsGkAtoms::nextBidi, placeholderFrame, temp);
 
   *aContinuation = continuation;
   return rv;

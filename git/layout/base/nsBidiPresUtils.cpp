@@ -377,13 +377,13 @@ SplitInlineAncestors(nsIFrame*     aFrame)
     }
     
     // The parent's continuation adopts the siblings after the split.
-    rv = newParent->InsertFrames(nsIFrame::kNoReflowPrincipalList, nsnull, tail);
+    rv = newParent->InsertFrames(nsGkAtoms::nextBidi, nsnull, tail);
     if (NS_FAILED(rv)) {
       return rv;
     }
-    // The list name kNoReflowPrincipalList would indicate we don't want reflow
+    // The list name nsGkAtoms::nextBidi would indicate we don't want reflow
     nsFrameList temp(newParent, newParent);
-    rv = grandparent->InsertFrames(nsIFrame::kNoReflowPrincipalList, parent, temp);
+    rv = grandparent->InsertFrames(nsGkAtoms::nextBidi, parent, temp);
     if (NS_FAILED(rv)) {
       return rv;
     }
@@ -464,10 +464,10 @@ CreateContinuation(nsIFrame*  aFrame,
     return rv;
   }
 
-  // The list name kNoReflowPrincipalList would indicate we don't want reflow
+  // The list name nsGkAtoms::nextBidi would indicate we don't want reflow
   // XXXbz this needs higher-level framelist love
   nsFrameList temp(*aNewFrame, *aNewFrame);
-  rv = parent->InsertFrames(nsIFrame::kNoReflowPrincipalList, aFrame, temp);
+  rv = parent->InsertFrames(nsGkAtoms::nextBidi, aFrame, temp);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -540,7 +540,7 @@ nsBidiPresUtils::Resolve(nsBlockFrame* aBlockFrame)
     block->RemoveStateBits(NS_BLOCK_NEEDS_BIDI_RESOLUTION);
     nsBlockInFlowLineIterator lineIter(block, block->begin_lines(), PR_FALSE);
     bpd.mPrevFrame = nsnull;
-    TraverseFrames(aBlockFrame, &lineIter, block->GetFirstPrincipalChild(), &bpd);
+    TraverseFrames(aBlockFrame, &lineIter, block->GetFirstChild(nsnull), &bpd);
   }
 
   if (ch != 0) {
@@ -790,7 +790,7 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
 
 // Should this frame be treated as a leaf (e.g. when building mLogicalFrames)?
 PRBool IsBidiLeaf(nsIFrame* aFrame) {
-  nsIFrame* kid = aFrame->GetFirstPrincipalChild();
+  nsIFrame* kid = aFrame->GetFirstChild(nsnull);
   return !kid
     || !aFrame->IsFrameOfType(nsIFrame::eBidiInlineContainer);
 }
@@ -999,7 +999,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
     }
     else {
       // For a non-leaf frame, recurse into TraverseFrames
-      nsIFrame* kid = frame->GetFirstPrincipalChild();
+      nsIFrame* kid = frame->GetFirstChild(nsnull);
       TraverseFrames(aBlockFrame, aLineIter, kid, aBpd);
     }
 
@@ -1028,7 +1028,7 @@ nsBidiPresUtils::ReorderFrames(nsIFrame*            aFirstFrameOnLine,
 {
   // If this line consists of a line frame, reorder the line frame's children.
   if (aFirstFrameOnLine->GetType() == nsGkAtoms::lineFrame) {
-    aFirstFrameOnLine = aFirstFrameOnLine->GetFirstPrincipalChild();
+    aFirstFrameOnLine = aFirstFrameOnLine->GetFirstChild(nsnull);
     if (!aFirstFrameOnLine)
       return;
     // All children of the line frame are on the first line. Setting aNumFramesOnLine
@@ -1045,7 +1045,7 @@ nsBidiPresUtils::GetFrameEmbeddingLevel(nsIFrame* aFrame)
 {
   nsIFrame* firstLeaf = aFrame;
   while (!IsBidiLeaf(firstLeaf)) {
-    nsIFrame* firstChild = firstLeaf->GetFirstPrincipalChild();
+    nsIFrame* firstChild = firstLeaf->GetFirstChild(nsnull);
     nsIFrame* realFrame = nsPlaceholderFrame::GetRealFrameFor(firstChild);
     firstLeaf = (realFrame->GetType() == nsGkAtoms::letterFrame) ?
                  realFrame : firstChild;
@@ -1058,7 +1058,7 @@ nsBidiPresUtils::GetFrameBaseLevel(nsIFrame* aFrame)
 {
   nsIFrame* firstLeaf = aFrame;
   while (!IsBidiLeaf(firstLeaf)) {
-    firstLeaf = firstLeaf->GetFirstPrincipalChild();
+    firstLeaf = firstLeaf->GetFirstChild(nsnull);
   }
   return NS_GET_BASE_LEVEL(firstLeaf);
 }
@@ -1207,7 +1207,7 @@ nsBidiPresUtils::RepositionFrame(nsIFrame*              aFrame,
     // in reverse order, to make it O(n) we store the list locally and
     // iterate the list reversely
     nsTArray<nsIFrame*> childList;
-    nsIFrame *frame = aFrame->GetFirstPrincipalChild();
+    nsIFrame *frame = aFrame->GetFirstChild(nsnull);
     if (frame && aIsOddLevel) {
       childList.AppendElement((nsIFrame*)nsnull);
       while (frame) {
@@ -1255,7 +1255,7 @@ nsBidiPresUtils::InitContinuationStates(nsIFrame*              aFrame,
   if (!IsBidiLeaf(aFrame)) {
     // Continue for child frames
     nsIFrame* frame;
-    for (frame = aFrame->GetFirstPrincipalChild();
+    for (frame = aFrame->GetFirstChild(nsnull);
          frame;
          frame = frame->GetNextSibling()) {
       InitContinuationStates(frame,

@@ -64,8 +64,6 @@
 #include "nsIDOMDOMStringMap.h"
 #include "nsContentList.h"
 #include "nsDOMClassInfoID.h" // DOMCI_DATA
-#include "nsIDOMTouchEvent.h"
-#include "nsIInlineEventHandlers.h"
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -201,6 +199,8 @@ private:
   nsCOMPtr<nsINode> mNode;
 };
 
+#define NS_EVENT_TEAROFF_CACHE_SIZE 4
+
 /**
  * A tearoff class for nsGenericElement to implement NodeSelector
  */
@@ -226,8 +226,6 @@ private:
 
 // Forward declare to allow being a friend
 class nsNSElementTearoff;
-class nsTouchEventReceiverTearoff;
-class nsInlineEventHandlersTearoff;
 
 /**
  * A generic base class for DOM elements, implementing many nsIContent,
@@ -240,8 +238,6 @@ public:
   virtual ~nsGenericElement();
 
   friend class nsNSElementTearoff;
-  friend class nsTouchEventReceiverTearoff;
-  friend class nsInlineEventHandlersTearoff;
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -1059,46 +1055,6 @@ public:
 
 private:
   nsRefPtr<nsGenericElement> mContent;
-};
-
-/**
- * Tearoff class to implement nsITouchEventReceiver
- */
-class nsTouchEventReceiverTearoff : public nsITouchEventReceiver
-{
-public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  NS_FORWARD_NSITOUCHEVENTRECEIVER(mElement->)
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsTouchEventReceiverTearoff)
-
-  nsTouchEventReceiverTearoff(nsGenericElement *aElement) : mElement(aElement)
-  {
-  }
-
-private:
-  nsRefPtr<nsGenericElement> mElement;
-};
-
-/**
- * Tearoff class to implement nsIInlineEventHandlers
- */
-class nsInlineEventHandlersTearoff : public nsIInlineEventHandlers
-{
-public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-
-  NS_FORWARD_NSIINLINEEVENTHANDLERS(mElement->)
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsInlineEventHandlersTearoff)
-
-  nsInlineEventHandlersTearoff(nsGenericElement *aElement) : mElement(aElement)
-  {
-  }
-
-private:
-  nsRefPtr<nsGenericElement> mElement;
 };
 
 #define NS_ELEMENT_INTERFACE_TABLE_TO_MAP_SEGUE                               \

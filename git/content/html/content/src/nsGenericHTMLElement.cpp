@@ -21,7 +21,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Mats Palmgren <matspal@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
  *   Ms2ger <ms2ger@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
@@ -1245,8 +1245,7 @@ nsGenericHTMLElement::GetEventListenerManagerForAttr(PRBool* aDefer)
     // FIXME (https://bugzilla.mozilla.org/show_bug.cgi?id=431767)
     // nsDocument::GetInnerWindow can return an outer window in some cases,
     // we don't want to stick an event listener on an outer window, so
-    // bail if it does.  See similar code in nsHTMLBodyElement and
-    // nsHTMLFramesetElement
+    // bail if it does.
     *aDefer = PR_FALSE;
     if (document &&
         (win = document->GetInnerWindow()) && win->IsInnerWindow()) {
@@ -1449,7 +1448,7 @@ nsGenericHTMLElement::GetFormControlFrame(PRBool aFlushFrames)
 
     // If we have generated content, the primary frame will be a
     // wrapper frame..  out real frame will be in its child list.
-    for (frame = frame->GetFirstPrincipalChild();
+    for (frame = frame->GetFirstChild(nsnull);
          frame;
          frame = frame->GetNextSibling()) {
       form_frame = do_QueryFrame(frame);
