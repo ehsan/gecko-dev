@@ -209,24 +209,26 @@ AddonScreenshot.prototype = {
   }
 }
 
-var gStarted = false;
-
 /**
  * This is the real manager, kept here rather than in AddonManager to keep its
  * contents hidden from API users.
  */
 var AddonManagerInternal = {
-  installListeners: [],
-  addonListeners: [],
+  installListeners: null,
+  addonListeners: null,
   providers: [],
+  started: false,
 
   /**
    * Initializes the AddonManager, loading any known providers and initializing
    * them.
    */
   startup: function AMI_startup() {
-    if (gStarted)
+    if (this.started)
       return;
+
+    this.installListeners = [];
+    this.addonListeners = [];
 
     let appChanged = undefined;
 
@@ -274,7 +276,7 @@ var AddonManagerInternal = {
     this.providers.forEach(function(provider) {
       callProvider(provider, "startup", null, appChanged);
     });
-    gStarted = true;
+    this.started = true;
   },
 
   /**
@@ -287,7 +289,7 @@ var AddonManagerInternal = {
     this.providers.push(aProvider);
 
     // If we're registering after startup call this provider's startup.
-    if (gStarted)
+    if (this.started)
       callProvider(aProvider, "startup");
   },
 
@@ -298,16 +300,12 @@ var AddonManagerInternal = {
    *         The provider to unregister
    */
   unregisterProvider: function AMI_unregisterProvider(aProvider) {
-    let pos = 0;
-    while (pos < this.providers.length) {
-      if (this.providers[pos] == aProvider)
-        this.providers.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.providers = this.providers.filter(function(p) {
+      return p != aProvider;
+    });
 
     // If we're unregistering after startup call this provider's shutdown.
-    if (gStarted)
+    if (this.started)
       callProvider(aProvider, "shutdown");
   },
 
@@ -320,9 +318,9 @@ var AddonManagerInternal = {
       callProvider(provider, "shutdown");
     });
 
-    this.installListeners.splice(0);
-    this.addonListeners.splice(0);
-    gStarted = false;
+    this.installListeners = null;
+    this.addonListeners = null;
+    this.started = false;
   },
 
   /**
@@ -689,13 +687,9 @@ var AddonManagerInternal = {
    *         The InstallListener to remove
    */
   removeInstallListener: function AMI_removeInstallListener(aListener) {
-    let pos = 0;
-    while (pos < this.installListeners.length) {
-      if (this.installListeners[pos] == aListener)
-        this.installListeners.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.installListeners = this.installListeners.filter(function(i) {
+      return i != aListener;
+    });
   },
 
   /**
@@ -846,13 +840,9 @@ var AddonManagerInternal = {
    *         The listener to remove
    */
   removeAddonListener: function AMI_removeAddonListener(aListener) {
-    let pos = 0;
-    while (pos < this.addonListeners.length) {
-      if (this.addonListeners[pos] == aListener)
-        this.addonListeners.splice(pos, 1);
-      else
-        pos++;
-    }
+    this.addonListeners = this.addonListeners.filter(function(i) {
+      return i != aListener;
+    });
   },
   
   get autoUpdateDefault() {
@@ -1104,7 +1094,3 @@ var AddonManager = {
     return AddonManagerInternal.autoUpdateDefault;
   }
 };
-
-Object.freeze(AddonManagerInternal);
-Object.freeze(AddonManagerPrivate);
-Object.freeze(AddonManager);

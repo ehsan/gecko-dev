@@ -264,17 +264,15 @@ NS_IMPL_CI_INTERFACE_GETTER2(nsDOMWorkerMessageEvent, nsIDOMEvent,
 NS_IMPL_THREADSAFE_DOM_CI_GETINTERFACES(nsDOMWorkerMessageEvent)
 
 nsresult
-nsDOMWorkerMessageEvent::SetJSData(JSContext* aCx,
-                                   JSAutoStructuredCloneBuffer& aBuffer)
+nsDOMWorkerMessageEvent::SetJSVal(JSContext* aCx,
+                                  jsval aData)
 {
-  NS_ASSERTION(aCx, "Null context!");
-
   if (!mDataVal.Hold(aCx)) {
     NS_WARNING("Failed to hold jsval!");
     return NS_ERROR_FAILURE;
   }
 
-  aBuffer.steal(&mData, &mDataLen);
+  mDataVal = aData;
   return NS_OK;
 }
 
@@ -289,21 +287,19 @@ nsDOMWorkerMessageEvent::GetData(nsAString& aData)
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(cc, NS_ERROR_UNEXPECTED);
 
-  if (mData) {
-    JSContext* cx;
-    rv = cc->GetJSContext(&cx);
-    NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDataValWasReparented) {
+    if (JSVAL_IS_OBJECT(mDataVal) && !JSVAL_IS_NULL(mDataVal)) {
+      JSContext* cx;
+      rv = cc->GetJSContext(&cx);
+      NS_ENSURE_SUCCESS(rv, rv);
 
-    JSAutoRequest ar(cx);
-    JSAutoStructuredCloneBuffer buffer(cx);
-    buffer.adopt(mData, mDataLen);
-    mData = nsnull;
-    mDataLen = 0;
-
-    if (!buffer.read(mDataVal.ToJSValPtr())) {
-      NS_WARNING("Failed to deserialize!");
-      return NS_ERROR_FAILURE;
+      rv =
+        nsContentUtils::ReparentClonedObjectToScope(cx,
+                                                    JSVAL_TO_OBJECT(mDataVal),
+                                                    JS_GetGlobalObject(cx));
+      NS_ENSURE_SUCCESS(rv, rv);
     }
+    mDataValWasReparented = PR_TRUE;
   }
 
   jsval* retval;

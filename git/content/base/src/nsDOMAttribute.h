@@ -65,8 +65,7 @@ class nsDOMAttribute : public nsIAttribute,
 public:
   nsDOMAttribute(nsDOMAttributeMap* aAttrMap,
                  already_AddRefed<nsINodeInfo> aNodeInfo,
-                 const nsAString& aValue,
-                 PRBool aNsAware);
+                 const nsAString& aValue);
   virtual ~nsDOMAttribute();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -137,11 +136,6 @@ private:
   already_AddRefed<nsIAtom> GetNameAtom(nsIContent* aContent);
 
   void EnsureChildState();
-
-  /**
-   * Really removing the attribute child (unbind and release).
-   */
-  void doRemoveChild(bool aNotify);
 
   nsString mValue;
   // XXX For now, there's only a single child - a text element

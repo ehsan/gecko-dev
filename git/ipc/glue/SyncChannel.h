@@ -49,7 +49,7 @@ namespace ipc {
 class SyncChannel : public AsyncChannel
 {
 protected:
-    typedef IPC::Message::msgid_t msgid_t;
+    typedef uint16 MessageId;
 
 public:
     static const int32 kNoTimeout;
@@ -179,7 +179,7 @@ protected:
         return mChild ? --mNextSeqno : ++mNextSeqno;
     }
 
-    msgid_t mPendingReply;
+    MessageId mPendingReply;
     bool mProcessingSyncMessage;
     Message mRecvd;
     // This is only accessed from the worker thread; seqno's are

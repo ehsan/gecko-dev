@@ -345,7 +345,7 @@ nsSVGOuterSVGFrame::Reflow(nsPresContext*           aPresContext,
 
   // Make sure we scroll if we're too big:
   // XXX Use the bounding box of our descendants? (See bug 353460 comment 14.)
-  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  aDesiredSize.mOverflowArea.SetRect(0, 0, aDesiredSize.width, aDesiredSize.height);
   FinishAndStoreOverflow(&aDesiredSize);
 
   // If our SVG viewport has changed, update our content and notify.
@@ -466,7 +466,7 @@ nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
                     nsIRenderingContext* aCtx)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
-    Paint(aBuilder, *aCtx, mVisibleRect, ToReferenceFrame());
+    Paint(*aCtx, mVisibleRect, ToReferenceFrame());
 }
 
 // helper
@@ -541,8 +541,7 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 void
-nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
-                          nsIRenderingContext& aRenderingContext,
+nsSVGOuterSVGFrame::Paint(nsIRenderingContext& aRenderingContext,
                           const nsRect& aDirtyRect, nsPoint aPt)
 {
   // initialize Mozilla rendering context
@@ -565,10 +564,6 @@ nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
   nsIntRect dirtyPxRect = dirtyRect.ToOutsidePixels(PresContext()->AppUnitsPerDevPixel());
 
   nsSVGRenderState ctx(&aRenderingContext);
-
-  if (aBuilder->IsPaintingToWindow()) {
-    ctx.SetPaintingToWindow(PR_TRUE);
-  }
 
 #ifdef XP_MACOSX
   if (mEnableBitmapFallback) {

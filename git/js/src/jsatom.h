@@ -351,8 +351,6 @@ struct JSAtomState
     JSAtom              *nameAtom;
     JSAtom              *nextAtom;
     JSAtom              *noSuchMethodAtom;
-    JSAtom              *objectNullAtom;
-    JSAtom              *objectUndefinedAtom;
     JSAtom              *protoAtom;
     JSAtom              *setAtom;
     JSAtom              *sourceAtom;
@@ -372,8 +370,6 @@ struct JSAtomState
     JSAtom              *valueAtom;
     JSAtom              *testAtom;
     JSAtom              *useStrictAtom;
-    JSAtom              *locAtom;
-    JSAtom              *lineAtom;
 
 #if JS_HAS_XML_SUPPORT
     JSAtom              *etagoAtom;

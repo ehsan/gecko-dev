@@ -97,12 +97,11 @@
 
 enum EnsureNSSOperator
 {
-  nssLoadingComponent = 0,
+  nssLoading = 0,
   nssInitSucceeded = 1,
   nssInitFailed = 2,
   nssShutdown = 3,
-  nssEnsure = 100,
-  nssEnsureOnChromeOnly = 101
+  nssEnsure = 4
 };
 
 extern PRBool EnsureNSSInitialized(EnsureNSSOperator op);

@@ -38,12 +38,6 @@ struct LogData;
 
 class Message : public Pickle {
  public:
-#if defined(CHROMIUM_MOZILLA_BUILD)
-  typedef uint32 msgid_t;
-#else
-  typedef uint16 msgid_t;
-#endif
-
   // Implemented by objects that can send IPC messages across a channel.
   class Sender {
    public:
@@ -69,9 +63,9 @@ class Message : public Pickle {
   // Initialize a message with a user-defined type, priority value, and
   // destination WebView ID.
 #if !defined(CHROMIUM_MOZILLA_BUILD)
-  Message(int32 routing_id, msgid_t type, PriorityValue priority);
+  Message(int32 routing_id, uint16 type, PriorityValue priority);
 #else
-  Message(int32 routing_id, msgid_t type, PriorityValue priority,
+  Message(int32 routing_id, uint16 type, PriorityValue priority,
           const char* const name="???");
 #endif
 
@@ -139,7 +133,7 @@ class Message : public Pickle {
     return (header()->flags & PUMPING_MSGS_BIT) != 0;
   }
 
-  msgid_t type() const {
+  uint16 type() const {
     return header()->type;
   }
 
@@ -292,12 +286,8 @@ class Message : public Pickle {
 #pragma pack(push, 2)
   struct Header : Pickle::Header {
     int32 routing;  // ID of the view that this message is destined for
-    msgid_t type;   // specifies the user-defined message type
-#if defined(CHROMIUM_MOZILLA_BUILD)
-    uint32 flags;   // specifies control flags for the message
-#else
+    uint16 type;    // specifies the user-defined message type
     uint16 flags;   // specifies control flags for the message
-#endif
 #if defined(OS_POSIX)
     uint32 num_fds; // the number of descriptors included with this message
 #endif

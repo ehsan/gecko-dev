@@ -239,8 +239,7 @@ nsIsIndexFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 }
 
 void
-nsIsIndexFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                         PRUint32 aFilter)
+nsIsIndexFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mTextContent);
   aElements.MaybeAppendElement(mInputContent);

@@ -181,6 +181,9 @@ public:
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
+  // nsIAccessNode
+  NS_IMETHOD GetUniqueID(void **aUniqueID);
+
   // nsIAccessible
   NS_IMETHOD GetFocusedChild(nsIAccessible **aFocusedChild);
 
@@ -204,7 +207,6 @@ public:
   // nsAccessNode
   virtual PRBool IsDefunct();
   virtual void Shutdown();
-  virtual bool IsPrimaryForNode() const;
 
   // nsAccessible
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);

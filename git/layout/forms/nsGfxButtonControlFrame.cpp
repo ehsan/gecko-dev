@@ -132,8 +132,7 @@ nsGfxButtonControlFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements
 }
 
 void
-nsGfxButtonControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                                  PRUint32 aFilter)
+nsGfxButtonControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements)
 {
   aElements.MaybeAppendElement(mTextContent);
 }
