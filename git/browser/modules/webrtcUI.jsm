@@ -57,7 +57,10 @@ this.webrtcUI = {
 }
 
 function getBrowserForWindowId(aWindowID) {
-  let contentWindow = Services.wm.getOuterWindowWithId(aWindowID);
+  let someWindow = Services.wm.getMostRecentWindow(null);
+  let contentWindow = someWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                                .getInterface(Ci.nsIDOMWindowUtils)
+                                .getOuterWindowWithId(aWindowID);
   return contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                       .getInterface(Ci.nsIWebNavigation)
                       .QueryInterface(Ci.nsIDocShell)

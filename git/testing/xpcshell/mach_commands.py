@@ -150,8 +150,7 @@ class XPCShellRunner(MozbuildObject):
 
 @CommandProvider
 class MachCommands(MachCommandBase):
-    @Command('xpcshell-test', category='testing',
-        description='Run XPCOM Shell tests.')
+    @Command('xpcshell-test', help='Run an xpcshell test.')
     @CommandArgument('test_file', default='all', nargs='?', metavar='TEST',
         help='Test to run. Can be specified as a single JS file, a directory, '
              'or omitted. If omitted, the entire test suite is executed.')

@@ -47,8 +47,8 @@ public:
   // WebIDL Interface
   DOMRequestReadyState ReadyState() const
   {
-    return mDone ? DOMRequestReadyState::Done
-                 : DOMRequestReadyState::Pending;
+    return mDone ? DOMRequestReadyStateValues::Done
+                 : DOMRequestReadyStateValues::Pending;
   }
 
   JS::Value Result(JSContext* = nullptr) const

@@ -221,6 +221,8 @@
 #include "nsIDOMSVGNumber.h"
 #include "nsIDOMSVGRect.h"
 
+#include "nsIImageDocument.h"
+
 // Storage includes
 #include "DOMStorage.h"
 
@@ -659,6 +661,9 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(ChromeWindow, nsWindowSH,
                            DEFAULT_SCRIPTABLE_FLAGS |
                            WINDOW_SCRIPTABLE_FLAGS)
+
+  NS_DEFINE_CLASSINFO_DATA(ImageDocument, nsHTMLDocumentSH,
+                           DOCUMENT_SCRIPTABLE_FLAGS)
 
 #ifdef MOZ_XUL
   NS_DEFINE_CLASSINFO_DATA(XULTemplateBuilder, nsDOMGenericSH,
@@ -1876,6 +1881,12 @@ nsDOMClassInfo::Init()
 #ifdef MOZ_WEBSPEECH
     DOM_CLASSINFO_MAP_ENTRY(nsISpeechSynthesisGetter)
 #endif
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(ImageDocument, nsIImageDocument)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMHTMLDocument)
+    DOM_CLASSINFO_MAP_ENTRY(nsIImageDocument)
+    DOM_CLASSINFO_DOCUMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
 #ifdef MOZ_XUL
@@ -5017,20 +5028,24 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_OK;
   }
 
-  // NB: By accident, we previously didn't support this over Xrays. This is a
-  // deprecated non-standard feature, so there's no reason to start doing so
-  // now.
-  if ((s_content_id == id) && !xpc::WrapperFactory::IsXrayWrapper(obj)) {
+  if (s_content_id == id) {
     // Map window._content to window.content for backwards
     // compatibility, this should spit out an message on the JS
     // console.
+
+    JS::Rooted<JSObject*> windowObj(cx, js::CheckedUnwrap(obj, /* stopAtOuter = */ false));
+    NS_ENSURE_TRUE(windowObj, NS_ERROR_DOM_SECURITY_ERR);
+
     JS::Rooted<JSObject*> funObj(cx);
-    JSFunction *fun = ::JS_NewFunction(cx, ContentWindowGetter, 0, 0,
-                                       obj, "_content");
-    if (!fun) {
-      return NS_ERROR_OUT_OF_MEMORY;
+    {
+      JSAutoCompartment ac(cx, windowObj);
+      JSFunction *fun = ::JS_NewFunction(cx, ContentWindowGetter, 0, 0,
+                                         windowObj, "_content");
+      if (!fun) {
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+      funObj = ::JS_GetFunctionObject(fun);
     }
-    funObj = ::JS_GetFunctionObject(fun);
 
     if (!JS_WrapObject(cx, funObj.address()) ||
         !JS_DefinePropertyById(cx, obj, id, JSVAL_VOID,

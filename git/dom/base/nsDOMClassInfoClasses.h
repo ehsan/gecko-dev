@@ -82,6 +82,8 @@ DOMCI_CLASS(CSSRect)
 // DOM Chrome Window class, almost identical to Window
 DOMCI_CLASS(ChromeWindow)
 
+DOMCI_CLASS(ImageDocument)
+
 #ifdef MOZ_XUL
 DOMCI_CLASS(XULTemplateBuilder)
 DOMCI_CLASS(XULTreeBuilder)

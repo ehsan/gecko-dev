@@ -3799,6 +3799,7 @@ nsXPCComponents_utils_Sandbox::CallOrConstruct(nsIXPConnectWrappedNative *wrappe
 }
 
 class ContextHolder : public nsIScriptObjectPrincipal
+                    , public nsIScriptContextPrincipal
 {
 public:
     ContextHolder(JSContext *aOuterCx, HandleObject aSandbox, nsIPrincipal *aPrincipal);
@@ -3809,6 +3810,7 @@ public:
         return mJSContext;
     }
 
+    nsIScriptObjectPrincipal * GetObjectPrincipal() { return this; }
     nsIPrincipal * GetPrincipal() { return mPrincipal; }
 
     NS_DECL_ISUPPORTS
@@ -3821,7 +3823,7 @@ private:
     nsCOMPtr<nsIPrincipal> mPrincipal;
 };
 
-NS_IMPL_ISUPPORTS1(ContextHolder, nsIScriptObjectPrincipal)
+NS_IMPL_ISUPPORTS2(ContextHolder, nsIScriptObjectPrincipal, nsIScriptContextPrincipal)
 
 ContextHolder::ContextHolder(JSContext *aOuterCx,
                              HandleObject aSandbox,
@@ -4571,29 +4573,6 @@ nsXPCComponents_Utils::IsXrayWrapper(const JS::Value &obj, bool* aRetval)
 {
     *aRetval =
         obj.isObject() && xpc::WrapperFactory::IsXrayWrapper(&obj.toObject());
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXPCComponents_Utils::WaiveXrays(const JS::Value &aVal, JSContext *aCx, jsval *aRetval)
-{
-    *aRetval = aVal;
-    if (!xpc::WrapperFactory::WaiveXrayAndWrap(aCx, aRetval))
-        return NS_ERROR_FAILURE;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXPCComponents_Utils::UnwaiveXrays(const JS::Value &aVal, JSContext *aCx, jsval *aRetval)
-{
-    if (!aVal.isObject()) {
-        *aRetval = aVal;
-        return NS_OK;
-    }
-
-    *aRetval = ObjectValue(*js::UncheckedUnwrap(&aVal.toObject()));
-    if (!JS_WrapValue(aCx, aRetval))
-        return NS_ERROR_FAILURE;
     return NS_OK;
 }
 

@@ -2477,47 +2477,43 @@ JS_SetExtraGCRootsTracer(JSRuntime *rt, JSTraceDataOp traceOp, void *data)
 }
 
 JS_PUBLIC_API(void)
-JS_CallValueTracer(JSTracer *trc, Value *valuep, const char *name)
+JS_CallValueTracer(JSTracer *trc, Value valueArg, const char *name)
 {
-    MarkValueUnbarriered(trc, valuep, name);
+    Value value = valueArg;
+    MarkValueUnbarriered(trc, &value, name);
+    JS_ASSERT(value == valueArg);
 }
 
 JS_PUBLIC_API(void)
-JS_CallIdTracer(JSTracer *trc, jsid *idp, const char *name)
+JS_CallIdTracer(JSTracer *trc, jsid idArg, const char *name)
 {
-    MarkIdUnbarriered(trc, idp, name);
+    jsid id = idArg;
+    MarkIdUnbarriered(trc, &id, name);
+    JS_ASSERT(id == idArg);
 }
 
 JS_PUBLIC_API(void)
-JS_CallObjectTracer(JSTracer *trc, JSObject **objp, const char *name)
+JS_CallObjectTracer(JSTracer *trc, JSObject *objArg, const char *name)
 {
-    MarkObjectUnbarriered(trc, objp, name);
-}
-
-JS_PUBLIC_API(void)
-JS_CallMaskedObjectTracer(JSTracer *trc, uintptr_t *objp, uintptr_t flagMask, const char *name)
-{
-    uintptr_t flags = *objp & flagMask;
-    JSObject *obj = reinterpret_cast<JSObject *>(*objp & ~flagMask);
-    if (!obj)
-        return;
-
-    JS_SET_TRACING_LOCATION(trc, (void*)objp);
+    JSObject *obj = objArg;
     MarkObjectUnbarriered(trc, &obj, name);
-
-    *objp = uintptr_t(obj) | flags;
+    JS_ASSERT(obj == objArg);
 }
 
 JS_PUBLIC_API(void)
-JS_CallStringTracer(JSTracer *trc, JSString **strp, const char *name)
+JS_CallStringTracer(JSTracer *trc, JSString *strArg, const char *name)
 {
-    MarkStringUnbarriered(trc, strp, name);
+    JSString *str = strArg;
+    MarkStringUnbarriered(trc, &str, name);
+    JS_ASSERT(str == strArg);
 }
 
 JS_PUBLIC_API(void)
-JS_CallScriptTracer(JSTracer *trc, JSScript **scriptp, const char *name)
+JS_CallScriptTracer(JSTracer *trc, JSScript *scriptArg, const char *name)
 {
-    MarkScriptUnbarriered(trc, scriptp, name);
+    JSScript *script = scriptArg;
+    MarkScriptUnbarriered(trc, &script, name);
+    JS_ASSERT(script == scriptArg);
 }
 
 JS_PUBLIC_API(void)
@@ -5262,7 +5258,6 @@ JS::CompileOptions::CompileOptions(JSContext *cx)
       filename(NULL),
       lineno(1),
       compileAndGo(cx->hasOption(JSOPTION_COMPILE_N_GO)),
-      forEval(false),
       noScriptRval(cx->hasOption(JSOPTION_NO_SCRIPT_RVAL)),
       selfHostingMode(false),
       userBit(false),

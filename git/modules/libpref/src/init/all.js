@@ -782,7 +782,11 @@ pref("javascript.options.methodjit.chrome",  false);
 pref("javascript.options.baselinejit.content", true);
 pref("javascript.options.baselinejit.chrome",  true);
 pref("javascript.options.ion.content",      true);
-pref("javascript.options.asmjs",            true);
+#ifdef RELEASE_BUILD
+pref("javascript.options.experimental_asmjs", false);
+#else
+pref("javascript.options.experimental_asmjs", true);
+#endif
 pref("javascript.options.ion.parallel_compilation", true);
 pref("javascript.options.pccounts.content", false);
 pref("javascript.options.pccounts.chrome",  false);
@@ -1011,7 +1015,13 @@ pref("network.http.spdy.send-buffer-size", 131072);
 
 pref("network.http.diagnostics", false);
 
+#ifdef RELEASE_BUILD
+pref("network.http.pacing.requests.enabled", false);
+pref("network.http.pacing.requests.abtest", false);
+#else
 pref("network.http.pacing.requests.enabled", true);
+pref("network.http.pacing.requests.abtest", true);
+#endif
 pref("network.http.pacing.requests.min-parallelism", 6);
 pref("network.http.pacing.requests.hz", 100);
 pref("network.http.pacing.requests.burst", 32);
@@ -4058,7 +4068,6 @@ pref("dom.sms.enabled", false);
 // Enable Latin characters replacement with corresponding ones in GSM SMS
 // 7-bit default alphabet.
 pref("dom.sms.strict7BitEncoding", false);
-pref("dom.sms.requestStatusReport", true);
 
 // WebContacts
 pref("dom.mozContacts.enabled", false);
@@ -4177,9 +4186,6 @@ pref("dom.mms.sendRetryInterval", 300000);
 
 pref("dom.mms.retrievalRetryCount", 4);
 pref("dom.mms.retrievalRetryIntervals", "60000,300000,600000,1800000");
-
-// Debug enabler for MMS.
-pref("mms.debugging.enabled", false);
 
 // If the user puts a finger down on an element and we think the user
 // might be executing a pan gesture, how long do we wait before

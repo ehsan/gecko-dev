@@ -39,13 +39,8 @@ var gSafeBrowsing = {
   getReportURL: function(name) {
     var reportUrl = SafeBrowsing.getReportURL(name);
 
-    var pageUri = gBrowser.currentURI.clone();
-
-    // Remove the query to avoid including potentially sensitive data
-    if (pageUri instanceof Ci.nsIURL)
-      pageUri.query = '';
-
-    reportUrl += "&url=" + encodeURIComponent(pageUri.asciiSpec);
+    var pageUrl = gBrowser.currentURI.asciiSpec;
+    reportUrl += "&url=" + encodeURIComponent(pageUrl);
 
     return reportUrl;
   }

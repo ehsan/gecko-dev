@@ -637,7 +637,9 @@ class MarionetteTestOptions(OptionParser):
                         action='store',
                         help='absolute path to directory containing breakpad symbols, or the url of a zip file containing symbols')
 
-    def verify_usage(self, options, tests):
+    def verify_usage(self):
+        options, tests = self.parse_args()
+
         if not tests:
             print 'must specify one or more test files, manifests, or directories'
             sys.exit(1)
@@ -662,8 +664,6 @@ class MarionetteTestOptions(OptionParser):
             raise ValueError('Invalid emulator resolution format. '
                              'Should be like "480x800".')
 
-        return (options, tests)
-
 
 def startTestRunner(runner_class, options, tests):
     runner = runner_class(**vars(options))
@@ -672,8 +672,8 @@ def startTestRunner(runner_class, options, tests):
 
 def cli(runner_class=MarionetteTestRunner, parser_class=MarionetteTestOptions):
     parser = parser_class(usage='%prog [options] test_file_or_dir <test_file_or_dir> ...')
+    parser.verify_usage()
     options, tests = parser.parse_args()
-    parser.verify_usage(options, tests)
 
     runner = startTestRunner(runner_class, options, tests)
     if runner.failed > 0:

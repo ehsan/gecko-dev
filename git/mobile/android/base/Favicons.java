@@ -19,6 +19,7 @@ import org.apache.http.entity.BufferedHttpEntity;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.http.AndroidHttpClient;
 import android.os.Handler;
 import android.support.v4.util.LruCache;
@@ -328,8 +329,7 @@ public class Favicons {
 
                 BufferedHttpEntity bufferedEntity = new BufferedHttpEntity(entity);
                 InputStream contentStream = bufferedEntity.getContent();
-                image = BitmapUtils.decodeStream(contentStream);
-                contentStream.close();
+                image = BitmapFactory.decodeStream(contentStream);
             } catch (Exception e) {
                 Log.e(LOGTAG, "Error reading favicon", e);
             }

@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.LayerView;
 import org.mozilla.gecko.util.StringUtils;
@@ -86,7 +84,6 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
     private TabCounter mTabsCounter;
     private ImageView mShadow;
     private GeckoImageButton mMenu;
-    private GeckoImageView mMenuIcon;
     private LinearLayout mActionItemBar;
     private MenuPopup mMenuPopup;
     private List<View> mFocusOrder;
@@ -361,14 +358,11 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         mTitleSlideRight.setDuration(lockAnimDuration);
 
         mMenu = (GeckoImageButton) mLayout.findViewById(R.id.menu);
-        mMenuIcon = (GeckoImageView) mLayout.findViewById(R.id.menu_icon);
         mActionItemBar = (LinearLayout) mLayout.findViewById(R.id.menu_items);
         mHasSoftMenuButton = !HardwareUtils.hasMenuButton();
 
         if (mHasSoftMenuButton) {
             mMenu.setVisibility(View.VISIBLE);
-            mMenuIcon.setVisibility(View.VISIBLE);
-
             mMenu.setOnClickListener(new Button.OnClickListener() {
                 @Override
                 public void onClick(View view) {
@@ -557,6 +551,8 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             return;
         }
 
+        AnimatorProxy proxy = null;
+
         // If the awesomebar entry is not selected at this point, this means that
         // we had to reinflate the toolbar layout for some reason (device rotation
         // while in awesome screen, activity was killed in background, etc). In this
@@ -570,19 +566,26 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             final int curveTranslation = getAwesomeBarCurveTranslation();
 
             if (mAwesomeBarRightEdge != null) {
-                ViewHelper.setTranslationX(mAwesomeBarRightEdge, entryTranslation);
+                proxy = AnimatorProxy.create(mAwesomeBarRightEdge);
+                proxy.setTranslationX(entryTranslation);
             }
 
-            ViewHelper.setTranslationX(mTabs, curveTranslation);
-            ViewHelper.setTranslationX(mTabsCounter, curveTranslation);
-            ViewHelper.setTranslationX(mActionItemBar, curveTranslation);
+            proxy = AnimatorProxy.create(mTabs);
+            proxy.setTranslationX(curveTranslation);
+            proxy = AnimatorProxy.create(mTabsCounter);
+            proxy.setTranslationX(curveTranslation);
+            proxy = AnimatorProxy.create(mActionItemBar);
+            proxy.setTranslationX(curveTranslation);
 
             if (mHasSoftMenuButton) {
-                ViewHelper.setTranslationX(mMenu, curveTranslation);
+                proxy = AnimatorProxy.create(mMenu);
+                proxy.setTranslationX(curveTranslation);
             }
 
-            ViewHelper.setAlpha(mReader, 0);
-            ViewHelper.setAlpha(mStop, 0);
+            proxy = AnimatorProxy.create(mReader);
+            proxy.setAlpha(0);
+            proxy = AnimatorProxy.create(mStop);
+            proxy.setAlpha(0);
         }
 
         final PropertyAnimator contentAnimator = new PropertyAnimator(250);
@@ -672,8 +675,10 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         mLayout.setSelected(true);
 
         // Hide stop/reader buttons immediately
-        ViewHelper.setAlpha(mReader, 0);
-        ViewHelper.setAlpha(mStop, 0);
+        AnimatorProxy proxy = AnimatorProxy.create(mReader);
+        proxy.setAlpha(0);
+        proxy = AnimatorProxy.create(mStop);
+        proxy.setAlpha(0);
 
         // Slide the right side elements of the toolbar
 
@@ -883,42 +888,42 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         }
     }
 
-    private void setTitle(CharSequence title) {
+    private void setTitle(String title) {
         Tab tab = Tabs.getInstance().getSelectedTab();
+        CharSequence displayTitle = title;
 
-        if (tab != null) {
-            // Keep the title unchanged if the tab is entering reader mode
-            if (tab.isEnteringReaderMode()) {
-                return;
-            }
+        // Keep the title unchanged if the tab is entering reader mode
+        if (tab != null && tab.isEnteringReaderMode())
+            return;
 
-            // Setting a null title will ensure we just see the "Enter Search or Address"
-            // placeholder text. Because "about:home" and "about:privatebrowsing" don't
-            // have titles, their display titles will always match their URLs.
-            if ("about:home".equals(title) || "about:privatebrowsing".equals(title)) {
-                title = null;
-            }
+        // Setting a null title will ensure we just see the "Enter Search or Address"
+        // placeholder text. Because "about:home" and "about:privatebrowsing" don't
+        // have titles, their display titles will always match their URLs.
+        if (tab != null && ("about:home".equals(title) ||
+                            "about:privatebrowsing".equals(title))) {
+            displayTitle = null;
+        }
 
-            if (mShowUrl && title != null) {
-                title = StringUtils.stripScheme(tab.getURL());
-                title = StringUtils.stripCommonSubdomains(title.toString());
+        if (mShowUrl && displayTitle != null) {
+            title = StringUtils.stripScheme(tab.getURL());
+            title = StringUtils.stripCommonSubdomains(title);
+            displayTitle = title;
 
-                // highlight the domain name if we find one
-                String baseDomain = tab.getBaseDomain();
-                if (!TextUtils.isEmpty(baseDomain)) {
-                    SpannableStringBuilder builder = new SpannableStringBuilder(title);
-                    int index = title.toString().indexOf(baseDomain);
-                    if (index > -1) {
-                        builder.setSpan(mUrlColor, 0, title.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
-                        builder.setSpan(tab.isPrivate() ? mPrivateDomainColor : mDomainColor, index, index+baseDomain.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+            // highlight the domain name if we find one
+            String baseDomain = tab.getBaseDomain();
+            if (!TextUtils.isEmpty(baseDomain)) {
+                SpannableStringBuilder builder = new SpannableStringBuilder(title);
+                int index = title.indexOf(baseDomain);
+                if (index > -1) {
+                    builder.setSpan(mUrlColor, 0, title.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+                    builder.setSpan(tab.isPrivate() ? mPrivateDomainColor : mDomainColor, index, index+baseDomain.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
 
-                        title = builder;
-                    }
+                    displayTitle = builder;
                 }
             }
         }
 
-        mTitle.setText(title);
+        mTitle.setText(displayTitle);
         mLayout.setContentDescription(title != null ? title : mTitle.getHint());
     }
 
@@ -956,38 +961,6 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
 
     public void requestFocusFromTouch() {
         mLayout.requestFocusFromTouch();
-    }
-
-    public void prepareTabsAnimation(boolean tabsAreShown) {
-        if (!tabsAreShown) {
-            return;
-        }
-
-        ViewHelper.setAlpha(mTabsCounter, 0.0f);
-
-        if (mHasSoftMenuButton && !HardwareUtils.isTablet()) {
-            ViewHelper.setAlpha(mMenuIcon, 0.0f);
-        }
-    }
-
-    public void finishTabsAnimation(boolean tabsAreShown) {
-        if (tabsAreShown) {
-            return;
-        }
-
-        PropertyAnimator animator = new PropertyAnimator(150);
-
-        animator.attach(mTabsCounter,
-                        PropertyAnimator.Property.ALPHA,
-                        1.0f);
-
-        if (mHasSoftMenuButton && !HardwareUtils.isTablet()) {
-            animator.attach(mMenuIcon,
-                            PropertyAnimator.Property.ALPHA,
-                            1.0f);
-        }
-
-        animator.start();
     }
 
     public void updateBackButton(boolean enabled) {
@@ -1036,15 +1009,19 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
                         (ViewGroup.MarginLayoutParams)mAwesomeBarContent.getLayoutParams();
                     layoutParams.leftMargin = mAddressBarViewOffset;
 
-                    ViewHelper.setTranslationX(mTitle, 0);
-                    ViewHelper.setTranslationX(mFavicon, 0);
-                    ViewHelper.setTranslationX(mSiteSecurity, 0);
+                    AnimatorProxy proxy = AnimatorProxy.create(mTitle);
+                    proxy.setTranslationX(0);
+                    proxy = AnimatorProxy.create(mFavicon);
+                    proxy.setTranslationX(0);
+                    proxy = AnimatorProxy.create(mSiteSecurity);
+                    proxy.setTranslationX(0);
                 }
 
                 ViewGroup.MarginLayoutParams layoutParams =
                     (ViewGroup.MarginLayoutParams)mForward.getLayoutParams();
                 layoutParams.leftMargin = mDefaultForwardMargin + (mForward.isEnabled() ? mForward.getWidth() / 2 : 0);
-                ViewHelper.setTranslationX(mForward, 0);
+                AnimatorProxy proxy = AnimatorProxy.create(mForward);
+                proxy.setTranslationX(0);
 
                 mAwesomeBarContent.requestLayout();
                 mForwardAnim = null;
@@ -1076,9 +1053,12 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             // We're hiding the forward button. We're going to reset the margin before
             // the animation starts, so we shift these items to the right so that they don't
             // appear to move initially.
-            ViewHelper.setTranslationX(mTitle, mAddressBarViewOffset);
-            ViewHelper.setTranslationX(mFavicon, mAddressBarViewOffset);
-            ViewHelper.setTranslationX(mSiteSecurity, mAddressBarViewOffset);
+            AnimatorProxy proxy = AnimatorProxy.create(mTitle);
+            proxy.setTranslationX(mAddressBarViewOffset);
+            proxy = AnimatorProxy.create(mFavicon);
+            proxy.setTranslationX(mAddressBarViewOffset);
+            proxy = AnimatorProxy.create(mSiteSecurity);
+            proxy.setTranslationX(mAddressBarViewOffset);
         } else {
             anim.attach(mForward,
                       PropertyAnimator.Property.TRANSLATION_X,
@@ -1145,7 +1125,6 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             mTabs.setPrivateMode(isPrivate);
             mTitle.setPrivateMode(isPrivate);
             mMenu.setPrivateMode(isPrivate);
-            mMenuIcon.setPrivateMode(isPrivate);
 
             if (mBack instanceof BackButton)
                 ((BackButton) mBack).setPrivateMode(isPrivate);

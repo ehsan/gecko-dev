@@ -331,62 +331,51 @@ nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetTextNodeInfo()
 {
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-
   if (!mTextNodeInfo) {
-    nodeInfo = GetNodeInfo(nsGkAtoms::textTagName, nullptr, kNameSpaceID_None,
-                           nsIDOMNode::TEXT_NODE, nullptr);
-    // Hold a weak ref; the nodeinfo will let us know when it goes away
-    mTextNodeInfo = nodeInfo;
-  } else {
-    nodeInfo = mTextNodeInfo;
+    mTextNodeInfo = GetNodeInfo(nsGkAtoms::textTagName, nullptr,
+                                kNameSpaceID_None,
+                                nsIDOMNode::TEXT_NODE, nullptr).get();
+  }
+  else {
+    NS_ADDREF(mTextNodeInfo);
   }
 
-  return nodeInfo.forget();
+  return mTextNodeInfo;
 }
 
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetCommentNodeInfo()
 {
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-
   if (!mCommentNodeInfo) {
-    nodeInfo = GetNodeInfo(nsGkAtoms::commentTagName, nullptr,
-                           kNameSpaceID_None, nsIDOMNode::COMMENT_NODE,
-                           nullptr);
-    // Hold a weak ref; the nodeinfo will let us know when it goes away
-    mCommentNodeInfo = nodeInfo;
+    mCommentNodeInfo = GetNodeInfo(nsGkAtoms::commentTagName, nullptr,
+                                   kNameSpaceID_None,
+                                   nsIDOMNode::COMMENT_NODE, nullptr).get();
   }
   else {
-    nodeInfo = mCommentNodeInfo;
+    NS_ADDREF(mCommentNodeInfo);
   }
 
-  return nodeInfo.forget();
+  return mCommentNodeInfo;
 }
 
 already_AddRefed<nsINodeInfo>
 nsNodeInfoManager::GetDocumentNodeInfo()
 {
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-
   if (!mDocumentNodeInfo) {
     NS_ASSERTION(mDocument, "Should have mDocument!");
-    nodeInfo = GetNodeInfo(nsGkAtoms::documentNodeName, nullptr,
-                           kNameSpaceID_None, nsIDOMNode::DOCUMENT_NODE,
-                           nullptr);
-    // Hold a weak ref; the nodeinfo will let us know when it goes away
-    mDocumentNodeInfo = nodeInfo;
-
+    mDocumentNodeInfo = GetNodeInfo(nsGkAtoms::documentNodeName, nullptr,
+                                    kNameSpaceID_None,
+                                    nsIDOMNode::DOCUMENT_NODE, nullptr).get();
     --mNonDocumentNodeInfos;
     if (!mNonDocumentNodeInfos) {
       mDocument->Release(); // Don't set mDocument to null!
     }
   }
   else {
-    nodeInfo = mDocumentNodeInfo;
+    NS_ADDREF(mDocumentNodeInfo);
   }
 
-  return nodeInfo.forget();
+  return mDocumentNodeInfo;
 }
 
 void

@@ -707,7 +707,7 @@ nsChildView::GetCGContextForTitlebarDrawing(NSSize aSize)
 void
 nsChildView::WillPaint()
 {
-  [(ChildView*)mView maybeDrawInTitlebar];
+  [mView maybeDrawInTitlebar];
 }
 
 void
@@ -2681,12 +2681,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGeckoChild) {
     return;
   }
-  NSWindow* win = [self window];
+  ToolbarWindow* win = [self window];
   if (!win || ![win isKindOfClass:[ToolbarWindow class]]) {
     return;
   }
-  ToolbarWindow* toolbarWin = (ToolbarWindow*)win;
-  if (![toolbarWin drawsContentsIntoWindowFrame]) {
+  if (![win drawsContentsIntoWindowFrame]) {
     return;
   }
 
@@ -2696,8 +2695,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // "unified toolbar".  Our ChildView ('self') is the same size as the frame
   // view and covers it.  Our ChildView has a flipped coordinate system, but
   // the frame view doesn't.
-  NSRect titlebarRect = [toolbarWin titlebarRect];
-  NSView* frameView = [[toolbarWin contentView] superview];
+  NSRect titlebarRect = [win titlebarRect];
+  NSView* frameView = [[win contentView] superview];
   NSRect dirtyRect = NSIntersectionRect([frameView _dirtyRect], titlebarRect);
   // Flip dirtyRect's coordinate system.
   dirtyRect.origin.y = [frameView bounds].size.height -

@@ -153,7 +153,6 @@ webidl_files = \
   IDBFactory.webidl \
   IDBVersionChangeEvent.webidl \
   ImageData.webidl \
-  ImageDocument.webidl \
   InspectorUtils.webidl \
   KeyEvent.webidl \
   LinkStyle.webidl \
@@ -362,12 +361,6 @@ endif
 ifdef MOZ_GAMEPAD
 webidl_files += \
   Gamepad.webidl \
-  $(NULL)
-endif
-
-ifdef MOZ_B2G_RIL
-webidl_files += \
-  MozStkCommandEvent.webidl \
   $(NULL)
 endif
 

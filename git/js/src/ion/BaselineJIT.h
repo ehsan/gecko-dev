@@ -247,8 +247,6 @@ struct BaselineScript
 
     void toggleSPS(bool enable);
 
-    void noteAccessedGetter(uint32_t pcOffset);
-
     static size_t offsetOfFlags() {
         return offsetof(BaselineScript, flags_);
     }

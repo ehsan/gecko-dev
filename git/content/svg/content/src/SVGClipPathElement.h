@@ -31,7 +31,7 @@ protected:
                              JS::Handle<JSObject*> scope) MOZ_OVERRIDE;
 
 public:
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
   already_AddRefed<nsIDOMSVGAnimatedEnumeration> ClipPathUnits();
@@ -42,7 +42,7 @@ protected:
   nsSVGEnum mEnumAttributes[1];
   static EnumInfo sEnumInfo[1];
 
-  virtual EnumAttributesInfo GetEnumInfo() MOZ_OVERRIDE;
+  virtual EnumAttributesInfo GetEnumInfo();
 };
 
 } // namespace dom

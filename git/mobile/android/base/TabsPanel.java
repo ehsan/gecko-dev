@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.ViewHelper;
 import org.mozilla.gecko.widget.IconTabWidget;
 
 import android.content.Context;
@@ -381,22 +379,27 @@ public class TabsPanel extends LinearLayout
         final int tabsPanelWidth = getWidth();
 
         if (mVisible) {
+            AnimatorProxy proxy;
+
+            proxy = AnimatorProxy.create(mHeader);
             if (mIsSideBar) {
-                ViewHelper.setTranslationX(mHeader, -tabsPanelWidth);
+                proxy.setTranslationX(-tabsPanelWidth);
             } else {
-                ViewHelper.setTranslationY(mHeader, -toolbarHeight);
+                proxy.setTranslationY(-toolbarHeight);
             }
 
+            proxy = AnimatorProxy.create(mTabsContainer);
             if (mIsSideBar) {
-                ViewHelper.setTranslationX(mTabsContainer, -tabsPanelWidth);
+                proxy.setTranslationX(-tabsPanelWidth);
             } else {
-                ViewHelper.setTranslationY(mTabsContainer, -toolbarHeight);
-                ViewHelper.setAlpha(mTabsContainer, 0);
+                proxy.setTranslationY((float) (-toolbarHeight));
+                proxy.setAlpha(0);
             }
 
             // The footer view is only present on the sidebar
             if (mIsSideBar) {
-                ViewHelper.setTranslationX(mFooter, -tabsPanelWidth);
+                proxy = AnimatorProxy.create(mFooter);
+                proxy.setTranslationX(-tabsPanelWidth);
             }
         }
 

@@ -416,6 +416,7 @@ pref("editor.singleLine.pasteNewlines", 2);
 #ifdef MOZ_SERVICES_SYNC
 // sync service
 pref("services.sync.registerEngines", "Tab,Bookmarks,Form,History,Password,Prefs");
+pref("services.sync.autoconnectDelay", 5);
 
 // prefs to sync by default
 pref("services.sync.prefs.sync.browser.startup.sessionRestore", true);

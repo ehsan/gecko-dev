@@ -847,8 +847,8 @@ nsXMLHttpRequest::StaticAssertions()
 {
 #define ASSERT_ENUM_EQUAL(_lc, _uc) \
   MOZ_STATIC_ASSERT(\
-    static_cast<int>(XMLHttpRequestResponseType::_lc)  \
-    == XML_HTTP_RESPONSE_TYPE_ ## _uc, \
+    XMLHttpRequestResponseTypeValues::_lc                \
+    == XMLHttpRequestResponseType(XML_HTTP_RESPONSE_TYPE_ ## _uc), \
     #_uc " should match")
 
   ASSERT_ENUM_EQUAL(_empty, DEFAULT);
@@ -899,7 +899,7 @@ void
 nsXMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aType,
                                   ErrorResult& aRv)
 {
-  SetResponseType(ResponseTypeEnum(static_cast<int>(aType)), aRv);
+  SetResponseType(ResponseTypeEnum(aType), aRv);
 }
 
 void
@@ -1001,9 +1001,9 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
       return JSVAL_NULL;
     }
 
-    JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
+    JS::Value result = JSVAL_NULL;
     JS::Rooted<JSObject*> scope(aCx, JS_GetGlobalForScopeChain(aCx));
-    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseBlob, result.address(),
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseBlob, &result,
                                      nullptr, true);
     return result;
   }
@@ -1014,8 +1014,8 @@ nsXMLHttpRequest::GetResponse(JSContext* aCx, ErrorResult& aRv)
     }
 
     JS::Rooted<JSObject*> scope(aCx, JS_GetGlobalForScopeChain(aCx));
-    JS::Rooted<JS::Value> result(aCx, JSVAL_NULL);
-    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseXML, result.address(),
+    JS::Value result = JSVAL_NULL;
+    aRv = nsContentUtils::WrapNative(aCx, scope, mResponseXML, &result,
                                      nullptr, true);
     return result;
   }
@@ -2405,12 +2405,11 @@ GetRequestBody(nsIVariant* aBody, nsIInputStream** aResult, uint64_t* aContentLe
     }
 
     // ArrayBuffer?
-    AutoSafeJSContext cx;
-    JS::Rooted<JS::Value> realVal(cx);
+    JS::Value realVal;
 
-    nsresult rv = aBody->GetAsJSVal(realVal.address());
+    nsresult rv = aBody->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal)) {
-      JS::Rooted<JSObject*> obj(cx, JSVAL_TO_OBJECT(realVal));
+      JSObject *obj = JSVAL_TO_OBJECT(realVal);
       if (JS_IsArrayBufferObject(obj)) {
           ArrayBuffer buf(obj);
           return GetRequestBody(buf.Data(), buf.Length(), aResult,

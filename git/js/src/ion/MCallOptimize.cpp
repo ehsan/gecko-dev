@@ -105,9 +105,9 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
 
     // Parallel intrinsics.
     if (native == intrinsic_ShouldForceSequential)
-        return inlineForceSequentialOrInParallelSection(callInfo);
+        return inlineShouldForceSequentialOrInParallelSection(callInfo);
     if (native == testingFunc_inParallelSection)
-        return inlineForceSequentialOrInParallelSection(callInfo);
+        return inlineShouldForceSequentialOrInParallelSection(callInfo);
     if (native == intrinsic_NewParallelArray)
         return inlineNewParallelArray(callInfo);
     if (native == ParallelArrayObject::construct)
@@ -119,7 +119,7 @@ IonBuilder::inlineNativeCall(CallInfo &callInfo, JSNative native)
 types::StackTypeSet *
 IonBuilder::getInlineReturnTypeSet()
 {
-    return types::TypeScript::BytecodeTypes(script(), pc);
+    return script()->analysis()->bytecodeTypes(pc);
 }
 
 MIRType
@@ -1062,7 +1062,7 @@ IonBuilder::inlineUnsafeSetTypedArrayElement(CallInfo &callInfo,
 }
 
 IonBuilder::InliningStatus
-IonBuilder::inlineForceSequentialOrInParallelSection(CallInfo &callInfo)
+IonBuilder::inlineShouldForceSequentialOrInParallelSection(CallInfo &callInfo)
 {
     if (callInfo.constructing())
         return InliningStatus_NotInlined;

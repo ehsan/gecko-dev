@@ -22,7 +22,6 @@ CONSTRUCT_HOOK_NAME = '_constructor'
 LEGACYCALLER_HOOK_NAME = '_legacycaller'
 HASINSTANCE_HOOK_NAME = '_hasInstance'
 NEWRESOLVE_HOOK_NAME = '_newResolve'
-ENUM_ENTRY_VARIABLE_NAME = 'strings'
 
 def replaceFileIfChanged(filename, newContents):
     """
@@ -3173,7 +3172,7 @@ for (uint32_t i = 0; i < length; ++i) {
             "%(handleInvalidEnumValueCode)s"
             "  %(enumLoc)s = static_cast<%(enumtype)s>(index);\n"
             "}" % { "enumtype" : enumName,
-                      "values" : enumName + "Values::" + ENUM_ENTRY_VARIABLE_NAME,
+                      "values" : enumName + "Values::strings",
        "invalidEnumValueFatal" : toStringBool(invalidEnumValueFatal),
   "handleInvalidEnumValueCode" : handleInvalidEnumValueCode,
                "exceptionCode" : CGIndenter(exceptionCodeIndented).define(),
@@ -3194,7 +3193,7 @@ for (uint32_t i = 0; i < length; ++i) {
             else:
                 assert(defaultValue.type.tag() == IDLType.Tags.domstring)
                 template = handleDefault(template,
-                                         ("%s = %s::%s" %
+                                         ("%s = %sValues::%s" %
                                           (enumLoc, enumName,
                                            getEnumValueName(defaultValue.value))))
         return (template, CGGeneric(declType), None, isOptional)
@@ -3804,7 +3803,7 @@ if (!returnArray) {
 %(exceptionCode)s
   }
 """ % { "result" : resultLoc,
-        "strings" : type.unroll().inner.identifier.name + "Values::" + ENUM_ENTRY_VARIABLE_NAME,
+        "strings" : type.unroll().inner.identifier.name + "Values::strings",
         "exceptionCode" : CGIndenter(exceptionCodeIndented).define() } +
         CGIndenter(CGGeneric(setValue("JS::StringValue(resultStr)"))).define() +
                       "\n}")
@@ -5010,9 +5009,7 @@ class CGGenericGetter(CGAbstractBindingMethod):
             name = "genericLenientGetter"
             unwrapFailureCode = (
                 "MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"
-                "if (!ReportLenientThisUnwrappingFailure(cx, obj)) {\n"
-                "  return false;\n"
-                "}\n"
+                "ReportLenientThisUnwrappingFailure(cx, obj);\n"
                 "JS_SET_RVAL(cx, vp, JS::UndefinedValue());\n"
                 "return true;")
         else:
@@ -5089,9 +5086,7 @@ class CGGenericSetter(CGAbstractBindingMethod):
             name = "genericLenientSetter"
             unwrapFailureCode = (
                 "MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"
-                "if (!ReportLenientThisUnwrappingFailure(cx, obj)) {\n"
-                "  return false;\n"
-                "}\n"
+                "ReportLenientThisUnwrappingFailure(cx, obj);\n"
                 "JS_SET_RVAL(cx, vp, JS::UndefinedValue());\n"
                 "return true;")
         else:
@@ -5377,35 +5372,24 @@ class CGEnum(CGThing):
         CGThing.__init__(self)
         self.enum = enum
 
-    def stringsNamespace(self):
-        return self.enum.identifier.name + "Values"
-
-    def nEnumStrings(self):
-        return len(self.enum.values()) + 1
-
     def declare(self):
-        enumName = self.enum.identifier.name
-        strings = CGNamespace(self.stringsNamespace(),
-                              CGGeneric(declare="extern const EnumEntry %s[%d];\n"
-                                        % (ENUM_ENTRY_VARIABLE_NAME, self.nEnumStrings())))
-
         return """
-MOZ_BEGIN_ENUM_CLASS(%s, uint32_t)
-  %s
-MOZ_END_ENUM_CLASS(%s)
+  enum valuelist {
+    %s
+  };
 
-""" % (enumName, ",\n  ".join(map(getEnumValueName, self.enum.values())),
-       enumName) + strings.declare()
+  extern const EnumEntry strings[%d];
+""" % (",\n    ".join(map(getEnumValueName, self.enum.values())),
+       len(self.enum.values()) + 1)
 
     def define(self):
-        strings = """
-  const EnumEntry %s[%d] = {
+        return """
+  const EnumEntry strings[%d] = {
     %s,
     { NULL, 0 }
   };
-""" % (ENUM_ENTRY_VARIABLE_NAME, self.nEnumStrings(),
+""" % (len(self.enum.values()) + 1,
        ",\n    ".join(['{"' + val + '", ' + str(len(val)) + '}' for val in self.enum.values()]))
-        return CGNamespace(self.stringsNamespace(), CGGeneric(define=strings)).define()
 
     def deps(self):
         return self.enum.getDeps()
@@ -7354,9 +7338,18 @@ class CGDictionary(CGThing):
         return (string.Template(
                 "struct ${selfName} ${inheritance}{\n"
                 "  ${selfName}() {}\n"
-                "  bool Init(JSContext* cx, JS::Handle<JS::Value> val);\n" +
-                ("  bool Init(const nsAString& aJSON);\n" if not self.workers else "") +
+                "  bool Init(JSContext* cx, JS::Handle<JS::Value> val);\n"
                 "  bool ToObject(JSContext* cx, JS::Handle<JSObject*> parentObject, JS::Value *vp) const;\n"
+                "\n" +
+                ("  bool Init(const nsAString& aJSON)\n"
+                 "  {\n"
+                 "    Maybe<JSAutoRequest> ar;\n"
+                 "    Maybe<JSAutoCompartment> ac;\n"
+                 "    Maybe< JS::Rooted<JS::Value> > json;\n"
+                 "    JSContext* cx = ParseJSON(aJSON, ar, ac, json);\n"
+                 "    NS_ENSURE_TRUE(cx, false);\n"
+                 "    return Init(cx, json.ref());\n"
+                 "  }\n" if not self.workers else "") +
                 "\n" +
                 "\n".join(memberDecls) + "\n"
                 "private:\n"
@@ -7449,17 +7442,6 @@ class CGDictionary(CGThing):
             "${initMembers}\n"
             "  return true;\n"
             "}\n"
-            "\n" +
-            ("bool\n"
-             "${selfName}::Init(const nsAString& aJSON)\n"
-             "{\n"
-             "  AutoSafeJSContext cx;\n"
-             "  JSAutoRequest ar(cx);\n"
-             "  JS::Rooted<JS::Value> json(cx);\n"
-             "  bool ok = ParseJSON(cx, aJSON, &json);\n"
-             "  NS_ENSURE_TRUE(ok, false);\n"
-             "  return Init(cx, json);\n"
-             "}\n" if not self.workers else "") +
             "\n"
             "bool\n"
             "${selfName}::ToObject(JSContext* cx, JS::Handle<JSObject*> parentObject, JS::Value *vp) const\n"
@@ -7896,7 +7878,14 @@ class CGBindingRoot(CGThing):
             traitsClasses = None
 
         # Do codegen for all the enums
-        cgthings = [ CGEnum(e) for e in config.getEnums(webIDLFile) ]
+        def makeEnum(e):
+            return CGNamespace.build([e.identifier.name + "Values"],
+                                     CGEnum(e))
+        def makeEnumTypedef(e):
+            return CGGeneric(declare=("typedef %sValues::valuelist %s;\n" %
+                                      (e.identifier.name, e.identifier.name)))
+        cgthings = [ fun(e) for e in config.getEnums(webIDLFile)
+                     for fun in [makeEnum, makeEnumTypedef] ]
 
         # Do codegen for all the dictionaries.  We have to be a bit careful
         # here, because we have to generate these in order from least derived
@@ -8664,45 +8653,36 @@ def genConstructorBody(descriptor):
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
-
+  // Get the XPCOM component containing the JS implementation.
+  nsCOMPtr<nsISupports> implISupports = do_CreateInstance("${contractId}");
+  MOZ_ASSERT(implISupports, "Failed to get JS implementation instance from contract ID.");
+  if (!implISupports) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+  // Initialize the object, if it implements nsIDOMGlobalPropertyInitializer.
+  nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi = do_QueryInterface(implISupports);
+  if (gpi) {
+    JS::Rooted<JS::Value> initReturn(cx);
+    nsresult rv = gpi->Init(window, initReturn.address());
+    if (NS_FAILED(rv)) {
+      aRv.Throw(rv);
+      return nullptr;
+    }
+    MOZ_ASSERT(initReturn.isUndefined(),
+               "Expected nsIDOMGlobalPropertyInitializer to return undefined");
+  }
+  // Extract the JS implementation from the XPCOM object.
+  nsCOMPtr<nsIXPConnectWrappedJS> implWrapped = do_QueryInterface(implISupports);
+  MOZ_ASSERT(implWrapped, "Failed to get wrapped JS from XPCOM component.");
+  if (!implWrapped) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
   JS::Rooted<JSObject*> jsImplObj(cx);
-
-  // Make sure to have nothing on the JS context stack while creating and
-  // initializing the object, so exceptions from that will get reported
-  // properly, since those are never exceptions that a spec wants to be thrown.
-  {  // Scope for the nsCxPusher
-    nsCxPusher pusher;
-    pusher.PushNull();
-    // Get the XPCOM component containing the JS implementation.
-    nsCOMPtr<nsISupports> implISupports = do_CreateInstance("${contractId}");
-    if (!implISupports) {
-      NS_WARNING("Failed to get JS implementation for contract \\"${contractId}\\"");
-      aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
-    }
-    // Initialize the object, if it implements nsIDOMGlobalPropertyInitializer.
-    nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi = do_QueryInterface(implISupports);
-    if (gpi) {
-      JS::Rooted<JS::Value> initReturn(cx);
-      nsresult rv = gpi->Init(window, initReturn.address());
-      if (NS_FAILED(rv)) {
-        aRv.Throw(rv);
-       return nullptr;
-      }
-      MOZ_ASSERT(initReturn.isUndefined(),
-                 "Expected nsIDOMGlobalPropertyInitializer to return undefined");
-    }
-    // Extract the JS implementation from the XPCOM object.
-    nsCOMPtr<nsIXPConnectWrappedJS> implWrapped = do_QueryInterface(implISupports);
-    MOZ_ASSERT(implWrapped, "Failed to get wrapped JS from XPCOM component.");
-    if (!implWrapped) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
-    }
-    if (NS_FAILED(implWrapped->GetJSObject(jsImplObj.address()))) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
-    }
+  if (NS_FAILED(implWrapped->GetJSObject(jsImplObj.address()))) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
   }
   // Build the C++ implementation.
   nsRefPtr<${implClass}> impl = new ${implClass}(jsImplObj, window);

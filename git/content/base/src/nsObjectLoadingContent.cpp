@@ -3058,8 +3058,7 @@ nsObjectLoadingContent::SetupProtoChain(JSContext* aCx,
 
 // static
 nsresult
-nsObjectLoadingContent::GetPluginJSObject(JSContext *cx,
-                                          JS::Handle<JSObject*> obj,
+nsObjectLoadingContent::GetPluginJSObject(JSContext *cx, JSObject *obj,
                                           nsNPAPIPluginInstance *plugin_inst,
                                           JSObject **plugin_obj,
                                           JSObject **plugin_proto)

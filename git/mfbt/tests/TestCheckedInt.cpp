@@ -423,8 +423,6 @@ void test()
   typedef unsigned short unsignedShort;
   typedef unsigned int  unsignedInt;
   typedef unsigned long unsignedLong;
-  typedef long long longLong;
-  typedef unsigned long long unsignedLongLong;
 
   VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(char)
   VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(signedChar)
@@ -435,8 +433,6 @@ void test()
   VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(unsignedInt)
   VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(long)
   VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(unsignedLong)
-  VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(longLong)
-  VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(unsignedLongLong)
 
   /* Test increment/decrement operators */
 
@@ -489,8 +485,6 @@ int main()
   test<unsigned int>();
   test<long>();
   test<unsigned long>();
-  test<long long>();
-  test<unsigned long long>();
 
   const int MIN_TYPES_TESTED = 9;
   if (gIntegerTypesTested < MIN_TYPES_TESTED) {

@@ -18,28 +18,21 @@ struct ConvertTimeToTickHelper
 
   static int64_t Convert(double aTime, void* aClosure)
   {
+    TrackRate sampleRate = IdealAudioRate();
+    StreamTime streamTime;
+
     ConvertTimeToTickHelper* This = static_cast<ConvertTimeToTickHelper*> (aClosure);
     if (This->mSourceStream) {
-      return WebAudioUtils::ConvertDestinationStreamTimeToSourceStreamTime(
-          aTime, This->mSourceStream, This->mDestinationStream);
+      TrackTicks tick = This->mDestinationStream->GetCurrentPosition();
+      StreamTime destinationStreamTime = TicksToTimeRoundDown(sampleRate, tick);
+      GraphTime graphTime = This->mDestinationStream->StreamTimeToGraphTime(destinationStreamTime);
+      streamTime = This->mSourceStream->GraphTimeToStreamTime(graphTime);
     } else {
-      StreamTime streamTime = This->mDestinationStream->GetCurrentPosition();
-      return TimeToTicksRoundUp(IdealAudioRate(), streamTime + SecondsToMediaTime(aTime));
+      streamTime = This->mDestinationStream->GetCurrentPosition();
     }
+    return TimeToTicksRoundDown(sampleRate, streamTime + SecondsToMediaTime(aTime));
   }
 };
-
-TrackTicks
-WebAudioUtils::ConvertDestinationStreamTimeToSourceStreamTime(double aTime,
-                                                              MediaStream* aSource,
-                                                              MediaStream* aDestination)
-{
-  StreamTime streamTime = std::max<MediaTime>(0, SecondsToMediaTime(aTime));
-  GraphTime graphTime = aDestination->StreamTimeToGraphTime(streamTime);
-  StreamTime thisStreamTime = aSource->GraphTimeToStreamTimeOptimistic(graphTime);
-  TrackTicks ticks = TimeToTicksRoundUp(IdealAudioRate(), thisStreamTime);
-  return ticks;
-}
 
 double
 WebAudioUtils::StreamPositionToDestinationTime(TrackTicks aSourcePosition,

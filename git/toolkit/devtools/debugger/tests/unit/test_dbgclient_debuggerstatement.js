@@ -9,26 +9,28 @@ var gDebuggee;
 
 function run_test()
 {
-  initTestDebuggerServer();
+  DebuggerServer.addActors("resource://test/testactors.js");
+
+  // Allow incoming connections.
+  DebuggerServer.init(function () { return true; });
   gDebuggee = testGlobal("test-1");
   DebuggerServer.addTestGlobal(gDebuggee);
 
   let transport = DebuggerServer.connectPipe();
   gClient = new DebuggerClient(transport);
   gClient.connect(function(aType, aTraits) {
-    attachTestTab(gClient, "test-1", function(aReply, aTabClient) {
-      test_threadAttach(aReply.threadActor);
+    getTestGlobalContext(gClient, "test-1", function(aContext) {
+      test_attach(aContext);
     });
   });
   do_test_pending();
 }
 
-function test_threadAttach(aThreadActorID)
+function test_attach(aContext)
 {
-  do_print("Trying to attach to thread " + aThreadActorID);
-  gClient.attachThread(aThreadActorID, function(aResponse, aThreadClient) {
+  gClient.attachThread(aContext.actor, function(aResponse, aThreadClient) {
     do_check_eq(aThreadClient.state, "paused");
-    do_check_eq(aThreadClient.actor, aThreadActorID);
+    do_check_eq(aThreadClient.actor, aContext.actor);
     aThreadClient.resume(function() {
       do_check_eq(aThreadClient.state, "attached");
       test_debugger_statement(aThreadClient);
@@ -48,7 +50,9 @@ function test_debugger_statement(aThreadClient)
     let xpcInspector = Cc["@mozilla.org/jsinspector;1"].getService(Ci.nsIJSInspector);
     do_check_eq(xpcInspector.eventLoopNestLevel, 1);
 
-    aThreadClient.resume(cleanup);
+    aThreadClient.resume(function() {
+      cleanup();
+    });
   });
 
   Cu.evalInSandbox("var a = true; var b = false; debugger; var b = true;", gDebuggee);

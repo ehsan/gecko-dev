@@ -263,7 +263,7 @@ ConvertStringToResponseType(const nsAString& aString)
   }
 
   MOZ_NOT_REACHED("Don't know anything about this response type!");
-  return XMLHttpRequestResponseType::_empty;
+  return _empty;
 }
 
 enum
@@ -1404,7 +1404,7 @@ Proxy::HandleEvent(nsIDOMEvent* aEvent)
 XMLHttpRequest::XMLHttpRequest(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
 : XMLHttpRequestEventTarget(aCx), mJSObject(NULL), mUpload(NULL),
   mWorkerPrivate(aWorkerPrivate),
-  mResponseType(XMLHttpRequestResponseType::Text), mTimeout(0),
+  mResponseType(XMLHttpRequestResponseTypeValues::Text), mTimeout(0),
   mJSObjectRooted(false), mBackgroundRequest(false),
   mWithCredentials(false), mCanceled(false), mMozAnon(false), mMozSystem(false)
 {
@@ -1421,9 +1421,9 @@ void
 XMLHttpRequest::_trace(JSTracer* aTrc)
 {
   if (mUpload) {
-    mUpload->TraceJSObject(aTrc, "mUpload");
+    JS_CallObjectTracer(aTrc, mUpload->GetJSObject(), "mUpload");
   }
-  JS_CallValueTracer(aTrc, &mStateData.mResponse, "mResponse");
+  JS_CallValueTracer(aTrc, mStateData.mResponse, "mResponse");
   XMLHttpRequestEventTarget::_trace(aTrc);
 }
 
@@ -2109,7 +2109,7 @@ XMLHttpRequest::SetResponseType(XMLHttpRequestResponseType aResponseType,
 
   // "document" is fine for the main thread but not for a worker. Short-circuit
   // that here.
-  if (aResponseType == XMLHttpRequestResponseType::Document) {
+  if (aResponseType == XMLHttpRequestResponseTypeValues::Document) {
     return;
   }
 
