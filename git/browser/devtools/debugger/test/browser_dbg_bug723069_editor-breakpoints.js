@@ -21,39 +21,20 @@ function test()
   let tempScope = {};
   Cu.import("resource:///modules/source-editor.jsm", tempScope);
   let SourceEditor = tempScope.SourceEditor;
-  let scriptShown = false;
-  let framesAdded = false;
 
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
     gDebugger = gPane.debuggerWindow;
-    gPane.activeThread.addOneTimeListener("framesadded", function() {
-      framesAdded = true;
-      runTest();
-    });
 
+    gPane.activeThread.addOneTimeListener("framesadded", function() {
+      Services.tm.currentThread.dispatch({ run: onScriptsAdded }, 0);
+    });
     gDebuggee.firstCall();
   });
 
-  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
-    let url = aEvent.detail.url;
-    if (url.indexOf("-02.js") != -1) {
-      scriptShown = true;
-      window.removeEventListener(aEvent.type, _onEvent);
-      runTest();
-    }
-  });
-
-  function runTest()
-  {
-    if (scriptShown && framesAdded) {
-      Services.tm.currentThread.dispatch({ run: onScriptShown }, 0);
-    }
-  }
-
-  function onScriptShown()
+  function onScriptsAdded()
   {
     gScripts = gDebugger.DebuggerView.Scripts;
 
@@ -67,7 +48,7 @@ function test()
     isnot(gEditor.getText().indexOf("debugger"), -1,
           "The correct script was loaded initially.");
     isnot(gScripts.selected, gScripts.scriptLocations()[0],
-          "the correct script is selected");
+          "the correct sccript is selected");
 
     gBreakpoints = gPane.breakpoints;
     is(Object.keys(gBreakpoints), 0, "no breakpoints");
@@ -75,6 +56,8 @@ function test()
 
     is(gEditor.getBreakpoints().length, 0, "no breakpoints in the editor");
 
+
+    info("add the first breakpoint");
     gEditor.addEventListener(SourceEditor.EVENTS.BREAKPOINT_CHANGE,
                              onEditorBreakpointAddFirst);
     let location = {url: gScripts.selected, line: 6};
