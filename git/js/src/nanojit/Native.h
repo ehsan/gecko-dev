@@ -121,9 +121,9 @@ namespace nanojit {
             if (_logc->lcbits & LC_Assembly) { \
                 outline[0]='\0'; \
                 if (outputAddr) \
-                   VMPI_sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
+                   sprintf(outline, "%010lx   ", (unsigned long)_nIns); \
                 else \
-                   VMPI_memset(outline, (int)' ', 10+3); \
+                   memset(outline, (int)' ', 10+3); \
                 sprintf(&outline[13], ##__VA_ARGS__); \
                 Assembler::outputAlign(outline, 35); \
                 _allocator.formatRegisters(outline, _thisfrag); \

@@ -279,7 +279,6 @@ namespace nanojit
             , nbuckets(nbuckets)
             , buckets(new (a) Seq<Node>*[nbuckets])
         {
-            NanoAssert(nbuckets > 0);
             clear();
         }
 
