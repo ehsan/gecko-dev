@@ -625,7 +625,7 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(Element, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Attr, nsAttributeSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+                           NODE_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Text, nsNodeSH,
                            NODE_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Comment, nsNodeSH,
@@ -4186,8 +4186,8 @@ nsDOMClassInfo::PreserveNodeWrapper(nsIXPConnectWrappedNative *aWrapper)
    }
 
    if (doc) {
-     nsCOMPtr<nsIContent> content(do_QueryInterface(node));
-     doc->AddReference(content, aWrapper);
+     nsCOMPtr<nsINode> n(do_QueryInterface(node));
+     doc->AddReference(n, aWrapper);
    }
    return NS_OK;
 }
@@ -6828,6 +6828,18 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
 
     return NS_OK;
   }
+
+  // If we have a document, make sure one of these is true
+  // (1) it has a script handling object,
+  // (2) has had one, or has been marked to have had one,
+  // (3) we are running a privileged script.
+  // Event handling is possible only if (1). If (2) event handling is prevented.
+  // If document has never had a script handling object,
+  // untrusted scripts (3) shouldn't touch it!
+  PRBool hasHadScriptHandlingObject = PR_FALSE;
+  NS_ENSURE_STATE(doc->GetScriptHandlingObject(hasHadScriptHandlingObject) ||
+                  hasHadScriptHandlingObject ||
+                  IsPrivilegedScript());
 
   nsISupports *native_parent;
 

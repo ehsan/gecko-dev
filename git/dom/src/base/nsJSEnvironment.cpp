@@ -423,6 +423,29 @@ NS_ScriptErrorReporter(JSContext *cx,
                        const char *message,
                        JSErrorReport *report)
 {
+  JSStackFrame * fp = nsnull;
+  while ((fp = JS_FrameIterator(cx, &fp))) {
+    if (!JS_IsNativeFrame(cx, fp)) {
+      return;
+    }
+  }
+
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  if (xpc) {
+    nsAXPCNativeCallContext *cc = nsnull;
+    xpc->GetCurrentNativeCallContext(&cc);
+    if (cc) {
+      nsAXPCNativeCallContext *prev = cc;
+      while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
+        PRUint16 lang;
+        if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
+          lang == nsAXPCNativeCallContext::LANG_JS) {
+          return;
+        }
+      }
+    }
+  }
+
   // XXX this means we are not going to get error reports on non DOM contexts
   nsIScriptContext *context = nsJSUtils::GetDynamicScriptContext(cx);
 
@@ -1201,11 +1224,6 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime) : mGCOnDestruction(PR_TRUE)
   ++sContextCount;
 
   mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS | JSOPTION_ANONFUNFIX;
-
-  // Let xpconnect resync its JSContext tracker. We do this before creating
-  // a new JSContext just in case the heap manager recycles the JSContext
-  // struct.
-  nsContentUtils::XPConnect()->SyncJSContexts();
 
   mContext = ::JS_NewContext(aRuntime, gStackSize);
   if (mContext) {
@@ -3315,7 +3333,9 @@ nsJSContext::ScriptEvaluated(PRBool aTerminated)
     MaybeGC(mContext);
   }
 
-  mOperationCallbackTime = LL_ZERO;
+  if (aTerminated) {
+    mOperationCallbackTime = LL_ZERO;
+  }
 }
 
 nsresult
