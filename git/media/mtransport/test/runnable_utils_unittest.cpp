@@ -38,13 +38,12 @@ MtransportTestUtils *test_utils;
 namespace {
 
 class Destructor {
- private:
+ public:
+  Destructor(bool* destroyed) : destroyed_(destroyed) {}
   ~Destructor() {
     std::cerr << "Destructor called" << std::endl;
     *destroyed_ = true;
   }
- public:
-  Destructor(bool* destroyed) : destroyed_(destroyed) {}
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Destructor)
 

@@ -48,11 +48,13 @@ Icc::NotifyEvent(const nsAString& aName)
 nsresult
 Icc::NotifyStkEvent(const nsAString& aName, const nsAString& aMessage)
 {
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReportingUsingWin(GetOwner()))) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  nsresult rv;
+  nsIScriptContext* sc = GetContextForEventHandlers(&rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  AutoJSAPIWithErrorsReportedToWindow jsapi(sc);
   JSContext* cx = jsapi.cx();
+  JSAutoCompartment ac(cx, sc->GetWindowProxyPreserveColor());
   JS::Rooted<JS::Value> value(cx);
 
   if (!aMessage.IsEmpty()) {

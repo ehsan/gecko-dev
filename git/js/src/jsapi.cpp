@@ -982,20 +982,15 @@ JSAutoCompartment::~JSAutoCompartment()
     cx_->leaveCompartment(oldCompartment_);
 }
 
-JSAutoNullableCompartment::JSAutoNullableCompartment(JSContext *cx,
-                                                     JSObject *targetOrNull)
+JSAutoNullCompartment::JSAutoNullCompartment(JSContext *cx)
   : cx_(cx),
     oldCompartment_(cx->compartment())
 {
     AssertHeapIsIdleOrIterating(cx_);
-    if (targetOrNull) {
-        cx_->enterCompartment(targetOrNull->compartment());
-    } else {
-        cx_->enterNullCompartment();
-    }
+    cx_->enterNullCompartment();
 }
 
-JSAutoNullableCompartment::~JSAutoNullableCompartment()
+JSAutoNullCompartment::~JSAutoNullCompartment()
 {
     cx_->leaveCompartment(oldCompartment_);
 }
@@ -1010,30 +1005,6 @@ JS_PUBLIC_API(void *)
 JS_GetCompartmentPrivate(JSCompartment *compartment)
 {
     return compartment->data;
-}
-
-JS_PUBLIC_API(JSAddonId *)
-JS::NewAddonId(JSContext *cx, HandleString str)
-{
-    return static_cast<JSAddonId *>(JS_InternJSString(cx, str));
-}
-
-JS_PUBLIC_API(const jschar *)
-JS::CharsZOfAddonId(JSAddonId *id)
-{
-    return id->charsZ();
-}
-
-JS_PUBLIC_API(JSString *)
-JS::StringOfAddonId(JSAddonId *id)
-{
-    return id;
-}
-
-JS_PUBLIC_API(JSAddonId *)
-JS::AddonIdOfObject(JSObject *obj)
-{
-    return obj->compartment()->addonId;
 }
 
 JS_PUBLIC_API(void)
@@ -5531,34 +5502,17 @@ JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst, size_
     return true;
 }
 
-static char *
-EncodeLatin1(ExclusiveContext *cx, JSString *str)
-{
-    JSLinearString *linear = str->ensureLinear(cx);
-    if (!linear)
-        return nullptr;
-
-    JS::AutoCheckCannotGC nogc;
-    if (linear->hasTwoByteChars())
-        return JS::LossyTwoByteCharsToNewLatin1CharsZ(cx, linear->twoByteRange(nogc)).c_str();
-
-    size_t len = str->length();
-    Latin1Char *buf = cx->pod_malloc<Latin1Char>(len + 1);
-    if (!buf)
-        return nullptr;
-
-    mozilla::PodCopy(buf, linear->latin1Chars(nogc), len);
-    buf[len] = '\0';
-    return reinterpret_cast<char*>(buf);
-}
-
 JS_PUBLIC_API(char *)
 JS_EncodeString(JSContext *cx, JSString *str)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
 
-    return EncodeLatin1(cx, str);
+    JSLinearString *linear = str->ensureLinear(cx);
+    if (!linear)
+        return nullptr;
+
+    return LossyTwoByteCharsToNewLatin1CharsZ(cx, linear->range()).c_str();
 }
 
 JS_PUBLIC_API(char *)
@@ -6523,7 +6477,11 @@ JS::SetAsmJSCacheOps(JSRuntime *rt, const JS::AsmJSCacheOps *ops)
 char *
 JSAutoByteString::encodeLatin1(ExclusiveContext *cx, JSString *str)
 {
-    mBytes = EncodeLatin1(cx, str);
+    JSLinearString *linear = str->ensureLinear(cx);
+    if (!linear)
+        return nullptr;
+
+    mBytes = LossyTwoByteCharsToNewLatin1CharsZ(cx, linear->range()).c_str();
     return mBytes;
 }
 

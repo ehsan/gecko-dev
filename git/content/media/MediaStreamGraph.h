@@ -232,7 +232,6 @@ public:
  */
 struct AudioNodeSizes
 {
-  AudioNodeSizes() : mDomNode(0), mStream(0), mEngine(0), mNodeType() {}
   size_t mDomNode;
   size_t mStream;
   size_t mEngine;

@@ -235,7 +235,7 @@ using mozilla::dom::Element;
 static bool
 DoesNotParticipateInAutoDirection(const Element* aElement)
 {
-  mozilla::dom::NodeInfo* nodeInfo = aElement->NodeInfo();
+  nsINodeInfo* nodeInfo = aElement->NodeInfo();
   return (!aElement->IsHTML() ||
           nodeInfo->Equals(nsGkAtoms::script) ||
           nodeInfo->Equals(nsGkAtoms::style) ||

@@ -31,6 +31,7 @@
 #include "nsHTMLStyleSheet.h"
 #include "nsILayoutDebugger.h"
 #include "nsNameSpaceManager.h"
+#include "nsINodeInfo.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIScriptNameSpaceManager.h"

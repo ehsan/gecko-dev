@@ -24,12 +24,12 @@
 namespace mozilla {
 namespace dom {
 
-HTMLObjectElement::HTMLObjectElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
+HTMLObjectElement::HTMLObjectElement(already_AddRefed<nsINodeInfo>& aNodeInfo,
                                      FromParser aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
     mIsDoneAddingChildren(!aFromParser)
 {
-  RegisterActivityObserver();
+  RegisterFreezableElement();
   SetIsNetworkCreated(aFromParser == FROM_PARSER_NETWORK);
 
   // <object> is always barred from constraint validation.
@@ -41,7 +41,7 @@ HTMLObjectElement::HTMLObjectElement(already_AddRefed<mozilla::dom::NodeInfo>& a
 
 HTMLObjectElement::~HTMLObjectElement()
 {
-  UnregisterActivityObserver();
+  UnregisterFreezableElement();
   DestroyImageLoadingContent();
 }
 

@@ -100,7 +100,7 @@ public:
   DrawTargetCG();
   virtual ~DrawTargetCG();
 
-  virtual BackendType GetBackendType() const;
+  virtual BackendType GetType() const;
   virtual TemporaryRef<SourceSurface> Snapshot();
 
   virtual void DrawSurface(SourceSurface *aSurface,

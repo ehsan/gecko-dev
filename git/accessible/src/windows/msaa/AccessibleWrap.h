@@ -218,7 +218,6 @@ protected:
 #undef CreateEvent
 #undef GetClassName
 #undef GetBinaryType
-#undef RemoveDirectory
 #endif
 
 #endif

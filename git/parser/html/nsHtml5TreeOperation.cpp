@@ -341,7 +341,7 @@ nsHtml5TreeOperation::CreateElement(int32_t aNs,
   }
 
   nsCOMPtr<dom::Element> newElement;
-  nsRefPtr<dom::NodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->
+  nsCOMPtr<nsINodeInfo> nodeInfo = aBuilder->GetNodeInfoManager()->
     GetNodeInfo(aName, nullptr, aNs, nsIDOMNode::ELEMENT_NODE);
   NS_ASSERTION(nodeInfo, "Got null nodeinfo.");
   NS_NewElement(getter_AddRefs(newElement),
@@ -380,7 +380,7 @@ nsHtml5TreeOperation::CreateElement(int32_t aNs,
                         theAttribute,
                         false);
 
-    nsRefPtr<dom::NodeInfo> optionNodeInfo =
+    nsCOMPtr<nsINodeInfo> optionNodeInfo =
       aBuilder->GetNodeInfoManager()->GetNodeInfo(nsHtml5Atoms::option,
                                                   nullptr,
                                                   kNameSpaceID_XHTML,
@@ -388,7 +388,7 @@ nsHtml5TreeOperation::CreateElement(int32_t aNs,
 
     for (uint32_t i = 0; i < theContent.Length(); ++i) {
       nsCOMPtr<dom::Element> optionElt;
-      nsRefPtr<dom::NodeInfo> ni = optionNodeInfo;
+      nsCOMPtr<nsINodeInfo> ni = optionNodeInfo;
       NS_NewElement(getter_AddRefs(optionElt),
                     ni.forget(),
                     aFromParser);

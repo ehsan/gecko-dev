@@ -418,8 +418,8 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
   nsNodeInfoManager *nodeInfoManager = aNewNodeInfoManager;
 
   // aNode.
-  NodeInfo *nodeInfo = aNode->mNodeInfo;
-  nsRefPtr<NodeInfo> newNodeInfo;
+  nsINodeInfo *nodeInfo = aNode->mNodeInfo;
+  nsCOMPtr<nsINodeInfo> newNodeInfo;
   if (nodeInfoManager) {
 
     // Don't allow importing/adopting nodes from non-privileged "scriptable"
@@ -471,7 +471,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     if (aNode->IsElement()) {
       Element* element = aNode->AsElement();
       oldDoc->ClearBoxObjectFor(element);
-      wasRegistered = oldDoc->UnregisterActivityObserver(element);
+      wasRegistered = oldDoc->UnregisterFreezableElement(element);
     }
 
     aNode->mNodeInfo.swap(newNodeInfo);
@@ -484,7 +484,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
       // XXX what if oldDoc is null, we don't know if this should be
       // registered or not! Can that really happen?
       if (wasRegistered) {
-        newDoc->RegisterActivityObserver(aNode->AsElement());
+        newDoc->RegisterFreezableElement(aNode->AsElement());
       }
 
       nsPIDOMWindow* window = newDoc->GetInnerWindow();

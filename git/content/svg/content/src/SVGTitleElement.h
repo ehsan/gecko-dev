@@ -13,7 +13,7 @@
 typedef nsSVGElement SVGTitleElementBase;
 
 nsresult NS_NewSVGTitleElement(nsIContent **aResult,
-                               already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                               already_AddRefed<nsINodeInfo>&& aNodeInfo);
 namespace mozilla {
 namespace dom {
 
@@ -22,8 +22,8 @@ class SVGTitleElement MOZ_FINAL : public SVGTitleElementBase,
 {
 protected:
   friend nsresult (::NS_NewSVGTitleElement(nsIContent **aResult,
-                                           already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
-  SVGTitleElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+                                           already_AddRefed<nsINodeInfo>&& aNodeInfo));
+  SVGTitleElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
 
   virtual JSObject* WrapNode(JSContext *aCx) MOZ_OVERRIDE;
 
@@ -38,7 +38,7 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                               nsIContent *aBindingParent,

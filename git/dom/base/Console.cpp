@@ -324,18 +324,17 @@ private:
       wp = wp->GetParent();
     }
 
+    AutoJSAPI jsapi;
+    JSContext* cx = jsapi.cx();
+    ClearException ce(cx);
+
     nsPIDOMWindow* window = wp->GetWindow();
     NS_ENSURE_TRUE_VOID(window);
 
     nsRefPtr<nsGlobalWindow> win = static_cast<nsGlobalWindow*>(window);
     NS_ENSURE_TRUE_VOID(win);
 
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.Init(win))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
-    ClearException ce(cx);
+    JSAutoCompartment ac(cx, win->GetWrapperPreserveColor());
 
     ErrorResult error;
     nsRefPtr<Console> console = win->GetConsole(error);
@@ -437,18 +436,17 @@ private:
       wp = wp->GetParent();
     }
 
+    AutoJSAPI jsapi;
+    JSContext* cx = jsapi.cx();
+    ClearException ce(cx);
+
     nsPIDOMWindow* window = wp->GetWindow();
     NS_ENSURE_TRUE_VOID(window);
 
     nsRefPtr<nsGlobalWindow> win = static_cast<nsGlobalWindow*>(window);
     NS_ENSURE_TRUE_VOID(win);
 
-    AutoJSAPI jsapi;
-    if (NS_WARN_IF(!jsapi.Init(win))) {
-      return;
-    }
-    JSContext* cx = jsapi.cx();
-    ClearException ce(cx);
+    JSAutoCompartment ac(cx, win->GetWrapperPreserveColor());
 
     ErrorResult error;
     nsRefPtr<Console> console = win->GetConsole(error);

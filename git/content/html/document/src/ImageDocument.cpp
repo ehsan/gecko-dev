@@ -632,7 +632,7 @@ ImageDocument::CreateSyntheticDocument()
     return NS_ERROR_FAILURE;
   }
 
-  nsRefPtr<NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nullptr,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);

@@ -60,7 +60,50 @@ struct ElementAnimations MOZ_FINAL
   ElementAnimations(mozilla::dom::Element *aElement, nsIAtom *aElementProperty,
                     nsAnimationManager *aAnimationManager, TimeStamp aNow);
 
+  // After calling this, be sure to call CheckNeedsRefresh on the animation
+  // manager afterwards.
+  void EnsureStyleRuleFor(TimeStamp aRefreshTime, bool aIsThrottled);
   void GetEventsAt(TimeStamp aRefreshTime, EventArray &aEventsToDispatch);
+
+  bool IsForElement() const { // rather than for a pseudo-element
+    return mElementProperty == nsGkAtoms::animationsProperty;
+  }
+
+  nsString PseudoElement()
+  {
+    return mElementProperty == nsGkAtoms::animationsProperty ?
+             EmptyString() :
+             mElementProperty == nsGkAtoms::animationsOfBeforeProperty ?
+               NS_LITERAL_STRING("::before") :
+               NS_LITERAL_STRING("::after");
+  }
+
+  void PostRestyleForAnimation(nsPresContext *aPresContext) {
+    nsRestyleHint styleHint = IsForElement() ? eRestyle_Self : eRestyle_Subtree;
+    aPresContext->PresShell()->RestyleForAnimation(mElement, styleHint);
+  }
+
+  // If aFlags contains CanAnimate_AllowPartial, returns whether the
+  // state of this element's animations at the current refresh driver
+  // time contains animation data that can be done on the compositor
+  // thread.  (This is useful for determining whether a layer should be
+  // active, or whether to send data to the layer.)
+  // If aFlags does not contain CanAnimate_AllowPartial, returns whether
+  // the state of this element's animations at the current refresh driver
+  // time can be fully represented by data sent to the compositor.
+  // (This is useful for determining whether throttle the animation
+  // (suppress main-thread style updates).)
+  // Note that when CanPerformOnCompositorThread returns true, it also,
+  // as a side-effect, notifies the ActiveLayerTracker.  FIXME:  This
+  // should probably move to the relevant callers.
+  virtual bool CanPerformOnCompositorThread(CanAnimateFlags aFlags) const MOZ_OVERRIDE;
+
+  virtual bool HasAnimationOfProperty(nsCSSProperty aProperty) const MOZ_OVERRIDE;
+
+  // False when we know that our current style rule is valid
+  // indefinitely into the future (because all of our animations are
+  // either completed or paused).  May be invalidated by a style change.
+  bool mNeedsRefreshes;
 };
 
 class nsAnimationManager MOZ_FINAL
@@ -73,11 +116,21 @@ public:
   {
   }
 
-  static mozilla::css::CommonElementAnimationData*
-  GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty)
+  static ElementAnimations* GetAnimationsForCompositor(nsIContent* aContent,
+                                                       nsCSSProperty aProperty)
   {
-    return mozilla::css::CommonAnimationManager::GetAnimationsForCompositor(
-      aContent, nsGkAtoms::animationsProperty, aProperty);
+    if (!aContent->MayHaveAnimations())
+      return nullptr;
+    ElementAnimations* animations = static_cast<ElementAnimations*>(
+      aContent->GetProperty(nsGkAtoms::animationsProperty));
+    if (!animations)
+      return nullptr;
+    bool propertyMatches = animations->HasAnimationOfProperty(aProperty);
+    return (propertyMatches &&
+            animations->CanPerformOnCompositorThread(
+              mozilla::css::CommonElementAnimationData::CanAnimate_AllowPartial))
+           ? animations
+           : nullptr;
   }
 
   // Returns true if aContent or any of its ancestors has an animation.
@@ -91,9 +144,7 @@ public:
     return false;
   }
 
-  void UpdateStyleAndEvents(ElementAnimations* aEA,
-                            mozilla::TimeStamp aRefreshTime,
-                            mozilla::EnsureStyleRuleFlags aFlags);
+  void EnsureStyleRuleFor(ElementAnimations* aET);
 
   // nsIStyleRuleProcessor (parts)
   virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;

@@ -27,6 +27,7 @@
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsLayoutUtils.h"
+#include "nsFrameManager.h"
 #include "nsHTMLReflowState.h"
 #include "nsIObjectLoadingContent.h"
 #include "mozilla/EventStateManager.h"

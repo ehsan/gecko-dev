@@ -887,13 +887,16 @@ nsScriptLoader::AttemptAsyncScriptParse(nsScriptLoadRequest* aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  AutoJSAPI jsapi;
-  if (!jsapi.InitWithLegacyErrorReporting(globalObject)) {
+  nsCOMPtr<nsIScriptContext> context = globalObject->GetScriptContext();
+  if (!context) {
     return NS_ERROR_FAILURE;
   }
 
+  AutoJSAPIWithErrorsReportedToWindow jsapi(context);
   JSContext* cx = jsapi.cx();
   JS::Rooted<JSObject*> global(cx, globalObject->GetGlobalJSObject());
+  JSAutoCompartment ac(cx, global);
+
   JS::CompileOptions options(cx);
   FillCompileOptionsForRequest(aRequest, global, &options);
 

@@ -176,7 +176,7 @@ ContentRestoreInternal.prototype = {
       // Call resetRestore to reset the state back to normal. The data needed
       // for restoreDocument (which hasn't happened yet) will remain in
       // _restoringDocument.
-      this.resetRestore();
+      this.resetRestore(this.docShell);
 
       finishCallback();
     });
@@ -361,10 +361,7 @@ HistoryListener.prototype = {
   ]),
 
   uninstall: function () {
-    let shistory = this.webNavigation.sessionHistory;
-    if (shistory) {
-      shistory.removeSHistoryListener(this);
-    }
+    this.webNavigation.sessionHistory.removeSHistoryListener(this);
   },
 
   OnHistoryNewEntry: function(newURI) {},

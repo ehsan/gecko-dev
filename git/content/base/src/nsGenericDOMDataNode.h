@@ -27,6 +27,7 @@ class nsIDOMEventListener;
 class nsIDOMNodeList;
 class nsIFrame;
 class nsIDOMText;
+class nsINodeInfo;
 class nsURI;
 
 #define DATA_NODE_FLAG_BIT(n_) NODE_FLAG_BIT(NODE_TYPE_SPECIFIC_BITS_OFFSET + (n_))
@@ -64,8 +65,8 @@ public:
 
   NS_DECL_SIZEOF_EXCLUDING_THIS
 
-  nsGenericDOMDataNode(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
-  nsGenericDOMDataNode(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+  nsGenericDOMDataNode(already_AddRefed<nsINodeInfo>& aNodeInfo);
+  nsGenericDOMDataNode(already_AddRefed<nsINodeInfo>&& aNodeInfo);
   virtual ~nsGenericDOMDataNode();
 
   virtual void GetNodeValueInternal(nsAString& aNodeValue) MOZ_OVERRIDE;
@@ -173,7 +174,7 @@ public:
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                               int32_t aModType) const;
 
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE
   {
     *aResult = CloneDataNode(aNodeInfo, true);
     if (!*aResult) {
@@ -307,7 +308,7 @@ protected:
    * @param aCloneText if true the text content will be cloned too
    * @return the clone
    */
-  virtual nsGenericDOMDataNode *CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo,
+  virtual nsGenericDOMDataNode *CloneDataNode(nsINodeInfo *aNodeInfo,
                                               bool aCloneText) const = 0;
 
   nsTextFragment mText;

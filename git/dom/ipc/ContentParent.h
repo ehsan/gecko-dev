@@ -115,8 +115,7 @@ public:
      */
     static TabParent*
     CreateBrowserOrApp(const TabContext& aContext,
-                       Element* aFrameElement,
-                       ContentParent* aOpenerContentParent);
+                       Element* aFrameElement);
 
     static void GetAll(nsTArray<ContentParent*>& aArray);
     static void GetAllEvenIfDead(nsTArray<ContentParent*>& aArray);

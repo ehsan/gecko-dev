@@ -886,6 +886,21 @@ register_oid(const SECItem* oid_item, const char* oid_name)
   return SECOID_AddEntry(&od);
 }
 
+#ifndef NSS_NO_LIBPKIX
+static void
+addToCertListIfTrusted(CERTCertList* certList, CERTCertificate* cert) {
+  CERTCertTrust nssTrust;
+  if (CERT_GetCertTrust(cert, &nssTrust) != SECSuccess) {
+    return;
+  }
+  unsigned int flags = SEC_GET_TRUST_FLAGS(&nssTrust, trustSSL);
+
+  if (flags & CERTDB_TRUSTED_CA) {
+    CERT_AddCertToListTail(certList, CERT_DupCertificate(cert));
+  }
+}
+#endif
+
 static bool
 isEVPolicy(SECOidTag policyOIDTag)
 {
@@ -900,6 +915,25 @@ isEVPolicy(SECOidTag policyOIDTag)
 }
 
 namespace mozilla { namespace psm {
+
+#ifndef NSS_NO_LIBPKIX
+CERTCertList*
+GetRootsForOid(SECOidTag oid_tag)
+{
+  CERTCertList* certList = CERT_NewCertList();
+  if (!certList)
+    return nullptr;
+
+  for (size_t iEV = 0; iEV < PR_ARRAY_SIZE(myTrustedEVInfos); ++iEV) {
+    nsMyTrustedEVInfo& entry = myTrustedEVInfos[iEV];
+    if (entry.oid_tag == oid_tag) {
+      addToCertListIfTrusted(certList, entry.cert);
+    }
+  }
+
+  return certList;
+}
+#endif
 
 bool
 CertIsAuthoritativeForEVPolicy(const CERTCertificate* cert,

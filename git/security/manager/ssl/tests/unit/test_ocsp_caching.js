@@ -40,13 +40,20 @@ function run_test() {
   });
   ocspResponder.start(8080);
 
-  add_tests();
+  add_tests_in_mode(true);
+  add_tests_in_mode(false);
 
   add_test(function() { ocspResponder.stop(run_next_test); });
   run_next_test();
 }
 
-function add_tests() {
+function add_tests_in_mode(useMozillaPKIX) {
+  add_test(function () {
+    Services.prefs.setBoolPref("security.use_mozillapkix_verification",
+                               useMozillaPKIX);
+    run_next_test();
+  });
+
   // This test assumes that OCSPStaplingServer uses the same cert for
   // ocsp-stapling-unknown.example.com and ocsp-stapling-none.example.com.
 

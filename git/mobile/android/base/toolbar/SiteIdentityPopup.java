@@ -4,6 +4,7 @@
 
 package org.mozilla.gecko.toolbar;
 
+import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
@@ -16,11 +17,12 @@ import org.mozilla.gecko.widget.DoorHanger.OnButtonClickListener;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.content.Context;
+import android.content.res.Resources;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -36,6 +38,8 @@ public class SiteIdentityPopup extends ArrowPopup {
 
     private SiteIdentity mSiteIdentity;
 
+    private Resources mResources;
+
     private LinearLayout mIdentity;
     private TextView mHost;
     private TextView mOwner;
@@ -45,9 +49,10 @@ public class SiteIdentityPopup extends ArrowPopup {
 
     private final OnButtonClickListener mButtonClickListener;
 
-    public SiteIdentityPopup(Context context) {
-        super(context);
+    SiteIdentityPopup(BrowserApp activity) {
+        super(activity);
 
+        mResources = activity.getResources();
         mButtonClickListener = new PopupButtonListener();
     }
 
@@ -59,7 +64,7 @@ public class SiteIdentityPopup extends ArrowPopup {
         // which may reshow the popup (see bug 785156)
         setFocusable(true);
 
-        LayoutInflater inflater = LayoutInflater.from(mContext);
+        LayoutInflater inflater = LayoutInflater.from(mActivity);
         mIdentity = (LinearLayout) inflater.inflate(R.layout.site_identity, null);
         mContent.addView(mIdentity);
 
@@ -78,7 +83,7 @@ public class SiteIdentityPopup extends ArrowPopup {
             // Hide the identity data if there isn't valid site identity data.
             // Set some top padding on the popup content to create a of light blue
             // between the popup arrow and the mixed content notification.
-            mContent.setPadding(0, (int) mContext.getResources().getDimension(R.dimen.identity_padding_top), 0, 0);
+            mContent.setPadding(0, (int) mResources.getDimension(R.dimen.identity_padding_top), 0, 0);
             mIdentity.setVisibility(View.GONE);
         } else {
             mHost.setText(mSiteIdentity.getHost());
@@ -104,27 +109,27 @@ public class SiteIdentityPopup extends ArrowPopup {
     private void addMixedContentNotification(boolean blocked) {
         // Remove any exixting mixed content notification.
         removeMixedContentNotification();
-        mMixedContentNotification = new DoorHanger(mContext, DoorHanger.Theme.DARK);
+        mMixedContentNotification = new DoorHanger(mActivity, DoorHanger.Theme.DARK);
 
         String message;
         if (blocked) {
-            message = mContext.getString(R.string.blocked_mixed_content_message_top) + "\n\n" +
-                      mContext.getString(R.string.blocked_mixed_content_message_bottom);
+            message = mActivity.getString(R.string.blocked_mixed_content_message_top) + "\n\n" +
+                      mActivity.getString(R.string.blocked_mixed_content_message_bottom);
         } else {
-            message = mContext.getString(R.string.loaded_mixed_content_message);
+            message = mActivity.getString(R.string.loaded_mixed_content_message);
         }
         mMixedContentNotification.setMessage(message);
-        mMixedContentNotification.addLink(mContext.getString(R.string.learn_more), MIXED_CONTENT_SUPPORT_URL, "\n\n");
+        mMixedContentNotification.addLink(mActivity.getString(R.string.learn_more), MIXED_CONTENT_SUPPORT_URL, "\n\n");
 
         if (blocked) {
             mMixedContentNotification.setIcon(R.drawable.shield_doorhanger);
-            mMixedContentNotification.addButton(mContext.getString(R.string.disable_protection),
+            mMixedContentNotification.addButton(mActivity.getString(R.string.disable_protection),
                                                 "disable", mButtonClickListener);
-            mMixedContentNotification.addButton(mContext.getString(R.string.keep_blocking),
+            mMixedContentNotification.addButton(mActivity.getString(R.string.keep_blocking),
                                                 "keepBlocking", mButtonClickListener);
         } else {
             mMixedContentNotification.setIcon(R.drawable.warning_doorhanger);
-            mMixedContentNotification.addButton(mContext.getString(R.string.enable_protection),
+            mMixedContentNotification.addButton(mActivity.getString(R.string.enable_protection),
                                                 "enable", mButtonClickListener);
         }
 

@@ -17,7 +17,7 @@ class nsRenderingContext;
 
 typedef nsSVGContainerFrame nsSVGMaskFrameBase;
 
-class nsSVGMaskFrame MOZ_FINAL : public nsSVGMaskFrameBase
+class nsSVGMaskFrame : public nsSVGMaskFrameBase
 {
   friend nsIFrame*
   NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -33,10 +33,10 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsSVGMaskFrame method:
-  already_AddRefed<gfxPattern> GetMaskForMaskedFrame(gfxContext* aContext,
-                                                     nsIFrame* aMaskedFrame,
-                                                     const gfxMatrix &aMatrix,
-                                                     float aOpacity);
+  already_AddRefed<gfxPattern> ComputeMaskAlpha(nsRenderingContext *aContext,
+                                                nsIFrame* aParent,
+                                                const gfxMatrix &aMatrix,
+                                                float aOpacity = 1.0f);
 
   virtual nsresult AttributeChanged(int32_t         aNameSpaceID,
                                     nsIAtom*        aAttribute,

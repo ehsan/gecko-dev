@@ -121,24 +121,18 @@ nsLayoutDebugger::GetStyleSize(nsIPresShell* aPresentation,
 #endif
 
 #ifdef MOZ_DUMP_PAINTING
-std::ostream& operator<<(std::ostream& os, const nsPrintfCString& rhs) {
-  os << rhs.get();
-  return os;
-}
-
 static void
 PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpHtml);
+                   FILE* aOutput, uint32_t aIndent, bool aDumpHtml);
 
 static void
 PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpSublist, bool aDumpHtml)
+                   FILE* aOutput, uint32_t aIndent, bool aDumpSublist, bool aDumpHtml)
 {
-  std::stringstream ss;
-
+  nsCString str;
   if (!aDumpHtml) {
     for (uint32_t indent = 0; indent < aIndent; indent++) {
-      aStream << "  ";
+      str += "  ";
     }
   }
   nsIFrame* f = aItem->Frame();
@@ -161,9 +155,9 @@ PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
     nsCString string(aItem->Name());
     string.Append('-');
     string.AppendInt((uint64_t)aItem);
-    aStream << nsPrintfCString("<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
+    str += nsPrintfCString("<a href=\"javascript:ViewImage('%s')\">", string.BeginReading());
   }
-  aStream << nsPrintfCString("%s %p(%s) bounds(%d,%d,%d,%d) visible(%d,%d,%d,%d) componentAlpha(%d,%d,%d,%d) clip(%s) %s",
+  str += nsPrintfCString("%s %p(%s) bounds(%d,%d,%d,%d) visible(%d,%d,%d,%d) componentAlpha(%d,%d,%d,%d) clip(%s) %s",
           aItem->Name(), (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
           rect.x, rect.y, rect.width, rect.height,
           vis.x, vis.y, vis.width, vis.height,
@@ -173,125 +167,120 @@ PrintDisplayItemTo(nsDisplayListBuilder* aBuilder, nsDisplayItem* aItem,
 
   nsRegionRectIterator iter(opaque);
   for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-    aStream << nsPrintfCString(" (opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
+    str += nsPrintfCString(" (opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
   }
 
   if (aItem->Frame()->StyleDisplay()->mWillChange.Length() > 0) {
-    aStream << " (will-change=";
+    str += nsPrintfCString(" (will-change=");
     for (size_t i = 0; i < aItem->Frame()->StyleDisplay()->mWillChange.Length(); i++) {
       if (i > 0) {
-        aStream << ",";
+        str += ",";
       }
-      aStream << NS_LossyConvertUTF16toASCII(aItem->Frame()->StyleDisplay()->mWillChange[i]).get();
+      str += NS_LossyConvertUTF16toASCII(aItem->Frame()->StyleDisplay()->mWillChange[i]);
     }
-    aStream << ")";
+    str += nsPrintfCString(")");
   }
 
   // Display item specific debug info
-  nsCString itemStr;
-  aItem->WriteDebugInfo(itemStr);
-  aStream << itemStr.get();
+  aItem->WriteDebugInfo(str);
 
   if (aDumpHtml && aItem->Painted()) {
-    aStream << "</a>";
+    str += "</a>";
   }
   uint32_t key = aItem->GetPerFrameKey();
   Layer* layer = mozilla::FrameLayerBuilder::GetDebugOldLayerFor(f, key);
   if (layer) {
     if (aDumpHtml) {
-      aStream << nsPrintfCString(" <a href=\"#%p\">layer=%p</a>", layer, layer);
+      str += nsPrintfCString(" <a href=\"#%p\">layer=%p</a>", layer, layer);
     } else {
-      aStream << nsPrintfCString(" layer=%p", layer);
+      str += nsPrintfCString(" layer=%p", layer);
     }
   }
   if (aItem->GetType() == nsDisplayItem::TYPE_SVG_EFFECTS) {
-    nsCString str;
     (static_cast<nsDisplaySVGEffects*>(aItem))->PrintEffects(str);
-    aStream << str.get();
   }
-  aStream << "\n";
-
+  fprintf_stderr(aOutput, "%s\n", str.get());
   if (aDumpSublist && list) {
-    PrintDisplayListTo(aBuilder, *list, aStream, aIndent+1, aDumpHtml);
+    PrintDisplayListTo(aBuilder, *list, aOutput, aIndent+1, aDumpHtml);
   }
 }
 
 static void
 PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
-                   std::stringstream& aStream, uint32_t aIndent, bool aDumpHtml)
+                   FILE* aOutput, uint32_t aIndent, bool aDumpHtml)
 {
   if (aDumpHtml) {
-    aStream << "<ul>";
+    fprintf_stderr(aOutput, "<ul>");
   }
 
   for (nsDisplayItem* i = aList.GetBottom(); i != nullptr; i = i->GetAbove()) {
     if (aDumpHtml) {
-      aStream << "<li>";
+      fprintf_stderr(aOutput, "<li>");
     }
-    PrintDisplayItemTo(aBuilder, i, aStream, aIndent, true, aDumpHtml);
+    PrintDisplayItemTo(aBuilder, i, aOutput, aIndent, true, aDumpHtml);
     if (aDumpHtml) {
-      aStream << "</li>";
+      fprintf_stderr(aOutput, "</li>");
     }
   }
 
   if (aDumpHtml) {
-    aStream << "</ul>";
+    fprintf_stderr(aOutput, "</ul>");
   }
 }
 
 void
 nsFrame::PrintDisplayItem(nsDisplayListBuilder* aBuilder,
                           nsDisplayItem* aItem,
-                          std::stringstream& aStream,
+                          FILE* aFile,
                           bool aDumpSublist,
                           bool aDumpHtml)
 {
-  PrintDisplayItemTo(aBuilder, aItem, aStream, 0, aDumpSublist, aDumpHtml);
+  PrintDisplayItemTo(aBuilder, aItem, aFile, 0, aDumpSublist, aDumpHtml);
 }
 
 void
 nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
                           const nsDisplayList& aList,
-                          std::stringstream& aStream,
+                          FILE* aFile,
                           bool aDumpHtml)
 {
-  PrintDisplayListTo(aBuilder, aList, aStream, 0, aDumpHtml);
+  PrintDisplayListTo(aBuilder, aList, aFile, 0, aDumpHtml);
 }
 
 static void
 PrintDisplayListSetItem(nsDisplayListBuilder* aBuilder,
                         const char* aItemName,
                         const nsDisplayList& aList,
-                        std::stringstream& aStream,
+                        FILE* aFile,
                         bool aDumpHtml)
 {
   if (aDumpHtml) {
-    aStream << "<li>";
+    fprintf_stderr(aFile, "<li>");
   }
-  aStream << aItemName;
-  PrintDisplayListTo(aBuilder, aList, aStream, 0, aDumpHtml);
+  fprintf_stderr(aFile, "%s", aItemName);
+  PrintDisplayListTo(aBuilder, aList, aFile, 0, aDumpHtml);
   if (aDumpHtml) {
-    aStream << "</li>";
+    fprintf_stderr(aFile, "</li>");
   }
 }
 
 void
 nsFrame::PrintDisplayListSet(nsDisplayListBuilder* aBuilder,
                              const nsDisplayListSet& aSet,
-                             std::stringstream& aStream,
+                             FILE *aFile,
                              bool aDumpHtml)
 {
   if (aDumpHtml) {
-    aStream << "<ul>";
+    fprintf_stderr(aFile, "<ul>");
   }
-  PrintDisplayListSetItem(aBuilder, "[BorderBackground]", *(aSet.BorderBackground()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[BlockBorderBackgrounds]", *(aSet.BlockBorderBackgrounds()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Floats]", *(aSet.Floats()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[PositionedDescendants]", *(aSet.PositionedDescendants()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Outlines]", *(aSet.Outlines()), aStream, aDumpHtml);
-  PrintDisplayListSetItem(aBuilder, "[Content]", *(aSet.Content()), aStream, aDumpHtml);
+  PrintDisplayListSetItem(aBuilder, "[BorderBackground]", *(aSet.BorderBackground()), aFile, aDumpHtml);
+  PrintDisplayListSetItem(aBuilder, "[BlockBorderBackgrounds]", *(aSet.BlockBorderBackgrounds()), aFile, aDumpHtml);
+  PrintDisplayListSetItem(aBuilder, "[Floats]", *(aSet.Floats()), aFile, aDumpHtml);
+  PrintDisplayListSetItem(aBuilder, "[PositionedDescendants]", *(aSet.PositionedDescendants()), aFile, aDumpHtml);
+  PrintDisplayListSetItem(aBuilder, "[Outlines]", *(aSet.Outlines()), aFile, aDumpHtml);
+  PrintDisplayListSetItem(aBuilder, "[Content]", *(aSet.Content()), aFile, aDumpHtml);
   if (aDumpHtml) {
-    aStream << "</ul>";
+    fprintf_stderr(aFile, "</ul>");
   }
 }
 

@@ -61,7 +61,7 @@ nsCanvasFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   ErrorResult er;
   // We won't create touch caret element if preference is not enabled.
   if (PresShell::TouchCaretPrefEnabled()) {
-    nsRefPtr<dom::NodeInfo> nodeInfo;
+    nsCOMPtr<nsINodeInfo> nodeInfo;
 
     // Create and append touch caret frame.
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::div, nullptr,

@@ -24,7 +24,7 @@ namespace dom {
 
 
 
-HTMLOptGroupElement::HTMLOptGroupElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+HTMLOptGroupElement::HTMLOptGroupElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
 {
   // We start off enabled

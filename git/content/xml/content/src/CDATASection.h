@@ -24,7 +24,7 @@ private:
   }
 
 public:
-  CDATASection(already_AddRefed<mozilla::dom::NodeInfo> aNodeInfo)
+  CDATASection(already_AddRefed<nsINodeInfo> aNodeInfo)
     : Text(aNodeInfo)
   {
     Init();
@@ -59,7 +59,7 @@ public:
   // nsINode
   virtual bool IsNodeOfType(uint32_t aFlags) const;
 
-  virtual nsGenericDOMDataNode* CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo,
+  virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
                                               bool aCloneText) const MOZ_OVERRIDE;
 
   virtual nsIDOMNode* AsDOMNode() MOZ_OVERRIDE { return this; }

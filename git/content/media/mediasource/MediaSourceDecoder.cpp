@@ -14,7 +14,6 @@
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/TimeRanges.h"
 #include "mozilla/mozalloc.h"
-#include "nsAutoPtr.h"
 #include "nsISupports.h"
 #include "nsIThread.h"
 #include "prlog.h"
@@ -415,7 +414,7 @@ MediaSourceReader::CreateSubDecoder(const nsACString& aType,
   // XXX: Why/when is mDecoder null here, since it should be equal to aParentDecoder?!
   nsRefPtr<SubBufferDecoder> decoder =
     new SubBufferDecoder(new SourceBufferResource(nullptr, aType), aParentDecoder);
-  nsRefPtr<MediaDecoderReader> reader(DecoderTraits::CreateReader(aType, decoder));
+  nsAutoPtr<MediaDecoderReader> reader(DecoderTraits::CreateReader(aType, decoder));
   if (!reader) {
     return nullptr;
   }
@@ -429,7 +428,7 @@ MediaSourceReader::CreateSubDecoder(const nsACString& aType,
   reader->Init(nullptr);
   ReentrantMonitorAutoEnter mon(aParentDecoder->GetReentrantMonitor());
   MSE_DEBUG("Registered subdecoder %p subreader %p", decoder.get(), reader.get());
-  decoder->SetReader(reader);
+  decoder->SetReader(reader.forget());
   mPendingDecoders.AppendElement(decoder);
   if (NS_FAILED(static_cast<MediaSourceDecoder*>(mDecoder)->EnqueueDecoderInitialization())) {
     MSE_DEBUG("%p: Failed to enqueue decoder initialization task", this);

@@ -207,7 +207,7 @@ nsSplittableFrame::RemoveFromFlow(nsIFrame* aFrame)
 }
 
 nscoord
-nsSplittableFrame::GetConsumedBSize() const
+nsSplittableFrame::GetConsumedHeight() const
 {
   nscoord height = 0;
   for (nsIFrame* prev = GetPrevInFlow(); prev; prev = prev->GetPrevInFlow()) {
@@ -217,22 +217,22 @@ nsSplittableFrame::GetConsumedBSize() const
 }
 
 nscoord
-nsSplittableFrame::GetEffectiveComputedBSize(const nsHTMLReflowState& aReflowState,
-                                              nscoord aConsumedBSize) const
+nsSplittableFrame::GetEffectiveComputedHeight(const nsHTMLReflowState& aReflowState,
+                                              nscoord aConsumedHeight) const
 {
-  nscoord bSize = aReflowState.ComputedBSize();
-  if (bSize == NS_INTRINSICSIZE) {
+  nscoord height = aReflowState.ComputedHeight();
+  if (height == NS_INTRINSICSIZE) {
     return NS_INTRINSICSIZE;
   }
 
-  if (aConsumedBSize == NS_INTRINSICSIZE) {
-    aConsumedBSize = GetConsumedBSize();
+  if (aConsumedHeight == NS_INTRINSICSIZE) {
+    aConsumedHeight = GetConsumedHeight();
   }
 
-  bSize -= aConsumedBSize;
+  height -= aConsumedHeight;
 
   // We may have stretched the frame beyond its computed height. Oh well.
-  return std::max(0, bSize);
+  return std::max(0, height);
 }
 
 int
@@ -258,10 +258,10 @@ nsSplittableFrame::GetLogicalSkipSides(const nsHTMLReflowState* aReflowState) co
     // height, though, then we're going to need a next-in-flow, it just hasn't
     // been created yet.
 
-    if (NS_UNCONSTRAINEDSIZE != aReflowState->AvailableBSize()) {
-      nscoord effectiveCH = this->GetEffectiveComputedBSize(*aReflowState);
+    if (NS_UNCONSTRAINEDSIZE != aReflowState->AvailableHeight()) {
+      nscoord effectiveCH = this->GetEffectiveComputedHeight(*aReflowState);
       if (effectiveCH != NS_INTRINSICSIZE &&
-          effectiveCH > aReflowState->AvailableBSize()) {
+          effectiveCH > aReflowState->AvailableHeight()) {
         // Our content height is going to exceed our available height, so we're
         // going to need a next-in-flow.
         skip |= LOGICAL_SIDE_B_END;

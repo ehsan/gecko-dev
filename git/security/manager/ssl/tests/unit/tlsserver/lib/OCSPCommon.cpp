@@ -6,16 +6,16 @@
 
 #include <stdio.h>
 
-#include "pkixtestutil.h"
 #include "ScopedNSSTypes.h"
 #include "TLSServer.h"
+#include "pkixtestutil.h"
 #include "secder.h"
 #include "secerr.h"
 
 using namespace mozilla;
-using namespace mozilla::pkix;
-using namespace mozilla::pkix::test;
 using namespace mozilla::test;
+using namespace mozilla::pkix::test;
+
 
 SECItemArray *
 GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
@@ -40,26 +40,25 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
   PRTime oneDay = 60*60*24 * (PRTime)PR_USEC_PER_SEC;
   PRTime oldNow = now - (8 * oneDay);
 
-  mozilla::ScopedCERTCertificate cert(CERT_DupCertificate(aCert));
+  OCSPResponseContext context(aArena, aCert, now);
 
   if (aORT == ORTGoodOtherCert) {
-    cert = PK11_FindCertFromNickname(aAdditionalCertName, nullptr);
-    if (!cert) {
+    context.cert = PK11_FindCertFromNickname(aAdditionalCertName, nullptr);
+    if (!context.cert) {
       PrintPRError("PK11_FindCertFromNickname failed");
       return nullptr;
     }
   }
   // XXX CERT_FindCertIssuer uses the old, deprecated path-building logic
-  mozilla::ScopedCERTCertificate
-    issuerCert(CERT_FindCertIssuer(aCert, now, certUsageSSLCA));
+  ScopedCERTCertificate issuerCert(CERT_FindCertIssuer(aCert, now,
+                                                       certUsageSSLCA));
   if (!issuerCert) {
     PrintPRError("CERT_FindCertIssuer failed");
     return nullptr;
   }
-  CertID certID(cert->derIssuer, issuerCert->derPublicKey, cert->serialNumber);
-  OCSPResponseContext context(aArena, certID, now);
-
-  mozilla::ScopedCERTCertificate signerCert;
+  context.issuerNameDER = &issuerCert->derSubject;
+  context.issuerSPKI = &issuerCert->subjectPublicKeyInfo;
+  ScopedCERTCertificate signerCert;
   if (aORT == ORTGoodOtherCA || aORT == ORTDelegatedIncluded ||
       aORT == ORTDelegatedIncludedLast || aORT == ORTDelegatedMissing ||
       aORT == ORTDelegatedMissingMultiple) {
@@ -78,7 +77,7 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
   }
   if (aORT == ORTDelegatedIncludedLast || aORT == ORTDelegatedMissingMultiple) {
     certs[0] = &issuerCert->derCert;
-    certs[1] = &cert->derCert;
+    certs[1] = &context.cert->derCert;
     certs[2] = &issuerCert->derCert;
     if (aORT != ORTDelegatedMissingMultiple) {
       certs[3] = &signerCert->derCert;
@@ -110,8 +109,7 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
   if (aORT == ORTSkipResponseBytes) {
     context.skipResponseBytes = true;
   }
-  if (aORT == ORTExpired || aORT == ORTExpiredFreshCA ||
-      aORT == ORTRevokedOld || aORT == ORTUnknownOld) {
+  if (aORT == ORTExpired || aORT == ORTExpiredFreshCA) {
     context.thisUpdate = oldNow;
     context.nextUpdate = oldNow + 10 * PR_USEC_PER_SEC;
   }
@@ -121,10 +119,10 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
   if (aORT == ORTAncientAlmostExpired) {
     context.thisUpdate = now - (640 * oneDay);
   }
-  if (aORT == ORTRevoked || aORT == ORTRevokedOld) {
+  if (aORT == ORTRevoked) {
     context.certStatus = 1;
   }
-  if (aORT == ORTUnknown || aORT == ORTUnknownOld) {
+  if (aORT == ORTUnknown) {
     context.certStatus = 2;
   }
   if (aORT == ORTBadSignature) {

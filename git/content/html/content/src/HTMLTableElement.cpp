@@ -287,7 +287,7 @@ TableRowsCollection::ParentDestroyed()
 
 /* --------------------------- HTMLTableElement ---------------------------- */
 
-HTMLTableElement::HTMLTableElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+HTMLTableElement::HTMLTableElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mTableInheritedAttributes(TABLE_ATTRS_DIRTY)
 {
@@ -370,7 +370,7 @@ HTMLTableElement::CreateTHead()
   nsRefPtr<nsGenericHTMLElement> head = GetTHead();
   if (!head) {
     // Create a new head rowgroup.
-    nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+    nsCOMPtr<nsINodeInfo> nodeInfo;
     nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::thead,
                                 getter_AddRefs(nodeInfo));
 
@@ -402,7 +402,7 @@ HTMLTableElement::CreateTFoot()
   nsRefPtr<nsGenericHTMLElement> foot = GetTFoot();
   if (!foot) {
     // create a new foot rowgroup
-    nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+    nsCOMPtr<nsINodeInfo> nodeInfo;
     nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tfoot,
                                 getter_AddRefs(nodeInfo));
 
@@ -433,7 +433,7 @@ HTMLTableElement::CreateCaption()
   nsRefPtr<nsGenericHTMLElement> caption = GetCaption();
   if (!caption) {
     // Create a new caption.
-    nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+    nsCOMPtr<nsINodeInfo> nodeInfo;
     nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::caption,
                                 getter_AddRefs(nodeInfo));
 
@@ -461,7 +461,7 @@ HTMLTableElement::DeleteCaption()
 already_AddRefed<nsGenericHTMLElement>
 HTMLTableElement::CreateTBody()
 {
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo =
+  nsCOMPtr<nsINodeInfo> nodeInfo =
     OwnerDoc()->NodeInfoManager()->GetNodeInfo(nsGkAtoms::tbody, nullptr,
                                                kNameSpaceID_XHTML,
                                                nsIDOMNode::ELEMENT_NODE);
@@ -526,7 +526,7 @@ HTMLTableElement::InsertRow(int32_t aIndex, ErrorResult& aError)
     nsINode* parent = refRow->GetParentNode();
 
     // create the row
-    nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+    nsCOMPtr<nsINodeInfo> nodeInfo;
     nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tr,
                                 getter_AddRefs(nodeInfo));
 
@@ -560,7 +560,7 @@ HTMLTableElement::InsertRow(int32_t aIndex, ErrorResult& aError)
     }
 
     if (!rowGroup) { // need to create a TBODY
-      nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+      nsCOMPtr<nsINodeInfo> nodeInfo;
       nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tbody,
                                   getter_AddRefs(nodeInfo));
 
@@ -574,7 +574,7 @@ HTMLTableElement::InsertRow(int32_t aIndex, ErrorResult& aError)
     }
 
     if (rowGroup) {
-      nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+      nsCOMPtr<nsINodeInfo> nodeInfo;
       nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tr,
                                   getter_AddRefs(nodeInfo));
 

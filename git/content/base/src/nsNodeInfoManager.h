@@ -21,16 +21,12 @@ class nsBindingManager;
 class nsIAtom;
 class nsIDocument;
 class nsIDOMDocumentType;
+class nsINodeInfo;
 class nsIPrincipal;
+class nsNodeInfo;
 struct PLHashEntry;
 struct PLHashTable;
 template<class T> struct already_AddRefed;
-
-namespace mozilla {
-namespace dom {
-class NodeInfo;
-}
-}
 
 class nsNodeInfoManager MOZ_FINAL
 {
@@ -56,30 +52,31 @@ public:
   /**
    * Methods for creating nodeinfo's from atoms and/or strings.
    */
-  already_AddRefed<mozilla::dom::NodeInfo>
-  GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
-              uint16_t aNodeType, nsIAtom* aExtraName = nullptr);
+  already_AddRefed<nsINodeInfo> GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
+                                            int32_t aNamespaceID,
+                                            uint16_t aNodeType,
+                                            nsIAtom* aExtraName = nullptr);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
                        int32_t aNamespaceID, uint16_t aNodeType,
-                       mozilla::dom::NodeInfo** aNodeInfo);
+                       nsINodeInfo** aNodeInfo);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
                        const nsAString& aNamespaceURI, uint16_t aNodeType,
-                       mozilla::dom::NodeInfo** aNodeInfo);
+                       nsINodeInfo** aNodeInfo);
 
   /**
    * Returns the nodeinfo for text nodes. Can return null if OOM.
    */
-  already_AddRefed<mozilla::dom::NodeInfo> GetTextNodeInfo();
+  already_AddRefed<nsINodeInfo> GetTextNodeInfo();
 
   /**
    * Returns the nodeinfo for comment nodes. Can return null if OOM.
    */
-  already_AddRefed<mozilla::dom::NodeInfo> GetCommentNodeInfo();
+  already_AddRefed<nsINodeInfo> GetCommentNodeInfo();
 
   /**
    * Returns the nodeinfo for the document node. Can return null if OOM.
    */
-  already_AddRefed<mozilla::dom::NodeInfo> GetDocumentNodeInfo();
+  already_AddRefed<nsINodeInfo> GetDocumentNodeInfo();
 
   /**
    * Retrieve a pointer to the document that owns this node info
@@ -98,7 +95,7 @@ public:
     return mPrincipal;
   }
 
-  void RemoveNodeInfo(mozilla::dom::NodeInfo *aNodeInfo);
+  void RemoveNodeInfo(nsNodeInfo *aNodeInfo);
 
   nsBindingManager* GetBindingManager() const
   {
@@ -131,9 +128,9 @@ private:
   uint32_t mNonDocumentNodeInfos;
   nsCOMPtr<nsIPrincipal> mPrincipal; // Never null after Init() succeeds.
   nsCOMPtr<nsIPrincipal> mDefaultPrincipal; // Never null after Init() succeeds
-  mozilla::dom::NodeInfo *mTextNodeInfo; // WEAK to avoid circular ownership
-  mozilla::dom::NodeInfo *mCommentNodeInfo; // WEAK to avoid circular ownership
-  mozilla::dom::NodeInfo *mDocumentNodeInfo; // WEAK to avoid circular ownership
+  nsINodeInfo *mTextNodeInfo; // WEAK to avoid circular ownership
+  nsINodeInfo *mCommentNodeInfo; // WEAK to avoid circular ownership
+  nsINodeInfo *mDocumentNodeInfo; // WEAK to avoid circular ownership
   nsRefPtr<nsBindingManager> mBindingManager;
 };
 

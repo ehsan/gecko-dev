@@ -175,8 +175,7 @@ class ConstTwoByteChars : public mozilla::RangedPtr<const jschar>
  * This method cannot trigger GC.
  */
 extern Latin1CharsZ
-LossyTwoByteCharsToNewLatin1CharsZ(js::ThreadSafeContext *cx,
-                                   const mozilla::Range<const jschar> tbchars);
+LossyTwoByteCharsToNewLatin1CharsZ(js::ThreadSafeContext *cx, TwoByteChars tbchars);
 
 template <typename CharT>
 extern UTF8CharsZ

@@ -177,7 +177,6 @@ GetCairoSurfaceForSourceSurface(SourceSurface *aSurface, bool aExistingOnly = fa
   // investigation hasn't been done to determine the underlying cause.  We
   // will just handle the failure to allocate the surface to avoid a crash.
   if (cairo_surface_status(surf)) {
-    cairo_surface_destroy(surf);
     return nullptr;
   }
 
@@ -1331,8 +1330,7 @@ DrawTargetCairo::GetUserSpaceClip()
 cairo_t*
 BorrowedCairoContext::BorrowCairoContextFromDrawTarget(DrawTarget* aDT)
 {
-  if (aDT->GetBackendType() != BackendType::CAIRO ||
-      aDT->IsDualDrawTarget()) {
+  if (aDT->GetType() != BackendType::CAIRO || aDT->IsDualDrawTarget()) {
     return nullptr;
   }
   DrawTargetCairo* cairoDT = static_cast<DrawTargetCairo*>(aDT);
@@ -1353,8 +1351,7 @@ void
 BorrowedCairoContext::ReturnCairoContextToDrawTarget(DrawTarget* aDT,
                                                      cairo_t* aCairo)
 {
-  if (aDT->GetBackendType() != BackendType::CAIRO ||
-      aDT->IsDualDrawTarget()) {
+  if (aDT->GetType() != BackendType::CAIRO || aDT->IsDualDrawTarget()) {
     return;
   }
   DrawTargetCairo* cairoDT = static_cast<DrawTargetCairo*>(aDT);

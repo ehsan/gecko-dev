@@ -20,7 +20,7 @@
 #include "jit/IonAllocPolicy.h"
 #include "jit/IonMacroAssembler.h"
 #include "jit/MOpcodes.h"
-#include "jit/TypedObjectPrediction.h"
+#include "jit/TypeDescrSet.h"
 #include "jit/TypePolicy.h"
 #include "vm/ScopeObject.h"
 #include "vm/TypedArrayObject.h"
@@ -635,10 +635,10 @@ class MDefinition : public MNode
     }
 
     void addUse(MUse *use) {
+        // The use can't be in the list at all, but we only check the first
+        // element for now, as that's where it's most likely to be.
+        MOZ_ASSERT(uses_.empty() || use != *uses_.begin());
         uses_.pushFront(use);
-    }
-    void addUseUnchecked(MUse *use) {
-        uses_.pushFrontUnchecked(use);
     }
     void replaceAllUsesWith(MDefinition *dom);
 
@@ -1769,14 +1769,14 @@ class MNewDerivedTypedObject
                       IntPolicy<2> >
 {
   private:
-    TypedObjectPrediction prediction_;
+    TypeDescrSet set_;
 
-    MNewDerivedTypedObject(TypedObjectPrediction prediction,
+    MNewDerivedTypedObject(TypeDescrSet set,
                            MDefinition *type,
                            MDefinition *owner,
                            MDefinition *offset)
       : MTernaryInstruction(type, owner, offset),
-        prediction_(prediction)
+        set_(set)
     {
         setMovable();
         setResultType(MIRType_Object);
@@ -1785,14 +1785,14 @@ class MNewDerivedTypedObject
   public:
     INSTRUCTION_HEADER(NewDerivedTypedObject);
 
-    static MNewDerivedTypedObject *New(TempAllocator &alloc, TypedObjectPrediction prediction,
+    static MNewDerivedTypedObject *New(TempAllocator &alloc, TypeDescrSet set,
                                        MDefinition *type, MDefinition *owner, MDefinition *offset)
     {
-        return new(alloc) MNewDerivedTypedObject(prediction, type, owner, offset);
+        return new(alloc) MNewDerivedTypedObject(set, type, owner, offset);
     }
 
-    TypedObjectPrediction prediction() const {
-        return prediction_;
+    TypeDescrSet set() const {
+        return set_;
     }
 
     MDefinition *type() const {
@@ -1818,6 +1818,24 @@ class MNewDerivedTypedObject
     bool writeRecoverData(CompactBufferWriter &writer) const;
     bool canRecoverOnBailout() const {
         return true;
+    }
+};
+
+// Abort parallel execution.
+class MAbortPar : public MAryControlInstruction<0, 0>
+{
+    MAbortPar()
+      : MAryControlInstruction<0, 0>()
+    {
+        setResultType(MIRType_None);
+        setGuard();
+    }
+
+  public:
+    INSTRUCTION_HEADER(AbortPar);
+
+    static MAbortPar *New(TempAllocator &alloc) {
+        return new(alloc) MAbortPar();
     }
 };
 
@@ -2278,7 +2296,6 @@ class MBail : public MNullaryInstruction
 {
   protected:
     MBail(BailoutKind kind)
-      : MNullaryInstruction()
     {
         bailoutKind_ = kind;
         setGuard();
@@ -2305,20 +2322,6 @@ class MBail : public MNullaryInstruction
 
     BailoutKind bailoutKind() const {
         return bailoutKind_;
-    }
-};
-
-class MUnreachable : public MAryControlInstruction<0, 0>
-{
-  public:
-    INSTRUCTION_HEADER(Unreachable)
-
-    static MUnreachable *New(TempAllocator &alloc) {
-        return new(alloc) MUnreachable();
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
     }
 };
 
@@ -4158,10 +4161,6 @@ class MPow
     bool possiblyCalls() const {
         return true;
     }
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return true;
-    }
 };
 
 // Inline implementation of Math.pow(x, 0.5), which subtly differs from Math.sqrt(x).
@@ -4321,10 +4320,6 @@ class MMathFunction
     }
     void trySpecializeFloat32(TempAllocator &alloc);
     void computeRange(TempAllocator &alloc);
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return function_ == Round;
-    }
 };
 
 class MAdd : public MBinaryArithInstruction
@@ -5258,6 +5253,7 @@ class MInterruptCheckPar : public MUnaryInstruction
     {
         setResultType(MIRType_None);
         setGuard();
+        setMovable();
     }
 
   public:
@@ -5269,9 +5265,6 @@ class MInterruptCheckPar : public MUnaryInstruction
 
     MDefinition *forkJoinContext() const {
         return getOperand(0);
-    }
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
     }
 };
 
@@ -8944,10 +8937,6 @@ class MFloor
         return congruentIfOperandsEqual(ins);
     }
     void computeRange(TempAllocator &alloc);
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return true;
-    }
 };
 
 // Inlined version of Math.ceil().
@@ -9034,11 +9023,6 @@ class MRound
 #endif
     bool congruentTo(const MDefinition *ins) const {
         return congruentIfOperandsEqual(ins);
-    }
-
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return true;
     }
 };
 
@@ -10552,7 +10536,7 @@ void MUse::initUnchecked(MDefinition *producer, MNode *consumer)
     MOZ_ASSERT(consumer, "Initializing to null consumer");
     consumer_ = consumer;
     producer_ = producer;
-    producer_->addUseUnchecked(this);
+    producer_->addUse(this);
 }
 
 void MUse::initUncheckedWithoutProducer(MNode *consumer)

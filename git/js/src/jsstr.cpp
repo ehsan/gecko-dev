@@ -1984,14 +1984,20 @@ HasRegExpMetaChars(const CharT *chars, size_t length)
     return false;
 }
 
-bool
-js::StringHasRegExpMetaChars(JSLinearString *str)
+static inline bool
+HasRegExpMetaChars(JSLinearString *str)
 {
     AutoCheckCannotGC nogc;
     if (str->hasLatin1Chars())
         return HasRegExpMetaChars(str->latin1Chars(nogc), str->length());
 
     return HasRegExpMetaChars(str->twoByteChars(nogc), str->length());
+}
+
+bool
+js::StringHasRegExpMetaChars(const jschar *chars, size_t length)
+{
+    return HasRegExpMetaChars(chars, length);
 }
 
 namespace {
@@ -2117,7 +2123,7 @@ class MOZ_STACK_CLASS StringRegExpGuard
             return nullptr;
 
         size_t patLen = fm.pat_->length();
-        if (checkMetaChars && (patLen > MAX_FLAT_PAT_LEN || StringHasRegExpMetaChars(fm.pat_)))
+        if (checkMetaChars && (patLen > MAX_FLAT_PAT_LEN || HasRegExpMetaChars(fm.pat_)))
             return nullptr;
 
         /*
@@ -4609,15 +4615,6 @@ CompareStringsImpl(JSLinearString *str1, JSLinearString *str2)
     return str2->hasLatin1Chars()
            ? CompareChars(chars1, len1, str2->latin1Chars(nogc), len2)
            : CompareChars(chars1, len1, str2->twoByteChars(nogc), len2);
-}
-
-int32_t
-js::CompareChars(const jschar *s1, size_t len1, JSLinearString *s2)
-{
-    AutoCheckCannotGC nogc;
-    return s2->hasLatin1Chars()
-           ? CompareChars(s1, len1, s2->latin1Chars(nogc), s2->length())
-           : CompareChars(s1, len1, s2->twoByteChars(nogc), s2->length());
 }
 
 bool

@@ -322,9 +322,7 @@ GetCachedBlur(DrawTarget *aDT,
   if (!gBlurCache) {
     gBlurCache = new BlurCache();
   }
-  BlurCacheData* cached = gBlurCache->Lookup(aRect, aBlurRadius, aSkipRect,
-                                             aDT->GetBackendType(),
-                                             &aDirtyRect);
+  BlurCacheData* cached = gBlurCache->Lookup(aRect, aBlurRadius, aSkipRect, aDT->GetType(), &aDirtyRect);
   if (cached) {
     *aTopLeft = cached->mTopLeft;
     return cached->mBlur;
@@ -343,16 +341,14 @@ CacheBlur(DrawTarget *aDT,
 {
   // If we already had a cached value with this key, but an incorrect dirty region then just update
   // the existing entry
-  if (BlurCacheData* cached = gBlurCache->Lookup(aRect, aBlurRadius, aSkipRect,
-                                                 aDT->GetBackendType(),
-                                                 nullptr)) {
+  if (BlurCacheData* cached = gBlurCache->Lookup(aRect, aBlurRadius, aSkipRect, aDT->GetType(), nullptr)) {
     cached->mBlur = aBlur;
     cached->mTopLeft = aTopLeft;
     cached->mDirtyRect = aDirtyRect;
     return;
   }
 
-  BlurCacheKey key(aRect, aBlurRadius, aSkipRect, aDT->GetBackendType());
+  BlurCacheKey key(aRect, aBlurRadius, aSkipRect, aDT->GetType());
   BlurCacheData* data = new BlurCacheData(aBlur, aTopLeft, aDirtyRect, key);
   if (!gBlurCache->RegisterEntry(data)) {
     delete data;
@@ -406,9 +402,6 @@ gfxAlphaBoxBlur::BlurRectangle(gfxContext *aDestinationCtx,
     dest->Fill();
 
     surface = blur.DoBlur(dt, &topLeft);
-    if (!surface) {
-      return;
-    }
     CacheBlur(dt, aRect, blurRadius, aSkipRect, surface, topLeft, aDirtyRect);
   }
 

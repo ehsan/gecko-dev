@@ -83,14 +83,14 @@ protected:
    *       O(N^2)! So, use this function with caution and minimize the number
    *       of calls to this method.
    */
-  nscoord GetConsumedBSize() const;
+  nscoord GetConsumedHeight() const;
 
   /**
-   * Retrieve the effective computed block size of this frame, which is the
-   * computed block size, minus the block size consumed by any previous in-flows.
+   * Retrieve the effective computed height of this frame, which is the computed
+   * height, minus the height consumed by any previous in-flows.
    */
-  nscoord GetEffectiveComputedBSize(const nsHTMLReflowState& aReflowState,
-                                    nscoord aConsumed = NS_INTRINSICSIZE) const;
+  nscoord GetEffectiveComputedHeight(const nsHTMLReflowState& aReflowState,
+                                     nscoord aConsumed = NS_INTRINSICSIZE) const;
 
   /**
    * @see nsIFrame::GetLogicalSkipSides()

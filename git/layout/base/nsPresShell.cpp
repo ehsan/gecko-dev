@@ -24,7 +24,6 @@
 #include "prlog.h"
 
 #include "mozilla/ArrayUtils.h"
-#include "mozilla/CSSStyleSheet.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStateManager.h"
 #include "mozilla/EventStates.h"
@@ -49,6 +48,7 @@
 #include "mozilla/dom/ShadowRoot.h"
 #include "mozilla/dom/PointerEvent.h"
 #include "nsIDocument.h"
+#include "nsCSSStyleSheet.h"
 #include "nsAnimationManager.h"
 #include "nsNameSpaceManager.h"  // for Pref-related rule management (bugs 22963,20760,31816)
 #include "nsFrame.h"
@@ -1384,7 +1384,7 @@ nsresult
 PresShell::CreatePreferenceStyleSheet()
 {
   NS_ASSERTION(!mPrefStyleSheet, "prefStyleSheet already exists");
-  mPrefStyleSheet = new CSSStyleSheet(CORS_NONE);
+  mPrefStyleSheet = new nsCSSStyleSheet(CORS_NONE);
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), "about:PreferenceStyleSheet", nullptr);
   if (NS_FAILED(rv)) {
@@ -4616,7 +4616,7 @@ PresShell::RecordStyleSheetChange(nsIStyleSheet* aStyleSheet)
   if (mStylesHaveChanged)
     return;
 
-  nsRefPtr<CSSStyleSheet> cssStyleSheet = do_QueryObject(aStyleSheet);
+  nsRefPtr<nsCSSStyleSheet> cssStyleSheet = do_QueryObject(aStyleSheet);
   if (cssStyleSheet) {
     Element* scopeElement = cssStyleSheet->GetScopeElement();
     if (scopeElement) {
@@ -8398,9 +8398,9 @@ PresShell::RemoveOverrideStyleSheet(nsIStyleSheet *aSheet)
 }
 
 static void
-FreezeElement(nsISupports *aSupports, void * /* unused */)
+FreezeElement(nsIContent *aContent, void * /* unused */)
 {
-  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(aSupports));
+  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(aContent));
   if (olc) {
     olc->StopPluginInstance();
   }
@@ -8423,7 +8423,7 @@ PresShell::Freeze()
 
   MaybeReleaseCapturingContent();
 
-  mDocument->EnumerateActivityObservers(FreezeElement, nullptr);
+  mDocument->EnumerateFreezableElements(FreezeElement, nullptr);
 
   if (mCaret) {
     SetCaretEnabled(false);
@@ -8472,9 +8472,9 @@ PresShell::FireOrClearDelayedEvents(bool aFireEvents)
 }
 
 static void
-ThawElement(nsISupports *aSupports, void *aShell)
+ThawElement(nsIContent *aContent, void *aShell)
 {
-  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(aSupports));
+  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(aContent));
   if (olc) {
     olc->AsyncStartPluginInstance();
   }
@@ -8499,7 +8499,7 @@ PresShell::Thaw()
     presContext->RefreshDriver()->Thaw();
   }
 
-  mDocument->EnumerateActivityObservers(ThawElement, this);
+  mDocument->EnumerateFreezableElements(ThawElement, this);
 
   if (mDocument)
     mDocument->EnumerateSubDocuments(ThawSubDocument, nullptr);
@@ -10384,14 +10384,9 @@ SetExternalResourceIsActive(nsIDocument* aDocument, void* aClosure)
 }
 
 static void
-SetPluginIsActive(nsISupports* aSupports, void* aClosure)
+SetPluginIsActive(nsIContent* aContent, void* aClosure)
 {
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aSupports));
-  if (!content) {
-    return;
-  }
-
-  nsIFrame *frame = content->GetPrimaryFrame();
+  nsIFrame *frame = aContent->GetPrimaryFrame();
   nsIObjectFrame *objectFrame = do_QueryFrame(frame);
   if (objectFrame) {
     objectFrame->SetIsDocumentActive(*static_cast<bool*>(aClosure));
@@ -10413,7 +10408,7 @@ PresShell::SetIsActive(bool aIsActive)
   // Propagate state-change to my resource documents' PresShells
   mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
                                         &aIsActive);
-  mDocument->EnumerateActivityObservers(SetPluginIsActive,
+  mDocument->EnumerateFreezableElements(SetPluginIsActive,
                                         &aIsActive);
   nsresult rv = UpdateImageLockingState();
 #ifdef ACCESSIBILITY
@@ -10494,9 +10489,6 @@ PresShell::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
 {
   mFrameArena.AddSizeOfExcludingThis(aMallocSizeOf, aArenaObjectsSize);
   *aPresShellSize += aMallocSizeOf(this);
-  if (mCaret) {
-    *aPresShellSize += mCaret->SizeOfIncludingThis(aMallocSizeOf);
-  }
   *aPresShellSize += mVisibleImages.SizeOfExcludingThis(nullptr,
                                                         aMallocSizeOf,
                                                         nullptr);

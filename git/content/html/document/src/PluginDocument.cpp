@@ -217,7 +217,7 @@ PluginDocument::CreateSyntheticPluginDocument()
 
 
   // make plugin content
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::embed, nullptr,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);

@@ -9,7 +9,7 @@
 #include "nsSVGFilters.h"
 
 nsresult NS_NewSVGFEDiffuseLightingElement(nsIContent **aResult,
-                                           already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                                           already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 namespace mozilla {
 namespace dom {
@@ -19,9 +19,9 @@ typedef nsSVGFELightingElement SVGFEDiffuseLightingElementBase;
 class SVGFEDiffuseLightingElement : public SVGFEDiffuseLightingElementBase
 {
   friend nsresult (::NS_NewSVGFEDiffuseLightingElement(nsIContent **aResult,
-                                                       already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
+                                                       already_AddRefed<nsINodeInfo>&& aNodeInfo));
 protected:
-  SVGFEDiffuseLightingElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEDiffuseLightingElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
     : SVGFEDiffuseLightingElementBase(aNodeInfo)
   {
   }
@@ -36,7 +36,7 @@ public:
   virtual bool AttributeAffectsRendering(
           int32_t aNameSpaceID, nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // WebIDL
   already_AddRefed<SVGAnimatedString> In1();

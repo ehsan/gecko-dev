@@ -1566,7 +1566,7 @@ Experiments.ExperimentEntry.prototype = {
         wantComponents: false,
       };
 
-      let sandbox = Cu.Sandbox(nullprincipal, options);
+      let sandbox = Cu.Sandbox(nullprincipal);
       try {
         Cu.evalInSandbox(jsfilter, sandbox);
       } catch (e) {

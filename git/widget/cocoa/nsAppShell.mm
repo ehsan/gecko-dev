@@ -9,6 +9,7 @@
  */
 
 #import <Cocoa/Cocoa.h>
+#include <dlfcn.h>
 
 #include "CustomCocoaEvents.h"
 #include "mozilla/WidgetTraceEvent.h"
@@ -34,6 +35,7 @@
 #include "GeckoProfiler.h"
 #include "pratom.h"
 
+#include "npapi.h"
 #include <IOKit/pwr_mgt/IOPMLib.h>
 #include "nsIDOMWakeLockListener.h"
 #include "nsIPowerManagerService.h"
@@ -44,7 +46,7 @@ using namespace mozilla::widget;
 // Gecko. For example when we're playing video in a foreground tab we
 // don't want the screen saver to turn on.
 
-class MacWakeLockListener MOZ_FINAL : public nsIDOMMozWakeLockListener {
+class MacWakeLockListener : public nsIDOMMozWakeLockListener {
 public:
   NS_DECL_ISUPPORTS;
 

@@ -225,7 +225,9 @@ JSRope::copyNonPureCharsInternal(ThreadSafeContext *cx, ScopedJSFreePtr<jschar> 
     return true;
 }
 
-namespace js {
+template <typename CharT>
+static void
+CopyChars(CharT *dest, const JSLinearString &str);
 
 template <>
 void
@@ -245,8 +247,6 @@ CopyChars(Latin1Char *dest, const JSLinearString &str)
     AutoCheckCannotGC nogc;
     PodCopy(dest, str.latin1Chars(nogc), str.length());
 }
-
-} /* namespace js */
 
 template<JSRope::UsingBarrier b, typename CharT>
 JSFlatString *
@@ -507,10 +507,11 @@ JSDependentString::copyNonPureCharsZ(ThreadSafeContext *cx, ScopedJSFreePtr<jsch
     return true;
 }
 
-template <typename CharT>
 JSFlatString *
-JSDependentString::undependInternal(ExclusiveContext *cx)
+JSDependentString::undepend(ExclusiveContext *cx)
 {
+    JS_ASSERT(JSString::isDependent());
+
     /*
      * We destroy the base() pointer in undepend, so we need a pre-barrier. We
      * don't need a post-barrier because there aren't any outgoing pointers
@@ -519,34 +520,22 @@ JSDependentString::undependInternal(ExclusiveContext *cx)
     JSString::writeBarrierPre(base());
 
     size_t n = length();
-    CharT *s = cx->pod_malloc<CharT>(n + 1);
+    size_t size = (n + 1) * sizeof(jschar);
+    jschar *s = (jschar *) cx->malloc_(size);
     if (!s)
         return nullptr;
 
-    AutoCheckCannotGC nogc;
-    PodCopy(s, nonInlineChars<CharT>(nogc), n);
-    s[n] = '\0';
-    setNonInlineChars<CharT>(s);
+    PodCopy(s, nonInlineChars(), n);
+    s[n] = 0;
+    d.s.u2.nonInlineCharsTwoByte = s;
 
     /*
      * Transform *this into an undepended string so 'base' will remain rooted
      * for the benefit of any other dependent string that depends on *this.
      */
-    if (IsSame<CharT, Latin1Char>::value)
-        d.u1.flags = UNDEPENDED_FLAGS | LATIN1_CHARS_BIT;
-    else
-        d.u1.flags = UNDEPENDED_FLAGS;
+    d.u1.flags = UNDEPENDED_FLAGS;
 
     return &this->asFlat();
-}
-
-JSFlatString *
-JSDependentString::undepend(ExclusiveContext *cx)
-{
-    JS_ASSERT(JSString::isDependent());
-    return hasLatin1Chars()
-           ? undependInternal<Latin1Char>(cx)
-           : undependInternal<jschar>(cx);
 }
 
 template <typename CharT>
@@ -767,12 +756,8 @@ AutoStableStringChars::~AutoStableStringChars()
 }
 
 bool
-AutoStableStringChars::init(JSContext *cx, JSString *s)
+AutoStableStringChars::init()
 {
-    s_ = s->ensureLinear(cx);
-    if (!s_)
-        return false;
-
     MOZ_ASSERT(state_ == Uninitialized);
 
     if (s_->hasLatin1Chars()) {
@@ -787,12 +772,8 @@ AutoStableStringChars::init(JSContext *cx, JSString *s)
 }
 
 bool
-AutoStableStringChars::initTwoByte(JSContext *cx, JSString *s)
+AutoStableStringChars::initTwoByte(JSContext *cx)
 {
-    s_ = s->ensureLinear(cx);
-    if (!s_)
-        return false;
-
     MOZ_ASSERT(state_ == Uninitialized);
 
     if (s_->hasTwoByteChars()) {

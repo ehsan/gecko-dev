@@ -77,8 +77,6 @@ public:
   }
 #endif
 
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
 private:
   ~nsTimerImpl();
   nsresult InitCommon(uint32_t aType, uint32_t aDelay);

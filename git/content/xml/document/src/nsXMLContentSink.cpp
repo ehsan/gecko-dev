@@ -20,7 +20,7 @@
 #include "DocumentType.h"
 #include "nsHTMLParts.h"
 #include "nsCRT.h"
-#include "mozilla/CSSStyleSheet.h"
+#include "nsCSSStyleSheet.h"
 #include "mozilla/css/Loader.h"
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
@@ -63,7 +63,6 @@
 #include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 // XXX Open Issues:
@@ -415,7 +414,7 @@ nsXMLContentSink::OnTransformDone(nsresult aResult,
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::StyleSheetLoaded(CSSStyleSheet* aSheet,
+nsXMLContentSink::StyleSheetLoaded(nsCSSStyleSheet* aSheet,
                                    bool aWasAlternate,
                                    nsresult aStatus)
 {
@@ -454,7 +453,7 @@ nsXMLContentSink::SetParser(nsParserBase* aParser)
 
 nsresult
 nsXMLContentSink::CreateElement(const char16_t** aAtts, uint32_t aAttsCount,
-                                mozilla::dom::NodeInfo* aNodeInfo, uint32_t aLineNumber,
+                                nsINodeInfo* aNodeInfo, uint32_t aLineNumber,
                                 nsIContent** aResult, bool* aAppendContent,
                                 FromParser aFromParser)
 {
@@ -464,8 +463,8 @@ nsXMLContentSink::CreateElement(const char16_t** aAtts, uint32_t aAttsCount,
   *aAppendContent = true;
   nsresult rv = NS_OK;
 
-  nsRefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
-  nsRefPtr<Element> content;
+  nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
+  nsCOMPtr<Element> content;
   rv = NS_NewElement(getter_AddRefs(content), ni.forget(), aFromParser);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -524,7 +523,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
 {
   NS_ASSERTION(aContent, "missing element to close");
 
-  mozilla::dom::NodeInfo *nodeInfo = aContent->NodeInfo();
+  nsINodeInfo *nodeInfo = aContent->NodeInfo();
 
   // Some HTML nodes need DoneAddingChildren() called to initialize
   // properly (eg form state restoration).
@@ -989,7 +988,7 @@ nsXMLContentSink::HandleStartElement(const char16_t *aName,
     return NS_OK;
   }
   
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
                                            nsIDOMNode::ELEMENT_NODE);
 
@@ -1597,7 +1596,7 @@ nsXMLContentSink::UpdateChildCounts()
 }
 
 bool
-nsXMLContentSink::IsMonolithicContainer(mozilla::dom::NodeInfo* aNodeInfo)
+nsXMLContentSink::IsMonolithicContainer(nsINodeInfo* aNodeInfo)
 {
   return ((aNodeInfo->NamespaceID() == kNameSpaceID_XHTML &&
           (aNodeInfo->NameAtom() == nsGkAtoms::tr ||

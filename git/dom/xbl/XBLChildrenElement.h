@@ -22,11 +22,13 @@ class ExplicitChildIterator;
 class XBLChildrenElement : public nsXMLElement
 {
 public:
-  XBLChildrenElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  friend class mozilla::dom::ExplicitChildIterator;
+  friend class nsAnonymousContentList;
+  XBLChildrenElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
     : nsXMLElement(aNodeInfo)
   {
   }
-  XBLChildrenElement(already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
+  XBLChildrenElement(already_AddRefed<nsINodeInfo>&& aNodeInfo)
     : nsXMLElement(aNodeInfo)
   {
   }
@@ -36,7 +38,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsINode interface methods
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual nsXPCClassInfo* GetClassInfo() { return nullptr; }
 
@@ -113,7 +115,10 @@ public:
     return !mInsertedChildren.IsEmpty();
   }
 
-  int32_t IndexOfInsertedChild(nsIContent* aChild)
+  enum {
+    NoIndex = uint32_t(-1)
+  };
+  uint32_t IndexOfInsertedChild(nsIContent* aChild)
   {
     return mInsertedChildren.IndexOf(aChild);
   }
@@ -130,13 +135,9 @@ public:
     return mIncludes.IsEmpty();
   }
 
-  nsIContent* InsertedChild(uint32_t aIndex)
-  {
-    return mInsertedChildren[aIndex];
-  }
+  nsTArray<nsIContent*> mInsertedChildren;
 
 private:
-  nsTArray<nsIContent*> mInsertedChildren; // WEAK
   nsTArray<nsCOMPtr<nsIAtom> > mIncludes;
 };
 

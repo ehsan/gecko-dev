@@ -186,11 +186,5 @@ var gContentPane = {
   {
     openDialog("chrome://browser/content/preferences/translation.xul",
                "Browser:TranslationExceptions", null);
-  },
-
-  openTranslationProviderAttribution: function ()
-  {
-    Components.utils.import("resource:///modules/translation/Translation.jsm");
-    Translation.openProviderAttribution();
   }
 };

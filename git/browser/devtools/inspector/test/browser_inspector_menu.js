@@ -5,6 +5,9 @@ http://creativecommons.org/publicdomain/zero/1.0/ */
 function test() {
 
   let clipboard = require("sdk/clipboard");
+
+  waitForExplicitFinish();
+
   let doc;
   let inspector;
 

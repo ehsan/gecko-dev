@@ -16,6 +16,7 @@
 class nsIAtom;
 class nsIContent;
 class nsIDocument;
+class nsINodeInfo;
 class nsPIDOMWindow;
 class nsXBLPrototypeBinding;
 class nsTagNameMapEntry;
@@ -42,14 +43,14 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  ShadowRoot(nsIContent* aContent, already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
+  ShadowRoot(nsIContent* aContent, already_AddRefed<nsINodeInfo>&& aNodeInfo,
              nsXBLPrototypeBinding* aProtoBinding);
   virtual ~ShadowRoot();
 
   void AddToIdTable(Element* aElement, nsIAtom* aId);
   void RemoveFromIdTable(Element* aElement, nsIAtom* aId);
-  void InsertSheet(CSSStyleSheet* aSheet, nsIContent* aLinkingContent);
-  void RemoveSheet(CSSStyleSheet* aSheet);
+  void InsertSheet(nsCSSStyleSheet* aSheet, nsIContent* aLinkingContent);
+  void RemoveSheet(nsCSSStyleSheet* aSheet);
   bool ApplyAuthorStyles();
   void SetApplyAuthorStyles(bool aApplyAuthorStyles);
   StyleSheetList* StyleSheets();
@@ -187,7 +188,7 @@ public:
   }
 
   virtual uint32_t Length() MOZ_OVERRIDE;
-  virtual CSSStyleSheet* IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
+  virtual nsCSSStyleSheet* IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
 
 protected:
   nsRefPtr<ShadowRoot> mShadowRoot;

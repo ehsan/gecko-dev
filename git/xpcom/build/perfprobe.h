@@ -46,10 +46,9 @@ public:
    * Note: Can be called from any thread.
    */
   nsresult Trigger();
-
-protected:
   ~Probe() {};
 
+protected:
   Probe(const nsCID &aGUID,
         const nsACString &aName,
          ProbeManager *aManager);
@@ -146,9 +145,9 @@ public:
    */
   bool IsActive();
 
-protected:
   ~ProbeManager();
 
+protected:
   nsresult StartSession(nsTArray<nsRefPtr<Probe> > &probes);
   nsresult Init(const nsCID &applicationUID, const nsACString &applicationName);
 

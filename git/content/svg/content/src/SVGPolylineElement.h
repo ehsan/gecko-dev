@@ -9,7 +9,7 @@
 #include "nsSVGPolyElement.h"
 
 nsresult NS_NewSVGPolylineElement(nsIContent **aResult,
-                                  already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo);
+                                  already_AddRefed<nsINodeInfo>&& aNodeInfo);
 
 typedef nsSVGPolyElement SVGPolylineElementBase;
 
@@ -19,14 +19,14 @@ namespace dom {
 class SVGPolylineElement MOZ_FINAL : public SVGPolylineElementBase
 {
 protected:
-  SVGPolylineElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  SVGPolylineElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
   virtual JSObject* WrapNode(JSContext *cx) MOZ_OVERRIDE;
   friend nsresult (::NS_NewSVGPolylineElement(nsIContent **aResult,
-                                              already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
+                                              already_AddRefed<nsINodeInfo>&& aNodeInfo));
 
 public:
   // nsIContent interface
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 };
 
 } // namespace mozilla

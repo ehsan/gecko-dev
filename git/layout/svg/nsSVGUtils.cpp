@@ -648,9 +648,8 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
   gfx->PopGroupToSource();
 
   nsRefPtr<gfxPattern> maskSurface =
-    maskFrame ? maskFrame->GetMaskForMaskedFrame(aContext->ThebesContext(),
-                                                 aFrame, matrix, opacity)
-              : nullptr;
+    maskFrame ? maskFrame->ComputeMaskAlpha(aContext, aFrame,
+                                            matrix, opacity) : nullptr;
 
   nsRefPtr<gfxPattern> clipMaskSurface;
   if (clipPathFrame && !isTrivialClip) {

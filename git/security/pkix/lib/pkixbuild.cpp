@@ -69,6 +69,7 @@ BackCert::Init(const SECItem& certDER)
 
   const SECItem* dummyEncodedSubjectKeyIdentifier = nullptr;
   const SECItem* dummyEncodedAuthorityKeyIdentifier = nullptr;
+  const SECItem* dummyEncodedAuthorityInfoAccess = nullptr;
   const SECItem* dummyEncodedSubjectAltName = nullptr;
 
   for (const CERTCertExtension* ext = *exts; ext; ext = *++exts) {
@@ -103,7 +104,7 @@ BackCert::Init(const SECItem& certDER)
       // We should remember the value of the encoded AIA extension here, but
       // since our TrustDomain implementations get the OCSP URI using
       // CERT_GetOCSPAuthorityInfoAccessLocation, we currently don't need to.
-      out = &encodedAuthorityInfoAccess;
+      out = &dummyEncodedAuthorityInfoAccess;
     }
 
     // If this is an extension we don't understand and it's marked critical,
@@ -141,7 +142,7 @@ static Result BuildForward(TrustDomain& trustDomain,
                            BackCert& subject,
                            PRTime time,
                            EndEntityOrCA endEntityOrCA,
-                           KeyUsage requiredKeyUsageIfPresent,
+                           KeyUsages requiredKeyUsagesIfPresent,
                            KeyPurposeId requiredEKUIfPresent,
                            const CertPolicyId& requiredPolicy,
                            /*optional*/ const SECItem* stapledOCSPResponse,
@@ -157,7 +158,7 @@ BuildForwardInner(TrustDomain& trustDomain,
                   const CertPolicyId& requiredPolicy,
                   const SECItem& potentialIssuerDER,
                   unsigned int subCACount,
-                  /*out*/ ScopedCERTCertList& results)
+                  ScopedCERTCertList& results)
 {
   BackCert potentialIssuer(&subject, BackCert::IncludeCN::No);
   Result rv = potentialIssuer.Init(potentialIssuerDER);
@@ -187,12 +188,9 @@ BuildForwardInner(TrustDomain& trustDomain,
     return rv;
   }
 
-  // RFC 5280, Section 4.2.1.3: "If the keyUsage extension is present, then the
-  // subject public key MUST NOT be used to verify signatures on certificates
-  // or CRLs unless the corresponding keyCertSign or cRLSign bit is set."
   rv = BuildForward(trustDomain, potentialIssuer, time, EndEntityOrCA::MustBeCA,
-                    KeyUsage::keyCertSign, requiredEKUIfPresent,
-                    requiredPolicy, nullptr, subCACount, results);
+                    KU_KEY_CERT_SIGN, requiredEKUIfPresent, requiredPolicy,
+                    nullptr, subCACount, results);
   if (rv != Success) {
     return rv;
   }
@@ -212,7 +210,7 @@ BuildForward(TrustDomain& trustDomain,
              BackCert& subject,
              PRTime time,
              EndEntityOrCA endEntityOrCA,
-             KeyUsage requiredKeyUsageIfPresent,
+             KeyUsages requiredKeyUsagesIfPresent,
              KeyPurposeId requiredEKUIfPresent,
              const CertPolicyId& requiredPolicy,
              /*optional*/ const SECItem* stapledOCSPResponse,
@@ -227,7 +225,7 @@ BuildForward(TrustDomain& trustDomain,
   // See the explanation of error prioritization in pkix.h.
   rv = CheckIssuerIndependentProperties(trustDomain, subject, time,
                                         endEntityOrCA,
-                                        requiredKeyUsageIfPresent,
+                                        requiredKeyUsagesIfPresent,
                                         requiredEKUIfPresent, requiredPolicy,
                                         subCACount, &trustLevel);
   PRErrorCode deferredEndEntityError = 0;
@@ -282,7 +280,7 @@ BuildForward(TrustDomain& trustDomain,
   // Find a trusted issuer.
   // TODO(bug 965136): Add SKI/AKI matching optimizations
   ScopedCERTCertList candidates;
-  if (trustDomain.FindPotentialIssuers(&subject.GetIssuer(), time,
+  if (trustDomain.FindPotentialIssuers(&subject.GetNSSCert()->derIssuer, time,
                                        candidates) != SECSuccess) {
     return MapSECStatus(SECFailure);
   }
@@ -304,12 +302,10 @@ BuildForward(TrustDomain& trustDomain,
         return Fail(FatalError, deferredEndEntityError);
       }
 
-      CertID certID(subject.GetIssuer(), n->cert->derPublicKey,
-                    subject.GetSerialNumber());
-      SECStatus srv = trustDomain.CheckRevocation(
-                                    endEntityOrCA, certID, time,
-                                    stapledOCSPResponse,
-                                    subject.encodedAuthorityInfoAccess);
+      SECStatus srv = trustDomain.CheckRevocation(endEntityOrCA,
+                                                  subject.GetNSSCert(),
+                                                  n->cert, time,
+                                                  stapledOCSPResponse);
       if (srv != SECSuccess) {
         return MapSECStatus(SECFailure);
       }
@@ -352,8 +348,8 @@ BuildCertChain(TrustDomain& trustDomain,
                const CERTCertificate* nssCert,
                PRTime time,
                EndEntityOrCA endEntityOrCA,
-               KeyUsage requiredKeyUsageIfPresent,
-               KeyPurposeId requiredEKUIfPresent,
+               /*optional*/ KeyUsages requiredKeyUsagesIfPresent,
+               /*optional*/ KeyPurposeId requiredEKUIfPresent,
                const CertPolicyId& requiredPolicy,
                /*optional*/ const SECItem* stapledOCSPResponse,
                /*out*/ ScopedCERTCertList& results)
@@ -379,7 +375,7 @@ BuildCertChain(TrustDomain& trustDomain,
   }
 
   rv = BuildForward(trustDomain, cert, time, endEntityOrCA,
-                    requiredKeyUsageIfPresent, requiredEKUIfPresent,
+                    requiredKeyUsagesIfPresent, requiredEKUIfPresent,
                     requiredPolicy, stapledOCSPResponse, 0, results);
   if (rv != Success) {
     results = nullptr;

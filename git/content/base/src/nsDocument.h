@@ -28,6 +28,7 @@
 #include "nsIPrincipal.h"
 #include "nsIParser.h"
 #include "nsBindingManager.h"
+#include "nsINodeInfo.h"
 #include "nsInterfaceHashtable.h"
 #include "nsJSThingHashtable.h"
 #include "nsIBoxObject.h"
@@ -457,8 +458,7 @@ public:
   }
 
   virtual uint32_t Length() MOZ_OVERRIDE;
-  virtual mozilla::CSSStyleSheet*
-  IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
+  virtual nsCSSStyleSheet* IndexedGetter(uint32_t aIndex, bool& aFound) MOZ_OVERRIDE;
 
 protected:
   int32_t       mLength;
@@ -781,7 +781,7 @@ public:
   virtual Element* FindContentForSubDocument(nsIDocument *aDocument) const MOZ_OVERRIDE;
   virtual Element* GetRootElementInternal() const MOZ_OVERRIDE;
 
-  virtual void EnsureOnDemandBuiltInUASheet(mozilla::CSSStyleSheet* aSheet) MOZ_OVERRIDE;
+  virtual void EnsureOnDemandBuiltInUASheet(nsCSSStyleSheet* aSheet) MOZ_OVERRIDE;
 
   /**
    * Get the (document) style sheets owned by this document.
@@ -808,13 +808,6 @@ public:
 
   virtual nsIChannel* GetChannel() const MOZ_OVERRIDE {
     return mChannel;
-  }
-
-  virtual nsIChannel* GetFailedChannel() const MOZ_OVERRIDE {
-    return mFailedChannel;
-  }
-  virtual void SetFailedChannel(nsIChannel* aChannel) MOZ_OVERRIDE {
-    mFailedChannel = aChannel;
   }
 
   virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aGlobalObject) MOZ_OVERRIDE;
@@ -897,7 +890,7 @@ public:
   virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
                                  bool aNotify) MOZ_OVERRIDE;
   virtual void RemoveChildAt(uint32_t aIndex, bool aNotify) MOZ_OVERRIDE;
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE
   {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
@@ -933,7 +926,7 @@ public:
   virtual nsViewportInfo GetViewportInfo(const mozilla::ScreenIntSize& aDisplaySize) MOZ_OVERRIDE;
 
 private:
-  void AddOnDemandBuiltInUASheet(mozilla::CSSStyleSheet* aSheet);
+  void AddOnDemandBuiltInUASheet(nsCSSStyleSheet* aSheet);
   nsRadioGroupStruct* GetRadioGroupInternal(const nsAString& aName) const;
   void SendToConsole(nsCOMArray<nsISecurityConsoleMessage>& aMessages);
 
@@ -1081,7 +1074,7 @@ public:
                             const nsAString& aCrossOriginAttr) MOZ_OVERRIDE;
 
   virtual nsresult LoadChromeSheetSync(nsIURI* uri, bool isAgentSheet,
-                                       mozilla::CSSStyleSheet** sheet) MOZ_OVERRIDE;
+                                       nsCSSStyleSheet** sheet) MOZ_OVERRIDE;
 
   virtual nsISupports* GetCurrentContentSink() MOZ_OVERRIDE;
 

@@ -29,94 +29,94 @@ template <class units> struct RectTyped;
 
 namespace layers {
 
-void
-AppendToString(std::stringstream& aStream, const void* p,
+nsACString&
+AppendToString(nsACString& s, const void* p,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const GraphicsFilter& f,
+nsACString&
+AppendToString(nsACString& s, const GraphicsFilter& f,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, FrameMetrics::ViewID n,
+nsACString&
+AppendToString(nsACString& s, FrameMetrics::ViewID n,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const gfxRGBA& c,
+nsACString&
+AppendToString(nsACString& s, const gfxRGBA& c,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const nsIntPoint& p,
+nsACString&
+AppendToString(nsACString& s, const nsIntPoint& p,
                const char* pfx="", const char* sfx="");
 
 template<class T>
-void
-AppendToString(std::stringstream& aStream, const mozilla::gfx::PointTyped<T>& p,
+nsACString&
+AppendToString(nsACString& s, const mozilla::gfx::PointTyped<T>& p,
                const char* pfx="", const char* sfx="")
 {
-  aStream << pfx;
-  aStream << nsPrintfCString("(x=%f, y=%f)", p.x, p.y).get();
-  aStream << sfx;
+  s += pfx;
+  s += nsPrintfCString("(x=%f, y=%f)", p.x, p.y);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const nsIntRect& r,
+nsACString&
+AppendToString(nsACString& s, const nsIntRect& r,
                const char* pfx="", const char* sfx="");
 
 template<class T>
-void
-AppendToString(std::stringstream& aStream, const mozilla::gfx::RectTyped<T>& r,
+nsACString&
+AppendToString(nsACString& s, const mozilla::gfx::RectTyped<T>& r,
                const char* pfx="", const char* sfx="")
 {
-  aStream << pfx;
-  aStream << nsPrintfCString(
+  s += pfx;
+  s.AppendPrintf(
     "(x=%f, y=%f, w=%f, h=%f)",
-    r.x, r.y, r.width, r.height).get();
-  aStream << sfx;
+    r.x, r.y, r.width, r.height);
+  return s += sfx;
 }
 
 template<class T>
-void
-AppendToString(std::stringstream& aStream, const mozilla::gfx::IntRectTyped<T>& r,
+nsACString&
+AppendToString(nsACString& s, const mozilla::gfx::IntRectTyped<T>& r,
                const char* pfx="", const char* sfx="")
 {
-  aStream << pfx;
-  aStream << nsPrintfCString(
+  s += pfx;
+  s.AppendPrintf(
     "(x=%d, y=%d, w=%d, h=%d)",
-    r.x, r.y, r.width, r.height).get();
-  aStream << sfx;
+    r.x, r.y, r.width, r.height);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const nsIntRegion& r,
+nsACString&
+AppendToString(nsACString& s, const nsIntRegion& r,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const nsIntSize& sz,
+nsACString&
+AppendToString(nsACString& s, const nsIntSize& sz,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const FrameMetrics& m,
+nsACString&
+AppendToString(nsACString& s, const FrameMetrics& m,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const mozilla::gfx::IntSize& size,
+nsACString&
+AppendToString(nsACString& s, const mozilla::gfx::IntSize& size,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const mozilla::gfx::Matrix4x4& m,
+nsACString&
+AppendToString(nsACString& s, const mozilla::gfx::Matrix4x4& m,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, const mozilla::gfx::Filter filter,
+nsACString&
+AppendToString(nsACString& s, const mozilla::gfx::Filter filter,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, mozilla::layers::TextureFlags flags,
+nsACString&
+AppendToString(nsACString& s, mozilla::layers::TextureFlags flags,
                const char* pfx="", const char* sfx="");
 
-void
-AppendToString(std::stringstream& aStream, mozilla::gfx::SurfaceFormat format,
+nsACString&
+AppendToString(nsACString& s, mozilla::gfx::SurfaceFormat format,
                const char* pfx="", const char* sfx="");
 
 } // namespace

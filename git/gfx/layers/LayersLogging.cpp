@@ -20,182 +20,179 @@ using namespace mozilla::gfx;
 namespace mozilla {
 namespace layers {
 
-void
-AppendToString(std::stringstream& aStream, const void* p,
+nsACString&
+AppendToString(nsACString& s, const void* p,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  aStream << nsPrintfCString("%p", p).get();
-  aStream << sfx;
+  s += pfx;
+  s += nsPrintfCString("%p", p);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const GraphicsFilter& f,
+nsACString&
+AppendToString(nsACString& s, const GraphicsFilter& f,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
+  s += pfx;
   switch (f) {
-  case GraphicsFilter::FILTER_FAST:      aStream << "fast"; break;
-  case GraphicsFilter::FILTER_GOOD:      aStream << "good"; break;
-  case GraphicsFilter::FILTER_BEST:      aStream << "best"; break;
-  case GraphicsFilter::FILTER_NEAREST:   aStream << "nearest"; break;
-  case GraphicsFilter::FILTER_BILINEAR:  aStream << "bilinear"; break;
-  case GraphicsFilter::FILTER_GAUSSIAN:  aStream << "gaussian"; break;
+  case GraphicsFilter::FILTER_FAST:      s += "fast"; break;
+  case GraphicsFilter::FILTER_GOOD:      s += "good"; break;
+  case GraphicsFilter::FILTER_BEST:      s += "best"; break;
+  case GraphicsFilter::FILTER_NEAREST:   s += "nearest"; break;
+  case GraphicsFilter::FILTER_BILINEAR:  s += "bilinear"; break;
+  case GraphicsFilter::FILTER_GAUSSIAN:  s += "gaussian"; break;
   default:
     NS_ERROR("unknown filter type");
-    aStream << "???";
+    s += "???";
   }
-  aStream << sfx;
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, FrameMetrics::ViewID n,
+nsACString&
+AppendToString(nsACString& s, FrameMetrics::ViewID n,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  aStream << n;
-  aStream << sfx;
+  s += pfx;
+  s.AppendInt(n);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const gfxRGBA& c,
+nsACString&
+AppendToString(nsACString& s, const gfxRGBA& c,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  aStream << nsPrintfCString(
+  s += pfx;
+  s += nsPrintfCString(
     "rgba(%d, %d, %d, %g)",
-    uint8_t(c.r*255.0), uint8_t(c.g*255.0), uint8_t(c.b*255.0), c.a).get();
-  aStream << sfx;
+    uint8_t(c.r*255.0), uint8_t(c.g*255.0), uint8_t(c.b*255.0), c.a);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const nsIntPoint& p,
+nsACString&
+AppendToString(nsACString& s, const nsIntPoint& p,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  aStream << nsPrintfCString("(x=%d, y=%d)", p.x, p.y).get();
-  aStream << sfx;
+  s += pfx;
+  s += nsPrintfCString("(x=%d, y=%d)", p.x, p.y);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const nsIntRect& r,
+nsACString&
+AppendToString(nsACString& s, const nsIntRect& r,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  aStream << nsPrintfCString(
+  s += pfx;
+  s += nsPrintfCString(
     "(x=%d, y=%d, w=%d, h=%d)",
-    r.x, r.y, r.width, r.height).get();
-  aStream << sfx;
+    r.x, r.y, r.width, r.height);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const nsIntRegion& r,
+nsACString&
+AppendToString(nsACString& s, const nsIntRegion& r,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
+  s += pfx;
 
   nsIntRegionRectIterator it(r);
-  aStream << "< ";
-  while (const nsIntRect* sr = it.Next()) {
-    AppendToString(aStream, *sr);
-    aStream << "; ";
-  }
-  aStream << ">";
+  s += "< ";
+  while (const nsIntRect* sr = it.Next())
+    AppendToString(s, *sr) += "; ";
+  s += ">";
 
-  aStream << sfx;
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const nsIntSize& sz,
+nsACString&
+AppendToString(nsACString& s, const nsIntSize& sz,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  aStream << nsPrintfCString("(w=%d, h=%d)", sz.width, sz.height).get();
-  aStream << sfx;
+  s += pfx;
+  s += nsPrintfCString("(w=%d, h=%d)", sz.width, sz.height);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const FrameMetrics& m,
+nsACString&
+AppendToString(nsACString& s, const FrameMetrics& m,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  AppendToString(aStream, m.mViewport, "{ viewport=");
-  AppendToString(aStream, m.mCompositionBounds, " cb=");
-  AppendToString(aStream, m.GetScrollOffset(), " viewportScroll=");
-  AppendToString(aStream, m.mDisplayPort, " displayport=");
-  AppendToString(aStream, m.mCriticalDisplayPort, " critdp=");
-  AppendToString(aStream, m.mScrollableRect, " scrollableRect=");
-  AppendToString(aStream, m.GetScrollId(), " scrollId=", " }");
-  aStream << sfx;
+  s += pfx;
+  AppendToString(s, m.mViewport, "{ viewport=");
+  AppendToString(s, m.mCompositionBounds, " cb=");
+  AppendToString(s, m.GetScrollOffset(), " viewportScroll=");
+  AppendToString(s, m.mDisplayPort, " displayport=");
+  AppendToString(s, m.mCriticalDisplayPort, " critdp=");
+  AppendToString(s, m.mScrollableRect, " scrollableRect=");
+  AppendToString(s, m.GetScrollId(), " scrollId=", " }");
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const IntSize& size,
+nsACString&
+AppendToString(nsACString& s, const IntSize& size,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
-  aStream << nsPrintfCString(
+  s += pfx;
+  s += nsPrintfCString(
     "(width=%d, height=%d)",
-    size.width, size.height).get();
-  aStream << sfx;
+    size.width, size.height);
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const Matrix4x4& m,
+nsACString&
+AppendToString(nsACString& s, const Matrix4x4& m,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
+  s += pfx;
   if (m.Is2D()) {
     Matrix matrix = m.As2D();
     if (matrix.IsIdentity()) {
-      aStream << "[ I ]";
-      aStream << sfx;
-      return;
+      s += "[ I ]";
+      return s += sfx;
     }
-    aStream << nsPrintfCString(
+    s += nsPrintfCString(
       "[ %g %g; %g %g; %g %g; ]",
-      matrix._11, matrix._12, matrix._21, matrix._22, matrix._31, matrix._32).get();
+      matrix._11, matrix._12, matrix._21, matrix._22, matrix._31, matrix._32);
   } else {
-    aStream << nsPrintfCString(
+    s += nsPrintfCString(
       "[ %g %g %g %g; %g %g %g %g; %g %g %g %g; %g %g %g %g; ]",
       m._11, m._12, m._13, m._14,
       m._21, m._22, m._23, m._24,
       m._31, m._32, m._33, m._34,
-      m._41, m._42, m._43, m._44).get();
+      m._41, m._42, m._43, m._44);
   }
-  aStream << sfx;
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, const Filter filter,
+nsACString&
+AppendToString(nsACString& s, const Filter filter,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
+  s += pfx;
 
   switch (filter) {
-    case Filter::GOOD: aStream << "Filter::GOOD"; break;
-    case Filter::LINEAR: aStream << "Filter::LINEAR"; break;
-    case Filter::POINT: aStream << "Filter::POINT"; break;
+    case Filter::GOOD: s += "Filter::GOOD"; break;
+    case Filter::LINEAR: s += "Filter::LINEAR"; break;
+    case Filter::POINT: s += "Filter::POINT"; break;
   }
-  aStream << sfx;
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, TextureFlags flags,
+nsACString&
+AppendToString(nsACString& s, TextureFlags flags,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
+  s += pfx;
   if (flags == TextureFlags::NO_FLAGS) {
-    aStream << "NoFlags";
+    s += "NoFlags";
   } else {
 
 #define AppendFlag(test) \
 { \
   if (!!(flags & test)) { \
     if (previous) { \
-      aStream << "|"; \
+      s += "|"; \
     } \
-    aStream << #test; \
+    s += #test; \
     previous = true; \
   } \
 }
@@ -208,26 +205,26 @@ AppendToString(std::stringstream& aStream, TextureFlags flags,
 
 #undef AppendFlag
   }
-  aStream << sfx;
+  return s += sfx;
 }
 
-void
-AppendToString(std::stringstream& aStream, mozilla::gfx::SurfaceFormat format,
+nsACString&
+AppendToString(nsACString& s, mozilla::gfx::SurfaceFormat format,
                const char* pfx, const char* sfx)
 {
-  aStream << pfx;
+  s += pfx;
   switch (format) {
-  case SurfaceFormat::B8G8R8A8:  aStream << "SurfaceFormat::B8G8R8A8"; break;
-  case SurfaceFormat::B8G8R8X8:  aStream << "SurfaceFormat::B8G8R8X8"; break;
-  case SurfaceFormat::R8G8B8A8:  aStream << "SurfaceFormat::R8G8B8A8"; break;
-  case SurfaceFormat::R8G8B8X8:  aStream << "SurfaceFormat::R8G8B8X8"; break;
-  case SurfaceFormat::R5G6B5:    aStream << "SurfaceFormat::R5G6B5"; break;
-  case SurfaceFormat::A8:        aStream << "SurfaceFormat::A8"; break;
-  case SurfaceFormat::YUV:       aStream << "SurfaceFormat::YUV"; break;
-  case SurfaceFormat::UNKNOWN:   aStream << "SurfaceFormat::UNKNOWN"; break;
+  case SurfaceFormat::B8G8R8A8:  s += "SurfaceFormat::B8G8R8A8"; break;
+  case SurfaceFormat::B8G8R8X8:  s += "SurfaceFormat::B8G8R8X8"; break;
+  case SurfaceFormat::R8G8B8A8:  s += "SurfaceFormat::R8G8B8A8"; break;
+  case SurfaceFormat::R8G8B8X8:  s += "SurfaceFormat::R8G8B8X8"; break;
+  case SurfaceFormat::R5G6B5:    s += "SurfaceFormat::R5G6B5"; break;
+  case SurfaceFormat::A8:        s += "SurfaceFormat::A8"; break;
+  case SurfaceFormat::YUV:       s += "SurfaceFormat::YUV"; break;
+  case SurfaceFormat::UNKNOWN:   s += "SurfaceFormat::UNKNOWN"; break;
   }
 
-  aStream << sfx;
+  return s += sfx;
 }
 
 } // namespace

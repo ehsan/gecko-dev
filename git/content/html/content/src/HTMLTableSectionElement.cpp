@@ -74,7 +74,7 @@ HTMLTableSectionElement::InsertRow(int32_t aIndex, ErrorResult& aError)
   bool doInsert = (aIndex < int32_t(rowCount)) && (aIndex != -1);
 
   // create the row
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   nsContentUtils::NameChanged(mNodeInfo, nsGkAtoms::tr,
                               getter_AddRefs(nodeInfo));
 

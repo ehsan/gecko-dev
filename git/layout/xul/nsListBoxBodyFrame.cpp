@@ -28,6 +28,7 @@
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
 #include "nsPIBoxObject.h"
+#include "nsINodeInfo.h"
 #include "nsLayoutUtils.h"
 #include "nsPIListBoxObject.h"
 #include "nsContentUtils.h"

@@ -36,6 +36,7 @@
 #include "nsContentUtils.h"
 #include "nsIRequest.h"
 
+#include "nsFrameManager.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
@@ -1966,7 +1967,7 @@ HTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
   return nullptr;
 }
 
-HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mSrcStreamListener(nullptr),
     mCurrentLoadID(0),
@@ -2030,7 +2031,7 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
 
   mPaused.SetOuter(this);
 
-  RegisterActivityObserver();
+  RegisterFreezableElement();
   NotifyOwnerDocumentActivityChanged();
 }
 
@@ -2042,7 +2043,7 @@ HTMLMediaElement::~HTMLMediaElement()
   if (mVideoFrameContainer) {
     mVideoFrameContainer->ForgetElement();
   }
-  UnregisterActivityObserver();
+  UnregisterFreezableElement();
   if (mDecoder) {
     ShutdownDecoder();
   }

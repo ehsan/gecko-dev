@@ -247,7 +247,12 @@ function run_test() {
 
   // Copy the initial blocklist into the profile to check add-ons start in the
   // right state.
-  copyBlocklistToProfile(do_get_file("data/bug455906_start.xml"));
+  var blocklistFile = gProfD.clone();
+  blocklistFile.append("blocklist.xml");
+  if (blocklistFile.exists())
+    blocklistFile.remove(false);
+  var blocklist = do_get_file("data/bug455906_start.xml")
+  blocklist.copyTo(gProfD, "blocklist.xml");
 
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "3", "8");
   startupManager();

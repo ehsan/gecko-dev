@@ -4785,8 +4785,7 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
   switch (mType) {
     case eStyleImageType_Image:
     {
-      nsLayoutUtils::DrawSingleImage(&aRenderingContext, aPresContext,
-                                     mImageContainer,
+      nsLayoutUtils::DrawSingleImage(&aRenderingContext, mImageContainer,
                                      graphicsFilter, aFill, aDirtyRect,
                                      nullptr,
                                      ConvertImageRendererToDrawFlags(mFlags));
@@ -4807,8 +4806,7 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
         NS_WARNING("Could not create drawable for element");
         return;
       }
-      nsLayoutUtils::DrawPixelSnapped(&aRenderingContext, aPresContext,
-                                      drawable, graphicsFilter,
+      nsLayoutUtils::DrawPixelSnapped(&aRenderingContext, drawable, graphicsFilter,
                                       aDest, aFill, aDest.TopLeft(), aDirtyRect);
       return;
     }
@@ -4867,8 +4865,7 @@ nsImageRenderer::DrawBackground(nsPresContext*       aPresContext,
     GraphicsFilter graphicsFilter =
       nsLayoutUtils::GetGraphicsFilterForFrame(mForFrame);
 
-    nsLayoutUtils::DrawBackgroundImage(&aRenderingContext, aPresContext,
-                mImageContainer,
+    nsLayoutUtils::DrawBackgroundImage(&aRenderingContext, mImageContainer,
                 nsIntSize(nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
                           nsPresContext::AppUnitsToIntCSSPixels(mSize.height)),
                 graphicsFilter,
@@ -4989,7 +4986,6 @@ nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
 
     if (!RequiresScaling(aFill, aHFill, aVFill, aUnitSize)) {
       nsLayoutUtils::DrawSingleImage(&aRenderingContext,
-                                     aPresContext,
                                      subImage,
                                      graphicsFilter,
                                      aFill, aDirtyRect,
@@ -5000,7 +4996,6 @@ nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
 
     nsRect tile = ComputeTile(aFill, aHFill, aVFill, aUnitSize);
     nsLayoutUtils::DrawImage(&aRenderingContext,
-                             aPresContext,
                              subImage,
                              graphicsFilter,
                              tile, aFill, tile.TopLeft(), aDirtyRect,
@@ -5072,8 +5067,7 @@ nsImageRenderer::DrawBorderImageComponent(nsPresContext*       aPresContext,
                              gfxIntSize(srcRect.width, srcRect.height));
     nsPoint anchor(nsPresContext::CSSPixelsToAppUnits(aSrc.x),
                    nsPresContext::CSSPixelsToAppUnits(aSrc.y));
-    nsLayoutUtils::DrawPixelSnapped(&aRenderingContext, aPresContext,
-                                    srcSliceDrawable,
+    nsLayoutUtils::DrawPixelSnapped(&aRenderingContext, srcSliceDrawable,
                                     graphicsFilter, destTile, aFill,
                                     anchor, aDirtyRect);
 

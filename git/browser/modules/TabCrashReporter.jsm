@@ -79,7 +79,7 @@ this.TabCrashReporter = {
           continue;
 
         let url = browser.currentURI.spec;
-        window.gBrowser.updateBrowserRemotenessByURL(browser, url);
+        window.gBrowser.updateBrowserRemoteness(browser, url);
         browser.loadURIWithFlags(url, Ci.nsIWebNavigation.LOAD_FLAGS_NONE, null, null, null);
       }
     }

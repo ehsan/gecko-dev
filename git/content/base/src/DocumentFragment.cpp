@@ -9,7 +9,7 @@
 
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/Element.h" // for NS_IMPL_ELEMENT_CLONE
-#include "mozilla/dom/NodeInfo.h"
+#include "nsINodeInfo.h"
 #include "nsNodeInfoManager.h"
 #include "nsError.h"
 #include "nsGkAtoms.h"

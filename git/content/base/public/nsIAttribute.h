@@ -27,7 +27,7 @@ public:
     return mAttrMap;
   }
 
-  mozilla::dom::NodeInfo *NodeInfo() const
+  nsINodeInfo *NodeInfo() const
   {
     return mNodeInfo;
   }
@@ -41,7 +41,7 @@ public:
 protected:
 #ifdef MOZILLA_INTERNAL_API
   nsIAttribute(nsDOMAttributeMap *aAttrMap,
-               already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo,
+               already_AddRefed<nsINodeInfo>& aNodeInfo,
                bool aNsAware);
 #endif //MOZILLA_INTERNAL_API
   virtual ~nsIAttribute();

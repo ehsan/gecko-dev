@@ -44,7 +44,6 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     isSystem(false),
     isSelfHosting(false),
     marked(true),
-    addonId(options.addonIdOrNull()),
 #ifdef DEBUG
     firedOnNewGlobalObject(false),
 #endif

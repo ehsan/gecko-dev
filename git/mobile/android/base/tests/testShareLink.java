@@ -119,10 +119,10 @@ public class testShareLink extends AboutHomeTest {
         mSolo.clickLongOnView(mostVisitedItem);
         verifySharePopup(shareOptions,"top_sites");
 
-        // Test the share popup in the history tab
-        openAboutHomeTab(AboutHomeTabs.HISTORY);
+        // Test the share popup in the Most Recent tab
+        openAboutHomeTab(AboutHomeTabs.MOST_RECENT);
 
-        ListView mostRecentList = findListViewWithTag("history");
+        ListView mostRecentList = findListViewWithTag("most_recent");
         mAsserter.is(waitForNonEmptyListToLoad(mostRecentList), true, "list is properly loaded");
 
         // Getting second child after header views because the first is the "Today" label

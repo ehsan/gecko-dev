@@ -183,8 +183,7 @@ gfxGradientCache::GetGradientStops(DrawTarget *aDT, nsTArray<GradientStop>& aSto
   if (!gGradientCache) {
     gGradientCache = new GradientCache();
   }
-  GradientCacheData* cached =
-    gGradientCache->Lookup(aStops, aExtend, aDT->GetBackendType());
+  GradientCacheData* cached = gGradientCache->Lookup(aStops, aExtend, aDT->GetType());
   return cached ? cached->mStops : nullptr;
 }
 
@@ -197,9 +196,7 @@ gfxGradientCache::GetOrCreateGradientStops(DrawTarget *aDT, nsTArray<GradientSto
     if (!gs) {
       return nullptr;
     }
-    GradientCacheData *cached =
-      new GradientCacheData(gs, GradientCacheKey(aStops, aExtend,
-                                                 aDT->GetBackendType()));
+    GradientCacheData *cached = new GradientCacheData(gs, GradientCacheKey(aStops, aExtend, aDT->GetType()));
     if (!gGradientCache->RegisterEntry(cached)) {
       delete cached;
     }

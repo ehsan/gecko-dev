@@ -132,16 +132,17 @@ CanvasLayerComposite::CleanupResources()
   mImageHost = nullptr;
 }
 
-void
-CanvasLayerComposite::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+CanvasLayerComposite::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  CanvasLayer::PrintInfo(aStream, aPrefix);
-  aStream << "\n";
+  CanvasLayer::PrintInfo(aTo, aPrefix);
+  aTo += "\n";
   if (mImageHost && mImageHost->IsAttached()) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
-    mImageHost->PrintInfo(aStream, pfx.get());
+    mImageHost->PrintInfo(aTo, pfx.get());
   }
+  return aTo;
 }
 
 }

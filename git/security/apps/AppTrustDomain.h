@@ -31,9 +31,10 @@ public:
   SECStatus VerifySignedData(const CERTSignedData* signedData,
                              const SECItem& subjectPublicKeyInfo) MOZ_OVERRIDE;
   SECStatus CheckRevocation(mozilla::pkix::EndEntityOrCA endEntityOrCA,
-                            const mozilla::pkix::CertID& certID, PRTime time,
-                            /*optional*/ const SECItem* stapledOCSPresponse,
-                            /*optional*/ const SECItem* aiaExtension);
+                            const CERTCertificate* cert,
+                            /*const*/ CERTCertificate* issuerCertToDup,
+                            PRTime time,
+                            /*optional*/ const SECItem* stapledOCSPresponse);
   SECStatus IsChainValid(const CERTCertList* certChain) { return SECSuccess; }
 
 private:

@@ -19,7 +19,6 @@ class TimeRanges;
 }
 
 class RequestSampleCallback;
-class MediaDecoderReader;
 
 // Encapsulates the decoding and reading of media data. Reading can either
 // synchronous and done on the calling "decode" thread, or asynchronous and
@@ -29,9 +28,11 @@ class MediaDecoderReader;
 // be accessed on the decode task queue.
 class MediaDecoderReader {
 public:
+
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaDecoderReader)
 
   MediaDecoderReader(AbstractMediaDecoder* aDecoder);
+  virtual ~MediaDecoderReader();
 
   // Initializes the reader, returns NS_OK on success, or NS_ERROR_FAILURE
   // on failure.
@@ -174,7 +175,6 @@ public:
   MediaInfo GetMediaInfo() { return mInfo; }
 
 protected:
-  virtual ~MediaDecoderReader();
 
   // Overrides of this function should decodes an unspecified amount of
   // audio data, enqueuing the audio data in mAudioQueue. Returns true
@@ -269,7 +269,6 @@ public:
   // Called during shutdown to break any reference cycles.
   virtual void BreakCycles() = 0;
 
-protected:
   virtual ~RequestSampleCallback() {}
 };
 

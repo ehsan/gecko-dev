@@ -24,7 +24,7 @@ public:
   using Element::GetText;
   using Element::SetText;
 
-  HTMLTitleElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
+  HTMLTitleElement(already_AddRefed<nsINodeInfo>& aNodeInfo);
   virtual ~HTMLTitleElement();
 
   // nsISupports
@@ -46,7 +46,7 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
-  virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   virtual nsresult BindToTree(nsIDocument *aDocument, nsIContent *aParent,
                               nsIContent *aBindingParent,

@@ -82,7 +82,7 @@ public:
 protected:
   ImageLayer(LayerManager* aManager, void* aImplData);
   ~ImageLayer();
-  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix);
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
 
   nsRefPtr<ImageContainer> mContainer;

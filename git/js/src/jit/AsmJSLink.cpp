@@ -595,15 +595,7 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
     if (module.strict())
         options.strictOption = true;
 
-    AutoStableStringChars stableChars(cx);
-    if (!stableChars.initTwoByte(cx, src))
-        return false;
-
-    const jschar *chars = stableChars.twoByteRange().start().get();
-    SourceBufferHolder::Ownership ownership = stableChars.maybeGiveOwnershipToCaller()
-                                              ? SourceBufferHolder::GiveOwnership
-                                              : SourceBufferHolder::NoOwnership;
-    SourceBufferHolder srcBuf(chars, end - begin, ownership);
+    SourceBufferHolder srcBuf(src->chars(), end - begin, SourceBufferHolder::NoOwnership);
     if (!frontend::CompileFunctionBody(cx, &fun, options, formals, srcBuf))
         return false;
 
@@ -900,12 +892,13 @@ AppendUseStrictSource(JSContext *cx, HandleFunction fun, Handle<JSFlatString*> s
     // the "use strict" directive, but these functions won't validate as asm.js
     // modules.
 
-    if (!FindBody(cx, fun, src, &bodyStart, &bodyEnd))
+    ConstTwoByteChars chars(src->chars(), src->length());
+    if (!FindBody(cx, fun, chars, src->length(), &bodyStart, &bodyEnd))
         return false;
 
-    return out.appendSubstring(src, 0, bodyStart) &&
+    return out.append(chars, bodyStart) &&
            out.append("\n\"use strict\";\n") &&
-           out.appendSubstring(src, bodyStart, src->length() - bodyStart);
+           out.append(chars + bodyStart, src->length() - bodyStart);
 }
 
 JSString *

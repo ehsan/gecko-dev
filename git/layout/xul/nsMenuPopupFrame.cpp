@@ -1511,7 +1511,7 @@ bool nsMenuPopupFrame::ConsumeOutsideClicks()
 
   nsCOMPtr<nsIContent> parentContent = mContent->GetParent();
   if (parentContent) {
-    dom::NodeInfo *ni = parentContent->NodeInfo();
+    nsINodeInfo *ni = parentContent->NodeInfo();
     if (ni->Equals(nsGkAtoms::menulist, kNameSpaceID_XUL))
       return true;  // Consume outside clicks for combo boxes on all platforms
 #if defined(XP_WIN)

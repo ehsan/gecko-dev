@@ -61,9 +61,6 @@ CompareChars(const Char1 *s1, size_t len1, const Char2 *s2, size_t len2)
     return int32_t(len1 - len2);
 }
 
-extern int32_t
-CompareChars(const jschar *s1, size_t len1, JSLinearString *s2);
-
 }  /* namespace js */
 
 struct JSSubString {
@@ -224,7 +221,7 @@ extern int
 StringFindPattern(JSLinearString *text, JSLinearString *pat, size_t start);
 
 extern bool
-StringHasRegExpMetaChars(JSLinearString *str);
+StringHasRegExpMetaChars(const jschar *chars, size_t length);
 
 } /* namespace js */
 

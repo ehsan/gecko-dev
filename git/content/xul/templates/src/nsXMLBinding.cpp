@@ -6,11 +6,6 @@
 #include "nsXULTemplateQueryProcessorXML.h"
 #include "nsXULTemplateResultXML.h"
 #include "nsXMLBinding.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/XPathResult.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_IMPL_CYCLE_COLLECTING_NATIVE_ADDREF(nsXMLBindingSet)
 NS_IMPL_CYCLE_COLLECTING_NATIVE_RELEASE(nsXMLBindingSet)
@@ -88,32 +83,30 @@ nsXMLBindingSet::LookupTargetIndex(nsIAtom* aTargetVariable,
   return -1;
 }
 
-XPathResult*
+void
 nsXMLBindingValues::GetAssignmentFor(nsXULTemplateResultXML* aResult,
                                      nsXMLBinding* aBinding,
                                      int32_t aIndex,
-                                     uint16_t aType)
+                                     uint16_t aType,
+                                     nsIDOMXPathResult** aValue)
 {
-  XPathResult* value = mValues.SafeElementAt(aIndex);
-  if (value) {
-    return value;
+  *aValue = mValues.SafeObjectAt(aIndex);
+
+  if (!*aValue) {
+    nsCOMPtr<nsIDOMNode> contextNode;
+    aResult->GetNode(getter_AddRefs(contextNode));
+    if (contextNode) {
+      nsCOMPtr<nsISupports> resultsupports;
+      aBinding->mExpr->Evaluate(contextNode, aType,
+                                nullptr, getter_AddRefs(resultsupports));
+
+      nsCOMPtr<nsIDOMXPathResult> result = do_QueryInterface(resultsupports);
+      if (result && mValues.ReplaceObjectAt(result, aIndex))
+        *aValue = result;
+    }
   }
 
-  nsCOMPtr<nsIDOMNode> contextNode;
-  aResult->GetNode(getter_AddRefs(contextNode));
-  if (!contextNode) {
-    return nullptr;
-  }
-
-  mValues.EnsureLengthAtLeast(aIndex + 1);
-
-  nsCOMPtr<nsISupports> resultsupports;
-  aBinding->mExpr->Evaluate(contextNode, aType,
-                            nullptr, getter_AddRefs(resultsupports));
-
-  mValues.ReplaceElementAt(aIndex, XPathResult::FromSupports(resultsupports));
-
-  return mValues[aIndex];
+  NS_IF_ADDREF(*aValue);
 }
 
 void
@@ -122,16 +115,15 @@ nsXMLBindingValues::GetNodeAssignmentFor(nsXULTemplateResultXML* aResult,
                                          int32_t aIndex,
                                          nsIDOMNode** aNode)
 {
-  XPathResult* result = GetAssignmentFor(aResult, aBinding, aIndex,
-                                         XPathResult::FIRST_ORDERED_NODE_TYPE);
+  nsCOMPtr<nsIDOMXPathResult> result;
+  GetAssignmentFor(aResult, aBinding, aIndex,
+                   nsIDOMXPathResult::FIRST_ORDERED_NODE_TYPE,
+                   getter_AddRefs(result));
 
-  nsINode* node;
-  ErrorResult rv;
-  if (result && (node = result->GetSingleNodeValue(rv))) {
-    CallQueryInterface(node, aNode);
-  } else {
+  if (result)
+    result->GetSingleNodeValue(aNode);
+  else
     *aNode = nullptr;
-  }
 }
 
 void
@@ -140,13 +132,12 @@ nsXMLBindingValues::GetStringAssignmentFor(nsXULTemplateResultXML* aResult,
                                            int32_t aIndex,
                                            nsAString& aValue)
 {
-  XPathResult* result = GetAssignmentFor(aResult, aBinding, aIndex,
-                                         XPathResult::STRING_TYPE);
+  nsCOMPtr<nsIDOMXPathResult> result;
+  GetAssignmentFor(aResult, aBinding, aIndex,
+                   nsIDOMXPathResult::STRING_TYPE, getter_AddRefs(result));
 
-  if (result) {
-    ErrorResult rv;
-    result->GetStringValue(aValue, rv);
-  } else {
+  if (result)
+    result->GetStringValue(aValue);
+  else
     aValue.Truncate();
-  }
 }

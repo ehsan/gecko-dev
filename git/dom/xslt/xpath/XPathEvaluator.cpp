@@ -9,7 +9,7 @@
 #include "nsIAtom.h"
 #include "nsXPathExpression.h"
 #include "nsXPathNSResolver.h"
-#include "XPathResult.h"
+#include "nsXPathResult.h"
 #include "nsContentCID.h"
 #include "txExpr.h"
 #include "txExprParser.h"
@@ -21,7 +21,6 @@
 #include "nsNameSpaceManager.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/XPathEvaluatorBinding.h"
-#include "mozilla/dom/BindingUtils.h"
 
 extern nsresult
 TX_ResolveFunctionCallXPCOM(const nsCString &aContractID, int32_t aNamespaceID,
@@ -175,18 +174,16 @@ XPathEvaluator::CreateNSResolver(nsINode* aNodeResolver,
   return res.forget();
 }
 
-already_AddRefed<XPathResult>
-XPathEvaluator::Evaluate(JSContext* aCx, const nsAString& aExpression,
-                         nsINode* aContextNode,
+already_AddRefed<nsISupports>
+XPathEvaluator::Evaluate(const nsAString& aExpression, nsINode* aContextNode,
                          nsIDOMXPathNSResolver* aResolver, uint16_t aType,
-                         JS::Handle<JSObject*> aResult, ErrorResult& rv)
+                         nsISupports* aResult, ErrorResult& rv)
 {
   nsCOMPtr<nsIDOMNode> contextNode = do_QueryInterface(aContextNode);
   nsCOMPtr<nsISupports> res;
   rv = Evaluate(aExpression, contextNode, aResolver, aType,
-                aResult ? UnwrapDOMObjectToISupports(aResult) : nullptr,
-                getter_AddRefs(res));
-  return res.forget().downcast<nsIXPathResult>().downcast<XPathResult>();
+                aResult, getter_AddRefs(res));
+  return res.forget();
 }
 
 

@@ -1534,7 +1534,7 @@ gfxFcFont::GetSmallCapsFont()
 {
     gfxFontStyle style(*GetStyle());
     style.size *= SMALL_CAPS_SCALE_FACTOR;
-    style.variantCaps = NS_FONT_VARIANT_CAPS_NORMAL;
+    style.smallCaps = false;
     gfxFcFontEntry* fe = static_cast<gfxFcFontEntry*>(GetFontEntry());
     nsRefPtr<gfxFont> font = gfxFontCache::GetCache()->Lookup(fe, &style);
     if (font) {

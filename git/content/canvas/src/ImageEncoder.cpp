@@ -263,10 +263,6 @@ ImageEncoder::ExtractDataInternal(const nsAString& aType,
                                   nsIInputStream** aStream,
                                   imgIEncoder* aEncoder)
 {
-  if (aSize.IsEmpty()) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
   nsCOMPtr<nsIInputStream> imgStream;
 
   // get image bytes

@@ -347,7 +347,6 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "net:prune-dead-connections", true);
         mObserverService->AddObserver(this, "net:failed-to-process-uri-content", true);
         mObserverService->AddObserver(this, "last-pb-context-exited", true);
-        mObserverService->AddObserver(this, "browser:purge-session-history", true);
     }
 
     MakeNewRequestTokenBucket();
@@ -1856,12 +1855,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     }
     else if (strcmp(topic, "last-pb-context-exited") == 0) {
         mPrivateAuthCache.ClearAll();
-    } else if (strcmp(topic, "browser:purge-session-history") == 0) {
-        if (mConnMgr && gSocketTransportService) {
-            nsCOMPtr<nsIRunnable> event = NS_NewRunnableMethod(mConnMgr,
-                &nsHttpConnectionMgr::ClearConnectionHistory);
-            gSocketTransportService->Dispatch(event, NS_DISPATCH_NORMAL);
-        }
     }
 
     return NS_OK;

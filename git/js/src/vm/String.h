@@ -688,9 +688,6 @@ class JSDependentString : public JSLinearString
     friend class JSString;
     JSFlatString *undepend(js::ExclusiveContext *cx);
 
-    template <typename CharT>
-    JSFlatString *undependInternal(js::ExclusiveContext *cx);
-
     void init(js::ThreadSafeContext *cx, JSLinearString *base, size_t start,
               size_t length);
 
@@ -1083,15 +1080,15 @@ class MOZ_STACK_CLASS AutoStableStringChars
     bool ownsChars_;
 
   public:
-    AutoStableStringChars(JSContext *cx)
-      : s_(cx), state_(Uninitialized), ownsChars_(false)
+    AutoStableStringChars(JSContext *cx, JSLinearString *s)
+      : s_(cx, s), state_(Uninitialized), ownsChars_(false)
     {};
     ~AutoStableStringChars();
 
-    bool init(JSContext *cx, JSString *s);
+    bool init();
 
     /* Like init(), but Latin1 chars are inflated to TwoByte. */
-    bool initTwoByte(JSContext *cx, JSString *s);
+    bool initTwoByte(JSContext *cx);
 
     bool isLatin1() const { return state_ == Latin1; }
     bool isTwoByte() const { return state_ == TwoByte; }
@@ -1272,16 +1269,7 @@ class AutoNameVector : public AutoVectorRooter<PropertyName *>
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-template <typename CharT>
-void
-CopyChars(CharT *dest, const JSLinearString &str);
-
 } /* namespace js */
-
-// Addon IDs are interned atoms which are never destroyed. This detail is
-// not exposed outside the API.
-class JSAddonId : public JSAtom
-{};
 
 /* Avoid requiring vm/String-inl.h just to call getChars. */
 

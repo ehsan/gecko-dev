@@ -63,6 +63,11 @@ TiledLayerBufferComposite::TiledLayerBufferComposite(ISurfaceAllocator* aAllocat
     switch (tileDesc.type()) {
       case TileDescriptor::TTexturedTileDescriptor : {
         texture = TextureHost::AsTextureHost(tileDesc.get_TexturedTileDescriptor().textureParent());
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
+        if (!gfxPrefs::LayersUseSimpleTiles()) {
+          texture->SetRecycleCallback(RecycleCallback, nullptr);
+        }
+#endif
         const TileLock& ipcLock = tileDesc.get_TexturedTileDescriptor().sharedLock();
         nsRefPtr<gfxSharedReadLock> sharedLock;
         if (ipcLock.type() == TileLock::TShmemSection) {
@@ -473,36 +478,40 @@ TiledContentHost::RenderLayerBuffer(TiledLayerBufferComposite& aLayerBuffer,
 }
 
 void
-TiledContentHost::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+TiledContentHost::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  aStream << aPrefix;
-  aStream << nsPrintfCString("TiledContentHost (0x%p)", this).get();
+  aTo += aPrefix;
+  aTo += nsPrintfCString("TiledContentHost (0x%p)", this);
 
 }
 
 #ifdef MOZ_DUMP_PAINTING
 void
-TiledContentHost::Dump(std::stringstream& aStream,
+TiledContentHost::Dump(FILE* aFile,
                        const char* aPrefix,
                        bool aDumpHtml)
 {
+  if (!aFile) {
+    aFile = stderr;
+  }
+
   TiledLayerBufferComposite::Iterator it = mTiledBuffer.TilesBegin();
   TiledLayerBufferComposite::Iterator stop = mTiledBuffer.TilesEnd();
   if (aDumpHtml) {
-    aStream << "<ul>";
+    fprintf_stderr(aFile, "<ul>");
   }
   for (;it != stop; ++it) {
-    aStream << aPrefix;
-    aStream << (aDumpHtml ? "<li> <a href=" : "Tile ");
+    fprintf_stderr(aFile, "%s", aPrefix);
+    fprintf_stderr(aFile, aDumpHtml ? "<li> <a href=" : "Tile ");
     if (it->IsPlaceholderTile()) {
-      aStream << "empty tile";
+      fprintf_stderr(aFile, "empty tile");
     } else {
-      DumpTextureHost(aStream, it->mTextureHost);
+      DumpTextureHost(aFile, it->mTextureHost);
     }
-    aStream << (aDumpHtml ? " >Tile</a></li>" : " ");
+    fprintf_stderr(aFile, aDumpHtml ? " >Tile</a></li>" : " ");
   }
-  if (aDumpHtml) {
-    aStream << "</ul>";
+    if (aDumpHtml) {
+    fprintf_stderr(aFile, "</ul>");
   }
 }
 #endif

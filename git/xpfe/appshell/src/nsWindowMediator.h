@@ -13,6 +13,7 @@
 #include "nsTArray.h"
 #include "nsXPIDLString.h"
 #include "nsWeakReference.h"
+#include "nsCRT.h"
 #include "nsCOMArray.h"
 
 class nsAppShellWindowEnumerator;

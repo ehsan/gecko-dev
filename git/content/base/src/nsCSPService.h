@@ -10,7 +10,6 @@
 #include "nsIContentPolicy.h"
 #include "nsIChannel.h"
 #include "nsIChannelEventSink.h"
-#include "nsDataHashtable.h"
 
 #define CSPSERVICE_CONTRACTID "@mozilla.org/cspservice;1"
 #define CSPSERVICE_CID \

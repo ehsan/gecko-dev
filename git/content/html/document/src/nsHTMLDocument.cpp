@@ -1137,7 +1137,7 @@ nsHTMLDocument::MatchLinks(nsIContent *aContent, int32_t aNamespaceID,
     }
 #endif
 
-    mozilla::dom::NodeInfo *ni = aContent->NodeInfo();
+    nsINodeInfo *ni = aContent->NodeInfo();
 
     nsIAtom *localName = ni->NameAtom();
     if (ni->NamespaceID() == kNameSpaceID_XHTML &&
@@ -2756,7 +2756,7 @@ nsHTMLDocument::EditingStateChanged()
     rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsRefPtr<CSSStyleSheet> sheet;
+    nsRefPtr<nsCSSStyleSheet> sheet;
     rv = LoadChromeSheetSync(uri, true, getter_AddRefs(sheet));
     NS_ENSURE_TRUE(sheet, rv);
 
@@ -3521,7 +3521,7 @@ nsHTMLDocument::QueryCommandValue(const nsAString& commandID,
 }
 
 nsresult
-nsHTMLDocument::Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const
+nsHTMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   NS_ASSERTION(aNodeInfo->NodeInfoManager() == mNodeInfoManager,
                "Can't import this document into another document!");

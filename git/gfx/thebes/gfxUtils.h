@@ -11,7 +11,6 @@
 #include "imgIContainer.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/RefPtr.h"
-#include "nsPrintfCString.h"
 
 class gfxDrawable;
 class nsIntRegion;

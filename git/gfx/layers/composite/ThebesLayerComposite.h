@@ -78,7 +78,7 @@ public:
 
 protected:
 
-  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
 
 private:
   CSSToScreenScale GetEffectiveResolution();

@@ -103,7 +103,8 @@ protected:
       return mImageClientTypeContainer;
     }
 
-    AutoLockImage autoLock(mContainer);
+    RefPtr<gfx::SourceSurface> surface;
+    AutoLockImage autoLock(mContainer, &surface);
 
 #ifdef MOZ_WIDGET_GONK
     // gralloc buffer needs CompositableType::BUFFER_IMAGE_BUFFERED to prevent

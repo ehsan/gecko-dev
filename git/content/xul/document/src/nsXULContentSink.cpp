@@ -25,7 +25,7 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIFormControl.h"
-#include "mozilla/dom/NodeInfo.h"
+#include "nsINodeInfo.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIServiceManager.h"
@@ -371,7 +371,7 @@ XULContentSinkImpl::FlushText(bool aCreateTextNode)
 
         bool stripWhitespace = false;
         if (node->mType == nsXULPrototypeNode::eType_Element) {
-            mozilla::dom::NodeInfo *nodeInfo =
+            nsINodeInfo *nodeInfo =
                 static_cast<nsXULPrototypeElement*>(node.get())->mNodeInfo;
 
             if (nodeInfo->NamespaceEquals(kNameSpaceID_XUL))
@@ -426,7 +426,7 @@ XULContentSinkImpl::NormalizeAttributeString(const char16_t *aExpatName,
         return NS_OK;
     }
 
-    nsRefPtr<mozilla::dom::NodeInfo> ni;
+    nsCOMPtr<nsINodeInfo> ni;
     ni = mNodeInfoManager->GetNodeInfo(localName, prefix,
                                        nameSpaceID,
                                        nsIDOMNode::ATTRIBUTE_NODE);
@@ -436,7 +436,7 @@ XULContentSinkImpl::NormalizeAttributeString(const char16_t *aExpatName,
 }
 
 nsresult
-XULContentSinkImpl::CreateElement(mozilla::dom::NodeInfo *aNodeInfo,
+XULContentSinkImpl::CreateElement(nsINodeInfo *aNodeInfo,
                                   nsXULPrototypeElement** aResult)
 {
     nsXULPrototypeElement* element = new nsXULPrototypeElement();
@@ -477,7 +477,7 @@ XULContentSinkImpl::HandleStartElement(const char16_t *aName,
   nsContentUtils::SplitExpatName(aName, getter_AddRefs(prefix),
                                  getter_AddRefs(localName), &nameSpaceID);
 
-  nsRefPtr<mozilla::dom::NodeInfo> nodeInfo;
+  nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
                                            nsIDOMNode::ELEMENT_NODE);
   
@@ -738,7 +738,7 @@ XULContentSinkImpl::ReportError(const char16_t* aErrorText,
 nsresult
 XULContentSinkImpl::OpenRoot(const char16_t** aAttributes, 
                              const uint32_t aAttrLen, 
-                             mozilla::dom::NodeInfo *aNodeInfo)
+                             nsINodeInfo *aNodeInfo)
 {
     NS_ASSERTION(mState == eInProlog, "how'd we get here?");
     if (mState != eInProlog)
@@ -793,7 +793,7 @@ nsresult
 XULContentSinkImpl::OpenTag(const char16_t** aAttributes, 
                             const uint32_t aAttrLen,
                             const uint32_t aLineNumber,
-                            mozilla::dom::NodeInfo *aNodeInfo)
+                            nsINodeInfo *aNodeInfo)
 {
     nsresult rv;
 

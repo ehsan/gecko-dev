@@ -1989,17 +1989,13 @@ nsObjectFrame::GetNextObjectFrame(nsPresContext* aPresContext, nsIFrame* aRoot)
 }
 
 /*static*/ void
-nsObjectFrame::BeginSwapDocShells(nsISupports* aSupports, void*)
+nsObjectFrame::BeginSwapDocShells(nsIContent* aContent, void*)
 {
-  NS_PRECONDITION(aSupports, "");
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aSupports));
-  if (!content) {
-    return;
-  }
+  NS_PRECONDITION(aContent, "");
 
   // This function is called from a document content enumerator so we need
   // to filter out the nsObjectFrames and ignore the rest.
-  nsIObjectFrame* obj = do_QueryFrame(content->GetPrimaryFrame());
+  nsIObjectFrame* obj = do_QueryFrame(aContent->GetPrimaryFrame());
   if (!obj)
     return;
 
@@ -2010,17 +2006,13 @@ nsObjectFrame::BeginSwapDocShells(nsISupports* aSupports, void*)
 }
 
 /*static*/ void
-nsObjectFrame::EndSwapDocShells(nsISupports* aSupports, void*)
+nsObjectFrame::EndSwapDocShells(nsIContent* aContent, void*)
 {
-  NS_PRECONDITION(aSupports, "");
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aSupports));
-  if (!content) {
-    return;
-  }
+  NS_PRECONDITION(aContent, "");
 
   // This function is called from a document content enumerator so we need
   // to filter out the nsObjectFrames and ignore the rest.
-  nsIObjectFrame* obj = do_QueryFrame(content->GetPrimaryFrame());
+  nsIObjectFrame* obj = do_QueryFrame(aContent->GetPrimaryFrame());
   if (!obj)
     return;
 

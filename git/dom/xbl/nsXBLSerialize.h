@@ -8,7 +8,7 @@
 
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
-#include "mozilla/dom/NameSpaceConstants.h"
+#include "nsNameSpaceManager.h"
 #include "js/TypeDecls.h"
 
 typedef uint8_t XBLBindingSerializeDetails;

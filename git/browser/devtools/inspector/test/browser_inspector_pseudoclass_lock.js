@@ -16,6 +16,8 @@ const TEST_URL = 'data:text/html,' +
                  '  </div>' +
                  '</body>';
 
+waitForExplicitFinish();
+
 function test() {
   ignoreAllUncaughtExceptions();
   gBrowser.selectedTab = gBrowser.addTab();

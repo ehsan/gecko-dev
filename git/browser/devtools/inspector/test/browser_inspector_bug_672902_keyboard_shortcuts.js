@@ -7,6 +7,8 @@
 
 function test()
 {
+  waitForExplicitFinish();
+
   let doc;
   let node;
   let inspector;

@@ -43,7 +43,7 @@ public:
     mFormat = aA->GetFormat();
   }
      
-  virtual BackendType GetBackendType() const { return mA->GetBackendType(); }
+  virtual BackendType GetType() const { return mA->GetType(); }
   virtual TemporaryRef<SourceSurface> Snapshot() { return new SourceSurfaceDual(mA, mB); }
   virtual IntSize GetSize() { return mA->GetSize(); }
      

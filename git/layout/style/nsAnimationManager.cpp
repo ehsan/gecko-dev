@@ -19,6 +19,7 @@
 #include "nsLayoutUtils.h"
 #include "nsIFrame.h"
 #include "nsIDocument.h"
+#include "ActiveLayerTracker.h"
 #include <math.h>
 
 using namespace mozilla;
@@ -29,7 +30,8 @@ ElementAnimations::ElementAnimations(mozilla::dom::Element *aElement,
                                      nsAnimationManager *aAnimationManager,
                                      TimeStamp aNow)
   : CommonElementAnimationData(aElement, aElementProperty,
-                               aAnimationManager, aNow)
+                               aAnimationManager, aNow),
+    mNeedsRefreshes(true)
 {
 }
 
@@ -48,15 +50,172 @@ ElementAnimationsPropertyDtor(void           *aObject,
 }
 
 void
+ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
+                                      bool aIsThrottled)
+{
+  if (!mNeedsRefreshes) {
+    mStyleRuleRefreshTime = aRefreshTime;
+    return;
+  }
+
+  // If we're performing animations on the compositor thread, then we can skip
+  // most of the work in this method. But even if we are throttled, then we
+  // have to do the work if an animation is ending in order to get correct end
+  // of animation behaviour (the styles of the animation disappear, or the fill
+  // mode behaviour). This loop checks for any finishing animations and forces
+  // the style recalculation if we find any.
+  if (aIsThrottled) {
+    for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+      ElementAnimation* anim = mAnimations[animIdx];
+
+      if (anim->mProperties.IsEmpty()) {
+        // Empty @keyframes rule.
+        continue;
+      }
+
+      // The ElapsedDurationAt() call here handles pausing.  But:
+      // FIXME: avoid recalculating every time when paused.
+      TimeDuration elapsedDuration = anim->ElapsedDurationAt(aRefreshTime);
+      ComputedTiming computedTiming =
+        ElementAnimation::GetComputedTimingAt(elapsedDuration, anim->mTiming);
+
+      // XXX We shouldn't really be using mLastNotification as a general
+      // indicator that the animation has finished, it should be reserved for
+      // events. If we use it differently in the future this use might need
+      // changing.
+      if (!anim->mIsRunningOnCompositor ||
+          (computedTiming.mPhase == ComputedTiming::AnimationPhase_After &&
+           anim->mLastNotification != ElementAnimation::LAST_NOTIFICATION_END))
+      {
+        aIsThrottled = false;
+        break;
+      }
+    }
+  }
+
+  if (aIsThrottled) {
+    return;
+  }
+
+  // mStyleRule may be null and valid, if we have no style to apply.
+  if (mStyleRuleRefreshTime.IsNull() ||
+      mStyleRuleRefreshTime != aRefreshTime) {
+    mStyleRuleRefreshTime = aRefreshTime;
+    mStyleRule = nullptr;
+    // We'll set mNeedsRefreshes to true below in all cases where we need them.
+    mNeedsRefreshes = false;
+
+    // FIXME(spec): assume that properties in higher animations override
+    // those in lower ones.
+    // Therefore, we iterate from last animation to first.
+    nsCSSPropertySet properties;
+
+    for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+      ElementAnimation* anim = mAnimations[animIdx];
+
+      // The ElapsedDurationAt() call here handles pausing.  But:
+      // FIXME: avoid recalculating every time when paused.
+      TimeDuration elapsedDuration = anim->ElapsedDurationAt(aRefreshTime);
+      ComputedTiming computedTiming =
+        ElementAnimation::GetComputedTimingAt(elapsedDuration, anim->mTiming);
+
+      if ((computedTiming.mPhase == ComputedTiming::AnimationPhase_Before ||
+           computedTiming.mPhase == ComputedTiming::AnimationPhase_Active) &&
+          !anim->IsPaused()) {
+        mNeedsRefreshes = true;
+      }
+
+      // If the time fraction is null, we don't have fill data for the current
+      // time so we shouldn't animate.
+      if (computedTiming.mTimeFraction == ComputedTiming::kNullTimeFraction) {
+        continue;
+      }
+
+      NS_ABORT_IF_FALSE(0.0 <= computedTiming.mTimeFraction &&
+                        computedTiming.mTimeFraction <= 1.0,
+                        "timing fraction should be in [0-1]");
+
+      for (uint32_t propIdx = 0, propEnd = anim->mProperties.Length();
+           propIdx != propEnd; ++propIdx)
+      {
+        const AnimationProperty &prop = anim->mProperties[propIdx];
+
+        NS_ABORT_IF_FALSE(prop.mSegments[0].mFromKey == 0.0,
+                          "incorrect first from key");
+        NS_ABORT_IF_FALSE(prop.mSegments[prop.mSegments.Length() - 1].mToKey
+                            == 1.0,
+                          "incorrect last to key");
+
+        if (properties.HasProperty(prop.mProperty)) {
+          // A later animation already set this property.
+          continue;
+        }
+        properties.AddProperty(prop.mProperty);
+
+        NS_ABORT_IF_FALSE(prop.mSegments.Length() > 0,
+                          "property should not be in animations if it "
+                          "has no segments");
+
+        // FIXME: Maybe cache the current segment?
+        const AnimationPropertySegment *segment = prop.mSegments.Elements(),
+                               *segmentEnd = segment + prop.mSegments.Length();
+        while (segment->mToKey < computedTiming.mTimeFraction) {
+          NS_ABORT_IF_FALSE(segment->mFromKey < segment->mToKey,
+                            "incorrect keys");
+          ++segment;
+          if (segment == segmentEnd) {
+            NS_ABORT_IF_FALSE(false, "incorrect time fraction");
+            break; // in order to continue in outer loop (just below)
+          }
+          NS_ABORT_IF_FALSE(segment->mFromKey == (segment-1)->mToKey,
+                            "incorrect keys");
+        }
+        if (segment == segmentEnd) {
+          continue;
+        }
+        NS_ABORT_IF_FALSE(segment->mFromKey < segment->mToKey,
+                          "incorrect keys");
+        NS_ABORT_IF_FALSE(segment >= prop.mSegments.Elements() &&
+                          size_t(segment - prop.mSegments.Elements()) <
+                            prop.mSegments.Length(),
+                          "out of array bounds");
+
+        if (!mStyleRule) {
+          // Allocate the style rule now that we know we have animation data.
+          mStyleRule = new css::AnimValuesStyleRule();
+        }
+
+        double positionInSegment =
+          (computedTiming.mTimeFraction - segment->mFromKey) /
+          (segment->mToKey - segment->mFromKey);
+        double valuePosition =
+          segment->mTimingFunction.GetValue(positionInSegment);
+
+        nsStyleAnimation::Value *val =
+          mStyleRule->AddEmptyValue(prop.mProperty);
+
+#ifdef DEBUG
+        bool result =
+#endif
+          nsStyleAnimation::Interpolate(prop.mProperty,
+                                        segment->mFromValue, segment->mToValue,
+                                        valuePosition, *val);
+        NS_ABORT_IF_FALSE(result, "interpolate must succeed now");
+      }
+    }
+  }
+}
+
+void
 ElementAnimations::GetEventsAt(TimeStamp aRefreshTime,
                                EventArray& aEventsToDispatch)
 {
   for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
     ElementAnimation* anim = mAnimations[animIdx];
 
-    TimeDuration localTime = anim->GetLocalTimeAt(aRefreshTime);
+    TimeDuration elapsedDuration = anim->ElapsedDurationAt(aRefreshTime);
     ComputedTiming computedTiming =
-      ElementAnimation::GetComputedTimingAt(localTime, anim->mTiming);
+      ElementAnimation::GetComputedTimingAt(elapsedDuration, anim->mTiming);
 
     switch (computedTiming.mPhase) {
       case ComputedTiming::AnimationPhase_Before:
@@ -118,6 +277,86 @@ ElementAnimations::GetEventsAt(TimeStamp aRefreshTime,
   }
 }
 
+bool
+ElementAnimations::HasAnimationOfProperty(nsCSSProperty aProperty) const
+{
+  for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+    const ElementAnimation* anim = mAnimations[animIdx];
+    if (anim->HasAnimationOfProperty(aProperty)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool
+ElementAnimations::CanPerformOnCompositorThread(CanAnimateFlags aFlags) const
+{
+  nsIFrame* frame = nsLayoutUtils::GetStyleFrame(mElement);
+  if (!frame) {
+    return false;
+  }
+
+  if (mElementProperty != nsGkAtoms::animationsProperty) {
+    if (nsLayoutUtils::IsAnimationLoggingEnabled()) {
+      nsCString message;
+      message.AppendLiteral("Gecko bug: Async animation of pseudoelements not supported.  See bug 771367 (");
+      message.Append(nsAtomCString(mElementProperty));
+      message.Append(')');
+      LogAsyncAnimationFailure(message, mElement);
+    }
+    return false;
+  }
+
+  TimeStamp now = frame->PresContext()->RefreshDriver()->MostRecentRefresh();
+
+  for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+    const ElementAnimation* anim = mAnimations[animIdx];
+    for (uint32_t propIdx = 0, propEnd = anim->mProperties.Length();
+         propIdx != propEnd; ++propIdx) {
+      if (IsGeometricProperty(anim->mProperties[propIdx].mProperty) &&
+          anim->IsRunningAt(now)) {
+        aFlags = CanAnimateFlags(aFlags | CanAnimate_HasGeometricProperty);
+        break;
+      }
+    }
+  }
+
+  bool hasOpacity = false;
+  bool hasTransform = false;
+  for (uint32_t animIdx = mAnimations.Length(); animIdx-- != 0; ) {
+    const ElementAnimation* anim = mAnimations[animIdx];
+    if (!anim->IsRunningAt(now)) {
+      continue;
+    }
+
+    for (uint32_t propIdx = 0, propEnd = anim->mProperties.Length();
+         propIdx != propEnd; ++propIdx) {
+      const AnimationProperty& prop = anim->mProperties[propIdx];
+      if (!CanAnimatePropertyOnCompositor(mElement,
+                                          prop.mProperty,
+                                          aFlags) ||
+          IsCompositorAnimationDisabledForFrame(frame)) {
+        return false;
+      }
+      if (prop.mProperty == eCSSProperty_opacity) {
+        hasOpacity = true;
+      } else if (prop.mProperty == eCSSProperty_transform) {
+        hasTransform = true;
+      }
+    }
+  }
+  // This animation can be done on the compositor.  Mark the frame as active, in
+  // case we are able to throttle this animation.
+  if (hasOpacity) {
+    ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_opacity);
+  }
+  if (hasTransform) {
+    ActiveLayerTracker::NotifyAnimated(frame, eCSSProperty_transform);
+  }
+  return true;
+}
+
 ElementAnimations*
 nsAnimationManager::GetElementAnimations(dom::Element *aElement,
                                          nsCSSPseudoElements::Type aPseudoType,
@@ -164,13 +403,13 @@ nsAnimationManager::GetElementAnimations(dom::Element *aElement,
   return ea;
 }
 
+
 void
-nsAnimationManager::UpdateStyleAndEvents(ElementAnimations* aEA,
-                                         TimeStamp aRefreshTime,
-                                         EnsureStyleRuleFlags aFlags)
+nsAnimationManager::EnsureStyleRuleFor(ElementAnimations* aEA)
 {
-  aEA->EnsureStyleRuleFor(aRefreshTime, aFlags);
-  aEA->GetEventsAt(aRefreshTime, mPendingEvents);
+  TimeStamp refreshTime = mPresContext->RefreshDriver()->MostRecentRefresh();
+  aEA->EnsureStyleRuleFor(refreshTime, false);
+  aEA->GetEventsAt(refreshTime, mPendingEvents);
   CheckNeedsRefresh();
 }
 
@@ -333,7 +572,9 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
     ea->mAnimations.SwapElements(newAnimations);
     ea->mNeedsRefreshes = true;
 
-    UpdateStyleAndEvents(ea, refreshTime, EnsureStyleRule_IsNotThrottled);
+    ea->EnsureStyleRuleFor(refreshTime, false);
+    ea->GetEventsAt(refreshTime, mPendingEvents);
+    CheckNeedsRefresh();
     // We don't actually dispatch the mPendingEvents now.  We'll either
     // dispatch them the next time we get a refresh driver notification
     // or the next time somebody calls
@@ -446,7 +687,6 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
 
     dest->mTiming.mIterationDuration =
       TimeDuration::FromMilliseconds(src.GetDuration());
-    dest->mTiming.mDelay = TimeDuration::FromMilliseconds(src.GetDelay());
     dest->mTiming.mIterationCount = src.GetIterationCount();
     dest->mTiming.mDirection = src.GetDirection();
     dest->mTiming.mFillMode = src.GetFillMode();
@@ -458,6 +698,7 @@ nsAnimationManager::BuildAnimations(nsStyleContext* aStyleContext,
     } else {
       dest->mPauseStart = TimeStamp();
     }
+    dest->mDelay = TimeDuration::FromMilliseconds(src.GetDelay());
 
     nsCSSKeyframesRule* rule =
       mPresContext->StyleSet()->KeyframesRuleForName(mPresContext,
@@ -761,9 +1002,9 @@ nsAnimationManager::FlushAnimations(FlushFlags aFlags)
       ea->CanThrottleAnimation(now);
 
     nsRefPtr<css::AnimValuesStyleRule> oldStyleRule = ea->mStyleRule;
-    UpdateStyleAndEvents(ea, now, canThrottleTick
-                                  ? EnsureStyleRule_IsThrottled
-                                  : EnsureStyleRule_IsNotThrottled);
+    ea->EnsureStyleRuleFor(now, canThrottleTick);
+    ea->GetEventsAt(now, mPendingEvents);
+    CheckNeedsRefresh();
     if (oldStyleRule != ea->mStyleRule) {
       ea->PostRestyleForAnimation(mPresContext);
     } else {

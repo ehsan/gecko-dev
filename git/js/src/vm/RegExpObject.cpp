@@ -496,7 +496,7 @@ RegExpShared::compile(JSContext *cx, HandleLinearString input)
 bool
 RegExpShared::compile(JSContext *cx, HandleAtom pattern, HandleLinearString input)
 {
-    if (!ignoreCase() && !StringHasRegExpMetaChars(pattern)) {
+    if (!ignoreCase() && !StringHasRegExpMetaChars(pattern->chars(), pattern->length())) {
         canStringMatch = true;
         parenCount = 0;
         return true;
@@ -595,8 +595,8 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t *lastIndex
     if (uint8_t *byteCode = maybeByteCode(input->hasLatin1Chars())) {
         AutoTraceLog logInterpreter(logger, TraceLogger::IrregexpExecute);
 
-        AutoStableStringChars inputChars(cx);
-        if (!inputChars.init(cx, input))
+        AutoStableStringChars inputChars(cx, input);
+        if (!inputChars.init())
             return RegExpRunStatus_Error;
 
         RegExpRunStatus result;

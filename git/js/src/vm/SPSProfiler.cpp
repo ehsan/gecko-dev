@@ -274,8 +274,16 @@ SPSProfiler::allocProfileString(JSScript *script, JSFunction *maybeFun)
     // Note: this profiler string is regexp-matched by
     // browser/devtools/profiler/cleopatra/js/parserWorker.js.
 
-    // Get the function name, if any.
-    JSAtom *atom = maybeFun ? maybeFun->displayAtom() : nullptr;
+    // Determine if the function (if any) has an explicit or guessed name.
+    bool hasAtom = maybeFun && maybeFun->displayAtom();
+
+    // Get the function name, if any, and its length.
+    const jschar *atom = nullptr;
+    size_t lenAtom = 0;
+    if (hasAtom) {
+        atom = maybeFun->displayAtom()->charsZ();
+        lenAtom = maybeFun->displayAtom()->length();
+    }
 
     // Get the script filename, if any, and its length.
     const char *filename = script->filename();
@@ -290,8 +298,8 @@ SPSProfiler::allocProfileString(JSScript *script, JSFunction *maybeFun)
 
     // Determine the required buffer size.
     size_t len = lenFilename + lenLineno + 1; // +1 for the ":" separating them.
-    if (atom)
-        len += atom->length() + 3; // +3 for the " (" and ")" it adds.
+    if (hasAtom)
+        len += lenAtom + 3; // +3 for the " (" and ")" it adds.
 
     // Allocate the buffer.
     char *cstr = js_pod_malloc<char>(len + 1);
@@ -300,15 +308,10 @@ SPSProfiler::allocProfileString(JSScript *script, JSFunction *maybeFun)
 
     // Construct the descriptive string.
     DebugOnly<size_t> ret;
-    if (atom) {
-        JS::AutoCheckCannotGC nogc;
-        if (atom->hasLatin1Chars())
-            ret = JS_snprintf(cstr, len + 1, "%s (%s:%llu)", atom->latin1Chars(nogc), filename, lineno);
-        else
-            ret = JS_snprintf(cstr, len + 1, "%hs (%s:%llu)", atom->twoByteChars(nogc), filename, lineno);
-    } else {
+    if (hasAtom)
+        ret = JS_snprintf(cstr, len + 1, "%hs (%s:%llu)", atom, filename, lineno);
+    else
         ret = JS_snprintf(cstr, len + 1, "%s:%llu", filename, lineno);
-    }
 
     MOZ_ASSERT(ret == len, "Computed length should match actual length!");
 

@@ -31,7 +31,7 @@ nsSVGElement::EnumInfo SVGClipPathElement::sEnumInfo[1] =
 //----------------------------------------------------------------------
 // Implementation
 
-SVGClipPathElement::SVGClipPathElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+SVGClipPathElement::SVGClipPathElement(already_AddRefed<nsINodeInfo>& aNodeInfo)
   : SVGClipPathElementBase(aNodeInfo)
 {
 }

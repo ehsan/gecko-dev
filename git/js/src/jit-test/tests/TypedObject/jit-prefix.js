@@ -30,7 +30,7 @@ function foo() {
   var s;
 
   for (var i = 0; i < N; i++) {
-    if ((i % 2) == 0)
+    if ((i % 2) == 0 || true)
       obj = new PointType2({x: i, y: i+1});
     else
       obj = new PointType3({x: i, y: i+1, z: i+2});

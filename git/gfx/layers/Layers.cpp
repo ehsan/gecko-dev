@@ -1197,11 +1197,11 @@ LayerManager::BeginTabSwitch()
   mTabSwitchStart = TimeStamp::Now();
 }
 
-static void PrintInfo(std::stringstream& aStream, LayerComposite* aLayerComposite);
+static nsACString& PrintInfo(nsACString& aTo, LayerComposite* aLayerComposite);
 
 #ifdef MOZ_DUMP_PAINTING
 template <typename T>
-void WriteSnapshotLinkToDumpFile(T* aObj, std::stringstream& aStream)
+void WriteSnapshotLinkToDumpFile(T* aObj, FILE* aFile)
 {
   if (!aObj) {
     return;
@@ -1209,7 +1209,7 @@ void WriteSnapshotLinkToDumpFile(T* aObj, std::stringstream& aStream)
   nsCString string(aObj->Name());
   string.Append('-');
   string.AppendInt((uint64_t)aObj);
-  aStream << nsPrintfCString("href=\"javascript:ViewImage('%s')\"", string.BeginReading()).get();
+  fprintf_stderr(aFile, "href=\"javascript:ViewImage('%s')\"", string.BeginReading());
 }
 
 template <typename T>
@@ -1251,60 +1251,61 @@ void WriteSnapshotToDumpFile(Compositor* aCompositor, DrawTarget* aTarget)
 #endif
 
 void
-Layer::Dump(std::stringstream& aStream, const char* aPrefix, bool aDumpHtml)
+Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
 {
   if (aDumpHtml) {
-    aStream << nsPrintfCString("<li><a id=\"%p\" ", this).get();
+    fprintf_stderr(aFile, "<li><a id=\"%p\" ", this);
 #ifdef MOZ_DUMP_PAINTING
     if (GetType() == TYPE_CONTAINER || GetType() == TYPE_THEBES) {
-      WriteSnapshotLinkToDumpFile(this, aStream);
+      WriteSnapshotLinkToDumpFile(this, aFile);
     }
 #endif
-    aStream << ">";
+    fprintf_stderr(aFile, ">");
   }
-  DumpSelf(aStream, aPrefix);
+  DumpSelf(aFile, aPrefix);
 
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting && AsLayerComposite() && AsLayerComposite()->GetCompositableHost()) {
-    AsLayerComposite()->GetCompositableHost()->Dump(aStream, aPrefix, aDumpHtml);
+    AsLayerComposite()->GetCompositableHost()->Dump(aFile, aPrefix, aDumpHtml);
   }
 #endif
 
   if (aDumpHtml) {
-    aStream << "</a>";
+    fprintf_stderr(aFile, "</a>");
   }
 
   if (Layer* mask = GetMaskLayer()) {
-    aStream << nsPrintfCString("%s  Mask layer:\n", aPrefix).get();
+    fprintf_stderr(aFile, "%s  Mask layer:\n", aPrefix);
     nsAutoCString pfx(aPrefix);
     pfx += "    ";
-    mask->Dump(aStream, pfx.get(), aDumpHtml);
+    mask->Dump(aFile, pfx.get(), aDumpHtml);
   }
 
   if (Layer* kid = GetFirstChild()) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
     if (aDumpHtml) {
-      aStream << "<ul>";
+      fprintf_stderr(aFile, "<ul>");
     }
-    kid->Dump(aStream, pfx.get(), aDumpHtml);
+    kid->Dump(aFile, pfx.get(), aDumpHtml);
     if (aDumpHtml) {
-      aStream << "</ul>";
+      fprintf_stderr(aFile, "</ul>");
     }
   }
 
   if (aDumpHtml) {
-    aStream << "</li>";
+    fprintf_stderr(aFile, "</li>");
   }
   if (Layer* next = GetNextSibling())
-    next->Dump(aStream, aPrefix, aDumpHtml);
+    next->Dump(aFile, aPrefix, aDumpHtml);
 }
 
 void
-Layer::DumpSelf(std::stringstream& aStream, const char* aPrefix)
+Layer::DumpSelf(FILE* aFile, const char* aPrefix)
 {
-  PrintInfo(aStream, aPrefix);
-  aStream << "\n";
+  nsAutoCString str;
+  PrintInfo(str, aPrefix);
+  fprintf_stderr(aFile, "%s\n", str.get());
 }
 
 void
@@ -1331,9 +1332,9 @@ Layer::LogSelf(const char* aPrefix)
   if (!IsLogEnabled())
     return;
 
-  std::stringstream ss;
-  PrintInfo(ss, aPrefix);
-  MOZ_LAYERS_LOG(("%s", ss.str().c_str()));
+  nsAutoCString str;
+  PrintInfo(str, aPrefix);
+  MOZ_LAYERS_LOG(("%s", str.get()));
 
   if (mMaskLayer) {
     nsAutoCString pfx(aPrefix);
@@ -1342,187 +1343,199 @@ Layer::LogSelf(const char* aPrefix)
   }
 }
 
-void
-Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  aStream << aPrefix;
-  aStream << nsPrintfCString("%s%s (0x%p)", mManager->Name(), Name(), this).get();
+  aTo += aPrefix;
+  aTo += nsPrintfCString("%s%s (0x%p)", mManager->Name(), Name(), this);
 
-  layers::PrintInfo(aStream, AsLayerComposite());
+  layers::PrintInfo(aTo, AsLayerComposite());
 
   if (mUseClipRect) {
-    AppendToString(aStream, mClipRect, " [clip=", "]");
+    AppendToString(aTo, mClipRect, " [clip=", "]");
   }
   if (1.0 != mPostXScale || 1.0 != mPostYScale) {
-    aStream << nsPrintfCString(" [postScale=%g, %g]", mPostXScale, mPostYScale).get();
+    aTo.AppendPrintf(" [postScale=%g, %g]", mPostXScale, mPostYScale);
   }
   if (!mTransform.IsIdentity()) {
-    AppendToString(aStream, mTransform, " [transform=", "]");
+    AppendToString(aTo, mTransform, " [transform=", "]");
   }
   if (!mVisibleRegion.IsEmpty()) {
-    AppendToString(aStream, mVisibleRegion, " [visible=", "]");
+    AppendToString(aTo, mVisibleRegion, " [visible=", "]");
   } else {
-    aStream << " [not visible]";
+    aTo += " [not visible]";
   }
   if (!mEventRegions.mHitRegion.IsEmpty()) {
-    AppendToString(aStream, mEventRegions.mHitRegion, " [hitregion=", "]");
+    AppendToString(aTo, mEventRegions.mHitRegion, " [hitregion=", "]");
   }
   if (!mEventRegions.mDispatchToContentHitRegion.IsEmpty()) {
-    AppendToString(aStream, mEventRegions.mDispatchToContentHitRegion, " [dispatchtocontentregion=", "]");
+    AppendToString(aTo, mEventRegions.mDispatchToContentHitRegion, " [dispatchtocontentregion=", "]");
   }
   if (1.0 != mOpacity) {
-    aStream << nsPrintfCString(" [opacity=%g]", mOpacity).get();
+    aTo.AppendPrintf(" [opacity=%g]", mOpacity);
   }
   if (GetContentFlags() & CONTENT_OPAQUE) {
-    aStream << " [opaqueContent]";
+    aTo += " [opaqueContent]";
   }
   if (GetContentFlags() & CONTENT_COMPONENT_ALPHA) {
-    aStream << " [componentAlpha]";
+    aTo += " [componentAlpha]";
   }
   if (GetScrollbarDirection() == VERTICAL) {
-    aStream << nsPrintfCString(" [vscrollbar=%lld]", GetScrollbarTargetContainerId()).get();
+    aTo.AppendPrintf(" [vscrollbar=%lld]", GetScrollbarTargetContainerId());
   }
   if (GetScrollbarDirection() == HORIZONTAL) {
-    aStream << nsPrintfCString(" [hscrollbar=%lld]", GetScrollbarTargetContainerId()).get();
+    aTo.AppendPrintf(" [hscrollbar=%lld]", GetScrollbarTargetContainerId());
   }
   if (GetIsFixedPosition()) {
-    aStream << nsPrintfCString(" [isFixedPosition anchor=%f,%f margin=%f,%f,%f,%f]", mAnchor.x, mAnchor.y,
-                     mMargins.top, mMargins.right, mMargins.bottom, mMargins.left).get();
+    aTo.AppendPrintf(" [isFixedPosition anchor=%f,%f margin=%f,%f,%f,%f]", mAnchor.x, mAnchor.y,
+                     mMargins.top, mMargins.right, mMargins.bottom, mMargins.left);
   }
   if (GetIsStickyPosition()) {
-    aStream << nsPrintfCString(" [isStickyPosition scrollId=%d outer=%f,%f %fx%f "
+    aTo.AppendPrintf(" [isStickyPosition scrollId=%d outer=%f,%f %fx%f "
                      "inner=%f,%f %fx%f]", mStickyPositionData->mScrollId,
                      mStickyPositionData->mOuter.x, mStickyPositionData->mOuter.y,
                      mStickyPositionData->mOuter.width, mStickyPositionData->mOuter.height,
                      mStickyPositionData->mInner.x, mStickyPositionData->mInner.y,
-                     mStickyPositionData->mInner.width, mStickyPositionData->mInner.height).get();
+                     mStickyPositionData->mInner.width, mStickyPositionData->mInner.height);
   }
   if (mMaskLayer) {
-    aStream << nsPrintfCString(" [mMaskLayer=%p]", mMaskLayer.get()).get();
+    aTo.AppendPrintf(" [mMaskLayer=%p]", mMaskLayer.get());
   }
+
+  return aTo;
 }
 
-void
-ThebesLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+ThebesLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  Layer::PrintInfo(aStream, aPrefix);
+  Layer::PrintInfo(aTo, aPrefix);
   if (!mValidRegion.IsEmpty()) {
-    AppendToString(aStream, mValidRegion, " [valid=", "]");
+    AppendToString(aTo, mValidRegion, " [valid=", "]");
   }
+  return aTo;
 }
 
-void
-ContainerLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+ContainerLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  Layer::PrintInfo(aStream, aPrefix);
+  Layer::PrintInfo(aTo, aPrefix);
   if (!mFrameMetrics.IsDefault()) {
-    AppendToString(aStream, mFrameMetrics, " [metrics=", "]");
+    AppendToString(aTo, mFrameMetrics, " [metrics=", "]");
   }
   if (mScrollHandoffParentId != FrameMetrics::NULL_SCROLL_ID) {
-    aStream << nsPrintfCString(" [scrollParent=%llu]", mScrollHandoffParentId).get();
+    aTo.AppendPrintf(" [scrollParent=%llu]", mScrollHandoffParentId);
   }
   if (UseIntermediateSurface()) {
-    aStream << " [usesTmpSurf]";
+    aTo += " [usesTmpSurf]";
   }
   if (1.0 != mPreXScale || 1.0 != mPreYScale) {
-    aStream << nsPrintfCString(" [preScale=%g, %g]", mPreXScale, mPreYScale).get();
+    aTo.AppendPrintf(" [preScale=%g, %g]", mPreXScale, mPreYScale);
   }
+  return aTo;
 }
 
-void
-ColorLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+ColorLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  Layer::PrintInfo(aStream, aPrefix);
-  AppendToString(aStream, mColor, " [color=", "]");
+  Layer::PrintInfo(aTo, aPrefix);
+  AppendToString(aTo, mColor, " [color=", "]");
+  return aTo;
 }
 
-void
-CanvasLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+CanvasLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  Layer::PrintInfo(aStream, aPrefix);
+  Layer::PrintInfo(aTo, aPrefix);
   if (mFilter != GraphicsFilter::FILTER_GOOD) {
-    AppendToString(aStream, mFilter, " [filter=", "]");
+    AppendToString(aTo, mFilter, " [filter=", "]");
   }
+  return aTo;
 }
 
-void
-ImageLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  Layer::PrintInfo(aStream, aPrefix);
+  Layer::PrintInfo(aTo, aPrefix);
   if (mFilter != GraphicsFilter::FILTER_GOOD) {
-    AppendToString(aStream, mFilter, " [filter=", "]");
+    AppendToString(aTo, mFilter, " [filter=", "]");
   }
+  return aTo;
 }
 
-void
-RefLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+RefLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  ContainerLayer::PrintInfo(aStream, aPrefix);
+  ContainerLayer::PrintInfo(aTo, aPrefix);
   if (0 != mId) {
-    AppendToString(aStream, mId, " [id=", "]");
+    AppendToString(aTo, mId, " [id=", "]");
   }
+  return aTo;
 }
 
-void
-ReadbackLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+ReadbackLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  Layer::PrintInfo(aStream, aPrefix);
-  AppendToString(aStream, mSize, " [size=", "]");
+  Layer::PrintInfo(aTo, aPrefix);
+  AppendToString(aTo, mSize, " [size=", "]");
   if (mBackgroundLayer) {
-    AppendToString(aStream, mBackgroundLayer, " [backgroundLayer=", "]");
-    AppendToString(aStream, mBackgroundLayerOffset, " [backgroundOffset=", "]");
+    AppendToString(aTo, mBackgroundLayer, " [backgroundLayer=", "]");
+    AppendToString(aTo, mBackgroundLayerOffset, " [backgroundOffset=", "]");
   } else if (mBackgroundColor.a == 1.0) {
-    AppendToString(aStream, mBackgroundColor, " [backgroundColor=", "]");
+    AppendToString(aTo, mBackgroundColor, " [backgroundColor=", "]");
   } else {
-    aStream << " [nobackground]";
+    aTo += " [nobackground]";
   }
+  return aTo;
 }
 
 //--------------------------------------------------
 // LayerManager
 
 void
-LayerManager::Dump(std::stringstream& aStream, const char* aPrefix, bool aDumpHtml)
+LayerManager::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
 {
+  FILE* file = FILEOrDefault(aFile);
+
 #ifdef MOZ_DUMP_PAINTING
   if (aDumpHtml) {
-    aStream << "<ul><li><a ";
-    WriteSnapshotLinkToDumpFile(this, aStream);
-    aStream << ">";
+    fprintf_stderr(file, "<ul><li><a ");
+    WriteSnapshotLinkToDumpFile(this, file);
+    fprintf_stderr(file, ">");
   }
 #endif
-  DumpSelf(aStream, aPrefix);
+  DumpSelf(file, aPrefix);
 #ifdef MOZ_DUMP_PAINTING
   if (aDumpHtml) {
-    aStream << "</a>";
+    fprintf_stderr(file, "</a>");
   }
 #endif
 
   nsAutoCString pfx(aPrefix);
   pfx += "  ";
   if (!GetRoot()) {
-    aStream << nsPrintfCString("%s(null)", pfx.get()).get();
+    fprintf_stderr(file, "%s(null)", pfx.get());
     if (aDumpHtml) {
-      aStream << "</li></ul>";
+      fprintf_stderr(file, "</li></ul>");
     }
     return;
   }
 
   if (aDumpHtml) {
-    aStream << "<ul>";
+    fprintf_stderr(file, "<ul>");
   }
-  GetRoot()->Dump(aStream, pfx.get(), aDumpHtml);
+  GetRoot()->Dump(file, pfx.get(), aDumpHtml);
   if (aDumpHtml) {
-    aStream << "</ul></li></ul>";
+    fprintf_stderr(file, "</ul></li></ul>");
   }
-  aStream << "\n";
+  fprintf_stderr(file, "\n");
 }
 
 void
-LayerManager::DumpSelf(std::stringstream& aStream, const char* aPrefix)
+LayerManager::DumpSelf(FILE* aFile, const char* aPrefix)
 {
-  PrintInfo(aStream, aPrefix);
-  aStream << "\n";
+  nsAutoCString str;
+  PrintInfo(str, aPrefix);
+  fprintf_stderr(FILEOrDefault(aFile), "%s\n", str.get());
 }
 
 void
@@ -1547,15 +1560,15 @@ void
 LayerManager::LogSelf(const char* aPrefix)
 {
   nsAutoCString str;
-  std::stringstream ss;
-  PrintInfo(ss, aPrefix);
-  MOZ_LAYERS_LOG(("%s", ss.str().c_str()));
+  PrintInfo(str, aPrefix);
+  MOZ_LAYERS_LOG(("%s", str.get()));
 }
 
-void
-LayerManager::PrintInfo(std::stringstream& aStream, const char* aPrefix)
+nsACString&
+LayerManager::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
-  aStream << aPrefix << nsPrintfCString("%sLayerManager (0x%p)", Name(), this).get();
+  aTo += aPrefix;
+  return aTo += nsPrintfCString("%sLayerManager (0x%p)", Name(), this);
 }
 
 /*static*/ void
@@ -1573,21 +1586,22 @@ LayerManager::IsLogEnabled()
   return PR_LOG_TEST(sLog, PR_LOG_DEBUG);
 }
 
-void
-PrintInfo(std::stringstream& aStream, LayerComposite* aLayerComposite)
+static nsACString&
+PrintInfo(nsACString& aTo, LayerComposite* aLayerComposite)
 {
   if (!aLayerComposite) {
-    return;
+    return aTo;
   }
   if (const nsIntRect* clipRect = aLayerComposite->GetShadowClipRect()) {
-    AppendToString(aStream, *clipRect, " [shadow-clip=", "]");
+    AppendToString(aTo, *clipRect, " [shadow-clip=", "]");
   }
   if (!aLayerComposite->GetShadowTransform().IsIdentity()) {
-    AppendToString(aStream, aLayerComposite->GetShadowTransform(), " [shadow-transform=", "]");
+    AppendToString(aTo, aLayerComposite->GetShadowTransform(), " [shadow-transform=", "]");
   }
   if (!aLayerComposite->GetShadowVisibleRegion().IsEmpty()) {
-    AppendToString(aStream, aLayerComposite->GetShadowVisibleRegion(), " [shadow-visible=", "]");
+    AppendToString(aTo, aLayerComposite->GetShadowVisibleRegion(), " [shadow-visible=", "]");
   }
+  return aTo;
 }
 
 void

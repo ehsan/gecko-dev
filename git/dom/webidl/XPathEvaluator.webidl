@@ -6,6 +6,7 @@
 
 interface XPathExpression;
 interface XPathNSResolver;
+interface XPathResult;
 
 [Constructor]
 interface XPathEvaluator {
@@ -18,5 +19,5 @@ interface XPathEvaluator {
   [Throws]
   XPathResult evaluate(DOMString expression, Node? contextNode,
                        XPathNSResolver? resolver, unsigned short type,
-                       object? result);
+                       XPathResult? result);
 };

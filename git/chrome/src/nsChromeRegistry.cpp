@@ -16,8 +16,7 @@
 #include "nsNetUtil.h"
 #include "nsString.h"
 
-#include "mozilla/CSSStyleSheet.h"
-#include "mozilla/dom/URL.h"
+#include "nsCSSStyleSheet.h"
 #include "nsIConsoleService.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
@@ -28,12 +27,9 @@
 #include "nsIPresShell.h"
 #include "nsIScriptError.h"
 #include "nsIWindowMediator.h"
+#include "mozilla/dom/URL.h"
 
 nsChromeRegistry* nsChromeRegistry::gChromeRegistry;
-
-// DO NOT use namespace mozilla; it'll break due to a naming conflict between
-// mozilla::TextRange and a TextRange in OSX headers.
-using mozilla::CSSStyleSheet;
 using mozilla::dom::IsChromeURI;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,7 +294,7 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
   if (!baseURI) {
     LogMessage("No chrome package registered for chrome://%s/%s/%s",
                package.get(), provider.get(), path.get());
-    return NS_ERROR_FILE_NOT_FOUND;
+    return NS_ERROR_FAILURE;
   }
 
   return NS_NewURI(aResult, path, nullptr, baseURI);
@@ -419,7 +415,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
 
       if (IsChromeURI(uri)) {
         // Reload the sheet.
-        nsRefPtr<CSSStyleSheet> newSheet;
+        nsRefPtr<nsCSSStyleSheet> newSheet;
         rv = document->LoadChromeSheetSync(uri, true,
                                            getter_AddRefs(newSheet));
         if (NS_FAILED(rv)) return rv;
@@ -458,12 +454,12 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
   // Iterate over our old sheets and kick off a sync load of the new
   // sheet if and only if it's a chrome URL.
   for (i = 0; i < count; i++) {
-    nsRefPtr<CSSStyleSheet> sheet = do_QueryObject(oldSheets[i]);
+    nsRefPtr<nsCSSStyleSheet> sheet = do_QueryObject(oldSheets[i]);
     nsIURI* uri = sheet ? sheet->GetOriginalURI() : nullptr;
 
     if (uri && IsChromeURI(uri)) {
       // Reload the sheet.
-      nsRefPtr<CSSStyleSheet> newSheet;
+      nsRefPtr<nsCSSStyleSheet> newSheet;
       // XXX what about chrome sheets that have a title or are disabled?  This
       // only works by sheer dumb luck.
       document->LoadChromeSheetSync(uri, false, getter_AddRefs(newSheet));

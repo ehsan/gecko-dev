@@ -128,7 +128,7 @@
 #include "nsIMemoryReporter.h"
 #include "nsIMIMEService.h"
 #include "nsINode.h"
-#include "mozilla/dom/NodeInfo.h"
+#include "nsINodeInfo.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
@@ -2761,7 +2761,7 @@ nsContentUtils::GetNodeInfoFromQName(const nsAString& aNamespaceURI,
                                      const nsAString& aQualifiedName,
                                      nsNodeInfoManager* aNodeInfoManager,
                                      uint16_t aNodeType,
-                                     mozilla::dom::NodeInfo** aNodeInfo)
+                                     nsINodeInfo** aNodeInfo)
 {
   const nsAFlatString& qName = PromiseFlatString(aQualifiedName);
   const char16_t* colon;
@@ -3125,8 +3125,8 @@ nsContentUtils::IsDraggableLink(const nsIContent* aContent) {
 
 // static
 nsresult
-nsContentUtils::NameChanged(mozilla::dom::NodeInfo* aNodeInfo, nsIAtom* aName,
-                            mozilla::dom::NodeInfo** aResult)
+nsContentUtils::NameChanged(nsINodeInfo* aNodeInfo, nsIAtom* aName,
+                            nsINodeInfo** aResult)
 {
   nsNodeInfoManager *niMgr = aNodeInfo->NodeInfoManager();
 
@@ -4185,7 +4185,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
     }
 
     if (!setDefaultNamespace) {
-      mozilla::dom::NodeInfo* info = content->NodeInfo();
+      nsINodeInfo* info = content->NodeInfo();
       if (!info->GetPrefixAtom() &&
           info->NamespaceID() != kNameSpaceID_None) {
         // We have no namespace prefix, but have a namespace ID.  Push
@@ -6411,12 +6411,15 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
                                   nsIDocument* aDocument)
 {
   NS_ASSERTION(aDocument, "aDocument should be a valid pointer (not null)");
-
-  AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.InitUsingWin(aDocument->GetWindow()))) {
+  nsCOMPtr<nsIGlobalObject> globalObject =
+    do_QueryInterface(aDocument->GetWindow());
+  if (NS_WARN_IF(!globalObject)) {
     return true;
   }
+
+  AutoJSAPI jsapi;
   JSContext* cx = jsapi.cx();
+  JSAutoCompartment ac(cx, globalObject->GetGlobalJSObject());
 
   // The pattern has to match the entire value.
   aPattern.Insert(NS_LITERAL_STRING("^(?:"), 0);
@@ -6564,13 +6567,12 @@ nsContentUtils::HaveEqualPrincipals(nsIDocument* aDoc1, nsIDocument* aDoc2)
 }
 
 static void
-CheckForWindowedPlugins(nsISupports* aSupports, void* aResult)
+CheckForWindowedPlugins(nsIContent* aContent, void* aResult)
 {
-  nsCOMPtr<nsIContent> content(do_QueryInterface(aSupports));
-  if (!content || !content->IsInDoc()) {
+  if (!aContent->IsInDoc()) {
     return;
   }
-  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(content));
+  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(aContent));
   if (!olc) {
     return;
   }
@@ -6590,7 +6592,7 @@ static bool
 DocTreeContainsWindowedPlugins(nsIDocument* aDoc, void* aResult)
 {
   if (!nsContentUtils::IsChromeDoc(aDoc)) {
-    aDoc->EnumerateActivityObservers(CheckForWindowedPlugins, aResult);
+    aDoc->EnumerateFreezableElements(CheckForWindowedPlugins, aResult);
   }
   if (*static_cast<bool*>(aResult)) {
     // Return false to stop iteration, we found a windowed plugin.

@@ -31,7 +31,7 @@ private:
   }
 
 public:
-  nsTextNode(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  nsTextNode(already_AddRefed<nsINodeInfo>& aNodeInfo)
     : mozilla::dom::Text(aNodeInfo)
   {
     Init();
@@ -61,7 +61,7 @@ public:
   // nsINode
   virtual bool IsNodeOfType(uint32_t aFlags) const;
 
-  virtual nsGenericDOMDataNode* CloneDataNode(mozilla::dom::NodeInfo *aNodeInfo,
+  virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
                                               bool aCloneText) const MOZ_OVERRIDE;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
