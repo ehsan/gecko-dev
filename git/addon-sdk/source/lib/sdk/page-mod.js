@@ -13,7 +13,6 @@ const { contract } = require('./util/contract');
 const { getAttachEventType, WorkerHost } = require('./content/utils');
 const { Class } = require('./core/heritage');
 const { Disposable } = require('./core/disposable');
-const { WeakReference } = require('./core/reference');
 const { Worker } = require('./content/worker');
 const { EventTarget } = require('./event/target');
 const { on, emit, once, setListeners } = require('./event/core');
@@ -98,8 +97,7 @@ const PageMod = Class({
   implements: [
     modContract.properties(modelFor),
     EventTarget,
-    Disposable,
-    WeakReference
+    Disposable
   ],
   extends: WorkerHost(workerFor),
   setup: function PageMod(options) {
@@ -130,7 +128,7 @@ const PageMod = Class({
       applyOnExistingDocuments(mod);
   },
 
-  dispose: function() {
+  destroy: function destroy() {
     let style = styleFor(this);
     if (style)
       detach(style);

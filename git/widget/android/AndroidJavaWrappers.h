@@ -530,7 +530,8 @@ public:
     int RangeBackColor() { return mRangeBackColor; }
     int RangeLineColor() { return mRangeLineColor; }
     nsGeoPosition* GeoPosition() { return mGeoPosition; }
-    int ConnectionType() { return mConnectionType; }
+    double Bandwidth() { return mBandwidth; }
+    bool CanBeMetered() { return mCanBeMetered; }
     bool IsWifi() { return mIsWifi; }
     int DHCPGateway() { return mDHCPGateway; }
     short ScreenOrientation() { return mScreenOrientation; }
@@ -568,7 +569,8 @@ protected:
     int mPointerIndex;
     nsString mCharacters, mCharactersExtra, mData;
     nsRefPtr<nsGeoPosition> mGeoPosition;
-    int mConnectionType;
+    double mBandwidth;
+    bool mCanBeMetered;
     bool mIsWifi;
     int mDHCPGateway;
     short mScreenOrientation;
@@ -642,7 +644,8 @@ protected:
     static jfieldID jLocationField;
     static jfieldID jPrefNamesField;
 
-    static jfieldID jConnectionTypeField;
+    static jfieldID jBandwidthField;
+    static jfieldID jCanBeMeteredField;
     static jfieldID jIsWifiField;
     static jfieldID jDHCPGatewayField;
 

@@ -1,12 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 "use strict";
 
 // The widget module currently supports only Firefox.
 // See: https://bugzilla.mozilla.org/show_bug.cgi?id=560716
 module.metadata = {
-  "stability": "deprecated",
+  "stability": "stable",
   "engines": {
     "Firefox": "*"
   }
@@ -38,7 +39,6 @@ const EVENTS = {
 // normal toolbarbuttons. If they're any wider than this margin, we'll
 // treat them as wide widgets instead, which fill up the width of the panel:
 const AUSTRALIS_PANEL_WIDE_WIDGET_CUTOFF = 70;
-const AUSTRALIS_PANEL_WIDE_CLASSNAME = "panel-wide-item";
 
 const { validateOptions } = require("./deprecated/api-utils");
 const panels = require("./panel");
@@ -54,11 +54,6 @@ const { setTimeout } = require("./timers");
 const unload = require("./system/unload");
 const { getNodeView } = require("./view/core");
 const prefs = require('./preferences/service');
-
-require("./util/deprecate").deprecateUsage(
-  "The widget module is deprecated.  " +
-  "Please consider using the sdk/ui module instead."
-);
 
 // Data types definition
 const valid = {
@@ -234,8 +229,6 @@ function saveInserted(widgetId) {
 function haveInserted(widgetId) {
   return prefs.has(INSERTION_PREF_ROOT + widgetId);
 }
-
-const isWide = node => node.classList.contains(AUSTRALIS_PANEL_WIDE_CLASSNAME);
 
 /**
  * Main Widget class: entry point of the widget API
@@ -633,7 +626,7 @@ BrowserWindow.prototype = {
     let placement = CustomizableUI.getPlacementOfWidget(id);
 
     if (!placement) {
-      if (haveInserted(id) || isWide(node))
+      if (haveInserted(id))
         return;
 
       placement = {area: 'nav-bar', position: undefined};
@@ -710,7 +703,7 @@ WidgetChrome.prototype._createNode = function WC__createNode() {
   node.setAttribute("sdkstylewidget", "true");
 
   if (this._widget.width > AUSTRALIS_PANEL_WIDE_WIDGET_CUTOFF) {
-    node.classList.add(AUSTRALIS_PANEL_WIDE_CLASSNAME);
+    node.classList.add("panel-wide-item");
   }
 
   // TODO move into a stylesheet, configurable by consumers.

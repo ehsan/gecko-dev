@@ -1988,20 +1988,6 @@ ConstructJSImplementation(JSContext* aCx, const char* aContractId,
     return nullptr;
   }
 
-  ConstructJSImplementation(aCx, aContractId, window, aObject, aRv);
-
-  if (aRv.Failed()) {
-    return nullptr;
-  }
-  return window.forget();
-}
-
-void
-ConstructJSImplementation(JSContext* aCx, const char* aContractId,
-                          nsPIDOMWindow* aWindow,
-                          JS::MutableHandle<JSObject*> aObject,
-                          ErrorResult& aRv)
-{
   // Make sure to divorce ourselves from the calling JS while creating and
   // initializing the object, so exceptions from that will get reported
   // properly, since those are never exceptions that a spec wants to be thrown.
@@ -2013,17 +1999,17 @@ ConstructJSImplementation(JSContext* aCx, const char* aContractId,
     if (!implISupports) {
       NS_WARNING("Failed to get JS implementation for contract");
       aRv.Throw(NS_ERROR_FAILURE);
-      return;
+      return nullptr;
     }
     // Initialize the object, if it implements nsIDOMGlobalPropertyInitializer.
     nsCOMPtr<nsIDOMGlobalPropertyInitializer> gpi =
       do_QueryInterface(implISupports);
     if (gpi) {
       JS::Rooted<JS::Value> initReturn(aCx);
-      nsresult rv = gpi->Init(aWindow, &initReturn);
+      nsresult rv = gpi->Init(window, &initReturn);
       if (NS_FAILED(rv)) {
         aRv.Throw(rv);
-        return;
+        return nullptr;
       }
       // With JS-implemented WebIDL, the return value of init() is not used to determine
       // if init() failed, so init() should only return undefined. Any kind of permission
@@ -2039,13 +2025,16 @@ ConstructJSImplementation(JSContext* aCx, const char* aContractId,
     MOZ_ASSERT(implWrapped, "Failed to get wrapped JS from XPCOM component.");
     if (!implWrapped) {
       aRv.Throw(NS_ERROR_FAILURE);
-      return;
+      return nullptr;
     }
     aObject.set(implWrapped->GetJSObject());
     if (!aObject) {
       aRv.Throw(NS_ERROR_FAILURE);
+      return nullptr;
     }
   }
+
+  return window.forget();
 }
 
 bool

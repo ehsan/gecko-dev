@@ -269,13 +269,13 @@ NS_IMPL_QUERY_INTERFACE2(
   nsIDirectoryServiceProvider2
 )
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 ScopedXPCOM::AddRef()
 {
   return 2;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 ScopedXPCOM::Release()
 {
   return 1;

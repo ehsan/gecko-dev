@@ -33,14 +33,14 @@ nsHtml5Atom::~nsHtml5Atom()
   nsStringBuffer::FromData(mString)->Release();
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsHtml5Atom::AddRef()
 {
   NS_NOTREACHED("Attempt to AddRef an nsHtml5Atom.");
   return 2;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsHtml5Atom::Release()
 {
   NS_NOTREACHED("Attempt to Release an nsHtml5Atom.");

@@ -243,7 +243,12 @@ function waitForTopic(aTopic, aTimeout, aCallback) {
 
 /**
  * Wait until session restore has finished collecting its data and is
- * has written that data ("sessionstore-state-write-complete").
+ * getting ready to write that data ("sessionstore-state-write").
+ *
+ * This function is meant to be called immediately after the code
+ * that will trigger the saving.
+ *
+ * Note that this does not wait for the disk write to be complete.
  *
  * @param {function} aCallback If sessionstore-state-write is sent
  * within buffering interval + 100 ms, the callback is passed |true|,
@@ -252,7 +257,7 @@ function waitForTopic(aTopic, aTimeout, aCallback) {
 function waitForSaveState(aCallback) {
   let timeout = 100 +
     Services.prefs.getIntPref("browser.sessionstore.interval");
-  return waitForTopic("sessionstore-state-write-complete", timeout, aCallback);
+  return waitForTopic("sessionstore-state-write", timeout, aCallback);
 }
 function promiseSaveState() {
   let deferred = Promise.defer();
@@ -267,28 +272,20 @@ function promiseSaveState() {
 function forceSaveState() {
   let promise = promiseSaveState();
   const PREF = "browser.sessionstore.interval";
-  let original = Services.prefs.getIntPref(PREF);
   // Set interval to an arbitrary non-0 duration
   // to ensure that setting it to 0 will notify observers
   Services.prefs.setIntPref(PREF, 1000);
   Services.prefs.setIntPref(PREF, 0);
   return promise.then(
     function onSuccess(x) {
-      Services.prefs.setIntPref(PREF, original);
+      Services.prefs.clearUserPref(PREF);
       return x;
     },
     function onError(x) {
-      Services.prefs.setIntPref(PREF, original);
+      Services.prefs.clearUserPref(PREF);
       throw x;
     }
   );
-}
-
-function promiseSaveFileContents() {
-  let promise = forceSaveState();
-  return promise.then(function() {
-    return OS.File.read(OS.Path.join(OS.Constants.Path.profileDir, "sessionstore.js"), { encoding: "utf-8" });
-  });
 }
 
 function whenBrowserLoaded(aBrowser, aCallback = next, ignoreSubFrames = true) {
@@ -323,11 +320,6 @@ function whenWindowLoaded(aWindow, aCallback = next) {
       aCallback(aWindow);
     });
   }, false);
-}
-function promiseWindowLoaded(aWindow) {
-  let deferred = Promise.defer();
-  whenWindowLoaded(aWindow, deferred.resolve);
-  return deferred.promise;
 }
 
 function whenTabRestored(aTab, aCallback = next) {

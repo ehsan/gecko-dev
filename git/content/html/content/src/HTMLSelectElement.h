@@ -77,8 +77,6 @@ private:
   nsCheapSet<nsUint32HashKey> mIndices;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(SelectState, NS_SELECT_STATE_IID)
-
 class MOZ_STACK_CLASS SafeOptionListMutation
 {
 public:

@@ -16,7 +16,7 @@ namespace mozilla {
 namespace net {
 
 NS_IMPL_ADDREF(CacheFileOutputStream)
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 CacheFileOutputStream::Release()
 {
   NS_PRECONDITION(0 != mRefCnt, "dup release");

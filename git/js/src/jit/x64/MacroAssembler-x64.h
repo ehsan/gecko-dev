@@ -78,8 +78,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     using MacroAssemblerX86Shared::Pop;
     using MacroAssemblerX86Shared::callWithExitFrame;
     using MacroAssemblerX86Shared::branch32;
-    using MacroAssemblerX86Shared::load32;
-    using MacroAssemblerX86Shared::store32;
 
     MacroAssemblerX64()
       : inCall_(false),
@@ -664,7 +662,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
             movq(Operand(address), dest);
         } else {
             mov(ImmPtr(address.addr), ScratchReg);
-            loadPtr(Address(ScratchReg, 0x0), dest);
+            movq(Operand(ScratchReg, 0x0), dest);
         }
     }
     void loadPtr(const Address &address, Register dest) {
@@ -679,14 +677,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void loadPrivate(const Address &src, Register dest) {
         loadPtr(src, dest);
         shlq(Imm32(1), dest);
-    }
-    void load32(const AbsoluteAddress &address, Register dest) {
-        if (JSC::X86Assembler::isAddressImmediate(address.addr)) {
-            movl(Operand(address), dest);
-        } else {
-            mov(ImmPtr(address.addr), ScratchReg);
-            load32(Address(ScratchReg, 0x0), dest);
-        }
     }
     void storePtr(ImmWord imm, const Address &address) {
         if ((intptr_t)imm.value <= INT32_MAX && (intptr_t)imm.value >= INT32_MIN) {
@@ -714,15 +704,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
             movq(src, Operand(address));
         } else {
             mov(ImmPtr(address.addr), ScratchReg);
-            storePtr(src, Address(ScratchReg, 0x0));
-        }
-    }
-    void store32(const Register &src, const AbsoluteAddress &address) {
-        if (JSC::X86Assembler::isAddressImmediate(address.addr)) {
-            movl(src, Operand(address));
-        } else {
-            mov(ImmPtr(address.addr), ScratchReg);
-            store32(src, Address(ScratchReg, 0x0));
+            movq(src, Operand(ScratchReg, 0x0));
         }
     }
     void rshiftPtr(Imm32 imm, Register dest) {
@@ -1239,7 +1221,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
 
     void callWithExitFrame(JitCode *target, Register dynStack) {
         addPtr(Imm32(framePushed()), dynStack);
-        makeFrameDescriptor(dynStack, JitFrame_IonJS);
+        makeFrameDescriptor(dynStack, IonFrame_OptimizedJS);
         Push(dynStack);
         call(target);
     }
@@ -1248,6 +1230,14 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     // register that holds a PerThreadData *.
     void linkParallelExitFrame(const Register &pt) {
         storePtr(StackPointer, Address(pt, offsetof(PerThreadData, ionTop)));
+    }
+
+    void enterOsr(Register calleeToken, Register code) {
+        push(Imm32(0)); // num actual args.
+        push(calleeToken);
+        push(Imm32(MakeFrameDescriptor(0, IonFrame_Osr)));
+        call(code);
+        addq(Imm32(sizeof(uintptr_t) * 2), rsp);
     }
 
     // See CodeGeneratorX64 calls to noteAsmJSGlobalAccess.

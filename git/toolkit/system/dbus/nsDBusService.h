@@ -72,6 +72,4 @@ private:
   DBusClient*        mSingleClient;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsDBusService, NS_DBUS_IID)
-
 #endif /*NSDBUSSERVICE_H_*/

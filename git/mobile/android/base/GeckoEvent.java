@@ -218,7 +218,8 @@ public class GeckoEvent {
     private Address mAddress;
     private DomKeyLocation mDomKeyLocation;
 
-    private int     mConnectionType;
+    private double mBandwidth;
+    private boolean mCanBeMetered;
     private boolean mIsWifi;
     private int     mDHCPGateway;
 
@@ -709,9 +710,11 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createNetworkEvent(int connectionType, boolean isWifi, int DHCPGateway) {
+    public static GeckoEvent createNetworkEvent(double bandwidth, boolean canBeMetered,
+                                                boolean isWifi, int DHCPGateway) {
         GeckoEvent event = GeckoEvent.get(NativeGeckoEvent.NETWORK_CHANGED);
-        event.mConnectionType = connectionType;
+        event.mBandwidth = bandwidth;
+        event.mCanBeMetered = canBeMetered;
         event.mIsWifi = isWifi;
         event.mDHCPGateway = DHCPGateway;
         return event;

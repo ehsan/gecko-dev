@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/devtools/SourceMap.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+const promise = require("sdk/core/promise");
 const events = require("sdk/event/core");
 const protocol = require("devtools/server/protocol");
 const {Arg, Option, method, RetVal, types} = protocol;
@@ -129,11 +129,7 @@ let StyleSheetsActor = protocol.ActorClass({
 
         // Recursively handle style sheets of the documents in iframes.
         for (let iframe of doc.getElementsByTagName("iframe")) {
-          if (iframe.contentDocument) {
-            // Sometimes, iframes don't have any document, like the
-            // one that are over deeply nested (bug 285395)
-            documents.push(iframe.contentDocument);
-          }
+          documents.push(iframe.contentDocument);
         }
       }
       throw new Task.Result(actors);

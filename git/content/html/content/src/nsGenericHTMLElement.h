@@ -296,7 +296,6 @@ public:
     return rcFrame.height;
   }
 
-  static nsIAtom*** PropertiesToTraverseAndUnlink();
 protected:
   // These methods are used to implement element-specific behavior of Get/SetItemValue
   // when an element has @itemprop but no @itemscope.

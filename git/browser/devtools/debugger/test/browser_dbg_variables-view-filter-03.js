@@ -64,8 +64,6 @@ function testVariablesAndPropertiesFiltering() {
       "There should be 0 variables displayed in the with scope.");
     is(functionScope.target.querySelectorAll(".variables-view-variable:not([unmatched])").length, 0,
       "There should be 0 variables displayed in the function scope.");
-    is(globalScope.target.querySelectorAll(".variables-view-variable:not([unmatched])").length, 0,
-      "There should be 0 variables displayed in the global scope.");
 
     is(localScope.target.querySelectorAll(".variables-view-property:not([unmatched])").length, 0,
       "There should be 0 properties displayed in the local scope.");
@@ -78,11 +76,13 @@ function testVariablesAndPropertiesFiltering() {
   }
 
   function firstFilter() {
-    typeText(gSearchBox, "*alpha");
-    testFiltered("alpha");
+    typeText(gSearchBox, "*one");
+    testFiltered("one");
 
+    isnot(globalScope.target.querySelectorAll(".variables-view-variable:not([unmatched])").length, 0,
+      "There should be some variables displayed in the global scope.");
     is(localScope.target.querySelectorAll(".variables-view-variable:not([unmatched]) > .title > .name")[0].getAttribute("value"),
-      "alpha", "The only inner variable displayed should be 'alpha'");
+      "one", "The only inner variable displayed should be 'one'");
   }
 
   function secondFilter() {
@@ -100,12 +100,14 @@ function testVariablesAndPropertiesFiltering() {
     is(globalScope.expanded, false,
       "The globalScope should not be expanded.");
 
-    backspaceText(gSearchBox, 6);
-    typeText(gSearchBox, "*beta");
-    testFiltered("beta");
+    backspaceText(gSearchBox, 4);
+    typeText(gSearchBox, "*two");
+    testFiltered("two");
 
+    is(globalScope.target.querySelectorAll(".variables-view-variable:not([unmatched])").length, 0,
+      "There should be no variables displayed in the global scope.");
     is(localScope.target.querySelectorAll(".variables-view-variable:not([unmatched]) > .title > .name")[0].getAttribute("value"),
-      "beta", "The only inner variable displayed should be 'beta'");
+      "two", "The only inner variable displayed should be 'two'");
   }
 
   firstFilter();

@@ -310,14 +310,14 @@ NS_IMPL_QUERY_INTERFACE2(nsSocketInputStream,
                          nsIInputStream,
                          nsIAsyncInputStream)
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsSocketInputStream::AddRef()
 {
     ++mReaderRefCnt;
     return mTransport->AddRef();
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsSocketInputStream::Release()
 {
     if (--mReaderRefCnt == 0)
@@ -573,14 +573,14 @@ NS_IMPL_QUERY_INTERFACE2(nsSocketOutputStream,
                          nsIOutputStream,
                          nsIAsyncOutputStream)
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsSocketOutputStream::AddRef()
 {
     ++mWriterRefCnt;
     return mTransport->AddRef();
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsSocketOutputStream::Release()
 {
     if (--mWriterRefCnt == 0)

@@ -956,7 +956,6 @@ nsAppShell::Init()
     nsCOMPtr<nsIObserverService> obsServ = GetObserverService();
     if (obsServ) {
         obsServ->AddObserver(this, "browser-ui-startup-complete", false);
-        obsServ->AddObserver(this, "network-connection-state-changed", false);
     }
 
 #ifdef MOZ_NUWA_PROCESS
@@ -974,24 +973,19 @@ nsAppShell::Observe(nsISupports* aSubject,
                     const char* aTopic,
                     const char16_t* aData)
 {
-    if (!strcmp(aTopic, "network-connection-state-changed")) {
-        NS_ConvertUTF16toUTF8 type(aData);
-        if (!type.IsEmpty()) {
-            hal::NotifyNetworkChange(hal::NetworkInformation(atoi(type.get()), 0, 0));
-        }
-        return NS_OK;
-    } else if (!strcmp(aTopic, "browser-ui-startup-complete")) {
-        if (sDevInputAudioJack) {
-            sHeadphoneState  = mReader->getSwitchState(-1, AINPUT_SOURCE_SWITCH, SW_HEADPHONE_INSERT);
-            sMicrophoneState = mReader->getSwitchState(-1, AINPUT_SOURCE_SWITCH, SW_MICROPHONE_INSERT);
-            updateHeadphoneSwitch();
-        }
-        mEnableDraw = true;
-        NotifyEvent();
-        return NS_OK;
+    if (strcmp(aTopic, "browser-ui-startup-complete")) {
+        return nsBaseAppShell::Observe(aSubject, aTopic, aData);
     }
 
-    return nsBaseAppShell::Observe(aSubject, aTopic, aData);
+    if (sDevInputAudioJack) {
+        sHeadphoneState  = mReader->getSwitchState(-1, AINPUT_SOURCE_SWITCH, SW_HEADPHONE_INSERT);
+        sMicrophoneState = mReader->getSwitchState(-1, AINPUT_SOURCE_SWITCH, SW_MICROPHONE_INSERT);
+        updateHeadphoneSwitch();
+    }
+
+    mEnableDraw = true;
+    NotifyEvent();
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1001,7 +995,6 @@ nsAppShell::Exit()
     nsCOMPtr<nsIObserverService> obsServ = GetObserverService();
     if (obsServ) {
         obsServ->RemoveObserver(this, "browser-ui-startup-complete");
-        obsServ->RemoveObserver(this, "network-connection-state-changed");
     }
     return nsBaseAppShell::Exit();
 }

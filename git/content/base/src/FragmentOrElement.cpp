@@ -520,6 +520,10 @@ FragmentOrElement::nsDOMSlots::~nsDOMSlots()
   if (mAttributeMap) {
     mAttributeMap->DropReference();
   }
+
+  if (mClassList) {
+    mClassList->DropReference();
+  }
 }
 
 void
@@ -585,7 +589,10 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
   mChildrenList = nullptr;
   mUndoManager = nullptr;
   mCustomElementData = nullptr;
-  mClassList = nullptr;
+  if (mClassList) {
+    mClassList->DropReference();
+    mClassList = nullptr;
+  }
 }
 
 size_t
@@ -1244,10 +1251,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
 
   if (tmp->HasProperties()) {
     if (tmp->IsHTML()) {
-      nsIAtom*** props = nsGenericHTMLElement::PropertiesToTraverseAndUnlink();
-      for (uint32_t i = 0; props[i]; ++i) {
-        tmp->DeleteProperty(*props[i]);
-      }
+      tmp->DeleteProperty(nsGkAtoms::microdataProperties);
+      tmp->DeleteProperty(nsGkAtoms::itemtype);
+      tmp->DeleteProperty(nsGkAtoms::itemref);
+      tmp->DeleteProperty(nsGkAtoms::itemprop);
     }
   }
 
@@ -1791,12 +1798,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
 
   if (tmp->HasProperties()) {
     if (tmp->IsHTML()) {
-      nsIAtom*** props = nsGenericHTMLElement::PropertiesToTraverseAndUnlink();
-      for (uint32_t i = 0; props[i]; ++i) {
-        nsISupports* property =
-          static_cast<nsISupports*>(tmp->GetProperty(*props[i]));
-        cb.NoteXPCOMChild(property);
-      }
+      nsISupports* property = static_cast<nsISupports*>
+                                         (tmp->GetProperty(nsGkAtoms::microdataProperties));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>(tmp->GetProperty(nsGkAtoms::itemref));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>(tmp->GetProperty(nsGkAtoms::itemprop));
+      cb.NoteXPCOMChild(property);
+      property = static_cast<nsISupports*>(tmp->GetProperty(nsGkAtoms::itemtype));
+      cb.NoteXPCOMChild(property);
     }
   }
 

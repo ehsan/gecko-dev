@@ -65,38 +65,39 @@ public:
 class MockContentControllerDelayed : public MockContentController {
 public:
   MockContentControllerDelayed()
+    : mCurrentTask(nullptr)
   {
   }
 
   void PostDelayedTask(Task* aTask, int aDelayMs) {
-    mTaskQueue.AppendElement(aTask);
+    // Ensure we're not clobbering an existing task
+    EXPECT_TRUE(nullptr == mCurrentTask);
+    mCurrentTask = aTask;
   }
 
   void CheckHasDelayedTask() {
-    EXPECT_TRUE(mTaskQueue.Length() > 0);
+    EXPECT_TRUE(nullptr != mCurrentTask);
   }
 
   void ClearDelayedTask() {
-    mTaskQueue.RemoveElementAt(0);
-  }
-
-  void DestroyOldestTask() {
-    delete mTaskQueue[0];
-    mTaskQueue.RemoveElementAt(0);
+    mCurrentTask = nullptr;
   }
 
   // Note that deleting mCurrentTask is important in order to
   // release the reference to the callee object. Without this
   // that object might be leaked. This is also why we don't
-  // expose mTaskQueue to any users of MockContentControllerDelayed.
+  // expose mCurrentTask to any users of MockContentControllerDelayed.
   void RunDelayedTask() {
-    mTaskQueue[0]->Run();
-    delete mTaskQueue[0];
-    mTaskQueue.RemoveElementAt(0);
+    // Running mCurrentTask may call PostDelayedTask, so we should
+    // keep a local copy of mCurrentTask and operate on that
+    Task* local = mCurrentTask;
+    mCurrentTask = nullptr;
+    local->Run();
+    delete local;
   }
 
 private:
-  nsTArray<Task*> mTaskQueue;
+  Task *mCurrentTask;
 };
 
 
@@ -283,19 +284,19 @@ void DoPanTest(bool aShouldTriggerScroll, bool aShouldUseTouchAction, uint32_t a
 
 static void
 ApzcPinch(AsyncPanZoomController* aApzc, int aFocusX, int aFocusY, float aScale) {
-  aApzc->HandleGestureEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_START,
+  aApzc->HandleInputEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_START,
                                             0,
                                             ScreenPoint(aFocusX, aFocusY),
                                             10.0,
                                             10.0,
                                             0));
-  aApzc->HandleGestureEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_SCALE,
+  aApzc->HandleInputEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_SCALE,
                                             0,
                                             ScreenPoint(aFocusX, aFocusY),
                                             10.0 * aScale,
                                             10.0,
                                             0));
-  aApzc->HandleGestureEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_END,
+  aApzc->HandleInputEvent(PinchGestureInput(PinchGestureInput::PINCHGESTURE_END,
                                             0,
                                             ScreenPoint(aFocusX, aFocusY),
                                             // note: negative values here tell APZC
@@ -323,10 +324,8 @@ static nsEventStatus
 ApzcTap(AsyncPanZoomController* apzc, int aX, int aY, int& aTime, int aTapLength, MockContentControllerDelayed* mcc = nullptr) {
   nsEventStatus status = ApzcDown(apzc, aX, aY, aTime);
   if (mcc != nullptr) {
-    // There will be delayed tasks posted for the long-tap and MAX_TAP timeouts, but
-    // if we were provided a non-null mcc we want to clear them.
-    mcc->CheckHasDelayedTask();
-    mcc->ClearDelayedTask();
+    // There will be a delayed task posted for the long-tap timeout, but
+    // if we were provided a non-null mcc we want to clear it.
     mcc->CheckHasDelayedTask();
     mcc->ClearDelayedTask();
   }
@@ -777,16 +776,6 @@ DoLongPressTest(bool aShouldUseTouchAction, uint32_t aBehavior) {
   mcc->RunDelayedTask();
   check.Call("postHandleLongTap");
 
-  // Destroy pending MAX_TAP timeout task
-  mcc->DestroyOldestTask();
-  // There should be a TimeoutContentResponse task in the queue still
-  // Clear the waiting-for-content timeout task, then send the signal that
-  // content has handled this long tap. This takes the place of the
-  // "contextmenu" event.
-  mcc->CheckHasDelayedTask();
-  mcc->ClearDelayedTask();
-  apzc->ContentReceivedTouch(true);
-
   time += 1000;
 
   status = ApzcUp(apzc, 10, 10, time);
@@ -846,8 +835,6 @@ TEST_F(AsyncPanZoomControllerTester, LongPressPreventDefault) {
   mcc->RunDelayedTask();
   check.Call("postHandleLongTap");
 
-  // Destroy pending MAX_TAP timeout task
-  mcc->DestroyOldestTask();
   // Clear the waiting-for-content timeout task, then send the signal that
   // content has handled this long tap. This takes the place of the
   // "contextmenu" event.

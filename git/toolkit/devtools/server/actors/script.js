@@ -3703,10 +3703,8 @@ DebuggerServer.ObjectActorPreviewers.Object = [
     let url;
     if (aRawObj instanceof Ci.nsIDOMWindow && aRawObj.location) {
       url = aRawObj.location.href;
-    } else if (aRawObj.href) {
-      url = aRawObj.href;
     } else {
-      return false;
+      url = aRawObj.href;
     }
 
     aGrip.preview = {
@@ -4728,7 +4726,7 @@ update(AddonThreadActor.prototype, {
           return id.value === this.addonID;
       }
       catch (e) {
-        DevToolsUtils.reportException("AddonThreadActor.prototype._checkGlobal", e);
+        console.log("Unexpected URI " + uridescriptor.value);
       }
     }
 

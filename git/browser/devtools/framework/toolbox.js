@@ -878,9 +878,7 @@ Toolbox.prototype = {
    */
   focusConsoleInput: function() {
     let hud = this.getPanel("webconsole").hud;
-    if (hud && hud.jsterm) {
-      hud.jsterm.inputNode.focus();
-    }
+    hud.jsterm.inputNode.focus();
   },
 
   /**
@@ -966,7 +964,7 @@ Toolbox.prototype = {
       toolName = toolboxStrings("toolbox.defaultTitle");
     }
     let title = toolboxStrings("toolbox.titleTemplate",
-                               toolName, this.target.url || this.target.name);
+                               toolName, this.target.url);
     this._host.setTitle(title);
   },
 

@@ -46,7 +46,7 @@ static bool URIIsImmutable(nsIURI* aURI)
 // Static member variables
 const char nsBasePrincipal::sInvalid[] = "Invalid";
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsBasePrincipal::AddRef()
 {
   NS_PRECONDITION(int32_t(refcount) >= 0, "illegal refcnt");
@@ -56,7 +56,7 @@ nsBasePrincipal::AddRef()
   return count;
 }
 
-NS_IMETHODIMP_(MozExternalRefCountType)
+NS_IMETHODIMP_(nsrefcnt)
 nsBasePrincipal::Release()
 {
   NS_PRECONDITION(0 != refcount, "dup release");

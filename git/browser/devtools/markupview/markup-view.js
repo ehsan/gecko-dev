@@ -299,9 +299,6 @@ MarkupView.prototype = {
           this.markNodeAsSelected(selection.nodeFront);
         }
         done();
-      }, (e) => {
-        console.error(e);
-        done();
       });
     } else {
       this.unmarkSelectedNode();
@@ -866,10 +863,8 @@ MarkupView.prototype = {
       let parent = node.parentNode();
       if (!container.elt.parentNode) {
         let parentContainer = this._containers.get(parent);
-        if (parentContainer) {
-          parentContainer.childrenDirty = true;
-          this._updateChildren(parentContainer, {expand: node});
-        }
+        parentContainer.childrenDirty = true;
+        this._updateChildren(parentContainer, {expand: node});
       }
 
       node = parent;
