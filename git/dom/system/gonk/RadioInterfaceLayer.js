@@ -1613,6 +1613,12 @@ RadioInterface.prototype = {
                                                 this.clientId, status);
   },
 
+  _isRadioChanging: function _isRadioChanging() {
+    let state = this.rilContext.detailedRadioState;
+    return state == RIL.GECKO_DETAILED_RADIOSTATE_ENABLING ||
+      state == RIL.GECKO_DETAILED_RADIOSTATE_DISABLING;
+  },
+
   _convertRadioState: function _converRadioState(state) {
     switch (state) {
       case RIL.GECKO_RADIOSTATE_OFF:
@@ -1852,11 +1858,7 @@ RadioInterface.prototype = {
       if (DEBUG) this.debug("Don't connect data call when Wifi is connected.");
       return;
     }
-
-    let detailedRadioState = this.rilContext.detailedRadioState;
-    if (gRadioEnabledController.isDeactivatingDataCalls() ||
-        detailedRadioState == RIL.GECKO_DETAILED_RADIOSTATE_ENABLING ||
-        detailedRadioState == RIL.GECKO_DETAILED_RADIOSTATE_DISABLING) {
+    if (this._isRadioChanging()) {
       // We're changing the radio power currently, ignore any changes.
       return;
     }
@@ -2063,7 +2065,7 @@ RadioInterface.prototype = {
         // At this point we could send a message to content to notify the user
         // that storing an incoming SMS failed, most likely due to a full disk.
         if (DEBUG) {
-          this.debug("Could not store SMS, error code " + rv);
+          this.debug("Could not store SMS " + message.id + ", error code " + rv);
         }
         return;
       }
@@ -2073,8 +2075,8 @@ RadioInterface.prototype = {
     }.bind(this);
 
     if (message.messageClass != RIL.GECKO_SMS_MESSAGE_CLASSES[RIL.PDU_DCS_MSG_CLASS_0]) {
-      gMobileMessageDatabaseService.saveReceivedMessage(message,
-                                                        notifyReceived);
+      message.id = gMobileMessageDatabaseService.saveReceivedMessage(message,
+                                                                     notifyReceived);
     } else {
       message.id = -1;
       message.threadId = 0;
@@ -2636,15 +2638,18 @@ RadioInterface.prototype = {
   },
 
   isValidStateForSetRadioEnabled: function() {
-    let state = this.rilContext.detailedRadioState;
-    return state == RIL.GECKO_DETAILED_RADIOSTATE_ENABLED ||
-      state == RIL.GECKO_DETAILED_RADIOSTATE_DISABLED;
+    let state = this.rilContext.radioState;
+
+    return !this._isRadioChanging() &&
+        (state == RIL.GECKO_RADIOSTATE_READY ||
+         state == RIL.GECKO_RADIOSTATE_OFF);
   },
 
   isDummyForSetRadioEnabled: function(message) {
-    let state = this.rilContext.detailedRadioState;
-    return (state == RIL.GECKO_DETAILED_RADIOSTATE_ENABLED && message.enabled) ||
-      (state == RIL.GECKO_DETAILED_RADIOSTATE_DISABLED && !message.enabled);
+    let state = this.rilContext.radioState;
+
+    return (state == RIL.GECKO_RADIOSTATE_READY && message.enabled) ||
+        (state == RIL.GECKO_RADIOSTATE_OFF && !message.enabled);
   },
 
   setRadioEnabledResponse: function(target, message, errorMsg) {

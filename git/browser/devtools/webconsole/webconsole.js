@@ -3075,14 +3075,6 @@ JSTerm.prototype = {
   _autocompleteQuery: null,
 
   /**
-   * The frameActorId used in the last autocomplete query. Whenever this changes
-   * the autocomplete cache must be invalidated.
-   * @private
-   * @type string
-   */
-  _lastFrameActorId: null,
-
-  /**
    * The Web Console sidebar.
    * @see this._createSidebar()
    * @see Sidebar.jsm
@@ -4294,8 +4286,6 @@ JSTerm.prototype = {
   {
     let inputNode = this.inputNode;
     let inputValue = inputNode.value;
-    let frameActor = this.getFrameActor(this.SELECTED_FRAME);
-
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
       this.clearCompletion();
@@ -4309,7 +4299,7 @@ JSTerm.prototype = {
     }
 
     // Update the completion results.
-    if (this.lastCompletion.value != inputValue || frameActor != this._lastFrameActorId) {
+    if (this.lastCompletion.value != inputValue) {
       this._updateCompletionResult(aType, aCallback);
       return false;
     }
@@ -4345,8 +4335,7 @@ JSTerm.prototype = {
   _updateCompletionResult:
   function JST__updateCompletionResult(aType, aCallback)
   {
-    let frameActor = this.getFrameActor(this.SELECTED_FRAME);
-    if (this.lastCompletion.value == this.inputNode.value && frameActor == this._lastFrameActorId) {
+    if (this.lastCompletion.value == this.inputNode.value) {
       return;
     }
 
@@ -4361,7 +4350,7 @@ JSTerm.prototype = {
     // character we ask the server again for suggestions.
 
     // Check if last character is non-alphanumeric
-    if (!/[a-zA-Z0-9]$/.test(input) || frameActor != this._lastFrameActorId) {
+    if (!/[a-zA-Z0-9]$/.test(input)) {
       this._autocompleteQuery = null;
       this._autocompleteCache = null;
     }
@@ -4391,8 +4380,6 @@ JSTerm.prototype = {
       return;
     }
 
-    this._lastFrameActorId = frameActor;
-
     this.lastCompletion = {
       requestId: requestId,
       completionType: aType,
@@ -4401,8 +4388,7 @@ JSTerm.prototype = {
 
     let callback = this._receiveAutocompleteProperties.bind(this, requestId,
                                                             aCallback);
-
-    this.webConsoleClient.autocomplete(input, cursor, callback, frameActor);
+    this.webConsoleClient.autocomplete(input, cursor, callback);
   },
 
   /**

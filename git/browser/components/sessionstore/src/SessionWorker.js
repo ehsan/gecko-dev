@@ -87,8 +87,7 @@ let Agent = {
 
         return {
           result: this.initialState,
-          telemetry: {FX_SESSION_RESTORE_READ_FILE_MS: durationMs,
-                      FX_SESSION_RESTORE_FILE_SIZE_BYTES: bytes.byteLength}
+          telemetry: {FX_SESSION_RESTORE_READ_FILE_MS: durationMs}
         };
       } catch (ex if isNoSuchFileEx(ex)) {
         // Ignore exceptions about non-existent files.

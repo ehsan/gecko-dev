@@ -18,22 +18,17 @@ function testPropertyProvider() {
   let tools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
   let JSPropertyProvider = tools.require("devtools/toolkit/webconsole/utils").JSPropertyProvider;
 
-  let tmp = Cu.import("resource://gre/modules/jsdebugger.jsm", {});
-  tmp.addDebuggerToGlobal(tmp);
-  let dbg = new tmp.Debugger;
-  let dbgWindow = dbg.makeGlobalObjectReference(content);
-
-  let completion = JSPropertyProvider(dbgWindow, null, "thisIsNotDefined");
+  let completion = JSPropertyProvider(content, "thisIsNotDefined");
   is (completion.matches.length, 0, "no match for 'thisIsNotDefined");
 
   // This is a case the PropertyProvider can't handle. Should return null.
-  completion = JSPropertyProvider(dbgWindow, null, "window[1].acb");
+  completion = JSPropertyProvider(content, "window[1].acb");
   is (completion, null, "no match for 'window[1].acb");
 
   // A very advanced completion case.
   var strComplete =
     'function a() { }document;document.getElementById(window.locatio';
-  completion = JSPropertyProvider(dbgWindow, null, strComplete);
+  completion = JSPropertyProvider(content, strComplete);
   ok(completion.matches.length == 2, "two matches found");
   ok(completion.matchProp == "locatio", "matching part is 'test'");
   var matches = completion.matches;

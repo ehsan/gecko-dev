@@ -35,6 +35,9 @@ function runTests()
   };
 
   let lastMethodCalled = null;
+  sp.__noSuchMethod__ = function(aMethodName) {
+    lastMethodCalled = aMethodName;
+  };
 
   for (let id in methodsAndItems) {
     lastMethodCalled = null;
@@ -43,9 +46,7 @@ function runTests()
     let oldMethod = sp[methodName];
     ok(oldMethod, "found method " + methodName + " in Scratchpad object");
 
-    sp[methodName] = () => {
-      lastMethodCalled = methodName;
-    }
+    delete sp[methodName];
 
     let menu = doc.getElementById(id);
     ok(menu, "found menuitem #" + id);
@@ -62,6 +63,8 @@ function runTests()
 
     sp[methodName] = oldMethod;
   }
+
+  delete sp.__noSuchMethod__;
 
   finish();
 }
