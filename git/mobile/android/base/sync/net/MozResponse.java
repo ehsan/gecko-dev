@@ -65,13 +65,7 @@ public class MozResponse {
     if (body != null) {
       return body;
     }
-    final HttpEntity entity = this.response.getEntity();
-    if (entity == null) {
-      body = null;
-      return null;
-    }
-
-    InputStreamReader is = new InputStreamReader(entity.getContent());
+    InputStreamReader is = new InputStreamReader(this.response.getEntity().getContent());
     // Oh, Java, you are so evil.
     body = new Scanner(is).useDelimiter("\\A").next();
     return body;

@@ -9,7 +9,7 @@ var gExpectedCount;
 function run_test() {
   setupTestCommon();
 
-  debugDump("testing remote update xml attributes");
+  logTestInfo("testing remote update xml attributes");
 
   setUpdateURLOverride();
   setUpdateChannel("test_channel");
@@ -26,7 +26,7 @@ function run_test_helper_pt1(aMsg, aExpectedCount, aNextRunFunc) {
   gCheckFunc = check_test_helper_pt1;
   gNextRunFunc = aNextRunFunc;
   gExpectedCount = aExpectedCount;
-  debugDump(aMsg, Components.stack.caller);
+  logTestInfo(aMsg, Components.stack.caller);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
@@ -41,11 +41,9 @@ function callHandleEvent() {
   gXHR.status = 400;
   gXHR.responseText = gResponseBody;
   try {
-    if (gResponseBody) {
-      let parser = Cc["@mozilla.org/xmlextras/domparser;1"].
-                   createInstance(Ci.nsIDOMParser);
-      gXHR.responseXML = parser.parseFromString(gResponseBody, "application/xml");
-    }
+    let parser = Cc["@mozilla.org/xmlextras/domparser;1"].
+                 createInstance(Ci.nsIDOMParser);
+    gXHR.responseXML = parser.parseFromString(gResponseBody, "application/xml");
   } catch (e) {
     gXHR.responseXML = null;
   }
@@ -61,7 +59,7 @@ function run_test_pt01() {
 
 // one update available and the update's property values
 function run_test_pt02() {
-  debugDump("testing one update available and the update's property values");
+  logTestInfo("testing one update available and the update's property values");
   gUpdates = null;
   gUpdateCount = null;
   gCheckFunc = check_test_pt02;
@@ -161,8 +159,8 @@ function check_test_pt02() {
 
 // one update available and the update's property default values
 function run_test_pt03() {
-  debugDump("testing one update available and the update's property values " +
-            "with the format prior to bug 530872");
+  logTestInfo("testing one update available and the update's property values " +
+              "with the format prior to bug 530872");
   gUpdates = null;
   gUpdateCount = null;
   gCheckFunc = check_test_pt03;
@@ -226,9 +224,9 @@ function check_test_pt03() {
   run_test_pt04();
 }
 
-// Empty update xml (an empty xml file returns a root node name of parsererror)
+// Empty update xml
 function run_test_pt04() {
-  gResponseBody = "<parsererror/>";
+  gResponseBody = "\n";
   run_test_helper_pt1("testing empty update xml",
                       null, run_test_pt05);
 }

@@ -36,8 +36,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(MozIsoDepTech)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-const NFCTechType MozIsoDepTech::mTechnology = NFCTechType::ISO_DEP;
-
 /* static */
 already_AddRefed<MozIsoDepTech>
 MozIsoDepTech::Constructor(const GlobalObject& aGlobal,

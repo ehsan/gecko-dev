@@ -358,7 +358,6 @@ PerformanceFront.prototype = {
    */
   _pullAllocationSites: Task.async(function *() {
     let memoryData = yield this._request("memory", "getAllocations");
-    let isStillAttached = yield this._request("memory", "getState") == "attached";
 
     this.emit("allocations", {
       sites: memoryData.allocations,
@@ -367,10 +366,8 @@ PerformanceFront.prototype = {
       counts: memoryData.counts
     });
 
-    if (isStillAttached) {
-      let delay = DEFAULT_ALLOCATION_SITES_PULL_TIMEOUT;
-      this._sitesPullTimeout = setTimeout(this._pullAllocationSites, delay);
-    }
+    let delay = DEFAULT_ALLOCATION_SITES_PULL_TIMEOUT;
+    this._sitesPullTimeout = setTimeout(this._pullAllocationSites, delay);
   }),
 
   /**

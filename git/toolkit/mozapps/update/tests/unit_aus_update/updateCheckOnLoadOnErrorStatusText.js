@@ -15,8 +15,8 @@ var gExpectedStatusText;
 function run_test() {
   setupTestCommon();
 
-  debugDump("testing nsIUpdateCheckListener onload and onerror error code " +
-            "and statusText values");
+  logTestInfo("testing nsIUpdateCheckListener onload and onerror error code " +
+              "and statusText values");
 
   setUpdateURLOverride();
   standardInit();
@@ -40,7 +40,7 @@ function run_test_helper(aNextRunFunc, aExpectedStatusCode, aMsg) {
   gCheckFunc = check_test_helper;
   gNextRunFunc = aNextRunFunc;
   gExpectedStatusCode = aExpectedStatusCode;
-  debugDump(aMsg, Components.stack.caller);
+  logTestInfo(aMsg, Components.stack.caller);
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 
@@ -61,7 +61,7 @@ function run_test_pt1() {
   gStatusText = null;
   gCheckFunc = check_test_pt1;
   gExpectedStatusCode = 399;
-  debugDump("testing default onerror error message");
+  logTestInfo("testing default onerror error message");
   gUpdateChecker.checkForUpdates(updateCheckListener, true);
 }
 

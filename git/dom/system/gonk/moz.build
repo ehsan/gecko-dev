@@ -21,7 +21,6 @@ XPIDL_SOURCES += [
     'nsINetworkService.idl',
     'nsINetworkWorker.idl',
     'nsISystemWorkerManager.idl',
-    'nsITetheringService.idl',
     'nsIVolume.idl',
     'nsIVolumeMountLock.idl',
     'nsIVolumeService.idl',
@@ -76,8 +75,6 @@ EXTRA_COMPONENTS += [
     'NetworkManager.manifest',
     'NetworkService.js',
     'NetworkService.manifest',
-    'TetheringService.js',
-    'TetheringService.manifest',
 ]
 EXTRA_PP_COMPONENTS += [
     'NetworkManager.js',
