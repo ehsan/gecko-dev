@@ -77,10 +77,6 @@ public:
   nsresult OnQueryTextRect(nsQueryContentEvent* aEvent);
   // NS_QUERY_EDITOR_RECT event handler
   nsresult OnQueryEditorRect(nsQueryContentEvent* aEvent);
-  // NS_QUERY_CONTENT_STATE event handler
-  nsresult OnQueryContentState(nsQueryContentEvent* aEvent);
-  // NS_QUERY_SELECTION_AS_TRANSFERABLE event handler
-  nsresult OnQuerySelectionAsTransferable(nsQueryContentEvent* aEvent);
 
   // NS_SELECTION_* event
   nsresult OnSelectionEvent(nsSelectionEvent* aEvent);

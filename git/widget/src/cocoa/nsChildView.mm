@@ -68,7 +68,6 @@
 #include "nsIMenuRollup.h"
 
 #include "nsDragService.h"
-#include "nsClipboard.h"
 #include "nsCursorManager.h"
 #include "nsWindowMap.h"
 #include "nsCocoaUtils.h"
@@ -2392,14 +2391,9 @@ NSEvent* gLastDragEvent = nil;
   if (!initialized) {
     // Inform the OS about the types of services (from the "Services" menu)
     // that we can handle.
-
-    NSArray *sendTypes = [[NSArray alloc] initWithObjects:NSStringPboardType,NSHTMLPboardType,nil];
-    NSArray *returnTypes = [[NSArray alloc] init];
-
+    NSArray *sendTypes = [NSArray arrayWithObject:NSStringPboardType];
+    NSArray *returnTypes = [NSArray array];
     [NSApp registerServicesMenuSendTypes:sendTypes returnTypes:returnTypes];
-
-    [sendTypes release];
-    [returnTypes release];
 
     initialized = YES;
   }
@@ -6433,7 +6427,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 #pragma mark -
 
 // Support for the "Services" menu. We currently only support sending strings
-// and HTML to system services.
+// to services.
 
 - (id)validRequestorForSendType:(NSString *)sendType
                      returnType:(NSString *)returnType
@@ -6449,23 +6443,24 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   // returnType is nil if the service will not return any data.
   //
   // The following condition thus triggers when the service expects a string
-  // or HTML from us or no data at all AND when the service will not send back
-  // any data to us.
+  // from us or no data at all AND when the service will not send back any
+  // data to us.
 
-  if ((!sendType || [sendType isEqual:NSStringPboardType] ||
-       [sendType isEqual:NSHTMLPboardType]) && !returnType) {
-    // Query the Gecko window to determine if there is a current selection.
+  if ((!sendType || [sendType isEqual:NSStringPboardType]) && !returnType) {
+    // Query Gecko window to determine if there is a current selection.
+    bool hasSelection = false;
     if (mGeckoChild) {
       nsAutoRetainCocoaObject kungFuDeathGrip(self);
-
-      nsQueryContentEvent event(PR_TRUE, NS_QUERY_CONTENT_STATE, mGeckoChild);
-      mGeckoChild->DispatchWindowEvent(event);
-
-      // Return this object if it can handle the request.
-      if ((!sendType || (event.mSucceeded && event.mReply.mHasSelection)) &&
-          !returnType)
-        return self;
+      nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT,
+                                    mGeckoChild);
+      mGeckoChild->DispatchWindowEvent(selection);
+      if (selection.mSucceeded && !selection.mReply.mString.IsEmpty())
+        hasSelection = true;
     }
+
+    // Return this object if it can handle the request.
+    if ((!sendType || hasSelection) && !returnType)
+      return self;
   }
 
   return [super validRequestorForSendType:sendType returnType:returnType];
@@ -6480,55 +6475,24 @@ static BOOL keyUpAlreadySentKeyDown = NO;
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-
-  // Make sure that the service will accept strings or HTML.
-  if ([types containsObject:NSStringPboardType] == NO &&
-      [types containsObject:NSHTMLPboardType] == NO)
-    return NO;
-
-  // Bail out if there is no Gecko object.
-  if (!mGeckoChild)
+ 
+  // Ensure that the service will accept strings. (We only support strings.)
+  if ([types containsObject:NSStringPboardType] == NO)
     return NO;
 
   // Obtain the current selection.
-  nsQueryContentEvent event(PR_TRUE,
-                            NS_QUERY_SELECTION_AS_TRANSFERABLE,
-                            mGeckoChild);
-  mGeckoChild->DispatchWindowEvent(event);
-  if (!event.mSucceeded || !event.mReply.mTransferable)
+  if (!mGeckoChild)
+    return NO;
+  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, mGeckoChild);
+  mGeckoChild->DispatchWindowEvent(selection);
+  if (!selection.mSucceeded || selection.mReply.mString.IsEmpty())
     return NO;
 
-  // Transform the transferable to an NSDictionary.
-  NSDictionary* pasteboardOutputDict = nsClipboard::PasteboardDictFromTransferable(event.mReply.mTransferable);
-  if (!pasteboardOutputDict)
-    return NO;
-
-  // Declare the pasteboard types.
-  unsigned int typeCount = [pasteboardOutputDict count];
-  NSMutableArray * types = [NSMutableArray arrayWithCapacity:typeCount];
-  [types addObjectsFromArray:[pasteboardOutputDict allKeys]];
-  [pboard declareTypes:types owner:nil];
-
-  // Write the data to the pasteboard.
-  for (unsigned int i = 0; i < typeCount; i++) {
-    NSString* currentKey = [types objectAtIndex:i];
-    id currentValue = [pasteboardOutputDict valueForKey:currentKey];
-
-    if (currentKey == NSStringPboardType ||
-        currentKey == kCorePboardType_url ||
-        currentKey == kCorePboardType_urld ||
-        currentKey == kCorePboardType_urln) {
-      [pboard setString:currentValue forType:currentKey];
-    } else if (currentKey == NSHTMLPboardType) {
-      [pboard setString:(nsClipboard::WrapHtmlForSystemPasteboard(currentValue)) forType:currentKey];
-    } else if (currentKey == NSTIFFPboardType) {
-      [pboard setData:currentValue forType:currentKey];
-    } else if (currentKey == NSFilesPromisePboardType) {
-      [pboard setPropertyList:currentValue forType:currentKey];        
-    }
-  }
-
-  return YES;
+  // Copy the current selection to the pasteboard.
+  NSArray *typesDeclared = [NSArray arrayWithObject:NSStringPboardType];
+  [pboard declareTypes:typesDeclared owner:nil];
+  return [pboard setString:ToNSString(selection.mReply.mString)
+                   forType:NSStringPboardType];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }

@@ -3315,7 +3315,7 @@ DeepCopyInLRS(JSContext *cx, JSXML *xml, uintN flags)
 
     JS_CHECK_RECURSION(cx, return NULL);
 
-    copy = js_NewXML(cx, JSXMLClass(xml->xml_class));
+    copy = js_NewXML(cx, (JSXMLClass) xml->xml_class);
     if (!copy)
         return NULL;
     qn = xml->name;
@@ -3755,7 +3755,7 @@ Replace(JSContext *cx, JSXML *xml, uint32 i, jsval v)
             vxml = (JSXML *) JS_GetPrivate(cx, vobj);
     }
 
-    switch (vxml ? JSXMLClass(vxml->xml_class) : JSXML_CLASS_LIMIT) {
+    switch (vxml ? (JSXMLClass) vxml->xml_class : JSXML_CLASS_LIMIT) {
       case JSXML_CLASS_ELEMENT:
         /* OPTION: enforce that descendants have superset namespaces. */
         if (!CheckCycle(cx, xml, vxml))
@@ -7719,18 +7719,15 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
     }
 
     obj = NULL;
-    for (tmp = fp->scopeChain; tmp; tmp = OBJ_GET_PARENT(cx, tmp)) {
-        JSClass *clasp = OBJ_GET_CLASS(cx, tmp);
-        if (clasp == &js_BlockClass || clasp == &js_WithClass)
-            continue;
-        if (!OBJ_GET_PROPERTY(cx, tmp, JS_DEFAULT_XML_NAMESPACE_ID, &v))
+    for (tmp = fp->scopeChain; tmp; tmp = OBJ_GET_PARENT(cx, obj)) {
+        obj = tmp;
+        if (!OBJ_GET_PROPERTY(cx, obj, JS_DEFAULT_XML_NAMESPACE_ID, &v))
             return JS_FALSE;
         if (!JSVAL_IS_PRIMITIVE(v)) {
             fp->xmlNamespace = JSVAL_TO_OBJECT(v);
             *vp = v;
             return JS_TRUE;
         }
-        obj = tmp;
     }
 
     ns = js_ConstructObject(cx, &js_NamespaceClass.base, NULL, obj, 0, NULL);

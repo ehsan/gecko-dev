@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- *
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 tw=80 et cindent: */
+/*
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -13,16 +14,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Mozilla browser.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1999
+ * timeless <timeless@mozdev.org>.
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Stuart Parmenter <pavlov@netscape.com>
- *   Mike Pinkerton   <pinkerton@netscape.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,43 +37,41 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsBaseFilePicker_h__
-#define nsBaseFilePicker_h__
+#ifndef __EmbedFilePicker_h
+#define __EmbedFilePicker_h
 
 #include "nsIFilePicker.h"
-#include "nsIWidget.h"
-#include "nsISimpleEnumerator.h"
+#include "nsISupports.h"
+#include "nsNetCID.h"
 
-#define BASEFILEPICKER_HAS_DISPLAYDIRECTORY 1
+#include "gtkmozembed.h"
+#include "gtkmozembed_common.h"
+#include "EmbedPrivate.h"
 
-class nsBaseFilePicker : public nsIFilePicker
+#define EMBED_FILEPICKER_CID           \
+{ /* f097d33b-1c97-48a6-af4c-07022857eb7c */         \
+    0xf097d33b,                                      \
+    0x1c97,                                          \
+    0x48a6,                                          \
+    {0xaf, 0x4c, 0x07, 0x02, 0x28, 0x57, 0xeb, 0x7c} \
+}
+
+#define EMBED_FILEPICKER_CONTRACTID  "@mozilla.org/filepicker;1"
+#define EMBED_FILEPICKER_CLASSNAME  "File Picker Implementation"
+
+class EmbedFilePicker : public nsIFilePicker
 {
 public:
-  nsBaseFilePicker(); 
-  virtual ~nsBaseFilePicker();
-
-  NS_IMETHOD Init(nsIDOMWindow *aParent,
-                  const nsAString& aTitle,
-                  PRInt16 aMode);
-
-  NS_IMETHOD AppendFilters(PRInt32 filterMask);
-  NS_IMETHOD GetFilterIndex(PRInt32 *aFilterIndex);
-  NS_IMETHOD SetFilterIndex(PRInt32 aFilterIndex);
-  NS_IMETHOD GetFiles(nsISimpleEnumerator **aFiles);
-#ifdef BASEFILEPICKER_HAS_DISPLAYDIRECTORY 
-  NS_IMETHOD GetDisplayDirectory(nsILocalFile * *aDisplayDirectory);
-  NS_IMETHOD SetDisplayDirectory(nsILocalFile * aDisplayDirectory);
-#endif
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIFILEPICKER
+  EmbedFilePicker();
 
 protected:
+  nsIDOMWindow *mParent;
+  PRInt16 mMode;
+  nsCString mFileURI;
 
-  virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle,
-                          PRInt16 aMode) = 0;
-
-  nsIWidget *DOMWindowToWidget(nsIDOMWindow *dw);
-#ifdef BASEFILEPICKER_HAS_DISPLAYDIRECTORY 
-  nsCOMPtr<nsILocalFile> mDisplayDirectory;
-#endif
+private:
+  ~EmbedFilePicker();
 };
-
-#endif // nsBaseFilePicker_h__
+#endif

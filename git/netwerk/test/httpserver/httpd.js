@@ -2921,7 +2921,7 @@ ServerHandler.prototype =
       //
       var copier = new StreamCopier(bodyStream, outStream,
                                     null,
-                                    true, true, 8192, true, true);
+                                    true, true, 8192);
       copier.asyncCopy(copyObserver, null);
     }
     else

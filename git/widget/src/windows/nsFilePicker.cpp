@@ -297,6 +297,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
       // Set user-selected location of file or directory
       if (mMode == modeOpenMultiple) {
+        nsresult rv = NS_NewISupportsArray(getter_AddRefs(mFiles));
+        NS_ENSURE_SUCCESS(rv,rv);
         
         // from msdn.microsoft.com, "Open and Save As Dialog Boxes" section:
         // If you specify OFN_EXPLORER,
@@ -312,7 +314,6 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         if (current[dirName.Length() - 1] != '\\')
           dirName.Append((PRUnichar)'\\');
         
-        nsresult rv;
         while (current && *current && *(current + nsCRT::strlen(current) + 1)) {
           current = current + nsCRT::strlen(current) + 1;
           
@@ -322,7 +323,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(dirName + nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
         
@@ -338,7 +339,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
       }

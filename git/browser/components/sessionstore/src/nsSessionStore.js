@@ -1335,14 +1335,7 @@ SessionStoreService.prototype = {
         aData.innerHTML = aContent.document.body.innerHTML;
       }
     }
-
-    // get scroll position from nsIDOMWindowUtils, since it allows avoiding a
-    // flush of layout
-    let domWindowUtils = aContent.QueryInterface(Ci.nsIInterfaceRequestor)
-                                 .getInterface(Ci.nsIDOMWindowUtils);
-    let scrollX = {}, scrollY = {};
-    domWindowUtils.getScrollXY(false, scrollX, scrollY);
-    aData.scroll = scrollX.value + "," + scrollY.value;
+    aData.scroll = aContent.scrollX + "," + aContent.scrollY;
   },
 
   /**

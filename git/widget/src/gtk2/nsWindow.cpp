@@ -4190,9 +4190,7 @@ nsWindow::NativeResize(PRInt32 aWidth, PRInt32 aHeight, PRBool  aRepaint)
         gtk_widget_size_allocate(GTK_WIDGET(mContainer), &allocation);
     }
 
-    if (mDrawingarea) {
-        moz_drawingarea_resize (mDrawingarea, aWidth, aHeight);
-    }
+    moz_drawingarea_resize (mDrawingarea, aWidth, aHeight);
 }
 
 void

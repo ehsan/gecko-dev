@@ -52,13 +52,11 @@
 
 #include "jsapi.h"
 
-using namespace mozilla::storage;
-
 static
 JSBool
 stepFunc(JSContext *aCtx, PRUint32, jsval *_vp)
 {
-  nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
+  nsCOMPtr<nsIXPConnect> xpc(mozStorageService::XPConnect());
   nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
   nsresult rv = xpc->GetWrappedNativeOfJSObject(
     aCtx, JS_THIS_OBJECT(aCtx, _vp), getter_AddRefs(wrapper)
@@ -112,7 +110,7 @@ mozStorageStatementJSHelper::getRow(mozStorageStatement *aStatement,
       new mozStorageStatementRow(aStatement);
     NS_ENSURE_TRUE(row, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
+    nsCOMPtr<nsIXPConnect> xpc(mozStorageService::XPConnect());
     rv = xpc->WrapNative(
       aCtx,
       ::JS_GetGlobalForObject(aCtx, aScopeObj),
@@ -148,7 +146,7 @@ mozStorageStatementJSHelper::getParams(mozStorageStatement *aStatement,
       new mozStorageStatementParams(aStatement);
     NS_ENSURE_TRUE(params, NS_ERROR_OUT_OF_MEMORY);
 
-    nsCOMPtr<nsIXPConnect> xpc(Service::getXPConnect());
+    nsCOMPtr<nsIXPConnect> xpc(mozStorageService::XPConnect());
     rv = xpc->WrapNative(
       aCtx,
       ::JS_GetGlobalForObject(aCtx, aScopeObj),

@@ -202,7 +202,7 @@ js_GetVariableBytecodeLength(jsbytecode *pc)
 }
 
 uintN
-js_GetVariableStackUses(JSOp op, jsbytecode *pc)
+js_GetVariableStackUseLength(JSOp op, jsbytecode *pc)
 {
     JS_ASSERT(*pc == op || *pc == JSOP_TRAP);
     JS_ASSERT(js_CodeSpec[op].nuses == -1);
@@ -222,16 +222,6 @@ js_GetVariableStackUses(JSOp op, jsbytecode *pc)
                   op == JSOP_APPLY);
         return 2 + GET_ARGC(pc);
     }
-}
-
-uintN
-js_GetEnterBlockStackDefs(JSContext *cx, JSScript *script, jsbytecode *pc)
-{
-    JSObject *obj;
-
-    JS_ASSERT(*pc == JSOP_ENTERBLOCK || *pc == JSOP_TRAP);
-    GET_OBJECT_FROM_BYTECODE(script, pc, 0, obj);
-    return OBJ_BLOCK_COUNT(cx, obj);
 }
 
 #ifdef DEBUG
@@ -980,9 +970,9 @@ PushOff(SprintStack *ss, ptrdiff_t off, JSOp op)
 
     /* The opcodes stack must contain real bytecodes that index js_CodeSpec. */
     ss->offsets[top] = off;
-    ss->opcodes[top] = jsbytecode((op == JSOP_GETPROP2) ? JSOP_GETPROP
-                                : (op == JSOP_GETELEM2) ? JSOP_GETELEM
-                                : op);
+    ss->opcodes[top] = (op == JSOP_GETPROP2) ? (jsbytecode) JSOP_GETPROP
+                     : (op == JSOP_GETELEM2) ? (jsbytecode) JSOP_GETELEM
+                     : (jsbytecode) op;
     ss->top = ++top;
     AddParenSlop(ss);
     return JS_TRUE;
@@ -1754,7 +1744,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
     const JSCodeSpec *cs;
     jssrcnote *sn, *sn2;
     const char *lval, *rval, *xval, *fmt, *token;
-    uintN nuses;
     jsint i, argc;
     char **argv;
     JSAtom *atom;
@@ -1922,19 +1911,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
         }
         saveop = op;
         len = oplen = cs->length;
-        nuses = js_GetStackUses(cs, op, pc);
 
-        /*
-         * Here it is possible that nuses > ss->top when the op has a hidden
-         * source note. But when nb < 0 we assume that the caller knows that
-         * Decompile would never meet such opcodes.
-         */
-        if (nb < 0) {
-            LOCAL_ASSERT(ss->top >= nuses);
-            uintN ndefs = js_GetStackDefs(cx, cs, op, jp->script, pc);
-            if ((uintN) -(nb + 1) == ss->top - nuses + ndefs)
-                return pc;
-        }
+        if (nb < 0 && -(nb + 1) == (intN)ss->top - cs->nuses + cs->ndefs)
+            return pc;
 
         /*
          * Save source literal associated with JS now before the following
@@ -1954,7 +1933,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
             fp = js_GetScriptedCaller(cx, NULL);
             format = cs->format;
             if (((fp && fp->regs && pc == fp->regs->pc) ||
-                 (pc == startpc && nuses != 0)) &&
+                 (pc == startpc && cs->nuses != 0)) &&
                 format & (JOF_SET|JOF_DEL|JOF_INCDEC|JOF_FOR|JOF_VARPROP)) {
                 mode = JOF_MODE(format);
                 if (mode == JOF_NAME) {
@@ -1971,8 +1950,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                          ? JSOP_GETLOCAL
                          : JSOP_NAME;
 
-                    JS_ASSERT(js_CodeSpec[op].nuses >= 0);
-                    i = nuses - js_CodeSpec[op].nuses;
+                    i = cs->nuses - js_CodeSpec[op].nuses;
                     while (--i >= 0)
                         PopOff(ss, JSOP_NOP);
                 } else {
@@ -2056,7 +2034,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
         }
 
         if (token) {
-            switch (nuses) {
+            switch (cs->nuses) {
               case 2:
                 sn = js_GetSrcNote(jp->script, pc);
                 if (sn && SN_TYPE(sn) == SRC_ASSIGNOP) {
@@ -3092,7 +3070,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                                        lval, rval) < 0) {
                                 return NULL;
                             }
-
+                            
                             /*
                              * Do not AddParentSlop here, as we will push the
                              * top-most offset again, which will add paren slop
@@ -3523,7 +3501,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 op = (JSOp) ss->opcodes[ss->top - 1];
                 lval = PopStr(ss,
                               (saveop == JSOP_NEW &&
-                               (op == JSOP_CALL ||
+                               (op == JSOP_CALL || 
                                 op == JSOP_EVAL ||
                                 op == JSOP_APPLY ||
                                 (js_CodeSpec[op].format & JOF_CALLOP)))
@@ -5215,6 +5193,14 @@ static intN
 ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
                    jsbytecode **pcstack)
 {
+    intN pcdepth, nuses, ndefs;
+    jsbytecode *pc;
+    JSOp op;
+    const JSCodeSpec *cs;
+    ptrdiff_t oplen;
+    jssrcnote *sn;
+    intN i;
+
 #define LOCAL_ASSERT(expr)      LOCAL_ASSERT_RV(expr, -1);
 
     /*
@@ -5225,12 +5211,10 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
      * FIXME: Optimize to use last empty-stack sequence point.
      */
     LOCAL_ASSERT(script->main <= target && target < script->code + script->length);
-    uintN pcdepth = 0;
-    jsbytecode *pc = script->main;
-    ptrdiff_t oplen;
-    for (; pc < target; pc += oplen) {
-        JSOp op = js_GetOpcode(cx, script, pc);
-        const JSCodeSpec *cs = &js_CodeSpec[op];
+    pcdepth = 0;
+    for (pc = script->main; pc < target; pc += oplen) {
+        op = js_GetOpcode(cx, script, pc);
+        cs = &js_CodeSpec[op];
         oplen = cs->length;
         if (oplen < 0)
             oplen = js_GetVariableBytecodeLength(pc);
@@ -5242,9 +5226,11 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
          * tests condition C.  We know that the stack depth can't change from
          * what it was with C on top of stack.
          */
-        jssrcnote *sn = js_GetSrcNote(script, pc);
+        sn = js_GetSrcNote(script, pc);
         if (sn && SN_TYPE(sn) == SRC_COND) {
-            ptrdiff_t jmpoff = js_GetSrcNoteOffset(sn, 0);
+            ptrdiff_t jmpoff, jmplen;
+
+            jmpoff = js_GetSrcNoteOffset(sn, 0);
             if (pc + jmpoff < target) {
                 pc += jmpoff;
                 op = js_GetOpcode(cx, script, pc);
@@ -5252,7 +5238,7 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
                 cs = &js_CodeSpec[op];
                 oplen = cs->length;
                 JS_ASSERT(oplen > 0);
-                ptrdiff_t jmplen = GetJumpOffset(pc, pc);
+                jmplen = GetJumpOffset(pc, pc);
                 if (pc + jmplen < target) {
                     oplen = (uintN) jmplen;
                     continue;
@@ -5262,19 +5248,31 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
                  * Ok, target lies in E. Manually pop C off the model stack,
                  * since we have moved beyond the IFEQ now.
                  */
-                LOCAL_ASSERT(pcdepth != 0);
                 --pcdepth;
+                LOCAL_ASSERT(pcdepth >= 0);
             }
         }
 
         if (sn && SN_TYPE(sn) == SRC_HIDDEN)
             continue;
 
-        uintN nuses = js_GetStackUses(cs, op, pc);
-        uintN ndefs = js_GetStackDefs(cx, cs, op, script, pc);
-        LOCAL_ASSERT(pcdepth >= nuses);
+        nuses = cs->nuses;
+        if (nuses < 0)
+            nuses = js_GetVariableStackUseLength(op, pc);
+
+        ndefs = cs->ndefs;
+        if (ndefs < 0) {
+            JSObject *obj;
+
+            JS_ASSERT(op == JSOP_ENTERBLOCK);
+            GET_OBJECT_FROM_BYTECODE(script, pc, 0, obj);
+            JS_ASSERT(OBJ_BLOCK_DEPTH(cx, obj) == pcdepth);
+            ndefs = OBJ_BLOCK_COUNT(cx, obj);
+        }
+
         pcdepth -= nuses;
-        LOCAL_ASSERT(pcdepth + ndefs <= StackDepth(script));
+        LOCAL_ASSERT(pcdepth >= 0);
+        LOCAL_ASSERT((uintN)(pcdepth + ndefs) <= StackDepth(script));
 
         /*
          * Fill the slots that the opcode defines withs its pc unless it just
@@ -5284,7 +5282,7 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
         switch (op) {
           default:
             if (pcstack) {
-                for (uintN i = 0; i != ndefs; ++i)
+                for (i = 0; i != ndefs; ++i)
                     pcstack[pcdepth + i] = pc;
             }
             break;
