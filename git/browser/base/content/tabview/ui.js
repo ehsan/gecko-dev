@@ -88,6 +88,12 @@ let UI = {
   // An array of functions to be called at uninit time
   _cleanupFunctions: [],
   
+  // Constant: _maxInteractiveWait
+  // If the UI is in the middle of an operation, this is the max amount of
+  // milliseconds to wait between input events before we no longer consider
+  // the operation interactive.
+  _maxInteractiveWait: 250,
+
   // Variable: _privateBrowsing
   // Keeps track of info related to private browsing, including: 
   //   transitionStage - what step we're on in entering/exiting PB
@@ -324,6 +330,18 @@ let UI = {
   },
 
   // ----------
+  // Function: isIdle
+  // Returns true if the last interaction was long enough ago to consider the
+  // UI idle. Used to determine whether interactivity would be sacrificed if 
+  // the CPU was to become busy.
+  //
+  isIdle: function UI_isIdle() {
+    let time = Date.now();
+    let maxEvent = Math.max(drag.lastMoveTime, resize.lastMoveTime);
+    return (time - maxEvent) > this._maxInteractiveWait;
+  },
+
+  // ----------
   // Function: getActiveTab
   // Returns the currently active tab as a <TabItem>
   //
@@ -453,6 +471,8 @@ let UI = {
     if (!this._isTabViewVisible())
       return;
 
+    // another tab might be select if user decides to stay on a page when
+    // a onclose confirmation prompts.
     GroupItems.removeHiddenGroups();
     TabItems.pausePainting();
 
@@ -681,6 +701,7 @@ let UI = {
   },
 
   // ----------
+  // Function: goToTab
   // Selects the given xul:tab in the browser.
   goToTab: function UI_goToTab(xulTab) {
     // If it's not focused, the onFocus listener would handle it.
@@ -712,6 +733,11 @@ let UI = {
     // selected tab, show chrome.
     if (this._isTabViewVisible())
       this.hideTabView();
+
+    // another tab might be selected when hideTabView() is invoked so a
+    // validation is needed.
+    if (this._currentTab != tab)
+      return;
 
     let oldItem = null;
     let newItem = null;
@@ -817,11 +843,16 @@ let UI = {
     var self = this;
 
     iQ(window).keyup(function(event) {
-      if (!event.metaKey) Keys.meta = false;
+      if (!event.metaKey) 
+        Keys.meta = false;
     });
 
     iQ(window).keydown(function(event) {
-      if (event.metaKey) Keys.meta = true;
+      if (event.metaKey) 
+        Keys.meta = true;
+
+      if (isSearchEnabled())
+        return;
 
       function getClosestTabBy(norm) {
         if (!self.getActiveTab())
@@ -878,7 +909,7 @@ let UI = {
                  event.keyCode == KeyEvent.DOM_VK_ENTER) {
         let activeTab = self.getActiveTab();
         if (activeTab)
-            activeTab.zoomIn();
+          activeTab.zoomIn();
 
         event.stopPropagation();
         event.preventDefault();
@@ -992,11 +1023,12 @@ let UI = {
     }
 
     function collapse() {
+      let center = phantom.bounds().center();
       phantom.animate({
         width: 0,
         height: 0,
-        top: phantom.position().x + phantom.height()/2,
-        left: phantom.position().y + phantom.width()/2
+        top: center.y,
+        left: center.x
       }, {
         duration: 300,
         complete: function() {

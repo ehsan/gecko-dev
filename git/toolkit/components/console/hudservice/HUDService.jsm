@@ -128,6 +128,16 @@ const HISTORY_FORWARD = 1;
 // The maximum number of bytes a Network ResponseListener can hold.
 const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
 
+// Minimum console height, in pixels.
+const MINIMUM_CONSOLE_HEIGHT = 150;
+
+// Minimum page height, in pixels. This prevents the Web Console from
+// remembering a height that covers the whole page.
+const MINIMUM_PAGE_HEIGHT = 50;
+
+// The default console height, as a ratio from the content window inner height.
+const DEFAULT_CONSOLE_HEIGHT = 0.33;
+
 const ERRORS = { LOG_MESSAGE_MISSING_ARGS:
                  "Missing arguments: aMessage, aConsoleNode and aMessageNode are required.",
                  CANNOT_GET_HUD: "Cannot getHeads Up Display with provided ID",
@@ -233,7 +243,8 @@ ResponseListener.prototype =
 
     if (HUDService.saveRequestAndResponseBodies &&
         this.receivedData.length < RESPONSE_BODY_LIMIT) {
-      this.receivedData += data;
+      this.receivedData += NetworkHelper.
+                           convertToUnicode(data, aRequest.contentCharset);
     }
 
     binaryOutputStream.writeBytes(data, aCount);
@@ -391,10 +402,22 @@ var NetworkHelper =
    */
   convertToUnicode: function NH_convertToUnicode(aText, aCharset)
   {
+    if (!aCharset) {
+      return aText;
+    }
+
     let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
                createInstance(Ci.nsIScriptableUnicodeConverter);
-    conv.charset = aCharset || "UTF-8";
-    return conv.ConvertToUnicode(aText);
+    conv.charset = aCharset;
+
+    try {
+      return conv.ConvertToUnicode(aText);
+    }
+    catch (ex) {
+      Cu.reportError("NH_convertToUnicode(aText, '" +
+        aCharset + "') exception: " + ex);
+      return aText;
+    }
   },
 
   /**
@@ -1350,17 +1373,14 @@ function HUD_SERVICE()
   }
 
   this.mixins = mixins;
-  this.storage = new ConsoleStorage();
-  this.defaultFilterPrefs = this.storage.defaultDisplayPrefs;
-  this.defaultGlobalConsolePrefs = this.storage.defaultGlobalConsolePrefs;
 
   // These methods access the "this" object, but they're registered as
   // event listeners. So we hammer in the "this" binding.
   this.onTabClose = this.onTabClose.bind(this);
   this.onWindowUnload = this.onWindowUnload.bind(this);
 
-  // begin observing HTTP traffic
-  this.startHTTPObservation();
+  // Remembers the last console height, in pixels.
+  this.lastConsoleHeight = Services.prefs.getIntPref("devtools.hud.height");
 };
 
 HUD_SERVICE.prototype =
@@ -1521,23 +1541,31 @@ HUD_SERVICE.prototype =
    * Activate a HeadsUpDisplay for the given tab context.
    *
    * @param Element aContext the tab element.
+   * @param boolean aAnimated animate opening the Web Console?
    * @returns void
    */
-  activateHUDForContext: function HS_activateHUDForContext(aContext)
+  activateHUDForContext: function HS_activateHUDForContext(aContext, aAnimated)
   {
+    this.wakeup();
+
     var window = aContext.linkedBrowser.contentWindow;
     var id = aContext.linkedBrowser.parentNode.parentNode.getAttribute("id");
     this.registerActiveContext(id);
-    HUDService.windowInitializer(window);
+    this.windowInitializer(window);
+
+    if (!aAnimated) {
+      this.disableAnimation("hud_" + id);
+    }
   },
 
   /**
    * Deactivate a HeadsUpDisplay for the given tab context.
    *
    * @param nsIDOMWindow aContext
+   * @param aAnimated animate closing the web console?
    * @returns void
    */
-  deactivateHUDForContext: function HS_deactivateHUDForContext(aContext)
+  deactivateHUDForContext: function HS_deactivateHUDForContext(aContext, aAnimated)
   {
     let window = aContext.linkedBrowser.contentWindow;
     let nBox = aContext.ownerDocument.defaultView.
@@ -1546,9 +1574,13 @@ HUD_SERVICE.prototype =
     let displayNode = nBox.querySelector("#" + hudId);
 
     if (hudId in this.displayRegistry && displayNode) {
-    this.unregisterActiveContext(hudId);
+      if (!aAnimated) {
+        this.storeHeight(hudId);
+      }
+
+      this.unregisterActiveContext(hudId);
       this.unregisterDisplay(displayNode);
-    window.focus();
+      window.focus();
     }
   },
 
@@ -1847,9 +1879,7 @@ HUD_SERVICE.prototype =
     this.filterPrefs[aHUDId] = this.defaultFilterPrefs;
     this.displayRegistry[aHUDId] = URISpec;
 
-    // get the window Id
-    var windowId = this.getWindowId(aContentWindow);
-    this._headsUpDisplays[aHUDId] = { id: aHUDId, windowId: windowId };
+    this._headsUpDisplays[aHUDId] = { id: aHUDId };
 
     this.registerActiveContext(aHUDId);
     // init storage objects:
@@ -1934,16 +1964,63 @@ HUD_SERVICE.prototype =
     let displays = this.displays();
 
     var uri  = this.displayRegistry[id];
-    var specHudArr = this.uriRegistry[uri];
 
-    for (var i = 0; i < specHudArr.length; i++) {
-      if (specHudArr[i] == id) {
-        specHudArr.splice(i, 1);
-      }
+    if (this.uriRegistry[uri]) {
+      this.uriRegistry[uri] = this.uriRegistry[uri].filter(function(e) e != id);
     }
+
     delete displays[id];
     delete this.displayRegistry[id];
     delete this.uriRegistry[uri];
+
+    if (Object.keys(this._headsUpDisplays).length == 0) {
+      this.suspend();
+    }
+  },
+
+  /**
+   * "Wake up" the Web Console activity. This is called when the first Web
+   * Console is open. This method initializes the various observers we have.
+   *
+   * @returns void
+   */
+  wakeup: function HS_wakeup()
+  {
+    if (Object.keys(this._headsUpDisplays).length > 0) {
+      return;
+    }
+
+    this.storage = new ConsoleStorage();
+    this.defaultFilterPrefs = this.storage.defaultDisplayPrefs;
+    this.defaultGlobalConsolePrefs = this.storage.defaultGlobalConsolePrefs;
+
+    // begin observing HTTP traffic
+    this.startHTTPObservation();
+
+    HUDWindowObserver.init();
+    HUDConsoleObserver.init();
+    ConsoleAPIObserver.init();
+  },
+
+  /**
+   * Suspend Web Console activity. This is called when all Web Consoles are
+   * closed.
+   *
+   * @returns void
+   */
+  suspend: function HS_suspend()
+  {
+    activityDistributor.removeObserver(this.httpObserver);
+    delete this.httpObserver;
+
+    // delete the storage as it holds onto channels
+    delete this.storage;
+    delete this.defaultFilterPrefs;
+    delete this.defaultGlobalConsolePrefs;
+
+    HUDWindowObserver.uninit();
+    HUDConsoleObserver.uninit();
+    ConsoleAPIObserver.shutdown();
   },
 
   /**
@@ -1956,8 +2033,6 @@ HUD_SERVICE.prototype =
     for (var displayId in this._headsUpDisplays) {
       this.unregisterDisplay(displayId);
     }
-    // delete the storage as it holds onto channels
-    delete this.storage;
   },
 
   /**
@@ -1994,9 +2069,6 @@ HUD_SERVICE.prototype =
     // Cache it!
     let hudId = hudBox.id;
     this.windowRegistry[hudId].push(aContentWindow);
-
-    let wu = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
 
     let uri = aContentWindow.document.location.href;
     if (!this.uriRegistry[uri]) {
@@ -2109,23 +2181,35 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * logs a message to the Heads Up Display that originates
-   * in the nsIConsoleService
+   * Logs a message to the Heads Up Display that originates
+   * from the window.console API
    *
-   * @param nsIConsoleMessage aMessage
-   * @param nsIDOMNode aConsoleNode
-   * @param nsIDOMNode aMessageNode
-   * @returns void
+   * @param aHudId
+   * @param string aLevel one of log/info/warn/error
+   * @param string aArguments
    */
-  logConsoleMessage: function HS_logConsoleMessage(aMessage,
-                                                   aConsoleNode,
-                                                   aMessageNode)
+  logConsoleAPIMessage: function HS_logConsoleAPIMessage(aHudId,
+                                                         aLevel,
+                                                         aArguments)
   {
-    aConsoleNode.appendChild(aMessageNode);
-    ConsoleUtils.scrollToVisible(aMessageNode);
+    let hud = this.hudReferences[aHudId];
+    let messageNode = hud.makeXULNode("label");
+    let klass = "hud-msg-node hud-" + aLevel;
+    messageNode.setAttribute("class", klass);
 
-    // store this message in the storage module:
-    this.storage.recordEntry(aMessage.hudId, aMessage);
+    let message = Array.join(aArguments, " ") + "\n";
+    let ts = ConsoleUtils.timestamp();
+    let timestampedMessage = ConsoleUtils.timestampString(ts) + ": " + message;
+    messageNode.appendChild(hud.chromeDocument.createTextNode(timestampedMessage));
+
+    let messageObject = {
+      logLevel: aLevel,
+      hudId: aHudId,
+      message: message,
+      timestamp: ts,
+      origin: "WebConsole"
+    };
+    this.logMessage(messageObject, hud.outputNode, messageNode);
   },
 
   /**
@@ -2399,7 +2483,10 @@ HUD_SERVICE.prototype =
               return;
             }
 
-            let msgObject, updatePanel = false;
+            hudId = httpActivity.hudId;
+            let msgObject = httpActivity.messageObject;
+
+            let updatePanel = false;
             let data, textNode;
             // Store the time information for this activity subtype.
             httpActivity.timing[transCodes[aActivitySubtype]] = aTimestamp;
@@ -2411,10 +2498,14 @@ HUD_SERVICE.prototype =
                   break;
                 }
 
-                let gBrowser = HUDService.currentContext().gBrowser;
+                let gBrowser = msgObject.messageNode.ownerDocument.
+                               defaultView.gBrowser;
+                let HUD = HUDService.hudReferences[hudId];
+                let browser = gBrowser.
+                              getBrowserForDocument(HUD.contentDocument);
 
-                let sentBody = NetworkHelper.readPostTextFromRequest(
-                                aChannel, gBrowser);
+                let sentBody = NetworkHelper.
+                               readPostTextFromRequest(aChannel, browser);
                 if (!sentBody) {
                   // If the request URL is the same as the current page url, then
                   // we can try to get the posted text from the page directly.
@@ -2423,8 +2514,8 @@ HUD_SERVICE.prototype =
                   // function is called for image requests as well but these
                   // are not web pages and as such don't store the posted text
                   // in the cache of the webpage.
-                  if (httpActivity.url == gBrowser.contentWindow.location.href) {
-                    sentBody = NetworkHelper.readPostTextFromPage(gBrowser);
+                  if (httpActivity.url == browser.contentWindow.location.href) {
+                    sentBody = NetworkHelper.readPostTextFromPage(browser);
                   }
                   if (!sentBody) {
                     sentBody = "";
@@ -2434,8 +2525,6 @@ HUD_SERVICE.prototype =
                 break;
 
               case activityDistributor.ACTIVITY_SUBTYPE_RESPONSE_HEADER:
-                msgObject = httpActivity.messageObject;
-
                 // aExtraStringData contains the response header. The first line
                 // contains the response status (e.g. HTTP/1.1 200 OK).
                 //
@@ -2460,12 +2549,18 @@ HUD_SERVICE.prototype =
                     msgObject.prefix +
                     self.getFormatStr("networkUrlWithStatus", data) + "\n"));
 
+                let status = parseInt(httpActivity.response.status.
+                  replace(/^HTTP\/\d\.\d (\d+).+$/, "$1"));
+
+                if (status) {
+                  msgObject.messageNode.classList.
+                    add((status >= 400 && status < 600) ?
+                      "hud-error" : "hud-info");
+                }
+
                 break;
 
               case activityDistributor.ACTIVITY_SUBTYPE_TRANSACTION_CLOSE:
-                msgObject = httpActivity.messageObject;
-
-
                 let timing = httpActivity.timing;
                 let requestDuration =
                   Math.round((timing.RESPONSE_COMPLETE -
@@ -2519,6 +2614,8 @@ HUD_SERVICE.prototype =
         0x804b0006: "STATUS_RECEIVING_FROM"
       }
     };
+
+    this.httpObserver = httpObserver;
 
     activityDistributor.addObserver(httpObserver);
   },
@@ -2775,7 +2872,8 @@ HUD_SERVICE.prototype =
     0: "error",
     1: "warn",
     2: "exception",
-    4: "strict"
+    4: "error", // strict error
+    5: "warn", // strict warning
   },
 
   /**
@@ -2785,7 +2883,8 @@ HUD_SERVICE.prototype =
     0: "typeError",
     1: "typeWarning",
     2: "typeException",
-    4: "typeStrict",
+    4: "typeError", // strict error
+    5: "typeStrict", // strict warning
   },
 
   /**
@@ -2953,8 +3052,10 @@ HUD_SERVICE.prototype =
   animate: function HS_animate(aHUDId, aDirection, aCallback)
   {
     let hudBox = this.getOutputNodeById(aHUDId);
-    if (!hudBox.classList.contains("animated") && aCallback) {
-      aCallback();
+    if (!hudBox.classList.contains("animated")) {
+      if (aCallback) {
+        aCallback();
+      }
       return;
     }
 
@@ -2963,8 +3064,7 @@ HUD_SERVICE.prototype =
         hudBox.style.height = 0;
         break;
       case ANIMATE_IN:
-        var contentWindow = hudBox.ownerDocument.defaultView;
-        hudBox.style.height = Math.ceil(contentWindow.innerHeight / 3) + "px";
+        this.resetHeight(aHUDId);
         break;
     }
 
@@ -2982,10 +3082,70 @@ HUD_SERVICE.prototype =
    */
   disableAnimation: function HS_disableAnimation(aHUDId)
   {
-    let hudBox = this.getOutputNodeById(aHUDId);
-    hudBox.classList.remove("animated");
-    hudBox.style.height = "300px";
-  }
+    let hudBox = HUDService.hudReferences[aHUDId].HUDBox;
+    if (hudBox.classList.contains("animated")) {
+      hudBox.classList.remove("animated");
+      this.resetHeight(aHUDId);
+    }
+  },
+
+  /**
+   * Reset the height of the Web Console.
+   *
+   * @param string aHUDId The ID of the Web Console.
+   */
+  resetHeight: function HS_resetHeight(aHUDId)
+  {
+    let HUD = this.hudReferences[aHUDId];
+
+    let innerHeight = HUD.contentWindow.innerHeight;
+    let splitter = HUD.HUDBox.parentNode.querySelector(".hud-splitter");
+    let chromeWindow = splitter.ownerDocument.defaultView;
+
+    let splitterStyle = chromeWindow.getComputedStyle(splitter, null);
+    innerHeight += parseInt(splitterStyle.height) +
+                   parseInt(splitterStyle.borderTopWidth) +
+                   parseInt(splitterStyle.borderBottomWidth);
+
+    let boxStyle = chromeWindow.getComputedStyle(HUD.HUDBox, null);
+    innerHeight += parseInt(boxStyle.height) +
+                   parseInt(boxStyle.borderTopWidth) +
+                   parseInt(boxStyle.borderBottomWidth);
+
+    let height = this.lastConsoleHeight > 0 ? this.lastConsoleHeight :
+      Math.ceil(innerHeight * DEFAULT_CONSOLE_HEIGHT);
+
+    if ((innerHeight - height) < MINIMUM_PAGE_HEIGHT) {
+      height = innerHeight - MINIMUM_PAGE_HEIGHT;
+    }
+    else if (height < MINIMUM_CONSOLE_HEIGHT) {
+      height = MINIMUM_CONSOLE_HEIGHT;
+    }
+
+    HUD.HUDBox.style.height = height + "px";
+  },
+
+  /**
+   * Remember the height of the given Web Console, such that it can later be
+   * reused when other Web Consoles are open.
+   *
+   * @param string aHUDId The ID of the Web Console.
+   */
+  storeHeight: function HS_storeHeight(aHUDId)
+  {
+    let hudBox = this.hudReferences[aHUDId].HUDBox;
+    let window = hudBox.ownerDocument.defaultView;
+    let style = window.getComputedStyle(hudBox, null);
+    let height = parseInt(style.height);
+    height += parseInt(style.borderTopWidth);
+    height += parseInt(style.borderBottomWidth);
+    this.lastConsoleHeight = height;
+
+    let pref = Services.prefs.getIntPref("devtools.hud.height");
+    if (pref > -1) {
+      Services.prefs.setIntPref("devtools.hud.height", height);
+    }
+  },
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -3512,26 +3672,16 @@ let ConsoleAPIObserver = {
     if (aTopic == "console-api-log-event") {
       aMessage = aMessage.wrappedJSObject;
       let windowId = parseInt(aData);
-      try {
-        let win = HUDService.getWindowByWindowId(windowId).top;
-      }
-      catch (ex) {
-        // noop
+      let win = HUDService.getWindowByWindowId(windowId);
+      if (!win)
         return;
-      }
 
-      let hudId;
-      let displays = HUDService._headsUpDisplays;
-      let foundConsoleId = false;
-      for (let idx in displays) {
-        if (parseInt(displays[idx].windowId) == parseInt(windowId)) {
-          hudId = displays[idx].id;
-          foundConsoleId = true;
-          let webConsole = HUDService.hudReferences[hudId];
+      // Find the HUD ID for the topmost window
+      let hudId = HUDService.getHudIdByWindow(win.top);
+      if (!hudId)
+        return;
 
-          this.sendToWebConsole(webConsole, aMessage.level, aMessage.arguments);
-        }
-      }
+      HUDService.logConsoleAPIMessage(hudId, aMessage.level, aMessage.arguments);
     }
     else if (aTopic == "quit-application-granted") {
       this.shutdown();
@@ -3540,33 +3690,9 @@ let ConsoleAPIObserver = {
 
   shutdown: function CAO_shutdown()
   {
+    Services.obs.removeObserver(this, "quit-application-granted");
     Services.obs.removeObserver(this, "console-api-log-event");
-  },
-
-  sendToWebConsole:
-  function CAO_sendToWebConsole(aWebConsole, aLevel, aArguments)
-  {
-    let ts = ConsoleUtils.timestamp();
-    let messageNode = aWebConsole.makeXULNode("label");
-    let klass = "hud-msg-node hud-" + aLevel;
-
-    messageNode.setAttribute("class", klass);
-
-    let message = Array.join(aArguments, " ") + "\n";
-    let timestampedMessage = ConsoleUtils.timestampString(ts) + ": " + message;
-
-    messageNode.appendChild(aWebConsole.chromeDocument.createTextNode(timestampedMessage));
-    // need a constructor here to properly set all attrs
-    let messageObject = {
-      logLevel: aLevel,
-      hudId: aWebConsole.hudId,
-      message: message,
-      timestamp: ts,
-      origin: "WebConsole",
-    };
-
-    HUDService.logMessage(messageObject, aWebConsole.outputNode, messageNode);
-  },
+  }
 };
 
 /**
@@ -3939,6 +4065,16 @@ function JSTermHelper(aJSTerm)
   };
 
   /**
+   * Opens a help window in MDC
+   */
+  aJSTerm.sandbox.help = function JSTH_help()
+  {
+    aJSTerm._window.open(
+        "https://developer.mozilla.org/AppLinks/WebConsoleHelp?locale=" +
+        aJSTerm._window.navigator.language, "help", "");
+  };
+
+  /**
    * Inspects the passed aObject. This is done by opening the PropertyPanel.
    *
    * @param object aObject
@@ -4080,6 +4216,10 @@ JSTerm.prototype = {
    */
   evalInSandbox: function JST_evalInSandbox(aString)
   {
+    // The help function needs to be easy to guess, so we make the () optional
+    if (aString.trim() === "help" || aString.trim() === "?") {
+      aString = "help()";
+    }
     return Cu.evalInSandbox(aString, this.sandbox, "1.8", "Web Console", 1);
   },
 
@@ -5019,18 +5159,20 @@ HeadsUpDisplayUICommands = {
     var ownerDocument = gBrowser.selectedTab.ownerDocument;
     var hud = ownerDocument.getElementById(hudId);
     if (hud) {
+      HUDService.storeHeight(hudId);
+
       HUDService.animate(hudId, ANIMATE_OUT, function() {
         // If the user closes the console while the console is animating away,
         // then these callbacks will queue up, but all the callbacks after the
         // first will have no console to operate on. This test handles this
         // case gracefully.
         if (ownerDocument.getElementById(hudId)) {
-          HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+          HUDService.deactivateHUDForContext(gBrowser.selectedTab, true);
         }
       });
     }
     else {
-      HUDService.activateHUDForContext(gBrowser.selectedTab);
+      HUDService.activateHUDForContext(gBrowser.selectedTab, true);
       HUDService.animate(hudId, ANIMATE_IN);
     }
   },
@@ -5361,6 +5503,7 @@ HUDWindowObserver = {
   {
     Services.obs.removeObserver(this, "content-document-global-created");
     HUDService.shutdown();
+    this.initialConsoleCreated = false;
   },
 
 };
@@ -5447,35 +5590,42 @@ HUDConsoleObserver = {
     Services.obs.addObserver(this, "xpcom-shutdown", false);
   },
 
+  uninit: function HCO_uninit()
+  {
+    Services.console.unregisterListener(this);
+    Services.obs.removeObserver(this, "xpcom-shutdown");
+  },
+
   observe: function HCO_observe(aSubject, aTopic, aData)
   {
     if (aTopic == "xpcom-shutdown") {
-      Services.console.unregisterListener(this);
+      this.uninit();
+      return;
     }
 
-    if (aSubject instanceof Ci.nsIScriptError) {
-      let hudIds = ConsoleUtils.getHUDIdsForScriptError(aSubject);
+    if (!(aSubject instanceof Ci.nsIScriptError))
+      return;
 
-      switch (aSubject.category) {
-        // We ignore chrome-originating errors as we only
-        // care about content.
-        case "XPConnect JavaScript":
-        case "component javascript":
-        case "chrome javascript":
-        case "chrome registration":
-        case "XBL":
-        case "XBL Prototype Handler":
-        case "XBL Content Sink":
-        case "xbl javascript":
-        case "FrameConstructor":
-          return;
+    switch (aSubject.category) {
+      // We ignore chrome-originating errors as we only
+      // care about content.
+      case "XPConnect JavaScript":
+      case "component javascript":
+      case "chrome javascript":
+      case "chrome registration":
+      case "XBL":
+      case "XBL Prototype Handler":
+      case "XBL Content Sink":
+      case "xbl javascript":
+      case "FrameConstructor":
+        return;
 
-        default:
-          for (let i = 0; i < hudIds.length; i++) {
-            HUDService.logActivity("console-listener", hudIds[i], aSubject);
-          }
-          return;
-      }
+      default:
+        let hudIds = ConsoleUtils.getHUDIdsForScriptError(aSubject);
+        for (let i = 0; i < hudIds.length; i++) {
+          HUDService.logActivity("console-listener", hudIds[i], aSubject);
+        }
+        return;
     }
   }
 };
@@ -5517,9 +5667,6 @@ try {
   // This is in a try block because we want to kill everything if
   // *any* of this fails
   var HUDService = new HUD_SERVICE();
-  HUDWindowObserver.init();
-  HUDConsoleObserver.init();
-  ConsoleAPIObserver.init();
 }
 catch (ex) {
   Cu.reportError("HUDService failed initialization.\n" + ex);
