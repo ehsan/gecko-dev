@@ -24,53 +24,48 @@ XPCOMUtils.defineLazyModuleGetter(this, "PanelFrame", "resource:///modules/Panel
      *                         the panel to the button which triggers it.
      * @param {String} [tabId] Identifier of the tab to select when the panel is
      *                         opened. Example: 'rooms', 'contacts', etc.
-     * @return {Promise}
      */
     openCallPanel: function(event, tabId = null) {
-      return new Promise((resolve) => {
-        let callback = iframe => {
-          // Helper function to show a specific tab view in the panel.
-          function showTab() {
-            if (!tabId) {
-              resolve();
-              return;
-            }
-
-            let win = iframe.contentWindow;
-            let ev = new win.CustomEvent("UIAction", Cu.cloneInto({
-              detail: {
-                action: "selectTab",
-                tab: tabId
-              }
-            }, win));
-            win.dispatchEvent(ev);
-            resolve();
-          }
-
-          // If the panel has been opened and initialized before, we can skip waiting
-          // for the content to load - because it's already there.
-          if (("contentWindow" in iframe) && iframe.contentWindow.document.readyState == "complete") {
-            showTab();
+      let callback = iframe => {
+        // Helper function to show a specific tab view in the panel.
+        function showTab() {
+          if (!tabId) {
             return;
           }
 
-          iframe.addEventListener("DOMContentLoaded", function documentDOMLoaded() {
-            iframe.removeEventListener("DOMContentLoaded", documentDOMLoaded, true);
-            injectLoopAPI(iframe.contentWindow);
-            iframe.contentWindow.addEventListener("loopPanelInitialized", function loopPanelInitialized() {
-              iframe.contentWindow.removeEventListener("loopPanelInitialized",
-                                                       loopPanelInitialized);
-              showTab();
-            });
-          }, true);
-        };
+          let win = iframe.contentWindow;
+          let ev = new win.CustomEvent("UIAction", Cu.cloneInto({
+            detail: {
+              action: "selectTab",
+              tab: tabId
+            }
+          }, win));
+          win.dispatchEvent(ev);
+        }
 
-        // Used to clear the temporary "login" state from the button.
-        Services.obs.notifyObservers(null, "loop-status-changed", null);
+        // If the panel has been opened and initialized before, we can skip waiting
+        // for the content to load - because it's already there.
+        if (("contentWindow" in iframe) && iframe.contentWindow.document.readyState == "complete") {
+          showTab();
+          return;
+        }
 
-        PanelFrame.showPopup(window, event ? event.target : this.toolbarButton.node,
-                             "loop", null, "about:looppanel", null, callback);
-      });
+        iframe.addEventListener("DOMContentLoaded", function documentDOMLoaded() {
+          iframe.removeEventListener("DOMContentLoaded", documentDOMLoaded, true);
+          injectLoopAPI(iframe.contentWindow);
+          iframe.contentWindow.addEventListener("loopPanelInitialized", function loopPanelInitialized() {
+            iframe.contentWindow.removeEventListener("loopPanelInitialized",
+              loopPanelInitialized);
+            showTab();
+          });
+        }, true);
+      };
+
+      // Used to clear the temporary "login" state from the button.
+      Services.obs.notifyObservers(null, "loop-status-changed", null);
+
+      PanelFrame.showPopup(window, event ? event.target : this.toolbarButton.node,
+                           "loop", null, "about:looppanel", null, callback);
     },
 
     /**
