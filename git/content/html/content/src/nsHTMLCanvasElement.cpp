@@ -49,7 +49,6 @@
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
 #include "nsMathUtils.h"
-#include "nsStreamUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
@@ -236,15 +235,7 @@ nsHTMLCanvasElement::MozFetchAsStream(nsIInputStreamCallback *aCallback,
   nsCOMPtr<nsIAsyncInputStream> asyncData = do_QueryInterface(inputData, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIThread> mainThread;
-  rv = NS_GetMainThread(getter_AddRefs(mainThread));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIInputStreamCallback> asyncCallback;
-  rv = NS_NewInputStreamReadyEvent(getter_AddRefs(asyncCallback), aCallback, mainThread);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return asyncCallback->OnInputStreamReady(asyncData);
+  return aCallback->OnInputStreamReady(asyncData);
 }
 
 nsresult
