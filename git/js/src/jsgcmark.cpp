@@ -417,18 +417,23 @@ MarkRoot(JSTracer *trc, JSXML *thing, const char *name)
 static void
 PrintPropertyGetterOrSetter(JSTracer *trc, char *buf, size_t bufsize)
 {
-    JS_ASSERT(trc->debugPrinter == PrintPropertyGetterOrSetter);
-    Shape *shape = (Shape *)trc->debugPrintArg;
-    jsid propid = shape->propid;
-    JS_ASSERT(!JSID_IS_VOID(propid));
-    const char *name = trc->debugPrintIndex ? js_setter_str : js_getter_str;
+    Shape *shape;
+    jsid id;
+    size_t n;
+    const char *name;
 
-    if (JSID_IS_ATOM(propid)) {
-        size_t n = PutEscapedString(buf, bufsize, JSID_TO_ATOM(propid), 0);
+    JS_ASSERT(trc->debugPrinter == PrintPropertyGetterOrSetter);
+    shape = (Shape *)trc->debugPrintArg;
+    id = shape->id;
+    JS_ASSERT(!JSID_IS_VOID(id));
+    name = trc->debugPrintIndex ? js_setter_str : js_getter_str;
+
+    if (JSID_IS_ATOM(id)) {
+        n = PutEscapedString(buf, bufsize, JSID_TO_ATOM(id), 0);
         if (n < bufsize)
             JS_snprintf(buf + n, bufsize - n, " %s", name);
-    } else if (JSID_IS_INT(shape->propid)) {
-        JS_snprintf(buf, bufsize, "%d %s", JSID_TO_INT(propid), name);
+    } else if (JSID_IS_INT(shape->id)) {
+        JS_snprintf(buf, bufsize, "%d %s", JSID_TO_INT(id), name);
     } else {
         JS_snprintf(buf, bufsize, "<object> %s", name);
     }
@@ -437,13 +442,17 @@ PrintPropertyGetterOrSetter(JSTracer *trc, char *buf, size_t bufsize)
 static void
 PrintPropertyMethod(JSTracer *trc, char *buf, size_t bufsize)
 {
-    JS_ASSERT(trc->debugPrinter == PrintPropertyMethod);
-    Shape *shape = (Shape *)trc->debugPrintArg;
-    jsid propid = shape->propid;
-    JS_ASSERT(!JSID_IS_VOID(propid));
+    Shape *shape;
+    jsid id;
+    size_t n;
 
-    JS_ASSERT(JSID_IS_ATOM(propid));
-    size_t n = PutEscapedString(buf, bufsize, JSID_TO_ATOM(propid), 0);
+    JS_ASSERT(trc->debugPrinter == PrintPropertyMethod);
+    shape = (Shape *)trc->debugPrintArg;
+    id = shape->id;
+    JS_ASSERT(!JSID_IS_VOID(id));
+
+    JS_ASSERT(JSID_IS_ATOM(id));
+    n = PutEscapedString(buf, bufsize, JSID_TO_ATOM(id), 0);
     if (n < bufsize)
         JS_snprintf(buf + n, bufsize - n, " method");
 }
@@ -475,14 +484,14 @@ ScanShape(GCMarker *gcmarker, const Shape *shape)
 restart:
     JSRuntime *rt = gcmarker->context->runtime;
     if (rt->gcRegenShapes)
-        shape->shapeid = js_RegenerateShapeForGC(rt);
+        shape->shape = js_RegenerateShapeForGC(rt);
 
-    if (JSID_IS_STRING(shape->propid)) {
-        JSString *str = JSID_TO_STRING(shape->propid);
+    if (JSID_IS_STRING(shape->id)) {
+        JSString *str = JSID_TO_STRING(shape->id);
         if (!str->isStaticAtom())
             PushMarkStack(gcmarker, str);
-    } else if (JS_UNLIKELY(JSID_IS_OBJECT(shape->propid))) {
-        PushMarkStack(gcmarker, JSID_TO_OBJECT(shape->propid));
+    } else if (JS_UNLIKELY(JSID_IS_OBJECT(shape->id))) {
+        PushMarkStack(gcmarker, JSID_TO_OBJECT(shape->id));
     }
 
     if (shape->hasGetterValue() && shape->getter())
@@ -523,13 +532,10 @@ ScanObject(GCMarker *gcmarker, JSObject *obj)
 
     Class *clasp = obj->getClass();
     if (clasp->trace) {
-        if (obj->isDenseArray() && obj->getDenseArrayCapacity() > LARGE_OBJECT_CHUNK_SIZE) {
-            if (!gcmarker->largeStack.push(LargeMarkItem(obj))) {
-                clasp->trace(gcmarker, obj);
-            }
-        } else {
+        if (obj->isDenseArray() && obj->getDenseArrayCapacity() > LARGE_OBJECT_CHUNK_SIZE)
+            gcmarker->largeStack.push(LargeMarkItem(obj));
+        else
             clasp->trace(gcmarker, obj);
-        }
     }
 
     if (obj->emptyShapes) {
@@ -550,10 +556,10 @@ ScanObject(GCMarker *gcmarker, JSObject *obj)
 
         if (gcmarker->context->runtime->gcRegenShapes) {
             /* We need to regenerate our shape if hasOwnShape(). */
-            uint32 newShape = shape->shapeid;
+            uint32 newShape = shape->shape;
             if (obj->hasOwnShape()) {
                 newShape = js_RegenerateShapeForGC(gcmarker->context->runtime);
-                JS_ASSERT(newShape != shape->shapeid);
+                JS_ASSERT(newShape != shape->shape);
             }
             obj->objShape = newShape;
         }
@@ -561,10 +567,7 @@ ScanObject(GCMarker *gcmarker, JSObject *obj)
         uint32 nslots = obj->slotSpan();
         JS_ASSERT(obj->slotSpan() <= obj->numSlots());
         if (nslots > LARGE_OBJECT_CHUNK_SIZE) {
-            if (!gcmarker->largeStack.push(LargeMarkItem(obj))) {
-                for (uint32 i = nslots; i > 0; i--)
-                    ScanValue(gcmarker, obj->getSlot(i-1));
-            }
+            gcmarker->largeStack.push(LargeMarkItem(obj));
         } else {
             for (uint32 i = nslots; i > 0; i--) {
                 ScanValue(gcmarker, obj->getSlot(i-1));
@@ -663,7 +666,7 @@ void
 MarkChildren(JSTracer *trc, const Shape *shape)
 {
 restart:
-    MarkId(trc, shape->propid, "propid");
+    MarkId(trc, shape->id, "id");
 
     if (shape->hasGetterValue() && shape->getter())
         MarkObjectWithPrinter(trc, *shape->getterObject(), PrintPropertyGetterOrSetter, shape, 0);

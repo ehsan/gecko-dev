@@ -128,6 +128,10 @@ AddStyleSheetTxn::GetTxnDescription(nsAString& aString)
   return NS_OK;
 }
 
+#ifdef XP_MAC
+#pragma mark -
+#endif
+
 
 RemoveStyleSheetTxn::RemoveStyleSheetTxn()
 :  EditTxn()

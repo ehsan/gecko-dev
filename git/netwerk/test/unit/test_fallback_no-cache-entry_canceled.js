@@ -94,8 +94,7 @@ function run_test()
   var us = Cc["@mozilla.org/offlinecacheupdate-service;1"].
            getService(Ci.nsIOfflineCacheUpdateService);
   us.scheduleUpdate(make_uri("http://localhost:4444/manifest"),
-                    make_uri("http://localhost:4444/masterEntry"),
-                    null);
+                    make_uri("http://localhost:4444/masterEntry"));
 
   do_test_pending();
 }

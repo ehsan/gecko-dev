@@ -670,10 +670,6 @@ JSRuntime::init(uint32 maxbytes)
     propTreeDumpFilename = getenv("JS_PROPTREE_DUMPFILE");
 #endif
 
-#ifdef JS_TRACER
-    InitJIT();
-#endif
-
     if (!js_InitGC(this, maxbytes))
         return false;
 
@@ -728,10 +724,6 @@ JSRuntime::~JSRuntime()
 "JS API usage error: %u context%s left in runtime upon JS_DestroyRuntime.\n",
                 cxcount, (cxcount == 1) ? "" : "s");
     }
-#endif
-
-#ifdef JS_TRACER
-    FinishJIT();
 #endif
 
     js_FinishThreads(this);
@@ -4042,11 +4034,11 @@ JS_NextProperty(JSContext *cx, JSObject *iterobj, jsid *idp)
             shape = shape->previous();
 
         if (!shape->previous()) {
-            JS_ASSERT(JSID_IS_EMPTY(shape->propid));
+            JS_ASSERT(JSID_IS_EMPTY(shape->id));
             *idp = JSID_VOID;
         } else {
             iterobj->setPrivate(const_cast<Shape *>(shape->previous()));
-            *idp = shape->propid;
+            *idp = shape->id;
         }
     } else {
         /* Non-native case: use the ida enumerated when iterobj was created. */
@@ -4272,7 +4264,7 @@ JS_CloneFunctionObject(JSContext *cx, JSObject *funobj, JSObject *parent)
             obj = obj->getParent();
         }
 
-        if (!obj->getProperty(cx, r.front().propid, clone->getFlatClosureUpvars() + i))
+        if (!obj->getProperty(cx, r.front().id, clone->getFlatClosureUpvars() + i))
             return NULL;
     }
 

@@ -202,7 +202,8 @@ protected:
 
   static inline PRBool IsReadonlyReplaceable(jsid id)
   {
-    return (id == sParent_id       ||
+    return (id == sTop_id          ||
+            id == sParent_id       ||
             id == sScrollbars_id   ||
             id == sContent_id      ||
             id == sMenubar_id      ||
@@ -245,6 +246,7 @@ protected:
   static PRBool sDisableGlobalScopePollutionSupport;
 
 public:
+  static jsid sTop_id;
   static jsid sParent_id;
   static jsid sScrollbars_id;
   static jsid sLocation_id;

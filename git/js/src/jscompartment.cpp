@@ -91,6 +91,11 @@ JSCompartment::JSCompartment(JSRuntime *rt)
 {
     JS_INIT_CLIST(&scripts);
 
+#ifdef JS_TRACER
+    /* InitJIT expects this area to be zero'd. */
+    PodZero(&traceMonitor);
+#endif
+
     PodArrayZero(scriptsToGC);
 }
 
@@ -98,6 +103,10 @@ JSCompartment::~JSCompartment()
 {
 #if ENABLE_YARR_JIT
     Foreground::delete_(regExpAllocator);
+#endif
+
+#if defined JS_TRACER
+    FinishJIT(&traceMonitor);
 #endif
 
 #ifdef JS_METHODJIT
@@ -120,6 +129,9 @@ JSCompartment::init()
         arenas[i].init();
     for (unsigned i = 0; i < FINALIZE_LIMIT; i++)
         freeLists.finalizables[i] = NULL;
+#ifdef JS_GCMETER
+    memset(&compartmentStats, 0, sizeof(JSGCArenaStats) * FINALIZE_LIMIT);
+#endif
     if (!crossCompartmentWrappers.init())
         return false;
 
@@ -131,7 +143,7 @@ JSCompartment::init()
 #endif
 
 #ifdef JS_TRACER
-    if (!traceMonitor.init(rt))
+    if (!InitJIT(&traceMonitor, rt))
         return false;
 #endif
 
@@ -165,7 +177,7 @@ bool
 JSCompartment::arenaListsAreEmpty()
 {
   for (unsigned i = 0; i < FINALIZE_LIMIT; i++) {
-       if (!arenas[i].isEmpty())
+       if (!arenas[i].isEmpty() || arenas[i].hasToBeFinalized)
            return false;
   }
   return true;
