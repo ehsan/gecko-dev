@@ -52,6 +52,7 @@ _BROWSER_TEST_FILES = \
 	browser_webconsole_bug_580001_closing_after_completion.js \
 	browser_webconsole_bug_580400_groups.js \
 	browser_webconsole_bug_588730_text_node_insertion.js \
+	browser_webconsole_bug_601667_filter_buttons.js \
 	browser_webconsole_bug_597136_external_script_errors.js \
 	browser_webconsole_bug_597136_network_requests_from_chrome.js \
 	browser_webconsole_completion.js \
@@ -108,6 +109,8 @@ _BROWSER_TEST_FILES = \
 	browser_webconsole_bug_601177_log_levels.js \
 	browser_webconsole_bug_587615_lastTimestamp.js \
 	browser_webconsole_bug_597460_filter_scroll.js \
+	browser_webconsole_console_extras.js \
+	browser_webconsole_bug_598357_jsterm_output.js \
 	head.js \
 	$(NULL)
 
@@ -138,6 +141,28 @@ _BROWSER_TEST_PAGES = \
 	test-bug-595934-html.html \
 	test-bug-595934-malformedxml.xhtml \
 	test-bug-595934-svg.xhtml \
+	test-bug-595934-workers.html \
+	test-bug-595934-workers.js \
+	test-bug-595934-dom-html-external.html \
+	test-bug-595934-dom-html-external.js \
+	test-bug-595934-dom-events-external.html \
+	test-bug-595934-dom-events-external.js \
+	test-bug-595934-dom-events-external2.html \
+	test-bug-595934-dom-events-external2.js \
+	test-bug-595934-canvas.html \
+	test-bug-595934-canvas.js \
+	test-bug-595934-css-parser.html \
+	test-bug-595934-css-parser.css \
+	test-bug-595934-canvas-css.html \
+	test-bug-595934-canvas-css.js \
+	test-bug-595934-malformedxml-external.html \
+	test-bug-595934-malformedxml-external.xml \
+	test-bug-595934-empty-getelementbyid.html \
+	test-bug-595934-empty-getelementbyid.js \
+	test-bug-595934-getselection.html \
+	test-bug-595934-getselection.js \
+	test-bug-595934-image.html \
+	test-bug-595934-image.jpg \
 	test-bug-597136-external-script-errors.html \
 	test-bug-597136-external-script-errors.js \
 	test-bug-613013-console-api-iframe.html \
@@ -146,6 +171,7 @@ _BROWSER_TEST_PAGES = \
 	test-bug-600183-charset.html^headers^ \
 	test-bug-601177-log-levels.html \
 	test-bug-601177-log-levels.js \
+	test-console-extras.html \
 	$(NULL)
 
 libs:: $(_BROWSER_TEST_FILES)

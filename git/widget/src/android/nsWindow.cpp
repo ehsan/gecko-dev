@@ -135,6 +135,7 @@ static nsWindow* gFocusedWindow = nsnull;
 
 static nsRefPtr<gl::GLContext> sGLContext;
 static bool sFailedToCreateGLContext = false;
+static bool sValidSurface;
 
 // Multitouch swipe thresholds in inches
 static const double SWIPE_MAX_PINCH_DELTA_INCHES = 0.4;
@@ -657,7 +658,7 @@ nsWindow::SetWindowClass(const nsAString& xulWinType)
 }
 
 mozilla::layers::LayerManager*
-nsWindow::GetLayerManager(bool* aAllowRetaining)
+nsWindow::GetLayerManager(LayerManagerPersistence, bool* aAllowRetaining)
 {
     if (aAllowRetaining) {
         *aAllowRetaining = true;
@@ -697,6 +698,7 @@ nsWindow::GetLayerManager(bool* aAllowRetaining)
 
         if (layerManager && layerManager->Initialize(sGLContext))
             mLayerManager = layerManager;
+        sValidSurface = true;
     }
 
     if (!sGLContext || !mLayerManager) {
@@ -820,6 +822,13 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             }
             break;
 
+	case AndroidGeckoEvent::SURFACE_CREATED:
+	    break;
+
+	case AndroidGeckoEvent::SURFACE_DESTROYED:
+	    sValidSurface = false;
+	    break;
+
         default:
             break;
     }
@@ -868,7 +877,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 
         nsPaintEvent event(PR_TRUE, NS_PAINT, this);
         event.region = boundsRect;
-        switch (GetLayerManager()->GetBackendType()) {
+        switch (GetLayerManager(nsnull)->GetBackendType()) {
             case LayerManager::LAYERS_BASIC: {
                 nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
 
@@ -891,7 +900,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
             }
 
             case LayerManager::LAYERS_OPENGL: {
-                static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager())->
+                static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
                     SetClippingRegion(nsIntRegion(boundsRect));
 
                 status = DispatchEvent(&event);
@@ -913,6 +922,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
         offset = targetSurface->GetDeviceOffset();
 
     for (PRUint32 i = coveringChildIndex; i < mChildren.Length(); ++i) {
+        ALOG("nsWindow[%p]::DrawTo child[%d]", (void*) this, i);
         if (mChildren[i]->mBounds.IsEmpty() ||
             !mChildren[i]->mBounds.Intersects(boundsRect)) {
             continue;
@@ -931,6 +941,8 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 
     if (targetSurface)
         targetSurface->SetDeviceOffset(offset);
+
+    ALOG("nsWindow[%p]::DrawTo done", (void*) this);
 
     return PR_TRUE;
 }
@@ -960,7 +972,7 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
     AndroidBridge::Bridge()->HideProgressDialogOnce();
 
-    if (GetLayerManager()->GetBackendType() == LayerManager::LAYERS_BASIC) {
+    if (GetLayerManager(nsnull)->GetBackendType() == LayerManager::LAYERS_BASIC) {
         jobject bytebuf = sview.GetSoftwareDrawBuffer();
         if (!bytebuf) {
             ALOG("no buffer to draw into - skipping draw");
@@ -990,14 +1002,16 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
             return;
         }
 
-        NS_ASSERTION(sGLContext, "Drawing with GLES without a GL context?");
+        if (!sValidSurface) {
+            sGLContext->RenewSurface();
+            sValidSurface = true;
+        }
 
-        sGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
+
+        NS_ASSERTION(sGLContext, "Drawing with GLES without a GL context?");
 
         DrawTo(nsnull);
 
-        if (sGLContext)
-            sGLContext->SwapBuffers();
         sview.EndDrawing();
     }
 }
@@ -1506,8 +1520,6 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
 
     nsKeyEvent event(PR_TRUE, msg, this);
     InitKeyEvent(event, *ae);
-    if (event.charCode)
-        event.keyCode = 0;
     DispatchEvent(&event);
 
     if (isDown) {
@@ -1764,6 +1776,12 @@ nsWindow::OnIMEFocusChange(PRBool aFocus)
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_FOCUSCHANGE, 
                              int(aFocus));
+
+    if (aFocus) {
+        OnIMETextChange(0, 0, 0);
+        OnIMESelectionChange();
+    }
+
     return NS_OK;
 }
 
@@ -1773,25 +1791,22 @@ nsWindow::OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd)
     ALOGIME("IME: OnIMETextChange: s=%d, oe=%d, ne=%d",
             aStart, aOldEnd, aNewEnd);
 
-    // A quirk in Android makes it necessary to pass the whole text
-    // from index 0 to index aNewEnd. The more efficient way would
-    // have been passing the substring from index aStart to index aNewEnd
+    // A quirk in Android makes it necessary to pass the whole text.
+    // The more efficient way would have been passing the substring from index
+    // aStart to index aNewEnd
 
-    if (aNewEnd > 0) {
-        nsQueryContentEvent event(PR_TRUE, NS_QUERY_TEXT_CONTENT, this);
-        InitEvent(event, nsnull);
-        event.InitForQueryTextContent(0, aNewEnd);
+    nsQueryContentEvent event(PR_TRUE, NS_QUERY_TEXT_CONTENT, this);
+    InitEvent(event, nsnull);
+    event.InitForQueryTextContent(0, PR_UINT32_MAX);
 
-        DispatchEvent(&event);
-        if (!event.mSucceeded)
-            return NS_OK;
+    DispatchEvent(&event);
+    if (!event.mSucceeded)
+        return NS_OK;
 
-        AndroidBridge::NotifyIMEChange(event.mReply.mString.get(),
-                                       event.mReply.mString.Length(),
-                                       aStart, aOldEnd, aNewEnd);
-    } else {
-        AndroidBridge::NotifyIMEChange(nsnull, 0, aStart, aOldEnd, aNewEnd);
-    }
+    AndroidBridge::NotifyIMEChange(event.mReply.mString.get(),
+                                   event.mReply.mString.Length(),
+                                   aStart, aOldEnd, aNewEnd);
+
     return NS_OK;
 }
 

@@ -212,7 +212,9 @@ LayerManagerOGL::Initialize(GLContext *aExistingContext)
 
   // NOTE: Order matters here, and should be in the same order as the
   // ProgramType enum!
+#ifdef DEBUG
   GLint programIndex = 0;
+#endif
 
   /* Layer programs */
   SHADER_PROGRAM(RGBALayerProgramType, ColorTextureLayerProgram,
@@ -846,13 +848,13 @@ LayerManagerOGL::CopyToTarget()
 }
 
 LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
-  LayerManagerOGL::RGBALayerProgramType,
-  LayerManagerOGL::BGRALayerProgramType,
-  LayerManagerOGL::RGBXLayerProgramType,
-  LayerManagerOGL::BGRXLayerProgramType,
-  LayerManagerOGL::RGBARectLayerProgramType,
-  LayerManagerOGL::ColorLayerProgramType,
-  LayerManagerOGL::YCbCrLayerProgramType
+  gl::RGBALayerProgramType,
+  gl::BGRALayerProgramType,
+  gl::RGBXLayerProgramType,
+  gl::BGRXLayerProgramType,
+  gl::RGBARectLayerProgramType,
+  gl::ColorLayerProgramType,
+  gl::YCbCrLayerProgramType
 };
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \

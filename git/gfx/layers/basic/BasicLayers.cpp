@@ -439,32 +439,6 @@ ClipToContain(gfxContext* aContext, const nsIntRect& aRect)
   aContext->SetMatrix(currentMatrix);
 }
 
-static PRBool
-ShouldRetainTransparentSurface(PRUint32 aContentFlags,
-                               gfxASurface* aTargetSurface)
-{
-  if (aContentFlags & Layer::CONTENT_NO_TEXT)
-    return PR_TRUE;
-
-  switch (aTargetSurface->GetTextQualityInTransparentSurfaces()) {
-  case gfxASurface::TEXT_QUALITY_OK:
-    return PR_TRUE;
-  case gfxASurface::TEXT_QUALITY_OK_OVER_OPAQUE_PIXELS:
-    // Retain the buffer if all text is over opaque pixels. Otherwise,
-    // don't retain the buffer, in the hope that the backbuffer has
-    // opaque pixels where our layer does not.
-    return (aContentFlags & Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT) != 0;
-  case gfxASurface::TEXT_QUALITY_BAD:
-    // If the backbuffer is opaque, then draw directly into it to get
-    // subpixel AA. If the backbuffer is not an opaque format, then we won't get
-    // subpixel AA by drawing into it, so we might as well retain.
-    return aTargetSurface->GetContentType() != gfxASurface::CONTENT_COLOR;
-  default:
-    NS_ERROR("Unknown quality type");
-    return PR_TRUE;
-  }
-}
-
 static nsIntRegion
 IntersectWithClip(const nsIntRegion& aRegion, gfxContext* aContext)
 {
@@ -494,8 +468,8 @@ BasicThebesLayer::Paint(gfxContext* aContext,
   float opacity = GetEffectiveOpacity();
 
   if (!BasicManager()->IsRetained() ||
-      (opacity == 1.0 && !canUseOpaqueSurface &&
-       !ShouldRetainTransparentSurface(mContentFlags, targetSurface) &&
+      (!canUseOpaqueSurface &&
+       (mContentFlags & CONTENT_COMPONENT_ALPHA) &&
        !MustRetainContent())) {
     mValidRegion.SetEmpty();
     mBuffer.Clear();
@@ -1532,6 +1506,8 @@ public:
   }
   virtual ~BasicShadowableThebesLayer()
   {
+    NS_ABORT_IF_FALSE(!HasShadow() || !BasicManager()->InTransaction(),
+                      "Shadow layers can't be destroyed during txns!");
     if (IsSurfaceDescriptorValid(mBackBuffer))
       BasicManager()->ShadowLayerForwarder::DestroySharedSurface(&mBackBuffer);
     MOZ_COUNT_DTOR(BasicShadowableThebesLayer);
@@ -2497,6 +2473,13 @@ BasicShadowLayerManager::SetRoot(Layer* aLayer)
 {
   if (mRoot != aLayer) {
     if (HasShadowManager()) {
+      // Have to hold the old root and its children in order to
+      // maintain the same view of the layer tree in this process as
+      // the parent sees.  Otherwise layers can be destroyed
+      // mid-transaction and bad things can happen (v. bug 612573)
+      if (mRoot) {
+        Hold(mRoot);
+      }
       ShadowLayerForwarder::SetRoot(Hold(aLayer));
     }
     BasicLayerManager::SetRoot(aLayer);
@@ -2576,13 +2559,13 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
     NS_WARNING("failed to forward Layers transaction");
   }
 
-  // this may result in Layers being deleted, which results in
-  // PLayer::Send__delete__() and DeallocShmem()
-  mKeepAlive.Clear();
-
 #ifdef DEBUG
   mPhase = PHASE_NONE;
 #endif
+
+  // this may result in Layers being deleted, which results in
+  // PLayer::Send__delete__() and DeallocShmem()
+  mKeepAlive.Clear();
 }
 
 ShadowableLayer*

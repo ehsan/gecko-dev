@@ -39,6 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsGkAtoms.h"
+#include "DOMSVGNumber.h"
 #include "DOMSVGLength.h"
 #include "nsSVGAngle.h"
 #include "nsCOMPtr.h"
@@ -47,12 +48,11 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsSVGMatrix.h"
-#include "nsSVGPoint.h"
+#include "DOMSVGPoint.h"
 #include "nsSVGTransform.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
-#include "nsSVGNumber.h"
 #include "nsSVGRect.h"
 #include "nsISVGValueUtils.h"
 #include "nsDOMError.h"
@@ -61,6 +61,7 @@
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
 #include "nsSVGEffects.h" // For nsSVGEffects::RemoveAllRenderingObservers
+#include "nsContentErrors.h" // For NS_PROPTABLE_PROP_OVERWRITTEN
 
 #ifdef MOZ_SMIL
 #include "nsEventDispatcher.h"
@@ -130,8 +131,9 @@ nsSVGTranslatePoint::DOMVal::MatrixTransform(nsIDOMSVGMatrix *matrix,
 
   float x = mVal->GetX();
   float y = mVal->GetY();
-  
-  return NS_NewSVGPoint(_retval, a*x + c*y + e, b*x + d*y + f);
+
+  NS_ADDREF(*_retval = new DOMSVGPoint(a*x + c*y + e, b*x + d*y + f));
+  return NS_OK;
 }
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
@@ -211,6 +213,7 @@ nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 #ifdef MOZ_SMIL
   , mStartAnimationOnBindToTree(!aFromParser)
 #endif // MOZ_SMIL
+  , mNeedsPreserveAspectRatioFlush(PR_FALSE)
 {
 }
 
@@ -632,7 +635,8 @@ nsSVGSVGElement::DeSelectAll()
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGNumber(nsIDOMSVGNumber **_retval)
 {
-  return NS_NewSVGNumber(_retval);
+  NS_ADDREF(*_retval = new DOMSVGNumber());
+  return NS_OK;
 }
 
 /* nsIDOMSVGLength createSVGLength (); */
@@ -654,7 +658,8 @@ nsSVGSVGElement::CreateSVGAngle(nsIDOMSVGAngle **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGPoint(nsIDOMSVGPoint **_retval)
 {
-  return NS_NewSVGPoint(_retval);
+  NS_ADDREF(*_retval = new DOMSVGPoint(0, 0));
+  return NS_OK;
 }
 
 /* nsIDOMSVGMatrix createSVGMatrix (); */
@@ -991,11 +996,16 @@ nsSVGSVGElement::GetViewBoxTransform()
     return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
   }
 
+  // Do we have an override preserveAspectRatio value?
+  const SVGPreserveAspectRatio* overridePARPtr =
+    GetImageOverridePreserveAspectRatio();
+
   return nsSVGUtils::GetViewBoxTransform(this,
                                          viewportWidth, viewportHeight,
                                          viewBox.x, viewBox.y,
                                          viewBox.width, viewBox.height,
-                                         mPreserveAspectRatio);
+                                         overridePARPtr ? *overridePARPtr :
+                                         mPreserveAspectRatio.GetAnimValue());
 }
 
 #ifdef MOZ_SMIL
@@ -1095,6 +1105,13 @@ nsSVGSVGElement::InvalidateTransformNotifyFrame()
     NS_WARNING("wrong frame type");
   }
 #endif
+}
+
+PRBool
+nsSVGSVGElement::HasPreserveAspectRatio()
+{
+  return HasAttr(kNameSpaceID_None, nsGkAtoms::preserveAspectRatio) ||
+    mPreserveAspectRatio.IsAnimated();
 }
 
 //----------------------------------------------------------------------
@@ -1225,7 +1242,7 @@ nsSVGSVGElement::DidAnimatePreserveAspectRatio()
   InvalidateTransformNotifyFrame();
 }
 
-nsSVGPreserveAspectRatio *
+SVGAnimatedPreserveAspectRatio *
 nsSVGSVGElement::GetPreserveAspectRatio()
 {
   return &mPreserveAspectRatio;
@@ -1239,3 +1256,85 @@ nsSVGSVGElement::RemoveAllRenderingObservers()
   nsSVGEffects::RemoveAllRenderingObservers(this);
 }
 #endif // !MOZ_LIBXUL
+
+// Callback function, for freeing PRUint64 values stored in property table
+static void
+ReleasePreserveAspectRatioPropertyValue(void*    aObject,       /* unused */
+                                        nsIAtom* aPropertyName, /* unused */
+                                        void*    aPropertyValue,
+                                        void*    aData          /* unused */)
+{
+  SVGPreserveAspectRatio* valPtr =
+    static_cast<SVGPreserveAspectRatio*>(aPropertyValue);
+  delete valPtr;
+}
+
+void
+nsSVGSVGElement::
+  SetImageOverridePreserveAspectRatio(const SVGPreserveAspectRatio& aPAR)
+{
+#ifdef DEBUG
+  NS_ABORT_IF_FALSE(GetCurrentDoc()->IsBeingUsedAsImage(),
+                    "should only override preserveAspectRatio in images");
+#endif
+
+  if (!mViewBox.IsValid()) {
+    return; // preserveAspectRatio irrelevant (only matters if we have viewBox)
+  }
+
+  if (aPAR.GetDefer() && HasPreserveAspectRatio()) {
+    return; // Referring element defers to my own preserveAspectRatio value.
+  }
+
+  SVGPreserveAspectRatio* pAROverridePtr = new SVGPreserveAspectRatio(aPAR);
+  nsresult rv = SetProperty(nsGkAtoms::overridePreserveAspectRatio,
+                            pAROverridePtr,
+                            ReleasePreserveAspectRatioPropertyValue);
+  NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
+                    "Setting override value when it's already set...?"); 
+
+  if (NS_LIKELY(NS_SUCCEEDED(rv))) {
+    mNeedsPreserveAspectRatioFlush = PR_TRUE;
+  } else {
+    // property-insertion failed (e.g. OOM in property-table code)
+    delete pAROverridePtr;
+  }
+}
+
+void
+nsSVGSVGElement::ClearImageOverridePreserveAspectRatio()
+{
+#ifdef DEBUG
+  NS_ABORT_IF_FALSE(GetCurrentDoc()->IsBeingUsedAsImage(),
+                    "should only override preserveAspectRatio in images");
+#endif
+
+  void* valPtr = UnsetProperty(nsGkAtoms::overridePreserveAspectRatio);
+  if (valPtr) {
+    mNeedsPreserveAspectRatioFlush = PR_TRUE;
+    delete static_cast<SVGPreserveAspectRatio*>(valPtr);
+  }
+}
+
+const SVGPreserveAspectRatio*
+nsSVGSVGElement::GetImageOverridePreserveAspectRatio()
+{
+  void* valPtr = GetProperty(nsGkAtoms::overridePreserveAspectRatio);
+#ifdef DEBUG
+  if (valPtr) {
+    NS_ABORT_IF_FALSE(GetCurrentDoc()->IsBeingUsedAsImage(),
+                      "should only override preserveAspectRatio in images");
+  }
+#endif
+
+  return static_cast<SVGPreserveAspectRatio*>(valPtr);
+}
+
+void
+nsSVGSVGElement::FlushPreserveAspectRatioOverride()
+{
+  if (mNeedsPreserveAspectRatioFlush) {
+    InvalidateTransformNotifyFrame();
+    mNeedsPreserveAspectRatioFlush = PR_FALSE;
+  }
+}

@@ -50,6 +50,7 @@ const CONSOLEAPI_CLASS_ID = "{b49c18f8-3379-4fc0-8c90-d7772c1a9ff3}";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/NetworkHelper.jsm");
 
 var EXPORTED_SYMBOLS = ["HUDService", "ConsoleUtils"];
 
@@ -74,7 +75,7 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
 XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
   var obj = {};
   try {
-    Cu.import("resource://gre/modules/PropertyPanel.jsm", obj);
+    Cu.import("resource:///modules/PropertyPanel.jsm", obj);
   } catch (err) {
     Cu.reportError(err);
   }
@@ -83,7 +84,7 @@ XPCOMUtils.defineLazyGetter(this, "PropertyPanel", function () {
 
 XPCOMUtils.defineLazyGetter(this, "namesAndValuesOf", function () {
   var obj = {};
-  Cu.import("resource://gre/modules/PropertyPanel.jsm", obj);
+  Cu.import("resource:///modules/PropertyPanel.jsm", obj);
   return obj.namesAndValuesOf;
 });
 
@@ -328,333 +329,6 @@ ResponseListener.prototype =
   ])
 }
 
-/**
- * Helper object for networking stuff.
- *
- * All of the following functions have been taken from the Firebug source. They
- * have been modified to match the Firefox coding rules.
- */
-
-// FIREBUG CODE BEGIN.
-
-/*
- * Software License Agreement (BSD License)
- *
- * Copyright (c) 2007, Parakey Inc.
- * All rights reserved.
- *
- * Redistribution and use of this software in source and binary forms, with or without modification,
- * are permitted provided that the following conditions are met:
- *
- * * Redistributions of source code must retain the above
- *   copyright notice, this list of conditions and the
- *   following disclaimer.
- *
- * * Redistributions in binary form must reproduce the above
- *   copyright notice, this list of conditions and the
- *   following disclaimer in the documentation and/or other
- *   materials provided with the distribution.
- *
- * * Neither the name of Parakey Inc. nor the names of its
- *   contributors may be used to endorse or promote products
- *   derived from this software without specific prior
- *   written permission of Parakey Inc.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
- * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
- * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-/*
- * Creator:
- *  Joe Hewitt
- * Contributors
- *  John J. Barton (IBM Almaden)
- *  Jan Odvarko (Mozilla Corp.)
- *  Max Stepanov (Aptana Inc.)
- *  Rob Campbell (Mozilla Corp.)
- *  Hans Hillen (Paciello Group, Mozilla)
- *  Curtis Bartley (Mozilla Corp.)
- *  Mike Collins (IBM Almaden)
- *  Kevin Decker
- *  Mike Ratcliffe (Comartis AG)
- *  Hernan Rodríguez Colmeiro
- *  Austin Andrews
- *  Christoph Dorn
- *  Steven Roussey (AppCenter Inc, Network54)
- */
-var NetworkHelper =
-{
-  /**
-   * Converts aText with a given aCharset to unicode.
-   *
-   * @param string aText
-   *        Text to convert.
-   * @param string aCharset
-   *        Charset to convert the text to.
-   * @returns string
-   *          Converted text.
-   */
-  convertToUnicode: function NH_convertToUnicode(aText, aCharset)
-  {
-    if (!aCharset) {
-      return aText;
-    }
-
-    let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-               createInstance(Ci.nsIScriptableUnicodeConverter);
-    conv.charset = aCharset;
-
-    try {
-      return conv.ConvertToUnicode(aText);
-    }
-    catch (ex) {
-      Cu.reportError("NH_convertToUnicode(aText, '" +
-        aCharset + "') exception: " + ex);
-      return aText;
-    }
-  },
-
-  /**
-   * Reads all available bytes from aStream and converts them to aCharset.
-   *
-   * @param nsIInputStream aStream
-   * @param string aCharset
-   * @returns string
-   *          UTF-16 encoded string based on the content of aStream and aCharset.
-   */
-  readAndConvertFromStream: function NH_readAndConvertFromStream(aStream, aCharset)
-  {
-    let text = null;
-    try {
-      text = NetUtil.readInputStreamToString(aStream, aStream.available())
-      return this.convertToUnicode(text, aCharset);
-    }
-    catch (err) {
-      return text;
-    }
-  },
-
-   /**
-   * Reads the posted text from aRequest.
-   *
-   * @param nsIHttpChannel aRequest
-   * @param nsIDOMNode aBrowser
-   * @returns string or null
-   *          Returns the posted string if it was possible to read from aRequest
-   *          otherwise null.
-   */
-  readPostTextFromRequest: function NH_readPostTextFromRequest(aRequest, aBrowser)
-  {
-    if (aRequest instanceof Ci.nsIUploadChannel) {
-      let iStream = aRequest.uploadStream;
-
-      let isSeekableStream = false;
-      if (iStream instanceof Ci.nsISeekableStream) {
-        isSeekableStream = true;
-      }
-
-      let prevOffset;
-      if (isSeekableStream) {
-        prevOffset = iStream.tell();
-        iStream.seek(Ci.nsISeekableStream.NS_SEEK_SET, 0);
-      }
-
-      // Read data from the stream.
-      let charset = aBrowser.contentWindow.document.characterSet;
-      let text = this.readAndConvertFromStream(iStream, charset);
-
-      // Seek locks the file, so seek to the beginning only if necko hasn't
-      // read it yet, since necko doesn't seek to 0 before reading (at lest
-      // not till 459384 is fixed).
-      if (isSeekableStream && prevOffset == 0) {
-        iStream.seek(Ci.nsISeekableStream.NS_SEEK_SET, 0);
-      }
-      return text;
-    }
-    return null;
-  },
-
-  /**
-   * Reads the posted text from the page's cache.
-   *
-   * @param nsIDOMNode aBrowser
-   * @returns string or null
-   *          Returns the posted string if it was possible to read from aBrowser
-   *          otherwise null.
-   */
-  readPostTextFromPage: function NH_readPostTextFromPage(aBrowser)
-  {
-    let webNav = aBrowser.webNavigation;
-    if (webNav instanceof Ci.nsIWebPageDescriptor) {
-      let descriptor = webNav.currentDescriptor;
-
-      if (descriptor instanceof Ci.nsISHEntry && descriptor.postData &&
-          descriptor instanceof Ci.nsISeekableStream) {
-        descriptor.seek(NS_SEEK_SET, 0);
-
-        let charset = browser.contentWindow.document.characterSet;
-        return this.readAndConvertFromStream(descriptor, charset);
-      }
-    }
-    return null;
-  },
-
-  /**
-   * Gets the nsIDOMWindow that is associated with aRequest.
-   *
-   * @param nsIHttpChannel aRequest
-   * @returns nsIDOMWindow or null
-   */
-  getWindowForRequest: function NH_getWindowForRequest(aRequest)
-  {
-    let loadContext = this.getRequestLoadContext(aRequest);
-    if (loadContext) {
-      return loadContext.associatedWindow;
-    }
-    return null;
-  },
-
-  /**
-   * Gets the nsILoadContext that is associated with aRequest.
-   *
-   * @param nsIHttpChannel aRequest
-   * @returns nsILoadContext or null
-   */
-  getRequestLoadContext: function NH_getRequestLoadContext(aRequest)
-  {
-    if (aRequest && aRequest.notificationCallbacks) {
-      try {
-        return aRequest.notificationCallbacks.getInterface(Ci.nsILoadContext);
-      } catch (ex) { }
-    }
-
-    if (aRequest && aRequest.loadGroup
-                 && aRequest.loadGroup.notificationCallbacks) {
-      try {
-        return aRequest.loadGroup.notificationCallbacks.getInterface(Ci.nsILoadContext);
-      } catch (ex) { }
-    }
-
-    return null;
-  },
-
-  /**
-   * Loads the content of aUrl from the cache.
-   *
-   * @param string aUrl
-   *        URL to load the cached content for.
-   * @param string aCharset
-   *        Assumed charset of the cached content. Used if there is no charset
-   *        on the channel directly.
-   * @param function aCallback
-   *        Callback that is called with the loaded cached content if available
-   *        or null if something failed while getting the cached content.
-   */
-  loadFromCache: function NH_loadFromCache(aUrl, aCharset, aCallback)
-  {
-    let channel = NetUtil.newChannel(aUrl);
-
-    // Ensure that we only read from the cache and not the server.
-    channel.loadFlags = Ci.nsIRequest.LOAD_FROM_CACHE |
-      Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE |
-      Ci.nsICachingChannel.LOAD_BYPASS_LOCAL_CACHE_IF_BUSY;
-
-    NetUtil.asyncFetch(channel, function (aInputStream, aStatusCode, aRequest) {
-      if (!Components.isSuccessCode(aStatusCode)) {
-        aCallback(null);
-        return;
-      }
-
-      // Try to get the encoding from the channel. If there is none, then use
-      // the passed assumed aCharset.
-      let aChannel = aRequest.QueryInterface(Ci.nsIChannel);
-      let contentCharset = aChannel.contentCharset || aCharset;
-
-      // Read the content of the stream using contentCharset as encoding.
-      aCallback(NetworkHelper.readAndConvertFromStream(aInputStream,
-                                                       contentCharset));
-    });
-  },
-
-  // This is a list of all the mime category maps jviereck could find in the
-  // firebug code base.
-  mimeCategoryMap: {
-    "text/plain": "txt",
-    "text/html": "html",
-    "text/xml": "xml",
-    "text/xsl": "txt",
-    "text/xul": "txt",
-    "text/css": "css",
-    "text/sgml": "txt",
-    "text/rtf": "txt",
-    "text/x-setext": "txt",
-    "text/richtext": "txt",
-    "text/javascript": "js",
-    "text/jscript": "txt",
-    "text/tab-separated-values": "txt",
-    "text/rdf": "txt",
-    "text/xif": "txt",
-    "text/ecmascript": "js",
-    "text/vnd.curl": "txt",
-    "text/x-json": "json",
-    "text/x-js": "txt",
-    "text/js": "txt",
-    "text/vbscript": "txt",
-    "view-source": "txt",
-    "view-fragment": "txt",
-    "application/xml": "xml",
-    "application/xhtml+xml": "xml",
-    "application/atom+xml": "xml",
-    "application/rss+xml": "xml",
-    "application/vnd.mozilla.maybe.feed": "xml",
-    "application/vnd.mozilla.xul+xml": "xml",
-    "application/javascript": "js",
-    "application/x-javascript": "js",
-    "application/x-httpd-php": "txt",
-    "application/rdf+xml": "xml",
-    "application/ecmascript": "js",
-    "application/http-index-format": "txt",
-    "application/json": "json",
-    "application/x-js": "txt",
-    "multipart/mixed": "txt",
-    "multipart/x-mixed-replace": "txt",
-    "image/svg+xml": "svg",
-    "application/octet-stream": "bin",
-    "image/jpeg": "image",
-    "image/jpg": "image",
-    "image/gif": "image",
-    "image/png": "image",
-    "image/bmp": "image",
-    "application/x-shockwave-flash": "flash",
-    "video/x-flv": "flash",
-    "audio/mpeg3": "media",
-    "audio/x-mpeg-3": "media",
-    "video/mpeg": "media",
-    "video/x-mpeg": "media",
-    "audio/ogg": "media",
-    "application/ogg": "media",
-    "application/x-ogg": "media",
-    "application/x-midi": "media",
-    "audio/midi": "media",
-    "audio/x-mid": "media",
-    "audio/x-midi": "media",
-    "music/crescendo": "media",
-    "audio/wav": "media",
-    "audio/x-wav": "media",
-    "text/json": "json",
-    "application/x-json": "json",
-    "application/json-rpc": "json"
-  }
-}
-
-// FIREBUG CODE END.
-
 ///////////////////////////////////////////////////////////////////////////
 //// Helper for creating the network panel.
 
@@ -707,7 +381,11 @@ function createAndAppendElement(aParent, aTag, aAttributes)
 
 function unwrap(aObject)
 {
-  return XPCNativeWrapper.unwrap(aObject);
+  try {
+    return XPCNativeWrapper.unwrap(aObject);
+  } catch(e) {
+    return aObject;
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -2238,7 +1916,9 @@ HUD_SERVICE.prototype =
     let klass = "hud-msg-node hud-" + aLevel;
     messageNode.setAttribute("class", klass);
 
-    let message = Array.join(aArguments, " ") + "\n";
+    let mappedArguments = Array.map(aArguments, hud.jsterm.formatResult,
+                                    hud.jsterm);
+    let message = Array.join(mappedArguments, " ") + "\n";
     let ts = ConsoleUtils.timestamp();
     let timestampedMessage = ConsoleUtils.timestampString(ts) + ": " + message;
     messageNode.appendChild(hud.chromeDocument.createTextNode(timestampedMessage));
@@ -3054,12 +2734,21 @@ HUD_SERVICE.prototype =
       }
     }
 
-    // need to detect that the console component has been paved over
-    // TODO: change how we detect our console: bug 612405
-    let consoleObject = aContentWindow.wrappedJSObject.console;
-    if (consoleObject && consoleObject.classID != CONSOLEAPI_CLASS_ID) {
+    // Need to detect that the console component has been paved over. Do this by
+    // checking whether its global object is equal to that of an object
+    // returned by our native ConsoleAPI nsIDOMGlobalPropertyInitializer.
+    let consoleObject = unwrap(aContentWindow).console;
+    let consoleGlobal = Cu.getGlobalForObject(consoleObject);
+
+    let nativeConsoleObj = Cc["@mozilla.org/console-api;1"].
+                           createInstance(Ci.nsIDOMGlobalPropertyInitializer).
+                           init(aContentWindow);
+    let nativeConsoleGlobal = Cu.getGlobalForObject(nativeConsoleObj);
+
+    // Need a "===" comparison because backstagepass objects have strange
+    // behavior with ==
+    if (consoleGlobal !== nativeConsoleGlobal)
       this.logWarningAboutReplacedAPI(hudId);
-    }
 
     // register the controller to handle "select all" properly
     this.createController(xulWindow);
@@ -3515,43 +3204,62 @@ HeadsUpDisplay.prototype = {
    */
   makeFilterToolbar: function HUD_makeFilterToolbar()
   {
-    let buttons = ["Network", "CSSParser", "Exception", "Error",
-                   "Info", "Warn", "Log",];
-
-    const pageButtons = [
-      { prefKey: "network", name: "PageNet" },
-      { prefKey: "cssparser", name: "PageCSS" },
-      { prefKey: "exception", name: "PageJS" }
-    ];
-    const consoleButtons = [
-      { prefKey: "error", name: "ConsoleErrors" },
-      { prefKey: "warn", name: "ConsoleWarnings" },
-      { prefKey: "info", name: "ConsoleInfo" },
-      { prefKey: "log", name: "ConsoleLog" }
+    const BUTTONS = [
+      {
+        name: "PageNet",
+        category: "net",
+        severities: [
+          { name: "ConsoleErrors", prefKey: "network" },
+          { name: "ConsoleLog", prefKey: "networkinfo" }
+        ]
+      },
+      {
+        name: "PageCSS",
+        category: "css",
+        severities: [
+          { name: "ConsoleErrors", prefKey: "csserror" },
+          { name: "ConsoleWarnings", prefKey: "cssparser" }
+        ]
+      },
+      {
+        name: "PageJS",
+        category: "js",
+        severities: [
+          { name: "ConsoleErrors", prefKey: "exception" },
+          { name: "ConsoleWarnings", prefKey: "jswarn" }
+        ]
+      },
+      {
+        name: "PageWebDeveloper",
+        category: "webdev",
+        severities: [
+          { name: "ConsoleErrors", prefKey: "error" },
+          { name: "ConsoleWarnings", prefKey: "warn" },
+          { name: "ConsoleInfo", prefKey: "info" },
+          { name: "ConsoleLog", prefKey: "log" }
+        ]
+      }
     ];
 
     let toolbar = this.makeXULNode("toolbar");
     toolbar.setAttribute("class", "hud-console-filter-toolbar");
-    toolbar.setAttribute("mode", "text");
+    toolbar.setAttribute("mode", "full");
 
-    let pageCategoryTitle = this.getStr("categoryPage");
-    this.addButtonCategory(toolbar, pageCategoryTitle, pageButtons);
+    this.makeCloseButton(toolbar);
 
-    let separator = this.makeXULNode("separator");
-    separator.setAttribute("orient", "vertical");
-    toolbar.appendChild(separator);
-
-    let consoleCategoryTitle = this.getStr("categoryConsole");
-    this.addButtonCategory(toolbar, consoleCategoryTitle, consoleButtons);
+    for (let i = 0; i < BUTTONS.length; i++) {
+      this.makeFilterButton(toolbar, BUTTONS[i]);
+    }
 
     toolbar.appendChild(this.filterSpacer);
     toolbar.appendChild(this.filterBox);
+    this.makeClearConsoleButton(toolbar);
+
     return toolbar;
   },
 
   /**
-   * Creates the context menu on the console, which contains the "clear
-   * console" functionality.
+   * Creates the context menu on the console.
    *
    * @param nsIDOMNode aOutputNode
    *        The console output DOM node.
@@ -3589,79 +3297,116 @@ HeadsUpDisplay.prototype = {
     selectAllItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");
     menuPopup.appendChild(selectAllItem);
 
-    menuPopup.appendChild(this.makeXULNode("menuseparator"));
-
-    let clearItem = this.makeXULNode("menuitem");
-    clearItem.setAttribute("label", this.getStr("clearConsoleCmd.label"));
-    clearItem.setAttribute("accesskey",
-                           this.getStr("clearConsoleCmd.accesskey"));
-    clearItem.setAttribute("hudId", this.hudId);
-    clearItem.setAttribute("buttonType", "clear");
-    clearItem.setAttribute("oncommand", "HUDConsoleUI.command(this);");
-    menuPopup.appendChild(clearItem);
-
     aConsoleWrapper.appendChild(menuPopup);
     aConsoleWrapper.setAttribute("context", id);
   },
 
-  makeButton: function HUD_makeButton(aName, aPrefKey, aType)
+  /**
+   * Creates one of the filter buttons on the toolbar.
+   *
+   * @param nsIDOMNode aParent
+   *        The node to which the filter button should be appended.
+   * @param object aDescriptor
+   *        A descriptor that contains info about the button. Contains "name",
+   *        "category", and "prefKey" properties, and optionally a "severities"
+   *        property.
+   * @return void
+   */
+  makeFilterButton: function HUD_makeFilterButton(aParent, aDescriptor)
   {
-    var self = this;
-    let prefKey = aPrefKey;
+    let toolbarButton = this.makeXULNode("toolbarbutton");
+    aParent.appendChild(toolbarButton);
 
-    let btn;
-    if (aType == "checkbox") {
-      btn = this.makeXULNode("checkbox");
-      btn.setAttribute("type", aType);
-    } else {
-      btn = this.makeXULNode("toolbarbutton");
+    let toggleFilter = HeadsUpDisplayUICommands.toggleFilter;
+    toolbarButton.addEventListener("click", toggleFilter, false);
+
+    let name = aDescriptor.name;
+    toolbarButton.setAttribute("type", "menu-button");
+    toolbarButton.setAttribute("label", this.getStr("btn" + name));
+    toolbarButton.setAttribute("tooltip", this.getStr("tip" + name));
+    toolbarButton.setAttribute("category", aDescriptor.category);
+    toolbarButton.setAttribute("hudId", this.hudId);
+    toolbarButton.classList.add("webconsole-filter-button");
+
+    let menuPopup = this.makeXULNode("menupopup");
+    toolbarButton.appendChild(menuPopup);
+
+    let allChecked = true;
+    for (let i = 0; i < aDescriptor.severities.length; i++) {
+      let severity = aDescriptor.severities[i];
+      let menuItem = this.makeXULNode("menuitem");
+      menuItem.setAttribute("label", this.getStr("btn" + severity.name));
+      menuItem.setAttribute("type", "checkbox");
+      menuItem.setAttribute("autocheck", "false");
+      menuItem.setAttribute("hudId", this.hudId);
+
+      let prefKey = severity.prefKey;
+      menuItem.setAttribute("prefKey", prefKey);
+
+      let checked = this.filterPrefs[prefKey];
+      menuItem.setAttribute("checked", checked);
+      if (!checked) {
+        allChecked = false;
+      }
+
+      menuItem.addEventListener("command", toggleFilter, false);
+
+      menuPopup.appendChild(menuItem);
     }
 
-    btn.setAttribute("hudId", this.hudId);
-    btn.setAttribute("buttonType", prefKey);
-    btn.setAttribute("class", "hud-filter-btn");
-    let key = "btn" + aName;
-    btn.setAttribute("label", this.getStr(key));
-    key = "tip" + aName;
-    btn.setAttribute("tooltip", this.getStr(key));
-
-    if (aType == "checkbox") {
-      btn.setAttribute("checked", this.filterPrefs[prefKey]);
-      function toggle(btn) {
-        self.consoleFilterCommands.toggle(btn);
-      };
-
-      btn.setAttribute("oncommand", "HUDConsoleUI.toggleFilter(this);");
-    }
-    else {
-      var command = "HUDConsoleUI.command(this)";
-      btn.setAttribute("oncommand", command);
-    }
-    return btn;
+    toolbarButton.setAttribute("checked", allChecked);
   },
 
   /**
-   * Appends a category title and a series of buttons to the filter bar.
+   * Creates the close button on the toolbar.
    *
-   * @param nsIDOMNode aToolbar
-   *        The DOM node to which to add the category.
-   * @param string aTitle
-   *        The title for the category.
-   * @param Array aButtons
-   *        The buttons, specified as objects with "name" and "prefKey"
-   *        properties.
-   * @returns nsIDOMNode
+   * @param nsIDOMNode aParent
+   *        The toolbar to attach the close button to.
+   * @return void
    */
-  addButtonCategory: function(aToolbar, aTitle, aButtons) {
-    let lbl = this.makeXULNode("label");
-    lbl.setAttribute("class", "hud-filter-cat");
-    lbl.setAttribute("value", aTitle);
-    aToolbar.appendChild(lbl);
+  makeCloseButton: function HUD_makeCloseButton(aToolbar)
+  {
+    let hudId = this.hudId;
 
-    for (let i = 0; i < aButtons.length; i++) {
-      let btn = aButtons[i];
-      aToolbar.appendChild(this.makeButton(btn.name, btn.prefKey, "checkbox"));
+    function HUD_closeButton_onCommand() {
+      let ownerDocument = this.ownerDocument;
+      let tab = ownerDocument.defaultView.gBrowser.selectedTab;
+      HUDService.animate(hudId, ANIMATE_OUT, function() {
+        if (ownerDocument.getElementById(hudId)) {
+          HUDService.deactivateHUDForContext(tab, true);
+        }
+      });
     }
+
+    let closeButton = this.makeXULNode("toolbarbutton");
+    closeButton.classList.add("webconsole-close-button");
+    closeButton.addEventListener("command", HUD_closeButton_onCommand, false);
+
+    aToolbar.appendChild(closeButton);
+  },
+
+  /**
+   * Creates the "Clear Console" button.
+   *
+   * @param nsIDOMNode aParent
+   *        The toolbar to attach the "Clear Console" button to.
+   * @param string aHUDId
+   *        The ID of the console.
+   * @return void
+   */
+  makeClearConsoleButton: function HUD_makeClearConsoleButton(aToolbar)
+  {
+    let hudId = this.hudId;
+    function HUD_clearButton_onCommand() {
+      HUDService.clearDisplay(hudId);
+    }
+
+    let clearButton = this.makeXULNode("toolbarbutton");
+    clearButton.setAttribute("label", this.getStr("btnClear"));
+    clearButton.classList.add("webconsole-clear-console-button");
+    clearButton.addEventListener("command", HUD_clearButton_onCommand, false);
+
+    aToolbar.appendChild(clearButton);
   },
 
   createHUD: function HUD_createHUD()
@@ -4068,6 +3813,7 @@ function JSTermHelper(aJSTerm)
    */
   aJSTerm.sandbox.clear = function JSTH_clear()
   {
+    aJSTerm.helperEvaluated = true;
     aJSTerm.clearOutput();
   };
 
@@ -4116,6 +3862,7 @@ function JSTermHelper(aJSTerm)
    */
   aJSTerm.sandbox.help = function JSTH_help()
   {
+    aJSTerm.helperEvaluated = true;
     aJSTerm._window.open(
         "https://developer.mozilla.org/AppLinks/WebConsoleHelp?locale=" +
         aJSTerm._window.navigator.language, "help", "");
@@ -4130,6 +3877,7 @@ function JSTermHelper(aJSTerm)
    */
   aJSTerm.sandbox.inspect = function JSTH_inspect(aObject)
   {
+    aJSTerm.helperEvaluated = true;
     aJSTerm.openPropertyPanel(null, unwrap(aObject));
   };
 
@@ -4142,6 +3890,7 @@ function JSTermHelper(aJSTerm)
    */
   aJSTerm.sandbox.pprint = function JSTH_pprint(aObject)
   {
+    aJSTerm.helperEvaluated = true;
     if (aObject === null || aObject === undefined || aObject === true || aObject === false) {
       aJSTerm.console.error(HUDService.getStr("helperFuncUnsupportedTypeError"));
       return;
@@ -4154,6 +3903,19 @@ function JSTermHelper(aJSTerm)
     });
 
     aJSTerm.writeOutput(output.join("\n"));
+  };
+
+  /**
+   * Print a string to the output, as-is.
+   *
+   * @param string aString
+   *        A string you want to output.
+   * @returns void
+   */
+  aJSTerm.sandbox.print = function JSTH_print(aString)
+  {
+    aJSTerm.helperEvaluated = true;
+    aJSTerm.writeOutput(aString);
   };
 }
 
@@ -4216,6 +3978,7 @@ JSTerm.prototype = {
     let eventHandlerInput = this.inputEventHandler();
     this.inputNode.addEventListener('input', eventHandlerInput, false);
     this.outputNode = this.mixins.outputNode;
+    this.completeNode = this.mixins.completeNode;
     if (this.mixins.cssClassOverride) {
       this.cssClassOverride = this.mixins.cssClassOverride;
     }
@@ -4283,16 +4046,21 @@ JSTerm.prototype = {
     this.writeOutput(aExecuteString, true);
 
     try {
-      var result = this.evalInSandbox(aExecuteString);
+      this.helperEvaluated = false;
+      let result = this.evalInSandbox(aExecuteString);
 
-      if (result || result === false) {
-        this.writeOutputJS(aExecuteString, result);
-      }
-      else if (result === undefined) {
-        this.writeOutput("undefined", false);
-      }
-      else if (result === null) {
-        this.writeOutput("null", false);
+      // Hide undefined results coming from helpers.
+      let shouldShow = !(result === undefined && this.helperEvaluated);
+      if (shouldShow) {
+        let inspectable = this.isResultInspectable(result);
+        let resultString = this.formatResult(result);
+
+        if (inspectable) {
+          this.writeOutputJS(aExecuteString, result, resultString);
+        }
+        else {
+          this.writeOutput(resultString);
+        }
       }
     }
     catch (ex) {
@@ -4385,10 +4153,12 @@ JSTerm.prototype = {
    *
    * @param string aEvalString
    *        String that was evaluated to get the aOutputObject.
-   * @param object aOutputObject
-   *        Object to be written to the outputNode.
+   * @param object aResultObject
+   *        The evaluation result object.
+   * @param object aOutputString
+   *        The output string to be written to the outputNode.
    */
-  writeOutputJS: function JST_writeOutputJS(aEvalString, aOutputObject)
+  writeOutputJS: function JST_writeOutputJS(aEvalString, aOutputObject, aOutputString)
   {
     let lastGroupNode = HUDService.appendGroupIfNecessary(this.outputNode,
                                                       Date.now());
@@ -4417,10 +4187,7 @@ JSTerm.prototype = {
       }
     }, false);
 
-    // TODO: format the aOutputObject and don't just use the
-    // aOuputObject.toString() function: [object object] -> Object {prop, ...}
-    // See bug 586249.
-    let textNode = this.textFactory(aOutputObject + "\n");
+    let textNode = this.textFactory(aOutputString + "\n");
     node.appendChild(textNode);
 
     lastGroupNode.appendChild(node);
@@ -4463,6 +4230,118 @@ JSTerm.prototype = {
     node.appendChild(textNode);
     lastGroupNode.appendChild(node);
     pruneConsoleOutputIfNecessary(this.outputNode);
+  },
+
+  /**
+   * Format the jsterm execution result based on its type.
+   *
+   * @param mixed aResult
+   *        The evaluation result object you want displayed.
+   * @returns string
+   *          The string that can be displayed.
+   */
+  formatResult: function JST_formatResult(aResult)
+  {
+    let output = "";
+    let type = this.getResultType(aResult);
+
+    switch (type) {
+      case "string":
+        output = this.formatString(aResult);
+        break;
+      case "boolean":
+      case "date":
+      case "error":
+      case "number":
+      case "regexp":
+        output = aResult.toString();
+        break;
+      case "null":
+      case "undefined":
+        output = type;
+        break;
+      default:
+        if (aResult.toSource) {
+          try {
+            output = aResult.toSource();
+          } catch (ex) { }
+        }
+        if (!output || output == "({})") {
+          output = aResult.toString();
+        }
+        break;
+    }
+
+    return output;
+  },
+  
+  /**
+   * Format a string for output.
+   *
+   * @param string aString
+   *        The string you want to display.
+   * @returns string
+   *          The string that can be displayed.
+   */
+  formatString: function JST_formatString(aString)
+  {
+    function isControlCode(c) {
+      // See http://en.wikipedia.org/wiki/C0_and_C1_control_codes
+      // C0 is 0x00-0x1F, C1 is 0x80-0x9F (inclusive).
+      // We also include DEL (U+007F) and NBSP (U+00A0), which are not strictly
+      // in C1 but border it.
+      return (c <= 0x1F) || (0x7F <= c && c <= 0xA0);
+    }
+
+    function replaceFn(aMatch, aType, aHex) {
+      // Leave control codes escaped, but unescape the rest of the characters.
+      let c = parseInt(aHex, 16);
+      return isControlCode(c) ? aMatch : String.fromCharCode(c);
+    }
+
+    let output = uneval(aString).replace(/\\(x)([0-9a-fA-F]{2})/g, replaceFn)
+                 .replace(/\\(u)([0-9a-fA-F]{4})/g, replaceFn);
+
+    return output;
+  },
+
+  /**
+   * Determine if the jsterm execution result is inspectable or not.
+   *
+   * @param mixed aResult
+   *        The evaluation result object you want to check if it is inspectable.
+   * @returns boolean
+   *          True if the object is inspectable or false otherwise.
+   */
+  isResultInspectable: function JST_isResultInspectable(aResult)
+  {
+    let isEnumerable = false;
+
+    for (let p in aResult) {
+      isEnumerable = true;
+      break;
+    }
+
+    return isEnumerable && typeof(aResult) != "string";
+  },
+
+  /**
+   * Determine the type of the jsterm execution result.
+   *
+   * @param mixed aResult
+   *        The evaluation result object you want to check.
+   * @returns string
+   *          Constructor name or type: string, number, boolean, regexp, date,
+   *          function, object, null, undefined...
+   */
+  getResultType: function JST_getResultType(aResult)
+  {
+    let type = aResult === null ? "null" : typeof aResult;
+    if (type == "object" && aResult.constructor && aResult.constructor.name) {
+      type = aResult.constructor.name;
+    }
+
+    return type.toLowerCase();
   },
 
   clearOutput: function JST_clearOutput()
@@ -4512,6 +4391,7 @@ JSTerm.prototype = {
   setInputValue: function JST_setInputValue(aNewValue)
   {
     this.inputNode.value = aNewValue;
+    this.completeNode.value = "";
     this.resizeInput();
   },
 
@@ -4556,20 +4436,21 @@ JSTerm.prototype = {
         }
         return;
       }
-      else if (aEvent.shiftKey && aEvent.keyCode == 13) {
+      else if (aEvent.shiftKey &&
+          aEvent.keyCode == Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
         // shift return
         // TODO: expand the inputNode height by one line
         return;
       }
       else {
         switch(aEvent.keyCode) {
-          case 13:
-            // return
+          case Ci.nsIDOMKeyEvent.DOM_VK_RETURN:
             self.execute();
             aEvent.preventDefault();
             break;
-          case 38:
-            // up arrow: history previous
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_UP:
+            // history previous
             if (self.caretAtStartOfInput()) {
               let updated = self.historyPeruse(HISTORY_BACK);
               if (updated && aEvent.cancelable) {
@@ -4578,8 +4459,9 @@ JSTerm.prototype = {
               }
             }
             break;
-          case 40:
-            // down arrow: history next
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_DOWN:
+            // history next
             if (self.caretAtEndOfInput()) {
               let updated = self.historyPeruse(HISTORY_FORWARD);
               if (updated && aEvent.cancelable) {
@@ -4589,8 +4471,13 @@ JSTerm.prototype = {
               }
             }
             break;
-          case 9:
-            // tab key
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_RIGHT:
+            // accept proposed completion
+            self.acceptProposedCompletion();
+            break;
+
+          case Ci.nsIDOMKeyEvent.DOM_VK_TAB:
             // If there are more than one possible completion, pressing tab
             // means taking the next completion, shift_tab means taking
             // the previous completion.
@@ -4603,19 +4490,13 @@ JSTerm.prototype = {
             }
             if (completionResult) {
               if (aEvent.cancelable) {
-              aEvent.preventDefault();
-            }
-            aEvent.target.focus();
+                aEvent.preventDefault();
+              }
+              aEvent.target.focus();
             }
             break;
-          case 8:
-            // backspace key
-          case 46:
-            // delete key
-            // necessary so that default is not reached.
-            break;
+
           default:
-            // all not handled keys
             // Store the current inputNode value. If the value is the same
             // after keyDown event was handled (after 0ms) then the user
             // moved the cursor. If the value changed, then call the complete
@@ -4751,30 +4632,22 @@ JSTerm.prototype = {
     let inputValue = inputNode.value;
     // If the inputNode has no value, then don't try to complete on it.
     if (!inputValue) {
+      this.updateCompleteNode("");
       return false;
     }
-    let selStart = inputNode.selectionStart, selEnd = inputNode.selectionEnd;
 
-    // 'Normalize' the selection so that end is always after start.
-    if (selStart > selEnd) {
-      let newSelEnd = selStart;
-      selStart = selEnd;
-      selEnd = newSelEnd;
-    }
-
-    // Only complete if the selection is at the end of the input.
-    if (selEnd != inputValue.length) {
+    // Only complete if the selection is empty and at the end of the input.
+    if (inputNode.selectionStart == inputNode.selectionEnd &&
+        inputNode.selectionEnd != inputValue.length) {
+      // TODO: shouldnt we do this in the other 'bail' cases?
       this.lastCompletion = null;
+      this.updateCompleteNode("");
       return false;
     }
-
-    // Remove the selected text from the inputValue.
-    inputValue = inputValue.substring(0, selStart);
 
     let matches;
     let matchIndexToUse;
     let matchOffset;
-    let completionStr;
 
     // If there is a saved completion from last time and the used value for
     // completion stayed the same, then use the stored completion.
@@ -4793,6 +4666,7 @@ JSTerm.prototype = {
       // Look up possible completion values.
       let completion = this.propertyProvider(this.sandbox.window, inputValue);
       if (!completion) {
+        this.updateCompleteNode("");
         return false;
       }
       matches = completion.matches;
@@ -4807,7 +4681,11 @@ JSTerm.prototype = {
       };
     }
 
-    if (matches.length != 0) {
+    if (type != this.COMPLETE_HINT_ONLY && matches.length == 1) {
+      this.acceptProposedCompletion();
+      return true;
+    }
+    else if (matches.length != 0) {
       // Ensure that the matchIndexToUse is always a valid array index.
       if (matchIndexToUse < 0) {
         matchIndexToUse = matches.length + (matchIndexToUse % matches.length);
@@ -4819,26 +4697,30 @@ JSTerm.prototype = {
         matchIndexToUse = matchIndexToUse % matches.length;
       }
 
-      completionStr = matches[matchIndexToUse].substring(matchOffset);
-      this.setInputValue(inputValue + completionStr);
-
-      selEnd = inputValue.length + completionStr.length;
-
-      // If there is more than one possible completion or the completed part
-      // should get displayed only without moving the cursor at the end of the
-      // completion.
-      if (matches.length > 1 || type === this.COMPLETE_HINT_ONLY) {
-        inputNode.setSelectionRange(selStart, selEnd);
-      }
-      else {
-        inputNode.setSelectionRange(selEnd, selEnd);
-      }
-
+      let completionStr = matches[matchIndexToUse].substring(matchOffset);
+      this.updateCompleteNode(completionStr);
       return completionStr ? true : false;
+    }
+    else {
+      this.updateCompleteNode("");
     }
 
     return false;
-  }
+  },
+
+  acceptProposedCompletion: function JSTF_acceptProposedCompletion()
+  {
+    this.setInputValue(this.inputNode.value + this.completionValue);
+    this.updateCompleteNode("");
+  },
+
+  updateCompleteNode: function JSTF_updateCompleteNode(suffix)
+  {
+    this.completionValue = suffix;
+
+    let prefix = new Array(this.inputNode.value.length + 1).join(" ");
+    this.completeNode.value = prefix + this.completionValue;
+  },
 };
 
 /**
@@ -4884,44 +4766,38 @@ JSTermFirefoxMixin.prototype = {
    */
   generateUI: function JSTF_generateUI()
   {
-    let inputContainer = this.xulElementFactory("hbox");
-    inputContainer.setAttribute("class", "jsterm-input-container");
-    inputContainer.setAttribute("style", "direction: ltr;");
+    this.completeNode = this.xulElementFactory("textbox");
+    this.completeNode.setAttribute("class", "jsterm-complete-node");
+    this.completeNode.setAttribute("multiline", "true");
+    this.completeNode.setAttribute("rows", "1");
 
-    let inputNode = this.xulElementFactory("textbox");
-    inputNode.setAttribute("class", "jsterm-input-node");
-    inputNode.setAttribute("flex", "1");
-    inputNode.setAttribute("multiline", "true");
-    inputNode.setAttribute("rows", "1");
-    inputContainer.appendChild(inputNode);
+    this.inputNode = this.xulElementFactory("textbox");
+    this.inputNode.setAttribute("class", "jsterm-input-node");
+    this.inputNode.setAttribute("multiline", "true");
+    this.inputNode.setAttribute("rows", "1");
 
-    let closeButton = this.xulElementFactory("button");
-    closeButton.setAttribute("class", "jsterm-close-button");
-    inputContainer.appendChild(closeButton);
-    closeButton.addEventListener("command", HeadsUpDisplayUICommands.toggleHUD,
-                                 false);
+    let inputStack = this.xulElementFactory("stack");
+    inputStack.setAttribute("class", "jsterm-stack-node");
+    inputStack.setAttribute("flex", "1");
+    inputStack.appendChild(this.completeNode);
+    inputStack.appendChild(this.inputNode);
 
     if (this.existingConsoleNode == undefined) {
-      // create elements
-      let term = this.xulElementFactory("vbox");
-      term.setAttribute("class", "jsterm-wrapper-node");
-      term.setAttribute("flex", "1");
+      this.outputNode = this.xulElementFactory("vbox");
+      this.outputNode.setAttribute("class", "jsterm-output-node");
 
-      let outputNode = this.xulElementFactory("vbox");
-      outputNode.setAttribute("class", "jsterm-output-node");
-
-      // construction
-      term.appendChild(outputNode);
-      term.appendChild(inputNode);
-
-      this.outputNode = outputNode;
-      this.inputNode = inputNode;
-      this.term = term;
+      this.term = this.xulElementFactory("vbox");
+      this.term.setAttribute("class", "jsterm-wrapper-node");
+      this.term.setAttribute("flex", "1");
+      this.term.appendChild(this.outputNode);
     }
     else {
-      this.inputNode = inputNode;
-      this.term = inputContainer;
       this.outputNode = this.existingConsoleNode;
+
+      this.term = this.xulElementFactory("hbox");
+      this.term.setAttribute("class", "jsterm-input-container");
+      this.term.setAttribute("style", "direction: ltr;");
+      this.term.appendChild(inputStack);
     }
   },
 
@@ -5226,27 +5102,84 @@ HeadsUpDisplayUICommands = {
     }
   },
 
-  toggleFilter: function UIC_toggleFilter(aButton) {
-    var filter = aButton.getAttribute("buttonType");
-    var hudId = aButton.getAttribute("hudId");
-    var state = HUDService.getFilterState(hudId, filter);
-    if (state) {
-      HUDService.setFilterState(hudId, filter, false);
-      aButton.setAttribute("checked", false);
+  /**
+   * The event handler that is called whenever a user switches a filter on or
+   * off.
+   *
+   * @param nsIDOMEvent aEvent
+   *        The event that triggered the filter change.
+   * @return boolean
+   */
+  toggleFilter: function UIC_toggleFilter(aEvent) {
+    let hudId = this.getAttribute("hudId");
+    switch (this.tagName) {
+      case "toolbarbutton": {
+        let originalTarget = aEvent.originalTarget;
+        let classes = originalTarget.classList;
+
+        if (originalTarget.localName !== "toolbarbutton") {
+          // Oddly enough, the click event is sent to the menu button when
+          // selecting a menu item with the mouse. Detect this case and bail
+          // out.
+          break;
+        }
+
+        if (!classes.contains("toolbarbutton-menubutton-button") &&
+            originalTarget.getAttribute("type") === "menu-button") {
+          // This is a filter button with a drop-down. The user clicked the
+          // drop-down, so do nothing. (The menu will automatically appear
+          // without our intervention.)
+          break;
+        }
+
+        let state = this.getAttribute("checked") !== "true";
+        this.setAttribute("checked", state);
+
+        // This is a filter button with a drop-down, and the user clicked the
+        // main part of the button. Go through all the severities and toggle
+        // their associated filters.
+        let menuItems = this.querySelectorAll("menuitem");
+        for (let i = 0; i < menuItems.length; i++) {
+          menuItems[i].setAttribute("checked", state);
+          let prefKey = menuItems[i].getAttribute("prefKey");
+          HUDService.setFilterState(hudId, prefKey, state);
+        }
+        break;
+      }
+
+      case "menuitem": {
+        let state = this.getAttribute("checked") !== "true";
+        this.setAttribute("checked", state);
+
+        let prefKey = this.getAttribute("prefKey");
+        HUDService.setFilterState(hudId, prefKey, state);
+
+        // Adjust the state of the button appropriately.
+        let menuPopup = this.parentNode;
+
+        let allChecked = true;
+        let menuItem = menuPopup.firstChild;
+        while (menuItem) {
+          if (menuItem.getAttribute("checked") !== "true") {
+            allChecked = false;
+            break;
+          }
+          menuItem = menuItem.nextSibling;
+        }
+
+        let toolbarButton = menuPopup.parentNode;
+        toolbarButton.setAttribute("checked", allChecked);
+        break;
+      }
     }
-    else {
-      HUDService.setFilterState(hudId, filter, true);
-      aButton.setAttribute("checked", true);
-    }
+
+    return true;
   },
 
   command: function UIC_command(aButton) {
     var filter = aButton.getAttribute("buttonType");
     var hudId = aButton.getAttribute("hudId");
     switch (filter) {
-      case "clear":
-        HUDService.clearDisplay(hudId);
-        break;
       case "selectAll":
         let outputNode = HUDService.getOutputNodeById(hudId);
         let chromeWindow = outputNode.ownerDocument.defaultView;
@@ -5273,8 +5206,11 @@ const GLOBAL_STORAGE_INDEX_ID = "GLOBAL_CONSOLE";
 const PREFS_BRANCH_PREF = "devtools.hud.display.filter";
 const PREFS_PREFIX = "devtools.hud.display.filter.";
 const PREFS = { network: PREFS_PREFIX + "network",
+                networkinfo: PREFS_PREFIX + "networkinfo",
+                csserror: PREFS_PREFIX + "csserror",
                 cssparser: PREFS_PREFIX + "cssparser",
                 exception: PREFS_PREFIX + "exception",
+                jswarn: PREFS_PREFIX + "jswarn",
                 error: PREFS_PREFIX + "error",
                 info: PREFS_PREFIX + "info",
                 warn: PREFS_PREFIX + "warn",
@@ -5315,8 +5251,11 @@ function ConsoleStorage()
   if (filterPrefs) {
     defaultDisplayPrefs = {
       network: (prefs.getBoolPref(PREFS.network) ? true: false),
+      networkinfo: (prefs.getBoolPref(PREFS.networkinfo) ? true: false),
+      csserror: (prefs.getBoolPref(PREFS.csserror) ? true: false),
       cssparser: (prefs.getBoolPref(PREFS.cssparser) ? true: false),
       exception: (prefs.getBoolPref(PREFS.exception) ? true: false),
+      jswarn: (prefs.getBoolPref(PREFS.jswarn) ? true: false),
       error: (prefs.getBoolPref(PREFS.error) ? true: false),
       info: (prefs.getBoolPref(PREFS.info) ? true: false),
       warn: (prefs.getBoolPref(PREFS.warn) ? true: false),
@@ -5328,8 +5267,11 @@ function ConsoleStorage()
     prefs.setBoolPref(PREFS_BRANCH_PREF, false);
     // default prefs for each HeadsUpDisplay
     prefs.setBoolPref(PREFS.network, true);
+    prefs.setBoolPref(PREFS.networkinfo, true);
+    prefs.setBoolPref(PREFS.csserror, true);
     prefs.setBoolPref(PREFS.cssparser, true);
     prefs.setBoolPref(PREFS.exception, true);
+    prefs.setBoolPref(PREFS.jswarn, true);
     prefs.setBoolPref(PREFS.error, true);
     prefs.setBoolPref(PREFS.info, true);
     prefs.setBoolPref(PREFS.warn, true);
@@ -5338,8 +5280,11 @@ function ConsoleStorage()
 
     defaultDisplayPrefs = {
       network: prefs.getBoolPref(PREFS.network),
+      networkinfo: prefs.getBoolPref(PREFS.networkinfo),
+      csserror: prefs.getBoolPref(PREFS.csserror),
       cssparser: prefs.getBoolPref(PREFS.cssparser),
       exception: prefs.getBoolPref(PREFS.exception),
+      jswarn: prefs.getBoolPref(PREFS.jswarn),
       error: prefs.getBoolPref(PREFS.error),
       info: prefs.getBoolPref(PREFS.info),
       warn: prefs.getBoolPref(PREFS.warn),
@@ -5355,8 +5300,12 @@ ConsoleStorage.prototype = {
   updateDefaultDisplayPrefs:
   function CS_updateDefaultDisplayPrefs(aPrefsObject) {
     prefs.setBoolPref(PREFS.network, (aPrefsObject.network ? true : false));
+    prefs.setBoolPref(PREFS.networkinfo,
+                      (aPrefsObject.networkinfo ? true : false));
+    prefs.setBoolPref(PREFS.csserror, (aPrefsObject.csserror ? true : false));
     prefs.setBoolPref(PREFS.cssparser, (aPrefsObject.cssparser ? true : false));
     prefs.setBoolPref(PREFS.exception, (aPrefsObject.exception ? true : false));
+    prefs.setBoolPref(PREFS.jswarn, (aPrefsObject.jswarn ? true : false));
     prefs.setBoolPref(PREFS.error, (aPrefsObject.error ? true : false));
     prefs.setBoolPref(PREFS.info, (aPrefsObject.info ? true : false));
     prefs.setBoolPref(PREFS.warn, (aPrefsObject.warn ? true : false));
@@ -5666,7 +5615,6 @@ HUDConsoleObserver = {
       case "XBL Prototype Handler":
       case "XBL Content Sink":
       case "xbl javascript":
-      case "FrameConstructor":
         return;
 
       default:

@@ -389,20 +389,20 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
     /* NB: GC must not occur before wscript is homed in wfun->u.i.script. */
     JSScript *wscript = JSScript::NewScript(cx, script->length, nsrcnotes,
                                             script->atomMap.length,
-                                            (script->objectsOffset != 0)
+                                            JSScript::isValidOffset(script->objectsOffset)
                                             ? script->objects()->length
                                             : 0,
                                             fun->u.i.nupvars,
-                                            (script->regexpsOffset != 0)
+                                            JSScript::isValidOffset(script->regexpsOffset)
                                             ? script->regexps()->length
                                             : 0,
-                                            (script->trynotesOffset != 0)
+                                            JSScript::isValidOffset(script->trynotesOffset)
                                             ? script->trynotes()->length
                                             : 0,
-                                            (script->constOffset != 0)
+                                            JSScript::isValidOffset(script->constOffset)
                                             ? script->consts()->length
                                             : 0,
-                                            (script->globalsOffset != 0)
+                                            JSScript::isValidOffset(script->globalsOffset)
                                             ? script->globals()->length
                                             : 0,
                                             script->nClosedArgs,
@@ -416,19 +416,19 @@ WrapEscapingClosure(JSContext *cx, JSStackFrame *fp, JSFunction *fun)
     memcpy(wscript->notes(), snbase, nsrcnotes * sizeof(jssrcnote));
     memcpy(wscript->atomMap.vector, script->atomMap.vector,
            wscript->atomMap.length * sizeof(JSAtom *));
-    if (script->objectsOffset != 0) {
+    if (JSScript::isValidOffset(script->objectsOffset)) {
         memcpy(wscript->objects()->vector, script->objects()->vector,
                wscript->objects()->length * sizeof(JSObject *));
     }
-    if (script->regexpsOffset != 0) {
+    if (JSScript::isValidOffset(script->regexpsOffset)) {
         memcpy(wscript->regexps()->vector, script->regexps()->vector,
                wscript->regexps()->length * sizeof(JSObject *));
     }
-    if (script->trynotesOffset != 0) {
+    if (JSScript::isValidOffset(script->trynotesOffset)) {
         memcpy(wscript->trynotes()->vector, script->trynotes()->vector,
                wscript->trynotes()->length * sizeof(JSTryNote));
     }
-    if (script->globalsOffset != 0) {
+    if (JSScript::isValidOffset(script->globalsOffset)) {
         memcpy(wscript->globals()->vector, script->globals()->vector,
                wscript->globals()->length * sizeof(GlobalSlotArray::Entry));
     }
@@ -1232,6 +1232,8 @@ CallPropertyOp(JSContext *cx, JSObject *obj, jsid id, Value *vp,
     return true;
 }
 
+namespace js {
+
 static JSBool
 GetCallArguments(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
@@ -1245,7 +1247,7 @@ SetCallArguments(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 JSBool
-js_GetCallArg(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+GetCallArg(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     return CallPropertyOp(cx, obj, id, vp, JSCPK_ARG);
 }
@@ -1269,13 +1271,13 @@ SetFlatUpvar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 }
 
 JSBool
-js_GetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+GetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     return CallPropertyOp(cx, obj, id, vp, JSCPK_VAR);
 }
 
 JSBool
-js_GetCallVarChecked(JSContext *cx, JSObject *obj, jsid id, Value *vp)
+GetCallVarChecked(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     if (!CallPropertyOp(cx, obj, id, vp, JSCPK_VAR))
         return false;
@@ -1288,6 +1290,8 @@ SetCallVar(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     return CallPropertyOp(cx, obj, id, vp, JSCPK_VAR, true);
 }
+
+} // namespace js
 
 #if JS_TRACER
 JSBool JS_FASTCALL
@@ -1696,10 +1700,6 @@ fun_resolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
         JS_ASSERT(!IsInternalFunctionObject(obj));
         JS_ASSERT(!obj->isBoundFunction());
 
-        /* No need to reflect fun.prototype in 'fun.prototype = ... '. */
-        if (flags & JSRESOLVE_ASSIGNING)
-            return true;
-
         /*
          * Make the prototype object an instance of Object with the same parent
          * as the function object itself.
@@ -1959,17 +1959,15 @@ js_XDRFunctionObject(JSXDRState *xdr, JSObject **objp)
             fun->freezeLocalNames(cx);
     }
 
-    if (!js_XDRScript(xdr, &fun->u.i.script, false, NULL))
+    if (!js_XDRScript(xdr, &fun->u.i.script, NULL))
         return false;
 
     if (xdr->mode == JSXDR_DECODE) {
         *objp = FUN_OBJECT(fun);
-        if (fun->u.i.script != JSScript::emptyScript()) {
 #ifdef CHECK_SCRIPT_OWNER
-            fun->u.i.script->owner = NULL;
+        fun->script()->owner = NULL;
 #endif
-            js_CallNewScriptHook(cx, fun->u.i.script, fun);
-        }
+        js_CallNewScriptHook(cx, fun->script(), fun);
     }
 
     return true;
@@ -2614,7 +2612,7 @@ Function(JSContext *cx, uintN argc, Value *vp)
 
         /* Initialize a tokenstream that reads from the given string. */
         TokenStream ts(cx);
-        if (!ts.init(cx->findVersion(), collected_args, args_length, NULL, filename, lineno)) {
+        if (!ts.init(cx->findVersion(), collected_args, args_length, filename, lineno)) {
             JS_ARENA_RELEASE(&cx->tempPool, mark);
             return JS_FALSE;
         }
@@ -2717,7 +2715,18 @@ js_InitFunctionClass(JSContext *cx, JSObject *obj)
     if (!fun)
         return NULL;
     fun->flags |= JSFUN_PROTOTYPE;
-    fun->u.i.script = JSScript::emptyScript();
+
+    JSScript *script = JSScript::NewScript(cx, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    if (!script)
+        return NULL;
+    script->setVersion(JSVERSION_DEFAULT);
+    script->noScriptRval = true;
+    script->code[0] = JSOP_STOP;
+    script->code[1] = SRC_NULL;
+#ifdef CHECK_SCRIPT_OWNER
+    script->owner = NULL;
+#endif
+    fun->u.i.script = script;
 
     if (obj->getClass()->flags & JSCLASS_IS_GLOBAL) {
         /* ES5 13.2.3: Construct the unique [[ThrowTypeError]] function object. */
@@ -2821,18 +2830,16 @@ js_CloneFunctionObject(JSContext *cx, JSFunction *fun, JSObject *parent,
         if (cfun->isInterpreted()) {
             JSScript *script = cfun->u.i.script;
             JS_ASSERT(script);
-            if (script != JSScript::emptyScript()) {
-                JS_ASSERT(script->compartment == fun->compartment());
-                JS_ASSERT(script->compartment != cx->compartment);
-                cfun->u.i.script = js_CloneScript(cx, script);
-                if (!cfun->u.i.script)
-                    return NULL;
-                JS_ASSERT(cfun->u.i.script != JSScript::emptyScript());
+            JS_ASSERT(script->compartment == fun->compartment());
+            JS_ASSERT(script->compartment != cx->compartment);
+
+            cfun->u.i.script = js_CloneScript(cx, script);
+            if (!cfun->u.i.script)
+                return NULL;
 #ifdef CHECK_SCRIPT_OWNER
-                cfun->u.i.script->owner = NULL;
+            cfun->script()->owner = NULL;
 #endif
-                js_CallNewScriptHook(cx, cfun->u.i.script, cfun);
-            }
+            js_CallNewScriptHook(cx, cfun->script(), cfun);
         }
     }
     return clone;
@@ -2852,7 +2859,7 @@ JSObject * JS_FASTCALL
 js_AllocFlatClosure(JSContext *cx, JSFunction *fun, JSObject *scopeChain)
 {
     JS_ASSERT(FUN_FLAT_CLOSURE(fun));
-    JS_ASSERT((fun->u.i.script->upvarsOffset
+    JS_ASSERT((JSScript::isValidOffset(fun->u.i.script->upvarsOffset)
                ? fun->u.i.script->upvars()->length
                : 0) == fun->u.i.nupvars);
 
@@ -3070,7 +3077,7 @@ JSFunction::lastArg() const
 {
     const Shape *shape = lastVar();
     if (u.i.nvars != 0) {
-        while (shape->previous() && shape->getter() != js_GetCallArg)
+        while (shape->previous() && shape->getter() != GetCallArg)
             shape = shape->previous();
     }
     return shape;
@@ -3107,7 +3114,7 @@ JSFunction::addLocal(JSContext *cx, JSAtom *atom, JSLocalKind kind)
         JS_ASSERT(u.i.nupvars == 0);
 
         indexp = &nargs;
-        getter = js_GetCallArg;
+        getter = GetCallArg;
         setter = SetCallArg;
         slot += nargs;
     } else if (kind == JSLOCAL_UPVAR) {
@@ -3119,7 +3126,7 @@ JSFunction::addLocal(JSContext *cx, JSAtom *atom, JSLocalKind kind)
         JS_ASSERT(u.i.nupvars == 0);
 
         indexp = &u.i.nvars;
-        getter = js_GetCallVar;
+        getter = GetCallVar;
         setter = SetCallVar;
         if (kind == JSLOCAL_CONST)
             attrs |= JSPROP_READONLY;
@@ -3168,7 +3175,7 @@ JSFunction::addLocal(JSContext *cx, JSAtom *atom, JSLocalKind kind)
     }
 
     if (findArgInsertionPoint) {
-        while (parent->parent && parent->getter() != js_GetCallArg) {
+        while (parent->parent && parent->getter() != GetCallArg) {
             ++parent->slot;
             JS_ASSERT(parent->slot == parent->slotSpan);
             ++parent->slotSpan;
@@ -3197,7 +3204,7 @@ JSFunction::lookupLocal(JSContext *cx, JSAtom *atom, uintN *indexp)
     if (shape) {
         JSLocalKind localKind;
 
-        if (shape->getter() == js_GetCallArg)
+        if (shape->getter() == GetCallArg)
             localKind = JSLOCAL_ARG;
         else if (shape->getter() == GetFlatUpvar)
             localKind = JSLOCAL_UPVAR;
@@ -3241,7 +3248,7 @@ JSFunction::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
         uintN index = uint16(shape.shortid);
         jsuword constFlag = 0;
 
-        if (shape.getter() == js_GetCallArg) {
+        if (shape.getter() == GetCallArg) {
             JS_ASSERT(index < nargs);
         } else if (shape.getter() == GetFlatUpvar) {
             JS_ASSERT(index < u.i.nupvars);
@@ -3258,7 +3265,7 @@ JSFunction::getLocalNameArray(JSContext *cx, JSArenaPool *pool)
             atom = JSID_TO_ATOM(shape.id);
         } else {
             JS_ASSERT(JSID_IS_INT(shape.id));
-            JS_ASSERT(shape.getter() == js_GetCallArg);
+            JS_ASSERT(shape.getter() == GetCallArg);
             atom = NULL;
         }
 
