@@ -2808,7 +2808,7 @@ nsGenericHTMLElement::Focus(ErrorResult& aError)
 void
 nsGenericHTMLElement::Click()
 {
-  if (HandlingClick())
+  if (HasFlag(NODE_HANDLING_CLICK))
     return;
 
   // Strong in case the event kills it
@@ -2823,7 +2823,7 @@ nsGenericHTMLElement::Click()
     }
   }
 
-  SetHandlingClick();
+  SetFlags(NODE_HANDLING_CLICK);
 
   // Click() is never called from native code, but it may be
   // called from chrome JS. Mark this event trusted if Click()
@@ -2834,7 +2834,7 @@ nsGenericHTMLElement::Click()
 
   nsEventDispatcher::Dispatch(this, context, &event);
 
-  ClearHandlingClick();
+  UnsetFlags(NODE_HANDLING_CLICK);
 }
 
 bool
@@ -3125,7 +3125,7 @@ nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
 
   if (ItemScope()) {
     JS::Rooted<JS::Value> v(aCx);
-    if (!mozilla::dom::WrapObject(aCx, scope, this, &v)) {
+    if (!mozilla::dom::WrapObject(aCx, scope, this, v.address())) {
       aError.Throw(NS_ERROR_FAILURE);
       return JS::UndefinedValue();
     }

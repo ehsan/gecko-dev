@@ -493,7 +493,8 @@ Layer::SnapTransformTranslation(const gfx3DMatrix& aTransform,
 
   gfxMatrix matrix2D;
   gfx3DMatrix result;
-  if (mManager->IsSnappingEffectiveTransforms() &&
+  if (!(mContentFlags & CONTENT_DISABLE_TRANSFORM_SNAPPING) &&
+      mManager->IsSnappingEffectiveTransforms() &&
       aTransform.Is2D(&matrix2D) &&
       !matrix2D.HasNonTranslation() &&
       matrix2D.HasNonIntegerTranslation()) {
@@ -525,7 +526,8 @@ Layer::SnapTransform(const gfx3DMatrix& aTransform,
 
   gfxMatrix matrix2D;
   gfx3DMatrix result;
-  if (mManager->IsSnappingEffectiveTransforms() &&
+  if (!(mContentFlags & CONTENT_DISABLE_TRANSFORM_SNAPPING) &&
+      mManager->IsSnappingEffectiveTransforms() &&
       aTransform.Is2D(&matrix2D) &&
       gfxSize(1.0, 1.0) <= aSnapRect.Size() &&
       matrix2D.PreservesAxisAlignedRectangles()) {

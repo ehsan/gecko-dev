@@ -144,6 +144,7 @@ protected:
   nsIntPoint GetClientPoint();
   nsIntPoint GetMovementPoint();
   nsIntPoint GetLayerPoint() const;
+  nsIntPoint GetPagePoint();
 
   nsCOMPtr<nsIDOMWindow> mView;
   int32_t mDetail;

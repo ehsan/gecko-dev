@@ -369,8 +369,7 @@ struct Function {
 };
 
 struct Atom {
-    static const size_t LENGTH_SHIFT = 4;
-    size_t lengthAndFlags;
+    size_t _;
     const jschar *chars;
 };
 
@@ -542,13 +541,6 @@ inline const jschar *
 GetAtomChars(JSAtom *atom)
 {
     return reinterpret_cast<shadow::Atom *>(atom)->chars;
-}
-
-inline size_t
-GetAtomLength(JSAtom *atom)
-{
-    using shadow::Atom;
-    return reinterpret_cast<Atom*>(atom)->lengthAndFlags >> Atom::LENGTH_SHIFT;
 }
 
 inline JSLinearString *
@@ -1480,8 +1472,6 @@ class JSJitSetterCallArgs : protected JS::MutableHandleValue
     // Add get() or maybe hasDefined() as needed
 };
 
-struct JSJitMethodCallArgsTraits;
-
 /*
  * A class, expected to be passed by reference, which represents the CallArgs
  * for a JSJitMethodOp.
@@ -1490,7 +1480,6 @@ class JSJitMethodCallArgs : protected JS::detail::CallArgsBase<JS::detail::NoUse
 {
   private:
     typedef JS::detail::CallArgsBase<JS::detail::NoUsedRval> Base;
-    friend struct JSJitMethodCallArgsTraits;
 
   public:
     explicit JSJitMethodCallArgs(const JS::CallArgs& args) {
@@ -1515,12 +1504,6 @@ class JSJitMethodCallArgs : protected JS::detail::CallArgsBase<JS::detail::NoUse
     // Add get() as needed
 };
 
-struct JSJitMethodCallArgsTraits
-{
-    static const size_t offsetOfArgv = offsetof(JSJitMethodCallArgs, argv_);
-    static const size_t offsetOfArgc = offsetof(JSJitMethodCallArgs, argc_);
-};
-
 /*
  * This struct contains metadata passed from the DOM to the JS Engine for JIT
  * optimizations on DOM property accessors. Eventually, this should be made
@@ -1528,13 +1511,13 @@ struct JSJitMethodCallArgsTraits
  */
 typedef bool
 (* JSJitGetterOp)(JSContext *cx, JSHandleObject thisObj,
-                  void *specializedThis, JSJitGetterCallArgs args);
+                  void *specializedThis, JS::Value *vp);
 typedef bool
 (* JSJitSetterOp)(JSContext *cx, JSHandleObject thisObj,
-                  void *specializedThis, JSJitSetterCallArgs args);
+                  void *specializedThis, JS::Value *vp);
 typedef bool
 (* JSJitMethodOp)(JSContext *cx, JSHandleObject thisObj,
-                  void *specializedThis, const JSJitMethodCallArgs& args);
+                  void *specializedThis, unsigned argc, JS::Value *vp);
 
 struct JSJitInfo {
     enum OpType {

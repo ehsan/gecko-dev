@@ -12,27 +12,18 @@ function test() {
   runTests();
 }
 
-function scrollToEnd() {
-  let startBox = document.getElementById("start-scrollbox");
-  let [, scrollInterface] = ScrollUtils.getScrollboxFromElement(startBox);
-
-  scrollInterface.scrollBy(50000, 0);
-}
-
 function setup() {
   PanelUI.hide();
   HistoryTestHelper.setup();
 
-  if (!StartUI.isStartPageVisible) {
-    yield addTab("about:start");
+  if (StartUI.isStartPageVisible)
+    return;
 
-    yield waitForCondition(() => StartUI.isStartPageVisible);
+  yield addTab("about:start");
 
-    yield hideContextUI();
-  }
+  yield waitForCondition(() => StartUI.isStartPageVisible);
 
-  // Scroll to make sure all tiles are visible.
-  scrollToEnd();
+  yield hideContextUI();
 }
 
 function tearDown() {
@@ -175,7 +166,6 @@ gTests.push({
     let item2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
     let item3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
 
-    scrollToEnd();
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
@@ -279,7 +269,6 @@ gTests.push({
     let initialLocation2 = gStartView._set.getIndexOfItem(item2);
     let initialLocation3 = gStartView._set.getIndexOfItem(item3);
 
-    scrollToEnd();
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
@@ -324,7 +313,6 @@ gTests.push({
     let item2 = gStartView._set.getItemsByUrl(uriFromIndex(5))[0];
     let item3 = gStartView._set.getItemsByUrl(uriFromIndex(12))[0];
 
-    scrollToEnd();
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
@@ -403,7 +391,6 @@ gTests.push({
     let item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
     let item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
 
-    scrollToEnd();
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
@@ -457,7 +444,6 @@ gTests.push({
     let item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
     let item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
 
-    scrollToEnd();
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
@@ -535,7 +521,6 @@ gTests.push({
     let item2 = gPanelView._set.getItemsByUrl(uriFromIndex(5))[0];
     let item3 = gPanelView._set.getItemsByUrl(uriFromIndex(12))[0];
 
-    scrollToEnd();
     let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
     sendContextMenuClickToElement(window, item1, 10, 10);
     sendContextMenuClickToElement(window, item2, 10, 10);
