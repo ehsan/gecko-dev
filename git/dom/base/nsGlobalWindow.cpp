@@ -10714,6 +10714,12 @@ nsNavigator::GetProductSub(nsAString& aProductSub)
 }
 
 NS_IMETHODIMP
+nsNavigator::GetSecurityPolicy(nsAString& aSecurityPolicy)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsNavigator::GetMimeTypes(nsIDOMMimeTypeArray **aMimeTypes)
 {
   if (!mMimeTypes) {
