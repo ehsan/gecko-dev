@@ -3725,10 +3725,9 @@ JS_NewArrayBuffer(JSContext *cx, uint32_t nbytes)
 JS_PUBLIC_API(JSObject *)
 JS_NewArrayBufferWithContents(JSContext *cx, void *contents)
 {
-    JS_ASSERT(contents);
-    JSObject *obj = ArrayBufferObject::create(cx, 0);
-    if (!obj)
+    if (!contents)
         return NULL;
+    JSObject *obj = ArrayBufferObject::create(cx, 0);
     obj->setDynamicElements(reinterpret_cast<js::ObjectElements *>(contents));
     JS_ASSERT(*GetViewList(&obj->asArrayBuffer()) == NULL);
     return obj;

@@ -243,24 +243,15 @@ struct NS_STACK_CLASS TreeMatchContext {
   };
 
   /* Helper class for tracking whether we're skipping the ApplyStyleFixups
-   * code for flex items.
-   *
-   * The optional second parameter aSkipFlexItemStyleFixup allows this
-   * class to be instantiated but only conditionally activated (e.g.
-   * in cases where we may or may not want to be skipping flex-item
-   * style fixup for a particular chunk of code).
-   */
+   * code for flex items. */
   class NS_STACK_CLASS AutoFlexItemStyleFixupSkipper {
   public:
-    AutoFlexItemStyleFixupSkipper(TreeMatchContext& aTreeMatchContext,
-                                  bool aSkipFlexItemStyleFixup = true
+    AutoFlexItemStyleFixupSkipper(TreeMatchContext& aTreeMatchContext
                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
       : mAutoRestorer(aTreeMatchContext.mSkippingFlexItemStyleFixup)
     {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-      if (aSkipFlexItemStyleFixup) {
-        aTreeMatchContext.mSkippingFlexItemStyleFixup = true;
-      }
+      aTreeMatchContext.mSkippingFlexItemStyleFixup = true;
     }
 
   private:

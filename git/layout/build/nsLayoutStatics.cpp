@@ -84,10 +84,6 @@
 #include "WMFDecoder.h"
 #endif
 
-#ifdef MOZ_GSTREAMER
-#include "GStreamerFormatHelper.h"
-#endif
-
 #ifdef MOZ_SYDNEYAUDIO
 #include "AudioStream.h"
 #endif
@@ -348,10 +344,6 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_MEDIA_PLUGINS
   MediaPluginHost::Shutdown();
-#endif
-
-#ifdef MOZ_GSTREAMER
-  GStreamerFormatHelper::Shutdown();
 #endif
 
 #ifdef MOZ_SYDNEYAUDIO

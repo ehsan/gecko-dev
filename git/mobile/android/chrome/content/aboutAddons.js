@@ -242,7 +242,6 @@ var Addons = {
         addon.version = "";
         addon.description = engine.description || defaultDescription;
         addon.iconURL = engine.iconURI ? engine.iconURI.spec : "";
-        addon.optionsURL = "";
         addon.appDisabled = false;
         addon.scope = isDefault(engine) ? AddonManager.SCOPE_APPLICATION : AddonManager.SCOPE_PROFILE;
         addon.engine = engine;
@@ -251,7 +250,6 @@ var Addons = {
         item.setAttribute("isDisabled", engine.hidden);
         item.setAttribute("updateable", "false");
         item.setAttribute("opType", "");
-        item.setAttribute("optionsURL", "");
         item.addon = addon;
         list.appendChild(item);
       }
@@ -343,9 +341,13 @@ var Addons = {
 
         // Also send a notification to match the behavior of desktop Firefox
         let id = aListItem.getAttribute("addonID");
-        Services.obs.notifyObservers(document, AddonManager.OPTIONS_NOTIFICATION_DISPLAYED, id);
+        Services.obs.notifyObservers(document,
+                                     AddonManager.OPTIONS_NOTIFICATION_DISPLAYED,
+                                     id);
       }
-    } catch (e) { }
+    } catch (e) {
+      Cu.reportError(e)
+    }
 
     let list = document.querySelector("#addons-list");
     list.style.display = "none";

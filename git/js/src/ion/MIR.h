@@ -3444,21 +3444,39 @@ class MDefFun : public MUnaryInstruction
 
 class MRegExp : public MNullaryInstruction
 {
+  public:
+    // In the future we can optimize MRegExp to reuse the source object
+    // instead of cloning in the case of some
+    // single-use-is-a-known-native-that-can't-observe-the-object
+    // operations (like test).
+    enum CloneBehavior {
+        UseSource,
+        MustClone
+    };
+
+  private:
     CompilerRoot<RegExpObject *> source_;
     CompilerRootObject prototype_;
+    CloneBehavior shouldClone_;
 
-    MRegExp(RegExpObject *source, JSObject *prototype)
+    MRegExp(RegExpObject *source, JSObject *prototype, CloneBehavior shouldClone)
       : source_(source),
-        prototype_(prototype)
+        prototype_(prototype),
+        shouldClone_(shouldClone)
     {
         setResultType(MIRType_Object);
+
+        // Can't move if we're cloning, because cloning takes into
+        // account the RegExpStatics flags.
+        if (shouldClone == UseSource)
+            setMovable();
     }
 
   public:
     INSTRUCTION_HEADER(RegExp)
 
-    static MRegExp *New(RegExpObject *source, JSObject *prototype) {
-        return new MRegExp(source, prototype);
+    static MRegExp *New(RegExpObject *source, JSObject *prototype, CloneBehavior shouldClone) {
+        return new MRegExp(source, prototype, shouldClone);
     }
 
     RegExpObject *source() const {
@@ -3466,6 +3484,9 @@ class MRegExp : public MNullaryInstruction
     }
     JSObject *getRegExpPrototype() const {
         return prototype_;
+    }
+    CloneBehavior shouldClone() const {
+        return shouldClone_;
     }
     AliasSet getAliasSet() const {
         return AliasSet::None();

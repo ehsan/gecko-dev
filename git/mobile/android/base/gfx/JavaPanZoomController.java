@@ -750,7 +750,6 @@ class JavaPanZoomController
     }
 
     private class AutoscrollRunnable extends AnimationRunnable {
-        @Override
         protected void animateFrame() {
             if (mState != PanZoomState.AUTOSCROLL) {
                 finishAnimation();

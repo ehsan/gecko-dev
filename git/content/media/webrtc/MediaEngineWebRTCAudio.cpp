@@ -144,7 +144,7 @@ MediaEngineWebRTCAudioSource::Start(SourceMediaStream* aStream, TrackID aID)
   }
 
   {
-    MonitorAutoLock lock(mMonitor);
+    ReentrantMonitorAutoEnter enter(mMonitor);
     mSources.AppendElement(aStream);
   }
 
@@ -181,7 +181,7 @@ nsresult
 MediaEngineWebRTCAudioSource::Stop(SourceMediaStream *aSource, TrackID aID)
 {
   {
-    MonitorAutoLock lock(mMonitor);
+    ReentrantMonitorAutoEnter enter(mMonitor);
 
     if (!mSources.RemoveElement(aSource)) {
       // Already stopped - this is allowed
@@ -350,7 +350,7 @@ MediaEngineWebRTCAudioSource::Process(const int channel,
   const webrtc::ProcessingTypes type, sample* audio10ms,
   const int length, const int samplingFreq, const bool isStereo)
 {
-  MonitorAutoLock lock(mMonitor);
+  ReentrantMonitorAutoEnter enter(mMonitor);
   if (mState != kStarted)
     return;
 

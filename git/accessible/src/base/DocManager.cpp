@@ -352,9 +352,6 @@ void
 DocManager::RemoveListeners(nsIDocument* aDocument)
 {
   nsPIDOMWindow* window = aDocument->GetWindow();
-  if (!window)
-    return;
-
   nsIDOMEventTarget* target = window->GetChromeEventHandler();
   nsEventListenerManager* elm = target->GetListenerManager(true);
   elm->RemoveEventListenerByType(this, NS_LITERAL_STRING("pagehide"),

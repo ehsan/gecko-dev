@@ -200,7 +200,6 @@ EXPORTS_NAMESPACES += js
 # LegacyIntTypes.h below is deliberately exempted from this requirement.
 EXPORTS_js = \
 		Anchor.h \
-		CallArgs.h \
 		CharacterEncoding.h \
 		GCAPI.h \
 		HashTable.h \

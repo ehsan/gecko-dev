@@ -96,9 +96,6 @@ public:
 
   void InitPresContextData(nsPresContext* aPresContext);
 
-  // Returns true if the event should be trusted.
-  bool Init(mozilla::dom::EventTarget* aGlobal);
-
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
 
   static void PopupAllowedEventsChanged();

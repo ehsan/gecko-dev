@@ -964,7 +964,7 @@ NS_IMPL_ENUM_ATTR_DEFAULT_MISSING_INVALID_VALUES(nsHTMLInputElement, FormMethod,
                                                  "", kFormDefaultMethod->tag)
 NS_IMPL_BOOL_ATTR(nsHTMLInputElement, FormNoValidate, formnovalidate)
 NS_IMPL_STRING_ATTR(nsHTMLInputElement, FormTarget, formtarget)
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, InputMode, inputmode,
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLInputElement, Inputmode, inputmode,
                                 kInputDefaultInputmode->tag)
 NS_IMPL_BOOL_ATTR(nsHTMLInputElement, Multiple, multiple)
 NS_IMPL_NON_NEGATIVE_INT_ATTR(nsHTMLInputElement, MaxLength, maxlength)
@@ -2599,9 +2599,11 @@ nsHTMLInputElement::SetValueOfRangeForUserEvent(double aValue)
   nsAutoString val;
   ConvertNumberToString(aValue, val);
   SetValueInternal(val, true, true);
-  nsRangeFrame* frame = do_QueryFrame(GetPrimaryFrame());
+  nsIFrame* frame = GetPrimaryFrame();
   if (frame) {
-    frame->UpdateThumbPositionForValueChange();
+    // Trigger reflow to update the position of the thumb:
+    frame->PresContext()->GetPresShell()->
+      FrameNeedsReflow(frame, nsIPresShell::eResize, NS_FRAME_IS_DIRTY);
   }
 }
 

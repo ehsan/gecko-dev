@@ -381,7 +381,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
           // just like eUnit_Integer.
           int32_t startInt = aStartValue.GetIntValue();
           int32_t endInt = aEndValue.GetIntValue();
-          aDistance = DeprecatedAbs(endInt - startInt);
+          aDistance = Abs(endInt - startInt);
           return true;
         }
         default:
@@ -404,19 +404,19 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
     case eUnit_Integer: {
       int32_t startInt = aStartValue.GetIntValue();
       int32_t endInt = aEndValue.GetIntValue();
-      aDistance = DeprecatedAbs(endInt - startInt);
+      aDistance = Abs(endInt - startInt);
       return true;
     }
     case eUnit_Coord: {
       nscoord startCoord = aStartValue.GetCoordValue();
       nscoord endCoord = aEndValue.GetCoordValue();
-      aDistance = Abs(double(endCoord) - double(startCoord));
+      aDistance = Abs<double>(endCoord - startCoord);
       return true;
     }
     case eUnit_Percent: {
       float startPct = aStartValue.GetPercentValue();
       float endPct = aEndValue.GetPercentValue();
-      aDistance = Abs(double(endPct) - double(startPct));
+      aDistance = Abs<double>(endPct - startPct);
       return true;
     }
     case eUnit_Float: {
@@ -434,7 +434,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
 
       float startFloat = aStartValue.GetFloatValue();
       float endFloat = aEndValue.GetFloatValue();
-      aDistance = Abs(double(endFloat) - double(startFloat));
+      aDistance = Abs<double>(endFloat - startFloat);
       return true;
     }
     case eUnit_Color: {

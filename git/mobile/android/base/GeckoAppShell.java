@@ -16,6 +16,7 @@ import org.mozilla.gecko.util.GeckoBackgroundThread;
 import org.mozilla.gecko.util.GeckoEventListener;
 
 import android.app.ActivityManager;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
@@ -52,6 +53,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.MessageQueue;
+import android.os.StatFs;
 import android.os.SystemClock;
 import android.os.Vibrator;
 import android.provider.Settings;
@@ -2151,6 +2153,11 @@ public class GeckoAppShell
 
     public static void unregisterSurfaceTextureFrameListener(Object surfaceTexture) {
         ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(null);
+    }
+
+    public static void notifyCheckUpdateResult(boolean result) {
+        if (GeckoApp.mAppContext != null)
+            GeckoApp.mAppContext.notifyCheckUpdateResult(result);
     }
 
     public static boolean unlockProfile() {

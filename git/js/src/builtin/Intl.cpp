@@ -40,13 +40,7 @@ using namespace js;
  * directory for license.
  */
 
-#ifdef __GNUC__
-#  define SUPPRESS_UNUSED_WARNING __attribute__ ((unused))
-#else
-#  define SUPPRESS_UNUSED_WARNING
-#endif
-
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 u_strlen(const UChar *s)
 {
     MOZ_NOT_REACHED("u_strlen: Intl API disabled");
@@ -55,7 +49,7 @@ u_strlen(const UChar *s)
 
 struct UEnumeration;
 
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 uenum_count(UEnumeration *en, UErrorCode *status)
 {
     MOZ_NOT_REACHED("uenum_count: Intl API disabled");
@@ -63,7 +57,7 @@ uenum_count(UEnumeration *en, UErrorCode *status)
     return 0;
 }
 
-SUPPRESS_UNUSED_WARNING static const char *
+static const char *
 uenum_next(UEnumeration *en, int32_t *resultLength, UErrorCode *status)
 {
     MOZ_NOT_REACHED("uenum_next: Intl API disabled");
@@ -71,7 +65,7 @@ uenum_next(UEnumeration *en, int32_t *resultLength, UErrorCode *status)
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 uenum_close(UEnumeration *en)
 {
     MOZ_NOT_REACHED("uenum_close: Intl API disabled");
@@ -106,21 +100,21 @@ enum UCollationResult {
   UCOL_LESS = -1
 };
 
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 ucol_countAvailable(void)
 {
     MOZ_NOT_REACHED("ucol_countAvailable: Intl API disabled");
     return 0;
 }
 
-SUPPRESS_UNUSED_WARNING static const char *
+static const char *
 ucol_getAvailable(int32_t localeIndex)
 {
     MOZ_NOT_REACHED("ucol_getAvailable: Intl API disabled");
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static UCollator *
+static UCollator *
 ucol_open(const char *loc, UErrorCode *status)
 {
     MOZ_NOT_REACHED("ucol_open: Intl API disabled");
@@ -128,14 +122,14 @@ ucol_open(const char *loc, UErrorCode *status)
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 ucol_setAttribute(UCollator *coll, UColAttribute attr, UColAttributeValue value, UErrorCode *status)
 {
     MOZ_NOT_REACHED("ucol_setAttribute: Intl API disabled");
     *status = U_UNSUPPORTED_ERROR;
 }
 
-SUPPRESS_UNUSED_WARNING static UCollationResult
+static UCollationResult
 ucol_strcoll(const UCollator *coll, const UChar *source, int32_t sourceLength,
              const UChar *target, int32_t targetLength)
 {
@@ -143,13 +137,13 @@ ucol_strcoll(const UCollator *coll, const UChar *source, int32_t sourceLength,
     return (UCollationResult) 0;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 ucol_close(UCollator *coll)
 {
     MOZ_NOT_REACHED("ucol_close: Intl API disabled");
 }
 
-SUPPRESS_UNUSED_WARNING static UEnumeration *
+static UEnumeration *
 ucol_getKeywordValuesForLocale(const char *key, const char *locale, UBool commonlyUsed,
                                UErrorCode *status)
 {
@@ -184,21 +178,21 @@ enum UNumberFormatTextAttribute {
   UNUM_CURRENCY_CODE,
 };
 
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 unum_countAvailable(void)
 {
     MOZ_NOT_REACHED("unum_countAvailable: Intl API disabled");
     return 0;
 }
 
-SUPPRESS_UNUSED_WARNING static const char *
+static const char *
 unum_getAvailable(int32_t localeIndex)
 {
     MOZ_NOT_REACHED("unum_getAvailable: Intl API disabled");
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static UNumberFormat *
+static UNumberFormat *
 unum_open(UNumberFormatStyle style, const UChar *pattern, int32_t patternLength,
           const char *locale, UParseError *parseErr, UErrorCode *status)
 {
@@ -207,13 +201,13 @@ unum_open(UNumberFormatStyle style, const UChar *pattern, int32_t patternLength,
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 unum_setAttribute(UNumberFormat *fmt, UNumberFormatAttribute  attr, int32_t newValue)
 {
     MOZ_NOT_REACHED("unum_setAttribute: Intl API disabled");
 }
 
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 unum_formatDouble(const UNumberFormat *fmt, double number, UChar *result,
                   int32_t resultLength, UFieldPosition *pos, UErrorCode *status)
 {
@@ -222,13 +216,13 @@ unum_formatDouble(const UNumberFormat *fmt, double number, UChar *result,
     return 0;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 unum_close(UNumberFormat *fmt)
 {
     MOZ_NOT_REACHED("unum_close: Intl API disabled");
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 unum_setTextAttribute(UNumberFormat *fmt, UNumberFormatTextAttribute tag, const UChar *newValue,
                       int32_t newValueLength, UErrorCode *status)
 {
@@ -277,7 +271,7 @@ enum UCalendarType {
   UCAL_GREGORIAN
 };
 
-SUPPRESS_UNUSED_WARNING static UCalendar *
+static UCalendar *
 ucal_open(const UChar *zoneID, int32_t len, const char *locale,
           UCalendarType type, UErrorCode *status)
 {
@@ -286,7 +280,7 @@ ucal_open(const UChar *zoneID, int32_t len, const char *locale,
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static const char *
+static const char *
 ucal_getType(const UCalendar *cal, UErrorCode *status)
 {
     MOZ_NOT_REACHED("ucal_getType: Intl API disabled");
@@ -294,7 +288,7 @@ ucal_getType(const UCalendar *cal, UErrorCode *status)
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static UEnumeration *
+static UEnumeration *
 ucal_getKeywordValuesForLocale(const char *key, const char *locale,
                                UBool commonlyUsed, UErrorCode *status)
 {
@@ -303,7 +297,7 @@ ucal_getKeywordValuesForLocale(const char *key, const char *locale,
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 ucal_close(UCalendar *cal)
 {
     MOZ_NOT_REACHED("ucal_close: Intl API disabled");
@@ -311,7 +305,7 @@ ucal_close(UCalendar *cal)
 
 typedef void *UDateTimePatternGenerator;
 
-SUPPRESS_UNUSED_WARNING static UDateTimePatternGenerator *
+static UDateTimePatternGenerator *
 udatpg_open(const char *locale, UErrorCode *pErrorCode)
 {
     MOZ_NOT_REACHED("udatpg_open: Intl API disabled");
@@ -319,7 +313,7 @@ udatpg_open(const char *locale, UErrorCode *pErrorCode)
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 udatpg_getBestPattern(UDateTimePatternGenerator *dtpg, const UChar *skeleton,
                       int32_t length, UChar *bestPattern, int32_t capacity,
                       UErrorCode *pErrorCode)
@@ -329,7 +323,7 @@ udatpg_getBestPattern(UDateTimePatternGenerator *dtpg, const UChar *skeleton,
     return 0;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 udatpg_close(UDateTimePatternGenerator *dtpg)
 {
     MOZ_NOT_REACHED("udatpg_close: Intl API disabled");
@@ -343,21 +337,21 @@ enum UDateFormatStyle {
     UDAT_IGNORE = UDAT_PATTERN
 };
 
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 udat_countAvailable(void)
 {
     MOZ_NOT_REACHED("udat_countAvailable: Intl API disabled");
     return 0;
 }
 
-SUPPRESS_UNUSED_WARNING static const char *
+static const char *
 udat_getAvailable(int32_t localeIndex)
 {
     MOZ_NOT_REACHED("udat_getAvailable: Intl API disabled");
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static UDateFormat *
+static UDateFormat *
 udat_open(UDateFormatStyle timeStyle, UDateFormatStyle dateStyle, const char *locale,
           const UChar *tzID, int32_t tzIDLength, const UChar *pattern,
           int32_t patternLength, UErrorCode *status)
@@ -367,21 +361,21 @@ udat_open(UDateFormatStyle timeStyle, UDateFormatStyle dateStyle, const char *lo
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static const UCalendar *
+static const UCalendar *
 udat_getCalendar(const UDateFormat *fmt)
 {
     MOZ_NOT_REACHED("udat_getCalendar: Intl API disabled");
     return NULL;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 ucal_setGregorianChange(UCalendar *cal, UDate date, UErrorCode *pErrorCode)
 {
     MOZ_NOT_REACHED("ucal_setGregorianChange: Intl API disabled");
     *pErrorCode = U_UNSUPPORTED_ERROR;
 }
 
-SUPPRESS_UNUSED_WARNING static int32_t
+static int32_t
 udat_format(const UDateFormat *format, UDate dateToFormat, UChar *result,
             int32_t resultLength, UFieldPosition *position, UErrorCode *status)
 {
@@ -390,7 +384,7 @@ udat_format(const UDateFormat *format, UDate dateToFormat, UChar *result,
     return 0;
 }
 
-SUPPRESS_UNUSED_WARNING static void
+static void
 udat_close(UDateFormat *format)
 {
     MOZ_NOT_REACHED("udat_close: Intl API disabled");

@@ -517,14 +517,9 @@ public:
   NS_DECL_NSIOBSERVER
 
   void Init();
-
-private:
-  static bool sFreeDirtyPages;
 };
 
 NS_IMPL_ISUPPORTS1(nsMemoryPressureWatcher, nsIObserver)
-
-bool nsMemoryPressureWatcher::sFreeDirtyPages = false;
 
 /**
  * Initialize and subscribe to the memory-pressure events. We subscribe to the
@@ -539,14 +534,12 @@ nsMemoryPressureWatcher::Init()
   if (os) {
     os->AddObserver(this, "memory-pressure", /* ownsWeak */ false);
   }
-
-  Preferences::AddBoolVarCache(&sFreeDirtyPages, "memory.free_dirty_pages",
-                               false);
 }
 
 /**
  * Reacts to all types of memory-pressure events, launches a runnable to
  * free dirty pages held by jemalloc.
+ * @see nsMemoryPressureWatcher::FreeDirtyPages
  */
 NS_IMETHODIMP
 nsMemoryPressureWatcher::Observe(nsISupports *subject, const char *topic,
@@ -554,11 +547,9 @@ nsMemoryPressureWatcher::Observe(nsISupports *subject, const char *topic,
 {
   MOZ_ASSERT(!strcmp(topic, "memory-pressure"), "Unknown topic");
 
-  if (sFreeDirtyPages) {
-    nsRefPtr<nsIRunnable> runnable = new nsJemallocFreeDirtyPagesRunnable();
+  nsRefPtr<nsIRunnable> runnable = new nsJemallocFreeDirtyPagesRunnable();
 
-    NS_DispatchToMainThread(runnable);
-  }
+  NS_DispatchToMainThread(runnable);
 
   return NS_OK;
 }
@@ -599,9 +590,11 @@ void Activate()
   sHooksActive = true;
 #endif
 
-  // This object is held alive by the observer service.
-  nsRefPtr<nsMemoryPressureWatcher> watcher = new nsMemoryPressureWatcher();
-  watcher->Init();
+  if (Preferences::GetBool("memory.free_dirty_pages", false)) {
+    // This object is held alive by the observer service.
+    nsRefPtr<nsMemoryPressureWatcher> watcher = new nsMemoryPressureWatcher();
+    watcher->Init();
+  }
 }
 
 void Init()

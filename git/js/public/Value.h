@@ -342,7 +342,7 @@ JS_STATIC_ASSERT(sizeof(jsval_layout) == 8);
  * Thus, all comparisons should explicitly cast operands to uint32_t.
  */
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 BUILD_JSVAL(JSValueTag tag, uint32_t payload)
 {
     jsval_layout l;
@@ -350,13 +350,13 @@ BUILD_JSVAL(JSValueTag tag, uint32_t payload)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_DOUBLE_IMPL(jsval_layout l)
 {
     return (uint32_t)l.s.tag <= (uint32_t)JSVAL_TAG_CLEAR;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 DOUBLE_TO_JSVAL_IMPL(double d)
 {
     jsval_layout l;
@@ -365,19 +365,19 @@ DOUBLE_TO_JSVAL_IMPL(double d)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_INT32_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_INT32;
 }
 
-static inline int32_t
+static MOZ_ALWAYS_INLINE int32_t
 JSVAL_TO_INT32_IMPL(jsval_layout l)
 {
     return l.s.payload.i32;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 INT32_TO_JSVAL_IMPL(int32_t i)
 {
     jsval_layout l;
@@ -386,7 +386,7 @@ INT32_TO_JSVAL_IMPL(int32_t i)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_NUMBER_IMPL(jsval_layout l)
 {
     JSValueTag tag = l.s.tag;
@@ -394,19 +394,19 @@ JSVAL_IS_NUMBER_IMPL(jsval_layout l)
     return (uint32_t)tag <= (uint32_t)JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_UNDEFINED_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_UNDEFINED;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_STRING_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_STRING;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 STRING_TO_JSVAL_IMPL(JSString *str)
 {
     jsval_layout l;
@@ -416,25 +416,25 @@ STRING_TO_JSVAL_IMPL(JSString *str)
     return l;
 }
 
-static inline JSString *
+static MOZ_ALWAYS_INLINE JSString *
 JSVAL_TO_STRING_IMPL(jsval_layout l)
 {
     return l.s.payload.str;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_BOOLEAN_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_BOOLEAN;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_TO_BOOLEAN_IMPL(jsval_layout l)
 {
     return l.s.payload.boo;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
@@ -444,38 +444,38 @@ BOOLEAN_TO_JSVAL_IMPL(JSBool b)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_MAGIC_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_MAGIC;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_OBJECT_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_OBJECT;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_PRIMITIVE_IMPL(jsval_layout l)
 {
     return (uint32_t)l.s.tag < (uint32_t)JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_OBJECT_OR_NULL_IMPL(jsval_layout l)
 {
     MOZ_ASSERT((uint32_t)l.s.tag <= (uint32_t)JSVAL_TAG_OBJECT);
     return (uint32_t)l.s.tag >= (uint32_t)JSVAL_LOWER_INCL_TAG_OF_OBJ_OR_NULL_SET;
 }
 
-static inline JSObject *
+static MOZ_ALWAYS_INLINE JSObject *
 JSVAL_TO_OBJECT_IMPL(jsval_layout l)
 {
     return l.s.payload.obj;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 OBJECT_TO_JSVAL_IMPL(JSObject *obj)
 {
     jsval_layout l;
@@ -485,13 +485,13 @@ OBJECT_TO_JSVAL_IMPL(JSObject *obj)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_NULL_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_NULL;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 PRIVATE_PTR_TO_JSVAL_IMPL(void *ptr)
 {
     jsval_layout l;
@@ -502,50 +502,50 @@ PRIVATE_PTR_TO_JSVAL_IMPL(void *ptr)
     return l;
 }
 
-static inline void *
+static MOZ_ALWAYS_INLINE void *
 JSVAL_TO_PRIVATE_PTR_IMPL(jsval_layout l)
 {
     return l.s.payload.ptr;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_GCTHING_IMPL(jsval_layout l)
 {
     /* gcc sometimes generates signed < without explicit casts. */
     return (uint32_t)l.s.tag >= (uint32_t)JSVAL_LOWER_INCL_TAG_OF_GCTHING_SET;
 }
 
-static inline void *
+static MOZ_ALWAYS_INLINE void *
 JSVAL_TO_GCTHING_IMPL(jsval_layout l)
 {
     return l.s.payload.ptr;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_TRACEABLE_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_STRING || l.s.tag == JSVAL_TAG_OBJECT;
 }
 
-static inline uint32_t
+static MOZ_ALWAYS_INLINE uint32_t
 JSVAL_TRACE_KIND_IMPL(jsval_layout l)
 {
     return (uint32_t)(JSBool)JSVAL_IS_STRING_IMPL(l);
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_SPECIFIC_INT32_IMPL(jsval_layout l, int32_t i32)
 {
     return l.s.tag == JSVAL_TAG_INT32 && l.s.payload.i32 == i32;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_SPECIFIC_BOOLEAN(jsval_layout l, JSBool b)
 {
     return (l.s.tag == JSVAL_TAG_BOOLEAN) && (l.s.payload.boo == b);
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 MAGIC_TO_JSVAL_IMPL(JSWhyMagic why)
 {
     jsval_layout l;
@@ -554,14 +554,14 @@ MAGIC_TO_JSVAL_IMPL(JSWhyMagic why)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_SAME_TYPE_IMPL(jsval_layout lhs, jsval_layout rhs)
 {
     JSValueTag ltag = lhs.s.tag, rtag = rhs.s.tag;
     return ltag == rtag || (ltag < JSVAL_TAG_CLEAR && rtag < JSVAL_TAG_CLEAR);
 }
 
-static inline JSValueType
+static MOZ_ALWAYS_INLINE JSValueType
 JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(jsval_layout l)
 {
     uint32_t type = l.s.tag & 0xF;
@@ -571,7 +571,7 @@ JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(jsval_layout l)
 
 #elif JS_BITS_PER_WORD == 64
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 BUILD_JSVAL(JSValueTag tag, uint64_t payload)
 {
     jsval_layout l;
@@ -579,13 +579,13 @@ BUILD_JSVAL(JSValueTag tag, uint64_t payload)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_DOUBLE_IMPL(jsval_layout l)
 {
     return l.asBits <= JSVAL_SHIFTED_TAG_MAX_DOUBLE;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 DOUBLE_TO_JSVAL_IMPL(double d)
 {
     jsval_layout l;
@@ -594,19 +594,19 @@ DOUBLE_TO_JSVAL_IMPL(double d)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_INT32_IMPL(jsval_layout l)
 {
     return (uint32_t)(l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_INT32;
 }
 
-static inline int32_t
+static MOZ_ALWAYS_INLINE int32_t
 JSVAL_TO_INT32_IMPL(jsval_layout l)
 {
     return (int32_t)l.asBits;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 INT32_TO_JSVAL_IMPL(int32_t i32)
 {
     jsval_layout l;
@@ -614,25 +614,25 @@ INT32_TO_JSVAL_IMPL(int32_t i32)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_NUMBER_IMPL(jsval_layout l)
 {
     return l.asBits < JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_UNDEFINED_IMPL(jsval_layout l)
 {
     return l.asBits == JSVAL_SHIFTED_TAG_UNDEFINED;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_STRING_IMPL(jsval_layout l)
 {
     return (uint32_t)(l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_STRING;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 STRING_TO_JSVAL_IMPL(JSString *str)
 {
     jsval_layout l;
@@ -643,25 +643,25 @@ STRING_TO_JSVAL_IMPL(JSString *str)
     return l;
 }
 
-static inline JSString *
+static MOZ_ALWAYS_INLINE JSString *
 JSVAL_TO_STRING_IMPL(jsval_layout l)
 {
     return (JSString *)(l.asBits & JSVAL_PAYLOAD_MASK);
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_BOOLEAN_IMPL(jsval_layout l)
 {
     return (uint32_t)(l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_BOOLEAN;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_TO_BOOLEAN_IMPL(jsval_layout l)
 {
     return (JSBool)l.asBits;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
@@ -670,33 +670,33 @@ BOOLEAN_TO_JSVAL_IMPL(JSBool b)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_MAGIC_IMPL(jsval_layout l)
 {
     return (l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_MAGIC;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_PRIMITIVE_IMPL(jsval_layout l)
 {
     return l.asBits < JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_OBJECT_IMPL(jsval_layout l)
 {
     MOZ_ASSERT((l.asBits >> JSVAL_TAG_SHIFT) <= JSVAL_SHIFTED_TAG_OBJECT);
     return l.asBits >= JSVAL_SHIFTED_TAG_OBJECT;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_OBJECT_OR_NULL_IMPL(jsval_layout l)
 {
     MOZ_ASSERT((l.asBits >> JSVAL_TAG_SHIFT) <= JSVAL_TAG_OBJECT);
     return l.asBits >= JSVAL_LOWER_INCL_SHIFTED_TAG_OF_OBJ_OR_NULL_SET;
 }
 
-static inline JSObject *
+static MOZ_ALWAYS_INLINE JSObject *
 JSVAL_TO_OBJECT_IMPL(jsval_layout l)
 {
     uint64_t ptrBits = l.asBits & JSVAL_PAYLOAD_MASK;
@@ -704,7 +704,7 @@ JSVAL_TO_OBJECT_IMPL(jsval_layout l)
     return (JSObject *)ptrBits;
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 OBJECT_TO_JSVAL_IMPL(JSObject *obj)
 {
     jsval_layout l;
@@ -715,19 +715,19 @@ OBJECT_TO_JSVAL_IMPL(JSObject *obj)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_NULL_IMPL(jsval_layout l)
 {
     return l.asBits == JSVAL_SHIFTED_TAG_NULL;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_GCTHING_IMPL(jsval_layout l)
 {
     return l.asBits >= JSVAL_LOWER_INCL_SHIFTED_TAG_OF_GCTHING_SET;
 }
 
-static inline void *
+static MOZ_ALWAYS_INLINE void *
 JSVAL_TO_GCTHING_IMPL(jsval_layout l)
 {
     uint64_t ptrBits = l.asBits & JSVAL_PAYLOAD_MASK;
@@ -735,19 +735,19 @@ JSVAL_TO_GCTHING_IMPL(jsval_layout l)
     return (void *)ptrBits;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_TRACEABLE_IMPL(jsval_layout l)
 {
     return JSVAL_IS_GCTHING_IMPL(l) && !JSVAL_IS_NULL_IMPL(l);
 }
 
-static inline uint32_t
+static MOZ_ALWAYS_INLINE uint32_t
 JSVAL_TRACE_KIND_IMPL(jsval_layout l)
 {
     return (uint32_t)(JSBool)!(JSVAL_IS_OBJECT_IMPL(l));
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 PRIVATE_PTR_TO_JSVAL_IMPL(void *ptr)
 {
     jsval_layout l;
@@ -758,26 +758,26 @@ PRIVATE_PTR_TO_JSVAL_IMPL(void *ptr)
     return l;
 }
 
-static inline void *
+static MOZ_ALWAYS_INLINE void *
 JSVAL_TO_PRIVATE_PTR_IMPL(jsval_layout l)
 {
     MOZ_ASSERT((l.asBits & 0x8000000000000000LL) == 0);
     return (void *)(l.asBits << 1);
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_SPECIFIC_INT32_IMPL(jsval_layout l, int32_t i32)
 {
     return l.asBits == (((uint64_t)(uint32_t)i32) | JSVAL_SHIFTED_TAG_INT32);
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_SPECIFIC_BOOLEAN(jsval_layout l, JSBool b)
 {
     return l.asBits == (((uint64_t)(uint32_t)b) | JSVAL_SHIFTED_TAG_BOOLEAN);
 }
 
-static inline jsval_layout
+static MOZ_ALWAYS_INLINE jsval_layout
 MAGIC_TO_JSVAL_IMPL(JSWhyMagic why)
 {
     jsval_layout l;
@@ -785,7 +785,7 @@ MAGIC_TO_JSVAL_IMPL(JSWhyMagic why)
     return l;
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_SAME_TYPE_IMPL(jsval_layout lhs, jsval_layout rhs)
 {
     uint64_t lbits = lhs.asBits, rbits = rhs.asBits;
@@ -793,7 +793,7 @@ JSVAL_SAME_TYPE_IMPL(jsval_layout lhs, jsval_layout rhs)
            (((lbits ^ rbits) & 0xFFFF800000000000LL) == 0);
 }
 
-static inline JSValueType
+static MOZ_ALWAYS_INLINE JSValueType
 JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(jsval_layout l)
 {
    uint64_t type = (l.asBits >> JSVAL_TAG_SHIFT) & 0xF;
@@ -803,7 +803,7 @@ JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(jsval_layout l)
 
 #endif  /* JS_BITS_PER_WORD */
 
-static inline double
+static MOZ_ALWAYS_INLINE double
 JS_CANONICALIZE_NAN(double d)
 {
     if (MOZ_UNLIKELY(d != d)) {
@@ -814,8 +814,8 @@ JS_CANONICALIZE_NAN(double d)
     return d;
 }
 
-static inline jsval_layout JSVAL_TO_IMPL(JS::Value v);
-static inline JS::Value IMPL_TO_JSVAL(jsval_layout l);
+static MOZ_ALWAYS_INLINE jsval_layout JSVAL_TO_IMPL(JS::Value v);
+static MOZ_ALWAYS_INLINE JS::Value IMPL_TO_JSVAL(jsval_layout l);
 
 namespace JS {
 
@@ -864,54 +864,66 @@ class Value
 
     /*** Mutators ***/
 
+    MOZ_ALWAYS_INLINE
     void setNull() {
         data.asBits = BUILD_JSVAL(JSVAL_TAG_NULL, 0).asBits;
     }
 
+    MOZ_ALWAYS_INLINE
     void setUndefined() {
         data.asBits = BUILD_JSVAL(JSVAL_TAG_UNDEFINED, 0).asBits;
     }
 
+    MOZ_ALWAYS_INLINE
     void setInt32(int32_t i) {
         data = INT32_TO_JSVAL_IMPL(i);
     }
 
+    MOZ_ALWAYS_INLINE
     int32_t &getInt32Ref() {
         MOZ_ASSERT(isInt32());
         return data.s.payload.i32;
     }
 
+    MOZ_ALWAYS_INLINE
     void setDouble(double d) {
         data = DOUBLE_TO_JSVAL_IMPL(d);
     }
 
+    MOZ_ALWAYS_INLINE
     double &getDoubleRef() {
         MOZ_ASSERT(isDouble());
         return data.asDouble;
     }
 
+    MOZ_ALWAYS_INLINE
     void setString(JSString *str) {
         MOZ_ASSERT(!IsPoisonedPtr(str));
         data = STRING_TO_JSVAL_IMPL(str);
     }
 
+    MOZ_ALWAYS_INLINE
     void setString(const JS::Anchor<JSString *> &str) {
         setString(str.get());
     }
 
+    MOZ_ALWAYS_INLINE
     void setObject(JSObject &obj) {
         MOZ_ASSERT(!IsPoisonedPtr(&obj));
         data = OBJECT_TO_JSVAL_IMPL(&obj);
     }
 
+    MOZ_ALWAYS_INLINE
     void setBoolean(bool b) {
         data = BOOLEAN_TO_JSVAL_IMPL(b);
     }
 
+    MOZ_ALWAYS_INLINE
     void setMagic(JSWhyMagic why) {
         data = MAGIC_TO_JSVAL_IMPL(why);
     }
 
+    MOZ_ALWAYS_INLINE
     bool setNumber(uint32_t ui) {
         if (ui > JSVAL_INT_MAX) {
             setDouble((double)ui);
@@ -922,6 +934,7 @@ class Value
         }
     }
 
+    MOZ_ALWAYS_INLINE
     bool setNumber(double d) {
         int32_t i;
         if (MOZ_DOUBLE_IS_INT32(d, &i)) {
@@ -933,6 +946,7 @@ class Value
         }
     }
 
+    MOZ_ALWAYS_INLINE
     void setObjectOrNull(JSObject *arg) {
         if (arg)
             setObject(*arg);
@@ -940,6 +954,7 @@ class Value
             setNull();
     }
 
+    MOZ_ALWAYS_INLINE
     void swap(Value &rhs) {
         uint64_t tmp = rhs.data.asBits;
         rhs.data.asBits = data.asBits;
@@ -948,84 +963,104 @@ class Value
 
     /*** Value type queries ***/
 
+    MOZ_ALWAYS_INLINE
     bool isUndefined() const {
         return JSVAL_IS_UNDEFINED_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isNull() const {
         return JSVAL_IS_NULL_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isNullOrUndefined() const {
         return isNull() || isUndefined();
     }
 
+    MOZ_ALWAYS_INLINE
     bool isInt32() const {
         return JSVAL_IS_INT32_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isInt32(int32_t i32) const {
         return JSVAL_IS_SPECIFIC_INT32_IMPL(data, i32);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isDouble() const {
         return JSVAL_IS_DOUBLE_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isNumber() const {
         return JSVAL_IS_NUMBER_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isString() const {
         return JSVAL_IS_STRING_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isObject() const {
         return JSVAL_IS_OBJECT_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isPrimitive() const {
         return JSVAL_IS_PRIMITIVE_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isObjectOrNull() const {
         return JSVAL_IS_OBJECT_OR_NULL_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isGCThing() const {
         return JSVAL_IS_GCTHING_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isBoolean() const {
         return JSVAL_IS_BOOLEAN_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isTrue() const {
         return JSVAL_IS_SPECIFIC_BOOLEAN(data, true);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isFalse() const {
         return JSVAL_IS_SPECIFIC_BOOLEAN(data, false);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isMagic() const {
         return JSVAL_IS_MAGIC_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isMagic(JSWhyMagic why) const {
         MOZ_ASSERT_IF(isMagic(), data.s.payload.why == why);
         return JSVAL_IS_MAGIC_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool isMarkable() const {
         return JSVAL_IS_TRACEABLE_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     JSGCTraceKind gcKind() const {
         MOZ_ASSERT(isMarkable());
         return JSGCTraceKind(JSVAL_TRACE_KIND_IMPL(data));
     }
 
+    MOZ_ALWAYS_INLINE
     JSWhyMagic whyMagic() const {
         MOZ_ASSERT(isMagic());
         return data.s.payload.why;
@@ -1033,10 +1068,12 @@ class Value
 
     /*** Comparison ***/
 
+    MOZ_ALWAYS_INLINE
     bool operator==(const Value &rhs) const {
         return data.asBits == rhs.data.asBits;
     }
 
+    MOZ_ALWAYS_INLINE
     bool operator!=(const Value &rhs) const {
         return data.asBits != rhs.data.asBits;
     }
@@ -1045,55 +1082,66 @@ class Value
 
     /*** Extract the value's typed payload ***/
 
+    MOZ_ALWAYS_INLINE
     int32_t toInt32() const {
         MOZ_ASSERT(isInt32());
         return JSVAL_TO_INT32_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     double toDouble() const {
         MOZ_ASSERT(isDouble());
         return data.asDouble;
     }
 
+    MOZ_ALWAYS_INLINE
     double toNumber() const {
         MOZ_ASSERT(isNumber());
         return isDouble() ? toDouble() : double(toInt32());
     }
 
+    MOZ_ALWAYS_INLINE
     JSString *toString() const {
         MOZ_ASSERT(isString());
         return JSVAL_TO_STRING_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     JSObject &toObject() const {
         MOZ_ASSERT(isObject());
         return *JSVAL_TO_OBJECT_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     JSObject *toObjectOrNull() const {
         MOZ_ASSERT(isObjectOrNull());
         return JSVAL_TO_OBJECT_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     void *toGCThing() const {
         MOZ_ASSERT(isGCThing());
         return JSVAL_TO_GCTHING_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     bool toBoolean() const {
         MOZ_ASSERT(isBoolean());
         return JSVAL_TO_BOOLEAN_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     uint32_t payloadAsRawUint32() const {
         MOZ_ASSERT(!isDouble());
         return data.s.payload.u32;
     }
 
+    MOZ_ALWAYS_INLINE
     uint64_t asRawBits() const {
         return data.asBits;
     }
 
+    MOZ_ALWAYS_INLINE
     JSValueType extractNonDoubleType() const {
         return JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(data);
     }
@@ -1107,20 +1155,24 @@ class Value
      * Privates values are given a type type which ensures they are not marked.
      */
 
+    MOZ_ALWAYS_INLINE
     void setPrivate(void *ptr) {
         data = PRIVATE_PTR_TO_JSVAL_IMPL(ptr);
     }
 
+    MOZ_ALWAYS_INLINE
     void *toPrivate() const {
         MOZ_ASSERT(JSVAL_IS_DOUBLE_IMPL(data));
         return JSVAL_TO_PRIVATE_PTR_IMPL(data);
     }
 
+    MOZ_ALWAYS_INLINE
     void setPrivateUint32(uint32_t ui) {
         MOZ_ASSERT(uint32_t(int32_t(ui)) == ui);
         setInt32(int32_t(ui));
     }
 
+    MOZ_ALWAYS_INLINE
     uint32_t toPrivateUint32() const {
         return uint32_t(toInt32());
     }
@@ -1131,10 +1183,12 @@ class Value
      * and the ensuing strict-aliasing warnings.
      */
 
+    MOZ_ALWAYS_INLINE
     void setUnmarkedPtr(void *ptr) {
         data.asPtr = ptr;
     }
 
+    MOZ_ALWAYS_INLINE
     void *toUnmarkedPtr() const {
         return data.asPtr;
     }
@@ -1189,7 +1243,7 @@ IsPoisonedValue(const Value &v)
 
 /************************************************************************/
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NullValue()
 {
     Value v;
@@ -1197,7 +1251,7 @@ NullValue()
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 UndefinedValue()
 {
     Value v;
@@ -1205,7 +1259,7 @@ UndefinedValue()
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 Int32Value(int32_t i32)
 {
     Value v;
@@ -1213,7 +1267,7 @@ Int32Value(int32_t i32)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 DoubleValue(double dbl)
 {
     Value v;
@@ -1221,7 +1275,7 @@ DoubleValue(double dbl)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 StringValue(JSString *str)
 {
     Value v;
@@ -1229,7 +1283,7 @@ StringValue(JSString *str)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 BooleanValue(bool boo)
 {
     Value v;
@@ -1237,7 +1291,7 @@ BooleanValue(bool boo)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 ObjectValue(JSObject &obj)
 {
     Value v;
@@ -1245,7 +1299,7 @@ ObjectValue(JSObject &obj)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 ObjectValueCrashOnTouch()
 {
     Value v;
@@ -1253,7 +1307,7 @@ ObjectValueCrashOnTouch()
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 MagicValue(JSWhyMagic why)
 {
     Value v;
@@ -1261,7 +1315,7 @@ MagicValue(JSWhyMagic why)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(float f)
 {
     Value v;
@@ -1269,7 +1323,7 @@ NumberValue(float f)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(double dbl)
 {
     Value v;
@@ -1277,37 +1331,37 @@ NumberValue(double dbl)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(int8_t i)
 {
     return Int32Value(i);
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(uint8_t i)
 {
     return Int32Value(i);
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(int16_t i)
 {
     return Int32Value(i);
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(uint16_t i)
 {
     return Int32Value(i);
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(int32_t i)
 {
     return Int32Value(i);
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(uint32_t i)
 {
     Value v;
@@ -1352,14 +1406,14 @@ class MakeNumberValue<false>
 } // namespace detail
 
 template <typename T>
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 NumberValue(const T t)
 {
     MOZ_ASSERT(T(double(t)) == t, "value creation would be lossy");
     return detail::MakeNumberValue<std::numeric_limits<T>::is_signed>::create(t);
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 ObjectOrNullValue(JSObject *obj)
 {
     Value v;
@@ -1367,7 +1421,7 @@ ObjectOrNullValue(JSObject *obj)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 PrivateValue(void *ptr)
 {
     Value v;
@@ -1375,7 +1429,7 @@ PrivateValue(void *ptr)
     return v;
 }
 
-static inline Value
+static MOZ_ALWAYS_INLINE Value
 PrivateUint32Value(uint32_t ui)
 {
     Value v;
@@ -1383,7 +1437,7 @@ PrivateUint32Value(uint32_t ui)
     return v;
 }
 
-inline bool
+MOZ_ALWAYS_INLINE bool
 SameType(const Value &lhs, const Value &rhs)
 {
     return JSVAL_SAME_TYPE_IMPL(lhs.data, rhs.data);
@@ -1534,13 +1588,13 @@ class RootedBase<JS::Value> : public MutableValueOperations<Rooted<JS::Value> >
 
 } // namespace js
 
-inline jsval_layout
+MOZ_ALWAYS_INLINE jsval_layout
 JSVAL_TO_IMPL(JS::Value v)
 {
     return v.data;
 }
 
-inline JS::Value
+MOZ_ALWAYS_INLINE JS::Value
 IMPL_TO_JSVAL(jsval_layout l)
 {
     JS::Value v;
@@ -1598,44 +1652,44 @@ MOZ_STATIC_ASSERT(sizeof(jsval_layout) == sizeof(JS::Value),
 
 /************************************************************************/
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_NULL(jsval v)
 {
     return JSVAL_IS_NULL_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_VOID(jsval v)
 {
     return JSVAL_IS_UNDEFINED_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_INT(jsval v)
 {
     return JSVAL_IS_INT32_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline int32_t
+static MOZ_ALWAYS_INLINE int32_t
 JSVAL_TO_INT(jsval v)
 {
     MOZ_ASSERT(JSVAL_IS_INT(v));
     return JSVAL_TO_INT32_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline jsval
+static MOZ_ALWAYS_INLINE jsval
 INT_TO_JSVAL(int32_t i)
 {
     return IMPL_TO_JSVAL(INT32_TO_JSVAL_IMPL(i));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_DOUBLE(jsval v)
 {
     return JSVAL_IS_DOUBLE_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline double
+static MOZ_ALWAYS_INLINE double
 JSVAL_TO_DOUBLE(jsval v)
 {
     jsval_layout l;
@@ -1644,7 +1698,7 @@ JSVAL_TO_DOUBLE(jsval v)
     return l.asDouble;
 }
 
-static inline jsval
+static MOZ_ALWAYS_INLINE jsval
 DOUBLE_TO_JSVAL(double d)
 {
     /*
@@ -1661,7 +1715,7 @@ DOUBLE_TO_JSVAL(double d)
     return IMPL_TO_JSVAL(l);
 }
 
-static inline jsval
+static MOZ_ALWAYS_INLINE jsval
 UINT_TO_JSVAL(uint32_t i)
 {
     if (i <= JSVAL_INT_MAX)
@@ -1669,39 +1723,39 @@ UINT_TO_JSVAL(uint32_t i)
     return DOUBLE_TO_JSVAL((double)i);
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_NUMBER(jsval v)
 {
     return JSVAL_IS_NUMBER_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_STRING(jsval v)
 {
     return JSVAL_IS_STRING_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline JSString *
+static MOZ_ALWAYS_INLINE JSString *
 JSVAL_TO_STRING(jsval v)
 {
     MOZ_ASSERT(JSVAL_IS_STRING(v));
     return JSVAL_TO_STRING_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline jsval
+static MOZ_ALWAYS_INLINE jsval
 STRING_TO_JSVAL(JSString *str)
 {
     return IMPL_TO_JSVAL(STRING_TO_JSVAL_IMPL(str));
 }
 
-static inline JSObject *
+static MOZ_ALWAYS_INLINE JSObject *
 JSVAL_TO_OBJECT(jsval v)
 {
     MOZ_ASSERT(JSVAL_IS_OBJECT_OR_NULL_IMPL(JSVAL_TO_IMPL(v)));
     return JSVAL_TO_OBJECT_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline jsval
+static MOZ_ALWAYS_INLINE jsval
 OBJECT_TO_JSVAL(JSObject *obj)
 {
     if (obj)
@@ -1709,38 +1763,38 @@ OBJECT_TO_JSVAL(JSObject *obj)
     return IMPL_TO_JSVAL(BUILD_JSVAL(JSVAL_TAG_NULL, 0));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_BOOLEAN(jsval v)
 {
     return JSVAL_IS_BOOLEAN_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_TO_BOOLEAN(jsval v)
 {
     MOZ_ASSERT(JSVAL_IS_BOOLEAN(v));
     return JSVAL_TO_BOOLEAN_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline jsval
+static MOZ_ALWAYS_INLINE jsval
 BOOLEAN_TO_JSVAL(JSBool b)
 {
     return IMPL_TO_JSVAL(BOOLEAN_TO_JSVAL_IMPL(b));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_PRIMITIVE(jsval v)
 {
     return JSVAL_IS_PRIMITIVE_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline JSBool
+static MOZ_ALWAYS_INLINE JSBool
 JSVAL_IS_GCTHING(jsval v)
 {
     return JSVAL_IS_GCTHING_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline void *
+static MOZ_ALWAYS_INLINE void *
 JSVAL_TO_GCTHING(jsval v)
 {
     MOZ_ASSERT(JSVAL_IS_GCTHING(v));
@@ -1749,13 +1803,13 @@ JSVAL_TO_GCTHING(jsval v)
 
 /* To be GC-safe, privates are tagged as doubles. */
 
-static inline jsval
+static MOZ_ALWAYS_INLINE jsval
 PRIVATE_TO_JSVAL(void *ptr)
 {
     return IMPL_TO_JSVAL(PRIVATE_PTR_TO_JSVAL_IMPL(ptr));
 }
 
-static inline void *
+static MOZ_ALWAYS_INLINE void *
 JSVAL_TO_PRIVATE(jsval v)
 {
     MOZ_ASSERT(JSVAL_IS_DOUBLE(v));

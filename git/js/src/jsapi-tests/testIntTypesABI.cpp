@@ -18,7 +18,6 @@
 #include "jstypes.h"
 
 #include "js/Anchor.h"
-#include "js/CallArgs.h"
 #include "js/CharacterEncoding.h"
 #include "js/GCAPI.h"
 #include "js/HashTable.h"

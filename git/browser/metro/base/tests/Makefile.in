@@ -42,10 +42,10 @@ XPCSHELL_RESOURCES = \
   $(NULL)
 
 libs:: $(BROWSER_TESTS)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/metro/$(relativesrcdir)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/metro/
 
 libs:: $(BROWSER_TEST_RESOURCES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/metro/$(relativesrcdir)/res
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/metro/res
 
 libs:: $(XPCSHELL_RESOURCES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/xpcshell/$(relativesrcdir)/unit/
