@@ -55,11 +55,9 @@ private:
   ~SystemWorkerManager();
 
   nsresult InitRIL(JSContext *cx);
-  nsresult InitNetd(JSContext *cx);
   nsresult InitWifi(JSContext *cx);
 
   nsCOMPtr<nsIWorkerHolder> mRILWorker;
-  nsCOMPtr<nsIWorkerHolder> mNetdWorker;
   nsCOMPtr<nsIWorkerHolder> mWifiWorker;
 
   bool mShutdown;

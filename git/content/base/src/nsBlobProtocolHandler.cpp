@@ -173,7 +173,7 @@ nsBlobProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
   rv = info->mFile->GetType(type);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint64_t size;
+  PRUint64 size;
   rv = info->mFile->GetSize(&size);
   NS_ENSURE_SUCCESS(rv, rv);
 

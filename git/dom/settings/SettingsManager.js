@@ -217,10 +217,8 @@ let myGlobal = this;
 function SettingsManager()
 {
   this._locks = new Queue();
-  if (!("indexedDB" in myGlobal)) {
-    let idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
-    idbManager.initWindowless(myGlobal);
-  }
+  var idbManager = Components.classes["@mozilla.org/dom/indexeddb/manager;1"].getService(Ci.nsIIndexedDatabaseManager);
+  idbManager.initWindowless(myGlobal);
   this._settingsDB = new SettingsDB();
   this._settingsDB.init(myGlobal);
 }

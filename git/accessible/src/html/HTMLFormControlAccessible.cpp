@@ -15,10 +15,13 @@
 #include "States.h"
 
 #include "nsContentList.h"
-#include "nsHTMLInputElement.h"
 #include "nsIAccessibleRelation.h"
+#include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSEditableElement.h"
+#include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMNodeList.h"
 #include "nsIEditor.h"
 #include "nsIFormControl.h"
 #include "nsIFrame.h"
@@ -91,16 +94,23 @@ HTMLCheckboxAccessible::NativeState()
   uint64_t state = LeafAccessible::NativeState();
 
   state |= states::CHECKABLE;
-  nsHTMLInputElement* input = nsHTMLInputElement::FromContent(mContent);
-  if (!input)
-    return state;
+  bool checkState = false;   // Radio buttons and check boxes can be checked or mixed
 
-  if (input->Indeterminate())
-    return state | states::MIXED;
-
-  if (input->Checked())
-    return state | states::CHECKED;
+  nsCOMPtr<nsIDOMHTMLInputElement> htmlCheckboxElement =
+    do_QueryInterface(mContent);
            
+  if (htmlCheckboxElement) {
+    htmlCheckboxElement->GetIndeterminate(&checkState);
+
+    if (checkState) {
+      state |= states::MIXED;
+    } else {   // indeterminate can't be checked at the same time.
+      htmlCheckboxElement->GetChecked(&checkState);
+    
+      if (checkState)
+        state |= states::CHECKED;
+    }
+  }
   return state;
 }
 
@@ -131,8 +141,13 @@ HTMLRadioButtonAccessible::NativeState()
 
   state |= states::CHECKABLE;
 
-  nsHTMLInputElement* input = nsHTMLInputElement::FromContent(mContent);
-  if (input && input->Checked())
+  bool checked = false;   // Radio buttons and check boxes can be checked
+  nsCOMPtr<nsIDOMHTMLInputElement> htmlRadioElement =
+    do_QueryInterface(mContent);
+  if (htmlRadioElement)
+    htmlRadioElement->GetChecked(&checked);
+
+  if (checked)
     state |= states::CHECKED;
 
   return state;
@@ -368,9 +383,10 @@ HTMLTextFieldAccessible::Value(nsString& aValue)
     return;
   }
   
-  nsHTMLInputElement* input = nsHTMLInputElement::FromContent(mContent);
-  if (input)
-    input->GetValue(aValue);
+  nsCOMPtr<nsIDOMHTMLInputElement> inputElement(do_QueryInterface(mContent));
+  if (inputElement) {
+    inputElement->GetValue(aValue);
+  }
 }
 
 void
@@ -416,9 +432,8 @@ HTMLTextFieldAccessible::NativeState()
   }
 
   // Is it an <input> or a <textarea> ?
-  nsHTMLInputElement* input = nsHTMLInputElement::FromContent(mContent);
-  state |= input && input->IsSingleLineTextControl() ?
-    states::SINGLE_LINE : states::MULTI_LINE;
+  nsCOMPtr<nsIDOMHTMLInputElement> htmlInput(do_QueryInterface(mContent));
+  state |= htmlInput ? states::SINGLE_LINE : states::MULTI_LINE;
 
   if (!(state & states::EDITABLE) ||
       (state & (states::PROTECTED | states::MULTI_LINE)))
@@ -448,7 +463,9 @@ HTMLTextFieldAccessible::NativeState()
                       autocomplete);
 
     if (!autocomplete.LowerCaseEqualsLiteral("off")) {
-      nsIContent* formContent = input->GetFormElement();
+      nsCOMPtr<nsIDOMHTMLFormElement> form;
+      htmlInput->GetForm(getter_AddRefs(form));
+      nsCOMPtr<nsIContent> formContent(do_QueryInterface(form));
       if (formContent) {
         formContent->GetAttr(kNameSpaceID_None,
                              nsGkAtoms::autocomplete, autocomplete);
@@ -482,7 +499,7 @@ NS_IMETHODIMP
 HTMLTextFieldAccessible::DoAction(uint8_t aIndex)
 {
   if (aIndex == 0) {
-    nsHTMLInputElement* element = nsHTMLInputElement::FromContent(mContent);
+    nsCOMPtr<nsIDOMHTMLElement> element(do_QueryInterface(mContent));
     if (element)
       return element->Focus();
 

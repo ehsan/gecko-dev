@@ -914,7 +914,10 @@ MediaStreamGraphImpl::UpdateStreamOrderForStream(nsTArray<MediaStream*>* aStack,
     }
     return;
   }
-  DetermineWhetherStreamIsConsumed(stream);
+  SourceMediaStream* s = stream->AsSourceStream();
+  if (s) {
+    DetermineWhetherStreamIsConsumed(stream);
+  }
   ProcessedMediaStream* ps = stream->AsProcessedStream();
   if (ps) {
     aStack->AppendElement(stream);
@@ -943,7 +946,6 @@ MediaStreamGraphImpl::UpdateStreamOrder()
     MediaStream* stream = oldStreams[i];
     stream->mHasBeenOrdered = false;
     stream->mKnowIsConsumed = false;
-    stream->mIsConsumed = false;
     stream->mIsOnOrderingStack = false;
     stream->mInBlockingSet = false;
     ProcessedMediaStream* ps = stream->AsProcessedStream();

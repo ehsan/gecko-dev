@@ -12,7 +12,6 @@ include protocol PCrashReporter;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
 include protocol PHal;
-include protocol PImageBridge;
 include protocol PIndexedDB;
 include protocol PMemoryReportRequest;
 include protocol PNecko;
@@ -154,7 +153,6 @@ struct PrefSetting {
 rpc protocol PContent
 {
     parent opens PCompositor;
-    parent opens PImageBridge;
 
     manages PAudio;
     manages PBlob;

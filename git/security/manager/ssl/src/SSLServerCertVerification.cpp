@@ -186,7 +186,7 @@ void
 LogInvalidCertError(TransportSecurityInfo *socketInfo, 
                     const nsACString &host, 
                     const nsACString &hostWithPort,
-                    int32_t port,
+                    PRInt32 port,
                     PRErrorCode errorCode,
                     ::mozilla::psm::SSLErrorMessageType errorMessageType,
                     nsIX509Cert* ix509)
