@@ -14,19 +14,23 @@
 
 #include "jsmath.h"
 #include "jsworkers.h"
+#include "jsprf.h"
 #include "prmjtime.h"
 
 #include "frontend/Parser.h"
+#include "jit/AsmJSLink.h"
 #include "jit/AsmJSModule.h"
 #include "jit/CodeGenerator.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 #include "jit/PerfSpewer.h"
+#include "vm/Interpreter.h"
 
-#include "jsfuninlines.h"
+#include "jsinferinlines.h"
 
-#include "frontend/ParseMaps-inl.h"
 #include "frontend/ParseNode-inl.h"
+#include "frontend/Parser-inl.h"
+#include "gc/Barrier-inl.h"
 
 using namespace js;
 using namespace js::frontend;
@@ -1528,11 +1532,10 @@ class MOZ_STACK_CLASS ModuleCompiler
     }
 
     void buildCompilationTimeReport(ScopedJSFreePtr<char> *out) {
-        int msTotal = 0;
         ScopedJSFreePtr<char> slowFuns;
 #ifndef JS_MORE_DETERMINISTIC
         int64_t usecAfter = PRMJ_Now();
-        msTotal = (usecAfter - usecBefore_) / PRMJ_USEC_PER_MSEC;
+        int msTotal = (usecAfter - usecBefore_) / PRMJ_USEC_PER_MSEC;
         if (!slowFunctions_.empty()) {
             slowFuns.reset(JS_smprintf("; %d functions compiled slowly: ", slowFunctions_.length()));
             if (!slowFuns)

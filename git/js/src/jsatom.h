@@ -9,16 +9,11 @@
 
 #include "mozilla/HashFunctions.h"
 
-#include <stddef.h>
-
-#include "jsalloc.h"
-#include "jsapi.h"
-#include "jsprvtd.h"
-#include "jspubtd.h"
-
 #include "gc/Barrier.h"
-#include "js/HashTable.h"
+#include "gc/Rooting.h"
 #include "vm/CommonPropertyNames.h"
+
+class JSAtom;
 
 struct JSIdArray {
     int length;
@@ -217,6 +212,14 @@ AtomizeString(ExclusiveContext *cx, JSString *str, js::InternBehavior ib = js::D
 template <AllowGC allowGC>
 extern JSAtom *
 ToAtom(ExclusiveContext *cx, typename MaybeRooted<Value, allowGC>::HandleType v);
+
+enum XDRMode {
+    XDR_ENCODE,
+    XDR_DECODE
+};
+
+template <XDRMode mode>
+class XDRState;
 
 template<XDRMode mode>
 bool

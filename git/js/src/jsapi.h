@@ -117,7 +117,6 @@ class JS_PUBLIC_API(AutoGCRooter) {
         DESCRIPTORS =  -7, /* js::AutoPropDescArrayRooter */
         ID =           -9, /* js::AutoIdRooter */
         VALVECTOR =   -10, /* js::AutoValueVector */
-        DESCRIPTOR =  -11, /* js::AutoPropertyDescriptorRooter */
         STRING =      -12, /* js::AutoStringRooter */
         IDVECTOR =    -13, /* js::AutoIdVector */
         OBJVECTOR =   -14, /* js::AutoObjectVector */
@@ -947,6 +946,20 @@ typedef void
  */
 typedef void
 (* JSTraceNamePrinter)(JSTracer *trc, char *buf, size_t bufsize);
+
+/*
+ * A generic type for functions mapping an object to another object, or null
+ * if an error or exception was thrown on cx.
+ */
+typedef JSObject *
+(* JSObjectOp)(JSContext *cx, JS::Handle<JSObject*> obj);
+
+/*
+ * Hook that creates an iterator object for a given object. Returns the
+ * iterator object or null if an error or exception was thrown on cx.
+ */
+typedef JSObject *
+(* JSIteratorOp)(JSContext *cx, JS::HandleObject obj, bool keysonly);
 
 typedef JSObject *
 (* JSWeakmapKeyDelegateOp)(JSObject *obj);
@@ -3464,11 +3477,6 @@ class PropertyDescriptorOperations
     JS::Handle<Value> value() const {
         return JS::Handle<Value>::fromMarkedLocation(&desc()->value);
     }
-
-    bool isClear() const {
-        return desc()->obj == NULL && desc()->attrs == 0 && desc()->getter == NULL &&
-               desc()->setter == NULL && desc()->value.isUndefined();
-    }
 };
 
 template <typename Outer>
@@ -3477,6 +3485,16 @@ class MutablePropertyDescriptorOperations : public PropertyDescriptorOperations<
     JSPropertyDescriptor * desc() { return static_cast<Outer*>(this)->extractMutable(); }
 
   public:
+
+    void clear() {
+        object().set(NULL);
+        setAttributes(0);
+        setShortId(0);
+        setGetter(NULL);
+        setSetter(NULL);
+        value().setUndefined();
+    }
+
     JS::MutableHandle<JSObject*> object() {
         return JS::MutableHandle<JSObject*>::fromMarkedLocation(&desc()->obj);
     }
@@ -3560,7 +3578,7 @@ class MutableHandleBase<JSPropertyDescriptor>
  */
 extern JS_PUBLIC_API(bool)
 JS_GetPropertyDescriptorById(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
-                             JSPropertyDescriptor *desc);
+                             JS::MutableHandle<JSPropertyDescriptor> desc);
 
 extern JS_PUBLIC_API(bool)
 JS_GetOwnPropertyDescriptor(JSContext *cx, JSObject *obj, jsid id, JS::MutableHandle<JS::Value> vp);
@@ -4311,10 +4329,10 @@ Call(JSContext *cx, jsval thisv, JSObject *funObj, unsigned argc, jsval *argv,
  * is disconnected before attempting such re-entry.
  */
 extern JS_PUBLIC_API(JSOperationCallback)
-JS_SetOperationCallback(JSContext *cx, JSOperationCallback callback);
+JS_SetOperationCallback(JSRuntime *rt, JSOperationCallback callback);
 
 extern JS_PUBLIC_API(JSOperationCallback)
-JS_GetOperationCallback(JSContext *cx);
+JS_GetOperationCallback(JSRuntime *rt);
 
 extern JS_PUBLIC_API(void)
 JS_TriggerOperationCallback(JSRuntime *rt);

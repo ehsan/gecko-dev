@@ -48,13 +48,12 @@
 # include "jit/arm/Lowering-arm.h"
 #endif
 #include "vm/ForkJoin.h"
-#include "vm/ThreadPool.h"
 
 #include "jscompartmentinlines.h"
 #include "jsgcinlines.h"
 #include "jsinferinlines.h"
 
-#include "vm/Stack-inl.h"
+#include "vm/Shape-inl.h"
 
 using namespace js;
 using namespace js::ion;
@@ -1388,8 +1387,10 @@ IonCompile(JSContext *cx, JSScript *script,
         return AbortReason_Alloc;
 
     // Try-finally is not yet supported.
-    if (script->analysis()->hasTryFinally())
+    if (script->analysis()->hasTryFinally()) {
+        IonSpew(IonSpew_Abort, "Has try-finally.");
         return AbortReason_Disable;
+    }
 
     LifoAlloc *alloc = cx->new_<LifoAlloc>(BUILDER_LIFO_ALLOC_PRIMARY_CHUNK_SIZE);
     if (!alloc)

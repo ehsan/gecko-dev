@@ -18,16 +18,8 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "jsapi.h"
-#include "jsatom.h"
-#include "jsclass.h"
-#include "jsfriendapi.h"
-
-#include "gc/Barrier.h"
-#include "gc/Heap.h"
 #include "vm/ObjectImpl.h"
 #include "vm/Shape.h"
-#include "vm/String.h"
 
 namespace JS {
 struct ObjectsExtraSizes;
@@ -36,7 +28,6 @@ struct ObjectsExtraSizes;
 namespace js {
 
 class AutoPropDescArrayRooter;
-class BaseProxyHandler;
 struct GCMarker;
 struct NativeIterator;
 class Nursery;
@@ -1107,6 +1098,8 @@ IsStandardClassResolved(JSObject *obj, js::Class *clasp);
 
 void
 MarkStandardClassInitializedNoProto(JSObject *obj, js::Class *clasp);
+
+typedef JSObject *(*ClassInitializerOp)(JSContext *cx, JS::HandleObject obj);
 
 } /* namespace js */
 

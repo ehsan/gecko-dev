@@ -11,11 +11,8 @@
  * JS bytecode definitions.
  */
 
-#include <stddef.h>
-
-#include "jsprvtd.h"
-#include "jspubtd.h"
-#include "jsutil.h"
+#include "jsapi.h"
+#include "jsbytecode.h"
 
 #include "frontend/SourceNotes.h"
 
@@ -171,7 +168,7 @@ SET_UINT32_INDEX(jsbytecode *pc, uint32_t index)
 #define UINT24_HI(i)            ((jsbytecode)((i) >> 16))
 #define UINT24_MID(i)           ((jsbytecode)((i) >> 8))
 #define UINT24_LO(i)            ((jsbytecode)(i))
-#define GET_UINT24(pc)          ((jsatomid)(((pc)[1] << 16) |                 \
+#define GET_UINT24(pc)          ((unsigned)(((pc)[1] << 16) |                 \
                                             ((pc)[2] << 8) |                  \
                                             (pc)[3]))
 #define SET_UINT24(pc,i)        ((pc)[1] = UINT24_HI(i),                      \

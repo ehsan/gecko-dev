@@ -8,14 +8,15 @@
 #define jswatchpoint_h
 
 #include "jsalloc.h"
+#include "jsdbgapi.h"
 #include "jsapi.h"
-#include "jsfriendapi.h"
-#include "jsprvtd.h"
 
 #include "gc/Barrier.h"
 #include "js/HashTable.h"
 
 namespace js {
+
+struct WeakMapTracer;
 
 struct WatchKey {
     WatchKey() {}
