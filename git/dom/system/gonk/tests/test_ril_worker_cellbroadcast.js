@@ -33,14 +33,13 @@ add_test(function test_ril_worker_GsmPDUHelper_readCbDataCodingScheme() {
     }
   });
 
-  let context = worker.ContextPool._contexts[0];
   function test_dcs(dcs, encoding, language, hasLanguageIndicator, messageClass) {
-    context.Buf.readUint8 = function() {
+    worker.Buf.readUint8 = function() {
       return dcs;
     };
 
     let msg = {};
-    context.GsmPDUHelper.readCbDataCodingScheme(msg);
+    worker.GsmPDUHelper.readCbDataCodingScheme(msg);
 
     do_check_eq(msg.dcs, dcs);
     do_check_eq(msg.encoding, encoding);
@@ -50,12 +49,12 @@ add_test(function test_ril_worker_GsmPDUHelper_readCbDataCodingScheme() {
   }
 
   function test_dcs_throws(dcs) {
-    context.Buf.readUint8 = function() {
+    worker.Buf.readUint8 = function() {
       return dcs;
     };
 
     do_check_throws(function() {
-      context.GsmPDUHelper.readCbDataCodingScheme({});
+      worker.GsmPDUHelper.readCbDataCodingScheme({});
     }, "Unsupported CBS data coding scheme: " + dcs);
   }
 
@@ -143,13 +142,12 @@ add_test(function test_ril_worker_GsmPDUHelper_readGsmCbData() {
     }
   });
 
-  let context = worker.ContextPool._contexts[0];
   function test_data(options, expected) {
     let readIndex = 0;
-    context.Buf.readUint8 = function() {
+    worker.Buf.readUint8 = function() {
       return options[3][readIndex++];
     };
-    context.Buf.readUint8Array = function(length) {
+    worker.Buf.readUint8Array = function(length) {
       let array = new Uint8Array(length);
       for (let i = 0; i < length; i++) {
         array[i] = this.readUint8();
@@ -162,7 +160,7 @@ add_test(function test_ril_worker_GsmPDUHelper_readGsmCbData() {
       language: options[1],
       hasLanguageIndicator: options[2]
     };
-    context.GsmPDUHelper.readGsmCbData(msg, options[3].length);
+    worker.GsmPDUHelper.readGsmCbData(msg, options[3].length);
 
     do_check_eq(msg.body, expected[0]);
     do_check_eq(msg.data == null, expected[1] == null);
@@ -220,8 +218,7 @@ add_test(function test_ril_worker__checkCellBroadcastMMISettable() {
     }
   });
 
-  let context = worker.ContextPool._contexts[0];
-  let ril = context.RIL;
+  let ril = worker.RIL;
 
   function test(from, to, expected) {
     do_check_eq(expected, ril._checkCellBroadcastMMISettable(from, to));
@@ -271,8 +268,7 @@ add_test(function test_ril_worker__mergeCellBroadcastConfigs() {
     }
   });
 
-  let context = worker.ContextPool._contexts[0];
-  let ril = context.RIL;
+  let ril = worker.RIL;
 
   function test(olist, from, to, expected) {
     let result = ril._mergeCellBroadcastConfigs(olist, from, to);

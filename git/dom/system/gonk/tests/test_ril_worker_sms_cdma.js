@@ -190,11 +190,10 @@ function pduToParcelData(cdmaPduHelper, pdu) {
 add_test(function test_processCdmaSmsStatusReport() {
   let workerHelper = _getWorker();
   let worker = workerHelper.worker;
-  let context = worker.ContextPool._contexts[0];
 
   function test_StatusReport(errorClass, msgStatus) {
     let msgId = 0;
-    let sentSmsMap = context.RIL._pendingSentSmsMap;
+    let sentSmsMap = worker.RIL._pendingSentSmsMap;
 
     sentSmsMap[msgId] = {};
 
@@ -227,7 +226,7 @@ add_test(function test_processCdmaSmsStatusReport() {
       msgStatus:        msgStatus
     };
 
-    context.RIL._processCdmaSmsStatusReport(message);
+    worker.RIL._processCdmaSmsStatusReport(message);
 
     let postedMessage = workerHelper.postedMessage;
 
@@ -264,9 +263,8 @@ add_test(function test_processCdmaSmsStatusReport() {
 add_test(function test_processCdmaSmsWapPush() {
   let workerHelper = _getWorker(),
       worker = workerHelper.worker,
-      context = worker.ContextPool._contexts[0],
-      bitBufferHelper = context.BitBufferHelper,
-      cdmaPduHelper = context.CdmaPDUHelper;
+      bitBufferHelper = worker.BitBufferHelper,
+      cdmaPduHelper = worker.CdmaPDUHelper;
 
   function test_CdmaSmsWapPdu(wdpData, reversed) {
     let orig_address = "0987654321",
@@ -295,7 +293,7 @@ add_test(function test_processCdmaSmsWapPush() {
                                             data:     hexStringToBytes(hexString) })
       };
 
-      worker.onRILMessage(0, newSmsParcel(cdmaPduHelper, pdu));
+      worker.onRILMessage(newSmsParcel(cdmaPduHelper, pdu));
     }
 
     let postedMessage = workerHelper.postedMessage;
