@@ -2102,58 +2102,76 @@ BindNameToSlot(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
             return MakeUpvarForEval(pn, cg);
         }
-
-        switch (op) {
-          case JSOP_NAME:     op = JSOP_GETGNAME; break;
-          case JSOP_SETNAME:  op = JSOP_SETGNAME; break;
-          case JSOP_INCNAME:  op = JSOP_INCGNAME; break;
-          case JSOP_NAMEINC:  op = JSOP_GNAMEINC; break;
-          case JSOP_DECNAME:  op = JSOP_DECGNAME; break;
-          case JSOP_NAMEDEC:  op = JSOP_GNAMEDEC; break;
-          case JSOP_SETCONST:
-          case JSOP_DELNAME:
-          case JSOP_FORNAME:
-            /* Not supported. */
-            return JS_TRUE;
-          default: JS_NOT_REACHED("gname");
-        }
-
-        ale = cg->atomList.add(cg->parser, atom);
-        if (!ale)
-            return JS_FALSE;
-
-        pn->pn_op = op;
-        pn->pn_dflags |= PND_BOUND;
-
         return JS_TRUE;
     }
 
     if (dn->pn_dflags & PND_GVAR) {
-        switch (op) {
-          case JSOP_NAME:     op = JSOP_GETGLOBAL; break;
-          case JSOP_SETNAME:  op = JSOP_SETGLOBAL; break;
-          case JSOP_INCNAME:  op = JSOP_INCGLOBAL; break;
-          case JSOP_NAMEINC:  op = JSOP_GLOBALINC; break;
-          case JSOP_DECNAME:  op = JSOP_DECGLOBAL; break;
-          case JSOP_NAMEDEC:  op = JSOP_GLOBALDEC; break;
-          case JSOP_FORNAME:  op = JSOP_FORGLOBAL; break;
-          case JSOP_SETCONST:
-          case JSOP_DELNAME:
-            /* Not supported. */
+        if (js_CodeSpec[dn->pn_op].type() == JOF_GLOBAL ||
+            dn_kind == JSDefinition::FUNCTION) {
+            switch (op) {
+              case JSOP_NAME:     op = JSOP_GETGLOBAL; break;
+              case JSOP_SETNAME:  op = JSOP_SETGLOBAL; break;
+              case JSOP_INCNAME:  op = JSOP_INCGLOBAL; break;
+              case JSOP_NAMEINC:  op = JSOP_GLOBALINC; break;
+              case JSOP_DECNAME:  op = JSOP_DECGLOBAL; break;
+              case JSOP_NAMEDEC:  op = JSOP_GLOBALDEC; break;
+              case JSOP_FORNAME:  op = JSOP_FORGLOBAL; break;
+              case JSOP_SETCONST:
+              case JSOP_DELNAME:
+                /* Not supported. */
+                return JS_TRUE;
+              default: JS_NOT_REACHED("gvar");
+            }
+
+            JSCodeGenerator *globalCg = cg->compiler()->globalScope->cg;
+            if (globalCg != cg) {
+                uint32 slot = globalCg->globalUses[cookie].slot;
+
+                /* Fall back to NAME if we can't add a slot. */
+                if (!cg->addGlobalUse(atom, slot, &cookie))
+                    return JS_FALSE;
+
+                if (cookie == FREE_UPVAR_COOKIE)
+                    return JS_TRUE;
+            }
+
+            pn->pn_op = op;
+            pn->pn_cookie = cookie;
+            pn->pn_dflags |= PND_BOUND;
             return JS_TRUE;
-          default: JS_NOT_REACHED("gvar");
         }
 
-        JSCodeGenerator *globalCg = cg->compiler()->globalScope->cg;
-        if (globalCg != cg) {
-            uint32 slot = globalCg->globalUses[cookie].slot;
+        /*
+         * If this is a global reference from within a function, leave pn_op as
+         * JSOP_NAME, etc. We could emit JSOP_*GVAR ops within function code if
+         * only we could depend on the global frame's slots being valid for all
+         * calls to the function, and if we could equate the atom index in the
+         * function's atom map for every global name with its frame slot.
+         */
+        if (cg->inFunction())
+            return JS_TRUE;
 
-            /* Fall back to NAME if we can't add a slot. */
-            if (!cg->addGlobalUse(atom, slot, &cookie))
-                return JS_FALSE;
+        /*
+         * We are optimizing global variables and there may be no pre-existing
+         * global property named atom when this global script runs. If atom was
+         * declared via const or var, optimize pn to access fp->vars using the
+         * appropriate JSOP_*GVAR op.
+         *
+         * FIXME: should be able to optimize global function access too.
+         */
+        JS_ASSERT(dn_kind == JSDefinition::VAR || dn_kind == JSDefinition::CONST);
 
-            if (cookie == FREE_UPVAR_COOKIE)
-                return JS_TRUE;
+        switch (op) {
+          case JSOP_NAME:     op = JSOP_GETGVAR; break;
+          case JSOP_SETNAME:  op = JSOP_SETGVAR; break;
+          case JSOP_SETCONST: /* NB: no change */ break;
+          case JSOP_INCNAME:  op = JSOP_INCGVAR; break;
+          case JSOP_NAMEINC:  op = JSOP_GVARINC; break;
+          case JSOP_DECNAME:  op = JSOP_DECGVAR; break;
+          case JSOP_NAMEDEC:  op = JSOP_GVARDEC; break;
+          case JSOP_FORNAME:  /* NB: no change */ break;
+          case JSOP_DELNAME:  /* NB: no change */ break;
+          default: JS_NOT_REACHED("gvar");
         }
         pn->pn_op = op;
         pn->pn_cookie = cookie;
@@ -2645,8 +2663,9 @@ EmitNameOp(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
           case JSOP_NAME:
             op = JSOP_CALLNAME;
             break;
-          case JSOP_GETGNAME:
-            op = JSOP_CALLGNAME;
+          case JSOP_GETGVAR:
+            JS_ASSERT(!cg->funbox);
+            op = JSOP_CALLGVAR;
             break;
           case JSOP_GETGLOBAL:
             op = JSOP_CALLGLOBAL;
@@ -3764,7 +3783,6 @@ EmitDestructuringLHS(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
         switch (pn->pn_op) {
           case JSOP_SETNAME:
-          case JSOP_SETGNAME:
             /*
              * NB: pn is a PN_NAME node, not a PN_BINARY.  Nevertheless,
              * we want to emit JSOP_ENUMELEM, which has format JOF_ELEM.
@@ -3785,6 +3803,7 @@ EmitDestructuringLHS(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             break;
 
           case JSOP_SETARG:
+          case JSOP_SETGVAR:
           case JSOP_SETGLOBAL:
             slot = (jsuint) pn->pn_cookie;
             EMIT_UINT16_IMM_OP(PN_OP(pn), slot);
@@ -4193,9 +4212,6 @@ EmitVariables(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                 if (op == JSOP_SETNAME) {
                     JS_ASSERT(!let);
                     EMIT_INDEX_OP(JSOP_BINDNAME, atomIndex);
-                } else if (op == JSOP_SETGNAME) {
-                    JS_ASSERT(!let);
-                    EMIT_INDEX_OP(JSOP_BINDGNAME, atomIndex);
                 }
                 if (pn->pn_op == JSOP_DEFCONST &&
                     !js_DefineCompileTimeConstant(cx, cg, pn2->pn_atom, pn3)) {
@@ -4826,6 +4842,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                     switch (op) {
                       case JSOP_GETARG:   /* FALL THROUGH */
                       case JSOP_SETARG:   op = JSOP_FORARG; break;
+                      case JSOP_GETGVAR:  /* FALL THROUGH */
+                      case JSOP_SETGVAR:  op = JSOP_FORNAME; break;
                       case JSOP_GETLOCAL: /* FALL THROUGH */
                       case JSOP_SETLOCAL: op = JSOP_FORLOCAL; break;
                       case JSOP_GETGLOBAL: /* FALL THROUGH */
@@ -5774,10 +5792,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 if (!ale)
                     return JS_FALSE;
                 atomIndex = ALE_INDEX(ale);
-                if (!pn2->isConst()) {
-                    JSOp op = PN_OP(pn2) == JSOP_SETGNAME ? JSOP_BINDGNAME : JSOP_BINDNAME;
-                    EMIT_INDEX_OP(op, atomIndex);
-                }
+                if (!pn2->isConst())
+                    EMIT_INDEX_OP(JSOP_BINDNAME, atomIndex);
             }
             break;
           case TOK_DOT:
@@ -5834,8 +5850,8 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                     EMIT_INDEX_OP(JSOP_GETXPROP, atomIndex);
                 } else {
                     JS_ASSERT(PN_OP(pn2) != JSOP_GETUPVAR);
-                    EMIT_UINT16_IMM_OP((PN_OP(pn2) == JSOP_SETGNAME)
-                                       ? JSOP_GETGNAME
+                    EMIT_UINT16_IMM_OP((PN_OP(pn2) == JSOP_SETGVAR)
+                                       ? JSOP_GETGVAR
                                        : (PN_OP(pn2) == JSOP_SETGLOBAL)
                                        ? JSOP_GETGLOBAL
                                        : (PN_OP(pn2) == JSOP_SETARG)

@@ -44,9 +44,7 @@
 #include "jslibmath.h"
 #include "Compiler.h"
 #include "StubCalls.h"
-#include "MonoIC.h"
 #include "assembler/jit/ExecutableAllocator.h"
-#include "assembler/assembler/LinkBuffer.h"
 #include "FrameState-inl.h"
 #include "jsscriptinlines.h"
 
@@ -72,7 +70,7 @@ NotCheckedSSE2;
 mjit::Compiler::Compiler(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain)
   : cx(cx), script(script), scopeChain(scopeChain), globalObj(scopeChain->getGlobal()), fun(fun),
     analysis(cx, script), jumpMap(NULL), frame(cx, script, masm),
-    branchPatches(ContextAllocPolicy(cx)), mics(ContextAllocPolicy(cx)), stubcc(cx, *this, frame, script)
+    branchPatches(ContextAllocPolicy(cx)), stubcc(cx, *this, frame, script)
 {
 }
 
@@ -227,24 +225,6 @@ mjit::Compiler::finishThisUp()
             JS_ASSERT(L.isValid());
             nmap[i] = (uint8 *)(result + masm.distanceOf(L));
         }
-    }
-
-    if (mics.length()) {
-        script->mics = (ic::MICInfo *)cx->calloc(sizeof(ic::MICInfo) * mics.length());
-        if (!script->mics) {
-            execPool->release();
-            return Compile_Error;
-        }
-    }
-
-    JSC::LinkBuffer fullCode(result, masm.size() + stubcc.size());
-    JSC::LinkBuffer stubCode(result + masm.size(), stubcc.size());
-    for (size_t i = 0; i < mics.length(); i++) {
-        script->mics[i].entry = fullCode.locationOf(mics[i].entry);
-        script->mics[i].load = fullCode.locationOf(mics[i].load);
-        script->mics[i].shape = fullCode.locationOf(mics[i].shapeVal);
-        script->mics[i].stubCall = stubCode.locationOf(mics[i].call);
-        script->mics[i].stubEntry = stubCode.locationOf(mics[i].stubEntry);
     }
 
     /* Link fast and slow paths together. */
@@ -587,10 +567,6 @@ mjit::Compiler::generateMethod()
             jsop_nameinc(op, stubs::IncName, fullAtomIndex(PC));
           END_CASE(JSOP_INCNAME)
 
-          BEGIN_CASE(JSOP_INCGNAME)
-            jsop_nameinc(op, stubs::IncGlobalName, fullAtomIndex(PC));
-          END_CASE(JSOP_INCGNAME)
-
           BEGIN_CASE(JSOP_INCPROP)
             jsop_propinc(op, stubs::IncProp, fullAtomIndex(PC));
           END_CASE(JSOP_INCPROP)
@@ -603,10 +579,6 @@ mjit::Compiler::generateMethod()
             jsop_nameinc(op, stubs::DecName, fullAtomIndex(PC));
           END_CASE(JSOP_DECNAME)
 
-          BEGIN_CASE(JSOP_DECGNAME)
-            jsop_nameinc(op, stubs::DecGlobalName, fullAtomIndex(PC));
-          END_CASE(JSOP_DECGNAME)
-
           BEGIN_CASE(JSOP_DECPROP)
             jsop_propinc(op, stubs::DecProp, fullAtomIndex(PC));
           END_CASE(JSOP_DECPROP)
@@ -615,9 +587,9 @@ mjit::Compiler::generateMethod()
             jsop_eleminc(op, stubs::DecElem);
           END_CASE(JSOP_DECELEM)
 
-          BEGIN_CASE(JSOP_GNAMEINC)
-            jsop_nameinc(op, stubs::GlobalNameInc, fullAtomIndex(PC));
-          END_CASE(JSOP_GNAMEINC)
+          BEGIN_CASE(JSOP_NAMEINC)
+            jsop_nameinc(op, stubs::NameInc, fullAtomIndex(PC));
+          END_CASE(JSOP_NAMEINC)
 
           BEGIN_CASE(JSOP_PROPINC)
             jsop_propinc(op, stubs::PropInc, fullAtomIndex(PC));
@@ -630,10 +602,6 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_NAMEDEC)
             jsop_nameinc(op, stubs::NameDec, fullAtomIndex(PC));
           END_CASE(JSOP_NAMEDEC)
-
-          BEGIN_CASE(JSOP_GNAMEDEC)
-            jsop_nameinc(op, stubs::GlobalNameDec, fullAtomIndex(PC));
-          END_CASE(JSOP_GNAMEDEC)
 
           BEGIN_CASE(JSOP_PROPDEC)
             jsop_propinc(op, stubs::PropDec, fullAtomIndex(PC));
@@ -856,10 +824,6 @@ mjit::Compiler::generateMethod()
                 frame.push(NullTag());
           }
           END_CASE(JSOP_GETARG)
-
-          BEGIN_CASE(JSOP_BINDGNAME)
-            jsop_bindgname();
-          END_CASE(JSOP_BINDGNAME)
 
           BEGIN_CASE(JSOP_SETARG)
           {
@@ -1091,30 +1055,6 @@ mjit::Compiler::generateMethod()
             emitReturn();
           END_CASE(JSOP_RETRVAL)
 
-          BEGIN_CASE(JSOP_GETGNAME)
-          BEGIN_CASE(JSOP_CALLGNAME)
-            jsop_getgname(fullAtomIndex(PC));
-            if (op == JSOP_CALLGNAME)
-                frame.push(NullTag());
-          END_CASE(JSOP_GETGNAME)
-
-          BEGIN_CASE(JSOP_SETGNAME)
-          {
-            JSAtom *atom = script->getAtom(fullAtomIndex(PC));
-            prepareStubCall();
-            masm.move(ImmPtr(atom), Registers::ArgReg1);
-            stubCall(stubs::SetGlobalName, Uses(2), Defs(1));
-            if (JSOp(PC[JSOP_SETGNAME_LENGTH]) == JSOP_POP &&
-                !analysis[&PC[JSOP_SETGNAME_LENGTH]].nincoming) {
-                frame.popn(2);
-                PC += JSOP_SETGNAME_LENGTH + JSOP_POP_LENGTH;
-                break;
-            }
-            frame.popn(2);
-            frame.pushSynced();
-          }
-          END_CASE(JSOP_SETGNAME)
-
           BEGIN_CASE(JSOP_REGEXP)
           {
             JSObject *regex = script->getRegExp(fullAtomIndex(PC));
@@ -1301,8 +1241,7 @@ mjit::Compiler::generateMethod()
           default:
            /* Sorry, this opcode isn't implemented yet. */
 #ifdef JS_METHODJIT_SPEW
-            JaegerSpew(JSpew_Abort, "opcode %s not handled yet (%s line %d)\n", OpcodeNames[op],
-                       script->filename, js_PCToLineNumber(cx, script, PC));
+            JaegerSpew(JSpew_Abort, "opcode %s not handled yet\n", OpcodeNames[op]);
 #endif
             return Compile_Abort;
         }
@@ -1785,94 +1724,5 @@ mjit::Compiler::jsop_eleminc(JSOp op, VoidStub stub)
     stubCall(stub, Uses(2), Defs(1));
     frame.popn(2);
     frame.pushSynced();
-}
-
-void
-mjit::Compiler::jsop_getgname_slow(uint32 index)
-{
-    prepareStubCall();
-    stubCall(stubs::GetGlobalName, Uses(0), Defs(1));
-    frame.pushSynced();
-}
-
-void
-mjit::Compiler::jsop_bindgname()
-{
-    if (script->compileAndGo && globalObj) {
-        frame.push(NonFunObjTag(*globalObj));
-        return;
-    }
-
-    /* :TODO: this is slower than it needs to be. */
-    prepareStubCall();
-    stubCall(stubs::BindGlobalName, Uses(0), Defs(1));
-    frame.takeReg(Registers::ReturnReg);
-    frame.pushTypedPayload(JSVAL_MASK32_NONFUNOBJ, Registers::ReturnReg);
-}
-
-void
-mjit::Compiler::jsop_getgname(uint32 index)
-{
-#if ENABLE_MIC
-    jsop_bindgname();
-
-    FrameEntry *fe = frame.peek(-1);
-    JS_ASSERT(fe->isTypeKnown() && fe->getTypeTag() == JSVAL_MASK32_NONFUNOBJ);
-
-    MICGenInfo mic;
-    RegisterID objReg;
-    Jump shapeGuard;
-
-    mic.entry = masm.label();
-    if (fe->isConstant()) {
-        JSObject *obj = &fe->getValue().asObject();
-        frame.pop();
-        JS_ASSERT(obj->isNative());
-
-        JSObjectMap *map = obj->map;
-        objReg = frame.allocReg();
-
-        masm.load32FromImm(&map->shape, objReg);
-        shapeGuard = masm.branchPtrWithPatch(Assembler::NotEqual, objReg, mic.shapeVal);
-        masm.move(ImmPtr(obj), objReg);
-    } else {
-        objReg = frame.ownRegForData(fe);
-        frame.pop();
-        RegisterID reg = frame.allocReg();
-
-        masm.loadPtr(Address(objReg, offsetof(JSObject, map)), reg);
-        masm.load32(Address(reg, offsetof(JSObjectMap, shape)), reg);
-        shapeGuard = masm.branchPtrWithPatch(Assembler::NotEqual, reg, mic.shapeVal);
-        frame.freeReg(reg);
-    }
-    stubcc.linkExit(shapeGuard);
-
-    stubcc.leave();
-    stubcc.masm.move(Imm32(mics.length()), Registers::ArgReg1);
-    mic.stubEntry = stubcc.masm.label();
-    mic.call = stubcc.call(ic::GetGlobalName);
-
-    /* Garbage value. */
-    uint32 slot = 1 << 24;
-
-    /*
-     * Ensure at least one register is available.
-     * This is necessary so the implicit push below does not change the
-     * expected instruction ordering. :FIXME: this is stupid
-     */
-    frame.freeReg(frame.allocReg());
-
-    mic.load = masm.label();
-    masm.loadPtr(Address(objReg, offsetof(JSObject, dslots)), objReg);
-    Address address(objReg, slot);
-    frame.freeReg(objReg);
-    frame.push(address);
-
-    stubcc.rejoin(1);
-
-    mics.append(mic);
-#else
-    jsop_getgname_slow(index);
-#endif
 }
 

@@ -59,7 +59,6 @@ class Compiler
     typedef JSC::MacroAssembler::Address Address;
     typedef JSC::MacroAssembler::Jump Jump;
     typedef JSC::MacroAssembler::Call Call;
-    typedef JSC::MacroAssembler::DataLabelPtr DataLabelPtr;
 
     struct BranchPatch {
         BranchPatch(const Jump &j, jsbytecode *pc)
@@ -68,14 +67,6 @@ class Compiler
 
         Jump jump;
         jsbytecode *pc;
-    };
-
-    struct MICGenInfo {
-        Label entry;
-        Label stubEntry;
-        DataLabelPtr shapeVal;
-        Label load;
-        Call call;
     };
 
     struct Uses {
@@ -103,7 +94,6 @@ class Compiler
     Assembler masm;
     FrameState frame;
     js::Vector<BranchPatch, 64> branchPatches;
-    js::Vector<MICGenInfo, 64> mics;
     StubCompiler stubcc;
 
   public:
@@ -152,9 +142,6 @@ class Compiler
     void jsop_nameinc(JSOp op, VoidStubAtom stub, uint32 index);
     void jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index);
     void jsop_eleminc(JSOp op, VoidStub);
-    void jsop_getgname(uint32 index);
-    void jsop_getgname_slow(uint32 index);
-    void jsop_bindgname();
 
     /* Fast opcodes. */
     void jsop_bitop(JSOp op);
