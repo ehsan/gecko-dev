@@ -54,19 +54,11 @@
  */
 
 namespace mozilla {
-namespace layers {
-class ShadowLayerForwarder;
-}
-
 namespace ipc {
 
 class Shmem MOZ_FINAL
 {
   friend struct IPC::ParamTraits<mozilla::ipc::Shmem>;
-#ifdef DEBUG
-  // For ShadowLayerForwarder::CheckSurfaceDescriptor
-  friend class mozilla::layers::ShadowLayerForwarder;
-#endif
 
 public:
   typedef int32_t id_t;

@@ -454,7 +454,7 @@ nsVolumeService::UpdateVolumeIOThread(const Volume* aVolume)
       "media %d sharing %d",
       aVolume->NameStr(), aVolume->StateStr(), aVolume->MountPoint().get(),
       aVolume->MountGeneration(), (int)aVolume->IsMountLocked(),
-      (int)aVolume->MediaPresent(), (int)aVolume->IsSharing());
+      (int)aVolume->IsMediaPresent(), (int)aVolume->IsSharing());
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
   NS_DispatchToMainThread(new UpdateVolumeRunnable(this, aVolume));
 }

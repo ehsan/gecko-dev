@@ -95,12 +95,6 @@ bool nsVolume::Equals(nsIVolume* aVolume)
     return false;
   }
 
-  bool isSharing;
-  aVolume->GetIsSharing(&isSharing);
-  if (mIsSharing != isSharing) {
-    return false;
-  }
-
   return true;
 }
 
