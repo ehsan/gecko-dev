@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-package org.mozilla.gecko;
+package org.mozilla.gecko.browser.tests;
 
 import android.database.Cursor;
 import android.database.MatrixCursor;

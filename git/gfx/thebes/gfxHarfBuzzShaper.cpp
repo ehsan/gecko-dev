@@ -107,10 +107,6 @@ gfxHarfBuzzShaper::GetGlyph(hb_codepoint_t unicode,
                                                                       compat);
                         }
                         break;
-                    case 10:
-                        gid = gfxFontUtils::MapCharToGlyphFormat10(data + mSubtableOffset,
-                                                                   compat);
-                        break;
                     case 12:
                         gid = gfxFontUtils::MapCharToGlyphFormat12(data + mSubtableOffset,
                                                                    compat);
@@ -128,10 +124,6 @@ gfxHarfBuzzShaper::GetGlyph(hb_codepoint_t unicode,
             gid = unicode < UNICODE_BMP_LIMIT ?
                 gfxFontUtils::MapCharToGlyphFormat4(data + mSubtableOffset,
                                                     unicode) : 0;
-            break;
-        case 10:
-            gid = gfxFontUtils::MapCharToGlyphFormat10(data + mSubtableOffset,
-                                                       unicode);
             break;
         case 12:
             gid = gfxFontUtils::MapCharToGlyphFormat12(data + mSubtableOffset,

@@ -1520,9 +1520,7 @@ Toolbox.prototype = {
     this._telemetry.toolClosed("toolbox");
     this._telemetry.destroy();
 
-    // Finish all outstanding tasks (successfully or not) before destroying the
-    // target.
-    this._destroyer = promise.all(outstanding).then(null, console.error).then(() => {
+    this._destroyer = promise.all(outstanding).then(() => {
       // Targets need to be notified that the toolbox is being torn down.
       // This is done after other destruction tasks since it may tear down
       // fronts and the debugger transport which earlier destroy methods may
@@ -1535,7 +1533,7 @@ Toolbox.prototype = {
       this.highlighterUtils.release();
       target.off("close", this.destroy);
       return target.destroy();
-    }, console.error).then(() => {
+    }).then(() => {
       this.emit("destroyed");
 
       // We need to grab a reference to win before this._host is destroyed.

@@ -820,7 +820,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       break;
   };
 
-#ifdef MOZ_SANDBOX
   if (shouldSandboxCurrentProcess) {
     for (auto it = mAllowedFilesRead.begin();
          it != mAllowedFilesRead.end();
@@ -828,7 +827,6 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       mSandboxBroker.AllowReadFile(it->c_str());
     }
   }
-#endif
 
 #endif // XP_WIN
 
