@@ -6,7 +6,7 @@
       var myName = chunks[chunks.length - 2];
       var html = '<div style="font-size: 11px; margin: 5px 0px 0px 5px;'
         + style
-        + '">Candy: <select id="visualization-select">';
+        + '">Visualization: <select id="visualization-select">';
         
       var names = Utils.getVisualizationNames();
       var count = names.length;
@@ -21,18 +21,12 @@
           + name
           + '</option>';
       }
-      
-      html += '<option disabled="disabled">----------</option>';
-      html += '<option value="">Home</option>';
 
       html += '</select>';
       $(selector).prepend(html);
       $('#visualization-select').change(function () {
         var name = $(this).val();
-        if(name)
-          location.href = '../' + name + '/index.html';
-        else
-          location.href = '../../index.html';
+        window.location = '../' + name + '/index.html';
       });
     }
   };

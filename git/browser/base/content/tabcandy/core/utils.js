@@ -23,15 +23,8 @@ window.Point = function(x, y) {
   this.y = (typeof(y) == 'undefined' ? 0 : y);
 }
 
-// ##########  
-// Class: Rect
-// A simple rectangle. 
-//
-// Constructor: Rect
-// If a is a Rect, creates a copy of it. Otherwise, expects a to be left, 
-// and creates a Rect with it along with top, width, and height. 
+// ##########  perhaps 'a' should really be called 'rectOrLeft'
 window.Rect = function(a, top, width, height) {
-  // Note: perhaps 'a' should really be called 'rectOrLeft'
   if(typeof(a.left) != 'undefined' && typeof(a.top) != 'undefined'
       && typeof(a.right) != 'undefined' && typeof(a.bottom) != 'undefined') {
     this.left = a.left;
