@@ -8,7 +8,6 @@
 #define dom_plugins_PluginScriptableObjectParent_h 1
 
 #include "mozilla/plugins/PPluginScriptableObjectParent.h"
-#include "mozilla/plugins/PluginMessageUtils.h"
 
 #include "npfunctions.h"
 #include "npruntime.h"

@@ -8,8 +8,9 @@
 include protocol PBrowser;
 include protocol PLayerTransaction;
 
+include "nsRegion.h";
 
-using class nsRegion from "nsRegion.h";
+using nsRegion;
 
 namespace mozilla {
 namespace layout {

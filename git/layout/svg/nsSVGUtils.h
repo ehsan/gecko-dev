@@ -292,6 +292,15 @@ public:
                                const nsIntRect &aRect,
                                float aOpacity);
 
+  /*
+   * Converts a nsStyleCoord into a userspace value.  Handles units
+   * Factor (straight userspace), Coord (dimensioned), and Percent (of
+   * the current SVG viewport)
+   */
+  static float CoordToFloat(nsPresContext *aPresContext,
+                            nsSVGElement *aContent,
+                            const nsStyleCoord &aCoord);
+
   /**
    * Gets the nearest nsSVGInnerSVGFrame or nsSVGOuterSVGFrame frame. aFrame
    * must be an SVG frame. If aFrame is of type nsGkAtoms::svgOuterSVGFrame,

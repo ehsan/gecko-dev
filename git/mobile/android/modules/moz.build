@@ -10,7 +10,6 @@ EXTRA_JS_MODULES += [
     'Home.jsm',
     'JNI.jsm',
     'LightweightThemeConsumer.jsm',
-    'Notifications.jsm',
     'OrderedBroadcast.jsm',
     'Prompt.jsm',
     'Sanitizer.jsm',

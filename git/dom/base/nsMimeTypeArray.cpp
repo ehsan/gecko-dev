@@ -79,7 +79,9 @@ nsMimeTypeArray::IndexedGetter(uint32_t aIndex, bool &aFound)
 {
   aFound = false;
 
-  EnsurePluginMimeTypes();
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
+  }
 
   MOZ_ASSERT(mMimeTypes.Length() >= mPluginMimeTypeCount);
 
@@ -97,7 +99,9 @@ nsMimeTypeArray::NamedGetter(const nsAString& aName, bool &aFound)
 {
   aFound = false;
 
-  EnsurePluginMimeTypes();
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
+  }
 
   for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
     if (aName.Equals(mMimeTypes[i]->Type())) {
@@ -157,7 +161,9 @@ nsMimeTypeArray::NamedGetter(const nsAString& aName, bool &aFound)
 uint32_t
 nsMimeTypeArray::Length()
 {
-  EnsurePluginMimeTypes();
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
+  }
 
   MOZ_ASSERT(mMimeTypes.Length() >= mPluginMimeTypeCount);
 
@@ -167,7 +173,9 @@ nsMimeTypeArray::Length()
 void
 nsMimeTypeArray::GetSupportedNames(nsTArray< nsString >& aRetval)
 {
-  EnsurePluginMimeTypes();
+  if (mMimeTypes.IsEmpty()) {
+    EnsureMimeTypes();
+  }
 
   for (uint32_t i = 0; i < mMimeTypes.Length(); ++i) {
     aRetval.AppendElement(mMimeTypes[i]->Type());
@@ -175,7 +183,7 @@ nsMimeTypeArray::GetSupportedNames(nsTArray< nsString >& aRetval)
 }
 
 void
-nsMimeTypeArray::EnsurePluginMimeTypes()
+nsMimeTypeArray::EnsureMimeTypes()
 {
   if (!mMimeTypes.IsEmpty() || !mWindow) {
     return;
@@ -195,7 +203,14 @@ nsMimeTypeArray::EnsurePluginMimeTypes()
     return;
   }
 
-  pluginArray->GetMimeTypes(mMimeTypes);
+  nsTArray<nsRefPtr<nsPluginElement> > plugins;
+  pluginArray->GetPlugins(plugins);
+
+  for (uint32_t i = 0; i < plugins.Length(); ++i) {
+    nsPluginElement *plugin = plugins[i];
+
+    mMimeTypes.AppendElements(plugin->MimeTypes());
+  }
 
   mPluginMimeTypeCount = mMimeTypes.Length();
 }

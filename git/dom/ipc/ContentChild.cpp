@@ -28,7 +28,7 @@
 #include "mozilla/layers/PCompositorChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "mozilla/Preferences.h"
-#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_UNIX) && !defined(XP_MACOSX)
+#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_UNIX)
 #include "mozilla/Sandbox.h"
 #endif
 #include "mozilla/unused.h"
@@ -117,7 +117,6 @@
 #include "AudioChannelService.h"
 #include "JavaScriptChild.h"
 #include "mozilla/dom/telephony/PTelephonyChild.h"
-#include "mozilla/net/NeckoMessageUtils.h"
 
 using namespace base;
 using namespace mozilla;
@@ -572,7 +571,7 @@ ContentChild::RecvSetProcessPrivileges(const ChildPrivileges& aPrivs)
                           aPrivs;
   // If this fails, we die.
   SetCurrentProcessPrivileges(privs);
-#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_UNIX) && !defined(XP_MACOSX)
+#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_UNIX)
   // SetCurrentProcessSandbox should be moved close to process initialization
   // time if/when possible. SetCurrentProcessPrivileges should probably be
   // moved as well. Right now this is set ONLY if we receive the

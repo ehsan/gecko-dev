@@ -13,9 +13,9 @@
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleHyperLink.h"
+#include "nsIAccessibleSelectable.h"
 #include "nsIAccessibleValue.h"
 #include "nsIAccessibleStates.h"
-#include "xpcAccessibleSelectable.h"
 
 #include "nsIContent.h"
 #include "nsString.h"
@@ -104,7 +104,7 @@ typedef nsRefPtrHashtable<nsPtrHashKey<const void>, Accessible>
 
 class Accessible : public nsIAccessible,
                    public nsIAccessibleHyperLink,
-                   public xpcAccessibleSelectable,
+                   public nsIAccessibleSelectable,
                    public nsIAccessibleValue
 {
 public:
@@ -116,6 +116,7 @@ public:
 
   NS_DECL_NSIACCESSIBLE
   NS_DECL_NSIACCESSIBLEHYPERLINK
+  NS_DECL_NSIACCESSIBLESELECTABLE
   NS_DECL_NSIACCESSIBLEVALUE
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLE_IMPL_IID)
 

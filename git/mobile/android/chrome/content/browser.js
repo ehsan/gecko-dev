@@ -7758,7 +7758,7 @@ var ExternalApps = {
 
   openExternal: function(aElement) {
     let uri = ExternalApps._getMediaLink(aElement);
-    HelperApps.launchUri(uri);
+    HelperApps.openUriInApp(uri);
   },
 
   updatePageAction: function updatePageAction(uri) {

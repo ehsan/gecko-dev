@@ -351,7 +351,7 @@ var Scratchpad = {
         if (aResponse.error) {
           deferred.reject(aResponse);
         }
-        else if (aResponse.exception !== null) {
+        else if (aResponse.exception) {
           deferred.resolve([aString, aResponse]);
         }
         else {
@@ -609,21 +609,7 @@ var Scratchpad = {
     let deferred = promise.defer();
 
     if (VariablesView.isPrimitive({ value: aError })) {
-      let type = aError.type;
-      if (type == "undefined" ||
-          type == "null" ||
-          type == "Infinity" ||
-          type == "-Infinity" ||
-          type == "NaN" ||
-          type == "-0") {
-        deferred.resolve(type);
-      }
-      else if (type == "longString") {
-        deferred.resolve(aError.initial + "\u2026");
-      }
-      else {
-        deferred.resolve(aError);
-      }
+      deferred.resolve(aError);
     }
     else {
       let objectClient = new ObjectClient(this.debuggerClient, aError);
@@ -1375,7 +1361,6 @@ var Scratchpad = {
       this._sidebar = null;
     }
 
-    scratchpadTargets = null;
     this.webConsoleClient = null;
     this.debuggerClient = null;
     this.initialized = false;

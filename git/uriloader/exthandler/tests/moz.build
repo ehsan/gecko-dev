@@ -19,10 +19,16 @@ if CONFIG['OS_ARCH'] != 'Darwin':
     if not CONFIG['MOZ_JSDOWNLOADS']:
         XPCSHELL_TESTS_MANIFESTS += ['unit_ipc/xpcshell.ini']
 
-SIMPLE_PROGRAMS = [
+sources = [
     'WriteArgument',
 ]
 
 SOURCES += [
-    '%s.cpp' % s for s in SIMPLE_PROGRAMS
+    '%s.cpp' % s for s in sources
 ]
+
+bin_suffix = CONFIG['BIN_SUFFIX']
+SIMPLE_PROGRAMS += [
+    '%s%s' % (s, bin_suffix) for s in sources
+]
+

@@ -77,7 +77,7 @@ function test() {
   }
 
   function verifyNoNodeSelected() {
-    is(doc.querySelectorAll(":-moz-devtools-highlighted").length, 0, "no node selected");
+    ok(doc.querySelectorAll(":-moz-devtools-highlighted").length === 0, "no node selected");
     return promise.resolve();
   }
 

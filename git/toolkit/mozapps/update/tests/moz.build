@@ -13,11 +13,16 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
     if CONFIG['MOZ_MAINTENANCE_SERVICE']:
         XPCSHELL_TESTS_MANIFESTS += ['unit_service_updater/xpcshell.ini']
 
-    SIMPLE_PROGRAMS = [
+    sources = [
         'TestAUSHelper',
         'TestAUSReadStrings',
     ]
 
     SOURCES += [
-        '%s.cpp' % s for s in SIMPLE_PROGRAMS
+        '%s.cpp' % s for s in sources
+    ]
+
+    bin_suffix = CONFIG['BIN_SUFFIX']
+    SIMPLE_PROGRAMS += [
+        '%s%s' % (s, bin_suffix) for s in sources
     ]

@@ -69,8 +69,7 @@ richgriditem {
   top: 2px; right: @tile_side_margin@; bottom: 10px; left: @tile_side_margin@;
   border: @metro_border_thin@ solid @tile_border_color@;
   box-shadow: 0 0 5px 0 rgba(0, 0, 0, 0.1);
-  transition: 150ms transform ease-out,
-              @metro_animation_duration@ background-color @metro_animation_easing@;
+  transition: 150ms transform ease-out;
 }
 
 .tile-start-container {
@@ -136,7 +135,6 @@ richgriditem[iconsize="large"] .tile-icon-box > image,
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  transition: @metro_animation_duration@ background-color @metro_animation_easing@;
 }
 
 richgriditem:not([tiletype="thumbnail"]) .tile-desc {

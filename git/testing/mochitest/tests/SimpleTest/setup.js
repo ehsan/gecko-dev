@@ -107,11 +107,6 @@ if (params.failureFile) {
   TestRunner.setFailureFile(params.failureFile);
 }
 
-// Breaks execution and enters the JS debugger on a test failure
-if (params.debugOnFailure) {
-  TestRunner.debugOnFailure = true;
-}
-
 // logFile to write our results
 if (params.logFile) {
   var spl = new SpecialPowersLogger(params.logFile);

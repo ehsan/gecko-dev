@@ -770,15 +770,6 @@ ScriptFrameIter::copyData() const
     return data_.cx_->new_<Data>(data_);
 }
 
-AbstractFramePtr
-ScriptFrameIter::copyDataAsAbstractFramePtr() const
-{
-    AbstractFramePtr frame;
-    if (Data *data = copyData())
-        frame.ptr_ = uintptr_t(data);
-    return frame;
-}
-
 JSCompartment *
 ScriptFrameIter::compartment() const
 {

@@ -652,7 +652,7 @@ WebConsoleActor.prototype =
     let evalResult = evalInfo.result;
     let helperResult = evalInfo.helperResult;
 
-    let result, errorMessage, errorGrip = null;
+    let result, error, errorMessage;
     if (evalResult) {
       if ("return" in evalResult) {
         result = evalResult.return;
@@ -661,8 +661,7 @@ WebConsoleActor.prototype =
         result = evalResult.yield;
       }
       else if ("throw" in evalResult) {
-        let error = evalResult.throw;
-        errorGrip = this.createValueGrip(error);
+        error = evalResult.throw;
         let errorToString = evalInfo.window
                             .evalInGlobalWithBindings("ex + ''", {ex: error});
         if (errorToString && typeof errorToString.return == "string") {
@@ -676,7 +675,7 @@ WebConsoleActor.prototype =
       input: input,
       result: this.createValueGrip(result),
       timestamp: timestamp,
-      exception: errorGrip,
+      exception: error ? this.createValueGrip(error) : null,
       exceptionMessage: errorMessage,
       helperResult: helperResult,
     };
