@@ -127,6 +127,10 @@ nsHTMLImageAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 nsresult
 nsHTMLImageAccessible::GetNameInternal(nsAString& aName)
 {
+  // No alt attribute means AT can repair if there is no accessible name
+  // alt="" with no title or aria-labelledby means image is presentational and 
+  // AT should leave accessible name empty
+
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   PRBool hasAltAttrib =
     content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt, aName);
@@ -136,12 +140,10 @@ nsHTMLImageAccessible::GetNameInternal(nsAString& aName)
   nsresult rv = nsAccessible::GetNameInternal(aName);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aName.IsEmpty() && hasAltAttrib) {
-    // No accessible name but empty 'alt' attribute is present. If further name
-    // computation algorithm doesn't provide non empty name then it means
-    // an empty 'alt' attribute was used to indicate a decorative image (see
-    // nsIAccessible::name attribute for details).
-    return NS_OK_EMPTY_NAME;
+  if (aName.IsVoid() && hasAltAttrib) {
+    // No accessible name but empty alt attribute is present. This means a name
+    // was provided by author and AT repair of the name isn't allowed.
+    aName.Truncate();
   }
 
   return NS_OK;
