@@ -959,8 +959,6 @@ nsHtml5TreeOpExecutor::SetSpeculationBase(const nsAString& aURL)
 void
 nsHtml5TreeOpExecutor::SetSpeculationReferrerPolicy(const nsAString& aReferrerPolicy)
 {
-  // Disabled for now.
-  return;
   ReferrerPolicy policy = mozilla::net::ReferrerPolicyFromString(aReferrerPolicy);
 
   if (mSpeculationReferrerPolicyWasSet &&

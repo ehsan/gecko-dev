@@ -499,14 +499,7 @@ ProgressTracker::OnImageAvailable()
     return;
   }
 
-  // Notify any imgRequestProxys that are observing us that we have an Image.
-  ObserverArray::ForwardIterator iter(mObservers);
-  while (iter.HasMore()) {
-    nsRefPtr<IProgressObserver> observer = iter.GetNext().get();
-    if (observer) {
-      observer->SetHasImage();
-    }
-  }
+  NOTIFY_IMAGE_OBSERVERS(mObservers, SetHasImage());
 }
 
 void

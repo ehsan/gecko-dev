@@ -361,7 +361,7 @@ public:
    * It's a temporary hack to ensure that DXGI textures don't get destroyed
    * between serialization and deserialization.
    */
-  void KeepUntilFullDeallocation(UniquePtr<KeepAlive> aKeep);
+  void KeepUntilFullDeallocation(KeepAlive* aKeep);
 
   /**
    * Create and init the TextureChild/Parent IPDL actor pair.

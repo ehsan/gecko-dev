@@ -81,6 +81,7 @@ public:
   TextureChild()
   : mForwarder(nullptr)
   , mTextureClient(nullptr)
+  , mKeep(nullptr)
   , mIPCOpen(false)
   {
   }
@@ -129,7 +130,7 @@ private:
   RefPtr<CompositableForwarder> mForwarder;
   RefPtr<TextureClient> mWaitForRecycle;
   TextureClient* mTextureClient;
-  UniquePtr<KeepAlive> mKeep;
+  KeepAlive* mKeep;
   bool mIPCOpen;
 
   friend class TextureClient;
@@ -148,7 +149,7 @@ TextureChild::ActorDestroy(ActorDestroyReason why)
     mTextureClient->mActor = nullptr;
   }
   mWaitForRecycle = nullptr;
-  mKeep = nullptr;
+  delete mKeep;
 }
 
 // static
@@ -486,11 +487,11 @@ TextureClient::~TextureClient()
 }
 
 void
-TextureClient::KeepUntilFullDeallocation(UniquePtr<KeepAlive> aKeep)
+TextureClient::KeepUntilFullDeallocation(KeepAlive* aKeep)
 {
   MOZ_ASSERT(mActor);
   MOZ_ASSERT(!mActor->mKeep);
-  mActor->mKeep = Move(aKeep);
+  mActor->mKeep = aKeep;
 }
 
 void TextureClient::ForceRemove(bool sync)

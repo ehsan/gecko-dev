@@ -1293,6 +1293,7 @@ exports["test panel addon global object"] = function*(assert) {
 exports["test panel load doesn't show"] = function*(assert) {
   let loader = Loader(module);
 
+  let showCount = 0;
   let panel = loader.require("sdk/panel").Panel({
     contentScript: "addEventListener('load', function(event) { self.postMessage('load'); });",
     contentScriptWhen: "start",
@@ -1327,24 +1328,6 @@ exports["test panel load doesn't show"] = function*(assert) {
   panel.contentURL = "data:text/html;charset=utf-8,<html/>";
 
   yield messaged.promise;
-  loader.unload();
-}
-
-exports["test Panel without contentURL and contentScriptWhen=start should show"] = function*(assert) {
-  let loader = Loader(module);
-
-  let panel = loader.require("sdk/panel").Panel({
-    contentScriptWhen: "start",
-    // No contentURL, the bug only shows up when contentURL is not explicitly set.
-  });
-
-  yield new Promise(resolve => {
-    panel.once("show", resolve);
-    panel.show();
-  });
-
-  assert.pass("Received show event");
-
   loader.unload();
 }
 
