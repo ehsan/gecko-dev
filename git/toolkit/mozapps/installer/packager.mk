@@ -426,10 +426,7 @@ make-package: stage-package $(PACKAGE_XULRUNNER)
 # dist/sdk/lib -> prefix/lib/appname-devel-version/lib
 # prefix/lib/appname-devel-version/* symlinks to the above directories
 install:: stage-package
-ifneq (,$(filter WINNT,$(OS_ARCH)))
-	$(error "make install" is not supported on this platform. Use "make package" instead.)
-endif
-ifeq (bundle,$(MOZ_FS_LAYOUT))
+ifneq (,$(filter WINNT Darwin,$(OS_ARCH)))
 	$(error "make install" is not supported on this platform. Use "make package" instead.)
 endif
 	$(NSINSTALL) -D $(DESTDIR)$(installdir)

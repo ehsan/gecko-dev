@@ -12,11 +12,11 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla Communicator client code.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-1999
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,63 +35,92 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef DeleteElementTxn_h__
-#define DeleteElementTxn_h__
+//
+// Eric Vaughan
+// Netscape Communications
+//
+// See documentation in associated header file
+//
 
-#include "EditTxn.h"
-
-#include "nsIDOMNode.h"
-#include "nsIEditor.h"
+#include "nsFrameNavigator.h"
 #include "nsCOMPtr.h"
+#include "nsIContent.h"
+#include "nsIFrame.h"
 
-#define DELETE_ELEMENT_TXN_CID \
-{/* 6fd77770-ac49-11d2-86d8-000064657374 */ \
-0x6fd77770, 0xac49, 0x11d2, \
-{0x86, 0xd8, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74} }
-
-class nsRangeUpdater;
-
-/**
- * A transaction that deletes a single element
- */
-class DeleteElementTxn : public EditTxn
+nsIBox*
+nsFrameNavigator::GetChildBeforeAfter(nsPresContext* aPresContext,
+                                      nsIBox* start, PRBool before)
 {
-public:
+   nsIBox* parent = start->GetParentBox();
+   PRInt32 index = IndexOf(aPresContext, parent,start);
+   PRInt32 count = CountFrames(aPresContext, parent);
 
-  static const nsIID& GetCID() { static const nsIID iid = DELETE_ELEMENT_TXN_CID; return iid; }
- 
-  /** initialize the transaction.
-    * @param aElement the node to delete
-    */
-  NS_IMETHOD Init(nsIEditor *aEditor, nsIDOMNode *aElement, nsRangeUpdater *aRangeUpdater);
+   if (index == -1) 
+     return nsnull;
 
-private:
-  DeleteElementTxn();
+   if (before) {
+     if (index == 0) {
+         return nsnull;
+     }
 
-public:
-  NS_DECL_EDITTXN
+     return GetChildAt(aPresContext, parent, index-1);
+   }
 
-  NS_IMETHOD RedoTransaction();
 
-protected:
-  
-  /** the element to delete */
-  nsCOMPtr<nsIDOMNode> mElement;
+   if (index == count-1)
+       return nsnull;
 
-  /** parent of node to delete */
-  nsCOMPtr<nsIDOMNode> mParent;
+   return GetChildAt(aPresContext, parent, index+1);
+}
 
-  /** next sibling to remember for undo/redo purposes */
-  nsCOMPtr<nsIDOMNode> mRefNode;
+PRInt32
+nsFrameNavigator::IndexOf(nsPresContext* aPresContext, nsIBox* parent, nsIBox* child)
+{
+  PRInt32 count = 0;
 
-  /** the editor for this transaction */
-  nsIEditor* mEditor;
+  nsIBox* box = parent->GetChildBox();
+  while (box)
+  {    
+    if (box == child)
+       return count;
 
-  /** range updater object */
-  nsRangeUpdater *mRangeUpdater;
-  
-  friend class TransactionFactory;
+    box = box->GetNextBox();
+    count++;
+  }
 
-};
+  return -1;
+}
 
-#endif
+PRInt32
+nsFrameNavigator::CountFrames(nsPresContext* aPresContext, nsIBox* aBox)
+{
+  PRInt32 count = 0;
+
+  nsIBox* box = aBox->GetChildBox();
+  while (box)
+  {    
+    box = box->GetNextBox();
+    count++;
+  }
+
+  return count;
+}
+
+nsIBox*
+nsFrameNavigator::GetChildAt(nsPresContext* aPresContext, nsIBox* parent, PRInt32 index)
+{
+  PRInt32 count = 0;
+
+  nsIBox* box = parent->GetChildBox();
+  while (box)
+  {    
+    if (count == index)
+       return box;
+
+    box = box->GetNextBox();
+    count++;
+  }
+
+  return nsnull;
+}
+

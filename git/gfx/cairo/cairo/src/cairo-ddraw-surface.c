@@ -127,7 +127,6 @@ _cairo_ddraw_surface_set_clip_list (cairo_ddraw_surface_t * surface)
     RGNDATA * rgn;
     DWORD size;
     cairo_status_t status;
-    cairo_point_int_t offset;
     HRESULT hr;
     RECT * prect;
     int i;
@@ -154,18 +153,15 @@ _cairo_ddraw_surface_set_clip_list (cairo_ddraw_surface_t * surface)
 	if ((rgn = (RGNDATA *) malloc (size)) == 0)
 	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
     }
-
-    offset.x = MAX (0, surface->origin.x);
-    offset.y = MAX (0, surface->origin.y);
     
     rgn->rdh.dwSize = sizeof(RGNDATAHEADER);
     rgn->rdh.iType = RDH_RECTANGLES;
     rgn->rdh.nCount = num_boxes;
     rgn->rdh.nRgnSize = num_boxes * sizeof (RECT);
-    rgn->rdh.rcBound.left = extents.x + offset.x;
-    rgn->rdh.rcBound.top = extents.y + offset.y;
-    rgn->rdh.rcBound.right = extents.x + extents.width + offset.x;
-    rgn->rdh.rcBound.bottom = extents.y + extents.height + offset.y;
+    rgn->rdh.rcBound.left = extents.x + surface->origin.x;
+    rgn->rdh.rcBound.top = extents.y + surface->origin.y;
+    rgn->rdh.rcBound.right = extents.x + extents.width + surface->origin.x;
+    rgn->rdh.rcBound.bottom = extents.y + extents.height + surface->origin.y;
     
     prect = (RECT *) &rgn->Buffer;
     for (i = 0; i < num_boxes; ++i) {
@@ -173,10 +169,10 @@ _cairo_ddraw_surface_set_clip_list (cairo_ddraw_surface_t * surface)
 	
 	_cairo_region_get_box (&surface->clip_region, i, &box);
 	
-	prect->left = box.p1.x + offset.x;
-	prect->top = box.p1.y + offset.y;
-	prect->right = box.p2.x + offset.x;
-	prect->bottom = box.p2.y + offset.y;
+	prect->left = box.p1.x + surface->origin.x;
+	prect->top = box.p1.y + surface->origin.y;
+	prect->right = box.p2.x + surface->origin.x;
+	prect->bottom = box.p2.y + surface->origin.y;
 	++prect;
     }
     
@@ -221,14 +217,13 @@ _cairo_ddraw_surface_lock (cairo_ddraw_surface_t *surface)
 	}
 
 	surface->data_offset =
-	    MAX (0, surface->origin.y) * base_img->stride +
-	    MAX (0, surface->origin.x) * 4;
+	    surface->origin.y * base_img->stride + surface->origin.x * 4;
 	surface->image =
 	    cairo_image_surface_create_for_data (base_img->data +
 						 surface->data_offset,
 						 surface->format,
-						 surface->acquirable_rect.width,
-						 surface->acquirable_rect.height,
+						 surface->extents.width,
+						 surface->extents.height,
 						 base_img->stride);
 	if (surface->image->status)
 	    return surface->image->status;
@@ -369,16 +364,13 @@ _cairo_ddraw_surface_finish (void *abstract_surface)
     return CAIRO_STATUS_SUCCESS;
 }
 
-static cairo_status_t
+ static cairo_status_t
 _cairo_ddraw_surface_acquire_source_image (void                    *abstract_surface,
 					   cairo_image_surface_t  **image_out,
 					   void                   **image_extra)
 {
     cairo_ddraw_surface_t *surface = abstract_surface;
     cairo_status_t status;
-
-    if (surface->alias)
-	return CAIRO_INT_STATUS_UNSUPPORTED;
 
     if ((status = _cairo_ddraw_surface_lock (surface)))
 	return status;
@@ -406,11 +398,12 @@ _cairo_ddraw_surface_acquire_dest_image (void                    *abstract_surfa
 	return status;
 
     *image_out = (cairo_image_surface_t *) surface->image;
-    *image_rect = surface->acquirable_rect;
+    *image_rect = surface->extents;
     *image_extra = NULL;
 
     return CAIRO_STATUS_SUCCESS;
 }
+
 
 static cairo_int_status_t
 _cairo_ddraw_surface_get_extents (void		          *abstract_surface,
@@ -427,7 +420,6 @@ cairo_int_status_t
 _cairo_ddraw_surface_set_clip_region (void *abstract_surface,
 				      cairo_region_t *region)
 {
-    cairo_status_t status;
     cairo_ddraw_surface_t * surface =
 	(cairo_ddraw_surface_t *) abstract_surface;
 
@@ -435,15 +427,7 @@ _cairo_ddraw_surface_set_clip_region (void *abstract_surface,
 	surface->has_clip_region = TRUE;
 	surface->image_clip_invalid = TRUE;
 	surface->clip_list_invalid = TRUE;
-
-	status = _cairo_region_copy (&surface->clip_region, region);
-	if (status)
-	    return status;
-
-	if (surface->origin.x < 0 || surface->origin.y < 0)
-	    _cairo_region_translate (&surface->clip_region,
-		MIN (0, surface->origin.x),
-		MIN (0, surface->origin.y));
+	return _cairo_region_copy (&surface->clip_region, region);
     } else {
 	surface->has_clip_region = FALSE;
 	surface->image_clip_invalid = surface->has_image_clip;
@@ -535,11 +519,6 @@ cairo_ddraw_surface_create (LPDIRECTDRAW lpdd,
 
     surface->origin.x = 0;
     surface->origin.y = 0;
-    
-    surface->acquirable_rect.x = 0;
-    surface->acquirable_rect.y = 0;
-    surface->acquirable_rect.width = ddsd.dwWidth;
-    surface->acquirable_rect.height = ddsd.dwHeight;
 
     _cairo_surface_init (&surface->base, &cairo_ddraw_surface_backend,
 			 _cairo_content_from_format (format));
@@ -616,16 +595,9 @@ cairo_ddraw_surface_create_alias (cairo_surface_t *base_surface,
     surface->extents.y = 0;
     surface->extents.width = width;
     surface->extents.height = height;
-
+    
     surface->origin.x = x;
     surface->origin.y = y;
-
-    surface->acquirable_rect.x = MAX (0, -x);
-    surface->acquirable_rect.y = MAX (0, -y);
-    surface->acquirable_rect.width =
-	MIN (x + width, (int)base->extents.width) - MAX (x, 0);
-    surface->acquirable_rect.height =
-	MIN (y + height, (int)base->extents.height) - MAX (y, 0);
 
     _cairo_surface_init (&surface->base, &cairo_ddraw_surface_backend,
 			 base_surface->content);

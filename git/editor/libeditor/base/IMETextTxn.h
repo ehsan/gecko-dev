@@ -77,8 +77,11 @@ public:
                   const nsAString& aString,
                   nsWeakPtr aSelCon);
 
-  IMETextTxn();
+private:
+	
+	IMETextTxn();
 
+public:
   NS_DECL_EDITTXN
 
   NS_IMETHOD Merge(nsITransaction *aTransaction, PRBool *aDidMerge);
@@ -115,6 +118,8 @@ protected:
   nsWeakPtr mSelConWeak;  // use a weak reference
 
   PRBool	mFixed;
+
+  friend class TransactionFactory;
 };
 
 #endif

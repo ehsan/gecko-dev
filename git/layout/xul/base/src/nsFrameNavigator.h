@@ -12,11 +12,11 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is Mozilla Communicator client code.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-1999
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,63 +35,31 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef DeleteElementTxn_h__
-#define DeleteElementTxn_h__
+/**
 
-#include "EditTxn.h"
+  Eric D Vaughan
+  This class lays out its children either vertically or horizontally
+ 
+**/
 
-#include "nsIDOMNode.h"
-#include "nsIEditor.h"
+#ifndef nsGrippyFrame_h___
+#define nsGrippyFrame_h___
+
+#include "nsIFrame.h"
+#include "nsIAtom.h"
 #include "nsCOMPtr.h"
 
-#define DELETE_ELEMENT_TXN_CID \
-{/* 6fd77770-ac49-11d2-86d8-000064657374 */ \
-0x6fd77770, 0xac49, 0x11d2, \
-{0x86, 0xd8, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74} }
-
-class nsRangeUpdater;
-
-/**
- * A transaction that deletes a single element
- */
-class DeleteElementTxn : public EditTxn
+class nsFrameNavigator 
 {
 public:
 
-  static const nsIID& GetCID() { static const nsIID iid = DELETE_ELEMENT_TXN_CID; return iid; }
- 
-  /** initialize the transaction.
-    * @param aElement the node to delete
-    */
-  NS_IMETHOD Init(nsIEditor *aEditor, nsIDOMNode *aElement, nsRangeUpdater *aRangeUpdater);
+  static nsIBox* GetChildBeforeAfter(nsPresContext* aPresContext, nsIBox* start, PRBool before);
+  static nsIBox* GetChildAt(nsPresContext* aPresContext, nsIBox* parent, PRInt32 index);
+  static PRInt32 IndexOf(nsPresContext* aPresContext, nsIBox* parent, nsIBox* child);
+  static PRInt32 CountFrames(nsPresContext* aPresContext, nsIBox* aFrame);
+}; 
 
-private:
-  DeleteElementTxn();
 
-public:
-  NS_DECL_EDITTXN
-
-  NS_IMETHOD RedoTransaction();
-
-protected:
-  
-  /** the element to delete */
-  nsCOMPtr<nsIDOMNode> mElement;
-
-  /** parent of node to delete */
-  nsCOMPtr<nsIDOMNode> mParent;
-
-  /** next sibling to remember for undo/redo purposes */
-  nsCOMPtr<nsIDOMNode> mRefNode;
-
-  /** the editor for this transaction */
-  nsIEditor* mEditor;
-
-  /** range updater object */
-  nsRangeUpdater *mRangeUpdater;
-  
-  friend class TransactionFactory;
-
-};
 
 #endif
+

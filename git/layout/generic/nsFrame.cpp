@@ -3608,7 +3608,7 @@ nsIntRect nsIFrame::GetScreenRectExternal() const
 
 nsIntRect nsIFrame::GetScreenRect() const
 {
-  return nsRect::ToNearestPixels(GetScreenRectInAppUnits(), PresContext()->AppUnitsPerDevPixel());
+  return nsRect::ToOutsidePixels(GetScreenRectInAppUnits(), PresContext()->AppUnitsPerDevPixel());
 }
 
 // virtual

@@ -16,7 +16,7 @@
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998-1999
+ * Portions created by the Initial Developer are Copyright (C) 1998
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -35,62 +35,29 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef DeleteElementTxn_h__
-#define DeleteElementTxn_h__
+#ifndef TransactionFactory_h__
+#define TransactionFactory_h__
 
-#include "EditTxn.h"
+#include "nsISupports.h"
 
-#include "nsIDOMNode.h"
-#include "nsIEditor.h"
-#include "nsCOMPtr.h"
-
-#define DELETE_ELEMENT_TXN_CID \
-{/* 6fd77770-ac49-11d2-86d8-000064657374 */ \
-0x6fd77770, 0xac49, 0x11d2, \
-{0x86, 0xd8, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74} }
-
-class nsRangeUpdater;
+class EditTxn;
 
 /**
- * A transaction that deletes a single element
+ * This class instantiates and optionally recycles edit transactions
+ * A recycler would be a separate static object, since this class does not get instantiated
  */
-class DeleteElementTxn : public EditTxn
+class TransactionFactory
 {
-public:
-
-  static const nsIID& GetCID() { static const nsIID iid = DELETE_ELEMENT_TXN_CID; return iid; }
- 
-  /** initialize the transaction.
-    * @param aElement the node to delete
-    */
-  NS_IMETHOD Init(nsIEditor *aEditor, nsIDOMNode *aElement, nsRangeUpdater *aRangeUpdater);
-
-private:
-  DeleteElementTxn();
-
-public:
-  NS_DECL_EDITTXN
-
-  NS_IMETHOD RedoTransaction();
-
 protected:
-  
-  /** the element to delete */
-  nsCOMPtr<nsIDOMNode> mElement;
+  TransactionFactory();
+  virtual ~TransactionFactory();
 
-  /** parent of node to delete */
-  nsCOMPtr<nsIDOMNode> mParent;
-
-  /** next sibling to remember for undo/redo purposes */
-  nsCOMPtr<nsIDOMNode> mRefNode;
-
-  /** the editor for this transaction */
-  nsIEditor* mEditor;
-
-  /** range updater object */
-  nsRangeUpdater *mRangeUpdater;
-  
-  friend class TransactionFactory;
+public:
+  /** return a transaction object of aTxnType, refcounted 
+    * @return NS_ERROR_NO_INTERFACE if aTxnType is unknown, 
+    *         NS_ERROR_OUT_OF_MEMORY if the allocations fails.
+    */
+  static nsresult GetNewTransaction(REFNSIID aTxnType, EditTxn **aResult);
 
 };
 
