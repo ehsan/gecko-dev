@@ -1552,7 +1552,7 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter,
   , mOuter(aOuter)
   , mAsyncScroll(nullptr)
   , mOriginOfLastScroll(nsGkAtoms::other)
-  , mScrollGeneration(0)
+  , mScrollGeneration(1) // we start off pretending we scrolled to 0,0 to flush a notification to APZ
   , mDestination(0, 0)
   , mScrollPosAtLastPaint(0, 0)
   , mRestorePos(-1, -1)
@@ -2092,39 +2092,19 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOri
   }
 }
 
-static int32_t
-MaxZIndexInList(nsDisplayList* aList, nsDisplayListBuilder* aBuilder)
-{
-  int32_t maxZIndex = 0;
-  for (nsDisplayItem* item = aList->GetBottom(); item; item = item->GetAbove()) {
-    maxZIndex = std::max(maxZIndex, item->ZIndex());
-  }
-  return maxZIndex;
-}
-
 static void
-AppendToTop(nsDisplayListBuilder* aBuilder, const nsDisplayListSet& aLists,
+AppendToTop(nsDisplayListBuilder* aBuilder, nsDisplayList* aDest,
             nsDisplayList* aSource, nsIFrame* aSourceFrame, bool aOwnLayer,
-            uint32_t aFlags, mozilla::layers::FrameMetrics::ViewID aScrollTargetId,
-            bool aPositioned)
+            uint32_t aFlags, mozilla::layers::FrameMetrics::ViewID aScrollTargetId)
 {
   if (aSource->IsEmpty())
     return;
-
-  nsDisplayWrapList* newItem = aOwnLayer?
-    new (aBuilder) nsDisplayOwnLayer(aBuilder, aSourceFrame, aSource,
-                                     aFlags, aScrollTargetId) :
-    new (aBuilder) nsDisplayWrapList(aBuilder, aSourceFrame, aSource);
-
-  nsDisplayList* positionedDescendants = aLists.PositionedDescendants();
-  if (aPositioned && !positionedDescendants->IsEmpty()) {
-    // We want overlay scrollbars to always be on top of the scrolled content,
-    // but we don't want them to unnecessarily cover overlapping elements from
-    // outside our scroll frame.
-    newItem->SetOverrideZIndex(MaxZIndexInList(positionedDescendants, aBuilder));
-    positionedDescendants->AppendNewToTop(newItem);
+  if (aOwnLayer) {
+    aDest->AppendNewToTop(
+        new (aBuilder) nsDisplayOwnLayer(aBuilder, aSourceFrame, aSource,
+                                         aFlags, aScrollTargetId));
   } else {
-    aLists.BorderBackground()->AppendNewToTop(newItem);
+    aDest->AppendToTop(aSource);
   }
 }
 
@@ -2183,6 +2163,14 @@ ScrollFrameHelper::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
       aBuilder, scrollParts[i], aDirtyRect, partList,
       nsIFrame::DISPLAY_CHILD_FORCE_STACKING_CONTEXT);
 
+    // Don't append textarea resizers to the positioned descendants because
+    // we don't want them to float on top of overlapping elements.
+    bool appendToPositioned = aPositioned &&
+                              !(scrollParts[i] == mResizerBox && !mIsRoot);
+
+    nsDisplayList* dest = appendToPositioned ?
+      aLists.PositionedDescendants() : aLists.BorderBackground();
+
     uint32_t flags = 0;
     if (scrollParts[i] == mVScrollbarBox) {
       flags |= nsDisplayOwnLayer::VERTICAL_SCROLLBAR;
@@ -2193,9 +2181,9 @@ ScrollFrameHelper::AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
 
     // DISPLAY_CHILD_FORCE_STACKING_CONTEXT put everything into
     // partList.PositionedDescendants().
-    ::AppendToTop(aBuilder, aLists,
+    ::AppendToTop(aBuilder, dest,
                   partList.PositionedDescendants(), scrollParts[i],
-                  aCreateLayer, flags, scrollTargetId, aPositioned);
+                  aCreateLayer, flags, scrollTargetId);
   }
 }
 
@@ -2613,6 +2601,8 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       aBuilder, mScrolledFrame, mOuter);
     scrolledContent.BorderBackground()->AppendNewToBottom(layerItem);
   }
+  scrolledContent.MoveTo(aLists);
+
   // Now display overlay scrollbars and the resizer, if we have one.
 #ifdef MOZ_WIDGET_GONK
   // TODO: only layerize the overlay scrollbars if this scrollframe can be
@@ -2620,9 +2610,8 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // that's where we want the layerized scrollbars
   createLayersForScrollbars = true;
 #endif
-  AppendScrollPartsTo(aBuilder, aDirtyRect, scrolledContent,
-                      createLayersForScrollbars, true);
-  scrolledContent.MoveTo(aLists);
+  AppendScrollPartsTo(aBuilder, aDirtyRect, aLists, createLayersForScrollbars,
+                      true);
 }
 
 bool

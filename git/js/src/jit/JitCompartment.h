@@ -38,7 +38,7 @@ struct EnterJitData
     {}
 
     uint8_t *jitcode;
-    InterpreterFrame *osrFrame;
+    StackFrame *osrFrame;
 
     void *calleeToken;
 
@@ -53,7 +53,7 @@ struct EnterJitData
     bool constructing;
 };
 
-typedef void (*EnterJitCode)(void *code, unsigned argc, Value *argv, InterpreterFrame *fp,
+typedef void (*EnterJitCode)(void *code, unsigned argc, Value *argv, StackFrame *fp,
                              CalleeToken calleeToken, JSObject *scopeChain,
                              size_t numStackValues, Value *vp);
 
@@ -186,6 +186,10 @@ class JitRuntime
     JitCode *valuePreBarrier_;
     JitCode *shapePreBarrier_;
 
+    // Thunk to call malloc/free.
+    JitCode *mallocStub_;
+    JitCode *freeStub_;
+
     // Thunk used by the debugger for breakpoint and step mode.
     JitCode *debugTrapHandler_;
 
@@ -221,6 +225,8 @@ class JitRuntime
     JitCode *generateBailoutHandler(JSContext *cx);
     JitCode *generateInvalidator(JSContext *cx);
     JitCode *generatePreBarrier(JSContext *cx, MIRType type);
+    JitCode *generateMallocStub(JSContext *cx);
+    JitCode *generateFreeStub(JSContext *cx);
     JitCode *generateDebugTrapHandler(JSContext *cx);
     JitCode *generateForkJoinGetSliceStub(JSContext *cx);
     JitCode *generateVMWrapper(JSContext *cx, const VMFunction &f);
@@ -330,6 +336,14 @@ class JitRuntime
         return shapePreBarrier_;
     }
 
+    JitCode *mallocStub() const {
+        return mallocStub_;
+    }
+
+    JitCode *freeStub() const {
+        return freeStub_;
+    }
+
     bool ensureForkJoinGetSliceStubExists(JSContext *cx);
     JitCode *forkJoinGetSliceStub() const {
         return forkJoinGetSliceStub_;
@@ -367,12 +381,6 @@ class JitCompartment
     // compartment alive.
     ReadBarriered<JitCode> stringConcatStub_;
     ReadBarriered<JitCode> parallelStringConcatStub_;
-
-    // Set of JSScripts invoked by ForkJoin (i.e. the entry script). These
-    // scripts are marked if their respective parallel IonScripts' age is less
-    // than a certain amount. See IonScript::parallelAge_.
-    typedef HashSet<EncapsulatedPtrScript> ScriptSet;
-    ScriptSet *activeParallelEntryScripts_;
 
     JitCode *generateStringConcatStub(JSContext *cx, ExecutionMode mode);
 
@@ -416,8 +424,6 @@ class JitCompartment
         return baselineSetPropReturnAddr_;
     }
 
-    bool notifyOfActiveParallelEntryScript(JSContext *cx, HandleScript script);
-
     void toggleBaselineStubBarriers(bool enabled);
 
     JSC::ExecutableAllocator *createIonAlloc();
@@ -445,16 +451,7 @@ class JitCompartment
 
 // Called from JSCompartment::discardJitCode().
 void InvalidateAll(FreeOp *fop, JS::Zone *zone);
-template <ExecutionMode mode>
 void FinishInvalidation(FreeOp *fop, JSScript *script);
-
-inline bool
-ShouldPreserveParallelJITCode(JSRuntime *rt, JSScript *script, bool increase = false)
-{
-    IonScript *parallelIon = script->parallelIonScript();
-    uint32_t age = increase ? parallelIon->increaseParallelAge() : parallelIon->parallelAge();
-    return age < jit::IonScript::MAX_PARALLEL_AGE && !rt->gcShouldCleanUpEverything;
-}
 
 // On windows systems, really large frames need to be incrementally touched.
 // The following constant defines the minimum increment of the touch.

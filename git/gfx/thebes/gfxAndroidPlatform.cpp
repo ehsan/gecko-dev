@@ -133,6 +133,8 @@ gfxAndroidPlatform::gfxAndroidPlatform()
 
 gfxAndroidPlatform::~gfxAndroidPlatform()
 {
+    cairo_debug_reset_static_data();
+
     FT_Done_Library(gPlatformFTLibrary);
     gPlatformFTLibrary = nullptr;
 }
@@ -146,6 +148,19 @@ gfxAndroidPlatform::CreateOffscreenSurface(const IntSize& size,
                                      OptimalFormatForContent(contentType));
 
     return newSurface.forget();
+}
+
+already_AddRefed<gfxASurface>
+gfxAndroidPlatform::OptimizeImage(gfxImageSurface *aSurface,
+                                  gfxImageFormat format)
+{
+    /* Android/Gonk have no special offscreen surfaces so we can avoid a copy */
+    if (OptimalFormatForContent(gfxASurface::ContentFromFormat(format)) ==
+        format) {
+        return nullptr;
+    }
+
+    return gfxPlatform::OptimizeImage(aSurface, format);
 }
 
 static bool

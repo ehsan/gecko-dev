@@ -97,7 +97,5 @@ NS_NewDOMTimeEvent(nsIDOMEvent** aInstancePtrResult,
                    WidgetEvent* aEvent)
 {
   TimeEvent* it = new TimeEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

@@ -572,20 +572,24 @@ Link::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
 }
 
 URLSearchParams*
-Link::SearchParams()
+Link::GetSearchParams()
 {
   CreateSearchParamsIfNeeded();
   return mSearchParams;
 }
 
 void
-Link::SetSearchParams(URLSearchParams& aSearchParams)
+Link::SetSearchParams(URLSearchParams* aSearchParams)
 {
+  if (!aSearchParams) {
+    return;
+  }
+
   if (mSearchParams) {
     mSearchParams->RemoveObserver(this);
   }
 
-  mSearchParams = &aSearchParams;
+  mSearchParams = aSearchParams;
   mSearchParams->AddObserver(this);
 
   nsAutoString search;

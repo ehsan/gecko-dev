@@ -761,6 +761,8 @@ public:
    * retain a SurfaceDescriptor.
    * Ownership of the SurfaceDescriptor passes to this.
    */
+  // only made virtual to allow overriding in GrallocDeprecatedTextureHostOGL, for hacky fix in gecko 23 for bug 862324.
+  // see bug 865908 about fixing this.
   virtual void SetBuffer(SurfaceDescriptor* aBuffer, ISurfaceAllocator* aAllocator);
 
   // used only for hacky fix in gecko 23 for bug 862324

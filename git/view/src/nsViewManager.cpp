@@ -274,10 +274,14 @@ nsView* nsViewManager::GetDisplayRootFor(nsView* aView)
     // distinguish this situation. We do this by looking for a widget. Any view
     // with a widget is a display root, except for plugins.
     nsIWidget* widget = displayRoot->GetWidget();
-    if (widget && widget->WindowType() == eWindowType_popup) {
-      NS_ASSERTION(displayRoot->GetFloating() && displayParent->GetFloating(),
-        "this should only happen with floating views that have floating parents");
-      return displayRoot;
+    if (widget) {
+      nsWindowType type;
+      widget->GetWindowType(type);
+      if (type == eWindowType_popup) {
+        NS_ASSERTION(displayRoot->GetFloating() && displayParent->GetFloating(),
+          "this should only happen with floating views that have floating parents");
+        return displayRoot;
+      }
     }
 
     displayRoot = displayParent;
@@ -560,7 +564,8 @@ nsViewManager::InvalidateWidgetArea(nsView *aWidgetView,
          childWidget = childWidget->GetNextSibling()) {
       nsView* view = nsView::GetViewFor(childWidget);
       NS_ASSERTION(view != aWidgetView, "will recur infinitely");
-      nsWindowType type = childWidget->WindowType();
+      nsWindowType type;
+      childWidget->GetWindowType(type);
       if (view && childWidget->IsVisible() && type != eWindowType_popup) {
         NS_ASSERTION(type == eWindowType_plugin,
                      "Only plugin or popup widgets can be children!");

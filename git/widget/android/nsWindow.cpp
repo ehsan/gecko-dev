@@ -495,10 +495,12 @@ nsWindow::Resize(double aX,
     return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsWindow::SetZIndex(int32_t aZIndex)
 {
     ALOG("nsWindow[%p]::SetZIndex %d ignored", (void*)this, aZIndex);
+
+    return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -467,26 +467,22 @@ struct ParentObject {
   template<class T>
   ParentObject(T* aObject) :
     mObject(aObject),
-    mWrapperCache(GetWrapperCache(aObject)),
-    mUseXBLScope(false)
+    mWrapperCache(GetWrapperCache(aObject))
   {}
 
   template<class T, template<typename> class SmartPtr>
   ParentObject(const SmartPtr<T>& aObject) :
     mObject(aObject.get()),
-    mWrapperCache(GetWrapperCache(aObject.get())),
-    mUseXBLScope(false)
+    mWrapperCache(GetWrapperCache(aObject.get()))
   {}
 
   ParentObject(nsISupports* aObject, nsWrapperCache* aCache) :
     mObject(aObject),
-    mWrapperCache(aCache),
-    mUseXBLScope(false)
+    mWrapperCache(aCache)
   {}
 
   nsISupports* const mObject;
   nsWrapperCache* const mWrapperCache;
-  bool mUseXBLScope;
 };
 
 } // namespace dom

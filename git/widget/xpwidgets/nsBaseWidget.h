@@ -101,7 +101,8 @@ public:
   virtual void            AddChild(nsIWidget* aChild);
   virtual void            RemoveChild(nsIWidget* aChild);
 
-  void                    SetZIndex(int32_t aZIndex);
+  NS_IMETHOD              SetZIndex(int32_t aZIndex);
+  NS_IMETHOD              GetZIndex(int32_t* aZIndex);
   NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
                                       nsIWidget *aWidget, bool aActivate);
 
@@ -111,10 +112,15 @@ public:
     return mSizeMode;
   }
 
+  virtual nscolor         GetForegroundColor(void);
+  NS_IMETHOD              SetForegroundColor(const nscolor &aColor);
+  virtual nscolor         GetBackgroundColor(void);
+  NS_IMETHOD              SetBackgroundColor(const nscolor &aColor);
   virtual nsCursor        GetCursor();
   NS_IMETHOD              SetCursor(nsCursor aCursor);
   NS_IMETHOD              SetCursor(imgIContainer* aCursor,
                                     uint32_t aHotspotX, uint32_t aHotspotY);
+  NS_IMETHOD              GetWindowType(nsWindowType& aWindowType);
   virtual void            SetTransparencyMode(nsTransparencyMode aMode);
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void            GetWindowClipRegion(nsTArray<nsIntRect>* aRects);
@@ -277,6 +283,8 @@ public:
   };
   friend class AutoUseBasicLayerManager;
 
+  nsWindowType            GetWindowType() { return mWindowType; }
+
   virtual bool            ShouldUseOffMainThreadCompositing();
 
   static nsIRollupListener* GetActiveRollupListener();
@@ -399,7 +407,10 @@ protected:
   nsRefPtr<CompositorChild> mCompositorChild;
   nsRefPtr<CompositorParent> mCompositorParent;
   nsRefPtr<WidgetShutdownObserver> mShutdownObserver;
+  nscolor           mBackground;
+  nscolor           mForeground;
   nsCursor          mCursor;
+  nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
   bool              mUseLayersAcceleration;
   bool              mForceLayersAcceleration;
@@ -414,6 +425,7 @@ protected:
   // When this pointer is null, the widget is not clipped
   nsAutoArrayPtr<nsIntRect> mClipRects;
   uint32_t          mClipRectCount;
+  int32_t           mZIndex;
   nsSizeMode        mSizeMode;
   nsPopupLevel      mPopupLevel;
   nsPopupType       mPopupType;

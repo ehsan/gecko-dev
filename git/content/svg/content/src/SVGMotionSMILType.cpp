@@ -8,7 +8,6 @@
 #include "SVGMotionSMILType.h"
 
 #include "gfx2DGlue.h"
-#include "mozilla/gfx/Point.h"
 #include "nsSMILValue.h"
 #include "nsDebug.h"
 #include "nsMathUtils.h"
@@ -234,16 +233,16 @@ SVGMotionSMILType::IsEqual(const nsSMILValue& aLeft,
 inline static void
 GetAngleAndPointAtDistance(Path* aPath, float aDistance,
                            RotateType aRotateType,
-                           float& aRotateAngle, // in & out-param.
-                           Point& aPoint)       // out-param.
+                           gfxFloat& aRotateAngle, // in & out-param.
+                           gfxPoint& aPoint)       // out-param.
 {
   if (aRotateType == eRotateType_Explicit) {
     // Leave aRotateAngle as-is.
-    aPoint = aPath->ComputePointAtLength(aDistance);
+    aPoint = ThebesPoint(aPath->ComputePointAtLength(aDistance));
   } else {
     Point tangent; // Unit vector tangent to the point we find.
-    aPoint = aPath->ComputePointAtLength(aDistance, &tangent);
-    float tangentAngle = atan2(tangent.y, tangent.x);
+    aPoint = ThebesPoint(aPath->ComputePointAtLength(aDistance, &tangent));
+    gfxFloat tangentAngle = atan2(tangent.y, tangent.x);
     if (aRotateType == eRotateType_Auto) {
       aRotateAngle = tangentAngle;
     } else {
@@ -292,8 +291,8 @@ SVGMotionSMILType::Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
   Path* path = srcParams.mPath;
 
   // Use destination to get our rotate angle.
-  float rotateAngle = dstSeg.mRotateAngle;
-  Point dstPt;
+  gfxFloat rotateAngle = dstSeg.mRotateAngle;
+  gfxPoint dstPt;
   GetAngleAndPointAtDistance(path, dstParams.mDistToPoint, dstSeg.mRotateType,
                              rotateAngle, dstPt);
 
@@ -451,8 +450,8 @@ SVGMotionSMILType::CreateMatrix(const nsSMILValue& aSMILVal)
   gfx::Matrix matrix;
   uint32_t length = arr.Length();
   for (uint32_t i = 0; i < length; i++) {
-    Point point;  // initialized below
-    float rotateAngle = arr[i].mRotateAngle; // might get updated below
+    gfxPoint point;  // initialized below
+    gfxFloat rotateAngle = arr[i].mRotateAngle; // might get updated below
     if (arr[i].mSegmentType == eSegmentType_Translation) {
       point.x = arr[i].mU.mTranslationParams.mX;
       point.y = arr[i].mU.mTranslationParams.mY;

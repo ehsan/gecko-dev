@@ -27,11 +27,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=830258
   }
 
   function continueTest() {
-    try {
-      gGenerator.next();
-    } catch (e if e instanceof StopIteration) {
-      finish();
-    }
+    try { gGenerator.next(); }
+    catch (e) { dump("Got exception: " + e + "\n"); }
   }
 
   function mozAppsError() {
@@ -91,6 +88,10 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=830258
       continueTest();
     };
     yield undefined;
+
+    // All done.
+    ok(true, "All done");
+    finish();
   }
 
   function finish() {

@@ -639,7 +639,8 @@ GetPresContextContainerWidget(nsPresContext* aPresContext)
 static bool
 IsTopLevelWidget(nsIWidget* aWidget)
 {
-  nsWindowType windowType = aWidget->WindowType();
+  nsWindowType windowType;
+  aWidget->GetWindowType(windowType);
   return windowType == eWindowType_toplevel ||
          windowType == eWindowType_dialog ||
          windowType == eWindowType_sheet;

@@ -41,7 +41,7 @@ probes::WantNativeAddressInfo(JSContext *cx)
 
 inline bool
 probes::EnterScript(JSContext *cx, JSScript *script, JSFunction *maybeFun,
-                    InterpreterFrame *fp)
+                    StackFrame *fp)
 {
     bool ok = true;
 #ifdef INCLUDE_MOZILLA_DTRACE

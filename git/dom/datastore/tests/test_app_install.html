@@ -32,9 +32,8 @@
     });
 
   function continueTest() {
-    try {
-      gGenerator.next();
-    } catch (e if e instanceof StopIteration) { }
+    try { gGenerator.next(); }
+    catch(e) { dump("Got exception: " + e + "\n"); }
   }
 
   function cbError() {
@@ -85,6 +84,7 @@
         request.onerror = cbError;
         request.onsuccess = function() {
           // All done.
+          ok(true, "All done");
           finish();
         }
       }

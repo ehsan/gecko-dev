@@ -872,8 +872,12 @@ nsMenuPopupFrame::GetRootViewForPopup(nsIFrame* aStartFrame)
     // window type of eWindowType_popup - in other words a popup window
     // widget. If we find one, this is the view we want. 
     nsIWidget* widget = view->GetWidget();
-    if (widget && widget->WindowType() == eWindowType_popup) {
-      return view;
+    if (widget) {
+      nsWindowType wtype;
+      widget->GetWindowType(wtype);
+      if (wtype == eWindowType_popup) {
+        return view;
+      }
     }
 
     nsView* temp = view->GetParent();

@@ -33,7 +33,7 @@ struct HttpChannelOpenArgs
   OptionalURIParams           apiRedirectTo;
   uint32_t                    loadFlags;
   RequestHeaderTuples         requestHeaders;
-  nsCString                   requestMethod;
+  nsHttpAtom                  requestMethod;
   OptionalInputStreamParams   uploadStream;
   bool                        uploadStreamHasHeaders;
   uint16_t                    priority;

@@ -154,9 +154,7 @@ HTMLTrackElement::CreateTextTrack()
   }
 
   mTrack = new TextTrack(OwnerDoc()->GetParentObject(), kind, label, srcLang,
-                         TextTrackMode::Disabled,
-                         TextTrackReadyState::NotLoaded,
-                         TextTrackSource::Track);
+                         TextTrackMode::Disabled, TextTrackSource::Track);
   mTrack->SetTrackElement(this);
 
   if (mMediaParent) {
@@ -319,7 +317,7 @@ uint16_t
 HTMLTrackElement::ReadyState() const
 {
   if (!mTrack) {
-    return TextTrackReadyState::NotLoaded;
+    return READY_STATE_NONE;
   }
 
   return mTrack->ReadyState();

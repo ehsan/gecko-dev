@@ -165,6 +165,7 @@ extern const Class IntlClass;
 extern const Class JSONClass;
 extern const Class MathClass;
 
+class ArrayBufferObject;
 class GlobalObject;
 class MapObject;
 class NewObjectCache;
@@ -251,8 +252,7 @@ class JSObject : public js::ObjectImpl
                                    js::gc::AllocKind kind,
                                    js::gc::InitialHeap heap,
                                    js::HandleShape shape,
-                                   js::HandleTypeObject type,
-                                   js::HeapSlot *extantSlots = nullptr);
+                                   js::HandleTypeObject type);
 
     /* Make an array object with the specified initial state. */
     static inline js::ArrayObject *createArray(js::ExclusiveContext *cx,
@@ -297,7 +297,7 @@ class JSObject : public js::ObjectImpl
         return setFlag(cx, js::BaseShape::WATCHED, GENERATE_SHAPE);
     }
 
-    /* See InterpreterFrame::varObj. */
+    /* See StackFrame::varObj. */
     inline bool isVarObj();
     bool setVarObj(js::ExclusiveContext *cx) {
         return setFlag(cx, js::BaseShape::VAROBJ);

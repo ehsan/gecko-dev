@@ -94,7 +94,5 @@ NS_NewDOMAnimationEvent(nsIDOMEvent** aInstancePtrResult,
                         InternalAnimationEvent* aEvent)
 {
   AnimationEvent* it = new AnimationEvent(aOwner, aPresContext, aEvent);
-  NS_ADDREF(it);
-  *aInstancePtrResult = static_cast<Event*>(it);
-  return NS_OK;
+  return CallQueryInterface(it, aInstancePtrResult);
 }

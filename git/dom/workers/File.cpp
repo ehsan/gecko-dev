@@ -83,10 +83,8 @@ private:
   static bool
   Construct(JSContext* aCx, unsigned aArgc, jsval* aVp)
   {
-    JS::CallArgs args = CallArgsFromVp(aArgc, aVp);
-
     nsRefPtr<nsDOMMultipartFile> file = new nsDOMMultipartFile();
-    nsresult rv = file->InitBlob(aCx, args.length(), args.array(), Unwrap);
+    nsresult rv = file->InitBlob(aCx, aArgc, JS_ARGV(aCx, aVp), Unwrap);
     if (NS_FAILED(rv)) {
       return Throw(aCx, rv);
     }
@@ -96,7 +94,7 @@ private:
       return false;
     }
 
-    args.rval().setObject(*obj);
+    JS_SET_RVAL(aCx, aVp, OBJECT_TO_JSVAL(obj));
     return true;
   }
 

@@ -6,7 +6,6 @@
 #include "DOMSVGPoint.h"
 #include "DOMSVGPointList.h"
 #include "SVGPoint.h"
-#include "gfx2DGlue.h"
 #include "nsSVGElement.h"
 #include "nsError.h"
 #include "mozilla/dom/SVGMatrix.h"
@@ -14,7 +13,6 @@
 // See the architecture comment in DOMSVGPointList.h.
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 namespace mozilla {
 
@@ -114,7 +112,7 @@ DOMSVGPoint::MatrixTransform(dom::SVGMatrix& matrix)
   float x = HasOwner() ? InternalItem().mX : mPt.mX;
   float y = HasOwner() ? InternalItem().mY : mPt.mY;
 
-  Point pt = ToMatrix(matrix.GetMatrix()) * Point(x, y);
+  gfxPoint pt = matrix.GetMatrix().Transform(gfxPoint(x, y));
   nsCOMPtr<nsISVGPoint> newPoint = new DOMSVGPoint(pt);
   return newPoint.forget();
 }

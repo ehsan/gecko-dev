@@ -1436,26 +1436,22 @@ CheckUniversalXPConnectForTraceMalloc(JSContext *cx)
 static bool
 TraceMallocDisable(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-
     if (!CheckUniversalXPConnectForTraceMalloc(cx))
         return false;
 
     NS_TraceMallocDisable();
-    args.rval().setUndefined();
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
 
 static bool
 TraceMallocEnable(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
-
     if (!CheckUniversalXPConnectForTraceMalloc(cx))
         return false;
 
     NS_TraceMallocEnable();
-    args.rval().setUndefined();
+    JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
 

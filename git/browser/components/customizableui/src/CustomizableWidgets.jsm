@@ -81,18 +81,6 @@ function updateCombinedWidgetStyle(aNode, aArea, aModifyCloseMenu) {
   }
 }
 
-function addShortcut(aNode, aDocument, aItem) {
-  let shortcutId = aNode.getAttribute("key");
-  if (!shortcutId) {
-    return;
-  }
-  let shortcut = aDocument.getElementById(shortcutId);
-  if (!shortcut) {
-    return;
-  }
-  aItem.setAttribute("shortcut", ShortcutUtils.prettifyShortcut(shortcut));
-}
-
 const CustomizableWidgets = [{
     id: "history-panelmenu",
     type: "view",
@@ -304,7 +292,6 @@ const CustomizableWidgets = [{
         } else if (node.localName == "menuitem") {
           item = doc.createElementNS(kNSXUL, "toolbarbutton");
           item.setAttribute("class", "subviewbutton");
-          addShortcut(node, doc, item);
         } else {
           continue;
         }
@@ -380,10 +367,8 @@ const CustomizableWidgets = [{
           if (attrVal)
             item.setAttribute(attr, attrVal);
         }
-        if (node.localName == "menuitem") {
+        if (node.localName == "menuitem")
           item.classList.add("subviewbutton");
-          addShortcut(node, doc, item);
-        }
         fragment.appendChild(item);
       }
 
@@ -765,7 +750,6 @@ const CustomizableWidgets = [{
         elem.section = aSection;
         elem.value = item.value;
         elem.setAttribute("class", "subviewbutton");
-        addShortcut(item, doc, elem);
         containerElem.appendChild(elem);
       }
     },

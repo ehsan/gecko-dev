@@ -30,7 +30,7 @@ using mozilla::PodCopy;
 /*****************************************************************************/
 
 void
-InterpreterFrame::initExecuteFrame(JSContext *cx, JSScript *script, AbstractFramePtr evalInFramePrev,
+StackFrame::initExecuteFrame(JSContext *cx, JSScript *script, AbstractFramePtr evalInFramePrev,
                              const Value &thisv, JSObject &scopeChain, ExecuteType type)
 {
     /*
@@ -93,16 +93,16 @@ InterpreterFrame::initExecuteFrame(JSContext *cx, JSScript *script, AbstractFram
 #endif
 }
 
-template <InterpreterFrame::TriggerPostBarriers doPostBarrier>
+template <StackFrame::TriggerPostBarriers doPostBarrier>
 void
-InterpreterFrame::copyFrameAndValues(JSContext *cx, Value *vp, InterpreterFrame *otherfp,
-                                     const Value *othervp, Value *othersp)
+StackFrame::copyFrameAndValues(JSContext *cx, Value *vp, StackFrame *otherfp,
+                               const Value *othervp, Value *othersp)
 {
     JS_ASSERT(othervp == otherfp->generatorArgsSnapshotBegin());
     JS_ASSERT(othersp >= otherfp->slots());
     JS_ASSERT(othersp <= otherfp->generatorSlotsSnapshotBegin() + otherfp->script()->nslots());
 
-    /* Copy args, InterpreterFrame, and slots. */
+    /* Copy args, StackFrame, and slots. */
     const Value *srcend = otherfp->generatorArgsSnapshotEnd();
     Value *dst = vp;
     for (const Value *src = othervp; src < srcend; src++, dst++) {
@@ -128,16 +128,16 @@ InterpreterFrame::copyFrameAndValues(JSContext *cx, Value *vp, InterpreterFrame 
 
 /* Note: explicit instantiation for js_NewGenerator located in jsiter.cpp. */
 template
-void InterpreterFrame::copyFrameAndValues<InterpreterFrame::NoPostBarrier>(
-                                    JSContext *, Value *, InterpreterFrame *, const Value *, Value *);
+void StackFrame::copyFrameAndValues<StackFrame::NoPostBarrier>(
+                                    JSContext *, Value *, StackFrame *, const Value *, Value *);
 template
-void InterpreterFrame::copyFrameAndValues<InterpreterFrame::DoPostBarrier>(
-                                    JSContext *, Value *, InterpreterFrame *, const Value *, Value *);
+void StackFrame::copyFrameAndValues<StackFrame::DoPostBarrier>(
+                                    JSContext *, Value *, StackFrame *, const Value *, Value *);
 
 void
-InterpreterFrame::writeBarrierPost()
+StackFrame::writeBarrierPost()
 {
-    /* This needs to follow the same rules as in InterpreterFrame::mark. */
+    /* This needs to follow the same rules as in StackFrame::mark. */
     if (scopeChain_)
         JSObject::writeBarrierPost(scopeChain_, (void *)&scopeChain_);
     if (flags_ & HAS_ARGS_OBJ)
@@ -154,7 +154,7 @@ InterpreterFrame::writeBarrierPost()
 }
 
 bool
-InterpreterFrame::copyRawFrameSlots(AutoValueVector *vec)
+StackFrame::copyRawFrameSlots(AutoValueVector *vec)
 {
     if (!vec->resize(numFormalArgs() + script()->nfixed()))
         return false;
@@ -164,7 +164,7 @@ InterpreterFrame::copyRawFrameSlots(AutoValueVector *vec)
 }
 
 JSObject *
-InterpreterFrame::createRestParameter(JSContext *cx)
+StackFrame::createRestParameter(JSContext *cx)
 {
     JS_ASSERT(fun()->hasRest());
     unsigned nformal = fun()->nargs() - 1, nactual = numActualArgs();
@@ -213,7 +213,7 @@ AssertDynamicScopeMatchesStaticScope(JSContext *cx, JSScript *script, JSObject *
 }
 
 bool
-InterpreterFrame::initFunctionScopeObjects(JSContext *cx)
+StackFrame::initFunctionScopeObjects(JSContext *cx)
 {
     CallObject *callobj = CallObject::createForFunction(cx, this);
     if (!callobj)
@@ -224,7 +224,7 @@ InterpreterFrame::initFunctionScopeObjects(JSContext *cx)
 }
 
 bool
-InterpreterFrame::prologue(JSContext *cx)
+StackFrame::prologue(JSContext *cx)
 {
     RootedScript script(cx, this->script());
 
@@ -268,7 +268,7 @@ InterpreterFrame::prologue(JSContext *cx)
 }
 
 void
-InterpreterFrame::epilogue(JSContext *cx)
+StackFrame::epilogue(JSContext *cx)
 {
     JS_ASSERT(!isYielding());
 
@@ -322,7 +322,7 @@ InterpreterFrame::epilogue(JSContext *cx)
 }
 
 bool
-InterpreterFrame::pushBlock(JSContext *cx, StaticBlockObject &block)
+StackFrame::pushBlock(JSContext *cx, StaticBlockObject &block)
 {
     JS_ASSERT (block.needsClone());
 
@@ -337,14 +337,14 @@ InterpreterFrame::pushBlock(JSContext *cx, StaticBlockObject &block)
 }
 
 void
-InterpreterFrame::popBlock(JSContext *cx)
+StackFrame::popBlock(JSContext *cx)
 {
     JS_ASSERT(scopeChain_->is<ClonedBlockObject>());
     popOffScopeChain();
 }
 
 void
-InterpreterFrame::popWith(JSContext *cx)
+StackFrame::popWith(JSContext *cx)
 {
     if (MOZ_UNLIKELY(cx->compartment()->debugMode()))
         DebugScopes::onPopWith(this);
@@ -354,7 +354,7 @@ InterpreterFrame::popWith(JSContext *cx)
 }
 
 void
-InterpreterFrame::mark(JSTracer *trc)
+StackFrame::mark(JSTracer *trc)
 {
     /*
      * Normally we would use MarkRoot here, except that generators also take
@@ -378,14 +378,14 @@ InterpreterFrame::mark(JSTracer *trc)
 }
 
 void
-InterpreterFrame::markValues(JSTracer *trc, unsigned start, unsigned end)
+StackFrame::markValues(JSTracer *trc, unsigned start, unsigned end)
 {
     if (start < end)
         gc::MarkValueRootRange(trc, end - start, slots() + start, "vm_stack");
 }
 
 void
-InterpreterFrame::markValues(JSTracer *trc, Value *sp, jsbytecode *pc)
+StackFrame::markValues(JSTracer *trc, Value *sp, jsbytecode *pc)
 {
     JS_ASSERT(sp >= slots());
 
@@ -434,7 +434,7 @@ static void
 MarkInterpreterActivation(JSTracer *trc, InterpreterActivation *act)
 {
     for (InterpreterFrameIterator frames(act); !frames.done(); ++frames) {
-        InterpreterFrame *fp = frames.frame();
+        StackFrame *fp = frames.frame();
         fp->markValues(trc, frames.sp(), frames.pc());
         fp->mark(trc);
     }
@@ -466,7 +466,7 @@ InterpreterRegs::setToEndOfScript()
 
 /*****************************************************************************/
 
-InterpreterFrame *
+StackFrame *
 InterpreterStack::pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFrameFlags initial)
 {
     LifoAlloc::Mark mark = allocator_.mark();
@@ -474,9 +474,9 @@ InterpreterStack::pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFr
     RootedFunction fun(cx, &args.callee().as<JSFunction>());
     RootedScript script(cx, fun->nonLazyScript());
 
-    InterpreterFrame::Flags flags = ToFrameFlags(initial);
+    StackFrame::Flags flags = ToFrameFlags(initial);
     Value *argv;
-    InterpreterFrame *fp = getCallFrame(cx, args, script, &flags, &argv);
+    StackFrame *fp = getCallFrame(cx, args, script, &flags, &argv);
     if (!fp)
         return nullptr;
 
@@ -485,7 +485,7 @@ InterpreterStack::pushInvokeFrame(JSContext *cx, const CallArgs &args, InitialFr
     return fp;
 }
 
-InterpreterFrame *
+StackFrame *
 InterpreterStack::pushExecuteFrame(JSContext *cx, HandleScript script, const Value &thisv,
                                    HandleObject scopeChain, ExecuteType type,
                                    AbstractFramePtr evalInFrame)
@@ -493,11 +493,11 @@ InterpreterStack::pushExecuteFrame(JSContext *cx, HandleScript script, const Val
     LifoAlloc::Mark mark = allocator_.mark();
 
     unsigned nvars = 2 /* callee, this */ + script->nslots();
-    uint8_t *buffer = allocateFrame(cx, sizeof(InterpreterFrame) + nvars * sizeof(Value));
+    uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvars * sizeof(Value));
     if (!buffer)
         return nullptr;
 
-    InterpreterFrame *fp = reinterpret_cast<InterpreterFrame *>(buffer + 2 * sizeof(Value));
+    StackFrame *fp = reinterpret_cast<StackFrame *>(buffer + 2 * sizeof(Value));
     fp->mark_ = mark;
     fp->initExecuteFrame(cx, script, evalInFrame, thisv, *scopeChain, type);
     fp->initVarsToUndefined();
@@ -1085,7 +1085,7 @@ FrameIter::updatePcQuadratic()
       case ASMJS:
         break;
       case INTERP: {
-        InterpreterFrame *frame = interpFrame();
+        StackFrame *frame = interpFrame();
         InterpreterActivation *activation = data_.activations_.activation()->asInterpreter();
 
         // Look for the current frame.
@@ -1471,8 +1471,8 @@ AbstractFramePtr::evalPrevScopeChain(JSContext *cx) const
 bool
 AbstractFramePtr::hasPushedSPSFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->hasPushedSPSFrame();
+    if (isStackFrame())
+        return asStackFrame()->hasPushedSPSFrame();
 #ifdef JS_ION
     return asBaselineFrame()->hasPushedSPSFrame();
 #else
