@@ -135,7 +135,7 @@ var gMainPane = {
     let win = wm.getMostRecentWindow("navigator:browser");
 
     if (win) {
-      let accountsTab = win.gBrowser.addTab("about:accounts");
+      let accountsTab = win.gBrowser.addTab("about:accounts?action=migrateToDevEdition");
       win.gBrowser.selectedTab = accountsTab;
     }
   },

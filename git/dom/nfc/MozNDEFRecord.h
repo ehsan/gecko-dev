@@ -83,11 +83,6 @@ public:
     retval.set(mPayload);
   }
 
-  uint32_t Size() const
-  {
-    return mSize;
-  }
-
 private:
   MozNDEFRecord() MOZ_DELETE;
   nsRefPtr<nsPIDOMWindow> mWindow;
@@ -101,7 +96,6 @@ private:
   JS::Heap<JSObject*> mType;
   JS::Heap<JSObject*> mId;
   JS::Heap<JSObject*> mPayload;
-  uint32_t mSize;
 };
 
 } // namespace dom
