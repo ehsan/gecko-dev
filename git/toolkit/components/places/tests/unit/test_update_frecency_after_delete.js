@@ -21,13 +21,15 @@ add_test(function removed_bookmark()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark title");
-  PlacesTestUtils.promiseAsyncUpdates().then(() => {
+  promiseAsyncUpdates().then(function ()
+  {
     do_print("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     PlacesUtils.bookmarks.removeItem(id);
 
-    PlacesTestUtils.promiseAsyncUpdates().then(() => {
+    promiseAsyncUpdates().then(function ()
+    {
       do_print("Unvisited URI no longer bookmarked => frecency should = 0");
       do_check_eq(frecencyForUrl(TEST_URI), 0);
 
@@ -46,14 +48,16 @@ add_test(function removed_but_visited_bookmark()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark title");
-  PlacesTestUtils.promiseAsyncUpdates().then(() => {
+  promiseAsyncUpdates().then(function ()
+  {
     do_print("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     promiseAddVisits(TEST_URI).then(function () {
       PlacesUtils.bookmarks.removeItem(id);
 
-      PlacesTestUtils.promiseAsyncUpdates().then(() => {
+      promiseAsyncUpdates().then(function ()
+      {
         do_print("*Visited* URI no longer bookmarked => frecency should != 0");
         do_check_neq(frecencyForUrl(TEST_URI), 0);
 
@@ -77,13 +81,15 @@ add_test(function remove_bookmark_still_bookmarked()
                                                  TEST_URI,
                                                  PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                  "bookmark 2 title");
-  PlacesTestUtils.promiseAsyncUpdates().then(() => {
+  promiseAsyncUpdates().then(function ()
+  {
     do_print("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     PlacesUtils.bookmarks.removeItem(id1);
 
-    PlacesTestUtils.promiseAsyncUpdates().then(() => {
+    promiseAsyncUpdates().then(function ()
+    {
       do_print("URI still bookmarked => frecency should != 0");
       do_check_neq(frecencyForUrl(TEST_URI), 0);
 
@@ -102,14 +108,16 @@ add_test(function cleared_parent_of_visited_bookmark()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark title");
-  PlacesTestUtils.promiseAsyncUpdates().then(() => {
+  promiseAsyncUpdates().then(function ()
+  {
     do_print("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     promiseAddVisits(TEST_URI).then(function () {
       PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
 
-      PlacesTestUtils.promiseAsyncUpdates().then(() => {
+      promiseAsyncUpdates().then(function ()
+      {
         do_print("*Visited* URI no longer bookmarked => frecency should != 0");
         do_check_neq(frecencyForUrl(TEST_URI), 0);
 
@@ -135,13 +143,15 @@ add_test(function cleared_parent_of_bookmark_still_bookmarked()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark 2 title");
-  PlacesTestUtils.promiseAsyncUpdates().then(() => {
+  promiseAsyncUpdates().then(function ()
+  {
     do_print("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
 
-    PlacesTestUtils.promiseAsyncUpdates().then(() => {
+    promiseAsyncUpdates().then(function ()
+    {
       // URI still bookmarked => frecency should != 0.
       do_check_neq(frecencyForUrl(TEST_URI), 0);
 
