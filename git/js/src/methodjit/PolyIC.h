@@ -236,6 +236,9 @@ struct PICInfo {
     // last stub.
     bool shapeRegHasBaseShape : 1;
 
+    // True if can use the property cache.
+    bool usePropCache : 1;
+
     // State flags.
     bool hit : 1;                   // this PIC has been executed
     bool inlinePathPatched : 1;     // inline path has been patched
@@ -352,14 +355,13 @@ struct PICInfo {
 };
 
 void PurgePICs(JSContext *cx, JSScript *script);
-void JS_FASTCALL GetProp(VMFrame &f, uint32 index);
-void JS_FASTCALL GetElem(VMFrame &f, uint32 index);
-void JS_FASTCALL SetProp(VMFrame &f, uint32 index);
-void JS_FASTCALL CallProp(VMFrame &f, uint32 index);
-void JS_FASTCALL Name(VMFrame &f, uint32 index);
-void JS_FASTCALL XName(VMFrame &f, uint32 index);
-void JS_FASTCALL BindName(VMFrame &f, uint32 index);
-void JS_FASTCALL SetPropDumb(VMFrame &f, uint32 index);
+void JS_FASTCALL GetProp(VMFrame &f, ic::PICInfo *);
+void JS_FASTCALL GetElem(VMFrame &f, ic::PICInfo *);
+void JS_FASTCALL SetProp(VMFrame &f, ic::PICInfo *);
+void JS_FASTCALL CallProp(VMFrame &f, ic::PICInfo *);
+void JS_FASTCALL Name(VMFrame &f, ic::PICInfo *);
+void JS_FASTCALL XName(VMFrame &f, ic::PICInfo *);
+void JS_FASTCALL BindName(VMFrame &f, ic::PICInfo *);
 
 } /* namespace ic */
 } /* namespace mjit */
