@@ -166,7 +166,6 @@ let gInitialPages = [
 #include inspector.js
 #include browser-places.js
 #include browser-tabPreviews.js
-#include browser-tabview.js
 
 XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
 #ifdef XP_WIN
@@ -644,9 +643,12 @@ const gXPInstallObserver = {
     const anchorID = "addons-notification-icon";
     var messageString, action;
     var brandShortName = brandBundle.getString("brandShortName");
-    var host = installInfo.originatingURI ? installInfo.originatingURI.host : browser.currentURI.host;
 
     var notificationID = aTopic;
+    // Make notifications persist a minimum of 30 seconds
+    var options = {
+      timeout: Date.now() + 30000
+    };
 
     switch (aTopic) {
     case "addon-install-blocked":
@@ -667,8 +669,7 @@ const gXPInstallObserver = {
           buttons = [];
         }
         else {
-          messageString = gNavigatorBundle.getFormattedString("xpinstallDisabledMessage",
-                                                              [brandShortName, host]);
+          messageString = gNavigatorBundle.getString("xpinstallDisabledMessage");
 
           action = {
             label: gNavigatorBundle.getString("xpinstallDisabledButton"),
@@ -684,7 +685,7 @@ const gXPInstallObserver = {
           return;
 
         messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
-                                                            [brandShortName, host]);
+                          [brandShortName, installInfo.originatingURI.host]);
 
         action = {
           label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
@@ -696,12 +697,18 @@ const gXPInstallObserver = {
       }
 
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                              action);
+                              action, null, options);
       break;
     case "addon-install-failed":
       // TODO This isn't terribly ideal for the multiple failure case
       installInfo.installs.forEach(function(aInstall) {
-        var error = "addonError";
+        var host = (installInfo.originatingURI instanceof Ci.nsIStandardURL) &&
+                   installInfo.originatingURI.host;
+        if (!host)
+          host = (aInstall.sourceURI instanceof Ci.nsIStandardURL) &&
+                 aInstall.sourceURI.host;
+
+        var error = (host || aInstall.error == 0) ? "addonError" : "addonLocalError";
         if (aInstall.error != 0)
           error += aInstall.error;
         else if (aInstall.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
@@ -711,12 +718,13 @@ const gXPInstallObserver = {
 
         messageString = gNavigatorBundle.getString(error);
         messageString = messageString.replace("#1", aInstall.name);
-        messageString = messageString.replace("#2", host);
+        if (host)
+          messageString = messageString.replace("#2", host);
         messageString = messageString.replace("#3", brandShortName);
         messageString = messageString.replace("#4", Services.appinfo.version);
 
         PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                                action);
+                                action, null, options);
       });
       break;
     case "addon-install-complete":
@@ -768,7 +776,7 @@ const gXPInstallObserver = {
       messageString = messageString.replace("#3", brandShortName);
 
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                              action);
+                              action, null, options);
       break;
     }
   }
@@ -6729,13 +6737,11 @@ var gBookmarkAllTabsHandler = {
     this._command = document.getElementById("Browser:BookmarkAllTabs");
     gBrowser.tabContainer.addEventListener("TabOpen", this, true);
     gBrowser.tabContainer.addEventListener("TabClose", this, true);
-    gBrowser.tabContainer.addEventListener("TabSelect", this, true);
-    gBrowser.tabContainer.addEventListener("TabMove", this, true);
     this._updateCommandState();
   },
 
   _updateCommandState: function BATH__updateCommandState(aTabClose) {
-    var numTabs = gBrowser.visibleTabs.length;
+    let numTabs = gBrowser.visibleTabs.length;
 
     // The TabClose event is fired before the tab is removed from the DOM
     if (aTabClose)
@@ -7758,7 +7764,7 @@ var TabContextMenu = {
   updateContextMenu: function updateContextMenu(aPopupMenu) {
     this.contextTab = document.popupNode.localName == "tab" ?
                       document.popupNode : gBrowser.selectedTab;
-    var disabled = gBrowser.visibleTabs.length == 1;
+    let disabled = gBrowser.visibleTabs.length == 1;
 
     // Enable the "Close Tab" menuitem when the window doesn't close with the last tab.
     document.getElementById("context_closeTab").disabled =
@@ -7780,7 +7786,7 @@ var TabContextMenu = {
 
     // Disable "Close other Tabs" if there is only one unpinned tab and
     // hide it when the user rightclicked on a pinned tab.
-    var unpinnedTabs = gBrowser.tabs.length - gBrowser._numPinnedTabs;
+    let unpinnedTabs = gBrowser.visibleTabs.length - gBrowser._numPinnedTabs;
     document.getElementById("context_closeOtherTabs").disabled = unpinnedTabs <= 1;
     document.getElementById("context_closeOtherTabs").hidden = this.contextTab.pinned;
   }

@@ -717,12 +717,7 @@
       <method name="updateTitlebar">
         <body>
           <![CDATA[
-            if (TabView.isVisible()) {
-              // ToDo: this will be removed when we gain ability to draw o the menu bar. 
-              this.ownerDocument.title = TabView.getWindowTitle();
-            } else {
-              this.ownerDocument.title = this.getWindowTitleForBrowser(this.mCurrentBrowser);
-            }
+            this.ownerDocument.title = this.getWindowTitleForBrowser(this.mCurrentBrowser);
           ]]>
         </body>
       </method>
@@ -756,6 +751,7 @@
             newBrowser.setAttribute("type", "content-primary");
             this.mCurrentBrowser = newBrowser;
             this.mCurrentTab = this.selectedTab;
+            this.mCurrentTab.hidden = false;
 
             if (updatePageReport)
               this.mCurrentBrowser.updatePageReport();
@@ -785,6 +781,7 @@
             // Don't switch the fast find or update the titlebar (bug 540248) - this tab switch is temporary
             if (!this._previewMode) {
               this._fastFind.setDocShell(this.mCurrentBrowser.docShell);
+
               this.updateTitlebar();
             }
 
@@ -1166,7 +1163,7 @@
             t.linkedPanel = uniqueId;
             t.linkedBrowser = b;
             t._tPos = position;
-            if (t.previousSibling && t.previousSibling.selected)
+            if (t.previousSibling.selected)
               t.setAttribute("afterselected", true);
 
             this.tabContainer.adjustTabstrip();
@@ -1275,7 +1272,7 @@
               return;
 
             if (this.warnAboutClosingTabs(false)) {
-              var tabs = this.visibleTabs;
+              let tabs = this.visibleTabs;
               this.selectedTab = aTab;
 
               for (let i = tabs.length - 1; i >= 0; --i) {
@@ -1336,23 +1333,21 @@
             var closeWindow = false;
             var newTab = false;
             if (this.tabs.length - this._removingTabs.length == 1) {
-              if (!TabView.isVisible()) {
-                closeWindow = aCloseWindowWithLastTab != null ? aCloseWindowWithLastTab :
-                              !window.toolbar.visible ||
-                                this.tabContainer._closeWindowWithLastTab;
+              closeWindow = aCloseWindowWithLastTab != null ? aCloseWindowWithLastTab :
+                            !window.toolbar.visible ||
+                              this.tabContainer._closeWindowWithLastTab;
 
-                // Closing the tab and replacing it with a blank one is notably slower
-                // than closing the window right away. If the caller opts in, take
-                // the fast path.
-                if (closeWindow &&
-                   aCloseWindowFastpath &&
-                   this._removingTabs.length == 0 &&
-                   (this._windowIsClosing = window.closeWindow(true)))
-                  return null;
+              // Closing the tab and replacing it with a blank one is notably slower
+              // than closing the window right away. If the caller opts in, take
+              // the fast path.
+              if (closeWindow &&
+                  aCloseWindowFastpath &&
+                  this._removingTabs.length == 0 &&
+                  (this._windowIsClosing = window.closeWindow(true)))
+                return null;
 
-                newTab = true;
-              }
-           }
+              newTab = true;
+            }
 
             this._removingTabs.push(aTab);
 
@@ -1468,18 +1463,31 @@
             // update first-tab/last-tab/beforeselected/afterselected attributes
             this.selectedTab._selected = true;
 
+            // Removing the panel requires fixing up selectedPanel immediately
+            // (see below), which would be hindered by the potentially expensive
+            // browser removal. So we remove the browser and the panel in two
+            // steps.
+            var panel = browser.parentNode;
+
             // This will unload the document. An unload handler could remove
             // dependant tabs, so it's important that the tabbrowser is now in
             // a consistent state (tab removed, tab positions updated, etc.).
-            // Also, it's important that another tab has been selected before
-            // the panel is removed; otherwise, a random sibling panel can flash.
-            this.mPanelContainer.removeChild(browser.parentNode);
+            panel.removeChild(browser);
 
-            // As the panel is removed, the removal of a dependent document can
+            // As the browser is removed, the removal of a dependent document can
             // cause the whole window to close. So at this point, it's possible
             // that the binding is destructed.
-            if (this.mTabBox)
-              this.mTabBox.selectedPanel = this.getBrowserForTab(this.mCurrentTab).parentNode;
+            if (this.mTabBox) {
+              let selectedPanel = this.mTabBox.selectedPanel;
+
+              this.mPanelContainer.removeChild(panel);
+
+              // Under the hood, a selectedIndex attribute controls which panel
+              // is displayed. Removing a panel A which precedes the selected
+              // panel B makes selectedIndex point to the panel next to B. We
+              // need to explicitly preserve B as the selected panel.
+              this.mTabBox.selectedPanel = selectedPanel;
+            }
 
             if (aCloseWindow)
               this._windowIsClosing = closeWindow(true);
@@ -1501,21 +1509,22 @@
               return;
             }
 
-            var tab = aTab;
+            let removing = this._removingTabs;
+            let ignoreRemoving = function(tab) removing.indexOf(tab) == -1;
 
+            // Switch to a visible tab unless there aren't any remaining
+            let remainingTabs = this.visibleTabs.filter(ignoreRemoving);
+            if (remainingTabs.length == 0)
+              remainingTabs = Array.filter(this.tabs, ignoreRemoving);
+
+            // Try to find a remaining tab that comes after the given tab
+            var tab = aTab;
             do {
               tab = tab.nextSibling;
-            } while (tab && this._removingTabs.indexOf(tab) != -1);
+            } while (tab && remainingTabs.indexOf(tab) == -1);
 
-            if (!tab) {
-              tab = aTab;
-
-              do {
-                tab = tab.previousSibling;
-              } while (tab && this._removingTabs.indexOf(tab) != -1);
-            }
-
-            this.selectedTab = tab;
+            // If no tab was found, give the end of the remaining tabs
+            this.selectedTab = tab ? tab : remainingTabs.pop();
           ]]>
         </body>
       </method>
@@ -1588,8 +1597,8 @@
       <method name="reloadAllTabs">
         <body>
           <![CDATA[
-            var tabs = this.visibleTabs;
-            var l = tabs.length;
+            let tabs = this.visibleTabs;
+            let l = tabs.length;
             for (var i = 0; i < l; i++) {
               try {
                 this.getBrowserForTab(tabs[i]).reload();
@@ -1694,11 +1703,8 @@
         <body>
         <![CDATA[
           Array.forEach(this.tabs, function(tab) {
-            tab.hidden = aTabs.indexOf(tab) == -1 && !tab.pinned;
+            tab.hidden = aTabs.indexOf(tab) == -1 && !tab.pinned && !tab.selected;
           });
-
-          if (this._numPinnedTabs > 0)
-            this.tabContainer._positionPinnedTabs();
         ]]>
         </body>
       </method>
@@ -1714,7 +1720,7 @@
           if (aIndex < 0)
             aIndex += tabs.length;
 
-          if (aIndex >= 0 && aIndex < this.tabs.length) {
+          if (aIndex >= 0 && aIndex < tabs.length) {
             let nextTab = tabs[aIndex];
             if (nextTab != this.selectedTab)
               this.selectedTab = nextTab;
@@ -1760,7 +1766,7 @@
         <parameter name="aTab"/>
         <body>
           <![CDATA[
-            if (this.tabs.length == 1)
+            if (this.visibleTabs.length == 1)
               return null;
 
             // tell a new window to take the "dropped" tab
@@ -2903,11 +2909,6 @@
             else
               newMargin = rect.right - tabRect.right;
           }
-          // ensure we never place the drop indicator beyond our limits
-          if (newMargin < minMargin)
-            newMargin = minMargin;
-          else if (newMargin > maxMargin)
-            newMargin = maxMargin;
         }
 
         ind.collapsed = false;
@@ -3309,7 +3310,7 @@
       <![CDATA[
         // set up the menu popup
         var tabcontainer = gBrowser.tabContainer;
-        var tabs = gBrowser.visibleTabs;
+        let tabs = gBrowser.visibleTabs;
 
         // Listen for changes in the tab bar.
         tabcontainer.addEventListener("TabOpen", this, false);
