@@ -141,10 +141,8 @@ private:
   void Cleanup()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    // MediaDecoderReader expects that BufferDecoder is alive.
-    // Destruct MediaDecoderReader first.
-    mDecoderReader = nullptr;
     mBufferDecoder = nullptr;
+    mDecoderReader = nullptr;
   }
 
 private:

@@ -828,10 +828,8 @@ nsDOMCameraControl::AutoFocus(CameraAutoFocusCallback& aOnSuccess,
     // we have a callback, which means we're already in the process of
     // auto-focusing--cancel the old callback
     nsCOMPtr<CameraErrorCallback> ecb = mAutoFocusOnErrorCb.forget();
-    if (ecb) {
-      ErrorResult ignored;
-      ecb->Call(NS_LITERAL_STRING("Interrupted"), ignored);
-    }
+    ErrorResult ignored;
+    ecb->Call(NS_LITERAL_STRING("Interrupted"), ignored);
     cancel = true;
   }
 

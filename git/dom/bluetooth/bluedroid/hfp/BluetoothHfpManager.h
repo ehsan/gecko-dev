@@ -155,7 +155,6 @@ private:
   void SendResponse(bthf_at_response_t aResponseCode);
 
   int mConnectionState;
-  int mPrevConnectionState;
   int mAudioState;
   // Phone CIND
   int mCallSetupState;

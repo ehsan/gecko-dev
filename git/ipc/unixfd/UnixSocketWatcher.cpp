@@ -98,14 +98,11 @@ UnixSocketWatcher::OnFileCanReadWithoutBlocking(int aFd)
   if (mConnectionStatus == SOCKET_IS_CONNECTED) {
     OnSocketCanReceiveWithoutBlocking();
   } else if (mConnectionStatus == SOCKET_IS_LISTENING) {
-    sockaddr_any addr;
-    socklen_t addrLen = sizeof(addr);
-    int fd = TEMP_FAILURE_RETRY(accept(GetFd(),
-      reinterpret_cast<struct sockaddr*>(&addr), &addrLen));
+    int fd = TEMP_FAILURE_RETRY(accept(GetFd(), NULL, NULL));
     if (fd < 0) {
       OnError("accept", errno);
     } else {
-      OnAccepted(fd, &addr, addrLen);
+      OnAccepted(fd);
     }
   } else {
     NS_NOTREACHED("invalid connection state for reading");

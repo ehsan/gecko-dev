@@ -23,7 +23,7 @@ namespace layers {
 void
 ColorLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 {
-  EffectChain effects(this);
+  EffectChain effects;
   gfxRGBA color(GetColor());
   effects.mPrimaryEffect = new EffectSolidColor(gfx::Color(color.r,
                                                            color.g,
